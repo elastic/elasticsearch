@@ -1,0 +1,6 @@
+area: Inference
+issues:
+ - 158521
+pr: 158527
+summary: Fix NPE in Amazon Bedrock chat completion when a message has no content
+type: bug

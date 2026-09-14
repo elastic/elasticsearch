@@ -14,6 +14,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.inference.TaskType;
 import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xpack.inference.mapper.SemanticTextFieldMapper;
 
 import java.io.IOException;
 import java.util.List;
@@ -44,6 +45,11 @@ public class SemanticTextFieldEmbeddingsFieldIT extends AbstractInferenceFieldEm
     @Override
     Set<TaskType> supportedTaskTypes() {
         return SUPPORTED_TASK_TYPES;
+    }
+
+    @Override
+    String fieldTypeName() {
+        return SemanticTextFieldMapper.CONTENT_TYPE;
     }
 
     @Override

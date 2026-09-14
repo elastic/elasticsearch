@@ -9,6 +9,8 @@
 
 package org.elasticsearch.index;
 
+import org.elasticsearch.action.search.OpenPointInTimeRequest;
+import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.rest.FakeRestRequest;
@@ -87,6 +89,33 @@ public class SliceIndexingTests extends ESTestCase {
             () -> SliceIndexing.parseRoutingOrSliceWithProvenance(request)
         );
         assertThat(ex.getMessage(), containsString("request does not support [slice]"));
+    }
+
+    public void testParsedRoutingToSearchSlice() {
+        assertNull(new SliceIndexing.ParsedRouting("r1", false).toSearchSlice());
+        assertThat(new SliceIndexing.ParsedRouting("s1", true).toSearchSlice(), equalTo("s1"));
+        assertThat(new SliceIndexing.ParsedRouting(null, true).toSearchSlice(), equalTo(SliceIndexing.SLICE_ALL));
+    }
+
+    public void testApplySearchRoutingOrSliceUsesMutuallyExclusiveSetters() {
+        assumeTrue("slice indexing feature flag must be enabled", SliceIndexing.SLICE_FEATURE_FLAG.isEnabled());
+        SearchRequest searchRequest = new SearchRequest();
+        SliceIndexing.applySearchRoutingOrSlice(new SliceIndexing.ParsedRouting("s1", true), searchRequest);
+        assertThat(searchRequest.searchSlice(), equalTo("s1"));
+        assertThat(searchRequest.routing(), equalTo("s1"));
+        assertTrue(searchRequest.isRoutingFromSlice());
+
+        searchRequest = new SearchRequest();
+        SliceIndexing.applySearchRoutingOrSlice(new SliceIndexing.ParsedRouting("r1", false), searchRequest);
+        assertNull(searchRequest.searchSlice());
+        assertThat(searchRequest.routing(), equalTo("r1"));
+        assertFalse(searchRequest.isRoutingFromSlice());
+
+        OpenPointInTimeRequest pitRequest = new OpenPointInTimeRequest("idx");
+        SliceIndexing.applySearchRoutingOrSlice(new SliceIndexing.ParsedRouting(null, true), pitRequest);
+        assertThat(pitRequest.searchSlice(), equalTo(SliceIndexing.SLICE_ALL));
+        assertNull(pitRequest.routing());
+        assertTrue(pitRequest.isRoutingFromSlice());
     }
 
     private static void assertInvalid(String value) {

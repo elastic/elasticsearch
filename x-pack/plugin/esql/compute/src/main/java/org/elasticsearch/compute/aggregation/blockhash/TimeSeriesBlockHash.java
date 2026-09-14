@@ -113,6 +113,7 @@ public final class TimeSeriesBlockHash extends BlockHash {
         int prevGroupId = (int) hashOrdToGroup(finalHash.add(tsid, prevTimestamp));
         if (timestamps.isConstant() || constantTimestamp(timestamps, prevTimestamp, positionCount)) {
             try (var groups = blockFactory.newConstantIntVector(prevGroupId, positionCount)) {
+                assert assertKeysMatchGroups(0, groups, tsidVector, timestamps);
                 addInput.add(0, groups);
             }
             return;
@@ -131,6 +132,7 @@ public final class TimeSeriesBlockHash extends BlockHash {
             groupsIds = groupBuilder.build();
         }
         try (groupsIds) {
+            assert assertKeysMatchGroups(0, groupsIds, tsidVector, timestamps);
             addInput.add(0, groupsIds);
         }
     }
@@ -144,6 +146,31 @@ public final class TimeSeriesBlockHash extends BlockHash {
             if (timestamps.getLong(i) != firstTimestamp) {
                 return false;
             }
+        }
+        return true;
+    }
+
+    private boolean assertKeysMatchGroups(int positionOffset, IntVector groupIds, BytesRefVector tsids, LongVector timestamps) {
+        BytesRef expectedTsid = new BytesRef();
+        BytesRef groupTsid = new BytesRef();
+        for (int p = 0; p < groupIds.getPositionCount(); p++) {
+            int groupId = groupIds.getInt(p);
+            int position = positionOffset + p;
+            long timestamp = timestamps.getLong(position);
+            long groupTimestamp = timestampForGroup(groupId);
+            assert timestamp == groupTimestamp
+                : "timestamp "
+                    + timestamp
+                    + " at position "
+                    + position
+                    + " was assigned to group "
+                    + groupId
+                    + " whose timestamp is "
+                    + groupTimestamp;
+            tsids.getBytesRef(position, expectedTsid);
+            tsidHash.get(tsidForGroup(groupId), groupTsid);
+            assert expectedTsid.bytesEquals(groupTsid)
+                : "tsid " + expectedTsid + " at position " + position + " was assigned to group " + groupId + " whose tsid is " + groupTsid;
         }
         return true;
     }
@@ -178,6 +205,7 @@ public final class TimeSeriesBlockHash extends BlockHash {
             }
             try (var groupsVector = blockFactory.newIntArrayVector(groupIds, ordinalsLength, acquiredBytes)) {
                 acquiredBytes = 0;
+                assert assertKeysMatchGroups(0, groupsVector, tsidVector, timestamps);
                 addInput.add(0, groupsVector);
             }
         } finally {
@@ -201,6 +229,7 @@ public final class TimeSeriesBlockHash extends BlockHash {
             }
             try (var groupIds = blockFactory.newIntArrayVector(ords, positionCount, acquiredBytes)) {
                 acquiredBytes = 0;
+                assert assertKeysMatchGroups(0, groupIds, tsidVector, timestamps);
                 addInput.add(0, groupIds);
             }
         } finally {

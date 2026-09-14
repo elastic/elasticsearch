@@ -8,6 +8,7 @@
 package org.elasticsearch.xpack.esql.optimizer.rules.logical.local;
 
 import org.elasticsearch.xpack.esql.core.expression.FieldAttribute;
+import org.elasticsearch.xpack.esql.expression.function.aggregate.PackDimsAgg;
 import org.elasticsearch.xpack.esql.expression.predicate.logical.Or;
 import org.elasticsearch.xpack.esql.expression.predicate.nulls.IsNotNull;
 import org.elasticsearch.xpack.esql.optimizer.AbstractLocalLogicalPlanOptimizerTests;
@@ -21,6 +22,7 @@ import org.elasticsearch.xpack.esql.plan.logical.PackDims;
 import org.elasticsearch.xpack.esql.plan.logical.Project;
 import org.elasticsearch.xpack.esql.plan.logical.UnpackDims;
 
+import static org.elasticsearch.test.TransportVersionUtils.getPreviousVersion;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.as;
 import static org.hamcrest.Matchers.hasSize;
 
@@ -60,7 +62,10 @@ public class IgnoreNullMetricsTests extends AbstractLocalLogicalPlanOptimizerTes
     }
 
     public void testDimensionsAreNotFiltered() {
-        LogicalPlan actual = metrics().localPlan("""
+        // Dimension packing has two representations: a standalone PackDims/UnpackDims pair (older versions) or a PACKDIMSAGG aggregate
+        // folded into the time-series aggregate (pack_dims_agg and later). The analyzer picks a random compatible version by default, so
+        // pin to the version just below pack_dims_agg to assert the standalone PackDims/UnpackDims shape deterministically.
+        LogicalPlan actual = metrics().minimumTransportVersion(getPreviousVersion(PackDimsAgg.PACK_DIMS_AGG_VERSION)).localPlan("""
             TS test
             | STATS max(max_over_time(metric_1)) BY dimension_1
             | LIMIT 10

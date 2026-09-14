@@ -15,6 +15,7 @@ import org.elasticsearch.xpack.esql.core.expression.function.Function;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.expression.function.DocsV3Support;
 import org.elasticsearch.xpack.esql.expression.function.UnresolvedFunction;
+import org.elasticsearch.xpack.esql.expression.function.aggregate.FilteredExpression;
 import org.elasticsearch.xpack.esql.expression.function.fulltext.MatchOperator;
 import org.elasticsearch.xpack.esql.expression.function.scalar.string.regex.DeferredRegexExpression;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.InSubquery;
@@ -553,9 +554,7 @@ public final class AstKeywordFieldRewriter {
                 return scope;
             }
             if (node instanceof UnionAll unionAll) {
-                // UnionAll (a Fork subclass) backs `FROM a, (subquery), ...`; it must be matched
-                // before Fork so the union-of-independent-sources semantics apply rather than the
-                // shared-input FORK ones.
+                // UnionAll backs `FROM a, (subquery), ...`; independent sources, unlike FORK's shared input.
                 return processUnionAll(unionAll, scope);
             }
             if (node instanceof Fork fork) {
@@ -662,21 +661,30 @@ public final class AstKeywordFieldRewriter {
          * rebound names for {@code INLINE STATS} (row preserved).
          */
         private Set<String> processAggregate(Aggregate aggregate, Set<String> scope, boolean preserveInput) {
+            Set<String> hoist = new HashSet<>();
+            for (NamedExpression ne : aggregate.aggregates()) {
+                if (ne instanceof Alias alias && alias.child() instanceof FilteredExpression fe) {
+                    hoist.addAll(collectInSubqueryLhsHoist(fe.filter(), scope));
+                }
+            }
+            hoistBeforeCommand(aggregate.source(), hoist);
+            Set<String> wrapScope = removeAll(scope, hoist);
+
             List<String> aliasedBy = new ArrayList<>();
             Set<String> shadowed = new HashSet<>();
             for (Expression grouping : aggregate.groupings()) {
-                classifyStatsPiece(grouping, scope, true, aliasedBy, shadowed);
+                classifyStatsPiece(grouping, wrapScope, true, aliasedBy, shadowed);
             }
             // The parser appends one attribute reference per grouping key to the end of the
             // aggregates list; only the leading user-written aggregates need processing.
             List<? extends NamedExpression> aggregates = aggregate.aggregates();
             int userAggCount = aggregates.size() - aggregate.groupings().size();
             for (int i = 0; i < userAggCount; i++) {
-                classifyStatsPiece(aggregates.get(i), scope, false, aliasedBy, shadowed);
+                classifyStatsPiece(aggregates.get(i), wrapScope, false, aliasedBy, shadowed);
             }
             insertStatsRenameBack(aggregate, aliasedBy, preserveInput);
             if (preserveInput) {
-                return removeAll(scope, shadowed);
+                return removeAll(wrapScope, shadowed);
             }
             return new HashSet<>();
         }

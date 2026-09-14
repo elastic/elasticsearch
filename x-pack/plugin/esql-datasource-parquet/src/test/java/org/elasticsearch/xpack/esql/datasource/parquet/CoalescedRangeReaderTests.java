@@ -28,6 +28,7 @@ import java.io.IOException;
 import java.io.InputStream;
 import java.nio.ByteBuffer;
 import java.time.Instant;
+import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -106,6 +107,74 @@ public class CoalescedRangeReaderTests extends ESTestCase {
         assertEquals(1, merged.size());
         assertEquals(0, merged.get(0).offset());
         assertEquals(350, merged.get(0).length());
+    }
+
+    public void testMergeRangesCapsGroupsWithoutSplittingConstituents() {
+        long constituentSize = CoalescedRangeReader.MAX_MERGED_RANGE_BYTES / 4;
+        List<ByteRange> ranges = List.of(
+            new ByteRange(0, constituentSize),
+            new ByteRange(constituentSize, constituentSize),
+            new ByteRange(2 * constituentSize, constituentSize),
+            new ByteRange(3 * constituentSize, constituentSize),
+            new ByteRange(4 * constituentSize, constituentSize)
+        );
+
+        List<MergedRange> merged = CoalescedRangeReader.mergeRanges(ranges, 0);
+
+        assertEquals(2, merged.size());
+        assertEquals(CoalescedRangeReader.MAX_MERGED_RANGE_BYTES, merged.get(0).length());
+        assertEquals(constituentSize, merged.get(1).length());
+        assertEquals(ranges.subList(0, 4), merged.get(0).constituents());
+        assertEquals(List.of(ranges.get(4)), merged.get(1).constituents());
+        for (ByteRange range : ranges) {
+            assertEquals(1L, merged.stream().filter(group -> group.constituents().contains(range)).count());
+        }
+    }
+
+    public void testMergeRangesAlwaysAdmitsOversizedConstituent() {
+        long oversized = CoalescedRangeReader.MAX_MERGED_RANGE_BYTES + 1;
+        ByteRange first = new ByteRange(0, oversized);
+        ByteRange second = new ByteRange(oversized, 10);
+
+        List<MergedRange> merged = CoalescedRangeReader.mergeRanges(List.of(first, second), 0);
+
+        assertEquals(2, merged.size());
+        assertEquals(oversized, merged.get(0).length());
+        assertEquals(List.of(first), merged.get(0).constituents());
+        assertEquals(List.of(second), merged.get(1).constituents());
+    }
+
+    public void testMergeRangesStartsNewGroupAtOverlappingConstituentWhenCapped() {
+        long cap = CoalescedRangeReader.MAX_MERGED_RANGE_BYTES;
+        ByteRange first = new ByteRange(0, cap);
+        ByteRange overlapping = new ByteRange(cap - 10, 20);
+
+        List<MergedRange> merged = CoalescedRangeReader.mergeRanges(List.of(first, overlapping), 0);
+
+        assertEquals(2, merged.size());
+        assertEquals(0L, merged.get(0).offset());
+        assertEquals(cap, merged.get(0).length());
+        assertEquals(cap - 10, merged.get(1).offset());
+        assertEquals(20L, merged.get(1).length());
+    }
+
+    public void testByteRangeRejectsInvalidBounds() {
+        IllegalArgumentException negativeOffset = expectThrows(IllegalArgumentException.class, () -> new ByteRange(-1, 1));
+        assertThat(negativeOffset.getMessage(), containsString("offset must be non-negative"));
+
+        IllegalArgumentException negativeLength = expectThrows(IllegalArgumentException.class, () -> new ByteRange(0, -1));
+        assertThat(negativeLength.getMessage(), containsString("length must be non-negative"));
+
+        IllegalArgumentException overflow = expectThrows(IllegalArgumentException.class, () -> new ByteRange(Long.MAX_VALUE, 1));
+        assertThat(overflow.getMessage(), containsString("overflows a long"));
+    }
+
+    public void testReadCoalescedSyncRejectsOversizedConstituentAsIllegalArgument() {
+        IllegalArgumentException exception = expectThrows(
+            IllegalArgumentException.class,
+            () -> CoalescedRangeReader.readCoalescedSync(null, List.of(new ByteRange(0, (long) Integer.MAX_VALUE + 1)), 0, breaker)
+        );
+        assertThat(exception.getMessage(), containsString("must fit in an int"));
     }
 
     public void testReadCoalescedParallelDispatch() throws Exception {
@@ -213,6 +282,87 @@ public class CoalescedRangeReaderTests extends ESTestCase {
         }
     }
 
+    public void testReadCoalescedNeverAllocatesAboveCapForOrdinaryConstituents() throws Exception {
+        long constituentSize = CoalescedRangeReader.MAX_MERGED_RANGE_BYTES / 4;
+        List<ByteRange> ranges = new ArrayList<>();
+        for (int i = 0; i < 5; i++) {
+            ranges.add(new ByteRange(i * constituentSize, constituentSize));
+        }
+        List<Long> requestLengths = new ArrayList<>();
+        StorageObject storageObject = new StorageObject() {
+            @Override
+            public InputStream newStream(long position, long length) {
+                throw new UnsupportedOperationException("async path only");
+            }
+
+            @Override
+            public long length() {
+                return 5 * constituentSize;
+            }
+
+            @Override
+            public Instant lastModified() {
+                return Instant.EPOCH;
+            }
+
+            @Override
+            public boolean exists() {
+                return true;
+            }
+
+            @Override
+            public StoragePath path() {
+                return StoragePath.of("memory://wide.parquet");
+            }
+
+            @Override
+            public void readBytesAsync(
+                long position,
+                long length,
+                DirectBufferFactory factory,
+                Executor executor,
+                ActionListener<DirectReadBuffer> listener
+            ) {
+                requestLengths.add(length);
+                try {
+                    DirectReadBuffer buffer = factory.allocateWritableWindow((int) length);
+                    listener.onResponse(buffer);
+                } catch (Exception e) {
+                    listener.onFailure(e);
+                }
+            }
+        };
+        LimitedBreaker wideBreaker = new LimitedBreaker("wide", ByteSizeValue.ofMb(32));
+        CountDownLatch latch = new CountDownLatch(1);
+        AtomicReference<CoalescedRangeResult> result = new AtomicReference<>();
+        AtomicReference<Exception> failure = new AtomicReference<>();
+
+        CoalescedRangeReader.readCoalesced(storageObject, ranges, 0, wideBreaker, Runnable::run, new ActionListener<>() {
+            @Override
+            public void onResponse(CoalescedRangeResult response) {
+                result.set(response);
+                latch.countDown();
+            }
+
+            @Override
+            public void onFailure(Exception e) {
+                failure.set(e);
+                latch.countDown();
+            }
+        });
+
+        assertTrue(latch.await(10, TimeUnit.SECONDS));
+        assertNull(failure.get());
+        assertNotNull(result.get());
+        try {
+            assertEquals(List.of(CoalescedRangeReader.MAX_MERGED_RANGE_BYTES, constituentSize), requestLengths);
+            assertTrue(requestLengths.stream().allMatch(length -> length <= CoalescedRangeReader.MAX_MERGED_RANGE_BYTES));
+        } finally {
+            result.get().release().close();
+        }
+        assertEquals(0L, wideBreaker.getUsed());
+    }
+
     public void testReadCoalescedEmptyRanges() throws Exception {
         CountDownLatch latch = new CountDownLatch(1);
         AtomicReference<CoalescedRangeResult> resultRef = new AtomicReference<>();
@@ -296,7 +446,7 @@ public class CoalescedRangeReaderTests extends ESTestCase {
 
         assertTrue(latch.await(5, TimeUnit.SECONDS));
         assertNotNull(failureRef.get());
-        assertThat(failureRef.get().getMessage(), org.hamcrest.Matchers.containsString("test failure"));
+        assertThat(failureRef.get().getMessage(), containsString("test failure"));
     }
 
     /**
@@ -369,7 +519,7 @@ public class CoalescedRangeReaderTests extends ESTestCase {
                 executor.execute(() -> {
                     final DirectReadBuffer drb;
                     try {
-                        drb = factory.allocate((int) length);
+                        drb = factory.allocateWritableWindow((int) length);
                     } catch (IOException e) {
                         listener.onFailure(e);
                         return;
@@ -484,7 +634,7 @@ public class CoalescedRangeReaderTests extends ESTestCase {
                             }
                             final DirectReadBuffer drb;
                             try {
-                                drb = factory.allocate((int) length);
+                                drb = factory.allocateWritableWindow((int) length);
                             } catch (IOException e) {
                                 listener.onFailure(e);
                                 return;

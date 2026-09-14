@@ -62,7 +62,6 @@ import org.elasticsearch.index.mapper.BlockLoader;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.index.shard.ShardId;
-import org.elasticsearch.index.store.Store;
 import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.search.SearchService;
 import org.elasticsearch.search.internal.AliasFilter;
@@ -504,7 +503,7 @@ public abstract class AbstractLookupService<R extends AbstractLookupService.Requ
             Driver.start(threadContext, executor, driver, Driver.DEFAULT_MAX_ITERATIONS, new ActionListener<Void>() {
                 @Override
                 public void onResponse(Void unused) {
-                    DriverCompletionInfo completionInfo = DriverCompletionInfo.excludingProfiles(List.of(driver), 0L);
+                    DriverCompletionInfo completionInfo = DriverCompletionInfo.excludingProfiles(List.of(driver), 0L, false);
                     List<Page> out = collectedPages;
                     if (mergePages && out.isEmpty()) {
                         out = List.of(createNullResponse(request.inputPage.getPositionCount(), request.extractFields));
@@ -587,13 +586,9 @@ public abstract class AbstractLookupService<R extends AbstractLookupService.Requ
 
     /**
      * Returns a {@link LongSupplier} for the current thread's store directory bytes read counter.
-     * Returns {@code () -> 0L} when the {@code directory_metrics} feature flag is disabled.
      */
     protected static LongSupplier directoryBytesReadSupplier(IndicesService indicesService) {
-        if (Store.DIRECTORY_METRICS_FEATURE_FLAG.isEnabled()) {
-            return indicesService::currentStoreBytesRead;
-        }
-        return () -> 0L;
+        return indicesService::currentStoreBytesRead;
     }
 
     public CircuitBreaker getBreaker() {

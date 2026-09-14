@@ -45,6 +45,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.core.CheckedConsumer;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.IndexVersion;
@@ -200,17 +201,36 @@ public abstract class MapperTestCase extends MapperServiceTestCase {
     }
 
     /**
-     * Most field types expose no embeddings, so they must return {@code null} for every requested vector type. Field types that can
-     * produce embeddings override this test.
+     * Most field types expose no embeddings, so they must throw for every requested vector type. Field types that can produce
+     * embeddings override this test.
      */
     public void testEmbeddingsFieldAndFormat() throws IOException {
         MapperService mapperService = createMapperService(fieldMapping(this::minimalMapping));
         MappedFieldType fieldType = mapperService.fieldType("field");
-        assertNull(fieldType.embeddingsFieldAndFormat(null));
+        assertUnsupportedEmbeddings(fieldType, null);
         for (VectorType vectorType : VectorType.values()) {
-            assertNull(fieldType.embeddingsFieldAndFormat(vectorType));
+            assertUnsupportedEmbeddings(fieldType, vectorType);
         }
         assertParseMinimalWarnings();
+    }
+
+    /**
+     * Asserts that the field type cannot produce embeddings of the requested type, failing with the message that
+     * {@link MappedFieldType#unsupportedEmbeddings} builds.
+     */
+    protected static void assertUnsupportedEmbeddings(MappedFieldType fieldType, @Nullable VectorType vectorType) {
+        IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> fieldType.embeddingsFieldAndFormat(vectorType));
+        assertThat(
+            e.getMessage(),
+            equalTo(
+                "Field ["
+                    + fieldType.name()
+                    + "] of type ["
+                    + fieldType.typeName()
+                    + "] does not support "
+                    + (vectorType == null ? "embeddings" : "[" + vectorType + "] embeddings")
+            )
+        );
     }
 
     // TODO make this final once we've worked out what is happening with DenseVector
@@ -261,15 +281,26 @@ public abstract class MapperTestCase extends MapperServiceTestCase {
         private final CheckedConsumer<XContentBuilder, IOException> mapping;
         private final CheckedConsumer<XContentBuilder, IOException> value;
         private final Matcher<String> exceptionMessageMatcher;
+        private final boolean skipInColumnar;
+
+        private ExampleMalformedValue(
+            CheckedConsumer<XContentBuilder, IOException> mapping,
+            CheckedConsumer<XContentBuilder, IOException> value,
+            Matcher<String> exceptionMessageMatcher,
+            boolean skipInColumnar
+        ) {
+            this.mapping = mapping;
+            this.value = value;
+            this.exceptionMessageMatcher = exceptionMessageMatcher;
+            this.skipInColumnar = skipInColumnar;
+        }
 
         private ExampleMalformedValue(
             CheckedConsumer<XContentBuilder, IOException> mapping,
             CheckedConsumer<XContentBuilder, IOException> value,
             Matcher<String> exceptionMessageMatcher
         ) {
-            this.mapping = mapping;
-            this.value = value;
-            this.exceptionMessageMatcher = exceptionMessageMatcher;
+            this(mapping, value, exceptionMessageMatcher, false);
         }
 
         /**
@@ -277,7 +308,7 @@ public abstract class MapperTestCase extends MapperServiceTestCase {
          * {@link MapperTestCase#minimalMapping}.
          */
         public ExampleMalformedValue mapping(CheckedConsumer<XContentBuilder, IOException> newMapping) {
-            return new ExampleMalformedValue(newMapping, value, exceptionMessageMatcher);
+            return new ExampleMalformedValue(newMapping, value, exceptionMessageMatcher, skipInColumnar);
         }
 
         /**
@@ -291,7 +322,16 @@ public abstract class MapperTestCase extends MapperServiceTestCase {
          * Match the error message in an arbitrary way.
          */
         public ExampleMalformedValue errorMatches(Matcher<String> newMatcher) {
-            return new ExampleMalformedValue(mapping, value, newMatcher);
+            return new ExampleMalformedValue(mapping, value, newMatcher, skipInColumnar);
+        }
+
+        /**
+         * Mark this example as one that should be skipped in strict-columnar index tests.
+         * Use for object-shaped values that are flattened by COLUMNAR's {@code subobjects=DISABLED}
+         * rather than being detected as malformed by the field mapper.
+         */
+        public ExampleMalformedValue skipInColumnar() {
+            return new ExampleMalformedValue(mapping, value, exceptionMessageMatcher, true);
         }
     }
 
@@ -375,6 +415,55 @@ public abstract class MapperTestCase extends MapperServiceTestCase {
             assertThat(fields, empty());
             assertThat(TermVectorsService.getValues(doc.rootDoc().getFields("_ignored")), contains("field"));
         }
+    }
+
+    /**
+     * In strict-columnar indices, ignore_malformed values share the per-field {@code ._on_failure} sidecar column with
+     * multi-value violations instead of using the dedicated {@code ._ignore_malformed} column. Verifies the write path
+     * for every malformed example the mapper declares.
+     *
+     * <p>Override {@link #supportsColumnarIgnoreMalformed()} and return {@code false} for field types that do not
+     * support {@link org.elasticsearch.index.IndexMode#COLUMNAR} at all, or whose parsers do not preserve the raw
+     * malformed input in a sidecar column (e.g. geometry types whose parsers call
+     * {@link AbstractGeometryFieldMapper.MalformedValueHandler#notify(Exception)} without an {@code XContentBuilder}).
+     */
+    public void testIgnoreMalformedInColumnarModeUsesOnFailureColumn() throws IOException {
+        assumeTrue("type doesn't support ignore_malformed", supportsIgnoreMalformed());
+        assumeTrue("type not supported in columnar index mode", supportsColumnarIgnoreMalformed());
+        for (ExampleMalformedValue example : exampleMalformedValues()) {
+            if (example.skipInColumnar) {
+                // Object-shaped values are flattened by COLUMNAR's subobjects=DISABLED rather than
+                // being detected as malformed by the field mapper, so skip them here.
+                continue;
+            }
+            CheckedConsumer<XContentBuilder, IOException> mapping = b -> {
+                example.mapping.accept(b);
+                b.field("ignore_malformed", true);
+            };
+            DocumentMapper mapper = createColumnarModeDocumentMapper(fieldMapping(mapping));
+            ParsedDocument doc = mapper.parse(source(b -> {
+                b.field("field");
+                example.value.accept(b);
+            }));
+            FieldStorageVerifier.forField("field", doc.rootDoc()).expectOnFailure().verify();
+            assertThat(TermVectorsService.getValues(doc.rootDoc().getFields("_ignored")), contains("field"));
+            // Malformed values must also round-trip correctly through synthetic source.
+            assertSyntheticSource(new SyntheticSourceExample(example.value, example.value, mapping), true);
+        }
+    }
+
+    /**
+     * Whether this field type correctly routes {@code ignore_malformed} values to the {@code ._on_failure} sidecar column
+     * in a strict-columnar index. Return {@code false} when either:
+     * <ul>
+     *   <li>the type is rejected by {@link org.elasticsearch.index.IndexMode#COLUMNAR} altogether, or</li>
+     *   <li>the type's parser does not preserve the raw malformed input (e.g. geometry types whose parsers call
+     *       {@link AbstractGeometryFieldMapper.MalformedValueHandler#notify(Exception)} without an {@code XContentBuilder},
+     *       so the value is silently dropped and nothing reaches the sidecar column).</li>
+     * </ul>
+     */
+    protected boolean supportsColumnarIgnoreMalformed() {
+        return true;
     }
 
     protected void assertIgnoredSourceIsEmpty(ParsedDocument doc) {
@@ -2487,7 +2576,6 @@ public abstract class MapperTestCase extends MapperServiceTestCase {
 
     private void assumeOnFailureIgnoreSupported() {
         assumeTrue("supports doc_values on_failure parameter", supportsOnFailureParameter());
-        assumeTrue("doc_values on_failure feature flag must be enabled", FieldMapper.DOC_VALUES_ON_FAILURE_FEATURE_FLAG.isEnabled());
     }
 
     private XContentBuilder onFailureIgnoreMapping(String enforcedParameter) throws IOException {

@@ -11,7 +11,6 @@ package org.elasticsearch.simdvec;
 
 import org.elasticsearch.foreign.LibraryProvider;
 import org.elasticsearch.foreign.Platform;
-import org.elasticsearch.nativeaccess.lib.NativeLibraryProvider;
 import org.elasticsearch.nativeaccess.lib.PosixCLibrary;
 
 import java.lang.foreign.Arena;
@@ -58,12 +57,7 @@ final class PosixGuardPageAllocator extends GuardPageAllocator {
             case DARWIN_X64, DARWIN_AARCH64 -> PosixMemLibraryConstants.DARWIN;
             case WINDOWS_X64 -> throw new AssertionError("Windows is not a Posix supported platform");
         };
-        return new PosixGuardPageAllocator(
-            delegate,
-            MEM_LIBRARY,
-            NativeLibraryProvider.instance().getLibrary(PosixCLibrary.class),
-            constants
-        );
+        return new PosixGuardPageAllocator(delegate, MEM_LIBRARY, LibraryProvider.lookupLibrary(PosixCLibrary.class), constants);
     }
 
     private PosixGuardPageAllocator(Arena delegate, PosixMemLibrary memLibrary, PosixCLibrary libc, PosixMemLibraryConstants constants) {

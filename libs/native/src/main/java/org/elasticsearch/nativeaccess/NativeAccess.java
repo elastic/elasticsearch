@@ -173,11 +173,6 @@ public interface NativeAccess {
     void tryPreallocate(Path file, long size);
 
     /**
-     * Returns Parquet-rs native functions, or an empty optional if unavailable on this platform.
-     */
-    Optional<ParquetRsFunctions> getParquetRsFunctions();
-
-    /**
      * Creates a new {@link MappedSegment} using a shared arena. The segment can be used
      * across multiple threads, and should be closed.
      * @return the mapped segment

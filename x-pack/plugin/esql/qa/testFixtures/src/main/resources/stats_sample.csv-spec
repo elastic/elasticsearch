@@ -173,6 +173,7 @@ true
 
 sample cartesian_point
 required_capability: agg_sample
+skip_columnar: columnar rebuilds point coordinates from quantized doc values, so rendered coordinates differ from the _source values in the last decimals
 
 FROM airports_web | SORT abbrev | LIMIT 3 | STATS sample = SAMPLE(location, 999) | EVAL sample = MV_SORT(sample::string)
 ;
@@ -206,6 +207,7 @@ sample:date_nanos
 
 sample geo_point
 required_capability: agg_sample
+skip_columnar: columnar rebuilds point coordinates from quantized doc values, so rendered coordinates differ from the _source values in the last decimals
 
 FROM airports | SORT abbrev | LIMIT 2 | STATS sample = SAMPLE(location, 999) | EVAL sample = MV_SORT(sample::string)
 ;

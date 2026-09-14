@@ -7,17 +7,25 @@
 package org.elasticsearch.xpack.esql.datasources;
 
 import org.apache.lucene.util.BytesRef;
+import org.elasticsearch.common.breaker.CircuitBreakingException;
 import org.elasticsearch.common.breaker.NoopCircuitBreaker;
+import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.util.BigArrays;
+import org.elasticsearch.common.util.MockBigArrays;
+import org.elasticsearch.common.util.PageCacheRecycler;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.BooleanBlock;
 import org.elasticsearch.compute.data.BytesRefBlock;
+import org.elasticsearch.compute.data.ConstantNullBlock;
 import org.elasticsearch.compute.data.DoubleBlock;
+import org.elasticsearch.compute.data.ElementType;
 import org.elasticsearch.compute.data.IntBlock;
 import org.elasticsearch.compute.data.LongBlock;
 import org.elasticsearch.compute.data.Page;
+import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.xpack.esql.core.InvalidArgumentException;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.Literal;
@@ -36,9 +44,11 @@ import java.util.List;
 import static org.hamcrest.Matchers.equalTo;
 
 /**
- * Direct unit tests for {@link ColumnMapping#pruneToPerFileQuery} — the fused method that
- * narrows a per-file mapping from (Unified width, file-natural source positions) to
- * (Query width, projected-page source positions). Covers the targeted shapes:
+ * Direct unit tests for {@link ColumnMapping#pruneToPerFileQuery} and
+ * {@link ColumnMapping#alignToQuery}. {@code pruneToPerFileQuery} narrows a per-file mapping
+ * from (Unified width, file-natural source positions) to (Query width, projected-page source
+ * positions). {@code alignToQuery} rebuilds a query-width mapping from names when the caller
+ * still holds a unified-width mapping. Covers the targeted shapes:
  * <ul>
  *   <li>{@code kept=0} — the query selects nothing from this file
  *   <li>cast-only — no missing columns, only widening casts
@@ -46,6 +56,9 @@ import static org.hamcrest.Matchers.equalTo;
  *   <li>partitions-present — regression guard for the partition-column seed bug
  *       (an enriched Unified passed alongside a data-only-sized mapping would
  *       overrun {@code index.length}; the precondition assertion catches the mismatch)
+ *   <li>align-to-query — query subset of file, missing column ({@code -1} null-fill),
+ *       INT→LONG widening cast, Hive middle-partition projected-page indices, query-schema
+ *       order, and fail-fast on a non-{@code CastType} target
  * </ul>
  */
 public class ColumnMappingTests extends ESTestCase {
@@ -129,6 +142,128 @@ public class ColumnMappingTests extends ESTestCase {
         assertTrue(
             "assertion message points at the width mismatch",
             e.getMessage() != null && e.getMessage().contains("disagrees with mapping width")
+        );
+    }
+
+    // ===== alignToQuery =====
+
+    public void testAlignToQuerySubsetOfFile() {
+        // Query keeps {name, city}; the reader emits that projection (not the file-natural page).
+        ExternalSchema query = schema("name", "city");
+        List<Attribute> fileAttrs = schema("name", "age", "city").attributes();
+        List<String> perFileCols = List.of("name", "city");
+
+        ColumnMapping aligned = ColumnMapping.alignToQuery(query, fileAttrs, perFileCols);
+
+        assertEquals("output width matches query", 2, aligned.width());
+        assertEquals(0, aligned.localIndex(0));
+        assertEquals(1, aligned.localIndex(1));
+        assertNull(aligned.cast(0));
+        assertNull(aligned.cast(1));
+        assertTrue("projected subset with matching types is identity-shaped", aligned.isIdentity());
+    }
+
+    public void testAlignToQueryMissingColumnNullFills() {
+        // Query wants {name, country}; this file has no country, so the reader emits only name.
+        ExternalSchema query = schema("name", "country");
+        List<Attribute> fileAttrs = schema("name", "age").attributes();
+        List<String> perFileCols = List.of("name");
+
+        ColumnMapping aligned = ColumnMapping.alignToQuery(query, fileAttrs, perFileCols);
+
+        assertEquals(2, aligned.width());
+        assertEquals(0, aligned.localIndex(0));
+        assertEquals(-1, aligned.localIndex(1));
+        assertFalse(aligned.isIdentity());
+
+        BytesRefBlock nameBlock = blockFactory.newConstantBytesRefBlockWith(new BytesRef("alice"), 1);
+        Page filePage = new Page(1, new Block[] { nameBlock });
+        try {
+            Page out = aligned.mapPage(filePage, blockFactory);
+            try {
+                BytesRefBlock nameOut = out.getBlock(0);
+                assertEquals("alice", nameOut.getBytesRef(0, new BytesRef()).utf8ToString());
+                assertTrue("missing query column is null-filled", out.getBlock(1).areAllValuesNull());
+            } finally {
+                out.releaseBlocks();
+            }
+        } finally {
+            filePage.releaseBlocks();
+        }
+    }
+
+    public void testAlignToQueryWideningCastIntToLong() {
+        ExternalSchema query = new ExternalSchema(List.of(longAttr("id"), intAttr("value")));
+        List<Attribute> fileAttrs = List.of(intAttr("id"), intAttr("value"));
+        List<String> perFileCols = List.of("id", "value");
+
+        ColumnMapping aligned = ColumnMapping.alignToQuery(query, fileAttrs, perFileCols);
+
+        assertEquals(2, aligned.width());
+        assertEquals(0, aligned.localIndex(0));
+        assertEquals(1, aligned.localIndex(1));
+        assertEquals(DataType.LONG, aligned.cast(0));
+        assertNull(aligned.cast(1));
+
+        IntBlock idBlock = blockFactory.newConstantIntBlockWith(7, 1);
+        IntBlock valueBlock = blockFactory.newConstantIntBlockWith(100, 1);
+        Page filePage = new Page(1, new Block[] { idBlock, valueBlock });
+        try {
+            Page out = aligned.mapPage(filePage, blockFactory, new DataType[] { DataType.INTEGER, DataType.INTEGER });
+            try {
+                LongBlock idOut = out.getBlock(0);
+                assertEquals(7L, idOut.getLong(0));
+                IntBlock valueOut = out.getBlock(1);
+                assertEquals(100, valueOut.getInt(0));
+            } finally {
+                out.releaseBlocks();
+            }
+        } finally {
+            filePage.releaseBlocks();
+        }
+    }
+
+    public void testAlignToQueryHiveMiddlePartitionIndexesProjectedPage() {
+        // FFW Hive: physical [a, city, b] with city partitioned. computeMapping([a, b], physical)
+        // is [0, 2], but the reader emits the projected page [a, b], so indices must be [0, 1].
+        ExternalSchema query = schema("a", "b");
+        List<Attribute> fileAttrs = schema("a", "city", "b").attributes();
+        List<String> perFileCols = List.of("a", "b");
+
+        ColumnMapping aligned = ColumnMapping.alignToQuery(query, fileAttrs, perFileCols);
+
+        assertEquals(2, aligned.width());
+        assertEquals(0, aligned.localIndex(0));
+        assertEquals(1, aligned.localIndex(1));
+        assertTrue("projected [a, b] with matching types is identity-shaped", aligned.isIdentity());
+    }
+
+    public void testAlignToQueryFollowsQuerySchemaOrder() {
+        ExternalSchema query = schema("b", "a");
+        List<Attribute> fileAttrs = schema("a", "city", "b").attributes();
+        // perFileQueryProjection walks the file schema, so the reader's page is [a, b].
+        List<String> perFileCols = List.of("a", "b");
+
+        ColumnMapping aligned = ColumnMapping.alignToQuery(query, fileAttrs, perFileCols);
+
+        assertEquals(2, aligned.width());
+        assertEquals("b is the second projected block", 1, aligned.localIndex(0));
+        assertEquals("a is the first projected block", 0, aligned.localIndex(1));
+    }
+
+    public void testAlignToQueryRejectsUnsupportedCastTarget() {
+        // LONG→INTEGER is a DeclaredTypeCoercions pair, but INTEGER is not a CastType target.
+        ExternalSchema query = new ExternalSchema(List.of(intAttr("id")));
+        List<Attribute> fileAttrs = List.of(longAttr("id"));
+        List<String> perFileCols = List.of("id");
+
+        IllegalArgumentException e = expectThrows(
+            IllegalArgumentException.class,
+            () -> ColumnMapping.alignToQuery(query, fileAttrs, perFileCols)
+        );
+        assertTrue(
+            "message names the unsupported CastType target, got: " + e.getMessage(),
+            e.getMessage() != null && e.getMessage().contains("Unsupported cast target type")
         );
     }
 
@@ -302,6 +437,29 @@ public class ColumnMappingTests extends ESTestCase {
 
     // ===== mapPage failure-cleanup =====
 
+    public void testMapPagePreservesCircuitBreakingException() {
+        BigArrays limitedBigArrays = new MockBigArrays(PageCacheRecycler.NON_RECYCLING_INSTANCE, ByteSizeValue.ofBytes(0))
+            .withCircuitBreaking();
+        BlockFactory limitedBlockFactory = BlockFactory.builder(limitedBigArrays).build();
+        ColumnMapping mapping = new ColumnMapping(new int[] { 0, -1 }, null);
+        IntBlock passThrough = blockFactory.newConstantIntBlockWith(1, 1);
+        Page filePage = new Page(1, new Block[] { passThrough });
+
+        try {
+            CircuitBreakingException failure = expectThrows(
+                CircuitBreakingException.class,
+                () -> mapping.mapPage(filePage, limitedBlockFactory)
+            );
+            assertEquals(RestStatus.TOO_MANY_REQUESTS, failure.status());
+            assertFalse("cleanup must leave the input page's reference intact", passThrough.isReleased());
+        } finally {
+            filePage.releaseBlocks();
+        }
+
+        assertTrue("cleanup must undo the temporary pass-through reference", passThrough.isReleased());
+        assertEquals(0L, limitedBlockFactory.breaker().getUsed());
+    }
+
     public void testReconciliationCastMatchesDeclaredCoercion() {
         // THE one-coercion-path equivalence: casting a physical block through the reconciliation
         // route (mapPage with a cast slot) and through the declared route (DeclaredTypeCoercions
@@ -371,17 +529,18 @@ public class ColumnMappingTests extends ESTestCase {
 
     public void testCastDatetimeToDateNanosOutOfRangeIsStrictWithoutSink() {
         // Without a warnings sink the cast is strict: the unrepresentable instant fails the page
-        // (wrapped by mapPage) instead of nulling. Previously this pair silently multiplied into
-        // an overflowed long; the range rule now matches TO_DATE_NANOS (DateUtils.toNanoSeconds).
+        // with its client-error status intact instead of nulling. Previously this pair silently
+        // multiplied into an overflowed long; the range rule now matches TO_DATE_NANOS
+        // (DateUtils.toNanoSeconds).
         ColumnMapping mapping = new ColumnMapping(new int[] { 0 }, new DataType[] { DataType.DATE_NANOS });
         LongBlock src = blockFactory.newConstantLongBlockWith(-5L, 1);
         Page filePage = new Page(1, new Block[] { src });
         try {
-            RuntimeException e = expectThrows(
-                RuntimeException.class,
+            InvalidArgumentException e = expectThrows(
+                InvalidArgumentException.class,
                 () -> mapping.mapPage(filePage, blockFactory, new DataType[] { DataType.DATETIME })
             );
-            assertTrue("wrapped under mapPage's catch", e.getMessage() != null && e.getMessage().contains("Failed to map page"));
+            assertEquals(RestStatus.BAD_REQUEST, e.status());
         } finally {
             filePage.releaseBlocks();
         }
@@ -665,6 +824,124 @@ public class ColumnMappingTests extends ESTestCase {
                 "assertion message names the missing fileColumnTypes contract, got: " + e.getMessage(),
                 e.getMessage() != null && e.getMessage().contains("sourceType")
             );
+        } finally {
+            filePage.releaseBlocks();
+        }
+    }
+
+    // ===== all-null cast short-circuit =====
+    //
+    // Two-arg mapPage (null fileColumnTypes) infers from the block class. An all-null LongBlock
+    // under KEYWORD trips resolveSourceType's DATETIME/DATE_NANOS/LONG assert on main — that is
+    // the reachable UBN mapping. ConstantNullBlock implements every typed interface so the
+    // instanceof chain binds IntBlock first; BOOLEAN/IP targets are not a CastType and are
+    // covered only defensively.
+
+    public void testCastConstantNullBlockToAnyTargetWithoutSourceType() {
+        // LONG/DOUBLE/DATE_NANOS/KEYWORD are supported from INTEGER and already short-circuit
+        // in DeclaredTypeCoercions; BOOLEAN and IP are defensive (CastType cannot encode them).
+        DataType[] targets = { DataType.LONG, DataType.DOUBLE, DataType.DATE_NANOS, DataType.KEYWORD, DataType.BOOLEAN, DataType.IP };
+        int n = randomIntBetween(1, 8);
+        for (DataType target : targets) {
+            ColumnMapping mapping = new ColumnMapping(new int[] { 0 }, new DataType[] { target });
+            Block src = blockFactory.newConstantNullBlock(n);
+            Page filePage = new Page(n, new Block[] { src });
+            try {
+                Page out = mapping.mapPage(filePage, blockFactory);
+                try {
+                    Block result = out.getBlock(0);
+                    assertSame("ConstantNullBlock is incRef'd, not copied, for " + target, src, result);
+                    assertTrue("all-null ConstantNullBlock must cast to " + target, result.areAllValuesNull());
+                    assertEquals("short-circuit yields ElementType.NULL for " + target, ElementType.NULL, result.elementType());
+                    assertEquals("position count preserved for " + target, n, result.getPositionCount());
+                } finally {
+                    out.releaseBlocks();
+                }
+            } finally {
+                filePage.releaseBlocks();
+            }
+        }
+    }
+
+    public void testCastAllNullIntArrayBlockToBooleanAndIpWithoutSourceType() {
+        // IntBlock.Builder.build() does not collapse an all-null build to ConstantNullBlock —
+        // the result is an IntArrayBlock whose elementType is still INT. Narrowing the
+        // short-circuit to instanceof ConstantNullBlock would throw on BOOLEAN/IP. Those
+        // targets are defensive (not a CastType); the reachable typed-array case is the
+        // LongBlock → KEYWORD sibling below.
+        DataType[] targets = { DataType.BOOLEAN, DataType.IP };
+        int n = randomIntBetween(1, 8);
+        for (DataType target : targets) {
+            ColumnMapping mapping = new ColumnMapping(new int[] { 0 }, new DataType[] { target });
+            IntBlock src;
+            try (IntBlock.Builder b = blockFactory.newIntBlockBuilder(n)) {
+                for (int i = 0; i < n; i++) {
+                    b.appendNull();
+                }
+                src = b.build();
+            }
+            assumeFalse("IntBlock.Builder collapsed all-null to ConstantNullBlock", src instanceof ConstantNullBlock);
+            assertTrue(src.areAllValuesNull());
+            Page filePage = new Page(n, new Block[] { src });
+            try {
+                Page out = mapping.mapPage(filePage, blockFactory);
+                try {
+                    Block result = out.getBlock(0);
+                    assertTrue("all-null IntArrayBlock must cast to " + target, result.areAllValuesNull());
+                    assertEquals("short-circuit yields ElementType.NULL for " + target, ElementType.NULL, result.elementType());
+                    assertEquals("position count preserved for " + target, n, result.getPositionCount());
+                } finally {
+                    out.releaseBlocks();
+                }
+            } finally {
+                filePage.releaseBlocks();
+            }
+        }
+    }
+
+    public void testCastAllNullLongBlockToKeywordWithoutSourceType() {
+        // Reachable UBN mapping: KEYWORD is a CastType, and an all-null LongBlock with no
+        // sourceType trips resolveSourceType's DATETIME/DATE_NANOS/LONG assert on main.
+        int n = randomIntBetween(1, 8);
+        ColumnMapping mapping = new ColumnMapping(new int[] { 0 }, new DataType[] { DataType.KEYWORD });
+        LongBlock src;
+        try (LongBlock.Builder b = blockFactory.newLongBlockBuilder(n)) {
+            for (int i = 0; i < n; i++) {
+                b.appendNull();
+            }
+            src = b.build();
+        }
+        assumeFalse("LongBlock.Builder collapsed all-null to ConstantNullBlock", src instanceof ConstantNullBlock);
+        assertTrue(src.areAllValuesNull());
+        Page filePage = new Page(n, new Block[] { src });
+        try {
+            Page out = mapping.mapPage(filePage, blockFactory);
+            try {
+                Block result = out.getBlock(0);
+                assertTrue(result.areAllValuesNull());
+                assertEquals(ElementType.NULL, result.elementType());
+                assertEquals(n, result.getPositionCount());
+            } finally {
+                out.releaseBlocks();
+            }
+        } finally {
+            filePage.releaseBlocks();
+        }
+    }
+
+    public void testAllNullUnsupportedCastStillThrowsWhenSourceTypeKnown() {
+        // Gating the short-circuit on sourceType == null keeps supports() fail-loud for an
+        // ill-formed mapping even when the page happens to be all-null.
+        ColumnMapping mapping = new ColumnMapping(new int[] { 0 }, new DataType[] { DataType.LONG });
+        Block src = blockFactory.newConstantNullBlock(2);
+        Page filePage = new Page(2, new Block[] { src });
+        try {
+            RuntimeException e = expectThrows(
+                RuntimeException.class,
+                () -> mapping.mapPage(filePage, blockFactory, new DataType[] { DataType.BOOLEAN })
+            );
+            assertTrue("wrapped under mapPage's catch", e.getMessage() != null && e.getMessage().contains("Failed to map page"));
+            assertTrue("underlying cause surfaces", e.getCause() instanceof UnsupportedOperationException);
         } finally {
             filePage.releaseBlocks();
         }

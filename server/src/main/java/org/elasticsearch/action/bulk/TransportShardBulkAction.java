@@ -139,7 +139,10 @@ public class TransportShardBulkAction extends TransportWriteAction<BulkShardRequ
         );
         this.updateHelper = updateHelper;
         this.mappingUpdatedAction = mappingUpdatedAction;
-        this.shardBatchIndexer = new ShardBatchIndexer(settings, bigArrays.bytesRefRecycler());
+        this.shardBatchIndexer = new ShardBatchIndexer(
+            new BatchIndexingEnabled(clusterService.getClusterSettings()),
+            bigArrays.bytesRefRecycler()
+        );
         this.preResolveBulkUpdates = PreResolvedUpdates.PRE_RESOLVE_BULK_UPDATES.get(settings);
         this.documentParsingProvider = documentParsingProvider;
     }
@@ -499,6 +502,9 @@ public class TransportShardBulkAction extends TransportWriteAction<BulkShardRequ
                         UPDATE_FETCH_SOURCE_CONTEXT,
                         context.getBulkShardRequest().splitShardCountSummary()
                     );
+                }
+                if (updateResult.getResponseResult() != DocWriteResponse.Result.NOOP) {
+                    context.trackMemoryConsumptionForTranslatedUpdateRequest(updateResult.action());
                 }
             } catch (Exception failure) {
                 // we may fail translating a update to index or delete operation

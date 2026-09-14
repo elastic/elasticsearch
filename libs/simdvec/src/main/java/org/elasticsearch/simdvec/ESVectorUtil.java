@@ -67,6 +67,17 @@ public class ESVectorUtil {
         return SCORERS.newES92Int7VectorsScorer(input, dimension, bulkSize);
     }
 
+    /** Creates an ASH float-query scorer. */
+    public static AshScorer<float[]> getAshFloatVectorsScorer(IndexInput input, int nDims, int bitsPerDim) throws IOException {
+        return SCORERS.newESNextAshFloatVectorsScorer(input, nDims, bitsPerDim);
+    }
+
+    /** Creates an ASH integer-query scorer. */
+    public static AshScorer<byte[]> getAshIntegerVectorsScorer(IndexInput input, int nDims, int bitsPerDim, int queryBitsPerDim)
+        throws IOException {
+        return SCORERS.newESNextAshIntegerVectorsScorer(input, nDims, bitsPerDim, queryBitsPerDim);
+    }
+
     public static ES93BinaryQuantizedVectorScorer getES93BinaryQuantizedVectorScorer(
         IndexInput input,
         int dimension,
@@ -1050,5 +1061,68 @@ public class ESVectorUtil {
             }
         }
         return t;
+    }
+
+    /**
+     * Computes {@code C = A @ B} where A is (m x k) and B is (k x n), both row-major.
+     * Result C is (m x n).
+     */
+    public static float[] matrixMultiply(float[] a, float[] b, int m, int k, int n) {
+        if (a.length != m * k) throw new IllegalArgumentException("Invalid a array size [" + a.length + "] for matrix multiplication");
+        if (b.length != k * n) throw new IllegalArgumentException("Invalid b array size [" + b.length + "] for matrix multiplication");
+        return IMPL.matrixMultiply(a, b, m, k, n);
+    }
+
+    /**
+     * Computes {@code C = A^T @ B} where A is (m x k) and B is (m x n), both row-major.
+     * Result C is (k x n).
+     */
+    public static float[] matrixMultiplyTA(float[] aT, float[] b, int m, int k, int n) {
+        if (aT.length != m * k) throw new IllegalArgumentException("Invalid a array size [" + aT.length + "] for matrix multiplication");
+        if (b.length != m * n) throw new IllegalArgumentException("Invalid b array size [" + b.length + "] for matrix multiplication");
+        return IMPL.matrixMultiplyTA(aT, b, m, k, n);
+    }
+
+    /**
+     * Packs multi-bit quantized codes into a byte array using bit-plane layout.
+     * The input codes come from {@code AshSphericalScalarQuantizer} and have values
+     * sign * (0.5 + idx) for idx in [0, numAbsLevels-1] where numAbsLevels = 2^(bitsPerDim-1).
+     * The full level set is centered at 0 with spacing 1.
+     *
+     * @param codes float array of quantized levels from AshSphericalScalarQuantizer
+     * @param bitsPerDim number of bits per dimension
+     * @return packed bytes in bit-plane layout
+     */
+    public static byte[] ashPack(float[] codes, int bitsPerDim) {
+        int nDims = codes.length;
+        int planeBytes = (nDims + 7) >>> 3;
+        int numLevels = 1 << bitsPerDim;
+        float offset = (numLevels - 1) / 2.0f;
+
+        int[] rounded = new int[nDims];
+        for (int i = 0; i < nDims; i++) {
+            rounded[i] = Math.clamp(Math.round(codes[i] + offset), 0, numLevels - 1);
+        }
+
+        byte[] packed = new byte[bitsPerDim * planeBytes];
+        switch (bitsPerDim) {
+            case 1 -> pack1BitValues(rounded, packed);
+            case 2 -> stride2BitValues(rounded, packed);
+            case 4 -> stride4BitValues(rounded, packed);
+            case 3, 8 -> {
+                for (int j = 0; j < nDims; j++) {
+                    int byteIdx = j >>> 3;
+                    int bitIdx = 7 - (j & 7);
+                    for (int p = 0; p < bitsPerDim; p++) {
+                        if ((rounded[j] & (1 << p)) != 0) {
+                            packed[p * planeBytes + byteIdx] |= (byte) (1 << bitIdx);
+                        }
+                    }
+                }
+            }
+            default -> throw new IllegalArgumentException("Unsupported bitsPerDim: " + bitsPerDim);
+        }
+
+        return packed;
     }
 }

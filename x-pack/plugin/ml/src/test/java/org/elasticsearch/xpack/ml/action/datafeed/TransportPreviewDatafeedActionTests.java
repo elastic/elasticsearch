@@ -6,7 +6,6 @@
  */
 package org.elasticsearch.xpack.ml.action.datafeed;
 
-import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.fieldcaps.FieldCapabilities;
 import org.elasticsearch.action.fieldcaps.FieldCapabilitiesBuilder;
@@ -100,10 +99,38 @@ public class TransportPreviewDatafeedActionTests extends ESTestCase {
         assertThat(previewDatafeed.getCloudInternalCredential(), nullValue());
     }
 
-    public void testProjectRoutingRequiresCpsException_ShouldMatchPutDatafeedMessage() {
-        ElasticsearchStatusException exception = DatafeedConfig.projectRoutingRequiresCpsException();
-        assertThat(exception.getMessage(), equalTo(DatafeedConfig.PROJECT_ROUTING_REQUIRES_CPS_MESSAGE));
-        assertThat(exception.status(), equalTo(org.elasticsearch.rest.RestStatus.BAD_REQUEST));
+    public void testIsCrossProjectPreviewAllowed_GivenPersistedLegacyWithoutEnvelope_ShouldReturnFalse() {
+        DatafeedConfig persisted = new DatafeedConfig.Builder("legacy_feed", "job_foo").setIndices(List.of("logs-*")).build();
+        PreviewDatafeedAction.Request request = new PreviewDatafeedAction.Request("legacy_feed", (String) null, (String) null);
+
+        assertThat(TransportPreviewDatafeedAction.isCrossProjectPreviewAllowed(request, persisted, true), is(false));
+    }
+
+    public void testIsCrossProjectPreviewAllowed_GivenPersistedWithEnvelopeAndCaller_ShouldReturnTrue() {
+        DatafeedConfig.Builder builder = new DatafeedConfig.Builder("uiam_feed", "job_foo");
+        builder.setIndices(List.of("logs-*"));
+        builder.setCloudInternalCredential(new PersistedCloudCredential("id", randomCloudCredentialEncryptedData()));
+        PreviewDatafeedAction.Request request = new PreviewDatafeedAction.Request("uiam_feed", (String) null, (String) null);
+
+        assertThat(TransportPreviewDatafeedAction.isCrossProjectPreviewAllowed(request, builder.build(), true), is(true));
+    }
+
+    public void testIsCrossProjectPreviewAllowed_GivenInlinePreviewAndCaller_ShouldReturnTrue() {
+        DatafeedConfig inline = new DatafeedConfig.Builder("inline_feed", "job_foo").setIndices(List.of("logs-*")).build();
+        PreviewDatafeedAction.Request request = new PreviewDatafeedAction.Request(inline, null, null, null);
+
+        assertThat(TransportPreviewDatafeedAction.isCrossProjectPreviewAllowed(request, inline, true), is(true));
+    }
+
+    public void testIsCrossProjectPreviewAllowed_GivenNoCallerCredential_ShouldReturnFalse() {
+        DatafeedConfig.Builder builder = new DatafeedConfig.Builder("uiam_feed", "job_foo");
+        builder.setIndices(List.of("logs-*"));
+        builder.setCloudInternalCredential(new PersistedCloudCredential("id", randomCloudCredentialEncryptedData()));
+        PreviewDatafeedAction.Request persistedRequest = new PreviewDatafeedAction.Request("uiam_feed", (String) null, (String) null);
+        PreviewDatafeedAction.Request inlineRequest = new PreviewDatafeedAction.Request(builder.build(), null, null, null);
+
+        assertThat(TransportPreviewDatafeedAction.isCrossProjectPreviewAllowed(persistedRequest, builder.build(), false), is(false));
+        assertThat(TransportPreviewDatafeedAction.isCrossProjectPreviewAllowed(inlineRequest, builder.build(), false), is(false));
     }
 
     public void testWithCrossProjectModeIfEnabled_GivenCpsEnabled_ShouldEnableCrossProjectIndicesOptions() {
@@ -118,6 +145,23 @@ public class TransportPreviewDatafeedActionTests extends ESTestCase {
         DatafeedConfig result = DatafeedConfig.withCrossProjectModeIfEnabled(builder.build(), decider, true);
 
         assertThat(result.getIndicesOptions().resolveCrossProjectIndexExpression(), is(true));
+    }
+
+    public void testWithCrossProjectModeIfEnabled_FlagOffPreviewClearsProjectRouting() {
+        assumeFalse("Run with -Des.ml_cross_project_feature_flag_enabled=false", CloudCredentialsExtension.ML_CROSS_PROJECT.isEnabled());
+        DatafeedConfig.Builder builder = new DatafeedConfig.Builder("preview_flag_off_feed", "job_foo");
+        builder.setIndices(Collections.singletonList("logs-*"));
+        builder.setProjectRouting("_alias:prod-*");
+        CrossProjectModeDecider decider = new CrossProjectModeDecider(
+            Settings.builder().put("serverless.cross_project.enabled", true).build()
+        );
+
+        DatafeedConfig previewConfig = TransportPreviewDatafeedAction.buildPreviewDatafeed(builder.build()).build();
+        DatafeedConfig effective = DatafeedConfig.withCrossProjectModeIfEnabled(previewConfig, decider, true);
+
+        assertThat(effective.getProjectRouting(), nullValue());
+        assertThat(effective.getIndicesOptions().resolveCrossProjectIndexExpression(), is(false));
+        assertThat(previewConfig.getProjectRouting(), equalTo("_alias:prod-*"));
     }
 
     public void testWithCrossProjectModeIfEnabled_GivenNoCallerCredential_DoesNotPromote() {

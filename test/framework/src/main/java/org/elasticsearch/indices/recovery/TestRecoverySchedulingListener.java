@@ -64,7 +64,7 @@ public abstract class TestRecoverySchedulingListener implements RecoveryScheduli
     }
 
     @Override
-    public void onStartedRecoveryCancelledOnTarget(RecoverySource.Type type) {
+    public void onStartedRecoveryCancelledOnTarget(RecoverySource.Type type, RecoveryState.Stage stage, long elapsedTimeMillis) {
         onRecoverySchedulingChange();
     }
 

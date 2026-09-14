@@ -26,10 +26,17 @@ import org.elasticsearch.compute.data.BytesRefBlock;
 import org.elasticsearch.compute.data.LongBlock;
 import org.elasticsearch.compute.data.Utf8Sanitizer;
 import org.elasticsearch.core.Nullable;
+import org.elasticsearch.logging.Level;
+import org.elasticsearch.logging.LogManager;
+import org.elasticsearch.logging.Logger;
+import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.core.util.NumericUtils;
+import org.elasticsearch.xpack.esql.datasources.spi.ColumnarRowDropHelper;
 import org.elasticsearch.xpack.esql.datasources.spi.DeclaredTypeCoercions;
+import org.elasticsearch.xpack.esql.datasources.spi.ErrorPolicy;
 import org.elasticsearch.xpack.esql.datasources.spi.SkipWarnings;
+import org.elasticsearch.xpack.esql.parser.ParsingException;
 
 import java.math.BigDecimal;
 import java.math.BigInteger;
@@ -38,6 +45,10 @@ import java.nio.ByteOrder;
 import java.time.DateTimeException;
 import java.time.Duration;
 import java.util.Arrays;
+import java.util.HashMap;
+import java.util.Map;
+import java.util.function.Consumer;
+import java.util.function.IntConsumer;
 
 /**
  * Shared Parquet decode helpers used by both the baseline {@code ParquetColumnIterator}
@@ -46,6 +57,8 @@ import java.util.Arrays;
  * fixes in one decode path are automatically reflected in the other.
  */
 final class ParquetColumnDecoding {
+
+    private static final Logger logger = LogManager.getLogger(ParquetColumnDecoding.class);
 
     private ParquetColumnDecoding() {}
 
@@ -240,20 +253,26 @@ final class ParquetColumnDecoding {
     }
 
     /**
-     * Emits a response {@code Warning} header noting that a Parquet timestamp column carried instants
-     * outside the representable {@code date_nanos} range and those values were returned as null. The
-     * message is column-scoped and constant, so the response-header machinery deduplicates it to a
-     * single entry per affected column regardless of how many values or batches triggered it.
+     * Reports that a Parquet timestamp column carried instants outside the representable {@code date_nanos} range and
+     * those values were returned as null. When supplied, {@code warningSink} relays the message through the external
+     * driver's warning channel so it survives a scan on another node; the {@code null} fallback writes directly to
+     * the current thread's response headers for tests and synchronous callers.
+     *
+     * <p>The message is column-scoped and constant, so both the production informational-warning budget and response
+     * headers deduplicate it regardless of how many values or batches triggered it.
      */
-    static void warnTimestampOutOfRange(ColumnInfo info) {
+    static void warnTimestampOutOfRange(ColumnInfo info, @Nullable Consumer<String> warningSink) {
         ColumnDescriptor descriptor = info.descriptor();
         String column = descriptor == null ? "<unknown>" : String.join(".", descriptor.getPath());
-        HeaderWarning.addWarning(
-            "Parquet timestamp column ["
-                + column
-                + "] contains values outside the representable date_nanos range (~1677-09-21 to 2262-04-11); "
-                + "such values are returned as null"
-        );
+        String warning = "Parquet timestamp column ["
+            + column
+            + "] contains values outside the representable date_nanos range (~1677-09-21 to 2262-04-11); "
+            + "such values are returned as null";
+        if (warningSink != null) {
+            warningSink.accept(warning);
+        } else {
+            HeaderWarning.addWarning(warning);
+        }
     }
 
     /** Converts a date32 value (days since epoch) to epoch milliseconds. */
@@ -278,6 +297,24 @@ final class ParquetColumnDecoding {
         @Nullable String columnName,
         @Nullable SkipWarnings warnings
     ) {
+        return bytesBlockToDatetimeMillis(source, dateFormatter, blockFactory, columnName, warnings, null);
+    }
+
+    /**
+     * Overload of {@link #bytesBlockToDatetimeMillis} that additionally reports failed positions to
+     * {@code failedPositionSink} for {@code skip_row} callers. When non-null, a parse failure at position
+     * {@code p} still nulls the cell in the returned block and calls {@code failedPositionSink.accept(p)}
+     * so the caller's {@link org.elasticsearch.xpack.esql.datasources.spi.ColumnarRowDropHelper} can drop
+     * the whole row at the page emit point.
+     */
+    static Block bytesBlockToDatetimeMillis(
+        Block source,
+        @Nullable DateFormatter dateFormatter,
+        BlockFactory blockFactory,
+        @Nullable String columnName,
+        @Nullable SkipWarnings warnings,
+        @Nullable IntConsumer failedPositionSink
+    ) {
         int positions = source.getPositionCount();
         if (source.areAllValuesNull()) {
             return blockFactory.newConstantNullBlock(positions);
@@ -285,6 +322,7 @@ final class ParquetColumnDecoding {
         BytesRefBlock bytes = (BytesRefBlock) source;
         BytesRef scratch = new BytesRef();
         long[] parsed = null;
+        boolean skipRow = failedPositionSink != null;
         try (LongBlock.Builder builder = blockFactory.newLongBlockBuilder(positions)) {
             for (int pos = 0; pos < positions; pos++) {
                 int count = bytes.getValueCount(pos);
@@ -295,7 +333,8 @@ final class ParquetColumnDecoding {
                     try {
                         builder.appendLong(DeclaredTypeCoercions.parseDatetimeMillis(value.utf8ToString(), dateFormatter));
                     } catch (IllegalArgumentException | DateTimeException e) {
-                        DeclaredTypeCoercions.onCoercionFailure(columnName, DataType.KEYWORD, DataType.DATETIME, e, warnings);
+                        DeclaredTypeCoercions.onCoercionFailure(columnName, DataType.KEYWORD, DataType.DATETIME, e, warnings, skipRow);
+                        if (skipRow) failedPositionSink.accept(pos);
                         builder.appendNull();
                     }
                 } else {
@@ -311,11 +350,12 @@ final class ParquetColumnDecoding {
                         try {
                             parsed[v] = DeclaredTypeCoercions.parseDatetimeMillis(value.utf8ToString(), dateFormatter);
                         } catch (IllegalArgumentException | DateTimeException e) {
-                            DeclaredTypeCoercions.onCoercionFailure(columnName, DataType.KEYWORD, DataType.DATETIME, e, warnings);
+                            DeclaredTypeCoercions.onCoercionFailure(columnName, DataType.KEYWORD, DataType.DATETIME, e, warnings, skipRow);
                             failed = true;
                         }
                     }
                     if (failed) {
+                        if (skipRow) failedPositionSink.accept(pos);
                         builder.appendNull();
                         continue;
                     }
@@ -534,6 +574,312 @@ final class ParquetColumnDecoding {
 
     // ---- Skip helpers ----
 
+    /**
+     * Shared policy, warning, and error-budget owner for malformed LIST repetition-level streams.
+     * One instance is retained for the lifetime of an iterator or extractor so separate columns
+     * and row groups contribute to the same warning cap. Iterators also charge their dropped rows
+     * through {@link #completeBatch}; this keeps one error budget for every recoverable failure in
+     * a Parquet read.
+     */
+    static final class ListCorruptionHandler {
+        private final ErrorPolicy errorPolicy;
+        private final String fileLocation;
+        private final SkipWarnings warnings;
+        /**
+         * Highest row ordinal already charged, per column and row group, or {@code null} when every
+         * event is charged. A high-water mark rather than the set of charged events: a decode pass
+         * walks a row group's rows in ascending order, so an orphan at or below the mark was seen
+         * (and charged) by the pass that reached the mark. That makes the mark exactly as precise as
+         * the event set, while bounding this map by the number of columns and row groups rather than
+         * by the number of malformed rows in the file.
+         */
+        @Nullable
+        private final Map<RecoveryScope, Long> chargedRows;
+        private long errorCount;
+        private long recoveredListErrorCount;
+        private long droppedRowErrorCount;
+        private long completedRows;
+        private long rowsSeen;
+
+        ListCorruptionHandler(ErrorPolicy errorPolicy, String fileLocation, @Nullable Consumer<String> warningSink) {
+            this(errorPolicy, fileLocation, warningSink, false);
+        }
+
+        ListCorruptionHandler(
+            ErrorPolicy errorPolicy,
+            String fileLocation,
+            @Nullable Consumer<String> warningSink,
+            boolean deduplicateRecoveries
+        ) {
+            this.errorPolicy = errorPolicy;
+            this.fileLocation = fileLocation;
+            this.chargedRows = deduplicateRecoveries ? new HashMap<>() : null;
+            this.warnings = SkipWarnings.of(
+                errorPolicy,
+                "Parquet file [" + fileLocation + "] has malformed LIST repetition levels; invalid fragments were skipped",
+                warningSink
+            );
+        }
+
+        boolean isStrict() {
+            return errorPolicy.isStrict();
+        }
+
+        void recoveredOrphan(String columnName, int rowGroupOrdinal, long rowOrdinal, long rowsSeen, long discardedValues) {
+            if (chargedRows != null) {
+                RecoveryScope scope = new RecoveryScope(columnName, rowGroupOrdinal);
+                Long charged = chargedRows.get(scope);
+                if (charged != null && rowOrdinal <= charged) {
+                    return;
+                }
+                chargedRows.put(scope, rowOrdinal);
+            }
+            errorCount++;
+            recoveredListErrorCount++;
+            String detail = "Parquet column ["
+                + columnName
+                + "] in file ["
+                + fileLocation
+                + "] row group ["
+                + (rowGroupOrdinal + 1)
+                + "] started row ["
+                + rowOrdinal
+                + "] at a non-zero repetition level; discarded ["
+                + discardedValues
+                + "] orphan values";
+            warnings.add(detail);
+            // Structural corruption is discovered while streaming. As with the text readers, a
+            // ratio can trip before later good rows have a chance to dilute it.
+            this.rowsSeen = Math.max(this.rowsSeen, Math.max(1L, rowsSeen));
+            checkBudget(warnings);
+            logger.log(errorPolicy.logErrors() ? Level.INFO : Level.DEBUG, detail);
+        }
+
+        /**
+         * Completes one decoded batch and charges row drops to the same counter as recovered LIST fragments.
+         */
+        void completeBatch(int sourceRows, int droppedRows, @Nullable SkipWarnings droppedRowWarnings) {
+            completedRows += sourceRows;
+            rowsSeen = Math.max(rowsSeen, completedRows);
+            errorCount += droppedRows;
+            droppedRowErrorCount += droppedRows;
+            checkBudget(recoveredListErrorCount > 0 ? warnings : droppedRowWarnings);
+        }
+
+        private void checkBudget(@Nullable SkipWarnings budgetWarnings) {
+            if (errorPolicy.isBudgetExceeded(errorCount, rowsSeen) == false) {
+                return;
+            }
+            String errorKind;
+            if (droppedRowErrorCount == 0) {
+                errorKind = "structural errors";
+            } else if (recoveredListErrorCount == 0) {
+                errorKind = "dropped rows";
+            } else {
+                errorKind = "errors";
+            }
+            if (budgetWarnings != null) {
+                budgetWarnings.add(ColumnarRowDropHelper.budgetExceededWarning(errorPolicy, fileLocation, errorCount, rowsSeen, errorKind));
+            }
+            throw new ParsingException(
+                Source.EMPTY,
+                "Error budget exceeded: [{}] {} in [{}] decoded rows in [{}]; maximum allowed is [{}] errors or [{}] ratio",
+                errorCount,
+                errorKind,
+                rowsSeen,
+                fileLocation,
+                errorPolicy.maxErrors(),
+                errorPolicy.maxErrorRatio()
+            );
+        }
+
+        private record RecoveryScope(String columnName, int rowGroupOrdinal) {}
+    }
+
+    /**
+     * Stateful view of one repeated leaf in one row group. It keeps parquet-mr's level cursor and
+     * physical-value cursor in lock-step, validates every record boundary, and makes end-of-stream
+     * checks independent of parquet-mr's post-exhaustion sentinel levels.
+     */
+    static final class ListColumnReader {
+        private final ColumnReader reader;
+        private final int maxDefLevel;
+        private final int maxRepLevel;
+        private final ListCorruptionHandler corruptionHandler;
+        private final String columnName;
+        private final String fileLocation;
+        private final int rowGroupOrdinal;
+        private final long rowsBeforeGroup;
+        private final long totalValueCount;
+        private long consumedValueCount;
+        private long rowCount;
+
+        static ListColumnReader bind(
+            ColumnReader reader,
+            ColumnInfo info,
+            ListCorruptionHandler corruptionHandler,
+            String columnName,
+            String fileLocation,
+            int rowGroupOrdinal,
+            long rowsBeforeGroup
+        ) {
+            return new ListColumnReader(
+                reader,
+                info.maxDefLevel(),
+                info.maxRepLevel(),
+                corruptionHandler,
+                columnName,
+                fileLocation,
+                rowGroupOrdinal,
+                rowsBeforeGroup
+            );
+        }
+
+        private ListColumnReader(
+            ColumnReader reader,
+            int maxDefLevel,
+            int maxRepLevel,
+            ListCorruptionHandler corruptionHandler,
+            String columnName,
+            String fileLocation,
+            int rowGroupOrdinal,
+            long rowsBeforeGroup
+        ) {
+            this.reader = reader;
+            this.maxDefLevel = maxDefLevel;
+            this.maxRepLevel = maxRepLevel;
+            this.corruptionHandler = corruptionHandler;
+            this.columnName = columnName;
+            this.fileLocation = fileLocation;
+            this.rowGroupOrdinal = rowGroupOrdinal;
+            this.rowsBeforeGroup = rowsBeforeGroup;
+            this.totalValueCount = reader.getTotalValueCount();
+        }
+
+        ColumnReader reader() {
+            return reader;
+        }
+
+        boolean hasRemaining() {
+            return consumedValueCount < totalValueCount;
+        }
+
+        int currentDefinitionLevel() {
+            ensureRemaining("read a definition level");
+            int definitionLevel = reader.getCurrentDefinitionLevel();
+            if (definitionLevel < 0 || definitionLevel > maxDefLevel) {
+                throw corruption("definition level [" + definitionLevel + "] is outside [0, " + maxDefLevel + "]");
+            }
+            return definitionLevel;
+        }
+
+        int currentRepetitionLevel() {
+            ensureRemaining("read a repetition level");
+            int repetitionLevel = reader.getCurrentRepetitionLevel();
+            if (repetitionLevel < 0 || repetitionLevel > maxRepLevel) {
+                throw corruption("repetition level [" + repetitionLevel + "] is outside [0, " + maxRepLevel + "]");
+            }
+            return repetitionLevel;
+        }
+
+        /**
+         * Positions the stream at the next logical row boundary. In non-strict modes, a leading
+         * continuation is stream resynchronization rather than a per-row policy action: the
+         * orphan cannot reliably be assigned to either adjacent row, so it consumes error budget
+         * but does not drop or null the valid row that follows it.
+         */
+        void ensureRowStart() {
+            int repetitionLevel = currentRepetitionLevel();
+            if (repetitionLevel == 0) {
+                return;
+            }
+            if (corruptionHandler.isStrict()) {
+                throw corruption("row [" + (rowCount + 1) + "] starts at repetition level [" + repetitionLevel + "] instead of [0]");
+            }
+
+            long discarded = 0;
+            do {
+                skipCurrentValue();
+                discarded++;
+            } while (hasRemaining() && currentRepetitionLevel() > 0);
+
+            if (hasRemaining() == false) {
+                throw corruption(
+                    "orphan continuation fragment before row ["
+                        + (rowCount + 1)
+                        + "] consumed the remaining ["
+                        + discarded
+                        + "] values without reaching repetition level [0]"
+                );
+            }
+            corruptionHandler.recoveredOrphan(columnName, rowGroupOrdinal, rowCount + 1, rowsBeforeGroup + rowCount + 1, discarded);
+        }
+
+        void consumeAfterRead() {
+            consumeCurrent();
+        }
+
+        void consumeUndefined() {
+            consumeCurrent();
+        }
+
+        void skipCurrentValue() {
+            if (currentDefinitionLevel() >= maxDefLevel) {
+                reader.skip();
+            }
+            consumeCurrent();
+        }
+
+        void rowCompleted() {
+            rowCount++;
+        }
+
+        void validateExhausted() {
+            if (hasRemaining()) {
+                throw corruption(
+                    "footer row count was exhausted after ["
+                        + rowCount
+                        + "] rows but ["
+                        + (totalValueCount - consumedValueCount)
+                        + "] level values remain"
+                );
+            }
+        }
+
+        private void consumeCurrent() {
+            ensureRemaining("consume a level value");
+            reader.consume();
+            consumedValueCount++;
+        }
+
+        private void ensureRemaining(String action) {
+            if (hasRemaining() == false) {
+                throw corruption(
+                    "cannot "
+                        + action
+                        + ": footer row count exceeds the ["
+                        + totalValueCount
+                        + "] available level values after ["
+                        + rowCount
+                        + "] rows"
+                );
+            }
+        }
+
+        private IllegalArgumentException corruption(String detail) {
+            return new IllegalArgumentException(
+                "Malformed Parquet LIST column ["
+                    + columnName
+                    + "] in file ["
+                    + fileLocation
+                    + "] row group ["
+                    + (rowGroupOrdinal + 1)
+                    + "]: "
+                    + detail
+            );
+        }
+    }
+
     static void skipValues(ColumnReader cr, int rows) {
         for (int i = 0; i < rows; i++) {
             cr.consume();
@@ -544,41 +890,140 @@ final class ParquetColumnDecoding {
      * Skips all Parquet values for the given number of rows in a LIST column,
      * respecting repetition levels to consume entire lists per row.
      */
-    static void skipListValues(ColumnReader cr, int rows) {
+    static void skipListValues(ListColumnReader input, int rows) {
         for (int row = 0; row < rows; row++) {
-            cr.consume();
-            while (cr.getCurrentRepetitionLevel() > 0) {
-                cr.consume();
+            input.ensureRowStart();
+            input.skipCurrentValue();
+            while (input.hasRemaining() && input.currentRepetitionLevel() > 0) {
+                input.skipCurrentValue();
             }
+            input.rowCompleted();
         }
     }
 
     // ---- List column reading ----
 
     /**
-     * Reads a LIST column using repetition levels to determine list boundaries,
-     * producing multi-valued ESQL blocks. Dispatches to the appropriate typed reader
-     * based on the ESQL element type. Handles null lists, empty lists, and null
-     * elements within lists correctly. Unsupported types are skipped and returned
-     * as a constant null block.
+     * The summary header accompanying {@link #nullListElementsMessage}. Names no file on purpose: the loss follows
+     * from the Block representation rather than from anything about one file, so a file-scoped summary would emit
+     * one non-deduplicable line per file on a glob read. Shared with the read paths that own the collector so the
+     * text has one source of truth.
      */
-    static Block readListColumn(ColumnReader cr, ColumnInfo info, int rows, BlockFactory blockFactory) {
-        return readListColumn(cr, info, rows, blockFactory, null, null);
+    static final String NULL_LIST_ELEMENTS_SUMMARY = "Parquet lists with null elements were read with those elements "
+        + "omitted; an ES|QL multivalued field cannot hold null";
+
+    /**
+     * The per-column detail for a LIST read that dropped null elements. {@code columnName} is the attribute name the
+     * query used, not the physical leaf path — for a LIST the descriptor path is {@code ints.list.element} while the
+     * user wrote {@code ints}.
+     *
+     * <p>Constant per column by design: the drop is rediscovered on every batch, and each layer that caps this
+     * channel ({@link SkipWarnings#addOnce}, {@code InformationalWarningBudget}, {@code ThreadContext}'s
+     * response-header dedup) collapses repeats by exact text, so one column costs the client one line however many
+     * batches, row groups, or files hit it.
+     */
+    static String nullListElementsMessage(String columnName) {
+        return "Parquet list column ["
+            + columnName
+            + "] contains lists with null elements; the column returns fewer values than the file holds";
     }
 
     /**
-     * As {@link #readListColumn(ColumnReader, ColumnInfo, int, BlockFactory)}, coercing a
-     * declared element type beyond the fused pairs: the list decodes at the file's own element
-     * type, then {@link DeclaredTypeCoercions#castBlock} coerces each element to the declared
-     * type ({@code warnings} carries the per-value failure sink; {@code null} = strict).
+     * The definition level a LIST element carries when its list entry exists but the element itself is null, or
+     * {@code -1} when this column can have no such element ({@code -1} matches no real definition level).
+     *
+     * <p>Definition levels are prefix-defined, so {@code maxDefLevel - 1} means "every nullable node on the path is
+     * defined except the deepest one". When the leaf primitive is {@code OPTIONAL} that deepest node <em>is</em> the
+     * leaf, so the level reads "the repeated list entry is there, the value in it is null" — the element this decode
+     * cannot represent and therefore drops. When the leaf is {@code REQUIRED} (a 3-level LIST of required elements)
+     * or {@code REPEATED} (a legacy 2-level list, or a bare top-level {@code repeated} primitive, which
+     * {@code buildColumnInfos} binds by {@code path[0]} and the iterators route here on {@code maxRepLevel > 0}) no
+     * null element is representable at all, and {@code maxDefLevel - 1} instead means "the list is empty" — matching
+     * it there would report a lossless read of every empty list.
+     *
+     * <p>Exact — never silent, never a false alarm — for every LIST-annotated column, which is what this reader is
+     * for, and for a flattened repeated group whose leaf is its repeated node's direct child. Two boundaries worth
+     * knowing:
+     * <ul>
+     *   <li>A nested LIST would put an inner empty list on a lower level and defeat a single comparison, but cannot
+     *       reach here: {@code convertGroupTypeToEsql} types a non-primitive element {@code UNSUPPORTED} and
+     *       {@code buildColumnInfos} skips it.</li>
+     *   <li>An <em>un-annotated</em> {@code repeated} group with more than one nullable node beneath it (the
+     *       Hive-era "2-level list of struct of struct", e.g. {@code repeated addr { optional geo { optional lat } }},
+     *       which {@code collectAttributes} flattens to a {@code maxRepLevel == 1} leaf) has a second droppable
+     *       level: {@code def == 1} there means the {@code addr} entry exists but {@code geo} is null, which loses a
+     *       value this comparison does not catch. Recognising it exactly needs the definition level of the innermost
+     *       repeated node — a schema walk, so a {@link ColumnInfo} field — which is deliberately out of scope for the
+     *       LIST fix. The consequence is a residual silence on that one shape, never a wrong warning on any shape.</li>
+     * </ul>
+     */
+    private static int nullElementDefLevel(ColumnInfo info) {
+        ColumnDescriptor descriptor = info.descriptor();
+        if (descriptor == null || descriptor.getPrimitiveType().getRepetition() != Type.Repetition.OPTIONAL) {
+            return -1;
+        }
+        return info.maxDefLevel() - 1;
+    }
+
+    /**
+     * Per-column tally of list elements dropped because an ES|QL multivalue has no representation for null. Carries
+     * the definition level such an element has (see {@link #nullElementDefLevel}) so every row loop recognises one
+     * with a single comparison, plus the flag they raise on a drop; {@link #readListColumn} turns a raised flag into
+     * one response {@code Warning}. Mutable and single-threaded — one instance per {@code readListColumn} call.
+     */
+    private static final class NullElementTally {
+        private final int nullElementDef;
+        private boolean dropped;
+
+        NullElementTally(ColumnInfo info) {
+            this.nullElementDef = nullElementDefLevel(info);
+        }
+
+        /**
+         * Raises the flag when {@code def} — the level of an element the caller is about to skip — is that of a null
+         * element inside a list that exists. A lower level means the list itself is null or empty, which loses no
+         * element and must not be reported.
+         */
+        void recordIfNullElement(int def) {
+            if (def == nullElementDef) {
+                dropped = true;
+            }
+        }
+    }
+
+    /**
+     * Reads a LIST column using repetition levels to determine list boundaries, producing multi-valued ESQL blocks.
+     * Dispatches to the appropriate typed reader based on the ESQL element type. Null lists and empty lists become
+     * null positions. Unsupported types are skipped and returned as a constant null block.
+     *
+     * <p>A null element <em>inside</em> a list is dropped, because an ES|QL multivalue cannot hold null (a null lives
+     * at position granularity: {@code Block.isNull} is per position and {@code AbstractBlockBuilder.appendNull}
+     * closes any open position entry). The value cannot be preserved, so the read announces itself instead: any
+     * dropped element emits one {@code Warning} through {@code lossWarnings} naming the column. That notice is
+     * unconditional — unlike {@code warnings} below it must not be policy-gated, since the drop happens under every
+     * {@code error_mode}.
+     *
+     * @param columnName the attribute name the query used for this column; names the column in both notices, so
+     *                   unlike the coercion helpers downstream this one requires it
+     * @param warnings   per-value declared-coercion failure sink, for a declared element type beyond the fused
+     *                   pairs: the list decodes at the file's own element type, then
+     *                   {@link DeclaredTypeCoercions#castBlock} coerces each element. {@code null} = strict, the
+     *                   coercion failure propagates
+     * @param informationalWarningSink relay for unconditional read-time notices such as out-of-range timestamps, or
+     *                                 {@code null} to emit directly to the current thread's response headers
+     * @param lossWarnings always-live collector for the dropped-null-element notice; required, since a {@code null}
+     *                     here would silently restore the pre-fix silence
      */
     static Block readListColumn(
-        ColumnReader cr,
+        ListColumnReader input,
         ColumnInfo info,
         int rows,
         BlockFactory blockFactory,
-        @Nullable String columnName,
-        @Nullable SkipWarnings warnings
+        String columnName,
+        @Nullable SkipWarnings warnings,
+        @Nullable IntConsumer failedPositionSink,
+        @Nullable Consumer<String> informationalWarningSink,
+        SkipWarnings lossWarnings
     ) {
         DataType declared = info.esqlType();
         DataType fileElementType = info.fileEsqlType();
@@ -586,7 +1031,19 @@ final class ParquetColumnDecoding {
             && declared != fileElementType
             && DeclaredTypeCoercions.fusedInDecode(fileElementType, declared, info.dateFormatter() != null) == false
             && DeclaredTypeCoercions.supports(fileElementType, declared)) {
-            Block physical = readListColumn(cr, info.fileTyped(), rows, blockFactory);
+            // The recursion decodes at the file's own element type and owns the drop notice for this read; this
+            // frame deliberately keeps no tally of its own, since it never reaches the row loops below.
+            Block physical = readListColumn(
+                input,
+                info.fileTyped(),
+                rows,
+                blockFactory,
+                columnName,
+                null,
+                null,
+                informationalWarningSink,
+                lossWarnings
+            );
             try {
                 return DeclaredTypeCoercions.castBlock(
                     physical,
@@ -595,7 +1052,8 @@ final class ParquetColumnDecoding {
                     info.dateFormatter(),
                     blockFactory,
                     columnName,
-                    warnings
+                    warnings,
+                    failedPositionSink
                 );
             } finally {
                 physical.close();
@@ -603,29 +1061,35 @@ final class ParquetColumnDecoding {
         }
         DataType elementType = info.esqlType();
         int maxDef = info.maxDefLevel();
-        return switch (elementType) {
-            case INTEGER -> readListIntColumn(cr, maxDef, rows, blockFactory);
+        NullElementTally tally = new NullElementTally(info);
+        Block block = switch (elementType) {
+            case INTEGER -> readListIntColumn(input, maxDef, rows, blockFactory, tally);
             case LONG -> {
                 if (info.parquetType() == PrimitiveType.PrimitiveTypeName.INT32) {
                     // TIME_MILLIS: physical INT32 widened to long (raw ms value, no unit conversion)
-                    yield readListInt32AsLongColumn(cr, maxDef, rows, blockFactory);
+                    yield readListInt32AsLongColumn(input, maxDef, rows, blockFactory, tally);
                 }
                 long multiplier = info.logicalType() instanceof LogicalTypeAnnotation.TimeLogicalTypeAnnotation time
                     ? timeNanoMultiplier(time)
                     : 1L;
-                yield readListLongColumn(cr, maxDef, rows, blockFactory, multiplier);
+                yield readListLongColumn(input, maxDef, rows, blockFactory, multiplier, tally);
             }
-            case UNSIGNED_LONG -> readListUnsignedLongColumn(cr, maxDef, rows, blockFactory);
-            case DOUBLE -> readListDoubleColumn(cr, maxDef, rows, blockFactory);
-            case BOOLEAN -> readListBooleanColumn(cr, maxDef, rows, blockFactory);
-            case KEYWORD, TEXT -> readListBytesRefColumn(cr, info, rows, blockFactory);
-            case DATETIME -> readListDatetimeColumn(cr, info, rows, blockFactory, columnName, warnings);
-            case DATE_NANOS -> readListDateNanosColumn(cr, info, rows, blockFactory);
+            case UNSIGNED_LONG -> readListUnsignedLongColumn(input, maxDef, rows, blockFactory, tally);
+            case DOUBLE -> readListDoubleColumn(input, maxDef, rows, blockFactory, tally);
+            case BOOLEAN -> readListBooleanColumn(input, maxDef, rows, blockFactory, tally);
+            case KEYWORD, TEXT -> readListBytesRefColumn(input, info, rows, blockFactory, tally);
+            case DATETIME -> readListDatetimeColumn(input, info, rows, blockFactory, columnName, warnings, failedPositionSink, tally);
+            case DATE_NANOS -> readListDateNanosColumn(input, info, rows, blockFactory, tally, informationalWarningSink);
             default -> {
-                skipListValues(cr, rows);
+                skipListValues(input, rows);
                 yield blockFactory.newConstantNullBlock(rows);
             }
         };
+        // Only after the block is built: a read that threw produced no answer, so it has nothing to caveat.
+        if (tally.dropped) {
+            lossWarnings.addOnce(nullListElementsMessage(columnName));
+        }
+        return block;
     }
 
     /**
@@ -637,32 +1101,46 @@ final class ParquetColumnDecoding {
      * <p>The caller must have positioned the column reader at the start of the row.
      * After this method returns, the reader is positioned at the start of the next row
      * (repetition level == 0).
+     *
+     * <p>An element whose definition level is below {@code maxDef} has no value to append and is skipped; when it is
+     * a null element of a list that exists (rather than the level of a null or empty list) that is a lossy read, so
+     * it is recorded on {@code tally} for the caller to announce.
      */
-    private static void readListRow(ColumnReader cr, int maxDef, Block.Builder builder, Runnable appender) {
-        int def = cr.getCurrentDefinitionLevel();
+    private static void readListRow(ListColumnReader input, int maxDef, Block.Builder builder, Runnable appender, NullElementTally tally) {
+        input.ensureRowStart();
+        int def = input.currentDefinitionLevel();
         if (def >= maxDef) {
             builder.beginPositionEntry();
             appender.run();
-            cr.consume();
-            while (cr.getCurrentRepetitionLevel() > 0) {
-                if (cr.getCurrentDefinitionLevel() >= maxDef) {
+            input.consumeAfterRead();
+            while (input.hasRemaining() && input.currentRepetitionLevel() > 0) {
+                int elementDef = input.currentDefinitionLevel();
+                if (elementDef >= maxDef) {
                     appender.run();
+                    input.consumeAfterRead();
+                } else {
+                    tally.recordIfNullElement(elementDef);
+                    input.consumeUndefined();
                 }
-                cr.consume();
             }
             builder.endPositionEntry();
         } else {
-            cr.consume();
+            tally.recordIfNullElement(def);
+            input.consumeUndefined();
             boolean hasValues = false;
-            while (cr.getCurrentRepetitionLevel() > 0) {
-                if (cr.getCurrentDefinitionLevel() >= maxDef) {
+            while (input.hasRemaining() && input.currentRepetitionLevel() > 0) {
+                int elementDef = input.currentDefinitionLevel();
+                if (elementDef >= maxDef) {
                     if (hasValues == false) {
                         builder.beginPositionEntry();
                         hasValues = true;
                     }
                     appender.run();
+                    input.consumeAfterRead();
+                } else {
+                    tally.recordIfNullElement(elementDef);
+                    input.consumeUndefined();
                 }
-                cr.consume();
             }
             if (hasValues) {
                 builder.endPositionEntry();
@@ -670,35 +1148,55 @@ final class ParquetColumnDecoding {
                 builder.appendNull();
             }
         }
+        input.rowCompleted();
     }
 
-    private static Block readListIntColumn(ColumnReader cr, int maxDef, int rows, BlockFactory blockFactory) {
+    private static Block readListIntColumn(
+        ListColumnReader input,
+        int maxDef,
+        int rows,
+        BlockFactory blockFactory,
+        NullElementTally tally
+    ) {
         try (var builder = blockFactory.newIntBlockBuilder(rows)) {
-            Runnable appender = () -> builder.appendInt(cr.getInteger());
+            Runnable appender = () -> builder.appendInt(input.reader().getInteger());
             for (int row = 0; row < rows; row++) {
-                readListRow(cr, maxDef, builder, appender);
+                readListRow(input, maxDef, builder, appender, tally);
             }
             return builder.build();
         }
     }
 
-    private static Block readListLongColumn(ColumnReader cr, int maxDef, int rows, BlockFactory blockFactory, long multiplier) {
+    private static Block readListLongColumn(
+        ListColumnReader input,
+        int maxDef,
+        int rows,
+        BlockFactory blockFactory,
+        long multiplier,
+        NullElementTally tally
+    ) {
         try (var builder = blockFactory.newLongBlockBuilder(rows)) {
             Runnable appender = multiplier == 1
-                ? () -> builder.appendLong(cr.getLong())
-                : () -> builder.appendLong(cr.getLong() * multiplier);
+                ? () -> builder.appendLong(input.reader().getLong())
+                : () -> builder.appendLong(input.reader().getLong() * multiplier);
             for (int row = 0; row < rows; row++) {
-                readListRow(cr, maxDef, builder, appender);
+                readListRow(input, maxDef, builder, appender, tally);
             }
             return builder.build();
         }
     }
 
-    private static Block readListInt32AsLongColumn(ColumnReader cr, int maxDef, int rows, BlockFactory blockFactory) {
+    private static Block readListInt32AsLongColumn(
+        ListColumnReader input,
+        int maxDef,
+        int rows,
+        BlockFactory blockFactory,
+        NullElementTally tally
+    ) {
         try (var builder = blockFactory.newLongBlockBuilder(rows)) {
-            Runnable appender = () -> builder.appendLong(cr.getInteger());
+            Runnable appender = () -> builder.appendLong(input.reader().getInteger());
             for (int row = 0; row < rows; row++) {
-                readListRow(cr, maxDef, builder, appender);
+                readListRow(input, maxDef, builder, appender, tally);
             }
             return builder.build();
         }
@@ -709,72 +1207,98 @@ final class ParquetColumnDecoding {
      * Each element is sign-flip-encoded ({@code value ^ 2^63}) on the way in, mirroring the scalar read path and the
      * indexing path, so the always-decoding output edge produces the true unsigned value.
      */
-    private static Block readListUnsignedLongColumn(ColumnReader cr, int maxDef, int rows, BlockFactory blockFactory) {
+    private static Block readListUnsignedLongColumn(
+        ListColumnReader input,
+        int maxDef,
+        int rows,
+        BlockFactory blockFactory,
+        NullElementTally tally
+    ) {
         try (var builder = blockFactory.newLongBlockBuilder(rows)) {
-            Runnable appender = () -> builder.appendLong(encodeUnsignedLong(cr.getLong()));
+            Runnable appender = () -> builder.appendLong(encodeUnsignedLong(input.reader().getLong()));
             for (int row = 0; row < rows; row++) {
-                readListRow(cr, maxDef, builder, appender);
+                readListRow(input, maxDef, builder, appender, tally);
             }
             return builder.build();
         }
     }
 
-    private static Block readListDoubleColumn(ColumnReader cr, int maxDef, int rows, BlockFactory blockFactory) {
+    private static Block readListDoubleColumn(
+        ListColumnReader input,
+        int maxDef,
+        int rows,
+        BlockFactory blockFactory,
+        NullElementTally tally
+    ) {
         try (var builder = blockFactory.newDoubleBlockBuilder(rows)) {
-            Runnable appender = () -> builder.appendDouble(cr.getDouble());
+            Runnable appender = () -> builder.appendDouble(input.reader().getDouble());
             for (int row = 0; row < rows; row++) {
-                readListRow(cr, maxDef, builder, appender);
+                readListRow(input, maxDef, builder, appender, tally);
             }
             return builder.build();
         }
     }
 
-    private static Block readListBooleanColumn(ColumnReader cr, int maxDef, int rows, BlockFactory blockFactory) {
+    private static Block readListBooleanColumn(
+        ListColumnReader input,
+        int maxDef,
+        int rows,
+        BlockFactory blockFactory,
+        NullElementTally tally
+    ) {
         try (var builder = blockFactory.newBooleanBlockBuilder(rows)) {
-            Runnable appender = () -> builder.appendBoolean(cr.getBoolean());
+            Runnable appender = () -> builder.appendBoolean(input.reader().getBoolean());
             for (int row = 0; row < rows; row++) {
-                readListRow(cr, maxDef, builder, appender);
+                readListRow(input, maxDef, builder, appender, tally);
             }
             return builder.build();
         }
     }
 
-    private static Block readListBytesRefColumn(ColumnReader cr, ColumnInfo info, int rows, BlockFactory blockFactory) {
+    private static Block readListBytesRefColumn(
+        ListColumnReader input,
+        ColumnInfo info,
+        int rows,
+        BlockFactory blockFactory,
+        NullElementTally tally
+    ) {
         int maxDef = info.maxDefLevel();
         // UUID-annotated bytes are raw 16-byte payloads: format them as hex (matching the scalar path)
         // rather than sanitizing, which would mangle valid UUID bytes into replacement characters.
         boolean isUuid = info.logicalType() instanceof LogicalTypeAnnotation.UUIDLogicalTypeAnnotation;
         try (var builder = blockFactory.newBytesRefBlockBuilder(rows)) {
             Runnable appender = isUuid
-                ? () -> builder.appendBytesRef(new BytesRef(formatUuid(cr.getBinary().getBytes())))
-                : () -> builder.appendBytesRef(Utf8Sanitizer.sanitize(new BytesRef(cr.getBinary().getBytes())));
+                ? () -> builder.appendBytesRef(new BytesRef(formatUuid(input.reader().getBinary().getBytes())))
+                : () -> builder.appendBytesRef(Utf8Sanitizer.sanitize(new BytesRef(input.reader().getBinary().getBytes())));
             for (int row = 0; row < rows; row++) {
-                readListRow(cr, maxDef, builder, appender);
+                readListRow(input, maxDef, builder, appender, tally);
             }
             return builder.build();
         }
     }
 
     private static Block readListDatetimeColumn(
-        ColumnReader cr,
+        ListColumnReader input,
         ColumnInfo info,
         int rows,
         BlockFactory blockFactory,
         @Nullable String columnName,
-        @Nullable SkipWarnings warnings
+        @Nullable SkipWarnings warnings,
+        @Nullable IntConsumer failedPositionSink,
+        NullElementTally tally
     ) {
         // Declared string->datetime coercion for LIST<string> columns: parse each element via the shared
         // scalar with the column's declared format (ISO default), mirroring the flat decode paths. A parse
         // failure follows castBlock's bulk semantics (whole position nulls, or propagates when strict), so
         // this arm gathers each row before appending.
         if (info.parquetType() == PrimitiveType.PrimitiveTypeName.BINARY) {
-            return readListStringDatetimeColumn(cr, info, rows, blockFactory, columnName, warnings);
+            return readListStringDatetimeColumn(input, info, rows, blockFactory, columnName, warnings, failedPositionSink, tally);
         }
         try (var builder = blockFactory.newLongBlockBuilder(rows)) {
             int maxDef = info.maxDefLevel();
-            Runnable appender = () -> builder.appendLong(convertTimestampToMillis(cr.getLong(), info.logicalType()));
+            Runnable appender = () -> builder.appendLong(convertTimestampToMillis(input.reader().getLong(), info.logicalType()));
             for (int row = 0; row < rows; row++) {
-                readListRow(cr, maxDef, builder, appender);
+                readListRow(input, maxDef, builder, appender, tally);
             }
             return builder.build();
         }
@@ -788,28 +1312,37 @@ final class ParquetColumnDecoding {
      * instead of leaving a half-built entry. On failure the remaining elements are still
      * materialised (not parsed) so the column reader's data cursor stays in lock-step with its
      * level cursor for the rows that follow. {@code warnings} carries the per-position failure
-     * sink; {@code null} = strict, the failure propagates.
+     * sink; {@code null} = strict, the failure propagates. A skipped null element is recorded on
+     * {@code tally} for {@link #readListColumn} to announce, exactly as in {@link #readListRow}.
      */
     private static Block readListStringDatetimeColumn(
-        ColumnReader cr,
+        ListColumnReader input,
         ColumnInfo info,
         int rows,
         BlockFactory blockFactory,
         @Nullable String columnName,
-        @Nullable SkipWarnings warnings
+        @Nullable SkipWarnings warnings,
+        @Nullable IntConsumer failedPositionSink,
+        NullElementTally tally
     ) {
         int maxDef = info.maxDefLevel();
         DateFormatter dateFormatter = info.dateFormatter();
         long[] parsed = new long[8];
+        boolean skipRow = failedPositionSink != null;
         try (var builder = blockFactory.newLongBlockBuilder(rows)) {
             for (int row = 0; row < rows; row++) {
+                input.ensureRowStart();
                 int count = 0;
                 boolean failed = false;
                 boolean rowDone = false;
                 while (rowDone == false) {
-                    if (cr.getCurrentDefinitionLevel() >= maxDef) {
+                    int elementDef = input.currentDefinitionLevel();
+                    if (elementDef < maxDef) {
+                        tally.recordIfNullElement(elementDef);
+                        input.consumeUndefined();
+                    } else {
                         // Always read the value so the data cursor advances even after a failure.
-                        String value = cr.getBinary().toStringUsingUTF8();
+                        String value = input.reader().getBinary().toStringUsingUTF8();
                         if (failed == false) {
                             if (count == parsed.length) {
                                 parsed = Arrays.copyOf(parsed, count * 2);
@@ -817,18 +1350,27 @@ final class ParquetColumnDecoding {
                             try {
                                 parsed[count++] = DeclaredTypeCoercions.parseDatetimeMillis(value, dateFormatter);
                             } catch (IllegalArgumentException | DateTimeException e) {
-                                DeclaredTypeCoercions.onCoercionFailure(columnName, DataType.KEYWORD, DataType.DATETIME, e, warnings);
+                                DeclaredTypeCoercions.onCoercionFailure(
+                                    columnName,
+                                    DataType.KEYWORD,
+                                    DataType.DATETIME,
+                                    e,
+                                    warnings,
+                                    skipRow
+                                );
                                 failed = true;
                             }
                         }
+                        input.consumeAfterRead();
                     }
-                    cr.consume();
-                    rowDone = cr.getCurrentRepetitionLevel() == 0;
+                    rowDone = input.hasRemaining() == false || input.currentRepetitionLevel() == 0;
                 }
+                input.rowCompleted();
                 if (failed || count == 0) {
                     // failed: bulk semantics null the whole position (already warned above).
                     // count == 0: null list, empty list, or all-null elements — a null position,
                     // matching readListRow's no-defined-values branch.
+                    if (failed && skipRow) failedPositionSink.accept(row);
                     builder.appendNull();
                 } else {
                     builder.beginPositionEntry();
@@ -847,20 +1389,30 @@ final class ParquetColumnDecoding {
      * {@code LongBlock} of epoch-nanoseconds. {@code MICROS} elements whose scaled value would overflow the
      * representable {@code date_nanos} range are dropped from their list (mirroring how the generic list reader
      * already skips null elements); a list whose elements <em>all</em> overflow becomes a null position. A single
-     * deduplicated warning header is emitted when any element was dropped. This uses a lazy {@code beginPositionEntry}
-     * so an all-overflow defined list never triggers the empty-position assertion in {@link Block.Builder}.
+     * deduplicated warning is reported when any element was dropped. This uses a lazy {@code beginPositionEntry} so
+     * an all-overflow defined list never triggers the empty-position assertion in {@link Block.Builder}.
+     *
+     * <p>Overflow and null-element drops are announced separately — they are different losses with different
+     * remedies — so this loop feeds both {@code anyOverflow} and {@code tally}.
      */
-    private static Block readListDateNanosColumn(ColumnReader cr, ColumnInfo info, int rows, BlockFactory blockFactory) {
+    private static Block readListDateNanosColumn(
+        ListColumnReader input,
+        ColumnInfo info,
+        int rows,
+        BlockFactory blockFactory,
+        NullElementTally tally,
+        @Nullable Consumer<String> informationalWarningSink
+    ) {
         int maxDef = info.maxDefLevel();
         LogicalTypeAnnotation logical = info.logicalType();
         boolean micros = isMicrosTimestamp(logical);
         boolean[] anyOverflow = { false };
         try (LongBlock.Builder builder = blockFactory.newLongBlockBuilder(rows)) {
             for (int row = 0; row < rows; row++) {
-                readDateNanosListRow(cr, maxDef, micros, logical, builder, anyOverflow);
+                readDateNanosListRow(input, maxDef, micros, logical, builder, anyOverflow, tally);
             }
             if (anyOverflow[0]) {
-                warnTimestampOutOfRange(info);
+                warnTimestampOutOfRange(info, informationalWarningSink);
             }
             return builder.build();
         }
@@ -872,21 +1424,35 @@ final class ParquetColumnDecoding {
      * entry is opened lazily on the first retained element, so a list with no retained elements is emitted as null.
      */
     private static void readDateNanosListRow(
-        ColumnReader cr,
+        ListColumnReader input,
         int maxDef,
         boolean micros,
         LogicalTypeAnnotation logical,
         LongBlock.Builder builder,
-        boolean[] anyOverflow
+        boolean[] anyOverflow,
+        NullElementTally tally
     ) {
-        boolean open = cr.getCurrentDefinitionLevel() >= maxDef && appendDateNanosElement(cr, logical, micros, builder, false, anyOverflow);
-        cr.consume();
-        while (cr.getCurrentRepetitionLevel() > 0) {
-            if (cr.getCurrentDefinitionLevel() >= maxDef) {
-                open = appendDateNanosElement(cr, logical, micros, builder, open, anyOverflow);
-            }
-            cr.consume();
+        input.ensureRowStart();
+        int def = input.currentDefinitionLevel();
+        boolean open = false;
+        if (def >= maxDef) {
+            open = appendDateNanosElement(input.reader(), logical, micros, builder, false, anyOverflow);
+            input.consumeAfterRead();
+        } else {
+            tally.recordIfNullElement(def);
+            input.consumeUndefined();
         }
+        while (input.hasRemaining() && input.currentRepetitionLevel() > 0) {
+            int elementDef = input.currentDefinitionLevel();
+            if (elementDef >= maxDef) {
+                open = appendDateNanosElement(input.reader(), logical, micros, builder, open, anyOverflow);
+                input.consumeAfterRead();
+            } else {
+                tally.recordIfNullElement(elementDef);
+                input.consumeUndefined();
+            }
+        }
+        input.rowCompleted();
         if (open) {
             builder.endPositionEntry();
         } else {

@@ -408,7 +408,9 @@ public class Replace extends EsqlScalarFunction implements AnyNullIsNull {
      * message to avoid writing potentially sensitive data to logs.
      */
     private static IllegalArgumentException stackOverflowApplying(String pattern) {
-        return new IllegalArgumentException("Caught a StackOverflowError while applying regex [" + pattern + "]");
+    private static InvalidArgumentException stackOverflowApplying(StackOverflowError e) {
+        return new InvalidArgumentException("Pattern nesting is too deep to evaluate", e);
+    }
     }
 
     private static BytesRef doReplace(BytesRef strBytesRef, Pattern regex, BytesRef newStrBytesRef) {

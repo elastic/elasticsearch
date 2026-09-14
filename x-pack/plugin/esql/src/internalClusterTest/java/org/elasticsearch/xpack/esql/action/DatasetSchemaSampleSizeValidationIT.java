@@ -15,6 +15,7 @@ import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.esql.datasource.csv.CsvDataSourcePlugin;
 import org.elasticsearch.xpack.esql.datasource.parquet.ParquetDataSourcePlugin;
+import org.elasticsearch.xpack.esql.datasources.FormatNameResolver;
 import org.elasticsearch.xpack.esql.datasources.dataset.DeleteDatasetAction;
 import org.elasticsearch.xpack.esql.datasources.dataset.PutDatasetAction;
 import org.elasticsearch.xpack.esql.datasources.datasource.DeleteDataSourceAction;
@@ -119,10 +120,7 @@ public class DatasetSchemaSampleSizeValidationIT extends AbstractExternalDataSou
         registerLocalDataSource("ssz_ambig_ds");
         String resource = "file:///data/events";
         ValidationException e = expectPutDatasetValidationFailure("ssz_ambig", "ssz_ambig_ds", resource, Map.of("schema_sample_size", 100));
-        assertThat(
-            e.getMessage(),
-            containsString(FileDataSourceValidator.cannotDetermineFormatError(resource, Set.of("schema_sample_size")))
-        );
+        assertThat(e.getMessage(), containsString(FormatNameResolver.ambiguousDatasetFormatMessage(resource)));
     }
 
     /** The setting keeps working where it applies: a CSV dataset registers with it and reads end to end. */

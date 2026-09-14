@@ -327,7 +327,7 @@ public class DataSourceCrudRestIT extends ESRestTestCase {
         putDataSource(parent, "s3", Map.of("region", "us-east-1", "auth", "anonymous"));
         ResponseException ex = expectThrows(
             ResponseException.class,
-            () -> putDataset("bad_exclusion_child", parent, "s3://bucket/data", Map.of("file_exclusions", List.of("a[b")))
+            () -> putDataset("bad_exclusion_child", parent, "s3://bucket/data/*.parquet", Map.of("file_exclusions", List.of("a[b")))
         );
         assertThat(ex.getResponse().getStatusLine().getStatusCode(), equalTo(400));
         assertThat(EntityUtils.toString(ex.getResponse().getEntity()), containsString("unterminated character class"));
@@ -339,7 +339,7 @@ public class DataSourceCrudRestIT extends ESRestTestCase {
         final String parent = "dir_exclusion_parent";
         final String dataset = "dir_exclusion_child";
         putDataSource(parent, "s3", Map.of("region", "us-east-1", "auth", "anonymous"));
-        putDataset(dataset, parent, "s3://bucket/data/**", Map.of("file_exclusions", List.of("**/backup_2024/**")));
+        putDataset(dataset, parent, "s3://bucket/data/**/*.parquet", Map.of("file_exclusions", List.of("**/backup_2024/**")));
 
         Map<String, Object> got = getDataset(dataset);
         @SuppressWarnings("unchecked")
@@ -358,7 +358,7 @@ public class DataSourceCrudRestIT extends ESRestTestCase {
         putDataSource(parent, "s3", Map.of("region", "us-east-1", "auth", "anonymous"));
         ResponseException ex = expectThrows(
             ResponseException.class,
-            () -> putDataset("scalar_exclusion_child", parent, "s3://bucket/data", Map.of("file_exclusions", "_*"))
+            () -> putDataset("scalar_exclusion_child", parent, "s3://bucket/data/*.parquet", Map.of("file_exclusions", "_*"))
         );
         assertThat(ex.getResponse().getStatusLine().getStatusCode(), equalTo(400));
         assertThat(EntityUtils.toString(ex.getResponse().getEntity()), containsString("must be a JSON array of strings"));
@@ -387,7 +387,7 @@ public class DataSourceCrudRestIT extends ESRestTestCase {
             () -> putDataset("no_format_child", parent, "s3://bucket/data", Map.of("delimiter", "|"))
         );
         assertThat(ex.getResponse().getStatusLine().getStatusCode(), equalTo(400));
-        assertThat(EntityUtils.toString(ex.getResponse().getEntity()), containsString("cannot determine format"));
+        assertThat(EntityUtils.toString(ex.getResponse().getEntity()), containsString("set the dataset's [format] setting"));
         deleteDataSource(parent);
     }
 
@@ -396,7 +396,7 @@ public class DataSourceCrudRestIT extends ESRestTestCase {
         putDataSource(parent, "s3", Map.of("region", "us-east-1", "auth", "anonymous"));
         Request req = new Request("PUT", "/_query/dataset/reject_field_ds");
         try (XContentBuilder b = jsonBuilder()) {
-            b.startObject().field("data_source", parent).field("resource", "s3://x/").field("not_a_real_field", "x").endObject();
+            b.startObject().field("data_source", parent).field("resource", "s3://x/*.parquet").field("not_a_real_field", "x").endObject();
             req.setJsonEntity(Strings.toString(b));
         }
         ResponseException ex = expectThrows(ResponseException.class, () -> client().performRequest(req));
@@ -404,11 +404,33 @@ public class DataSourceCrudRestIT extends ESRestTestCase {
         deleteDataSource(parent);
     }
 
+    public void testPutDatasetRejectsPrefixWithoutFormat() throws IOException {
+        final String parent = "prefix_no_format_parent";
+        putDataSource(parent, "s3", Map.of("region", "us-east-1", "auth", "anonymous"));
+        ResponseException prefix = expectThrows(
+            ResponseException.class,
+            () -> putDataset("prefix_no_format_child", parent, "s3://bucket/data/**", Map.of())
+        );
+        assertThat(prefix.getResponse().getStatusLine().getStatusCode(), equalTo(400));
+        assertThat(EntityUtils.toString(prefix.getResponse().getEntity()), containsString("set the dataset's [format] setting"));
+
+        ResponseException mixed = expectThrows(
+            ResponseException.class,
+            () -> putDataset("mixed_no_format_child", parent, "s3://bucket/a.parquet,s3://bucket/b.csv", Map.of())
+        );
+        assertThat(mixed.getResponse().getStatusLine().getStatusCode(), equalTo(400));
+        assertThat(EntityUtils.toString(mixed.getResponse().getEntity()), containsString("implied formats"));
+
+        putDataset("prefix_with_format_child", parent, "s3://bucket/data/**", Map.of("format", "csv"));
+        deleteDataset("prefix_with_format_child");
+        deleteDataSource(parent);
+    }
+
     public void testDeleteDataSourceWithDependentsReturns409() throws IOException {
         final String parent = "delete_blocked_parent";
         final String dataset = "delete_blocked_child";
         putDataSource(parent, "s3", Map.of("region", "us-east-1", "auth", "anonymous"));
-        putDataset(dataset, parent, "s3://x/", Map.of());
+        putDataset(dataset, parent, "s3://x/*.parquet", Map.of());
 
         ResponseException ex = expectThrows(
             ResponseException.class,

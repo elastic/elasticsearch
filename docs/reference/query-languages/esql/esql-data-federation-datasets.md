@@ -22,12 +22,12 @@ Federated data sources can read the following file formats:
 :::{include} _snippets/data-federation/supported-file-formats.md
 :::
 
-Datasets should be scoped to a single file format. The format is detected from each file's extension, or you can set it explicitly with the [`format`](#common-settings) setting. If your bucket contains a mix of file types, use the [resource pattern](esql-data-federation-patterns.md) to narrow the dataset to one, for example `**/*.parquet`.
+Datasets should be scoped to a single file format. The format is inferred from the resource **pattern** when that pattern implies exactly one registered format — for example `**/*.parquet`, `_schema.parquet,events/**/*.parquet`, or `a.csv,b.csv.gz` (compression is not a second type). Extensionless prefixes (`hits/*`, `s3://dir1/,s3://dir2/`) and mixed patterns (`a.parquet,b.csv`, `*.{parquet,csv}`) require the [`format`](#common-settings) setting, or split the files into separate datasets. If your bucket contains a mix of file types, use the [resource pattern](esql-data-federation-patterns.md) to narrow the dataset to one format, for example `**/*.parquet`.
 
 If you need to query files of different formats from the same bucket, create a separate dataset for each. Ideally, all files in a dataset also share the same schema. When they differ, the [`schema_resolution`](#schema-merge-strategies) setting controls how differences are reconciled.
 
 :::{important}
-When set, the `format` setting forces every file the resource pattern matches through the same reader, regardless of file extension. If the pattern matches files of a different format, this can lead to errors or, worse, returning garbled data without error.
+When set, the `format` setting selects the reader for every file the resource pattern matches. Unrecognized extensions (for example `.log.gz`) are still read with that reader. An object whose name maps to a **different registered** format than the dataset is rejected; the query does not skip the file or return garbled rows.
 :::
 
 ### Text formats
@@ -80,7 +80,7 @@ Click **Add dataset** to open a flyout where you define the dataset:
 - **Name**: a unique name for use in queries. Names must be lowercase and cannot begin with `-`, `_`, or `+`. A dataset cannot share a name with any existing index, data stream, alias, or view.
 - **Description**: an optional description.
 - **Resource**: the URI and glob pattern that selects the files to read. Refer to [resource patterns](esql-data-federation-patterns.md) for the pattern language.
-- **Format**: the file format. This selection is required in the {{kib}} UI. The API can omit `settings.format` to auto-detect it from the file extension. Refer to [supported file formats](#supported-file-formats).
+- **Format**: the file format. This selection is required in the {{kib}} UI. The API can omit `settings.format` when the resource pattern implies exactly one format. Extensionless or mixed patterns require `format`. Refer to [supported file formats](#supported-file-formats).
 
 To configure how the format is read, expand **Advanced settings**. Refer to [dataset settings](#dataset-settings).
 
@@ -272,7 +272,7 @@ The following settings apply to all file-based data sources:
 
 | Setting | Default | Description |
 |---|---|---|
-| `format` | Auto-detect from extension | Override format detection. Valid values: `"parquet"`, `"csv"`, `"tsv"`, `"ndjson"`. |
+| `format` | Inferred from the resource pattern when that pattern implies exactly one format; otherwise required | Override or supply format detection. Valid values: `"parquet"`, `"csv"`, `"tsv"`, `"ndjson"`. Required for extensionless prefixes and mixed patterns. Forces unrecognized extensions through this reader, but rejects objects that map to a different registered format. |
 | `partition_detection` | `auto` | Partition detection mode. Valid values: `"auto"`, `"hive"`, `"template"`, `"none"`. `auto` (default) tries Hive `key=value` directory names first; if a `partition_path` is also set, falls back to the template for paths that do not use `key=value`. `hive` reads `key=value` directory names only and rejects `partition_path`. `template` uses `partition_path` to name partition columns and is rejected without it. `none` disables partition detection entirely. Refer to [brace groups and partition placeholders](esql-data-federation-patterns.md#brace-groups-and-partition-placeholders). |
 | `partition_path` | (none) | Template naming partition columns for paths that do not use `key=value` directories. Use `{column}` placeholders to label each partition path segment: for example, `{year}/{month}` extracts `year` and `month` columns from a two-level path. Setting `partition_path` without an explicit `partition_detection` leaves detection on `auto`, which tries Hive first and falls back to the template — a valid and common configuration. `partition_path` is rejected with `partition_detection: hive` or `none`. Refer to [brace groups and partition placeholders](esql-data-federation-patterns.md#brace-groups-and-partition-placeholders). |
 | `schema_resolution` | `union_by_name` | How schemas are reconciled across multiple files. Valid values: `"first_file_wins"`, `"strict"`, `"union_by_name"`. Refer to [schema merge strategies](#schema-merge-strategies). |

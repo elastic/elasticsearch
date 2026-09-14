@@ -243,26 +243,11 @@ final class FileSourceFactory implements ExternalSourceFactory {
         }
         try {
             StoragePath path = StoragePath.of(location);
-            String scheme = path.scheme();
-            String objectName = path.objectName();
-            if (objectName == null || objectName.isEmpty()) {
+            if (storageRegistry.hasProvider(path.scheme()) == false) {
                 return false;
             }
-            int lastDot = objectName.lastIndexOf('.');
-            if (lastDot < 0 || lastDot == objectName.length() - 1) {
-                return false;
-            }
-            if (storageRegistry.hasProvider(scheme) == false) {
-                return false;
-            }
-            String ext = objectName.substring(objectName.lastIndexOf('.'));
-            if (formatRegistry.hasExtension(ext)) {
-                return true;
-            }
-            if (codecRegistry.hasCompressionExtension(ext) && formatRegistry.hasCompressedExtension(objectName)) {
-                return true;
-            }
-            return false;
+            String format = FormatNameResolver.datasetFormat(null, location, formatRegistry);
+            return formatRegistry.hasFormat(format);
         } catch (IllegalArgumentException e) {
             return false;
         }
@@ -522,7 +507,8 @@ final class FileSourceFactory implements ExternalSourceFactory {
                     storage = storageRegistry.provider(path);
                 }
 
-                FormatReader format = resolveFormatReader(path.objectName(), config).withConfig(config)
+                FormatReader format = formatRegistry.byName(FormatNameResolver.datasetFormat(config, path.toString(), formatRegistry))
+                    .withConfig(config)
                     .withPushedFilter(context.pushedFilter())
                     .withSchema(context.attributes())
                     // Declared per-column date formats: the spec keys them by logical name, but the reader sees physical
@@ -617,6 +603,7 @@ final class FileSourceFactory implements ExternalSourceFactory {
                     .statsStripeSize(ExternalSourceCacheSettings.STRIPE_SIZE.get(settings).getBytes())
                     .statsColumnScope(ExternalSourceCacheSettings.STRIPE_COLUMNS.get(settings))
                     .streamingSegmentatorAdmission(segmentatorAdmission)
+                    .formatReaderRegistry(formatRegistry)
                     .parallelism(context.parallelism())
                     .pushedExpressions(pushedExpressions)
                     .pushdownSupport(pushdownSupport)

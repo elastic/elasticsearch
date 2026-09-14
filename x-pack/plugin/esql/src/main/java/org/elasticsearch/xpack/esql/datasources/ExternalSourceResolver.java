@@ -680,8 +680,11 @@ public class ExternalSourceResolver {
         StoragePath storagePath = StoragePath.of(path);
         StorageProvider provider = resolveProvider(storagePath, config);
         try {
-            // Strict declaration is the entire schema: build directly from the declaration (one bounded anchor footer read
-            // for columnar coercibility), no inference. The non-strict overlay is applied by the caller after this returns.
+            String datasetFormat = FormatNameResolver.datasetFormat(config, path, dataSourceModule.formatReaderRegistry());
+            FormatNameResolver.rejectConflictingObjectFormat(storagePath, datasetFormat, dataSourceModule.formatReaderRegistry());
+            // Strict declaration is the entire schema: build directly from the declaration (one bounded
+            // anchor footer read for columnar coercibility), no inference. The non-strict overlay is
+            // applied by the caller after this returns.
             if (isDeclaredSchema(declaredMapping)) {
                 listener.onResponse(resolveStrictSingleFile(path, storagePath, provider, config, declaredMapping));
                 return;
@@ -778,10 +781,12 @@ public class ExternalSourceResolver {
             FormatReader.SchemaResolution schemaResolution = parseSchemaResolution(config);
             boolean cacheable = isCacheable(provider);
 
+            String datasetFormat = FormatNameResolver.datasetFormat(config, path, dataSourceModule.formatReaderRegistry());
             FileList listing = listAndRecord(path, storagePath, provider, hints, config, cacheable);
             if (listing.fileCount() == 0) {
                 throw new IllegalArgumentException("Glob pattern matched no files: " + path);
             }
+            FormatNameResolver.rejectConflictingListedFormats(listing, datasetFormat, dataSourceModule.formatReaderRegistry());
             if (schemaResolution != FormatReader.SchemaResolution.FIRST_FILE_WINS) {
                 resolveMultiFileWithReconciliation(listing, config, schemaResolution, cacheable, listener);
                 return;
@@ -1389,9 +1394,9 @@ public class ExternalSourceResolver {
      */
     private boolean datasetAggregateSafeForFormat(FileList listing, Map<String, Object> config) {
         try {
-            String formatName = FormatNameResolver.resolveFormatName(
+            String formatName = FormatNameResolver.datasetFormat(
                 config,
-                listing.path(0).objectName(),
+                listing.originalPattern(),
                 dataSourceModule.formatReaderRegistry()
             );
             // Same predicate as foldsAbsentColumnAsImplicitNull, negated: an absent-column stat is only
@@ -2657,12 +2662,12 @@ public class ExternalSourceResolver {
         // Declared mapping is the whole schema, in LOGICAL names; a `path` rename is applied at the reader, so the
         // operator (and file schema) work purely in logical names.
         List<Attribute> logicalSchema = DeclaredSchemaResolver.declaredAttributes(declaredMapping);
-        // sourceType drives operator-factory dispatch (OperatorFactoryRegistry keys on it), so it must equal the
-        // reader's formatName() the inferred path would have produced — derive it without reading the file via
-        // FormatNameResolver.resolveFormatName, which routes through the registry (reader-then-format-then-extension
-        // precedence, and compound-extension aware, so hits.csv.gz -> "csv" not the "gz" codec suffix). A hand-rolled
-        // `format` check or the last-dot FormatNameResolver.resolve here would mis-key the dispatch on compressed text.
-        String sourceType = FormatNameResolver.resolveFormatName(config, storagePath.objectName(), dataSourceModule.formatReaderRegistry());
+        // sourceType drives operator-factory dispatch (OperatorFactoryRegistry keys on it). Derive it from
+        // the resource pattern ({@link FormatNameResolver#datasetFormat}), not the last path segment, so a
+        // comma list or glob cannot be keyed on the wrong leaf. Then fail closed if this object's inferred
+        // format exists and differs.
+        String sourceType = FormatNameResolver.datasetFormat(config, path, dataSourceModule.formatReaderRegistry());
+        FormatNameResolver.rejectConflictingObjectFormat(storagePath, sourceType, dataSourceModule.formatReaderRegistry());
         // Cheap no-I/O guard first (no partitions on a single file), then the columnar coercibility check which reads
         // this file's footer (cached when the provider is).
         rejectDeclaredMappingViolations(null, declaredMapping);
@@ -2864,6 +2869,8 @@ public class ExternalSourceResolver {
         Map<String, Object> config,
         DatasetMapping declaredMapping
     ) throws Exception {
+        // Fail closed on an ambiguous pattern before listing. Same helper as the inferred rail.
+        String sourceType = FormatNameResolver.datasetFormat(config, path, dataSourceModule.formatReaderRegistry());
         FileList listing;
         // Strict multi-file still does the same glob listing as the inferred path — record it as discovery too, so
         // strict resolutions are not invisible in the discovery telemetry (mirrors resolveMultiFileSource).
@@ -2887,17 +2894,7 @@ public class ExternalSourceResolver {
         // Declared mapping is the whole schema, in LOGICAL names; a `path` rename is applied at the reader, so the
         // operator (and file schema) work purely in logical names.
         List<Attribute> logicalSchema = DeclaredSchemaResolver.declaredAttributes(declaredMapping);
-        // Same compound-extension-aware dispatch as the single-file strict path above. Derive from a CONCRETE listed
-        // object name (listing.path(0)), not the raw glob string: a pattern like `*.csv.gz` and a comma-separated path
-        // list both make the raw path unreliable for extension parsing, whereas a listed entry is a real file name.
-        // Like the inferred FIRST_FILE_WINS path, the anchor's format governs every file with no cross-listing format
-        // check — so a heterogeneous, extension-less glob (e.g. `logs/*` matching mixed formats) reads through the
-        // first file's reader rather than failing; consistent with the pre-existing multi-file design, not validated here.
-        String sourceType = FormatNameResolver.resolveFormatName(
-            config,
-            listing.path(0).objectName(),
-            dataSourceModule.formatReaderRegistry()
-        );
+        FormatNameResolver.rejectConflictingListedFormats(listing, sourceType, dataSourceModule.formatReaderRegistry());
 
         // Partition columns are path-derived (no file I/O), so strict mode surfaces them exactly like the inferred
         // path does. One divergence: the inferred path SHADOWS a physical column that collides with a partition key
@@ -3018,7 +3015,7 @@ public class ExternalSourceResolver {
         Map<String, Object> config,
         DatasetMapping declaredMapping
     ) throws Exception {
-        // The strict callers now derive sourceType via FormatNameResolver.resolveFormatName, which returns non-null or
+        // The strict callers now derive sourceType via FormatNameResolver.datasetFormat, which returns non-null or
         // throws, so the null branch is defensive-only today; it is kept so a future null-returning resolution path
         // cannot silently NPE on Set.contains(null) and resurrect the earlier NPE-wrapped-500.
         if (sourceType == null || FILE_TYPED_FORMATS.contains(sourceType) == false || declaredMapping.mappings() == null) {

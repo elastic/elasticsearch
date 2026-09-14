@@ -2300,4 +2300,13 @@ public class GlobExpanderTests extends ESTestCase {
         GlobExpander.replayExclusionWarnings(compacted);
         assertWarnings(warning);
     }
+
+    public void testExpandBracesKeepingWildcards() {
+        assertEquals(List.of("*.parquet"), GlobExpander.expandBracesKeepingWildcards("*.parquet"));
+        assertEquals(List.of("*.parquet", "*.csv"), GlobExpander.expandBracesKeepingWildcards("*.{parquet,csv}"));
+        assertEquals(List.of("a.csv", "b.csv"), GlobExpander.expandBracesKeepingWildcards("{a,b}.csv"));
+        assertEquals(List.of("hits.csv.gz"), GlobExpander.expandBracesKeepingWildcards("hits.csv.gz"));
+        assertEquals(List.of("*"), GlobExpander.expandBracesKeepingWildcards("*"));
+        assertEquals(List.of("file{a,b"), GlobExpander.expandBracesKeepingWildcards("file{a,b"));
+    }
 }

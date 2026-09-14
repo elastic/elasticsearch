@@ -821,6 +821,65 @@ public final class GlobExpander {
         return segments;
     }
 
+    /**
+     * Ceiling matching {@link GlobMatcher}'s per-group cap so format inference cannot expand a wider set than
+     * listing would.
+     */
+    private static final int MAX_BRACE_ALTERNATIVES = 1024;
+
+    /**
+     * Expands brace groups in an object name while keeping {@code *}, {@code ?}, and {@code [} as themselves.
+     * Used to infer the formats a resource pattern implies without listing objects — {@link GlobMatcher#enumerateKeys}
+     * returns null when a wildcard is present, which would hide {@code *.{parquet,csv}}.
+     *
+     * <p>Nested or unterminated brace groups, and numeric ranges that cannot be expanded, are left as the original
+     * spelling so the caller treats them as unreadable names rather than inventing a format.
+     */
+    public static List<String> expandBracesKeepingWildcards(String name) {
+        if (name == null) {
+            return List.of();
+        }
+        if (name.isEmpty() || name.indexOf('{') < 0) {
+            return List.of(name);
+        }
+        List<String> out = new ArrayList<>();
+        expandBracesKeepingWildcards(name, out);
+        // Incomplete expansion of a huge group would look like a unique format. Fall back to the
+        // original spelling so inference treats it as unreadable rather than silently picking a subset.
+        if (out.size() > MAX_BRACE_ALTERNATIVES) {
+            return List.of(name);
+        }
+        return out;
+    }
+
+    private static void expandBracesKeepingWildcards(String name, List<String> out) {
+        int open = name.indexOf('{');
+        if (open < 0) {
+            out.add(name);
+            return;
+        }
+        int close = name.indexOf('}', open + 1);
+        if (close < 0) {
+            out.add(name);
+            return;
+        }
+        String body = name.substring(open + 1, close);
+        if (body.indexOf('{') >= 0) {
+            out.add(name);
+            return;
+        }
+        String[] spellings = BraceExpander.expandBraceContent(body, MAX_BRACE_ALTERNATIVES);
+        if (spellings == null) {
+            out.add(name);
+            return;
+        }
+        String prefix = name.substring(0, open);
+        String suffix = name.substring(close + 1);
+        for (String spelling : spellings) {
+            expandBracesKeepingWildcards(prefix + spelling + suffix, out);
+        }
+    }
+
     private static void addSegment(List<String> segments, String segment) {
         String trimmed = segment.trim();
         if (trimmed.isEmpty() == false) {

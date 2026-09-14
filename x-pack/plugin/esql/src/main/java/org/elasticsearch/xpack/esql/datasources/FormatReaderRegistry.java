@@ -177,6 +177,19 @@ public class FormatReaderRegistry {
     }
 
     /**
+     * Raised when {@link #byExtension} cannot map an object name to a reader (no extension, or an
+     * extension the registry does not claim). Distinct from {@link #wrapWithCodec} vetoes, which are
+     * also {@link IllegalArgumentException} but name a real format/codec incompatibility rather than
+     * an unreadable name. Dataset CRUD swallows only this type so a veto surfaces as a validation
+     * error instead of the generic "cannot determine format; set format" hint.
+     */
+    public static final class UnreadableObjectException extends IllegalArgumentException {
+        UnreadableObjectException(String message) {
+            super(message);
+        }
+    }
+
+    /**
      * The single builder for "we cannot work out how to read this". Both the resolver's factory-selection
      * failure and this registry's own extension lookup raise it, so one condition cannot produce two
      * differently-worded answers depending on which layer caught it.
@@ -193,19 +206,6 @@ public class FormatReaderRegistry {
      *                    path, the object name here
      * @param objectName  the object name to diagnose the extension from
      */
-    /**
-     * Raised when {@link #byExtension} cannot map an object name to a reader (no extension, or an
-     * extension the registry does not claim). Distinct from {@link #wrapWithCodec} vetoes, which are
-     * also {@link IllegalArgumentException} but name a real format/codec incompatibility rather than
-     * an unreadable name. Dataset CRUD swallows only this type so a veto surfaces as a validation
-     * error instead of the generic "cannot determine format; set format" hint.
-     */
-    public static final class UnreadableObjectException extends IllegalArgumentException {
-        UnreadableObjectException(String message) {
-            super(message);
-        }
-    }
-
     UnreadableObjectException unreadableObject(String displayPath, String objectName) {
         return new UnreadableObjectException(
             "Cannot determine how to read ["
@@ -303,10 +303,32 @@ public class FormatReaderRegistry {
     }
 
     /**
+     * Wraps an already-configured reader with the compression codec implied by {@code objectName}, applying
+     * the same whole-file-compression veto and GA-codec gate as {@link #byNameForObject}. Returns {@code configured}
+     * unchanged when the name has no compression suffix. Unlike {@link #byNameForObject}, this does not allocate a
+     * fresh unconfigured inner — the caller must pass the configured instance the scan will actually use.
+     */
+    public FormatReader wrapForObject(FormatReader configured, String objectName) {
+        if (configured == null || codecRegistry == null || Strings.isNullOrEmpty(objectName)) {
+            return configured;
+        }
+        String extension = trailingExtension(objectName);
+        if (extension == null) {
+            return configured;
+        }
+        DecompressionCodec codec = codecRegistry.byExtension(extension);
+        if (codec == null) {
+            return configured;
+        }
+        return wrapWithCodec(configured, codec, extension, objectName);
+    }
+
+    /**
      * Applies the whole-file-compression veto and the release-build GA-codec gate, then wraps {@code inner}
      * in a {@link CompressionDelegatingFormatReader} for {@code codec}. Shared by {@link #byExtension(String)}
-     * (compound-extension inference) and {@link #byNameForObject(String, String)} (explicit format/reader
-     * override), so the two paths cannot diverge on which codecs/formats are compatible.
+     * (compound-extension inference), {@link #byNameForObject(String, String)} (explicit format/reader
+     * override), and {@link #wrapForObject(FormatReader, String)} (configured reader, per-file wrap),
+     * so the three paths cannot diverge on which codecs/formats are compatible.
      */
     private static FormatReader wrapWithCodec(FormatReader inner, DecompressionCodec codec, String extension, String objectName) {
         if (inner.supportsWholeFileCompression() == false) {

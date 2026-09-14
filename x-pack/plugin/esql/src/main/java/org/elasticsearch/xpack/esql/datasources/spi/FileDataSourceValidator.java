@@ -224,9 +224,9 @@ public class FileDataSourceValidator implements DataSourceValidator {
     }
 
     /**
-     * Returns a new validator that infers a dataset's format from the resource name through
-     * {@link FormatNameResolver#resolveFormatName}. Production wiring in {@code EsqlPlugin} always
-     * applies this; without it, extension inference returns {@code null}.
+     * Returns a new validator that infers a dataset's format from the resource pattern through
+     * {@link FormatNameResolver#datasetFormat}. Production wiring in {@code EsqlPlugin} always
+     * applies this; without it, pattern inference cannot run.
      */
     public FileDataSourceValidator withFormatReaderRegistry(FormatReaderRegistry registry) {
         return new FileDataSourceValidator(
@@ -373,9 +373,9 @@ public class FileDataSourceValidator implements DataSourceValidator {
         String format = explicitFormat(settings);
         if (format == null && resource != null) {
             try {
-                format = formatFromExtension(resource);
+                format = FormatNameResolver.datasetFormat(settings, resource, formatReaderRegistry);
             } catch (IllegalArgumentException e) {
-                // registry veto (e.g. parquet.gz); leave format unresolved
+                // mixed/unknown pattern, or a registry veto (e.g. parquet.gz); leave format unresolved
             }
         }
         return new DatasetShape(format, compressionNameFromResource(resource));
@@ -565,18 +565,19 @@ public class FileDataSourceValidator implements DataSourceValidator {
      * field-level validation errors against {@code errors} (unknown fields, an unknown explicit
      * {@code format}, or format-specific settings on a resource whose format cannot be determined).
      *
-     * <p>The format is resolved as: explicit {@code format} setting → resource extension → unknown.
-     * A known format accepts the coordinator fields plus that format's keys, with rejections split by
-     * {@link #acceptForFormat}. An unknown format accepts the coordinator fields only; a remaining key
-     * that some registered format recognises draws a targeted "set format" error, while a key no format
-     * recognises is reported as a plain unknown setting. Without a resolver, {@code format} itself is
-     * rejected (see {@link #DATASET_FIELDS_WITHOUT_FORMAT}).
+     * <p>The format is resolved as: explicit {@code format} setting → unique format implied by the
+     * resource pattern ({@link FormatNameResolver#datasetFormat}) → error. A known format accepts the
+     * coordinator fields plus that format's keys, with rejections split by {@link #acceptForFormat}.
+     * Without a resolver, {@code format} itself is rejected (see {@link #DATASET_FIELDS_WITHOUT_FORMAT}).
      * Registry vetoes (whole-file compression on parquet/ORC, a non-GA codec on release) are recorded
      * as validation errors and also return {@code null} so the PUT fails on that one reason.
+     * A pattern that implies zero or two-plus formats is a validation error with the same wording as
+     * query time.
      *
-     * <p>Returns {@code null} to signal that an explicit {@code format} value is not a registered
-     * format, or that the registry vetoed the resource: the caller short-circuits on that one error
-     * rather than piling on per-key messages.
+     * <p>Returns {@code null} to signal that field-level validation must stop: an explicit {@code format}
+     * is not registered, the registry vetoed the resource, or the pattern does not imply exactly one
+     * format. The caller short-circuits on the error already recorded rather than piling on per-key
+     * messages.
      */
     @Nullable
     private Set<String> resolveAcceptedFields(@Nullable String resource, Map<String, Object> settings, ValidationException errors) {
@@ -599,45 +600,19 @@ public class FileDataSourceValidator implements DataSourceValidator {
             return acceptForFormat(settings, explicitFormat, formatKeys, errors);
         }
 
-        // No usable explicit format: infer the format from the resource extension.
-        String extensionFormat;
+        // No usable explicit format: the pattern must imply exactly one format. A missing resource
+        // already recorded "[resource] is required"; do not pile on a format error naming null.
+        if (resource == null) {
+            return COORDINATOR_DATASET_KEYS;
+        }
         try {
-            extensionFormat = resource == null ? null : formatFromExtension(resource);
+            String impliedFormat = FormatNameResolver.datasetFormat(settings, resource, formatReaderRegistry);
+            Set<String> formatKeys = formatConfigKeyResolver.configKeysForFormat(impliedFormat);
+            return acceptForFormat(settings, impliedFormat, formatKeys != null ? formatKeys : Set.of(), errors);
         } catch (IllegalArgumentException e) {
             errors.addValidationError(e.getMessage());
             return null;
         }
-        if (extensionFormat != null) {
-            Set<String> formatKeys = formatConfigKeyResolver.configKeysForFormat(extensionFormat);
-            return acceptForFormat(settings, extensionFormat, formatKeys != null ? formatKeys : Set.of(), errors);
-        }
-
-        // Format unknown: accept the coordinator fields only, so no format-specific key is stored where
-        // it might not apply. Split the remaining keys so each gets the right
-        // diagnosis. A key some registered format recognises cannot be validated here (we do not know
-        // which format it belongs to), so it draws a targeted "set format" hint — but only when there
-        // is a resource URI to anchor the hint to (null resource already produces its own "[resource]
-        // is required" error, so format-specific keys fall through to the generic unknown-setting path).
-        // A key no format recognises is a genuine typo, reported as a plain unknown setting.
-        Set<String> allFormatKeys = resource != null ? allFormatConfigKeys() : Set.of();
-        Set<String> needFormat = new TreeSet<>();
-        Map<String, Object> unknownKeys = new HashMap<>();
-        for (Map.Entry<String, Object> entry : settings.entrySet()) {
-            String key = entry.getKey();
-            if (COORDINATOR_DATASET_KEYS.contains(key)) {
-                continue;
-            }
-            if (allFormatKeys.contains(key)) {
-                needFormat.add(key);
-            } else {
-                unknownKeys.put(key, entry.getValue());
-            }
-        }
-        rejectUnknownFields(unknownKeys, COORDINATOR_DATASET_KEYS, errors);
-        if (needFormat.isEmpty() == false) {
-            errors.addValidationError(cannotDetermineFormatError(resource, needFormat));
-        }
-        return COORDINATOR_DATASET_KEYS;
     }
 
     /**

@@ -9,6 +9,7 @@ package org.elasticsearch.xpack.esql.datasource.s3;
 import org.elasticsearch.common.ValidationException;
 import org.elasticsearch.xpack.esql.datasources.spi.Configured;
 import org.elasticsearch.xpack.esql.datasources.spi.DataSourceConfigDefinition;
+import org.elasticsearch.xpack.esql.datasources.spi.DataSourceValidationUtils;
 import org.elasticsearch.xpack.esql.datasources.spi.FileDataSourceConfiguration;
 
 import java.util.Arrays;
@@ -126,6 +127,8 @@ public class S3Configuration extends FileDataSourceConfiguration {
                     + "]"
             );
         }
+        DataSourceValidationUtils.validateHttpUrl(endpoint(), ENDPOINT.name(), errors);
+        DataSourceValidationUtils.validateHttpUrl(stsEndpoint(), STS_ENDPOINT.name(), errors);
     }
 
     public static S3Configuration fromMap(Map<String, Object> raw) {
@@ -139,7 +142,9 @@ public class S3Configuration extends FileDataSourceConfiguration {
     /**
      * Lenient factory for query-time configuration maps, which may carry format-level options
      * (e.g. {@code header_row}) alongside storage-level options. Filters unknown keys
-     * before construction; cross-field validation (auth/credential conflicts) still runs.
+     * before construction; cross-field validation (auth/credential conflicts) and the endpoint
+     * URL check (which accepts everything the query path accepts, see
+     * {@link DataSourceValidationUtils#validateHttpUrl}) still run.
      */
     public static Configured<S3Configuration> fromQueryConfig(Map<String, Object> raw) {
         return filterAndConstruct(raw, FIELDS, S3Configuration::new);

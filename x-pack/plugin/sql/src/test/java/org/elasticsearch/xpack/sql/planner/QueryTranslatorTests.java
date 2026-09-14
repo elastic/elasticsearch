@@ -18,6 +18,7 @@ import org.elasticsearch.search.aggregations.metrics.CardinalityAggregationBuild
 import org.elasticsearch.search.aggregations.metrics.PercentileRanksAggregationBuilder;
 import org.elasticsearch.search.aggregations.metrics.PercentilesAggregationBuilder;
 import org.elasticsearch.search.aggregations.metrics.PercentilesConfig;
+import org.elasticsearch.search.aggregations.metrics.StatsAggregationBuilder;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.ql.InvalidArgumentException;
 import org.elasticsearch.xpack.ql.execution.search.FieldExtraction;
@@ -1313,6 +1314,35 @@ public class QueryTranslatorTests extends ESTestCase {
             EsQueryExec eqe = (EsQueryExec) physicalPlan;
             assertThat(eqe.queryContainer().toString().replaceAll("\\s+", ""), containsString("{\"stats\":{\"field\":\"int\"}}"));
         }
+    }
+
+    // End-to-end coverage for the NPE/CCE fixed in ReplaceSumWithStats: `s` is inlined by the optimizer to SUM(int)
+    // in the HAVING clause, producing SUM(SUM(int)); since SUM(int) and AVG(int) share the field `int`, they are
+    // first promoted (by ReplaceAggsWithStats) to a single, shared `stats` compound aggregation, and the written
+    // SUM(s) in HAVING must collapse onto that same InnerAggregate rather than wrap it in a bogus second `Stats`.
+    public void testReplaceSumWithStatsThroughAliasedHaving() {
+        PhysicalPlan p = optimizeAndPlan("SELECT SUM(int) AS s, AVG(int) FROM test HAVING SUM(s) > 10");
+        assertEquals(EsQueryExec.class, p.getClass());
+        EsQueryExec eqe = (EsQueryExec) p;
+
+        Collection<AggregationBuilder> subAggs = eqe.queryContainer().aggs().asAggBuilder().getSubAggregations();
+        // a single compound `stats` aggregation on `int`, shared by SUM and AVG - no standalone `sum` aggregation
+        assertEquals(1, subAggs.size());
+        AggregationBuilder statsAgg = subAggs.iterator().next();
+        assertEquals(StatsAggregationBuilder.class, statsAgg.getClass());
+        assertEquals("int", ((StatsAggregationBuilder) statsAgg).field());
+
+        assertEquals(2, eqe.output().size());
+        assertEquals(MetricAggRef.class, eqe.queryContainer().fields().get(0).extraction().getClass());
+        MetricAggRef sumRef = (MetricAggRef) eqe.queryContainer().fields().get(0).extraction();
+        assertEquals(statsAgg.getName(), sumRef.name());
+        assertEquals("sum", sumRef.property());
+
+        // HAVING SUM(s) > 10 references the very same shared `stats` aggregation's `sum` metric
+        assertThat(
+            eqe.queryContainer().toString().replaceAll("\\s+", ""),
+            containsString(Strings.format("\"buckets_path\":{\"a0\":\"%s.sum\"}", statsAgg.getName()))
+        );
     }
 
     @SuppressWarnings({ "rawtypes" })

@@ -48,6 +48,7 @@ import org.elasticsearch.xpack.ql.util.CollectionUtils;
 import org.elasticsearch.xpack.ql.util.Holder;
 import org.elasticsearch.xpack.sql.expression.SubQueryExpression;
 import org.elasticsearch.xpack.sql.expression.function.SqlFunctionResolution;
+import org.elasticsearch.xpack.sql.expression.function.aggregate.Sum;
 import org.elasticsearch.xpack.sql.expression.function.scalar.Cast;
 import org.elasticsearch.xpack.sql.plan.logical.Join;
 import org.elasticsearch.xpack.sql.plan.logical.LocalRelation;
@@ -1005,6 +1006,9 @@ public final class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, Analy
             Set<NamedExpression> missing = new LinkedHashSet<>();
 
             for (Expression filterAgg : from.collect(Functions::isAggregate)) {
+                if (isRedundantSumOverSumAlias(target, filterAgg)) {
+                    continue;
+                }
                 if (Expressions.anyMatch(target.aggregates(), a -> Alias.unwrap(a).equals(filterAgg)) == false) {
                     missing.add(Expressions.wrapAsNamed(filterAgg));
                 }
@@ -1012,6 +1016,30 @@ public final class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, Analy
 
             return missing;
         }
+    }
+
+    // `SUM(s)` where `s` is an alias for another SUM - e.g. `SELECT SUM(x) AS s ... HAVING SUM(s)` - is redundant:
+    // per bucket, `s` already *is* the SUM(x) value, and summing a single scalar is an identity. Recognize this
+    // here so it is never pushed as a "missing" aggregate into the Aggregate's own aggregates(): that would embed a
+    // raw ReferenceAttribute (or, if resolved, a second, genuinely nested SUM) there, and the optimizer's alias
+    // inlining deliberately never rewrites Aggregate.aggregates() (see Optimizer.ReplaceReferenceAttributeWithSource),
+    // so nothing would ever fix it up - it would crash during query translation instead. Leaving the condition
+    // untouched here means the *original* SUM(s) still gets inlined to SUM(SUM(x)) within the Filter/OrderBy
+    // expression by the optimizer, where Optimizer.ReplaceSumWithStats collapses it back onto SUM(x).
+    //
+    // Deliberately narrow (only SUM-of-SUM-alias): other aggregate functions wrapping a reference to an aggregate
+    // alias (e.g. MIN(m), COUNT(c)) have no equivalent optimizer-side collapse and are out of scope here.
+    private static boolean isRedundantSumOverSumAlias(Aggregate target, Expression filterAgg) {
+        if (filterAgg instanceof Sum sum && sum.field() instanceof ReferenceAttribute ref) {
+            AttributeMap.Builder<Expression> aliases = AttributeMap.builder();
+            target.aggregates().forEach(ne -> {
+                if (ne instanceof Alias a) {
+                    aliases.put(a.toAttribute(), a.child());
+                }
+            });
+            return aliases.build().resolve(ref, ref) instanceof Sum;
+        }
+        return false;
     }
 
     //
@@ -1052,6 +1080,10 @@ public final class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, Analy
                     List<NamedExpression> missing = new ArrayList<>();
 
                     for (Expression orderedAgg : aggs) {
+                        // see ResolveAggsInHaving.isRedundantSumOverSumAlias
+                        if (isRedundantSumOverSumAlias(a, orderedAgg)) {
+                            continue;
+                        }
                         if (Expressions.anyMatch(a.aggregates(), e -> Alias.unwrap(e).equals(orderedAgg)) == false) {
                             missing.add(Expressions.wrapAsNamed(orderedAgg));
                         }

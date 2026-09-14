@@ -218,6 +218,7 @@ public final class Verifier {
                 checkFilterOnGrouping(p, localFailures, attributeRefs);
 
                 checkNestedAggregation(p, localFailures, attributeRefs);
+                checkNestedAggregateFunctions(p, localFailures);
 
                 if (groupingFailures.contains(p) == false) {
                     checkGroupBy(p, localFailures, attributeRefs, groupingFailures);
@@ -279,6 +280,33 @@ public final class Verifier {
                 localFailures.add(fail(a, "Nested aggregations in sub-selects are not supported."));
             });
         }
+    }
+
+    // An aggregate function's own arguments must not themselves contain another aggregate function, e.g. a written
+    // SUM(SUM(x)) or SUM(ABS(SUM(x))). This is expression-level nesting, distinct from checkNestedAggregation above
+    // (which rejects an Aggregate plan inside a sub-select).
+    //
+    // References are intentionally NOT resolved here: `... AS s ... HAVING SUM(s)` only becomes SUM(SUM(x)) once the
+    // optimizer inlines the alias `s` (see Optimizer.ReplaceReferenceAttributeWithSource), and that shape is handled
+    // by Optimizer.ReplaceSumWithStats, not rejected.
+    private static void checkNestedAggregateFunctions(LogicalPlan p, Set<Failure> localFailures) {
+        p.forEachExpressionUp(
+            AggregateFunction.class,
+            af -> af.children()
+                .forEach(
+                    child -> child.forEachDown(
+                        AggregateFunction.class,
+                        nested -> localFailures.add(
+                            fail(
+                                nested,
+                                "Cannot embed aggregate functions within each other, found [{}] in [{}]",
+                                Expressions.name(nested),
+                                Expressions.name(af)
+                            )
+                        )
+                    )
+                )
+        );
     }
 
     private static void checkFullTextSearchInSelect(LogicalPlan plan, Set<Failure> localFailures) {

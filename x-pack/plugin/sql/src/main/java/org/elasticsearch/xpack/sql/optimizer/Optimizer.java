@@ -980,18 +980,31 @@ public class Optimizer extends RuleExecutor<LogicalPlan> {
         public LogicalPlan apply(LogicalPlan plan) {
             final Map<Expression, Stats> statsPerField = new LinkedHashMap<>();
 
-            plan.forEachExpressionUp(Sum.class, s -> {
-                statsPerField.computeIfAbsent(s.field(), field -> {
-                    Source source = new Source(field.sourceLocation(), "STATS(" + field.sourceText() + ")");
-                    return new Stats(source, field);
-                });
+            return plan.transformExpressionsUp(Sum.class, sum -> {
+                Expression field = sum.field();
+
+                // an earlier rule (ReplaceAggsWithStats) may have already promoted this SUM's field into an
+                // InnerAggregate wrapping the same kind of SUM - e.g. a written or alias-inlined SUM(SUM(x))
+                // where SUM(x) is shared with another stats-compatible aggregate (HAVING SUM(s), ORDER BY SUM(s));
+                // collapse onto that InnerAggregate instead of wrapping it in another, bogus Stats
+                if (field instanceof InnerAggregate innerAggregate && innerAggregate.inner() instanceof Sum) {
+                    return innerAggregate;
+                }
+
+                // the field is itself (or contains) an aggregate expression, e.g. a SUM(SUM(x)) that wasn't
+                // promoted above, or SUM(ABS(SUM(x))). This should be rejected earlier by the Verifier, so
+                // defensively leave the SUM untouched rather than building a bogus Stats(...) over an
+                // aggregate expression, which would later break query translation.
+                if (field.anyMatch(AggregateFunction.class::isInstance)) {
+                    return sum;
+                }
+
+                Stats stats = statsPerField.computeIfAbsent(
+                    field,
+                    f -> new Stats(new Source(f.sourceLocation(), "STATS(" + f.sourceText() + ")"), f)
+                );
+                return new InnerAggregate(sum, stats);
             });
-
-            if (statsPerField.isEmpty() == false) {
-                plan = plan.transformExpressionsUp(Sum.class, sum -> new InnerAggregate(sum, statsPerField.get(sum.field())));
-            }
-
-            return plan;
         }
     }
 

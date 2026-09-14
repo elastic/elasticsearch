@@ -1761,6 +1761,25 @@ public class VerifierErrorMessagesTests extends ESTestCase {
         );
     }
 
+    // Expression-level nesting (as opposed to testNestedAggregate's plan-level nesting via sub-selects): a written
+    // aggregate function whose own arguments contain another aggregate function, e.g. SUM(SUM(x)), must be rejected
+    // - this is what used to reach the optimizer and trip a NullPointerException/ClassCastException in
+    // ReplaceSumWithStats. A reference to an aliased aggregate (e.g. HAVING SUM(s)) must remain valid, since the
+    // alias is only inlined - and the resulting nested SUM(SUM(x)) collapsed back to SUM(x) - by the optimizer.
+    public void testNestedAggregateFunctionInExpression() {
+        Consumer<String> checkMsg = (String sql) -> {
+            var actual = error(sql);
+            assertTrue(actual, actual.contains("Cannot embed aggregate functions within each other"));
+        };
+
+        checkMsg.accept("SELECT SUM(SUM(int)) FROM test");
+        checkMsg.accept("SELECT SUM(ABS(SUM(int))) FROM test");
+        checkMsg.accept("SELECT SUM(int) AS s, AVG(int) FROM test HAVING SUM(SUM(int)) > 10");
+
+        accept("SELECT SUM(int) AS s FROM test HAVING SUM(s) > 10");
+        accept("SELECT SUM(int) AS s FROM test ORDER BY SUM(s)");
+    }
+
     private String randomTopHitsFunction() {
         return randomFrom(Arrays.asList(First.class, Last.class)).getSimpleName().toUpperCase(Locale.ROOT);
     }

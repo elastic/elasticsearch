@@ -1122,6 +1122,74 @@ public class OptimizerTests extends ESTestCase {
         assertEquals(sum, ((InnerAggregate) alias.child()).inner());
     }
 
+    // A written/alias-inlined SUM(SUM(field)) whose inner SUM(field) is also promoted to an InnerAggregate by the
+    // preceding ReplaceAggsWithStats rule (because it shares its field with another stats-compatible aggregate, here
+    // AVG(field)) must collapse onto that InnerAggregate rather than wrap it in another, bogus Stats(...).
+    // https://github.com/elastic/elasticsearch/issues/45251 is the underlying workaround; this reproduces the
+    // ClassCastException seen at query translation time before the fix (a lookup-first rewrite would instead have
+    // built Stats(InnerAggregate)).
+    public void testSumOfSumSharingStatsPromotionCollapsesToInnerAggregate() {
+        FieldAttribute fa = getFieldAttribute();
+        Sum innerSum = new Sum(EMPTY, fa);
+        Sum outerSum = new Sum(EMPTY, innerSum);
+        Avg avg = new Avg(EMPTY, fa);
+
+        Alias sumOfSumAlias = new Alias(EMPTY, "sum_of_sum", outerSum);
+        Alias avgAlias = new Alias(EMPTY, "avg", avg);
+        EsRelation from = new EsRelation(EMPTY, new EsIndex("table", emptyMap()), false);
+
+        Aggregate aggregate = new Aggregate(EMPTY, from, emptyList(), asList(sumOfSumAlias, avgAlias));
+        LogicalPlan optimizedPlan = new Optimizer().optimize(aggregate);
+        assertTrue(optimizedPlan instanceof Aggregate);
+        Aggregate p = (Aggregate) optimizedPlan;
+        assertEquals(2, p.aggregates().size());
+
+        assertTrue(p.aggregates().get(0) instanceof Alias);
+        assertTrue(((Alias) p.aggregates().get(0)).child() instanceof InnerAggregate);
+        InnerAggregate sumOfSum = (InnerAggregate) ((Alias) p.aggregates().get(0)).child();
+        // SUM(SUM(field)) collapsed onto the (already promoted) InnerAggregate for the inner SUM(field)
+        assertEquals(innerSum, sumOfSum.inner());
+        assertTrue(sumOfSum.outer() instanceof Stats);
+        assertEquals(fa, ((Stats) sumOfSum.outer()).field());
+
+        assertTrue(p.aggregates().get(1) instanceof Alias);
+        assertTrue(((Alias) p.aggregates().get(1)).child() instanceof InnerAggregate);
+        InnerAggregate avgInner = (InnerAggregate) ((Alias) p.aggregates().get(1)).child();
+        assertEquals(avg, avgInner.inner());
+
+        // both aggregates share the very same underlying stats compound aggregation on the field
+        assertSame(sumOfSum.outer(), avgInner.outer());
+    }
+
+    // Defensive coverage: a written nested aggregate that isn't of the InnerAggregate(SUM) shape handled above -
+    // here the inner SUM is wrapped by a scalar function, e.g. a written SUM(ABS(SUM(field))) that wasn't rejected
+    // upstream by the Verifier - must not be turned into a bogus Stats(...) built over an aggregate expression;
+    // ReplaceSumWithStats should leave it untouched (aside from promoting the innermost SUM(field) itself) rather
+    // than crash or mistranslate.
+    public void testSumOverAggregateExpressionIsLeftUnchanged() {
+        FieldAttribute fa = getFieldAttribute();
+        Sum innerSum = new Sum(EMPTY, fa);
+        Abs abs = new Abs(EMPTY, innerSum);
+        Sum outerSum = new Sum(EMPTY, abs);
+
+        LogicalPlan result = new Optimizer.ReplaceSumWithStats().apply(
+            new Aggregate(EMPTY, FROM(), emptyList(), singletonList(new Alias(EMPTY, "sum_of_abs_sum", outerSum)))
+        );
+
+        assertTrue(result instanceof Aggregate);
+        NamedExpression aggregate = ((Aggregate) result).aggregates().get(0);
+        assertTrue(aggregate instanceof Alias);
+        Expression child = ((Alias) aggregate).child();
+        // the outer SUM is left as a SUM (not turned into an InnerAggregate/Stats), only its field's innermost
+        // SUM(field) is promoted to an InnerAggregate, same as it would be in isolation
+        assertTrue(child instanceof Sum);
+        assertEquals(outerSum.source(), child.source());
+        assertTrue(((Sum) child).field() instanceof Abs);
+        Abs resultAbs = (Abs) ((Sum) child).field();
+        assertTrue(resultAbs.field() instanceof InnerAggregate);
+        assertEquals(innerSum, ((InnerAggregate) resultAbs.field()).inner());
+    }
+
     public void testReplaceCast() {
         FieldAttribute a = getFieldAttribute("a");
         Cast c = new Cast(EMPTY, a, a.dataType());

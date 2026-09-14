@@ -92,7 +92,7 @@ import org.elasticsearch.telemetry.TelemetryProvider;
 import org.elasticsearch.telemetry.TestTelemetryPlugin;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.disruption.NetworkDisruption;
-import org.elasticsearch.test.junit.annotations.TestLogging;
+import org.elasticsearch.test.junit.annotations.TestIssueLogging;
 import org.elasticsearch.test.transport.MockTransportService;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.Transport;
@@ -2072,14 +2072,15 @@ public class StatelessHollowIndexShardsIT extends AbstractStatelessPluginIntegTe
         unhollowOnIngestion(IngestionType.Index);
     }
 
-    @TestLogging(value = "org.elasticsearch.xpack.stateless.commits.HollowShardsService:DEBUG", reason = """
-        We have seen this test time out waiting for the ingestion latch (see
-        https://github.com/elastic/elasticsearch/issues/151100). It does not reproduce locally and the CI logs before and
-        after the timeout do not look slow, which points to a discrete stall in the unhollow-on-first-ingestion path rather
-        than gradual slowness. HollowShardsService logs each step of unhollowing at DEBUG (start, engine reset, flush,
-        "unhollowed shard with gen ..."), so enabling it should show how far each shard's unhollow progressed when we next
-        catch a failure.
-        """)
+    // We have seen this test time out waiting for the ingestion latch. It does not reproduce locally and the CI logs
+    // before and after the timeout do not look slow, which points to a discrete stall in the unhollow-on-first-ingestion
+    // path rather than gradual slowness. HollowShardsService logs each step of unhollowing at DEBUG (start, engine reset,
+    // flush, "unhollowed shard with gen ..."), so enabling it should show how far each shard's unhollow progressed when
+    // we next catch a failure.
+    @TestIssueLogging(
+        value = "org.elasticsearch.xpack.stateless.commits.HollowShardsService:DEBUG",
+        issueUrl = "https://github.com/elastic/elasticsearch/issues/151100"
+    )
     public void testUnhollowOnUpdates() throws Exception {
         unhollowOnIngestion(IngestionType.Update);
     }
@@ -2155,8 +2156,8 @@ public class StatelessHollowIndexShardsIT extends AbstractStatelessPluginIntegTe
             List<Long> generationsBeforeUnhollow = IntStream.range(0, numberOfShards)
                 .mapToObj(i -> statelessCommitService.getLatestUploadedBcc(new ShardId(index, i)).lastCompoundCommit().generation())
                 .toList();
-            // Captured so that, if the latch times out below, we can tell whether a shard simply never received any
-            // operations (and so stayed hollow) versus got stuck mid-unhollow. See #151100.
+            // Captured so that, if the latch times out below, we can tell whether a shard made any indexing progress at
+            // all during the burst. Read together with the engine type logged there. See #151100.
             List<Long> indexOpsBeforeUnhollow = IntStream.range(0, numberOfShards)
                 .mapToObj(i -> findIndexShard(index, i).indexingStats().getTotal().getIndexCount())
                 .toList();
@@ -2217,16 +2218,26 @@ public class StatelessHollowIndexShardsIT extends AbstractStatelessPluginIntegTe
             if (ingestLatch.await(30, TimeUnit.SECONDS) == false) {
                 for (int i = 0; i < numberOfShards; i++) {
                     var shardId = new ShardId(index, i);
-                    // Log the index-op count before vs now: if they are equal, this shard received no operations during the
-                    // burst (so it never unhollowed), which is a different failure mode from getting stuck mid-unhollow.
-                    logger.error(
-                        "--> ingest latch timed out; shard {} still hollow on {}: {}; index ops before={} now={}",
-                        shardId,
-                        indexNodeB,
-                        hollowShardsServiceB.isHollowShard(shardId),
-                        indexOpsBeforeUnhollow.get(i),
-                        findIndexShard(index, i).indexingStats().getTotal().getIndexCount()
-                    );
+                    try {
+                        var indexShard = findIndexShard(index, i);
+                        var engine = indexShard.getEngineOrNull();
+                        // The index-op count alone is ambiguous: it only moves once an operation is applied, and unhollowing
+                        // happens before apply, so "before == now" can mean either that the shard received no operations or
+                        // that operations are parked mid-unhollow. The engine type disambiguates: a HollowIndexEngine means
+                        // the reset to an IndexEngine has not completed yet.
+                        logger.error(
+                            "--> ingest latch timed out; shard {} on {}: hollow={}, engine={}, index ops before={} now={}",
+                            shardId,
+                            indexNodeB,
+                            hollowShardsServiceB.isHollowShard(shardId),
+                            engine == null ? "null" : engine.getClass().getSimpleName(),
+                            indexOpsBeforeUnhollow.get(i),
+                            indexShard.indexingStats().getTotal().getIndexCount()
+                        );
+                    } catch (Exception | AssertionError e) {
+                        // Never let a missing shard hide the remaining shards or the hot threads dump below
+                        logger.error(() -> "--> ingest latch timed out; failed to collect diagnostics for shard " + shardId, e);
+                    }
                 }
                 HotThreads.logLocalHotThreads(
                     logger,

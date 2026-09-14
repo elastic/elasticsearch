@@ -83,6 +83,26 @@ final class DoubleArrayState extends AbstractArrayState implements GroupingAggre
         trackGroupId(groupId);
     }
 
+    void min(int groupId, double value) {
+        if (groupId >= capacity) {
+            grow(groupId + 1);
+        }
+        final double[] page = pages[groupId >>> PAGE_SHIFT];
+        final int index = groupId & PAGE_MASK;
+        page[index] = Math.min(page[index], value);
+        trackGroupId(groupId);
+    }
+
+    void max(int groupId, double value) {
+        if (groupId >= capacity) {
+            grow(groupId + 1);
+        }
+        final double[] page = pages[groupId >>> PAGE_SHIFT];
+        final int index = groupId & PAGE_MASK;
+        page[index] = Math.max(page[index], value);
+        trackGroupId(groupId);
+    }
+
     Block toValuesBlock(org.elasticsearch.compute.data.IntVector selected, DriverContext driverContext) {
         if (false == trackingGroupIds()) {
             try (var builder = driverContext.blockFactory().newDoubleVectorFixedBuilder(selected.getPositionCount())) {

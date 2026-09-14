@@ -1132,6 +1132,58 @@ public class ParquetPushedExpressionsTests extends ESTestCase {
         assertThat(fp.toString(), containsString("42"));
     }
 
+    public void testToFilterPredicateDateLiteralOnDateNanosColumnDeclines() {
+        MessageType schema = int64Ts(timestampType(true, LogicalTypeAnnotation.TimeUnit.NANOS));
+        Expression expr = new Equals(Source.EMPTY, attr("ts", DataType.DATE_NANOS), datetimeLit(1_700_000_000_000L), null);
+        assertNull(new ParquetPushedExpressions(List.of(expr)).toFilterPredicate(schema));
+    }
+
+    public void testToFilterPredicateDateRangeOnDateNanosColumnDeclines() {
+        MessageType schema = int64Ts(timestampType(true, LogicalTypeAnnotation.TimeUnit.NANOS));
+        Expression expr = new Range(
+            Source.EMPTY,
+            attr("ts", DataType.DATE_NANOS),
+            datetimeLit(1_000L),
+            true,
+            datetimeLit(2_000L),
+            true,
+            ZoneOffset.UTC
+        );
+        assertNull(new ParquetPushedExpressions(List.of(expr)).toFilterPredicate(schema));
+    }
+
+    public void testToFilterPredicateDateNanosLiteralOnDateColumnDeclines() {
+        MessageType schema = int64Ts(timestampType(true, LogicalTypeAnnotation.TimeUnit.MILLIS));
+        Expression expr = new Equals(
+            Source.EMPTY,
+            attr("ts", DataType.DATETIME),
+            lit(1_700_000_000_000_000_000L, DataType.DATE_NANOS),
+            null
+        );
+        assertNull(new ParquetPushedExpressions(List.of(expr)).toFilterPredicate(schema));
+    }
+
+    public void testToFilterPredicateMatchingDateNanosOnMicrosStillScales() {
+        MessageType schema = int64Ts(timestampType(true, LogicalTypeAnnotation.TimeUnit.MICROS));
+        long nanos = 1_700_000_000_123_456_000L;
+        FilterPredicate fp = new ParquetPushedExpressions(List.of(eq("ts", DataType.DATE_NANOS, nanos))).toFilterPredicate(schema);
+        assertNotNull(fp);
+        assertThat(fp.toString(), containsString(String.valueOf(nanos / 1_000)));
+        assertThat(fp.toString(), not(containsString(String.valueOf(nanos))));
+    }
+
+    public void testToFilterPredicateIntegerLessThanDoubleDeclines() {
+        MessageType schema = Types.buildMessage().required(INT32).named("id").named("test");
+        Expression expr = new LessThan(Source.EMPTY, attr("id", DataType.INTEGER), lit(5.5, DataType.DOUBLE), null);
+        assertNull(new ParquetPushedExpressions(List.of(expr)).toFilterPredicate(schema));
+    }
+
+    public void testToFilterPredicateIntegerLessThanOrEqualLongDeclines() {
+        MessageType schema = Types.buildMessage().required(INT32).named("id").named("test");
+        Expression expr = new LessThanOrEqual(Source.EMPTY, attr("id", DataType.INTEGER), lit(3_000_000_000L, DataType.LONG), null);
+        assertNull(new ParquetPushedExpressions(List.of(expr)).toFilterPredicate(schema));
+    }
+
     public void testToFilterPredicateLessThanOrEqualDatetime() {
         MessageType schema = Types.buildMessage()
             .required(INT64)

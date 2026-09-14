@@ -141,7 +141,12 @@ public sealed interface StringColumnMetadata extends ColumnMetadata permits Stri
      * {@link #nullSlots()} is the only thing that tells it from an empty string. That table is this layout's
      * alone: the values are bytes, and bytes have no spare value to mean "null" the way an ordinal does.
      *
-     * @param nullSlots the value addresses holding a null, ascending; present only when {@code numNullSlots > 0}
+     * @param nullSlots    the value addresses holding a null, ascending; present only when {@code numNullSlots > 0}
+     * @param valuesWorthNaming whether a page of this column is worth naming its values with ordinals rather
+     *                          than handing the bytes over. The survey that turned the dictionary down answers
+     *                          it: values that did not cover enough of the column to earn one do not repeat
+     *                          enough for a page to earn one either. A column written under no dictionary
+     *                          policy was never surveyed, and leaves the page to decide as it always has
      */
     record Plain(
         ColumnIteratorMetadata iterator,
@@ -153,6 +158,7 @@ public sealed interface StringColumnMetadata extends ColumnMetadata permits Stri
         MonotonicWriter.Table nullSlots,
         ValueStream.Metadata values,
         boolean valuesSorted,
+        boolean valuesWorthNaming,
         Summary summary
     ) implements StringColumnMetadata {
 
@@ -173,6 +179,7 @@ public sealed interface StringColumnMetadata extends ColumnMetadata permits Stri
                 nullSlots,
                 values,
                 valuesSorted,
+                valuesWorthNaming,
                 summary
             );
         }
@@ -180,6 +187,7 @@ public sealed interface StringColumnMetadata extends ColumnMetadata permits Stri
         @Override
         public void writeBody(DataOutput out) throws IOException {
             values.writeTo(out);
+            out.writeByte((byte) (valuesWorthNaming ? 1 : 0));
             if (hasNullSlots()) {
                 writeTable(out, nullSlots);
             }
@@ -271,7 +279,7 @@ public sealed interface StringColumnMetadata extends ColumnMetadata permits Stri
     }
 
     static StringColumnMetadata empty(ColumnIteratorMetadata iterator) {
-        return plain(iterator, 0, 0, 0, MonotonicWriter.Table.NONE, MonotonicWriter.Table.NONE, ValueStream.Metadata.empty(), true);
+        return plain(iterator, 0, 0, 0, MonotonicWriter.Table.NONE, MonotonicWriter.Table.NONE, ValueStream.Metadata.empty(), true, false);
     }
 
     /** A column that stores its values as they were written. */
@@ -283,7 +291,8 @@ public sealed interface StringColumnMetadata extends ColumnMetadata permits Stri
         MonotonicWriter.Table valueAddresses,
         MonotonicWriter.Table nullSlots,
         ValueStream.Metadata values,
-        boolean valuesSorted
+        boolean valuesSorted,
+        boolean valuesWorthNaming
     ) {
         return new Plain(
             iterator,
@@ -295,6 +304,7 @@ public sealed interface StringColumnMetadata extends ColumnMetadata permits Stri
             nullSlots,
             values,
             valuesSorted,
+            valuesWorthNaming,
             null
         );
     }
@@ -391,8 +401,19 @@ public sealed interface StringColumnMetadata extends ColumnMetadata permits Stri
         final StringColumnMetadata column = switch (layout) {
             case PLAIN -> {
                 final ValueStream.Metadata values = ValueStream.Metadata.readFrom(in);
+                final boolean valuesWorthNaming = in.readByte() != 0;
                 final MonotonicWriter.Table nullSlots = numNullSlots > 0 ? readTable(in) : MonotonicWriter.Table.NONE;
-                yield plain(iterator, numDocsWithField, numValues, numNullSlots, valueAddresses, nullSlots, values, valuesSorted);
+                yield plain(
+                    iterator,
+                    numDocsWithField,
+                    numValues,
+                    numNullSlots,
+                    valueAddresses,
+                    nullSlots,
+                    values,
+                    valuesSorted,
+                    valuesWorthNaming
+                );
             }
             case DICTIONARY -> {
                 final int dictionarySize = in.readVInt();

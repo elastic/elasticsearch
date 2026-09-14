@@ -89,9 +89,7 @@ public abstract class ErrorsForCasesWithoutExamplesTestCase extends ESTestCase {
             // Aggs cannot receive NULL typed parameters in its aggregating field since
             // https://github.com/elastic/elasticsearch/pull/139797,
             // and until https://github.com/elastic/elasticsearch/issues/100634 is solved.
-            // TODO: This doesn't take into account aggs with multiple aggregating parameters
-            // TODO(jan): investigate!
-            if (expression instanceof AggregateFunction af && af.fields().getFirst().dataType() == DataType.NULL) {
+            if (expression instanceof AggregateFunction af && af.fields().stream().anyMatch(f -> f.dataType() == DataType.NULL)) {
                 continue;
             }
             assertTrue("expected unresolved " + expression, expression.typeResolved().unresolved());

@@ -459,6 +459,16 @@ public abstract class AbstractScopedSettings {
     }
 
     /**
+     * If the setting is registered and dynamic, registers {@code consumer} to be called on each future update of the setting.
+     * Does nothing if the setting is not registered.
+     */
+    public synchronized <T> void addSettingsUpdateConsumerIfRegistered(Setting<T> setting, Consumer<T> consumer) {
+        if (isDynamicSetting(setting.getKey())) {
+            addSettingsUpdateConsumer(setting, consumer);
+        }
+    }
+
+    /**
      * This methods passes the setting value to a consumer during the initialization and on every setting change
      * <p>
      * Note: Only settings registered in {@link org.elasticsearch.cluster.ClusterModule} can be changed dynamically.

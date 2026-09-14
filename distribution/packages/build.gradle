@@ -91,6 +91,7 @@ plugins {
 // is the same
 def commonPackageConfig(String type, String architecture) {
   return {
+    def packagingTask = delegate
     onlyIf("not running on windows") {
       OS.current().equals(OS.WINDOWS) == false
     }
@@ -158,7 +159,7 @@ def commonPackageConfig(String type, String architecture) {
         String[] segments = fcp.relativePath.segments
         for (int i = segments.length - 2; i > 2; --i) {
           if (type == 'rpm') {
-            directory('/' + segments[0..i].join('/'), 0755)
+            packagingTask.directory('/' + segments[0..i].join('/'), 0755)
           }
           if (segments[-2] == 'bin' || segments[-1] == 'jspawnhelper') {
             fcp.permissions {

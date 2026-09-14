@@ -197,6 +197,8 @@ tests:
 - class: org.elasticsearch.versioning.ConcurrentSeqNoVersioningIT
   method: testSeqNoCASLinearizability
   issue: https://github.com/elastic/elasticsearch/issues/159150
+- class: org.elasticsearch.xpack.sql.qa.jdbc.security.without_ssl.SecurityWithoutSslJdbcWarningsIT
+  issue: https://github.com/elastic/elasticsearch/issues/159160
 
 # Examples:
 #

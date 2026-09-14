@@ -120,6 +120,21 @@ public class OrdinalEncodingTests extends ColumnarStringTestCase {
         });
     }
 
+    /**
+     * Ordinals that come in long runs, as they do on a segment sorted by the field itself. The run stage
+     * stores those about as small as a compressor would, so the column stays packed rather than paying the
+     * larger block on every point read.
+     */
+    public void testRunningOrdinalsAreStoredPacked() throws IOException {
+        final BytesRef[][] docs = new BytesRef[DOCS][];
+        for (int d = 0; d < DOCS; d++) {
+            docs[d] = new BytesRef[] { new BytesRef("term-" + (d / 500)) };
+        }
+        final NumericColumnMetadata ordinals = ordinalsOf(docs);
+        assertEquals("a column of runs should stay packed", BlockBytesCodec.IDENTITY_ID, ordinals.blockBytesCodecId());
+        assertEquals("a packed column keeps the small block", 128, ordinals.blockSize());
+    }
+
     /** Too few ordinals to fill the larger block, so there is nothing for a compressor to work with. */
     public void testShortColumnIsStoredPacked() throws IOException {
         final BytesRef[][] docs = new BytesRef[64][];

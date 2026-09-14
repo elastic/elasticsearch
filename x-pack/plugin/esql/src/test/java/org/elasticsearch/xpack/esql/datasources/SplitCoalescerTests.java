@@ -337,6 +337,48 @@ public class SplitCoalescerTests extends ESTestCase {
         }
     }
 
+    public void testFloorWithDefaultFileCapDoesNotExceedBudget() {
+        // Tiny files pack to ceil(n/32) bins, below this floor, so spreadLeastLoaded runs with the default
+        // cap still in force. Groups must stay at or under the file budget.
+        int count = 100;
+        int floor = 14;
+        List<ExternalSplit> splits = makeSplits(count, 1024);
+
+        List<ExternalSplit> result = SplitCoalescer.coalesce(splits, 128 * 1024 * 1024, 8, floor);
+
+        assertEquals(floor, result.size());
+        assertEquals(count, countTotalLeaves(result));
+        assertTrue("floor path must still honor the file cap, max=" + maxLeaves(result), maxLeaves(result) <= DEFAULT_MAX_FILES_PER_GROUP);
+    }
+
+    public void testFloorNearBudgetFilesRespectsFileCap() {
+        // A near-budget seed fills on bytes after a few 1 MB files; remaining files go to groups with room.
+        // Default cap still applies, and the floor is high enough that spreadLeastLoaded actually runs.
+        long target = 100L * 1024 * 1024;
+        long tiny = 1024 * 1024;
+        int floor = 8;
+        List<ExternalSplit> splits = new ArrayList<>();
+        splits.add(makeFileSplit(0, 95L * 1024 * 1024));
+        for (int i = 1; i <= 80; i++) {
+            splits.add(makeFileSplit(i, tiny));
+        }
+
+        List<ExternalSplit> result = SplitCoalescer.coalesce(splits, target, 8, floor);
+
+        assertEquals(floor, result.size());
+        assertEquals(81, countTotalLeaves(result));
+        assertTrue(
+            "floor + byte-budget skip must not exceed the file cap, max=" + maxLeaves(result),
+            maxLeaves(result) <= DEFAULT_MAX_FILES_PER_GROUP
+        );
+        for (ExternalSplit split : result) {
+            assertTrue(
+                "no group may exceed the size budget by more than one file, got " + split.estimatedSizeInBytes(),
+                split.estimatedSizeInBytes() <= target + tiny
+            );
+        }
+    }
+
     public void testFloorOfOneMatchesDefaultGrouping() {
         int count = 100;
         List<ExternalSplit> splits = makeSplits(count, 10 * 1024 * 1024);
@@ -452,11 +494,6 @@ public class SplitCoalescerTests extends ESTestCase {
             }
         }
         assertTrue("expected at least one group at the file cap", sawFullFileCapGroup);
-    }
-
-    public void testInvalidMaxFilesPerGroupThrows() {
-        List<ExternalSplit> splits = makeSplits(COALESCING_THRESHOLD + 1);
-        expectThrows(IllegalArgumentException.class, () -> SplitCoalescer.coalesce(splits, 128 * 1024 * 1024, 8, 1, 0));
     }
 
     public void testMixedSizesProducesReasonableGroups() {

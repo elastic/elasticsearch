@@ -10,6 +10,7 @@ package org.elasticsearch.xpack.esql.datasources;
 import org.elasticsearch.xpack.esql.datasources.spi.ExternalSplit;
 
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Comparator;
 import java.util.List;
 import java.util.PriorityQueue;
@@ -21,9 +22,9 @@ import java.util.PriorityQueue;
  * (default {@link #DEFAULT_MAX_FILES_PER_GROUP}) so a group of tiny files cannot grow unbounded under the
  * byte budget. When either packing yields fewer groups than the caller's {@code minGroupCount} floor, the
  * splits are re-binned to meet that floor so read parallelism is not collapsed onto one schedulable unit.
- * When grouping runs, packed groups are ordered by claim cost (stored bytes plus a per-leaf open cost) so
- * a local slice queue claims the heaviest work first. Callers that redistribute groups by stored bytes
- * replace that order.
+ * When grouping runs and every split reports a size, packed groups are ordered by claim cost (stored
+ * bytes plus a per-leaf open cost) so a local slice queue claims the heaviest work first. Callers that
+ * redistribute groups by stored bytes replace that order. Unknown-size grouping keeps pack/floor order.
  *
  * <p>This class is the sole owner of the grouping policy: whether a scan is worth coalescing at all
  * ({@link #shouldCoalesce}), how splits are packed, and how the floor is met. Callers supply budgets and the floor;
@@ -39,11 +40,11 @@ public final class SplitCoalescer {
      */
     public static final int DEFAULT_MAX_FILES_PER_GROUP = 32;
     /**
-     * Virtual per-leaf open cost used only to order packed groups for claiming (4 MiB). A fixed heuristic, not
-     * recomputed from {@code targetGroupSizeBytes} or {@code maxFilesPerGroup}. Size packing caps file count
-     * directly rather than folding this cost into the byte budget.
+     * Virtual per-leaf open cost used only to order packed groups for claiming. A literal 4 MiB heuristic, not
+     * derived from the packing knobs, so raising {@link #DEFAULT_MAX_FILES_PER_GROUP} does not silently change
+     * claim order. Size packing caps file count directly rather than folding this cost into the byte budget.
      */
-    public static final long DEFAULT_OPEN_COST_BYTES = DEFAULT_TARGET_GROUP_SIZE_BYTES / DEFAULT_MAX_FILES_PER_GROUP;
+    static final long DEFAULT_OPEN_COST_BYTES = 4L * 1024 * 1024;
     public static final int COALESCING_THRESHOLD = 32;
 
     private SplitCoalescer() {}
@@ -115,9 +116,10 @@ public final class SplitCoalescer {
      * consult {@code maxFilesPerGroup}. Size packing with the file cap already emitted at least
      * {@code ceil(leaves / maxFilesPerGroup)} bins, so a higher floor cannot concentrate more leaves per
      * group than the cap allowed. {@code maxFilesPerGroup} applies only to size packing — count-based
-     * grouping (unknown sizes) ignores it. When grouping runs, groups are returned in descending claim-cost
-     * order, which is the order a local slice queue claims; later redistribution by stored bytes does not
-     * keep it. Below {@link #COALESCING_THRESHOLD} the input order is preserved.
+     * grouping (unknown sizes) ignores it. When grouping runs and every split reports a size, groups are
+     * returned in descending claim-cost order, which is the order a local slice queue claims; later
+     * redistribution by stored bytes does not keep it. Unknown-size grouping keeps pack/floor order.
+     * Below {@link #COALESCING_THRESHOLD} the input order is preserved.
      *
      * <p>The returned list is always the coalescer's own, never {@code splits} itself, including when the input is
      * too small to be worth grouping. Callers replace the contents of the list they passed in, so handing theirs
@@ -165,7 +167,10 @@ public final class SplitCoalescer {
         if (bins.size() < targetGroups) {
             bins = floorGroups(splits, targetGroups, targetGroupSizeBytes, allHaveSize);
         }
-        bins.sort(Comparator.comparingLong(SplitCoalescer::claimCost).reversed());
+        // Unknown-size bins have no stored bytes to rank; keep pack/floor order.
+        if (allHaveSize) {
+            bins = sortByClaimCost(bins);
+        }
         return buildResult(bins);
     }
 
@@ -175,35 +180,67 @@ public final class SplitCoalescer {
 
         List<List<ExternalSplit>> bins = new ArrayList<>();
         List<Long> binSizes = new ArrayList<>();
+        List<Integer> openBins = new ArrayList<>();
 
         for (ExternalSplit split : sorted) {
             long size = split.estimatedSizeInBytes();
             if (isStandalone(split, targetGroupSizeBytes)) {
                 bins.add(new ArrayList<>(List.of(split)));
                 binSizes.add(size);
+                // Oversized bins cannot accept another non-negative leaf. Exact-budget bins stay open for
+                // zero-size files until they hit the file cap.
+                if (size == targetGroupSizeBytes && maxFilesPerGroup > 1) {
+                    openBins.add(bins.size() - 1);
+                }
                 continue;
             }
 
             int bestBin = -1;
+            int bestOpenPos = -1;
             long bestRemaining = Long.MAX_VALUE;
-            for (int i = 0; i < bins.size(); i++) {
+            for (int oi = 0; oi < openBins.size(); oi++) {
+                int i = openBins.get(oi);
                 long remaining = targetGroupSizeBytes - binSizes.get(i);
-                if (remaining >= size && bins.get(i).size() < maxFilesPerGroup && remaining < bestRemaining) {
+                if (remaining >= size && remaining < bestRemaining) {
                     bestBin = i;
+                    bestOpenPos = oi;
                     bestRemaining = remaining;
                 }
             }
 
             if (bestBin >= 0) {
-                bins.get(bestBin).add(split);
+                List<ExternalSplit> bin = bins.get(bestBin);
+                bin.add(split);
                 binSizes.set(bestBin, binSizes.get(bestBin) + size);
+                if (bin.size() >= maxFilesPerGroup) {
+                    openBins.remove(bestOpenPos);
+                }
             } else {
                 bins.add(new ArrayList<>(List.of(split)));
                 binSizes.add(size);
+                if (maxFilesPerGroup > 1) {
+                    openBins.add(bins.size() - 1);
+                }
             }
         }
 
         return bins;
+    }
+
+    private static List<List<ExternalSplit>> sortByClaimCost(List<List<ExternalSplit>> bins) {
+        int n = bins.size();
+        Integer[] order = new Integer[n];
+        long[] costs = new long[n];
+        for (int i = 0; i < n; i++) {
+            order[i] = i;
+            costs[i] = claimCost(bins.get(i));
+        }
+        Arrays.sort(order, Comparator.comparingLong((Integer i) -> costs[i]).reversed());
+        List<List<ExternalSplit>> sorted = new ArrayList<>(n);
+        for (int i : order) {
+            sorted.add(bins.get(i));
+        }
+        return sorted;
     }
 
     private static long claimCost(List<ExternalSplit> bin) {

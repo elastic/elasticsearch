@@ -22,23 +22,34 @@
 
 package org.elasticsearch.gradle.internal.ospackage.rpm;
 
+import org.elasticsearch.gradle.internal.ospackage.PackageWriter;
 import org.elasticsearch.gradle.internal.ospackage.SystemPackagingTask;
-import org.gradle.api.internal.file.copy.CopyAction;
+import org.gradle.api.InvalidUserDataException;
 import org.gradle.work.DisableCachingByDefault;
 
+import java.io.IOException;
+
 /**
- * Builds an rpm package from the configured copy specs and package metadata.
+ * Builds an rpm package from the declared content mappings and package metadata.
  */
 @DisableCachingByDefault(because = "Packaging tasks are IO bound and not worth caching")
 public abstract class Rpm extends SystemPackagingTask {
 
-    public Rpm() {
-        super();
-        getArchiveExtension().set("rpm");
+    @Override
+    protected PackageWriter createWriter() throws IOException {
+        validate();
+        return new RpmPackageWriter(this);
     }
 
-    @Override
-    protected CopyAction createCopyAction() {
-        return new RpmCopyAction(this);
+    private void validate() {
+        String packageName = getPackageName().getOrNull();
+        if (packageName == null || packageName.matches("[a-zA-Z0-9-._+]+") == false) {
+            throw new InvalidUserDataException(
+                "Invalid package name '" + packageName + "' - a valid package name must only contain [a-zA-Z0-9-._+]"
+            );
+        }
+        if (getVersion().isPresent() == false) {
+            throw new InvalidUserDataException("RPM requires a version string");
+        }
     }
 }

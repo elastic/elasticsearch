@@ -22,11 +22,24 @@
 
 package org.elasticsearch.gradle.internal.ospackage;
 
-import java.io.Serializable;
+import java.io.File;
+import java.io.IOException;
 
 /**
- * An explicitly declared, package-owned directory entry with its ownership and permissions. Used
- * for directories that carry no packaged files (e.g. {@code /var/log/elasticsearch}) so the
- * package managers create them on install and clean them up on uninstall.
+ * Receives the package entries produced by {@link SystemPackagingTask} and writes them into a
+ * package-format specific archive (redline for rpm, jdeb for deb).
  */
-public record Directory(String path, int permissions, String user, String permissionGroup, boolean setgid) implements Serializable {}
+public interface PackageWriter {
+
+    /** Adds a regular file entry. {@code fileTypeFlags} carries rpm {@code RPMFILE_*} bits, 0 for none. */
+    void addFile(String path, File source, int mode, String user, String group, int fileTypeFlags) throws IOException;
+
+    /** Adds a package-owned directory entry. */
+    void addDirectory(String path, int mode, String user, String group) throws IOException;
+
+    /** Adds a symbolic link entry. */
+    void addLink(String path, String target) throws IOException;
+
+    /** Writes the package archive. */
+    void finish() throws IOException;
+}

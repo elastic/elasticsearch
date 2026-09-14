@@ -22,333 +22,531 @@
 
 package org.elasticsearch.gradle.internal.ospackage;
 
-import groovy.lang.Closure;
-
 import org.gradle.api.Action;
-import org.gradle.api.file.CopySpec;
-import org.gradle.api.file.DuplicatesStrategy;
+import org.gradle.api.DefaultTask;
+import org.gradle.api.file.ConfigurableFileTree;
+import org.gradle.api.file.FileTreeElement;
+import org.gradle.api.file.FileVisitDetails;
+import org.gradle.api.file.FileVisitor;
 import org.gradle.api.file.RegularFile;
+import org.gradle.api.file.RegularFileProperty;
+import org.gradle.api.model.ObjectFactory;
+import org.gradle.api.provider.ListProperty;
+import org.gradle.api.provider.MapProperty;
 import org.gradle.api.provider.Property;
 import org.gradle.api.provider.Provider;
-import org.gradle.api.tasks.AbstractCopyTask;
+import org.gradle.api.provider.ProviderFactory;
+import org.gradle.api.specs.Spec;
 import org.gradle.api.tasks.Input;
 import org.gradle.api.tasks.InputFile;
 import org.gradle.api.tasks.Internal;
 import org.gradle.api.tasks.Nested;
 import org.gradle.api.tasks.Optional;
+import org.gradle.api.tasks.OutputFile;
 import org.gradle.api.tasks.PathSensitive;
 import org.gradle.api.tasks.PathSensitivity;
-import org.gradle.api.tasks.bundling.AbstractArchiveTask;
+import org.gradle.api.tasks.TaskAction;
+import org.gradle.api.tasks.util.PatternSet;
 import org.gradle.work.DisableCachingByDefault;
 import org.redline_rpm.header.Os;
 
 import java.io.File;
+import java.io.IOException;
+import java.io.UncheckedIOException;
 import java.util.ArrayList;
+import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Locale;
-import java.util.function.Function;
+import java.util.Set;
+
+import javax.inject.Inject;
 
 /**
  * Base class of the {@link org.elasticsearch.gradle.internal.ospackage.rpm.Rpm} and
- * {@link org.elasticsearch.gradle.internal.ospackage.deb.Deb} archive tasks. The package metadata
- * lives in the {@link SystemPackagingExtension} nested input block. Project-wide defaults from the
- * {@code ospackage} extension are not copied onto the task; the extension is tracked as a nested
- * input and values set on the task take precedence over the extension values via the
- * {@code resolve*} accessors when the package is built.
+ * {@link org.elasticsearch.gradle.internal.ospackage.deb.Deb} tasks. Package content is declared
+ * as {@link PackageContent} mappings of source trees onto destination paths with explicit
+ * packaging metadata; the task walks the sources directly (preserving in-tree symbolic links) and
+ * streams the entries to a package-format specific {@link PackageWriter}. Only public Gradle API
+ * is used: the task is not a copy task and performs no intermediate staging.
  */
 @DisableCachingByDefault(because = "Packaging tasks are IO bound and not worth caching")
-public abstract class SystemPackagingTask extends AbstractArchiveTask {
+public abstract class SystemPackagingTask extends DefaultTask {
 
-    private ProjectPackagingExtension parentExtension;
+    private final List<PackageContent> contents = new ArrayList<>();
+    private final Provider<RegularFile> archiveFile;
 
     public SystemPackagingTask() {
-        super();
-        setDuplicatesStrategy(DuplicatesStrategy.INCLUDE);
+        archiveFile = getDestinationDirectory().file(getArchiveFileName());
     }
 
-    /** The package metadata of this task; automatically instantiated by Gradle. */
-    @Nested
-    public abstract SystemPackagingExtension getExten();
+    @Inject
+    protected abstract ObjectFactory getObjectFactory();
 
-    /** The version used when none is set explicitly; wired by {@link OsPackageBasePlugin}. */
-    @Input
-    @Optional
-    public abstract Property<String> getDefaultVersion();
-
-    /**
-     * Wires the project-level packaging defaults into this task: the shared {@code ospackage} copy
-     * spec is appended to this task's specs, the extension is kept for value resolution and the
-     * sanitized project version becomes the default package version. Called by the plugin when the
-     * task is realized.
-     */
-    public void initDefaults(ProjectPackagingExtension parentExtension, String projectVersion) {
-        this.parentExtension = parentExtension;
-        getDefaultVersion().set(sanitizeVersion(projectVersion));
-        with(parentExtension.getDelegateCopySpec());
-    }
-
-    private static String sanitizeVersion(String version) {
-        if ("unspecified".equals(version)) {
-            return "0";
-        }
-        return version.replaceAll("\\+.*", "").replace('-', '~');
-    }
+    @Inject
+    protected abstract ProviderFactory getProviderFactory();
 
     // ------------------------------------------------------------------
-    // task level DSL, delegating to the nested extension
+    // output
     // ------------------------------------------------------------------
 
     @Internal
-    public String getPackageName() {
-        return getExten().getPackageName().getOrNull();
-    }
-
-    public void setPackageName(String packageName) {
-        getExten().getPackageName().set(packageName);
-    }
+    public abstract org.gradle.api.file.DirectoryProperty getDestinationDirectory();
 
     @Internal
-    public String getRelease() {
-        return getExten().getRelease().getOrNull();
-    }
+    public abstract Property<String> getArchiveFileName();
 
-    public void setRelease(String release) {
-        getExten().getRelease().set(release);
-    }
-
-    /**
-     * The package version; defaults to the sanitized project version. The archive version (file
-     * name) is tracked separately, matching the original plugin behavior.
-     */
-    @Internal
-    public String getVersion() {
-        return getExten().getVersion().orElse(getDefaultVersion()).getOrNull();
-    }
-
-    public void setVersion(String version) {
-        getExten().getVersion().set(version);
-    }
-
-    public void setArch(String arch) {
-        getExten().getArchStr().set(arch);
-    }
-
-    @Internal
-    public String getArchString() {
-        String archStr = getExten().getArchStr().getOrNull();
-        return archStr == null ? null : archStr.toLowerCase(Locale.ROOT);
-    }
-
-    @Internal
-    public String getPackageGroup() {
-        return getExten().getPackageGroup().getOrNull();
-    }
-
-    public void setPackageGroup(String packageGroup) {
-        getExten().getPackageGroup().set(packageGroup);
-    }
-
-    @Internal
-    public String getLicense() {
-        return getExten().getLicense().getOrNull();
-    }
-
-    public void setLicense(String license) {
-        getExten().getLicense().set(license);
-    }
-
-    @Internal
-    public String getPackager() {
-        return getExten().getPackager().getOrNull();
-    }
-
-    public void setPackager(String packager) {
-        getExten().getPackager().set(packager);
-    }
-
-    @Internal
-    public String getDistribution() {
-        return getExten().getDistribution().getOrNull();
-    }
-
-    public void setDistribution(String distribution) {
-        getExten().getDistribution().set(distribution);
-    }
-
-    @Internal
-    public String getVendor() {
-        return getExten().getVendor().getOrNull();
-    }
-
-    public void setVendor(String vendor) {
-        getExten().getVendor().set(vendor);
-    }
-
-    @Internal
-    public Os getOs() {
-        return getExten().getOs().getOrNull();
-    }
-
-    public void setOs(Os os) {
-        getExten().getOs().set(os);
-    }
-
-    @Internal
-    public Boolean getAddParentDirs() {
-        return getExten().getAddParentDirs().getOrNull();
-    }
-
-    public void setAddParentDirs(boolean addParentDirs) {
-        getExten().getAddParentDirs().set(addParentDirs);
-    }
-
-    @Internal
-    public org.gradle.api.provider.MapProperty<String, String> getCustomFields() {
-        return getExten().getCustomFields();
-    }
-
-    public void prefix(String prefix) {
-        getExten().prefix(prefix);
-    }
-
-    public void configurationFile(String path) {
-        getExten().configurationFile(path);
-    }
-
-    public Directory directory(String path, int permissions) {
-        return getExten().directory(path, permissions);
-    }
-
-    public Dependency requires(String packageName) {
-        return getExten().requires(packageName);
-    }
-
-    public Dependency requires(String packageName, String version, int flag) {
-        return getExten().requires(packageName, version, flag);
-    }
-
-    public Dependency obsoletes(String packageName, String version, int flag) {
-        return getExten().obsoletes(packageName, version, flag);
-    }
-
-    public Dependency conflicts(String packageName) {
-        return getExten().conflicts(packageName);
-    }
-
-    public void preInstall(File script) {
-        getExten().preInstall(script);
-    }
-
-    public void postInstall(File script) {
-        getExten().postInstall(script);
-    }
-
-    public void preUninstall(File script) {
-        getExten().preUninstall(script);
-    }
-
-    public void postUninstall(File script) {
-        getExten().postUninstall(script);
-    }
-
-    public void postTrans(File script) {
-        getExten().postTrans(script);
+    @OutputFile
+    public Provider<RegularFile> getArchiveFile() {
+        return archiveFile;
     }
 
     // ------------------------------------------------------------------
-    // value resolution: task values win over the ospackage extension.
-    // The resolved providers are the task inputs; the extension itself is
-    // deliberately not tracked as a nested input because it is shared by
-    // all packaging tasks of the project (a shared decorated bean gets an
-    // owner reference to one task, which the other tasks then could not
-    // serialize into the configuration cache).
+    // package metadata
     // ------------------------------------------------------------------
 
     @Input
-    @Optional
-    public Provider<String> getResolvedUser() {
-        return resolve(SystemPackagingExtension::getUser);
-    }
+    public abstract Property<String> getPackageName();
+
+    /** The package version, following the version rules of the target package manager. */
+    @Input
+    public abstract Property<String> getVersion();
 
     @Input
     @Optional
-    public Provider<String> getResolvedPermissionGroup() {
-        return resolve(SystemPackagingExtension::getPermissionGroup);
-    }
+    public abstract Property<String> getRelease();
+
+    /** The package architecture as understood by the target package manager. */
+    @Input
+    @Optional
+    public abstract Property<String> getArch();
+
+    /** Default owner for packaged entries without explicit mapping ownership. */
+    @Input
+    @Optional
+    public abstract Property<String> getUser();
+
+    /** Default group for packaged entries without explicit mapping ownership. */
+    @Input
+    @Optional
+    public abstract Property<String> getPermissionGroup();
+
+    /** The rpm "Group" respectively the debian "Section" of the package. */
+    @Input
+    @Optional
+    public abstract Property<String> getPackageGroup();
 
     @Input
     @Optional
-    public Provider<String> getResolvedMaintainer() {
-        return resolve(SystemPackagingExtension::getMaintainer);
-    }
+    public abstract Property<String> getSummary();
 
     @Input
     @Optional
-    public Provider<String> getResolvedSummary() {
-        return resolve(SystemPackagingExtension::getSummary);
-    }
+    public abstract Property<String> getPackageDescription();
+
+    /** RPM only. */
+    @Input
+    @Optional
+    public abstract Property<String> getLicense();
+
+    /** RPM only. */
+    @Input
+    @Optional
+    public abstract Property<String> getPackager();
+
+    /** RPM only. */
+    @Input
+    @Optional
+    public abstract Property<String> getDistribution();
+
+    /** RPM only. */
+    @Input
+    @Optional
+    public abstract Property<String> getVendor();
 
     @Input
     @Optional
-    public Provider<String> getResolvedPackageDescription() {
-        return resolve(SystemPackagingExtension::getPackageDescription);
-    }
+    public abstract Property<String> getUrl();
+
+    /** DEB only. */
+    @Input
+    @Optional
+    public abstract Property<String> getMaintainer();
+
+    /** RPM only. */
+    @Input
+    @Optional
+    public abstract Property<Os> getOs();
 
     @Input
     @Optional
-    public Provider<String> getResolvedUrl() {
-        return resolve(SystemPackagingExtension::getUrl);
-    }
+    public abstract Property<String> getSigningKeyId();
 
-    @Input
-    @Optional
-    public Provider<String> getResolvedSigningKeyId() {
-        return resolve(SystemPackagingExtension::getSigningKeyId);
-    }
-
-    @Internal("tracked via the signing key ring file input")
-    public Provider<String> getResolvedSigningKeyPassphrase() {
-        return resolve(SystemPackagingExtension::getSigningKeyPassphrase);
-    }
+    @Internal("secret; the key ring file is the tracked input")
+    public abstract Property<String> getSigningKeyPassphrase();
 
     @InputFile
     @Optional
     @PathSensitive(PathSensitivity.ABSOLUTE)
-    public Provider<RegularFile> getResolvedSigningKeyRingFile() {
-        return resolve(SystemPackagingExtension::getSigningKeyRingFile);
-    }
+    public abstract RegularFileProperty getSigningKeyRingFile();
 
-    /** Requirements declared on the task combined with the ones from the {@code ospackage} extension. */
+    /** RPM only: relocation prefixes. */
     @Input
     @Optional
-    public Provider<List<Dependency>> getResolvedDependencies() {
-        if (parentExtension == null) {
-            return getExten().getDependencies();
+    public abstract ListProperty<String> getPrefixes();
+
+    /** DEB only: paths listed in the conffiles control file. */
+    @Input
+    @Optional
+    public abstract ListProperty<String> getConfigurationFiles();
+
+    @Input
+    @Optional
+    public abstract ListProperty<Dependency> getDependencies();
+
+    /** RPM only. */
+    @Input
+    @Optional
+    public abstract ListProperty<Dependency> getObsoletes();
+
+    @Input
+    @Optional
+    public abstract ListProperty<Dependency> getConflicts();
+
+    /** DEB only: custom control file fields, rendered as {@code XB-<Key>}. */
+    @Input
+    @Optional
+    public abstract MapProperty<String, String> getCustomFields();
+
+    /** Explicit package-owned directory entries, e.g. otherwise empty state directories. */
+    @Input
+    @Optional
+    public abstract ListProperty<Directory> getDirectories();
+
+    /** DEB only: script file installed verbatim as the {@code preinst} maintainer script. */
+    @InputFile
+    @Optional
+    @PathSensitive(PathSensitivity.RELATIVE)
+    public abstract RegularFileProperty getPreInstallFile();
+
+    /** DEB only: script file installed verbatim as the {@code postinst} maintainer script. */
+    @InputFile
+    @Optional
+    @PathSensitive(PathSensitivity.RELATIVE)
+    public abstract RegularFileProperty getPostInstallFile();
+
+    /** DEB only: script file installed verbatim as the {@code prerm} maintainer script. */
+    @InputFile
+    @Optional
+    @PathSensitive(PathSensitivity.RELATIVE)
+    public abstract RegularFileProperty getPreUninstallFile();
+
+    /** DEB only: script file installed verbatim as the {@code postrm} maintainer script. */
+    @InputFile
+    @Optional
+    @PathSensitive(PathSensitivity.RELATIVE)
+    public abstract RegularFileProperty getPostUninstallFile();
+
+    @Input
+    @Optional
+    public abstract ListProperty<String> getPreInstallCommands();
+
+    @Input
+    @Optional
+    public abstract ListProperty<String> getPostInstallCommands();
+
+    @Input
+    @Optional
+    public abstract ListProperty<String> getPreUninstallCommands();
+
+    @Input
+    @Optional
+    public abstract ListProperty<String> getPostUninstallCommands();
+
+    /** RPM only: %posttrans scriptlet. */
+    @Input
+    @Optional
+    public abstract ListProperty<String> getPostTransCommands();
+
+    /** The content mappings of this package. */
+    @Nested
+    public List<PackageContent> getContents() {
+        return contents;
+    }
+
+    // ------------------------------------------------------------------
+    // DSL
+    // ------------------------------------------------------------------
+
+    /** Maps source files or directories onto a destination inside the package. */
+    public PackageContent from(Object source, Action<? super PackageContent> action) {
+        PackageContent content = getObjectFactory().newInstance(PackageContent.class);
+        content.getSource().from(source);
+        action.execute(content);
+        contents.add(content);
+        return content;
+    }
+
+    /** The lower-cased architecture string used in package file names. */
+    @Internal
+    public String getArchString() {
+        String arch = getArch().getOrNull();
+        return arch == null ? null : arch.toLowerCase(Locale.ROOT);
+    }
+
+    public Dependency requires(String packageName) {
+        return requires(packageName, "", 0);
+    }
+
+    public Dependency requires(String packageName, String version, int flag) {
+        Dependency dep = new Dependency(packageName, version, flag);
+        getDependencies().add(dep);
+        return dep;
+    }
+
+    public Dependency obsoletes(String packageName, String version, int flag) {
+        Dependency dep = new Dependency(packageName, version, flag);
+        getObsoletes().add(dep);
+        return dep;
+    }
+
+    public Dependency conflicts(String packageName) {
+        Dependency dep = new Dependency(packageName, "", 0);
+        getConflicts().add(dep);
+        return dep;
+    }
+
+    public void prefix(String prefix) {
+        getPrefixes().add(prefix);
+    }
+
+    public void configurationFile(String path) {
+        getConfigurationFiles().add(path);
+    }
+
+    public Directory directory(String path, int permissions) {
+        return directory(path, permissions, null, null, false);
+    }
+
+    public Directory directory(String path, int permissions, String user, String permissionGroup, boolean setgid) {
+        Directory directory = new Directory(path, permissions, user, permissionGroup, setgid);
+        getDirectories().add(directory);
+        return directory;
+    }
+
+    /**
+     * The maintainer script methods record the script twice: as a file (used verbatim by the deb
+     * packaging) and as script <em>content</em> read lazily via a
+     * {@link ProviderFactory#fileContents} provider (used by the rpm packaging with the standard
+     * defines prepended), so the file is read at execution time and participates correctly in
+     * configuration cache invalidation.
+     */
+    public void preInstall(File script) {
+        getPreInstallFile().fileValue(script);
+        getPreInstallCommands().addAll(contentsOf(script));
+    }
+
+    public void postInstall(File script) {
+        getPostInstallFile().fileValue(script);
+        getPostInstallCommands().addAll(contentsOf(script));
+    }
+
+    public void preUninstall(File script) {
+        getPreUninstallFile().fileValue(script);
+        getPreUninstallCommands().addAll(contentsOf(script));
+    }
+
+    public void postUninstall(File script) {
+        getPostUninstallFile().fileValue(script);
+        getPostUninstallCommands().addAll(contentsOf(script));
+    }
+
+    public void postTrans(File script) {
+        getPostTransCommands().addAll(contentsOf(script));
+    }
+
+    private Provider<List<String>> contentsOf(File script) {
+        RegularFileProperty fileProperty = getObjectFactory().fileProperty();
+        fileProperty.set(script);
+        return getProviderFactory().fileContents(fileProperty)
+            .getAsText()
+            .orElse("")
+            .map(content -> content.isEmpty() ? List.of() : List.of(content));
+    }
+
+    // ------------------------------------------------------------------
+    // package assembly
+    // ------------------------------------------------------------------
+
+    /** Creates the package-format specific writer for this task. */
+    protected abstract PackageWriter createWriter() throws IOException;
+
+    @TaskAction
+    public void buildPackage() throws IOException {
+        File archive = getArchiveFile().get().getAsFile();
+        File parent = archive.getParentFile();
+        if (parent != null && parent.mkdirs() == false && parent.isDirectory() == false) {
+            throw new IOException("Cannot create destination directory " + parent);
         }
-        return getExten().getDependencies().zip(parentExtension.getDependencies(), (own, shared) -> {
-            List<Dependency> merged = new ArrayList<>(own);
-            merged.addAll(shared);
-            return merged;
+        PackageWriter writer = createWriter();
+        Set<String> parentDirectories = new LinkedHashSet<>();
+        // explicit directory entries first: deb creates missing parent directories implicitly on
+        // first use, which would otherwise win over an explicitly declared entry for the same path
+        for (Directory directory : getDirectories().get()) {
+            int mode = directory.setgid() ? directory.permissions() | 02000 : directory.permissions();
+            String user = directory.user() != null ? directory.user() : getUser().getOrNull();
+            String group = directory.permissionGroup() != null ? directory.permissionGroup() : getPermissionGroup().getOrNull();
+            writer.addDirectory(directory.path(), mode, user, group);
+        }
+        for (PackageContent content : contents) {
+            visitContent(content, writer, parentDirectories);
+        }
+        for (String dir : parentDirectories) {
+            writer.addDirectory(dir, 0755, getUser().getOrNull(), getPermissionGroup().getOrNull());
+        }
+        writer.finish();
+    }
+
+    private void visitContent(PackageContent content, PackageWriter writer, Set<String> parentDirectories) throws IOException {
+        String into = requireAbsolute(content.getInto().get());
+        String user = content.getUser().getOrElse(getUser().getOrNull());
+        String group = content.getPermissionGroup().getOrElse(getPermissionGroup().getOrNull());
+        int fileTypeFlags = content.getFileType().getOrElse(0);
+        List<PermissionRuleMatcher> rules = compileRules(content);
+
+        for (File root : content.getSource().getFiles()) {
+            if (root.isDirectory()) {
+                visitTree(content, root, into, user, group, fileTypeFlags, rules, writer, parentDirectories);
+            } else if (root.isFile()) {
+                String name = content.getRename().getOrElse(root.getName());
+                String path = into + "/" + name;
+                int mode = PackagingUtils.getUnixPermission(content.getFileMode().getOrElse(0644), root);
+                writer.addFile(path, root, mode, user, group, fileTypeFlags);
+                registerParentDirectories(content, path, parentDirectories);
+            }
+        }
+    }
+
+    private void visitTree(
+        PackageContent content,
+        File root,
+        String into,
+        String user,
+        String group,
+        int fileTypeFlags,
+        List<PermissionRuleMatcher> rules,
+        PackageWriter writer,
+        Set<String> parentDirectories
+    ) {
+        ConfigurableFileTree tree = getObjectFactory().fileTree().from(root);
+        tree.include(content.getIncludes().getOrElse(List.of()));
+        tree.exclude(content.getExcludes().getOrElse(List.of()));
+        boolean ownDirectories = content.getOwnDirectories().getOrElse(false);
+        // directories converted to link entries; content below them must be skipped
+        Set<String> linkedDirectories = new LinkedHashSet<>();
+
+        tree.visit(new FileVisitor() {
+            @Override
+            public void visitDir(FileVisitDetails details) {
+                if (underLinkedDirectory(details)) {
+                    return;
+                }
+                String path = into + "/" + details.getRelativePath().getPathString();
+                String linkTarget = PackagingUtils.relativeLinkTarget(root.toPath(), details.getFile());
+                try {
+                    if (linkTarget != null) {
+                        linkedDirectories.add(details.getRelativePath().getPathString() + "/");
+                        writer.addLink(path, linkTarget);
+                        return;
+                    }
+                    if (ownDirectories) {
+                        int mode = resolveMode(details, rules, content.getDirMode());
+                        if (content.getSetgid().getOrElse(false)) {
+                            mode = mode | 02000;
+                        }
+                        writer.addDirectory(path, mode, user, group);
+                        registerParentDirectories(content, path, parentDirectories);
+                    }
+                } catch (IOException e) {
+                    throw new UncheckedIOException(e);
+                }
+            }
+
+            @Override
+            public void visitFile(FileVisitDetails details) {
+                if (underLinkedDirectory(details)) {
+                    return;
+                }
+                String path = into + "/" + details.getRelativePath().getPathString();
+                try {
+                    String linkTarget = PackagingUtils.relativeLinkTarget(root.toPath(), details.getFile());
+                    if (linkTarget != null) {
+                        writer.addLink(path, linkTarget);
+                    } else {
+                        // the executable-bit workaround also applies on top of explicit modes,
+                        // so executables keep their executable bits (e.g. jdk/lib/jexec)
+                        int mode = PackagingUtils.getUnixPermission(resolveMode(details, rules, content.getFileMode()), details.getFile());
+                        writer.addFile(path, details.getFile(), mode, user, group, fileTypeFlags);
+                    }
+                    registerParentDirectories(content, path, parentDirectories);
+                } catch (IOException e) {
+                    throw new UncheckedIOException(e);
+                }
+            }
+
+            private boolean underLinkedDirectory(FileVisitDetails details) {
+                String relativePath = details.getRelativePath().getPathString();
+                return linkedDirectories.stream().anyMatch(relativePath::startsWith);
+            }
         });
     }
 
-    private <T> Provider<T> resolve(Function<SystemPackagingExtension, ? extends Provider<T>> property) {
-        Provider<T> own = property.apply(getExten());
-        return parentExtension != null ? own.orElse(property.apply(parentExtension)) : own;
+    private static int resolveMode(FileVisitDetails details, List<PermissionRuleMatcher> rules, Property<Integer> defaultMode) {
+        for (PermissionRuleMatcher rule : rules) {
+            if (rule.spec().isSatisfiedBy(details)) {
+                return rule.mode();
+            }
+        }
+        return defaultMode.getOrElse(PackagingUtils.getUnixPermission(details.getPermissions().toUnixNumeric(), details.getFile()));
     }
 
-    // ------------------------------------------------------------------
-    // copy spec configuration with packaging attributes
-    // ------------------------------------------------------------------
-
-    @Override
-    public AbstractCopyTask from(Object sourcePath, Closure closure) {
-        return from(sourcePath, (Action<? super CopySpec>) spec -> EnhancedCopySpec.configure(closure, spec, this));
+    /**
+     * Registers every ancestor of {@code path} that is a strict descendant of the mapping's
+     * {@code ownParentDirectories} path, so the package manager owns (and removes) the
+     * intermediate directories.
+     */
+    private static void registerParentDirectories(PackageContent content, String path, Set<String> parentDirectories) {
+        String below = content.getOwnParentDirectories().getOrNull();
+        if (below == null) {
+            return;
+        }
+        String prefix = below.endsWith("/") ? below : below + "/";
+        int index = path.lastIndexOf('/');
+        while (index > prefix.length()) {
+            String parent = path.substring(0, index);
+            if (parent.startsWith(prefix) == false) {
+                break;
+            }
+            parentDirectories.add(parent);
+            index = parent.lastIndexOf('/');
+        }
     }
 
-    @Override
-    public AbstractArchiveTask into(Object destPath, Closure closure) {
-        into(destPath, (Action<? super CopySpec>) spec -> EnhancedCopySpec.configure(closure, spec, this));
-        return this;
+    private record PermissionRuleMatcher(Spec<FileTreeElement> spec, int mode) {}
+
+    private static List<PermissionRuleMatcher> compileRules(PackageContent content) {
+        List<PermissionRuleMatcher> matchers = new ArrayList<>();
+        for (PackageContent.PermissionRule rule : content.getPermissionRules().getOrElse(List.of())) {
+            PatternSet patternSet = new PatternSet();
+            patternSet.include(rule.pattern());
+            matchers.add(new PermissionRuleMatcher(patternSet.getAsSpec(), rule.mode()));
+        }
+        return matchers;
+    }
+
+    private static String requireAbsolute(String path) {
+        if (path.startsWith("/") == false) {
+            throw new IllegalArgumentException("Package destination path must be absolute, got [" + path + "]");
+        }
+        return path.endsWith("/") ? path.substring(0, path.length() - 1) : path;
     }
 }

@@ -167,7 +167,7 @@ gradlePlugin {
     benchmark {
       id = 'elasticsearch.benchmark'
       implementationClass = 'org.elasticsearch.gradle.internal.BenchmarkPlugin'
-    }    
+    }
     ospackageBase {
       id = 'elasticsearch.ospackage-base'
       implementationClass = 'org.elasticsearch.gradle.internal.ospackage.OsPackageBasePlugin'

@@ -22,27 +22,49 @@
 
 package org.elasticsearch.gradle.internal.ospackage.deb;
 
+import org.elasticsearch.gradle.internal.ospackage.PackageWriter;
 import org.elasticsearch.gradle.internal.ospackage.SystemPackagingTask;
-import org.gradle.api.internal.file.copy.CopyAction;
+import org.gradle.api.InvalidUserDataException;
 import org.gradle.work.DisableCachingByDefault;
 
 import java.io.File;
+import java.io.IOException;
 
 /**
- * Builds a deb package from the configured copy specs and package metadata.
+ * Builds a deb package from the declared content mappings and package metadata.
  */
 @DisableCachingByDefault(because = "Packaging tasks are IO bound and not worth caching")
 public abstract class Deb extends SystemPackagingTask {
 
-    public Deb() {
-        super();
-        getArchiveExtension().set("deb");
-    }
-
     @Override
-    protected CopyAction createCopyAction() {
+    protected PackageWriter createWriter() throws IOException {
+        validate();
         // use the task-private temporary dir so parallel deb tasks of the same project cannot
         // overwrite each other's control files
-        return new DebCopyAction(this, new File(getTemporaryDir(), "debian"));
+        return new DebPackageWriter(this, new File(getTemporaryDir(), "debian"));
+    }
+
+    private void validate() {
+        String version = getVersion().getOrNull();
+        if (version == null
+            || version.isEmpty()
+            || Character.isDigit(version.charAt(0)) == false
+            || version.matches("[A-Za-z0-9.+:~-]+") == false) {
+            throw new InvalidUserDataException(
+                "Invalid upstream version '" + version + "' - a valid version must start with a digit and only contain [A-Za-z0-9.+:~-]"
+            );
+        }
+        String packageName = getPackageName().getOrNull();
+        if (packageName == null
+            || packageName.length() < 2
+            || Character.isLetterOrDigit(packageName.charAt(0)) == false
+            || packageName.matches("[a-z0-9.+-]+") == false) {
+            throw new InvalidUserDataException(
+                "Invalid package name '"
+                    + packageName
+                    + "' - a valid package name must start with an alphanumeric character, have a length of at least two"
+                    + " characters and only contain [a-z0-9.+-]"
+            );
+        }
     }
 }

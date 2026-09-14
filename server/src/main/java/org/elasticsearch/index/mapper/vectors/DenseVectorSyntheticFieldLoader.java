@@ -17,8 +17,6 @@ import java.util.List;
 public interface DenseVectorSyntheticFieldLoader extends SourceLoader.SyntheticFieldLoader {
     /**
      * Get the vector value as a list.
-     *
-     * @param convertToFloat whether to convert dimensions to {@code Float}
      */
-    List<Object> vectorAsList(boolean convertToFloat) throws IOException;
+    List<Object> vectorAsList() throws IOException;
 }

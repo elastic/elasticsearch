@@ -10,15 +10,14 @@
 package org.elasticsearch.index.mapper.vectors;
 
 import org.apache.lucene.index.LeafReaderContext;
-import org.elasticsearch.index.mapper.SourceLoader;
+import org.elasticsearch.index.fielddata.FormattedDocValues;
 import org.elasticsearch.index.mapper.ValueFetcher;
-import org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapper.ElementType;
-import org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapper.VectorFormat;
+import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.fetch.StoredFieldsSpec;
 import org.elasticsearch.search.lookup.Source;
 
 import java.io.IOException;
-import java.io.UncheckedIOException;
+import java.util.ArrayList;
 import java.util.List;
 
 /**
@@ -27,36 +26,54 @@ import java.util.List;
  * same doc values anyway.
  */
 class DenseVectorDocValuesValueFetcher implements ValueFetcher {
-    private final DenseVectorSyntheticFieldLoader loader;
-    private final ElementType elementType;
-    private final VectorFormat format;
+    private final VectorIndexFieldData fieldData;
+    private final DocValueFormat format;
 
-    private SourceLoader.SyntheticFieldLoader.DocValuesLoader docValuesLoader;
+    private FormattedDocValues values;
 
-    DenseVectorDocValuesValueFetcher(DenseVectorSyntheticFieldLoader loader, ElementType elementType, VectorFormat format) {
-        this.loader = loader;
-        this.elementType = elementType;
+    DenseVectorDocValuesValueFetcher(VectorIndexFieldData fieldData, DocValueFormat format) {
+        this.fieldData = fieldData;
         this.format = format;
     }
 
     @Override
     public void setNextReader(LeafReaderContext context) {
-        try {
-            docValuesLoader = loader.docValuesLoader(context.reader(), null);
-        } catch (IOException e) {
-            throw new UncheckedIOException(e);
-        }
+        values = fieldData.load(context).getFormattedValues(format);
     }
 
     @Override
     public List<Object> fetchValues(Source source, int doc, List<Object> ignoredValues) throws IOException {
-        if (docValuesLoader == null || docValuesLoader.advanceToDoc(doc) == false || loader.hasValue() == false) {
+        if (values.advanceExact(doc) == false) {
             return List.of();
         }
-        return switch (format) {
-            case ARRAY -> loader.vectorAsList(true);
-            case BINARY -> List.of(DenseVectorSourceValueFetcher.encodeBase64(loader.vectorAsList(false), elementType));
-        };
+        return unpack(values.nextValue());
+    }
+
+    /**
+     * Flattens the single value {@link FormattedDocValues} reports per document into one entry per dimension.
+     */
+    private static List<Object> unpack(Object value) {
+        switch (value) {
+            case String base64 -> {
+                return List.of(base64);
+            }
+            case float[] floats -> {
+                List<Object> dimensions = new ArrayList<>(floats.length);
+                for (float v : floats) {
+                    dimensions.add(v);
+                }
+                return dimensions;
+            }
+            // Byte and bit dimensions are widened to Float to match what DenseVectorSourceValueFetcher returns
+            case Byte[] bytes -> {
+                List<Object> dimensions = new ArrayList<>(bytes.length);
+                for (Byte v : bytes) {
+                    dimensions.add(v.floatValue());
+                }
+                return dimensions;
+            }
+            default -> throw new IllegalStateException("unexpected dense vector doc value [" + value.getClass().getSimpleName() + "]");
+        }
     }
 
     @Override

@@ -3352,10 +3352,10 @@ public class DenseVectorFieldMapper extends FieldMapper {
             if (isSyntheticSource && (indexed || hasDocValues())) {
                 // TODO: Get from doc values when excludeSourceVectors == true
                 // Synthetic source would rebuild the field's value from these same doc values, so read them directly instead.
-                DenseVectorSyntheticFieldLoader loader = indexed
-                    ? new IndexedSyntheticFieldLoader(this, null)
-                    : new DocValuesSyntheticFieldLoader(this, null);
-                return new DenseVectorDocValuesValueFetcher(loader, element.elementType(), vectorFormat);
+                return new DenseVectorDocValuesValueFetcher(
+                    context.getForField(this, FielddataOperation.SEARCH),
+                    docValueFormat(format, null)
+                );
             }
 
             return new DenseVectorSourceValueFetcher(name(), context, element.elementType(), dims, vectorFormat);
@@ -4386,12 +4386,12 @@ public class DenseVectorFieldMapper extends FieldMapper {
         if (fieldType().indexed) {
             return new SyntheticVectorsPatchFieldLoader<>(
                 () -> new IndexedSyntheticFieldLoader(fieldType(), leafName()),
-                l -> l.vectorAsList(false)
+                l -> l.vectorAsList()
             );
         }
         return new SyntheticVectorsPatchFieldLoader<>(
             () -> new DocValuesSyntheticFieldLoader(fieldType(), leafName()),
-            l -> l.vectorAsList(false)
+            l -> l.vectorAsList()
         );
     }
 
@@ -4493,11 +4493,10 @@ public class DenseVectorFieldMapper extends FieldMapper {
          * Returns a deep-copied vector for the current document, either as a list of floats
          * (with optional cosine normalization) or a list of bytes.
          *
-         * @param convertToFloat whether to convert byte dimensions to {@code Float}
          * @throws IOException if reading fails
          */
         @Override
-        public List<Object> vectorAsList(boolean convertToFloat) throws IOException {
+        public List<Object> vectorAsList() throws IOException {
             assert hasValue : "vector is null for ord=" + ord;
             if (floatValues != null) {
                 float[] raw = floatValues.vectorValue(ord);
@@ -4511,11 +4510,7 @@ public class DenseVectorFieldMapper extends FieldMapper {
                 byte[] raw = byteValues.vectorValue(ord);
                 List<Object> values = new ArrayList<>(raw.length);
                 for (byte v : raw) {
-                    if (convertToFloat) {
-                        values.add((float) v);
-                    } else {
-                        values.add(v);
-                    }
+                    values.add(v);
                 }
                 return values;
             }
@@ -4589,14 +4584,13 @@ public class DenseVectorFieldMapper extends FieldMapper {
         }
 
         @Override
-        public List<Object> vectorAsList(boolean convertToFloat) throws IOException {
+        public List<Object> vectorAsList() throws IOException {
             assert hasValue : "vector is null";
             ByteBuffer byteBuffer = byteBuffer();
             int vectorLength = fieldType.element.elementType().vectorLength(fieldType.dims);
             List<Object> values = new ArrayList<>(vectorLength);
             for (int i = 0; i < vectorLength; i++) {
-                Number value = fieldType.element.readValue(byteBuffer);
-                values.add(convertToFloat ? value.floatValue() : value);
+                values.add(fieldType.element.readValue(byteBuffer));
             }
             return values;
         }

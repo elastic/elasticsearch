@@ -140,11 +140,12 @@ public abstract class AbstractEstimatedHeapAllocationDecider extends AllocationD
     protected abstract long getCurrentUsageBytes(NodeHeapMetrics metrics);
 
     /**
-     * Returns the additional bytes that allocating {@code shard} onto {@code node} would add to the
-     * measured resource. Only shard-heap costs should be included here; index-metadata costs are
-     * included only when the node does not yet host the index.
+     * Returns the bytes that allocating this shard would add to total heap on {@code node}.
+     * Index-overhead bytes are included only when the node does not yet host the index (to avoid double-counting).
      */
-    protected abstract long getProjectedAdditionalBytes(ShardRouting shard, RoutingNode node, ShardAndIndexHeapUsage usage);
+    private long getProjectedAdditionalBytes(ShardRouting shard, RoutingNode node, ShardAndIndexHeapUsage usage) {
+        return (node.hasIndex(shard.index()) ? 0L : usage.indexHeapUsageBytes()) + usage.shardHeapUsageBytes();
+    }
 
     // --- Template methods ---
 

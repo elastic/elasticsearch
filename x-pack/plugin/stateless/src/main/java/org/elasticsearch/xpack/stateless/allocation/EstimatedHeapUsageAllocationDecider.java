@@ -8,10 +8,8 @@
 package org.elasticsearch.xpack.stateless.allocation;
 
 import org.elasticsearch.cluster.NodeHeapMetrics;
-import org.elasticsearch.cluster.ShardAndIndexHeapUsage;
 import org.elasticsearch.cluster.node.DiscoveryNodeRole;
 import org.elasticsearch.cluster.routing.RoutingNode;
-import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.allocation.RoutingAllocation;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Setting;
@@ -89,14 +87,5 @@ public class EstimatedHeapUsageAllocationDecider extends AbstractEstimatedHeapAl
     @Override
     protected long getCurrentUsageBytes(NodeHeapMetrics metrics) {
         return metrics.nodeHeapEstimates().totalHeapUsage();
-    }
-
-    /**
-     * Returns the bytes that allocating this shard would add to total heap on {@code node}.
-     * Index-metadata bytes are included only when the node does not yet host the index (to avoid double-counting).
-     */
-    @Override
-    protected long getProjectedAdditionalBytes(ShardRouting shard, RoutingNode node, ShardAndIndexHeapUsage usage) {
-        return (node.hasIndex(shard.index()) ? 0L : usage.indexHeapUsageBytes()) + usage.shardHeapUsageBytes();
     }
 }

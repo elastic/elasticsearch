@@ -44,7 +44,6 @@ import org.elasticsearch.index.engine.Engine;
 import org.elasticsearch.index.engine.EngineConfig;
 import org.elasticsearch.index.engine.EngineTestCase;
 import org.elasticsearch.index.engine.InternalEngine;
-import org.elasticsearch.index.engine.MergeMetrics;
 import org.elasticsearch.index.engine.ThreadPoolMergeExecutorService;
 import org.elasticsearch.index.engine.ThreadPoolMergeScheduler;
 import org.elasticsearch.index.mapper.IdFieldMapper;
@@ -172,7 +171,7 @@ public class RefreshListenersTests extends ESTestCase {
             .promotableToPrimary(true)
             .mapperService(EngineTestCase.createMapperService())
             .engineResetLock(new EngineResetLock())
-            .mergeMetrics(MergeMetrics.NOOP)
+            .shardMetrics(ShardMetrics.NOOP)
             .indexDeletionPolicyWrapper(Function.identity())
             .build();
         engine = new InternalEngine(config);

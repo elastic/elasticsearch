@@ -102,7 +102,6 @@ import org.elasticsearch.index.engine.EngineConfig;
 import org.elasticsearch.index.engine.EngineException;
 import org.elasticsearch.index.engine.EngineFactory;
 import org.elasticsearch.index.engine.IndexOperationBatch;
-import org.elasticsearch.index.engine.MergeMetrics;
 import org.elasticsearch.index.engine.ReadOnlyEngine;
 import org.elasticsearch.index.engine.RefreshFailedEngineException;
 import org.elasticsearch.index.engine.SafeCommitInfo;
@@ -247,7 +246,8 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
 
     private final SearchOperationListener searchOperationListener;
 
-    private final ShardBulkStats bulkOperationListener;
+    private final ShardBulkStats bulkStats;
+    private final BulkOperationListener bulkOperationListener;
     private final GlobalCheckpointListeners globalCheckpointListeners;
     private final PendingReplicationActions pendingReplicationActions;
     private final ReplicationTracker replicationTracker;
@@ -289,7 +289,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
     private final MeanMetric externalRefreshMetric = new MeanMetric();
     private final MeanMetric flushMetric = new MeanMetric();
     private final CounterMetric periodicFlushMetric = new CounterMetric();
-    private final MergeMetrics mergeMetrics;
+    private final ShardMetrics shardMetrics;
 
     private final ShardEventListener shardEventListener = new ShardEventListener();
 
@@ -370,7 +370,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
         final MapperMetrics mapperMetrics,
         final IndexingStatsSettings indexingStatsSettings,
         final SearchStatsSettings searchStatsSettings,
-        final MergeMetrics mergeMetrics
+        final ShardMetrics shardMetrics
     ) throws IOException {
         super(shardRouting.shardId(), indexSettings);
         assert shardRouting.initializing();
@@ -409,7 +409,17 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
             CollectionUtils.appendToCopyNoNullElements(listeners, internalIndexingStats, indexingFailuresDebugListener),
             logger
         );
-        this.bulkOperationListener = new ShardBulkStats();
+        this.bulkStats = new ShardBulkStats();
+        this.bulkOperationListener = new BulkOperationListener() {
+            @Override
+            public void afterBulk(long bulkShardSizeInBytes, long tookInNanos) {
+                bulkStats.afterBulk(bulkShardSizeInBytes, tookInNanos);
+                // read the live routing, not the constructor argument: shards start as replicas and may be promoted later.
+                if (routingEntry().primary() && routingEntry().isRelocationTarget() == false) {
+                    shardMetrics.indexing().onBulk(indexSettings.getMode(), tookInNanos);
+                }
+            }
+        };
         this.globalCheckpointSyncer = globalCheckpointSyncer;
         this.retentionLeaseSyncer = Objects.requireNonNull(retentionLeaseSyncer);
         this.searchStats = new ShardSearchStats(searchStatsSettings);
@@ -476,7 +486,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
         this.refreshFieldHasValueListener = new RefreshFieldHasValueListener();
         this.relativeTimeInNanosSupplier = relativeTimeInNanosSupplier;
         this.indexCommitListener = indexCommitListener;
-        this.mergeMetrics = mergeMetrics;
+        this.shardMetrics = shardMetrics;
     }
 
     public ThreadPool getThreadPool() {
@@ -512,6 +522,18 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
 
     public BulkOperationListener getBulkOperationListener() {
         return this.bulkOperationListener;
+    }
+
+    /** Records the final failure of one bulk item executed on this primary; see {@link IndexingMetrics} for what is and is not counted. */
+    public void recordBulkItemFailure(Exception failure) {
+        assert routingEntry().primary() : "bulk items are only executed on primaries: " + routingEntry();
+        shardMetrics.indexing().onBulkItemFailed(indexSettings.getMode(), failure);
+    }
+
+    /** Records how many bulk items, successful or not, one shard bulk request completed on this primary. */
+    public void recordBulkItemsCompleted(int count) {
+        assert routingEntry().primary() : "bulk items are only executed on primaries: " + routingEntry();
+        shardMetrics.indexing().onBulkItemsCompleted(indexSettings.getMode(), count);
     }
 
     public ShardIndexWarmerService warmerService() {
@@ -1695,7 +1717,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
     }
 
     public BulkStats bulkStats() {
-        return bulkOperationListener.stats();
+        return bulkStats.stats();
     }
 
     /**
@@ -4158,7 +4180,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
             .promotableToPrimary(routingEntry().isPromotableToPrimary())
             .mapperService(mapperService())
             .engineResetLock(engineResetLock)
-            .mergeMetrics(mergeMetrics)
+            .shardMetrics(shardMetrics)
             .indexDeletionPolicyWrapper(Function.identity())
             .build();
     }

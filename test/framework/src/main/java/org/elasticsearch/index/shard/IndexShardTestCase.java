@@ -57,7 +57,6 @@ import org.elasticsearch.index.engine.Engine;
 import org.elasticsearch.index.engine.EngineFactory;
 import org.elasticsearch.index.engine.EngineTestCase;
 import org.elasticsearch.index.engine.InternalEngineFactory;
-import org.elasticsearch.index.engine.MergeMetrics;
 import org.elasticsearch.index.engine.ThreadPoolMergeExecutorService;
 import org.elasticsearch.index.engine.ThreadPoolMergeScheduler;
 import org.elasticsearch.index.mapper.MapperMetrics;
@@ -741,7 +740,7 @@ public abstract class IndexShardTestCase extends ESTestCase {
                 MapperMetrics.NOOP,
                 new IndexingStatsSettings(ClusterSettings.createBuiltInClusterSettings()),
                 new SearchStatsSettings(ClusterSettings.createBuiltInClusterSettings()),
-                MergeMetrics.NOOP
+                shardMetrics()
             );
             indexShard.addShardFailureCallback(DEFAULT_SHARD_FAILURE_HANDLER);
             success = true;
@@ -1119,6 +1118,11 @@ public abstract class IndexShardTestCase extends ESTestCase {
             inSyncIdsWithReplica,
             newRoutingTable
         );
+    }
+
+    /** The APM instruments shards created by {@link #newShard} record into; override to observe them. */
+    protected ShardMetrics shardMetrics() {
+        return ShardMetrics.NOOP;
     }
 
     /**

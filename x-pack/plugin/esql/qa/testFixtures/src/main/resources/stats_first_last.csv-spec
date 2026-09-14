@@ -906,6 +906,8 @@ f1:integer | f2:integer | l1:integer | l2:integer
 # ----------------------------------------------------------------------------------------------------------------------
 
 First with where clause
+required_capability: fix_aggs_multiple_input_fields
+
 FROM employees
 | STATS sum=sum(salary), value=FIRST(emp_no, salary) WHERE salary > 50000
 ;

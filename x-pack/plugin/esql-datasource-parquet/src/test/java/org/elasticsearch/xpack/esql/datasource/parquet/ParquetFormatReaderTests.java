@@ -8662,6 +8662,7 @@ public class ParquetFormatReaderTests extends ESTestCase {
 
         var allocator = options.getAllocator();
         assertThat(allocator, instanceOf(CircuitBreakerByteBufferAllocator.class));
+        assertThat(((CircuitBreakerByteBufferAllocator) allocator).delegate(), instanceOf(PoolingHeapByteBufferAllocator.class));
         assertFalse("parquet's allocator must not be direct — its release() cannot free direct memory", allocator.isDirect());
 
         long before = breaker.getUsed();
@@ -8669,11 +8670,26 @@ public class ParquetFormatReaderTests extends ESTestCase {
         try {
             assertTrue("a heap-backed delegate yields array-backed buffers", buffer.hasArray());
             assertFalse(buffer.isDirect());
-            assertEquals("allocation must be charged to the request breaker", before + 128, breaker.getUsed());
+            assertEquals("allocation must be charged to the request breaker", before + buffer.capacity(), breaker.getUsed());
         } finally {
             allocator.release(buffer);
         }
-        assertEquals("release must return the full charge", before, breaker.getUsed());
+        assertEquals("release must return the full charge even if the pool retained the array", before, breaker.getUsed());
+    }
+
+    public void testDerivedReadersShareHeapBufferPool() {
+        var factory = new BlockFactory(new LimitedBreaker("test", ByteSizeValue.ofMb(64)), blockFactory.bigArrays());
+        ParquetFormatReader reader = new ParquetFormatReader(factory);
+        PoolingHeapByteBufferAllocator pool = reader.heapBufferPool();
+        assertSame(pool, reader.withBaselinePath().heapBufferPool());
+        assertSame(pool, reader.withIoWatermark(new ParquetIoWatermark(1024)).heapBufferPool());
+        assertSame(pool, reader.copySharingCachesForTests().heapBufferPool());
+        assertSame(pool, reader.withPushedFilter(FilterCompat.NOOP).heapBufferPool());
+        assertSame(pool, ((ParquetFormatReader) reader.withDeclaredDateFormats(Map.of("ts", "epoch_second"))).heapBufferPool());
+        assertSame(pool, ((ParquetFormatReader) reader.withDeclaredTypeColumns(Set.of("x"))).heapBufferPool());
+        PoolingHeapByteBufferAllocator other = new PoolingHeapByteBufferAllocator(1024);
+        assertSame(other, reader.withHeapBufferPool(other).heapBufferPool());
+        assertSame("withHeapBufferPool must not mutate the original reader", pool, reader.heapBufferPool());
     }
 
     /**

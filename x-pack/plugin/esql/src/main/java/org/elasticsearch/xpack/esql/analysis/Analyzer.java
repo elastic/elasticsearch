@@ -589,11 +589,11 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
      * structures, and unwraps remaining {@code NamedSubquery} wrappers. See {@link ViewCompaction} for the rationale behind splitting
      * compaction across the analyzer boundary.
      */
-    private static class ViewCompactionPostIndexResolution extends Rule<LogicalPlan, LogicalPlan> {
+    private static class ViewCompactionPostIndexResolution extends ParameterizedRule<LogicalPlan, LogicalPlan, AnalyzerContext> {
 
         @Override
-        public LogicalPlan apply(LogicalPlan plan) {
-            return ViewCompaction.postIndexResolution(plan);
+        public LogicalPlan apply(LogicalPlan plan, AnalyzerContext context) {
+            return ViewCompaction.postIndexResolution(plan, context.preserveViewBoundaries());
         }
     }
 
@@ -1907,7 +1907,13 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
                 newSubPlans.add(logicalPlan);
             }
 
-            if (changed == false) {
+            // A merge whose branches already line up still needs its own output populated. View resolution builds a ViewUnionAll
+            // with an empty output and relies on this rule to fill it in; when every branch is already a Project over exactly the
+            // merge columns (a view body ending in KEEP is the common case) no branch is rewritten, and returning early here would
+            // leave that empty output in place. MergePlan.expressionsResolved then fails on the size mismatch and everything above
+            // the merge stays unresolved — surfacing later as an UnresolvedException during optimization, because the request-filter
+            // rewriter marks the tree analyzed. Only return early once the output really is aligned with the branches.
+            if (changed == false && mergePlan.output().size() == outputUnion.size()) {
                 return mergePlan;
             }
 

@@ -54,11 +54,6 @@ public final class Fork extends MergePlan implements TelemetryAware {
     }
 
     @Override
-    public Fork refreshOutput() {
-        return new Fork(source(), children(), refreshedOutput());
-    }
-
-    @Override
     public int hashCode() {
         return Objects.hash(Fork.class, output(), children());
     }

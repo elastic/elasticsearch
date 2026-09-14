@@ -38,15 +38,43 @@ public class FragmentExec extends LeafExec implements EstimatesRowSize {
      */
     private final int estimatedRowSize;
 
+    /**
+     * Coordinator-only flag: {@code true} when this fragment originates from a view branch inside a {@code ViewUnionAll}.
+     * View-branch fragments must NOT receive the raw DSL {@code request.filter()} as a Lucene query (via
+     * {@code PlannerUtils.integrateEsFilterIntoFragment}), because the filter has already been applied as a logical
+     * {@code Filter} above the view's output boundary. Pushing it into the Lucene scan would apply it before any
+     * aggregation or field computation the view performs, producing wrong results for computed fields.
+     *
+     * <p>This flag is intentionally <em>not serialised</em>. It is set on the coordinator before the filter is
+     * integrated and cleared (reads as {@code false}) on any node that deserialises the plan — by that point the
+     * correct filter has already been stamped (or deliberately omitted) on the fragment's {@code esFilter} field.
+     */
+    private final boolean fromViewBranch;
+
     public FragmentExec(LogicalPlan fragment) {
         this(fragment.source(), fragment, null, 0);
     }
 
     public FragmentExec(Source source, LogicalPlan fragment, QueryBuilder esFilter, int estimatedRowSize) {
+        this(source, fragment, esFilter, estimatedRowSize, false);
+    }
+
+    /**
+     * Full constructor, carrying every field including the coordinator-only {@link #fromViewBranch} marker. Use this when
+     * building a fragment whose marker value is already known — in particular when replacing an existing fragment, where
+     * the marker has to be copied rather than set (see {@code ProjectAwayColumns}). {@link #asFromViewBranch()} is a
+     * convenience for turning the marker on for an existing fragment, which makes it the natural fit as a method
+     * reference in a tree transform ({@code Mapper#mapFork}); it cannot express an arbitrary value.
+     * <p>
+     * This is also the constructor {@link #info()} mirrors, per the convention {@code EsqlNodeSubclassTests} enforces
+     * that a node's {@code info()} properties match its longest public constructor.
+     */
+    public FragmentExec(Source source, LogicalPlan fragment, QueryBuilder esFilter, int estimatedRowSize, boolean fromViewBranch) {
         super(source);
         this.fragment = fragment;
         this.esFilter = esFilter;
         this.estimatedRowSize = estimatedRowSize;
+        this.fromViewBranch = fromViewBranch;
     }
 
     private FragmentExec(StreamInput in) throws IOException {
@@ -54,6 +82,7 @@ public class FragmentExec extends LeafExec implements EstimatesRowSize {
         this.fragment = in.readNamedWriteable(LogicalPlan.class);
         this.esFilter = in.readOptionalNamedWriteable(QueryBuilder.class);
         this.estimatedRowSize = in.readVInt();
+        this.fromViewBranch = false; // coordinator-only; not serialised
     }
 
     @Override
@@ -83,7 +112,7 @@ public class FragmentExec extends LeafExec implements EstimatesRowSize {
 
     @Override
     protected NodeInfo<FragmentExec> info() {
-        return NodeInfo.create(this, FragmentExec::new, fragment, esFilter, estimatedRowSize);
+        return NodeInfo.create(this, FragmentExec::new, fragment, esFilter, estimatedRowSize, fromViewBranch);
     }
 
     @Override
@@ -91,25 +120,39 @@ public class FragmentExec extends LeafExec implements EstimatesRowSize {
         return fragment.output();
     }
 
+    /** Returns whether this fragment is a view-branch scan that must not receive the raw Lucene esFilter. */
+    public boolean isFromViewBranch() {
+        return fromViewBranch;
+    }
+
+    /** Returns a copy of this fragment marked as originating from a view branch (see {@link #fromViewBranch}). */
+    public FragmentExec asFromViewBranch() {
+        return fromViewBranch ? this : new FragmentExec(source(), fragment, esFilter, estimatedRowSize, true);
+    }
+
     @Override
     public PhysicalPlan estimateRowSize(State state) {
         int estimatedRowSize = state.consumeAllFields(false);
         return Objects.equals(estimatedRowSize, this.estimatedRowSize)
             ? this
-            : new FragmentExec(source(), fragment, esFilter, estimatedRowSize);
+            : new FragmentExec(source(), fragment, esFilter, estimatedRowSize, fromViewBranch);
     }
 
     public FragmentExec withFragment(LogicalPlan fragment) {
-        return Objects.equals(fragment, this.fragment) ? this : new FragmentExec(source(), fragment, esFilter, estimatedRowSize);
+        return Objects.equals(fragment, this.fragment)
+            ? this
+            : new FragmentExec(source(), fragment, esFilter, estimatedRowSize, fromViewBranch);
     }
 
     public FragmentExec withFilter(QueryBuilder filter) {
-        return Objects.equals(filter, this.esFilter) ? this : new FragmentExec(source(), fragment, filter, estimatedRowSize);
+        return Objects.equals(filter, this.esFilter)
+            ? this
+            : new FragmentExec(source(), fragment, filter, estimatedRowSize, fromViewBranch);
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(fragment, esFilter, estimatedRowSize);
+        return Objects.hash(fragment, esFilter, estimatedRowSize, fromViewBranch);
     }
 
     @Override
@@ -125,7 +168,8 @@ public class FragmentExec extends LeafExec implements EstimatesRowSize {
         FragmentExec other = (FragmentExec) obj;
         return Objects.equals(fragment, other.fragment)
             && Objects.equals(esFilter, other.esFilter)
-            && Objects.equals(estimatedRowSize, other.estimatedRowSize);
+            && Objects.equals(estimatedRowSize, other.estimatedRowSize)
+            && fromViewBranch == other.fromViewBranch;
     }
 
     @Override

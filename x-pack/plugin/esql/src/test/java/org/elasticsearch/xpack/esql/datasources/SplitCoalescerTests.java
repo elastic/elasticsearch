@@ -20,6 +20,8 @@ import java.util.Map;
 import java.util.Set;
 
 import static org.elasticsearch.xpack.esql.datasources.SplitCoalescer.COALESCING_THRESHOLD;
+import static org.elasticsearch.xpack.esql.datasources.SplitCoalescer.DEFAULT_MAX_FILES_PER_GROUP;
+import static org.elasticsearch.xpack.esql.datasources.SplitCoalescer.DEFAULT_OPEN_COST_BYTES;
 
 public class SplitCoalescerTests extends ESTestCase {
 
@@ -321,7 +323,9 @@ public class SplitCoalescerTests extends ESTestCase {
             splits.add(makeFileSplit(i, tiny));
         }
 
-        List<ExternalSplit> result = SplitCoalescer.coalesce(splits, target, 8, floor);
+        // The default file cap would emit more bins than this floor on 1 MB leaves, skipping the floor path
+        // this test is about. Lift the cap so spreadLeastLoaded still runs.
+        List<ExternalSplit> result = SplitCoalescer.coalesce(splits, target, 8, floor, Integer.MAX_VALUE);
 
         assertEquals(floor, result.size());
         assertEquals(106, countTotalLeaves(result));
@@ -359,6 +363,100 @@ public class SplitCoalescerTests extends ESTestCase {
         expectThrows(IllegalArgumentException.class, () -> SplitCoalescer.coalesce(belowThreshold, 128 * 1024 * 1024, 8, 0));
         expectThrows(IllegalArgumentException.class, () -> SplitCoalescer.coalesce(belowThreshold, 0, 8, 1));
         expectThrows(IllegalArgumentException.class, () -> SplitCoalescer.coalesce(belowThreshold, 128 * 1024 * 1024, 0, 1));
+        expectThrows(IllegalArgumentException.class, () -> SplitCoalescer.coalesce(belowThreshold, 128 * 1024 * 1024, 8, 1, 0));
+    }
+
+    public void testNoGroupExceedsTheFileCountBudget() {
+        // ClickBench-zstd leaf sizes pack 39 files under the 128 MiB byte budget alone. The file cap must bind
+        // first so no driver is handed more than DEFAULT_MAX_FILES_PER_GROUP leaves.
+        long target = 128L * 1024 * 1024;
+        List<ExternalSplit> splits = makeSplits(3264, 3_386_719L);
+
+        assertEquals(39, maxLeaves(SplitCoalescer.coalesce(splits, target, 8, 1, Integer.MAX_VALUE)));
+
+        List<ExternalSplit> result = SplitCoalescer.coalesce(splits, target, 8, 1, DEFAULT_MAX_FILES_PER_GROUP);
+
+        assertEquals(3264, countTotalLeaves(result));
+        assertEquals("file cap must bind on this corpus (byte budget would allow 39)", DEFAULT_MAX_FILES_PER_GROUP, maxLeaves(result));
+    }
+
+    public void testByteBudgetStillBindsOnLargerFiles() {
+        // Uncompressed ClickBench leaves fill the 128 MiB byte budget at 15 files, below the file cap.
+        long target = 128L * 1024 * 1024;
+        List<ExternalSplit> splits = makeSplits(3264, 8_512_192L);
+
+        List<ExternalSplit> result = SplitCoalescer.coalesce(splits, target, 8, 1, DEFAULT_MAX_FILES_PER_GROUP);
+
+        assertEquals(3264, countTotalLeaves(result));
+        assertEquals("byte budget must still bind first on larger files", 15, maxLeaves(result));
+        for (ExternalSplit split : result) {
+            assertTrue("size budget must still be respected, got " + split.estimatedSizeInBytes(), split.estimatedSizeInBytes() <= target);
+        }
+    }
+
+    public void testCompressionNoLongerScalesLargestGroup() {
+        // Same two corpora as the defect: without a file cap, compression packed 39 files vs 15 uncompressed.
+        // The default cap bounds the compressed side at 32; the byte budget still binds first on uncompressed.
+        // The issue's 1.1 leaf-count ratio cannot hold at cap=32 because uncompressed stays byte-bound at 15.
+        long target = 128L * 1024 * 1024;
+        List<ExternalSplit> compressed = makeSplits(3264, 3_386_719L);
+        List<ExternalSplit> uncompressed = makeSplits(3264, 8_512_192L);
+
+        int maxCompressed = maxLeaves(SplitCoalescer.coalesce(compressed, target, 8, 1));
+        int maxUncompressed = maxLeaves(SplitCoalescer.coalesce(uncompressed, target, 8, 1));
+
+        assertEquals(DEFAULT_MAX_FILES_PER_GROUP, maxCompressed);
+        assertEquals(15, maxUncompressed);
+    }
+
+    public void testClaimOrderPutsCostlyGroupsFirst() {
+        // BFD emits the exact-budget standalone first. Claim cost (bytes + 4 MiB per leaf) must invert that:
+        // a 32-leaf group of 4 MiB files costs ~256 MiB and must be claimed before the 128 MiB standalone
+        // (~132 MiB) and before cheap 1 KiB leftovers.
+        long target = 128L * 1024 * 1024;
+        List<ExternalSplit> splits = new ArrayList<>();
+        splits.add(makeFileSplit(0, target));
+        for (int i = 1; i <= DEFAULT_MAX_FILES_PER_GROUP; i++) {
+            splits.add(makeFileSplit(i, DEFAULT_OPEN_COST_BYTES));
+        }
+        for (int i = DEFAULT_MAX_FILES_PER_GROUP + 1; i <= DEFAULT_MAX_FILES_PER_GROUP + 40; i++) {
+            splits.add(makeFileSplit(i, 1024));
+        }
+
+        List<ExternalSplit> result = SplitCoalescer.coalesce(splits, target, 8, 1);
+
+        assertEquals(1 + DEFAULT_MAX_FILES_PER_GROUP + 40, countTotalLeaves(result));
+        assertEquals(DEFAULT_MAX_FILES_PER_GROUP, leafCount(result.get(0)));
+        assertEquals(DEFAULT_MAX_FILES_PER_GROUP * DEFAULT_OPEN_COST_BYTES, result.get(0).estimatedSizeInBytes());
+        assertTrue(
+            "exact-budget standalone must follow the costlier 32-leaf group",
+            result.get(1) instanceof FileSplit standalone && standalone.length() == target
+        );
+
+        long previousCost = Long.MAX_VALUE;
+        boolean sawFullFileCapGroup = false;
+        for (int i = 0; i < result.size(); i++) {
+            ExternalSplit group = result.get(i);
+            long cost = claimCost(group);
+            assertTrue(
+                "claim cost must be non-increasing, at index " + i + " cost=" + cost + " prev=" + previousCost,
+                cost <= previousCost
+            );
+            previousCost = cost;
+            int leaves = leafCount(group);
+            if (leaves == DEFAULT_MAX_FILES_PER_GROUP) {
+                sawFullFileCapGroup = true;
+            }
+            if (leaves < DEFAULT_MAX_FILES_PER_GROUP && group instanceof CoalescedSplit) {
+                assertTrue("cheap leftover must not precede a 32-leaf group", sawFullFileCapGroup);
+            }
+        }
+        assertTrue("expected at least one group at the file cap", sawFullFileCapGroup);
+    }
+
+    public void testInvalidMaxFilesPerGroupThrows() {
+        List<ExternalSplit> splits = makeSplits(COALESCING_THRESHOLD + 1);
+        expectThrows(IllegalArgumentException.class, () -> SplitCoalescer.coalesce(splits, 128 * 1024 * 1024, 8, 1, 0));
     }
 
     public void testMixedSizesProducesReasonableGroups() {
@@ -433,12 +531,24 @@ public class SplitCoalescerTests extends ESTestCase {
     private static int countTotalLeaves(List<ExternalSplit> splits) {
         int count = 0;
         for (ExternalSplit split : splits) {
-            if (split instanceof CoalescedSplit coalesced) {
-                count += coalesced.children().size();
-            } else {
-                count++;
-            }
+            count += leafCount(split);
         }
         return count;
+    }
+
+    private static int maxLeaves(List<ExternalSplit> groups) {
+        int max = 0;
+        for (ExternalSplit group : groups) {
+            max = Math.max(max, leafCount(group));
+        }
+        return max;
+    }
+
+    private static int leafCount(ExternalSplit split) {
+        return split instanceof CoalescedSplit coalesced ? coalesced.children().size() : 1;
+    }
+
+    private static long claimCost(ExternalSplit split) {
+        return Math.max(0L, split.estimatedSizeInBytes()) + (long) leafCount(split) * DEFAULT_OPEN_COST_BYTES;
     }
 }

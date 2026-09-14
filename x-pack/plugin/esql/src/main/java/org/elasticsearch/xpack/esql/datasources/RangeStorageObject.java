@@ -96,6 +96,16 @@ class RangeStorageObject implements StorageObject {
     }
 
     @Override
+    public long knownLength() {
+        return length;
+    }
+
+    @Override
+    public String contentGeneration() {
+        return delegate.contentGeneration();
+    }
+
+    @Override
     public long lengthForFooterCacheKey() throws IOException {
         return delegate.lengthForFooterCacheKey();
     }

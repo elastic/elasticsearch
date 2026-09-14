@@ -59,6 +59,7 @@ import java.util.Map;
 import java.util.function.Supplier;
 
 import static org.elasticsearch.action.bulk.TransportSingleItemBulkWriteAction.toSingleItemBulkRequest;
+import static org.elasticsearch.search.SearchService.ALLOW_EXPENSIVE_QUERIES;
 import static org.elasticsearch.search.SearchService.DEFAULT_KEEPALIVE_SETTING;
 import static org.elasticsearch.xpack.core.ClientHelper.SECURITY_ORIGIN;
 import static org.elasticsearch.xpack.core.ClientHelper.executeAsyncWithOrigin;
@@ -102,6 +103,7 @@ public class UserManagedServiceAccountStore implements CacheInvalidatorRegistry.
     private final TimeValue scrollKeepAlive;
     @Nullable
     private final InvalidationCountingCacheWrapper<String, UserManagedServiceAccount> accountCache;
+    private volatile boolean allowExpensiveQueries;
 
     @SuppressWarnings("this-escape")
     public UserManagedServiceAccountStore(
@@ -117,6 +119,8 @@ public class UserManagedServiceAccountStore implements CacheInvalidatorRegistry.
         this.clusterService = clusterService;
         this.featureService = featureService;
         this.scrollKeepAlive = DEFAULT_KEEPALIVE_SETTING.get(settings);
+        this.allowExpensiveQueries = ALLOW_EXPENSIVE_QUERIES.get(settings);
+        clusterService.getClusterSettings().addSettingsUpdateConsumer(ALLOW_EXPENSIVE_QUERIES, this::setAllowExpensiveQueries);
         final TimeValue ttl = CACHE_TTL_SETTING.get(settings);
         if (ttl.getNanos() > 0) {
             this.accountCache = new InvalidationCountingCacheWrapper<>(
@@ -188,6 +192,10 @@ public class UserManagedServiceAccountStore implements CacheInvalidatorRegistry.
      * Lists the stored accounts, narrowed to a namespace and a service name when they are given. Reads the index
      * rather than the cache, so the result always reflects the last completed write. As in {@link #getByPrincipal},
      * an ID that no user-managed account could carry matches nothing rather than failing.
+     * <p>
+     * A namespace-only list uses a prefix query on the stored principal. Prefix queries are refused when
+     * {@code search.allow_expensive_queries} is false, so that case fetches every service-account document and
+     * keeps the ones in the namespace.
      */
     void listAccounts(@Nullable String namespace, @Nullable String serviceName, ActionListener<List<UserManagedServiceAccount>> listener) {
         if (namespace != null && Validation.UserManagedServiceAccounts.validateNamespace(namespace) != null) {
@@ -212,9 +220,10 @@ public class UserManagedServiceAccountStore implements CacheInvalidatorRegistry.
                 .getThreadContext()
                 .newRestorableContext(false);
             try (ThreadContext.StoredContext ignore = client.threadPool().getThreadContext().stashWithOrigin(SECURITY_ORIGIN)) {
+                final boolean allowExpensiveQueries = this.allowExpensiveQueries;
                 final SearchRequest request = client.prepareSearch(SECURITY_MAIN_ALIAS)
                     .setScroll(scrollKeepAlive)
-                    .setQuery(accountsQuery(namespace, serviceName))
+                    .setQuery(accountsQuery(namespace, serviceName, allowExpensiveQueries))
                     .setSize(1000)
                     .setFetchSource(true)
                     .request();
@@ -223,7 +232,7 @@ public class UserManagedServiceAccountStore implements CacheInvalidatorRegistry.
                     request,
                     new ContextPreservingActionListener<>(
                         contextSupplier,
-                        listener.map(accounts -> maybeFilterByServiceName(accounts, namespace, serviceName))
+                        listener.map(accounts -> maybeFilterListedAccounts(accounts, namespace, serviceName, allowExpensiveQueries))
                     ),
                     hit -> {
                         final Map<String, Object> source = hit.getSourceAsMap();
@@ -242,31 +251,46 @@ public class UserManagedServiceAccountStore implements CacheInvalidatorRegistry.
         });
     }
 
-    private static BoolQueryBuilder accountsQuery(@Nullable String namespace, @Nullable String serviceName) {
+    private static BoolQueryBuilder accountsQuery(@Nullable String namespace, @Nullable String serviceName, boolean allowExpensiveQueries) {
         final BoolQueryBuilder query = QueryBuilders.boolQuery().filter(QueryBuilders.termQuery("doc_type", SERVICE_ACCOUNT_DOC_TYPE));
         if (namespace != null && serviceName != null) {
             query.filter(QueryBuilders.termQuery("username", namespace + "/" + serviceName));
-        } else if (namespace != null) {
+        } else if (namespace != null && allowExpensiveQueries) {
             // A stored principal is a namespace, a slash, and a non-empty service name, so this prefix selects
-            // exactly the accounts in the namespace.
+            // exactly the accounts in the namespace. Prefix queries are refused when expensive queries are
+            // disabled, and that case is filtered after parse instead.
             query.filter(QueryBuilders.prefixQuery("username", namespace + "/"));
         }
         return query;
     }
 
     /**
-     * A service name given without a namespace could only be matched by a leading wildcard over every stored
-     * principal, so it is applied to the parsed accounts instead of to the query.
+     * Applies list narrowing that the query cannot express cheaply. A service name given without a
+     * namespace would need a leading wildcard. A namespace given without a service name uses a prefix
+     * query, which is refused when expensive queries are disabled, so that case is filtered here too.
      */
-    private static List<UserManagedServiceAccount> maybeFilterByServiceName(
+    private static List<UserManagedServiceAccount> maybeFilterListedAccounts(
         Collection<UserManagedServiceAccount> accounts,
         @Nullable String namespace,
-        @Nullable String serviceName
+        @Nullable String serviceName,
+        boolean allowExpensiveQueries
     ) {
-        if (namespace != null || serviceName == null) {
+        final boolean filterByNamespace = namespace != null && serviceName == null && allowExpensiveQueries == false;
+        final boolean filterByServiceName = namespace == null && serviceName != null;
+        if (filterByNamespace == false && filterByServiceName == false) {
             return List.copyOf(accounts);
         }
-        return accounts.stream().filter(account -> serviceName.equals(account.id().serviceName())).toList();
+        if (filterByNamespace) {
+            logger.trace("expensive queries are not allowed, filtering service accounts by namespace in memory");
+        }
+        return accounts.stream()
+            .filter(account -> filterByNamespace == false || namespace.equals(account.id().namespace()))
+            .filter(account -> filterByServiceName == false || serviceName.equals(account.id().serviceName()))
+            .toList();
+    }
+
+    private void setAllowExpensiveQueries(boolean allowExpensiveQueries) {
+        this.allowExpensiveQueries = allowExpensiveQueries;
     }
 
     /**

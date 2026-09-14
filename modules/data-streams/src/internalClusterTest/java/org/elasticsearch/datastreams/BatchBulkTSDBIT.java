@@ -41,6 +41,7 @@ import java.time.Instant;
 import java.util.Collection;
 import java.util.List;
 import java.util.Map;
+import java.util.function.Consumer;
 
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertNoFailures;
@@ -85,7 +86,7 @@ public class BatchBulkTSDBIT extends ESIntegTestCase {
     private void createTsdbTemplate(String dataStreamName) throws IOException {
         // Use a long dimension so mapColumnBatch works in time_series mode without
         // the keyword SortedSet encoding that isn't yet columnar-supported.
-        String mapping = """
+        createTsdbTemplate(dataStreamName, """
             {
                 "properties": {
                     "@timestamp": {
@@ -97,7 +98,10 @@ public class BatchBulkTSDBIT extends ESIntegTestCase {
                     }
                 }
             }
-            """;
+            """);
+    }
+
+    private void createTsdbTemplate(String dataStreamName, String mapping) throws IOException {
         var request = new TransportPutComposableIndexTemplateAction.Request(dataStreamName + "-template");
         request.indexTemplate(
             ComposableIndexTemplate.builder()
@@ -154,16 +158,143 @@ public class BatchBulkTSDBIT extends ESIntegTestCase {
             );
         }
 
-        final Logger batchLogger = LogManager.getLogger(ShardBatchIndexer.class);
-        final Logger resolverLogger = LogManager.getLogger(ShardBatchMapper.class);
-        final Level origBatchLevel = batchLogger.getLevel();
-        final Level origResolverLevel = resolverLogger.getLevel();
-        Loggers.setLevel(batchLogger, Level.TRACE);
-        Loggers.setLevel(resolverLogger, Level.DEBUG);
-        try (var mockLog = MockLog.capture(ShardBatchIndexer.class, ShardBatchMapper.class)) {
+        assertBulkTakesColumnarPath(coordinatingNode, bulkRequest, numDocs, "tsdb columnar batch indexed on primary");
+
+        refresh(dataStreamName);
+
+        // Both warm-up and main bulk docs must be visible.
+        assertResponse(prepareSearch(dataStreamName).setSize(0).setTrackTotalHits(true), response -> {
+            assertNoFailures(response);
+            assertThat(response.getHits().getTotalHits().value(), equalTo((long) numDocs * 2));
+        });
+    }
+
+    public void testMixedDimensionTypesTsdbColumnarBatchMode() throws IOException {
+        String dataStreamName = "test-tsdb-batch-mixed-dims";
+        createTsdbTemplate(dataStreamName, """
+            {
+                "properties": {
+                    "@timestamp": { "type": "date" },
+                    "series_id": { "type": "long", "time_series_dimension": true },
+                    "active": { "type": "boolean", "time_series_dimension": true },
+                    "value": { "type": "double", "time_series_metric": "gauge" }
+                }
+            }
+            """);
+
+        var createRequest = new CreateDataStreamAction.Request(TEST_REQUEST_TIMEOUT, TEST_REQUEST_TIMEOUT, dataStreamName);
+        assertAcked(client().execute(CreateDataStreamAction.INSTANCE, createRequest).actionGet());
+        ensureGreen(dataStreamName);
+
+        String coordinatingNode = findCoordinatingNode();
+        int numDocs = randomIntBetween(10, 50);
+        // Use current time so documents fall inside the backing index's auto-computed time range.
+        Instant baseTime = Instant.now();
+
+        // Warm-up bulk: the first batch may fall back to the row path while the mapping is being
+        // established. Send it without MockLog assertions so the mapping settles.
+        BulkRequest warmUp = new BulkRequest();
+        for (int i = 0; i < numDocs; i++) {
+            warmUp.add(mixedDimensionsDoc(dataStreamName, baseTime.minusSeconds(numDocs - i).toEpochMilli(), i));
+        }
+        BulkResponse warmUpResponse = client(coordinatingNode).bulk(warmUp).actionGet();
+        assertNoFailures(warmUpResponse);
+        assertThat(warmUpResponse.getItems().length, equalTo(numDocs));
+
+        // Main bulk: mapping is established; this batch must go through the columnar path.
+        BulkRequest bulkRequest = new BulkRequest();
+        for (int i = 0; i < numDocs; i++) {
+            bulkRequest.add(mixedDimensionsDoc(dataStreamName, baseTime.plusSeconds(i).toEpochMilli(), i));
+        }
+
+        assertBulkTakesColumnarPath(coordinatingNode, bulkRequest, numDocs, "mixed-dimension tsdb columnar batch indexed on primary");
+
+        refresh(dataStreamName);
+
+        assertResponse(prepareSearch(dataStreamName).setSize(0).setTrackTotalHits(true), response -> {
+            assertNoFailures(response);
+            assertThat(response.getHits().getTotalHits().value(), equalTo((long) numDocs * 2));
+        });
+    }
+
+    /**
+     * Documents the remaining gap: a {@code keyword} dimension still forces the batch onto the row path. The routing
+     * gate accepts it — the coordinating node computes the tsid, so no dimension routing is written during mapping —
+     * but every keyword field in a {@code time_series} index resolves to {@code DocValuesDiskFormat.SORTED_SET}, which
+     * {@code KeywordFieldMapper#mapColumnBatch} cannot emit yet.
+     *
+     * <p>Invert this assertion when SORTED_SET emission lands. Documents must index correctly either way, which is
+     * what makes the fallback safe rather than merely undetected.
+     */
+    public void testKeywordDimensionTsdbFallsBackToRowPath() throws IOException {
+        String dataStreamName = "test-tsdb-batch-keyword-dim";
+        createTsdbTemplate(dataStreamName, """
+            {
+                "properties": {
+                    "@timestamp": { "type": "date" },
+                    "host": { "type": "keyword", "time_series_dimension": true },
+                    "value": { "type": "double", "time_series_metric": "gauge" }
+                }
+            }
+            """);
+
+        var createRequest = new CreateDataStreamAction.Request(TEST_REQUEST_TIMEOUT, TEST_REQUEST_TIMEOUT, dataStreamName);
+        assertAcked(client().execute(CreateDataStreamAction.INSTANCE, createRequest).actionGet());
+        ensureGreen(dataStreamName);
+
+        String coordinatingNode = findCoordinatingNode();
+        int numDocs = randomIntBetween(10, 50);
+        Instant baseTime = Instant.now();
+
+        BulkRequest warmUp = new BulkRequest();
+        for (int i = 0; i < numDocs; i++) {
+            warmUp.add(keywordDimensionDoc(dataStreamName, baseTime.minusSeconds(numDocs - i).toEpochMilli(), i));
+        }
+        assertNoFailures(client(coordinatingNode).bulk(warmUp).actionGet());
+
+        BulkRequest bulkRequest = new BulkRequest();
+        for (int i = 0; i < numDocs; i++) {
+            bulkRequest.add(keywordDimensionDoc(dataStreamName, baseTime.plusSeconds(i).toEpochMilli(), i));
+        }
+
+        withBatchLoggingEnabled(mockLog -> {
             mockLog.addExpectation(
                 new MockLog.SeenEventExpectation(
-                    "tsdb columnar batch indexed on primary",
+                    "keyword dimension falls back to the row path",
+                    ShardBatchMapper.class.getName(),
+                    Level.DEBUG,
+                    "columnar batch mapping disabled: mapper at [host] of type [keyword]*"
+                )
+            );
+
+            BulkResponse bulkResponse = client(coordinatingNode).bulk(bulkRequest).actionGet();
+            assertNoFailures(bulkResponse);
+            assertThat(bulkResponse.getItems().length, equalTo(numDocs));
+        });
+
+        refresh(dataStreamName);
+
+        assertResponse(prepareSearch(dataStreamName).setSize(0).setTrackTotalHits(true), response -> {
+            assertNoFailures(response);
+            assertThat(response.getHits().getTotalHits().value(), equalTo((long) numDocs * 2));
+        });
+    }
+
+    private static IndexRequest mixedDimensionsDoc(String dataStreamName, long timestampMillis, int i) {
+        return new IndexRequest(dataStreamName).opType(DocWriteRequest.OpType.CREATE)
+            .source(Map.of("@timestamp", timestampMillis, "series_id", (long) (i % 2), "active", i % 4 < 2, "value", i * 1.5));
+    }
+
+    private static IndexRequest keywordDimensionDoc(String dataStreamName, long timestampMillis, int i) {
+        return new IndexRequest(dataStreamName).opType(DocWriteRequest.OpType.CREATE)
+            .source(Map.of("@timestamp", timestampMillis, "host", "host-" + (i % 2), "value", i * 1.5));
+    }
+
+    private void assertBulkTakesColumnarPath(String coordinatingNode, BulkRequest bulkRequest, int expectedItems, String description) {
+        withBatchLoggingEnabled(mockLog -> {
+            mockLog.addExpectation(
+                new MockLog.SeenEventExpectation(
+                    description,
                     ShardBatchIndexer.class.getName(),
                     Level.TRACE,
                     "batch indexed * operations on primary shard *"
@@ -175,20 +306,28 @@ public class BatchBulkTSDBIT extends ESIntegTestCase {
 
             BulkResponse bulkResponse = client(coordinatingNode).bulk(bulkRequest).actionGet();
             assertNoFailures(bulkResponse);
-            assertThat(bulkResponse.getItems().length, equalTo(numDocs));
+            assertThat(bulkResponse.getItems().length, equalTo(expectedItems));
+        });
+    }
 
+    /**
+     * Runs {@code body} with TRACE logging on {@link ShardBatchIndexer} and DEBUG on {@link ShardBatchMapper} — the
+     * levels at which the batch path reports which route a bulk took — then asserts the expectations {@code body}
+     * registered and restores the original levels.
+     */
+    private void withBatchLoggingEnabled(Consumer<MockLog> body) {
+        final Logger batchLogger = LogManager.getLogger(ShardBatchIndexer.class);
+        final Logger resolverLogger = LogManager.getLogger(ShardBatchMapper.class);
+        final Level origBatchLevel = batchLogger.getLevel();
+        final Level origResolverLevel = resolverLogger.getLevel();
+        Loggers.setLevel(batchLogger, Level.TRACE);
+        Loggers.setLevel(resolverLogger, Level.DEBUG);
+        try (var mockLog = MockLog.capture(ShardBatchIndexer.class, ShardBatchMapper.class)) {
+            body.accept(mockLog);
             mockLog.assertAllExpectationsMatched();
         } finally {
             Loggers.setLevel(batchLogger, origBatchLevel);
             Loggers.setLevel(resolverLogger, origResolverLevel);
         }
-
-        refresh(dataStreamName);
-
-        // Both warm-up and main bulk docs must be visible.
-        assertResponse(prepareSearch(dataStreamName).setSize(0).setTrackTotalHits(true), response -> {
-            assertNoFailures(response);
-            assertThat(response.getHits().getTotalHits().value(), equalTo((long) numDocs * 2));
-        });
     }
 }

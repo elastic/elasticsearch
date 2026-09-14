@@ -370,7 +370,8 @@ public class SearchQueryThenFetchAsyncAction extends AbstractSearchAsyncAction<S
             this.totalShards = totalShards;
             this.absoluteStartMillis = absoluteStartMillis;
             this.localClusterAlias = localClusterAlias;
-            this.enableShardResultsSkipRequest = ShardSearchRequest.SHARD_RESULTS_SKIP_SHARD_SEARCH_REQUEST_FEATURE_FLAG.isEnabled();
+            // Coordinators always rebuild the ShardSearchRequest, so data nodes omit it from shard results.
+            this.enableShardResultsSkipRequest = true;
         }
 
         private NodeQueryRequest(StreamInput in) throws IOException {

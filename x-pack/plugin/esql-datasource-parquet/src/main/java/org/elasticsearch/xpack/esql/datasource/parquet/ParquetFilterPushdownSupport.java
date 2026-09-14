@@ -215,6 +215,9 @@ public class ParquetFilterPushdownSupport implements FilterPushdownSupport {
      * For OR and NOT, all children must be convertible.
      */
     static boolean canConvert(Expression expr) {
+        if (PushdownPredicates.allPushdownLiteralsAgree(expr) == false) {
+            return false;
+        }
         if (expr instanceof EsqlBinaryComparison bc) {
             if (PushdownPredicates.isComparison(bc, TYPE_SUPPORTED) == false) {
                 return false;

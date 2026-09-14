@@ -682,27 +682,11 @@ public class ErrorModelTests extends ESTestCase {
         ErrorModel.RealResidualState state = ErrorModel.newRealResidualState(source);
 
         // First sweep leg (false): primes state.shared with original-space doc/query centroids.
-        QuantizationErrorStdModel falseModel = ErrorModel.estimateMagnitudeFromRealResiduals(
-            invDim,
-            source,
-            false,
-            4,
-            1,
-            128,
-            state
-        );
+        QuantizationErrorStdModel falseModel = ErrorModel.estimateMagnitudeFromRealResiduals(invDim, source, false, 4, 1, 128, state);
         // Second sweep leg (true): the fix ensures original-space warmQuery is NOT forwarded to
         // preconditioned-space query k-means. Without the fix the wrong-space warm start could
         // corrupt query centroid assignment and inflate the preconditioned error estimate.
-        QuantizationErrorStdModel trueModel = ErrorModel.estimateMagnitudeFromRealResiduals(
-            invDim,
-            source,
-            true,
-            4,
-            1,
-            128,
-            state
-        );
+        QuantizationErrorStdModel trueModel = ErrorModel.estimateMagnitudeFromRealResiduals(invDim, source, true, 4, 1, 128, state);
 
         double falseStd = falseModel.errorStd(128, corpusOrdinals.length);
         double trueStd = trueModel.errorStd(128, corpusOrdinals.length);

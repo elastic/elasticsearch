@@ -8,7 +8,9 @@
 package org.elasticsearch.xpack.esql.action;
 
 import org.elasticsearch.ResourceNotFoundException;
+import org.elasticsearch.action.ActionFuture;
 import org.elasticsearch.action.get.GetResponse;
+import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.compute.operator.DriverTaskRunner;
@@ -126,6 +128,217 @@ public class AsyncEsqlQueryActionIT extends AbstractPausableIntegTestCase {
         } finally {
             scriptPermits.drainPermits();
         }
+    }
+
+    public void testLaterForkBranchDoesNotFinalizeClusterEarly() throws Exception {
+        scriptPermits.drainPermits();
+        scriptWaits.drainPermits();
+        String id = null;
+        EsqlQueryRequest request = asyncEsqlQueryRequest("""
+            FROM test
+            | FORK
+                (WHERE foo < 0 | KEEP foo)
+                (STATS s = SUM(pause_me))
+            | KEEP _fork, s
+            """);
+        request.includeExecutionMetadata(true);
+        request.pragmas(
+            new QueryPragmas(
+                Settings.builder()
+                    .put(QueryPragmas.BRANCH_PARALLEL_DEGREE.getKey(), 1)
+                    .put("data_partitioning", "shard")
+                    .put("page_size", pageSize())
+                    .build()
+            )
+        );
+        request.acceptedPragmaRisks(true);
+        request.waitForCompletionTimeout(TimeValue.timeValueNanos(1));
+        request.keepOnCompletion(true);
+        request.keepAlive(randomKeepAlive());
+        EsqlQueryResponse initial = null;
+        try {
+            initial = startHeldAsync(request);
+            id = initial.asyncExecutionId().orElse(null);
+            assertThat(id, notNullValue());
+            assertThat(initial.isRunning(), is(true));
+            assertTrue(scriptWaits.tryAcquire(1, TimeUnit.MINUTES));
+
+            var getHeld = new GetAsyncResultRequest(id);
+            getHeld.setWaitForCompletionTimeout(timeValueMillis(10));
+            try (EsqlQueryResponse held = client().execute(EsqlAsyncGetResultAction.INSTANCE, getHeld).get()) {
+                assertThat(held.isRunning(), is(true));
+                EsqlExecutionInfo.Cluster local = held.getExecutionInfo().getCluster("");
+                assertThat(local.getStatus(), equalTo(EsqlExecutionInfo.Cluster.Status.RUNNING));
+            }
+
+            scriptPermits.release(numberOfDocs());
+
+            var getDone = new GetAsyncResultRequest(id);
+            getDone.setWaitForCompletionTimeout(timeValueSeconds(60));
+            try (EsqlQueryResponse done = client().execute(EsqlAsyncGetResultAction.INSTANCE, getDone).get()) {
+                assertThat(done.isRunning(), is(false));
+                EsqlExecutionInfo info = done.getExecutionInfo();
+                EsqlExecutionInfo.Cluster local = info.getCluster("");
+                assertThat(local.getStatus(), equalTo(EsqlExecutionInfo.Cluster.Status.SUCCESSFUL));
+                assertThat(local.getTotalShards(), equalTo(shardCount()));
+                assertThat(local.getSuccessfulShards(), equalTo(shardCount()));
+                assertThat(local.getSkippedShards(), equalTo(0));
+                assertThat(local.getFailedShards(), equalTo(0));
+                assertThat(local.getTook().millis(), greaterThanOrEqualTo(0L));
+                assertThat(info.overallTook().millis(), greaterThanOrEqualTo(0L));
+            }
+            assertThat(deleteAsyncId(id).isAcknowledged(), equalTo(true));
+            id = null;
+        } finally {
+            if (initial != null) {
+                initial.close();
+            }
+            releaseHeldAsync(id);
+        }
+    }
+
+    /**
+     * Async STOP looks up the exchange source by {@link EsqlQueryTask#sessionId()}.
+     * A held later FORK branch must still have that source registered so
+     * {@link ExchangeService#finishSessionEarly} finds it.
+     */
+    public void testFinishSessionEarlyFindsActiveForkExchange() throws Exception {
+        scriptPermits.drainPermits();
+        scriptWaits.drainPermits();
+        String id = null;
+        EsqlQueryRequest request = asyncEsqlQueryRequest("""
+            FROM test
+            | FORK
+                (WHERE foo < 0 | KEEP foo)
+                (STATS s = SUM(pause_me))
+            | KEEP _fork, s
+            """);
+        request.includeExecutionMetadata(true);
+        request.pragmas(
+            new QueryPragmas(
+                Settings.builder()
+                    .put(QueryPragmas.BRANCH_PARALLEL_DEGREE.getKey(), 1)
+                    .put("data_partitioning", "shard")
+                    .put("page_size", pageSize())
+                    .build()
+            )
+        );
+        request.acceptedPragmaRisks(true);
+        request.waitForCompletionTimeout(TimeValue.timeValueNanos(1));
+        request.keepOnCompletion(true);
+        request.keepAlive(randomKeepAlive());
+        EsqlQueryResponse initial = null;
+        try {
+            initial = startHeldAsync(request);
+            id = initial.asyncExecutionId().orElse(null);
+            assertThat(id, notNullValue());
+            assertThat(initial.isRunning(), is(true));
+            assertTrue(scriptWaits.tryAcquire(1, TimeUnit.MINUTES));
+
+            String sessionId = null;
+            ExchangeService exchangeService = null;
+            for (String node : internalCluster().getNodeNames()) {
+                TransportService ts = internalCluster().getInstance(TransportService.class, node);
+                for (CancellableTask task : ts.getTaskManager().getCancellableTasks().values()) {
+                    if (task instanceof EsqlQueryTask queryTask
+                        && queryTask.getCurrentResult().isAsync()
+                        && queryTask.getCurrentResult().asyncExecutionId().isPresent()
+                        && queryTask.getCurrentResult().asyncExecutionId().get().equals(id)) {
+                        sessionId = queryTask.sessionId();
+                        exchangeService = internalCluster().getInstance(ExchangeService.class, node);
+                        break;
+                    }
+                }
+                if (sessionId != null) {
+                    break;
+                }
+            }
+            assertThat(sessionId, notNullValue());
+            assertThat(exchangeService, notNullValue());
+
+            PlainActionFuture<Boolean> finished = new PlainActionFuture<>();
+            exchangeService.finishSessionEarly(sessionId, finished);
+            assertThat(finished.actionGet(30, TimeUnit.SECONDS), is(true));
+
+            PlainActionFuture<Boolean> alreadyClosed = new PlainActionFuture<>();
+            exchangeService.finishSessionEarly(sessionId, alreadyClosed);
+            assertThat(alreadyClosed.actionGet(10, TimeUnit.SECONDS), is(false));
+
+            scriptPermits.release(numberOfDocs());
+
+            var getDone = new GetAsyncResultRequest(id);
+            getDone.setWaitForCompletionTimeout(timeValueSeconds(60));
+            try (EsqlQueryResponse done = client().execute(EsqlAsyncGetResultAction.INSTANCE, getDone).get()) {
+                assertThat(done.isRunning(), is(false));
+            }
+
+            String asyncId = id;
+            assertBusy(() -> {
+                for (String node : internalCluster().getNodeNames()) {
+                    TransportService ts = internalCluster().getInstance(TransportService.class, node);
+                    for (CancellableTask task : ts.getTaskManager().getCancellableTasks().values()) {
+                        if (task instanceof EsqlQueryTask queryTask
+                            && queryTask.getCurrentResult().isAsync()
+                            && queryTask.getCurrentResult().asyncExecutionId().isPresent()
+                            && queryTask.getCurrentResult().asyncExecutionId().get().equals(asyncId)) {
+                            fail("async FORK task still registered on [" + node + "]");
+                        }
+                    }
+                    List<String> sinkKeys = internalCluster().getInstance(ExchangeService.class, node)
+                        .sinkKeys()
+                        .stream()
+                        .filter(s -> s.endsWith("[n]") == false)
+                        .toList();
+                    assertThat(sinkKeys.toString(), sinkKeys, empty());
+                }
+            });
+            assertThat(deleteAsyncId(id).isAcknowledged(), equalTo(true));
+            id = null;
+        } finally {
+            if (initial != null) {
+                initial.close();
+            }
+            releaseHeldAsync(id);
+        }
+    }
+
+    private EsqlQueryResponse startHeldAsync(EsqlQueryRequest request) {
+        ActionFuture<EsqlQueryResponse> future = client().execute(EsqlQueryAction.INSTANCE, request);
+        try {
+            return future.actionGet(60, TimeUnit.SECONDS);
+        } catch (RuntimeException e) {
+            future.cancel(true);
+            cancelUnidentifiedAsyncQueries();
+            throw e;
+        }
+    }
+
+    private void cancelUnidentifiedAsyncQueries() {
+        try {
+            client().admin()
+                .cluster()
+                .prepareCancelTasks()
+                .setActions(EsqlQueryAction.NAME + AsyncTaskManagementService.ASYNC_ACTION_SUFFIX)
+                .waitForCompletion(true)
+                .get();
+        } catch (Exception e) {
+            logger.warn("cancel of unidentified async ES|QL query failed", e);
+        }
+    }
+
+    private void releaseHeldAsync(String id) {
+        scriptPermits.release(numberOfDocs());
+        if (id != null) {
+            try {
+                deleteAsyncId(id);
+            } catch (ResourceNotFoundException ignored) {
+                // already deleted on the success path
+            }
+        } else {
+            cancelUnidentifiedAsyncQueries();
+        }
+        scriptPermits.drainPermits();
+        scriptWaits.drainPermits();
     }
 
     public void testGetAsyncWhileQueryTaskIsBeingCancelled() throws Exception {

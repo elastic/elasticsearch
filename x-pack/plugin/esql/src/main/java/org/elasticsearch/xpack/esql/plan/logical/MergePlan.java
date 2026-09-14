@@ -255,10 +255,14 @@ public abstract class MergePlan extends LogicalPlan implements PostAnalysisPlanV
     static void checkBranchCount(LogicalPlan plan, Failures failures) {
         if (plan instanceof MergePlan merge) {
             int size = merge.children().size();
-            if (exceedsMaxBranches(size)) {
-                failures.add(Failure.fail(merge, "FORK supports up to {} branches, got: {}", MAX_BRANCHES, size));
-            } else if (size == 0) {
+            if (size == 0) {
                 failures.add(Failure.fail(merge, "{} requires at least one branch", merge.getClass().getSimpleName()));
+            } else if (merge instanceof SourceFanInUnionAll fanIn && fanIn.isProvisional() == false) {
+                if (SourceFanInUnionAll.exceedsMaxProducers(size)) {
+                    failures.add(Failure.fail(merge, "FROM supports up to {} sources, got: {}", SourceFanInUnionAll.MAX_PRODUCERS, size));
+                }
+            } else if (exceedsMaxBranches(size)) {
+                failures.add(Failure.fail(merge, "FORK supports up to {} branches, got: {}", MAX_BRANCHES, size));
             }
         }
     }

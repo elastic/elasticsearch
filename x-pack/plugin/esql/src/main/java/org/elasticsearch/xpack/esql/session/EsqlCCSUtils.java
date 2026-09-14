@@ -31,6 +31,7 @@ import org.elasticsearch.xpack.esql.VerificationException;
 import org.elasticsearch.xpack.esql.action.EsqlExecutionInfo;
 import org.elasticsearch.xpack.esql.action.EsqlExecutionInfo.Cluster;
 import org.elasticsearch.xpack.esql.analysis.Analyzer;
+import org.elasticsearch.xpack.esql.datasources.Federation;
 import org.elasticsearch.xpack.esql.index.IndexResolution;
 import org.elasticsearch.xpack.esql.plan.IndexPattern;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
@@ -476,7 +477,8 @@ public class EsqlCCSUtils {
             }
             Cluster cluster = executionInfo.getCluster(clusterAlias);
             if (cluster.getStatus() == Cluster.Status.RUNNING) {
-                Cluster.Status finalStatus = (Objects.requireNonNullElse(cluster.getFailedShards(), 0) > 0
+                Cluster.Status finalStatus = (executionInfo.isStopped()
+                    || Objects.requireNonNullElse(cluster.getFailedShards(), 0) > 0
                     || cluster.getFailures().isEmpty() == false) ? Cluster.Status.PARTIAL : Cluster.Status.SUCCESSFUL;
                 executionInfo.swapCluster(clusterAlias, (k, v) -> new Cluster.Builder(v).setStatus(finalStatus).build());
             }
@@ -516,6 +518,10 @@ public class EsqlCCSUtils {
     public static boolean canAllowPartial(Exception e) {
         Throwable unwrapped = ExceptionsHelper.unwrapCause(e);
         if (unwrapped instanceof IndexNotFoundException || unwrapped instanceof ElasticsearchSecurityException) {
+            return false;
+        }
+        // A node without federation must refuse external data; that is not a skippable shard failure.
+        if (Federation.isNotAvailableException(unwrapped)) {
             return false;
         }
         return true;

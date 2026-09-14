@@ -35,12 +35,15 @@ import org.elasticsearch.xpack.esql.core.util.Holder;
 import org.elasticsearch.xpack.esql.plan.IndexPattern;
 import org.elasticsearch.xpack.esql.plan.LinkedIndexPattern;
 import org.elasticsearch.xpack.esql.plan.logical.Aggregate;
+import org.elasticsearch.xpack.esql.plan.logical.DatasetShadowRelation;
 import org.elasticsearch.xpack.esql.plan.logical.Eval;
 import org.elasticsearch.xpack.esql.plan.logical.Filter;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.esql.plan.logical.MergePlan;
 import org.elasticsearch.xpack.esql.plan.logical.NamedSubquery;
+import org.elasticsearch.xpack.esql.plan.logical.SourceFanInUnionAll;
 import org.elasticsearch.xpack.esql.plan.logical.Subquery;
+import org.elasticsearch.xpack.esql.plan.logical.UnresolvedExternalRelation;
 import org.elasticsearch.xpack.esql.plan.logical.UnresolvedRelation;
 import org.elasticsearch.xpack.esql.plan.logical.ViewShadowRelation;
 import org.elasticsearch.xpack.esql.plan.logical.ViewUnionAll;
@@ -925,7 +928,35 @@ public class ViewResolver {
             return plans.values().iterator().next();
         }
         traceUnionAllBranches(depth, plans);
+        if (isSourceOnlyComposition(plans)) {
+            return SourceFanInUnionAll.provisional(ur.source(), plans, List.of());
+        }
         return new ViewUnionAll(ur.source(), plans, List.of());
+    }
+
+    /**
+     * True when every remaining branch is a bare source expression, an eligible nested source
+     * candidate, or a speculative source shadow. A user {@link Subquery}, user union/{@code FORK},
+     * or relational pipeline stays a {@link ViewUnionAll}.
+     */
+    private static boolean isSourceOnlyComposition(LinkedHashMap<String, LogicalPlan> plans) {
+        for (LogicalPlan branch : plans.values()) {
+            if (isSourceExpression(branch) == false) {
+                return false;
+            }
+        }
+        return true;
+    }
+
+    private static boolean isSourceExpression(LogicalPlan plan) {
+        LogicalPlan body = plan instanceof NamedSubquery named ? named.child() : plan;
+        if (body instanceof UnresolvedRelation ur) {
+            return ur.indexMode() == IndexMode.STANDARD;
+        }
+        return body instanceof UnresolvedExternalRelation
+            || body instanceof DatasetShadowRelation
+            || body instanceof ViewShadowRelation
+            || body instanceof SourceFanInUnionAll;
     }
 
     /**

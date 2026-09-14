@@ -107,6 +107,9 @@ public class FederationTests extends ESTestCase {
         ElasticsearchStatusException e = Federation.notAvailableException();
         assertEquals(RestStatus.BAD_REQUEST, e.status());
         assertEquals("external data sources are not available", e.getMessage());
+        assertTrue(Federation.isNotAvailableException(e));
+        assertFalse(Federation.isNotAvailableException(new ElasticsearchStatusException("other", RestStatus.BAD_REQUEST)));
+        assertFalse(Federation.isNotAvailableException(new IllegalStateException("external data sources are not available")));
     }
 
     public void testNoSettingsWhenNotRegistered() {

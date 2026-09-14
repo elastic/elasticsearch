@@ -55,6 +55,7 @@ import org.elasticsearch.xpack.esql.optimizer.rules.logical.SubstituteApproximat
 import org.elasticsearch.xpack.esql.plan.logical.Aggregate;
 import org.elasticsearch.xpack.esql.plan.logical.Eval;
 import org.elasticsearch.xpack.esql.plan.logical.Filter;
+import org.elasticsearch.xpack.esql.plan.logical.Fork;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.esql.plan.logical.MergePlan;
 import org.elasticsearch.xpack.esql.plan.logical.MvExpand;
@@ -330,7 +331,7 @@ public class ApproximationPlan {
         // When rewriting the query, don't rewrite any such plans.
         Set<LogicalPlan> plansInNonApproximableForkBranch = new HashSet<>();
         if (queryProperties.forkBranchProperties() != null) {
-            List<MergePlan> mergePlans = logicalPlan.collect(MergePlan.class);
+            List<MergePlan> mergePlans = Fork.collectQueryBranchingForks(logicalPlan);
             assert mergePlans.size() == 1;
             MergePlan mergePlan = mergePlans.getFirst();
             assert mergePlan.children().size() == queryProperties.forkBranchProperties().size();
@@ -1005,6 +1006,9 @@ public class ApproximationPlan {
      */
     public static LogicalPlan substituteSampleProbabilityInForkBranch(LogicalPlan logicalPlan, double sampleProbability, int branchIndex) {
         logicalPlan = logicalPlan.transformUp(MergePlan.class, mergePlan -> {
+            if (Fork.isQueryBranchingFork(mergePlan) == false) {
+                return mergePlan;
+            }
             List<LogicalPlan> children = new ArrayList<>(mergePlan.children());
             assert branchIndex >= 0 && branchIndex < children.size();
 

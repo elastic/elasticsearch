@@ -52,6 +52,7 @@ import org.elasticsearch.xpack.esql.plan.logical.RegisteredDomain;
 import org.elasticsearch.xpack.esql.plan.logical.Row;
 import org.elasticsearch.xpack.esql.plan.logical.Sample;
 import org.elasticsearch.xpack.esql.plan.logical.SampledAggregate;
+import org.elasticsearch.xpack.esql.plan.logical.SourceFanInUnionAll;
 import org.elasticsearch.xpack.esql.plan.logical.Subquery;
 import org.elasticsearch.xpack.esql.plan.logical.TopN;
 import org.elasticsearch.xpack.esql.plan.logical.TopNBy;
@@ -142,6 +143,7 @@ public class ApproximationVerifier {
         new SimpleImmutableEntry<>(TopN.class, SupportedVersion.SUPPORTED_ON_ALL_NODES),
         new SimpleImmutableEntry<>(TopNBy.class, SupportedVersion.SUPPORTED_ON_ALL_NODES),
         new SimpleImmutableEntry<>(UriParts.class, SupportedVersion.SUPPORTED_ON_ALL_NODES),
+        new SimpleImmutableEntry<>(SourceFanInUnionAll.class, SupportedVersion.SUPPORTED_ON_ALL_NODES),
         new SimpleImmutableEntry<>(UnionAll.class, SupportedVersion.SUPPORTED_ON_ALL_NODES),
         new SimpleImmutableEntry<>(UserAgent.class, SupportedVersion.SUPPORTED_ON_ALL_NODES),
         new SimpleImmutableEntry<>(ViewUnionAll.class, SupportedVersion.SUPPORTED_ON_ALL_NODES)
@@ -286,8 +288,8 @@ public class ApproximationVerifier {
             }
         });
 
-        // Check whether there's a MergePlan (FORK, UnionAll, ViewUnionAll).
-        List<MergePlan> mergePlans = logicalPlan.collect(MergePlan.class);
+        // Check whether there's a query-branching merge (FORK, UnionAll, ViewUnionAll).
+        List<MergePlan> mergePlans = Fork.collectQueryBranchingForks(logicalPlan);
         if (mergePlans.isEmpty()) {
             // When there's no merge, verify this logical plan.
             return verifyBranchOrThrow(logicalPlan);
@@ -327,7 +329,10 @@ public class ApproximationVerifier {
                 VerificationException firstVerificationException = null;
                 for (int branchIndex = 0; branchIndex < mergePlan.children().size(); branchIndex++) {
                     int branchIndexFinal = branchIndex;
-                    LogicalPlan branch = logicalPlan.transformDown(MergePlan.class, f -> f.children().get(branchIndexFinal));
+                    LogicalPlan branch = logicalPlan.transformDown(
+                        MergePlan.class,
+                        f -> Fork.isQueryBranchingFork(f) ? f.children().get(branchIndexFinal) : f
+                    );
                     try {
                         branchProperties.add(verifyBranchOrThrow(branch));
                     } catch (VerificationException e) {

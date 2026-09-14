@@ -20,7 +20,21 @@ public interface EstimatesRowSize {
     static PhysicalPlan estimateRowSize(int extraRowSize, PhysicalPlan plan) {
         EstimatesRowSize.State state = new EstimatesRowSize.State();
         state.maxEstimatedRowSize = state.estimatedRowSize = extraRowSize;
-        return plan.transformDown(exec -> {
+        return estimateRowSize(state, plan);
+    }
+
+    private static PhysicalPlan estimateRowSize(State state, PhysicalPlan plan) {
+        return plan.transformDownSkipBranch((exec, skipBranch) -> {
+            if (exec instanceof MergeExec merge) {
+                skipBranch.set(true);
+                List<PhysicalPlan> children = merge.children().stream().map(child -> estimateRowSize(state.copy(), child)).toList();
+                return new MergeExec(merge.source(), children, merge.output());
+            }
+            if (exec instanceof SourceFanInExec fanIn) {
+                skipBranch.set(true);
+                List<PhysicalPlan> producers = fanIn.producers().stream().map(producer -> estimateRowSize(state.copy(), producer)).toList();
+                return fanIn.withProducers(producers, fanIn.output(), fanIn.inBetweenAggs());
+            }
             if (exec instanceof EstimatesRowSize r) {
                 return r.estimateRowSize(state);
             }
@@ -53,6 +67,14 @@ public interface EstimatesRowSize {
          * that loads documents out of order.
          */
         private boolean needsSortedDocIds;
+
+        private State copy() {
+            State copy = new State();
+            copy.estimatedRowSize = estimatedRowSize;
+            copy.maxEstimatedRowSize = maxEstimatedRowSize;
+            copy.needsSortedDocIds = needsSortedDocIds;
+            return copy;
+        }
 
         /**
          * Model an operator that has a fixed overhead.

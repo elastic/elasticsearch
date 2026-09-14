@@ -29,6 +29,7 @@ import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcke
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.getValuesList;
 import static org.elasticsearch.xpack.esql.action.EsqlQueryRequest.syncEsqlQueryRequest;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 
 // @TestLogging(value = "org.elasticsearch.xpack.esql:TRACE,org.elasticsearch.compute:TRACE", reason = "debug")
 public class ForkIT extends AbstractEsqlIntegTestCase {
@@ -1344,6 +1345,25 @@ public class ForkIT extends AbstractEsqlIntegTestCase {
         }
     }
 
+    public void testIndexOnlyForkFinalizesExecutionMetadata() {
+        assumeTrue("requires query pragmas", canUseQueryPragmas());
+        var query = """
+            FROM test
+            | FORK
+               ( WHERE id == 99 )
+               ( WHERE id == 1 )
+            | KEEP _fork, id
+            | SORT _fork
+            """;
+        EsqlQueryRequest request = syncEsqlQueryRequest(query);
+        request.includeExecutionMetadata(true);
+        request.pragmas(new QueryPragmas(Settings.builder().put(QueryPragmas.BRANCH_PARALLEL_DEGREE.getKey(), 1).build()));
+        try (var resp = run(request)) {
+            assertValues(resp.values(), List.of(List.of("fork2", 1)));
+            assertCompletedLocalIndexMetadata(resp, 1);
+        }
+    }
+
     public void testForkWithAllColumnsDropped() {
         var query = """
             FROM test
@@ -1358,6 +1378,19 @@ public class ForkIT extends AbstractEsqlIntegTestCase {
             Iterable<Iterable<Object>> expectedValues = List.of(Collections.emptyList());
             assertValues(resp.values(), expectedValues);
         }
+    }
+
+    private static void assertCompletedLocalIndexMetadata(EsqlQueryResponse resp, int shards) {
+        EsqlExecutionInfo info = resp.getExecutionInfo();
+        assertNotNull(info);
+        assertThat(info.overallTook().millis(), greaterThanOrEqualTo(0L));
+        EsqlExecutionInfo.Cluster local = info.getCluster("");
+        assertThat(local.getStatus(), equalTo(EsqlExecutionInfo.Cluster.Status.SUCCESSFUL));
+        assertThat(local.getTotalShards(), equalTo(shards));
+        assertThat(local.getSuccessfulShards(), equalTo(shards));
+        assertThat(local.getSkippedShards(), equalTo(0));
+        assertThat(local.getFailedShards(), equalTo(0));
+        assertThat(local.getTook().millis(), greaterThanOrEqualTo(0L));
     }
 
     private void createAndPopulateIndices() {

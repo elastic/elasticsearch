@@ -20,6 +20,7 @@ import org.elasticsearch.common.regex.Regex;
 import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.transport.RemoteClusterAware;
 import org.elasticsearch.xpack.esql.VerificationException;
+import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.expression.Literal;
 import org.elasticsearch.xpack.esql.core.expression.NamedExpression;
 import org.elasticsearch.xpack.esql.core.tree.Source;
@@ -30,10 +31,10 @@ import org.elasticsearch.xpack.esql.plan.IndexPattern;
 import org.elasticsearch.xpack.esql.plan.LinkedIndexPattern;
 import org.elasticsearch.xpack.esql.plan.logical.DatasetShadowRelation;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
-import org.elasticsearch.xpack.esql.plan.logical.MergePlan;
-import org.elasticsearch.xpack.esql.plan.logical.UnionAll;
+import org.elasticsearch.xpack.esql.plan.logical.SourceFanInUnionAll;
 import org.elasticsearch.xpack.esql.plan.logical.UnresolvedExternalRelation;
 import org.elasticsearch.xpack.esql.plan.logical.UnresolvedRelation;
+import org.elasticsearch.xpack.esql.plan.logical.ViewShadowRelation;
 import org.elasticsearch.xpack.esql.session.IndexResolver;
 
 import java.util.ArrayList;
@@ -78,7 +79,7 @@ public final class DatasetRewriter {
     /**
      * Per-relation engine-side resolution, run from the {@code EsqlResolveDatasetAction} body. Returns the authorized
      * dataset names, the concrete non-dataset names resolved from the same pattern (used in heterogeneous-FROM
-     * {@link UnionAll} building), and the explicitly-named-but-unauthorized datasets — which {@link #rewriteOne}
+     * {@link SourceFanInUnionAll} building), and the explicitly-named-but-unauthorized datasets, which {@link #rewriteOne}
      * surfaces as {@code Unknown index} (400), the same error a missing index gives, so an unauthorized dataset
      * can't be told apart from a missing name.
      */
@@ -197,12 +198,14 @@ public final class DatasetRewriter {
 
     /**
      * Walks {@code parsed} and rewrites every {@link UnresolvedRelation} that resolved to external dataset(s) into
-     * {@link UnresolvedExternalRelation} (single dataset) or {@link UnionAll} of such (multi), using the per-relation
+     * {@link UnresolvedExternalRelation} (single dataset) or {@link SourceFanInUnionAll} of such (multi), using the per-relation
      * {@link DatasetResolution} computed engine-side by {@link #resolve}. All other relations are left untouched. The
      * {@code projectMetadata == null} / no-datasets-registered short-circuits avoid touching the common path.
      *
      * <p>Throws {@link VerificationException} for: non-{@code STANDARD} {@link IndexMode} on a dataset, or
-     * {@code UnionAll} branch-cap exceeded. Designed
+     * more than {@link SourceFanInUnionAll#MAX_PRODUCERS} sources in one {@code FROM}. A multi-child expansion
+     * is one resolved {@code FROM} ({@link SourceFanInUnionAll}), like one {@code EsRelation} with many
+     * concrete indices, so it is bounded by that cap rather than by the user-FORK branch cap. Designed
      * to run once on the parsed plan before pre-analysis (so the analyzer sees a uniform
      * {@code UnresolvedExternalRelation} tree regardless of whether the user wrote {@code FROM <dataset>} or inline
      * {@code EXTERNAL}).
@@ -228,13 +231,32 @@ public final class DatasetRewriter {
             return parsed;
         }
         DataSourceMetadata dataSourceMetadata = DataSourceMetadata.get(projectMetadata);
-        return parsed.transformUp(UnresolvedRelation.class, r -> {
+        LogicalPlan rewritten = parsed.transformUp(UnresolvedRelation.class, r -> {
             DatasetResolution resolution = resolutions.get(r);
             if (resolution == null) {
                 return r;
             }
             return rewriteOne(r, datasetMetadata, dataSourceMetadata, resolution, crossProjectEnabled);
         });
+        return rewritten;
+    }
+
+    private static boolean isSpeculativeShadow(LogicalPlan plan) {
+        return plan instanceof DatasetShadowRelation || plan instanceof ViewShadowRelation;
+    }
+
+    /**
+     * Counts definite source producers, excluding speculative dataset and view shadows that still
+     * have to survive linked resolution.
+     */
+    static int definiteProducerCount(List<LogicalPlan> leaves) {
+        int count = 0;
+        for (LogicalPlan leaf : leaves) {
+            if (isSpeculativeShadow(leaf) == false) {
+                count++;
+            }
+        }
+        return count;
     }
 
     private static LogicalPlan rewriteOne(
@@ -303,17 +325,17 @@ public final class DatasetRewriter {
             );
         }
 
-        // Cap the real-read branches (datasets + the index branch) here, BEFORE the speculative shadows. A shadow
+        // Cap the real-read sources (datasets + the index branch) here, BEFORE the speculative shadows. A shadow
         // strips when its name has no remote namesake, so it must not consume the rewrite-time budget; a matched
         // shadow is a real read bounded post-analysis by MergePlan.checkBranchCount.
-        if (MergePlan.exceedsMaxBranches(children.size())) {
+        if (SourceFanInUnionAll.exceedsMaxProducers(children.size())) {
             throw new VerificationException(
                 "FROM ["
                     + relation.indexPattern().indexPattern()
                     + "] resolved to "
                     + children.size()
-                    + " branches, exceeding the current limit of "
-                    + MergePlan.MAX_BRANCHES
+                    + " sources, exceeding the current limit of "
+                    + SourceFanInUnionAll.MAX_PRODUCERS
                     + " per FROM. Narrow the pattern, exclude some datasets, or split into multiple queries."
             );
         }
@@ -330,7 +352,16 @@ public final class DatasetRewriter {
         if (children.size() == 1) {
             return children.get(0);
         }
-        return new UnionAll(relation.source(), children, List.of());
+        return unionForExpandedFrom(relation.source(), children, List.of());
+    }
+
+    /**
+     * Any multi-child {@code FROM} expansion is one resolved source ({@link SourceFanInUnionAll}):
+     * many dataset and optional index producers, the same shape as one {@code EsRelation} with many
+     * concrete indices.
+     */
+    private static LogicalPlan unionForExpandedFrom(Source source, List<LogicalPlan> children, List<Attribute> output) {
+        return new SourceFanInUnionAll(source, children, output);
     }
 
     /**
@@ -481,7 +512,7 @@ public final class DatasetRewriter {
     /**
      * Per-relation result of {@link #resolve}: the external dataset names the relation resolved to (security-filtered
      * to those the caller may read), the concrete non-dataset names resolved from the same pattern (drives
-     * heterogeneous-FROM {@link UnionAll} building), and the explicitly-named datasets absent from the resolved set
+     * heterogeneous-FROM {@link SourceFanInUnionAll} building), and the explicitly-named datasets absent from the resolved set
      * (surfaced by {@link #rewriteOne} as {@code Unknown index}).
      */
     public record DatasetResolution(Set<String> resolvedExternalDatasets, Set<String> nonDatasetNames, Set<String> explicitUnauthorized) {}

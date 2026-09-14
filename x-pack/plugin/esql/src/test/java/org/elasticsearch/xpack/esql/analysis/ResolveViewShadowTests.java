@@ -21,6 +21,7 @@ import org.elasticsearch.xpack.esql.plan.logical.EsRelation;
 import org.elasticsearch.xpack.esql.plan.logical.Limit;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.esql.plan.logical.Project;
+import org.elasticsearch.xpack.esql.plan.logical.SourceFanInUnionAll;
 import org.elasticsearch.xpack.esql.plan.logical.UnionAll;
 import org.elasticsearch.xpack.esql.plan.logical.UnresolvedRelation;
 import org.elasticsearch.xpack.esql.plan.logical.ViewShadowRelation;
@@ -313,6 +314,83 @@ public class ResolveViewShadowTests extends ESTestCase {
         assertEquals("expected a single surviving child after pruning", 1, unionAll.children().size());
         var esRelation = as(unwrapProject(unionAll.children().getFirst()), EsRelation.class);
         assertEquals("v1", esRelation.indexPattern());
+        assertWarnings(NO_LIMIT_WARNING);
+    }
+
+    public void testTypedFanInStripsUnmatchedViewShadow() {
+        EsIndex strictIdx = EsIndexGenerator.esIndex("strict_idx", LoadMapping.loadMapping("mapping-one-field.json"));
+        ViewShadowRelation shadow = new ViewShadowRelation(EMPTY, "v1", LinkedIndexPattern.Kind.OPTIONAL, "v1");
+        var analyzer = analyzer().addIndex(strictIdx)
+            .addLenientResolution(shadow.linkedIndexPattern(), IndexResolution.empty("v1"))
+            .buildAnalyzer();
+
+        LogicalPlan plan = analyzer.analyze(new SourceFanInUnionAll(EMPTY, List.of(strictUR("strict_idx"), shadow), List.of()));
+
+        var limit = as(plan, Limit.class);
+        var esRelation = as(unwrapProject(limit.child()), EsRelation.class);
+        assertEquals("strict_idx", esRelation.indexPattern());
+        assertFalse(plan.anyMatch(p -> p instanceof ViewShadowRelation));
+        assertFalse(plan.anyMatch(p -> p instanceof ViewUnionAll));
+        assertFalse(plan.anyMatch(p -> p instanceof SourceFanInUnionAll));
+        assertWarnings(NO_LIMIT_WARNING);
+    }
+
+    public void testTypedFanInKeepsMatchedViewShadowBesideIndex() {
+        EsIndex strictIdx = EsIndexGenerator.esIndex("strict_idx", LoadMapping.loadMapping("mapping-one-field.json"));
+        EsIndex remoteV1 = EsIndexGenerator.esIndex(
+            "v1",
+            LoadMapping.loadMapping("mapping-one-field.json"),
+            Map.of("v1", IndexMode.STANDARD)
+        );
+        var analyzer = analyzer().addIndex(strictIdx).addLenientResolution(remoteV1).buildAnalyzer();
+
+        LogicalPlan plan = analyzer.analyze(
+            new SourceFanInUnionAll(
+                EMPTY,
+                List.of(strictUR("strict_idx"), new ViewShadowRelation(EMPTY, "v1", LinkedIndexPattern.Kind.OPTIONAL, "v1")),
+                List.of()
+            )
+        );
+
+        var limit = as(plan, Limit.class);
+        var fanIn = as(limit.child(), SourceFanInUnionAll.class);
+        assertEquals("expected the index and the matched view namesake, got: " + plan, 2, fanIn.children().size());
+        var indexNames = fanIn.children().stream().map(c -> as(unwrapProject(c), EsRelation.class).indexPattern()).sorted().toList();
+        assertEquals(List.of("strict_idx", "v1"), indexNames);
+        assertFalse(plan.anyMatch(p -> p instanceof ViewShadowRelation));
+        assertFalse(plan.anyMatch(p -> p instanceof ViewUnionAll));
+        assertWarnings(NO_LIMIT_WARNING);
+    }
+
+    public void testTypedFanInValidEmptyViewShadowIsNotAProducer() {
+        EsIndex strictIdx = EsIndexGenerator.esIndex("strict_idx", LoadMapping.loadMapping("mapping-one-field.json"));
+        ViewShadowRelation shadow = new ViewShadowRelation(EMPTY, "v1", LinkedIndexPattern.Kind.OPTIONAL, "v1");
+        var analyzer = analyzer().addIndex(strictIdx)
+            .addLenientResolution(shadow.linkedIndexPattern(), IndexResolution.empty("v1"))
+            .buildAnalyzer();
+
+        LogicalPlan plan = analyzer.analyze(new SourceFanInUnionAll(EMPTY, List.of(strictUR("strict_idx"), shadow), List.of()));
+
+        var esRelation = as(unwrapProject(as(plan, Limit.class).child()), EsRelation.class);
+        assertEquals("strict_idx", esRelation.indexPattern());
+        assertFalse(plan.anyMatch(p -> p instanceof SourceFanInUnionAll));
+        assertWarnings(NO_LIMIT_WARNING);
+    }
+
+    public void testTypedFanInMatchedEmptyMappingViewShadowIsAProducer() {
+        EsIndex strictIdx = EsIndexGenerator.esIndex("strict_idx", LoadMapping.loadMapping("mapping-one-field.json"));
+        ViewShadowRelation shadow = new ViewShadowRelation(EMPTY, "v1", LinkedIndexPattern.Kind.OPTIONAL, "v1");
+        var analyzer = analyzer().addIndex(strictIdx)
+            .addLenientResolution(
+                shadow.linkedIndexPattern(),
+                IndexResolution.valid(EsIndexGenerator.esIndex("v1"), Set.of("v1"), Map.of())
+            )
+            .buildAnalyzer();
+
+        LogicalPlan plan = analyzer.analyze(new SourceFanInUnionAll(EMPTY, List.of(strictUR("strict_idx"), shadow), List.of()));
+
+        var fanIn = as(as(plan, Limit.class).child(), SourceFanInUnionAll.class);
+        assertEquals("a matched empty-mapping namesake is still a producer, got: " + plan, 2, fanIn.children().size());
         assertWarnings(NO_LIMIT_WARNING);
     }
 

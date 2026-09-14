@@ -23,6 +23,7 @@ import org.elasticsearch.xpack.esql.plan.logical.MergePlan;
 import org.elasticsearch.xpack.esql.plan.logical.MvExpand;
 import org.elasticsearch.xpack.esql.plan.logical.Project;
 import org.elasticsearch.xpack.esql.plan.logical.RegexExtract;
+import org.elasticsearch.xpack.esql.plan.logical.SourceFanInUnionAll;
 import org.elasticsearch.xpack.esql.plan.logical.UnaryPlan;
 import org.elasticsearch.xpack.esql.plan.logical.UnionAll;
 import org.elasticsearch.xpack.esql.plan.logical.inference.InferencePlan;
@@ -112,7 +113,9 @@ public final class PushDownAndCombineLimits extends OptimizerRules.Parameterized
         // Allow limit pushdown into a direct-leaf UnionAll (heterogeneous FROM shape).
         // Subquery-shape UnionAll branches return false from shouldPushDownPipelineBreakerIntoMergeBranch
         // so the loop below is a no-op for them anyway, but skip explicitly for clarity.
-        if (mergePlan instanceof UnionAll unionAll && PushDownUtils.isLeafUnionAll(unionAll) == false) {
+        // Source fan-in is not a user FORK or UnionAll; Mapper pushes producer limits instead.
+        if (mergePlan instanceof SourceFanInUnionAll
+            || mergePlan instanceof UnionAll unionAll && PushDownUtils.isLeafUnionAll(unionAll) == false) {
             return limit;
         }
 

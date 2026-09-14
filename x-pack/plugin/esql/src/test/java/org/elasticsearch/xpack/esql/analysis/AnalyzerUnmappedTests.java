@@ -27,6 +27,7 @@ import org.elasticsearch.xpack.esql.core.type.CompactMultiTypeEsField;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.core.type.EsField;
 import org.elasticsearch.xpack.esql.core.type.InvalidMappedField;
+import org.elasticsearch.xpack.esql.core.type.MissingEsField;
 import org.elasticsearch.xpack.esql.core.type.PotentiallyUnmappedKeywordEsField;
 import org.elasticsearch.xpack.esql.core.type.PotentiallyUnmappedSingleTypeEsField;
 import org.elasticsearch.xpack.esql.core.type.UnionTypeEsField;
@@ -44,6 +45,7 @@ import org.elasticsearch.xpack.esql.plan.logical.Limit;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.esql.plan.logical.OrderBy;
 import org.elasticsearch.xpack.esql.plan.logical.Project;
+import org.elasticsearch.xpack.esql.plan.logical.ViewUnionAll;
 import org.elasticsearch.xpack.esql.plan.logical.join.AbstractSubqueryJoin;
 import org.elasticsearch.xpack.esql.session.IndexResolver;
 import org.elasticsearch.xpack.esql.type.EsqlDataTypeConverter;
@@ -424,6 +426,32 @@ public class AnalyzerUnmappedTests extends AnalyzerUnmappedTestBase {
 
     public void testLoadModeAllowsForkWithUnmappedFieldInBranch() {
         test().statement(setUnmappedLoad("FROM test | FORK (KEEP emp_no, does_not_exist) (WHERE salary > 50000)"));
+    }
+
+    public void testUnmappedLoadAndNullifyChangeViewPipelineSiblingProjections() {
+        assumeTrue("Requires views with branching support", EsqlCapabilities.Cap.VIEWS_WITH_BRANCHING.isEnabled());
+        String query = "FROM v_pipe, extra | KEEP emp_no, does_not_exist";
+        LogicalPlan load = test().addView("v_pipe", "FROM test | EVAL marker = 1").addEmployees("extra").statement(setUnmappedLoad(query));
+        LogicalPlan nullify = test().addView("v_pipe", "FROM test | EVAL marker = 1")
+            .addEmployees("extra")
+            .statement(setUnmappedNullify(query));
+        assertTrue(load.anyMatch(ViewUnionAll.class::isInstance));
+        assertTrue(nullify.anyMatch(ViewUnionAll.class::isInstance));
+        assertNotEquals(load.toString(), nullify.toString());
+        assertTrue(hasUnmappedKeywordField(load, "does_not_exist"));
+        assertTrue(hasMissingNullField(nullify, "does_not_exist"));
+        assertFalse(hasUnmappedKeywordField(nullify, "does_not_exist"));
+        assertFalse(hasMissingNullField(load, "does_not_exist"));
+    }
+
+    public void testUnmappedLoadStillRejectsForkAfterViewPipelineSibling() {
+        assumeTrue("Requires views with branching support", EsqlCapabilities.Cap.VIEWS_WITH_BRANCHING.isEnabled());
+        test().addView("v_pipe", "FROM test | EVAL marker = 1")
+            .addEmployees("extra")
+            .statementError(
+                setUnmappedLoad("FROM v_pipe, extra | FORK (KEEP emp_no) (WHERE emp_no IS NOT NULL | KEEP emp_no)"),
+                containsString("FORK after subquery is not supported")
+            );
     }
 
     // A DROP of an unmapped field materializes it in the sibling branch (#152843); on a multi-FORK plan that new alignment runs before
@@ -2280,5 +2308,25 @@ public class AnalyzerUnmappedTests extends AnalyzerUnmappedTestBase {
             }
         });
         return unions;
+    }
+
+    private static boolean hasUnmappedKeywordField(LogicalPlan plan, String name) {
+        Holder<Boolean> found = new Holder<>(false);
+        plan.forEachExpressionDown(FieldAttribute.class, fa -> {
+            if (name.equals(fa.name()) && fa.field() instanceof PotentiallyUnmappedKeywordEsField) {
+                found.set(true);
+            }
+        });
+        return found.get();
+    }
+
+    private static boolean hasMissingNullField(LogicalPlan plan, String name) {
+        Holder<Boolean> found = new Holder<>(false);
+        plan.forEachExpressionDown(FieldAttribute.class, fa -> {
+            if (name.equals(fa.name()) && (fa.field() instanceof MissingEsField || fa.dataType() == DataType.NULL)) {
+                found.set(true);
+            }
+        });
+        return found.get();
     }
 }

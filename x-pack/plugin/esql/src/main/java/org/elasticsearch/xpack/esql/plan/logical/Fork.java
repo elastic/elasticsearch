@@ -15,6 +15,7 @@ import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
@@ -28,6 +29,35 @@ import java.util.stream.Collectors;
 public final class Fork extends MergePlan implements TelemetryAware {
 
     public static final String FORK_FIELD = "_fork";
+
+    /**
+     * A merge that branches the query: a user {@code FORK}, a subquery {@link UnionAll}, or a
+     * {@link ViewUnionAll}. Excludes {@link SourceFanInUnionAll}: that is one resolved {@code FROM}
+     * expanded into its sources, not a branch of the query.
+     * <p>
+     * A {@link ViewUnionAll} is not user-written, but it does branch the query, so it counts here.
+     * Callers that want only what the user typed as {@code FORK}, such as {@code FeatureMetric.FORK},
+     * exclude it separately.
+     */
+    public static boolean isQueryBranchingFork(LogicalPlan plan) {
+        return plan instanceof MergePlan && plan instanceof SourceFanInUnionAll == false;
+    }
+
+    /**
+     * Every {@link MergePlan} in {@code plan} that branches the query, per {@link #isQueryBranchingFork}.
+     * Callers that count or reject forks want this rather than {@code plan.collect(MergePlan.class)}:
+     * a multi-source {@code FROM} expands to a {@link SourceFanInUnionAll}, which is one resolved
+     * source, so counting it would charge a user a FORK they never asked for.
+     */
+    public static List<MergePlan> collectQueryBranchingForks(LogicalPlan plan) {
+        List<MergePlan> forks = new ArrayList<>();
+        for (MergePlan merge : plan.collect(MergePlan.class)) {
+            if (isQueryBranchingFork(merge)) {
+                forks.add(merge);
+            }
+        }
+        return forks;
+    }
 
     public Fork(Source source, List<LogicalPlan> children, List<Attribute> output) {
         super(source, children, output);
@@ -90,6 +120,9 @@ public final class Fork extends MergePlan implements TelemetryAware {
 
         forEachMergePlanSkippingSubqueries(fork, other -> {
             if (other == fork) {
+                return;
+            }
+            if (other instanceof SourceFanInUnionAll) {
                 return;
             }
 

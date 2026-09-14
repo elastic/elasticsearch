@@ -48,7 +48,7 @@ public class ExternalDistributionPropertyTests extends ESTestCase {
         List<ExternalSplit> splits = createSplits(splitCount);
         List<DiscoveryNode> nodes = createNodeList(nodeCount);
 
-        ExternalDistributionPlan plan = RoundRobinStrategy.assignRoundRobin(splits, nodes);
+        ExternalDistributionPlan plan = RoundRobinStrategy.assignRoundRobin(splits, nodes, 0);
 
         assertTrue(plan.distributed());
 
@@ -73,7 +73,7 @@ public class ExternalDistributionPropertyTests extends ESTestCase {
         List<ExternalSplit> splits = createSplits(splitCount);
         List<DiscoveryNode> nodes = createNodeList(nodeCount);
 
-        ExternalDistributionPlan plan = RoundRobinStrategy.assignRoundRobin(splits, nodes);
+        ExternalDistributionPlan plan = RoundRobinStrategy.assignRoundRobin(splits, nodes, 0);
 
         int maxAllowed = (int) Math.ceil((double) splitCount / nodeCount);
         for (Map.Entry<String, List<ExternalSplit>> entry : plan.nodeAssignments().entrySet()) {
@@ -90,8 +90,8 @@ public class ExternalDistributionPropertyTests extends ESTestCase {
         List<ExternalSplit> splits = createSplits(splitCount);
         List<DiscoveryNode> nodes = createNodeList(nodeCount);
 
-        ExternalDistributionPlan plan1 = RoundRobinStrategy.assignRoundRobin(splits, nodes);
-        ExternalDistributionPlan plan2 = RoundRobinStrategy.assignRoundRobin(splits, nodes);
+        ExternalDistributionPlan plan1 = RoundRobinStrategy.assignRoundRobin(splits, nodes, 0);
+        ExternalDistributionPlan plan2 = RoundRobinStrategy.assignRoundRobin(splits, nodes, 0);
 
         assertEquals("Same inputs must produce same node set", plan1.nodeAssignments().keySet(), plan2.nodeAssignments().keySet());
         for (String nodeId : plan1.nodeAssignments().keySet()) {
@@ -158,7 +158,7 @@ public class ExternalDistributionPropertyTests extends ESTestCase {
         List<ExternalSplit> splits = createSplits(splitCount);
         List<DiscoveryNode> nodes = createNodeList(nodeCount);
 
-        ExternalDistributionPlan plan = RoundRobinStrategy.assignRoundRobin(splits, nodes);
+        ExternalDistributionPlan plan = RoundRobinStrategy.assignRoundRobin(splits, nodes, 0);
 
         assertEquals("All nodes must receive assignments", nodeCount, plan.nodeAssignments().size());
         for (Map.Entry<String, List<ExternalSplit>> entry : plan.nodeAssignments().entrySet()) {
@@ -172,7 +172,7 @@ public class ExternalDistributionPropertyTests extends ESTestCase {
         List<ExternalSplit> splits = createSplits(splitCount);
         List<DiscoveryNode> nodes = createNodeList(nodeCount);
 
-        ExternalDistributionPlan plan = RoundRobinStrategy.assignRoundRobin(splits, nodes);
+        ExternalDistributionPlan plan = RoundRobinStrategy.assignRoundRobin(splits, nodes, 0);
 
         assertTrue(plan.distributed());
         int nodesWithSplits = 0;

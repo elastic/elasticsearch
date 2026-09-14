@@ -44,7 +44,7 @@ public final class ForkApproximation implements ApproximationDriver {
     private boolean sourceCountDone;
 
     ForkApproximation(LogicalPlan logicalPlan, ApproximationVerifier.QueryProperties queryProperties, ApproximationSettings settings) {
-        List<MergePlan> mergePlans = logicalPlan.collect(MergePlan.class);
+        List<MergePlan> mergePlans = Fork.collectQueryBranchingForks(logicalPlan);
         assert mergePlans.size() == 1;
         branches = new ArrayList<>();
         for (LogicalPlan child : mergePlans.getFirst().children()) {

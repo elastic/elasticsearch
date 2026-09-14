@@ -13,6 +13,7 @@ import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.transport.RemoteClusterService;
 
 import java.util.List;
+import java.util.concurrent.atomic.AtomicBoolean;
 
 public class EsqlExecutionInfoTests extends ESTestCase {
 
@@ -62,6 +63,17 @@ public class EsqlExecutionInfoTests extends ESTestCase {
             return builder.build();
         });
         assertTrue(info.hasMetadataToReport());
+    }
+
+    public void testStopHookRegisteredAfterStopIsFired() {
+        EsqlExecutionInfo info = createEsqlExecutionInfo(false);
+        AtomicBoolean cut = new AtomicBoolean();
+        info.markAsStopped();
+
+        info.addStopHook(() -> cut.compareAndSet(false, true));
+
+        assertTrue(cut.get());
+        assertTrue(info.isPartial());
     }
 
     public static EsqlExecutionInfo createEsqlExecutionInfo(boolean includeCCSMetadata) {

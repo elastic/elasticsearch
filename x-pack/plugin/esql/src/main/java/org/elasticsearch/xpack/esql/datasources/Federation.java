@@ -196,6 +196,8 @@ public final class Federation {
         }
     }
 
+    private static final String NOT_AVAILABLE_MESSAGE = "external data sources are not available";
+
     /**
      * The {@code 400} raised when external-source work reaches a node that does not have federation available,
      * either at the data node's external-request entry point or at the operator-build backstop. The message
@@ -203,6 +205,17 @@ public final class Federation {
      * rather than a configuration hint.
      */
     public static ElasticsearchStatusException notAvailableException() {
-        return new ElasticsearchStatusException("external data sources are not available", RestStatus.BAD_REQUEST);
+        return new ElasticsearchStatusException(NOT_AVAILABLE_MESSAGE, RestStatus.BAD_REQUEST);
+    }
+
+    /**
+     * True when {@code throwable} is the 400 raised by {@link #notAvailableException()}. Used to keep that
+     * refusal fatal under partial-results: it is a node-level "feature not present" answer, not a
+     * skippable shard failure.
+     */
+    public static boolean isNotAvailableException(Throwable throwable) {
+        return throwable instanceof ElasticsearchStatusException statusException
+            && statusException.status() == RestStatus.BAD_REQUEST
+            && NOT_AVAILABLE_MESSAGE.equals(statusException.getMessage());
     }
 }

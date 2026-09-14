@@ -20,6 +20,7 @@ import org.elasticsearch.cluster.node.DiscoveryNodeRole;
 import org.elasticsearch.cluster.project.ProjectResolver;
 import org.elasticsearch.cluster.routing.SplitShardCountSummary;
 import org.elasticsearch.cluster.service.ClusterService;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.logging.HeaderWarning;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.compute.lucene.EmptyIndexedByShardId;
@@ -249,7 +250,8 @@ final class DataNodeComputeHandler implements TransportRequestHandler<DataNodeRe
                                 // work as the final driver.
                                 queryPragmas.nodeLevelReduction() && sameNodeAsCoordinator == false,
                                 queryPragmas.nodeLevelReduction() && enableReduceNodeLateMaterialization,
-                                retainSearchContexts
+                                retainSearchContexts,
+                                sameNodeAsCoordinator && queryPragmas.singleNodeOptimizations() && Strings.isEmpty(clusterAlias)
                             );
                             ThreadContext threadContext = transportService.getThreadPool().getThreadContext();
                             transportService.sendChildRequest(
@@ -419,6 +421,7 @@ final class DataNodeComputeHandler implements TransportRequestHandler<DataNodeRe
                             queryPragmas.nodeLevelReduction(),
                             false,
                             false,
+                            false,
                             nodeSplits
                         );
                         ThreadContext threadContext = transportService.getThreadPool().getThreadContext();
@@ -536,6 +539,7 @@ final class DataNodeComputeHandler implements TransportRequestHandler<DataNodeRe
         private final int maxConcurrentShards;
         private final ExchangeSink blockingSink; // block until we have completed on all shards or the coordinator has enough data
         private final boolean failFastOnShardFailure;
+        private final boolean singleNodeOptimizations;
         private final Map<ShardId, Exception> shardLevelFailures;
         private final AcquiredSearchContexts searchContexts;
         private final PlanTimeProfile planTimeProfile;
@@ -547,6 +551,7 @@ final class DataNodeComputeHandler implements TransportRequestHandler<DataNodeRe
             ExchangeSinkHandler exchangeSink,
             int maxConcurrentShards,
             boolean failFastOnShardFailure,
+            boolean singleNodeOptimizations,
             Map<ShardId, Exception> shardLevelFailures,
             ComputeListener computeListener,
             AcquiredSearchContexts searchContexts
@@ -558,6 +563,7 @@ final class DataNodeComputeHandler implements TransportRequestHandler<DataNodeRe
             this.computeListener = computeListener;
             this.maxConcurrentShards = maxConcurrentShards;
             this.failFastOnShardFailure = failFastOnShardFailure;
+            this.singleNodeOptimizations = singleNodeOptimizations;
             this.shardLevelFailures = shardLevelFailures;
             this.blockingSink = exchangeSink.createExchangeSink(() -> {});
             this.searchContexts = searchContexts;
@@ -625,7 +631,8 @@ final class DataNodeComputeHandler implements TransportRequestHandler<DataNodeRe
                         configuration.newFoldContext(),
                         null,
                         () -> exchangeSink.createExchangeSink(pagesProduced::incrementAndGet),
-                        request.retainSearchContexts()
+                        request.retainSearchContexts(),
+                        singleNodeOptimizations
                     );
                     computeService.runCompute(
                         parentTask,
@@ -754,6 +761,9 @@ final class DataNodeComputeHandler implements TransportRequestHandler<DataNodeRe
         ) {
             var parentListener = computeListener.acquireAvoid();
             try {
+                assert request.singleNodeOptimizations() == false
+                    || task.getParentTaskId().getNodeId().equals(transportService.getLocalNode().getId())
+                    : "single node optimizations enabled but wrong parent task: " + task + " vs " + transportService.getLocalNode().getId();
                 // run compute with target shards
                 var externalSink = exchangeService.getSinkHandler(externalId);
                 var internalSink = exchangeService.createSinkHandler(request.sessionId(), request.pragmas().exchangeBufferSize());
@@ -770,6 +780,7 @@ final class DataNodeComputeHandler implements TransportRequestHandler<DataNodeRe
                     internalSink,
                     maxConcurrentShards,
                     failFastOnShardFailure,
+                    request.singleNodeOptimizations(),
                     shardLevelFailures,
                     computeListener,
                     searchContexts
@@ -791,7 +802,8 @@ final class DataNodeComputeHandler implements TransportRequestHandler<DataNodeRe
                         new FoldContext(request.pragmas().foldLimit().getBytes()),
                         exchangeSource::createExchangeSource,
                         () -> externalSink.createExchangeSink(() -> {}),
-                        request.retainSearchContexts()
+                        request.retainSearchContexts(),
+                        request.singleNodeOptimizations()
                     ),
                     reducePlan,
                     plannerSettings,
@@ -893,6 +905,7 @@ final class DataNodeComputeHandler implements TransportRequestHandler<DataNodeRe
             request.runNodeLevelReduction(),
             request.reductionLateMaterialization(),
             request.retainSearchContexts(),
+            request.singleNodeOptimizations(),
             request.externalSplits()
         );
         // the sender doesn't support retry on shard failures, so we need to fail fast here.
@@ -1098,6 +1111,7 @@ final class DataNodeComputeHandler implements TransportRequestHandler<DataNodeRe
                     configuration.newFoldContext(),
                     null,
                     () -> externalSink.createExchangeSink(() -> {}),
+                    false,
                     false
                 );
                 computeService.runCompute(

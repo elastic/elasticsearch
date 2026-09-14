@@ -21,19 +21,22 @@ cache, direct walker) lives in the exported API and sibling `internal` packages.
 ```
 libs/simdjson/
 ├── src/                              # Java module (org.elasticsearch.simdjson)
-│   └── main/java/
-│       ├── module-info.java          #   Exports org.elasticsearch.simdjson only
-│       └── org/elasticsearch/simdjson/
-│           ├── SimdJsonParserPool.java   # Public entry point (thread-local document parsers)
-│           ├── JsonDocumentParser.java   # Single-document parser (stage 1 indexer + walker)
-│           ├── SimdJsonParser.java       # Stage 1 + per-document index windows
-│           ├── SimdJsonDirectWalker.java # Fused stage 2 / token walk
-│           ├── JsonDocumentHandler.java  # Callback API for field events
-│           └── internal/
-│               ├── StructuralIndexer.java    # Native stage 1 wrapper
-│               ├── SimdJsonLibrary.java      # FFM binding to libsimdjson
-│               ├── parsers/                  # Vendored from simdjson-java
-│               └── fieldnames/               # Per-batch field name cache
+│   ├── main/java/
+│   │   ├── module-info.java          #   Exports org.elasticsearch.simdjson only
+│   │   └── org/elasticsearch/simdjson/
+│   │       ├── SimdJsonParserPool.java   # Public entry point (thread-local document parsers)
+│   │       ├── JsonDocumentParser.java   # Single-document parser (stage 1 indexer + walker)
+│   │       ├── SimdJsonParser.java       # Stage 1 + per-document index windows
+│   │       ├── SimdJsonDirectWalker.java # Fused stage 2 / token walk
+│   │       ├── JsonDocumentHandler.java  # Callback API for field events
+│   │       └── internal/
+│   │           ├── StructuralIndexer.java    # Native stage 1 wrapper
+│   │           ├── SimdJsonLibrary.java      # FFM binding to libsimdjson
+│   │           ├── parsers/                  # Vendored from simdjson-java
+│   │           └── fieldnames/               # Per-batch field name cache
+│   └── benchmark/java/               # JMH benchmarks (gradlew :libs:simdjson:benchmark)
+│       └── org/elasticsearch/benchmark/xcontent/
+│           └── SimdJsonParserBenchmark.java  # simdjson vs Jackson through EscfEncoder
 ├── native/                           # Native C++ library (libsimdjson)
 │   ├── src/
 │   │   ├── es_simdjson.cpp           #   Elasticsearch stage 1 FFI surface
@@ -53,7 +56,6 @@ libs/simdjson/
     its thread's `JsonDocumentParser` once at construction
 - **`libs/native/libraries`** — downloads `org.elasticsearch:libsimdjson` native zips at
      build time.
-- **`benchmarks`** — `SimdJsonParserBenchmark` JMH harness
 
 ## Parsing pipeline
 

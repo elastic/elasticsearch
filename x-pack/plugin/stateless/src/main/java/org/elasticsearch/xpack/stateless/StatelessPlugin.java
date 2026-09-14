@@ -1037,6 +1037,7 @@ public class StatelessPlugin extends Plugin
         final StatelessPrimaryRelocationSourceService primaryRelocationSourceService = setAndGet(
             this.primaryRelocationSourceService,
             new StatelessPrimaryRelocationSourceService(
+                settings,
                 clusterService,
                 threadPool,
                 indicesService,
@@ -1590,6 +1591,7 @@ public class StatelessPlugin extends Plugin
                     relocationMetricsCollector.get()
                 )
             );
+            indexModule.addIndexEventListener(this.primaryRelocationSourceService.get().indexEventListener());
         }
         if (hasSearchRole) {
             indexModule.addIndexEventListener(

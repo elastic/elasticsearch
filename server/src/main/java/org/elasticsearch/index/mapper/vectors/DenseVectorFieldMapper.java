@@ -4376,12 +4376,12 @@ public class DenseVectorFieldMapper extends FieldMapper {
         if (fieldType().indexed) {
             return new SyntheticVectorsPatchFieldLoader<>(
                 () -> new IndexedSyntheticFieldLoader(indexCreatedVersion, fieldType().similarity),
-                IndexedSyntheticFieldLoader::copyVectorAsList
+                l -> l.vectorAsList(false)
             );
         }
         return new SyntheticVectorsPatchFieldLoader<>(
             () -> new DocValuesSyntheticFieldLoader(indexCreatedVersion),
-            DocValuesSyntheticFieldLoader::copyVectorAsList
+            l -> l.vectorAsList(false)
         );
     }
 
@@ -4394,7 +4394,9 @@ public class DenseVectorFieldMapper extends FieldMapper {
         );
     }
 
-    private class IndexedSyntheticFieldLoader extends SourceLoader.DocValuesBasedSyntheticFieldLoader {
+    private class IndexedSyntheticFieldLoader extends SourceLoader.DocValuesBasedSyntheticFieldLoader
+        implements
+            DenseVectorDocValuesFieldLoader {
         private FloatVectorValues floatValues;
         private ByteVectorValues byteValues;
         private NumericDocValues magnitudeReader;
@@ -4481,32 +4483,31 @@ public class DenseVectorFieldMapper extends FieldMapper {
          * Returns a deep-copied vector for the current document, either as a list of floats
          * (with optional cosine normalization) or a list of bytes.
          *
+         * @param convertToFloat whether to convert byte dimensions to {@code Float}
          * @throws IOException if reading fails
          */
-        private List<?> copyVectorAsList() throws IOException {
+        @Override
+        public List<?> vectorAsList(boolean convertToFloat) throws IOException {
             assert hasValue : "vector is null for ord=" + ord;
             if (floatValues != null) {
                 float[] raw = floatValues.vectorValue(ord);
-                List<Float> copyList = new ArrayList<>(raw.length);
-
-                if (hasMagnitude) {
-                    float mag = Float.intBitsToFloat((int) magnitudeReader.longValue());
-                    for (int i = 0; i < raw.length; i++) {
-                        copyList.add(raw[i] * mag);
-                    }
-                } else {
-                    for (int i = 0; i < raw.length; i++) {
-                        copyList.add(raw[i]);
-                    }
+                List<Object> values = new ArrayList<>(raw.length);
+                float magnitude = hasMagnitude ? Float.intBitsToFloat((int) magnitudeReader.longValue()) : Float.NaN;
+                for (float v : raw) {
+                    values.add(hasMagnitude ? v * magnitude : v);
                 }
-                return copyList;
+                return values;
             } else if (byteValues != null) {
                 byte[] raw = byteValues.vectorValue(ord);
-                List<Byte> copyList = new ArrayList<>(raw.length);
-                for (int i = 0; i < raw.length; i++) {
-                    copyList.add(raw[i]);
+                List<Object> values = new ArrayList<>(raw.length);
+                for (byte v : raw) {
+                    if (convertToFloat) {
+                        values.add((float) v);
+                    } else {
+                        values.add(v);
+                    }
                 }
-                return copyList;
+                return values;
             }
 
             throw new IllegalStateException("No vector values available to copy.");
@@ -4518,7 +4519,9 @@ public class DenseVectorFieldMapper extends FieldMapper {
         }
     }
 
-    private class DocValuesSyntheticFieldLoader extends SourceLoader.DocValuesBasedSyntheticFieldLoader {
+    private class DocValuesSyntheticFieldLoader extends SourceLoader.DocValuesBasedSyntheticFieldLoader
+        implements
+            DenseVectorDocValuesFieldLoader {
         private BinaryDocValues values;
         private boolean hasValue;
         private final IndexVersion indexCreatedVersion;
@@ -4573,18 +4576,17 @@ public class DenseVectorFieldMapper extends FieldMapper {
             return byteBuffer;
         }
 
-        /**
-         * Rebuilds the vector from its binary doc value as a list, mirroring {@link #write}.
-         */
-        private List<?> copyVectorAsList() throws IOException {
+        @Override
+        public List<?> vectorAsList(boolean convertToFloat) throws IOException {
             assert hasValue : "vector is null";
             ByteBuffer byteBuffer = byteBuffer();
             int vectorLength = fieldType().element.elementType().vectorLength(fieldType().dims);
-            List<Number> copyList = new ArrayList<>(vectorLength);
+            List<Object> values = new ArrayList<>(vectorLength);
             for (int i = 0; i < vectorLength; i++) {
-                copyList.add(fieldType().element.readValue(byteBuffer));
+                Number value = fieldType().element.readValue(byteBuffer);
+                values.add(convertToFloat ? value.floatValue() : value);
             }
-            return copyList;
+            return values;
         }
 
         @Override

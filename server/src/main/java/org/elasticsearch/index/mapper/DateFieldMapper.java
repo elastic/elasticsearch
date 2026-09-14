@@ -1263,15 +1263,13 @@ public final class DateFieldMapper extends FieldMapper {
 
     @Override
     protected boolean doSupportsColumnarParse(IndexSettings indexSettings) {
-        // Columnar support requires strict-columnar index mode or TIME_SERIES (for @timestamp),
-        // and a doc-values date field. doc_values.multi_value and ignore_malformed are not
-        // implemented by mapColumnBatch but are deliberately not rejected here — rejected at parse
-        // time instead.
-        return (indexSettings.getMode().isStrictColumnar() || indexSettings.getMode().isTsdb())
-            && docValuesParameters.enabled()
-            && hasScript() == false
-            && copyTo().copyToFields().isEmpty()
-            && indexSettings.getIndexVersionCreated().isLegacyIndexVersion() == false;
+        // ignore_malformed is not enforced by mapColumnBatch — it falls back per document at parse time.
+        return docValuesParameters.enabled();
+    }
+
+    @Override
+    protected boolean shouldEnforceSingleValueBatch() {
+        return docValuesParameters.multiValue() == false;
     }
 
     @Override

@@ -129,6 +129,12 @@ public class PushStatsToExternalSource extends PhysicalOptimizerRules.Parameteri
             filterForClassification = filterCondition.transformDown(ReferenceAttribute.class, r -> aliasReplacedBy.resolve(r, r));
         }
 
+        // Computed aliases have no footer statistics, even when they share a name with a source column.
+        // After resolving identity aliases, require every reference to belong to the source by attribute id.
+        if (filterForClassification != null && externalExec.outputSet().containsAll(filterForClassification.references()) == false) {
+            return aggregateExec;
+        }
+
         // SplitFilterClassifier reasons from file-level stats and treats columns physically absent from
         // the file as "all null" (columnNullCount == rowCount). Partition columns live in the directory
         // path, not the payload, so they are absent from every file's stats and would misclassify

@@ -418,6 +418,54 @@ public abstract class AbstractExternalMetadataMatrixIT extends AbstractExternalD
         }
     }
 
+    public void testComputedMetadataFilterCounts() throws Exception {
+        try (
+            var response = run(
+                syncEsqlQueryRequest(
+                    "FROM employees METADATA _index | EVAL idx = TO_LOWER(_index) | WHERE idx IS NOT NULL | STATS c = COUNT(*)"
+                ),
+                TIMEOUT
+            )
+        ) {
+            assertThat(((Number) getValuesList(response).get(0).get(0)).longValue(), equalTo(3L));
+        }
+    }
+
+    public void testComputedMetadataIsNullFilterCounts() throws Exception {
+        try (
+            var response = run(
+                syncEsqlQueryRequest(
+                    "FROM employees METADATA _index | EVAL idx = TO_LOWER(_index) | WHERE idx IS NULL | STATS c = COUNT(*)"
+                ),
+                TIMEOUT
+            )
+        ) {
+            assertThat(((Number) getValuesList(response).get(0).get(0)).longValue(), equalTo(0L));
+        }
+    }
+
+    public void testComputedMetadataShadowingIndexFiltersRowsAndCounts() throws Exception {
+        String source = "FROM employees METADATA _index | EVAL _index = CONCAT(_index, \"mytext\")";
+        for (var testCase : List.of(
+            Map.entry("_index == \"employeesmytext\"", 3L),
+            Map.entry("_index == \"employees\"", 0L),
+            Map.entry("_index IS NULL", 0L),
+            Map.entry("_index IS NOT NULL", 3L)
+        )) {
+            String filteredQuery = source + " | WHERE " + testCase.getKey();
+            try (var response = run(syncEsqlQueryRequest(filteredQuery + " | KEEP _index"), TIMEOUT)) {
+                List<List<Object>> rows = getValuesList(response);
+                assertThat(filteredQuery, rows, hasSize(testCase.getValue().intValue()));
+                for (List<Object> row : rows) {
+                    assertThat(row.get(0).toString(), equalTo("employeesmytext"));
+                }
+            }
+            try (var response = run(syncEsqlQueryRequest(filteredQuery + " | STATS c = COUNT(*)"), TIMEOUT)) {
+                assertThat(filteredQuery, ((Number) getValuesList(response).get(0).get(0)).longValue(), equalTo(testCase.getValue()));
+            }
+        }
+    }
+
     /** The deserialized {@code _source} value is a {@link Map}; fail loudly if a format yields otherwise. */
     private static Map<?, ?> asMap(Object source) {
         assertThat("_source deserializes to a Map", source, org.hamcrest.Matchers.instanceOf(Map.class));

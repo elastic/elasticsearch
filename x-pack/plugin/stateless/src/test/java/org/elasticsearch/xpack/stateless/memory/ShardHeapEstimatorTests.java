@@ -102,7 +102,7 @@ public class ShardHeapEstimatorTests extends ESTestCase {
         long fixedBytes = randomLongBetween(1, 10_000_000);
         ShardHeapEstimator estimator = fixedEstimator(ByteSizeValue.ofBytes(fixedBytes));
         var m = metrics(1000, 2, 10, 500, 200, 100, UNDEFINED_SHARD_MEMORY_OVERHEAD_BYTES, MetricQuality.EXACT);
-        assertThat(estimator.computeShardHeapUsage(m), equalTo(fixedBytes));
+        assertThat(estimator.computeShardHeapUsage(m).shardHeapUsageBytesExcludingPostings(), equalTo(fixedBytes));
     }
 
     /// This is a little surprising to me, and I'm pretty sure not right, but it's how it is on main,
@@ -112,14 +112,14 @@ public class ShardHeapEstimatorTests extends ESTestCase {
         long postings = randomLongBetween(1, 1_000_000);
         ShardHeapEstimator estimator = new ShardHeapEstimator(ByteSizeValue.ofBytes(fixedBytes), 0.0, 0L, false);
         var m = metrics(0, 1, 5, postings, 0, 0, UNDEFINED_SHARD_MEMORY_OVERHEAD_BYTES, MetricQuality.EXACT);
-        assertThat(estimator.computeShardHeapUsage(m), equalTo(fixedBytes + postings));
+        assertThat(estimator.computeShardHeapUsage(m).shardHeapUsageBytes(), equalTo(fixedBytes + postings));
     }
 
     public void testSelfReportedOverheadUsedWhenEnabledAndAvailable() {
         long selfReported = randomLongBetween(1, 10_000_000);
         ShardHeapEstimator estimator = new ShardHeapEstimator(ByteSizeValue.ZERO, 0.0, 0L, true);
         var m = metrics(0, 1, 5, 500, 100, 50, selfReported, MetricQuality.EXACT);
-        assertThat(estimator.computeShardHeapUsage(m), equalTo(selfReported));
+        assertThat(estimator.computeShardHeapUsage(m).shardHeapUsageBytes(), equalTo(selfReported));
     }
 
     public void testSelfReportedOverheadIgnoredWhenDisabled() {
@@ -128,14 +128,14 @@ public class ShardHeapEstimatorTests extends ESTestCase {
         ShardHeapEstimator estimator = new ShardHeapEstimator(ByteSizeValue.ZERO, 0.0, 0L, false);
         var m = metrics(0, 0, 0, 0, 0, 0, selfReported, MetricQuality.EXACT);
         // should fall back to adaptive estimate (all zeros → ADAPTIVE_SHARD_MEMORY_OVERHEAD)
-        assertThat(estimator.computeShardHeapUsage(m), equalTo(ADAPTIVE_SHARD_MEMORY_OVERHEAD.getBytes()));
+        assertThat(estimator.computeShardHeapUsage(m).shardHeapUsageBytes(), equalTo(ADAPTIVE_SHARD_MEMORY_OVERHEAD.getBytes()));
     }
 
     public void testSelfReportedOverheadIgnoredWhenUndefined() {
         ShardHeapEstimator estimator = new ShardHeapEstimator(ByteSizeValue.ZERO, 0.0, 0L, true);
         var m = metrics(0, 0, 0, 0, 0, 0, UNDEFINED_SHARD_MEMORY_OVERHEAD_BYTES, MetricQuality.EXACT);
         // UNDEFINED → fall back to adaptive (all zeros → ADAPTIVE_SHARD_MEMORY_OVERHEAD)
-        assertThat(estimator.computeShardHeapUsage(m), equalTo(ADAPTIVE_SHARD_MEMORY_OVERHEAD.getBytes()));
+        assertThat(estimator.computeShardHeapUsage(m).shardHeapUsageBytes(), equalTo(ADAPTIVE_SHARD_MEMORY_OVERHEAD.getBytes()));
     }
 
     public void testPostingsAddedWhenIncluded() {
@@ -143,14 +143,17 @@ public class ShardHeapEstimatorTests extends ESTestCase {
         ShardHeapEstimator estimator = new ShardHeapEstimator(ByteSizeValue.ZERO, 0.0, 0L, false);
         var m = metrics(0, 0, 0, postings, 0, 0, UNDEFINED_SHARD_MEMORY_OVERHEAD_BYTES, MetricQuality.EXACT);
         long expected = ADAPTIVE_SHARD_MEMORY_OVERHEAD.getBytes() + postings;
-        assertThat(estimator.computeShardHeapUsage(m), equalTo(expected));
+        assertThat(estimator.computeShardHeapUsage(m).shardHeapUsageBytes(), equalTo(expected));
     }
 
     public void testPostingsNotAddedWhenExcluded() {
         long postings = randomLongBetween(1, 1_000_000);
         ShardHeapEstimator estimator = new ShardHeapEstimator(ByteSizeValue.ZERO, 0.0, 0L, false);
         var m = metrics(0, 0, 0, postings, 0, 0, UNDEFINED_SHARD_MEMORY_OVERHEAD_BYTES, MetricQuality.EXACT);
-        assertThat(estimator.computeShardHeapUsage(m), equalTo(ADAPTIVE_SHARD_MEMORY_OVERHEAD.getBytes()));
+        assertThat(
+            estimator.computeShardHeapUsage(m).shardHeapUsageBytesExcludingPostings(),
+            equalTo(ADAPTIVE_SHARD_MEMORY_OVERHEAD.getBytes())
+        );
     }
 
     public void testAdaptiveFormulaAllComponents() {
@@ -170,7 +173,7 @@ public class ShardHeapEstimatorTests extends ESTestCase {
             MetricQuality.EXACT
         );
         long expected = getAdaptiveEstimateExcludingPostings(numSegments, totalFields, liveDocsBytes, pointsBytes, 0.0);
-        assertThat(estimator.computeShardHeapUsage(m), equalTo(expected));
+        assertThat(estimator.computeShardHeapUsage(m).shardHeapUsageBytesExcludingPostings(), equalTo(expected));
     }
 
     public void testAdaptiveExtraOverheadRatioApplied() {
@@ -180,7 +183,7 @@ public class ShardHeapEstimatorTests extends ESTestCase {
         ShardHeapEstimator estimator = adaptiveEstimator(extraRatio, 0L);
         var m = metrics(0, numSegments, totalFields, 0, 0, 0, UNDEFINED_SHARD_MEMORY_OVERHEAD_BYTES, MetricQuality.EXACT);
         long expected = getAdaptiveEstimateExcludingPostings(numSegments, totalFields, 0, 0, extraRatio);
-        assertThat(estimator.computeShardHeapUsage(m), equalTo(expected));
+        assertThat(estimator.computeShardHeapUsage(m).shardHeapUsageBytesExcludingPostings(), equalTo(expected));
     }
 
     public void testAdaptiveMinThresholdEnforced() {
@@ -188,7 +191,7 @@ public class ShardHeapEstimatorTests extends ESTestCase {
         long minThreshold = ADAPTIVE_SHARD_MEMORY_OVERHEAD.getBytes() * 10;
         ShardHeapEstimator estimator = adaptiveEstimator(0.0, minThreshold);
         var m = metrics(0, 0, 0, 0, 0, 0, UNDEFINED_SHARD_MEMORY_OVERHEAD_BYTES, MetricQuality.EXACT);
-        assertThat(estimator.computeShardHeapUsage(m), equalTo(minThreshold));
+        assertThat(estimator.computeShardHeapUsage(m).shardHeapUsageBytes(), equalTo(minThreshold));
     }
 
     public void testAdaptiveEstimateNotBelowMinThreshold() {
@@ -253,7 +256,7 @@ public class ShardHeapEstimatorTests extends ESTestCase {
         ShardId id2 = new ShardId(new Index("idx", "uuid"), 1);
 
         var result = estimator.aggregateShardMetrics(Map.of(id1, small, id2, large));
-        assertThat(result.maxShardHeapInBytes(), equalTo(estimator.computeShardHeapUsage(large)));
+        assertThat(result.maxShardHeapInBytes(), equalTo(estimator.computeShardHeapUsage(large).shardHeapUsageBytes()));
     }
 
     public void testAggregateShardMetricsPropagatesNonExactQuality_AllValues() {

@@ -55,6 +55,7 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
 import java.util.Set;
+import java.util.concurrent.Executor;
 import java.util.concurrent.atomic.AtomicReference;
 
 /** Orchestrates create / replace / delete of data sources in cluster state. */
@@ -76,6 +77,7 @@ public class DataSourceService {
     private final MasterServiceTaskQueue<AckedClusterStateUpdateTask> taskQueue;
     private final EncryptionService encryptionService;
     private final ExternalSourceMetrics metrics;
+    private final Executor encryptionExecutor;
 
     private volatile int maxDataSourcesCount;
 
@@ -93,10 +95,25 @@ public class DataSourceService {
         EncryptionService encryptionService,
         ExternalSourceMetrics metrics
     ) {
+        this(clusterService, validatorsByType, encryptionService, metrics, Runnable::run);
+    }
+
+    /**
+     * Creates the service using {@code encryptionExecutor} for secrets that can only be classified
+     * after validation against authoritative master state.
+     */
+    public DataSourceService(
+        ClusterService clusterService,
+        Map<String, DataSourceValidator> validatorsByType,
+        EncryptionService encryptionService,
+        ExternalSourceMetrics metrics,
+        Executor encryptionExecutor
+    ) {
         this.clusterService = clusterService;
         this.validatorsByType = Map.copyOf(validatorsByType);
         this.encryptionService = Objects.requireNonNull(encryptionService, "encryptionService");
         this.metrics = metrics == null ? ExternalSourceMetrics.NOOP : metrics;
+        this.encryptionExecutor = Objects.requireNonNull(encryptionExecutor, "encryptionExecutor");
         this.taskQueue = clusterService.createTaskQueue(
             "update-esql-data-source-metadata",
             Priority.NORMAL,
@@ -153,24 +170,88 @@ public class DataSourceService {
      * <p>Pre-submit validation reads {@link ClusterService#state()}, which is applied state. The master
      * applies a publication only after every node has applied -- or {@code cluster.publish.timeout} fires --
      * so a committed create can be missing from that snapshot. A {@link ValidationException} against a
-     * missing current entry is therefore not failed here: the CAS task re-validates against MasterService
-     * state, which already includes the committed create. Newly-supplied secrets are then encrypted on the
-     * CAS thread, only on that rare lag path.
+     * missing current entry is therefore checked by a no-op CAS task against MasterService state. If that
+     * authoritative validation finds newly-supplied secrets, they are encrypted off the master thread before
+     * the update is submitted.
      */
     public void putDataSource(ProjectId projectId, PutDataSourceAction.Request request, ActionListener<AcknowledgedResponse> listener) {
         final ProjectMetadata projectSnapshot = clusterService.state().metadata().getProject(projectId);
-        DataSourceSettings preEncrypted = null;
+        final DataSourceSettings encryptedNew;
         try {
             final DataSource validated = validatePutDataSource(projectSnapshot, request);
-            preEncrypted = applyEncryption(validated.name(), validated.settings());
+            encryptedNew = applyEncryption(validated.name(), validated.settings());
         } catch (Exception e) {
             if (getMetadata(projectSnapshot).get(request.name()) != null || e instanceof ValidationException == false) {
                 recordRejected(request.type(), e);
                 listener.onFailure(e);
                 return;
             }
+            preparePutDataSource(projectId, request, listener);
+            return;
         }
-        final DataSourceSettings encryptedNew = preEncrypted;
+        submitPutDataSource(projectId, request, encryptedNew, listener);
+    }
+
+    /**
+     * Validate against authoritative master state without changing it. This path is needed only when
+     * applied state may be missing the data source whose secrets an update carries forward.
+     */
+    private void preparePutDataSource(
+        ProjectId projectId,
+        PutDataSourceAction.Request request,
+        ActionListener<AcknowledgedResponse> listener
+    ) {
+        final AtomicReference<DataSource> validatedRef = new AtomicReference<>();
+        final ActionListener<AcknowledgedResponse> preparationListener = ActionListener.wrap(ignored -> {
+            final DataSource validated = validatedRef.get();
+            assert validated != null;
+            if (hasPlaintextSecrets(validated.settings())) {
+                try {
+                    encryptionExecutor.execute(() -> {
+                        try {
+                            submitPutDataSource(projectId, request, applyEncryption(validated.name(), validated.settings()), listener);
+                        } catch (Exception e) {
+                            failPutDataSource(request.type(), listener, e);
+                        }
+                    });
+                } catch (Exception e) {
+                    failPutDataSource(request.type(), listener, e);
+                }
+            } else {
+                submitPutDataSource(projectId, request, validated.settings(), listener);
+            }
+        }, e -> failPutDataSource(request.type(), listener, e));
+        final AckedClusterStateUpdateTask preparationTask = new AckedClusterStateUpdateTask(request, preparationListener) {
+            @Override
+            public ClusterState execute(ClusterState currentState) {
+                validatedRef.set(validatePutDataSource(currentState.metadata().getProject(projectId), request));
+                return currentState;
+            }
+        };
+        taskQueue.submitTask("prepare-esql-data-source-metadata-[" + request.name() + "]", preparationTask, preparationTask.timeout());
+    }
+
+    private static boolean hasPlaintextSecrets(DataSourceSettings settings) {
+        for (var entry : settings) {
+            DataSourceSetting setting = entry.getValue();
+            if (setting.secret() && setting.rawValue() != null && setting.isEncrypted() == false) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    private void failPutDataSource(String type, ActionListener<AcknowledgedResponse> listener, Exception e) {
+        recordRejected(type, e);
+        listener.onFailure(e);
+    }
+
+    private void submitPutDataSource(
+        ProjectId projectId,
+        PutDataSourceAction.Request request,
+        DataSourceSettings encryptedNew,
+        ActionListener<AcknowledgedResponse> listener
+    ) {
         logger.debug("submitting put data source [{}] of type [{}]", request.name(), request.type());
         final AtomicReference<String> pendingOp = new AtomicReference<>();
         final AckedClusterStateUpdateTask task = new AckedClusterStateUpdateTask(
@@ -191,10 +272,7 @@ public class DataSourceService {
                 // forward between that snapshot and this task running. Cheap (no I/O); throwing here fails the
                 // whole PUT instead of silently persisting a data source with incomplete credentials.
                 final DataSource validated = validatePutDataSource(project, request);
-                final DataSourceSettings encrypted = encryptedNew != null
-                    ? encryptedNew
-                    : applyEncryption(validated.name(), validated.settings());
-                final DataSourceSettings merged = mergeCarriedForwardSecrets(current, validated.type(), encrypted, request);
+                final DataSourceSettings merged = mergeCarriedForwardSecrets(current, validated.type(), encryptedNew, request);
                 final DataSource stored = new DataSource(validated.name(), validated.type(), validated.description(), merged);
                 final Map<String, DataSource> updated = new HashMap<>(metadata.dataSources());
                 updated.put(stored.name(), stored);
@@ -209,7 +287,7 @@ public class DataSourceService {
         taskQueue.submitTask("update-esql-data-source-metadata-[" + request.name() + "]", task, task.timeout());
     }
 
-    /** Records a pre-submit refusal (unknown type, validation failure, and similar). */
+    /** Records a PUT refusal (unknown type, validation failure, and similar). */
     public void recordRejected(String type, Exception e) {
         ConfigChangeTelemetry.recordRejected(metrics, ConfigChangeTelemetry.KIND_DATASOURCE, type, e);
     }

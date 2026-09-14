@@ -577,7 +577,8 @@ public class EsqlPlugin extends Plugin implements ActionPlugin, ExtensiblePlugin
             services.clusterService(),
             crudValidators,
             encryptionService,
-            dataSourceModule.externalSourceMetrics()
+            dataSourceModule.externalSourceMetrics(),
+            services.threadPool().executor(ThreadPool.Names.GENERIC)
         );
         DataSourceInventoryCounters inventoryCounters = new DataSourceInventoryCounters(dataSourceService, dataSourceModule);
         DataSourceInventoryMetrics inventoryMetrics = new DataSourceInventoryMetrics(

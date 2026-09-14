@@ -25,6 +25,7 @@ import java.util.Collection;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.function.Consumer;
 
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasSize;
@@ -63,6 +64,18 @@ public class DataSourcePutStaleCurrentIT extends ESIntegTestCase {
     }
 
     public void testUpdateKeepsTheSecretOnANodeThatHasNotYetAppliedTheCreate() throws Exception {
+        assertUpdateFromLaggingNode(Map.of("region", "eu-west-2"), ds -> {});
+    }
+
+    public void testUpdateEncryptsNewSecretAfterAuthoritativeValidation() throws Exception {
+        assertUpdateFromLaggingNode(
+            Map.of("region", "eu-west-2", "secret_token", "new-secret"),
+            ds -> assertThat(decryptSecret(ds.settings().get("secret_token")), equalTo("new-secret"))
+        );
+    }
+
+    private void assertUpdateFromLaggingNode(Map<String, Object> updateSettings, Consumer<DataSource> additionalAssertions)
+        throws Exception {
         internalCluster().startMasterOnlyNode();
         List<String> dataNodes = internalCluster().startDataOnlyNodes(2);
         ensureStableCluster(3);
@@ -83,7 +96,7 @@ public class DataSourcePutStaleCurrentIT extends ESIntegTestCase {
             assertThat("the blocked node cannot ack", created.isAcknowledged(), equalTo(false));
 
             // The update omits the secret, which the master can carry forward. It must not be refused.
-            client(lagging).execute(PutDataSourceAction.INSTANCE, request(name, Map.of("region", "eu-west-2"))).actionGet(TIMEOUT);
+            client(lagging).execute(PutDataSourceAction.INSTANCE, request(name, updateSettings)).actionGet(TIMEOUT);
 
             // GET is a local read of applied state. The master applies only once publication ends
             // (publish timeout while the lagging node is blocked), so poll until that is visible.
@@ -101,6 +114,7 @@ public class DataSourcePutStaleCurrentIT extends ESIntegTestCase {
                 DataSource ds = got.getDataSources().iterator().next();
                 assertThat(ds.settings().get("region").nonSecretValue(), equalTo("eu-west-2"));
                 assertThat(decryptSecret(ds.settings().get("secret_access_key")), equalTo("AKIAXYZ"));
+                additionalAssertions.accept(ds);
             });
         } finally {
             blocked.stopDisrupting();

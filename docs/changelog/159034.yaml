@@ -1,5 +1,5 @@
 area: ES|QL
 issues: []
 pr: 159034
-summary: "ESQL:DS: Decide PUT dataset and data source on the master"
+summary: "Prevent valid dataset and data source PUT requests from failing on lagging nodes"
 type: bug

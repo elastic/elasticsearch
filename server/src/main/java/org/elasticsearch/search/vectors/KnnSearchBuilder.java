@@ -108,7 +108,7 @@ public class KnnSearchBuilder implements Writeable, ToXContentFragment, Rewritea
         PARSER.declareFloat(KnnSearchBuilder.Builder::boost, BOOST_FIELD);
         PARSER.declareField(
             KnnSearchBuilder.Builder::innerHit,
-            (p, c) -> InnerHitBuilder.fromXContent(p, c),
+            (p, c) -> InnerHitBuilder.fromXContent(p),
             INNER_HITS_FIELD,
             ObjectParser.ValueType.OBJECT
         );

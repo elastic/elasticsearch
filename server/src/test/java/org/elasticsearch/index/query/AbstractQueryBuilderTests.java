@@ -122,22 +122,60 @@ public class AbstractQueryBuilderTests extends ESTestCase {
 
     public void testQueryNameChargedAtParsesite() throws IOException {
         // The _name field is charged centrally at the parse site (not inside parseTimeBreakerEstimate).
-        // Verify that a named query trips a breaker sized exactly for the unnamed estimate.
+        // Verify that: (a) the unnamed query succeeds at exactly the unnamed-estimate limit, and
+        // (b) the same query with a _name trips the breaker at that same limit.
         // NOTE: must use parseTopLevelQuery (not the protected parseInnerQueryBuilder) because only
         // parseTopLevelQuery wraps the parser in a FilterXContentParserWrapper that fires the charge site.
         String name = "my_name";
-        MatchQueryBuilder q = new MatchQueryBuilder("f", "v");
-        long unnamedEstimate = q.parseTimeBreakerEstimate();
-        q.queryName(name);
+        long expectedNameCharge = name.length() * 2L + 64L;
+
+        MatchQueryBuilder unnamed = new MatchQueryBuilder("f", "v");
+        long unnamedEstimate = unnamed.parseTimeBreakerEstimate();
+
+        MatchQueryBuilder named = new MatchQueryBuilder("f", "v");
+        named.queryName(name);
         // parseTimeBreakerEstimate() itself does NOT include the name cost
-        assertEquals(unnamedEstimate, q.parseTimeBreakerEstimate());
-        // But the charge site adds name cost: limit at unnamed estimate is too small once _name is parsed
+        assertEquals(unnamedEstimate, named.parseTimeBreakerEstimate());
+
+        // Unnamed query must not trip the breaker at exactly the unnamed estimate
         LimitedBreaker breaker = new LimitedBreaker(CircuitBreaker.REQUEST, ByteSizeValue.ofBytes(unnamedEstimate));
+        AbstractQueryBuilder.setQueryParsingBreaker(breaker);
+        try {
+            String unnamedJson = unnamed.toString();
+            try (XContentParser parser = createParser(JsonXContent.jsonXContent, unnamedJson)) {
+                AbstractQueryBuilder.parseTopLevelQuery(parser); // must not throw
+            }
+            // Named query must trip the breaker: name charge pushes it past the limit
+            assertEquals(0L, breaker.getUsed()); // charge was released after successful parse
+            String namedJson = named.toString();
+            try (XContentParser parser = createParser(JsonXContent.jsonXContent, namedJson)) {
+                expectThrows(CircuitBreakingException.class, () -> AbstractQueryBuilder.parseTopLevelQuery(parser));
+            }
+            // Confirm the name charge accounts for the difference
+            LimitedBreaker exactBreaker = new LimitedBreaker(
+                CircuitBreaker.REQUEST,
+                ByteSizeValue.ofBytes(unnamedEstimate + expectedNameCharge)
+            );
+            AbstractQueryBuilder.setQueryParsingBreaker(exactBreaker);
+            try (XContentParser parser = createParser(JsonXContent.jsonXContent, namedJson)) {
+                AbstractQueryBuilder.parseTopLevelQuery(parser); // must not throw at exact limit
+            }
+            AbstractQueryBuilder.setQueryParsingBreaker(breaker);
+        } finally {
+            AbstractQueryBuilder.setQueryParsingBreaker(null);
+        }
+    }
+
+    public void testBreakerAtExactLimitDoesNotThrow() throws IOException {
+        // LimitedBreaker uses strict > (not >=), so a charge exactly equal to the limit must succeed.
+        MatchQueryBuilder q = new MatchQueryBuilder("f", "v");
+        long estimate = q.parseTimeBreakerEstimate();
+        LimitedBreaker breaker = new LimitedBreaker(CircuitBreaker.REQUEST, ByteSizeValue.ofBytes(estimate));
         AbstractQueryBuilder.setQueryParsingBreaker(breaker);
         try {
             String json = q.toString();
             try (XContentParser parser = createParser(JsonXContent.jsonXContent, json)) {
-                expectThrows(CircuitBreakingException.class, () -> AbstractQueryBuilder.parseTopLevelQuery(parser));
+                AbstractQueryBuilder.parseTopLevelQuery(parser); // exactly at limit — must not throw
             }
         } finally {
             AbstractQueryBuilder.setQueryParsingBreaker(null);

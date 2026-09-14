@@ -1476,10 +1476,10 @@ public class QueryStringQueryBuilderTests extends AbstractQueryTestCase<QueryStr
     }
 
     public void testQueryStringBreakerEstimate() throws IOException {
-        // BASELINE + queryString.length()*2 + estimateValue(fieldsAndWeights)
-        // fieldsAndWeights defaults to empty map → estimateValue = 32.
-        // "hi" (2 chars): 256 + 4 + 32 = 292; "x"×500: 256 + 1000 + 32 = 1288.
-        long limit = AbstractQueryBuilder.QUERY_BUILDER_SIZE_ESTIMATE_BYTES + 2 * 2L + 32L;
+        // BASELINE + estimateValue(queryString) + estimateValue(fieldsAndWeights)
+        // estimateValue(String s) = s.length()*2 + 64; fieldsAndWeights defaults to empty map → estimateValue = 32.
+        // "hi" (2 chars): 256 + (2*2+64) + 32 = 356; "x"×500: 256 + (500*2+64) + 32 = 1352.
+        long limit = AbstractQueryBuilder.QUERY_BUILDER_SIZE_ESTIMATE_BYTES + (2 * 2L + 64L) + 32L;
         LimitedBreaker breaker = new LimitedBreaker(CircuitBreaker.REQUEST, ByteSizeValue.ofBytes(limit));
         AbstractQueryBuilder.setQueryParsingBreaker(breaker);
         try {

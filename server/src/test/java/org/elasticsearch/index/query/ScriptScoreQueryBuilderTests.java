@@ -163,14 +163,14 @@ public class ScriptScoreQueryBuilderTests extends AbstractQueryTestCase<ScriptSc
     }
 
     public void testScriptParamsBreakerEstimate() throws IOException {
-        // ScriptScoreQueryBuilder.parseTimeBreakerEstimate() = BASELINE + source.length()*2 + estimateValue(params) + lang
-        // Inner MatchAllQueryBuilder also charges BASELINE (256) via namedObject.
-        // Small: source = "score" (5 chars), empty params → own 256+10+32+80=378; total 256+378=634
-        // Large: same source, Map.of("k", "x".repeat(500)) → own 256+10+1210+80=1556; total 256+1556=1812
+        // ScriptScoreQueryBuilder.parseTimeBreakerEstimate() = BASELINE + estimateValue(source) + estimateValue(params) + lang
+        // estimateValue(String s) = s.length()*2 + 64. Inner MatchAllQueryBuilder also charges BASELINE (256) via namedObject.
+        // Small: source = "score" (5 chars), empty params → own 256+(5*2+64)+32+(8*2+64)=504; total 256+504=760
+        // Large: same source, Map.of("k", "x".repeat(500)) → params 1210; own 256+74+1210+80=1620; total 256+1620=1876
         String source = "score";
         long innerMatchAllCost = AbstractQueryBuilder.QUERY_BUILDER_SIZE_ESTIMATE_BYTES;
-        long ownSmallCost = AbstractQueryBuilder.QUERY_BUILDER_SIZE_ESTIMATE_BYTES + source.length() * 2L + 32L + "painless".length() * 2L
-            + 64L;
+        long ownSmallCost = AbstractQueryBuilder.QUERY_BUILDER_SIZE_ESTIMATE_BYTES + source.length() * 2L + 64L + 32L + "painless".length()
+            * 2L + 64L;
         long limit = innerMatchAllCost + ownSmallCost;
         LimitedBreaker breaker = new LimitedBreaker(CircuitBreaker.REQUEST, ByteSizeValue.ofBytes(limit));
         AbstractQueryBuilder.setQueryParsingBreaker(breaker);

@@ -46,6 +46,7 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
+import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Consumer;
 
 import static org.elasticsearch.search.SearchModule.INDICES_MAX_NESTED_DEPTH_SETTING;
@@ -74,8 +75,13 @@ public abstract class AbstractQueryBuilder<QB extends AbstractQueryBuilder<QB>> 
      * Circuit breaker used to bound aggregate parse-time QueryBuilder heap consumption across concurrent
      * requests. Null until set by the node during initialisation; tests that exercise the limit set this
      * explicitly and restore null afterwards.
+     * <p>
+     * Stored as an {@link AtomicReference} rather than a plain volatile so that
+     * {@link #clearQueryParsingBreaker} can use compare-and-set: in a multi-node JVM (e.g.
+     * {@code InternalTestCluster}) each node sets this to its own REQUEST breaker, and the clear
+     * on shutdown must not accidentally null out a sibling node's breaker.
      */
-    private static volatile CircuitBreaker queryParsingBreaker;
+    private static final AtomicReference<CircuitBreaker> queryParsingBreaker = new AtomicReference<>();
 
     protected String queryName;
     protected float boost = DEFAULT_BOOST;
@@ -430,10 +436,22 @@ public abstract class AbstractQueryBuilder<QB extends AbstractQueryBuilder<QB>> 
 
     /**
      * Sets the circuit breaker used to bound parse-time QueryBuilder heap consumption.
-     * Called once during node initialisation; may be set to {@code null} in test teardown.
+     * Called once during node initialisation.
+     * <p>
+     * Tests that exercise the limit should call this with their {@code LimitedBreaker} and restore
+     * via {@code setQueryParsingBreaker(null)} in a {@code finally} block.
      */
     public static void setQueryParsingBreaker(CircuitBreaker breaker) {
-        queryParsingBreaker = breaker;
+        queryParsingBreaker.set(breaker);
+    }
+
+    /**
+     * Clears the circuit breaker reference only if it currently holds {@code expected}.
+     * Use this on node shutdown instead of {@link #setQueryParsingBreaker setQueryParsingBreaker(null)}
+     * to avoid accidentally nulling out a sibling node's breaker in a multi-node JVM.
+     */
+    public static void clearQueryParsingBreaker(CircuitBreaker expected) {
+        queryParsingBreaker.compareAndSet(expected, null);
     }
 
     /**
@@ -500,7 +518,7 @@ public abstract class AbstractQueryBuilder<QB extends AbstractQueryBuilder<QB>> 
      */
     public static QueryBuilder parseTopLevelQuery(XContentParser parser, Consumer<String> queryNameConsumer, List<Releasable> trackTo)
         throws IOException {
-        final CircuitBreaker breaker = queryParsingBreaker; // snapshot volatile once per call
+        final CircuitBreaker breaker = queryParsingBreaker.get(); // snapshot once per call
         final long[] totalCharged = { 0L };
         FilterXContentParser parserWrapper = new FilterXContentParserWrapper(parser) {
             int nestedDepth;
@@ -521,13 +539,20 @@ public abstract class AbstractQueryBuilder<QB extends AbstractQueryBuilder<QB>> 
                 if (categoryClass.equals(QueryBuilder.class)) {
                     queryNameConsumer.accept(name);
                     nestedDepth--;
-                    if (breaker != null && namedObject instanceof AbstractQueryBuilder<?> aqb) {
-                        long estimate = aqb.parseTimeBreakerEstimate();
-                        // _name is set on the QB by its ObjectParser; add its cost here so every
-                        // subclass (including those without a parseTimeBreakerEstimate override)
-                        // accounts for it without each override needing to repeat the logic.
-                        if (aqb.queryName() != null) {
-                            estimate += aqb.queryName().length() * 2L + 64L;
+                    if (breaker != null) {
+                        long estimate;
+                        if (namedObject instanceof AbstractQueryBuilder<?> aqb) {
+                            estimate = aqb.parseTimeBreakerEstimate();
+                            // _name is set on the QB by its ObjectParser; add its cost here so every
+                            // subclass (including those without a parseTimeBreakerEstimate override)
+                            // accounts for it without each override needing to repeat the logic.
+                            if (aqb.queryName() != null) {
+                                estimate += aqb.queryName().length() * 2L + 64L;
+                            }
+                        } else {
+                            // QueryBuilder registered without extending AbstractQueryBuilder
+                            // (e.g. SpanGapQueryBuilder) — charge the baseline so it is not free.
+                            estimate = QUERY_BUILDER_SIZE_ESTIMATE_BYTES;
                         }
                         breaker.addEstimateBytesAndMaybeBreak(estimate, "query-parsing");
                         totalCharged[0] += estimate;

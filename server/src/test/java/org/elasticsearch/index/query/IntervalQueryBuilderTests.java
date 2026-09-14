@@ -1261,8 +1261,8 @@ public class IntervalQueryBuilderTests extends AbstractQueryTestCase<IntervalQue
         // TEXT_FIELD_NAME = "mapped_string" (13 chars): field cost = 13*2+64 = 90.
         // query "hi": 2*2+64 = 68.
         // filter: type="script"(6) → 6*2+64=76; source "interval.start > 3"(18) → 18*2+64=100;
-        // params Map.of() → estimateValue = 32. filter total = 76+100+32 = 208.
-        // small total = 256+90+68+208 = 622.
+        // params Map.of() → estimateValue = 32; lang "painless"(8) → 8*2+64=80. filter total = 76+100+32+80 = 288.
+        // small total = 256+90+68+288 = 702.
         String scriptSource = "interval.start > 3";
         Script smallScript = new Script(ScriptType.INLINE, "painless", scriptSource, Map.of());
         IntervalsSourceProvider.IntervalFilter smallFilter = new IntervalsSourceProvider.IntervalFilter(smallScript);
@@ -1271,7 +1271,8 @@ public class IntervalQueryBuilderTests extends AbstractQueryTestCase<IntervalQue
             + 2 * 2L + 64L    // query "hi"
             + 6 * 2L + 64L    // type "script"
             + scriptSource.length() * 2L + 64L  // idOrCode
-            + 32L;            // empty params map header
+            + 32L             // empty params map header
+            + 8 * 2L + 64L;   // lang "painless"
         long limit = smallCost; // equal to limit does not trip (LimitedBreaker uses strict >)
         LimitedBreaker limitedBreaker = new LimitedBreaker(CircuitBreaker.REQUEST, ByteSizeValue.ofBytes(limit));
         AbstractQueryBuilder.setQueryParsingBreaker(limitedBreaker);

@@ -618,7 +618,7 @@ public final class SimpleQueryStringBuilder extends LeafQueryBuilder<SimpleQuery
 
     @Override
     protected long parseTimeBreakerEstimate() {
-        long estimate = QUERY_BUILDER_SIZE_ESTIMATE_BYTES + queryText.length() * 2L + estimateValue(fieldsAndWeights);
+        long estimate = QUERY_BUILDER_SIZE_ESTIMATE_BYTES + estimateValue(queryText) + estimateValue(fieldsAndWeights);
         if (analyzer != null) estimate += analyzer.length() * 2L + 64L;
         if (minimumShouldMatch != null) estimate += minimumShouldMatch.length() * 2L + 64L;
         return estimate;

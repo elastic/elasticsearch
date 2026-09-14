@@ -809,7 +809,7 @@ public final class QueryStringQueryBuilder extends LeafQueryBuilder<QueryStringQ
 
     @Override
     protected long parseTimeBreakerEstimate() {
-        long estimate = QUERY_BUILDER_SIZE_ESTIMATE_BYTES + queryString.length() * 2L + estimateValue(fieldsAndWeights);
+        long estimate = QUERY_BUILDER_SIZE_ESTIMATE_BYTES + estimateValue(queryString) + estimateValue(fieldsAndWeights);
         if (defaultField != null) estimate += defaultField.length() * 2L + 64L;
         if (analyzer != null) estimate += analyzer.length() * 2L + 64L;
         if (quoteAnalyzer != null) estimate += quoteAnalyzer.length() * 2L + 64L;

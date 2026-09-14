@@ -155,6 +155,12 @@ public class WrapperQueryBuilder extends AbstractQueryBuilder<WrapperQueryBuilde
 
     @Override
     protected QueryBuilder doRewrite(QueryRewriteContext context) throws IOException {
+        // Note: parseTopLevelQuery is called with no trackTo list (one-arg overload), so the
+        // circuit-breaker charge for the expanded tree is released immediately during rewrite
+        // rather than being held for the request lifetime. This is a known limitation: rewrite
+        // runs in a QueryRewriteContext that carries no List<Releasable>, so there is no
+        // mechanism to defer the charge here. The raw source bytes are charged via
+        // parseTimeBreakerEstimate() and held correctly; only the expanded tree is uncharged.
         try (XContentParser qSourceParser = XContentFactory.xContent(source).createParser(context.getParserConfig(), source)) {
 
             final QueryBuilder queryBuilder = parseTopLevelQuery(qSourceParser).rewrite(context);

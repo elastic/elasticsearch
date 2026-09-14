@@ -127,6 +127,11 @@ public class TransportRankEvalAction extends HandledTransportAction<RankEvalRequ
                     // if we fail parsing, put the exception into the errors map and continue
                     errors.put(ratedRequest.getId(), e);
                     continue;
+                } catch (IllegalArgumentException e) {
+                    // validateEvaluatedQuery threw after the query was parsed and charged; release the charge
+                    if (evaluationRequest != null) evaluationRequest.close();
+                    errors.put(ratedRequest.getId(), e);
+                    continue;
                 }
             }
 

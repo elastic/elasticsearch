@@ -69,7 +69,7 @@ public class BitmapTermsQueryBuilderTests extends AbstractQueryTestCase<BitmapTe
                     parseQuery(parser); // must not throw
                 }
             }
-            // Large: 500-char string → 256 + 500*2 + 64 = 1320, exceeds limit 328
+            // Large: 500-char string → 256 + 84 + 500*2+64 = 1404, exceeds limit 412
             String largeValue = "x".repeat(500);
             BitmapTermsQueryBuilder large = new BitmapTermsQueryBuilder(INT_FIELD_NAME, largeValue);
             for (XContentType type : new XContentType[] { XContentType.JSON, XContentType.SMILE }) {

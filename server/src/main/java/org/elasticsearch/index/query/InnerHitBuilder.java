@@ -15,7 +15,6 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.core.Nullable;
-import org.elasticsearch.core.Releasable;
 import org.elasticsearch.script.Script;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.search.builder.SearchSourceBuilder.ScriptField;
@@ -57,7 +56,7 @@ public final class InnerHitBuilder implements Writeable, ToXContentObject {
     private static final boolean DEFAULT_EXPLAIN = false;
     private static final boolean DEFAULT_TRACK_SCORES = false;
 
-    private static final ObjectParser<InnerHitBuilder, List<Releasable>> PARSER = new ObjectParser<>("inner_hits", InnerHitBuilder::new);
+    private static final ObjectParser<InnerHitBuilder, Void> PARSER = new ObjectParser<>("inner_hits", InnerHitBuilder::new);
 
     static {
         PARSER.declareString(InnerHitBuilder::setName, NAME_FIELD);
@@ -104,7 +103,7 @@ public final class InnerHitBuilder implements Writeable, ToXContentObject {
         }, SearchSourceBuilder._SOURCE_FIELD, ObjectParser.ValueType.OBJECT_ARRAY_BOOLEAN_OR_STRING);
         PARSER.declareObject(
             InnerHitBuilder::setHighlightBuilder,
-            (p, c) -> HighlightBuilder.fromXContent(p, c),
+            (p, c) -> HighlightBuilder.fromXContent(p),
             SearchSourceBuilder.HIGHLIGHT_FIELD
         );
         PARSER.declareField((parser, builder, context) -> {
@@ -583,12 +582,14 @@ public final class InnerHitBuilder implements Writeable, ToXContentObject {
         );
     }
 
+    /**
+     * Parses an {@code inner_hits} block from XContent. {@code inner_hits} is fetch-phase
+     * configuration (it shapes the response, not the match) and is therefore outside the scope
+     * of the parse-time circuit breaker that charges input-side query clauses. Releasables are
+     * intentionally not threaded here.
+     */
     public static InnerHitBuilder fromXContent(XContentParser parser) throws IOException {
-        return fromXContent(parser, null);
-    }
-
-    public static InnerHitBuilder fromXContent(XContentParser parser, List<Releasable> releasables) throws IOException {
-        return PARSER.parse(parser, new InnerHitBuilder(), releasables);
+        return PARSER.parse(parser, new InnerHitBuilder(), null);
     }
 
     @Override

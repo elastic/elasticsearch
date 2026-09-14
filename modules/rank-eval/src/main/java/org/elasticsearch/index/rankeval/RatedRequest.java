@@ -251,13 +251,16 @@ public class RatedRequest implements Writeable, ToXContentObject {
     @SuppressWarnings("unchecked")
     private static final ConstructingObjectParser<RatedRequest, Predicate<NodeFeature>> PARSER = new ConstructingObjectParser<>(
         "request",
-        a -> new RatedRequest(
-            (String) a[0],
-            (List<RatedDocument>) a[1],
-            (SearchSourceBuilder) a[2],
-            (Map<String, Object>) a[3],
-            (String) a[4]
-        )
+        a -> {
+            SearchSourceBuilder ssb = (SearchSourceBuilder) a[2];
+            try {
+                return new RatedRequest((String) a[0], (List<RatedDocument>) a[1], ssb, (Map<String, Object>) a[3], (String) a[4]);
+            } catch (Exception e) {
+                // Constructor validation failed after the query was parsed and charged; release the charge.
+                if (ssb != null) ssb.close();
+                throw e;
+            }
+        }
     );
 
     static {

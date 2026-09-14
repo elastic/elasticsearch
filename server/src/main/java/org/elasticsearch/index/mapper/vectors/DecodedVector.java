@@ -59,25 +59,28 @@ public final class DecodedVector {
      * @throws IllegalArgumentException if the string cannot be decoded or doesn't match the expected dimensions
      */
     public static DecodedVector decode(String encoded, ElementType elementType, int dims) {
-        byte[] hexBytes = tryParseHex(encoded);
+        return decode(encoded, elementType, dims, true);
+    }
 
-        // Prefer hex if it matches expected dimensions (hex always produces byte[])
-        if (hexBytes != null && hexBytes.length == dims) {
-            return new DecodedVector(hexBytes, Layout.BYTES);
-        }
-
-        // For BIT element type, check hex with bit dimensions
-        if (elementType == ElementType.BIT && hexBytes != null && hexBytes.length == dims / Byte.SIZE) {
-            return new DecodedVector(hexBytes, Layout.BYTES);
-        }
-
-        byte[] base64Bytes = tryParseBase64(encoded);
-
-        if (hexBytes == null && base64Bytes == null) {
-            throw new IllegalArgumentException("failed to decode vector: value must be a valid base64 or hex string");
+    /**
+     * Decodes a dense vector supplied as a hex or base64 string, resolving which encoding was used and how
+     * the resulting bytes should be read.
+     *
+     * @param encoded     hex or base64 string
+     * @param elementType element type of the field
+     * @param dims        expected number of dimensions
+     * @param parseHex    flag controlling if hex parsing is attempted
+     * @throws IllegalArgumentException if the string cannot be decoded or doesn't match the expected dimensions
+     */
+    public static DecodedVector decode(String encoded, ElementType elementType, int dims, boolean parseHex) {
+        boolean isHex = parseHex && isHexString(encoded);
+        int hexComponents = encoded.length() / 2;
+        if (isHex && hexComponents == elementType.vectorComponentCount(dims)) {
+            return new DecodedVector(HexFormat.of().parseHex(encoded), Layout.BYTES);
         }
 
         // Try base64 if it matches expected dimensions for the element type
+        byte[] base64Bytes = tryParseBase64(encoded);
         if (base64Bytes != null && matchesExpectedBase64Length(base64Bytes.length, elementType, dims)) {
             if (elementType == ElementType.BFLOAT16 && base64Bytes.length == dims * BFloat16.BYTES) {
                 float[] widened = new float[dims];
@@ -87,15 +90,24 @@ public final class DecodedVector {
             return new DecodedVector(base64Bytes, layoutFor(elementType));
         }
 
-        // Hex decoded cleanly but doesn't match the expected dimensions
-        if (hexBytes != null) {
+        // The value is hex but doesn't match the expected dimensions
+        if (isHex) {
             throw new IllegalArgumentException(
                 "failed to decode vector: hex-decoded vector has a different number of dimensions ["
-                    + hexBytes.length
+                    + elementType.dims(hexComponents)
                     + "] than the expected ["
                     + dims
                     + "]"
             );
+        }
+
+        if (base64Bytes == null) {
+            StringBuilder sb = new StringBuilder("failed to decode vector: value must be a valid base64");
+            if (parseHex) {
+                sb.append(" or hex");
+            }
+            sb.append(" string");
+            throw new IllegalArgumentException(sb.toString());
         }
 
         // base64 was parsed but doesn't match dimensions
@@ -185,12 +197,17 @@ public final class DecodedVector {
         };
     }
 
-    private static byte[] tryParseHex(String encoded) {
-        try {
-            return HexFormat.of().parseHex(encoded);
-        } catch (IllegalArgumentException e) {
-            return null;
+    private static boolean isHexString(String s) {
+        int len = s.length();
+        if (len % 2 != 0) {
+            return false;
         }
+        for (int i = 0; i < len; i++) {
+            if (HexFormat.isHexDigit(s.charAt(i)) == false) {
+                return false;
+            }
+        }
+        return true;
     }
 
     private static byte[] tryParseBase64(String encoded) {

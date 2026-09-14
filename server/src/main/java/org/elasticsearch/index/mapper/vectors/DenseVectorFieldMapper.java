@@ -648,6 +648,15 @@ public class DenseVectorFieldMapper extends FieldMapper {
             return defaultSimilarity;
         }
 
+        final int vectorComponentCount(int dims) {
+            assert dims % Byte.SIZE == 0;
+            return this == BIT ? dims / Byte.SIZE : dims;
+        }
+
+        final int dims(int vectorComponentCount) {
+            return this == BIT ? vectorComponentCount * Byte.SIZE : vectorComponentCount;
+        }
+
         public static ElementType fromString(String name) {
             return valueOf(name.toUpperCase(Locale.ROOT));
         }

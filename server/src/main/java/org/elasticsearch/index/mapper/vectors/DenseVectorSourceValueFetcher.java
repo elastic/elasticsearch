@@ -99,7 +99,7 @@ class DenseVectorSourceValueFetcher extends SourceValueFetcher {
                 if (dims == null) {
                     throw new IllegalStateException("dimensions are unknown because no document has been indexed yet");
                 }
-                return DecodedVector.decode(s, elementType, dims).toFloatList();
+                return DecodedVector.decode(s, elementType, dims, parseHexStrings()).toFloatList();
             }
             default -> throw unsupportedSourceValue(sourceValue);
         }
@@ -118,7 +118,7 @@ class DenseVectorSourceValueFetcher extends SourceValueFetcher {
                 if (dims == null) {
                     throw new IllegalStateException("dimensions are unknown because no document has been indexed yet");
                 }
-                return List.of(DecodedVector.decode(s, elementType, dims).toBase64());
+                return List.of(DecodedVector.decode(s, elementType, dims, parseHexStrings()).toBase64());
             }
             default -> throw unsupportedSourceValue(sourceValue);
         }
@@ -146,6 +146,10 @@ class DenseVectorSourceValueFetcher extends SourceValueFetcher {
                 yield Base64.getEncoder().encodeToString(buffer.array());
             }
         };
+    }
+
+    private boolean parseHexStrings() {
+        return elementType == ElementType.BYTE || elementType == ElementType.BIT;
     }
 
     private static IllegalArgumentException unsupportedSourceValue(Object sourceValue) {

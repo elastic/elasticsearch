@@ -429,12 +429,12 @@ public class StDistance extends BinarySpatialFunction implements EvaluatorMapper
     }
 
     @Evaluator(extraName = "GeoPointDocValuesAndDocValues")
-    static void processGeoPointDocValuesAndDocValues(DoubleBlock.Builder results, @Position int p, LongBlock left, LongBlock right) {
+    static void processGeoPointDocValuesAndDocValues(DoubleBlock.Builder results, int p, LongBlock left, LongBlock right) {
         GEO.distancePointDocValuesAndDocValues(results, p, left, right);
     }
 
     @Evaluator(extraName = "CartesianPointDocValuesAndDocValues")
-    static void processCartesianPointDocValuesAndDocValues(DoubleBlock.Builder results, @Position int p, LongBlock left, LongBlock right) {
+    static void processCartesianPointDocValuesAndDocValues(DoubleBlock.Builder results, int p, LongBlock left, LongBlock right) {
         CARTESIAN.distancePointDocValuesAndDocValues(results, p, left, right);
     }
 }

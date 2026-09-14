@@ -11,31 +11,32 @@ import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.DoubleBlock;
 import org.elasticsearch.compute.data.LongBlock;
 import org.elasticsearch.compute.data.Page;
-import org.elasticsearch.compute.expression.ExpressionEvaluator;
 import org.elasticsearch.compute.operator.DriverContext;
+import org.elasticsearch.compute.operator.EvalOperator;
 import org.elasticsearch.compute.operator.Warnings;
 import org.elasticsearch.core.Releasables;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 
 /**
- * {@link ExpressionEvaluator} implementation for {@link StDistance}.
+ * {@link EvalOperator.ExpressionEvaluator} implementation for {@link StDistance}.
  * This class is generated. Edit {@code EvaluatorImplementer} instead.
  */
-public final class StDistanceCartesianPointDocValuesAndDocValuesEvaluator implements ExpressionEvaluator {
+public final class StDistanceCartesianPointDocValuesAndDocValuesEvaluator implements EvalOperator.ExpressionEvaluator {
   private static final long BASE_RAM_BYTES_USED = RamUsageEstimator.shallowSizeOfInstance(StDistanceCartesianPointDocValuesAndDocValuesEvaluator.class);
 
   private final Source source;
 
-  private final ExpressionEvaluator left;
+  private final EvalOperator.ExpressionEvaluator left;
 
-  private final ExpressionEvaluator right;
+  private final EvalOperator.ExpressionEvaluator right;
 
   private final DriverContext driverContext;
 
   private Warnings warnings;
 
   public StDistanceCartesianPointDocValuesAndDocValuesEvaluator(Source source,
-      ExpressionEvaluator left, ExpressionEvaluator right, DriverContext driverContext) {
+      EvalOperator.ExpressionEvaluator left, EvalOperator.ExpressionEvaluator right,
+      DriverContext driverContext) {
     this.source = source;
     this.left = left;
     this.right = right;
@@ -91,20 +92,25 @@ public final class StDistanceCartesianPointDocValuesAndDocValuesEvaluator implem
 
   private Warnings warnings() {
     if (warnings == null) {
-      this.warnings = driverContext.createWarnings(source);
+      this.warnings = Warnings.createWarnings(
+              driverContext.warningsMode(),
+              source.source().getLineNumber(),
+              source.source().getColumnNumber(),
+              source.text()
+          );
     }
     return warnings;
   }
 
-  static class Factory implements ExpressionEvaluator.Factory {
+  static class Factory implements EvalOperator.ExpressionEvaluator.Factory {
     private final Source source;
 
-    private final ExpressionEvaluator.Factory left;
+    private final EvalOperator.ExpressionEvaluator.Factory left;
 
-    private final ExpressionEvaluator.Factory right;
+    private final EvalOperator.ExpressionEvaluator.Factory right;
 
-    public Factory(Source source, ExpressionEvaluator.Factory left,
-        ExpressionEvaluator.Factory right) {
+    public Factory(Source source, EvalOperator.ExpressionEvaluator.Factory left,
+        EvalOperator.ExpressionEvaluator.Factory right) {
       this.source = source;
       this.left = left;
       this.right = right;

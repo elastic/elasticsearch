@@ -15,7 +15,6 @@ import org.apache.lucene.index.SegmentReadState;
 import org.apache.lucene.index.VectorEncoding;
 import org.apache.lucene.index.VectorSimilarityFunction;
 import org.apache.lucene.search.AcceptDocs;
-import org.apache.lucene.search.DocIdSetIterator;
 import org.apache.lucene.search.KnnCollector;
 import org.apache.lucene.store.IndexInput;
 import org.apache.lucene.util.Bits;
@@ -39,6 +38,7 @@ import org.elasticsearch.index.codec.vectors.diskbbq.PostingMetadata;
 import org.elasticsearch.index.codec.vectors.diskbbq.Preconditioner;
 import org.elasticsearch.index.codec.vectors.diskbbq.PrefetchingCentroidIterator;
 import org.elasticsearch.index.codec.vectors.diskbbq.QuantEncoding;
+import org.elasticsearch.index.codec.vectors.diskbbq.SlicedBlockRange;
 import org.elasticsearch.index.codec.vectors.diskbbq.VectorPreconditioner;
 import org.elasticsearch.search.vectors.BulkKnnCollector;
 import org.elasticsearch.search.vectors.ESAcceptDocs;
@@ -671,35 +671,17 @@ public class ESNextDiskBBQVectorsReader extends IVFVectorsReader<ESNextDiskBBQVe
         @Override
         public int resetPostingsScorer(PostingMetadata metadata) throws IOException {
             int totalVectors = super.resetPostingsScorer(metadata);
-            int totalBlocks = totalVectors / BULK_SIZE;
-            KnnVectorValues.DocIndexIterator iterator = vectorValues.iterator();
-            if (iterator.advance(startDocId) >= endDocId) {
-                this.vectors = 0;
-                return 0;
-            }
-            int minOrd = iterator.index();
-            int docId = iterator.advance(endDocId);
-            int maxOrd;
-            if (docId == DocIdSetIterator.NO_MORE_DOCS) {
-                maxOrd = vectorValues.size();
-            } else {
-                maxOrd = iterator.index();
-            }
-            // When searching the full segment (startDocId == 0), the doc range may span
-            // more ordinals than a single posting list in multi-centroid segments. In that case
-            // we clamp to the posting list bounds rather than asserting.
-            if (maxOrd - minOrd > totalVectors) {
-                maxOrd = Math.min(maxOrd, minOrd + totalVectors);
-            }
-            int startBlock = minOrd / BULK_SIZE;
-            int endBlock = (maxOrd - 1) / BULK_SIZE;
-            if (endBlock == totalBlocks) {
-                this.vectors = totalVectors - startBlock * BULK_SIZE;
-            } else {
-                this.vectors = (1 + endBlock - startBlock) * BULK_SIZE;
-            }
-            docBase = startBlock * BULK_SIZE;
-            slicePos += startBlock * BULK_SIZE * quantizedByteLength;
+            SlicedBlockRange range = SlicedBlockRange.compute(
+                vectorValues,
+                startDocId,
+                endDocId,
+                totalVectors,
+                BULK_SIZE,
+                quantizedByteLength
+            );
+            this.vectors = range.vectors();
+            docBase = range.docBase();
+            slicePos += range.skipBytes();
             return this.vectors;
         }
 

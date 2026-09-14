@@ -142,6 +142,16 @@ curl -X PUT "${ELASTICSEARCH_URL}/_query/dataset/access_logs" \
 
 ::::
 
+:::{note}
+{applies_to}`stack: experimental 9.6+` Setting values are checked when the dataset is registered, not only when it
+is first queried. A malformed value, such as a multi-character `delimiter`, an unknown `encoding`, or a
+`segment_size` below the minimum, is rejected with a `400` error that identifies the setting.
+
+Datasets registered before this validation was introduced are not validated, so they keep
+working even if they contain invalid values. Replacing one of these datasets triggers validation, and you must correct
+any invalid values in the replacement request.
+:::
+
 :::{tip}
 After creating a dataset, you can check the field mappings that {{es}} inferred from your files. Refer to [check field mappings](esql-data-federation-quickstart.md#check-field-mappings) in the quickstart for a hands-on example.
 :::
@@ -379,8 +389,8 @@ setting can bring them back.
 
 | Setting | Default (CSV / TSV) | Description |
 |---|---|---|
-| `delimiter` | `,` / `\t` | The field separator. |
-| `mode` | `quoted` / `plain` | A preset bundling quoting and escaping into one choice. Valid values: `"quoted"`, `"escaped"`, `"plain"`. |
+| `delimiter` | `,` / `\t` | The field separator. <br> Must be a single character (or one of `\t`, `\n`, `\r`, `\\`). {applies_to}`stack: experimental 9.6+` |
+| `mode` | `quoted` / `plain` | A preset bundling quoting and escaping into one choice. Valid values: `"quoted"`, `"escaped"`, `"plain"`. <br> Using `mode: escaped` with an explicit `quote` setting is rejected at registration time, because it silently turns quoting on and disables the escaped-mode decode. {applies_to}`stack: experimental 9.6+` |
 | `header_row` | `true` | Whether the first non-comment, non-blank record names the columns. Applied after `skip_rows`. |
 | `skip_rows` | `0` | Number of leading content records to discard per file, after gzip unwrap, on the first split only. Blank and comment lines are not counted. Applied before `header_row`. Maximum `1000`. |
 | `null_value` | `""` (empty) | The token read as null (for example `NULL`, `NA`, `\N`). |
@@ -393,8 +403,8 @@ A file that starts with two prose lines then `state,ip,user_agent` is read with 
 | Setting | Default (CSV / TSV) | Description |
 |---|---|---|
 | `schema_sample_size` {applies_to}`stack: experimental 9.6+` | `20000` | Rows sampled to infer the schema. Determines whether sparse or late-appearing fields get a column. |
-| `quote` | `"` / none | The quote character, or `"none"` to turn quoting off. An explicit value overrides the `mode` preset. |
-| `escape` | `\` / none | The escape character, or `"none"` to turn escaping off. An explicit value overrides the `mode` preset. |
+| `quote` | `"` / none | The quote character, or `"none"` to turn quoting off. An explicit value overrides the `mode` preset. <br> Must be a single character (or one of `\t`, `\n`, `\r`, `\\`). {applies_to}`stack: experimental 9.6+` |
+| `escape` | `\` / none | The escape character, or `"none"` to turn escaping off. An explicit value overrides the `mode` preset. <br> Must be a single character (or one of `\t`, `\n`, `\r`, `\\`). {applies_to}`stack: experimental 9.6+` |
 | `comment` | `//` | Lines beginning with this prefix are skipped. |
 | `column_prefix` | `col` | Prefix for generated column names when `header_row` is `false`. |
 | `datetime_format` | ISO-8601 | The pattern used to parse date and time values. |

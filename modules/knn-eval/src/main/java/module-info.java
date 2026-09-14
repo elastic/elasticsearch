@@ -6,21 +6,13 @@
  * your election, the "Elastic License 2.0", the "GNU Affero General Public
  * License v3.0 only", or the "Server Side Public License, v 1".
  */
-apply plugin: 'elasticsearch.internal-yaml-rest-test'
-apply plugin: 'elasticsearch.yaml-rest-compat-test'
-apply plugin: 'elasticsearch.internal-cluster-test'
 
-esplugin {
-  description = 'The Rank Eval module adds APIs to evaluate ranking quality.'
-  classname = 'org.elasticsearch.index.rankeval.RankEvalPlugin'
-}
+module org.elasticsearch.knneval {
+    requires org.apache.lucene.core;
+    requires org.elasticsearch.server;
+    requires org.elasticsearch.xcontent;
+    requires org.elasticsearch.base;
+    requires org.elasticsearch.logging;
 
-restResources {
-  restApi {
-    include '_common', 'indices', 'index', 'rank_eval'
-  }
-}
-
-dependencies {
-  clusterModules project(':modules:lang-mustache')
+    exports org.elasticsearch.index.knneval;
 }

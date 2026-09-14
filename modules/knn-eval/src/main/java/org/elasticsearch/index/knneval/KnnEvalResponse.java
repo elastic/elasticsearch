@@ -7,7 +7,7 @@
  * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
-package org.elasticsearch.index.rankeval;
+package org.elasticsearch.index.knneval;
 
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.ActionResponse;
@@ -32,8 +32,8 @@ import java.util.TreeMap;
 /**
  * The result of a {@link KnnEvalRequest}: one recall figure per knob set, all measured against the same baseline.
  * <p>
- * Unlike {@link RankEvalResponse} this holds no pooled {@link org.elasticsearch.search.SearchHit} references -- only copied ids and
- * scores -- so it needs no {@code close()}.
+ * Holds no pooled {@link org.elasticsearch.search.SearchHit} references -- only copied ids and scores -- so it needs no
+ * {@code close()}.
  */
 public class KnnEvalResponse extends ActionResponse implements ToXContentObject {
 

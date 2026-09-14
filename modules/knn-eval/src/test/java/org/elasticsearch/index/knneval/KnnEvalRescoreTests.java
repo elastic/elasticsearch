@@ -7,7 +7,7 @@
  * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
-package org.elasticsearch.index.rankeval;
+package org.elasticsearch.index.knneval;
 
 import org.elasticsearch.test.ESTestCase;
 

@@ -8,11 +8,9 @@
  */
 
 module org.elasticsearch.rankeval {
-    requires org.apache.lucene.core;
     requires org.elasticsearch.server;
     requires org.elasticsearch.xcontent;
     requires org.elasticsearch.base;
-    requires org.elasticsearch.logging;
     requires java.naming;
 
     exports org.elasticsearch.index.rankeval;

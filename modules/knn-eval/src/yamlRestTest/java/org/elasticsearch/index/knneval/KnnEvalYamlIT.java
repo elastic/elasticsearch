@@ -7,7 +7,7 @@
  * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
-package org.elasticsearch.index.rankeval;
+package org.elasticsearch.index.knneval;
 
 import com.carrotsearch.randomizedtesting.annotations.Name;
 import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
@@ -17,12 +17,18 @@ import org.elasticsearch.test.rest.yaml.ClientYamlTestCandidate;
 import org.elasticsearch.test.rest.yaml.ESClientYamlSuiteTestCase;
 import org.junit.ClassRule;
 
-public class RankEvalYamlIT extends ESClientYamlSuiteTestCase {
+public class KnnEvalYamlIT extends ESClientYamlSuiteTestCase {
 
+    // bbq_disk is an enterprise licensed feature served by the diskbbq plugin, and indexing into such a field fails without both
     @ClassRule
-    public static ElasticsearchCluster cluster = ElasticsearchCluster.local().module("lang-mustache").module("rank-eval").build();
+    public static ElasticsearchCluster cluster = ElasticsearchCluster.local()
+        .module("knn-eval")
+        .module("diskbbq")
+        .setting("xpack.license.self_generated.type", "trial")
+        .setting("xpack.security.enabled", "false")
+        .build();
 
-    public RankEvalYamlIT(@Name("yaml") ClientYamlTestCandidate testCandidate) {
+    public KnnEvalYamlIT(@Name("yaml") ClientYamlTestCandidate testCandidate) {
         super(testCandidate);
     }
 

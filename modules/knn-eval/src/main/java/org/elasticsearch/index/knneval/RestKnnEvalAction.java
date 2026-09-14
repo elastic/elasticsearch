@@ -7,7 +7,7 @@
  * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
-package org.elasticsearch.index.rankeval;
+package org.elasticsearch.index.knneval;
 
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.client.internal.node.NodeClient;
@@ -85,7 +85,7 @@ public class RestKnnEvalAction extends BaseRestHandler {
             knnEvalRequest.indicesOptions(IndicesOptions.fromRequest(request, knnEvalRequest.indicesOptions()));
             knnEvalRequest.setKnnEvalSpec(KnnEvalSpec.parse(parser));
         }
-        return channel -> client.execute(RankEvalPlugin.KNN_EVAL_ACTION, knnEvalRequest, new RestToXContentListener<>(channel));
+        return channel -> client.execute(KnnEvalPlugin.KNN_EVAL_ACTION, knnEvalRequest, new RestToXContentListener<>(channel));
     }
 
     @Override

@@ -7,20 +7,19 @@
  * License v3.0 only", or the "Server Side Public License, v 1".
  */
 apply plugin: 'elasticsearch.internal-yaml-rest-test'
-apply plugin: 'elasticsearch.yaml-rest-compat-test'
-apply plugin: 'elasticsearch.internal-cluster-test'
 
 esplugin {
-  description = 'The Rank Eval module adds APIs to evaluate ranking quality.'
-  classname = 'org.elasticsearch.index.rankeval.RankEvalPlugin'
+  description = 'Experimental _knn_eval API: measures ANN recall of a dense_vector field against a more thorough search of the same index.'
+  classname = 'org.elasticsearch.index.knneval.KnnEvalPlugin'
 }
 
 restResources {
   restApi {
-    include '_common', 'indices', 'index', 'rank_eval'
+    include '_common', 'cluster', 'indices', 'index', 'bulk', 'knn_eval'
   }
 }
 
 dependencies {
-  clusterModules project(':modules:lang-mustache')
+  // the yaml tests index into a bbq_disk field, which only the diskbbq plugin can serve
+  clusterModules project(':x-pack:plugin:diskbbq')
 }

@@ -7,7 +7,7 @@
  * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
-package org.elasticsearch.index.rankeval;
+package org.elasticsearch.index.knneval;
 
 import org.apache.lucene.search.TotalHits;
 import org.elasticsearch.action.ActionListener;
@@ -83,7 +83,7 @@ import java.util.function.Consumer;
 
 /**
  * Estimates ANN recall without brute-force ground truth: each query runs under the baseline knobs and then under each candidate, and
- * {@link RecallAtK} scores the overlap using the baseline's top-k as derived {@link RatedDocument} judgements.
+ * the overlap of the candidate's top-k with the baseline's top-k is the recall.
  * <p>
  * All passes share one point-in-time, so a concurrent refresh cannot masquerade as a recall difference, and each pass is homogeneous so
  * that an expensive baseline search cannot steal search threads from whichever candidate was scheduled beside it. {@code took_ms}
@@ -92,9 +92,6 @@ import java.util.function.Consumer;
 public class TransportKnnEvalAction extends HandledTransportAction<KnnEvalRequest, KnnEvalResponse> {
 
     private static final Logger logger = LogManager.getLogger(TransportKnnEvalAction.class);
-
-    /** {@link RecallAtK}'s default threshold is also 1, so every baseline hit counts as relevant. */
-    private static final int RELEVANT_RATING = 1;
 
     /** Held for the whole sweep -- every batch of every pass -- and never refreshed. */
     static final TimeValue POINT_IN_TIME_KEEP_ALIVE = TimeValue.timeValueMinutes(5);
@@ -116,7 +113,7 @@ public class TransportKnnEvalAction extends HandledTransportAction<KnnEvalReques
         ClusterService clusterService
     ) {
         super(
-            RankEvalPlugin.KNN_EVAL_ACTION.name(),
+            KnnEvalPlugin.KNN_EVAL_ACTION.name(),
             transportService,
             actionFilters,
             KnnEvalRequest::new,
@@ -631,18 +628,22 @@ public class TransportKnnEvalAction extends HandledTransportAction<KnnEvalReques
     }
 
     /**
-     * A query's reference result, carried from the baseline pass into every candidate pass. {@code ratedDocs} is built while the live
-     * hits still expose their index name, since the overlap is keyed on {@code _index}/{@code _id} and not on {@code _id} alone.
+     * A query's reference result, carried from the baseline pass into every candidate pass. {@code keys} is built while the live hits
+     * still expose their index name, since the overlap is keyed on {@code _index}/{@code _id} and not on {@code _id} alone.
      */
-    record BaselineResult(List<KnnEvalResponse.Hit> hits, List<RatedDocument> ratedDocs) {}
+    record BaselineResult(List<KnnEvalResponse.Hit> hits, Set<String> keys) {}
 
     /** The live hits do not outlive the msearch callback, so the reference is captured here. */
     static BaselineResult baselineOf(SearchHit[] baselineHits) {
-        List<RatedDocument> ratedDocs = new ArrayList<>(baselineHits.length);
+        Set<String> keys = Sets.newHashSetWithExpectedSize(baselineHits.length);
         for (SearchHit hit : baselineHits) {
-            ratedDocs.add(new RatedDocument(hit.getIndex(), hit.getId(), RELEVANT_RATING));
+            keys.add(key(hit));
         }
-        return new BaselineResult(toHits(baselineHits), ratedDocs);
+        return new BaselineResult(toHits(baselineHits), keys);
+    }
+
+    private static String key(SearchHit hit) {
+        return hit.getIndex() + "/" + hit.getId();
     }
 
     /**
@@ -658,78 +659,77 @@ public class TransportKnnEvalAction extends HandledTransportAction<KnnEvalReques
         int k,
         double valueTolerance
     ) {
-        EvalQueryQuality quality = new RecallAtK().evaluate(queryId, candidateHits, baseline.ratedDocs());
-        try {
-            RecallAtK.Detail detail = (RecallAtK.Detail) quality.getMetricDetails();
-            Map<String, Integer> baselineRanks = Maps.newMapWithExpectedSize(baseline.hits().size());
-            for (int rank = 0; rank < baseline.hits().size(); rank++) {
-                baselineRanks.putIfAbsent(baseline.hits().get(rank).id(), rank);
-            }
-            List<KnnEvalResponse.RankedHit> annotatedHits = new ArrayList<>(candidateHits.length);
-            Set<String> returnedIds = Sets.newHashSetWithExpectedSize(candidateHits.length);
-            for (SearchHit hit : candidateHits) {
-                annotatedHits.add(new KnnEvalResponse.RankedHit(hit.getId(), hit.getScore(), baselineRanks.get(hit.getId())));
-                returnedIds.add(hit.getId());
-            }
-            List<KnnEvalResponse.RankedHit> missed = new ArrayList<>();
-            for (int rank = 0; rank < baseline.hits().size(); rank++) {
-                KnnEvalResponse.Hit baselineHit = baseline.hits().get(rank);
-                if (returnedIds.contains(baselineHit.id()) == false) {
-                    missed.add(new KnnEvalResponse.RankedHit(baselineHit.id(), baselineHit.score(), rank));
-                }
-            }
-            assert detail.getRelevant() - detail.getRelevantRetrieved() == missed.size()
-                : "missed [" + missed.size() + "] does not account for " + detail.getRelevant() + " - " + detail.getRelevantRetrieved();
-
-            // both lists are score-ordered, so rank i is comparable with rank i without matching ids
-            List<Double> epsilonProfile = List.of();
-            boolean incomplete = false;
-            if (fidelity != null && fidelity.isSkipped() == false) {
-                List<Double> profile = new ArrayList<>(k);
-                for (int rank = 0; rank < k; rank++) {
-                    if (rank >= baseline.hits().size()) {
-                        // the reference never reached this rank, so there is nothing to have lost
-                        profile.add(null);
-                    } else if (rank >= candidateHits.length) {
-                        profile.add(null);
-                        incomplete = true;
-                    } else {
-                        Double epsilon = fidelity.epsilonAtRank(baseline.hits().get(rank).score(), candidateHits[rank].getScore());
-                        profile.add(epsilon);
-                        incomplete |= epsilon == null;
-                    }
-                }
-                epsilonProfile = profile;
-            }
-            // shares the id recall's denominator, so the gap between the two is meaningful
-            Double recallValue = null;
-            long valueMatches = 0;
-            if (fidelity != null && fidelity.isSkipped() == false && baseline.hits().isEmpty() == false) {
-                float baselineWorstScore = baseline.hits().get(baseline.hits().size() - 1).score();
-                for (SearchHit hit : candidateHits) {
-                    if (fidelity.isValueMatch(baselineWorstScore, hit.getScore(), valueTolerance)) {
-                        valueMatches++;
-                    }
-                }
-                recallValue = (double) Math.min(valueMatches, baseline.hits().size()) / baseline.hits().size();
-            }
-            return new KnnEvalResponse.QueryDetail(
-                quality.metricScore(),
-                detail.getRelevantRetrieved(),
-                detail.getRelevant(),
-                annotatedHits,
-                missed,
-                epsilonProfile,
-                incomplete,
-                recallValue,
-                valueMatches
-            );
-        } finally {
-            // RecallAtK inc-refs every hit via RatedSearchHit; the response owns the hits, so drop the extra refs here
-            for (RatedSearchHit ratedSearchHit : quality.getHitsAndRatings()) {
-                ratedSearchHit.getSearchHit().decRef();
+        int relevant = baseline.keys().size();
+        int relevantRetrieved = 0;
+        for (SearchHit hit : candidateHits) {
+            if (baseline.keys().contains(key(hit))) {
+                relevantRetrieved++;
             }
         }
+        double recall = relevant > 0 ? (double) relevantRetrieved / relevant : 0.0;
+        Map<String, Integer> baselineRanks = Maps.newMapWithExpectedSize(baseline.hits().size());
+        for (int rank = 0; rank < baseline.hits().size(); rank++) {
+            baselineRanks.putIfAbsent(baseline.hits().get(rank).id(), rank);
+        }
+        List<KnnEvalResponse.RankedHit> annotatedHits = new ArrayList<>(candidateHits.length);
+        Set<String> returnedIds = Sets.newHashSetWithExpectedSize(candidateHits.length);
+        for (SearchHit hit : candidateHits) {
+            annotatedHits.add(new KnnEvalResponse.RankedHit(hit.getId(), hit.getScore(), baselineRanks.get(hit.getId())));
+            returnedIds.add(hit.getId());
+        }
+        List<KnnEvalResponse.RankedHit> missed = new ArrayList<>();
+        for (int rank = 0; rank < baseline.hits().size(); rank++) {
+            KnnEvalResponse.Hit baselineHit = baseline.hits().get(rank);
+            if (returnedIds.contains(baselineHit.id()) == false) {
+                missed.add(new KnnEvalResponse.RankedHit(baselineHit.id(), baselineHit.score(), rank));
+            }
+        }
+        assert relevant - relevantRetrieved == missed.size()
+            : "missed [" + missed.size() + "] does not account for " + relevant + " - " + relevantRetrieved;
+
+        // both lists are score-ordered, so rank i is comparable with rank i without matching ids
+        List<Double> epsilonProfile = List.of();
+        boolean incomplete = false;
+        if (fidelity != null && fidelity.isSkipped() == false) {
+            List<Double> profile = new ArrayList<>(k);
+            for (int rank = 0; rank < k; rank++) {
+                if (rank >= baseline.hits().size()) {
+                    // the reference never reached this rank, so there is nothing to have lost
+                    profile.add(null);
+                } else if (rank >= candidateHits.length) {
+                    profile.add(null);
+                    incomplete = true;
+                } else {
+                    Double epsilon = fidelity.epsilonAtRank(baseline.hits().get(rank).score(), candidateHits[rank].getScore());
+                    profile.add(epsilon);
+                    incomplete |= epsilon == null;
+                }
+            }
+            epsilonProfile = profile;
+        }
+        // shares the id recall's denominator, so the gap between the two is meaningful
+        Double recallValue = null;
+        long valueMatches = 0;
+        if (fidelity != null && fidelity.isSkipped() == false && baseline.hits().isEmpty() == false) {
+            float baselineWorstScore = baseline.hits().get(baseline.hits().size() - 1).score();
+            for (SearchHit hit : candidateHits) {
+                if (fidelity.isValueMatch(baselineWorstScore, hit.getScore(), valueTolerance)) {
+                    valueMatches++;
+                }
+            }
+            recallValue = (double) Math.min(valueMatches, baseline.hits().size()) / baseline.hits().size();
+        }
+        return new KnnEvalResponse.QueryDetail(
+            recall,
+            relevantRetrieved,
+            relevant,
+            annotatedHits,
+            missed,
+            epsilonProfile,
+            incomplete,
+            recallValue,
+            valueMatches
+        );
     }
 
     private static List<KnnEvalResponse.Hit> toHits(SearchHit[] hits) {

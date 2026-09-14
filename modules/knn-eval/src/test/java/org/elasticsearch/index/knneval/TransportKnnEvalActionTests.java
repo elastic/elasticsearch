@@ -7,7 +7,7 @@
  * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
-package org.elasticsearch.index.rankeval;
+package org.elasticsearch.index.knneval;
 
 import org.apache.lucene.search.TotalHits;
 import org.elasticsearch.ElasticsearchException;
@@ -65,7 +65,6 @@ import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
 
-import static org.elasticsearch.index.rankeval.RankEvalMetricTestHelper.releaseScratchHits;
 import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.instanceOf;
@@ -765,5 +764,11 @@ public class TransportKnnEvalActionTests extends ESTestCase {
 
     private static List<String> hitIds(SearchHit[] hits) {
         return Arrays.stream(hits).map(SearchHit::getId).toList();
+    }
+
+    private static void releaseScratchHits(SearchHit[] scratchHits) {
+        for (SearchHit hit : scratchHits) {
+            hit.decRef();
+        }
     }
 }

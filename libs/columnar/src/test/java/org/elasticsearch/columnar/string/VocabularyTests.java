@@ -102,7 +102,6 @@ public class VocabularyTests extends ColumnarStringTestCase {
         );
     }
 
-    /** Coverage is what the counts say, and the counts are lower bounds, so it never overstates either. */
     /**
      * A vocabulary taken from what other columns recorded, rather than surveyed from values. It has to keep
      * the terms in the order it was given, name each one by where it sits, and carry the counts when it was
@@ -165,15 +164,15 @@ public class VocabularyTests extends ColumnarStringTestCase {
         final Map<String, Integer> actual = tally(values);
         final Vocabulary.Terms surveyed = survey(values, ROOMY);
         assertNotNull(surveyed);
-        long totalBytes = 0;
+        long totalVirtualBytes = 0;
         for (BytesRef v : values) {
-            totalBytes += v.length;
+            totalVirtualBytes += Math.max(1, v.length);
         }
-        long trulyBytes = 0;
+        long trulyVirtualBytes = 0;
         for (String term : termsOf(surveyed)) {
-            trulyBytes += (long) actual.get(term) * term.length();
+            trulyVirtualBytes += (long) actual.get(term) * Math.max(1, term.length());
         }
-        assertThat("coverage", surveyed.coverage(), lessThanOrEqualTo((double) trulyBytes / totalBytes + 1e-9));
+        assertThat("coverage", surveyed.coverage(), lessThanOrEqualTo((double) trulyVirtualBytes / totalVirtualBytes + 1e-9));
     }
 
     /** Long covered values, short escapes: byte coverage is high even when value-count coverage is modest. */
@@ -216,6 +215,38 @@ public class VocabularyTests extends ColumnarStringTestCase {
         assertEquals(5, surveyed.size());
         assertEquals("every byte is covered", 1.0, surveyed.coverage(), 1e-9);
         assertTrue(ROOMY.worthKeeping(surveyed.coverage(), surveyed.dictionaryBytes(), surveyed.columnBytes()));
+    }
+
+    public void testEmptyStringColumnAcceptsDictionary() throws IOException {
+        final List<BytesRef> values = new ArrayList<>();
+        for (int i = 0; i < 2000; i++) {
+            values.add(new BytesRef(""));
+        }
+        final Vocabulary.Terms surveyed = survey(values, ROOMY);
+        assertNotNull(surveyed);
+        assertEquals(1, surveyed.size());
+        assertEquals("all values are the covered empty string", 1.0, surveyed.coverage(), 1e-9);
+        assertTrue(ROOMY.worthKeeping(surveyed.coverage(), surveyed.dictionaryBytes(), surveyed.columnBytes()));
+    }
+
+    public void testEmptyStringCoverageWithLongEscapes() throws IOException {
+        final List<BytesRef> values = new ArrayList<>();
+        for (int i = 0; i < 1000; i++) {
+            values.add(new BytesRef(""));
+        }
+        for (int i = 0; i < 1000; i++) {
+            final byte[] escape = new byte[50];
+            escape[0] = (byte) (i & 0xff);
+            escape[1] = (byte) ((i >> 8) & 0xff);
+            values.add(new BytesRef(escape));
+        }
+        // 1000 empty covered values earn 1 virtual byte each: 1000 covered out of 51000 total (~2%).
+        // The 50-byte escapes dominate the column budget, so the dictionary is correctly rejected.
+        final Vocabulary.Terms surveyed = survey(values, ROOMY);
+        assertNotNull(surveyed);
+        assertEquals(1, surveyed.size());
+        assertThat("empty strings earn only a small fraction when escapes are long", surveyed.coverage(), lessThan(0.5));
+        assertFalse(ROOMY.worthKeeping(surveyed.coverage(), surveyed.dictionaryBytes(), surveyed.columnBytes()));
     }
 
     /**

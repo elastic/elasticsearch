@@ -136,7 +136,9 @@ public final class Vocabulary {
                     // displace a real term — on the strength of values that are not empty strings.
                     continue;
                 }
-                columnBytes += value.length;
+                // NOTE: empty strings occupy an ordinal slot and a plain-path entry, so they count
+                // as one virtual byte to keep the denominator positive and the metric meaningful.
+                columnBytes += Math.max(1, value.length);
                 if (hasPrevious && previous.get().bytesEquals(value)) {
                     if (previousId != ABSENT) {
                         counts[previousId]++;
@@ -195,10 +197,9 @@ public final class Vocabulary {
             final int id = sortedIds[ordinal];
             ordinalOfId[id] = ordinal;
             terms.get(id, scratch);
-            coveredBytes += (long) counts[id] * scratch.length;
+            coveredBytes += (long) counts[id] * Math.max(1, scratch.length);
             keptBytes += scratch.length;
         }
-        // NOTE: columnBytes is 0 only when there are no values, which keepMostFrequent already gates on.
         return new Terms(terms, sortedIds, ordinalOfId, (double) coveredBytes / columnBytes, keptBytes, columnBytes, counts);
     }
 

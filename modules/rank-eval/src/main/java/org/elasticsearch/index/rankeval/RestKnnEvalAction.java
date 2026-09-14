@@ -59,8 +59,12 @@ import static org.elasticsearch.rest.RestRequest.Method.POST;
  *     has already warmed. An exact baseline's ops are float32 comparisons over every live vector ({@code baseline_vector_ops_kind}).</li>
  * <li>Opt-in: {@code include_histogram}, {@code include_details} (per-query hits with {@code baseline_rank}, {@code missed}),
  *     {@code include_fidelity} (value-based {@code recall_value}, profile-fidelity {@code epsilon}).</li>
+ * <li>{@code environment} reports the segment layout, field configuration, index version and
+ *     {@code search.allow_expensive_queries} the sweep ran against, since a fixed {@code visit_percentage} means something different
+ *     on one segment than on twenty. Its {@code index} and {@code index_version_created} parts need {@code monitor}.</li>
  * </ul>
- * The knob checks, echoed windows and fidelity metrics read the field mapping and are skipped without {@code view_index_metadata}.
+ * The knob checks, echoed windows and fidelity metrics read the field mapping and are skipped without {@code view_index_metadata};
+ * the monitor-privileged parts of {@code environment} are likewise dropped rather than failing the request.
  */
 // operator-only until the API is reviewed
 @ServerlessScope(Scope.INTERNAL)

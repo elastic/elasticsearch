@@ -32,6 +32,7 @@ record KnnEvalFidelity(VectorSimilarity similarity, @Nullable String skippedReas
     static final String RESCORE_VECTOR_FIELD = "rescore_vector";
     static final String OVERSAMPLE_FIELD = "oversample";
 
+    static final String DIMS_FIELD = "dims";
     static final String DENSE_VECTOR_TYPE = "dense_vector";
 
     /** Without rescoring a quantized index scores the quantized vector, so a score ratio measures quantization error. */

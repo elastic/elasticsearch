@@ -51,6 +51,7 @@ public class KnnEvalResponse extends ActionResponse implements ToXContentObject 
     static final ParseField BASELINE_VECTOR_OPS_FIELD = new ParseField("baseline_vector_ops");
     static final ParseField BASELINE_VECTOR_OPS_KIND_FIELD = new ParseField("baseline_vector_ops_kind");
     static final ParseField BASELINE_DETAILS_FIELD = new ParseField("baseline_details");
+    static final ParseField ENVIRONMENT_FIELD = new ParseField("environment");
     static final ParseField VALUE_TOLERANCE_FIELD = new ParseField("value_tolerance");
     static final ParseField RESULTS_FIELD = new ParseField("results");
     static final ParseField FAILURES_FIELD = new ParseField("failures");
@@ -62,6 +63,9 @@ public class KnnEvalResponse extends ActionResponse implements ToXContentObject 
     private final String baselineVectorOpsKind;
     /** reported once rather than per candidate; empty unless details were asked for */
     private final Map<String, BaselineDetail> baselineDetails;
+    /** What the numbers were measured on, so a stored response is reproducible; {@code null} when nothing could be read. */
+    @Nullable
+    private final KnnEvalEnvironment environment;
     /** Echoed so a stored response is self-describing; {@code null} when the value-based metrics were not requested. */
     @Nullable
     private final Double valueTolerance;
@@ -75,6 +79,7 @@ public class KnnEvalResponse extends ActionResponse implements ToXContentObject 
         LongStats baselineVectorOps,
         String baselineVectorOpsKind,
         Map<String, BaselineDetail> baselineDetails,
+        @Nullable KnnEvalEnvironment environment,
         @Nullable Double valueTolerance,
         List<KnnSettingsResult> results,
         Map<String, Exception> failures
@@ -84,6 +89,7 @@ public class KnnEvalResponse extends ActionResponse implements ToXContentObject 
         this.baselineVectorOps = Objects.requireNonNull(baselineVectorOps);
         this.baselineVectorOpsKind = Objects.requireNonNull(baselineVectorOpsKind);
         this.baselineDetails = Map.copyOf(baselineDetails);
+        this.environment = environment;
         this.valueTolerance = valueTolerance;
         this.results = List.copyOf(results);
         this.failures = Map.copyOf(failures);
@@ -95,6 +101,7 @@ public class KnnEvalResponse extends ActionResponse implements ToXContentObject 
         this.baselineVectorOps = new LongStats(in);
         this.baselineVectorOpsKind = in.readString();
         this.baselineDetails = in.readMap(BaselineDetail::new);
+        this.environment = in.readOptionalWriteable(KnnEvalEnvironment::new);
         this.valueTolerance = in.readOptionalDouble();
         this.results = in.readCollectionAsList(KnnSettingsResult::new);
         this.failures = in.readMap(StreamInput::readException);
@@ -121,6 +128,11 @@ public class KnnEvalResponse extends ActionResponse implements ToXContentObject 
     }
 
     @Nullable
+    public KnnEvalEnvironment getEnvironment() {
+        return environment;
+    }
+
+    @Nullable
     public Double getValueTolerance() {
         return valueTolerance;
     }
@@ -140,6 +152,7 @@ public class KnnEvalResponse extends ActionResponse implements ToXContentObject 
         baselineVectorOps.writeTo(out);
         out.writeString(baselineVectorOpsKind);
         out.writeMap(baselineDetails, StreamOutput::writeWriteable);
+        out.writeOptionalWriteable(environment);
         out.writeOptionalDouble(valueTolerance);
         out.writeCollection(results);
         out.writeMap(failures, StreamOutput::writeException);
@@ -162,6 +175,10 @@ public class KnnEvalResponse extends ActionResponse implements ToXContentObject 
                 baselineDetail.getValue().toXContent(builder, params);
             }
             builder.endObject();
+        }
+        if (environment != null) {
+            builder.field(ENVIRONMENT_FIELD.getPreferredName());
+            environment.toXContent(builder, params);
         }
         if (valueTolerance != null) {
             builder.field(VALUE_TOLERANCE_FIELD.getPreferredName(), valueTolerance);

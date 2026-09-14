@@ -11,12 +11,17 @@ package org.elasticsearch.index.rankeval;
 
 import org.apache.lucene.search.TotalHits;
 import org.elasticsearch.ElasticsearchException;
+import org.elasticsearch.ElasticsearchSecurityException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.action.ActionType;
 import org.elasticsearch.action.admin.indices.mapping.get.GetFieldMappingsAction;
 import org.elasticsearch.action.admin.indices.mapping.get.GetFieldMappingsResponse;
+import org.elasticsearch.action.admin.indices.segments.IndicesSegmentResponse;
+import org.elasticsearch.action.admin.indices.segments.IndicesSegmentsAction;
+import org.elasticsearch.action.admin.indices.settings.get.GetSettingsAction;
+import org.elasticsearch.action.admin.indices.settings.get.GetSettingsResponse;
 import org.elasticsearch.action.search.ClosePointInTimeRequest;
 import org.elasticsearch.action.search.ClosePointInTimeResponse;
 import org.elasticsearch.action.search.MultiSearchRequest;
@@ -29,6 +34,7 @@ import org.elasticsearch.action.search.TransportOpenPointInTimeAction;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.client.internal.node.NodeClient;
+import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.project.TestProjectResolvers;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.bytes.BytesArray;
@@ -369,6 +375,25 @@ public class TransportKnnEvalActionTests extends ESTestCase {
         assertFalse(client.candidateKnnSearchEmpty);
     }
 
+    public void testEnvironmentIsResolvedOnceAndDegradesGracefully() {
+        RecordingClient client = new RecordingClient();
+        KnnEvalResponse response = execute(client, 10, 5, true, null, 5.0f).actionGet();
+        assertEquals(1, client.segmentsRequests);
+        assertNotNull(response.getEnvironment().index());
+        assertEquals(List.of("9060000"), response.getEnvironment().indexVersionCreated());
+        assertTrue(response.getEnvironment().allowExpensiveQueries());
+        // the field block comes from the mapping the action already fetches
+        assertEquals("dense_vector", response.getEnvironment().field().type());
+
+        RecordingClient forbidden = new RecordingClient();
+        forbidden.failEnvironment = true;
+        KnnEvalResponse degraded = execute(forbidden, 10, 5, true, null, 5.0f).actionGet();
+        assertNull(degraded.getEnvironment().index());
+        assertEquals(List.of(), degraded.getEnvironment().indexVersionCreated());
+        // a forbidden monitor call costs the block, not the recall numbers
+        assertEquals(1, degraded.getResults().size());
+    }
+
     /** The knob overrides the mapping's rescoring for that run. */
     public void testOversampleKnobSetsARescoreVectorBuilder() {
         RecordingClient withoutKnob = new RecordingClient();
@@ -528,6 +553,8 @@ public class TransportKnnEvalActionTests extends ESTestCase {
         private RescoreVectorBuilder candidateRescoreVectorBuilder;
         private boolean fieldMappingsRequested = false;
         private boolean failFieldMappings = false;
+        private boolean failEnvironment = false;
+        private int segmentsRequests = 0;
         private boolean pointInTimeOpened = false;
         private boolean pointInTimeClosed = false;
         private boolean failMultiSearch = false;
@@ -561,6 +588,30 @@ public class TransportKnnEvalActionTests extends ESTestCase {
                     Map.of("index", Map.of("emb", new GetFieldMappingsResponse.FieldMappingMetadata("emb", mapping)))
                 );
                 listener.onResponse((Response) response);
+                return;
+            }
+            if (IndicesSegmentsAction.INSTANCE.equals(action)) {
+                segmentsRequests++;
+                if (failEnvironment) {
+                    listener.onFailure(new ElasticsearchSecurityException("no monitor privilege"));
+                    return;
+                }
+                // IndicesSegmentResponse has no public constructor either; only getIndices() is consulted
+                IndicesSegmentResponse segments = mock(IndicesSegmentResponse.class);
+                when(segments.getIndices()).thenReturn(Map.of());
+                listener.onResponse((Response) segments);
+                return;
+            }
+            if (GetSettingsAction.INSTANCE.equals(action)) {
+                if (failEnvironment) {
+                    listener.onFailure(new ElasticsearchSecurityException("no monitor privilege"));
+                    return;
+                }
+                GetSettingsResponse settings = mock(GetSettingsResponse.class);
+                when(settings.getIndexToSettings()).thenReturn(
+                    Map.of("index", Settings.builder().put(IndexMetadata.SETTING_VERSION_CREATED, "9060000").build())
+                );
+                listener.onResponse((Response) settings);
                 return;
             }
             if (TransportOpenPointInTimeAction.TYPE.equals(action)) {

@@ -2,7 +2,7 @@
   "knn_eval": {
     "documentation": {
       "url": "https://www.elastic.co/docs/api/doc/elasticsearch/operation/operation-knn-eval",
-      "description": "Estimate the recall and cost of approximate kNN search configurations against a more thorough baseline. Each knn_settings entry reports recall of the baseline's top-k, not of relevance judgments, with a recall_stats distribution and an opt-in recall_histogram. All configurations run against one point-in-time, and the baseline runs first, so took_ms reflects an index it has already warmed while vector_ops does not."
+      "description": "Estimate the recall and cost of approximate kNN search configurations against a more thorough baseline. Each knn_settings entry reports recall of the baseline's top-k, not of relevance judgments, with a recall_stats distribution and an opt-in recall_histogram. All configurations run against one point-in-time, and the baseline runs first, so took_ms reflects an index it has already warmed while vector_ops does not. A top-level environment block reports the segment layout, field configuration, index version and search.allow_expensive_queries the sweep ran against; its monitor-privileged parts are omitted rather than failing the request."
     },
     "stability": "experimental",
     "visibility": "private",

@@ -15,6 +15,14 @@ import org.elasticsearch.action.admin.indices.mapping.get.GetFieldMappingsAction
 import org.elasticsearch.action.admin.indices.mapping.get.GetFieldMappingsRequest;
 import org.elasticsearch.action.admin.indices.mapping.get.GetFieldMappingsResponse;
 import org.elasticsearch.action.admin.indices.mapping.get.GetFieldMappingsResponse.FieldMappingMetadata;
+import org.elasticsearch.action.admin.indices.segments.IndexSegments;
+import org.elasticsearch.action.admin.indices.segments.IndexShardSegments;
+import org.elasticsearch.action.admin.indices.segments.IndicesSegmentResponse;
+import org.elasticsearch.action.admin.indices.segments.IndicesSegmentsAction;
+import org.elasticsearch.action.admin.indices.segments.IndicesSegmentsRequest;
+import org.elasticsearch.action.admin.indices.segments.ShardSegments;
+import org.elasticsearch.action.admin.indices.settings.get.GetSettingsAction;
+import org.elasticsearch.action.admin.indices.settings.get.GetSettingsRequest;
 import org.elasticsearch.action.search.ClosePointInTimeRequest;
 import org.elasticsearch.action.search.ClosePointInTimeResponse;
 import org.elasticsearch.action.search.MultiSearchRequest;
@@ -28,14 +36,17 @@ import org.elasticsearch.action.search.TransportOpenPointInTimeAction;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.HandledTransportAction;
 import org.elasticsearch.client.internal.Client;
+import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.document.DocumentField;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.index.engine.Segment;
 import org.elasticsearch.index.mapper.SeqNoFieldMapper;
 import org.elasticsearch.index.query.BoolQueryBuilder;
 import org.elasticsearch.index.query.QueryBuilder;
@@ -62,10 +73,13 @@ import org.elasticsearch.tasks.TaskCancelledException;
 import org.elasticsearch.transport.TransportService;
 
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.TreeSet;
+import java.util.function.Consumer;
 
 /**
  * Estimates ANN recall without brute-force ground truth: each query runs under the baseline knobs and then under each candidate, and
@@ -84,6 +98,9 @@ public class TransportKnnEvalAction extends HandledTransportAction<KnnEvalReques
 
     /** Held for the whole sweep -- every batch of every pass -- and never refreshed. */
     static final TimeValue POINT_IN_TIME_KEEP_ALIVE = TimeValue.timeValueMinutes(5);
+
+    /** For the metadata lookups behind the reported environment, whose result is a nice-to-have. */
+    private static final TimeValue MASTER_TIMEOUT = TimeValue.timeValueSeconds(30);
 
     /** Any positive value makes an exact query score on the real vectors rather than the quantized ones. */
     private static final float EXACT_SCORING_OVERSAMPLE = 1.0f;
@@ -131,9 +148,18 @@ public class TransportKnnEvalAction extends HandledTransportAction<KnnEvalReques
         );
     }
 
-    /** Either half is {@code null} when the mapping could not be read. */
-    record FieldContext(@Nullable KnnEvalFidelity fidelity, @Nullable KnnEvalRescore rescore) {
-        static final FieldContext EMPTY = new FieldContext(null, null);
+    /** Everything derived from the field's mapping and the cluster, each part {@code null} when its source was unavailable. */
+    record FieldContext(
+        @Nullable KnnEvalFidelity fidelity,
+        @Nullable KnnEvalRescore rescore,
+        @Nullable KnnEvalEnvironment.FieldSummary field,
+        @Nullable KnnEvalEnvironment environment
+    ) {
+        static final FieldContext EMPTY = new FieldContext(null, null, null, null);
+
+        FieldContext withEnvironment(KnnEvalEnvironment environment) {
+            return new FieldContext(fidelity, rescore, field, environment);
+        }
     }
 
     /**
@@ -176,7 +202,25 @@ public class TransportKnnEvalAction extends HandledTransportAction<KnnEvalReques
                 KnnEvalFidelity fidelity = spec.isIncludeFidelity()
                     ? KnnEvalFidelity.fromFieldMapping(field, fieldMapping, rescore, baselineOversample(spec.getBaseline()))
                     : null;
-                return new FieldContext(fidelity, rescore);
+                return new FieldContext(fidelity, rescore, fieldSummary(fieldMapping), null);
+            }
+
+            @SuppressWarnings("unchecked") // a field mapping body and its index_options are string-keyed objects
+            private KnnEvalEnvironment.FieldSummary fieldSummary(@Nullable Map<String, Object> fieldMapping) {
+                if (fieldMapping == null) {
+                    return null;
+                }
+                Object indexOptions = fieldMapping.get(KnnEvalFidelity.INDEX_OPTIONS_FIELD);
+                Object dims = fieldMapping.get(KnnEvalFidelity.DIMS_FIELD);
+                Object elementType = fieldMapping.get(KnnEvalFidelity.ELEMENT_TYPE_FIELD);
+                Object similarity = fieldMapping.get(KnnEvalFidelity.SIMILARITY_FIELD);
+                return new KnnEvalEnvironment.FieldSummary(
+                    String.valueOf(fieldMapping.get(KnnEvalFidelity.TYPE_FIELD)),
+                    dims instanceof Number number ? number.intValue() : null,
+                    elementType == null ? "float" : elementType.toString(),
+                    similarity == null ? null : similarity.toString(),
+                    indexOptions instanceof Map<?, ?> map ? (Map<String, Object>) map : Map.of()
+                );
             }
 
             @Override
@@ -184,7 +228,7 @@ public class TransportKnnEvalAction extends HandledTransportAction<KnnEvalReques
                 if (spec.isIncludeFidelity()) {
                     // asked for by name, and not computable without the mapping
                     listener.onResponse(
-                        new FieldContext(KnnEvalFidelity.unavailable("field mapping unavailable: " + e.getMessage()), null)
+                        new FieldContext(KnnEvalFidelity.unavailable("field mapping unavailable: " + e.getMessage()), null, null, null)
                     );
                     return;
                 }
@@ -208,7 +252,16 @@ public class TransportKnnEvalAction extends HandledTransportAction<KnnEvalReques
             BytesReference pointInTimeId = openResponse.getPointInTimeId();
             // runAfter fires either way and ActionListener.run funnels throws into onFailure: no path leaves the PIT open
             ActionListener<KnnEvalResponse> closingListener = ActionListener.runAfter(delegate, () -> closePointInTime(pointInTimeId));
-            ActionListener.run(closingListener, l -> resolveQueries(task, request, fieldContext, pointInTimeId, l));
+            ActionListener.run(
+                closingListener,
+                l -> resolveEnvironment(
+                    request,
+                    fieldContext,
+                    l.delegateFailureAndWrap(
+                        (withEnvironment, withContext) -> resolveQueries(task, request, withContext, pointInTimeId, withEnvironment)
+                    )
+                )
+            );
         }));
     }
 
@@ -223,6 +276,118 @@ public class TransportKnnEvalAction extends HandledTransportAction<KnnEvalReques
                 logger.warn("failed to close the point in time opened for kNN evaluation", e);
             }
         });
+    }
+
+    /**
+     * Describes what the sweep is about to measure on. Segment layout and index version both need {@code monitor} privileges, so each
+     * is dropped on failure rather than costing the caller their recall numbers.
+     */
+    private void resolveEnvironment(KnnEvalRequest request, FieldContext fieldContext, ActionListener<FieldContext> listener) {
+        boolean allowExpensiveQueries = clusterService.getClusterSettings().get(SearchService.ALLOW_EXPENSIVE_QUERIES);
+        client.execute(
+            IndicesSegmentsAction.INSTANCE,
+            new IndicesSegmentsRequest(request.indices()).indicesOptions(request.indicesOptions()),
+            withoutFailing(
+                logger,
+                "index segments",
+                segments -> resolveIndexVersions(
+                    request,
+                    versions -> listener.onResponse(
+                        fieldContext.withEnvironment(
+                            new KnnEvalEnvironment(indexSummary(segments), fieldContext.field(), versions, allowExpensiveQueries)
+                        )
+                    )
+                )
+            )
+        );
+    }
+
+    private void resolveIndexVersions(KnnEvalRequest request, Consumer<List<String>> onVersions) {
+        GetSettingsRequest settingsRequest = new GetSettingsRequest(MASTER_TIMEOUT).indices(request.indices())
+            .indicesOptions(request.indicesOptions())
+            .names(IndexMetadata.SETTING_VERSION_CREATED);
+        client.execute(GetSettingsAction.INSTANCE, settingsRequest, withoutFailing(logger, "index settings", settings -> {
+            if (settings == null) {
+                onVersions.accept(List.of());
+                return;
+            }
+            Set<String> versions = new TreeSet<>();
+            for (Settings indexSettings : settings.getIndexToSettings().values()) {
+                String version = indexSettings.get(IndexMetadata.SETTING_VERSION_CREATED);
+                if (version != null) {
+                    versions.add(version);
+                }
+            }
+            onVersions.accept(List.copyOf(versions));
+        }));
+    }
+
+    /**
+     * A listener that hands {@code null} to {@code onResponse} instead of failing, for a call whose result is a nice-to-have.
+     */
+    private static <T> ActionListener<T> withoutFailing(Logger logger, String what, Consumer<T> onResponse) {
+        return new ActionListener<>() {
+            @Override
+            public void onResponse(T response) {
+                onResponse.accept(response);
+            }
+
+            @Override
+            public void onFailure(Exception e) {
+                logger.debug(() -> "could not read " + what + "; omitting it from the reported environment", e);
+                onResponse.accept(null);
+            }
+        };
+    }
+
+    @Nullable
+    private static KnnEvalEnvironment.IndexSummary indexSummary(@Nullable IndicesSegmentResponse response) {
+        if (response == null) {
+            return null;
+        }
+        List<Long> segmentDocs = new ArrayList<>();
+        long liveDocs = 0;
+        long deletedDocs = 0;
+        long storeSize = 0;
+        int shards = 0;
+        for (IndexSegments indexSegments : response.getIndices().values()) {
+            for (IndexShardSegments shardSegments : indexSegments) {
+                for (ShardSegments shard : shardSegments) {
+                    // primaries only: a replica's segments are the same documents counted twice
+                    if (shard.getShardRouting().primary() == false) {
+                        continue;
+                    }
+                    shards++;
+                    for (Segment segment : shard) {
+                        segmentDocs.add((long) segment.getNumDocs());
+                        liveDocs += segment.getNumDocs();
+                        deletedDocs += segment.getDeletedDocs();
+                        storeSize += segment.getSize() == null ? 0 : segment.getSize().getBytes();
+                    }
+                }
+            }
+        }
+        Collections.sort(segmentDocs);
+        int count = segmentDocs.size();
+        return new KnnEvalEnvironment.IndexSummary(
+            response.getIndices().size(),
+            shards,
+            liveDocs,
+            deletedDocs,
+            count,
+            count == 0 ? 0 : segmentDocs.get(0),
+            median(segmentDocs),
+            count == 0 ? 0 : segmentDocs.get(count - 1),
+            storeSize
+        );
+    }
+
+    private static long median(List<Long> sorted) {
+        if (sorted.isEmpty()) {
+            return 0;
+        }
+        int middle = sorted.size() / 2;
+        return sorted.size() % 2 == 1 ? sorted.get(middle) : (sorted.get(middle - 1) + sorted.get(middle)) / 2;
     }
 
     private void resolveQueries(
@@ -854,6 +1019,7 @@ public class TransportKnnEvalAction extends HandledTransportAction<KnnEvalReques
                 KnnEvalResponse.LongStats.of(baselineVectorOps),
                 spec.getBaseline().isExact() ? KnnEvalResponse.FULL_PRECISION_SCAN : KnnEvalResponse.QUANTIZED_VISIT_PLUS_RESCORE,
                 baselineDetails,
+                fieldContext.environment(),
                 fidelity == null ? null : spec.getValueTolerance(),
                 results,
                 failures

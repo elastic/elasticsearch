@@ -134,6 +134,19 @@ teardown:
   - match: { results.0.recall_stats.min: 1.0 }
   - match: { results.0.recall_stats.count: 10 }
   - match: { baseline_vector_ops_kind: "quantized_visit_plus_rescore" }
+  # what the sweep was measured on: a fixed visit_percentage means something different on one segment than on twenty
+  - match: { environment.index.docs.live: 30 }
+  - match: { environment.index.indices: 1 }
+  - match: { environment.index.shards: 1 }
+  - gte: { environment.index.segments.count: 1 }
+  - gt: { environment.index.store_size_in_bytes: 0 }
+  - match: { environment.field.type: "dense_vector" }
+  - match: { environment.field.dims: 64 }
+  - match: { environment.field.element_type: "float" }
+  - match: { environment.field.similarity: "l2_norm" }
+  - match: { environment.field.index_options.type: "bbq_disk" }
+  - match: { environment.allow_expensive_queries: true }
+  - is_true: environment.index_version_created
   - match: { value_tolerance: 0.0 }
   - match: { results.0.recall_value: 1.0 }
   - match: { results.0.recall_value_stats.count: 10 }

@@ -83,6 +83,7 @@ public class KnnEvalResponseTests extends ESTestCase {
             randomStats(),
             randomBoolean() ? KnnEvalResponse.FULL_PRECISION_SCAN : KnnEvalResponse.QUANTIZED_VISIT_PLUS_RESCORE,
             baselineDetails,
+            randomBoolean() ? null : randomEnvironment(),
             valueMetrics ? randomDoubleBetween(0.0, 0.5, true) : null,
             results,
             failures
@@ -184,6 +185,24 @@ public class KnnEvalResponseTests extends ESTestCase {
             meanByRank.add(randomBoolean() ? null : randomDoubleBetween(0.0, 2.0, true));
         }
         return KnnEvalResponse.Fidelity.of(KnnEvalResponse.DoubleStats.of(maxEpsilons), randomIntBetween(0, 3), meanByRank);
+    }
+
+    /** Every block is independently omittable, so all four combinations have to round trip. */
+    private static KnnEvalEnvironment randomEnvironment() {
+        KnnEvalEnvironment.IndexSummary index = randomBoolean()
+            ? null
+            : new KnnEvalEnvironment.IndexSummary(1, 1, 30, 0, 2, 10, 15, 20, 4096);
+        KnnEvalEnvironment.FieldSummary field = randomBoolean()
+            ? null
+            : new KnnEvalEnvironment.FieldSummary(
+                "dense_vector",
+                randomBoolean() ? null : 64,
+                "float",
+                "l2_norm",
+                Map.of("type", "bbq_disk", "rescore_vector", Map.of("oversample", 3.0))
+            );
+        List<String> versions = randomFrom(List.<List<String>>of(List.of(), List.of("9060000"), List.of("9000000", "9060000")));
+        return new KnnEvalEnvironment(index, field, versions, randomBoolean());
     }
 
     private static KnnEvalResponse.BaselineDetail randomBaselineDetail() {
@@ -311,6 +330,7 @@ public class KnnEvalResponseTests extends ESTestCase {
         assertEquals(original.getBaselineVectorOps(), deserialized.getBaselineVectorOps());
         assertEquals(original.getBaselineVectorOpsKind(), deserialized.getBaselineVectorOpsKind());
         assertEquals(original.getBaselineDetails(), deserialized.getBaselineDetails());
+        assertEquals(original.getEnvironment(), deserialized.getEnvironment());
         assertEquals(original.getResults(), deserialized.getResults());
         assertEquals(original.getFailures().keySet(), deserialized.getFailures().keySet());
         for (Map.Entry<String, Exception> failure : original.getFailures().entrySet()) {
@@ -327,6 +347,12 @@ public class KnnEvalResponseTests extends ESTestCase {
             Map.of(
                 "q1",
                 new KnnEvalResponse.BaselineDetail(List.of(new KnnEvalResponse.Hit("a", 1.5f), new KnnEvalResponse.Hit("b", 1.25f)))
+            ),
+            new KnnEvalEnvironment(
+                new KnnEvalEnvironment.IndexSummary(1, 1, 30, 2, 2, 10, 15, 20, 4096),
+                new KnnEvalEnvironment.FieldSummary("dense_vector", 64, "float", "l2_norm", Map.of("type", "hnsw")),
+                List.of("9060000"),
+                true
             ),
             0.05,
             List.of(
@@ -382,6 +408,20 @@ public class KnnEvalResponseTests extends ESTestCase {
               "baseline_vector_ops": { "mean": 600.0, "p50": 500, "p95": 700, "max": 700, "sum": 1200, "count": 2 },
               "baseline_vector_ops_kind": "quantized_visit_plus_rescore",
               "baseline_details": { "q1": { "hits": [ { "_id": "a", "_score": 1.5 }, { "_id": "b", "_score": 1.25 } ] } },
+              "environment": {
+                "index": {
+                  "indices": 1, "shards": 1,
+                  "docs": { "live": 30, "deleted": 2 },
+                  "segments": { "count": 2, "min_docs": 10, "median_docs": 15, "max_docs": 20 },
+                  "store_size_in_bytes": 4096
+                },
+                "field": {
+                  "type": "dense_vector", "dims": 64, "element_type": "float", "similarity": "l2_norm",
+                  "index_options": { "type": "hnsw" }
+                },
+                "index_version_created": "9060000",
+                "allow_expensive_queries": true
+              },
               "value_tolerance": 0.05,
               "results": [
                 {
@@ -449,6 +489,7 @@ public class KnnEvalResponseTests extends ESTestCase {
             KnnEvalResponse.LongStats.EMPTY,
             KnnEvalResponse.FULL_PRECISION_SCAN,
             Map.of(),
+            null,
             0.0,
             List.of(
                 new KnnEvalResponse.KnnSettingsResult(

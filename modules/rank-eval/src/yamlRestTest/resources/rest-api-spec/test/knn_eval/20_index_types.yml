@@ -196,6 +196,8 @@ setup:
   # nothing is quantized, so nothing is rescored; a sampled query asks for k + 1 hits, which floors num_candidates at 6
   - match: { results.0.knn_settings.rescore_window: 0 }
   - match: { results.0.knn_settings.effective_num_candidates: 6 }
+  - match: { environment.field.index_options.type: "hnsw" }
+  - match: { environment.index.docs.live: 30 }
   - match: { results.1.knn_settings.effective_num_candidates: 50 }
 
 ---

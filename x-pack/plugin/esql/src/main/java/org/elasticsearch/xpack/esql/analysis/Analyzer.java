@@ -285,11 +285,11 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
                 new ResolveConfigurationAware(),
                 new ResolveTable(),
                 new ResolveViewShadow(),
-                new InjectOuterMetadataForSubqueries(),
                 new ResolveDatasetShadow(),
                 new StripDatasetShadowRelations(),
                 new ViewCompactionPostIndexResolution(),
                 new ResolveExternalRelations(),
+                new InjectOuterMetadataForSubqueries(),
                 new PruneEmptyUnionAllBranch(),
                 new ResolveEnrich(),
                 new ResolveIpLocation(),
@@ -1206,10 +1206,10 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
         @Override
         protected LogicalPlan rule(UnresolvedMetadata unresolvedMetadata, AnalyzerContext context) {
             List<NamedExpression> metadataFields = unresolvedMetadata.metadataFields();
-            // If any UnresolvedRelation remains, output() is meaningless — skip injection.
-            // ResolveTable runs before this rule, so any remaining UR failed to resolve and
-            // will be caught by the verifier.
-            if (unresolvedMetadata.anyMatch(UnresolvedRelation.class::isInstance)) {
+            // Skip injection if the child tree still has unresolved relations
+            // or if any metadata field itself is unresolvable - both should be caught by the Verifier.
+            if (unresolvedMetadata.anyMatch(node -> node instanceof UnresolvedRelation || node instanceof UnresolvedExternalRelation)
+                || metadataFields.stream().anyMatch(f -> f.resolved() == false)) {
                 return unresolvedMetadata;
             }
             if (metadataFields.isEmpty()) {

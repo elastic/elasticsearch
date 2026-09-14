@@ -7,6 +7,7 @@
 package org.elasticsearch.xpack.esql.plan.logical;
 
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.xpack.esql.core.capabilities.Unresolvable;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.expression.NamedExpression;
 import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
@@ -22,7 +23,7 @@ import java.util.Objects;
  * It helps to act on fields that were requested, but weren't produced by the child plan, by e.g. filling
  * them with nulls in the Analyzer.
  */
-public class UnresolvedMetadata extends UnaryPlan {
+public class UnresolvedMetadata extends UnaryPlan implements Unresolvable {
 
     private final List<NamedExpression> metadataFields;
 
@@ -61,8 +62,18 @@ public class UnresolvedMetadata extends UnaryPlan {
     }
 
     @Override
+    public boolean resolved() {
+        return false;
+    }
+
+    @Override
     public boolean expressionsResolved() {
-        return true;
+        return false;
+    }
+
+    @Override
+    public String unresolvedMessage() {
+        return "unresolved metadata fields: " + metadataFields.stream().filter(f -> f.resolved() == false).toList();
     }
 
     @Override

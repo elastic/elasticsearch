@@ -160,10 +160,7 @@ public class ViewMetadataIT extends AbstractEsqlIntegTestCase {
         assumeTrue("requires OUTER_METADATA_NULL_INJECTION", Cap.OUTER_METADATA_NULL_INJECTION.isEnabled());
         assumeTrue("requires VIEWS_WITH_NO_BRANCHING", Cap.VIEWS_WITH_NO_BRANCHING.isEnabled());
 
-        VerificationException ex = expectThrows(
-            VerificationException.class,
-            () -> run("FROM view_languages_it METADATA _in*").close()
-        );
+        VerificationException ex = expectThrows(VerificationException.class, () -> run("FROM view_languages_it METADATA _in*").close());
         assertThat(
             ex.getMessage(),
             equalTo("Found 2 problems\nline 1:1: unresolved metadata fields: [?_in*]\nline 1:33: Unresolved metadata pattern [_in*]")

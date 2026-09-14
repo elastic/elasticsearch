@@ -1631,9 +1631,8 @@ public class EsqlCapabilities {
         /**
          * If {@code METADATA} is requested on a view/subquery that itself doesn't produce the requested
          * fields - null values are injected instead.
-         * See https://github.com/elastic/esql-planning/issues/480
          */
-        OUTER_METADATA_NULL_INJECTION(true),
+        OUTER_METADATA_NULL_INJECTION,
 
         /**
          * Fixes two related bugs where mixing TS-mode and standard sources caused the optimizer to

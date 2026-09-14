@@ -80,7 +80,7 @@ public final class StoreRecovery {
      * files / transaction logs. This
      * @param indexShard the index shard instance to recovery the shard into
      * @param listener resolves if the shard has been recovered successfully, otherwise receives an exception
-     *                 e.g. IndexShardClosedException if shard a concurrent modification has closed the shard.
+     *                 e.g. IndexShardClosedException if a concurrent modification has closed the shard.
      * @see Store
      */
     void recoverFromStore(final IndexShard indexShard, ActionListener<Void> listener) {
@@ -299,8 +299,8 @@ public final class StoreRecovery {
      * previously created index snapshot into an existing initializing shard.
      * @param indexShard the index shard instance to recovery the snapshot from
      * @param repository the repository holding the physical files the shard should be recovered from
-     * @param listener resolves to <code>true</code> if the shard has been recovered successfully, <code>false</code> if the recovery
-     *                 has been ignored due to a concurrent modification of if the clusters state has changed due to async updates.
+     * @param listener resolves if the shard has been recovered successfully, otherwise receives an exception
+     *                 e.g. IndexShardClosedException if a concurrent modification has closed the shard.
      */
     void recoverFromRepository(final IndexShard indexShard, Repository repository, ActionListener<Void> listener) {
         try {

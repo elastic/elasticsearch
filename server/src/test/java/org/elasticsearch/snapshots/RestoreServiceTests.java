@@ -35,6 +35,7 @@ import org.elasticsearch.cluster.routing.TestShardRouting;
 import org.elasticsearch.cluster.routing.allocation.AllocationService;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.UUIDs;
+import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
@@ -48,6 +49,7 @@ import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.indices.EmptySystemIndices;
 import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.indices.ShardLimitValidator;
+import org.elasticsearch.indices.SystemIndices;
 import org.elasticsearch.indices.recovery.RecoveryFeatures;
 import org.elasticsearch.repositories.IndexId;
 import org.elasticsearch.repositories.RepositoriesService;
@@ -67,6 +69,8 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.concurrent.atomic.AtomicInteger;
+import java.util.function.BiFunction;
 
 import static org.elasticsearch.core.Strings.format;
 import static org.hamcrest.Matchers.containsString;
@@ -689,6 +693,254 @@ public class RestoreServiceTests extends ESTestCase {
         ).build();
 
         assertTrue(RestoreService.isRestoringShardFromSnapshot(initRestore, s.primary()));
+    }
+
+    // ---- hook setter and executeRestoreCleanup tests -----------------
+
+    /** Builds a minimal mocked {@link RestoreService} so instance methods can be exercised without a full cluster. */
+    private RestoreService createMinimalRestoreService() {
+        ClusterService clusterService = mock(ClusterService.class);
+        when(clusterService.getSettings()).thenReturn(Settings.EMPTY);
+        when(clusterService.getClusterSettings()).thenReturn(
+            new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS)
+        );
+        ThreadPool threadPool = mock(ThreadPool.class);
+        when(threadPool.executor(ThreadPool.Names.SNAPSHOT_META)).thenReturn(EsExecutors.DIRECT_EXECUTOR_SERVICE);
+        return new RestoreService(
+            clusterService,
+            mock(RepositoriesService.class),
+            mock(AllocationService.class),
+            mock(MetadataCreateIndexService.class),
+            mock(IndexMetadataVerifier.class),
+            mock(ShardLimitValidator.class),
+            mock(SystemIndices.class),
+            mock(IndicesService.class),
+            mock(FileSettingsService.class),
+            threadPool,
+            false,
+            IndexMetadataRestoreTransformer.NoOpRestoreTransformer.getInstance(),
+            mock(FeatureService.class)
+        );
+    }
+
+    /** Builds a {@link ClusterState} that contains one completed {@link RestoreInProgress} entry. */
+    private static ClusterState stateWithCompletedRestore() {
+        String nodeId = randomUUID();
+        ShardId shardId = new ShardId(randomIdentifier(), randomUUID(), 0);
+        Snapshot snapshot = new Snapshot(randomProjectIdOrDefault(), randomIdentifier(), new SnapshotId(randomIdentifier(), randomUUID()));
+        RestoreInProgress rip = new RestoreInProgress.Builder().add(
+            new RestoreInProgress.Entry(
+                UUIDs.randomBase64UUID(),
+                snapshot,
+                RestoreInProgress.State.SUCCESS,
+                false,
+                List.of(shardId.getIndexName()),
+                Map.of(shardId, new RestoreInProgress.ShardRestoreStatus(nodeId, RestoreInProgress.State.SUCCESS))
+            )
+        ).build();
+        return ClusterState.builder(ClusterState.EMPTY_STATE).putCustom(RestoreInProgress.TYPE, rip).build();
+    }
+
+    /** Builds a {@link ClusterState} that contains one still-active {@link RestoreInProgress} entry. */
+    private static ClusterState stateWithActiveRestore() {
+        String nodeId = randomUUID();
+        ShardId shardId = new ShardId(randomIdentifier(), randomUUID(), 0);
+        Snapshot snapshot = new Snapshot(randomProjectIdOrDefault(), randomIdentifier(), new SnapshotId(randomIdentifier(), randomUUID()));
+        RestoreInProgress rip = new RestoreInProgress.Builder().add(
+            new RestoreInProgress.Entry(
+                UUIDs.randomBase64UUID(),
+                snapshot,
+                RestoreInProgress.State.STARTED,
+                false,
+                List.of(shardId.getIndexName()),
+                Map.of(shardId, new RestoreInProgress.ShardRestoreStatus(nodeId))
+            )
+        ).build();
+        return ClusterState.builder(ClusterState.EMPTY_STATE).putCustom(RestoreInProgress.TYPE, rip).build();
+    }
+
+    /** Builds a listener that applies {@code onCompleted} on completion and defaults on initialization. */
+    private static RestoreLifecycleListener completionListener(
+        BiFunction<RestoreInProgress.Entry, ClusterState, ClusterState> onCompleted
+    ) {
+        return new RestoreLifecycleListener() {
+            @Override
+            public ClusterState onRestoreCompleted(RestoreInProgress.Entry entry, ClusterState state) {
+                return onCompleted.apply(entry, state);
+            }
+        };
+    }
+
+    public void testSetLifecycleListenerRejectsNull() {
+        RestoreService service = createMinimalRestoreService();
+        expectThrows(NullPointerException.class, () -> service.setLifecycleListener(null));
+    }
+
+    public void testRestoreSnapshotRejectsInvalidRestoreUUID() {
+        RestoreService service = createMinimalRestoreService();
+        RestoreSnapshotRequest request = new RestoreSnapshotRequest(TEST_REQUEST_TIMEOUT);
+        expectThrows(
+            IllegalArgumentException.class,
+            () -> service.restoreSnapshot(
+                randomProjectIdOrDefault(),
+                request,
+                SnapshotRecoverySource.NO_API_RESTORE_UUID,
+                ActionListener.noop(),
+                (clusterState, builder) -> {}
+            )
+        );
+        expectThrows(
+            NullPointerException.class,
+            () -> service.restoreSnapshot(randomProjectIdOrDefault(), request, null, ActionListener.noop(), (clusterState, builder) -> {})
+        );
+    }
+
+    public void testOnRestoreCompletedCalledForCompletedEntry() {
+        RestoreService service = createMinimalRestoreService();
+        AtomicInteger callCount = new AtomicInteger(0);
+        service.setLifecycleListener(completionListener((entry, state) -> {
+            callCount.incrementAndGet();
+            return state;
+        }));
+
+        ClusterState result = service.executeRestoreCleanup(stateWithCompletedRestore());
+
+        assertEquals(1, callCount.get());
+        assertTrue(RestoreInProgress.get(result).isEmpty());
+    }
+
+    public void testOnRestoreCompletedNotCalledForActiveEntry() {
+        RestoreService service = createMinimalRestoreService();
+        AtomicInteger callCount = new AtomicInteger(0);
+        service.setLifecycleListener(completionListener((entry, state) -> {
+            callCount.incrementAndGet();
+            return state;
+        }));
+
+        ClusterState input = stateWithActiveRestore();
+        ClusterState result = service.executeRestoreCleanup(input);
+
+        assertEquals(0, callCount.get());
+        assertSame(input, result);
+    }
+
+    public void testDefaultNoopListenerPreservesClusterState() {
+        RestoreService service = createMinimalRestoreService();
+
+        ClusterState withActive = stateWithActiveRestore();
+        assertSame(withActive, service.executeRestoreCleanup(withActive));
+
+        ClusterState withCompleted = stateWithCompletedRestore();
+        ClusterState cleaned = service.executeRestoreCleanup(withCompleted);
+        assertTrue(RestoreInProgress.get(cleaned).isEmpty());
+    }
+
+    public void testOnRestoreCompletedReceivesEntryAndCanModifyState() {
+        RestoreService service = createMinimalRestoreService();
+        List<RestoreInProgress.Entry> capturedEntries = new ArrayList<>();
+        service.setLifecycleListener(completionListener((entry, state) -> {
+            capturedEntries.add(entry);
+            return ClusterState.builder(state).version(state.version() + 1).build();
+        }));
+
+        ClusterState input = stateWithCompletedRestore();
+        RestoreInProgress.Entry expectedEntry = RestoreInProgress.get(input).iterator().next();
+        long initialVersion = input.version();
+
+        ClusterState result = service.executeRestoreCleanup(input);
+
+        assertEquals(List.of(expectedEntry), capturedEntries);
+        assertEquals(initialVersion + 1, result.version());
+        assertTrue(RestoreInProgress.get(result).isEmpty());
+    }
+
+    /**
+     * Verifies the retry contract documented on {@link RestoreLifecycleListener#onRestoreCompleted}: when
+     * the listener throws, the entry is retained in cluster state and the listener is called again on the
+     * next cleanup pass.
+     */
+    public void testOnRestoreCompletedRetriedAfterException() {
+        RestoreService service = createMinimalRestoreService();
+        AtomicInteger callCount = new AtomicInteger(0);
+        RuntimeException boom = new RuntimeException("transient failure");
+        service.setLifecycleListener(completionListener((entry, state) -> {
+            if (callCount.incrementAndGet() == 1) {
+                throw boom;
+            }
+            return state;
+        }));
+
+        ClusterState input = stateWithCompletedRestore();
+
+        // First pass: listener throws — entry must be retained.
+        ClusterState afterFirst = service.executeRestoreCleanup(input);
+        assertEquals(1, callCount.get());
+        assertFalse("entry must be retained after listener exception", RestoreInProgress.get(afterFirst).isEmpty());
+
+        // Second pass: listener succeeds — entry must be removed.
+        ClusterState afterSecond = service.executeRestoreCleanup(afterFirst);
+        assertEquals(2, callCount.get());
+        assertTrue("entry must be removed after successful listener call", RestoreInProgress.get(afterSecond).isEmpty());
+    }
+
+    // ---- applyRestoreInitializedListener tests --------------------------------
+
+    /** Builds a single {@link RestoreInProgress.Entry} for use in initialization tests. */
+    private static RestoreInProgress.Entry buildRestoreEntry() {
+        String nodeId = randomUUID();
+        ShardId shardId = new ShardId(randomIdentifier(), randomUUID(), 0);
+        Snapshot snapshot = new Snapshot(randomProjectIdOrDefault(), randomIdentifier(), new SnapshotId(randomIdentifier(), randomUUID()));
+        return new RestoreInProgress.Entry(
+            UUIDs.randomBase64UUID(),
+            snapshot,
+            RestoreInProgress.State.INIT,
+            false,
+            List.of(shardId.getIndexName()),
+            Map.of(shardId, new RestoreInProgress.ShardRestoreStatus(nodeId))
+        );
+    }
+
+    public void testApplyRestoreInitializedListenerCallsListenerWhenEntryNonNull() {
+        RestoreService service = createMinimalRestoreService();
+        AtomicInteger callCount = new AtomicInteger(0);
+        service.setLifecycleListener(new RestoreLifecycleListener() {
+            @Override
+            public ClusterState onRestoreInitialized(RestoreInProgress.Entry entry, ClusterState state) {
+                callCount.incrementAndGet();
+                return ClusterState.builder(state).version(state.version() + 1).build();
+            }
+        });
+
+        RestoreInProgress.Entry entry = buildRestoreEntry();
+        long initialVersion = ClusterState.EMPTY_STATE.version();
+        ClusterState result = service.applyRestoreInitializedListener(entry, ClusterState.EMPTY_STATE);
+
+        assertEquals(1, callCount.get());
+        assertEquals(initialVersion + 1, result.version());
+    }
+
+    public void testApplyRestoreInitializedListenerSkipsListenerWhenEntryNull() {
+        RestoreService service = createMinimalRestoreService();
+        AtomicInteger callCount = new AtomicInteger(0);
+        service.setLifecycleListener(new RestoreLifecycleListener() {
+            @Override
+            public ClusterState onRestoreInitialized(RestoreInProgress.Entry entry, ClusterState state) {
+                callCount.incrementAndGet();
+                return state;
+            }
+        });
+
+        ClusterState result = service.applyRestoreInitializedListener(null, ClusterState.EMPTY_STATE);
+
+        assertEquals(0, callCount.get());
+        assertSame(ClusterState.EMPTY_STATE, result);
+    }
+
+    public void testSetLifecycleListenerRejectsDoubleRegistration() {
+        RestoreService service = createMinimalRestoreService();
+        RestoreLifecycleListener realListener = new RestoreLifecycleListener() {};
+        service.setLifecycleListener(realListener);
+        expectThrows(IllegalStateException.class, () -> service.setLifecycleListener(realListener));
     }
 
     // ---- restore-over-open-index guard tests ---------------------------------------------

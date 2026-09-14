@@ -743,11 +743,26 @@ tests:
 - class: org.elasticsearch.xpack.stateless.reshard.StatelessReshardDisruptionIT
   method: testReshardWithDisruption
   issue: https://github.com/elastic/elasticsearch/issues/156004
-- class: org.elasticsearch.repositories.s3.RepositoryS3MinioBasicCredentialsRestIT
-  issue: https://github.com/elastic/elasticsearch/issues/159128
-- class: org.elasticsearch.repositories.blobstore.testkit.analyze.MinioRepositoryAnalysisRestIT
-  issue: https://github.com/elastic/elasticsearch/issues/159137
-- class: org.elasticsearch.xpack.searchablesnapshots.minio.MinioSearchableSnapshotsIT
-  issue: https://github.com/elastic/elasticsearch/issues/159136
-- class: org.elasticsearch.repositories.s3.S3RepositoryThirdPartyTests
-  issue: https://github.com/elastic/elasticsearch/issues/159130
+- class: org.elasticsearch.xpack.esql.qa.mixed.RemoteFetchTopNIT
+  issue: https://github.com/elastic/elasticsearch/issues/159173
+- class: org.elasticsearch.xpack.logsdb.qa.BulkStoredSourceChallengeRestIT
+  method: testDateHistogramAggregation
+  issue: https://github.com/elastic/elasticsearch/issues/159182
+- class: org.elasticsearch.xpack.logsdb.qa.BulkChallengeRestIT
+  method: testDateHistogramAggregation
+  issue: https://github.com/elastic/elasticsearch/issues/159183
+- class: org.elasticsearch.xpack.stateless.StatelessResizeIT
+  method: testCloneIndex
+  issue: https://github.com/elastic/elasticsearch/issues/159214
+- class: org.elasticsearch.search.basic.SearchWithRandomDisconnectsIT
+  method: testSearchWithRandomDisconnects
+  issue: https://github.com/elastic/elasticsearch/issues/157466
+- class: org.elasticsearch.gradle.internal.ForeignApiPluginFuncTest
+  method: extractForeignApiJar is not registered when minimumRuntimeVersion is not 21
+  issue: https://github.com/elastic/elasticsearch/issues/159227
+- class: org.elasticsearch.gradle.internal.test.rest.LegacyYamlRestTestPluginFuncTest
+  method: yamlRestTest does nothing when there are no tests
+  issue: https://github.com/elastic/elasticsearch/issues/159229
+- class: org.elasticsearch.gradle.internal.test.rest.LegacyYamlRestTestPluginFuncTest
+  method: yamlRestTest executes and copies api and tests to correct source set
+  issue: https://github.com/elastic/elasticsearch/issues/159230

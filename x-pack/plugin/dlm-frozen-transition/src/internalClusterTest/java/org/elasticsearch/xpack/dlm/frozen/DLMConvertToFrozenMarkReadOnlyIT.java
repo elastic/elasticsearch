@@ -53,7 +53,6 @@ import static org.hamcrest.Matchers.is;
 public class DLMConvertToFrozenMarkReadOnlyIT extends ESIntegTestCase {
 
     private static final String INDEX_NAME = "test-convert-to-frozen-mark-readonly";
-    private static final Index INDEX = new Index(INDEX_NAME, "uuid");
     private static final String REPO_NAME = "test-repo";
     private XPackLicenseState licenseState;
 
@@ -105,8 +104,9 @@ public class DLMConvertToFrozenMarkReadOnlyIT extends ESIntegTestCase {
         // verify the index does not have a WRITE block before calling the method
         assertIndexWriteBlock(false);
 
+        Index index = getIndex();
         DLMConvertToFrozen converter = new DLMConvertToFrozen(
-            INDEX,
+            index,
             Metadata.DEFAULT_PROJECT_ID,
             client(),
             internalCluster().clusterService(),
@@ -119,6 +119,17 @@ public class DLMConvertToFrozenMarkReadOnlyIT extends ESIntegTestCase {
         // Verify the WRITE block is now present on the index
         assertIndexWriteBlock(true);
         assertIndexVerifiedReadOnly();
+    }
+
+    private static Index getIndex() {
+        Index index = clusterAdmin().prepareState(TEST_REQUEST_TIMEOUT)
+            .get()
+            .getState()
+            .projectState(Metadata.DEFAULT_PROJECT_ID)
+            .metadata()
+            .index(INDEX_NAME)
+            .getIndex();
+        return index;
     }
 
     /**
@@ -136,8 +147,9 @@ public class DLMConvertToFrozenMarkReadOnlyIT extends ESIntegTestCase {
         assertAcked(client().execute(TransportAddIndexBlockAction.TYPE, addReadBlockRequest).actionGet());
         assertIndexWriteBlock(false);
 
+        Index index = getIndex();
         DLMConvertToFrozen converter = new DLMConvertToFrozen(
-            INDEX,
+            index,
             Metadata.DEFAULT_PROJECT_ID,
             client(),
             internalCluster().clusterService(),
@@ -171,8 +183,9 @@ public class DLMConvertToFrozenMarkReadOnlyIT extends ESIntegTestCase {
         setupRepoAndIndexMetadata();
         assertIndexWriteBlock(false);
 
+        Index index = getIndex();
         DLMConvertToFrozen converter = new DLMConvertToFrozen(
-            INDEX,
+            index,
             Metadata.DEFAULT_PROJECT_ID,
             client(),
             internalCluster().clusterService(),
@@ -201,8 +214,9 @@ public class DLMConvertToFrozenMarkReadOnlyIT extends ESIntegTestCase {
 
         ClusterService clusterService = internalCluster().clusterService();
 
+        Index index = getIndex();
         DLMConvertToFrozen converter = new DLMConvertToFrozen(
-            INDEX,
+            index,
             Metadata.DEFAULT_PROJECT_ID,
             client(),
             clusterService,
@@ -223,7 +237,7 @@ public class DLMConvertToFrozenMarkReadOnlyIT extends ESIntegTestCase {
 
         // Second converter uses the same ClusterService which always returns the latest state
         DLMConvertToFrozen converter2 = new DLMConvertToFrozen(
-            INDEX,
+            index,
             Metadata.DEFAULT_PROJECT_ID,
             client(),
             clusterService,
@@ -275,9 +289,10 @@ public class DLMConvertToFrozenMarkReadOnlyIT extends ESIntegTestCase {
             (handler, request, channel, task) -> channel.sendResponse(new ElasticsearchException("simulated shard verification failure"))
         );
 
+        Index index = getIndex();
         try {
             DLMConvertToFrozen converter = new DLMConvertToFrozen(
-                INDEX,
+                index,
                 Metadata.DEFAULT_PROJECT_ID,
                 client(),
                 internalCluster().clusterService(),
@@ -304,8 +319,9 @@ public class DLMConvertToFrozenMarkReadOnlyIT extends ESIntegTestCase {
         );
         ensureGreen(INDEX_NAME);
 
+        Index index = getIndex();
         DLMConvertToFrozen converter = new DLMConvertToFrozen(
-            INDEX,
+            index,
             Metadata.DEFAULT_PROJECT_ID,
             client(),
             internalCluster().clusterService(),
@@ -340,8 +356,9 @@ public class DLMConvertToFrozenMarkReadOnlyIT extends ESIntegTestCase {
         setupRepoAndIndexMetadata();
         assertIndexWriteBlock(false);
 
+        Index index = getIndex();
         DLMConvertToFrozen converter = new DLMConvertToFrozen(
-            INDEX,
+            index,
             Metadata.DEFAULT_PROJECT_ID,
             client(),
             internalCluster().clusterService(),

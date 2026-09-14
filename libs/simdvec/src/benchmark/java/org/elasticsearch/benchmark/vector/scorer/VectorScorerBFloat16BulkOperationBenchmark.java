@@ -9,6 +9,7 @@
 package org.elasticsearch.benchmark.vector.scorer;
 
 import org.elasticsearch.benchmark.internal.BenchmarkLogging;
+import org.elasticsearch.benchmark.vector.VectorizationInfo;
 import org.elasticsearch.index.codec.vectors.BFloat16;
 import org.elasticsearch.simdvec.SimdVecLibrary;
 import org.elasticsearch.simdvec.SimdVecLibrary.BFloat16QueryType;
@@ -62,6 +63,7 @@ public class VectorScorerBFloat16BulkOperationBenchmark {
 
     static {
         BenchmarkLogging.configure();
+        VectorizationInfo.printOnce();
     }
 
     @Param({ "1024" })

@@ -1,0 +1,5 @@
+area: Search
+issues: []
+pr: 158951
+summary: Fix request breaker leak in the rank feature phase
+type: bug

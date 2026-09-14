@@ -591,22 +591,27 @@ public class ExternalSourceResolver {
      * are raised once per path here, where every rail passes. Per-file metadata cannot carry them: the strict
      * declared-schema rail reads no file. The lookup is a registry lookup plus option parsing, no I/O. A path no
      * format claims yet (a bare glob without {@code format}) is skipped; the rail that resolves it from a listed file
-     * fails with its own message if it cannot. Runs inside {@link #resolveSource}'s try so a setting the reader rejects
-     * takes the same listener path, and status mapping, as a rejection from {@code FileSourceFactory.validateConfig}.
+     * fails with its own message if it cannot. A config the reader rejects is skipped too: this is a notice channel,
+     * not a validation gate, and a query the optimizer never sends to a data node ({@code LIMIT 0}) must keep
+     * succeeding on a stored dataset with a bad setting, as it did before these notices existed. Rejection stays
+     * where it was: the PUT-time validator and the data-node operator factory.
      */
     private void bufferConfigWarnings(String path, Map<String, Object> config) {
         currentPathConfigWarnings = List.of();
         // The one comma decomposition every rail shares: splitting on the first comma would tear a brace group.
         List<String> segments = GlobExpander.commaSegments(path);
         String anchor = segments.isEmpty() ? path : segments.get(0);
-        FormatReader reader;
         try {
-            reader = FormatNameResolver.resolveReader(config, StoragePath.of(anchor).objectName(), dataSourceModule.formatReaderRegistry());
+            FormatReader reader = FormatNameResolver.resolveReader(
+                config,
+                StoragePath.of(anchor).objectName(),
+                dataSourceModule.formatReaderRegistry()
+            );
+            currentPathConfigWarnings = reader.withConfig(config).configWarnings();
         } catch (IllegalArgumentException e) {
-            LOGGER.trace(() -> "no format claims [" + anchor + "] before listing; configure-time notices are skipped", e);
+            LOGGER.trace(() -> "no configure-time notices for [" + anchor + "]: no format claims it or the reader rejects the config", e);
             return;
         }
-        currentPathConfigWarnings = reader.withConfig(config).configWarnings();
         pendingMetadataWarnings.addAll(currentPathConfigWarnings);
     }
 

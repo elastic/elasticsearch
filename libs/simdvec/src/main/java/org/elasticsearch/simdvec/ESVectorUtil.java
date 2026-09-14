@@ -1054,10 +1054,22 @@ public class ESVectorUtil {
      * @return transposed matrix in row-major order, length cols*rows
      */
     public static float[] transposeMatrix(float[] m, int rows, int cols) {
+        // work in tiles of 16x16 floats, rather than whole rows at a time
+        // A 16-wide row is 64 bytes, which is 1 cache line, x16 rows.
+        // both read & write tiles fit in L1 at once.
+        final int transposeBlock = 16;
+
         float[] t = new float[cols * rows];
-        for (int i = 0; i < rows; i++) {
-            for (int j = 0; j < cols; j++) {
-                t[j * rows + i] = m[i * cols + j];
+        for (int ii = 0; ii < rows; ii += transposeBlock) {
+            int iMax = Math.min(ii + transposeBlock, rows);
+            for (int jj = 0; jj < cols; jj += transposeBlock) {
+                int jMax = Math.min(jj + transposeBlock, cols);
+                for (int i = ii; i < iMax; i++) {
+                    int mBase = i * cols;
+                    for (int j = jj; j < jMax; j++) {
+                        t[j * rows + i] = m[mBase + j];
+                    }
+                }
             }
         }
         return t;

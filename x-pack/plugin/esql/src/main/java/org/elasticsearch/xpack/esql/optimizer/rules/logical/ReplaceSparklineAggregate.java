@@ -190,7 +190,7 @@ public class ReplaceSparklineAggregate extends OptimizerRules.ParameterizedOptim
             AggregateFunction unfilteredAggFunc = aggFunc.withFilter(Literal.TRUE);
             Alias toPartialAlias = new Alias(
                 source,
-                "$$partial$$" + nonSparkline.name(),
+                "$$" + nonSparkline.name(),
                 new ToPartial(source, nonSparkline.child(), aggFunc.filter(), aggFunc.window(), unfilteredAggFunc)
             );
             toPartialAliases.add(toPartialAlias);

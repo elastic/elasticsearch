@@ -45,7 +45,7 @@ public class FoldNull extends OptimizerRules.OptimizerExpressionRule<Expression>
             && e instanceof GroupingFunction.NonEvaluatableGroupingFunction == false
             // We cannot fold aggregate functions until we resolve https://github.com/elastic/elasticsearch/issues/100634.
             // AggregateMapper cannot handle aggregate functions with literal values. Aggregates over null inputs are instead
-            // replaced with a literal by ReplaceStatsFilteredOrNullAggWithEval (see the AnyNullIsNull marker interface).
+            // replaced with a literal by ReplaceStatsFilteredOrNullAggWithEval.
             && e instanceof AggregateFunction == false
             && e.children().stream().anyMatch(FoldNull::isNull)) {
                 return Literal.of(e, null);

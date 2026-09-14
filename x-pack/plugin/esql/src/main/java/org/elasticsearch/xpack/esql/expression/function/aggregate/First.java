@@ -148,7 +148,7 @@ public class First extends AggregateFunction implements ToAggregator {
         this(source, field, sort, Literal.TRUE, NO_WINDOW);
     }
 
-    private First(Source source, Expression field, Expression sort, Expression filter, Expression window) {
+    public First(Source source, Expression field, Expression sort, Expression filter, Expression window) {
         super(source, List.of(field, sort), filter, window, List.of());
     }
 

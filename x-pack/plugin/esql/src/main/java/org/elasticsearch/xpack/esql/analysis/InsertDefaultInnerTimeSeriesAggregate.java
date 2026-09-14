@@ -109,7 +109,7 @@ public class InsertDefaultInnerTimeSeriesAggregate extends Rule<LogicalPlan, Log
                         last.sort(),
                         timestamp,
                         changed,
-                        new DefaultTimeSeriesAggregateFunction(last.fields().getFirst(), timestamp),
+                        new DefaultTimeSeriesAggregateFunction(last.field(), timestamp),
                         MaxOverTime::new,
                         LastOverTime::new
                     )

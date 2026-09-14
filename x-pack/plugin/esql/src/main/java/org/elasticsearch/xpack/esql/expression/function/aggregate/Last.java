@@ -148,7 +148,7 @@ public class Last extends AggregateFunction implements ToAggregator {
         this(source, field, sort, Literal.TRUE, NO_WINDOW);
     }
 
-    private Last(Source source, Expression field, Expression sort, Expression filter, Expression window) {
+    public Last(Source source, Expression field, Expression sort, Expression filter, Expression window) {
         super(source, List.of(field, sort), filter, window, List.of());
     }
 

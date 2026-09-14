@@ -304,7 +304,7 @@ public class TranslogTests extends ESTestCase {
             NON_RECYCLING_INSTANCE,
             bufferSize,
             randomBoolean() ? DiskIoBufferPool.INSTANCE : RANDOMIZING_IO_BUFFERS,
-            Objects.requireNonNullElse(listener, (d, s, l) -> {}),
+            Objects.requireNonNullElse(listener, (d, min, max, l) -> {}),
             true
         );
     }
@@ -1656,8 +1656,8 @@ public class TranslogTests extends ESTestCase {
         final ArrayList<Long> seqNos = new ArrayList<>();
         final ArrayList<Location> locations = new ArrayList<>();
         final ArrayList<BytesReference> datas = new ArrayList<>();
-        OperationListener listener = (operation, recordSeqNos, location) -> {
-            for (long seqNo : recordSeqNos) {
+        OperationListener listener = (operation, minSeqNo, maxSeqNo, location) -> {
+            for (long seqNo = minSeqNo; seqNo <= maxSeqNo; seqNo++) {
                 seqNos.add(seqNo);
             }
             locations.add(location);

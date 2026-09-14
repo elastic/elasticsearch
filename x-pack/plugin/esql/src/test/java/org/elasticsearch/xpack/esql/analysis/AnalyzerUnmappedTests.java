@@ -1488,6 +1488,27 @@ public class AnalyzerUnmappedTests extends AnalyzerUnmappedTestBase {
         }
     }
 
+    /**
+     * WHERE IN / NOT IN rewrite to SemiJoin / AntiJoin; the LOAD_ALL allow-list admits LookupJoin only.
+     */
+    public void testLoadAllModeRejectsInAndNotInSubqueries() {
+        assumeTrue("Requires IN subquery support", EsqlCapabilities.Cap.WHERE_IN_SUBQUERY_WITHOUT_VIEW.isEnabled());
+        for (var commandAndLabel : List.of(
+            Tuple.tuple("| WHERE emp_no IN (FROM test | KEEP emp_no)", "SemiJoin"),
+            Tuple.tuple("| WHERE emp_no NOT IN (FROM test | KEEP emp_no)", "AntiJoin")
+        )) {
+            test().statementError(
+                setUnmappedLoadAll("FROM test " + commandAndLabel.v1()),
+                containsString(
+                    "unmapped_fields=\"LOAD_ALL\" only supports the FROM, KEEP, DROP, RENAME, EVAL, WHERE, SORT, LIMIT, "
+                        + "STATS, INLINE STATS, LOOKUP JOIN, ENRICH, FORK and subquery commands; ["
+                        + commandAndLabel.v2()
+                        + "] is not supported yet"
+                )
+            );
+        }
+    }
+
     public void testLoadAllModeAllowsSupportedCommands() {
         LogicalPlan plan = test().statement(setUnmappedLoadAll("""
             FROM test

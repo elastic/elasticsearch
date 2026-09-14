@@ -2454,6 +2454,23 @@ message:keyword        | unmapped_message:keyword
 Connected to 10.1.0.1! | Disconnected from 10.1.0.1
 ;
 
+# Wildcard DROP in one FROM-subquery branch must stop the load the same way exact DROP does.
+loadAllSubqueryDropWildcardInOneBranchOuterKeepLoadsNonDroppedBranch
+required_capability: optional_fields_load_all_subqueries
+required_capability: subquery_in_from_command
+
+SET unmapped_fields="LOAD_ALL"\;
+FROM (FROM partial_mapping_sample_data | WHERE message == "42" | DROP unmapped_m*),
+     (FROM partial_mapping_sample_data | WHERE message == "Connected to 10.1.0.1!")
+| KEEP message, unmapped_message
+| SORT message
+;
+
+message:keyword        | unmapped_message:keyword
+42                     | null
+Connected to 10.1.0.1! | Disconnected from 10.1.0.1
+;
+
 loadAllSubqueryKeepInOneBranchScopesFieldToBranch
 required_capability: optional_fields_load_all_subqueries
 required_capability: subquery_in_from_command

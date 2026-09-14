@@ -22,4 +22,8 @@ class MaxDoubleAggregator {
     public static double combine(double current, double v) {
         return Math.max(current, v);
     }
+
+    public static void combine(DoubleArrayState state, int groupId, double v) {
+        state.max(groupId, v);
+    }
 }

@@ -38,6 +38,7 @@ import org.elasticsearch.compute.lucene.query.LuceneTopNSourceOperator;
 import org.elasticsearch.compute.operator.DriverProfile;
 import org.elasticsearch.compute.operator.HashAggregationOperator;
 import org.elasticsearch.compute.operator.OperatorStatus;
+import org.elasticsearch.compute.operator.ParallelHashAggregationOperator;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.datastreams.DataStreamsPlugin;
 import org.elasticsearch.index.Index;
@@ -93,6 +94,7 @@ import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.function.BiConsumer;
+import java.util.function.BiFunction;
 import java.util.function.Function;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
@@ -2657,6 +2659,55 @@ public class EsqlActionIT extends AbstractEsqlIntegTestCase {
         }
     }
 
+    public void testLimitPushdownToAggregate() {
+        int numGroups = between(20, 100);
+        int limit = between(1, 5);
+        StringBuilder tags = new StringBuilder();
+        for (int i = 0; i < numGroups; i++) {
+            if (i > 0) tags.append(",");
+            tags.append("\"tag-").append(i).append("\"");
+        }
+        int pageSize = randomIntBetween(1, 5);
+        Settings pragma = Settings.builder().put(QueryPragmas.PAGE_SIZE.getKey(), pageSize).build();
+        var request = syncEsqlQueryRequest(
+            "ROW tag = [" + tags + "], num = 1::long | MV_EXPAND tag | STATS c = COUNT(*) BY tag, num | LIMIT " + limit
+        ).profile(true).pragmas(new QueryPragmas(pragma)).acceptedPragmaRisks(true);
+        try (var result = run(request)) {
+            List<List<Object>> rows = getValuesList(result);
+            assertThat(rows, hasSize(limit));
+            for (List<Object> row : rows) {
+                long c = ((Number) row.get(0)).longValue();
+                assertThat(c, equalTo(1L));
+            }
+            EsqlQueryResponse.Profile profile = result.profile();
+            assertNotNull(profile);
+            HashAggregationOperator.Status status = profile.drivers()
+                .stream()
+                .flatMap(d -> d.operators().stream())
+                .filter(o -> o.status() instanceof HashAggregationOperator.Status)
+                .map(o -> (HashAggregationOperator.Status) o.status())
+                .findFirst()
+                .get();
+            assertThat(status.rowsEmitted(), lessThanOrEqualTo((long) limit + pageSize));
+        }
+        // When a filter sits between STATS and LIMIT the limit is not pushed down
+        request = syncEsqlQueryRequest(
+            "ROW tag = [" + tags + "], num = 1::long | MV_EXPAND tag | STATS c = COUNT(*) BY tag, num | WHERE c >= 10 | LIMIT " + limit
+        ).profile(true).pragmas(new QueryPragmas(pragma)).acceptedPragmaRisks(true);
+        try (var result = run(request)) {
+            EsqlQueryResponse.Profile profile = result.profile();
+            assertNotNull(profile);
+            HashAggregationOperator.Status status = profile.drivers()
+                .stream()
+                .flatMap(d -> d.operators().stream())
+                .filter(o -> o.status() instanceof HashAggregationOperator.Status)
+                .map(o -> (HashAggregationOperator.Status) o.status())
+                .findFirst()
+                .get();
+            assertThat(status.rowsEmitted(), equalTo((long) numGroups));
+        }
+    }
+
     public void testLookupJoin() {
         Settings lookupSettings = Settings.builder().put("index.number_of_shards", 1).put("index.mode", "lookup").build();
         assertAcked(
@@ -3472,6 +3523,83 @@ public class EsqlActionIT extends AbstractEsqlIntegTestCase {
                     )
                 )
             );
+        }
+    }
+
+    public void testSingleNodeAggregationOptimization() {
+        BiFunction<EsqlQueryResponse.Profile, String, Integer> partitionedBlocksReceived = (profile, driverDescription) -> {
+            int received = 0;
+            for (DriverProfile driver : profile.drivers()) {
+                if (driver.description().contains(driverDescription) == false) {
+                    continue;
+                }
+                for (OperatorStatus operator : driver.operators()) {
+                    if (operator.status() instanceof HashAggregationOperator.Status status) {
+                        for (var extra : status.extraFields()) {
+                            if (extra instanceof ParallelHashAggregationOperator.PartitioningStatus partitioning) {
+                                received += partitioning.partitionedBlocksReceived();
+                            }
+                        }
+                    }
+                }
+            }
+            return received;
+        };
+
+        var dataNode = randomDataNode().getName();
+        String indexName = "single-node-index";
+        assertAcked(
+            client().admin()
+                .indices()
+                .prepareCreate(indexName)
+                .setSettings(
+                    Settings.builder()
+                        .put("index.routing.allocation.require._name", dataNode)
+                        .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, between(1, 5))
+                )
+                .setMapping("long_key", "type=long", "int_key", "type=integer")
+        );
+        int numDocs = between(2000, 5000);
+        Map<List<Object>, Long> expected = new HashMap<>();
+        BulkRequestBuilder bulk = client().prepareBulk();
+        for (int i = 0; i < numDocs; i++) {
+            long longKey = between(0, 20);
+            int intKey = between(0, 10);
+            expected.merge(List.of(longKey, intKey), 1L, Long::sum);
+            bulk.add(new IndexRequest(indexName).id("doc-" + i).source("long_key", longKey, "int_key", intKey));
+        }
+        bulk.setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE).get();
+        var request = EsqlQueryRequest.syncEsqlQueryRequest("FROM single-node-index | STATS c = COUNT(*) BY long_key, int_key");
+        request.profile(true);
+        request.acceptedPragmaRisks(true);
+        request.pragmas(
+            new QueryPragmas(
+                Settings.builder()
+                    .put(PlannerSettings.AGG_PARTITIONING_COUNT_THRESHOLD.getKey(), 1024)
+                    .put(PlannerSettings.PARTIAL_AGGREGATION_EMIT_KEYS_THRESHOLD.getKey(), 1)
+                    .put(QueryPragmas.TASK_CONCURRENCY.getKey(), between(1, 4))
+                    .build()
+            )
+        );
+        try (var resp = client(dataNode).execute(EsqlQueryAction.INSTANCE, request).actionGet(TimeValue.THIRTY_SECONDS)) {
+            assertThat(partitionedBlocksReceived.apply(resp.profile(), "final"), greaterThan(0));
+            Map<List<Object>, Long> actual = new HashMap<>();
+            for (List<Object> row : getValuesList(resp)) {
+                assertNull(actual.put(List.of(row.get(1), row.get(2)), ((Number) row.get(0)).longValue()));
+            }
+            assertThat(actual, equalTo(expected));
+        }
+
+        internalCluster().ensureAtLeastNumDataNodes(2);
+        var otherNode = randomValueOtherThan(dataNode, () -> randomDataNode().getName());
+        try (var resp = client(otherNode).execute(EsqlQueryAction.INSTANCE, request).actionGet(TimeValue.THIRTY_SECONDS)) {
+            assertThat(partitionedBlocksReceived.apply(resp.profile(), "final"), equalTo(0));
+            assertThat(partitionedBlocksReceived.apply(resp.profile(), "node_reduce"), equalTo(0));
+            Map<List<Object>, Long> actual = new HashMap<>();
+            for (List<Object> row : getValuesList(resp)) {
+                assertNull(actual.put(List.of(row.get(1), row.get(2)), ((Number) row.get(0)).longValue()));
+            }
+            assertThat(actual, equalTo(expected));
         }
     }
 }

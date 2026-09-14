@@ -42,7 +42,9 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 
+import static org.elasticsearch.xpack.esql.dsltranslate.ViewRequestFilterRewriter.REQUEST_FILTER_ON_VIEW_FEATURE_FLAG;
 import static org.hamcrest.Matchers.containsString;
+import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.sameInstance;
@@ -346,25 +348,41 @@ public class ViewRequestFilterRewriterTests extends ESTestCase {
         );
     }
 
-    /** Anything that can exclude a document needs the boundaries kept. */
+    /**
+     * Anything that can exclude a document needs the boundaries kept — when the feature is on. Its counterpart
+     * {@link #testRealFiltersDoNotNeedViewBoundariesWhenFeatureIsDisabled} runs in release builds, where the flag is off.
+     */
     public void testRealFiltersNeedViewBoundaries() {
-        assertTrue("term", ViewRequestFilterRewriter.appliesToViewOutputs(QueryBuilders.termQuery("region", "eu")));
-        assertTrue("range", ViewRequestFilterRewriter.appliesToViewOutputs(QueryBuilders.rangeQuery("cnt").gt(0)));
-        assertTrue(
-            "bool with a real must",
-            ViewRequestFilterRewriter.appliesToViewOutputs(QueryBuilders.boolQuery().must(QueryBuilders.termQuery("region", "eu")))
-        );
+        assumeTrue("requires the request-filter-on-views feature flag", REQUEST_FILTER_ON_VIEW_FEATURE_FLAG.isEnabled());
+        for (Map.Entry<String, QueryBuilder> filter : realFilters().entrySet()) {
+            assertTrue(filter.getKey(), ViewRequestFilterRewriter.appliesToViewOutputs(filter.getValue()));
+        }
+    }
+
+    /**
+     * With the feature off nothing needs view boundaries, however real the filter: the flag gates the whole feature, not just the
+     * rewrite, so views compact as before and the filter takes the pre-feature Lucene path. Only runs where the flag is actually off,
+     * i.e. release builds — the {@code release-tests} CI job — rather than faking the flag.
+     */
+    public void testRealFiltersDoNotNeedViewBoundariesWhenFeatureIsDisabled() {
+        assumeFalse("requires the request-filter-on-views feature flag to be off", REQUEST_FILTER_ON_VIEW_FEATURE_FLAG.isEnabled());
+        for (Map.Entry<String, QueryBuilder> filter : realFilters().entrySet()) {
+            assertFalse(filter.getKey(), ViewRequestFilterRewriter.appliesToViewOutputs(filter.getValue()));
+        }
+    }
+
+    /** Filters that can exclude a document, keyed by a description for assertion messages. */
+    private static Map<String, QueryBuilder> realFilters() {
+        Map<String, QueryBuilder> filters = new LinkedHashMap<>();
+        filters.put("term", QueryBuilders.termQuery("region", "eu"));
+        filters.put("range", QueryBuilders.rangeQuery("cnt").gt(0));
+        filters.put("bool with a real must", QueryBuilders.boolQuery().must(QueryBuilders.termQuery("region", "eu")));
         // should / must_not count as filtering even in the shapes the translator would discard: narrower is the safe direction.
-        assertTrue(
-            "bool with only a should",
-            ViewRequestFilterRewriter.appliesToViewOutputs(QueryBuilders.boolQuery().should(QueryBuilders.termQuery("region", "eu")))
-        );
-        assertTrue(
-            "bool with only a must_not",
-            ViewRequestFilterRewriter.appliesToViewOutputs(QueryBuilders.boolQuery().mustNot(QueryBuilders.termQuery("region", "eu")))
-        );
+        filters.put("bool with only a should", QueryBuilders.boolQuery().should(QueryBuilders.termQuery("region", "eu")));
+        filters.put("bool with only a must_not", QueryBuilders.boolQuery().mustNot(QueryBuilders.termQuery("region", "eu")));
         // An unsupported construct must not be mistaken for a no-op — it has to reach the fail-closed translation.
-        assertTrue("unsupported wildcard", ViewRequestFilterRewriter.appliesToViewOutputs(QueryBuilders.wildcardQuery("region", "e*")));
+        filters.put("unsupported wildcard", QueryBuilders.wildcardQuery("region", "e*"));
+        return filters;
     }
 
     /**
@@ -385,11 +403,11 @@ public class ViewRequestFilterRewriterTests extends ESTestCase {
             """);
         assertThat(kibanaEmpty, instanceOf(BoolQueryBuilder.class));
         assertFalse("Kibana's empty filter must not preserve view boundaries", ViewRequestFilterRewriter.appliesToViewOutputs(kibanaEmpty));
-        // Sanity: the same bool with one real clause does need them, so the assertion above is not vacuous.
+        // Sanity: the same bool with one real clause does need them (feature on), so the assertion above is not vacuous.
         QueryBuilder withClause = parseFilter("""
             { "bool": { "must": [ { "term": { "region": "eu" } } ], "filter": [], "should": [], "must_not": [] } }
             """);
-        assertTrue(ViewRequestFilterRewriter.appliesToViewOutputs(withClause));
+        assertThat(ViewRequestFilterRewriter.appliesToViewOutputs(withClause), equalTo(REQUEST_FILTER_ON_VIEW_FEATURE_FLAG.isEnabled()));
     }
 
     private static QueryBuilder parseFilter(String json) throws IOException {

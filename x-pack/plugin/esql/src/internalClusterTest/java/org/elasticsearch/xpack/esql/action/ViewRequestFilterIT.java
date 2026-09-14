@@ -12,6 +12,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.QueryBuilders;
+import org.elasticsearch.xpack.esql.dsltranslate.ViewRequestFilterRewriter;
 import org.elasticsearch.xpack.esql.view.PutViewAction;
 import org.junit.Before;
 
@@ -68,6 +69,12 @@ public class ViewRequestFilterIT extends AbstractEsqlIntegTestCase {
 
     @Before
     public void loadData() {
+        // Every test here asserts feature-on behaviour: the request filter landing on the view's output. The flag is off in release
+        // builds (see REQUEST_FILTER_ON_VIEW_FEATURE_FLAG), where the filter takes the pre-feature Lucene path instead.
+        assumeTrue(
+            "requires the request-filter-on-views feature flag",
+            ViewRequestFilterRewriter.REQUEST_FILTER_ON_VIEW_FEATURE_FLAG.isEnabled()
+        );
         assertAcked(
             client().admin()
                 .indices()

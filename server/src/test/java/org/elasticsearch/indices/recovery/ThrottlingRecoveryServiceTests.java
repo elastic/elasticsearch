@@ -37,6 +37,7 @@ import org.elasticsearch.core.AbstractRefCounted;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.recovery.RecoveryStats;
+import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.shard.ShardLongFieldRange;
 import org.elasticsearch.repositories.IndexId;
@@ -130,13 +131,13 @@ public class ThrottlingRecoveryServiceTests extends ESTestCase {
         final var firstRecoveryProceed = new CountDownLatch(1);
         final var thirdRecoveryDone = new CountDownLatch(1);
 
+        // Top priority recovery:
+        RecoveryState recoveryState1 = newRecoveryState(ShardRouting.RecoveryPriority.UNASSIGNED_NEW_PRIMARY);
         service.enqueue(
             projectId1,
             RecoveryListener.NOOP,
-            newRecoveryState(ShardRouting.RecoveryPriority.UNASSIGNED_NEW_PRIMARY), // top priority
+            mockIndexShard(recoveryState1, UUIDs.randomBase64UUID(), stats),
             newIndexMetadata(),
-            UUIDs.randomBase64UUID(),
-            stats,
             listener -> {
                 assertThat(threadPool.getThreadContext().getHeader(Task.X_ELASTIC_PROJECT_ID_HTTP_HEADER), equalTo(projectId1.id()));
                 firstRecoveryRunning.countDown();
@@ -165,13 +166,13 @@ public class ThrottlingRecoveryServiceTests extends ESTestCase {
             }
         };
 
+        // Second-highest priority recovery, so should happen second:
+        RecoveryState recoveryState2 = newRecoveryState(ShardRouting.RecoveryPriority.UNASSIGNED_UNEXPECTED);
         service.enqueue(
             projectId2,
             secondListener,
-            newRecoveryState(ShardRouting.RecoveryPriority.UNASSIGNED_UNEXPECTED), // second priority, so should happen second
+            mockIndexShard(recoveryState2, UUIDs.randomBase64UUID(), stats),
             newIndexMetadata(),
-            UUIDs.randomBase64UUID(),
-            stats,
             ignored -> {
                 assertThat(threadPool.getThreadContext().getHeader(Task.X_ELASTIC_PROJECT_ID_HTTP_HEADER), equalTo(projectId2.id()));
                 throw new RuntimeException("test simulated failure");
@@ -182,13 +183,13 @@ public class ThrottlingRecoveryServiceTests extends ESTestCase {
         final var thirdListener = onRecoveryDoneListener(
             () -> assertThat(threadPool.getThreadContext().getHeader(Task.X_ELASTIC_PROJECT_ID_HTTP_HEADER), equalTo(projectId3.id()))
         );
+        // Third-highest priority recovery, so should happen third:
+        RecoveryState recoveryState3 = newRecoveryState(ShardRouting.RecoveryPriority.UNASSIGNED_EXPECTED);
         service.enqueue(
             projectId3,
             thirdListener,
-            newRecoveryState(ShardRouting.RecoveryPriority.UNASSIGNED_EXPECTED), // third priority, so should happen third
+            mockIndexShard(recoveryState3, UUIDs.randomBase64UUID(), stats),
             newIndexMetadata(),
-            UUIDs.randomBase64UUID(),
-            stats,
             listener -> {
                 assertThat(threadPool.getThreadContext().getHeader(Task.X_ELASTIC_PROJECT_ID_HTTP_HEADER), equalTo(projectId3.id()));
                 listener.onRecoveryDone(null, ShardLongFieldRange.EMPTY, ShardLongFieldRange.EMPTY);
@@ -215,10 +216,12 @@ public class ThrottlingRecoveryServiceTests extends ESTestCase {
         service.enqueue(
             ProjectId.DEFAULT,
             listener,
-            newRecoveryState(recoveryType, new ShardId(randomIndexName(), IndexMetadata.INDEX_UUID_NA_VALUE, 1)),
+            mockIndexShard(
+                newRecoveryState(recoveryType, new ShardId(randomIndexName(), IndexMetadata.INDEX_UUID_NA_VALUE, 1)),
+                UUIDs.randomBase64UUID(),
+                stats
+            ),
             newIndexMetadata(),
-            UUIDs.randomBase64UUID(),
-            stats,
             schedulingListener -> {
                 executionThread.set(Thread.currentThread());
 
@@ -249,10 +252,8 @@ public class ThrottlingRecoveryServiceTests extends ESTestCase {
         service.enqueue(
             ProjectId.DEFAULT,
             userListener,
-            newRecoveryState(),
+            mockIndexShard(newRecoveryState(), UUIDs.randomBase64UUID(), stats),
             newIndexMetadata(),
-            UUIDs.randomBase64UUID(),
-            stats,
             schedulingListener -> {
                 threadPool.generic().execute(() -> {
                     safeAwait(consumerReturned);
@@ -300,10 +301,8 @@ public class ThrottlingRecoveryServiceTests extends ESTestCase {
             service.enqueue(
                 ProjectId.DEFAULT,
                 trackingListener,
-                newRecoveryState(),
+                mockIndexShard(newRecoveryState(), UUIDs.randomBase64UUID(), stats),
                 newIndexMetadata(),
-                UUIDs.randomBase64UUID(),
-                stats,
                 schedulingListener -> {
                     int current = running.incrementAndGet();
                     peakConcurrent.accumulateAndGet(current, Integer::max);
@@ -357,10 +356,8 @@ public class ThrottlingRecoveryServiceTests extends ESTestCase {
             service.enqueue(
                 ProjectId.DEFAULT,
                 noopRecoveryListener(),
-                newRelocationRecoveryState(),
+                mockIndexShard(newRelocationRecoveryState(), UUIDs.randomBase64UUID(), stats),
                 newIndexMetadata(),
-                UUIDs.randomBase64UUID(),
-                stats,
                 listener -> runningRecoveries.put(id, listener)
             );
         }
@@ -374,10 +371,8 @@ public class ThrottlingRecoveryServiceTests extends ESTestCase {
         service.enqueue(
             ProjectId.DEFAULT,
             noopRecoveryListener(),
-            newRelocationRecoveryState(),
+            mockIndexShard(newRelocationRecoveryState(), UUIDs.randomBase64UUID(), stats),
             newIndexMetadata(),
-            UUIDs.randomBase64UUID(),
-            stats,
             listener -> runningRecoveries.put("blocked-relocation", listener)
         );
         taskQueue.runAllRunnableTasks();
@@ -389,10 +384,8 @@ public class ThrottlingRecoveryServiceTests extends ESTestCase {
             service.enqueue(
                 ProjectId.DEFAULT,
                 noopRecoveryListener(),
-                newUnassignedRecoveryState(),
+                mockIndexShard(newUnassignedRecoveryState(), UUIDs.randomBase64UUID(), stats),
                 newIndexMetadata(),
-                UUIDs.randomBase64UUID(),
-                stats,
                 listener -> runningRecoveries.put(id, listener)
             );
         }
@@ -411,10 +404,8 @@ public class ThrottlingRecoveryServiceTests extends ESTestCase {
         service.enqueue(
             ProjectId.DEFAULT,
             noopRecoveryListener(),
-            newUnassignedRecoveryState(),
+            mockIndexShard(newUnassignedRecoveryState(), UUIDs.randomBase64UUID(), stats),
             newIndexMetadata(),
-            UUIDs.randomBase64UUID(),
-            stats,
             listener -> runningRecoveries.put("blocked-unassigned", listener)
         );
         taskQueue.runAllRunnableTasks();
@@ -452,10 +443,8 @@ public class ThrottlingRecoveryServiceTests extends ESTestCase {
             service.enqueue(
                 ProjectId.DEFAULT,
                 new TestCaptureResultListener(ExpectedRecoveryOutcome.COMPLETED),
-                newRecoveryState(),
+                mockIndexShard(newRecoveryState(), UUIDs.randomBase64UUID(), stats),
                 newIndexMetadata(),
-                UUIDs.randomBase64UUID(),
-                stats,
                 schedulingListener -> {
                     started.incrementAndGet();
                     taskQueue.scheduleAt(
@@ -492,10 +481,8 @@ public class ThrottlingRecoveryServiceTests extends ESTestCase {
             service.enqueue(
                 ProjectId.DEFAULT,
                 new TestCaptureResultListener(ExpectedRecoveryOutcome.COMPLETED),
-                newRelocationRecoveryState(),
+                mockIndexShard(newRelocationRecoveryState(), UUIDs.randomBase64UUID(), stats),
                 newIndexMetadata(),
-                UUIDs.randomBase64UUID(),
-                stats,
                 schedulingListener -> {
                     started.incrementAndGet();
                     taskQueue.scheduleAt(
@@ -532,10 +519,8 @@ public class ThrottlingRecoveryServiceTests extends ESTestCase {
             service.enqueue(
                 ProjectId.DEFAULT,
                 onRecoveryDoneListener(done::incrementAndGet),
-                newRecoveryState(),
+                mockIndexShard(newRecoveryState(), UUIDs.randomBase64UUID(), stats),
                 newIndexMetadata(),
-                UUIDs.randomBase64UUID(),
-                stats,
                 schedulingListener -> {
                     started.incrementAndGet();
                     taskQueue.scheduleAt(
@@ -625,10 +610,8 @@ public class ThrottlingRecoveryServiceTests extends ESTestCase {
             service.enqueue(
                 ProjectId.DEFAULT,
                 userListener,
-                record.recoveryState(),
+                mockIndexShard(record.recoveryState(), UUIDs.randomBase64UUID(), stats),
                 record.indexMetadata(),
-                UUIDs.randomBase64UUID(),
-                stats,
                 schedulingListener -> schedulingListener.onRecoveryDone(null, ShardLongFieldRange.EMPTY, ShardLongFieldRange.EMPTY)
             );
         }
@@ -644,24 +627,26 @@ public class ThrottlingRecoveryServiceTests extends ESTestCase {
         final var service = newStartedService(taskQueue.getThreadPool(), DefaultProjectResolver.INSTANCE, newClusterService(1));
 
         final var listener1 = new TestCaptureResultListener(ExpectedRecoveryOutcome.FAILED);
+        // Top priority recovery, so should happen first:
+        RecoveryState recoveryState1 = newRecoveryState(ShardRouting.RecoveryPriority.UNASSIGNED_NEW_PRIMARY);
         service.enqueue(
             ProjectId.DEFAULT,
             listener1,
-            newRecoveryState(ShardRouting.RecoveryPriority.UNASSIGNED_NEW_PRIMARY), // high priority
+            mockIndexShard(recoveryState1, UUIDs.randomBase64UUID(), stats),
             newIndexMetadata(),
-            UUIDs.randomBase64UUID(),
-            stats,
-            ignored -> { throw new RuntimeException("test recovery task injected failure"); }
+            ignored -> {
+                throw new RuntimeException("test recovery task injected failure");
+            }
         );
 
         final var listener2 = new TestCaptureResultListener(ExpectedRecoveryOutcome.COMPLETED);
+        // Low priority recovery, so previous one should happen first:
+        RecoveryState recoveryState2 = newRecoveryState(ShardRouting.RecoveryPriority.RELOCATE_REBALANCING);
         service.enqueue(
             ProjectId.DEFAULT,
             listener2,
-            newRecoveryState(ShardRouting.RecoveryPriority.RELOCATE_REBALANCING), // low priority, so previous recovery should happen first
+            mockIndexShard(recoveryState2, UUIDs.randomBase64UUID(), stats),
             newIndexMetadata(),
-            UUIDs.randomBase64UUID(),
-            stats,
             schedulingListener -> {
                 assertTrue("first task should have completed before second one started", listener1.wasNotified());
                 schedulingListener.onRecoveryDone(null, ShardLongFieldRange.EMPTY, ShardLongFieldRange.EMPTY);
@@ -678,23 +663,23 @@ public class ThrottlingRecoveryServiceTests extends ESTestCase {
         final var service = newStartedService(taskQueue.getThreadPool(), DefaultProjectResolver.INSTANCE, newClusterService(1));
 
         final var listener1 = new TestCaptureResultListener(ExpectedRecoveryOutcome.ABORTED);
+        // Top priority recovery, so should happen first:
+        RecoveryState recoveryState1 = newRecoveryState(ShardRouting.RecoveryPriority.UNASSIGNED_NEW_PRIMARY);
         service.enqueue(
             ProjectId.DEFAULT,
             listener1,
-            newRecoveryState(ShardRouting.RecoveryPriority.UNASSIGNED_NEW_PRIMARY), // high priority
+            mockIndexShard(recoveryState1, UUIDs.randomBase64UUID(), stats),
             newIndexMetadata(),
-            UUIDs.randomBase64UUID(),
-            stats,
             RecoveryListener::onRecoveryAborted
         );
         final var listener2 = new TestCaptureResultListener(ExpectedRecoveryOutcome.COMPLETED);
+        // Low priority recovery, so previous one should happen first:
+        RecoveryState recoveryState2 = newRecoveryState(ShardRouting.RecoveryPriority.RELOCATE_REBALANCING);
         service.enqueue(
             ProjectId.DEFAULT,
             listener2,
-            newRecoveryState(ShardRouting.RecoveryPriority.RELOCATE_REBALANCING), // low priority, so previous recovery should happen first
+            mockIndexShard(recoveryState2, UUIDs.randomBase64UUID(), stats),
             newIndexMetadata(),
-            UUIDs.randomBase64UUID(),
-            stats,
             schedulingListener -> {
                 assertTrue("first task should have completed before second one started", listener1.wasNotified());
                 schedulingListener.onRecoveryDone(null, ShardLongFieldRange.EMPTY, ShardLongFieldRange.EMPTY);
@@ -712,13 +697,13 @@ public class ThrottlingRecoveryServiceTests extends ESTestCase {
 
         final var runningTaskDispatched = new AtomicBoolean();
         final var listener1 = new TestCaptureResultListener(ExpectedRecoveryOutcome.COMPLETED);
+        // Top priority recovery, so should happen first:
+        RecoveryState recoveryState1 = newRecoveryState(ShardRouting.RecoveryPriority.UNASSIGNED_NEW_PRIMARY);
         service.enqueue(
             ProjectId.DEFAULT,
             listener1,
-            newRecoveryState(ShardRouting.RecoveryPriority.UNASSIGNED_NEW_PRIMARY), // high priority
+            mockIndexShard(recoveryState1, UUIDs.randomBase64UUID(), stats),
             newIndexMetadata(),
-            UUIDs.randomBase64UUID(),
-            stats,
             listener -> {
                 runningTaskDispatched.set(true);
                 taskQueue.scheduleAt(
@@ -728,13 +713,13 @@ public class ThrottlingRecoveryServiceTests extends ESTestCase {
             }
         );
         final var listener2 = new TestCaptureResultListener(ExpectedRecoveryOutcome.ABORTED);
+        // Low priority recovery, so previous one should happen first:
+        RecoveryState recoveryState2 = newRecoveryState(ShardRouting.RecoveryPriority.RELOCATE_REBALANCING);
         service.enqueue(
             ProjectId.DEFAULT,
             listener2,
-            newRecoveryState(ShardRouting.RecoveryPriority.RELOCATE_REBALANCING), // low priority, so previous recovery should happen first
+            mockIndexShard(recoveryState2, UUIDs.randomBase64UUID(), stats),
             newIndexMetadata(),
-            UUIDs.randomBase64UUID(),
-            stats,
             ignored -> fail("queued task should not be dispatched after close")
         );
 
@@ -759,10 +744,8 @@ public class ThrottlingRecoveryServiceTests extends ESTestCase {
         service.enqueue(
             ProjectId.DEFAULT,
             listener,
-            newRecoveryState(),
+            mockIndexShard(newRecoveryState(), UUIDs.randomBase64UUID(), stats),
             newIndexMetadata(),
-            UUIDs.randomBase64UUID(),
-            stats,
             ignored -> fail("should not be dispatched after close")
         );
         ensureListenersWereNotified(listener);
@@ -781,10 +764,8 @@ public class ThrottlingRecoveryServiceTests extends ESTestCase {
         service.enqueue(
             ProjectId.DEFAULT,
             listener,
-            newRecoveryState(shardId),
+            mockIndexShard(newRecoveryState(shardId), allocationId, stats),
             newIndexMetadata(),
-            allocationId,
-            stats,
             ignored -> fail("task should have been cancelled")
         );
         taskQueue.runAllTasks();
@@ -803,24 +784,24 @@ public class ThrottlingRecoveryServiceTests extends ESTestCase {
         assertTrue(service.cancelRecoveries(Map.of(allocationId, shardId)).isEmpty());
 
         final var listener1 = new TestCaptureResultListener(ExpectedRecoveryOutcome.CANCELLED_IN_QUEUE);
+        // Top priority recovery, so should happen first:
+        RecoveryState recoveryState1 = newRecoveryState(shardId, ShardRouting.RecoveryPriority.UNASSIGNED_NEW_PRIMARY);
         service.enqueue(
             ProjectId.DEFAULT,
             listener1,
-            newRecoveryState(shardId, ShardRouting.RecoveryPriority.UNASSIGNED_NEW_PRIMARY), // high priority
+            mockIndexShard(recoveryState1, allocationId, stats),
             newIndexMetadata(),
-            allocationId,
-            stats,
             ignored -> fail("first enqueue attempt should have been rejected due to recorded cancellation")
         );
 
         final var listener2 = new TestCaptureResultListener(ExpectedRecoveryOutcome.CANCELLED_IN_QUEUE);
+        // Low priority recovery, so previous one should happen first:
+        RecoveryState recoveryState2 = newRecoveryState(shardId, ShardRouting.RecoveryPriority.RELOCATE_REBALANCING);
         service.enqueue(
             ProjectId.DEFAULT,
             listener2,
-            newRecoveryState(shardId, ShardRouting.RecoveryPriority.RELOCATE_REBALANCING), // low priority, so previous should happen first
+            mockIndexShard(recoveryState2, allocationId, stats),
             newIndexMetadata(),
-            allocationId,
-            stats,
             ignored -> fail("second enqueue attempt should also have been rejected")
         );
 
@@ -841,10 +822,8 @@ public class ThrottlingRecoveryServiceTests extends ESTestCase {
         service.enqueue(
             ProjectId.DEFAULT,
             listener1,
-            newRecoveryState(shardId1),
+            mockIndexShard(newRecoveryState(shardId1), allocationId1, new RecoveryStats()),
             newIndexMetadata(),
-            allocationId1,
-            new RecoveryStats(),
             listener -> {
                 // simulates cancellation of started recovery
                 taskQueue.scheduleAt(
@@ -859,10 +838,8 @@ public class ThrottlingRecoveryServiceTests extends ESTestCase {
         service.enqueue(
             ProjectId.DEFAULT,
             listener2,
-            newRecoveryState(shardId2),
+            mockIndexShard(newRecoveryState(shardId2), allocationId2, stats),
             newIndexMetadata(),
-            allocationId2,
-            stats,
             ignored -> fail("task should have been cancelled")
         );
         assertThat(service.cancelRecoveries(Map.of(allocationId1, shardId1, allocationId2, shardId2)), equalTo(Set.of(allocationId2)));
@@ -908,10 +885,8 @@ public class ThrottlingRecoveryServiceTests extends ESTestCase {
         service.enqueue(
             ProjectId.DEFAULT,
             staleListener,
-            staleRecoveryState,
+            mockIndexShard(staleRecoveryState, staleAllocationId, stats),
             newIndexMetadata(),
-            staleAllocationId,
-            stats,
             l -> l.onRecoveryDone(staleRecoveryState, ShardLongFieldRange.EMPTY, ShardLongFieldRange.EMPTY)
         );
 
@@ -919,10 +894,12 @@ public class ThrottlingRecoveryServiceTests extends ESTestCase {
         service.enqueue(
             ProjectId.DEFAULT,
             retainedListener,
-            newRecoveryState(retainedShardId, ShardRouting.RecoveryPriority.RELOCATE_REBALANCING), // low priority
+            mockIndexShard(
+                newRecoveryState(retainedShardId, ShardRouting.RecoveryPriority.RELOCATE_REBALANCING),
+                retainedAllocationId,
+                stats
+            ),
             newIndexMetadata(),
-            retainedAllocationId,
-            stats,
             ignored -> fail("task should have been cancelled")
         );
 
@@ -941,10 +918,8 @@ public class ThrottlingRecoveryServiceTests extends ESTestCase {
         service.enqueue(
             ProjectId.DEFAULT,
             blockerListener,
-            newRecoveryState(blockerShardId),
+            mockIndexShard(newRecoveryState(blockerShardId), UUIDs.randomBase64UUID(), stats),
             newIndexMetadata(),
-            UUIDs.randomBase64UUID(),
-            stats,
             listener -> {
                 // occupies the sole concurrency slot
                 taskQueue.scheduleAt(
@@ -968,10 +943,8 @@ public class ThrottlingRecoveryServiceTests extends ESTestCase {
         service.enqueue(
             ProjectId.DEFAULT,
             listener,
-            newRecoveryState(shardId),
+            mockIndexShard(newRecoveryState(shardId), oldAllocationId, stats),
             newIndexMetadata(),
-            oldAllocationId,
-            stats,
             ignored -> fail("task should have been cancelled")
         );
         assertThat(service.currentQueueSize(), equalTo(1));
@@ -1001,10 +974,8 @@ public class ThrottlingRecoveryServiceTests extends ESTestCase {
         service.enqueue(
             ProjectId.DEFAULT,
             new TestCaptureResultListener(ExpectedRecoveryOutcome.COMPLETED),
-            recoveryState,
+            mockIndexShard(recoveryState, allocationId, stats),
             newIndexMetadata(),
-            allocationId,
-            stats,
             l -> taskQueue.scheduleAt(
                 taskQueue.getCurrentTimeMillis() + 100,
                 () -> l.onRecoveryDone(recoveryState, ShardLongFieldRange.EMPTY, ShardLongFieldRange.EMPTY)
@@ -1087,10 +1058,8 @@ public class ThrottlingRecoveryServiceTests extends ESTestCase {
                     () -> service.enqueue(
                         ProjectId.DEFAULT,
                         trackingListener,
-                        recoveryState,
+                        mockIndexShard(recoveryState, UUIDs.randomBase64UUID(), stats),
                         newIndexMetadata(),
-                        UUIDs.randomBase64UUID(),
-                        stats,
                         schedulingListener -> {
                             assertThat(runningRecoveries.incrementAndGet(), lessThanOrEqualTo(maxConcurrentRecoveries.get()));
                             if (isRelocation) {
@@ -1228,10 +1197,8 @@ public class ThrottlingRecoveryServiceTests extends ESTestCase {
                         throttlingRecoveryService.enqueue(
                             ProjectId.DEFAULT,
                             trackingListener,
-                            recoveryState,
+                            mockIndexShard(recoveryState, UUIDs.randomBase64UUID(), stats),
                             newIndexMetadata(),
-                            UUIDs.randomBase64UUID(),
-                            stats,
                             schedulingListener -> {
                                 peakRunning.accumulateAndGet(running.incrementAndGet(), Integer::max);
                                 runStressInboundRecoveryTask(recoveryState, schedulingListener, running);
@@ -1368,10 +1335,8 @@ public class ThrottlingRecoveryServiceTests extends ESTestCase {
         final Runnable enqueueRecovery = () -> service.enqueue(
             ProjectId.DEFAULT,
             RecoveryListener.NOOP,
-            newRecoveryState(),
+            mockIndexShard(newRecoveryState(), UUIDs.randomBase64UUID(), stats),
             newIndexMetadata(),
-            UUIDs.randomBase64UUID(),
-            stats,
             listener -> {
                 started.incrementAndGet();
                 listener.onRecoveryDone(null, ShardLongFieldRange.EMPTY, ShardLongFieldRange.EMPTY);
@@ -1421,10 +1386,8 @@ public class ThrottlingRecoveryServiceTests extends ESTestCase {
             service.enqueue(
                 ProjectId.DEFAULT,
                 RecoveryListener.NOOP,
-                newRecoveryState(),
+                mockIndexShard(newRecoveryState(), UUIDs.randomBase64UUID(), stats),
                 newIndexMetadata(),
-                UUIDs.randomBase64UUID(),
-                stats,
                 listener -> {
                     started.incrementAndGet();
                     listener.onRecoveryDone(null, ShardLongFieldRange.EMPTY, ShardLongFieldRange.EMPTY);
@@ -1480,10 +1443,8 @@ public class ThrottlingRecoveryServiceTests extends ESTestCase {
             service.enqueue(
                 ProjectId.DEFAULT,
                 RecoveryListener.NOOP,
-                newRecoveryState(),
+                mockIndexShard(newRecoveryState(), UUIDs.randomBase64UUID(), stats),
                 newIndexMetadata(),
-                UUIDs.randomBase64UUID(),
-                stats,
                 l -> {
                     started.incrementAndGet();
                     l.onRecoveryDone(null, ShardLongFieldRange.EMPTY, ShardLongFieldRange.EMPTY);
@@ -1550,10 +1511,8 @@ public class ThrottlingRecoveryServiceTests extends ESTestCase {
             service.enqueue(
                 ProjectId.DEFAULT,
                 RecoveryListener.NOOP,
-                newRecoveryState(),
+                mockIndexShard(newRecoveryState(), UUIDs.randomBase64UUID(), stats),
                 newIndexMetadata(),
-                UUIDs.randomBase64UUID(),
-                stats,
                 l -> {
                     started.incrementAndGet();
                     l.onRecoveryDone(null, ShardLongFieldRange.EMPTY, ShardLongFieldRange.EMPTY);
@@ -1623,10 +1582,8 @@ public class ThrottlingRecoveryServiceTests extends ESTestCase {
                     service.enqueue(
                         ProjectId.DEFAULT,
                         RecoveryListener.NOOP,
-                        recoveryState,
+                        mockIndexShard(recoveryState, UUIDs.randomBase64UUID(), stats),
                         newIndexMetadata(),
-                        UUIDs.randomBase64UUID(),
-                        stats,
                         l -> {
                             l.onRecoveryDone(null, ShardLongFieldRange.EMPTY, ShardLongFieldRange.EMPTY);
                             allCompleted.countDown();
@@ -1794,5 +1751,21 @@ public class ThrottlingRecoveryServiceTests extends ESTestCase {
 
     private static RecoveryListener noopRecoveryListener() {
         return onRecoveryDoneListener(() -> {});
+    }
+
+    private static IndexShard mockIndexShard(RecoveryState recoveryState, String allocationId, RecoveryStats recoveryStats) {
+        final var indexShard = mock(IndexShard.class);
+        when(indexShard.shardId()).thenReturn(recoveryState.getShardId());
+        when(indexShard.recoveryState()).thenReturn(recoveryState);
+        when(indexShard.recoveryStats()).thenReturn(recoveryStats);
+        final var shardRouting = TestShardRouting.newShardRouting(
+            indexShard.shardId(),
+            null,
+            recoveryState.getPrimary(),
+            ShardRoutingState.UNASSIGNED,
+            recoveryState.getRecoverySource()
+        ).initialize(randomIdentifier(), allocationId, 0L);
+        when(indexShard.routingEntry()).thenReturn(shardRouting);
+        return indexShard;
     }
 }

@@ -1014,10 +1014,8 @@ public class IndicesService extends AbstractLifecycleComponent
         throttlingRecoveryService.enqueue(
             projectId,
             recoveryListener,
-            indexShard.recoveryState(),
+            indexShard,
             indexService.getMetadata(),
-            shardRouting.allocationId().getId(),
-            indexShard.recoveryStats(),
             listener -> {
                 // Take a store ref when the recovery task actually runs, and release it before invoking the recovery listener
                 // to avoid conflicting with a concurrent shard closure. If the shard is already closed when the task runs,

@@ -3361,7 +3361,7 @@ public class ParquetFormatReader implements RangeAwareFormatReader, NoConfigForm
                     skipWarnings = new SkipWarnings(
                         "Parquet file ["
                             + fileLocation
-                            + "] has columns whose on-disk type is incompatible with the planner type; "
+                            + "] has columns whose on-disk type is incompatible with planner type; "
                             + "they are returned as null",
                         warningSink
                     );

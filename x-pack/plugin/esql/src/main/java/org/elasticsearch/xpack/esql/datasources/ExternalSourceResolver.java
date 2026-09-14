@@ -1050,13 +1050,17 @@ public class ExternalSourceResolver {
                 // one-file listing, on the anchor metadata). That per-file harvest is what split
                 // discovery uses to skip a second footer open when readableUnitCount is 1.
                 StoragePath path = listing.path(i);
+                Map<String, DataType> inferred = inferredTypesByPath.get(path);
+                if (inferred == null) {
+                    inferred = inferredTypesFromCache(path, listing.lastModifiedMillis(i), config);
+                }
                 perFileInfo.put(
                     path,
                     new SchemaReconciliation.FileSchemaInfo(
                         fileSchema,
                         mapping,
                         fileStatisticsForFirstFileWins(listing, i, extMetadata, config),
-                        inferredTypesByPath.get(path)
+                        inferred
                     )
                 );
             }
@@ -1097,15 +1101,38 @@ public class ExternalSourceResolver {
      */
     @Nullable
     private SourceStatistics fileStatisticsFromCache(StoragePath path, long mtimeMillis, @Nullable Map<String, Object> config) {
-        if (cacheService == null || cacheService.isEnabled() == false) {
-            return null;
-        }
-        SchemaCacheKey key = SchemaCacheKey.build(path.toString(), mtimeMillis, detectFormatType(path), storageConfig(config));
-        SchemaCacheEntry entry = cacheService.getSchemaIfPresent(key);
+        SchemaCacheEntry entry = schemaCacheEntry(path, mtimeMillis, config);
         if (entry == null) {
             return null;
         }
         return SourceStatisticsSerializer.extractStatistics(entry.safeMetadata()).orElse(null);
+    }
+
+    /**
+     * Footer types stored on the same schema-cache entry {@link #fileStatisticsFromCache} reads.
+     * The FIRST_FILE_WINS defer path never gathers {@code inferredTypesByPath}, so stamp-time
+     * alignment must recover the file's own types here or it will treat the pin as the found type.
+     */
+    @Nullable
+    private Map<String, DataType> inferredTypesFromCache(StoragePath path, long mtimeMillis, @Nullable Map<String, Object> config) {
+        SchemaCacheEntry entry = schemaCacheEntry(path, mtimeMillis, config);
+        if (entry == null || entry.columnNames().length == 0) {
+            return null;
+        }
+        Map<String, DataType> types = Maps.newHashMapWithExpectedSize(entry.columnNames().length);
+        for (int i = 0; i < entry.columnNames().length; i++) {
+            types.put(entry.columnNames()[i], entry.columnTypes()[i]);
+        }
+        return types;
+    }
+
+    @Nullable
+    private SchemaCacheEntry schemaCacheEntry(StoragePath path, long mtimeMillis, @Nullable Map<String, Object> config) {
+        if (cacheService == null || cacheService.isEnabled() == false) {
+            return null;
+        }
+        SchemaCacheKey key = SchemaCacheKey.build(path.toString(), mtimeMillis, detectFormatType(path), storageConfig(config));
+        return cacheService.getSchemaIfPresent(key);
     }
 
     private static int[] identityMapping(int n) {

@@ -6325,7 +6325,7 @@ public class FromDatasetIT extends AbstractExternalDataSourceIT {
         assertThat(warnings, hasSize(2));
         assertThat(
             warnings,
-            hasItem(containsString("has columns whose on-disk type is incompatible with the planner type; they are returned as null"))
+            hasItem(containsString("has columns whose on-disk type is incompatible with planner type; they are returned as null"))
         );
         assertThat(warnings, hasItem(containsString("part-b.parquet")));
         assertThat(warnings, hasItem(containsString("Column [x] in file [")));

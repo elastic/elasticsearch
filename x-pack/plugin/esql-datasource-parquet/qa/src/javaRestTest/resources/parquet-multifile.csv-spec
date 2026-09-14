@@ -297,7 +297,7 @@ dataset: employees_multifile_ubn_ffw: "{{employees_multifile_ubn}}" WITH {"schem
 FROM employees_multifile_ubn_ffw
 | SORT name ASC;
 warningRegex:Column \[age\] in file \[.*parquet_ubn_b\.parquet\] has type \[LONG\] incompatible with planner type \[INTEGER\]; returning nulls for this column
-warningRegex:Parquet file \[.*parquet_ubn_b\.parquet\] has columns whose on-disk type is incompatible with the planner type; they are returned as null
+warningRegex:Parquet file \[.*parquet_ubn_b\.parquet\] has columns whose on-disk type is incompatible with planner type; they are returned as null
 warningRegex:declared column \[score\] is not present in some source files
 
 name:keyword | age:integer | score:double
@@ -315,7 +315,7 @@ dataset: employees_multifile_ubn_ffw: "{{employees_multifile_ubn}}" WITH {"schem
 FROM employees_multifile_ubn_ffw
 | STATS count = COUNT(*);
 warningRegex:Column \[age\] in file \[.*parquet_ubn_b\.parquet\] has type \[LONG\] incompatible with planner type \[INTEGER\]; returning nulls for this column
-warningRegex:Parquet file \[.*parquet_ubn_b\.parquet\] has columns whose on-disk type is incompatible with the planner type; they are returned as null
+warningRegex:Parquet file \[.*parquet_ubn_b\.parquet\] has columns whose on-disk type is incompatible with planner type; they are returned as null
 
 count:long
 4
@@ -331,7 +331,7 @@ FROM employees_multifile_ubn_ffw
 | KEEP name, score
 | SORT name ASC;
 warningRegex:Column \[age\] in file \[.*parquet_ubn_b\.parquet\] has type \[LONG\] incompatible with planner type \[INTEGER\]; returning nulls for this column
-warningRegex:Parquet file \[.*parquet_ubn_b\.parquet\] has columns whose on-disk type is incompatible with the planner type; they are returned as null
+warningRegex:Parquet file \[.*parquet_ubn_b\.parquet\] has columns whose on-disk type is incompatible with planner type; they are returned as null
 warningRegex:declared column \[score\] is not present in some source files
 
 name:keyword | score:double

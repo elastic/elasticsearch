@@ -1488,6 +1488,34 @@ public class ExternalSourceResolverTests extends ESTestCase {
     }
 
     /**
+     * After an eager resolve warms the schema cache, a later defer resolve still stamps each file's
+     * own footer types from that same cache entry. Without those types, alignment treats the pin as
+     * the found type and a LONG file's cached harvest is served as if it were INTEGER.
+     */
+    public void testFirstFileWinsDeferWarmCacheKeepsPerFileInferredTypes() throws Exception {
+        String anchorPath = "s3://bucket/data/a.parquet";
+        String driftPath = "s3://bucket/data/b.parquet";
+        Map<String, List<Attribute>> schemas = new HashMap<>();
+        schemas.put(anchorPath, List.of(attr("x", DataType.INTEGER)));
+        schemas.put(driftPath, List.of(attr("x", DataType.LONG)));
+        ThreeFileStats stats = new ThreeFileStats(schemas, Map.of(anchorPath, 2L, driftPath, 2L));
+        List<StorageEntry> listing = List.of(entry(anchorPath, 100), entry(driftPath, 200));
+
+        try (ExternalSourceCacheService cacheService = new ExternalSourceCacheService(cacheEnabledSettings())) {
+            CountingStorageProvider provider = new CountingStorageProvider(Map.of(PREFIX, listing), schemas);
+            ExternalSourceResolver resolver = buildStatsResolver(provider, stats, null, cacheService);
+
+            resolveFfw(resolver, Set.of(GLOB));
+            ExternalSourceResolution.ResolvedSource deferred = resolveFfw(resolver, Set.of()).resolvedSource(GLOB);
+            assertNotNull(deferred);
+            SchemaReconciliation.FileSchemaInfo driftInfo = deferred.schemaMap().get(StoragePath.of(driftPath));
+            assertNotNull(driftInfo);
+            assertEquals(Map.of("x", DataType.LONG), driftInfo.inferredTypes());
+            assertEquals(Set.of("x"), ExternalSourceResolver.pinnedColumnsOf(driftInfo));
+        }
+    }
+
+    /**
      * Eager path (cacheable, cold): the anchor schema plus every other file is loaded once
      * (N cold loads, anchor reused from cache in the stats loop). Aggregated stats are complete.
      */

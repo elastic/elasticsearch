@@ -424,10 +424,10 @@ public class SnapshotResiliencyTestHelper {
         // it until it is the last task in the queue.
         private Function<Runnable, Runnable> deferProcessPendingDeletes(Function<Runnable, Runnable> runnableWrapper) {
             return runnable -> {
-                final Runnable wrapped = runnableWrapper.apply(runnable);
                 if (isProcessPendingDeletes(runnable) == false) {
-                    return wrapped;
+                    return runnableWrapper.apply(runnable);
                 }
+                final Runnable wrapped = runnableWrapper.apply(runnable);
                 return new Runnable() {
                     @Override
                     public void run() {
@@ -441,7 +441,7 @@ public class SnapshotResiliencyTestHelper {
 
                     @Override
                     public String toString() {
-                        return wrapped.toString();
+                        return runnable.toString();
                     }
                 };
             };

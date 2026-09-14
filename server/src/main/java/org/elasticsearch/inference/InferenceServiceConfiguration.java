@@ -100,7 +100,7 @@ public class InferenceServiceConfiguration implements Writeable, ToXContentObjec
         PARSER.declareString(constructorArg(), SERVICE_FIELD);
         PARSER.declareString(constructorArg(), NAME_FIELD);
         PARSER.declareStringArray(constructorArg(), TASK_TYPES_FIELD);
-        PARSER.declareObject(constructorArg(), (p, c) -> p.map(), CONFIGURATIONS_FIELD);
+        PARSER.declareObject(constructorArg(), (p, c) -> p.map(HashMap::new, SettingsConfiguration::fromXContent), CONFIGURATIONS_FIELD);
         PARSER.declareObject(optionalConstructorArg(), Features.PARSER::apply, FEATURES_FIELD);
     }
 
@@ -159,20 +159,6 @@ public class InferenceServiceConfiguration implements Writeable, ToXContentObjec
         out.writeCollection(taskTypes);
         out.writeMap(configurations, StreamOutput::writeWriteable);
         out.writeOptionalWriteable(features);
-    }
-
-    public Map<String, Object> toMap() {
-        Map<String, Object> map = new HashMap<>();
-
-        map.put(SERVICE_FIELD.getPreferredName(), service);
-        map.put(NAME_FIELD.getPreferredName(), name);
-        map.put(TASK_TYPES_FIELD.getPreferredName(), taskTypes);
-        map.put(CONFIGURATIONS_FIELD.getPreferredName(), configurations);
-        if (features != null) {
-            map.put(FEATURES_FIELD.getPreferredName(), features.toMap());
-        }
-
-        return map;
     }
 
     @Override
@@ -272,14 +258,6 @@ public class InferenceServiceConfiguration implements Writeable, ToXContentObjec
 
         public static Features fromXContent(XContentParser parser) throws IOException {
             return PARSER.parse(parser, null);
-        }
-
-        public Map<String, Object> toMap() {
-            Map<String, Object> map = new HashMap<>();
-
-            map.put(SUPPORTS_NON_STREAMING_CHAT.getPreferredName(), supportsNonStreamingChat);
-
-            return map;
         }
     }
 }

@@ -22,7 +22,6 @@ import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xcontent.XContentType;
 
 import java.io.IOException;
-import java.util.Map;
 
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.is;
@@ -77,10 +76,6 @@ public class InferenceServiceConfigurationFeaturesTests extends AbstractBWCSeria
         assertThat(Strings.toString(builder), is(XContentHelper.stripWhitespace("""
             {"supports_non_streaming_chat":false}
             """)));
-    }
-
-    public void testToMap() {
-        assertThat(new Features(true).toMap(), is(Map.of("supports_non_streaming_chat", true)));
     }
 
     public void testFromXContent_ThrowsWhenSupportsNonStreamingChatIsMissing() throws IOException {

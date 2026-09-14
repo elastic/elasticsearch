@@ -16,12 +16,14 @@ import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.inference.InferenceServiceConfiguration.Builder;
 import org.elasticsearch.inference.InferenceServiceConfiguration.Features;
+import org.elasticsearch.inference.configuration.SettingsConfigurationFieldType;
 import org.elasticsearch.test.AbstractBWCSerializationTestCase;
 import org.elasticsearch.xcontent.ToXContent;
 import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xcontent.XContentType;
 
 import java.io.IOException;
+import java.util.EnumSet;
 import java.util.Map;
 import java.util.function.Predicate;
 
@@ -30,7 +32,6 @@ import static org.elasticsearch.inference.InferenceServiceConfigurationTestUtils
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertToXContentEquivalent;
 import static org.hamcrest.Matchers.anEmptyMap;
 import static org.hamcrest.Matchers.containsString;
-import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.not;
 
@@ -53,26 +54,15 @@ public class InferenceServiceConfigurationTests extends AbstractBWCSerialization
 
     @Override
     protected Predicate<String> getRandomFieldsExcludeFilter() {
-        // configurations values are parsed as raw maps; injecting unknown fields inside
-        // them would make parsed.toXContent differ from expected.toXContent
+        // A random key inserted directly into the configurations map would not parse as a
+        // SettingsConfiguration. Unknown fields inside each entry are fine because the parser
+        // is lenient (supportsUnknownFields = true).
         return field -> field.startsWith("configurations");
     }
 
     @Override
     protected Writeable.Reader<InferenceServiceConfiguration> instanceReader() {
         return InferenceServiceConfiguration::new;
-    }
-
-    @Override
-    protected void assertEqualInstances(InferenceServiceConfiguration expected, InferenceServiceConfiguration actual) {
-        // fromXContent parses configurations as raw Map<String, Object>, so equals() fails.
-        // Check all typed fields directly; configurations equivalence is covered by the
-        // assertToXContentEquivalent pass that the framework runs in the same test loop.
-        assertNotSame(expected, actual);
-        assertThat(actual.getService(), is(expected.getService()));
-        assertThat(actual.getName(), is(expected.getName()));
-        assertThat(actual.getTaskTypes(), is(expected.getTaskTypes()));
-        assertThat(actual.getFeatures(), is(expected.getFeatures()));
     }
 
     @Override
@@ -136,7 +126,8 @@ public class InferenceServiceConfigurationTests extends AbstractBWCSerialization
                         "required": true,
                         "sensitive": true,
                         "updatable": false,
-                        "type": "str"
+                        "type": "str",
+                        "supported_task_types": ["text_embedding", "completion"]
                     },
                     "numeric_field_configuration": {
                         "default_value": 3,
@@ -145,7 +136,8 @@ public class InferenceServiceConfigurationTests extends AbstractBWCSerialization
                         "required": true,
                         "sensitive": false,
                         "updatable": true,
-                        "type": "int"
+                        "type": "int",
+                        "supported_task_types": ["text_embedding", "completion"]
                     }
                }
             }
@@ -174,7 +166,8 @@ public class InferenceServiceConfigurationTests extends AbstractBWCSerialization
                         "required": true,
                         "sensitive": true,
                         "updatable": false,
-                        "type": "str"
+                        "type": "str",
+                        "supported_task_types": ["text_embedding", "completion"]
                     },
                     "numeric_field_configuration": {
                         "default_value": 3,
@@ -183,7 +176,8 @@ public class InferenceServiceConfigurationTests extends AbstractBWCSerialization
                         "required": true,
                         "sensitive": false,
                         "updatable": true,
-                        "type": "int"
+                        "type": "int",
+                        "supported_task_types": ["text_embedding", "completion"]
                     }
                }
             }
@@ -255,31 +249,33 @@ public class InferenceServiceConfigurationTests extends AbstractBWCSerialization
         assertThat(configuration.getFeatures(), is(new Features(false)));
     }
 
-    public void testToMap() {
-        var configField = InferenceServiceConfigurationTestUtils.getRandomServiceConfigurationField();
-        var configFieldAsMap = configField.toMap();
+    public void testFromXContent_ParsesConfigurationsAsSettingsConfiguration() throws IOException {
+        var content = XContentHelper.stripWhitespace("""
+            {
+              "service": "some_provider",
+              "name": "Some Provider",
+              "task_types": ["text_embedding"],
+              "configurations": {
+                "api_key": {
+                  "description": "The API key.",
+                  "label": "API Key",
+                  "required": true,
+                  "sensitive": true,
+                  "updatable": true,
+                  "type": "str",
+                  "supported_task_types": ["text_embedding"]
+                }
+              }
+            }
+            """);
 
-        assertThat(configFieldAsMap.get("service"), equalTo(configField.getService()));
-        assertThat(configFieldAsMap.get("name"), equalTo(configField.getName()));
-        assertThat(configFieldAsMap.get("task_types"), equalTo(configField.getTaskTypes()));
-        assertThat(configFieldAsMap.get("configurations"), equalTo(configField.getConfigurations()));
-        if (configField.getFeatures() != null) {
-            assertThat(configFieldAsMap.get("features"), equalTo(configField.getFeatures().toMap()));
-        } else {
-            assertFalse(configFieldAsMap.containsKey("features"));
-        }
-    }
+        var configuration = InferenceServiceConfiguration.fromXContentBytes(new BytesArray(content), XContentType.JSON);
 
-    public void testToMap_IncludesFeaturesWhenPresent() {
-        var configuration = new Builder().setService("s").setName("n").setFeatures(new Features(true)).build();
-        var map = configuration.toMap();
-        assertThat(map.get("features"), is(Map.of("supports_non_streaming_chat", true)));
-    }
-
-    public void testToMap_OmitsFeaturesWhenNull() {
-        var configuration = new Builder().setService("s").setName("n").build();
-        var map = configuration.toMap();
-        assertFalse(map.containsKey("features"));
+        var apiKey = configuration.getConfigurations().get("api_key");
+        assertThat(apiKey.getLabel(), is("API Key"));
+        assertTrue(apiKey.isRequired());
+        assertThat(apiKey.getType(), is(SettingsConfigurationFieldType.STRING));
+        assertThat(apiKey.getSupportedTaskTypes(), is(EnumSet.of(TaskType.TEXT_EMBEDDING)));
     }
 
     public void testBuild_ThrowsWhenServiceIsNull() {

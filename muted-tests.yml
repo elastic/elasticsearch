@@ -731,3 +731,26 @@ tests:
 - class: org.elasticsearch.backwards.MixedClusterClientYamlTestSuiteIT
   method: test {p0=snapshot.restore/10_basic/Create a snapshot and then restore single index from it}
   issue: https://github.com/elastic/elasticsearch/issues/159161
+- class: org.elasticsearch.xpack.application.CohereServiceUpgradeIT
+  method: testCohereCompletions {upgradedNodes=3}
+  issue: https://github.com/elastic/elasticsearch/issues/159162
+- class: org.elasticsearch.xpack.application.CohereServiceUpgradeIT
+  method: testRerank {upgradedNodes=3}
+  issue: https://github.com/elastic/elasticsearch/issues/159163
+- class: org.elasticsearch.xpack.application.CohereServiceUpgradeIT
+  method: testCohereEmbeddings {upgradedNodes=3}
+  issue: https://github.com/elastic/elasticsearch/issues/159164
+- class: org.elasticsearch.xpack.shutdown.NodeShutdownShardSnapshotsIT
+  method: testShardSnapshotsStatus
+  issue: https://github.com/elastic/elasticsearch/issues/159165
+- class: org.elasticsearch.xpack.stateless.reshard.StatelessReshardDisruptionIT
+  method: testReshardWithDisruption
+  issue: https://github.com/elastic/elasticsearch/issues/156004
+- class: org.elasticsearch.repositories.s3.RepositoryS3MinioBasicCredentialsRestIT
+  issue: https://github.com/elastic/elasticsearch/issues/159128
+- class: org.elasticsearch.repositories.blobstore.testkit.analyze.MinioRepositoryAnalysisRestIT
+  issue: https://github.com/elastic/elasticsearch/issues/159137
+- class: org.elasticsearch.xpack.searchablesnapshots.minio.MinioSearchableSnapshotsIT
+  issue: https://github.com/elastic/elasticsearch/issues/159136
+- class: org.elasticsearch.repositories.s3.S3RepositoryThirdPartyTests
+  issue: https://github.com/elastic/elasticsearch/issues/159130

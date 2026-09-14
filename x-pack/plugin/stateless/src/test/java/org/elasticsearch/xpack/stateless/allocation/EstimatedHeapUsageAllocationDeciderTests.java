@@ -788,6 +788,6 @@ public class EstimatedHeapUsageAllocationDeciderTests extends ESAllocationTestCa
     }
 
     private Map<ShardId, ShardAndIndexHeapUsage> createShardAndIndexHeapUsageMap(ShardId shardId, long additionalBytes) {
-        return Map.of(shardId, new ShardAndIndexHeapUsage(additionalBytes / 2, additionalBytes / 2));
+        return Map.of(shardId, new ShardAndIndexHeapUsage(additionalBytes / 2, additionalBytes / 2, 0L));
     }
 }

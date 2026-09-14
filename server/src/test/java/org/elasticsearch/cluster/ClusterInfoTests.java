@@ -29,7 +29,11 @@ import static org.hamcrest.Matchers.equalTo;
 public class ClusterInfoTests extends AbstractWireSerializingTestCase<ClusterInfo> {
 
     public void testShardHeapUsageIsDefaultedForMissingShards() {
-        ShardAndIndexHeapUsage defaultHeapUsage = new ShardAndIndexHeapUsage(randomNonNegativeLong(), randomNonNegativeLong());
+        ShardAndIndexHeapUsage defaultHeapUsage = new ShardAndIndexHeapUsage(
+            randomNonNegativeLong(),
+            randomNonNegativeLong(),
+            randomNonNegativeLong()
+        );
         ClusterInfo clusterInfo = ClusterInfo.builder()
             .estimatedShardHeapUsages(Map.of())
             .defaultShardHeapUsageForShardsWithoutMetrics(defaultHeapUsage)
@@ -110,7 +114,7 @@ public class ClusterInfoTests extends AbstractWireSerializingTestCase<ClusterInf
             randomReservedSpace(),
             randomNodeHeapUsage(),
             randomShardHeapUsages(),
-            new ShardAndIndexHeapUsage(randomNonNegativeLong(), randomNonNegativeLong()),
+            randomShardAndIndexHeapUsage(),
             randomNodeUsageStatsForThreadPools(),
             randomShardWriteLoad(),
             randomMaxHeapSizes(),
@@ -174,9 +178,15 @@ public class ClusterInfoTests extends AbstractWireSerializingTestCase<ClusterInf
         int numEntries = randomIntBetween(0, 128);
         Map<ShardId, ShardAndIndexHeapUsage> shardHeapUsageBuilder = new HashMap<>(numEntries);
         for (int i = 0; i < numEntries; i++) {
-            shardHeapUsageBuilder.put(randomShardId(), new ShardAndIndexHeapUsage(randomNonNegativeLong(), randomNonNegativeLong()));
+            shardHeapUsageBuilder.put(randomShardId(), randomShardAndIndexHeapUsage());
         }
         return shardHeapUsageBuilder;
+    }
+
+    private static ShardAndIndexHeapUsage randomShardAndIndexHeapUsage() {
+        final long shardHeapUsageBytes = randomNonNegativeLong();
+        final long postingsHeapUsageBytes = randomLongBetween(0, shardHeapUsageBytes);
+        return new ShardAndIndexHeapUsage(shardHeapUsageBytes, randomNonNegativeLong(), postingsHeapUsageBytes);
     }
 
     private static Map<String, NodeHeapMetrics> randomNodeHeapUsage() {

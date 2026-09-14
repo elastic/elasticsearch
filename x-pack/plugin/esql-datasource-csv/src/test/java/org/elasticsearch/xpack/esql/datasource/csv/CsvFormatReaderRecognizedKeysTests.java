@@ -51,6 +51,7 @@ public class CsvFormatReaderRecognizedKeysTests extends ESTestCase {
         expected.add("null_value");
         expected.add("quote");
         expected.add("schema_sample_size");
+        expected.add("skip_rows");
         expected.add("trim_spaces");
         assertEquals(expected, new TreeSet<>(CsvFormatReader.RECOGNIZED_KEYS));
     }
@@ -183,6 +184,7 @@ public class CsvFormatReaderRecognizedKeysTests extends ESTestCase {
             case "column_prefix" -> "f_";
             case "trim_spaces" -> true;
             case "schema_sample_size" -> 10;
+            case "skip_rows" -> 2;
             default -> throw new AssertionError("update sampleValueFor() for new recognised key: " + key);
         };
     }

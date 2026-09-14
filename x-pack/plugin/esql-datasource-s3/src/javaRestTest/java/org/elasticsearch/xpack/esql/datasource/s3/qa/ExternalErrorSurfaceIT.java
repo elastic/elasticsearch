@@ -251,6 +251,9 @@ public class ExternalErrorSurfaceIT extends ESRestTestCase {
         entry("invalid datetime format pattern", 400),
         entry("non-boolean header_row", 400),
         entry("negative schema_sample_size", 400),
+        entry("negative skip_rows", 400),
+        entry("non-integer skip_rows", 400),
+        entry("skip_rows above the cap", 400),
         entry("multi-character quote character", 200),
         entry("unknown error_mode value", 400),
         entry("row with more fields than the header", 400),
@@ -322,6 +325,9 @@ public class ExternalErrorSurfaceIT extends ESRestTestCase {
         entry("invalid datetime format pattern", "illegal_argument_exception"),
         entry("non-boolean header_row", "illegal_argument_exception"),
         entry("negative schema_sample_size", "validation_exception"),
+        entry("negative skip_rows", "validation_exception"),
+        entry("non-integer skip_rows", "validation_exception"),
+        entry("skip_rows above the cap", "validation_exception"),
         entry("multi-character quote character", "<none>"),
         entry("unknown error_mode value", "validation_exception"),
         entry("row with more fields than the header", "external_client_exception"),
@@ -689,6 +695,33 @@ public class ExternalErrorSurfaceIT extends ESRestTestCase {
             "good_ds",
             s3(GOOD_CSV),
             Map.of("schema_sample_size", "-5")
+        );
+        queryProbeWithSettings(
+            "reader_options",
+            "negative skip_rows",
+            "say skip_rows must be between 0 and 1000",
+            "negative_skip_rows",
+            "good_ds",
+            s3(GOOD_CSV),
+            Map.of("skip_rows", "-1")
+        );
+        queryProbeWithSettings(
+            "reader_options",
+            "non-integer skip_rows",
+            "say skip_rows must be a number",
+            "non_int_skip_rows",
+            "good_ds",
+            s3(GOOD_CSV),
+            Map.of("skip_rows", "two")
+        );
+        queryProbeWithSettings(
+            "reader_options",
+            "skip_rows above the cap",
+            "say skip_rows must be at most 1000",
+            "too_large_skip_rows",
+            "good_ds",
+            s3(GOOD_CSV),
+            Map.of("skip_rows", "1001")
         );
         queryProbeWithSettings(
             "reader_options",

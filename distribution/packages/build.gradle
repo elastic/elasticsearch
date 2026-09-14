@@ -10,7 +10,11 @@
 import org.apache.tools.ant.filters.ReplaceTokens
 import org.elasticsearch.gradle.LoggedExec
 import org.elasticsearch.gradle.OS
+import org.elasticsearch.gradle.internal.ospackage.deb.Deb
+import org.elasticsearch.gradle.internal.ospackage.rpm.Rpm
 import org.redline_rpm.header.Flags
+import org.redline_rpm.header.Os
+import org.redline_rpm.payload.Directive
 
 import java.nio.file.Files
 import java.nio.file.Path
@@ -42,16 +46,7 @@ import java.util.regex.Pattern
  *    dpkg -c path/to/elasticsearch.deb
  */
 
-buildscript {
-  dependencies {
-    constraints {
-      classpath "org.slf4j:slf4j-api:2.0.6"
-    }
-  }
-}
-plugins {
-  alias(buildLibs.plugins.ospackage)
-}
+apply plugin: 'elasticsearch.ospackage-base'
 
 ['deb', 'rpm'].each { type ->
   String packagingFiles = "build/packaging/${type}"
@@ -72,15 +67,16 @@ plugins {
 
     filter("tokens": expansionsForDistribution(type, false), ReplaceTokens.class)
 
+    File packagingRoot = file(packagingFiles)
     doLast {
       // create empty dirs, we set the permissions when configuring the packages
-      mkdir "${packagingFiles}/var/log/elasticsearch"
-      mkdir "${packagingFiles}/var/lib/elasticsearch"
-      mkdir "${packagingFiles}/usr/share/elasticsearch/plugins"
+      new File(packagingRoot, 'var/log/elasticsearch').mkdirs()
+      new File(packagingRoot, 'var/lib/elasticsearch').mkdirs()
+      new File(packagingRoot, 'usr/share/elasticsearch/plugins').mkdirs()
 
       // bare empty dir for /etc/elasticsearch and /etc/elasticsearch/jvm.options.d
-      mkdir "${packagingFiles}/elasticsearch"
-      mkdir "${packagingFiles}/elasticsearch/jvm.options.d"
+      new File(packagingRoot, 'elasticsearch').mkdirs()
+      new File(packagingRoot, 'elasticsearch/jvm.options.d').mkdirs()
     }
   }
 }
@@ -90,6 +86,9 @@ plugins {
 // is the same
 def commonPackageConfig(String type, String architecture) {
   return {
+    // capture the task as a local so execution-time callbacks (eachFile) can reference it under
+    // the configuration cache, where the closure owner/delegate chain is not preserved
+    def packagingTask = delegate
     onlyIf("not running on windows") {
       OS.current().equals(OS.WINDOWS) == false
     }
@@ -155,7 +154,7 @@ def commonPackageConfig(String type, String architecture) {
         String[] segments = fcp.relativePath.segments
         for (int i = segments.length - 2; i > 2; --i) {
           if (type == 'rpm') {
-            directory('/' + segments[0..i].join('/'), 0755)
+            packagingTask.directory('/' + segments[0..i].join('/'), 0755)
           }
           if (segments[-2] == 'bin' || segments[-1] == 'jspawnhelper') {
             fcp.permissions {
@@ -224,12 +223,12 @@ def commonPackageConfig(String type, String architecture) {
       permissionGroup 'elasticsearch'
       includeEmptyDirs = true
       createDirectoryEntry true
-      fileType CONFIG | NOREPLACE
+      fileType Directive.RPMFILE_CONFIG | Directive.RPMFILE_NOREPLACE
     }
     String envFile = expansionsForDistribution(type, false)['path.env']
     configurationFile envFile
     into(new File(envFile).getParent()) {
-      fileType CONFIG | NOREPLACE
+      fileType Directive.RPMFILE_CONFIG | Directive.RPMFILE_NOREPLACE
       permissionGroup 'elasticsearch'
       filePermissions {
         unix(0660)
@@ -245,14 +244,14 @@ def commonPackageConfig(String type, String architecture) {
       }
     }
     into('/usr/lib/systemd/system') {
-      fileType CONFIG | NOREPLACE
+      fileType Directive.RPMFILE_CONFIG | Directive.RPMFILE_NOREPLACE
       from "${packagingFiles}/systemd/elasticsearch.service"
       filePermissions {
         unix(0644)
       }
     }
     into('/usr/lib/sysctl.d') {
-      fileType CONFIG | NOREPLACE
+      fileType Directive.RPMFILE_CONFIG | Directive.RPMFILE_NOREPLACE
       from "${packagingFiles}/systemd/sysctl/elasticsearch.conf"
       filePermissions {
         unix(0644)
@@ -316,7 +315,7 @@ ospackage {
   }
 
   // version found on oldest supported distro, centos-6
-  requires('coreutils', '8.4', GREATER | EQUAL)
+  requires('coreutils', '8.4', Flags.GREATER | Flags.EQUAL)
 
   fileMode = 0644
   dirMode = 0755
@@ -334,13 +333,13 @@ Closure commonDebConfig(String architecture) {
     // ospackage silently ignores setting it. This is probably because `License`
     // is not actually a field in the Debian control file. So instead, we set
     // the license as "custom field".
-    customFields['License'] = 'Elastic-License'
+    customFields.put('License', 'Elastic-License')
 
     archiveVersion = project.version.replace('-', '~')
     packageGroup = 'web'
 
     // versions found on oldest supported distro, centos-6
-    requires('bash', '4.1', GREATER | EQUAL)
+    requires('bash', '4.1', Flags.GREATER | Flags.EQUAL)
     requires 'libc6'
     requires 'adduser'
 
@@ -376,7 +375,7 @@ Closure commonRpmConfig(String architecture) {
     packager = 'Elasticsearch'
     archiveVersion = project.version.replace('-', '_')
     release = '1'
-    os = 'LINUX'
+    os = Os.LINUX
     distribution = 'Elasticsearch'
     vendor = 'Elasticsearch'
     // TODO ospackage doesn't support icon but we used to have one

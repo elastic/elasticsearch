@@ -75,6 +75,7 @@ public sealed class PanamaESVectorUtilSupport implements ESVectorUtilSupport per
      * In general, prefer a scalar tail and/or nested vector calls rather than a masked tail.
      * Ideally, Panama would run efficiently with a single loop with an all-set mask for most iterations,
      * with the mask only taking effect in the final loop, but we're a long way from that at the moment.
+     * A mask is probably ok if run as a single operation at the end, but not if it's in a loop.
      *
      * Note that AVX2 is minimum 256-bit, so 128-bit is only for NEON and some SVE CPUs,
      * which do have sensible sub-vector extraction instructions, so parts can be used
@@ -2444,7 +2445,7 @@ public sealed class PanamaESVectorUtilSupport implements ESVectorUtilSupport per
 
     /**
      * Panama version of matrix multiply, but operating on 4x[vector width] tiles of C cells
-     * with a 1x1 tile and masked tails for overflow
+     * with a 1x[vector width] tile for the row tail and scalar column tails for overflow
      */
     private static void multiplyAccumulate(float[] a, int aRowStride, int aInnerStride, float[] b, float[] c, int cRows, int inner, int n) {
         int i = 0;
@@ -2491,25 +2492,21 @@ public sealed class PanamaESVectorUtilSupport implements ESVectorUtilSupport per
             acc3.intoArray(c, c3 + j);
         }
 
-        // column tail
-        if (j < n) {
-            final VectorMask<Float> mask = FLOAT_SPECIES.indexInRange(j, n);
-            FloatVector acc0 = FloatVector.zero(FLOAT_SPECIES);
-            FloatVector acc1 = FloatVector.zero(FLOAT_SPECIES);
-            FloatVector acc2 = FloatVector.zero(FLOAT_SPECIES);
-            FloatVector acc3 = FloatVector.zero(FLOAT_SPECIES);
-            for (int l = 0; l < inner; l++) {
-                int aOffset = l * aInnerStride;
-                FloatVector bv = FloatVector.fromArray(FLOAT_SPECIES, b, l * n + j, mask);
-                acc0 = fma(FloatVector.broadcast(FLOAT_SPECIES, a[a0 + aOffset]), bv, acc0);
-                acc1 = fma(FloatVector.broadcast(FLOAT_SPECIES, a[a1 + aOffset]), bv, acc1);
-                acc2 = fma(FloatVector.broadcast(FLOAT_SPECIES, a[a2 + aOffset]), bv, acc2);
-                acc3 = fma(FloatVector.broadcast(FLOAT_SPECIES, a[a3 + aOffset]), bv, acc3);
+        // column tail, groups of 4 rows
+        for (int l = 0; l < inner; l++) {
+            int aOffset = l * aInnerStride;
+            int bBase = l * n;
+            float a0v = a[a0 + aOffset];
+            float a1v = a[a1 + aOffset];
+            float a2v = a[a2 + aOffset];
+            float a3v = a[a3 + aOffset];
+            for (int jj = j; jj < n; jj++) {
+                float bv = b[bBase + jj];
+                c[c0 + jj] = fma(a0v, bv, c[c0 + jj]);
+                c[c1 + jj] = fma(a1v, bv, c[c1 + jj]);
+                c[c2 + jj] = fma(a2v, bv, c[c2 + jj]);
+                c[c3 + jj] = fma(a3v, bv, c[c3 + jj]);
             }
-            acc0.intoArray(c, c0 + j, mask);
-            acc1.intoArray(c, c1 + j, mask);
-            acc2.intoArray(c, c2 + j, mask);
-            acc3.intoArray(c, c3 + j, mask);
         }
     }
 
@@ -2528,15 +2525,13 @@ public sealed class PanamaESVectorUtilSupport implements ESVectorUtilSupport per
             acc.intoArray(c, cBase + j);
         }
 
-        // column tail for the bottom rows
-        if (j < n) {
-            final VectorMask<Float> mask = FLOAT_SPECIES.indexInRange(j, n);
-            FloatVector acc = FloatVector.zero(FLOAT_SPECIES);
-            for (int l = 0; l < inner; l++) {
-                FloatVector bv = FloatVector.fromArray(FLOAT_SPECIES, b, l * n + j, mask);
-                acc = fma(FloatVector.broadcast(FLOAT_SPECIES, a[aBase + l * aInnerStride]), bv, acc);
+        // column tail
+        for (int l = 0; l < inner; l++) {
+            int bBase = l * n;
+            float av = a[aBase + l * aInnerStride];
+            for (int jj = j; jj < n; jj++) {
+                c[cBase + jj] = fma(av, b[bBase + jj], c[cBase + jj]);
             }
-            acc.intoArray(c, cBase + j, mask);
         }
     }
 
@@ -2603,16 +2598,23 @@ public sealed class PanamaESVectorUtilSupport implements ESVectorUtilSupport per
             sv3 = fma(FloatVector.fromArray(FLOAT_SPECIES, a, a3 + j), vv, sv3);
         }
 
-        final VectorMask<Float> mask = FLOAT_SPECIES.indexInRange(j, cols);
-        FloatVector vv = FloatVector.fromArray(FLOAT_SPECIES, v, j, mask);
-        sv0 = fma(FloatVector.fromArray(FLOAT_SPECIES, a, a0 + j, mask), vv, sv0);
-        sv1 = fma(FloatVector.fromArray(FLOAT_SPECIES, a, a1 + j, mask), vv, sv1);
-        sv2 = fma(FloatVector.fromArray(FLOAT_SPECIES, a, a2 + j, mask), vv, sv2);
-        sv3 = fma(FloatVector.fromArray(FLOAT_SPECIES, a, a3 + j, mask), vv, sv3);
+        float s0 = sv0.reduceLanes(ADD);
+        float s1 = sv1.reduceLanes(ADD);
+        float s2 = sv2.reduceLanes(ADD);
+        float s3 = sv3.reduceLanes(ADD);
 
-        result[resultOffset] = sv0.reduceLanes(ADD);
-        result[resultOffset + 1] = sv1.reduceLanes(ADD);
-        result[resultOffset + 2] = sv2.reduceLanes(ADD);
-        result[resultOffset + 3] = sv3.reduceLanes(ADD);
+        // column tail, 4 rows at a time
+        for (; j < cols; j++) {
+            float vj = v[j];
+            s0 = fma(a[a0 + j], vj, s0);
+            s1 = fma(a[a1 + j], vj, s1);
+            s2 = fma(a[a2 + j], vj, s2);
+            s3 = fma(a[a3 + j], vj, s3);
+        }
+
+        result[resultOffset] = s0;
+        result[resultOffset + 1] = s1;
+        result[resultOffset + 2] = s2;
+        result[resultOffset + 3] = s3;
     }
 }

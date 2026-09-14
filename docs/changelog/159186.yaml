@@ -1,11 +1,15 @@
 area: Snapshot/Restore
 deprecation:
-  area: Snapshot/Restore
-  details: Please describe the details of this change for the release notes. You can
-    use asciidoc.
-  impact: Please describe the impact of this change to users
-  title: Report deprecated leniency in S3 client config
+  area: Cluster and node setting
+  details: |-
+    The Upgrade Assistant now reports S3 snapshot repositories that rely on deprecated, backwards-compatible client
+    configuration. This includes endpoints without a URL scheme, a missing region (guessed from the endpoint or falling
+    back to `us-east-1`), and a repository whose named S3 client cannot be resolved on the node.
+  impact: |-
+    Configure an explicit region and a scheme-prefixed endpoint on the S3 client, and ensure the repository's `client`
+    setting names a client that exists on every node, before the next major release.
+  title: Report deprecated S3 client configuration in the Upgrade Assistant
 issues: []
 pr: 159186
-summary: Report deprecated leniency in S3 client config
+summary: Report deprecated S3 client configuration in the Upgrade Assistant
 type: deprecation

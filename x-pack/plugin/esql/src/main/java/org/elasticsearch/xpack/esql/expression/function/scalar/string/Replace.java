@@ -163,10 +163,9 @@ public class Replace extends EsqlScalarFunction implements AnyNullIsNull {
         }
         String pattern = regex.utf8ToString();
         try {
-            // Pattern.compile is outside safeReplace; catch compile-time overflow here.
             return safeReplace(str, Pattern.compile(pattern), newStr);
         } catch (StackOverflowError e) {
-            throw stackOverflowApplying(pattern);
+            throw new IllegalArgumentException("Pattern nesting is too deep to evaluate", e);
         }
     }
 
@@ -397,21 +396,10 @@ public class Replace extends EsqlScalarFunction implements AnyNullIsNull {
         try {
             return doReplace(strBytesRef, regex, newStrBytesRef);
         } catch (StackOverflowError e) {
-            throw stackOverflowApplying(regex.pattern());
+            throw new IllegalArgumentException("Pattern nesting is too deep to evaluate", e);
         }
     }
 
-    /**
-     * A bad regex on problematic data can trigger a {@link StackOverflowError}. Rethrow it as
-     * {@link IllegalArgumentException} so the evaluator turns it into a warning and a null result,
-     * instead of a fatal JVM error that kills the node. The input string is omitted from the
-     * message to avoid writing potentially sensitive data to logs.
-     */
-    private static IllegalArgumentException stackOverflowApplying(String pattern) {
-    private static InvalidArgumentException stackOverflowApplying(StackOverflowError e) {
-        return new InvalidArgumentException("Pattern nesting is too deep to evaluate", e);
-    }
-    }
 
     private static BytesRef doReplace(BytesRef strBytesRef, Pattern regex, BytesRef newStrBytesRef) {
         String str = strBytesRef.utf8ToString();

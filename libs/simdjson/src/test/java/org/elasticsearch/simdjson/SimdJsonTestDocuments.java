@@ -69,7 +69,26 @@ public final class SimdJsonTestDocuments {
                 {"first":1,"ab":2}""", """
                 {"first":1,"abcdefg":2}""", """
                 {"first":1,"abcdefgh":2}""", """
-                {"first":1,"abcdefghi":2}"""
+                {"first":1,"abcdefghi":2}""",
+                // Integer digit-count boundaries (1, 2, and 3+ digits; positive, negative, and
+                // zero; short mantissa immediately followed by '.'/'e'), and the same values as
+                // array elements.
+                """
+                {"n":0}""", """
+                {"n":9}""", """
+                {"n":-5}""", """
+                {"n":-0}""", """
+                {"n":10}""", """
+                {"n":99}""", """
+                {"n":-99}""", """
+                {"n":100}""", """
+                {"n":1234567890}""", """
+                {"n":9876543210}""", """
+                {"n":1.5}""", """
+                {"n":1e2}""", """
+                {"n":12.5}""", """
+                {"a":[0,9,10,99,100,1234567890,-5,-99]}""", """
+                {"a":[1.5,12.5]}"""
         );
         // end::noformat
         for (int nameLen = 1; nameLen <= 20; nameLen++) {

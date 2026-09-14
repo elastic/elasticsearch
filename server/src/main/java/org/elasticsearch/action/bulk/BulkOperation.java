@@ -313,6 +313,13 @@ final class BulkOperation extends ActionRunnable<BulkResponse> {
         // fills it in buildGrouping() after the deferred columnar routing pass completes.
         Map<ShardId, List<BulkItemRequest>> requestsByShard = new HashMap<>();
 
+        // For provided-batch TSDB data streams: resolve @timestamp from the ESCF columns and cache it
+        // on each IndexRequest before the per-item loop, so DataStream#getWriteIndex can select the
+        // correct backing index.
+        if (batchRouter != null) {
+            batchRouter.preResolveTimestamps(project, bulkRequest.requests());
+        }
+
         while (it.hasNext()) {
             BulkItemRequest bulkItemRequest = it.next();
             DocWriteRequest<?> docWriteRequest = bulkItemRequest.request();

@@ -497,7 +497,14 @@ public class SearchQueryThenFetchAsyncAction extends AbstractSearchAsyncAction<S
     ) {
         final PointInTimeBuilder pointInTimeBuilder = request.pointInTimeBuilder();
         if (pointInTimeBuilder != null) {
-            return request.pointInTimeBuilder().getSearchContextId(namedWriteableRegistry).contains(contextId);
+            try {
+                return request.pointInTimeBuilder().getSearchContextId(namedWriteableRegistry).contains(contextId);
+            } catch (IllegalArgumentException e) {
+                // Can occur when the PIT was encoded by a coordinator running a newer version than this data node,
+                // so decoding the PIT here is not possible. Conservatively treat the context as part
+                // of the PIT to avoid freeing it prematurely.
+                return true;
+            }
         } else {
             return false;
         }

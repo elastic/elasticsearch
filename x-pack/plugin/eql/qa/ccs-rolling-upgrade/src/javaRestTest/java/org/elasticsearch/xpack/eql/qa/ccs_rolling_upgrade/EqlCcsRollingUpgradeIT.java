@@ -274,4 +274,56 @@ public class EqlCcsRollingUpgradeIT extends ESRestTestCase {
             deleteIndex(remoteClient, remoteIndex);
         }
     }
+
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/158991")
+    public void testBatchedQueryPhaseWithPIT() throws Exception {
+        String remoteIndex = "test_pit_batched_query_remote_index";
+        try (RestClient localClient = newLocalClient(); RestClient remoteClient = newRemoteClient()) {
+            try {
+                deleteIndex(remoteClient, remoteIndex);
+            } catch (Exception ignored) {}
+            createIndex(
+                remoteClient,
+                remoteIndex,
+                Settings.builder()
+                    // REMOTE_NODE_NUM is 3 - we need 4 shards to ensure the batched query phase runs (>1 shards on at least one node)
+                    .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, between(4, 6))
+                    .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0)
+                    .build(),
+                null,
+                null
+            );
+            try {
+                indexDocs(remoteClient, remoteIndex, between(10, 50));
+                configureRemoteClusters(getNodes(remoteClient));
+
+                Request openPitRequest = new Request("POST", "/" + CLUSTER_ALIAS + ":" + remoteIndex + "/_pit");
+                openPitRequest.addParameter("keep_alive", "1m");
+                Response pitResponse = localClient.performRequest(openPitRequest);
+                String pitId = ObjectPath.createFromResponse(pitResponse).evaluate("id");
+                assertNotNull(pitId);
+
+                try {
+                    Request searchRequest = new Request("POST", "/_search");
+                    // For a true mixed version test, local coordinator on a different version than the remote data node,
+                    // we need ccs_minimize_roundtrips: false
+                    searchRequest.addParameter("ccs_minimize_roundtrips", "false");
+                    searchRequest.addParameter("allow_partial_search_results", "false");
+                    // size: 1 so at least one shard is not in the top results, which triggers the early free context
+                    searchRequest.setJsonEntity("{\"size\": 1, \"pit\": {\"id\": \"" + pitId + "\"}}");
+                    assertOK(localClient.performRequest(searchRequest));
+                } finally {
+                    Request closePitRequest = new Request("DELETE", "/_pit");
+                    closePitRequest.setJsonEntity("{\"id\": \"" + pitId + "\"}");
+                    try {
+                        localClient.performRequest(closePitRequest);
+                    } catch (Exception e) {
+                        LOGGER.warn("Failed to close PIT", e);
+                    }
+                }
+            } finally {
+                deleteIndex(remoteClient, remoteIndex);
+            }
+        }
+    }
 }

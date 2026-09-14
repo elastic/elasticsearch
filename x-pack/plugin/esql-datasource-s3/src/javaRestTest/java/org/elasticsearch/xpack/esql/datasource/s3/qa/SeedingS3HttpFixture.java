@@ -87,8 +87,11 @@ public class SeedingS3HttpFixture extends S3HttpFixture {
                     String signingRegion = extractSigningRegion(exchange.getRequestHeaders().getFirst("Authorization"));
                     if (cr.equals(signingRegion) == false) {
                         if ("HEAD".equals(exchange.getRequestMethod()) && isHeadBucketPath(exchange.getRequestURI().getPath())) {
-                            // HEAD bucket: include x-amz-bucket-region so the provider discovers the correct region.
+                            // HEAD responses must carry no body (HTTP spec). Add x-amz-bucket-region so the SDK
+                            // can discover the correct region, then close the response without a body (-1 length).
                             exchange.getResponseHeaders().add("x-amz-bucket-region", cr);
+                            exchange.sendResponseHeaders(RestStatus.BAD_REQUEST.getStatus(), -1);
+                            return;
                         }
                         sendError(
                             exchange,

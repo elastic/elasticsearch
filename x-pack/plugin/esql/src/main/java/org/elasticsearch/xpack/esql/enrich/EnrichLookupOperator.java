@@ -16,6 +16,7 @@ import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.operator.AsyncOperator;
 import org.elasticsearch.compute.operator.DriverContext;
 import org.elasticsearch.compute.operator.Operator;
+import org.elasticsearch.core.CheckedFunction;
 import org.elasticsearch.tasks.CancellableTask;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xpack.esql.core.expression.NamedExpression;
@@ -125,17 +126,20 @@ public final class EnrichLookupOperator extends AsyncOperator<Page> {
             enrichFields,
             source
         );
-        enrichLookupService.lookupAsync(request, parentTask, listener.delegateFailureAndWrap((l, response) -> {
+        CheckedFunction<AbstractLookupService.LookupResponse, Page, Exception> handleResponse = response -> {
             // Replay warnings accumulated by the (possibly remote) lookup driver into this driver.
             for (String warning : response.warnings()) {
                 driverContext().addWarning(warning);
             }
+
             List<Page> pages = response.takePages();
             if (pages.size() != 1) {
                 throw new UnsupportedOperationException("ENRICH should only return a single page");
             }
-            l.onResponse(inputPage.appendPage(pages.get(0)));
-        }));
+            return inputPage.appendPage(pages.get(0));
+        };
+
+        enrichLookupService.lookupAsync(request, parentTask, listener.map(handleResponse));
     }
 
     @Override

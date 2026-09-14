@@ -23,6 +23,7 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.Page;
+import org.elasticsearch.compute.operator.Driver;
 import org.elasticsearch.compute.operator.DriverContext;
 import org.elasticsearch.compute.operator.Operator;
 import org.elasticsearch.compute.operator.SourceOperator;
@@ -61,14 +62,12 @@ public abstract class LuceneOperator extends SourceOperator {
 
     protected final BlockFactory blockFactory;
     protected final DriverContext driverContext;
+    private final QueryWarnings singleValueQueryWarnings;
 
     /**
-     * Binds the per-driver {@link QueryWarnings} context to this operator's thread before scoring.
-     * Persists across multiple {@link #getOutput()} calls so that the same per-query
-     * {@link org.elasticsearch.compute.operator.Warnings} object accumulates warnings.
+     * {@link Warnings} for each {@link Query} that needs one. These exist per {@link Driver}.
      */
-    private final IdentityHashMap<Query, Warnings> queryWarningsMap = new IdentityHashMap<>();
-    private final QueryWarnings singleValueQueryWarnings;
+    private final IdentityHashMap<Query, Warnings> queryWarnings = new IdentityHashMap<>();
 
     /**
      * Count of the number of slices processed.
@@ -158,7 +157,7 @@ public abstract class LuceneOperator extends SourceOperator {
 
     @Override
     public final Page getOutput() {
-        try (Releasable ignored = singleValueQueryWarnings.bind(driverContext, queryWarningsMap)) {
+        try (Releasable ignored = singleValueQueryWarnings.bind(driverContext, queryWarnings)) {
             Page page = getCheckedOutput();
             if (page != null) {
                 pagesEmitted++;

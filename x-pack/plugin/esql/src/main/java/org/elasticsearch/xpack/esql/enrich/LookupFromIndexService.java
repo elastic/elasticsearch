@@ -21,7 +21,6 @@ import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.BlockStreamInput;
 import org.elasticsearch.compute.data.Page;
-import org.elasticsearch.compute.operator.DriverCompletionInfo;
 import org.elasticsearch.compute.operator.lookup.QueryList;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.Releasables;
@@ -224,7 +223,7 @@ public class LookupFromIndexService extends AbstractLookupService<LookupFromInde
     protected static class LookupResponse extends AbstractLookupService.LookupResponse {
         // Lookup-response warnings ship as part of the same per-driver warnings feature as the DriverCompletionInfo
         // warnings field, so they are gated behind the same transport version.
-        private static final TransportVersion ESQL_LOOKUP_RESPONSE_WARNINGS = DriverCompletionInfo.ESQL_DRIVER_WARNINGS;
+        private static final TransportVersion ESQL_LOOKUP_RESPONSE_WARNINGS = TransportVersion.fromName("esql_driver_warnings");
 
         private List<Page> pages;
         private final List<String> warnings;

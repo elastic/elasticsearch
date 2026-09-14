@@ -142,14 +142,14 @@ public abstract class AnyOperatorTestCase extends ComputeTestCase {
     /**
      * A {@link DriverContext} with a nonBreakingBigArrays.
      */
-    protected final DriverContext driverContext() {
+    protected DriverContext driverContext() { // TODO make this final once all operators support memory tracking
         BlockFactory blockFactory = blockFactory();
-        return registerDriverContext(new DriverContext(blockFactory.bigArrays(), blockFactory, null));
+        return registerDriverContext(new DriverContext(blockFactory.bigArrays(), blockFactory));
     }
 
     protected final DriverContext crankyDriverContext() {
         BlockFactory blockFactory = crankyBlockFactory();
-        return registerDriverContext(new DriverContext(blockFactory.bigArrays(), blockFactory, null));
+        return registerDriverContext(new DriverContext(blockFactory.bigArrays(), blockFactory));
     }
 
     private DriverContext registerDriverContext(DriverContext driverContext) {

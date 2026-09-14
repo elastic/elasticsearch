@@ -20,6 +20,7 @@ import org.elasticsearch.index.query.SearchExecutionContext;
 
 import java.util.IdentityHashMap;
 import java.util.Map;
+import java.util.Objects;
 
 /**
  * Bridges per-driver {@link Warnings} into {@link Query queries} that need warnings.
@@ -139,7 +140,7 @@ public class QueryWarnings {
                     "no warnings registered for [" + query + "] on thread [" + Thread.currentThread().getName() + "]"
                 );
             }
-            return state.dc().createWarnings(query.source());
+            return state.dc().createWarnings(Objects.requireNonNull(query.source()));
         });
         w.registerException(exceptionClass, message);
     }

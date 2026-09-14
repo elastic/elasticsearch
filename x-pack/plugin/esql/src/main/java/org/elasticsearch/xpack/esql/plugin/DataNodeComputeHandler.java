@@ -17,6 +17,7 @@ import org.elasticsearch.action.support.RefCountingRunnable;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.logging.HeaderWarning;
+import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.compute.operator.DriverCompletionInfo;
 import org.elasticsearch.compute.operator.exchange.ExchangeService;
 import org.elasticsearch.compute.operator.exchange.ExchangeSink;
@@ -176,6 +177,7 @@ final class DataNodeComputeHandler implements TransportRequestHandler<DataNodeRe
                         final AtomicReference<DataNodeComputeResponse> nodeResponseRef = new AtomicReference<>();
                         try (var computeListener = new ComputeListener(onGroupFailure, l.map(ignored -> nodeResponseRef.get()))) {
                             final boolean sameNode = transportService.getLocalNode().getId().equals(connection.getNode().getId());
+                            ThreadContext threadContext = transportService.getThreadPool().getThreadContext();
                             var dataNodeRequest = new DataNodeRequest(
                                 childSessionId,
                                 configuration,
@@ -196,7 +198,7 @@ final class DataNodeComputeHandler implements TransportRequestHandler<DataNodeRe
                                 new ActionListenerResponseHandler<>(computeListener.acquireCompute().map(r -> {
                                     nodeResponseRef.set(r);
                                     return r.completionInfo();
-                                }), in -> new DataNodeComputeResponse(in, threadPool.getThreadContext()), searchExecutor)
+                                }), in -> new DataNodeComputeResponse(in, threadContext), searchExecutor)
                             );
                             final var remoteSink = exchangeService.newRemoteSink(groupTask, childSessionId, transportService, connection);
                             exchangeSource.addRemoteSink(

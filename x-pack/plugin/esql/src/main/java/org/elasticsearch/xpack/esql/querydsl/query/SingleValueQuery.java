@@ -211,7 +211,7 @@ public class SingleValueQuery extends Query {
         }
 
         protected final org.apache.lucene.search.Query simple(MappedFieldType ft, SearchExecutionContext context) throws IOException {
-            QueryWarnings w = context instanceof EsqlSearchExecutionContext esqlCtx ? esqlCtx.queryWarnings() : QueryWarnings.NOOP;
+            QueryWarnings w = ((EsqlSearchExecutionContext) context).queryWarnings();
             SingleValueMatchQuery singleValueQuery = new SingleValueMatchQuery(
                 context.getForField(ft, MappedFieldType.FielddataOperation.SEARCH),
                 w,
@@ -340,7 +340,7 @@ public class SingleValueQuery extends Query {
             BooleanQuery.Builder builder = new BooleanQuery.Builder();
             builder.add(next().toQuery(context), BooleanClause.Occur.FILTER);
 
-            QueryWarnings w = context instanceof EsqlSearchExecutionContext esqlCtx ? esqlCtx.queryWarnings() : QueryWarnings.NOOP;
+            QueryWarnings w = ((EsqlSearchExecutionContext) context).queryWarnings();
             org.apache.lucene.search.Query singleValueQuery = new SingleValueMatchQuery(
                 context.getForField(ft, MappedFieldType.FielddataOperation.SEARCH),
                 w,

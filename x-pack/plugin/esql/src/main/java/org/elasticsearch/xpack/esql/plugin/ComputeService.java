@@ -449,9 +449,13 @@ public class ComputeService {
     void runCompute(CancellableTask task, ComputeContext context, PhysicalPlan plan, ActionListener<DriverCompletionInfo> listener) {
         listener = ActionListener.runBefore(listener, () -> Releasables.close(context.searchContexts()));
         List<EsPhysicalOperationProviders.ShardContext> contexts = new ArrayList<>(context.searchContexts().size());
+        QueryWarnings singleValueQueryWarnings = QueryWarnings.EMIT;
         for (int i = 0; i < context.searchContexts().size(); i++) {
             SearchContext searchContext = context.searchContexts().get(i);
-            var searchExecutionContext = new EsqlSearchExecutionContext(searchContext.getSearchExecutionContext(), QueryWarnings.EMIT);
+            var searchExecutionContext = new EsqlSearchExecutionContext(
+                searchContext.getSearchExecutionContext(),
+                singleValueQueryWarnings
+            );
             searchContext.addReleasable(searchExecutionContext::releaseQueryConstructionMemory);
             contexts.add(
                 new EsPhysicalOperationProviders.DefaultShardContext(i, searchExecutionContext, searchContext.request().getAliasFilter())
@@ -462,7 +466,7 @@ public class ComputeService {
             contexts,
             searchService.getIndicesService().getAnalysis(),
             physicalSettings,
-            QueryWarnings.EMIT
+            singleValueQueryWarnings
         );
         try {
             LocalExecutionPlanner planner = new LocalExecutionPlanner(

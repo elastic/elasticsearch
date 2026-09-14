@@ -20,7 +20,6 @@ import org.elasticsearch.compute.data.ToMask;
 import org.elasticsearch.compute.operator.DriverContext;
 import org.elasticsearch.compute.operator.EvalOperator;
 import org.elasticsearch.compute.operator.EvalOperator.ExpressionEvaluator;
-import org.elasticsearch.compute.operator.WarningSourceLocation;
 import org.elasticsearch.compute.operator.Warnings;
 import org.elasticsearch.core.Releasable;
 import org.elasticsearch.core.Releasables;
@@ -389,11 +388,9 @@ public final class Case extends EsqlScalarFunction {
                  * we just say "false".
                  */
                 driverContext.createWarningsTreatedAsFalse(
-                    new WarningSourceLocation(
-                        conditionSource.source().getLineNumber(),
-                        conditionSource.source().getColumnNumber(),
-                        conditionSource.text()
-                    )
+                    conditionSource.source().getLineNumber(),
+                    conditionSource.source().getColumnNumber(),
+                    conditionSource.text()
                 ),
                 condition.get(driverContext),
                 value.get(driverContext)

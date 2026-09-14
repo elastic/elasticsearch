@@ -25,7 +25,6 @@ import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.BlockStreamInput;
 import org.elasticsearch.compute.data.Page;
-import org.elasticsearch.compute.operator.DriverCompletionInfo;
 import org.elasticsearch.compute.operator.lookup.QueryList;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.Releasables;
@@ -267,7 +266,7 @@ public class EnrichLookupService extends AbstractLookupService<EnrichLookupServi
 
     private static class LookupResponse extends AbstractLookupService.LookupResponse {
         // Gated behind the same transport version as the per-driver warnings feature (DriverCompletionInfo#warnings).
-        private static final TransportVersion ESQL_LOOKUP_RESPONSE_WARNINGS = DriverCompletionInfo.ESQL_DRIVER_WARNINGS;
+        private static final TransportVersion ESQL_LOOKUP_RESPONSE_WARNINGS = TransportVersion.fromName("esql_driver_warnings");
 
         private Page page;
         private final List<String> warnings;

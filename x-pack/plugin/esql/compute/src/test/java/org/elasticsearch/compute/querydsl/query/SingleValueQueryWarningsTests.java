@@ -162,6 +162,6 @@ public class SingleValueQueryWarningsTests extends ESTestCase {
     }
 
     private static DriverContext collectingContext() {
-        return new DriverContext(BigArrays.NON_RECYCLING_INSTANCE, TestBlockFactory.getNonBreakingInstance(), null);
+        return new DriverContext(BigArrays.NON_RECYCLING_INSTANCE, TestBlockFactory.getNonBreakingInstance());
     }
 }

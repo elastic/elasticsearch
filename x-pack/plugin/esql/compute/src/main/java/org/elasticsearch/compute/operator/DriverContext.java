@@ -13,7 +13,6 @@ import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.LocalCircuitBreaker;
-import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.Releasable;
 import org.elasticsearch.core.Releasables;
 
@@ -76,42 +75,17 @@ public class DriverContext {
 
     private final WarningsMode warningsMode;
 
-    private final @Nullable String driverDescription;
-
-    private final @Nullable LocalCircuitBreaker.SizeSettings localBreakerSettings;
-
     private Runnable earlyTerminationChecker = () -> {};
 
     public DriverContext(BigArrays bigArrays, BlockFactory blockFactory) {
-        this(bigArrays, blockFactory, null, null, WarningsMode.COLLECT);
+        this(bigArrays, blockFactory, WarningsMode.COLLECT);
     }
 
-    public DriverContext(BigArrays bigArrays, BlockFactory blockFactory, @Nullable LocalCircuitBreaker.SizeSettings localBreakerSettings) {
-        this(bigArrays, blockFactory, localBreakerSettings, null, WarningsMode.COLLECT);
-    }
-
-    public DriverContext(
-        BigArrays bigArrays,
-        BlockFactory blockFactory,
-        @Nullable LocalCircuitBreaker.SizeSettings localBreakerSettings,
-        String description
-    ) {
-        this(bigArrays, blockFactory, localBreakerSettings, description, WarningsMode.COLLECT);
-    }
-
-    DriverContext(
-        BigArrays bigArrays,
-        BlockFactory blockFactory,
-        @Nullable LocalCircuitBreaker.SizeSettings localBreakerSettings,
-        @Nullable String description,
-        WarningsMode warningsMode
-    ) {
+    DriverContext(BigArrays bigArrays, BlockFactory blockFactory, WarningsMode warningsMode) {
         Objects.requireNonNull(bigArrays);
         Objects.requireNonNull(blockFactory);
         this.bigArrays = bigArrays;
         this.blockFactory = blockFactory;
-        this.localBreakerSettings = localBreakerSettings;
-        this.driverDescription = description;
         this.warningsMode = warningsMode;
     }
 
@@ -126,18 +100,8 @@ public class DriverContext {
         return blockFactory.breaker();
     }
 
-    public @Nullable LocalCircuitBreaker.SizeSettings localBreakerSettings() {
-        return localBreakerSettings;
-    }
-
     public BlockFactory blockFactory() {
         return blockFactory;
-    }
-
-    /** Short description of the driver task, for observability. */
-    @Nullable
-    public String driverDescription() {
-        return driverDescription;
     }
 
     /** A snapshot of the driver context. */
@@ -257,28 +221,9 @@ public class DriverContext {
     /**
      * Create a new {@link Warnings} collector using this context's {@link #warningsMode()}. Registered warnings
      * are written into this context's per-driver sink (see {@link #addWarning(String)}).
-     * @see Warnings#createWarnings(DriverContext, WarningSourceLocation)
      */
     public Warnings createWarnings(WarningSourceLocation source) {
-        return Warnings.createWarnings(this, source);
-    }
-
-    /**
-     * Create a new {@link Warnings} collector, using this context's {@link #warningsMode()}, that warns
-     * that it treats the result as {@code false}.
-     * @see Warnings#createWarningsTreatedAsFalse(DriverContext, WarningSourceLocation)
-     */
-    public Warnings createWarningsTreatedAsFalse(WarningSourceLocation source) {
-        return Warnings.createWarningsTreatedAsFalse(this, source);
-    }
-
-    /**
-     * Create a new {@link Warnings} collector, using this context's {@link #warningsMode()}, that warns
-     * that evaluation resulted in warnings.
-     * @see Warnings#createOnlyWarnings(DriverContext, WarningSourceLocation)
-     */
-    public Warnings createOnlyWarnings(WarningSourceLocation source) {
-        return Warnings.createOnlyWarnings(this, source);
+        return Warnings.createWarnings(this, source.lineNumber(), source.columnNumber(), source.text());
     }
 
     public void waitForAsyncActions(ActionListener<Void> listener) {
@@ -291,13 +236,6 @@ public class DriverContext {
 
     public void removeAsyncAction() {
         asyncActions.removeInstance();
-    }
-
-    /**
-     * Returns true if there are pending async actions registered via {@link #addAsyncAction()}.
-     */
-    public boolean hasPendingAsyncActions() {
-        return asyncActions.instances.get() > 1;
     }
 
     /**

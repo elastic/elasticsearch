@@ -52,7 +52,7 @@ import static org.mockito.Mockito.when;
 public class LuceneOperatorSingleValueQueryWarningsTests extends ComputeTestCase {
 
     private DriverContext driverContext() {
-        return new DriverContext(BigArrays.NON_RECYCLING_INSTANCE, blockFactory(), null);
+        return new DriverContext(BigArrays.NON_RECYCLING_INSTANCE, blockFactory());
     }
 
     /**

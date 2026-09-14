@@ -1,0 +1,5 @@
+area: Search
+issues: []
+pr: 159241
+summary: Deduplicate terms lookup fetches
+type: bug

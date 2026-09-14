@@ -52,14 +52,12 @@ import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexService;
-import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.engine.Engine;
 import org.elasticsearch.index.engine.EngineTestCase;
 import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.indices.IndicesService;
-import org.elasticsearch.persistent.decider.EnableAssignmentDecider;
 import org.elasticsearch.repositories.IndexId;
 import org.elasticsearch.repositories.RepositoryData;
 import org.elasticsearch.repositories.RepositoryException;
@@ -2205,9 +2203,7 @@ public class SharedClusterSnapshotRestoreIT extends AbstractSnapshotIntegTestCas
         String replicaNode = internalCluster().startDataOnlyNode();
         try {
             updateIndexSettings(
-                Settings.builder()
-                    .put(SETTING_NUMBER_OF_REPLICAS, 1)
-                    .putNull("index.routing.allocation.include._name"),
+                Settings.builder().put(SETTING_NUMBER_OF_REPLICAS, 1).putNull("index.routing.allocation.include._name"),
                 indexName
             );
             ensureGreen(indexName);

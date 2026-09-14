@@ -42,10 +42,11 @@ distinct_emp:long | c:long | gender:keyword
 // Duplicating the data must double every group's SUM while leaving its AVG untouched, so the two columns disagree on
 // purpose: a merge that added the producers' averages, or that summed one producer only, breaks one column or the
 // other. The per-group figures come from the fixture (F sums 1666196 over 33 rows, M 2671054 over 57, the unset
-// gender 487605 over 10), and the columns below are those doubled and unchanged respectively.
+// gender 487605 over 10), and the columns below are those doubled and unchanged respectively. Blank gender
+// groups under null (inferred schema) and sorts last.
 heavyAggregatesGroupedSumAvgMergedAcrossDatasets
 required_capability: external_command
-required_capability: external_csv_empty_string_not_null
+required_capability: external_csv_blank_cell_null_unless_declared
 dataset: emp_a: "{{employees_no_mv}}"
 dataset: emp_b: "{{employees_no_mv}}"
 
@@ -54,9 +55,9 @@ FROM emp_a, emp_b
 | SORT gender;
 
 sum_salary:long | avg_salary:double | c:long | gender:keyword
-975210          | 48760.5           | 20     |
 3332392         | 50490.78787878788 | 66     | "F"
 5342108         | 46860.59649122807 | 114    | "M"
+975210          | 48760.5           | 20     | null
 ;
 
 // Per-aggregate filter on a heavy aggregate mixed with an unfiltered one. Because not every aggregate is filtered,

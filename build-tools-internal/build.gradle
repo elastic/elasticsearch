@@ -164,10 +164,6 @@ gradlePlugin {
       id = 'elasticsearch.mrjar'
       implementationClass = 'org.elasticsearch.gradle.internal.MrjarPlugin'
     }
-    ospackageBase {
-      id = 'elasticsearch.ospackage-base'
-      implementationClass = 'org.elasticsearch.gradle.internal.ospackage.OsPackageBasePlugin'
-    }
     jmh {
       id = 'elasticsearch.jmh'
       implementationClass = 'org.elasticsearch.gradle.internal.JmhPlugin'

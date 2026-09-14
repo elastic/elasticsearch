@@ -36,8 +36,8 @@ import java.util.Map;
 /**
  * Generates the debian control file and the conffiles listing from the bundled templates and
  * installs the maintainer scripts (preinst/postinst/prerm/postrm). Script files declared on the
- * task are installed verbatim; the templated variants are only used when explicit install dirs
- * require a generated postinst.
+ * task are installed verbatim; the templated postinst is only used when explicit install dirs
+ * require a generated script.
  */
 class MaintainerScriptsGenerator {
 
@@ -54,18 +54,18 @@ class MaintainerScriptsGenerator {
     void generate(Map<String, Object> context) {
         templateHelper.generateFile("control", context);
 
-        List<String> configurationFiles = task.getExten().getConfigurationFiles().getOrElse(List.of());
+        List<String> configurationFiles = task.getConfigurationFiles().getOrElse(List.of());
         if (configurationFiles.isEmpty() == false) {
             templateHelper.generateFile("conffiles", Map.of("files", configurationFiles));
         }
 
         record MaintainerScript(String name, File file, boolean forceGeneration) {}
         List<MaintainerScript> scripts = List.of(
-            new MaintainerScript("preinst", fileOrNull(task.getExten().getPreInstallFile()), false),
+            new MaintainerScript("preinst", fileOrNull(task.getPreInstallFile()), false),
             // postinst is also required when explicit install dirs need to be created
-            new MaintainerScript("postinst", fileOrNull(task.getExten().getPostInstallFile()), hasDirs(context)),
-            new MaintainerScript("prerm", fileOrNull(task.getExten().getPreUninstallFile()), false),
-            new MaintainerScript("postrm", fileOrNull(task.getExten().getPostUninstallFile()), false)
+            new MaintainerScript("postinst", fileOrNull(task.getPostInstallFile()), hasDirs(context)),
+            new MaintainerScript("prerm", fileOrNull(task.getPreUninstallFile()), false),
+            new MaintainerScript("postrm", fileOrNull(task.getPostUninstallFile()), false)
         );
         for (MaintainerScript script : scripts) {
             if (script.file() != null) {
@@ -91,7 +91,7 @@ class MaintainerScriptsGenerator {
         return context.get("dirs") instanceof List<?> dirs && dirs.isEmpty() == false;
     }
 
-    static String installLine(DebCopyAction.InstallDir dir) {
+    static String installLine(DebPackageWriter.InstallDir dir) {
         StringBuilder sb = new StringBuilder("install ");
         if (dir.user() != null && dir.user().isEmpty() == false) {
             sb.append("-o ").append(dir.user()).append(' ');

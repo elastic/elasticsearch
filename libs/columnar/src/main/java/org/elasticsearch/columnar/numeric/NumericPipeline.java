@@ -45,8 +45,17 @@ public final class NumericPipeline {
     }
 
     /**
-     * Pipeline for a dictionary column's ordinals: the standard chain with {@link RunTransform} and
-     * {@link PatchedTransform} around it. An ordinal stream has both the shapes those stages look for,
+     * Pipeline for a dictionary column's ordinals stored compressed. Offset narrows the values and nothing
+     * else runs: the stages that look for runs and outliers answer into the block's metadata, which the
+     * block codec does not compress, so running them would take the repetition out of the bytes it does.
+     */
+    public static NumericPipeline compressedOrdinalPipeline(int blockSize) {
+        return new NumericPipeline(new BlockTransform[] { OffsetTransform.INSTANCE }, new ForTerminal(blockSize), blockSize);
+    }
+
+    /**
+     * Pipeline for a dictionary column's ordinals stored packed. The standard chain with {@link RunTransform}
+     * and {@link PatchedTransform} around it: an ordinal stream has both the shapes those stages look for,
      * which a field's own values do not, and a field would pay to look for them on every block it decodes.
      *
      * <p>Run comes first, since a run is a property of the values as they arrive and delta would leave

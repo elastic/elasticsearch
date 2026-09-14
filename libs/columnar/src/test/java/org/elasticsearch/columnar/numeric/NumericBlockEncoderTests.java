@@ -154,6 +154,13 @@ public class NumericBlockEncoderTests extends ESTestCase {
         );
     }
 
+    public void testCompressedOrdinalPipelineIds() {
+        int blockSize = randomValidBlockSize();
+        NumericPipeline pipeline = NumericPipeline.compressedOrdinalPipeline(blockSize);
+        assertEquals(ForTerminal.ID, pipeline.terminalId());
+        assertArrayEquals(new byte[] { OffsetTransform.ID }, pipeline.transformIds());
+    }
+
     public void testRebuiltPipelineRoundTrips() throws IOException {
         // A reader rebuilds the pipeline from the recorded ids and decodes the same bytes.
         int blockSize = randomValidBlockSize();

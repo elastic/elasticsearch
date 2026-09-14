@@ -1204,13 +1204,12 @@ public class MatchOnlyTextFieldMapper extends FieldMapper {
     }
 
     @Override
-    public boolean supportsColumnarParse(IndexSettings indexSettings) {
+    public boolean doSupportsColumnarParse(IndexSettings indexSettings) {
         // usesBinaryDocValues() requires doc_values to be enabled which means synthetic-source stored-fallback is unreachable.
         // Additionally, this excludes the low-cardinality SORTED_SET encoding.
-        // Copy_to/multi-fields have no equivalent in mapColumnBatch (no per-value dispatch to sub-mappers or other fields),
-        // so fields using them fall back to the row path.
-        // match_only_text has no ignore_above/null_value/normalizer
-        return fieldType().usesBinaryDocValues() && copyTo().copyToFields().isEmpty() && multiFields().iterator().hasNext() == false;
+        // copy_to has no equivalent in mapColumnBatch (no per-value dispatch to other fields), so fields using it fall back.
+        // match_only_text has no ignore_above/null_value/normalizer; multi-fields are handled by the base class.
+        return fieldType().usesBinaryDocValues() && copyTo().copyToFields().isEmpty();
     }
 
     // TODO: make the batch supply a recycler to wire up recycling instead of NON_RECYCLING_INSTANCE.
@@ -1227,7 +1226,7 @@ public class MatchOnlyTextFieldMapper extends FieldMapper {
     }
 
     @Override
-    public void mapColumnBatch(BatchMappingContext ctx, EscfColumn source) {
+    public void doMapColumnBatch(BatchMappingContext ctx, EscfColumn source) {
         final boolean emitTerms = indexed;
         final boolean emitDvs = docValuesParameters.enabled();
         if (emitTerms == false && emitDvs == false) {
@@ -1246,76 +1245,82 @@ public class MatchOnlyTextFieldMapper extends FieldMapper {
         // retainValues=false: each value is appended to the document blob before the cursor advances, so no
         // value has to outlive the nextDoc() that moves past it.
         final ObjectTupleCursor<BytesRef> cursor = EscfColumnTransforms.utf8Cursor(source, false);
-        final EscfColumnBuilder terms = emitTerms ? mergeStringColumn() : null;
-        final EscfColumnBuilder binaryDvs = emitDvs ? mergeStringColumn() : null;
-        final EscfColumnBuilder dvCounts = emitDvs ? mergeLongColumn() : null;
+        try (
+            EscfColumnBuilder terms = emitTerms ? mergeStringColumn() : null;
+            EscfColumnBuilder binaryDvs = emitDvs ? mergeStringColumn() : null;
+            EscfColumnBuilder dvCounts = emitDvs ? mergeLongColumn() : null
+        ) {
+            int currentDoc = -1;
+            // Buffer null when not emitted. Each document's slots are appended as they are read and the finished
+            // blob is handed to binaryDvs.setString, which copies it out immediately, so the buffer is free to be
+            // rewritten.
+            final BytesRefBuilder docBlob = emitDvs ? new BytesRefBuilder() : null;
+            int pos = 0;
+            int docSlotCount = 0;
+            int lastValueLength = 0;
+            // True when the current doc has at least one non-null slot; gates binary dv blob emission.
+            boolean hasNonNull = false;
 
-        int currentDoc = -1;
-        // Buffer null when not emitted. Each document's slots are appended as they are read and the finished
-        // blob is handed to binaryDvs.setString, which copies it out immediately, so the buffer is free to be
-        // rewritten.
-        final BytesRefBuilder docBlob = emitDvs ? new BytesRefBuilder() : null;
-        int pos = 0;
-        int docSlotCount = 0;
-        int lastValueLength = 0;
-        // True when the current doc has at least one non-null slot; gates binary dv blob emission.
-        boolean hasNonNull = false;
-
-        while (true) {
-            final int nextDoc = cursor.nextDoc();
-            if (nextDoc != currentDoc) {
-                // Flush the completed doc's elements. All-null docs write counts (matching
-                // ArrayOrderInlineNull.recordNull) but no blob.
-                if (binaryDvs != null && docSlotCount > 0) {
-                    dvCounts.setLong(currentDoc, docSlotCount);
-                    if (hasNonNull) {
-                        final int length = docSlotCount == 1 ? lastValueLength : pos;
-                        binaryDvs.setString(currentDoc, docBlob.bytes(), pos - length, length);
+            while (true) {
+                final int nextDoc = cursor.nextDoc();
+                if (nextDoc != currentDoc) {
+                    // Flush the completed doc's elements. All-null docs write counts (matching
+                    // ArrayOrderInlineNull.recordNull) but no blob.
+                    if (binaryDvs != null && docSlotCount > 0) {
+                        dvCounts.setLong(currentDoc, docSlotCount);
+                        if (hasNonNull) {
+                            final int length = docSlotCount == 1 ? lastValueLength : pos;
+                            binaryDvs.setString(currentDoc, docBlob.bytes(), pos - length, length);
+                        }
+                        pos = 0;
+                        docSlotCount = 0;
+                        hasNonNull = false;
                     }
-                    pos = 0;
-                    docSlotCount = 0;
-                    hasNonNull = false;
+                    if (nextDoc == DocIdSetIterator.NO_MORE_DOCS) {
+                        break;
+                    }
+                    currentDoc = nextDoc;
                 }
-                if (nextDoc == DocIdSetIterator.NO_MORE_DOCS) {
-                    break;
+
+                final BytesRef value = cursor.value();
+
+                // match_only_text has no null_value: an explicit JSON null records a null slot only, mirroring the
+                // row path's textOrNull() == null check.
+                if (value == null) {
+                    if (binaryDvs != null) {
+                        pos = MultiValuedBinaryDocValuesField.ArrayOrderInlineNull.appendSlot(docBlob, pos, null);
+                        docSlotCount++;
+                        // hasNonNull stays false: null slots do not produce a binary dv blob.
+                    }
+                    continue;
                 }
-                currentDoc = nextDoc;
-            }
 
-            final BytesRef value = cursor.value();
-
-            // match_only_text has no null_value: an explicit JSON null records a null slot only, mirroring the
-            // row path's textOrNull() == null check.
-            if (value == null) {
+                if (terms != null) {
+                    terms.setString(currentDoc, value);
+                }
                 if (binaryDvs != null) {
-                    pos = MultiValuedBinaryDocValuesField.ArrayOrderInlineNull.appendSlot(docBlob, pos, null);
+                    pos = MultiValuedBinaryDocValuesField.ArrayOrderInlineNull.appendSlot(docBlob, pos, value);
+                    lastValueLength = value.length;
                     docSlotCount++;
-                    // hasNonNull stays false: null slots do not produce a binary dv blob.
+                    hasNonNull = true;
                 }
-                continue;
             }
 
-            if (terms != null) {
-                terms.setString(currentDoc, value);
+            // Attach output columns. Terms, binary-dv blob, and counts are each emitted independently.
+            // All-null docs emit counts but no binary blob, so binaryDvs and dvCounts are decoupled.
+            // Each builder owns its buffers, so every finished column is registered for release with the batch.
+            if (terms != null && terms.isEmpty() == false) {
+                final EscfColumnData termsData = terms.finish(docCount);
+                ctx.addColumn(LuceneBinaryColumn.of(termsData, fieldType().name(), fieldType), termsData);
             }
-            if (binaryDvs != null) {
-                pos = MultiValuedBinaryDocValuesField.ArrayOrderInlineNull.appendSlot(docBlob, pos, value);
-                lastValueLength = value.length;
-                docSlotCount++;
-                hasNonNull = true;
+            if (binaryDvs != null && binaryDvs.isEmpty() == false) {
+                final EscfColumnData binaryDvData = binaryDvs.finish(docCount);
+                ctx.addColumn(LuceneBinaryColumn.of(binaryDvData, fieldType().name(), CustomDocValuesField.TYPE), binaryDvData);
             }
-        }
-
-        // Attach output columns. Terms, binary-dv blob, and counts are each emitted independently.
-        // All-null docs emit counts but no binary blob, so binaryDvs and dvCounts are decoupled.
-        if (terms != null && terms.isEmpty() == false) {
-            ctx.addColumn(LuceneBinaryColumn.of(terms.finish(docCount), fieldType().name(), fieldType));
-        }
-        if (binaryDvs != null && binaryDvs.isEmpty() == false) {
-            ctx.addColumn(LuceneBinaryColumn.of(binaryDvs.finish(docCount), fieldType().name(), CustomDocValuesField.TYPE));
-        }
-        if (dvCounts != null && dvCounts.isEmpty() == false) {
-            ctx.addColumn(LuceneLongColumn.counts(dvCounts.finish(docCount), fieldType().name()));
+            if (dvCounts != null && dvCounts.isEmpty() == false) {
+                final EscfColumnData dvCountData = dvCounts.finish(docCount);
+                ctx.addColumn(LuceneLongColumn.counts(dvCountData, fieldType().name()), dvCountData);
+            }
         }
     }
 
@@ -1325,52 +1330,59 @@ public class MatchOnlyTextFieldMapper extends FieldMapper {
 
         // retainValues=false: every value is consumed within one loop iteration, before the cursor advances.
         final ObjectTupleCursor<BytesRef> cursor = EscfColumnTransforms.utf8Cursor(source, false);
-        final EscfColumnBuilder values = source.leafValueKind() != EscfColumnKind.STRING && (emitTerms || emitDvs)
-            ? mergeStringColumn()
-            : null;
+        try (
+            EscfColumnBuilder values = source.leafValueKind() != EscfColumnKind.STRING && (emitTerms || emitDvs)
+                ? mergeStringColumn()
+                : null
+        ) {
+            int currentDoc = -1;
+            boolean valueSeenThisDoc = false;
+            while (true) {
+                final int nextDoc = cursor.nextDoc();
+                if (nextDoc == DocIdSetIterator.NO_MORE_DOCS) {
+                    break;
+                }
+                if (nextDoc != currentDoc) {
+                    currentDoc = nextDoc;
+                    valueSeenThisDoc = false;
+                }
+                final BytesRef value = cursor.value();
+                if (value == null) {
+                    // match_only_text has no null_value: JSON null -> absent, matching the row path's
+                    // textOrNull() == null check.
+                    continue;
+                }
 
-        int currentDoc = -1;
-        boolean valueSeenThisDoc = false;
-        while (true) {
-            final int nextDoc = cursor.nextDoc();
-            if (nextDoc == DocIdSetIterator.NO_MORE_DOCS) {
-                break;
-            }
-            if (nextDoc != currentDoc) {
-                currentDoc = nextDoc;
-                valueSeenThisDoc = false;
-            }
-            final BytesRef value = cursor.value();
-            if (value == null) {
-                // match_only_text has no null_value: JSON null -> absent, matching the row path's
-                // textOrNull() == null check.
-                continue;
+                if (valueSeenThisDoc) {
+                    // multi_value=false violation: bail so ShardBatchMapper falls back to the row path,
+                    // which raises the correct per-doc error (on_failure=FAIL).
+                    throw new UnsupportedOperationException(
+                        "mapColumnBatch: multi_value=false field [" + fullPath() + "] has more than one value for doc [" + currentDoc + "]"
+                    );
+                }
+                valueSeenThisDoc = true;
+                valuesProduced = true;
+
+                if (values != null) {
+                    values.setString(currentDoc, value);
+                }
             }
 
-            if (valueSeenThisDoc) {
-                // multi_value=false violation: bail so ShardBatchMapper falls back to the row path,
-                // which raises the correct per-doc error (on_failure=FAIL).
-                throw new UnsupportedOperationException(
-                    "mapColumnBatch: multi_value=false field [" + fullPath() + "] has more than one value for doc [" + currentDoc + "]"
-                );
-            }
-            valueSeenThisDoc = true;
-            valuesProduced = true;
-
-            if (values != null) {
-                values.setString(currentDoc, value);
-            }
-        }
-
-        // Emit one indexed (tokenized) column and one plain binary DV column — no .counts sidecar. Both
-        // columns share the same finished EscfColumnData (one serialization, two field-type wrappers).
-        if (valuesProduced) {
-            final EscfColumnData data = values != null ? values.finish(docCount) : source.columnData();
-            if (emitTerms) {
-                ctx.addColumn(LuceneBinaryColumn.of(data, fieldType().name(), fieldType));
-            }
-            if (emitDvs) {
-                ctx.addColumn(LuceneBinaryColumn.of(data, fieldType().name(), BinaryDocValuesField.TYPE));
+            // Emit one indexed (tokenized) column and one plain binary DV column — no .counts sidecar. Both
+            // columns share the same finished EscfColumnData (one serialization, two field-type wrappers).
+            if (valuesProduced) {
+                final EscfColumnData data = values != null ? values.finish(docCount) : source.columnData();
+                if (values != null) {
+                    // Only the built column owns buffers; the zero-copy branch aliases the source batch, which
+                    // releases them itself. Registered once because two columns share the data.
+                    ctx.addResource(data);
+                }
+                if (emitTerms) {
+                    ctx.addColumn(LuceneBinaryColumn.of(data, fieldType().name(), fieldType));
+                }
+                if (emitDvs) {
+                    ctx.addColumn(LuceneBinaryColumn.of(data, fieldType().name(), BinaryDocValuesField.TYPE));
+                }
             }
         }
     }

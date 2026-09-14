@@ -9,6 +9,10 @@
 
 package org.elasticsearch.index.fielddata.plain;
 
+import org.apache.lucene.codecs.Codec;
+import org.apache.lucene.codecs.DocValuesFormat;
+import org.apache.lucene.codecs.FilterCodec;
+import org.apache.lucene.codecs.perfield.PerFieldDocValuesFormat;
 import org.apache.lucene.document.BinaryDocValuesField;
 import org.apache.lucene.document.Document;
 import org.apache.lucene.index.BinaryDocValues;
@@ -20,7 +24,12 @@ import org.apache.lucene.search.DocIdSetIterator;
 import org.apache.lucene.search.SortField;
 import org.apache.lucene.store.ByteBuffersDataOutput;
 import org.apache.lucene.store.Directory;
+import org.apache.lucene.tests.util.TestUtil;
 import org.apache.lucene.util.BytesRef;
+import org.elasticsearch.columnar.ColumNARDocValuesFormat;
+import org.elasticsearch.columnar.ColumnarFieldType;
+import org.elasticsearch.columnar.numeric.NumericPipeline;
+import org.elasticsearch.columnar.string.StringColumnSource;
 import org.elasticsearch.index.mapper.ColumnarBinaryDocValuesField;
 import org.elasticsearch.index.mapper.LuceneDocument;
 import org.elasticsearch.index.mapper.MultiValuedBinaryDocValuesField;
@@ -32,6 +41,7 @@ import java.io.IOException;
 import static org.elasticsearch.index.mapper.BinaryDocValuesFormat.ARRAY_ORDER_INLINE_NULL;
 import static org.elasticsearch.index.mapper.BinaryDocValuesFormat.COLUMNAR_PAYLOAD;
 import static org.elasticsearch.index.mapper.BinaryDocValuesFormat.SEPARATE_COUNT;
+import static org.hamcrest.Matchers.instanceOf;
 
 public class MultiValuedBinaryDocValuesSortFieldTests extends ESTestCase {
 
@@ -467,6 +477,107 @@ public class MultiValuedBinaryDocValuesSortFieldTests extends ESTestCase {
                 assertEquals(new BytesRef("omega"), advanced.binaryValue());
             }
         }
+    }
+
+    /**
+     * The sort key taken from a real column rather than from a payload. A column answers {@code extreme} itself,
+     * over ordinals where it keeps a dictionary, so the sort key never goes through the payload the other tests
+     * feed in - and it has to be the same key either way, for every shape a document takes.
+     */
+    public void testColumnarColumnAgreesWithThePayload() throws IOException {
+        final String[][] docs = new String[between(200, 600)][];
+        for (int d = 0; d < docs.length; d++) {
+            docs[d] = switch (d % 7) {
+                case 0 -> new String[] { "term-" + (d % 5) };
+                case 1 -> new String[] { "term-" + (d % 5), "term-" + ((d + 3) % 5) };
+                // A value the dictionary will not name, so the extreme is decided by bytes rather than by ordinal.
+                case 2 -> new String[] { "escaped-" + d, "term-1" };
+                case 3 -> new String[] { null, "term-2" };
+                case 4 -> new String[] { null };
+                case 5 -> new String[0];
+                default -> null;
+            };
+        }
+        try (Directory dir = newDirectory(); IndexWriter w = new IndexWriter(dir, new IndexWriterConfig(null).setCodec(columnarCodec()))) {
+            for (String[] slots : docs) {
+                final LuceneDocument doc = new LuceneDocument();
+                if (slots != null) {
+                    if (slots.length == 0) {
+                        ColumnarBinaryDocValuesField.recordEmptyArray(doc, "name");
+                    }
+                    for (String slot : slots) {
+                        if (slot == null) {
+                            ColumnarBinaryDocValuesField.recordNull(doc, "name");
+                        } else {
+                            ColumnarBinaryDocValuesField.recordValue(doc, "name", new BytesRef(slot), ValueOrdering.UNSORTED);
+                        }
+                    }
+                }
+                w.addDocument(doc);
+            }
+            w.forceMerge(1);
+            try (DirectoryReader reader = DirectoryReader.open(w)) {
+                final LeafReader leaf = getOnlyLeafReader(reader);
+                assertThat(
+                    "the field has to be a column, or this reads the same payload path as every other test here",
+                    leaf.getBinaryDocValues("name"),
+                    instanceOf(StringColumnSource.class)
+                );
+                for (boolean maxMode : new boolean[] { false, true }) {
+                    final BinaryDocValues keys = columnarSortKeys(leaf, maxMode);
+                    for (int d = 0; d < docs.length; d++) {
+                        final BytesRef expected = expectedExtreme(docs[d], maxMode);
+                        if (keys.advanceExact(d) == false) {
+                            assertNull("doc " + d + " maxMode=" + maxMode + " read as missing", expected);
+                            continue;
+                        }
+                        assertEquals("doc " + d + " maxMode=" + maxMode, expected, keys.binaryValue());
+                    }
+                }
+            }
+        }
+    }
+
+    /** The extreme non-null value of a document, worked out from the values themselves. */
+    private static BytesRef expectedExtreme(String[] slots, boolean maxMode) {
+        if (slots == null) {
+            return null;
+        }
+        BytesRef best = null;
+        for (String slot : slots) {
+            if (slot == null) {
+                continue;
+            }
+            final BytesRef candidate = new BytesRef(slot);
+            if (best == null || (maxMode ? candidate.compareTo(best) > 0 : candidate.compareTo(best) < 0)) {
+                best = candidate;
+            }
+        }
+        return best;
+    }
+
+    private static Codec columnarCodec() {
+        final Codec base = TestUtil.getDefaultCodec();
+        // The type is injected rather than read from a field attribute: these documents are built through
+        // ColumnarBinaryDocValuesField, which is the mapper's field and carries no codec attribute.
+        final DocValuesFormat columnar = new ColumNARDocValuesFormat(
+            (fieldName, fieldType) -> NumericPipeline::defaultPipeline,
+            field -> ColumnarFieldType.STRING,
+            ColumNARDocValuesFormat.DEFAULT_BLOCK_SIZE
+        );
+        return new FilterCodec(base.getName(), base) {
+            private final DocValuesFormat perField = new PerFieldDocValuesFormat() {
+                @Override
+                public DocValuesFormat getDocValuesFormatForField(String field) {
+                    return columnar;
+                }
+            };
+
+            @Override
+            public DocValuesFormat docValuesFormat() {
+                return perField;
+            }
+        };
     }
 
     private static BinaryDocValues columnarSortKeys(LeafReader leaf, boolean maxMode) throws IOException {

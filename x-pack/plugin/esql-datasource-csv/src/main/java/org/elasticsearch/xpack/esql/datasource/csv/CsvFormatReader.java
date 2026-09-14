@@ -79,7 +79,6 @@ import org.elasticsearch.xpack.esql.datasources.spi.SourceMetadata;
 import org.elasticsearch.xpack.esql.datasources.spi.SourceStatistics;
 import org.elasticsearch.xpack.esql.datasources.spi.StorageObject;
 import org.elasticsearch.xpack.esql.datasources.spi.StripeColumnScope;
-import org.elasticsearch.xpack.esql.datasources.spi.ThreadCpuTimer;
 import org.elasticsearch.xpack.esql.type.EsqlDataTypeConverter;
 
 import java.io.BufferedReader;
@@ -121,9 +120,13 @@ import java.util.function.Consumer;
  * <ul>
  *   <li>First non-comment line: schema — {@code column:type} pairs separated by the delimiter
  *   <li>Subsequent lines: data rows
- *   <li>A present but empty field ({@code a,,c}) reads as the empty string on {@code keyword}/{@code text}
- *       columns and as {@code null} on other types; a missing field (row shorter than the schema) is
- *       always {@code null}
+ *   <li>A present but empty field ({@code a,,c}) reads as {@code null} on every type — unless the column is
+ *       {@code keyword}/{@code text} in a schema the dataset <em>declares strictly</em> ({@code mappings} with
+ *       {@code dynamic: false}, the only form the resolver treats as a declaration), in which case it reads as
+ *       the empty string. So a blank cell means the same thing whatever the other rows of its column happen to
+ *       hold, and the empty string is only produced where someone asked for a string column. Setting
+ *       {@code null_value} to the empty string forces {@code null} even there. A missing field (row shorter
+ *       than the schema) is always {@code null}
  *   <li>Lines starting with the comment prefix (default {@code //}) are skipped
  * </ul>
  *
@@ -151,9 +154,10 @@ import java.util.function.Consumer;
  *   <tr><td>{@code escape}</td><td>{@code \}</td><td>Escape character; setting it turns escaping on
  *           regardless of {@code mode}, the literal {@code none} turns it off (overrides the preset)</td></tr>
  *   <tr><td>{@code comment}</td><td>{@code //}</td><td>Line comment prefix</td></tr>
- *   <tr><td>{@code null_value}</td><td>(empty)</td><td>Token whose exact match reads as {@code null}. The
- *           default (empty) installs no such token: an empty field is then a present empty value (empty
- *           string on {@code keyword}/{@code text}, {@code null} on other types), not a null token</td></tr>
+ *   <tr><td>{@code null_value}</td><td>(unset)</td><td>Token whose exact match reads as {@code null}. Unset by
+ *           default, which installs no such token. The empty string is a legal value for it: it is how a blank
+ *           cell is forced to {@code null} on a {@code keyword}/{@code text} column of a strictly declared
+ *           schema (blank cells already read as {@code null} everywhere else)</td></tr>
  *   <tr><td>{@code encoding}</td><td>{@code UTF-8}</td><td>Character encoding</td></tr>
  *   <tr><td>{@code datetime_format}</td><td>ISO-8601 / epoch</td><td>Custom datetime pattern</td></tr>
  *   <tr><td>{@code max_field_size}</td><td>10 MB</td><td>OOM protection; max bytes per field</td></tr>
@@ -186,7 +190,8 @@ import java.util.function.Consumer;
  *   <tr><td>{@code (true, true)}</td><td>{@code mode: quoted} (default for {@code .csv})</td>
  *       <td>RFC 4180 quoting; backslash escapes inside quoted fields (spreadsheet / enclosed-and-escaped)</td></tr>
  *   <tr><td>{@code (false, true)}</td><td>{@code mode: escaped}</td>
- *       <td>No quoting; C-style value decode — {@code \t \n \\}, {@code \N} → null (database text exports)</td></tr>
+ *       <td>No quoting; escape + delimiter stays in one field; C-style value decode
+ *       ({@code \t \n \\}, {@code \N} → null; database text exports)</td></tr>
  *   <tr><td>{@code (false, false)}</td><td>{@code mode: plain} (default for {@code .tsv})</td>
  *       <td>No quoting, no escaping; every byte literal — a field cannot contain the delimiter or a
  *           newline. Never silently corrupts input.</td></tr>
@@ -269,13 +274,32 @@ public class CsvFormatReader implements SegmentableFormatReader {
     private static final BytesRef EMPTY_STRING = new BytesRef(BytesRef.EMPTY_BYTES);
 
     /**
-     * Value for a field that is present in the row but has empty text: the empty string on
-     * {@code KEYWORD}/{@code TEXT} columns, {@code null} on every other type (which has no empty
-     * representation). A MISSING field (row shorter than the schema) is handled by the callers and is
-     * always {@code null}, independent of this method.
+     * Value for an empty ELEMENT of a bracket multi-value cell ({@code [a,,c]}, {@code [a,"",c]}): the empty string
+     * on {@code KEYWORD}/{@code TEXT}, {@code null} on every other type (which has no empty representation).
+     * <p>Deliberately NOT subject to the whole-cell rule in {@link CsvBatchIterator#presentEmptyCell}: an element
+     * is one entry of a list whose length the user can observe, so turning it into {@code null} would change the
+     * cell's cardinality (a multi-value block cannot hold a null entry), not just a value's spelling.
      */
-    private static Object presentEmptyValue(DataType dataType) {
+    private static Object presentEmptyElement(DataType dataType) {
         return DataType.isString(dataType) ? EMPTY_STRING : null;
+    }
+
+    /**
+     * Whether this read carries the user's word that its string columns are strings, which is what earns a blank
+     * cell the empty string rather than {@code null} (see {@link CsvBatchIterator#emptyCellIsEmptyString}).
+     * All three inputs are known before the first row: the binding and the options are the reader's, and the
+     * schema is the one the split pinned.
+     *
+     * @param declaredProvenanceBinding the read is bound to a strictly declared schema ({@code dynamic: false})
+     * @param preResolvedSchema         that schema, pinned on the read context; a declaration always arrives with one
+     * @param options                   consulted for {@code null_value}, which when set to the blank overrides the above
+     */
+    private static boolean declaredStringSemantics(
+        boolean declaredProvenanceBinding,
+        @Nullable List<Attribute> preResolvedSchema,
+        CsvFormatOptions options
+    ) {
+        return declaredProvenanceBinding && preResolvedSchema != null && "".equals(options.nullValue()) == false;
     }
 
     /**
@@ -626,21 +650,18 @@ public class CsvFormatReader implements SegmentableFormatReader {
      * quirks are masked (the trim would have removed that whitespace anyway and quote detection is
      * restored), so Jackson's tokenization is safe.
      *
-     * <p>Escaped mode (quoting off, escaping on) is also kept on Jackson even under no-trim: it is the only
-     * dialect where {@link #decodeFieldValue} is non-identity, so routing escaped mode through the house
-     * splitter would diverge from inference. The direct walkers exclude escaped mode for the same reason (no
-     * house grammar to mirror), so this keeps the house path confined to exactly the QUOTED / PLAIN dialects
-     * the walkers serve, where {@code decodeFieldValue} is identity.
+     * <p>Escaped mode (quoting off, escaping on) uses the house {@link #splitRecordFieldsEscaped} path
+     * even under trim: Jackson's escape both protects and decodes, so installing the escape char would
+     * drop the slash before {@link #decodeFieldValue} and lose whole-field {@code \N} and C-style
+     * {@code \b}/{@code \f}. The house scan is protect-only; decode stays in {@code decodeFieldValue}.
+     * Direct walkers exclude escaped mode ({@code decodeFieldValue} is non-identity and there is
+     * no escaped walker to mirror).
      *
-     * <p>Consequence — the escaped-mode no-trim residual: because escaped mode stays on Jackson even under
-     * no-trim, it also KEEPS Jackson's {@code SKIP_EMPTY_LINES} first-column leading-whitespace eating (a
-     * padded {@code  x} at column 0 reads back as {@code x}; non-first columns keep their padding). This is a
-     * real no-trim gap for escaped mode that the QUOTED / PLAIN house grammar does not have, but it is uniform
-     * across every escaped arm (per-record, bulk, inference), so there is no cross-path misbind. Pinned by
-     * {@code CsvModeReadTests.testEscapedModeStillEatsColumnZeroLeadingWhitespaceUnderNoTrim}.
+     * <p>Escaped no-trim therefore uses the house grammar, which preserves first-column leading
+     * whitespace (unlike Jackson {@code SKIP_EMPTY_LINES}).
      */
     private boolean jacksonGrammarApplies() {
-        return options.trimSpaces() || options.decodesEscapes();
+        return options.trimSpaces() && options.decodesEscapes() == false;
     }
 
     private static CsvMapper createMapper(CsvFormatOptions opts) {
@@ -648,7 +669,7 @@ public class CsvFormatReader implements SegmentableFormatReader {
         if (opts.trimSpaces()) {
             // TRIM_SPACES is gated on so mode:plain (and any opt-out) keeps field bytes verbatim; typed
             // columns tolerate padding independently (see tryConvertValue). This mapper is only consulted
-            // when jacksonGrammarApplies() (trim on, or escaped mode): under no-trim Jackson's grammar
+            // when jacksonGrammarApplies() (trim on, not escaped): under no-trim Jackson's grammar
             // diverges from the walkers — it mis-splits padded quotes AND SKIP_EMPTY_LINES eats the first
             // column's leading whitespace on every row — so the record paths tokenize with
             // splitRecordFields instead and this mapper is not used for them.
@@ -769,7 +790,12 @@ public class CsvFormatReader implements SegmentableFormatReader {
         return merged.equals(baseline) ? null : merged;
     }
 
-    /** An option counts as user-supplied only when present AND non-empty (empty string = "use the default"). */
+    /**
+     * A {@code quote}/{@code escape} override counts as user-supplied only when present AND non-empty (empty
+     * string = "use the default"), since neither knob has a meaningful empty value. This is NOT a reader-wide
+     * convention: {@code null_value} reads its own key directly, so that it can be set to the empty string to
+     * name a blank cell as the null token.
+     */
     private static boolean isExplicitlySet(Object value) {
         return value != null && value.toString().isEmpty() == false;
     }
@@ -1495,9 +1521,10 @@ public class CsvFormatReader implements SegmentableFormatReader {
      * {@code external_max_record_size} cap is enforced upstream by {@link CsvRecordCappingInputStream}, so this
      * path no longer needs the per-char accounting that {@link CsvLogicalRecordReader#readRecord} added.
      * Used after schema resolution / sampling, where every subsequent record flows through this iterator —
-     * but only when {@link #jacksonGrammarApplies()} (trim on, or escaped mode). Under no-trim the data
-     * path routes to the per-record {@link #newCsvIterator} + house {@link #splitRecordFields} instead, so
-     * Jackson's diverging no-trim grammar (padded-quote mis-split, col-0 whitespace eating) is not used.
+     * but only when {@link #jacksonGrammarApplies()} (trim on and not escaped). Under no-trim or escaped
+     * mode the data path routes to the per-record {@link #newCsvIterator} + house {@link #splitRecordFields}
+     * instead, so Jackson's diverging no-trim grammar (padded-quote mis-split, col-0 whitespace eating)
+     * is not used, and escaped mode keeps the protect-only house scan.
      */
     @SuppressWarnings({ "rawtypes", "unchecked" })
     private Iterator<List<?>> newJacksonBulkIterator(Reader reader) throws IOException {
@@ -1517,12 +1544,13 @@ public class CsvFormatReader implements SegmentableFormatReader {
      */
     private CsvSchema newCsvSchema() {
         CsvSchema schema = CsvSchema.emptySchema().withColumnSeparator(options.delimiter());
-        // Only a non-empty custom null_value installs a Jackson null token. The default empty
-        // null_value must NOT null-fill empty cells: empty string cells survive as "" so the
-        // empty-vs-null decision is made per type in tryConvertValue (empty string on string columns,
-        // null otherwise). Setting withNullValue("") here would collapse empty to null before we ever
-        // see the value, hiding present-empty string cells.
-        if (options.nullValue().isEmpty() == false) {
+        // A configured null_value installs a Jackson null token; an unset one (the default) must not, or the
+        // empty-vs-null decision could no longer be made per column in tryConvertValue / presentEmptyCell —
+        // Jackson would collapse empty to null before the value is ever seen, hiding present-empty string cells
+        // on declared string columns. Note that the empty string IS a configurable token here (nullValue is
+        // null when unset, precisely so it stays distinguishable from ""), and naming it is how a user asks for
+        // a blank cell to be null even on a declared string column.
+        if (options.nullValue() != null) {
             schema = schema.withNullValue(options.nullValue());
         }
         if (options.quoting() == false) {
@@ -1812,9 +1840,10 @@ public class CsvFormatReader implements SegmentableFormatReader {
         // This is needed on every recordReader-backed data path for a QUOTED + escaping dialect — the
         // direct quoted walk, the _rowPosition per-record read, and the no-trim reroute onto the house
         // tokenizer — otherwise a `\`-escaped newline would terminate the record early and split one
-        // logical row in two. The Jackson bulk path (trim on / escaped mode) installs the escape char in
-        // its own schema instead, so it does not need the recordReader escape-aware. Bracket mode scans
-        // its own boundaries and is excluded.
+        // logical row in two. The Jackson bulk path (trim on, quoted/plain) installs the escape char in
+        // its own schema when quoting is on, so it does not need the recordReader escape-aware. Bracket
+        // mode scans its own boundaries and is excluded. Escaped mode keeps recordEscapeAware off: an
+        // in-field newline is the two bytes {@code \}+{@code n}, and a raw newline ends the record.
         boolean recordEscapeAware = options.quoting()
             && options.escaping()
             && useBracketAware == false
@@ -1852,11 +1881,11 @@ public class CsvFormatReader implements SegmentableFormatReader {
                 options.encoding(),
                 options.quoting()
             );
-        // Only the direct-to-block path lets this reader own the stream end to end, so bulk read-ahead
-        // is safe there. The Jackson path skips the header through this reader then resumes on the same
-        // underlying BufferedReader, so it must stay non-buffered (no read-ahead) to avoid swallowing
-        // bytes Jackson still needs.
-        if (useDirectBlock) {
+        // Bulk read-ahead is safe when this reader owns the stream end to end: the direct-to-block
+        // path, and the house per-record path (useRecordReaderPath). The Jackson bulk path skips the
+        // header through this reader then resumes on the same underlying BufferedReader, so it must
+        // stay non-buffered (no read-ahead) to avoid swallowing bytes Jackson still needs.
+        if (useDirectBlock || useRecordReaderPath) {
             recordReader.enableBulkBuffering();
         }
         // _rowPosition byte-axis invariant: context.splitStartByte() and recordReader.bytesRead()
@@ -2014,11 +2043,6 @@ public class CsvFormatReader implements SegmentableFormatReader {
     @Override
     public CsvReaderStatus statusSnapshot() {
         return counters.snapshot();
-    }
-
-    @Override
-    public void acceptReadCpuNanos(long nanos) {
-        counters.addReadCpuNanos(nanos);
     }
 
     @Override
@@ -2722,27 +2746,29 @@ public class CsvFormatReader implements SegmentableFormatReader {
     }
 
     /**
-     * House record tokenizer for the no-trim, non-escaped-mode dialects (QUOTED and PLAIN). Produces the
-     * same field values <em>and</em> field counts as the direct-to-block walkers
-     * ({@link CsvBatchIterator#splitAndConvertPlain} / {@link CsvBatchIterator#splitAndConvertQuoted}), so
-     * a record materialized through this splitter agrees byte-for-byte with a direct read of the same file.
-     * Used in place of Jackson whenever {@link #jacksonGrammarApplies()} is false — Jackson's tokenization
-     * only coincides with the walkers under {@code trim_spaces} (see that method), and it eats first-column
-     * leading whitespace on every row via {@code SKIP_EMPTY_LINES}, so under no-trim the walkers are the
-     * grammar and this splitter mirrors them for the record-materialized paths (per-record iterator,
-     * inference sampling, {@code _rowPosition} reads, bulk fallback).
+     * House record tokenizer. For QUOTED and PLAIN it produces the same field values <em>and</em> field
+     * counts as the direct-to-block walkers ({@link CsvBatchIterator#splitAndConvertPlain} /
+     * {@link CsvBatchIterator#splitAndConvertQuoted}), so a record materialized through this splitter
+     * agrees byte-for-byte with a direct read of the same file. Escaped mode has no walker twin: it
+     * uses {@link #splitRecordFieldsEscaped} (protect-only scan, raw emit) and {@link #decodeFieldValue}
+     * afterwards.
+     *
+     * <p>Used in place of Jackson whenever {@link #jacksonGrammarApplies()} is false. Jackson's
+     * tokenization only coincides with the walkers under {@code trim_spaces} (see that method), and
+     * escaped mode must not hand Jackson the escape char. Under no-trim the walkers are the QUOTED /
+     * PLAIN grammar and this splitter mirrors them for the record-materialized paths (per-record
+     * iterator, inference sampling, {@code _rowPosition} reads, bulk fallback).
      *
      * <p>Values are returned raw: an empty field is {@code ""} (not {@code null}) — downstream
      * {@code tryConvertValue} maps empty / {@code null-marker} to null identically for both arms, so the
      * split stays a pure tokenizer. Per field the same {@code maxFieldChars} cap the walkers enforce is
      * applied, throwing a {@link MalformedRowException} whose message equals
      * {@link #fieldSizeExceededDetail} so the error policy sees identical text on both arms.
-     *
-     * <p>Only reached when {@code decodeFieldValue} is the identity (QUOTED or PLAIN); the escaped mode
-     * (quoting off, escaping on), where {@code decodeFieldValue} is non-identity, keeps
-     * {@link #jacksonGrammarApplies()} true and never routes here.
      */
     static String[] splitRecordFields(String record, CsvFormatOptions options, int maxFieldChars) {
+        if (options.decodesEscapes()) {
+            return splitRecordFieldsEscaped(record, options, maxFieldChars);
+        }
         return options.quoting()
             ? splitRecordFieldsQuoted(record, options, maxFieldChars)
             : splitRecordFieldsPlain(record, options, maxFieldChars);
@@ -2783,6 +2809,95 @@ public class CsvFormatReader implements SegmentableFormatReader {
             }
             while (end > start && record.charAt(end - 1) <= ' ') {
                 end--;
+            }
+        }
+        int fieldLen = end - start;
+        if (fieldLen > maxFieldChars) {
+            throw new MalformedRowException(fieldSizeExceededDetail(fieldLen, maxFieldChars));
+        }
+        return record.substring(start, end);
+    }
+
+    /**
+     * Escaped (quoting off, escaping on) split: protect-only scan so {@code escape + delimiter} is
+     * not a field boundary, then a raw emit. {@link #decodeFieldValue} performs the C-style decode
+     * afterwards. Trailing empty fields are kept (data-row rule). A field-leading quote is data.
+     */
+    private static String[] splitRecordFieldsEscaped(String record, CsvFormatOptions options, int maxFieldChars) {
+        final char delim = options.delimiter();
+        final char esc = options.escapeChar();
+        final boolean trimSpaces = options.trimSpaces();
+        final int len = record.length();
+        List<String> fields = new ArrayList<>();
+        int i = 0;
+        while (true) {
+            long scan = CsvTokenizerKernel.scanUnquotedField(record, i, len, delim, esc, true);
+            int fieldEnd = CsvTokenizerKernel.scanFieldEnd(scan);
+            fields.add(
+                emitEscapedSplitField(record, i, fieldEnd, delim, esc, trimSpaces, CsvTokenizerKernel.scanHasEscape(scan), maxFieldChars)
+            );
+            if (fieldEnd >= len) {
+                break;
+            }
+            i = fieldEnd + 1;
+        }
+        return fields.toArray(String[]::new);
+    }
+
+    /**
+     * Raw substring of an escaped-mode field {@code record[start, end)}. Under {@code trim_spaces},
+     * unescaped {@code c <= ' '} is stripped from both ends (except the delimiter itself). An
+     * unescaped escape char is not padding when it still has a following byte to protect, so a
+     * whitespace escape char (legal in {@link CsvFormatOptions}) is not eaten from the front of a
+     * pair; a trailing lone whitespace escape is padding. When the scan saw no escape the walk is
+     * a two-pointer trim of unescaped {@code c <= ' '} (except the delimiter); otherwise one
+     * forward pass tracks pairing so a long escape-run followed by spaces is linear. The cap
+     * governs the emitted length. C-style decode is left to {@link #decodeFieldValue}.
+     */
+    private static String emitEscapedSplitField(
+        String record,
+        int start,
+        int end,
+        char delim,
+        char esc,
+        boolean trimSpaces,
+        boolean hasEscape,
+        int maxFieldChars
+    ) {
+        if (trimSpaces) {
+            if (hasEscape) {
+                boolean inEscape = false;
+                int firstKeep = -1;
+                int lastKeep = -1;
+                for (int i = start; i < end; i++) {
+                    char c = record.charAt(i);
+                    boolean escaped = inEscape;
+                    if (inEscape) {
+                        inEscape = false;
+                    } else if (c == esc) {
+                        inEscape = true;
+                    }
+                    boolean padding = c <= ' ' && c != delim && escaped == false && (c != esc || i + 1 >= end);
+                    if (padding == false) {
+                        if (firstKeep < 0) {
+                            firstKeep = i;
+                        }
+                        lastKeep = i;
+                    }
+                }
+                if (firstKeep < 0) {
+                    end = start;
+                } else {
+                    start = firstKeep;
+                    end = lastKeep + 1;
+                }
+            } else {
+                while (start < end && record.charAt(start) <= ' ' && record.charAt(start) != delim) {
+                    start++;
+                }
+                while (end > start && record.charAt(end - 1) <= ' ' && record.charAt(end - 1) != delim) {
+                    end--;
+                }
             }
         }
         int fieldLen = end - start;
@@ -2939,20 +3054,18 @@ public class CsvFormatReader implements SegmentableFormatReader {
                 return null;
             }
             if (jacksonGrammarApplies() == false) {
-                // No-trim, non-escaped-mode: the direct-block walkers are the grammar, so tokenize with
-                // their string-domain twin instead of Jackson (whose grammar diverges under no-trim — see
-                // jacksonGrammarApplies). Comments are filtered by the callers on the first cell, so they
-                // are not dropped here. The decodeFieldValue seam runs unchanged — it is the identity for
-                // the QUOTED / PLAIN dialects this branch is gated to.
+                // House tokenizer: QUOTED / PLAIN under no-trim (walker twin) and escaped mode (protect-only
+                // scan). Comments are filtered by the callers on the first cell, so they are not dropped
+                // here. decodeFieldValue is identity for QUOTED / PLAIN and C-style for escaped.
                 int maxFieldChars = options.maxFieldSize() > 0 ? options.maxFieldSize() : Integer.MAX_VALUE;
                 String[] fields = splitRecordFields(record, options, maxFieldChars);
                 // A configured null marker maps to null here, mirroring what Jackson's withNullValue did at
                 // tokenization on the pre-B1 path and what the direct walkers' emitPlainField / tryConvertValue
                 // do (exact equality, gated on a non-empty marker, all fields incl. quoted — splitRecordFields
                 // strips quotes just as Jackson nulled a quoted "NA"). Without this the raw marker would reach
-                // CsvSchemaInferrer, which only knows empty / "null", and flip the inferred type. The default
-                // empty marker stays untouched: an empty cell already reads as null downstream.
-                boolean hasCustomNullValue = options.nullValue().isEmpty() == false;
+                // CsvSchemaInferrer, which only knows empty / "null", and flip the inferred type. An unset
+                // marker stays untouched: an empty cell is classified per column downstream.
+                boolean hasCustomNullValue = options.nullValue() != null;
                 String nullValueStr = options.nullValue();
                 List<String> row = new ArrayList<>(fields.length);
                 for (String field : fields) {
@@ -2985,9 +3098,9 @@ public class CsvFormatReader implements SegmentableFormatReader {
      * the standard C-style output escape set, and any other {@code \c} is {@code c} (its parse
      * rule). Runs only when {@link CsvFormatOptions#decodesEscapes()} (escaping on, quoting off);
      * identity otherwise, and lazy — a field without the escape character (the overwhelmingly common
-     * case) is returned as-is, so the decode stays off the hot path. Boundary scanning is untouched by
-     * design: an in-field tab/newline is the two bytes {@code \}+{@code t}/{@code n} on disk, so raw
-     * terminators remain unambiguous.
+     * case) is returned as-is, so the decode stays off the hot path. Named escapes ({@code \t},
+     * {@code \n}) never put a raw terminator byte in a field, so record bounds stay unambiguous.
+     * Escape + delimiter is kept in one field by {@link #splitRecordFieldsEscaped} before this runs.
      */
     private String decodeFieldValue(String value) {
         if (options.decodesEscapes() == false || value == null) {
@@ -3041,7 +3154,7 @@ public class CsvFormatReader implements SegmentableFormatReader {
      * control escapes; every other {@code \c} — including {@code \b} and {@code \f} — is the literal
      * {@code c} (the escape merely protects the next character). This is a strict subset of the C-style
      * {@link #decodeEscapeChar} set, which additionally maps {@code \b}/{@code \f} to control chars; that
-     * fuller set stays confined to {@code mode: escaped}, whose fallback is Jackson-with-C-style anyway.
+     * fuller set stays confined to {@code mode: escaped}, which decodes via {@link #decodeFieldValue}.
      */
     static char decodeQuotedEscapeChar(char next) {
         return switch (next) {
@@ -3066,7 +3179,25 @@ public class CsvFormatReader implements SegmentableFormatReader {
         private final boolean logErrors;
         private final boolean hasCommentFilter;
         private final boolean hasCustomNullValue;
+        @Nullable
         private final String nullValueStr;
+        /**
+         * Whether a present-but-empty cell on a {@code KEYWORD}/{@code TEXT} column reads as the empty string
+         * rather than {@code null}. True only when the schema this read is bound to was DECLARED — which the
+         * resolver means strictly: {@code mappings} carrying {@code dynamic: false}, the only form that yields
+         * {@link CsvFormatReader#declaredProvenanceBinding}, so a {@code dynamic: true} overlay naming the same
+         * column does NOT enable it — and {@code null_value} does not name the blank. A strictly declared
+         * {@code keyword} column is a request for string semantics, in which "" is a value the file can carry,
+         * and {@code null_value: ""} is how to opt back out of it.
+         * <p>Both inputs are constructor arguments, so the flag is decided once, before any row is read. It
+         * pairs {@code declaredProvenanceBinding} with a pinned schema because a declaration always arrives as
+         * one; the binding without a pinned schema is not a state the resolver can produce.
+         * <p>False for an INFERRED schema, where the alternative would make a blank cell's meaning depend on
+         * what the REST of its column holds — the same bytes reading {@code ""} in a column that sampled as
+         * keyword and {@code null} in one that sampled as long, with nothing the user could set to align them.
+         * Blank is therefore {@code null} on every inferred column, whatever its inferred type.
+         */
+        private final boolean emptyCellIsEmptyString;
         private final DateFormatter datetimeFormatter;
         private final boolean bracketMultiValues;
         private final String sourceLocation;
@@ -3360,8 +3491,9 @@ public class CsvFormatReader implements SegmentableFormatReader {
             this.modeOrdinal = errorPolicy.mode().ordinal();
             this.logErrors = errorPolicy.logErrors();
             this.hasCommentFilter = options.commentPrefix().isEmpty() == false;
-            this.hasCustomNullValue = options.nullValue().isEmpty() == false;
+            this.hasCustomNullValue = options.nullValue() != null;
             this.nullValueStr = options.nullValue();
+            this.emptyCellIsEmptyString = declaredStringSemantics(declaredProvenanceBinding, preResolvedSchema, options);
             this.datetimeFormatter = options.datetimeFormatter();
             this.bracketMultiValues = options.multiValueSyntax() == CsvFormatOptions.MultiValueSyntax.BRACKETS;
             this.sourceLocation = sourceLocation;
@@ -3397,8 +3529,6 @@ public class CsvFormatReader implements SegmentableFormatReader {
             if (nextPage != null) {
                 return true;
             }
-            long startNanos = System.nanoTime();
-            long startCpuNanos = ThreadCpuTimer.currentNanos();
             long startTotal = totalRowCount;
             long startError = errorCount;
             try {
@@ -3415,10 +3545,6 @@ public class CsvFormatReader implements SegmentableFormatReader {
                 long deltaErrors = errorCount - startError;
                 counters.addRowsEmitted(deltaTotal - deltaErrors);
                 counters.addParseErrors(deltaErrors);
-                if (startCpuNanos >= 0) {
-                    counters.addReadCpuNanos(ThreadCpuTimer.elapsedNanos(startCpuNanos));
-                }
-                counters.addReadNanos(System.nanoTime() - startNanos);
             }
         }
 
@@ -3578,9 +3704,10 @@ public class CsvFormatReader implements SegmentableFormatReader {
         /**
          * Bulk Jackson iterator that also tracks per-record byte offsets via {@link ByteOffsetTrackingReader},
          * so canonical-stripe attribution works on the fast path without dropping onto the per-record reader.
-         * Live only when {@link #jacksonGrammarApplies()} (trim on, or escaped mode) and the encoding is
-         * UTF-8; under no-trim the read routes through the per-record recordReader path instead (which
-         * supplies byte-exact offsets for any encoding), so this tracked bulk path stays idle there.
+         * Live only when {@link #jacksonGrammarApplies()} (trim on, not escaped) and the encoding is
+         * UTF-8; under no-trim or escaped mode the read routes through the per-record recordReader path
+         * instead (which supplies byte-exact offsets for any encoding), so this tracked bulk path stays
+         * idle there.
          */
         @SuppressWarnings({ "rawtypes", "unchecked" })
         private Iterator<List<?>> newTrackedJacksonBulkIterator() throws IOException {
@@ -3777,18 +3904,17 @@ public class CsvFormatReader implements SegmentableFormatReader {
                     // record must advance CsvLogicalRecordReader's byte accounting so the offset
                     // (splitStartByte + bytesRead - lastRecordBytes) stays exact; the Jackson bulk path
                     // bypasses recordReader and would pin every data row at the header boundary.
-                    // 2. Jackson's grammar does not apply (no-trim, non-escaped-mode — see
+                    // 2. Jackson's grammar does not apply (no-trim, or escaped; see
                     // jacksonGrammarApplies): under no-trim Jackson mis-splits padded-quoted fields and
-                    // eats first-column leading whitespace, so the record path tokenizes with the house
-                    // splitRecordFields (parseRecord) to agree with the direct walkers. Stripe capture
+                    // eats first-column leading whitespace, and escaped mode uses the house protect-only
+                    // scan. The record path tokenizes with splitRecordFields (parseRecord). Stripe capture
                     // still composes: recordReader supplies byte-exact per-record offsets (the
                     // bulkByteTracker == null branch below), validated by the emit-time tripwire, so
                     // capture is NOT disabled here even for non-UTF-8 — recordReader counts bytes per
                     // options.encoding().
                     if (rowPositionSlot >= 0 || jacksonGrammarApplies() == false) {
-                        // parseRecord already applied decodeFieldValue on both of its branches. That holds for the
-                        // no-trim reroute arm too, where the decode is the identity (QUOTED / PLAIN only), so the
-                        // contract is DECODED here even though only escaped mode can observe the difference.
+                        // parseRecord already applied decodeFieldValue. QUOTED / PLAIN decode is identity;
+                        // escaped decode is C-style. The iterator contract is DECODED.
                         routeCsvIterator(newCsvIterator(recordReader), true);
                     } else if (statsStripeSize > 0 && StandardCharsets.UTF_8.equals(options.encoding())) {
                         // Stripe capture on the bulk path: wrap the reader so each row's char offset maps to a
@@ -3932,13 +4058,10 @@ public class CsvFormatReader implements SegmentableFormatReader {
                                 String[] row = new String[rowList.size()];
                                 for (int i = 0; i < rowList.size(); i++) {
                                     Object val = rowList.get(i);
-                                    // decodeFieldValue must run exactly once per field, and the two record sources
-                                    // carry opposite contracts: the Jackson bulk iterators deliver RAW values
-                                    // (newCsvSchema withholds the escape char in the no-quote modes, so the
-                                    // backslash reaches us untouched), while CsvRecordIterator.parseRecord already
-                                    // decoded. This seam therefore decodes only the raw arm. Decoding both would
-                                    // silently corrupt escaped mode — the only dialect where decodeFieldValue is
-                                    // non-identity (it un-escapes \t \n \\ and maps a whole-field \N to null).
+                                    // decodeFieldValue must run exactly once per field. Jackson bulk iterators
+                                    // deliver RAW values; CsvRecordIterator.parseRecord (house path, including
+                                    // escaped) already decoded. This seam therefore decodes only the raw arm.
+                                    // Decoding both would un-escape \t \n \\ twice and collapse a whole-field \N.
                                     String value = val != null ? val.toString() : null;
                                     row[i] = csvIteratorDeliversDecoded ? value : decodeFieldValue(value);
                                 }
@@ -5320,14 +5443,17 @@ public class CsvFormatReader implements SegmentableFormatReader {
         }
 
         /**
-         * Stages a present-but-empty field on the direct-to-block path: the empty string on
-         * {@code KEYWORD}/{@code TEXT} columns, {@code null} on every other type (which has no empty
-         * representation). Mirrors {@link CsvFormatReader#presentEmptyValue} and the {@link #tryConvertValue}
-         * empty branch so the direct decoders agree with the Jackson path. A MISSING field (row shorter than
-         * the schema) is always {@code null} and is handled by the trailing null-fill, not this method.
+         * Stages a present-but-empty field on the direct-to-block path, applying the same rule as
+         * {@link #presentEmptyCell}: the empty string only on a DECLARED {@code KEYWORD}/{@code TEXT} column,
+         * {@code null} otherwise. Kept as a separate method (rather than staging what {@code presentEmptyCell}
+         * returns) so this path stays off the boxed {@code rowBuffer}. A MISSING field (row shorter than the
+         * schema) is always {@code null} and is handled by the trailing null-fill, not this method.
+         * <p>The gate lives here rather than at the call sites because an empty span reaches this method
+         * unconditionally — {@link #emitPlainField} checks {@code len == 0} BEFORE it compares against a
+         * configured null marker, so a {@code null_value} of {@code ""} would never be seen otherwise.
          */
         private void stagePresentEmptyValue(int bufIdx, DataType dt) {
-            if (DataType.isString(dt)) {
+            if (emptyCellIsEmptyString && DataType.isString(dt)) {
                 stageRefValue(bufIdx, EMPTY_STRING);
             } else {
                 stageNullValue(bufIdx);
@@ -5386,10 +5512,13 @@ public class CsvFormatReader implements SegmentableFormatReader {
             // maxFieldChars was already enforced against end-start in both trim branches above; trimming
             // only shrinks the range, so len here is always within the cap and needs no re-check.
             int len = end - start;
-            // Null classification mirrors tryConvertValue: a present-but-empty field is the empty string
-            // on string columns and null on other types; the literal "null" (any case) is a null marker
+            // Null classification mirrors tryConvertValue: a present-but-empty field is handed to
+            // stagePresentEmptyValue, which applies the emptyCellIsEmptyString rule (the empty string only on
+            // a DECLARED string column, null everywhere else); the literal "null" (any case) is a null marker
             // only for non-string columns, since KEYWORD/TEXT must be able to hold the string "null"; the
             // configured null marker always becomes null.
+            // The empty branch is tested FIRST, so the configured marker below never sees a blank -- with
+            // null_value: "" the blank is nulled inside the decider instead, on every column type.
             if (len == 0) {
                 stagePresentEmptyValue(bufIdx, dt);
                 return true;
@@ -5563,7 +5692,8 @@ public class CsvFormatReader implements SegmentableFormatReader {
          * is decoded with Jackson's quoted-escape rule; quoted content (including inner whitespace and embedded newlines) is preserved
          * verbatim, while unquoted fields are trimmed only for typed columns (a keyword keeps its bytes
          * unless trim_spaces). Non-whitespace after a closing quote is a row error, and an empty quoted field
-         * ({@code ""}) is a present-but-empty field (the empty string on string columns, null otherwise). Simple
+         * ({@code ""}) is a present-but-empty field, read exactly like an unquoted blank cell -- see
+         * {@link #presentEmptyCell}, which decides both. Simple
          * unquoted fields (no escape) take the same char-range fast path as
          * {@link #splitAndConvertPlain}; quoted or escaped fields are assembled into a reused buffer.
          *
@@ -5622,8 +5752,9 @@ public class CsvFormatReader implements SegmentableFormatReader {
                     }
                     if (projected) {
                         if (value.length() == 0) {
-                            // Empty quoted field ("") is a present-but-empty field: empty string on
-                            // string columns, null otherwise (matches the fused/split bracket routes).
+                            // Empty quoted field ("") is a present-but-empty field, decided by the same
+                            // emptyCellIsEmptyString rule as an unquoted blank (matches the fused/split
+                            // bracket routes, which is what keeps quoting from changing the reading).
                             stagePresentEmptyValue(bufIdx, dt);
                         } else if (emitConvertedStageField(value.toString(), bufIdx, dt) == false) {
                             return false;
@@ -5889,9 +6020,8 @@ public class CsvFormatReader implements SegmentableFormatReader {
                             if (current.length() > 0) {
                                 emitConvertedField(current, bufIdx, dt, numericValid, numAcc, negative, numStarted);
                             } else {
-                                // Present-but-empty field (a delimiter closed it): empty string on
-                                // string columns, null otherwise.
-                                rowBuffer[bufIdx] = presentEmptyValue(dt);
+                                // Present-but-empty field (a delimiter closed it).
+                                rowBuffer[bufIdx] = presentEmptyCell(dt);
                             }
                             current.setLength(0);
                         }
@@ -5969,11 +6099,11 @@ public class CsvFormatReader implements SegmentableFormatReader {
                         emitConvertedField(current, bufIdx, dt, numericValid, numAcc, negative, numStarted);
                     } else {
                         // Present-but-empty trailing field with the content flag set (e.g. a quoted
-                        // empty `,""`): empty string on string columns, null otherwise.
-                        rowBuffer[bufIdx] = presentEmptyValue(dt);
+                        // empty `,""`).
+                        rowBuffer[bufIdx] = presentEmptyCell(dt);
                     }
                 } else if (presentTrailingEmpty) {
-                    rowBuffer[bufIdx] = presentEmptyValue(dt);
+                    rowBuffer[bufIdx] = presentEmptyCell(dt);
                 }
             }
 
@@ -6041,18 +6171,28 @@ public class CsvFormatReader implements SegmentableFormatReader {
             return true;
         }
 
+        /**
+         * Value for a cell that is present in the row but has empty text: {@code null}, except on a DECLARED
+         * {@code KEYWORD}/{@code TEXT} column, which holds the empty string — see
+         * {@link #emptyCellIsEmptyString} for why the two cases differ. A MISSING field (row shorter than the
+         * schema) is always {@code null} and is handled by the callers, independent of this method.
+         * <p>An empty ELEMENT of a bracket cell takes {@link CsvFormatReader#presentEmptyElement} instead.
+         */
+        private Object presentEmptyCell(DataType dataType) {
+            return emptyCellIsEmptyString && DataType.isString(dataType) ? EMPTY_STRING : null;
+        }
+
         private Object tryConvertValue(String value, DataType dataType, int columnIndex) {
             if (value == null) {
                 // A field the parser already resolved to null: a missing field (row shorter than the
-                // schema), or a Jackson-emitted null (custom null_value token / escaped \N). Null on every type.
+                // schema), or a tokenizer/decode null (custom null_value token / escaped \N). Null on every type.
                 return null;
             }
             if (hasCustomNullValue && value.equals(nullValueStr)) {
                 return null;
             }
             if (value.isEmpty()) {
-                // Present-but-empty cell: empty string on string columns, null otherwise.
-                return presentEmptyValue(dataType);
+                return presentEmptyCell(dataType);
             }
             if (DataType.isString(dataType) == false && value.equalsIgnoreCase("null")) {
                 // The literal "null" (any case) is a null marker only for non-string columns; KEYWORD/TEXT
@@ -6162,13 +6302,19 @@ public class CsvFormatReader implements SegmentableFormatReader {
             if (value == null) {
                 return null;
             }
+            if (value.isEmpty()) {
+                // Present-but-empty element (e.g. the middle of [a,,c]): empty string on string columns,
+                // null otherwise — an element keeps this per-type rule even where a whole empty cell would
+                // now read null, since nulling it would drop an entry from the list.
+                //
+                // Tested BEFORE the null-token check, which is why null_value: "" does not reach here: that
+                // token names a blank CELL, and letting it name a blank element too would collapse [a,,c]
+                // to two values. A non-empty token cannot match an empty element, so the order is otherwise
+                // immaterial.
+                return presentEmptyElement(dataType);
+            }
             if (hasCustomNullValue && value.equals(nullValueStr)) {
                 return null;
-            }
-            if (value.isEmpty()) {
-                // Present-but-empty element (e.g. the middle of [a,,c]): same per-type rule as a
-                // scalar present-empty cell — empty string on string columns, null otherwise.
-                return presentEmptyValue(dataType);
             }
             if (DataType.isString(dataType) == false && value.equalsIgnoreCase("null")) {
                 // Same string-type gate as tryConvertValue: a bracket element that is "null" stays the
@@ -6178,7 +6324,7 @@ public class CsvFormatReader implements SegmentableFormatReader {
             value = unquoteElement(value);
             if (value.isEmpty()) {
                 // Present-but-empty quoted element (e.g. [a,"",c]).
-                return presentEmptyValue(dataType);
+                return presentEmptyElement(dataType);
             }
             if (DataType.isString(dataType) == false) {
                 // Same typed-parse leniency as tryConvertValue: a quoted, padded numeric element (e.g.

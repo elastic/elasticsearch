@@ -1282,7 +1282,8 @@ public class ObjectStoreService extends AbstractLifecycleComponent implements Cl
                                 sourceContainerForTerm,
                                 blob.name(),
                                 blob.name(),
-                                blob.length()
+                                blob.length(),
+                                null
                             );
                         } catch (NoSuchFileException e) {
                             logger.warn("missing blob during copyShard, assuming benign race [{}]", blob.name());
@@ -1317,7 +1318,14 @@ public class ObjectStoreService extends AbstractLifecycleComponent implements Cl
         var destContainer = termContainer.apply(getProjectBlobContainer(destination));
         var blobName = virtualBcc.getBlobName();
         logger.debug("CopyCommit copying {} from [{}] to [{}]", blobName, sourceContainer.path(), destContainer.path());
-        destContainer.copyBlob(OperationPurpose.RESHARDING, sourceContainer, blobName, blobName, virtualBcc.getTotalSizeInBytes());
+        destContainer.copyBlob(
+            OperationPurpose.RESHARDING,
+            sourceContainer,
+            blobName,
+            blobName,
+            virtualBcc.getTotalSizeInBytes(),
+            threadPool.executor(StatelessPlugin.BLOB_COPY_THREAD_POOL)
+        );
     }
 
     private boolean assertShardsAreInSameProject(ShardId source, ShardId destination) {

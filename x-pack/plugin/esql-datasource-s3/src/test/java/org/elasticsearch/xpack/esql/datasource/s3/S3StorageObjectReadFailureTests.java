@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.esql.datasource.s3;
 
+import io.netty.channel.ChannelException;
 import software.amazon.awssdk.core.async.AsyncResponseTransformer;
 import software.amazon.awssdk.core.async.SdkPublisher;
 import software.amazon.awssdk.core.exception.SdkClientException;
@@ -32,12 +33,17 @@ import org.reactivestreams.Subscriber;
 import org.reactivestreams.Subscription;
 
 import java.io.IOException;
+import java.net.ConnectException;
+import java.net.UnknownHostException;
 import java.nio.ByteBuffer;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CompletionException;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.TimeoutException;
 import java.util.concurrent.atomic.AtomicReference;
+
+import javax.net.ssl.SSLHandshakeException;
 
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.instanceOf;
@@ -76,6 +82,108 @@ public class S3StorageObjectReadFailureTests extends ESTestCase {
         assertSame(wrapped, eue.getCause());
         assertEquals(RestStatus.SERVICE_UNAVAILABLE, ExceptionsHelper.status(eue));
         assertNotNull(ExceptionsHelper.unwrap(eue, IllegalStateException.class));
+    }
+
+    public void testSdkClientExceptionWrappingTransportIoExceptionIsUnavailable503() {
+        S3Client mockS3 = mock(S3Client.class);
+        IOException io = new IOException("The target server failed to respond");
+        SdkClientException wrapped = SdkClientException.create("Unable to execute HTTP request", io);
+        when(mockS3.getObject(any(GetObjectRequest.class))).thenThrow(wrapped);
+
+        S3StorageObject obj = new S3StorageObject(mockS3, BUCKET, KEY, PATH);
+        ExternalUnavailableException eue = expectThrows(ExternalUnavailableException.class, obj::newStream);
+        assertSame(wrapped, eue.getCause());
+        assertEquals(RestStatus.SERVICE_UNAVAILABLE, ExceptionsHelper.status(eue));
+        assertFalse(eue.throttling());
+        assertEquals(RestStatus.SERVICE_UNAVAILABLE, ExceptionsHelper.status(ExternalFailures.classify(eue)));
+    }
+
+    public void testSdkClientExceptionWrappingConnectExceptionIsUnavailable503() {
+        S3Client mockS3 = mock(S3Client.class);
+        ConnectException refused = new ConnectException("Connection refused");
+        SdkClientException wrapped = SdkClientException.create("Unable to execute HTTP request", refused);
+        when(mockS3.getObject(any(GetObjectRequest.class))).thenThrow(wrapped);
+
+        S3StorageObject obj = new S3StorageObject(mockS3, BUCKET, KEY, PATH);
+        ExternalUnavailableException eue = expectThrows(ExternalUnavailableException.class, obj::newStream);
+        assertSame(wrapped, eue.getCause());
+        assertEquals(RestStatus.SERVICE_UNAVAILABLE, ExceptionsHelper.status(eue));
+        assertFalse(eue.throttling());
+        assertEquals(RestStatus.SERVICE_UNAVAILABLE, ExceptionsHelper.status(ExternalFailures.classify(eue)));
+    }
+
+    public void testSdkClientExceptionWrappingTimeoutExceptionIsUnavailable503() {
+        S3Client mockS3 = mock(S3Client.class);
+        TimeoutException timeout = new TimeoutException("Read timed out");
+        SdkClientException wrapped = SdkClientException.create("Unable to execute HTTP request", timeout);
+        when(mockS3.getObject(any(GetObjectRequest.class))).thenThrow(wrapped);
+
+        S3StorageObject obj = new S3StorageObject(mockS3, BUCKET, KEY, PATH);
+        ExternalUnavailableException eue = expectThrows(ExternalUnavailableException.class, obj::newStream);
+        assertSame(wrapped, eue.getCause());
+        assertEquals(RestStatus.SERVICE_UNAVAILABLE, ExceptionsHelper.status(eue));
+        assertFalse(eue.throttling());
+    }
+
+    public void testSdkClientExceptionWrappingNettyChannelExceptionIsUnavailable503() {
+        S3Client mockS3 = mock(S3Client.class);
+        ChannelException nettyTimeout = new ChannelException("read timed out");
+        SdkClientException wrapped = SdkClientException.create("Unable to execute HTTP request", nettyTimeout);
+        when(mockS3.getObject(any(GetObjectRequest.class))).thenThrow(wrapped);
+
+        S3StorageObject obj = new S3StorageObject(mockS3, BUCKET, KEY, PATH);
+        ExternalUnavailableException eue = expectThrows(ExternalUnavailableException.class, obj::newStream);
+        assertSame(wrapped, eue.getCause());
+        assertEquals(RestStatus.SERVICE_UNAVAILABLE, ExceptionsHelper.status(eue));
+        assertFalse(eue.throttling());
+    }
+
+    public void testSdkClientExceptionWithoutIoCauseStaysClientError() {
+        S3Client mockS3 = mock(S3Client.class);
+        SdkClientException credentials = SdkClientException.create("Could not load credentials");
+        when(mockS3.getObject(any(GetObjectRequest.class))).thenThrow(credentials);
+
+        S3StorageObject obj = new S3StorageObject(mockS3, BUCKET, KEY, PATH);
+        IOException thrown = expectThrows(IOException.class, obj::newStream);
+        assertSame(credentials, thrown.getCause());
+        assertEquals(RestStatus.BAD_REQUEST, ExceptionsHelper.status(ExternalFailures.classify(thrown)));
+    }
+
+    public void testCredentialChainSdkClientExceptionWithIoStaysClientError() {
+        S3Client mockS3 = mock(S3Client.class);
+        IOException io = new IOException("Failed to connect to service endpoint");
+        SdkClientException inner = SdkClientException.create("Failed to load credentials from IMDS", io);
+        SdkClientException outer = SdkClientException.create("Unable to load credentials from any provider", inner);
+        when(mockS3.getObject(any(GetObjectRequest.class))).thenThrow(outer);
+
+        S3StorageObject obj = new S3StorageObject(mockS3, BUCKET, KEY, PATH);
+        IOException thrown = expectThrows(IOException.class, obj::newStream);
+        assertSame(outer, thrown.getCause());
+        assertEquals(RestStatus.BAD_REQUEST, ExceptionsHelper.status(ExternalFailures.classify(thrown)));
+    }
+
+    public void testSdkClientExceptionWrappingUnknownHostStaysClientError() {
+        S3Client mockS3 = mock(S3Client.class);
+        UnknownHostException dns = new UnknownHostException("no-such-host.example.com");
+        SdkClientException wrapped = SdkClientException.create("Unable to execute HTTP request", dns);
+        when(mockS3.getObject(any(GetObjectRequest.class))).thenThrow(wrapped);
+
+        S3StorageObject obj = new S3StorageObject(mockS3, BUCKET, KEY, PATH);
+        IOException thrown = expectThrows(IOException.class, obj::newStream);
+        assertSame(wrapped, thrown.getCause());
+        assertEquals(RestStatus.BAD_REQUEST, ExceptionsHelper.status(ExternalFailures.classify(thrown)));
+    }
+
+    public void testSdkClientExceptionWrappingSslHandshakeStaysClientError() {
+        S3Client mockS3 = mock(S3Client.class);
+        SSLHandshakeException tls = new SSLHandshakeException("PKIX path building failed");
+        SdkClientException wrapped = SdkClientException.create("Unable to execute HTTP request", tls);
+        when(mockS3.getObject(any(GetObjectRequest.class))).thenThrow(wrapped);
+
+        S3StorageObject obj = new S3StorageObject(mockS3, BUCKET, KEY, PATH);
+        IOException thrown = expectThrows(IOException.class, obj::newStream);
+        assertSame(wrapped, thrown.getCause());
+        assertEquals(RestStatus.BAD_REQUEST, ExceptionsHelper.status(ExternalFailures.classify(thrown)));
     }
 
     public void testNoSuchKeyStaysIoException() {

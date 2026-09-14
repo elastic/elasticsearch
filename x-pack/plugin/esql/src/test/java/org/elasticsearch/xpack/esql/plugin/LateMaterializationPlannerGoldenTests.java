@@ -35,21 +35,6 @@ public class LateMaterializationPlannerGoldenTests extends GoldenTestCase {
         Stage.NODE_REDUCE_LOCAL_PHYSICAL_OPTIMIZATION
     );
 
-    private void checkLimitByLateMaterializationFeatureFlag() {
-        assumeTrue(
-            "late materialization for LimitBy/TopNBy requires "
-                + LateMaterializationPlanner.ESQL_LATE_MATERIALIZATION_LIMIT_BY_FEATURE_FLAG,
-            LateMaterializationPlanner.ESQL_LATE_MATERIALIZATION_LIMIT_BY_FEATURE_FLAG.isEnabled()
-        );
-    }
-
-    private void checkLimitByLateMaterializationFeatureFlagDisabled() {
-        assumeFalse(
-            "test requires " + LateMaterializationPlanner.ESQL_LATE_MATERIALIZATION_LIMIT_BY_FEATURE_FLAG + " to be disabled",
-            LateMaterializationPlanner.ESQL_LATE_MATERIALIZATION_LIMIT_BY_FEATURE_FLAG.isEnabled()
-        );
-    }
-
     public void testBasicTopNLateMaterialization() {
         String query = """
             FROM employees
@@ -260,7 +245,6 @@ public class LateMaterializationPlannerGoldenTests extends GoldenTestCase {
     }
 
     public void testBasicTopNByLateMaterialization() {
-        checkLimitByLateMaterializationFeatureFlag();
         String query = """
             FROM employees
             | keep hire_date, salary, languages, emp_no
@@ -271,7 +255,6 @@ public class LateMaterializationPlannerGoldenTests extends GoldenTestCase {
     }
 
     public void testMultipleTopNBy() {
-        checkLimitByLateMaterializationFeatureFlag();
         String query = """
             FROM employees
             | keep hire_date, salary, languages, gender, emp_no
@@ -284,7 +267,6 @@ public class LateMaterializationPlannerGoldenTests extends GoldenTestCase {
     }
 
     public void testTopNByWithFilter() {
-        checkLimitByLateMaterializationFeatureFlag();
         String query = """
             FROM employees
             | keep hire_date, salary, languages, emp_no
@@ -296,7 +278,6 @@ public class LateMaterializationPlannerGoldenTests extends GoldenTestCase {
     }
 
     public void testTopNByWithMissingSortField() {
-        checkLimitByLateMaterializationFeatureFlag();
         String query = """
             FROM employees
             | keep hire_date, salary, languages, emp_no
@@ -307,7 +288,6 @@ public class LateMaterializationPlannerGoldenTests extends GoldenTestCase {
     }
 
     public void testBasicLimitByLateMaterialization() {
-        checkLimitByLateMaterializationFeatureFlag();
         String query = """
             FROM employees
             | keep salary, languages, emp_no
@@ -317,7 +297,6 @@ public class LateMaterializationPlannerGoldenTests extends GoldenTestCase {
     }
 
     public void testLimitByMultipleGroupings() {
-        checkLimitByLateMaterializationFeatureFlag();
         String query = """
             FROM employees
             | keep salary, languages, gender, emp_no
@@ -327,36 +306,12 @@ public class LateMaterializationPlannerGoldenTests extends GoldenTestCase {
     }
 
     public void testLimitByWithMissingGroupField() {
-        checkLimitByLateMaterializationFeatureFlag();
         String query = """
             FROM employees
             | keep salary, languages, emp_no
             | LIMIT 5 BY languages
             """;
         runGoldenTest(query, STAGES, missingFieldStats("languages"));
-    }
-
-    // Late materialization for TOP N BY is disabled in releases
-    public void testBasicTopNByNodeReduceWithoutLateMaterialization() {
-        checkLimitByLateMaterializationFeatureFlagDisabled();
-        String query = """
-            FROM employees
-            | keep hire_date, salary, languages, emp_no
-            | SORT hire_date
-            | LIMIT 5 BY languages
-            """;
-        runGoldenTest(query, STAGES, unindexedStats());
-    }
-
-    // Late materialization for LIMIT BY is disabled in releases
-    public void testBasicLimitByNodeReduceWithoutLateMaterialization() {
-        checkLimitByLateMaterializationFeatureFlagDisabled();
-        String query = """
-            FROM employees
-            | keep salary, languages, emp_no
-            | LIMIT 5 BY languages
-            """;
-        runGoldenTest(query, STAGES, unindexedStats());
     }
 
     // Prevents TopN pushdown.

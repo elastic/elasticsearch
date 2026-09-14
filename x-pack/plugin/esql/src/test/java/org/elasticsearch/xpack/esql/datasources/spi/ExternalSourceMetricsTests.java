@@ -202,7 +202,7 @@ public class ExternalSourceMetricsTests extends ESTestCase {
     }
 
     public void testRecordParse() {
-        metrics.recordParse(1000L, 88L, "gcs", "csv");
+        metrics.recordParse(1000L, 88L, 62L, "gcs", "csv");
         Measurement rows = single(InstrumentType.LONG_COUNTER, ExternalSourceMetrics.PARSE_ROWS_TOTAL);
         assertThat(rows.getLong(), equalTo(1000L));
         assertThat(rows.attributes().get(ExternalSourceMetrics.TYPE_ATTRIBUTE), equalTo("gcs"));
@@ -211,15 +211,23 @@ public class ExternalSourceMetricsTests extends ESTestCase {
         assertThat(duration.getLong(), equalTo(88L));
         assertThat(duration.attributes().get(ExternalSourceMetrics.TYPE_ATTRIBUTE), equalTo("gcs"));
         assertThat(duration.attributes().get(ExternalSourceMetrics.FORMAT_ATTRIBUTE), equalTo("csv"));
+        Measurement cpuDuration = single(InstrumentType.LONG_HISTOGRAM, ExternalSourceMetrics.PARSE_CPU_DURATION);
+        assertThat(cpuDuration.getLong(), equalTo(62L));
+        assertThat(cpuDuration.attributes().get(ExternalSourceMetrics.TYPE_ATTRIBUTE), equalTo("gcs"));
+        assertThat(cpuDuration.attributes().get(ExternalSourceMetrics.FORMAT_ATTRIBUTE), equalTo("csv"));
     }
 
     public void testRecordParseWithZeroRowsSkipsRowCounterButStillTimes() {
-        metrics.recordParse(0L, 9L, "file", "csv");
+        metrics.recordParse(0L, 9L, 5L, "file", "csv");
         assertThat(measurements(InstrumentType.LONG_COUNTER, ExternalSourceMetrics.PARSE_ROWS_TOTAL), hasSize(0));
         Measurement duration = single(InstrumentType.LONG_HISTOGRAM, ExternalSourceMetrics.PARSE_DURATION);
         assertThat(duration.getLong(), equalTo(9L));
         assertThat(duration.attributes().get(ExternalSourceMetrics.TYPE_ATTRIBUTE), equalTo("local"));
         assertThat(duration.attributes().get(ExternalSourceMetrics.FORMAT_ATTRIBUTE), equalTo("csv"));
+        Measurement cpuDuration = single(InstrumentType.LONG_HISTOGRAM, ExternalSourceMetrics.PARSE_CPU_DURATION);
+        assertThat(cpuDuration.getLong(), equalTo(5L));
+        assertThat(cpuDuration.attributes().get(ExternalSourceMetrics.TYPE_ATTRIBUTE), equalTo("local"));
+        assertThat(cpuDuration.attributes().get(ExternalSourceMetrics.FORMAT_ATTRIBUTE), equalTo("csv"));
     }
 
     public void testRecordSplitsScanned() {
@@ -353,7 +361,7 @@ public class ExternalSourceMetricsTests extends ESTestCase {
     }
 
     public void testRecordParseClampsUnknownFormatToOther() {
-        metrics.recordParse(3L, 1L, "s3", "gz");
+        metrics.recordParse(3L, 1L, 1L, "s3", "gz");
         Measurement rows = single(InstrumentType.LONG_COUNTER, ExternalSourceMetrics.PARSE_ROWS_TOTAL);
         assertThat(rows.attributes().get(ExternalSourceMetrics.FORMAT_ATTRIBUTE), equalTo("other"));
     }

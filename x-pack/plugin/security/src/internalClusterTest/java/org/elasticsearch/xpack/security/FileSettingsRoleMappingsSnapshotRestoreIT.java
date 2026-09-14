@@ -51,7 +51,7 @@ import static org.hamcrest.Matchers.notNullValue;
 import static org.hamcrest.Matchers.nullValue;
 import static org.mockito.Mockito.mock;
 
-@ESIntegTestCase.ClusterScope(scope = ESIntegTestCase.Scope.TEST, numDataNodes = 0, autoManageMasterNodes = false)
+@ESIntegTestCase.ClusterScope(scope = ESIntegTestCase.Scope.TEST, numDataNodes = 1, supportsDedicatedMasters = false)
 @LuceneTestCase.SuppressFileSystems("*")
 public class FileSettingsRoleMappingsSnapshotRestoreIT extends SecurityIntegTestCase {
 
@@ -139,13 +139,9 @@ public class FileSettingsRoleMappingsSnapshotRestoreIT extends SecurityIntegTest
         assertResolvedRoles("kibana_user", "fleet_user");
     }
 
-    private String startMasterAndDataNode() throws Exception {
-        internalCluster().setBootstrapMasterNodeIndex(0);
-        final String masterNode = internalCluster().startMasterOnlyNode();
-        internalCluster().startDataOnlyNode();
-        awaitMasterNode();
+    private String startMasterAndDataNode() {
         ensureGreen();
-        return masterNode;
+        return internalCluster().getMasterName();
     }
 
     private void applyFileBasedRoleMappings(String masterNode) throws Exception {

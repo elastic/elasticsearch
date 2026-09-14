@@ -58,7 +58,7 @@ public final class ColumnarNumericBinaryDocValues extends BinaryDocValues implem
         this.reader = reader;
         this.iterator = iterator;
         this.maxDoc = maxDoc;
-        this.singleValued = reader.multiValued() == false;
+        this.singleValued = reader.hasValueAddresses() == false;
         this.blockShift = Integer.numberOfTrailingZeros(reader.blockSize());
         this.blockMask = reader.blockSize() - 1;
         this.skipperMeta = skipperMeta;

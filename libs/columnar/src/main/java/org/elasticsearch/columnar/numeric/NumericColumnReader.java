@@ -69,7 +69,7 @@ public final class NumericColumnReader {
             meta.blockOffsetsDataOffset(),
             meta.blockOffsetsDataLength()
         );
-        this.valueAddresses = meta.multiValued()
+        this.valueAddresses = meta.hasValueAddresses()
             ? MonotonicReader.open(
                 data,
                 meta.valueAddressesMeta(),
@@ -90,10 +90,10 @@ public final class NumericColumnReader {
     }
 
     /**
-     * Whether any document holds more than one value. A single-valued column maps a rank straight to a value
-     * address.
+     * Whether the column tables where each document's values begin. Without that table a rank maps straight
+     * to a value address.
      */
-    public boolean multiValued() {
+    public boolean hasValueAddresses() {
         return valueAddresses != null;
     }
 

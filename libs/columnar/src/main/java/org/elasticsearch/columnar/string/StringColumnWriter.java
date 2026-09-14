@@ -459,7 +459,9 @@ public final class StringColumnWriter {
             }
 
             final String staged = ordinalTempName;
-            final NumericColumnMetadata ordinals = NumericColumnWriter.write(numDocsWithField, numDocsWithField, numValues, () -> {
+            // One ordinal a slot, reached by value address: nothing asks the ordinals which document a slot
+            // belongs to, and the string column already tables that, so they table nothing themselves.
+            final NumericColumnMetadata ordinals = NumericColumnWriter.write(numDocsWithField, numDocsWithField, numValues, false, () -> {
                 final IndexInput in = directory.openInput(staged, context);
                 replays.add(in);
                 return stagedOrdinals(cursors.get(), in);

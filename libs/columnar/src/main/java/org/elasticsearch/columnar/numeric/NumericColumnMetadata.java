@@ -146,9 +146,12 @@ public record NumericColumnMetadata(
         );
     }
 
-    /** True when at least one document has more than one value. */
-    public boolean multiValued() {
-        return numValues > numDocsWithField;
+    /**
+     * True when the column tables where each document's values begin. A caller that reads the column by
+     * value address does not need that table, and asks for none however many values a document has.
+     */
+    public boolean hasValueAddresses() {
+        return valueAddressesMeta != null && valueAddressesMeta.length > 0;
     }
 
     @Override
@@ -166,7 +169,8 @@ public record NumericColumnMetadata(
         out.writeBytes(transformIds, 0, transformIds.length);
         out.writeVLong(valuesOffset);
         writeTable(out, blockOffsetsDataOffset, blockOffsetsDataLength, blockOffsetsMeta);
-        if (multiValued()) {
+        out.writeByte((byte) (hasValueAddresses() ? 1 : 0));
+        if (hasValueAddresses()) {
             writeTable(out, valueAddressesDataOffset, valueAddressesDataLength, valueAddressesMeta);
         }
         out.writeByte((byte) (skipper != null ? 1 : 0));
@@ -210,7 +214,7 @@ public record NumericColumnMetadata(
         long valueAddressesDataOffset = 0;
         long valueAddressesDataLength = 0;
         byte[] valueAddressesMeta = NONE;
-        if (numValues > numDocsWithField) {
+        if (in.readByte() == 1) {
             valueAddressesDataOffset = in.readVLong();
             valueAddressesDataLength = in.readVLong();
             valueAddressesMeta = readBytes(in);

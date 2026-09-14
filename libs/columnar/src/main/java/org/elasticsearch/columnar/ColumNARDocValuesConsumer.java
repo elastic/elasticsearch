@@ -638,6 +638,7 @@ final class ColumNARDocValuesConsumer extends DocValuesConsumer {
             maxDoc,
             numDocsWithField,
             numValues,
+            true,
             cursors,
             pipeline,
             BlockBytesCodec.forId(BlockBytesCodec.IDENTITY_ID),

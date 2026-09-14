@@ -183,6 +183,7 @@ public class NumericPipelineSelectorTests extends ESTestCase {
                     values.length,
                     values.length,
                     values.length,
+                    true,
                     () -> singleValuedCursor(values),
                     pipeline,
                     BlockBytesCodec.forId(BlockBytesCodec.IDENTITY_ID),

@@ -43,6 +43,12 @@ public final class AllocationEstimators {
      * its backing array, {@link AllocSizes#STRING_CONCAT_RESULT_OVERHEAD} for the fixed part plus 2 bytes per char. A negative
      * length (from an out-of-range argument the real call will reject) costs just the overhead.
      */
+    /** Allowance per {@code String.format} argument or {@code String.join} element, whose rendered length is not knowable. */
+    private static final long FORMAT_BYTES_PER_ARGUMENT = 256;
+
+    /** Element count assumed for a {@code String.join} over an iterable that cannot be sized without consuming it. */
+    private static final long UNKNOWN_ELEMENT_COUNT = 16;
+
     private static long newStringBytes(long chars) {
         return AllocSizes.STRING_CONCAT_RESULT_OVERHEAD + AllocSizes.mulSat(2L, Math.max(0L, chars));
     }
@@ -343,6 +349,67 @@ public final class AllocationEstimators {
     // ---- Fixed-cost estimators. These allocate a constant-sized object independent of their arguments, so each just returns the
     // ---- measured empty-instance (or thin-wrapper) heap cost. Signatures still match the annotated target so the pre-check path
     // ---- can invoke them like any other estimator.
+
+    /**
+     * Cost of {@code String.format}. The result length depends on the arguments, so this is a bound: the format string plus
+     * a generous allowance per argument.
+     */
+    public static long formatBytes(String format, Object[] args) {
+        return newStringBytes(format.length() + FORMAT_BYTES_PER_ARGUMENT * (args == null ? 0L : args.length));
+    }
+
+    /** Cost of {@code String.format} with an explicit locale, which does not change the size. */
+    public static long formatBytes(Locale locale, String format, Object[] args) {
+        return formatBytes(format, args);
+    }
+
+    /**
+     * Cost of {@code String.join(delimiter, elements)}.
+     * <p>
+     * Deliberately does not iterate {@code elements}. An estimator runs before the real call, and consuming a one-shot
+     * iterable here would leave the real join with nothing. So the element count comes from {@link Collection#size()} when it
+     * is available and is otherwise unknown, and each element gets the same allowance as a format argument.
+     */
+    public static long joinBytes(CharSequence delimiter, Iterable<?> elements) {
+        long count = elements instanceof Collection<?> collection ? collection.size() : UNKNOWN_ELEMENT_COUNT;
+
+        return newStringBytes(
+            AllocSizes.addSat(
+                AllocSizes.mulSat(count, FORMAT_BYTES_PER_ARGUMENT),
+                AllocSizes.mulSat(Math.max(0L, count - 1), delimiter.length())
+            )
+        );
+    }
+
+    /** Cost of {@code StringBuilder.substring(begin)}: a new String from {@code begin} to the end. */
+    public static long substringBytes(StringBuilder receiver, int begin) {
+        return newStringBytes((long) receiver.length() - begin);
+    }
+
+    /** Cost of {@code StringBuilder.substring(begin, end)}. */
+    public static long substringBytes(StringBuilder receiver, int begin, int end) {
+        return newStringBytes((long) end - begin);
+    }
+
+    /** Cost of {@code StringBuffer.substring(begin)}: a new String from {@code begin} to the end. */
+    public static long substringBytes(StringBuffer receiver, int begin) {
+        return newStringBytes((long) receiver.length() - begin);
+    }
+
+    /** Cost of {@code StringBuffer.substring(begin, end)}. */
+    public static long substringBytes(StringBuffer receiver, int begin, int end) {
+        return newStringBytes((long) end - begin);
+    }
+
+    /** {@code new java.lang.StringBuilder(CharSequence)}: the shell plus a backing array sized to the sequence. */
+    public static long stringBuilderBytes(CharSequence sequence) {
+        return AllocSizes.addSat(stringBuilderShellBytes(), AllocSizes.arrayBytes(sequence.length(), 2));
+    }
+
+    /** {@code new java.lang.StringBuffer(CharSequence)}: the shell plus a backing array sized to the sequence. */
+    public static long stringBufferBytes(CharSequence sequence) {
+        return AllocSizes.addSat(stringBufferShellBytes(), AllocSizes.arrayBytes(sequence.length(), 2));
+    }
 
     /** {@code new java.lang.StringBuffer()}: empty buffer shell plus its default 16-char backing array. */
     public static long stringBufferShellBytes() {

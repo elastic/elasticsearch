@@ -91,7 +91,6 @@ public abstract class BaseGatewayShardAllocator {
      *
      * @param allocate if {@code true}, this is a real allocation and new fetches may be started.
      *                 If {@code false}, this is an explanation, only observing existing fetch state.
-     *                 Explain may run off the master service thread.
      */
     public abstract AllocateUnassignedDecision makeAllocationDecision(
         ShardRouting unassignedShard,

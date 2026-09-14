@@ -173,6 +173,9 @@ public final class Messages {
     public static final String JOB_AUDIT_DATAFEED_RECOVERED = "Datafeed has recovered data extraction and analysis";
     public static final String JOB_AUDIT_DATAFEED_STARTED_FROM_TO = "Datafeed started (from: {0} to: {1}) with frequency [{2}]";
     public static final String JOB_AUDIT_DATAFEED_STARTED_REALTIME = "Datafeed started in real-time";
+    public static final String JOB_AUDIT_DATAFEED_SKIPPED_EMPTY_BUCKETS =
+        "Skipped the model forward to [{0}] because the job''s last analysed bucket was [{1}] bucket "
+            + "spans behind the real-time window; no results are generated for the skipped period";
     public static final String JOB_AUDIT_DATAFEED_STOPPED = "Datafeed stopped";
     public static final String JOB_AUDIT_DATAFEED_STOPPED_WITH_REASON = "Datafeed stopped with reason [{0}]";
     public static final String JOB_AUDIT_DATAFEED_ISOLATED = "Datafeed isolated";

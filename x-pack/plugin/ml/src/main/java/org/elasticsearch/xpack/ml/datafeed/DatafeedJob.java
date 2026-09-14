@@ -67,6 +67,13 @@ class DatafeedJob {
     private static final Logger LOGGER = LogManager.getLogger(DatafeedJob.class);
     private static final int NEXT_TASK_DELAY_MS = 100;
 
+    /**
+     * The maximum number of empty buckets the C++ process is allowed to materialise in one
+     * {@code advance_time} flush. Mirrors {@code DelayedDataCheckConfig.MAX_NUMBER_SPANABLE_BUCKETS},
+     * the existing precedent for "this may not span too many bucket spans".
+     */
+    static final long MAX_EMPTY_BUCKETS_TO_MATERIALISE = 10_000;
+
     private final AnomalyDetectionAuditor auditor;
     private final AnnotationPersister annotationPersister;
     private final String datafeedId;
@@ -85,6 +92,8 @@ class DatafeedJob {
     private final DelayedDataDetector delayedDataDetector;
     private final Integer maxEmptySearches;
     private final long delayedDataCheckFreq;
+    private final long bucketSpanMs;
+    private final boolean isEsqlDatafeed;
     private final CrossClusterSearchStats crossClusterSearchStats;
     private final DatafeedFieldConflictTracker fieldConflictTracker = new DatafeedFieldConflictTracker();
 
@@ -119,6 +128,8 @@ class DatafeedJob {
         long latestRecordTimeMs,
         boolean haveSeenDataPreviously,
         long delayedDataCheckFreq,
+        long bucketSpanMs,
+        boolean isEsqlDatafeed,
         CrossClusterSearchStats crossClusterSearchStats
     ) {
         this.datafeedId = datafeedId;
@@ -143,6 +154,8 @@ class DatafeedJob {
         }
         this.haveEverSeenData = haveSeenDataPreviously;
         this.delayedDataCheckFreq = delayedDataCheckFreq;
+        this.bucketSpanMs = bucketSpanMs;
+        this.isEsqlDatafeed = isEsqlDatafeed;
         this.crossClusterSearchStats = Objects.requireNonNull(crossClusterSearchStats);
     }
 
@@ -240,10 +253,39 @@ class DatafeedJob {
         return startTime;
     }
 
+    private void skipStaleEmptyBuckets(long realtimeStart) {
+        if (isEsqlDatafeed == false) {
+            return;
+        }
+        if (latestFinalBucketEndTimeMs <= 0) {
+            return;
+        }
+        long gapBuckets = (realtimeStart - latestFinalBucketEndTimeMs) / bucketSpanMs;
+        if (gapBuckets <= MAX_EMPTY_BUCKETS_TO_MATERIALISE) {
+            return;
+        }
+        long skipTo = realtimeStart - MAX_EMPTY_BUCKETS_TO_MATERIALISE * bucketSpanMs;
+        FlushJobAction.Request request = new FlushJobAction.Request(jobId);
+        request.setSkipTime(String.valueOf(skipTo));
+        request.setRefreshRequired(false);
+        FlushJobAction.Response response = flushJob(request);
+        if (response.getLastFinalizedBucketEnd() != null) {
+            this.latestFinalBucketEndTimeMs = response.getLastFinalizedBucketEnd().toEpochMilli();
+        }
+        String msg = Messages.getMessage(
+            Messages.JOB_AUDIT_DATAFEED_SKIPPED_EMPTY_BUCKETS,
+            DateFieldMapper.DEFAULT_DATE_TIME_FORMATTER.formatMillis(skipTo),
+            gapBuckets
+        );
+        auditor.info(jobId, msg);
+        LOGGER.info("[{}] {}", jobId, msg);
+    }
+
     long runRealtime() throws Exception {
         long start = lastEndTimeMs == null ? lookbackStartTimeMs : Math.max(lookbackStartTimeMs, lastEndTimeMs + 1);
         long nowMinusQueryDelay = currentTimeSupplier.get() - queryDelayMs;
         long end = toIntervalStartEpochMs(nowMinusQueryDelay);
+        skipStaleEmptyBuckets(start);
         FlushJobAction.Request request = new FlushJobAction.Request(jobId);
         request.setWaitForNormalization(false);
         request.setRefreshRequired(false);

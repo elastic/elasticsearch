@@ -29,11 +29,7 @@ import static org.hamcrest.Matchers.equalTo;
 public class ClusterInfoTests extends AbstractWireSerializingTestCase<ClusterInfo> {
 
     public void testShardHeapUsageIsDefaultedForMissingShards() {
-        ShardAndIndexHeapUsage defaultHeapUsage = new ShardAndIndexHeapUsage(
-            randomNonNegativeLong(),
-            randomNonNegativeLong(),
-            randomNonNegativeLong()
-        );
+        ShardAndIndexHeapUsage defaultHeapUsage = randomShardAndIndexHeapUsage();
         ClusterInfo clusterInfo = ClusterInfo.builder()
             .estimatedShardHeapUsages(Map.of())
             .defaultShardHeapUsageForShardsWithoutMetrics(defaultHeapUsage)

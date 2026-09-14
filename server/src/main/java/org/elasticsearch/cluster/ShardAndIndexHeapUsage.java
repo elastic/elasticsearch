@@ -32,6 +32,7 @@ public record ShardAndIndexHeapUsage(long shardHeapUsageBytes, long indexHeapUsa
         assert shardHeapUsageBytes >= 0;
         assert indexHeapUsageBytes >= 0;
         assert postingsHeapUsageBytes >= 0;
+        assert shardHeapUsageBytes >= postingsHeapUsageBytes;
     }
 
     public ShardAndIndexHeapUsage(StreamInput in) throws IOException {

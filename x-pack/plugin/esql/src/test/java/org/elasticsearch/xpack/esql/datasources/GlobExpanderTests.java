@@ -2754,19 +2754,13 @@ public class GlobExpanderTests extends ESTestCase {
      */
     public void testGlobstarMixedTypeSiblingsFallBackToFlatPreservingColumnType() throws IOException {
         TreeStubProvider provider = new TreeStubProvider(
-            List.of(
-                entry("s3://bucket/data/month=06/a.parquet", 100),
-                entry("s3://bucket/data/month=abc/b.parquet", 100)
-            )
+            List.of(entry("s3://bucket/data/month=06/a.parquet", 100), entry("s3://bucket/data/month=abc/b.parquet", 100))
         );
         var hints = List.of(hint("month", PartitionFilterHintExtractor.Operator.EQUALS, 6));
 
         FileList result = GlobExpander.expand("s3://bucket/data/**", provider, hints, HIVE_ON, MAX, MAX);
 
-        assertEquals(
-            List.of("s3://bucket/data/month=06/a.parquet", "s3://bucket/data/month=abc/b.parquet"),
-            paths(result)
-        );
+        assertEquals(List.of("s3://bucket/data/month=06/a.parquet", "s3://bucket/data/month=abc/b.parquet"), paths(result));
         // One probe listing (walk found kind mismatch, nothing pruned, fell back) then one flat listing.
         assertEquals(List.of("s3://bucket/data/"), provider.childListedPrefixes);
         assertEquals(List.of("s3://bucket/data/"), provider.listedPrefixes);
@@ -2807,10 +2801,7 @@ public class GlobExpanderTests extends ESTestCase {
             provider.childListedPrefixes
         );
         // Each month survivor finished with a recursive listing.
-        assertEquals(
-            List.of("s3://bucket/data/year=2025/month=abc/", "s3://bucket/data/year=2026/month=06/"),
-            provider.listedPrefixes
-        );
+        assertEquals(List.of("s3://bucket/data/year=2025/month=abc/", "s3://bucket/data/year=2026/month=06/"), provider.listedPrefixes);
     }
 
     /**
@@ -2852,10 +2843,7 @@ public class GlobExpanderTests extends ESTestCase {
             provider.childListedPrefixes
         );
         // finishSurvivors listed year=2024/month=06/ recursively before type check rejected the walk; flat listing ran.
-        assertEquals(
-            List.of("s3://bucket/data/year=2024/month=06/", "s3://bucket/data/"),
-            provider.listedPrefixes
-        );
+        assertEquals(List.of("s3://bucket/data/year=2024/month=06/", "s3://bucket/data/"), provider.listedPrefixes);
     }
 
     /**

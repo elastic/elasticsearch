@@ -290,8 +290,7 @@ final class PartitionPruningWalk {
             for (StoragePath sub : peekChildren.directories()) {
                 String key = PartitionValueMatcher.folderKey(sub.objectName());
                 if (key != null) {
-                    seenValues.computeIfAbsent(key, k -> new ArrayList<>())
-                        .add(PartitionValueMatcher.folderValue(sub.objectName()));
+                    seenValues.computeIfAbsent(key, k -> new ArrayList<>()).add(PartitionValueMatcher.folderValue(sub.objectName()));
                 }
             }
         }

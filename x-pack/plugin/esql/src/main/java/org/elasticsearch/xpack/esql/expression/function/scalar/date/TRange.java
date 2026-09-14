@@ -290,7 +290,7 @@ public class TRange extends EsqlConfigurationFunction
             var zonedDateTime = ZonedDateTime.ofInstant(base, QuerySettings.TIME_ZONE.get(configuration().resolvedSettings()));
             return zonedDateTime.minus(amount).toInstant();
         }
-        throw new InvalidArgumentException("Unsupported offset type [{}]", offset != null ? offset.getClass().getSimpleName() : "null");
+        throw new InvalidArgumentException("Unsupported offset type [{}]", offset.getClass().getSimpleName());
     }
 
     private Instant parseToInstant(Object value, String paramName, boolean nanos) {
@@ -316,7 +316,7 @@ public class TRange extends EsqlConfigurationFunction
 
         throw new InvalidArgumentException(
             "Unsupported time value type [{}] for parameter [{}]",
-            value != null ? value.getClass().getSimpleName() : "null",
+            value.getClass().getSimpleName(),
             paramName
         );
     }
@@ -324,9 +324,13 @@ public class TRange extends EsqlConfigurationFunction
     @Override
     public BiConsumer<LogicalPlan, Failures> postAnalysisPlanVerification() {
         return (logicalPlan, failures) -> {
+            Object rangeStartValue = first.fold(FoldContext.small());
+            if (rangeStartValue == null) {
+                failures.add(fail(first, "{} cannot be null", START_TIME_OR_OFFSET_PARAMETER));
+            }
+
             // single parameter mode
             if (second == null) {
-                Object rangeStartValue = first.fold(FoldContext.small());
                 if (rangeStartValue instanceof Duration duration && duration.isNegative()
                     || rangeStartValue instanceof Period period && period.isNegative()) {
                     failures.add(fail(first, "{} cannot be negative", START_TIME_OR_OFFSET_PARAMETER));

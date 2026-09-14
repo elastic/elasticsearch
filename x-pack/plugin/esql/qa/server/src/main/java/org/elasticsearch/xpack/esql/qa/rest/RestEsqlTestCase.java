@@ -17,6 +17,7 @@ import org.elasticsearch.client.Response;
 import org.elasticsearch.client.ResponseException;
 import org.elasticsearch.client.RestClient;
 import org.elasticsearch.client.WarningsHandler;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.io.Streams;
 import org.elasticsearch.common.settings.Settings;
@@ -30,7 +31,10 @@ import org.elasticsearch.test.ListMatcher;
 import org.elasticsearch.test.rest.ESRestTestCase;
 import org.elasticsearch.xcontent.ToXContent;
 import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.XContentParser;
+import org.elasticsearch.xcontent.XContentParserConfiguration;
 import org.elasticsearch.xcontent.XContentType;
+import org.elasticsearch.xcontent.json.JsonXContent;
 import org.elasticsearch.xpack.esql.AssertWarnings;
 import org.elasticsearch.xpack.esql.CsvTestsDataLoader;
 import org.elasticsearch.xpack.esql.EsqlTestUtils;
@@ -1529,6 +1533,7 @@ public abstract class RestEsqlTestCase extends ESRestTestCase {
         Boolean profileEnabled = requestObject.profile;
         prepareProfileLogger(requestObject, profileLogger);
         Request request = prepareRequestWithOptions(requestObject, SYNC);
+        captureProfileReplay(requestObject, profileLogger, profileEnabled);
 
         Response response = performRequest(request);
         HttpEntity entity = response.getEntity();
@@ -1565,6 +1570,7 @@ public abstract class RestEsqlTestCase extends ESRestTestCase {
         prepareProfileLogger(requestObject, profileLogger);
         addAsyncParameters(requestObject, keepOnCompletion);
         Request request = prepareRequestWithOptions(requestObject, ASYNC);
+        captureProfileReplay(requestObject, profileLogger, profileEnabled);
 
         if (shouldLog()) {
             LOGGER.info("REQUEST={}", request);
@@ -1652,14 +1658,55 @@ public abstract class RestEsqlTestCase extends ESRestTestCase {
         return removeAsyncProperties(result);
     }
 
-    private static void prepareProfileLogger(RequestObjectBuilder requestObject, @Nullable ProfileLogger profileLogger) throws IOException {
+    private static void prepareProfileLogger(RequestObjectBuilder requestObject, @Nullable ProfileLogger profileLogger) {
         if (profileLogger != null) {
             profileLogger.clearProfile();
-            var isProfileSafe = hasCapabilities(adminClient(), List.of("fixed_profile_serialization"));
-            if (isProfileSafe) {
-                requestObject.profile(true);
-            }
         }
+    }
+
+    /**
+     * Registers a profile fetcher on the {@link ProfileLogger} that re-issues the just-built request with
+     * {@code profile:true} (as JSON, so it never trips the YAML response-size limit) only if the test fails.
+     * Skipped when the caller already requested a profile (it is captured in-band) or the cluster may not
+     * serialize the profile safely.
+     */
+    private static void captureProfileReplay(
+        RequestObjectBuilder requestObject,
+        @Nullable ProfileLogger profileLogger,
+        Boolean originalProfileParameter
+    ) throws IOException {
+        if (profileLogger == null || Boolean.TRUE.equals(originalProfileParameter)) {
+            return;
+        }
+        if (hasCapabilities(adminClient(), List.of("fixed_profile_serialization")) == false) {
+            return;
+        }
+        byte[] body = ((ByteArrayOutputStream) requestObject.getOutputStream()).toByteArray();
+        XContentType bodyType = requestObject.contentType();
+        RestClient client = client();
+        profileLogger.setProfileFetcher(() -> fetchProfileByReplay(body, bodyType, client));
+    }
+
+    /**
+     * Re-runs a captured query body with {@code profile:true} and returns the {@code profile} section of the
+     * response. Async-only fields are stripped so the replay can go through the sync {@code _query} endpoint,
+     * and the replay is always JSON so the (potentially large) profile response is never parsed as YAML.
+     */
+    private static Object fetchProfileByReplay(byte[] body, XContentType bodyType, RestClient client) throws IOException {
+        Map<String, Object> requestMap;
+        try (XContentParser parser = bodyType.xContent().createParser(XContentParserConfiguration.EMPTY, body)) {
+            requestMap = parser.mapOrdered();
+        }
+        requestMap.keySet().removeAll(List.of("keep_on_completion", "wait_for_completion_timeout", "keep_alive"));
+        requestMap.put("profile", true);
+
+        Request replay = new Request("POST", "/_query");
+        replay.setJsonEntity(Strings.toString(JsonXContent.contentBuilder().map(requestMap)));
+        RequestOptions.Builder options = replay.getOptions().toBuilder();
+        options.setWarningsHandler(WarningsHandler.PERMISSIVE); // the replayed query may carry warnings; we only want the profile
+        replay.setOptions(options);
+        Response response = client.performRequest(replay);
+        return entityToMap(response.getEntity(), XContentType.JSON).get("profile");
     }
 
     record CapabilitesCacheKey(RestClient client, List<String> capabilities) {}

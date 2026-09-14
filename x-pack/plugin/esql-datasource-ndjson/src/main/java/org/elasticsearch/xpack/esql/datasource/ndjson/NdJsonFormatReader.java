@@ -571,11 +571,6 @@ public class NdJsonFormatReader implements SegmentableFormatReader {
     }
 
     @Override
-    public void acceptReadCpuNanos(long nanos) {
-        counters.addReadCpuNanos(nanos);
-    }
-
-    @Override
     public RecordSplitter recordSplitter() {
         return defaultRecordSplitter();
     }

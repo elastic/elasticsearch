@@ -9,6 +9,7 @@
 
 package org.elasticsearch.index.mapper;
 
+import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.index.IndexSettings;
@@ -403,6 +404,86 @@ public class KeywordFieldMapperColumnarCompatibilityTests extends AbstractColumn
         );
     }
 
+    public void testColumnarDimensionSingleValue() throws IOException {
+        assertColumnarMatchesXContent(
+            mapping(b -> b.startObject(FIELD).field("type", "keyword").field("time_series_dimension", true).endObject()),
+            columnarSettings(),
+            batch("columnar keyword dimension single value", 1L, doc("d1", 1L, "{\"f\":\"host-0\"}"))
+        );
+    }
+
+    public void testColumnarDimensionAbsentDocsMixed() throws IOException {
+        assertColumnarMatchesXContent(
+            mapping(b -> b.startObject(FIELD).field("type", "keyword").field("time_series_dimension", true).endObject()),
+            columnarSettings(),
+            batch(
+                "columnar keyword dimension absent docs mixed",
+                1L,
+                doc("d1", 1L, "{\"f\":\"host-0\"}"),
+                doc("d2", 2L, "{}"),
+                doc("d3", 3L, "{\"f\":\"host-1\"}")
+            )
+        );
+    }
+
+    public void testColumnarDimensionExplicitNull() throws IOException {
+        assertColumnarMatchesXContent(
+            mapping(b -> b.startObject(FIELD).field("type", "keyword").field("time_series_dimension", true).endObject()),
+            columnarSettings(),
+            batch(
+                "columnar keyword dimension explicit null",
+                1L,
+                doc("d1", 1L, "{\"f\":null}"),
+                doc("d2", 2L, "{\"f\":\"host-1\"}"),
+                doc("d3", 3L, "{}")
+            )
+        );
+    }
+
+    public void testDimensionRoutingPathIsNotColumnar() throws IOException {
+        // index.routing_path resolves to ForRoutingPath, whose extractDimensionsWhileMapping() is true, so
+        // the row path writes the dimension to the routing fields and the columnar path must refuse.
+        final MapperService mapperService = createMapperService(tsdbSettings(IndexMetadata.INDEX_ROUTING_PATH.getKey()), mapping(b -> {
+            b.startObject("@timestamp").field("type", "date").endObject();
+            b.startObject(FIELD).field("type", "keyword").field("time_series_dimension", true).endObject();
+        }));
+        final FieldMapper mapper = (FieldMapper) mapperService.mappingLookup().getMapper(FIELD);
+        assertFalse(
+            "a dimension whose routing is extracted while mapping must not be columnar",
+            mapper.supportsColumnarParse(mapperService.getIndexSettings())
+        );
+    }
+
+    public void testTsdbIsNotYetColumnar() throws IOException {
+        // The mode gate admits TIME_SERIES, but every keyword field in a TSDB index resolves to
+        // DocValuesDiskFormat.SORTED_SET, which supportsColumnarDocValues() does not accept yet. Flip this
+        // assertion when SORTED_SET emission lands; the dimension gate itself is already routing-aware.
+        final MapperService mapperService = createMapperService(tsdbSettings(IndexMetadata.INDEX_DIMENSIONS.getKey()), mapping(b -> {
+            b.startObject("@timestamp").field("type", "date").endObject();
+            b.startObject(FIELD).field("type", "keyword").field("time_series_dimension", true).endObject();
+        }));
+        final FieldMapper mapper = (FieldMapper) mapperService.mappingLookup().getMapper(FIELD);
+        assertFalse(
+            "TSDB keyword fields use SORTED_SET doc values, which the columnar path cannot emit yet",
+            mapper.supportsColumnarParse(mapperService.getIndexSettings())
+        );
+        assertEquals(
+            "precondition: the gap is the doc-values format, not the dimension gate",
+            KeywordFieldMapper.KeywordFieldType.DocValuesDiskFormat.SORTED_SET,
+            ((KeywordFieldMapper.KeywordFieldType) mapper.fieldType()).diskFormat()
+        );
+    }
+
+    /** TIME_SERIES settings listing {@code f} under the given dimension-source setting. */
+    private static Settings tsdbSettings(String dimensionSettingKey) {
+        return Settings.builder()
+            .put(IndexSettings.MODE.getKey(), IndexMode.TIME_SERIES.getName())
+            .putList(dimensionSettingKey, FIELD)
+            .put(IndexSettings.TIME_SERIES_START_TIME.getKey(), "-9999-01-01T00:00:00Z")
+            .put(IndexSettings.TIME_SERIES_END_TIME.getKey(), "9999-01-01T00:00:00Z")
+            .build();
+    }
+
     // =========================================================================
     // ColumNAR codec: the doc-values blob is a payload rather than the bare value
     //
@@ -528,6 +609,139 @@ public class KeywordFieldMapperColumnarCompatibilityTests extends AbstractColumn
                 doc("d4", 4L, "{\"f\":[]}"),
                 doc("d5", 5L, "{}")
             )
+        );
+    }
+
+    // ---- multi-fields -------------------------------------------------------------------------
+
+    /** {@code keyword} parent with a plain {@code keyword} sub-field. */
+    public void testKeywordSubField() throws IOException {
+        assertColumnarMatchesXContent(mapping(b -> {
+            b.startObject(FIELD).field("type", "keyword");
+            b.startObject("fields").startObject("raw").field("type", "keyword").endObject().endObject();
+            b.endObject();
+        }),
+            columnarSettings(),
+            batch("keyword sub-field", 1L, doc("d1", 1L, "{\"f\":\"hello\"}"), doc("d2", 2L, "{}"), doc("d3", 3L, "{\"f\":\"world\"}"))
+        );
+    }
+
+    /** Arrays and explicit nulls must produce the same array-order slots on the parent and on the sub-field. */
+    public void testKeywordSubFieldArraysAndNulls() throws IOException {
+        assertColumnarMatchesXContent(mapping(b -> {
+            b.startObject(FIELD).field("type", "keyword");
+            b.startObject("fields").startObject("raw").field("type", "keyword").endObject().endObject();
+            b.endObject();
+        }),
+            columnarSettings(),
+            batch(
+                "keyword sub-field arrays and nulls",
+                1L,
+                doc("d1", 1L, "{\"f\":[\"a\",\"b\",\"c\"]}"),
+                doc("d2", 2L, "{\"f\":[\"a\",null,\"b\"]}"),
+                doc("d3", 3L, "{\"f\":null}"),
+                doc("d4", 4L, "{\"f\":[]}"),
+                doc("d5", 5L, "{}")
+            )
+        );
+    }
+
+    /** {@code null_value} is resolved independently by the parent and the sub-field. */
+    public void testKeywordSubFieldWithOwnNullValue() throws IOException {
+        assertColumnarMatchesXContent(mapping(b -> {
+            b.startObject(FIELD).field("type", "keyword").field("null_value", "PARENT_NULL");
+            b.startObject("fields");
+            b.startObject("raw").field("type", "keyword").field("null_value", "SUB_NULL").endObject();
+            b.endObject();
+            b.endObject();
+        }),
+            columnarSettings(),
+            batch("sub-field null_value", 1L, doc("d1", 1L, "{\"f\":null}"), doc("d2", 2L, "{\"f\":\"present\"}"), doc("d3", 3L, "{}"))
+        );
+    }
+
+    /**
+     * {@code ignore_above} is evaluated per mapper, so a value can be ignored by the parent, by the sub-field, by both, or by
+     * neither. Each combination must yield the same {@code _ignored} entries on both paths, and the sub-field must never write a
+     * synthetic-source fallback column.
+     */
+    public void testIgnoreAboveAcrossParentAndSubField() throws IOException {
+        assertColumnarMatchesXContent(mapping(b -> {
+            b.startObject(FIELD).field("type", "keyword").field("ignore_above", 10);
+            b.startObject("fields").startObject("raw").field("type", "keyword").field("ignore_above", 4).endObject().endObject();
+            b.endObject();
+        }),
+            columnarSettings(),
+            batch(
+                "ignore_above parent and sub-field",
+                1L,
+                doc("d1", 1L, "{\"f\":\"tiny\"}"),                  // neither ignores
+                doc("d2", 2L, "{\"f\":\"medium_len\"}"),            // sub-field ignores
+                doc("d3", 3L, "{\"f\":\"way_too_long_value\"}"),    // both ignore
+                doc("d4", 4L, "{}")
+            )
+        );
+    }
+
+    /** Several sub-fields under one parent are all driven from the same source column. */
+    public void testMultipleSubFields() throws IOException {
+        assertColumnarMatchesXContent(mapping(b -> {
+            b.startObject(FIELD).field("type", "keyword");
+            b.startObject("fields");
+            b.startObject("raw").field("type", "keyword").endObject();
+            b.startObject("trimmed").field("type", "keyword").field("ignore_above", 3).endObject();
+            b.endObject();
+            b.endObject();
+        }),
+            columnarSettings(),
+            batch("multiple sub-fields", 1L, doc("d1", 1L, "{\"f\":\"ab\"}"), doc("d2", 2L, "{\"f\":\"abcdef\"}"), doc("d3", 3L, "{}"))
+        );
+    }
+
+    /** A {@code multi_value=false} sub-field under a multi-valued-capable parent. */
+    public void testSubFieldMultiValueFalse() throws IOException {
+        assertColumnarMatchesXContent(mapping(b -> {
+            b.startObject(FIELD).field("type", "keyword");
+            b.startObject("fields").startObject("raw").field("type", "keyword");
+            b.startObject("doc_values").field("multi_value", false).endObject();
+            b.endObject().endObject();
+            b.endObject();
+        }),
+            columnarSettings(),
+            batch(
+                "sub-field multi_value=false",
+                1L,
+                doc("d1", 1L, "{\"f\":\"single\"}"),
+                doc("d2", 2L, "{\"f\":[\"solo\"]}"),
+                doc("d3", 3L, "{}")
+            )
+        );
+    }
+
+    /** {@code index:false} on the sub-field only: it emits doc values but no terms column. */
+    public void testSubFieldNotIndexed() throws IOException {
+        assertColumnarMatchesXContent(mapping(b -> {
+            b.startObject(FIELD).field("type", "keyword");
+            b.startObject("fields").startObject("raw").field("type", "keyword").field("index", false).endObject().endObject();
+            b.endObject();
+        }), columnarSettings(), batch("sub-field index=false", 1L, doc("d1", 1L, "{\"f\":\"only_dv\"}"), doc("d2", 2L, "{}")));
+    }
+
+    /**
+     * Two sub-fields of different types under one keyword parent, both fed from the same source column. Values stay strings so the
+     * numeric sub-field sees a STRING column rather than a UNION one.
+     */
+    public void testMixedTypeSubFields() throws IOException {
+        assertColumnarMatchesXContent(mapping(b -> {
+            b.startObject(FIELD).field("type", "keyword");
+            b.startObject("fields");
+            b.startObject("as_long").field("type", "long").endObject();
+            b.startObject("as_keyword").field("type", "keyword").endObject();
+            b.endObject();
+            b.endObject();
+        }),
+            columnarSettings(),
+            batch("mixed-type sub-fields", 1L, doc("d1", 1L, "{\"f\":\"123\"}"), doc("d2", 2L, "{\"f\":\"456\"}"), doc("d3", 3L, "{}"))
         );
     }
 }

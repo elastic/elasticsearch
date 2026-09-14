@@ -243,7 +243,7 @@ public interface IndexFieldData<FD extends LeafFieldData> {
         }
 
         /**
-         * Return a missing value that is understandable by {@link SortField#setMissingValue(Object)}.
+         * Return a missing value that is understandable by {@link SortField} constructors.
          * Most implementations return null because they already replace the value at the fielddata level.
          * However this can't work in case of strings since there is no such thing as a string which
          * compares greater than any other string, so in that case we need to return

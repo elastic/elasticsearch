@@ -76,7 +76,7 @@ public class DetermineUnmappedFieldsToKeep extends ParameterizedRule<LogicalPlan
         if (context.unmappedResolution().loadsAllUnmappedFields() == false) {
             return plan;
         }
-        boolean hasFork = plan.anyMatch(p -> p instanceof Fork fork && isForkCommand(fork));
+        boolean hasFork = plan.anyMatch(p -> p instanceof Fork);
         LogicalPlan annotated = hasFork ? annotate(plan, computeUnmappedFieldsToKeep(plan)) : stampAll(plan);
         LogicalPlan withUnmappedOnProjects = annotated.transformUp(Project.class, DetermineUnmappedFieldsToKeep::passThroughUnmappedFields);
         LogicalPlan result = hasFork
@@ -189,7 +189,7 @@ public class DetermineUnmappedFieldsToKeep extends ParameterizedRule<LogicalPlan
      * walked to reach those two; recursion stops at a Fork so a parent pattern cannot stamp through it.
      */
     private static LogicalPlan annotate(LogicalPlan plan, UnmappedFieldsPattern pattern) {
-        if (plan instanceof Fork fork && isForkCommand(fork)) {
+        if (plan instanceof Fork fork) {
             return fork.replaceChildren(
                 fork.children().stream().map(c -> annotate(c, computeUnmappedFieldsToKeep(c).intersect(pattern))).toList()
             );
@@ -201,11 +201,6 @@ public class DetermineUnmappedFieldsToKeep extends ParameterizedRule<LogicalPlan
             return stamp(esr, pattern);
         }
         return plan.replaceChildren(plan.children().stream().map(c -> annotate(c, pattern)).toList());
-    }
-
-    /** Checks the plan is an actual {@code FORK} command, and not one of its subtypes (which aren't {@code FORK} commands). */
-    private static boolean isForkCommand(Fork fork) {
-        return fork.getClass() == Fork.class;
     }
 
     private static EsRelation stamp(EsRelation esr, UnmappedFieldsPattern pattern) {
@@ -237,9 +232,6 @@ public class DetermineUnmappedFieldsToKeep extends ParameterizedRule<LogicalPlan
      * subtype. In other words, we only pad if at least one child has the attribute and at least one does not.
      */
     private static LogicalPlan finishForkUnmappedFields(Fork fork) {
-        if (isForkCommand(fork) == false) {
-            return fork;
-        }
         List<LogicalPlan> children = fork.children();
         List<LogicalPlan> newChildren = new ArrayList<>(children.size());
         boolean hasChildWithUnmappedFields = false;

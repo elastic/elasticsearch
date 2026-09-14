@@ -17,7 +17,6 @@ import org.apache.lucene.store.Directory;
 import org.apache.lucene.store.LockObtainFailedException;
 import org.apache.lucene.tests.store.BaseDirectoryWrapper;
 import org.apache.lucene.tests.store.MockDirectoryWrapper;
-import org.apache.lucene.tests.util.LuceneTestCase;
 import org.apache.lucene.tests.util.TestRuleMarkFailure;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
@@ -132,7 +131,7 @@ public class MockFSDirectoryFactory implements IndexStorePlugin.DirectoryFactory
         // TODO: make this test robust to virus scanner
         w.setAssertNoDeleteOpenFile(false);
         w.setUseSlowOpenClosers(false);
-        LuceneTestCase.closeAfterSuite(new CloseableDirectory(w));
+        ESTestCase.closeAfterSuite(new CloseableDirectory(w));
         return w;
     }
 

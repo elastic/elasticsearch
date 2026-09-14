@@ -35,6 +35,9 @@ dependencies {
     exclude group: "junit", module: "junit"
     exclude group: 'com.carrotsearch.randomizedtesting', module: 'randomizedtesting-runner'
   }
+  // Lucene 11 LuceneTestCase group annotations use JUnit 5 @Tag / @ExtendWith.
+  // lucene-test-framework's transitives are stripped (ExcludeOtherGroupsTransitiveRule).
+  api "org.junit.jupiter:junit-jupiter-api:${versions.junit}"
   api "org.apache.lucene:lucene-codecs:${versions.lucene}"
   api "commons-logging:commons-logging:${versions.commonslogging}"
   api "commons-codec:commons-codec:${versions.commonscodec}"

@@ -14,7 +14,6 @@ import org.apache.lucene.index.DirectoryReader;
 import org.apache.lucene.index.FilterDirectoryReader;
 import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.tests.index.AssertingDirectoryReader;
-import org.apache.lucene.tests.util.LuceneTestCase;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Setting.Property;
@@ -24,6 +23,7 @@ import org.elasticsearch.index.engine.EngineConfig;
 import org.elasticsearch.index.engine.EngineException;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.test.ESIntegTestCase;
+import org.elasticsearch.test.ESTestCase;
 
 import java.io.Closeable;
 import java.io.IOException;
@@ -96,7 +96,7 @@ public final class MockEngineSupport {
         }
         mockContext = new MockContext(random, wrapReader, wrapper, settings);
         this.inFlightSearchers = new InFlightSearchers();
-        LuceneTestCase.closeAfterSuite(inFlightSearchers); // only one suite closeable per Engine
+        ESTestCase.closeAfterSuite(inFlightSearchers); // only one suite closeable per Engine
         this.disableFlushOnClose = DISABLE_FLUSH_ON_CLOSE.get(settings);
     }
 

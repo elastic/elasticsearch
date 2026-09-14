@@ -8,6 +8,8 @@
  */
 package org.elasticsearch.test;
 
+import com.carrotsearch.randomizedtesting.LifecycleScope;
+import com.carrotsearch.randomizedtesting.RandomizedContext;
 import com.carrotsearch.randomizedtesting.RandomizedTest;
 import com.carrotsearch.randomizedtesting.annotations.Listeners;
 import com.carrotsearch.randomizedtesting.annotations.ThreadLeakFilters;
@@ -180,6 +182,7 @@ import org.junit.rules.RuleChain;
 import org.junit.rules.TestRule;
 import org.junit.rules.TestWatcher;
 
+import java.io.Closeable;
 import java.io.IOException;
 import java.io.InputStream;
 import java.lang.annotation.ElementType;
@@ -546,6 +549,12 @@ public abstract class ESTestCase extends LuceneTestCase {
     public @interface EntitledTestPackages {
         String[] value();
     }
+
+    @ClassRule
+    public static final TestRuleMarkFailure suiteFailureMarker = new TestRuleMarkFailure();
+
+    @Rule
+    public final TestRuleMarkFailure testFailureMarker = new TestRuleMarkFailure(suiteFailureMarker);
 
     @ClassRule
     public static final TestEntitlementsRule TEST_ENTITLEMENTS = new TestEntitlementsRule();
@@ -2354,6 +2363,11 @@ public abstract class ESTestCase extends LuceneTestCase {
     /** Returns the suite failure marker: internal use only! */
     public static TestRuleMarkFailure getSuiteFailureMarker() {
         return suiteFailureMarker;
+    }
+
+    /** Registers a resource to close after the suite. Lucene 11 dropped {@code LuceneTestCase.closeAfterSuite}. */
+    public static <T extends Closeable> T closeAfterSuite(T resource) {
+        return RandomizedContext.current().closeAtEnd(resource, LifecycleScope.SUITE);
     }
 
     /** Compares two stack traces, ignoring module (which is not yet serialized) */

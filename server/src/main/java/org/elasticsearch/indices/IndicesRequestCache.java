@@ -39,6 +39,7 @@ import java.util.Objects;
 import java.util.Set;
 import java.util.concurrent.ConcurrentMap;
 import java.util.concurrent.ExecutionException;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.Consumer;
 
 /**
@@ -156,10 +157,11 @@ public final class IndicesRequestCache implements Closeable {
 
     /**
      * Loads the entry through the cache. A {@link TaskCancelledException} inherited from a computation started by another request
-     * belongs to that request, so the value is loaded again rather than failed. A cancellation thrown by this thread's own load is
-     * propagated.
+     * belongs to that request, so the value is loaded again rather than failed. Cancellation is propagated instead when it came from
+     * this thread's own load, or when this request has been cancelled too.
      */
     private BytesReference compute(Key key, Loader cacheLoader, Consumer<Runnable> cancellationRegistrar) throws ExecutionException {
+        AtomicBoolean cancelled = null;
         while (true) {
             try {
                 return cache.computeIfAbsent(key, cacheLoader, cancellationRegistrar);
@@ -167,12 +169,30 @@ public final class IndicesRequestCache implements Closeable {
                 if (cacheLoader.isLoadAttempted() || ExceptionsHelper.unwrap(e, TaskCancelledException.class) == null) {
                     throw e;
                 }
+                if (cancelled == null) {
+                    cancelled = watchForCancellation(cancellationRegistrar);
+                }
+                if (cancelled.get()) {
+                    throw e;
+                }
                 logger.debug(
-                    "loading [{}] again, the computation it waited on was cancelled by another request",
+                    "reloading request cache entry for [{}], the computation it waited on was cancelled by another request",
                     key.entity.getCacheIdentity()
                 );
             }
         }
+    }
+
+    /**
+     * The returned flag is set once this request is cancelled, and is already set if it was cancelled before this call, since
+     * registering with an already-cancelled task runs the callback straight away.
+     */
+    private static AtomicBoolean watchForCancellation(Consumer<Runnable> cancellationRegistrar) {
+        AtomicBoolean cancelled = new AtomicBoolean();
+        if (cancellationRegistrar != null) {
+            cancellationRegistrar.accept(() -> cancelled.set(true));
+        }
+        return cancelled;
     }
 
     /**

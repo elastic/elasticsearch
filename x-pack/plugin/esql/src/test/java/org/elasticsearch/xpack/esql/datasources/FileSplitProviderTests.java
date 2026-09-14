@@ -1384,7 +1384,9 @@ public class FileSplitProviderTests extends ESTestCase {
             assertEquals(files, result.splits().size());
             assertEquals(files, cacheHits.get());
             assertEquals("cached footers must not issue a GET", 1, started.getCount());
-            assertThat("cache-hit extract must record cpuNanos", result.cpuNanos(), greaterThan(0L));
+            if (Constants.WINDOWS == false) {
+                assertThat("cache-hit extract must record cpuNanos", result.cpuNanos(), greaterThan(0L));
+            }
         } finally {
             release.countDown();
             io.shutdownNow();

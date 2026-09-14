@@ -111,6 +111,11 @@ public class MergeReaderWrapperTests extends ESTestCase {
         public void close() {}
     }
 
+    /**
+     * Builds a minimal {@link FieldInfo} for a single vector field, just enough to satisfy the
+     * constructor's validation. {@link RecordingReader#getVectorCount} ignores its argument, so the
+     * field name and vector properties here are otherwise arbitrary.
+     */
     private static FieldInfo fieldInfo() {
         return new FieldInfo(
             "field",

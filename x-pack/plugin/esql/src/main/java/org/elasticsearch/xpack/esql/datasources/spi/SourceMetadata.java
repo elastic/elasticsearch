@@ -66,8 +66,10 @@ public interface SourceMetadata {
     }
 
     /**
-     * Client-facing notices raised while resolving this metadata, e.g. a config option the reader could not honour or
-     * a hint derived from the schema sample. They live on the metadata rather than being emitted where raised because
+     * Client-facing notices about this one file, raised while resolving its metadata: hints derived from the schema
+     * sample, such as a {@code \N} the current mode will keep as literal text. Notices about the dataset's options are
+     * not a file's and ride {@link FormatReader#configWarnings()} instead. They live on the metadata rather than being
+     * emitted where raised because
      * resolution runs on an executor thread whose response headers never reach the client, and because a cached
      * resolution must replay them too or the same query would warn on its first run and not its second. Every run of a
      * query gets these notices; within one run, identical texts are collapsed to a single line.

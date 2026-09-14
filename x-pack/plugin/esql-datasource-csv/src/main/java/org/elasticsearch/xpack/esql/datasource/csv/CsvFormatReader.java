@@ -429,8 +429,9 @@ public class CsvFormatReader implements SegmentableFormatReader {
      * Notices this reader can raise about its own {@code WITH} options (today one: {@code mode: escaped} with a
      * {@code quote} override, which switches the escaped decode off). They are known when the options are parsed, but
      * parsing runs on the resolver's executor and again on every data node, and neither can reach the client. So they
-     * are kept here and handed out through {@link SourceMetadata#warnings()} by {@link #metadata}, which the resolver
-     * delivers and caches with the schema. Empty when the options raise nothing.
+     * are kept here and handed out through {@link #configWarnings()}, which the resolver reads once per path on every
+     * resolve; they describe the options, not a file, so they never enter the per-file metadata or its cache. Empty
+     * when the options raise nothing.
      */
     private final List<String> configWarnings;
     /**

@@ -25,6 +25,7 @@ import java.util.LinkedHashMap;
 import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 import java.util.Set;
 import java.util.function.Consumer;
 
@@ -336,6 +337,7 @@ public final class SchemaReconciliation {
      * @return reconciliation result with unified schema and per-file mappings
      */
     public static Result reconcileUnionByName(Map<StoragePath, SourceMetadata> fileMetadata, Consumer<String> warningSink) {
+        Objects.requireNonNull(warningSink, "warningSink: a null sink would fall back to HeaderWarning off the request thread");
         LinkedHashMap<String, MergeEntry> unified = new LinkedHashMap<>();
         // Per-column accumulator. We record *every* file's inferred type for every column up
         // front (it's cheap and gives the warning emitters a complete contributor list), then

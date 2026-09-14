@@ -16,6 +16,7 @@ import java.util.HashSet;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 import java.util.Set;
 import java.util.function.Consumer;
 import java.util.regex.Matcher;
@@ -93,6 +94,7 @@ public final class TemplatePartitionDetector implements PartitionDetector {
 
     @Override
     public PartitionMetadata detect(List<StorageEntry> files, Consumer<String> warningSink) {
+        Objects.requireNonNull(warningSink, "warningSink: a null sink would fall back to HeaderWarning off the request thread");
         if (files == null || files.isEmpty()) {
             return PartitionMetadata.EMPTY;
         }

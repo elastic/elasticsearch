@@ -211,10 +211,10 @@ public class ExternalSourceResolver {
      * {@code DriverCompletionInfo} for {@code TransportEsqlQueryAction#toResponse} to emit on the thread that builds the
      * client response. Cleared at the start of each {@link #resolve} call; append-only in between.
      * <p>
-     * These notices tell the user their values changed type. They get a channel of their own, bounded by the column
-     * count, so the listing channel below can never crowd them out. The factories' config-validation warnings
-     * ({@code ExternalSourceFactory#validateConfig(String, Map, Consumer)}) are about the dataset's options, not its
-     * schema, and go to {@link #pendingMetadataWarnings} with the other per-path notices.
+     * These notices tell the user their values changed type. They get a channel of their own, capped like the others at
+     * {@link SkipWarnings#MAX_ADDED_WARNINGS}, so the listing channel below can never crowd them out. The factories'
+     * config-validation warnings ({@code ExternalSourceFactory#validateConfig(String, Map, Consumer)}) are about the
+     * dataset's options, not its schema, and go to {@link #pendingMetadataWarnings} with the other per-path notices.
      */
     private final NoticeBuffer pendingSchemaWarnings = new NoticeBuffer();
 

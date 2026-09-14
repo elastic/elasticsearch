@@ -10,6 +10,7 @@ package org.elasticsearch.xpack.esql.datasources;
 import org.elasticsearch.xpack.esql.datasources.spi.SkipWarnings;
 
 import java.util.List;
+import java.util.Objects;
 import java.util.function.Consumer;
 
 /**
@@ -54,6 +55,7 @@ final class ReservedPartitionNames {
      * empty). Callers pass the ORIGINAL key names that {@link #surface(String)} renamed.
      */
     static void warnRenamed(List<String> renamed, Consumer<String> warningSink) {
+        Objects.requireNonNull(warningSink, "warningSink: a null sink would fall back to HeaderWarning off the request thread");
         if (renamed.isEmpty()) {
             return;
         }

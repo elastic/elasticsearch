@@ -223,16 +223,16 @@ public class S3ConfigurationTests extends ESTestCase {
     }
 
     public void testEqualsWithAuth() {
-        S3Configuration config1 = S3Configuration.fromFields(null, null, "ep", null, "anonymous");
-        S3Configuration config2 = S3Configuration.fromFields(null, null, "ep", null, "anonymous");
+        S3Configuration config1 = S3Configuration.fromFields(null, null, "http://ep", null, "anonymous");
+        S3Configuration config2 = S3Configuration.fromFields(null, null, "http://ep", null, "anonymous");
         assertEquals(config1, config2);
         assertEquals(config1.hashCode(), config2.hashCode());
     }
 
     public void testNotEqualsWithDifferentAuth() {
         // Two resolvable configs differing only in auth: anonymous vs managed_identity (neither needs a secret).
-        S3Configuration config1 = S3Configuration.fromFields(null, null, "ep", null, "anonymous");
-        S3Configuration config2 = S3Configuration.fromFields(null, null, "ep", null, "managed_identity");
+        S3Configuration config1 = S3Configuration.fromFields(null, null, "http://ep", null, "anonymous");
+        S3Configuration config2 = S3Configuration.fromFields(null, null, "http://ep", null, "managed_identity");
         assertNotEquals(config1, config2);
     }
 
@@ -282,15 +282,15 @@ public class S3ConfigurationTests extends ESTestCase {
     }
 
     public void testEqualsWithSessionToken() {
-        S3Configuration config1 = S3Configuration.fromFields("ak", "sk", "tok", "ep", null, null);
-        S3Configuration config2 = S3Configuration.fromFields("ak", "sk", "tok", "ep", null, null);
+        S3Configuration config1 = S3Configuration.fromFields("ak", "sk", "tok", "http://ep", null, null);
+        S3Configuration config2 = S3Configuration.fromFields("ak", "sk", "tok", "http://ep", null, null);
         assertEquals(config1, config2);
         assertEquals(config1.hashCode(), config2.hashCode());
     }
 
     public void testNotEqualsWithDifferentSessionToken() {
-        S3Configuration config1 = S3Configuration.fromFields("ak", "sk", "tok1", "ep", null, null);
-        S3Configuration config2 = S3Configuration.fromFields("ak", "sk", "tok2", "ep", null, null);
+        S3Configuration config1 = S3Configuration.fromFields("ak", "sk", "tok1", "http://ep", null, null);
+        S3Configuration config2 = S3Configuration.fromFields("ak", "sk", "tok2", "http://ep", null, null);
         assertNotEquals(config1, config2);
     }
 

@@ -516,28 +516,26 @@ public class EsqlPlugin extends Plugin implements ActionPlugin, ExtensiblePlugin
         // FormatReaderRegistry. Iterate ALL FormatSpec declarations (including formats with no extra
         // config keys, e.g. orc) so every registered format is a valid "format" value.
         //
-        // NOTE: FormatReaderRegistry.registerExtension uses a plain put (last writer wins) for the
-        // extension→reader mapping at runtime. Here we fail on conflicts so an inconsistency surfaces
-        // early at startup; FormatReaderRegistry should be aligned to also reject duplicates.
+        // NOTE: Cross-extension conflicts are caught earlier — DataSourceModule's constructor calls
+        // FormatReaderRegistry.claimExtension for every spec, which throws on the first duplicate.
         // DataSourceCapabilities.build (above) already throws on a duplicate format NAME, so divergent
         // config keys for one format name cannot arise and need no separate check here.
         Map<String, Set<String>> formatToConfigKeys = new HashMap<>();
         Map<String, String> extToFormat = new HashMap<>();
+        Map<String, FormatSpec.FormatConfigValidator> formatToValidator = new HashMap<>();
         for (DataSourcePlugin p : allDataSourcePlugins) {
             for (FormatSpec spec : p.formatSpecs()) {
                 String format = spec.format().toLowerCase(Locale.ROOT);
                 formatToConfigKeys.put(format, spec.configKeys());
+                if (spec.configValidator() != null) {
+                    formatToValidator.put(format, spec.configValidator());
+                }
                 for (String ext : spec.extensions()) {
                     String normalized = ext.toLowerCase(Locale.ROOT);
                     if (normalized.startsWith(".") == false) {
                         normalized = "." + normalized;
                     }
-                    String existing = extToFormat.putIfAbsent(normalized, format);
-                    if (existing != null && existing.equals(format) == false) {
-                        throw new IllegalStateException(
-                            "conflicting formats for extension [" + normalized + "]: [" + existing + "] vs [" + format + "]"
-                        );
-                    }
+                    extToFormat.putIfAbsent(normalized, format);
                 }
             }
         }
@@ -546,7 +544,7 @@ public class EsqlPlugin extends Plugin implements ActionPlugin, ExtensiblePlugin
         // map's key set, so the two sources cannot diverge.
         FileDataSourceValidator.FormatConfigKeyResolver formatKeyResolver = formatToConfigKeys.isEmpty()
             ? null
-            : FileDataSourceValidator.FormatConfigKeyResolver.of(formatToConfigKeys, extToFormat);
+            : FileDataSourceValidator.FormatConfigKeyResolver.of(formatToConfigKeys, extToFormat, formatToValidator);
 
         Map<String, DataSourceValidator> crudValidators = new HashMap<>();
         for (DataSourcePlugin p : allDataSourcePlugins) {

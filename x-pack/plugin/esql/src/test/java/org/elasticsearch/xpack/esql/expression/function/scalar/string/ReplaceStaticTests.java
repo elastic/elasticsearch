@@ -88,7 +88,7 @@ public class ReplaceStaticTests extends ESTestCase {
         assertNull(processOnSmallStack(text, regex, "x"));
         assertDriverWarnings(
             "Line -1:-1: evaluation of [] failed, treating result as null. Only first 20 failures recorded.",
-            "Line -1:-1: java.lang.IllegalArgumentException: Caught a StackOverflowError while applying regex [" + regex + "]"
+            "Line -1:-1: java.lang.IllegalArgumentException: Pattern nesting is too deep to evaluate"
         );
     }
 
@@ -103,7 +103,7 @@ public class ReplaceStaticTests extends ESTestCase {
         assertNull(processConstantRegexOnSmallStack(text, regex, "x"));
         assertDriverWarnings(
             "Line -1:-1: evaluation of [] failed, treating result as null. Only first 20 failures recorded.",
-            "Line -1:-1: java.lang.IllegalArgumentException: Caught a StackOverflowError while applying regex [" + regex + "]"
+            "Line -1:-1: java.lang.IllegalArgumentException: Pattern nesting is too deep to evaluate"
         );
     }
 

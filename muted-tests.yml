@@ -754,3 +754,5 @@ tests:
   issue: https://github.com/elastic/elasticsearch/issues/159136
 - class: org.elasticsearch.repositories.s3.S3RepositoryThirdPartyTests
   issue: https://github.com/elastic/elasticsearch/issues/159130
+- class: org.elasticsearch.xpack.esql.qa.mixed.RemoteFetchTopNIT
+  issue: https://github.com/elastic/elasticsearch/issues/159173

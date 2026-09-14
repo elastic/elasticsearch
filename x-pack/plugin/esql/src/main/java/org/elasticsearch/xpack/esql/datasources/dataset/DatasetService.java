@@ -40,11 +40,9 @@ import org.elasticsearch.xpack.esql.datasources.spi.ExternalSourceMetrics;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.HashMap;
-import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
-import java.util.Set;
 import java.util.concurrent.atomic.AtomicReference;
 
 /** Orchestrates create / replace / delete of datasets in cluster state. */
@@ -114,24 +112,28 @@ public class DatasetService {
         if (validator == null) {
             throw new IllegalStateException("no validator registered for data source type [" + parent.type() + "]");
         }
+        // Pre-validator shadow check: if a raw setting key matches a parent secret, report the
+        // specific shadow-rejection message rather than the generic "unknown setting [key]" the
+        // format validator would produce when it sees an unrecognised key.
+        if (request.rawSettings() != null) {
+            for (String key : request.rawSettings().keySet()) {
+                DataSourceSetting parentSetting = parent.settings().get(key);
+                if (parentSetting != null && parentSetting.secret()) {
+                    throwShadowError(key);
+                }
+            }
+        }
         final Map<String, Object> validatedSettings = validator.validateDataset(
             parent.settings().asMap(),
             request.resource(),
             request.rawSettings()
         );
-        // Reject dataset settings that shadow a parent secret-keyed setting. Check both pre- and
-        // post-validator keys: a validator that strips the key before returning would otherwise mask
-        // the shadow attempt at the wire boundary.
-        Set<String> shadowCandidates = new HashSet<>(validatedSettings.keySet());
-        if (request.rawSettings() != null) {
-            shadowCandidates.addAll(request.rawSettings().keySet());
-        }
-        for (String key : shadowCandidates) {
+        // Post-validator shadow check: a validator that strips a key before returning would otherwise
+        // mask the shadow attempt at the wire boundary.
+        for (String key : validatedSettings.keySet()) {
             DataSourceSetting parentSetting = parent.settings().get(key);
             if (parentSetting != null && parentSetting.secret()) {
-                ValidationException ex = new ValidationException();
-                ex.addValidationError("dataset setting [" + key + "] shadows a secret data-source setting; remove from dataset settings");
-                throw ex;
+                throwShadowError(key);
             }
         }
         // Shape-only validation of the declared mapping (no file I/O): declarable types, rename name collisions,
@@ -146,6 +148,12 @@ public class DatasetService {
             validatedSettings,
             request.mapping()
         );
+    }
+
+    private static void throwShadowError(String key) {
+        ValidationException ex = new ValidationException();
+        ex.addValidationError("dataset setting [" + key + "] shadows a secret data-source setting; remove from dataset settings");
+        throw ex;
     }
 
     /**

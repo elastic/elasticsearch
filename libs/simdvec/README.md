@@ -112,13 +112,26 @@ published artifact.
 
 ## Testing
 
+Java tests for this project are designed to cover both Java and native code.
+To run them (from the repo root):
 ```bash
-# Run simdvec tests (from repo root)
 ./gradlew :libs:simdvec:test
-
-# Run tests against a freshly built native library
+```
+It is possible to run them using a locally built native library (e.g. to test changes to the native code):
+```bash
 VEC_NATIVE_BUILD=host ./gradlew :libs:simdvec:test
 ```
 
-The Gradle build also runs a `testJava21` task to verify runtime version guards
-when running/testing with a JDK newer than 21.
+The Gradle build also runs a `testJava21` task to verify runtime version guards when running/testing with a JDK newer than 21.
+
+## Benchmarking
+
+In order to run JMH micro-benchmarks, run:
+```bash
+./gradlew :libs:simdvec:benchmark
+```
+you can pass parameters down to JMH with `--args`, e.g.
+```bash
+./gradlew :libs:simdvec:benchmark --args 'VectorScorerFloat32BulkBenchmark.scoreMultipleBulk -pfunction=DOT_PRODUCT -pbulkSize=32 -pimplementation=NATIVE -pnumVectors=65000'
+```
+will run the float32 bulk benchmarks for the native dot-product implementation, with fixed bulk size of 32 over 65000 vectors ("L2-cache-spilling" size).

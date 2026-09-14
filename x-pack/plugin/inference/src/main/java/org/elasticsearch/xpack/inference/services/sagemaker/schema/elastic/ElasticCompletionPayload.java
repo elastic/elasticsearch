@@ -12,7 +12,7 @@ import software.amazon.awssdk.services.sagemakerruntime.model.InvokeEndpointResp
 
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.xcontent.LoggingDeprecationHandler;
-import org.elasticsearch.inference.UnifiedCompletionRequest;
+import org.elasticsearch.inference.UnifiedCompletionRequestBody;
 import org.elasticsearch.xcontent.ConstructingObjectParser;
 import org.elasticsearch.xcontent.ObjectParser;
 import org.elasticsearch.xcontent.ParseField;
@@ -84,9 +84,9 @@ public class ElasticCompletionPayload implements SageMakerStreamSchemaPayload, E
     }
 
     @Override
-    public SdkBytes chatCompletionRequestBytes(SageMakerModel model, UnifiedCompletionRequest request) {
+    public SdkBytes chatCompletionRequestBytes(SageMakerModel model, UnifiedCompletionRequestBody request) {
         return SdkBytes.fromUtf8String(Strings.toString((builder, params) -> {
-            request.toXContent(builder, UnifiedCompletionRequest.withMaxCompletionTokens(params));
+            request.toXContent(builder, UnifiedCompletionRequestBody.withMaxCompletionTokens(params));
             return builder;
         }));
     }

@@ -145,11 +145,11 @@ curl -X PUT "${ELASTICSEARCH_URL}/_query/dataset/access_logs" \
 :::{note}
 {applies_to}`stack: experimental 9.6+` Setting values are checked when the dataset is registered, not only when it
 is first queried. A malformed value, such as a multi-character `delimiter`, an unknown `encoding`, or a
-`segment_size` below the minimum, is rejected with a `400` that names the setting.
+`segment_size` below the minimum, is rejected with a `400` error that identifies the setting.
 
-Datasets registered before this check are never re-checked, so one that already holds a rejected value keeps
-reading exactly as it did. Replacing such a dataset does fail, because a replacement is a fresh registration:
-correct the offending value in the same request.
+Datasets registered before this validation was introduced are not validated, so they keep
+working even if they contain invalid values. Replacing one of these datasets triggers validation, and you must correct
+any invalid values in the replacement request.
 :::
 
 :::{tip}

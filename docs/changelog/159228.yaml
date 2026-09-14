@@ -1,0 +1,6 @@
+area: ES|QL
+issues: []
+pr: 159228
+summary: Add TOPK, BOTTOMK and LIMITK commands to keep the highest, lowest, or an arbitrary sample
+  of rows, optionally per group
+type: feature

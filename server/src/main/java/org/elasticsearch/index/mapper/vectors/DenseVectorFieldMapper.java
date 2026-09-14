@@ -78,11 +78,9 @@ import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.MapperBuilderContext;
 import org.elasticsearch.index.mapper.MapperParsingException;
 import org.elasticsearch.index.mapper.MappingParser;
-import org.elasticsearch.index.mapper.NumberFieldMapper;
 import org.elasticsearch.index.mapper.RoutingFieldMapper;
 import org.elasticsearch.index.mapper.SimpleMappedFieldType;
 import org.elasticsearch.index.mapper.SourceLoader;
-import org.elasticsearch.index.mapper.SourceValueFetcher;
 import org.elasticsearch.index.mapper.ValueFetcher;
 import org.elasticsearch.index.mapper.blockloader.BlockLoaderFunctionConfig;
 import org.elasticsearch.index.mapper.blockloader.ConstantNull;
@@ -95,7 +93,6 @@ import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.aggregations.support.CoreValuesSourceType;
 import org.elasticsearch.search.fetch.subphase.FieldAndFormat;
-import org.elasticsearch.search.lookup.Source;
 import org.elasticsearch.search.vectors.CachingEnableFilterQuery;
 import org.elasticsearch.search.vectors.DenseVectorQuery;
 import org.elasticsearch.search.vectors.DiversifyingChildrenIVFKnnByteSlicedVectorQuery;
@@ -131,7 +128,6 @@ import java.time.ZoneId;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Base64;
-import java.util.EnumSet;
 import java.util.HexFormat;
 import java.util.LinkedHashSet;
 import java.util.List;
@@ -1187,20 +1183,6 @@ public class DenseVectorFieldMapper extends FieldMapper {
         @Override
         public ByteBuffer createByteBuffer(IndexVersion indexVersion, int numBytes) {
             return ByteBuffer.wrap(new byte[numBytes]);
-        }
-
-        static boolean isMaybeHexString(String s) {
-            int len = s.length();
-            if (len % 2 != 0) {
-                return false;
-            }
-            for (int i = 0; i < len; i++) {
-                char c = s.charAt(i);
-                if (HexFormat.isHexDigit(c) == false) {
-                    return false;
-                }
-            }
-            return true;
         }
 
         @Override
@@ -4069,11 +4051,16 @@ public class DenseVectorFieldMapper extends FieldMapper {
             if (hasDocValues() && (blContext.fieldExtractPreference() != FieldExtractPreference.STORED || isSyntheticSource)) {
                 return new DenseVectorFromBinaryBlockLoader(name(), dims, indexVersionCreated, element.elementType());
             }
-            BlockSourceReader.LeafIteratorLookup lookup = BlockSourceReader.lookupMatchingAll();
             return new BlockSourceReader.DenseVectorBlockLoader(
-                sourceValueFetcher(blContext.sourcePaths(name()), blContext.indexSettings()),
-                lookup,
-                dims
+                new DenseVectorSourceValueFetcher(
+                    blContext.sourcePaths(name()),
+                    blContext.indexSettings().getIgnoredSourceFormat(),
+                    element.elementType(),
+                    dims,
+                    VectorFormat.ARRAY
+                ),
+                BlockSourceReader.lookupMatchingAll(),
+                element.elementType().vectorLength(dims)
             );
         }
 
@@ -4093,63 +4080,6 @@ public class DenseVectorFieldMapper extends FieldMapper {
             return false;
         }
 
-        private SourceValueFetcher sourceValueFetcher(Set<String> sourcePaths, IndexSettings indexSettings) {
-            return new SourceValueFetcher(sourcePaths, null, indexSettings.getIgnoredSourceFormat()) {
-                @Override
-                public List<Object> fetchValues(Source source, int doc, List<Object> ignoredValues) {
-                    ArrayList<Object> values = new ArrayList<>();
-                    for (var path : sourcePaths) {
-                        Object sourceValue = source.extractValue(path, null);
-                        if (sourceValue == null) {
-                            return List.of();
-                        }
-                        try {
-                            switch (sourceValue) {
-                                case List<?> v -> {
-                                    for (Object o : v) {
-                                        values.add(NumberFieldMapper.NumberType.FLOAT.parse(o, false));
-                                    }
-                                }
-                                case String s -> {
-                                    if ((element.elementType() == ElementType.BYTE || element.elementType() == ElementType.BIT)
-                                        && s.length() == dims * 2
-                                        && ByteElement.isMaybeHexString(s)) {
-                                        byte[] bytes;
-                                        try {
-                                            bytes = HexFormat.of().parseHex(s);
-                                        } catch (IllegalArgumentException e) {
-                                            bytes = Base64.getDecoder().decode(s);
-                                        }
-                                        for (byte b : bytes) {
-                                            values.add((float) b);
-                                        }
-                                    } else {
-                                        byte[] floatBytes = Base64.getDecoder().decode(s);
-                                        float[] floats = new float[dims];
-                                        ByteBuffer.wrap(floatBytes).asFloatBuffer().get(floats);
-                                        for (float f : floats) {
-                                            values.add(f);
-                                        }
-                                    }
-                                }
-                                default -> ignoredValues.add(sourceValue);
-                            }
-                        } catch (Exception e) {
-                            // if parsing fails here then it would have failed at index time
-                            // as well, meaning that we must be ignoring malformed values.
-                            ignoredValues.add(sourceValue);
-                        }
-                    }
-                    values.trimToSize();
-                    return values;
-                }
-
-                @Override
-                protected Object parseSourceValue(Object value) {
-                    throw new IllegalStateException("parsing dense vector from source is not supported here");
-                }
-            };
-        }
     }
 
     private final DenseVectorIndexOptions indexOptions;

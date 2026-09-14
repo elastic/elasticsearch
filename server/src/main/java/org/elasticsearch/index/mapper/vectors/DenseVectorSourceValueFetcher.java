@@ -9,6 +9,7 @@
 
 package org.elasticsearch.index.mapper.vectors;
 
+import org.elasticsearch.index.mapper.IgnoredSourceFieldMapper.IgnoredSourceFormat;
 import org.elasticsearch.index.mapper.NumberFieldMapper;
 import org.elasticsearch.index.mapper.SourceValueFetcher;
 import org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapper.ElementType;
@@ -22,7 +23,6 @@ import java.nio.ByteBuffer;
 import java.nio.ByteOrder;
 import java.util.ArrayList;
 import java.util.Base64;
-import java.util.Collections;
 import java.util.List;
 import java.util.Set;
 
@@ -46,8 +46,24 @@ class DenseVectorSourceValueFetcher extends SourceValueFetcher {
         int dims,
         VectorFormat format
     ) {
-        super(fieldName, context);
-        this.sourcePaths = context.isSourceEnabled() ? context.sourcePath(fieldName) : Collections.emptySet();
+        this(
+            context.isSourceEnabled() ? context.sourcePath(fieldName) : Set.of(),
+            context.getIndexSettings().getIgnoredSourceFormat(),
+            elementType,
+            dims,
+            format
+        );
+    }
+
+    DenseVectorSourceValueFetcher(
+        Set<String> sourcePaths,
+        IgnoredSourceFormat ignoredSourceFormat,
+        ElementType elementType,
+        int dims,
+        VectorFormat format
+    ) {
+        super(sourcePaths, null, ignoredSourceFormat);
+        this.sourcePaths = sourcePaths;
         this.elementType = elementType;
         this.dims = dims;
         this.format = format;

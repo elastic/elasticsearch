@@ -1,0 +1,87 @@
+// Tests for the TOPK, BOTTOMK and LIMITK aggregation functions (ES|QL analogues of PromQL topk/bottomk/limitk).
+
+topk
+required_capability: fn_topk
+
+// tag::topk[]
+FROM employees
+| STATS top_salaries = TOPK(salary, 3)
+// end::topk[]
+;
+
+// tag::topk-result[]
+top_salaries:integer
+[74999, 74970, 74572]
+// end::topk-result[]
+;
+
+topkByGroup
+required_capability: fn_topk
+
+FROM employees
+| STATS top_salary = TOPK(salary, 2) by still_hired
+| sort still_hired asc
+;
+
+top_salary:integer | still_hired:boolean
+[74999,74970]      | false
+[74572,73578]      | true
+;
+
+bottomk
+required_capability: fn_bottomk
+
+// tag::bottomk[]
+FROM employees
+| STATS bottom_salaries = BOTTOMK(salary, 3)
+// end::bottomk[]
+;
+
+// tag::bottomk-result[]
+bottom_salaries:integer
+[25324, 25945, 25976]
+// end::bottomk-result[]
+;
+
+bottomkByGroup
+required_capability: fn_bottomk
+
+FROM employees
+| STATS bottom_salary = BOTTOMK(salary, 2) by still_hired
+| EVAL n = MV_COUNT(bottom_salary)
+| SORT still_hired asc
+| KEEP still_hired, n
+;
+
+still_hired:boolean | n:integer
+false               | 2
+true                | 2
+;
+
+limitkSize
+required_capability: fn_limitk
+
+FROM employees
+| STATS sample_count = MV_COUNT(LIMITK(salary, 3))
+;
+
+sample_count:integer
+3
+;
+
+limitkValues
+required_capability: fn_limitk
+
+// tag::limitk[]
+FROM employees
+| SORT emp_no
+| LIMIT 3
+| STATS sample = MV_SORT(LIMITK(first_name, 99))
+// end::limitk[]
+;
+
+// tag::limitk-result[]
+sample:keyword
+[Bezalel, Georgi, Parto]
+// end::limitk-result[]
+;

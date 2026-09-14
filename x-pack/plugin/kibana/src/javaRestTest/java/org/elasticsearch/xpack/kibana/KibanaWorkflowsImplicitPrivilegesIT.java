@@ -40,6 +40,11 @@ public class KibanaWorkflowsImplicitPrivilegesIT extends ESRestTestCase {
     private static final String MANAGED_USER = "wf_managed_reader";
     private static final String MANAGED_USER_PASSWORD = "wf-managed-password";
 
+    private static final String BROAD_READ_USER = "wf_broad_reader";
+    private static final String BROAD_READ_USER_PASSWORD = "wf-broad-read-password";
+    private static final String BROAD_ALL_USER = "wf_broad_all";
+    private static final String BROAD_ALL_USER_PASSWORD = "wf-broad-all-password";
+
     private static final String KIBANA_APPLICATION = "kibana-.kibana";
     private static final String EXEC_READ_PRIVILEGE = "feature_wf_exec.read";
     private static final String EXEC_READ_MANAGED_PRIVILEGE = "feature_wf_exec_managed.read";
@@ -91,6 +96,33 @@ public class KibanaWorkflowsImplicitPrivilegesIT extends ESRestTestCase {
         assertUserSeesStepDocuments(MANAGED_USER, MANAGED_USER_PASSWORD, 3);
     }
 
+    public void testExplicitReadOnAllIndicesOverridesImplicitDlsAndFls() throws Exception {
+        putRoleWithBroadIndexPrivilege("wf_broad_read_role", EXEC_READ_PRIVILEGE, "space:marketing", "read");
+        putUser(BROAD_READ_USER, BROAD_READ_USER_PASSWORD, "wf_broad_read_role");
+
+        final List<Map<String, Object>> executionHits = searchAs(BROAD_READ_USER, BROAD_READ_USER_PASSWORD, EXECUTIONS_INDEX);
+        assertThat(executionHits, hasSize(4));
+        assertTrue(executionHits.stream().anyMatch(hit -> "finance".equals(source(hit).get("spaceId"))));
+        assertTrue(executionHits.stream().anyMatch(hit -> Boolean.TRUE.equals(source(hit).get("managed"))));
+        assertTrue(executionHits.stream().allMatch(hit -> source(hit).containsKey("workflowDefinition")));
+
+        assertThat(searchAs(BROAD_READ_USER, BROAD_READ_USER_PASSWORD, STEP_EXECUTIONS_INDEX), hasSize(4));
+    }
+
+    public void testExplicitAllOnAllIndicesCanDeleteExecutionData() throws Exception {
+        putRoleWithBroadIndexPrivilege("wf_broad_all_role", EXEC_READ_PRIVILEGE, "space:marketing", "all");
+        putUser(BROAD_ALL_USER, BROAD_ALL_USER_PASSWORD, "wf_broad_all_role");
+
+        final Request request = new Request("DELETE", "/" + EXECUTIONS_INDEX + "/_doc/marketing-non-managed");
+        request.addParameter("refresh", "true");
+        request.setOptions(
+            RequestOptions.DEFAULT.toBuilder().addHeader("Authorization", basicAuth(BROAD_ALL_USER, BROAD_ALL_USER_PASSWORD))
+        );
+        final Response response = client().performRequest(request);
+        assertOK(response);
+        assertThat(entityAsMap(response).get("result"), equalTo("deleted"));
+    }
+
     private void putPrivilege(String name, String action) throws Exception {
         final Request request = new Request("PUT", "/_security/privilege");
         request.setJsonEntity(Strings.format("""
@@ -136,6 +168,30 @@ public class KibanaWorkflowsImplicitPrivilegesIT extends ESRestTestCase {
               ]
             }
             """, KIBANA_APPLICATION, EXEC_READ_PRIVILEGE, EXEC_READ_MANAGED_PRIVILEGE, resource));
+        assertOK(client().performRequest(request));
+    }
+
+    private void putRoleWithBroadIndexPrivilege(String roleName, String privilegeName, String resource, String indexPrivilege)
+        throws Exception {
+        final Request request = new Request("PUT", "/_security/role/" + roleName);
+        request.setJsonEntity(Strings.format("""
+            {
+              "cluster": [],
+              "indices": [
+                {
+                  "names": ["*"],
+                  "privileges": ["%s"]
+                }
+              ],
+              "applications": [
+                {
+                  "application": "%s",
+                  "privileges": ["%s"],
+                  "resources": ["%s"]
+                }
+              ]
+            }
+            """, indexPrivilege, KIBANA_APPLICATION, privilegeName, resource));
         assertOK(client().performRequest(request));
     }
 
@@ -306,6 +362,21 @@ public class KibanaWorkflowsImplicitPrivilegesIT extends ESRestTestCase {
         final List<Map<String, Object>> hitList = (List<Map<String, Object>>) hits.get("hits");
         assertThat(hitList, hasSize(expectedCount));
         assertEsqlSeesSameDocuments(username, password, STEP_EXECUTIONS_INDEX, hitList);
+    }
+
+    @SuppressWarnings("unchecked")
+    private List<Map<String, Object>> searchAs(String username, String password, String index) throws Exception {
+        final Request request = new Request("GET", "/" + index + "/_search");
+        request.setOptions(RequestOptions.DEFAULT.toBuilder().addHeader("Authorization", basicAuth(username, password)));
+        final Response response = client().performRequest(request);
+        assertOK(response);
+        final Map<String, Object> hits = (Map<String, Object>) entityAsMap(response).get("hits");
+        return (List<Map<String, Object>>) hits.get("hits");
+    }
+
+    @SuppressWarnings("unchecked")
+    private static Map<String, Object> source(Map<String, Object> hit) {
+        return (Map<String, Object>) hit.get("_source");
     }
 
     @SuppressWarnings("unchecked")

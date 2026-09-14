@@ -37,6 +37,12 @@ if (!s3PermanentAccessKey && !s3PermanentSecretKey && !s3PermanentBucket && !s3P
 }
 
 tasks.named("test").configure {
+  if (useFixture) {
+    // The MinIO docker image is currently unavailable; skip fixture-based tests.
+    // See also https://github.com/elastic/elasticsearch/issues/159130
+    // Tests still run when real S3 credentials are supplied via environment variables.
+    enabled = false
+  }
   systemProperty("tests.use.fixture", Boolean.toString(useFixture))
   systemProperty 'test.s3.account', s3PermanentAccessKey
   systemProperty 'test.s3.key', s3PermanentSecretKey

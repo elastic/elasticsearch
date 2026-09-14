@@ -84,6 +84,7 @@ import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.is;
+import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.nullValue;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyLong;
@@ -280,6 +281,119 @@ public class DatafeedJobTests extends ESTestCase {
         assertThat(capturedFlushJobRequests.get(1).getSkipTime(), is(nullValue()));
         assertThat(capturedFlushJobRequests.get(1).getAdvanceTime(), equalTo("11000"));
         Mockito.verifyNoMoreInteractions(dataExtractorFactory);
+    }
+
+    public void testEsqlDatafeedSkipsStaleEmptyBuckets() throws Exception {
+        long bucketSpanMs = 60_000L;
+        long latestFinalBucketEndTimeMs = 60_000L;
+        long latestRecordTimeMs = 60_000_000_000L;
+        currentTime = 70_000_000_000L;
+
+        long frequencyMs = 60_000L;
+        long queryDelayMs = 0L;
+        DatafeedJob datafeedJob = createDatafeedJob(
+            frequencyMs,
+            queryDelayMs,
+            latestFinalBucketEndTimeMs,
+            latestRecordTimeMs,
+            false,
+            DELAYED_DATA_CHECK_FREQ.get(Settings.EMPTY).millis(),
+            new CrossClusterSearchStats(() -> Instant.ofEpochMilli(currentTime)),
+            bucketSpanMs,
+            true
+        );
+
+        datafeedJob.runRealtime();
+        List<FlushJobAction.Request> capturedFlushJobRequests = flushJobRequests.getAllValues();
+        assertThat(capturedFlushJobRequests.size(), equalTo(2));
+        assertThat(capturedFlushJobRequests.get(0).getSkipTime(), equalTo("59400000001"));
+        assertThat(capturedFlushJobRequests.get(0).getCalcInterim(), is(false));
+        assertThat(capturedFlushJobRequests.get(0).getAdvanceTime(), is(nullValue()));
+        assertThat(capturedFlushJobRequests.get(1).getAdvanceTime(), equalTo("69999960000"));
+        assertThat(capturedFlushJobRequests.get(1).getCalcInterim(), is(true));
+        assertThat(capturedFlushJobRequests.get(1).getSkipTime(), is(nullValue()));
+    }
+
+    public void testEsqlDatafeedDoesNotSkipWhenGapWithinCap() throws Exception {
+        long bucketSpanMs = 60_000L;
+        long latestFinalBucketEndTimeMs = 60_000L;
+        long latestRecordTimeMs = 60_000L + 5_000L * bucketSpanMs;
+        currentTime = latestRecordTimeMs + 2 * 60_000L;
+
+        long frequencyMs = 60_000L;
+        long queryDelayMs = 0L;
+        DatafeedJob datafeedJob = createDatafeedJob(
+            frequencyMs,
+            queryDelayMs,
+            latestFinalBucketEndTimeMs,
+            latestRecordTimeMs,
+            false,
+            DELAYED_DATA_CHECK_FREQ.get(Settings.EMPTY).millis(),
+            new CrossClusterSearchStats(() -> Instant.ofEpochMilli(currentTime)),
+            bucketSpanMs,
+            true
+        );
+
+        datafeedJob.runRealtime();
+
+        List<FlushJobAction.Request> capturedFlushJobRequests = flushJobRequests.getAllValues();
+        assertThat(capturedFlushJobRequests.size(), equalTo(1));
+        assertThat(capturedFlushJobRequests.get(0).getSkipTime(), is(nullValue()));
+        assertThat(capturedFlushJobRequests.get(0).getAdvanceTime(), is(not(nullValue())));
+    }
+
+    public void testEsqlDatafeedDoesNotSkipWhenNoFinalizedBucket() throws Exception {
+        long bucketSpanMs = 60_000L;
+        long latestFinalBucketEndTimeMs = -1L;
+        long latestRecordTimeMs = 60_000_000_000L;
+        currentTime = 70_000_000_000L;
+
+        long frequencyMs = 60_000L;
+        long queryDelayMs = 0L;
+        DatafeedJob datafeedJob = createDatafeedJob(
+            frequencyMs,
+            queryDelayMs,
+            latestFinalBucketEndTimeMs,
+            latestRecordTimeMs,
+            false,
+            DELAYED_DATA_CHECK_FREQ.get(Settings.EMPTY).millis(),
+            new CrossClusterSearchStats(() -> Instant.ofEpochMilli(currentTime)),
+            bucketSpanMs,
+            true
+        );
+
+        datafeedJob.runRealtime();
+
+        List<FlushJobAction.Request> capturedFlushJobRequests = flushJobRequests.getAllValues();
+        assertThat(capturedFlushJobRequests.size(), equalTo(1));
+        assertThat(capturedFlushJobRequests.get(0).getSkipTime(), is(nullValue()));
+    }
+
+    public void testNonEsqlDatafeedDoesNotSkipEvenWithLargeGap() throws Exception {
+        long bucketSpanMs = 60_000L;
+        long latestFinalBucketEndTimeMs = 60_000L;
+        long latestRecordTimeMs = 60_000_000_000L;
+        currentTime = 70_000_000_000L;
+
+        long frequencyMs = 60_000L;
+        long queryDelayMs = 0L;
+        DatafeedJob datafeedJob = createDatafeedJob(
+            frequencyMs,
+            queryDelayMs,
+            latestFinalBucketEndTimeMs,
+            latestRecordTimeMs,
+            false,
+            DELAYED_DATA_CHECK_FREQ.get(Settings.EMPTY).millis(),
+            new CrossClusterSearchStats(() -> Instant.ofEpochMilli(currentTime)),
+            bucketSpanMs,
+            false
+        );
+
+        datafeedJob.runRealtime();
+
+        List<FlushJobAction.Request> capturedFlushJobRequests = flushJobRequests.getAllValues();
+        assertThat(capturedFlushJobRequests.size(), equalTo(1));
+        assertThat(capturedFlushJobRequests.get(0).getSkipTime(), is(nullValue()));
     }
 
     public void testRealtimeRun() throws Exception {
@@ -1241,7 +1355,9 @@ public class DatafeedJobTests extends ESTestCase {
             crossClusterSearchStats,
             "test-datafeed",
             null,
-            null
+            null,
+            1L,
+            false
         );
     }
 
@@ -1265,7 +1381,9 @@ public class DatafeedJobTests extends ESTestCase {
             crossClusterSearchStats,
             "datafeed-" + jobId,
             null,
-            cloudCredentialId
+            cloudCredentialId,
+            1L,
+            false
         );
     }
 
@@ -1290,7 +1408,36 @@ public class DatafeedJobTests extends ESTestCase {
             crossClusterSearchStats,
             datafeedId,
             projectRouting,
-            null
+            null,
+            1L,
+            false
+        );
+    }
+
+    private DatafeedJob createDatafeedJob(
+        long frequencyMs,
+        long queryDelayMs,
+        long latestFinalBucketEndTimeMs,
+        long latestRecordTimeMs,
+        boolean haveSeenDataPreviously,
+        long delayedDataFreq,
+        CrossClusterSearchStats crossClusterSearchStats,
+        long bucketSpanMs,
+        boolean isEsqlDatafeed
+    ) {
+        return createDatafeedJob(
+            frequencyMs,
+            queryDelayMs,
+            latestFinalBucketEndTimeMs,
+            latestRecordTimeMs,
+            haveSeenDataPreviously,
+            delayedDataFreq,
+            crossClusterSearchStats,
+            "test-datafeed",
+            null,
+            null,
+            bucketSpanMs,
+            isEsqlDatafeed
         );
     }
 
@@ -1304,7 +1451,9 @@ public class DatafeedJobTests extends ESTestCase {
         CrossClusterSearchStats crossClusterSearchStats,
         String datafeedId,
         String projectRouting,
-        String cloudCredentialId
+        String cloudCredentialId,
+        long bucketSpanMs,
+        boolean isEsqlDatafeed
     ) {
         Supplier<Long> currentTimeSupplier = () -> currentTime;
         return new DatafeedJob(
@@ -1327,6 +1476,8 @@ public class DatafeedJobTests extends ESTestCase {
             latestRecordTimeMs,
             haveSeenDataPreviously,
             delayedDataFreq,
+            bucketSpanMs,
+            isEsqlDatafeed,
             crossClusterSearchStats
         );
     }

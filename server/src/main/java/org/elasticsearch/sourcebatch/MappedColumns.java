@@ -19,14 +19,17 @@ import org.apache.lucene.document.column.ObjectTupleCursor;
 import org.apache.lucene.index.IndexableField;
 import org.apache.lucene.index.IndexableFieldType;
 import org.apache.lucene.search.DocIdSetIterator;
+import org.apache.lucene.util.BitSetIterator;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.FixedBitSet;
 import org.elasticsearch.common.util.ByteUtils;
 import org.elasticsearch.escf.LuceneLongColumn;
+import org.elasticsearch.sourcebatch.LuceneColumn.FilteredIterator;
 
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Objects;
+import java.util.function.IntSupplier;
 
 import static org.elasticsearch.escf.EscfColumn.windowValidity;
 
@@ -100,7 +103,7 @@ public final class MappedColumns {
         for (LuceneColumn c : columns) {
             filtered.add(c.withFilter(filter));
         }
-        return new MappedColumns(offset, count, seqNos, primaryTerms, versions, filtered);
+        return new MappedColumns(offset, filter.cardinality(), seqNos, primaryTerms, versions, filtered);
     }
 
     public ColumnBatch toColumnBatch() {
@@ -228,7 +231,7 @@ public final class MappedColumns {
             boolean noOpRowPath,
             FixedBitSet filter
         ) {
-            super(name, fieldType, filter != null ? Density.SPARSE : (allPresent(values, from, count) ? Density.DENSE : Density.SPARSE));
+            super(name, fieldType, allPresent(values, from, count) ? Density.DENSE : Density.SPARSE);
             this.values = values;
             this.from = from;
             this.count = count;
@@ -300,18 +303,19 @@ public final class MappedColumns {
             final BytesRef sentinel = new BytesRef(); // placeholder; overwritten in appendCurrentFields
             final Field field = new Field(name(), sentinel, fieldType);
             return new LuceneColumn.RowFieldCursor() {
-                private int doc = DocIdSetIterator.NO_MORE_DOCS;
                 private int srcIdx = from - 1;
+                private final FilteredIterator fi = filter != null ? new FilteredIterator(filter) : null;
+                private final int end = from + count;
+                private final IntSupplier advance = () -> {
+                    do {
+                        srcIdx++;
+                    } while (srcIdx < end && values[srcIdx] == null);
+                    return srcIdx < end ? srcIdx - from : DocIdSetIterator.NO_MORE_DOCS;
+                };
 
                 @Override
                 public int nextDoc() {
-                    srcIdx++;
-                    final int end = from + count;
-                    while (srcIdx < end && (values[srcIdx] == null || (filter != null && filter.get(srcIdx - from) == false))) {
-                        srcIdx++;
-                    }
-                    doc = srcIdx < end ? srcIdx - from : DocIdSetIterator.NO_MORE_DOCS;
-                    return doc;
+                    return fi == null ? advance.getAsInt() : fi.nextDoc(advance);
                 }
 
                 @Override
@@ -324,18 +328,42 @@ public final class MappedColumns {
 
         @Override
         public ObjectTupleCursor<BytesRef> tuples() {
-            // srcIdx tracks position in the full backing array; doc is the batch-local id.
+            if (filter == null) {
+                // srcIdx tracks position in the full backing array; doc is the batch-local id.
+                return new ObjectTupleCursor<>() {
+                    private int srcIdx = from - 1;
+
+                    @Override
+                    public int nextDoc() {
+                        srcIdx++;
+                        final int end = from + count;
+                        while (srcIdx < end && values[srcIdx] == null) {
+                            srcIdx++;
+                        }
+                        return srcIdx < end ? srcIdx - from : DocIdSetIterator.NO_MORE_DOCS;
+                    }
+
+                    @Override
+                    public BytesRef value() {
+                        return values[srcIdx];
+                    }
+                };
+            }
+            // With filter: co-iterate srcIdx with filter bits, emitting compact doc IDs (0-based rank).
             return new ObjectTupleCursor<>() {
                 private int srcIdx = from - 1;
+                private final FilteredIterator fi = new FilteredIterator(filter);
+                private final int end = from + count;
+                private final IntSupplier advance = () -> {
+                    do {
+                        srcIdx++;
+                    } while (srcIdx < end && values[srcIdx] == null);
+                    return srcIdx < end ? srcIdx - from : DocIdSetIterator.NO_MORE_DOCS;
+                };
 
                 @Override
                 public int nextDoc() {
-                    srcIdx++;
-                    final int end = from + count;
-                    while (srcIdx < end && (values[srcIdx] == null || (filter != null && filter.get(srcIdx - from) == false))) {
-                        srcIdx++;
-                    }
-                    return srcIdx >= end ? DocIdSetIterator.NO_MORE_DOCS : srcIdx - from;
+                    return fi.nextDoc(advance);
                 }
 
                 @Override
@@ -349,6 +377,18 @@ public final class MappedColumns {
         public BytesRefValuesCursor values() {
             if (density() == Density.SPARSE) {
                 return super.values(); // throws; never consulted for SPARSE columns
+            }
+            if (filter != null) {
+                // Dense with filter: emit M values at filter-bit positions.
+                final int m = filter.cardinality();
+                return new BytesRefValuesCursor(m) {
+                    private final BitSetIterator bits = new BitSetIterator(filter, m);
+
+                    @Override
+                    public BytesRef nextValue() {
+                        return values[from + bits.nextDoc()];
+                    }
+                };
             }
             return new BytesRefValuesCursor(count) {
                 private int pos;

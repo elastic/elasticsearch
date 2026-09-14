@@ -173,7 +173,8 @@ public class LuceneLongColumnTests extends ESTestCase {
         filter.set(3);
         LuceneLongColumn filtered = col.withFilter(filter);
         Map<Integer, Long> result = drainTuples(filtered);
-        assertEquals(Map.of(1, 20L, 3, 40L), result);
+        // Filter passes original docs 1 and 3; compact IDs are 0 and 1.
+        assertEquals(Map.of(0, 20L, 1, 40L), result);
     }
 
     public void testFilterDenseColumnRowCursor() {
@@ -183,10 +184,12 @@ public class LuceneLongColumnTests extends ESTestCase {
         filter.set(4);
         LuceneLongColumn filtered = col.withFilter(filter);
         Map<Integer, Long> result = drainRowCursor(filtered.rowFieldCursor());
-        assertEquals(Map.of(0, 10L, 4, 50L), result);
+        // rowFieldCursor() delegates to tuples(), which returns compact IDs 0 and 1.
+        assertEquals(Map.of(0, 10L, 1, 50L), result);
     }
 
-    public void testFilterForcesSparseDensity() {
+    public void testFilterAllPresentDenseColumnStaysDense() {
+        // A dense column with a non-null filter should stay DENSE (density is data-driven, not filter-driven).
         LuceneLongColumn col = buildDenseColumn(1L, 2L, 3L);
         assertEquals(Column.Density.DENSE, col.density());
         FixedBitSet filter = new FixedBitSet(3);
@@ -194,7 +197,7 @@ public class LuceneLongColumnTests extends ESTestCase {
         filter.set(1);
         filter.set(2);
         LuceneLongColumn filtered = col.withFilter(filter);
-        assertEquals(Column.Density.SPARSE, filtered.density());
+        assertEquals(Column.Density.DENSE, filtered.density());
     }
 
     public void testFilterEmptyResultWhenNoDocsPass() {
@@ -242,6 +245,7 @@ public class LuceneLongColumnTests extends ESTestCase {
 
     public void testFilterSparseColumnIntersectsValidity() {
         // Docs 1 and 3 have data; filter passes docs 0, 1, 2. Intersection: only doc 1.
+        // Doc 1 aligns with filter bit 1 (rank 1 in {0,1,2}), so compact ID is 1.
         LuceneLongColumn col = buildSparseColumn(5, new int[] { 1, 3 }, new long[] { 100L, 300L });
         FixedBitSet filter = new FixedBitSet(5);
         filter.set(0);
@@ -267,7 +271,7 @@ public class LuceneLongColumnTests extends ESTestCase {
 
     public void testSliceWindowsFilterCorrectly() {
         // 6 docs, filter passes docs {1, 3, 5}. slice(2, 4) → docs 2,3,4,5 become local 0,1,2,3.
-        // Doc 1 is before the window; docs 3 and 5 land at local 1 and 3.
+        // Doc 1 is before the window; docs 3 and 5 land at local 1 and 3. Compact IDs are 0 and 1.
         LuceneLongColumn col = buildDenseColumn(10L, 20L, 30L, 40L, 50L, 60L);
         FixedBitSet filter = new FixedBitSet(6);
         filter.set(1);
@@ -276,7 +280,7 @@ public class LuceneLongColumnTests extends ESTestCase {
         LuceneLongColumn filtered = col.withFilter(filter);
         LuceneLongColumn sliced = filtered.slice(2, 4);
         Map<Integer, Long> result = drainTuples(sliced);
-        assertEquals(Map.of(1, 40L, 3, 60L), result);
+        assertEquals(Map.of(0, 40L, 1, 60L), result);
     }
 
     public void testSliceWithFilterThatCoversAllSliceDocsBecomesNull() {

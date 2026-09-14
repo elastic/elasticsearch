@@ -267,7 +267,8 @@ public class LuceneBinaryColumnTests extends ESTestCase {
         filter.set(1);
         filter.set(3);
         Map<Integer, List<String>> result = drainTupleCursor(col.withFilter(filter));
-        assertEquals(Map.of(1, List.of("b"), 3, List.of("d")), result);
+        // Filter passes original docs 1 and 3; compact IDs are 0 and 1.
+        assertEquals(Map.of(0, List.of("b"), 1, List.of("d")), result);
     }
 
     public void testFilterStringColumnRowCursor() {
@@ -276,16 +277,18 @@ public class LuceneBinaryColumnTests extends ESTestCase {
         filter.set(0);
         filter.set(4);
         Map<Integer, List<String>> result = drainRowCursor(col.withFilter(filter).rowFieldCursor());
-        assertEquals(Map.of(0, List.of("a"), 4, List.of("e")), result);
+        // rowFieldCursor() uses co-iteration, so compact IDs 0 and 1 for original docs 0 and 4.
+        assertEquals(Map.of(0, List.of("a"), 1, List.of("e")), result);
     }
 
-    public void testFilterForcesSparseDensity() {
+    public void testFilterAllPresentDenseColumnStaysDense() {
+        // A dense column with a non-null all-set filter should stay DENSE (density is data-driven).
         LuceneBinaryColumn col = buildStringColumn("x", "y");
         assertEquals(Column.Density.DENSE, col.density());
         FixedBitSet filter = new FixedBitSet(2);
         filter.set(0);
         filter.set(1);
-        assertEquals(Column.Density.SPARSE, col.withFilter(filter).density());
+        assertEquals(Column.Density.DENSE, col.withFilter(filter).density());
     }
 
     public void testFilterEmptyResult() {
@@ -327,6 +330,7 @@ public class LuceneBinaryColumnTests extends ESTestCase {
     /** Filter on an array column: doc-level filter excludes all elements of filtered-out docs. */
     public void testFilterArrayColumnTupleCursor() {
         // doc 0: ["x","y"], doc 1: ["only"], doc 2: ["p","q","r"]. Filter passes docs {0, 2}.
+        // Compact IDs: original doc 0 → compact 0, original doc 2 → compact 1.
         LuceneBinaryColumn col = buildArrayColumn(3, new int[] { 0, 0, 1, 2, 2, 2 }, new String[] { "x", "y", "only", "p", "q", "r" });
         FixedBitSet filter = new FixedBitSet(3);
         filter.set(0);
@@ -334,8 +338,8 @@ public class LuceneBinaryColumnTests extends ESTestCase {
         Map<Integer, List<String>> result = drainTupleCursor(col.withFilter(filter));
         assertEquals(2, result.size());
         assertEquals(List.of("x", "y"), result.get(0));
-        assertEquals(List.of("p", "q", "r"), result.get(2));
-        assertNull("doc 1 filtered out", result.get(1));
+        assertEquals(List.of("p", "q", "r"), result.get(1));
+        assertNull("doc 2 (compact 1) is present; original key 2 absent from map", result.get(2));
     }
 
     /** Filter on array column's row cursor agrees with tuple cursor. */
@@ -351,7 +355,7 @@ public class LuceneBinaryColumnTests extends ESTestCase {
     /** slice() on a filtered column correctly windows the filter bitset. */
     public void testFilteredSliceWindowsFilter() {
         // 6 docs, filter passes {1, 3, 5}. slice(2, 4) → docs 2..5 become local 0..3.
-        // Original docs 3 and 5 land at local 1 and 3.
+        // Original docs 3 and 5 land at local 1 and 3; compact IDs are 0 and 1.
         LuceneBinaryColumn col = buildStringColumn("a", "b", "c", "d", "e", "f");
         FixedBitSet filter = new FixedBitSet(6);
         filter.set(1);
@@ -359,7 +363,7 @@ public class LuceneBinaryColumnTests extends ESTestCase {
         filter.set(5);
         LuceneBinaryColumn sliced = col.withFilter(filter).slice(2, 4);
         Map<Integer, List<String>> result = drainTupleCursor(sliced);
-        assertEquals(Map.of(1, List.of("d"), 3, List.of("f")), result);
+        assertEquals(Map.of(0, List.of("d"), 1, List.of("f")), result);
     }
 
     /** slice() whose window has all filter bits set produces a null windowed filter → DENSE. */

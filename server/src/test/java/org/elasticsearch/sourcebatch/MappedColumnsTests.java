@@ -148,7 +148,7 @@ public class MappedColumnsTests extends ESTestCase {
     }
 
     public void testWithFilterBinaryColumnFiltersCorrectly() {
-        // 4 docs "a".."d"; filter passes docs 1 and 3
+        // 4 docs "a".."d"; filter passes original docs 1 and 3 → compact batch of M=2.
         BytesRef[] values = { new BytesRef("a"), new BytesRef("b"), new BytesRef("c"), new BytesRef("d") };
         BytesRef seqNos = new BytesRef(new byte[4 * 8]);
         BytesRef primaryTerms = new BytesRef(new byte[4 * 8]);
@@ -167,12 +167,15 @@ public class MappedColumnsTests extends ESTestCase {
         filter.set(3);
         MappedColumns filtered = mc.withFilter(filter);
 
-        assertEquals(Map.of(1, new BytesRef("b"), 3, new BytesRef("d")), drainBinaryTuples(filtered));
-        assertEquals(Map.of(1, new BytesRef("b"), 3, new BytesRef("d")), drainBinaryRowCursor(filtered));
+        assertEquals(2, filtered.docCount());
+        // tuples() emits compact IDs 0 and 1 for the two passing docs
+        assertEquals(Map.of(0, new BytesRef("b"), 1, new BytesRef("d")), drainBinaryTuples(filtered));
+        // rowFieldCursor() must also emit compact IDs (exercises WindowedBinaryColumn's filtered row path)
+        assertEquals(Map.of(0, new BytesRef("b"), 1, new BytesRef("d")), drainBinaryRowCursor(filtered));
     }
 
-    public void testWithFilterBinaryColumnForcesSparse() {
-        // All docs present with all-set filter — should still be SPARSE (filter non-null → SPARSE).
+    public void testWithFilterBinaryColumnAllPresentStaysDense() {
+        // All docs present with all-set filter — density should remain DENSE (filter preserves data density).
         BytesRef[] values = { new BytesRef("x"), new BytesRef("y") };
         BytesRef seqNos = new BytesRef(new byte[2 * 8]);
         BytesRef primaryTerms = new BytesRef(new byte[2 * 8]);
@@ -190,7 +193,8 @@ public class MappedColumnsTests extends ESTestCase {
         filter.set(0);
         filter.set(1);
         MappedColumns filtered = mc.withFilter(filter);
-        assertEquals(Column.Density.SPARSE, filtered.toColumnBatch().columns().iterator().next().density());
+        assertEquals(2, filtered.docCount());
+        assertEquals(Column.Density.DENSE, filtered.toColumnBatch().columns().iterator().next().density());
     }
 
     public void testWithFilterNullReturnsSelf() {
@@ -229,11 +233,14 @@ public class MappedColumnsTests extends ESTestCase {
         filter.set(2);
         MappedColumns filtered = mc.withFilter(filter);
 
-        assertEquals(Map.of(0, 10L, 2, 30L), drainLongTuples(filtered));
+        assertEquals(2, filtered.docCount());
+        // tuples() emits compact IDs: original doc 0 → compact 0, original doc 2 → compact 1
+        assertEquals(Map.of(0, 10L, 1, 30L), drainLongTuples(filtered));
     }
 
-    public void testWithFilterSlicePreservesFilter() {
-        // 6 docs "a".."f"; filter passes {1, 3, 5}; slice [2, 6) → filter windowed to {1, 3}.
+    public void testSliceThenWithFilterCompactIDs() {
+        // 6 docs "a".."f"; slice [2, 6) → docs "c","d","e","f"; filter passes local positions {1, 3}
+        // → compact batch of M=2 with values "d" and "f".
         BytesRef[] values = {
             new BytesRef("a"),
             new BytesRef("b"),
@@ -253,14 +260,16 @@ public class MappedColumnsTests extends ESTestCase {
             List.of(MappedColumns.binaryColumn(values, "field", BINARY_FIELD_TYPE))
         );
 
-        FixedBitSet filter = new FixedBitSet(6);
-        filter.set(1);
-        filter.set(3);
-        filter.set(5);
-        // slice(2, 6) → docs 2,3,4,5 become local 0,1,2,3; only original docs 3 and 5 pass filter
-        MappedColumns sliced = mc.withFilter(filter).slice(2, 6);
+        // slice first (production order), then filter
+        MappedColumns sliced = mc.slice(2, 6);
+        FixedBitSet filter = new FixedBitSet(4);
+        filter.set(1); // local position 1 = original doc 3 = "d"
+        filter.set(3); // local position 3 = original doc 5 = "f"
+        MappedColumns filtered = sliced.withFilter(filter);
 
-        assertEquals(Map.of(1, new BytesRef("d"), 3, new BytesRef("f")), drainBinaryTuples(sliced));
+        assertEquals(2, filtered.docCount());
+        // tuples() emits compact IDs: local doc 1 → compact 0 ("d"), local doc 3 → compact 1 ("f")
+        assertEquals(Map.of(0, new BytesRef("d"), 1, new BytesRef("f")), drainBinaryTuples(filtered));
     }
 
     public void testWithFilterAllSetWindowBecomesNull() {

@@ -7,9 +7,13 @@
 
 package org.elasticsearch.xpack.esql.qa.csv;
 
+import org.elasticsearch.Version;
 import org.elasticsearch.test.cluster.ElasticsearchCluster;
 import org.elasticsearch.xpack.esql.CsvSpecReader.CsvTestCase;
 import org.elasticsearch.xpack.esql.qa.rest.AbstractExternalSourceSpecTestCase;
+import org.elasticsearch.xpack.esql.qa.rest.BwcMatrixPolicy;
+import org.elasticsearch.xpack.esql.qa.rest.BwcMatrixPolicy.BwcTestId;
+import org.elasticsearch.xpack.esql.qa.rest.EsqlDataSourceMixedClusterTestSupport;
 import org.junit.ClassRule;
 import org.junit.rules.TestRule;
 
@@ -26,10 +30,25 @@ import org.junit.rules.TestRule;
  */
 abstract class AbstractCsvExternalSpecTestCase extends AbstractExternalSourceSpecTestCase {
 
-    public static ElasticsearchCluster cluster = Clusters.testCluster(() -> s3Fixture.getAddress());
+    protected static final BwcMatrixPolicy UNCOMPRESSED_BWC_MATRIX_POLICY = BwcMatrixPolicy.uncompressed(
+        StorageBackend.S3,
+        new BwcTestId("csv-basic.csv-spec", "readAllEmployeesScalar")
+    );
+    protected static final BwcMatrixPolicy COMPRESSED_BWC_MATRIX_POLICY = BwcMatrixPolicy.compressed(
+        StorageBackend.S3,
+        "gzip",
+        new BwcTestId("csv-basic.csv-spec", "readAllEmployeesScalar")
+    );
+
+    public static ElasticsearchCluster cluster = EsqlDataSourceMixedClusterTestSupport.isBwcTest()
+        ? Clusters.bwcTestCluster(() -> s3Fixture.getAddress())
+        : Clusters.testCluster(() -> s3Fixture.getAddress());
 
     @ClassRule
-    public static TestRule ruleChain = chainFixturesBeforeCluster(cluster);
+    public static TestRule ruleChain = chainOuterRuleBeforeFixturesAndCluster(
+        EsqlDataSourceMixedClusterTestSupport.outerBwcGuard(Version.V_9_5_0),
+        cluster
+    );
 
     protected AbstractCsvExternalSpecTestCase(
         String fileName,
@@ -46,6 +65,6 @@ abstract class AbstractCsvExternalSpecTestCase extends AbstractExternalSourceSpe
 
     @Override
     protected String getTestRestCluster() {
-        return cluster.getHttpAddresses();
+        return dataSourceTestClusterAddresses(cluster);
     }
 }

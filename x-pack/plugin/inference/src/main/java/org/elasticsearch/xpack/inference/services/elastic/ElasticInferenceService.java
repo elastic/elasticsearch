@@ -25,7 +25,7 @@ import org.elasticsearch.inference.RerankingInferenceService;
 import org.elasticsearch.inference.SettingsConfiguration;
 import org.elasticsearch.inference.SimilarityMeasure;
 import org.elasticsearch.inference.TaskType;
-import org.elasticsearch.inference.UnifiedCompletionRequest;
+import org.elasticsearch.inference.UnifiedCompletionRequestBody;
 import org.elasticsearch.inference.configuration.SettingsConfigurationFieldType;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.xpack.core.inference.action.InferenceAction;
@@ -201,7 +201,12 @@ public class ElasticInferenceService extends SenderService<ElasticInferenceServi
 
     @Override
     public Set<TaskType> supportedStreamingTasks() {
-        return EnumSet.of(CHAT_COMPLETION);
+        return EnumSet.of(COMPLETION, CHAT_COMPLETION);
+    }
+
+    @Override
+    public boolean supportsNonStreamingChatCompletion() {
+        return true;
     }
 
     @Override
@@ -251,7 +256,7 @@ public class ElasticInferenceService extends SenderService<ElasticInferenceServi
 
         if (mergedReasoning != null && Objects.equals(mergedReasoning, inputs.getRequest().reasoning()) == false) {
             return new UnifiedChatInput(
-                new UnifiedCompletionRequest(
+                new UnifiedCompletionRequestBody(
                     inputs.getRequest().messages(),
                     inputs.getRequest().model(),
                     inputs.getRequest().maxCompletionTokens(),

@@ -34,6 +34,7 @@ import org.elasticsearch.index.SliceIndexing;
 import org.elasticsearch.index.mapper.TimeSeriesRoutingHashFieldMapper;
 import org.elasticsearch.index.mapper.TsidExtractingIdFieldMapper;
 import org.elasticsearch.index.mapper.Uid;
+import org.elasticsearch.index.shard.ShardSplittingQuery;
 import org.elasticsearch.sourcebatch.SourceBatch;
 import org.elasticsearch.transport.Transports;
 import org.elasticsearch.xcontent.XContentParser;
@@ -54,7 +55,7 @@ import static org.elasticsearch.common.xcontent.XContentParserUtils.ensureExpect
 /**
  * Generates the shard id for {@code (id, routing)} pairs.
  */
-public abstract class IndexRouting {
+public abstract sealed class IndexRouting {
 
     static final NodeFeature LOGSB_ROUTE_ON_SORT_FIELDS = new NodeFeature("routing.logsb_route_on_sort_fields");
 
@@ -155,6 +156,23 @@ public abstract class IndexRouting {
      * per request in the same order as {@code requests}.
      */
     public int[] indexShard(IndexRequest[] requests, SourceBatch batch) {
+        return indexShard(requests, batch, null);
+    }
+
+    /**
+     * Batch version of {@link #indexShard(IndexRequest)} with an optional row-subset mapping.
+     *
+     * <p>When {@code rows} is non-null, {@code rows[i]} is the batch row index for {@code requests[i]}.
+     * Callers use this when routing only a subset of a larger batch (e.g. the rows belonging to one
+     * concrete backing index when a TSDB data stream spans multiple).
+     *
+     * <p>When {@code rows} is null the behaviour is identical to {@link #indexShard(IndexRequest[], SourceBatch)}:
+     * {@code requests[i]} is assumed to correspond to row {@code i}.
+     *
+     * @param rows batch row index per request, or null when {@code requests[i]} is row {@code i}
+     */
+    public int[] indexShard(IndexRequest[] requests, SourceBatch batch, @Nullable int[] rows) {
+        assert rows == null || rows.length == requests.length;
         int[] shards = new int[requests.length];
         for (int i = 0; i < requests.length; i++) {
             shards[i] = indexShard(requests[i]);
@@ -229,9 +247,13 @@ public abstract class IndexRouting {
      */
     public void checkIndexSplitAllowed() {}
 
-    /// Returns a predicate that given the document id and a routing value
-    /// returns `true` if the document routes to the provided shard.
-    /// This API is specifically used by [ShardSplittingQuery].
+    /**
+     * Returns a predicate that, given the document id and a routing value,
+     * returns {@code true} if the document routes to the provided shard.
+     * This API is specifically used by {@link ShardSplittingQuery}.
+     * @param shardId the shard whose documents the predicate should match
+     * @return a predicate over (documentId, routingValue) pairs
+     */
     public abstract BiPredicate<String, String> shardMatcherForSplit(int shardId);
 
     /**
@@ -258,7 +280,7 @@ public abstract class IndexRouting {
         return shardId;
     }
 
-    private abstract static class IdAndRoutingOnly extends IndexRouting {
+    private abstract static sealed class IdAndRoutingOnly extends IndexRouting {
         private final boolean routingRequired;
         private final IndexMode indexMode;
         private final boolean sliceEnabled;
@@ -366,7 +388,7 @@ public abstract class IndexRouting {
     /**
      * Strategy for indices that are not partitioned.
      */
-    private static class Unpartitioned extends IdAndRoutingOnly {
+    private static final class Unpartitioned extends IdAndRoutingOnly {
         Unpartitioned(IndexMetadata metadata, RoutingFunction routingFunction, IndexReshardingMetadata reshardingMetadata) {
             super(metadata, routingFunction, reshardingMetadata);
         }
@@ -385,7 +407,7 @@ public abstract class IndexRouting {
     /**
      * Strategy for partitioned indices.
      */
-    private static class Partitioned extends IdAndRoutingOnly {
+    private static final class Partitioned extends IdAndRoutingOnly {
         private final int routingPartitionSize;
 
         Partitioned(IndexMetadata metadata, RoutingFunction routingFunction, IndexReshardingMetadata reshardingMetadata) {
@@ -416,7 +438,7 @@ public abstract class IndexRouting {
     /**
      * Base class for strategies that determine the shard by extracting and hashing fields from the document source.
      */
-    public abstract static class ExtractFromSource extends IndexRouting {
+    public abstract static sealed class ExtractFromSource extends IndexRouting {
         protected final XContentParserConfiguration parserConfig;
         private final IndexMode indexMode;
         private final boolean trackTimeSeriesRoutingHash;
@@ -615,7 +637,7 @@ public abstract class IndexRouting {
          * once in the coordinating node during shard routing and then again in the data node to create the tsid during document parsing.
          * The {@link ForIndexDimensions} strategy avoids this double hashing.
          */
-        public static class ForRoutingPath extends ExtractFromSource {
+        public static final class ForRoutingPath extends ExtractFromSource {
             private final Predicate<String> isRoutingPath;
 
             ForRoutingPath(IndexMetadata metadata, RoutingFunction routingFunction, IndexReshardingMetadata reshardingMetadata) {
@@ -693,7 +715,7 @@ public abstract class IndexRouting {
          * It creates the tsid during routing and makes the routing decision based on the tsid.
          * The tsid gets attached to the index request so that the data node can reuse it instead of rebuilding it.
          */
-        public static class ForIndexDimensions extends ExtractFromSource {
+        public static final class ForIndexDimensions extends ExtractFromSource {
 
             private final Predicate<String> isDimensionField;
 
@@ -761,10 +783,25 @@ public abstract class IndexRouting {
 
             /**
              * Batch routing: computes tsids for all requests in one column-major pass over
-             * {@code batch}.
+             * {@code batch}. Delegates to {@link #indexShard(IndexRequest[], SourceBatch, int[])}.
              */
             @Override
             public int[] indexShard(IndexRequest[] requests, SourceBatch batch) {
+                return indexShard(requests, batch, null);
+            }
+
+            /**
+             * Batch routing with an optional row-subset: computes tsids for the given requests in one
+             * column-major pass over {@code batch}.
+             *
+             * <p>When {@code rows} is non-null, {@code rows[i]} is the batch row index for
+             * {@code requests[i]}. Only those rows contribute to the tsid computation; all other rows
+             * in the batch are silently skipped. Use this when routing the subset of rows that belong
+             * to one concrete backing index of a TSDB data stream that spans multiple generations.
+             */
+            @Override
+            public int[] indexShard(IndexRequest[] requests, SourceBatch batch, @Nullable int[] rows) {
+                assert rows == null || rows.length == requests.length;
                 batchHashes = null;
                 int[] shards = new int[requests.length];
                 int[] hashes = new int[requests.length];
@@ -794,7 +831,7 @@ public abstract class IndexRouting {
                 }
 
                 if (allPreSet == false) {
-                    BytesRef[] tsids = ColumnarTsidCalculator.computeTsids(batch, this::matchesField, creationVersion);
+                    BytesRef[] tsids = ColumnarTsidCalculator.computeTsids(batch, this::matchesField, creationVersion, rows);
                     for (int i = 0; i < requests.length; i++) {
                         requests[i].tsid(tsids[i]);
                         int h = hash(tsids[i]);

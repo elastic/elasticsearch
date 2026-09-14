@@ -420,9 +420,9 @@ public class S3DataSourceValidatorTests extends AbstractDataSourceValidatorTests
     }
 
     /**
-     * The three combinations in which one of the partition settings would be silently ignored. Rejected at
-     * registration only — {@code PartitionConfig.fromConfig} still resolves them leniently so datasets stored
-     * before this validation existed keep reading.
+     * The combinations in which one of the partition settings would be silently ignored. Rejected at registration
+     * only — {@code PartitionConfig.fromConfig} still resolves them leniently so datasets stored before this
+     * validation existed keep reading.
      */
     public void testValidateDatasetRejectsSilentlyIgnoredPartitionSettings() {
         expectThrows(
@@ -431,15 +431,7 @@ public class S3DataSourceValidatorTests extends AbstractDataSourceValidatorTests
         );
         expectThrows(
             ValidationException.class,
-            () -> validator.validateDataset(Map.of(), "s3://b/p", Map.of("partition_detection", "hive", "hive_partitioning", "false"))
-        );
-        expectThrows(
-            ValidationException.class,
             () -> validator.validateDataset(Map.of(), "s3://b/p", Map.of("partition_detection", "none", "partition_path", "{year}"))
-        );
-        expectThrows(
-            ValidationException.class,
-            () -> validator.validateDataset(Map.of(), "s3://b/p", Map.of("hive_partitioning", "false", "partition_path", "{year}"))
         );
         // hive never reads a path template, so storing one would store a setting that does nothing.
         expectThrows(
@@ -448,18 +440,31 @@ public class S3DataSourceValidatorTests extends AbstractDataSourceValidatorTests
         );
     }
 
-    /** hive_partitioning:true asserts nothing — it is the default — so it never contradicts a strategy. */
-    public void testValidateDatasetAcceptsHivePartitioningTrueWithAnyStrategy() {
-        assertEquals(
-            "hive",
-            validator.validateDataset(Map.of(), "s3://b/p", Map.of("partition_detection", "hive", "hive_partitioning", "true"))
-                .get("partition_detection")
-        );
-        assertEquals(
-            "none",
-            validator.validateDataset(Map.of(), "s3://b/p", Map.of("partition_detection", "none", "hive_partitioning", "true"))
-                .get("partition_detection")
-        );
+    /**
+     * {@code hive_partitioning} is a deprecated no-op: any value alongside any {@code partition_detection} is
+     * accepted without error, and a deprecation warning is emitted. The message is value-aware: {@code false} names
+     * the canonical replacement; any other value tells the user to simply remove the key.
+     */
+    public void testValidateDatasetAcceptsHivePartitioningWithAnyStrategy() {
+        // false: names the replacement setting
+        for (Object value : List.of("false", false)) {
+            validator.validateDataset(Map.of(), "s3://b/p", Map.of("partition_detection", "hive", "hive_partitioning", value));
+            assertWarnings(FileDataSourceValidator.HIVE_PARTITIONING_FALSE_DEPRECATION_MESSAGE);
+            validator.validateDataset(Map.of(), "s3://b/p", Map.of("partition_detection", "none", "hive_partitioning", value));
+            assertWarnings(FileDataSourceValidator.HIVE_PARTITIONING_FALSE_DEPRECATION_MESSAGE);
+            // alongside a partition_path (formerly rejected when hive_partitioning:false)
+            validator.validateDataset(Map.of(), "s3://b/p", Map.of("hive_partitioning", value, "partition_path", "{year}"));
+            assertWarnings(FileDataSourceValidator.HIVE_PARTITIONING_FALSE_DEPRECATION_MESSAGE);
+        }
+        // non-false: tells the user to remove the key (canonical booleans plus junk values)
+        for (Object value : List.of("true", true, "yes", "banana")) {
+            validator.validateDataset(Map.of(), "s3://b/p", Map.of("partition_detection", "hive", "hive_partitioning", value));
+            assertWarnings(FileDataSourceValidator.HIVE_PARTITIONING_NOOP_DEPRECATION_MESSAGE);
+            validator.validateDataset(Map.of(), "s3://b/p", Map.of("partition_detection", "none", "hive_partitioning", value));
+            assertWarnings(FileDataSourceValidator.HIVE_PARTITIONING_NOOP_DEPRECATION_MESSAGE);
+            validator.validateDataset(Map.of(), "s3://b/p", Map.of("hive_partitioning", value, "partition_path", "{year}"));
+            assertWarnings(FileDataSourceValidator.HIVE_PARTITIONING_NOOP_DEPRECATION_MESSAGE);
+        }
     }
 
     public void testValidateDatasetSchemeCaseInsensitive() {
@@ -673,9 +678,19 @@ public class S3DataSourceValidatorTests extends AbstractDataSourceValidatorTests
         assertThat(e.getMessage(), containsString("more than once"));
     }
 
+    /**
+     * The raw value is stored as-is (so stored datasets round-trip correctly), and a deprecation warning is emitted.
+     *
+     * <p>Note: {@code assertWarnings} captures the deprecation-log stream, not the HTTP response header.
+     * In production, {@code DatasetService.validatePutDataset} calls {@code validateDataset} twice per PUT (pre-CAS
+     * and inside the CAS task), so the warning fires twice; {@code ThreadContext.putResponse} then deduplicates it to
+     * a single response header. That dedup is not exercised here — it requires a full REST integration test.
+     */
     public void testValidateDatasetHivePartitioning() {
         assertEquals(false, validator.validateDataset(Map.of(), "s3://b/p", Map.of("hive_partitioning", false)).get("hive_partitioning"));
+        assertWarnings(FileDataSourceValidator.HIVE_PARTITIONING_FALSE_DEPRECATION_MESSAGE);
         assertEquals(true, validator.validateDataset(Map.of(), "s3://b/p", Map.of("hive_partitioning", true)).get("hive_partitioning"));
+        assertWarnings(FileDataSourceValidator.HIVE_PARTITIONING_NOOP_DEPRECATION_MESSAGE);
     }
 
     public void testValidateDatasetTargetSplitSize() {
@@ -889,7 +904,7 @@ public class S3DataSourceValidatorTests extends AbstractDataSourceValidatorTests
                 containsString(
                     "known settings: [error_mode, file_exclusions, file_order, file_sort_by, format, hive_partitioning, "
                         + "max_error_ratio, max_errors, max_split_probes, partition_detection, partition_path, "
-                        + "schema_resolution, schema_sample_size, split_probe_window, target_split_size]"
+                        + "schema_resolution, split_probe_window, target_split_size]"
                 )
             )
         );

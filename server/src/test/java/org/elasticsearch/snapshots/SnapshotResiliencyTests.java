@@ -67,6 +67,7 @@ import org.elasticsearch.core.CheckedConsumer;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexNotFoundException;
+import org.elasticsearch.index.engine.Engine;
 import org.elasticsearch.repositories.Repository;
 import org.elasticsearch.repositories.RepositoryData;
 import org.elasticsearch.repositories.blobstore.BlobStoreRepository;
@@ -1198,7 +1199,11 @@ public class SnapshotResiliencyTests extends ESTestCase {
             documentCountVerified.set(true);
         });
 
-        runUntil(documentCountVerified::get, TimeUnit.MINUTES.toMillis(5L));
+        MockLog.assertThatLogger(
+            () -> runUntil(documentCountVerified::get, TimeUnit.MINUTES.toMillis(5L)),
+            Engine.class,
+            new MockLog.UnseenEventExpectation("no failed engine", Engine.class.getName(), Level.WARN, "*failed engine*")
+        );
 
         assertNotNull(safeResult(createSnapshotResponseStepListener));
         assertNotNull(safeResult(restoreSnapshotResponseStepListener));

@@ -822,4 +822,40 @@ public final class DefaultESVectorUtilSupport implements ESVectorUtilSupport {
             }
         }
     }
+
+    @Override
+    public void matrixVectorMultiply(float[] a, int rows, int cols, float[] v, float[] result) {
+        // unroll x4
+        int i = 0;
+        for (; i + 4 <= rows; i += 4) {
+            int a0 = i * cols;
+            int a1 = a0 + cols;
+            int a2 = a0 + cols * 2;
+            int a3 = a0 + cols * 3;
+            float s0 = 0;
+            float s1 = 0;
+            float s2 = 0;
+            float s3 = 0;
+            for (int j = 0; j < cols; j++) {
+                float vj = v[j];
+                s0 = fma(a[a0 + j], vj, s0);
+                s1 = fma(a[a1 + j], vj, s1);
+                s2 = fma(a[a2 + j], vj, s2);
+                s3 = fma(a[a3 + j], vj, s3);
+            }
+            result[i] = s0;
+            result[i + 1] = s1;
+            result[i + 2] = s2;
+            result[i + 3] = s3;
+        }
+        // tail
+        for (; i < rows; i++) {
+            int ai = i * cols;
+            float sum = 0;
+            for (int j = 0; j < cols; j++) {
+                sum = fma(a[ai + j], v[j], sum);
+            }
+            result[i] = sum;
+        }
+    }
 }

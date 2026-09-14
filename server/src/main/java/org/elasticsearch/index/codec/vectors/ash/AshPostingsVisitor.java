@@ -156,7 +156,7 @@ public class AshPostingsVisitor<T> implements IVFVectorsReader.PostingVisitor {
         int nDims = wT.length / originalDim;
 
         // Precompute query projection: queryTransformed[j] = dot(query, wT[j*originalDim .. (j+1)*originalDim))
-        float[] queryTransformed = SvdUtil.matrixVectorMultiply(wT, nDims, originalDim, query);
+        float[] queryTransformed = ESVectorUtil.matrixVectorMultiply(wT, nDims, originalDim, query);
 
         if (queryBitsPerDim > 0) {
             QuantizedQuery qq = quantizeQuery(queryTransformed, nDims, queryBitsPerDim, bitsPerDim);

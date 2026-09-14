@@ -178,4 +178,6 @@ public interface ESVectorUtilSupport {
     float[] matrixMultiply(float[] a, float[] b, int m, int k, int n);
 
     float[] matrixMultiplyTA(float[] aT, float[] b, int m, int k, int n);
+
+    void matrixVectorMultiply(float[] a, int rows, int cols, float[] v, float[] result);
 }

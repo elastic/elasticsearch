@@ -27,6 +27,7 @@ import org.openjdk.jmh.annotations.Scope;
 import org.openjdk.jmh.annotations.Setup;
 import org.openjdk.jmh.annotations.State;
 import org.openjdk.jmh.annotations.Warmup;
+import org.openjdk.jmh.infra.Blackhole;
 
 import java.util.Random;
 import java.util.concurrent.TimeUnit;
@@ -47,22 +48,27 @@ public class MatrixMultiplyBenchmark {
     @Param({ "SCALAR", "PANAMA" })
     VectorImplementation implementation;
 
-    @Param({ "192", "768" })
+    // use an odd number to exercise the tails
+    @Param({ "192", "768", "481" })
     int m;
 
-    @Param({ "192", "768" })
+    @Param({ "192", "768", "481" })
     int k;
 
-    @Param({ "96", "384" })
+    @Param({ "96", "384", "241" })
     int n;
 
     private ESVectorUtilSupport impl;
-    /** A is (m x k), shared by both benchmarks. */
+    /** A is (m x k), shared by all benchmarks. */
     private float[] a;
     /** B for matrixMultiply: (k x n). */
     private float[] bMul;
     /** B for matrixMultiplyTA: (m x n). */
     private float[] bTA;
+    /** V for matrixVectorMultiply: (k). */
+    private float[] vector;
+    /** Result for matrixVectorMultiply: (m). */
+    private float[] vectorResult;
 
     @Setup(Level.Trial)
     public void init() {
@@ -75,6 +81,8 @@ public class MatrixMultiplyBenchmark {
         a = VectorTestUtils.randomFloatVector(random, m * k);
         bMul = VectorTestUtils.randomFloatVector(random, k * n);
         bTA = VectorTestUtils.randomFloatVector(random, m * n);
+        vector = VectorTestUtils.randomFloatVector(random, k);
+        vectorResult = new float[m];
     }
 
     /** C = A @ B, A is (m x k), B is (k x n), C is (m x n). */
@@ -87,5 +95,12 @@ public class MatrixMultiplyBenchmark {
     @Benchmark
     public float[] matrixMultiplyTA() {
         return impl.matrixMultiplyTA(a, bTA, m, k, n);
+    }
+
+    /** C = A @ v, A is (m x k), v is (k), C is (m). */
+    @Benchmark
+    public void matrixVectorMultiply(Blackhole bh) {
+        impl.matrixVectorMultiply(a, m, k, vector, vectorResult);
+        bh.consume(vectorResult);
     }
 }

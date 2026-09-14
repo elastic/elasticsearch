@@ -2539,4 +2539,80 @@ public sealed class PanamaESVectorUtilSupport implements ESVectorUtilSupport per
             acc.intoArray(c, cBase + j, mask);
         }
     }
+
+    @Override
+    public void matrixVectorMultiply(float[] a, int rows, int cols, float[] v, float[] result) {
+        int i = 0;
+        // split aligned so that most of the time it doesn't need to worry about masks at all
+        if (FLOAT_SPECIES.loopBound(cols) == cols) {
+            for (; i + 4 <= rows; i += 4) {
+                matrixVectorMultiply4Aligned(a, i * cols, cols, v, result, i);
+            }
+        } else {
+            for (; i + 4 <= rows; i += 4) {
+                matrixVectorMultiply4Unaligned(a, i * cols, cols, v, result, i);
+            }
+        }
+        // rows tail
+        for (; i < rows; i++) {
+            result[i] = dotProduct(a, i * cols, v, 0, cols);
+        }
+    }
+
+    private static void matrixVectorMultiply4Aligned(float[] a, int aOffset, int cols, float[] v, float[] result, int resultOffset) {
+        final int a0 = aOffset;
+        final int a1 = a0 + cols;
+        final int a2 = a0 + cols * 2;
+        final int a3 = a0 + cols * 3;
+
+        FloatVector sv0 = FloatVector.zero(FLOAT_SPECIES);
+        FloatVector sv1 = FloatVector.zero(FLOAT_SPECIES);
+        FloatVector sv2 = FloatVector.zero(FLOAT_SPECIES);
+        FloatVector sv3 = FloatVector.zero(FLOAT_SPECIES);
+        for (int j = 0; j < cols; j += FLOAT_SPECIES.length()) {
+            FloatVector vv = FloatVector.fromArray(FLOAT_SPECIES, v, j);
+            sv0 = fma(FloatVector.fromArray(FLOAT_SPECIES, a, a0 + j), vv, sv0);
+            sv1 = fma(FloatVector.fromArray(FLOAT_SPECIES, a, a1 + j), vv, sv1);
+            sv2 = fma(FloatVector.fromArray(FLOAT_SPECIES, a, a2 + j), vv, sv2);
+            sv3 = fma(FloatVector.fromArray(FLOAT_SPECIES, a, a3 + j), vv, sv3);
+        }
+
+        result[resultOffset] = sv0.reduceLanes(ADD);
+        result[resultOffset + 1] = sv1.reduceLanes(ADD);
+        result[resultOffset + 2] = sv2.reduceLanes(ADD);
+        result[resultOffset + 3] = sv3.reduceLanes(ADD);
+    }
+
+    private static void matrixVectorMultiply4Unaligned(float[] a, int aOffset, int cols, float[] v, float[] result, int resultOffset) {
+        final int a0 = aOffset;
+        final int a1 = a0 + cols;
+        final int a2 = a0 + cols * 2;
+        final int a3 = a0 + cols * 3;
+
+        final int vectorEnd = FLOAT_SPECIES.loopBound(cols);
+        FloatVector sv0 = FloatVector.zero(FLOAT_SPECIES);
+        FloatVector sv1 = FloatVector.zero(FLOAT_SPECIES);
+        FloatVector sv2 = FloatVector.zero(FLOAT_SPECIES);
+        FloatVector sv3 = FloatVector.zero(FLOAT_SPECIES);
+        int j = 0;
+        for (; j < vectorEnd; j += FLOAT_SPECIES.length()) {
+            FloatVector vv = FloatVector.fromArray(FLOAT_SPECIES, v, j);
+            sv0 = fma(FloatVector.fromArray(FLOAT_SPECIES, a, a0 + j), vv, sv0);
+            sv1 = fma(FloatVector.fromArray(FLOAT_SPECIES, a, a1 + j), vv, sv1);
+            sv2 = fma(FloatVector.fromArray(FLOAT_SPECIES, a, a2 + j), vv, sv2);
+            sv3 = fma(FloatVector.fromArray(FLOAT_SPECIES, a, a3 + j), vv, sv3);
+        }
+
+        final VectorMask<Float> mask = FLOAT_SPECIES.indexInRange(j, cols);
+        FloatVector vv = FloatVector.fromArray(FLOAT_SPECIES, v, j, mask);
+        sv0 = fma(FloatVector.fromArray(FLOAT_SPECIES, a, a0 + j, mask), vv, sv0);
+        sv1 = fma(FloatVector.fromArray(FLOAT_SPECIES, a, a1 + j, mask), vv, sv1);
+        sv2 = fma(FloatVector.fromArray(FLOAT_SPECIES, a, a2 + j, mask), vv, sv2);
+        sv3 = fma(FloatVector.fromArray(FLOAT_SPECIES, a, a3 + j, mask), vv, sv3);
+
+        result[resultOffset] = sv0.reduceLanes(ADD);
+        result[resultOffset + 1] = sv1.reduceLanes(ADD);
+        result[resultOffset + 2] = sv2.reduceLanes(ADD);
+        result[resultOffset + 3] = sv3.reduceLanes(ADD);
+    }
 }

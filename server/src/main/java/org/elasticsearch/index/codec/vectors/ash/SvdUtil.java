@@ -254,7 +254,7 @@ final class SvdUtil {
 
         for (int iter = 0; iter < iterations; iter++) {
             // mv = M @ v
-            matrixVectorMultiply(m, k, k, v, mv);
+            ESVectorUtil.matrixVectorMultiply(m, k, k, v, mv);
             // mtmv = M^T @ mv: row-broadcast so M is read contiguously
             for (int i = 0; i < k; i++) {
                 ESVectorUtil.linearCombination(mv[i], m, i * k, mtmv, 0, k);
@@ -271,7 +271,7 @@ final class SvdUtil {
         }
 
         // Compute ||M @ v|| which approximates sigma_max
-        matrixVectorMultiply(m, k, k, v, mv);
+        ESVectorUtil.matrixVectorMultiply(m, k, k, v, mv);
         return (float) Math.sqrt(ESVectorUtil.dotProduct(mv, mv, k));
     }
 
@@ -371,36 +371,6 @@ final class SvdUtil {
             normalizeColumn(v, j, k, n);
         }
         return transposeMatrix(v, n, k);
-    }
-
-    /**
-     * Computes {@code result = A @ v} where A is a (rows x cols) row-major matrix.
-     *
-     * @param a      flat row-major matrix, length rows*cols
-     * @param rows   number of rows in A
-     * @param cols   number of columns in A (and length of v)
-     * @param v      input vector, length cols
-     * @return output vector, length rows
-     */
-    static float[] matrixVectorMultiply(float[] a, int rows, int cols, float[] v) {
-        float[] result = new float[rows];
-        matrixVectorMultiply(a, rows, cols, v, result);
-        return result;
-    }
-
-    /**
-     * Computes {@code result = A @ v} where A is a (rows x cols) row-major matrix.
-     *
-     * @param a      flat row-major matrix, length rows*cols
-     * @param rows   number of rows in A
-     * @param cols   number of columns in A (and length of v)
-     * @param v      input vector, length cols
-     * @param result output vector, length rows
-     */
-    static void matrixVectorMultiply(float[] a, int rows, int cols, float[] v, float[] result) {
-        for (int i = 0; i < rows; i++) {
-            result[i] = ESVectorUtil.dotProduct(a, i * cols, v, 0, cols);
-        }
     }
 
     /**

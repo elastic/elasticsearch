@@ -57,13 +57,13 @@ import org.elasticsearch.xpack.core.ml.job.messages.Messages;
 import org.elasticsearch.xpack.core.ml.utils.ExceptionsHelper;
 import org.elasticsearch.xpack.core.ml.utils.MlPlatformArchitecturesUtil;
 import org.elasticsearch.xpack.ml.MachineLearning;
+import org.elasticsearch.xpack.ml.MlInitializationService;
 import org.elasticsearch.xpack.ml.autoscaling.NodeAvailabilityZoneMapper;
 import org.elasticsearch.xpack.ml.inference.assignment.planning.AllocationReducer;
 import org.elasticsearch.xpack.ml.job.NodeLoad;
 import org.elasticsearch.xpack.ml.job.NodeLoadDetector;
 import org.elasticsearch.xpack.ml.notifications.SystemAuditor;
 
-import java.io.Closeable;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.HashSet;
@@ -82,7 +82,7 @@ import static org.elasticsearch.xpack.core.ml.action.StartTrainedModelDeployment
 import static org.elasticsearch.xpack.core.ml.inference.assignment.TrainedModelAssignmentUtils.NODES_CHANGED_REASON;
 import static org.elasticsearch.xpack.core.ml.inference.assignment.TrainedModelAssignmentUtils.createShuttingDownRoute;
 
-public class TrainedModelAssignmentClusterService implements ClusterStateListener, Closeable {
+public class TrainedModelAssignmentClusterService implements ClusterStateListener {
 
     private static final Logger logger = LogManager.getLogger(TrainedModelAssignmentClusterService.class);
 
@@ -147,13 +147,6 @@ public class TrainedModelAssignmentClusterService implements ClusterStateListene
             clusterService.getClusterSettings().addSettingsUpdateConsumer(MachineLearning.MAX_ML_NODE_SIZE, this::setMaxMLNodeSize);
             clusterService.getClusterSettings()
                 .addSettingsUpdateConsumer(MachineLearning.ALLOCATED_PROCESSORS_SCALE, this::setAllocatedProcessorsScale);
-            // Periodically refresh observed per-allocation memory from runtime RSS. The task itself is a no-op unless
-            // this node is the elected master, so it is safe to start on every master-eligible node.
-            observedMemoryTask = threadPool.scheduleWithFixedDelay(
-                this::updateObservedMemoryFromStats,
-                OBSERVED_MEMORY_UPDATE_INTERVAL,
-                threadPool.generic()
-            );
         }
     }
 
@@ -181,12 +174,31 @@ public class TrainedModelAssignmentClusterService implements ClusterStateListene
         this.allocatedProcessorsScale = scale;
     }
 
-    @Override
-    public void close() {
-        Scheduler.Cancellable task = observedMemoryTask;
-        if (task != null && task.isCancelled() == false) {
-            task.cancel();
+    /**
+     * Starts the periodic observed-memory sampling task. Called from {@link MlInitializationService#onMaster()} when this
+     * node is elected master. {@link #updateObservedMemoryFromStats()} re-checks master status on every tick, but the task
+     * is only scheduled while this node holds the master role. Idempotent: a second call while running is a no-op.
+     */
+    public synchronized void start() {
+        if (observedMemoryTask == null) {
+            observedMemoryTask = threadPool.scheduleWithFixedDelay(
+                this::updateObservedMemoryFromStats,
+                OBSERVED_MEMORY_UPDATE_INTERVAL,
+                threadPool.generic()
+            );
         }
+    }
+
+    /**
+     * Stops the periodic observed-memory sampling task. Called from {@link MlInitializationService#offMaster()} on master
+     * loss and, via the ML lifecycle listener's {@code beforeStop()}, on node shutdown. A tick already dispatched cannot be
+     * cancelled, so {@link #updateObservedMemoryFromStats()} keeps its own master-election guard.
+     */
+    public synchronized void stop() {
+        if (observedMemoryTask != null && observedMemoryTask.isCancelled() == false) {
+            observedMemoryTask.cancel();
+        }
+        observedMemoryTask = null;
     }
 
     @SuppressForbidden(reason = "legacy usage of unbatched task") // TODO add support for batching here

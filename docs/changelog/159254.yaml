@@ -1,0 +1,5 @@
+area: ES|QL
+issues: []
+pr: 159254
+summary: "ESQL:DS: Pool Parquet heap buffers across files"
+type: enhancement

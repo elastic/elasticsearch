@@ -138,11 +138,6 @@ public class Literal extends LeafExpression implements Accountable, EvaluatorMap
     }
 
     @Override
-    public int sortHash() {
-        return hashCode();
-    }
-
-    @Override
     public boolean equals(Object obj) {
         if (this == obj) {
             return true;

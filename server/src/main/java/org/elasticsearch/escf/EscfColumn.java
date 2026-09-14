@@ -238,7 +238,7 @@ public abstract class EscfColumn implements SliceableColumn {
      * {@code src} is {@code null} (all-present / dense) or when every bit in the window is set (also
      * all-present), preserving the invariant that a {@code null} validity means every document is present.
      */
-    static FixedBitSet windowValidity(FixedBitSet src, int base, int count) {
+    public static FixedBitSet windowValidity(FixedBitSet src, int base, int count) {
         if (src == null) {
             return null;
         }

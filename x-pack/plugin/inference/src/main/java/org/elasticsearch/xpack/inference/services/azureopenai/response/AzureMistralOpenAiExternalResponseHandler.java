@@ -9,7 +9,7 @@ package org.elasticsearch.xpack.inference.services.azureopenai.response;
 
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.inference.InferenceServiceResults;
-import org.elasticsearch.xpack.core.inference.results.StreamingChatCompletionResults;
+import org.elasticsearch.xpack.core.inference.results.StreamingCompletionResults;
 import org.elasticsearch.xpack.inference.external.http.HttpResult;
 import org.elasticsearch.xpack.inference.external.http.retry.BaseResponseHandler;
 import org.elasticsearch.xpack.inference.external.http.retry.ContentTooLargeException;
@@ -71,7 +71,7 @@ public class AzureMistralOpenAiExternalResponseHandler extends BaseResponseHandl
 
         flow.subscribe(serverSentEventProcessor);
         serverSentEventProcessor.subscribe(openAiProcessor);
-        return new StreamingChatCompletionResults(openAiProcessor);
+        return new StreamingCompletionResults(openAiProcessor);
     }
 
     @Override

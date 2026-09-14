@@ -1,6 +1,0 @@
-area: ES|QL
-issues:
- - 155979
-pr: 156162
-summary: Fix unresolved columns in `CASE` with `CIDR_MATCH` and implicit `ip` casts
-type: bug

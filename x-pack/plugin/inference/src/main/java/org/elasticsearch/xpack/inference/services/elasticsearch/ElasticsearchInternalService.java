@@ -43,6 +43,7 @@ import org.elasticsearch.inference.configuration.SettingsConfigurationFieldType;
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
 import org.elasticsearch.rest.RestStatus;
+import org.elasticsearch.xpack.core.XPackSettings;
 import org.elasticsearch.xpack.core.inference.chunking.ChunkingSettingsBuilder;
 import org.elasticsearch.xpack.core.inference.chunking.EmbeddingRequestChunker;
 import org.elasticsearch.xpack.core.inference.chunking.RerankRequestChunker;
@@ -158,6 +159,14 @@ public class ElasticsearchInternalService extends BaseElasticsearchInternalServi
         }
     }
 
+    public static boolean isSupported(Settings settings) {
+        return XPackSettings.MACHINE_LEARNING_ENABLED.get(settings) && XPackSettings.NLP_ENABLED.get(settings);
+    }
+
+    public static boolean isServiceNameOrAlias(String name) {
+        return name.equals(ElasticsearchInternalService.NAME) || name.equals(ElasticsearchInternalService.OLD_ELSER_SERVICE_NAME);
+    }
+
     /**
      * Fix for https://github.com/elastic/elasticsearch/issues/124675
      * In 8.13.0 we transitioned from model_version to model_id. Any elser inference endpoints created prior to 8.13.0 will still use
@@ -211,7 +220,9 @@ public class ElasticsearchInternalService extends BaseElasticsearchInternalServi
             ChunkingSettings chunkingSettings;
             if (TaskType.TEXT_EMBEDDING.equals(taskType) || TaskType.SPARSE_EMBEDDING.equals(taskType)) {
                 chunkingSettings = ChunkingSettingsBuilder.fromMap(
-                    removeFromMapOrDefaultEmpty(config, ModelConfigurations.CHUNKING_SETTINGS)
+                    removeFromMapOrDefaultEmpty(config, ModelConfigurations.CHUNKING_SETTINGS),
+                    true,
+                    true
                 );
             } else {
                 chunkingSettings = null;

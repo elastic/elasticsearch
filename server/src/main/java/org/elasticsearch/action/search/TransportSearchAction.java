@@ -335,22 +335,21 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
         final String target = requestedIndices.length == 0
             ? concreteLocalIndicesMetadata.keySet().stream().map(Index::getName).collect(Collectors.joining(","))
             : Strings.arrayToCommaDelimitedString(requestedIndices);
-        if (searchRequest.pointInTimeBuilder() != null && anySliceEnabled) {
-            throw new IllegalArgumentException(
-                "[point in time] is not supported when [index.slice.enabled] is true for search request targeting [" + target + "]"
-            );
-        }
-        searchRequest.routing(
-            SliceIndexing.validateAndResolveSliceRoutingRequirement(
-                anySliceEnabled,
-                fromSlice,
-                searchRequest.routing(),
-                requestedSlice,
-                "search request",
-                target,
-                hasRemoteIndices
-            )
+        final String resolvedRouting = SliceIndexing.validateAndResolveSliceRoutingRequirement(
+            anySliceEnabled,
+            fromSlice,
+            searchRequest.routing(),
+            requestedSlice,
+            "search request",
+            target,
+            hasRemoteIndices
         );
+        if (searchRequest.pointInTimeBuilder() != null) {
+            // Slice tenant filtering for PIT is applied via ShardSearchRequest.sliceRouting(), not request routing.
+            searchRequest.routing((String) null);
+        } else {
+            searchRequest.routing(resolvedRouting);
+        }
         return requestedSlice;
     }
 
@@ -839,8 +838,12 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
 
         OpenPointInTimeRequest pitReq = new OpenPointInTimeRequest(indices).indicesOptions(request.indicesOptions())
             .preference(request.preference())
-            .routing(request.routing())
             .keepAlive(TimeValue.timeValueMillis(keepAliveMillis));
+        if (request.searchSlice() != null) {
+            pitReq.searchSlice(request.searchSlice());
+        } else {
+            pitReq.routing(request.routing());
+        }
         pitReq.projectRouting(request.getProjectRouting());
 
         client.execute(TransportOpenPointInTimeAction.TYPE, pitReq, listener);
@@ -1551,7 +1554,12 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
                     ClusterSearchShardsRequest searchShardsRequest = new ClusterSearchShardsRequest(
                         MasterNodeRequest.INFINITE_MASTER_NODE_TIMEOUT,
                         indices
-                    ).indicesOptions(searchShardsIdxOpts).local(true).preference(preference).routing(routing);
+                    ).indicesOptions(searchShardsIdxOpts).local(true).preference(preference);
+                    if (routingFromSlice) {
+                        searchShardsRequest.searchSlice(searchSlice);
+                    } else {
+                        searchShardsRequest.routing(routing);
+                    }
 
                     searchShardsRequest.setParentTask(parentTaskId);
                     transportService.sendRequest(

@@ -98,11 +98,11 @@ public final class AsyncExternalSourceBuffer {
      * {@code FormatReadContext#informationalWarningSink()} / {@code RangeReadContext#informationalWarningSink()}),
      * which do not necessarily imply a dropped record. See {@link #recordWarning} vs {@link
      * #recordInformationalWarning}. Producer / parse-worker threads append here off the driver thread;
-     * {@link AsyncExternalSourceOperator#close()} drains and re-emits them via {@link
-     * org.elasticsearch.common.logging.HeaderWarning} on the driver thread, whose response headers
-     * {@code DriverRunner} collects into the client response. Emitting from the forked worker thread
-     * directly would land the header on that worker's {@code ThreadContext}, which is never merged
-     * back into the response — so the warning would be invisible to the client.
+     * {@link AsyncExternalSourceOperator#close()} drains them into the driver's
+     * {@link org.elasticsearch.compute.operator.DriverContext} sink, which {@code DriverCompletionInfo} carries back
+     * from whatever node ran the scan for the coordinator to re-emit. Depositing from the forked worker thread
+     * directly is not an option: that thread's sink is not this driver's, and the {@code ThreadContext} alternative
+     * only reaches the client when the scan happens to run on the coordinator.
      */
     private final Queue<String> pendingWarnings = new ConcurrentLinkedQueue<>();
 
@@ -132,6 +132,7 @@ public final class AsyncExternalSourceBuffer {
     private volatile boolean partial = false;
 
     private volatile FormatReaderStatus formatReaderStatus = null;
+    private final ExternalReadCounters readCounters = new ExternalReadCounters();
     // LongAdder (rather than the AtomicLong used for {@link #bytesInBuffer}) because every read
     // iteration adds a delta to bytesRead, so contention between concurrent producer threads on
     // multi-file paths would dominate AtomicLong's CAS cost. bytesInBuffer is a single producer /
@@ -541,6 +542,11 @@ public final class AsyncExternalSourceBuffer {
     /** Returns the latest format-reader counter snapshot, or {@code null} if none recorded yet. */
     public FormatReaderStatus formatReaderStatus() {
         return formatReaderStatus;
+    }
+
+    /** Returns the operator-level read counters accumulating wall and CPU time for this buffer's reads. */
+    public ExternalReadCounters readCounters() {
+        return readCounters;
     }
 
     /** Returns cumulative pre-decompression bytes read from the storage layer. */

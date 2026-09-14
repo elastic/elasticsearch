@@ -8,6 +8,7 @@
 package org.elasticsearch.xpack.esql.datasources.spi;
 
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.core.Releasable;
 
 import java.io.IOException;
 import java.io.InputStream;
@@ -73,6 +74,49 @@ public interface StorageObject {
 
     /** Returns the object size in bytes. */
     long length() throws IOException;
+
+    /**
+     * Object size in bytes if already known without performing I/O (a listing hint, a prior GET's
+     * {@code Content-Length} / {@code Content-Range} total, or a constructor-supplied size).
+     * Returns {@link #READ_TO_END} when the size is not known. Implementations must not issue a
+     * HEAD or GET to serve this; use {@link #length()} when a definitive size is required.
+     * <p>
+     * A successful GET should refresh this to the size of the generation that was actually opened,
+     * so a listing size that has gone stale after a rewrite is not treated as the expected byte count.
+     */
+    default long knownLength() {
+        return READ_TO_END;
+    }
+
+    /**
+     * Opaque identifier of the object generation this instance's reads are <em>pinned</em> to
+     * (S3/HTTP/Azure ETag, GCS generation number, ...). Implementations normally send this as
+     * {@code If-Match} / {@code generationMatch}; a compatibility store that does not implement the
+     * conditional header must instead validate the generation returned by every successful response.
+     * {@code null} when no pin has been acquired: before the first read, or when the store cannot
+     * supply one (metadata access denied, weak ETag only).
+     * <p>
+     * This is deliberately <em>not</em> "the last generation seen anywhere". A metadata-only request
+     * (HEAD, {@code getProperties}, {@code objects.get}) may well see a newer generation than the one
+     * the open readers are pinned to, and reporting that here would make a perfectly valid resume
+     * look like a mid-read rewrite. Implementations must therefore acquire the pin only from a
+     * request that transfers object bytes (or, for GCS, the metadata GET issued specifically to
+     * acquire the pin), never from a metadata-only request, and must not move it once set. Pin
+     * acquisition must be atomic: concurrent first reads from different generations cannot both succeed.
+     */
+    default String contentGeneration() {
+        return null;
+    }
+
+    /**
+     * File length for {@link org.elasticsearch.xpack.esql.datasources.cache.FooterByteCache} and
+     * {@link org.elasticsearch.xpack.esql.datasources.cache.ParsedFooterCache} keys. Range views
+     * ({@code offset}/{@code length} splits) must return the underlying object's full size, not
+     * the view span, so split discovery and execution share one {@code (path, fileLength)} entry.
+     */
+    default long lengthForFooterCacheKey() throws IOException {
+        return length();
+    }
 
     /** Returns the last modification time, or null if not available. */
     Instant lastModified() throws IOException;
@@ -205,6 +249,30 @@ public interface StorageObject {
     }
 
     /**
+     * Starts {@link #readBytesAsync} and returns a handle that cancels the in-flight GET if still
+     * running. The default handle is a no-op; providers whose native client exposes a cancellable
+     * future (S3 SDK {@code getObject}) must override this so prefetch cancel aborts the HTTP
+     * request instead of leaving it running.
+     * <p>
+     * A leaf may override {@link #readBytesAsync} <em>or</em> this method with mutual delegation,
+     * not both. If {@code readBytesAsync} forwards here, a missing-native-client fallback must
+     * call {@code super.readBytesAsync} (the default I/O implementation) and return a no-op handle.
+     * {@code super.startReadBytesAsync} re-enters the virtual {@code readBytesAsync} and overflows
+     * the stack. {@code StorageObject.super.readBytesAsync} is only legal on a class that implements
+     * this interface directly.
+     */
+    default Releasable startReadBytesAsync(
+        long position,
+        long length,
+        DirectBufferFactory factory,
+        Executor executor,
+        ActionListener<DirectReadBuffer> listener
+    ) {
+        readBytesAsync(position, length, factory, executor, listener);
+        return () -> {};
+    }
+
+    /**
      * Async byte read into a caller-provided ByteBuffer.
      * <p>
      * Avoids per-call allocation by reading directly into the target buffer.
@@ -321,6 +389,18 @@ public interface StorageObject {
      * @return true if {@link #readBytesAsync} has a native implementation, false if it uses the default sync wrapper
      */
     default boolean supportsNativeAsync() {
+        return false;
+    }
+
+    /**
+     * Whether {@link #readBytesAsync} returns the {@code executor} thread before the GET completes.
+     * The default implementation submits blocking I/O on {@code executor} and returns {@code false}.
+     * Native clients that complete on their own I/O pool (S3, Azure, HTTP) return {@code true}.
+     * GCS overrides {@code readBytesAsync} but still blocks {@code executor}, so it returns
+     * {@code false} even though {@link #supportsNativeAsync()} is {@code true} for read-path
+     * parallel chunks.
+     */
+    default boolean readBytesAsyncReleasesExecutor() {
         return false;
     }
 

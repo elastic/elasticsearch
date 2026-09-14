@@ -33,7 +33,7 @@ import org.elasticsearch.inference.completion.Message;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.inference.InferencePlugin;
-import org.elasticsearch.xpack.inference.external.http.sender.ChatCompletionInput;
+import org.elasticsearch.xpack.inference.external.http.sender.CompletionInput;
 import org.elasticsearch.xpack.inference.external.http.sender.HttpRequestSender;
 import org.elasticsearch.xpack.inference.external.http.sender.InferenceInputs;
 import org.elasticsearch.xpack.inference.external.http.sender.Sender;
@@ -213,7 +213,7 @@ public class SenderServiceTests extends ESTestCase {
                 TimeValue timeout,
                 ActionListener<InferenceServiceResults> listener
             ) {
-                var castedInput = inputs.castTo(ChatCompletionInput.class);
+                var castedInput = inputs.castTo(CompletionInput.class);
                 assertThat(castedInput.getInputs(), is(List.of(testInput)));
                 doInferCalled.set(true);
                 listener.onResponse(mock(InferenceServiceResults.class));

@@ -150,7 +150,7 @@ public class TimeSeriesRoutingHashFieldMapper extends MetadataFieldMapper {
     private static final IndexableFieldType TS_ROUTING_HASH_DV_TYPE = new SortedDocValuesField("", new BytesRef()).fieldType();
 
     @Override
-    public boolean supportsColumnarParse(IndexSettings indexSettings) {
+    protected boolean doSupportsColumnarParse(IndexSettings indexSettings) {
         // Support only the modern path where the routing hash is coordinator-computed and stored
         // in IndexRequest#routing() (i.e. on or after TIME_SERIES_ROUTING_HASH_IN_ID). Older
         // indices reconstruct the hash from the id, which is not yet derived on the columnar path.

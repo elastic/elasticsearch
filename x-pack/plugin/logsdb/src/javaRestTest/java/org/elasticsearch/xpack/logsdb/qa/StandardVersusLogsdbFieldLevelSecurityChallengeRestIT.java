@@ -108,11 +108,19 @@ public class StandardVersusLogsdbFieldLevelSecurityChallengeRestIT extends BulkC
      * Picks a concrete field to deny. Prefers the mapping template's leaf paths (precise, dotted), skipping types whose {@code _source}
      * form the standard index cannot filter identically to logsdb (see {@link #DENY_INCOMPATIBLE_FIELD_TYPES}), but the challenge
      * framework sometimes uses a fully dynamic mapping with no predefined fields, so it falls back to a top-level field from a document.
+     * <p>
+     * It denies only explicitly-mapped fields. A dynamically-mapped text field has a keyword multi-field that FLS restricts when only the
+     * parent is granted, so the granted field reconstructs to null on logsdb and diverges from the standard index. This is a known gap.
+     * TODO: once the multi field gap is addressed, undo the changes in this commit.
      */
     private String randomDeniedField() throws IOException {
+        final Map<String, Map<String, Object>> explicitFields = dataGenerationHelper.mapping().lookup();
+
         final List<String> templateFields = new ArrayList<>();
         for (final Map.Entry<String, String> field : dataGenerationHelper.getTemplateFieldTypes().entrySet()) {
-            if ("@timestamp".equals(field.getKey()) == false && DENY_INCOMPATIBLE_FIELD_TYPES.contains(field.getValue()) == false) {
+            if ("@timestamp".equals(field.getKey()) == false
+                && DENY_INCOMPATIBLE_FIELD_TYPES.contains(field.getValue()) == false
+                && explicitFields.containsKey(field.getKey())) {
                 templateFields.add(field.getKey());
             }
         }
@@ -128,12 +136,12 @@ public class StandardVersusLogsdbFieldLevelSecurityChallengeRestIT extends BulkC
         final List<String> fields = new ArrayList<>();
         for (final Map<String, Object> source : getSources(response)) {
             for (final String key : source.keySet()) {
-                if ("@timestamp".equals(key) == false && fields.contains(key) == false) {
+                if ("@timestamp".equals(key) == false && fields.contains(key) == false && explicitFields.containsKey(key)) {
                     fields.add(key);
                 }
             }
         }
-        assertFalse("expected at least one non-timestamp field in the indexed documents", fields.isEmpty());
+        assertFalse("expected at least one explicitly-mapped non-timestamp field in the indexed documents", fields.isEmpty());
         return randomFrom(fields);
     }
 

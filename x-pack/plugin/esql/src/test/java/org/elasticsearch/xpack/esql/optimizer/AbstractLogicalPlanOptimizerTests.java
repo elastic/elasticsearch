@@ -365,7 +365,10 @@ public abstract class AbstractLogicalPlanOptimizerTests extends ESTestCase {
         return aggregate;
     }
 
-    /** How many aggregates carry {@code dimCount} dimensions in this instance's shape: one {@link PackDimsAgg}, or one {@link DimensionValues} each. */
+    /**
+     * How many aggregates carry {@code dimCount} dimensions in this instance's shape: one {@link PackDimsAgg}, or one
+     * {@link DimensionValues} each.
+     */
     protected int packedDimAggregateCount(int dimCount) {
         return packsDimsInAggregate() ? 1 : dimCount;
     }

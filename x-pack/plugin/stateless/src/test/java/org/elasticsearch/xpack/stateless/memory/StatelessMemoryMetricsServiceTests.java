@@ -59,7 +59,7 @@ import java.util.stream.Stream;
 import static org.elasticsearch.cluster.routing.TestShardRouting.shardRoutingBuilder;
 import static org.elasticsearch.indices.ShardLimitValidator.SETTING_CLUSTER_MAX_SHARDS_PER_NODE;
 import static org.elasticsearch.xpack.stateless.memory.ShardMappingSize.UNDEFINED_SHARD_MEMORY_OVERHEAD_BYTES;
-import static org.elasticsearch.xpack.stateless.memory.StatelessMemoryMetricsServiceTestUtils.computeShardAndIndexHeapEstimate;
+import static org.elasticsearch.xpack.stateless.memory.StatelessMemoryMetricsServiceTestUtils.computeShardHeapEstimate;
 import static org.elasticsearch.xpack.stateless.memory.StatelessMemoryMetricsServiceTestUtils.getLastMaxTotalPostingsInMemoryBytes;
 import static org.hamcrest.Matchers.allOf;
 import static org.hamcrest.Matchers.equalTo;
@@ -140,12 +140,12 @@ public class StatelessMemoryMetricsServiceTests extends ESTestCase {
         // Verify that the memory service correctly returns all the per shard memory metrics.
         var shardHeapUsages = service.getShardHeapUsages();
         {
-            final var estimate = StatelessMemoryMetricsServiceTestUtils.computeShardAndIndexHeapEstimate(service, shardMemoryMetrics1);
+            final var estimate = computeShardHeapEstimate(service, shardMemoryMetrics1);
             assertThat(shardHeapUsages.get(shardId1).shardHeapUsageBytes(), equalTo(estimate.shardHeapUsageBytes()));
             assertThat(shardHeapUsages.get(shardId1).indexHeapUsageBytes(), equalTo(estimate.indexHeapUsageBytes()));
         }
         {
-            final var estimate = StatelessMemoryMetricsServiceTestUtils.computeShardAndIndexHeapEstimate(service, shardMemoryMetrics2);
+            final var estimate = computeShardHeapEstimate(service, shardMemoryMetrics2);
             assertThat(shardHeapUsages.get(shardId2).shardHeapUsageBytes(), equalTo(estimate.shardHeapUsageBytes()));
             assertThat(shardHeapUsages.get(shardId2).indexHeapUsageBytes(), equalTo(estimate.indexHeapUsageBytes()));
         }
@@ -283,8 +283,8 @@ public class StatelessMemoryMetricsServiceTests extends ESTestCase {
     }
 
     /**
-     * Verifies that {@link ShardHeapEstimator#computeIndexHeapUsage} and
-     * {@link ShardHeapEstimator#computeShardHeapUsage} do not diverge from what is used internally in the
+     * Verifies that {@link ShardHeapEstimator#computeShardHeapUsage(StatelessMemoryMetricsService.ShardMemoryMetrics)} does
+     * not diverge from what is used internally in the
      * {@link StatelessMemoryMetricsService}'s node-level heap usage calculations (routing placement, same rules as
      * {@link StatelessMemoryMetricsService#getPerNodeMemoryMetrics(ClusterState)}).
      */
@@ -315,7 +315,7 @@ public class StatelessMemoryMetricsServiceTests extends ESTestCase {
                 if (shardMemoryMetrics == null) {
                     shardMemoryMetrics = service.newUninitialisedShardMemoryMetrics(nowNanos);
                 }
-                final var estimate = computeShardAndIndexHeapEstimate(service, shardMemoryMetrics);
+                final var estimate = computeShardHeapEstimate(service, shardMemoryMetrics);
                 final var seenIndices = perNodeSeenIndices.computeIfAbsent(nodeId, key -> new HashSet<>());
 
                 long indexHeap = 0L;
@@ -410,7 +410,7 @@ public class StatelessMemoryMetricsServiceTests extends ESTestCase {
         service.getShardMemoryMetrics().put(onlyShard.shardId(), metricsWithWrongReporter);
 
         final Map<String, NodeHeapEstimates> perNode = service.getPerNodeMemoryMetrics(clusterState);
-        final var estimates = computeShardAndIndexHeapEstimate(service, metricsWithWrongReporter);
+        final var estimates = computeShardHeapEstimate(service, metricsWithWrongReporter);
         // total memory difference between nodes should be shard estimate and index estimate, less the postings estimate that they share
         final long totalDeltaForShard = estimates.shardHeapUsageBytes() + estimates.indexHeapUsageBytes() - metricsWithWrongReporter
             .getPostingsInMemoryBytes();

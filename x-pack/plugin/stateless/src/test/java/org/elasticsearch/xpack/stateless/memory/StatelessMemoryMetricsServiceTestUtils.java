@@ -31,7 +31,7 @@ public class StatelessMemoryMetricsServiceTestUtils {
 
     /// Calculates the shard heap estimate excluding postings and ignoring any self-reported overhead
     /// even if the service is configured to use it
-    public static long computeShardAndIndexHeapEstimateIgnoringSelfReportedOverheads(
+    public static long estimateShardHeapUsageExcludingPostingsAndIgnoringSelfReportedOverheads(
         StatelessMemoryMetricsService statelessMemoryMetricsService,
         StatelessMemoryMetricsService.ShardMemoryMetrics shardMemoryMetrics
     ) {
@@ -40,13 +40,31 @@ public class StatelessMemoryMetricsServiceTestUtils {
             .shardHeapUsageBytesExcludingPostings();
     }
 
+    /// Convenience method for computing the shard estimate including postings
+    /// and the current settings active on the [StatelessMemoryMetricsService]
+    public static ShardAndIndexHeapUsage estimateHeapUsageIncludingPostings(
+        StatelessMemoryMetricsService statelessMemoryMetricsService,
+        StatelessMemoryMetricsService.ShardMemoryMetrics shardMemoryMetrics
+    ) {
+        return computeShardHeapEstimate(statelessMemoryMetricsService, shardMemoryMetrics);
+    }
+
+    /// Convenience method for computing the shard estimate excluding postings
+    /// and the current settings active on the [StatelessMemoryMetricsService]
+    public static ShardAndIndexHeapUsage estimateHeapUsageExcludingPostings(
+        StatelessMemoryMetricsService statelessMemoryMetricsService,
+        StatelessMemoryMetricsService.ShardMemoryMetrics shardMemoryMetrics
+    ) {
+        return computeShardHeapEstimate(statelessMemoryMetricsService, shardMemoryMetrics);
+    }
+
     /// Convenience method for computing the shard estimate with the specified parameters
     /// and the current settings active on the [StatelessMemoryMetricsService]
-    public static ShardAndIndexHeapUsage computeShardAndIndexHeapEstimate(
+    public static ShardAndIndexHeapUsage computeShardHeapEstimate(
         StatelessMemoryMetricsService statelessMemoryMetricsService,
         StatelessMemoryMetricsService.ShardMemoryMetrics memoryMetrics
     ) {
-        final var shardHeapEstimator = statelessMemoryMetricsService.createShardHeapEstimator();
+        ShardHeapEstimator shardHeapEstimator = statelessMemoryMetricsService.createShardHeapEstimator();
         return shardHeapEstimator.computeShardHeapUsage(memoryMetrics);
     }
 }

@@ -144,13 +144,23 @@ public class RecoveryDirectCancellationService extends AbstractLifecycleComponen
     @Override
     protected void doStart() {
         final ClusterSettings clusterSettings = clusterService.getClusterSettings();
-        clusterSettings.initializeAndWatchIfRegistered(
-            ENABLE_DIRECT_RECOVERY_CANCELLATIONS_SETTING,
-            value -> this.enableDirectRecoveryCancellations = value
-        );
+        clusterSettings.initializeAndWatchIfRegistered(ENABLE_DIRECT_RECOVERY_CANCELLATIONS_SETTING, enabled -> {
+            this.enableDirectRecoveryCancellations = enabled;
+            if (enabled == false) {
+                return;
+            }
+            boolean isMaster = clusterService.state().nodes().isLocalNodeElectedMaster();
+            if (lifecycle.started() && isMaster && enableDirectCancellationsForSnapshots) {
+                cancelRecoveriesBlockingSnapshots();
+            }
+        });
         clusterSettings.initializeAndWatchIfRegistered(ENABLE_DIRECT_CANCELLATIONS_FOR_SNAPSHOTS_SETTING, enabled -> {
             enableDirectCancellationsForSnapshots = enabled;
-            if (lifecycle.started() && enabled && clusterService.state().nodes().isLocalNodeElectedMaster()) {
+            if (enabled == false) {
+                return;
+            }
+            boolean isMaster = clusterService.state().nodes().isLocalNodeElectedMaster();
+            if (lifecycle.started() && isMaster && enableDirectRecoveryCancellations) {
                 cancelRecoveriesBlockingSnapshots();
             }
         });

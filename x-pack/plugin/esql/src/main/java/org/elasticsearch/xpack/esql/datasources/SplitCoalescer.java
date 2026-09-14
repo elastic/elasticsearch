@@ -22,9 +22,10 @@ import java.util.PriorityQueue;
  * (default {@link #DEFAULT_MAX_FILES_PER_GROUP}) so a group of tiny files cannot grow unbounded under the
  * byte budget. When either packing yields fewer groups than the caller's {@code minGroupCount} floor, the
  * splits are re-binned to meet that floor so read parallelism is not collapsed onto one schedulable unit.
- * When grouping runs and every split reports a size, packed groups are ordered by claim cost (stored
- * bytes plus a per-leaf open cost) so a local slice queue claims the heaviest work first. Callers that
- * redistribute groups by stored bytes replace that order. Unknown-size grouping keeps pack/floor order.
+ * When grouping runs and every split reports a size, packed groups are ordered by
+ * {@link #claimCost(ExternalSplit)} so a local slice queue claims the heaviest work first.
+ * Node assignment that redistributes those groups must use the same cost; weighing by stored
+ * bytes alone treats a many-leaf group as cheap. Unknown-size grouping keeps pack/floor order.
  *
  * <p>This class is the sole owner of the grouping policy: whether a scan is worth coalescing at all
  * ({@link #shouldCoalesce}), how splits are packed, and how the floor is met. Callers supply budgets and the floor;
@@ -40,14 +41,29 @@ public final class SplitCoalescer {
      */
     public static final int DEFAULT_MAX_FILES_PER_GROUP = 32;
     /**
-     * Virtual per-leaf open cost used only to order packed groups for claiming. A literal 4 MiB heuristic, not
+     * Virtual per-leaf open cost folded into {@link #claimCost(ExternalSplit)}. A literal 4 MiB heuristic, not
      * derived from the packing knobs, so raising {@link #DEFAULT_MAX_FILES_PER_GROUP} does not silently change
-     * claim order. Size packing caps file count directly rather than folding this cost into the byte budget.
+     * claim order or node assignment. Size packing caps file count directly rather than folding this cost into
+     * the byte budget.
      */
     static final long DEFAULT_OPEN_COST_BYTES = 4L * 1024 * 1024;
     public static final int COALESCING_THRESHOLD = 32;
 
     private SplitCoalescer() {}
+
+    /**
+     * Work of claiming one split or packed group: stored bytes plus a fixed per-leaf open cost. Claim
+     * order and node assignment share this so a many-leaf group of tiny files is not treated as cheaper
+     * than a single large file of similar stored size. A {@link CoalescedSplit} counts each direct
+     * child as a leaf; any other split counts as one leaf.
+     */
+    public static long claimCost(ExternalSplit split) {
+        if (split == null) {
+            throw new IllegalArgumentException("split cannot be null");
+        }
+        int leaves = split instanceof CoalescedSplit coalesced ? coalesced.children().size() : 1;
+        return Math.max(0L, split.estimatedSizeInBytes()) + (long) leaves * DEFAULT_OPEN_COST_BYTES;
+    }
 
     /**
      * Whether a scan holding {@code splitCount} splits is worth grouping at all. This is the single home of that
@@ -117,9 +133,10 @@ public final class SplitCoalescer {
      * {@code ceil(leaves / maxFilesPerGroup)} bins, so a higher floor cannot concentrate more leaves per
      * group than the cap allowed. {@code maxFilesPerGroup} applies only to size packing — count-based
      * grouping (unknown sizes) ignores it. When grouping runs and every split reports a size, groups are
-     * returned in descending claim-cost order, which is the order a local slice queue claims; later
-     * redistribution by stored bytes does not keep it. Unknown-size grouping keeps pack/floor order.
-     * Below {@link #COALESCING_THRESHOLD} the input order is preserved.
+     * returned in descending {@link #claimCost(ExternalSplit)} order, which is the order a local slice
+     * queue claims. Weighted node assignment uses the same cost so a many-leaf group is not treated as
+     * cheap work. Unknown-size grouping keeps pack/floor order. Below {@link #COALESCING_THRESHOLD}
+     * the input order is preserved.
      *
      * <p>The returned list is always the coalescer's own, never {@code splits} itself, including when the input is
      * too small to be worth grouping. Callers replace the contents of the list they passed in, so handing theirs
@@ -167,11 +184,12 @@ public final class SplitCoalescer {
         if (bins.size() < targetGroups) {
             bins = floorGroups(splits, targetGroups, targetGroupSizeBytes, allHaveSize);
         }
+        List<ExternalSplit> result = buildResult(bins);
         // Unknown-size bins have no stored bytes to rank; keep pack/floor order.
         if (allHaveSize) {
-            bins = sortByClaimCost(bins);
+            result = sortByClaimCost(result);
         }
-        return buildResult(bins);
+        return result;
     }
 
     private static List<List<ExternalSplit>> packBySize(List<ExternalSplit> splits, long targetGroupSizeBytes, int maxFilesPerGroup) {
@@ -227,28 +245,20 @@ public final class SplitCoalescer {
         return bins;
     }
 
-    private static List<List<ExternalSplit>> sortByClaimCost(List<List<ExternalSplit>> bins) {
-        int n = bins.size();
+    private static List<ExternalSplit> sortByClaimCost(List<ExternalSplit> groups) {
+        int n = groups.size();
         Integer[] order = new Integer[n];
         long[] costs = new long[n];
         for (int i = 0; i < n; i++) {
             order[i] = i;
-            costs[i] = claimCost(bins.get(i));
+            costs[i] = claimCost(groups.get(i));
         }
         Arrays.sort(order, Comparator.comparingLong((Integer i) -> costs[i]).reversed());
-        List<List<ExternalSplit>> sorted = new ArrayList<>(n);
+        List<ExternalSplit> sorted = new ArrayList<>(n);
         for (int i : order) {
-            sorted.add(bins.get(i));
+            sorted.add(groups.get(i));
         }
         return sorted;
-    }
-
-    private static long claimCost(List<ExternalSplit> bin) {
-        long bytes = 0;
-        for (ExternalSplit split : bin) {
-            bytes += Math.max(0L, split.estimatedSizeInBytes());
-        }
-        return bytes + (long) bin.size() * DEFAULT_OPEN_COST_BYTES;
     }
 
     private static List<List<ExternalSplit>> packByCount(List<ExternalSplit> splits, int targetGroupCount) {

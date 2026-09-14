@@ -1,5 +1,5 @@
 area: ES|QL
 issues: []
 pr: 159194
-summary: Cap coalesced external-scan groups by file count
+summary: Cap coalesced external-scan groups by file count and weigh assignment by open cost
 type: enhancement

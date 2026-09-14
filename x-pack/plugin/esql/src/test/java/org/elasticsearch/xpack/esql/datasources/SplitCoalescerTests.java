@@ -479,7 +479,7 @@ public class SplitCoalescerTests extends ESTestCase {
         boolean sawFullFileCapGroup = false;
         for (int i = 0; i < result.size(); i++) {
             ExternalSplit group = result.get(i);
-            long cost = claimCost(group);
+            long cost = SplitCoalescer.claimCost(group);
             assertTrue(
                 "claim cost must be non-increasing, at index " + i + " cost=" + cost + " prev=" + previousCost,
                 cost <= previousCost
@@ -494,6 +494,20 @@ public class SplitCoalescerTests extends ESTestCase {
             }
         }
         assertTrue("expected at least one group at the file cap", sawFullFileCapGroup);
+    }
+
+    public void testClaimCostCountsLeavesNotJustBytes() {
+        FileSplit standalone = makeFileSplit(0, 128L * 1024 * 1024);
+        CoalescedSplit tinyGroup = new CoalescedSplit("file", makeSplits(DEFAULT_MAX_FILES_PER_GROUP, 1024));
+        assertEquals(DEFAULT_MAX_FILES_PER_GROUP * 1024L, tinyGroup.estimatedSizeInBytes());
+        assertEquals(
+            tinyGroup.estimatedSizeInBytes() + DEFAULT_MAX_FILES_PER_GROUP * DEFAULT_OPEN_COST_BYTES,
+            SplitCoalescer.claimCost(tinyGroup)
+        );
+        assertEquals(standalone.length() + DEFAULT_OPEN_COST_BYTES, SplitCoalescer.claimCost(standalone));
+        // 32 leaves of 4 MiB each beat the standalone: open cost dominates stored bytes of one file.
+        CoalescedSplit costlyGroup = new CoalescedSplit("file", makeSplits(DEFAULT_MAX_FILES_PER_GROUP, DEFAULT_OPEN_COST_BYTES));
+        assertTrue(SplitCoalescer.claimCost(costlyGroup) > SplitCoalescer.claimCost(standalone));
     }
 
     public void testMixedSizesProducesReasonableGroups() {
@@ -585,7 +599,4 @@ public class SplitCoalescerTests extends ESTestCase {
         return split instanceof CoalescedSplit coalesced ? coalesced.children().size() : 1;
     }
 
-    private static long claimCost(ExternalSplit split) {
-        return Math.max(0L, split.estimatedSizeInBytes()) + (long) leafCount(split) * DEFAULT_OPEN_COST_BYTES;
-    }
 }

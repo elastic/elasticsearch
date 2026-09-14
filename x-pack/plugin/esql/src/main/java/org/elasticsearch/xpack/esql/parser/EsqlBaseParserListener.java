@@ -471,6 +471,36 @@ public interface EsqlBaseParserListener extends ParseTreeListener {
    */
   void exitSortCommand(EsqlBaseParser.SortCommandContext ctx);
   /**
+   * Enter a parse tree produced by {@link EsqlBaseParser#topkCommand}.
+   * @param ctx the parse tree
+   */
+  void enterTopkCommand(EsqlBaseParser.TopkCommandContext ctx);
+  /**
+   * Exit a parse tree produced by {@link EsqlBaseParser#topkCommand}.
+   * @param ctx the parse tree
+   */
+  void exitTopkCommand(EsqlBaseParser.TopkCommandContext ctx);
+  /**
+   * Enter a parse tree produced by {@link EsqlBaseParser#bottomkCommand}.
+   * @param ctx the parse tree
+   */
+  void enterBottomkCommand(EsqlBaseParser.BottomkCommandContext ctx);
+  /**
+   * Exit a parse tree produced by {@link EsqlBaseParser#bottomkCommand}.
+   * @param ctx the parse tree
+   */
+  void exitBottomkCommand(EsqlBaseParser.BottomkCommandContext ctx);
+  /**
+   * Enter a parse tree produced by {@link EsqlBaseParser#limitkCommand}.
+   * @param ctx the parse tree
+   */
+  void enterLimitkCommand(EsqlBaseParser.LimitkCommandContext ctx);
+  /**
+   * Exit a parse tree produced by {@link EsqlBaseParser#limitkCommand}.
+   * @param ctx the parse tree
+   */
+  void exitLimitkCommand(EsqlBaseParser.LimitkCommandContext ctx);
+  /**
    * Enter a parse tree produced by {@link EsqlBaseParser#orderExpression}.
    * @param ctx the parse tree
    */

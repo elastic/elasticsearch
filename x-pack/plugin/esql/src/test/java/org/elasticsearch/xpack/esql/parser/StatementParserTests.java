@@ -1218,6 +1218,106 @@ public class StatementParserTests extends AbstractStatementParserTests {
             """));
     }
 
+    public void testTopkDesugarsToOrderByAndLimitBy() {
+        LogicalPlan plan = query("""
+                FROM foo
+                | TOPK salary, 3 BY gender
+            """);
+        LimitBy limitBy = as(plan, LimitBy.class);
+        assertThat(((Literal) limitBy.limitPerGroup()).value(), equalTo(3));
+        assertThat(limitBy.groupings().size(), equalTo(1));
+        assertThat(((UnresolvedAttribute) limitBy.groupings().get(0)).name(), equalTo("gender"));
+        OrderBy orderBy = as(limitBy.child(), OrderBy.class);
+        assertThat(orderBy.order().size(), equalTo(1));
+        Order order = orderBy.order().get(0);
+        assertThat(order.direction(), equalTo(Order.OrderDirection.DESC));
+        assertThat(order.nullsPosition(), equalTo(Order.NullsPosition.FIRST));
+        assertThat(((UnresolvedAttribute) order.child()).name(), equalTo("salary"));
+        assertThat(orderBy.child(), instanceOf(UnresolvedRelation.class));
+    }
+
+    public void testTopkWithoutByDesugarsToOrderByAndLimit() {
+        LogicalPlan plan = query("""
+                FROM foo
+                | TOPK salary, 3
+            """);
+        Limit limit = as(plan, Limit.class);
+        assertThat(((Literal) limit.limit()).value(), equalTo(3));
+        OrderBy orderBy = as(limit.child(), OrderBy.class);
+        Order order = as(orderBy.order().get(0), Order.class);
+        assertThat(order.direction(), equalTo(Order.OrderDirection.DESC));
+        assertThat(order.nullsPosition(), equalTo(Order.NullsPosition.FIRST));
+    }
+
+    public void testBottomkDesugarsToAscendingOrderByAndLimitBy() {
+        LogicalPlan plan = query("""
+                FROM foo
+                | BOTTOMK salary, 2 BY gender, languages
+            """);
+        LimitBy limitBy = as(plan, LimitBy.class);
+        assertThat(((Literal) limitBy.limitPerGroup()).value(), equalTo(2));
+        assertThat(limitBy.groupings().size(), equalTo(2));
+        OrderBy orderBy = as(limitBy.child(), OrderBy.class);
+        Order order = as(orderBy.order().get(0), Order.class);
+        assertThat(order.direction(), equalTo(Order.OrderDirection.ASC));
+        assertThat(order.nullsPosition(), equalTo(Order.NullsPosition.LAST));
+        assertThat(((UnresolvedAttribute) order.child()).name(), equalTo("salary"));
+    }
+
+    public void testLimitkDesugarsToLimitBy() {
+        LogicalPlan plan = query("""
+                FROM foo
+                | LIMITK 3 BY gender
+            """);
+        LimitBy limitBy = as(plan, LimitBy.class);
+        assertThat(((Literal) limitBy.limitPerGroup()).value(), equalTo(3));
+        assertThat(limitBy.groupings().size(), equalTo(1));
+        assertThat(limitBy.child(), instanceOf(UnresolvedRelation.class));
+    }
+
+    public void testLimitkWithoutByDesugarsToLimit() {
+        LogicalPlan plan = query("""
+                FROM foo
+                | LIMITK 3
+            """);
+        Limit limit = as(plan, Limit.class);
+        assertThat(((Literal) limit.limit()).value(), equalTo(3));
+        assertThat(limit.child(), instanceOf(UnresolvedRelation.class));
+    }
+
+    public void testTopkNegativeValue() {
+        expectThrows(
+            ParsingException.class,
+            containsString("must be a non negative integer, found value [-1] type [integer]"),
+            () -> query("""
+                FROM foo
+                | TOPK salary, -1 BY gender
+                """)
+        );
+    }
+
+    public void testBottomkNegativeValue() {
+        expectThrows(
+            ParsingException.class,
+            containsString("must be a non negative integer, found value [-1] type [integer]"),
+            () -> query("""
+                FROM foo
+                | BOTTOMK salary, -1
+                """)
+        );
+    }
+
+    public void testLimitkNegativeValue() {
+        expectThrows(
+            ParsingException.class,
+            containsString("must be a non negative integer, found value [-1] type [integer]"),
+            () -> query("""
+                FROM foo
+                | LIMITK -1 BY gender
+                """)
+        );
+    }
+
     public void testDedup() {
         LogicalPlan plan = query("FROM foo | DEDUP");
         Dedup dedup = as(plan, Dedup.class);

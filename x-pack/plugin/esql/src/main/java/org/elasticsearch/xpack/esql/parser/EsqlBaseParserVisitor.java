@@ -291,6 +291,24 @@ public interface EsqlBaseParserVisitor<T> extends ParseTreeVisitor<T> {
    */
   T visitSortCommand(EsqlBaseParser.SortCommandContext ctx);
   /**
+   * Visit a parse tree produced by {@link EsqlBaseParser#topkCommand}.
+   * @param ctx the parse tree
+   * @return the visitor result
+   */
+  T visitTopkCommand(EsqlBaseParser.TopkCommandContext ctx);
+  /**
+   * Visit a parse tree produced by {@link EsqlBaseParser#bottomkCommand}.
+   * @param ctx the parse tree
+   * @return the visitor result
+   */
+  T visitBottomkCommand(EsqlBaseParser.BottomkCommandContext ctx);
+  /**
+   * Visit a parse tree produced by {@link EsqlBaseParser#limitkCommand}.
+   * @param ctx the parse tree
+   * @return the visitor result
+   */
+  T visitLimitkCommand(EsqlBaseParser.LimitkCommandContext ctx);
+  /**
    * Visit a parse tree produced by {@link EsqlBaseParser#orderExpression}.
    * @param ctx the parse tree
    * @return the visitor result

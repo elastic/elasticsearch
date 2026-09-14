@@ -1,0 +1,100 @@
+// Tests for the TOPK, BOTTOMK and LIMITK commands.
+// TOPK and BOTTOMK desugar to SORT field DESC|ASC | LIMIT k BY ... and share that execution path,
+// so the expected values below match the equivalent SORT | LIMIT BY queries in limit.csv-spec.
+
+topkByGroup
+required_capability: esql_topk_command
+
+// tag::topkByGroup[]
+FROM employees
+| TOPK salary, 1 BY gender
+| KEEP first_name, last_name, salary, gender
+| SORT gender
+// end::topkByGroup[]
+;
+
+// tag::topkByGroup-result[]
+first_name:keyword | last_name:keyword | salary:integer | gender:keyword
+Tzvetan            | Zielinski         | 74572          | F
+Otmar              | Herbst            | 74999          | M
+Lillian            | Haddadi           | 73717          | null
+// end::topkByGroup-result[]
+;
+
+topkGlobal
+required_capability: esql_topk_command
+
+FROM employees
+| TOPK salary, 2
+| KEEP first_name, last_name, salary
+| SORT salary DESC
+;
+
+first_name:keyword | last_name:keyword | salary:integer
+Otmar              | Herbst            | 74999
+Moss               | Shanbhogue        | 74970
+;
+
+topkZero
+required_capability: esql_topk_command
+
+FROM employees
+| TOPK salary, 0 BY gender
+| KEEP emp_no
+;
+
+emp_no:integer
+;
+
+bottomkByGroup
+required_capability: esql_topk_command
+
+// tag::bottomkByGroup[]
+FROM employees
+| BOTTOMK salary, 1 BY gender
+| KEEP emp_no, salary, gender
+| SORT gender
+// end::bottomkByGroup[]
+;
+
+// tag::bottomkByGroup-result[]
+emp_no:integer | salary:integer | gender:keyword
+10092          | 25976          | F
+10035          | 25945          | M
+10015          | 25324          | null
+// end::bottomkByGroup-result[]
+;
+
+limitkByGroupCount
+required_capability: esql_topk_command
+
+// LIMITK keeps an arbitrary sample of rows per group; with k rows kept per group the
+// total count is deterministic even though the chosen rows are not.
+FROM employees
+| LIMITK 2 BY gender
+| STATS c = COUNT()
+;
+
+c:long
+6
+;
+
+limitkKeepsAllRowsWhenKExceedsGroupSize
+required_capability: esql_topk_command
+
+// tag::limitkByGroup[]
+FROM employees
+| WHERE emp_no IN (10001, 10002, 10003)
+| LIMITK 5 BY gender
+| SORT emp_no
+| KEEP emp_no, gender
+// end::limitkByGroup[]
+;
+
+// tag::limitkByGroup-result[]
+emp_no:integer | gender:keyword
+10001          | M
+10002          | F
+10003          | M
+// end::limitkByGroup-result[]
+;

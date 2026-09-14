@@ -1,4 +1,5 @@
 * [`CHANGE_POINT`](/reference/query-languages/esql/commands/change-point.md) {applies_to}`stack: preview 9.1` {applies_to}`stack: ga 9.2`
+* [`BOTTOMK`](/reference/query-languages/esql/commands/bottomk.md) {applies_to}`stack: preview 9.6` {applies_to}`serverless: preview`
 * [`COMPLETION`](/reference/query-languages/esql/commands/completion.md) {applies_to}`stack: preview 9.1` {applies_to}`stack: ga 9.3`
 * [`DEDUP`](/reference/query-languages/esql/commands/dedup.md) {applies_to}`stack: preview 9.6` {applies_to}`serverless: preview`
 * [`DISSECT`](/reference/query-languages/esql/commands/dissect.md)
@@ -11,6 +12,7 @@
 * [`HIGHLIGHT`](/reference/query-languages/esql/commands/highlight.md) {applies_to}`stack: preview 9.6` {applies_to}`serverless: preview`
 * [`KEEP`](/reference/query-languages/esql/commands/keep.md)
 * [`LIMIT`](/reference/query-languages/esql/commands/limit.md)
+* [`LIMITK`](/reference/query-languages/esql/commands/limitk.md) {applies_to}`stack: preview 9.6` {applies_to}`serverless: preview`
 * [`LOOKUP JOIN`](/reference/query-languages/esql/commands/lookup-join.md) {applies_to}`stack: preview 9.0` {applies_to}`stack: ga 9.1`
 * [`METRICS_INFO`](/reference/query-languages/esql/commands/metrics-info.md) {applies_to}`stack: ga 9.4` {applies_to}`serverless: preview`
 * [`INLINE STATS`](/reference/query-languages/esql/commands/inlinestats-by.md) {applies_to}`stack: preview 9.2` {applies_to}`stack: ga 9.3`
@@ -25,6 +27,7 @@
 * [`STATS`](/reference/query-languages/esql/commands/stats-by.md)
 * [`TS_INFO`](/reference/query-languages/esql/commands/ts-info.md) {applies_to}`stack: ga 9.4` {applies_to}`serverless: preview`
 * [`TS_COLLAPSE`](/reference/query-languages/esql/commands/ts_collapse.md) {applies_to}`stack: preview 9.5` {applies_to}`serverless: preview`
+* [`TOPK`](/reference/query-languages/esql/commands/topk.md) {applies_to}`stack: preview 9.6` {applies_to}`serverless: preview`
 * [`USER_AGENT`](/reference/query-languages/esql/commands/user-agent.md) {applies_to}`stack: preview 9.4` {applies_to}`serverless: preview`
 * [`URI_PARTS`](/reference/query-languages/esql/commands/uri-parts.md) {applies_to}`stack: preview 9.4` {applies_to}`serverless: preview`
 * [`WHERE`](/reference/query-languages/esql/commands/where.md)

@@ -56,6 +56,9 @@ processingCommand
     | limitCommand
     | statsCommand
     | sortCommand
+    | topkCommand
+    | bottomkCommand
+    | limitkCommand
     | dropCommand
     | renameCommand
     | dissectCommand
@@ -242,6 +245,18 @@ limitByGroupKey:
 
 sortCommand
     : SORT orderExpression (COMMA orderExpression)*
+    ;
+
+topkCommand
+    : TOPK orderField=booleanExpression COMMA k=constant limitByGroupKey?
+    ;
+
+bottomkCommand
+    : BOTTOMK orderField=booleanExpression COMMA k=constant limitByGroupKey?
+    ;
+
+limitkCommand
+    : LIMITK k=constant limitByGroupKey?
     ;
 
 orderExpression

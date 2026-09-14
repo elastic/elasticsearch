@@ -3179,6 +3179,14 @@ public class EsqlCapabilities {
         ESQL_TOPN_BY,
 
         /**
+         * Enables the TOPK, BOTTOMK and LIMITK commands for retaining at most k rows per group.
+         * TOPK and BOTTOMK keep the rows with the highest (respectively lowest) values of the given
+         * field, LIMITK keeps an arbitrary sample; all three desugar to SORT/LIMIT BY and share its
+         * execution path.
+         */
+        ESQL_TOPK_COMMAND,
+
+        /**
          * Corrects a bug with ENRICH when a shard does not contain an index field and we use LIMIT BY on top
          */
         LIMIT_BY_ENRICH_FIX(ESQL_LIMIT_BY.isEnabled()),

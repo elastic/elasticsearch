@@ -851,6 +851,83 @@ public class LogicalPlanBuilder extends ExpressionBuilder {
     }
 
     @Override
+    public PlanFactory visitTopkCommand(EsqlBaseParser.TopkCommandContext ctx) {
+        return topKCommand(ctx.orderField, ctx.k, ctx.limitByGroupKey(), source(ctx), Order.OrderDirection.DESC);
+    }
+
+    @Override
+    public PlanFactory visitBottomkCommand(EsqlBaseParser.BottomkCommandContext ctx) {
+        return topKCommand(ctx.orderField, ctx.k, ctx.limitByGroupKey(), source(ctx), Order.OrderDirection.ASC);
+    }
+
+    @Override
+    public PlanFactory visitLimitkCommand(EsqlBaseParser.LimitkCommandContext ctx) {
+        Source source = source(ctx);
+        Object val = expression(ctx.k).fold(FoldContext.small() /* TODO remove me */);
+
+        if (val instanceof Integer i && i >= 0) {
+            Literal limit = new Literal(source, i, DataType.INTEGER);
+            List<Expression> groupings = groupings(ctx.limitByGroupKey());
+            if (groupings != null) {
+                return input -> new LimitBy(source, limit, input, groupings);
+            }
+            return input -> new Limit(source, limit, input);
+        }
+
+        throw invalidTopKLimit(source, ctx.k);
+    }
+
+    /**
+     * Desugars {@code TOPK}/{@code BOTTOMK} to exactly what {@code SORT field DESC|ASC | LIMIT k BY ...} parses to,
+     * so the existing analyzer and optimizer rules (notably {@code ReplaceLimitAndSortAsTopN}, which folds this into
+     * {@code TopNBy}) apply unchanged.
+     */
+    private PlanFactory topKCommand(
+        EsqlBaseParser.BooleanExpressionContext orderField,
+        EsqlBaseParser.ConstantContext k,
+        EsqlBaseParser.LimitByGroupKeyContext groupKey,
+        Source source,
+        Order.OrderDirection direction
+    ) {
+        Object val = expression(k).fold(FoldContext.small() /* TODO remove me */);
+
+        if (val instanceof Integer i && i >= 0) {
+            // Same nulls default as SORT: DESC sorts nulls first, ASC sorts nulls last.
+            Order.NullsPosition nulls = direction == Order.OrderDirection.DESC ? Order.NullsPosition.FIRST : Order.NullsPosition.LAST;
+            Order order = new Order(source, expression(orderField), direction, nulls);
+            Literal limit = new Literal(source, i, DataType.INTEGER);
+            List<Expression> groupings = groupings(groupKey);
+            if (groupings != null) {
+                return input -> new LimitBy(source, limit, new OrderBy(source, input, List.of(order)), groupings);
+            }
+            return input -> new Limit(source, limit, new OrderBy(source, input, List.of(order)));
+        }
+
+        throw invalidTopKLimit(source, k);
+    }
+
+    private List<Expression> groupings(EsqlBaseParser.LimitByGroupKeyContext groupKey) {
+        if (groupKey == null) {
+            return null;
+        }
+        var booleanExpressions = groupKey.booleanExpression();
+        List<Expression> groupings = new ArrayList<>(booleanExpressions.size());
+        for (var boolExpr : booleanExpressions) {
+            groupings.add(expression(boolExpr));
+        }
+        return groupings;
+    }
+
+    private ParsingException invalidTopKLimit(Source source, EsqlBaseParser.ConstantContext k) {
+        String valueType = expression(k).dataType().typeName();
+
+        return new ParsingException(
+            source,
+            "value of [" + source.text() + "] must be a non negative integer, found value [" + k.getText() + "] type [" + valueType + "]"
+        );
+    }
+
+    @Override
     public Explain visitExplainCommand(EsqlBaseParser.ExplainCommandContext ctx) {
         return new Explain(source(ctx), plan(ctx.subqueryExpression().query()));
     }

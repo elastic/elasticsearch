@@ -11515,6 +11515,69 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
         assertThat(esRelation.indexPattern(), equalTo("employees"));
     }
 
+    public void testTopkLowersToTopNBy() {
+        var plan = optimizedPlan("""
+            FROM employees
+            | TOPK salary, 5 BY languages
+            """);
+
+        var defaultLimit = as(plan, Limit.class);
+        assertThat(((Literal) defaultLimit.limit()).value(), equalTo(1000));
+        var topNBy = as(defaultLimit.child(), TopNBy.class);
+        assertThat(((Literal) topNBy.limitPerGroup()).value(), equalTo(5));
+        assertThat(topNBy.order().size(), equalTo(1));
+        assertThat(topNBy.groupings().size(), equalTo(1));
+        assertThat(as(topNBy.groupings().getFirst(), FieldAttribute.class).name(), equalTo("languages"));
+
+        var order = as(topNBy.order().getFirst(), Order.class);
+        assertThat(as(order.child(), FieldAttribute.class).name(), equalTo("salary"));
+        assertThat(order.direction(), equalTo(Order.OrderDirection.DESC));
+        assertThat(order.nullsPosition(), equalTo(Order.NullsPosition.FIRST));
+
+        assertThat(as(topNBy.child(), EsRelation.class).indexPattern(), equalTo("employees"));
+    }
+
+    public void testBottomkLowersToAscendingTopNBy() {
+        var plan = optimizedPlan("""
+            FROM employees
+            | BOTTOMK salary, 5 BY languages
+            """);
+
+        var defaultLimit = as(plan, Limit.class);
+        var topNBy = as(defaultLimit.child(), TopNBy.class);
+        assertThat(((Literal) topNBy.limitPerGroup()).value(), equalTo(5));
+
+        var order = as(topNBy.order().getFirst(), Order.class);
+        assertThat(as(order.child(), FieldAttribute.class).name(), equalTo("salary"));
+        assertThat(order.direction(), equalTo(Order.OrderDirection.ASC));
+        assertThat(order.nullsPosition(), equalTo(Order.NullsPosition.LAST));
+    }
+
+    public void testTopkWithoutByLowersToTopN() {
+        var plan = optimizedPlan("""
+            FROM employees
+            | TOPK salary, 5
+            """);
+
+        // The implicit default limit folds into the TopN, keeping the smaller limit.
+        var topN = as(plan, TopN.class);
+        assertThat(((Literal) topN.limit()).value(), equalTo(5));
+        var order = as(topN.order().getFirst(), Order.class);
+        assertThat(order.direction(), equalTo(Order.OrderDirection.DESC));
+    }
+
+    public void testLimitkLowersToLimitBy() {
+        var plan = optimizedPlan("""
+            FROM employees
+            | LIMITK 5 BY languages
+            """);
+
+        var defaultLimit = as(plan, Limit.class);
+        var limitBy = as(defaultLimit.child(), LimitBy.class);
+        assertThat(((Literal) limitBy.limitPerGroup()).value(), equalTo(5));
+        assertThat(as(limitBy.groupings().getFirst(), FieldAttribute.class).name(), equalTo("languages"));
+    }
+
     /**
      * If we have SORT a | {something else} | SORT b | LIMIT N BY attrs it should drop the 'a' in TopNBy and become TopNBy[N, b, attrs]
      *

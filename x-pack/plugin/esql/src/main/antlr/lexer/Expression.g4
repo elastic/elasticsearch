@@ -7,18 +7,21 @@
 lexer grammar Expression;
 
 //
-// Expression - used by many commands
+ // Expression - used by many commands
 //
+BOTTOMK : 'bottomk'                 -> pushMode(EXPRESSION_MODE);
 COMPLETION : 'completion'               -> pushMode(EXPRESSION_MODE);
 DISSECT : 'dissect'                     -> pushMode(EXPRESSION_MODE);
 EVAL : 'eval'                           -> pushMode(EXPRESSION_MODE);
 GROK : 'grok'                           -> pushMode(EXPRESSION_MODE);
 LIMIT : 'limit'                         -> pushMode(EXPRESSION_MODE);
+LIMITK : 'limitk'                       -> pushMode(EXPRESSION_MODE);
 RERANK : 'rerank'                       -> pushMode(EXPRESSION_MODE);
 ROW : 'row'                             -> pushMode(EXPRESSION_MODE);
 SAMPLE : 'sample'                       -> pushMode(EXPRESSION_MODE);
 SORT : 'sort'                           -> pushMode(EXPRESSION_MODE);
 STATS : 'stats'                         -> pushMode(EXPRESSION_MODE);
+TOPK : 'topk'                           -> pushMode(EXPRESSION_MODE);
 WHERE : 'where'                         -> pushMode(EXPRESSION_MODE);
 URI_PARTS: 'uri_parts'                  -> pushMode(EXPRESSION_MODE);
 METRICS_INFO : 'metrics_info'           -> pushMode(EXPRESSION_MODE);

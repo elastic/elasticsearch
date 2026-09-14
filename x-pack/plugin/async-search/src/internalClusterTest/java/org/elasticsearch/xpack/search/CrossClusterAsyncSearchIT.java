@@ -2326,7 +2326,7 @@ public class CrossClusterAsyncSearchIT extends AbstractMultiClustersTestCase {
                 }
 
                 @Override
-                public void onFailedQueryPhase(SearchContext searchContext) {
+                public void onFailedQueryPhase(SearchContext searchContext, Throwable e) {
                     // only count failed queries that have a timeout set (to be sure we are listening for our test query)
                     if (searchContext.timeout().millis() > -1) {
                         if (failedQueryLatch.get().getCount() > 0) {

@@ -10,12 +10,13 @@
 package org.elasticsearch.index.search.stats;
 
 import org.elasticsearch.action.search.SearchRequestAttributesExtractor;
-import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.index.shard.SearchOperationListener;
 import org.elasticsearch.search.internal.SearchContext;
 import org.elasticsearch.search.internal.ShardSearchRequest;
+import org.elasticsearch.telemetry.metric.LongCounter;
 import org.elasticsearch.telemetry.metric.LongHistogram;
 import org.elasticsearch.telemetry.metric.MeterRegistry;
+import org.elasticsearch.telemetry.metric.MetricAttributes;
 
 import java.util.Map;
 import java.util.concurrent.TimeUnit;
@@ -26,11 +27,15 @@ public final class ShardSearchPhaseAPMMetrics implements SearchOperationListener
     public static final String DFS_SEARCH_PHASE_METRIC = "es.search.shards.phases.dfs.duration.histogram";
     public static final String QUERY_SEARCH_PHASE_METRIC = "es.search.shards.phases.query.duration.histogram";
     public static final String FETCH_SEARCH_PHASE_METRIC = "es.search.shards.phases.fetch.duration.histogram";
+    public static final String QUERY_SEARCH_PHASE_FAILURE_METRIC = "es.search.shards.phases.query.failure.total";
+    public static final String FETCH_SEARCH_PHASE_FAILURE_METRIC = "es.search.shards.phases.fetch.failure.total";
 
     private final LongHistogram canMatchPhaseMetric;
     private final LongHistogram dfsPhaseMetric;
     private final LongHistogram queryPhaseMetric;
     private final LongHistogram fetchPhaseMetric;
+    private final LongCounter queryPhaseFailures;
+    private final LongCounter fetchPhaseFailures;
 
     public ShardSearchPhaseAPMMetrics(MeterRegistry meterRegistry) {
         this.canMatchPhaseMetric = meterRegistry.registerLongHistogram(
@@ -54,6 +59,16 @@ public final class ShardSearchPhaseAPMMetrics implements SearchOperationListener
             "Fetch search phase execution times at the shard level, expressed as a histogram",
             "ms"
         );
+        this.queryPhaseFailures = meterRegistry.registerLongCounter(
+            QUERY_SEARCH_PHASE_FAILURE_METRIC,
+            "Number of query search phases that failed at the shard level",
+            "unit"
+        );
+        this.fetchPhaseFailures = meterRegistry.registerLongCounter(
+            FETCH_SEARCH_PHASE_FAILURE_METRIC,
+            "Number of fetch search phases that failed at the shard level",
+            "unit"
+        );
     }
 
     @Override
@@ -63,36 +78,45 @@ public final class ShardSearchPhaseAPMMetrics implements SearchOperationListener
 
     @Override
     public void onDfsPhase(SearchContext searchContext, long tookInNanos) {
-        SearchExecutionContext searchExecutionContext = searchContext.getSearchExecutionContext();
-        Long timeRangeFilterFromMillis = searchExecutionContext.getTimeRangeFilterFromMillis();
-        recordPhaseLatency(dfsPhaseMetric, tookInNanos, searchContext.request(), timeRangeFilterFromMillis);
+        recordPhaseLatency(dfsPhaseMetric, tookInNanos, searchContext);
     }
 
     @Override
     public void onQueryPhase(SearchContext searchContext, long tookInNanos) {
-        SearchExecutionContext searchExecutionContext = searchContext.getSearchExecutionContext();
-        Long timeRangeFilterFromMillis = searchExecutionContext.getTimeRangeFilterFromMillis();
-        recordPhaseLatency(queryPhaseMetric, tookInNanos, searchContext.request(), timeRangeFilterFromMillis);
+        recordPhaseLatency(queryPhaseMetric, tookInNanos, searchContext);
+    }
+
+    @Override
+    public void onFailedQueryPhase(SearchContext searchContext, Throwable e) {
+        queryPhaseFailures.incrementBy(1, failureAttributes(searchContext, e));
     }
 
     @Override
     public void onFetchPhase(SearchContext searchContext, long tookInNanos) {
-        SearchExecutionContext searchExecutionContext = searchContext.getSearchExecutionContext();
-        Long timeRangeFilterFromMillis = searchExecutionContext.getTimeRangeFilterFromMillis();
-        recordPhaseLatency(fetchPhaseMetric, tookInNanos, searchContext.request(), timeRangeFilterFromMillis);
+        recordPhaseLatency(fetchPhaseMetric, tookInNanos, searchContext);
     }
 
-    private static void recordPhaseLatency(
-        LongHistogram histogramMetric,
-        long tookInNanos,
-        ShardSearchRequest request,
-        Long timeRangeFilterFromMillis
-    ) {
+    @Override
+    public void onFailedFetchPhase(SearchContext searchContext, Throwable e) {
+        fetchPhaseFailures.incrementBy(1, failureAttributes(searchContext, e));
+    }
+
+    private static void recordPhaseLatency(LongHistogram histogramMetric, long tookInNanos, SearchContext searchContext) {
+        ShardSearchRequest request = searchContext.request();
         Map<String, Object> attributes = SearchRequestAttributesExtractor.extractAttributes(
             request,
-            timeRangeFilterFromMillis,
+            searchContext.getSearchExecutionContext().getTimeRangeFilterFromMillis(),
             request.nowInMillis()
         );
+        attributes.put(MetricAttributes.ES_INDEX_MODE, indexMode(searchContext));
         histogramMetric.record(TimeUnit.NANOSECONDS.toMillis(tookInNanos), attributes);
+    }
+
+    private static Map<String, Object> failureAttributes(SearchContext searchContext, Throwable e) {
+        return Map.of(MetricAttributes.ES_INDEX_MODE, indexMode(searchContext), MetricAttributes.ERROR_TYPE, MetricAttributes.errorType(e));
+    }
+
+    private static String indexMode(SearchContext searchContext) {
+        return searchContext.indexShard().indexSettings().getMode().getName();
     }
 }

@@ -1026,6 +1026,7 @@ public class IpFieldMapper extends FieldMapper {
             final BytesRef nullValueEncoded = nullValue != null ? new BytesRef(CIDRUtils.encode(nullValue.getAddress())) : null;
 
             int currentDoc = -1;
+            boolean valueSeenThisDoc = false;
             while (true) {
                 final int nextDoc = cursor.nextDoc();
                 if (nextDoc == DocIdSetIterator.NO_MORE_DOCS) {
@@ -1033,6 +1034,7 @@ public class IpFieldMapper extends FieldMapper {
                 }
                 if (nextDoc != currentDoc) {
                     currentDoc = nextDoc;
+                    valueSeenThisDoc = false;
                 }
 
                 // Check for multi_value=false violation before applying null_value substitution,

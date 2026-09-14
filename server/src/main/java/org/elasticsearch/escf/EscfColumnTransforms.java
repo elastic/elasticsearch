@@ -33,6 +33,19 @@ public final class EscfColumnTransforms {
      * @throws IllegalArgumentException if {@code beforeDoc} exceeds {@code source.docCount()}
      */
     public static void backfillUtf8Before(EscfColumnBuilder dest, EscfColumn source, int beforeDoc) {
+        backfillUtf8Before(dest, source, beforeDoc, 0);
+    }
+
+    /**
+     * Writes all present values from {@code source} with doc-id &lt; {@code beforeDoc} into
+     * {@code dest}, then writes the first {@code elementsOfBeforeDoc} elements of {@code beforeDoc}
+     * itself. Use the 4-arg form when the caller has already consumed part of a multi-valued row
+     * from {@code source} and needs those earlier elements replayed into {@code dest}.
+     *
+     * @param elementsOfBeforeDoc number of elements of {@code beforeDoc} to replay (0 = none)
+     * @throws IllegalArgumentException if {@code beforeDoc} exceeds {@code source.docCount()}
+     */
+    public static void backfillUtf8Before(EscfColumnBuilder dest, EscfColumn source, int beforeDoc, int elementsOfBeforeDoc) {
         if (beforeDoc > source.docCount()) {
             throw new IllegalArgumentException("beforeDoc (" + beforeDoc + ") exceeds source docCount (" + source.docCount() + ")");
         }
@@ -40,6 +53,14 @@ public final class EscfColumnTransforms {
         final ObjectTupleCursor<BytesRef> replayCursor = utf8Cursor(source, false);
         for (int d = replayCursor.nextDoc(); d < beforeDoc; d = replayCursor.nextDoc()) {
             dest.setString(d, replayCursor.value());
+        }
+        // Replay any already-accepted elements of beforeDoc itself.
+        int replayed = 0;
+        while (replayed < elementsOfBeforeDoc) {
+            int d = replayCursor.nextDoc();
+            assert d == beforeDoc : "expected doc " + beforeDoc + " but got " + d;
+            dest.setString(d, replayCursor.value());
+            replayed++;
         }
     }
 

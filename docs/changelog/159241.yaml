@@ -1,5 +1,5 @@
 area: Search
 issues: []
 pr: 159241
-summary: Deduplicate terms lookup fetches
+summary: Deduplicate terms lookup fetches and apply max_terms_count during rewrite
 type: bug

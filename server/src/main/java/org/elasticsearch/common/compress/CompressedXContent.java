@@ -9,6 +9,8 @@
 
 package org.elasticsearch.common.compress;
 
+import org.apache.lucene.util.Accountable;
+import org.apache.lucene.util.RamUsageEstimator;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
@@ -47,7 +49,12 @@ import java.util.zip.Inflater;
  * memory. Note that the compressed string might still sometimes need to be
  * decompressed in order to perform equality checks or to compute hash codes.
  */
-public final class CompressedXContent implements Writeable {
+public final class CompressedXContent implements Writeable, Accountable {
+
+    private static final long BASE_RAM_BYTES_USED = RamUsageEstimator.shallowSizeOfInstance(CompressedXContent.class);
+
+    /** Base64 encoding of a 256-bit SHA-256 digest is always 44 characters. */
+    private static final long SHA256_RAM_BYTES_USED = RamUsageEstimator.sizeOf(Base64.getEncoder().encodeToString(new byte[32]));
 
     private static final ThreadLocal<InflaterAndBuffer> inflater = ThreadLocal.withInitial(InflaterAndBuffer::new);
 
@@ -198,6 +205,11 @@ public final class CompressedXContent implements Writeable {
 
     public String getSha256() {
         return sha256;
+    }
+
+    @Override
+    public long ramBytesUsed() {
+        return BASE_RAM_BYTES_USED + RamUsageEstimator.sizeOf(bytes) + SHA256_RAM_BYTES_USED;
     }
 
     public static CompressedXContent readCompressedString(StreamInput in) throws IOException {

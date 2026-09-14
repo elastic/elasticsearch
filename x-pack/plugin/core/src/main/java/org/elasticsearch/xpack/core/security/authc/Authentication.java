@@ -29,6 +29,7 @@ import org.elasticsearch.xcontent.ToXContentObject;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xpack.core.security.action.profile.Profile;
+import org.elasticsearch.xpack.core.security.action.service.ServiceAccountInfo;
 import org.elasticsearch.xpack.core.security.authc.CrossClusterAccessSubjectInfo.RoleDescriptorsBytes;
 import org.elasticsearch.xpack.core.security.authc.RealmConfig.RealmIdentifier;
 import org.elasticsearch.xpack.core.security.authc.esnative.NativeRealmSettings;
@@ -309,6 +310,18 @@ public final class Authentication implements ToXContentObject {
                 "versions of Elasticsearch before ["
                     + SECURITY_CLOUD_SERVICE_ACCOUNT_AND_LIMITED_BY_ROLES.toReleaseVersion()
                     + "] can't enforce cloud limited-by roles and attempted to rewrite for ["
+                    + olderVersion.toReleaseVersion()
+                    + "]"
+            );
+        }
+        // The marker that makes a service account user-managed is an ordinary metadata entry, so this would rewrite into a shape an older
+        // node parses happily and then reads wrong: it ignores the marker and looks for a built-in account of the same principal, which
+        // cannot exist. Refuse, so the caller is told the cluster is not fully upgraded rather than left with that lookup's failure.
+        if (isUserManagedServiceAccount() && olderVersion.supports(ServiceAccountInfo.USER_MANAGED_SERVICE_ACCOUNT_INFO) == false) {
+            throw new IllegalArgumentException(
+                "versions of Elasticsearch before ["
+                    + ServiceAccountInfo.USER_MANAGED_SERVICE_ACCOUNT_INFO.toReleaseVersion()
+                    + "] can't handle user-managed service account authentication and attempted to rewrite for ["
                     + olderVersion.toReleaseVersion()
                     + "]"
             );
@@ -744,6 +757,18 @@ public final class Authentication implements ToXContentObject {
                     + "]"
             );
         }
+        // Keyed on the metadata marker rather than the subject type: a built-in account must keep serializing as it did before, but an
+        // older node ignores the marker and resolves the account as built-in, so a user-managed one must never be sent.
+        if (effectiveSubject.isUserManagedServiceAccount()
+            && out.getTransportVersion().supports(ServiceAccountInfo.USER_MANAGED_SERVICE_ACCOUNT_INFO) == false) {
+            throw new IllegalArgumentException(
+                "versions of Elasticsearch before ["
+                    + ServiceAccountInfo.USER_MANAGED_SERVICE_ACCOUNT_INFO.toReleaseVersion()
+                    + "] can't handle user-managed service account authentication and attempted to send to ["
+                    + out.getTransportVersion().toReleaseVersion()
+                    + "]"
+            );
+        }
         final boolean isRunAs = authenticatingSubject != effectiveSubject;
         if (isRunAs) {
             final User outerUser = effectiveSubject.getUser();
@@ -843,6 +868,10 @@ public final class Authentication implements ToXContentObject {
         final Map<String, Object> metadata = getAuthenticatingSubject().getMetadata();
         builder.field(User.Fields.USERNAME.getPreferredName(), user.principal());
         builder.array(User.Fields.ROLES.getPreferredName(), user.roles());
+        final List<String> limitedByRoleNames = effectiveSubject.getCloudLimitedByRoleNames();
+        if (limitedByRoleNames != null) {
+            builder.array(User.Fields.LIMITED_BY_ROLES.getPreferredName(), limitedByRoleNames.toArray(String[]::new));
+        }
         builder.field(User.Fields.FULL_NAME.getPreferredName(), user.fullName());
         builder.field(User.Fields.EMAIL.getPreferredName(), user.email());
         if (isServiceAccount()) {
@@ -860,6 +889,11 @@ public final class Authentication implements ToXContentObject {
                     "managed_by",
                     CredentialManagedBy.ELASTICSEARCH.getDisplayName()
                 )
+            );
+        } else if (isCloudServiceAccount()) {
+            builder.field(
+                User.Fields.TOKEN.getPreferredName(),
+                Map.of("type", CLOUD_SERVICE_ACCOUNT_REALM_TYPE, "managed_by", CredentialManagedBy.CLOUD.getDisplayName())
             );
         } else if (getAuthenticationType() == AuthenticationType.TOKEN) {
             String managedBy = (String) metadata.get("managed_by");

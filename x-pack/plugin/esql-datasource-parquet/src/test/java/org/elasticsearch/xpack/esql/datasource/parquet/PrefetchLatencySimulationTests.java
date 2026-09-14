@@ -445,6 +445,54 @@ public class PrefetchLatencySimulationTests extends ESTestCase {
     }
 
     /**
+     * Empty-queue overrun of a group larger than the node watermark is one slot for the process,
+     * not one per iterator. {@link OptimizedParquetColumnIterator#MAX_QUEUED_PREFETCH_BYTES} stays
+     * the local anti-runaway and is not retuned to the 10 MiB GET size.
+     */
+    public void testWatermarkEmptyQueueOverrunIsNodeWide() throws Exception {
+        byte[] parquetData = smallInt64MultiRowGroupFile();
+        FormatReadContext ctx = FormatReadContext.of(null, 1024);
+        ParquetIoWatermark probe = new ParquetIoWatermark(Long.MAX_VALUE / 8);
+        long oneIteratorUsed;
+        try (
+            CloseableIterator<Page> measured = new ParquetFormatReader(blockFactory, true).withIoWatermark(probe)
+                .read(new CountingStorageObject(parquetData, asyncIoExecutor), ctx)
+        ) {
+            OptimizedParquetColumnIterator opi = (OptimizedParquetColumnIterator) measured;
+            oneIteratorUsed = probe.used();
+            assertTrue("probe iterator must queue the current group", opi.pendingPrefetchCount() >= 1);
+            assertTrue(oneIteratorUsed > 0);
+        }
+        // Cap at what one iterator already retains (window + metadata + one group). A second
+        // iterator may forceAdd its window past the cap; empty-queue prefetch must not take a
+        // second overshoot.
+        ParquetIoWatermark watermark = new ParquetIoWatermark(oneIteratorUsed);
+        try (
+            CloseableIterator<Page> first = new ParquetFormatReader(blockFactory, true).withIoWatermark(watermark)
+                .read(new CountingStorageObject(parquetData, asyncIoExecutor), ctx);
+            CloseableIterator<Page> second = new ParquetFormatReader(blockFactory, true).withIoWatermark(watermark)
+                .read(new CountingStorageObject(parquetData, asyncIoExecutor), ctx)
+        ) {
+            OptimizedParquetColumnIterator opi1 = (OptimizedParquetColumnIterator) first;
+            OptimizedParquetColumnIterator opi2 = (OptimizedParquetColumnIterator) second;
+            growPrefetchDepth(opi1, 3);
+            growPrefetchDepth(opi2, 3);
+            opi1.fillLookaheadPrefetches();
+            opi2.fillLookaheadPrefetches();
+            int combined = opi1.pendingPrefetchCount() + opi2.pendingPrefetchCount();
+            assertEquals("empty-queue overrun stays one node, not one per iterator: " + combined, 1, combined);
+            assertEquals(32_000_000L, OptimizedParquetColumnIterator.MAX_QUEUED_PREFETCH_BYTES);
+        }
+        try (
+            CloseableIterator<Page> next = new ParquetFormatReader(blockFactory, true).withIoWatermark(watermark)
+                .read(new CountingStorageObject(parquetData, asyncIoExecutor), ctx)
+        ) {
+            OptimizedParquetColumnIterator opi = (OptimizedParquetColumnIterator) next;
+            assertEquals("release on close allows the next iterator", 1, opi.pendingPrefetchCount());
+        }
+    }
+
+    /**
      * Consume and cancel must keep queued-byte accounting in sync: a tiny budget scan returns
      * the same rows as an unconstrained read and drains the queue at exhaustion.
      */

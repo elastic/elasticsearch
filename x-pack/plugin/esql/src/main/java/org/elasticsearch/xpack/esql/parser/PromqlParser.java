@@ -154,20 +154,18 @@ public class PromqlParser {
             switch (token.getType()) {
                 case PromqlBaseLexer.LP -> depth++;
                 case PromqlBaseLexer.RP -> depth--;
-                case PromqlBaseLexer.PLUS, PromqlBaseLexer.MINUS, PromqlBaseLexer.ASTERISK, PromqlBaseLexer.SLASH, PromqlBaseLexer.PERCENT,
-                    PromqlBaseLexer.CARET, PromqlBaseLexer.EQ, PromqlBaseLexer.NEQ, PromqlBaseLexer.GT, PromqlBaseLexer.GTE,
-                    PromqlBaseLexer.LT, PromqlBaseLexer.LTE, PromqlBaseLexer.AND, PromqlBaseLexer.OR, PromqlBaseLexer.UNLESS -> {
-                    // NB: unary PLUS/MINUS are conservatively counted as binary operators here; the bound
-                    // is generous enough that legitimate queries are unaffected.
-                    binaryOperators++;
-                    if (binaryOperators > MAX_BINARY_OPERATORS) {
-                        throw new ParsingException(
-                            "PromQL statement exceeded the maximum number of binary operators allowed ({})",
-                            MAX_BINARY_OPERATORS
-                        );
-                    }
-                }
                 default -> {
+                    if (isBinaryOperator(token.getType())) {
+                        // NB: unary PLUS/MINUS are conservatively counted as binary operators here; the bound
+                        // is generous enough that legitimate queries are unaffected.
+                        binaryOperators++;
+                        if (binaryOperators > MAX_BINARY_OPERATORS) {
+                            throw new ParsingException(
+                                "PromQL statement exceeded the maximum number of binary operators allowed ({})",
+                                MAX_BINARY_OPERATORS
+                            );
+                        }
+                    }
                 }
             }
             if (depth > PromqlAstBuilder.MAX_EXPRESSION_DEPTH) {
@@ -177,6 +175,58 @@ public class PromqlParser {
                 );
             }
         }
+    }
+
+    /**
+     * Validates a batch of PromQL expressions (e.g. repeated {@code match[]} selectors of the native
+     * Prometheus endpoints) against the same bounds as a single expression, applied to the batch total.
+     * Each expression is still guarded individually when parsed; this additionally prevents splitting a
+     * single oversized expression across many individually-valid inputs.
+     *
+     * @throws ParsingException if the batched inputs exceed the limits in total
+     */
+    public static void validateBatch(List<String> queries) {
+        long totalLength = 0;
+        long totalBinaryOperators = 0;
+        for (String query : queries) {
+            totalLength += query.length();
+            if (totalLength > MAX_LENGTH) {
+                throw new ParsingException("PromQL statements are too large in total [{} characters > {}]", totalLength, MAX_LENGTH);
+            }
+            totalBinaryOperators += countBinaryOperators(query);
+            if (totalBinaryOperators > MAX_BINARY_OPERATORS) {
+                throw new ParsingException(
+                    "PromQL statements exceeded the maximum number of binary operators allowed in total ({})",
+                    MAX_BINARY_OPERATORS
+                );
+            }
+        }
+    }
+
+    private static int countBinaryOperators(String query) {
+        try {
+            CommonTokenStream tokenStream = createTokenStream(query);
+            tokenStream.fill();
+            int count = 0;
+            for (Token token : tokenStream.getTokens()) {
+                if (isBinaryOperator(token.getType())) {
+                    count++;
+                }
+            }
+            return count;
+        } catch (RuntimeException e) {
+            // Lexer errors surface when the query is actually parsed; don't fail validation on them here.
+            return 0;
+        }
+    }
+
+    private static boolean isBinaryOperator(int tokenType) {
+        return switch (tokenType) {
+            case PromqlBaseLexer.PLUS, PromqlBaseLexer.MINUS, PromqlBaseLexer.ASTERISK, PromqlBaseLexer.SLASH, PromqlBaseLexer.PERCENT,
+                PromqlBaseLexer.CARET, PromqlBaseLexer.EQ, PromqlBaseLexer.NEQ, PromqlBaseLexer.GT, PromqlBaseLexer.GTE, PromqlBaseLexer.LT,
+                PromqlBaseLexer.LTE, PromqlBaseLexer.AND, PromqlBaseLexer.OR, PromqlBaseLexer.UNLESS -> true;
+            default -> false;
+        };
     }
 
     private static void debug(PromqlBaseParser parser) {

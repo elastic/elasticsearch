@@ -17,14 +17,15 @@ import io.netty.util.ReferenceCountUtil;
 import java.util.ArrayDeque;
 
 /**
- * Forwards one inbound HTTP message at a time. Handlers above emit one-to-many: the HTTP decoder splits a socket read
- * into several messages, and the content decompressor expands any one of those into several more. Handlers below accept
- * a single message at a time.
+ * Forwards one queued inbound HTTP message per {@code read()}, for handlers above that emit several messages per read
+ * and handlers below that accept one at a time.
  * <p>
- * Serves the purpose of netty's {@link io.netty.handler.flow.FlowControlHandler}, and differs from it deliberately in
- * two ways. It forwards from {@code read()} and {@code channelReadComplete} rather than as a message arrives, so a
- * message leaves on a later stack than the one that delivered it. And it keeps at most one read outstanding, so
- * repeated reads collapse into a single read upstream rather than accumulating.
+ * Forwards from an event loop task, so a message leaves on a stack of its own rather than on the one that requested or
+ * delivered it. Two guarantees follow: draining a long queue costs a constant stack, and the call that delivered a
+ * message has returned before that message is forwarded, so any reference that call held is already dropped.
+ * <p>
+ * Keeps at most one read outstanding, so repeated reads collapse into a single read upstream, unlike netty's
+ * {@link io.netty.handler.flow.FlowControlHandler} which counts them and forwards inline.
  */
 class Netty4HttpFlowControlHandler extends ChannelDuplexHandler {
 
@@ -38,9 +39,7 @@ class Netty4HttpFlowControlHandler extends ChannelDuplexHandler {
             return;
         }
         readPending = true;
-        if (emit(ctx) == false) {
-            ctx.read();
-        }
+        dispatch(ctx);
     }
 
     @Override
@@ -51,8 +50,8 @@ class Netty4HttpFlowControlHandler extends ChannelDuplexHandler {
 
     @Override
     public void channelReadComplete(ChannelHandlerContext ctx) {
-        if (readPending && emit(ctx) == false) {
-            ctx.read();
+        if (readPending) {
+            dispatch(ctx);
         }
     }
 
@@ -67,15 +66,26 @@ class Netty4HttpFlowControlHandler extends ChannelDuplexHandler {
         releaseQueued();
     }
 
-    private boolean emit(ChannelHandlerContext ctx) {
+    private void dispatch(ChannelHandlerContext ctx) {
+        if (queue.isEmpty()) {
+            ctx.read();
+        } else {
+            ctx.channel().eventLoop().execute(() -> forward(ctx));
+        }
+    }
+
+    private void forward(ChannelHandlerContext ctx) {
+        if (readPending == false) {
+            return;
+        }
         final HttpObject msg = queue.pollFirst();
         if (msg == null) {
-            return false;
+            ctx.read();
+            return;
         }
         readPending = false;
         ctx.fireChannelRead(msg);
         ctx.fireChannelReadComplete();
-        return true;
     }
 
     private void releaseQueued() {

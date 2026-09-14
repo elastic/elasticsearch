@@ -422,7 +422,8 @@ public class Netty4HttpServerTransport extends AbstractHttpServerTransport {
                     );
             }
 
-            // the HTTP decoder above reads socket bytes and emits multiple HttpObjects per read, content still compressed
+            // the HTTP decoder above reads socket bytes and emits multiple HttpObjects per read, content still compressed.
+            // Releasing one at a time caps how much the decompressor below can expand at once.
             ch.pipeline().addLast("decoder_flow_control", new Netty4HttpFlowControlHandler());
 
             ch.pipeline().addLast("decoder_compress", new HttpContentDecompressor() { // this handles request body decompression

@@ -28,7 +28,10 @@ import org.junit.After;
 import org.junit.Before;
 
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.List;
+
+import static org.hamcrest.Matchers.lessThanOrEqualTo;
 
 public class Netty4HttpFlowControlHandlerTests extends ESTestCase {
 
@@ -149,8 +152,8 @@ public class Netty4HttpFlowControlHandlerTests extends ESTestCase {
     }
 
     /**
-     * A handler below may call {@code read()} from inside {@code channelRead}, as Netty4HttpContentSizeHandler does for
-     * content it is dropping. That read must be honoured rather than swallowed by the flag the release just cleared.
+     * A handler below may call {@code read()} from inside {@code channelRead}, as {@link Netty4HttpContentSizeHandler}
+     * does for content it is dropping. Each such read is served in turn.
      */
     public void testSynchronousDownstreamReadIsHonoured() {
         channel.pipeline().addLast(new ChannelInboundHandlerAdapter() {
@@ -169,6 +172,40 @@ public class Netty4HttpFlowControlHandlerTests extends ESTestCase {
             assertSame("a read from within channelRead must release the next message", expected, channel.readInbound());
         }
         releaseAll(batch);
+    }
+
+    /**
+     * Measures stack depth, which is the observable for forwarding from a task. A handler below that reads again for
+     * every message it receives adds a frame per message when forwarding happens inline, so depth grows linearly with
+     * the queue; forwarding from a task keeps it flat.
+     */
+    public void testForwardingDoesNotGrowTheStack() {
+        var depths = new ArrayList<Integer>();
+        channel.pipeline().addLast(new ChannelInboundHandlerAdapter() {
+            @Override
+            public void channelRead(ChannelHandlerContext ctx, Object msg) {
+                depths.add(Thread.currentThread().getStackTrace().length);
+                ReferenceCountUtil.release(msg);
+                ctx.read();
+            }
+        });
+
+        int messages = 200;
+        var batch = new ArrayList<HttpObject>(messages);
+        for (int i = 0; i < messages; i++) {
+            batch.add(randomContent(between(0, 8)));
+        }
+        channel.writeInbound(batch.toArray());
+        channel.read();
+
+        assertEquals("every message must be forwarded", messages, depths.size());
+        int min = Collections.min(depths);
+        int max = Collections.max(depths);
+        assertThat(
+            "stack depth must not grow with the message count, saw " + min + ".." + max + " over " + messages + " messages",
+            max - min,
+            lessThanOrEqualTo(8)
+        );
     }
 
     public void testReleasesQueuedContentOnClose() {

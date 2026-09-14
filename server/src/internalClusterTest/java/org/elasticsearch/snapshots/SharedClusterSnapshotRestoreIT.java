@@ -52,12 +52,14 @@ import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexService;
+import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.engine.Engine;
 import org.elasticsearch.index.engine.EngineTestCase;
 import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.indices.IndicesService;
+import org.elasticsearch.persistent.decider.EnableAssignmentDecider;
 import org.elasticsearch.repositories.IndexId;
 import org.elasticsearch.repositories.RepositoryData;
 import org.elasticsearch.repositories.RepositoryException;
@@ -87,6 +89,7 @@ import java.util.function.Predicate;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 
+import static org.elasticsearch.cluster.metadata.IndexMetadata.SETTING_NUMBER_OF_REPLICAS;
 import static org.elasticsearch.cluster.metadata.IndexMetadata.SETTING_NUMBER_OF_SHARDS;
 import static org.elasticsearch.cluster.routing.allocation.decider.MaxRetryAllocationDecider.SETTING_ALLOCATION_MAX_RETRY;
 import static org.elasticsearch.index.shard.IndexShardTests.getEngineFromShard;
@@ -2143,6 +2146,80 @@ public class SharedClusterSnapshotRestoreIT extends AbstractSnapshotIntegTestCas
         assertThat(shardStats.getSeqNoStats().getLocalCheckpoint(), equalTo(15L)); // 15 indexed docs and one "missing" op.
         assertThat(shardStats.getSeqNoStats().getGlobalCheckpoint(), equalTo(15L));
         assertThat(shardStats.getSeqNoStats().getMaxSeqNo(), equalTo(15L));
+    }
+
+    public void testSnapshottingWithMissingSequenceNumbersLastInSequence() throws Exception {
+        final String repositoryName = "test-repo";
+        final String snapshotName = "test-snap";
+        final String indexName = "test-idx";
+        final Client client = client();
+
+        createRepository(repositoryName, "fs");
+        logger.info("--> creating an index and indexing documents");
+        final String dataNode = internalCluster().getDataNodeInstance(ClusterService.class).localNode().getName();
+        final Settings settings = indexSettingsNoReplicas(1).put("index.routing.allocation.include._name", dataNode).build();
+        createIndex(indexName, settings);
+        ensureGreen();
+        for (int i = 0; i < 5; i++) {
+            indexDoc(indexName, Integer.toString(i), "foo", "bar" + i);
+        }
+
+        final Index index = resolveIndex(indexName);
+        final IndexShard primary = internalCluster().getInstance(IndicesService.class, dataNode).getShardOrNull(new ShardId(index, 0));
+        // create a gap in the sequence numbers
+        EngineTestCase.generateNewSeqNo(getEngineFromShard(primary));
+
+        flush(indexName);
+
+        {
+            IndicesStatsResponse stats = indicesAdmin().prepareStats(indexName).clear().get();
+            ShardStats shardStats = stats.getShards()[0];
+            assertTrue(shardStats.getShardRouting().primary());
+            assertThat(shardStats.getSeqNoStats().getLocalCheckpoint(), equalTo(4L)); // "missing" op should not be part of checkpoint
+            assertThat(shardStats.getSeqNoStats().getGlobalCheckpoint(), equalTo(4L));
+        }
+
+        createSnapshot(repositoryName, snapshotName, Collections.singletonList(indexName));
+
+        logger.info("--> delete indices");
+        assertAcked(client.admin().indices().prepareDelete(indexName));
+
+        logger.info("--> restore all indices from the snapshot");
+        RestoreSnapshotResponse restoreSnapshotResponse = client.admin()
+            .cluster()
+            .prepareRestoreSnapshot(TEST_REQUEST_TIMEOUT, "test-repo", "test-snap")
+            .setWaitForCompletion(true)
+            .execute()
+            .get();
+        assertThat(restoreSnapshotResponse.getRestoreInfo().totalShards(), greaterThan(0));
+
+        {
+            IndicesStatsResponse stats = indicesAdmin().prepareStats(indexName).clear().get();
+            ShardStats shardStats = stats.getShards()[0];
+            assertTrue(shardStats.getShardRouting().primary());
+            assertThat(shardStats.getSeqNoStats().getLocalCheckpoint(), equalTo(5L)); // 5 indexed docs and one "missing" op.
+            assertThat(shardStats.getSeqNoStats().getGlobalCheckpoint(), equalTo(5L));
+        }
+
+        // Need another node to allocate replica shard
+        String replicaNode = internalCluster().startDataOnlyNode();
+        try {
+            updateIndexSettings(
+                Settings.builder()
+                    .put(SETTING_NUMBER_OF_REPLICAS, 1)
+                    .putNull("index.routing.allocation.include._name"),
+                indexName
+            );
+            ensureGreen(indexName);
+            IndicesStatsResponse stats = indicesAdmin().prepareStats(indexName).clear().get();
+            assertThat(stats.getShards().length, equalTo(2));
+            for (ShardStats shard : stats.getShards()) {
+                assertThat(shard.getSeqNoStats().getLocalCheckpoint(), equalTo(5L));
+                assertThat(shard.getSeqNoStats().getGlobalCheckpoint(), equalTo(5L));
+            }
+        } finally {
+            internalCluster().stopNode(replicaNode);
+        }
     }
 
     public void testSnapshotDifferentIndicesBySameName() throws InterruptedException, ExecutionException {

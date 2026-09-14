@@ -1,5 +1,5 @@
-// Pins that the `partition_detection`, `partition_path` and `hive_partitioning` dataset settings select the
-// partition detector on the read path, end to end over a real storage backend.
+// Pins that the `partition_detection` and `partition_path` dataset settings select the partition detector on the
+// read path, end to end over a real storage backend.
 //
 // A csv-spec has no error channel, so only the promises expressible as a result table live here; the promises whose
 // fulfilment is an absence — suppressed partition metadata — or a cache-identity property are pinned in
@@ -27,13 +27,12 @@ count:long | lang:integer
 ;
 
 // ---------------------------------------------------------------------------------------------------------
-// The legacy switch. It now resolves through the same PartitionConfig as everything else (folded to
-// Strategy.NONE), so it must keep behaving exactly as it always has.
+// The canonical way to turn detection off.
 // ---------------------------------------------------------------------------------------------------------
 
-hivePartitioningFalseTurnsDetectionOff
+partitionDetectionNoneDisablesDetection
 required_capability: dataset_in_from_command
-dataset: employees_hive_detection_off: "{{employees_hive}}" WITH {"hive_partitioning": "false"}
+dataset: employees_hive_detection_off: "{{employees_hive}}" WITH {"partition_detection": "none"}
 
 FROM employees_hive_detection_off
 | STATS count = COUNT(*);

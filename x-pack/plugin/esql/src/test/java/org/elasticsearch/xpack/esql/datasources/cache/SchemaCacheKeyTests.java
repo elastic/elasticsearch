@@ -103,6 +103,20 @@ public class SchemaCacheKeyTests extends ESTestCase {
         assertNotEquals(ndjson, csv);
     }
 
+    /**
+     * {@code hive_partitioning} is a deprecated no-op and must NOT discriminate the schema cache. Two configs
+     * differing only in this key must produce the same {@code buildFormatConfig} string, so they share one cache
+     * entry rather than fragmenting it unnecessarily. This pin catches a regression where the key is re-added to
+     * {@code FORMAT_AFFECTING_PARAMS}.
+     */
+    public void testHivePartitioningDoesNotAffectCacheKey() {
+        FileSetFingerprint fingerprint = new FileSetFingerprint(11, 22);
+        SchemaCacheKey withKey = SchemaCacheKey.forDatasetAggregate(PATTERN, fingerprint, "ndjson", Map.of("hive_partitioning", "false"));
+        SchemaCacheKey withoutKey = SchemaCacheKey.forDatasetAggregate(PATTERN, fingerprint, "ndjson", Map.of());
+        assertEquals(withKey, withoutKey);
+        assertEquals(SchemaCacheKey.buildFormatConfig(Map.of("hive_partitioning", "false")), SchemaCacheKey.buildFormatConfig(Map.of()));
+    }
+
     public void testDatasetAggregateKeyDistinctFromPerFileKeys() {
         // Even a per-file key crafted over the same strings cannot equal a dataset key: the file-set
         // fingerprint rides the dedicated fileSetFingerprint component, which every per-file key leaves

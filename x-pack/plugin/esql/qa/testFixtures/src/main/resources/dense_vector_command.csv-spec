@@ -163,9 +163,11 @@ book_no:keyword | maybe_title:keyword | maybe_title_dense_vector:dense_vector
 ;
 
 
-// For multi-valued fields only the FIRST value is embedded 
+// For multi-valued fields only the FIRST value is embedded, and a warning records that the rest were
+// discarded. Which value is "first" depends on the field loading strategy, so the warning is what tells
+// the user the result is not fully determined by the query.
 dense_vector command on a multi-valued field embeds the first value
-required_capability: dense_vector_command
+required_capability: dense_vector_command_v3
 required_capability: dense_vector_field_type_released
 
 FROM books
@@ -174,6 +176,7 @@ FROM books
 | DENSE_VECTOR sorted_author WITH { "inference_id" : "test_dense_inference" }
 | KEEP book_no, sorted_author, sorted_author_dense_vector
 ;
+warningRegex:embedding input is multi-valued; only the first value is embedded\. Reduce the field first, for example with MV_FIRST, to choose the value explicitly\.
 
 book_no:keyword | sorted_author:keyword                                | sorted_author_dense_vector:dense_vector
 2924            | [Alan Myers, Fyodor Dostoevsky, W. J. Leatherbarrow] | [45.0, 52.0, 51.0]
@@ -271,6 +274,226 @@ ROW a = "be excellent to each other", b = "live long and prosper"
 ;
 
 a:keyword                  | a_dense_vector:dense_vector
+be excellent to each other | [45.0, 55.0, 54.0]
+;
+
+
+// ---------------------------------------------------------------------------------------------------
+// Custom output naming. Two forms: `name = field` names one generated column outright, and
+// `suffix = "..." ON f1, f2` replaces the default "_dense_vector" suffix on every listed field.
+// Mirrors the default-naming cases above so the two spellings can be compared directly.
+// ---------------------------------------------------------------------------------------------------
+
+// Same query as "dense_vector command on a single field using a ROW source operator", but naming the output.
+dense_vector command with an explicit output name
+required_capability: dense_vector_command_v3
+required_capability: dense_vector_field_type_released
+
+ROW input = "Who is Victor Hugo?"
+| DENSE_VECTOR vec = input WITH { "inference_id" : "test_dense_inference" }
+;
+
+input:keyword       | vec:dense_vector
+Who is Victor Hugo? | [56.0, 50.0, 48.0]
+;
+
+// Same query as "dense_vector command on multiple fields", but with a custom suffix on both.
+dense_vector command with a custom suffix over multiple fields
+required_capability: dense_vector_command_v3
+required_capability: dense_vector_field_type_released
+
+ROW a = "be excellent to each other", b = "live long and prosper"
+| DENSE_VECTOR suffix = "_dv" ON a, b WITH { "inference_id" : "test_dense_inference" }
+;
+
+a:keyword                  | b:keyword             | a_dv:dense_vector  | b_dv:dense_vector
+be excellent to each other | live long and prosper | [45.0, 55.0, 54.0] | [50.0, 57.0, 56.0]
+;
+
+// The suffix clause is the affix mechanism at any field count, so a single field is valid too.
+dense_vector command with a custom suffix over a single field
+required_capability: dense_vector_command_v3
+required_capability: dense_vector_field_type_released
+
+ROW input = "Who is Victor Hugo?"
+| DENSE_VECTOR suffix = "_dv" ON input WITH { "inference_id" : "test_dense_inference" }
+;
+
+input:keyword       | input_dv:dense_vector
+Who is Victor Hugo? | [56.0, 50.0, 48.0]
+;
+
+// Named output over a non-constant indexed field, embedded per row.
+dense_vector command with an explicit output name over an index
+required_capability: dense_vector_command_v3
+required_capability: dense_vector_field_type_released
+
+FROM books
+| WHERE book_no IN ("2924", "7381", "7670")
+| DENSE_VECTOR publisher_vector = publisher WITH { "inference_id" : "test_dense_inference" }
+| SORT book_no
+| KEEP book_no, publisher, publisher_vector
+;
+
+book_no:keyword | publisher:text      | publisher_vector:dense_vector
+2924            | Oxford Paperbacks   | [45.0, 56.0, 48.0]
+7381            | Red Wheel/Weiser    | [45.0, 53.0, 56.0]
+7670            | Courier Corporation | [45.0, 49.0, 55.0]
+;
+
+dense_vector command with a custom suffix over multiple indexed fields
+required_capability: dense_vector_command_v3
+required_capability: dense_vector_field_type_released
+
+FROM books
+| WHERE book_no IN ("7480", "8605")
+| DENSE_VECTOR suffix = "_vec" ON title, publisher WITH { "inference_id" : "test_dense_inference" }
+| SORT book_no
+| KEEP book_no, title_vec, publisher_vec
+;
+
+book_no:keyword | title_vec:dense_vector | publisher_vec:dense_vector
+7480            | [50.0, 49.0, 48.0]     | [45.0, 49.0, 53.0]
+8605            | [45.0, 49.0, 53.0]     | [50.0, 49.0, 50.0]
+;
+
+// `suffix` is a contextual keyword, not a reserved word: an identifier after `=` is an ordinary output name,
+// so this produces a single column literally called "suffix".
+dense_vector command can name its output column suffix
+required_capability: dense_vector_command_v3
+required_capability: dense_vector_field_type_released
+
+ROW input = "Who is Victor Hugo?"
+| DENSE_VECTOR suffix = input WITH { "inference_id" : "test_dense_inference" }
+;
+
+input:keyword       | suffix:dense_vector
+Who is Victor Hugo? | [56.0, 50.0, 48.0]
+;
+
+// ...and a column called "suffix" is still usable as input.
+dense_vector command can embed a field called suffix
+required_capability: dense_vector_command_v3
+required_capability: dense_vector_field_type_released
+
+ROW suffix = "Who is Victor Hugo?"
+| DENSE_VECTOR vec = suffix WITH { "inference_id" : "test_dense_inference" }
+;
+
+suffix:keyword      | vec:dense_vector
+Who is Victor Hugo? | [56.0, 50.0, 48.0]
+;
+
+// An explicit name that collides with an existing column replaces it, and the survivor carries the
+// dense_vector type. Mirrors the default-suffix shadowing case above.
+dense_vector command explicit name shadows an existing same-named column
+required_capability: dense_vector_command_v3
+required_capability: dense_vector_field_type_released
+
+FROM books
+| WHERE book_no == "2924"
+| EVAL vec = "placeholder"
+| DENSE_VECTOR vec = publisher WITH { "inference_id" : "test_dense_inference" }
+| KEEP book_no, vec
+;
+
+book_no:keyword | vec:dense_vector
+2924            | [45.0, 56.0, 48.0]
+;
+
+// Naming the output after its own input leaves the embedding in place of the source text.
+dense_vector command output name matching its input replaces it
+required_capability: dense_vector_command_v3
+required_capability: dense_vector_field_type_released
+
+FROM books
+| WHERE book_no == "2924"
+| DENSE_VECTOR publisher = publisher WITH { "inference_id" : "test_dense_inference" }
+| KEEP book_no, publisher
+;
+
+book_no:keyword | publisher:dense_vector
+2924            | [45.0, 56.0, 48.0]
+;
+
+// Each chained clause carries its own naming, independently of the others.
+dense_vector command chained clauses with different naming forms
+required_capability: dense_vector_command_v3
+required_capability: dense_vector_field_type_released
+
+FROM books
+| WHERE book_no IN ("7480", "8605")
+| DENSE_VECTOR title_vec = title WITH { "inference_id" : "test_dense_inference" }
+| DENSE_VECTOR suffix = "_dv" ON publisher WITH { "inference_id" : "test_dense_inference" }
+| SORT book_no
+| KEEP book_no, title_vec, publisher_dv
+;
+
+book_no:keyword | title_vec:dense_vector | publisher_dv:dense_vector
+7480            | [50.0, 49.0, 48.0]     | [45.0, 49.0, 53.0]
+8605            | [45.0, 49.0, 53.0]     | [50.0, 49.0, 50.0]
+;
+
+// A named column is a usable dense_vector, same as a default-named one.
+dense_vector command named output consumed by v_cosine
+required_capability: dense_vector_command_v3
+required_capability: dense_vector_field_type_released
+required_capability: vector_similarity_functions_pushdown
+
+FROM books
+| WHERE book_no == "2924"
+| DENSE_VECTOR vec = publisher WITH { "inference_id" : "test_dense_inference" }
+| EVAL sim = v_cosine(vec, vec)
+| KEEP book_no, sim
+;
+
+book_no:keyword | sim:double
+2924            | 1.0
+;
+
+// Naming does not change null handling: a null input still yields a null vector.
+dense_vector command named output on a null value produces a null vector
+required_capability: dense_vector_command_v3
+required_capability: dense_vector_field_type_released
+
+FROM books
+| WHERE book_no IN ("7480", "8605")
+| EVAL maybe_title = CASE(book_no == "7480", title)
+| DENSE_VECTOR vec = maybe_title WITH { "inference_id" : "test_dense_inference" }
+| SORT book_no
+| KEEP book_no, maybe_title, vec
+;
+
+book_no:keyword | maybe_title:keyword | vec:dense_vector
+7480            | The Hobbit          | [50.0, 49.0, 48.0]
+8605            | null                | null
+;
+
+// Naming composes with the other WITH options.
+dense_vector command naming combined with options
+required_capability: dense_vector_command_v3
+required_capability: dense_vector_field_type_released
+required_capability: inference_accept_timeout
+
+ROW input = "Who is Victor Hugo?"
+| DENSE_VECTOR vec = input WITH { "inference_id" : "test_dense_inference", "timeout" : "30s", "type" : "text" }
+;
+
+input:keyword       | vec:dense_vector
+Who is Victor Hugo? | [56.0, 50.0, 48.0]
+;
+
+// Pruning still applies to named columns: only the kept one is embedded, and its value is unchanged.
+dense_vector command keeps only the used named column
+required_capability: dense_vector_command_v3
+required_capability: dense_vector_field_type_released
+
+ROW a = "be excellent to each other", b = "live long and prosper"
+| DENSE_VECTOR suffix = "_dv" ON a, b WITH { "inference_id" : "test_dense_inference" }
+| KEEP a, a_dv
+;
+
+a:keyword                  | a_dv:dense_vector
 be excellent to each other | [45.0, 55.0, 54.0]
 ;
 

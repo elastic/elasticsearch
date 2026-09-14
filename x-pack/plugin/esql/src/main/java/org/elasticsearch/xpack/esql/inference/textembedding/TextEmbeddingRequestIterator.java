@@ -10,6 +10,7 @@ package org.elasticsearch.xpack.esql.inference.textembedding;
 import org.elasticsearch.compute.data.BytesRefBlock;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.expression.ExpressionEvaluator;
+import org.elasticsearch.compute.operator.Warnings;
 import org.elasticsearch.core.Releasables;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.inference.TaskType;
@@ -34,8 +35,8 @@ class TextEmbeddingRequestIterator extends AbstractEmbeddingRequestIterator {
 
     private final TimeValue timeout;
 
-    TextEmbeddingRequestIterator(String inferenceId, BytesRefBlock textBlock, int batchSize, TimeValue timeout) {
-        super(inferenceId, TaskType.TEXT_EMBEDDING, textBlock, batchSize);
+    TextEmbeddingRequestIterator(String inferenceId, BytesRefBlock textBlock, int batchSize, TimeValue timeout, Warnings warnings) {
+        super(inferenceId, TaskType.TEXT_EMBEDDING, textBlock, batchSize, warnings);
         this.timeout = timeout;
     }
 
@@ -56,13 +57,24 @@ class TextEmbeddingRequestIterator extends AbstractEmbeddingRequestIterator {
     /**
      * Factory for creating {@link TextEmbeddingRequestIterator} instances.
      */
-    record Factory(String inferenceId, TaskType taskType, ExpressionEvaluator textEvaluator, int batchSize, TimeValue timeout)
-        implements
-            BulkInferenceRequestItemIterator.Factory {
+    record Factory(
+        String inferenceId,
+        TaskType taskType,
+        ExpressionEvaluator textEvaluator,
+        int batchSize,
+        TimeValue timeout,
+        Warnings warnings
+    ) implements BulkInferenceRequestItemIterator.Factory {
 
         @Override
         public BulkInferenceRequestItemIterator create(Page inputPage) {
-            return new TextEmbeddingRequestIterator(inferenceId, (BytesRefBlock) textEvaluator.eval(inputPage), batchSize, timeout);
+            return new TextEmbeddingRequestIterator(
+                inferenceId,
+                (BytesRefBlock) textEvaluator.eval(inputPage),
+                batchSize,
+                timeout,
+                warnings
+            );
         }
 
         @Override

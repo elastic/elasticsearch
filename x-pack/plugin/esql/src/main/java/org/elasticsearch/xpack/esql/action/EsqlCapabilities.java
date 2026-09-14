@@ -1554,7 +1554,7 @@ public class EsqlCapabilities {
         /**
          * Support multi-column IN subqueries in WHERE: WHERE (field1, field2) IN (FROM index | KEEP field1, field2).
          */
-        WHERE_IN_MULTI_COLUMN_SUBQUERY(Build.current().isSnapshot()),
+        WHERE_IN_MULTI_COLUMN_SUBQUERY,
 
         /**
          * Support non-correlated IN subqueries in the {@code EVAL} command.
@@ -3017,6 +3017,9 @@ public class EsqlCapabilities {
          * string {@code ""} instead of {@code null}. Genuinely missing fields (a row shorter than the schema) and empty
          * fields on non-string columns still read as {@code null}. Used to gate the affected external csv-spec tests so they
          * are skipped on mixed clusters where a pre-change node still maps empty string cells to {@code null}.
+         * <p>
+         * Superseded by {@link #EXTERNAL_CSV_BLANK_CELL_NULL_UNLESS_DECLARED} and no longer referenced by any spec: the
+         * reading described above now holds only for a strictly declared string column, so gate new cases on that one.
          */
         EXTERNAL_CSV_EMPTY_STRING_NOT_NULL,
 
@@ -3782,6 +3785,11 @@ public class EsqlCapabilities {
         PROMQL_HISTOGRAM_FRACTION,
 
         /**
+         * Support for PromQL {@code histogram_fraction()} over classic histograms with {@code le} buckets.
+         */
+        PROMQL_HISTOGRAM_FRACTION_CLASSIC,
+
+        /**
          * Fix PromQL {@code topk()} over an already-aggregated vector (e.g. {@code topk(k, sum by (...) (...))}).
          * The outer aggregate must wrap the passthrough value in {@code VALUES} so physical planning registers it
          * in the layout; without that, execution fails with {@code can't find input for [topk(...)]}.
@@ -3916,6 +3924,27 @@ public class EsqlCapabilities {
          * Support partitioning in aggregations
          */
         PARTITIONING_AGGREGATIONS(),
+
+        /**
+         * A blank cell in an external CSV/TSV datasource reads as {@code null} on every column whose type was
+         * INFERRED, whatever that inferred type is — so the value no longer depends on what the rest of the column
+         * happens to hold. The empty string is produced only for a {@code keyword}/{@code text} column of a
+         * strictly declared schema ({@code mappings} with {@code dynamic: false}), and setting {@code null_value}
+         * to the empty string forces {@code null} there too. Supersedes {@link #EXTERNAL_CSV_EMPTY_STRING_NOT_NULL}.
+         * Gates the csv-spec tests that assert this, since it changes results for an ordinary inferred read:
+         * a pre-change node still answers {@code ""} for a blank cell in a column that sampled as a string.
+         */
+        EXTERNAL_CSV_BLANK_CELL_NULL_UNLESS_DECLARED,
+
+        /**
+         * Materialize more aggregate inputs into a synthetic pre-agg eval.
+         * This covers two cases that previously failed, namely expressions in an aggregate
+         * parameter (e.g. {@code TOP(field, 1, "asc", CONCAT("first", " ", "last")}), and
+         * constant fields for aggregates that don't special-case them (e.g. {@code TOP(42, 2, "ASC")}).
+         * See <a href="https://github.com/elastic/elasticsearch/issues/158467">#158467</a>
+         * and <a href="https://github.com/elastic/elasticsearch/issues/158659">#158659</a>.
+         */
+        AGGS_MORE_INPUTS_VIA_EVAL,
 
         // Last capability should still have a comma for fewer merge conflicts when adding new ones :)
         // This comment prevents the semicolon from being on the previous capability when Spotless formats the file.

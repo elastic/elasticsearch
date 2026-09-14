@@ -169,7 +169,6 @@ public class PatchedTransformTests extends ESTestCase {
         }
     }
 
-    /** Params written by one block must not be read by the next, so the buffer is round-tripped as bytes. */
     /**
      * A block may hold up to {@link org.elasticsearch.columnar.ColumNARDocValuesFormat#MAX_BLOCK_SIZE} values, so
      * beyond 128 a position costs two bytes rather than one. Here 1800 wide values among 8192 are worth setting
@@ -190,6 +189,7 @@ public class PatchedTransformTests extends ESTestCase {
         assertLeftAlone(block, valueCount);
     }
 
+    /** Params written by one block must not be read by the next, so the buffer is round-tripped as bytes. */
     private void assertRoundTrip(long[] original, long[] encoded, int valueCount, MetadataBuffer params) throws IOException {
         for (int i = 0; i < valueCount; i++) {
             assertTrue("a value set aside is packed narrower at " + i, encoded[i] <= original[i]);

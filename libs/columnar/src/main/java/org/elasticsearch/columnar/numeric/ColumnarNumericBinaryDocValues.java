@@ -58,6 +58,10 @@ public final class ColumnarNumericBinaryDocValues extends BinaryDocValues implem
         this.reader = reader;
         this.iterator = iterator;
         this.maxDoc = maxDoc;
+        // A column written without the addressing is read by value address, and nothing hands one to this
+        // class; without that, no table would read as one value a document and a rank as its value address.
+        assert reader.hasValueAddresses() || reader.numValues() == reader.numDocsWithField()
+            : "a column of " + reader.numValues() + " values over " + reader.numDocsWithField() + " documents tables no addressing";
         this.singleValued = reader.hasValueAddresses() == false;
         this.blockShift = Integer.numberOfTrailingZeros(reader.blockSize());
         this.blockMask = reader.blockSize() - 1;

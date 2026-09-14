@@ -124,6 +124,11 @@ public final class NumericColumnReader {
         return meta.numValues();
     }
 
+    /** How many documents have a value. */
+    public int numDocsWithField() {
+        return meta.numDocsWithField();
+    }
+
     /**
      * Decodes the block at {@code blockIndex} (single-block cache) and returns the shared buffer, valid
      * until the next call that touches a different block.

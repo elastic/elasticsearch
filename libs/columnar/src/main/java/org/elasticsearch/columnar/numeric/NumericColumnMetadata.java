@@ -169,11 +169,11 @@ public record NumericColumnMetadata(
         out.writeBytes(transformIds, 0, transformIds.length);
         out.writeVLong(valuesOffset);
         writeTable(out, blockOffsetsDataOffset, blockOffsetsDataLength, blockOffsetsMeta);
-        out.writeByte((byte) (hasValueAddresses() ? 1 : 0));
+        writePresence(out, hasValueAddresses());
         if (hasValueAddresses()) {
             writeTable(out, valueAddressesDataOffset, valueAddressesDataLength, valueAddressesMeta);
         }
-        out.writeByte((byte) (skipper != null ? 1 : 0));
+        writePresence(out, skipper != null);
         if (skipper != null) {
             skipper.writeTo(out);
         }
@@ -214,12 +214,12 @@ public record NumericColumnMetadata(
         long valueAddressesDataOffset = 0;
         long valueAddressesDataLength = 0;
         byte[] valueAddressesMeta = NONE;
-        if (in.readByte() == 1) {
+        if (readPresence(in)) {
             valueAddressesDataOffset = in.readVLong();
             valueAddressesDataLength = in.readVLong();
             valueAddressesMeta = readBytes(in);
         }
-        Skipper skipper = in.readByte() == 1 ? Skipper.readFrom(in) : null;
+        Skipper skipper = readPresence(in) ? Skipper.readFrom(in) : null;
         return new NumericColumnMetadata(
             iterator,
             numDocsWithField,
@@ -237,6 +237,15 @@ public record NumericColumnMetadata(
             valueAddressesMeta,
             skipper
         );
+    }
+
+    /** Whether the optional part that follows was written, so the two sides name the flag rather than spell it. */
+    private static void writePresence(DataOutput out, boolean present) throws IOException {
+        out.writeByte((byte) (present ? 1 : 0));
+    }
+
+    private static boolean readPresence(DataInput in) throws IOException {
+        return in.readByte() == 1;
     }
 
     private static void writeTable(DataOutput out, long dataOffset, long dataLength, byte[] meta) throws IOException {

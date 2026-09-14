@@ -34,8 +34,8 @@ public class DictionaryCompoundWordTokenFilterFactory extends AbstractCompoundWo
             minWordSize,
             minSubwordSize,
             maxSubwordSize,
-            onlyLongestMatch,
-            reuseChars
+            // TODO: LUCENE11 expose onlyLongestMatchIgnoreSubwords; deprecate dictionary only_longest_match
+            true
         );
     }
 }

@@ -2082,6 +2082,9 @@ public class AsyncExternalSourceOperatorFactory implements SourceOperator.Source
 
         CloseableIterator<Page> pages = null;
         SharedErrorBudget splitBudget = SharedErrorBudget.forPolicy(errorPolicy, fileSplit.path().toString());
+        // true on text-reader path: reader owns its parse-error budget separately; adapter must own rowCount
+        // so max_error_ratio applies to reconciliation-cast drops (parse-error drops stay in reader's budget).
+        boolean adapterOwnsRowCount = false;
         try {
             FormatReader fileReader = readerForFile(fileSplit);
             boolean isRangeSplit = "true".equals(fileSplit.config().get(FileSplitProvider.RANGE_SPLIT_KEY));
@@ -2183,6 +2186,7 @@ public class AsyncExternalSourceOperatorFactory implements SourceOperator.Source
                     state.buffer::recordWarning,
                     bufferedInformationalWarningSink(state.buffer)
                 );
+                adapterOwnsRowCount = pages != null;
                 if (pages == null) {
                     FormatReadContext ctx = FormatReadContext.builder()
                         .projectedColumns(PhysicalNames.translateNames(readerCols, renames))
@@ -2233,7 +2237,9 @@ public class AsyncExternalSourceOperatorFactory implements SourceOperator.Source
                 perFileReadSchema,
                 perFileCols,
                 bufferedInformationalWarningSink(state.buffer),
-                ColumnarRowDropHelper.forSharedBudget(splitBudget)
+                adapterOwnsRowCount
+                    ? ColumnarRowDropHelper.forSharedBudgetOwner(splitBudget)
+                    : ColumnarRowDropHelper.forSharedBudget(splitBudget)
             );
             // Deferred extraction: register one extractor per opened file split. Range-splits of
             // the same file therefore register multiple extractors; this is benign — each row's
@@ -2394,6 +2400,7 @@ public class AsyncExternalSourceOperatorFactory implements SourceOperator.Source
                 state.buffer::recordWarning,
                 bufferedInformationalWarningSink(state.buffer)
             );
+            boolean adapterOwnsRowCount = pages != null;
             if (pages == null) {
                 int fileRowLimit = rowLimit == FormatReader.NO_LIMIT ? FormatReader.NO_LIMIT : state.rowsRemaining;
                 FormatReadContext ctx = FormatReadContext.builder()
@@ -2419,7 +2426,9 @@ public class AsyncExternalSourceOperatorFactory implements SourceOperator.Source
                 perFileReadSchema,
                 perFileCols,
                 bufferedInformationalWarningSink(state.buffer),
-                ColumnarRowDropHelper.forSharedBudget(fileBudget)
+                adapterOwnsRowCount
+                    ? ColumnarRowDropHelper.forSharedBudgetOwner(fileBudget)
+                    : ColumnarRowDropHelper.forSharedBudget(fileBudget)
             );
             CloseableIterator<Page> withEncoder = wrapWithEncoderIfNeeded(adapted, perFileCols, state.driverContext);
             // Per-file virtual-column iterator (built with FileMetadataColumns.extractValues for

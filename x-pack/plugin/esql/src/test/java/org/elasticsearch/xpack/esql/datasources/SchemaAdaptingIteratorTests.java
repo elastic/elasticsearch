@@ -970,6 +970,7 @@ public class SchemaAdaptingIteratorTests extends ESTestCase {
 
         // Pre-charge 1 reader row + 1 reader error (simulates one reader-side drop).
         budget.addReaderBatch(1, 1);
+        assertEquals("reader batch sets rowCount=1", 1L, budget.rowCount());
 
         // Adapter helper shares the same budget (adapter mode: does not add row count).
         ColumnarRowDropHelper adapterHelper = ColumnarRowDropHelper.forSharedBudget(budget);
@@ -992,6 +993,8 @@ public class SchemaAdaptingIteratorTests extends ESTestCase {
         ) {
             // The adapter drop (1 error) + the pre-charged reader drop (1 error) = 2 > max_errors=1.
             expectThrows(ParsingException.class, iter::next);
+            // Adapter mode must not increment rowCount — the reader already owns the row count.
+            assertEquals("adapter-mode helper must not increment rowCount", 1L, budget.rowCount());
         }
     }
 

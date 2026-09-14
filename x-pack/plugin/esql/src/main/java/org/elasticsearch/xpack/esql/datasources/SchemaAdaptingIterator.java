@@ -108,6 +108,11 @@ final class SchemaAdaptingIterator implements CloseableIterator<Page>, ColumnExt
      * {@link org.elasticsearch.xpack.esql.datasources.spi.SharedErrorBudget} was created for this
      * read in {@code AsyncExternalSourceOperatorFactory}, so adapter drops and reader drops count
      * against the same {@code max_errors} / {@code max_error_ratio} budget.
+     * <p>
+     * Known gap: under {@code FAIL_FAST}, this field is always {@code null} (
+     * {@link org.elasticsearch.xpack.esql.datasources.spi.SharedErrorBudget#forPolicy} returns {@code null} for
+     * non-{@code SKIP_ROW} modes), so a reconciliation-cast failure still null-fills the cell rather than aborting.
+     * Fixing fail-fast at the adapter layer is a follow-up.
      */
     @Nullable
     private final ColumnarRowDropHelper dropHelper;

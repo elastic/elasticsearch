@@ -683,7 +683,11 @@ final class ParquetColumnDecoding {
             errorCount += droppedRows;
             droppedRowErrorCount += droppedRows;
             if (sharedBudget != null) {
-                sharedBudget.addReaderBatch(sourceRows, droppedRows);
+                // Use ensureRowsAtLeast rather than addReaderBatch so that a prior ensureRowsAtLeast
+                // call from recoveredOrphan (which uses a file-global ordinal) does not cause
+                // double-counting when completedRows reaches the same value additively.
+                sharedBudget.ensureRowsAtLeast(completedRows);
+                sharedBudget.addErrors(droppedRows);
             }
             checkBudget(recoveredListErrorCount > 0 ? warnings : droppedRowWarnings);
         }

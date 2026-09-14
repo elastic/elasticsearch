@@ -73,19 +73,22 @@ public final class StringColumnWriter {
      * Encodes a string column into {@code data}: iterator metadata, the block-encoded values, then the block
      * offset table; returns the metadata needed to reconstruct the column at read time.
      *
-     * @param maxDoc           documents in the segment
-     * @param numDocsWithField documents that have at least one slot
-     * @param numValues        total number of slots across all documents, null slots included
-     * @param numNullSlots     how many of those slots are null; the null-slot table is written only when
-     *                         this is positive
-     * @param cursors          supplies fresh forward cursors over the documents that have a slot; called
-     *                         once for the iterator and once for the values
-     * @param valuesPerBlock   values behind one offset in the byte stream
-     * @param chunkCodec       how a chunk of the byte stream is compressed
-     * @param targetChunkBytes bytes a chunk holds before it is closed
-     * @param directory        directory used for the temporary table files
-     * @param context          IO context for the temporary table files
-     * @param data             data output (iterator, value blocks, and the tables are appended)
+     * @param maxDoc                    documents in the segment
+     * @param numDocsWithField          documents that have at least one slot
+     * @param numValues                 total number of slots across all documents, null slots included
+     * @param numNullSlots              how many of those slots are null; the null-slot table is written only when
+     *                                  this is positive
+     * @param cursors                   supplies fresh forward cursors over the documents that have a slot; called
+     *                                  once for the iterator and once for the values
+     * @param valuesPerBlock            values behind one offset in the byte stream
+     * @param chunkCodec                how a chunk of the byte stream is compressed
+     * @param targetChunkBytes          bytes a chunk holds before it is closed on the dictionary path
+     * @param plainPathTargetChunkBytes bytes a chunk holds before it is closed on the plain path; may be
+     *                                  larger than {@code targetChunkBytes} since plain-path columns are
+     *                                  scanned sequentially and never bisected
+     * @param directory                 directory used for the temporary table files
+     * @param context                   IO context for the temporary table files
+     * @param data                      data output (iterator, value blocks, and the tables are appended)
      */
     public static StringColumnMetadata write(
         int maxDoc,
@@ -96,6 +99,7 @@ public final class StringColumnWriter {
         int valuesPerBlock,
         ChunkCodec chunkCodec,
         int targetChunkBytes,
+        int plainPathTargetChunkBytes,
         DictionaryPolicy policy,
         Vocabulary.Terms known,
         Directory directory,
@@ -146,13 +150,19 @@ public final class StringColumnWriter {
 
         // Set false the moment a value is seen out of order; nothing after that can restore it.
         boolean sorted = true;
+        // Whether a page of this column is worth naming its values. Naming costs a hash and a probe apiece and
+        // buys a consumer one entry per distinct value, so it pays where equal values arrive together and buys
+        // nothing where every value differs from the one before it. The stream finds those runs anyway while
+        // sizing its blocks, so what a page could collapse is known without comparing anything twice. A column
+        // written under no dictionary policy was told not to weigh what it repeats, and the page decides.
+        final boolean valuesWorthNaming;
         final ValueStream.Metadata written;
         final MonotonicWriter.Table valueAddresses;
         final MonotonicWriter.Table nullSlotTable;
         try (
             ValueStream.Writer stream = new ValueStream.Writer(
                 chunkCodec,
-                targetChunkBytes,
+                plainPathTargetChunkBytes,
                 valuesPerBlock,
                 numValues,
                 directory,
@@ -200,11 +210,22 @@ public final class StringColumnWriter {
                 }
             }
             written = stream.finish();
+            valuesWorthNaming = policy.enabled() == false || stream.runs() * StringColumnReader.MIN_PAGE_REPEAT <= numValues;
             valueAddresses = slots.finish(valueAddress, data);
             nullSlotTable = nullSlots.finish(data);
         }
         return withSummary(
-            StringColumnMetadata.plain(iterator, numDocsWithField, numValues, numNullSlots, valueAddresses, nullSlotTable, written, sorted),
+            StringColumnMetadata.plain(
+                iterator,
+                numDocsWithField,
+                numValues,
+                numNullSlots,
+                valueAddresses,
+                nullSlotTable,
+                written,
+                sorted,
+                valuesWorthNaming
+            ),
             surveyed,
             numValues,
             valuesPerBlock,

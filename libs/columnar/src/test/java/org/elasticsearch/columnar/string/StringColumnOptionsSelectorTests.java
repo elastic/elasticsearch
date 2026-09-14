@@ -73,7 +73,8 @@ public class StringColumnOptionsSelectorTests extends ESTestCase {
         final StringColumnOptionsSelector selector = (fieldName, type) -> new StringColumnOptions(
             StringColumnOptions.DEFAULT_DICTIONARY,
             fieldName.equals(NAMED) ? ChunkCodec.ZSTD : ChunkCodec.IDENTITY,
-            StringColumnOptions.DEFAULT_TARGET_CHUNK_BYTES
+            StringColumnOptions.DEFAULT_TARGET_CHUNK_BYTES,
+            StringColumnOptions.DEFAULT_PLAIN_PATH_TARGET_CHUNK_BYTES
         );
 
         try (Directory dir = newDirectory()) {
@@ -89,15 +90,39 @@ public class StringColumnOptionsSelectorTests extends ESTestCase {
     public void testOptionsRejectWhatWouldNotRoundTrip() {
         expectThrows(
             IllegalArgumentException.class,
-            () -> new StringColumnOptions(null, ChunkCodec.ZSTD, StringColumnOptions.DEFAULT_TARGET_CHUNK_BYTES)
+            () -> new StringColumnOptions(
+                null,
+                ChunkCodec.ZSTD,
+                StringColumnOptions.DEFAULT_TARGET_CHUNK_BYTES,
+                StringColumnOptions.DEFAULT_PLAIN_PATH_TARGET_CHUNK_BYTES
+            )
         );
         expectThrows(
             IllegalArgumentException.class,
-            () -> new StringColumnOptions(StringColumnOptions.DEFAULT_DICTIONARY, null, StringColumnOptions.DEFAULT_TARGET_CHUNK_BYTES)
+            () -> new StringColumnOptions(
+                StringColumnOptions.DEFAULT_DICTIONARY,
+                null,
+                StringColumnOptions.DEFAULT_TARGET_CHUNK_BYTES,
+                StringColumnOptions.DEFAULT_PLAIN_PATH_TARGET_CHUNK_BYTES
+            )
         );
         expectThrows(
             IllegalArgumentException.class,
-            () -> new StringColumnOptions(StringColumnOptions.DEFAULT_DICTIONARY, ChunkCodec.ZSTD, 0)
+            () -> new StringColumnOptions(
+                StringColumnOptions.DEFAULT_DICTIONARY,
+                ChunkCodec.ZSTD,
+                0,
+                StringColumnOptions.DEFAULT_PLAIN_PATH_TARGET_CHUNK_BYTES
+            )
+        );
+        expectThrows(
+            IllegalArgumentException.class,
+            () -> new StringColumnOptions(
+                StringColumnOptions.DEFAULT_DICTIONARY,
+                ChunkCodec.ZSTD,
+                StringColumnOptions.DEFAULT_TARGET_CHUNK_BYTES,
+                0
+            )
         );
     }
 

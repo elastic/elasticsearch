@@ -25,7 +25,7 @@ import java.util.Objects;
  * {@link ViewShadowRelation}: it rides next to the dataset's {@link UnresolvedExternalRelation} inside
  * the plain {@link UnionAll} the {@link org.elasticsearch.xpack.esql.datasources.DatasetRewriter} builds.
  * <p>
- * Motivation: {@code FROM ds} where {@code ds} is BOTH a local dataset AND a remote dataset/index. The
+ * Motivation: {@code FROM ds} where {@code ds} is BOTH a local dataset AND a remote index. The
  * local dataset is consumed before field-caps, and {@code DatasetRewriter.crossProjectPatternsToPreserve}
  * only re-emits a sibling for <em>wildcards</em> — an exact name returns nothing, so without this shadow
  * the remote half of the exact name never reaches field-caps.
@@ -37,8 +37,9 @@ import java.util.Objects;
  *   <li>{@code PreAnalyzer} collects the pattern into the same linked-indices set {@link ViewShadowRelation}
  *       lands in, keyed by {@link #linkedIndexPattern()}.</li>
  *   <li>{@code EsqlSession.preAnalyzeLinkedIndices} issues a lenient flat field-caps request per pattern;
- *       a linked index of the same name resolves, a linked dataset/view fails on the detect rail. Results
- *       land in {@code AnalyzerContext.linkedResolution}, keyed by {@link #linkedIndexPattern()}.</li>
+ *       a linked index of the same name resolves, a linked view of the same name fails on the detect rail,
+ *       and a linked dataset of the same name is invisible and so resolves nothing. Results land in
+ *       {@code AnalyzerContext.linkedResolution}, keyed by {@link #linkedIndexPattern()}.</li>
  *   <li>The {@code ResolveDatasetShadow} analyzer rule (sibling of {@code ResolveViewShadow}) replaces the
  *       shadow with an {@code EsRelation} on a valid resolution that matched at least one linked index,
  *       else leaves it unresolved.</li>

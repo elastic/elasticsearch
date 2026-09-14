@@ -101,6 +101,7 @@ public class PolicyManagerTests extends ESTestCase {
             new Policy("server", List.of(new Scope("org.example.httpclient", List.of(new OutboundNetworkEntitlement())))),
             List.of(),
             Map.of("plugin1", new Policy("plugin1", List.of(new Scope("plugin.module1", List.of(new ExitVMEntitlement()))))),
+            Map.of(),
             c -> policyScope.get(),
             Map.of("plugin1", plugin1SourcePaths)::get,
             TEST_PATH_LOOKUP
@@ -181,6 +182,7 @@ public class PolicyManagerTests extends ESTestCase {
             createEmptyTestServerPolicy(),
             List.of(),
             Map.of(descriptorName, pluginPolicy),
+            Map.of(),
             c -> PolicyScope.plugin(descriptorName, PolicyManager.ALL_UNNAMED),
             name -> Collections.emptyList(),
             TEST_PATH_LOOKUP
@@ -198,6 +200,7 @@ public class PolicyManagerTests extends ESTestCase {
             createEmptyTestServerPolicy(),
             List.of(),
             Map.of(directoryName, pluginPolicy),
+            Map.of(),
             c -> PolicyScope.plugin(descriptorName, PolicyManager.ALL_UNNAMED),
             name -> Collections.emptyList(),
             TEST_PATH_LOOKUP
@@ -215,6 +218,7 @@ public class PolicyManagerTests extends ESTestCase {
         var policyManager = new PolicyManager(
             createEmptyTestServerPolicy(),
             List.of(new CreateClassLoaderEntitlement()),
+            Map.of(),
             Map.of(),
             c -> c.getPackageName().startsWith(TEST_AGENTS_PACKAGE_NAME)
                 ? PolicyScope.apmAgent("test.agent.module")
@@ -243,6 +247,7 @@ public class PolicyManagerTests extends ESTestCase {
                 ),
                 List.of(),
                 Map.of(),
+                Map.of(),
                 c -> PolicyScope.plugin("test", moduleName(c)),
                 name -> Collections.emptyList(),
                 TEST_PATH_LOOKUP
@@ -258,6 +263,7 @@ public class PolicyManagerTests extends ESTestCase {
             () -> new PolicyManager(
                 createEmptyTestServerPolicy(),
                 List.of(new CreateClassLoaderEntitlement(), new CreateClassLoaderEntitlement()),
+                Map.of(),
                 Map.of(),
                 c -> PolicyScope.plugin("test", moduleName(c)),
                 name -> Collections.emptyList(),
@@ -295,6 +301,7 @@ public class PolicyManagerTests extends ESTestCase {
                         )
                     )
                 ),
+                Map.of(),
                 c -> PolicyScope.plugin("plugin1", moduleName(c)),
                 Map.of("plugin1", List.of(Path.of("modules", "plugin1")))::get,
                 TEST_PATH_LOOKUP
@@ -345,6 +352,7 @@ public class PolicyManagerTests extends ESTestCase {
                         )
                     )
                 ),
+                Map.of(),
                 c -> PolicyScope.plugin("", moduleName(c)),
                 Map.of("plugin1", List.of(Path.of("modules", "plugin1")), "plugin2", List.of(Path.of("modules", "plugin2")))::get,
                 TEST_PATH_LOOKUP
@@ -396,6 +404,7 @@ public class PolicyManagerTests extends ESTestCase {
                         )
                     )
                 ),
+                Map.of(),
                 c -> PolicyScope.plugin("", moduleName(c)),
                 name -> Collections.emptyList(),
                 TEST_PATH_LOOKUP

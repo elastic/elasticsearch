@@ -455,7 +455,7 @@ public class VerifierTests extends ESTestCase {
 
     public void testForkWithSourceInOneBranch() {
         // A FORK/UnionAll branch that lacks a _source column present in a sibling branch gets that column null-filled by
-        // Analyzer.resolveFork with a Literal(null, DataType.SOURCE). That null SOURCE literal lands in a synthesized Eval.
+        // Analyzer.resolveMergePlan with a Literal(null, DataType.SOURCE). That null SOURCE literal lands in a synthesized Eval.
         // SOURCE is excluded from DataType.isRepresentable, so Eval.postAnalysisVerification must carve out a null SOURCE
         // literal or it wrongly fails the query with "EVAL does not support type [_source]".
         defaultAnalyzer().query("FROM test METADATA _source | FORK (WHERE emp_no > 0) (WHERE emp_no > 0 | DROP _source)");
@@ -4751,10 +4751,10 @@ public class VerifierTests extends ESTestCase {
         defaultAnalyzer().query(
             "row dense_embedding=[0.5, 0.4, 0.3, 0.2]::dense_vector | mmr [0.5, 0.4, 0.3, 0.2] on dense_embedding limit 10"
         );
-        defaultAnalyzer().query("""
+        defaultAnalyzer().addAnalysisTestsInferenceResolution().query(Strings.format("""
             row dense_embedding=[0.5, 0.4, 0.3, 0.2]::dense_vector
-            | mmr TEXT_EMBEDDING("some text", "some model") on dense_embedding limit 10
-            """);
+            | mmr TEXT_EMBEDDING("some text", "%s") on dense_embedding limit 10
+            """, TEXT_EMBEDDING_INFERENCE_ID));
 
         defaultAnalyzer().query("row dense_embedding=[0.5, 0.4, 0.3, 0.2]::dense_vector | mmr \"7e7e\" on dense_embedding limit 10");
         defaultAnalyzer().query("row dense_embedding=[0.5, 0.4, 0.3, 0.2]::dense_vector | mmr [15, 16, 20] on dense_embedding limit 10");
@@ -4762,6 +4762,13 @@ public class VerifierTests extends ESTestCase {
         fullText().error(
             "FROM test | LIMIT 100 | MMR published_date ON vector LIMIT 10",
             equalTo("1:25: MMR query vector must be a DENSE_VECTOR, found [published_date] of type [DATETIME]")
+        );
+    }
+
+    public void testMMRUnresolvedQueryVector() {
+        defaultAnalyzer().error(
+            "row dense_embedding=[0.5, 0.4, 0.3, 0.2]::dense_vector | mmr _score on dense_embedding limit 10",
+            containsString("Unknown column [_score]")
         );
     }
 

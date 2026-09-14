@@ -17,9 +17,6 @@ To give you insight into what deprecated features you’re using, {{es}}:
 % ## Next version [elasticsearch-nextversion-deprecations]
 
 ## 9.5.3 [elasticsearch-9.5.3-deprecations]
-```{applies_to}
-stack: ga 9.5.3
-```
 
 Monitoring:
 * Deprecate the legacy monitoring REST APIs [#152269](https://github.com/elastic/elasticsearch/pull/152269)

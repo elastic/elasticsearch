@@ -40,7 +40,6 @@ import java.time.format.DateTimeFormatter;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashMap;
-import java.util.HashSet;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Locale;
@@ -49,6 +48,7 @@ import java.util.Objects;
 import java.util.Optional;
 import java.util.Random;
 import java.util.Set;
+import java.util.TreeSet;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentMap;
 import java.util.concurrent.CopyOnWriteArrayList;
@@ -353,7 +353,8 @@ public class S3HttpHandler implements HttpHandler {
                 if (prefix != null) {
                     list.append("<Prefix>").append(prefix).append("</Prefix>");
                 }
-                final Set<String> commonPrefixes = new HashSet<>();
+                // Real S3 LIST returns keys (and common prefixes) in lexicographic order.
+                final Set<String> commonPrefixes = new TreeSet<>();
                 final String delimiter = request.getOptionalQueryParam("delimiter").orElse(null);
                 if (delimiter != null) {
                     list.append("<Delimiter>").append(delimiter).append("</Delimiter>");
@@ -361,6 +362,7 @@ public class S3HttpHandler implements HttpHandler {
                 // Would be good to test pagination here (the only real difference between ListObjects and ListObjectsV2) but for now
                 // we return all the results at once.
                 list.append("<IsTruncated>false</IsTruncated>");
+                final List<Map.Entry<String, BlobEntry>> contents = new ArrayList<>();
                 for (Map.Entry<String, BlobEntry> blob : blobs.entrySet()) {
                     if (prefix != null && blob.getKey().startsWith("/" + bucket + "/" + prefix) == false) {
                         continue;
@@ -374,6 +376,11 @@ public class S3HttpHandler implements HttpHandler {
                             continue;
                         }
                     }
+                    contents.add(blob);
+                }
+                contents.sort(Map.Entry.comparingByKey());
+                for (Map.Entry<String, BlobEntry> blob : contents) {
+                    String blobPath = blob.getKey().replace("/" + bucket + "/", "");
                     list.append("<Contents>");
                     list.append("<Key>").append(blobPath).append("</Key>");
                     list.append("<LastModified>").append(ISO_MILLIS_UTC.format(blob.getValue().lastModified())).append("</LastModified>");

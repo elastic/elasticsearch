@@ -2208,22 +2208,11 @@ public class NumberFieldMapper extends FieldMapper {
 
         abstract void writeValue(XContentBuilder builder, long longValue) throws IOException;
 
-        SourceLoader.SyntheticFieldLoader syntheticFieldLoader(
-            String fieldName,
-            String fieldSimpleName,
-            boolean ignoreMalformed,
-            IndexVersion indexVersion,
-            boolean writesOnFailureColumn
-        ) {
+        SourceLoader.SyntheticFieldLoader syntheticFieldLoader(FieldMapper mapper, IndexSettings indexSettings) {
             var layers = new ArrayList<CompositeSyntheticFieldLoader.Layer>(2);
-            layers.add(new SortedNumericDocValuesSyntheticFieldLoaderLayer(fieldName, NumberType.this::writeValue));
-            if (ignoreMalformed) {
-                layers.add(CompositeSyntheticFieldLoader.malformedValuesLayer(fieldName, indexVersion));
-            }
-            if (writesOnFailureColumn) {
-                layers.add(CompositeSyntheticFieldLoader.onFailureValuesLayer(fieldName, indexVersion));
-            }
-            return new CompositeSyntheticFieldLoader(fieldSimpleName, fieldName, layers);
+            layers.add(new SortedNumericDocValuesSyntheticFieldLoaderLayer(mapper.fullPath(), NumberType.this::writeValue));
+            CompositeSyntheticFieldLoader.addFallbackLayers(layers, mapper, indexSettings);
+            return new CompositeSyntheticFieldLoader(mapper.leafName(), mapper.fullPath(), layers);
         }
 
         abstract BlockLoader blockLoaderFromDocValues(String fieldName, boolean readInArrayOrder);
@@ -2876,7 +2865,7 @@ public class NumberFieldMapper extends FieldMapper {
     private static final IndexableFieldType DOUBLE_STORED_ONLY_FIELD_TYPE = new StoredField("_sentinel", 0.0).fieldType();
 
     @Override
-    public boolean supportsColumnarParse(IndexSettings indexSettings) {
+    protected boolean doSupportsColumnarParse(IndexSettings indexSettings) {
         // Neither doc_values.multi_value nor ignore_malformed is implemented by mapColumnBatch, but
         // neither is rejected up front either: both only matter for documents the columnar path
         // already refuses, and refusing late falls back to row path.
@@ -2885,13 +2874,12 @@ public class NumberFieldMapper extends FieldMapper {
             && indexTerms == false
             && hasScript() == false
             && copyTo().copyToFields().isEmpty()
-            && multiFields().iterator().hasNext() == false
-            && (dimension == false || writeDimensionRouting == false)
+            && dimensionAllowsColumnarParse(fieldType(), writeDimensionRouting)
             && indexSettings.getIndexVersionCreated().isLegacyIndexVersion() == false;
     }
 
     @Override
-    public void mapColumnBatch(BatchMappingContext ctx, EscfColumn source) {
+    protected void doMapColumnBatch(BatchMappingContext ctx, EscfColumn source) {
         switch (source.kind()) {
             case EscfColumnKind.LONG, EscfColumnKind.DOUBLE, EscfColumnKind.STRING -> {
             } // handled below
@@ -2904,7 +2892,14 @@ public class NumberFieldMapper extends FieldMapper {
             );
         }
         Long nullSortableLong = nullValue != null ? type.toSortableLong(nullValue) : null;
-        EscfColumnData outData = NumberColumnTransform.toSortableLongColumn(source, type, coerce(), ctx.recycler(), nullSortableLong);
+        EscfColumnData outData = NumberColumnTransform.toSortableLongColumn(
+            source,
+            type,
+            coerce(),
+            ctx.recycler(),
+            nullSortableLong,
+            ctx::addResource
+        );
         if (fieldType().indexType().hasDocValuesSkipper()) {
             ctx.addColumn(LuceneLongColumn.of(outData, fieldType().name(), SORTED_NUMERIC_DV_INDEXED_FIELD_TYPE, numericKind(type)));
         } else if (indexed) {
@@ -2915,7 +2910,10 @@ public class NumberFieldMapper extends FieldMapper {
                     EscfColumn.from(outData),
                     ctx.recycler()
                 );
-                ctx.addColumn(LuceneBinaryColumn.of(halfFloatPointData, fieldType().name(), HALF_FLOAT_POINT_FIELD_TYPE));
+                ctx.addColumn(
+                    LuceneBinaryColumn.of(halfFloatPointData, fieldType().name(), HALF_FLOAT_POINT_FIELD_TYPE),
+                    halfFloatPointData
+                );
             } else {
                 ctx.addColumn(LuceneLongColumn.of(outData, fieldType().name(), indexableFieldType(type), numericKind(type)));
             }
@@ -2930,7 +2928,13 @@ public class NumberFieldMapper extends FieldMapper {
                     ctx.recycler()
                 );
                 ctx.addColumn(
-                    LuceneLongColumn.of(halfFloatStoredData, fieldType().name(), FLOAT_STORED_ONLY_FIELD_TYPE, LongColumn.NumericKind.FLOAT)
+                    LuceneLongColumn.of(
+                        halfFloatStoredData,
+                        fieldType().name(),
+                        FLOAT_STORED_ONLY_FIELD_TYPE,
+                        LongColumn.NumericKind.FLOAT
+                    ),
+                    halfFloatStoredData
                 );
             } else {
                 ctx.addColumn(LuceneLongColumn.of(outData, fieldType().name(), storedOnlyFieldType(type), numericKind(type)));
@@ -3156,21 +3160,10 @@ public class NumberFieldMapper extends FieldMapper {
         if (offsetsFieldName != null) {
             var layers = new ArrayList<CompositeSyntheticFieldLoader.Layer>(2);
             layers.add(new SortedNumericWithOffsetsDocValuesSyntheticFieldLoaderLayer(fullPath(), offsetsFieldName, type::writeValue));
-            if (ignoreMalformed.value()) {
-                layers.add(CompositeSyntheticFieldLoader.malformedValuesLayer(fullPath(), indexSettings.getIndexVersionCreated()));
-            }
-            if (onFailureColumnEnabled()) {
-                layers.add(CompositeSyntheticFieldLoader.onFailureValuesLayer(fullPath(), indexSettings.getIndexVersionCreated()));
-            }
+            CompositeSyntheticFieldLoader.addFallbackLayers(layers, this, indexSettings);
             return new CompositeSyntheticFieldLoader(leafName(), fullPath(), layers);
         } else {
-            return type.syntheticFieldLoader(
-                fullPath(),
-                leafName(),
-                ignoreMalformed.value(),
-                indexSettings.getIndexVersionCreated(),
-                onFailureColumnEnabled()
-            );
+            return type.syntheticFieldLoader(this, indexSettings);
         }
     }
 

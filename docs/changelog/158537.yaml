@@ -1,0 +1,5 @@
+pr: 158537
+summary: Fix synthetic `_id` `Terms#getMax` crash during relocation id-lookup prewarm
+area: Codec
+type: bug
+issues: []

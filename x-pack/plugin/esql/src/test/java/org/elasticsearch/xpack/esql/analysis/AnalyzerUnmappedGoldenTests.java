@@ -1388,7 +1388,6 @@ public class AnalyzerUnmappedGoldenTests extends AnalyzerUnmappedGoldenTestCase 
     // Mapped index first so the union type is aggregate_metric_double; the KEEP on the unmapped index is swapped to
     // PotentiallyUnmappedNonLoadableEsField.
     public void testLoadAllSubqueryKeepAmdLoadsOnUnmappedSibling() throws Exception {
-        assumeTrue("Requires AGGREGATE_METRIC_DOUBLE_V0", EsqlCapabilities.Cap.AGGREGATE_METRIC_DOUBLE_V0.isEnabled());
         loadAll("""
             FROM (FROM k8s-downsampled), (FROM k8s_nonexistent | KEEP network.eth0.tx)
             | KEEP network.eth0.tx

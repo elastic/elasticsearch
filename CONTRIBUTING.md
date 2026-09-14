@@ -924,9 +924,9 @@ where any follow-up conversation appears to be copied fairly directly from a
 LLM. This includes cases where the PR description is overly verbose or
 otherwise hard to interpret, as seems to be common for LLM-driven
 contributions. You may use LLMs to assist with your contribution, but you must
-add value to the contribution yourself too. If we wanted to work with a LLM to
-make a change then we would do so ourselves, without needing you to act as a
-proxy to the LLM.
+add value to the contribution yourself too. We have access to LLMs ourselves,
+so there is little value in an external contributor acting as a simple proxy
+for one.
 
 We sometimes reject contributions if we find ourselves performing many review
 iterations without making enough progress. Some iteration is expected,

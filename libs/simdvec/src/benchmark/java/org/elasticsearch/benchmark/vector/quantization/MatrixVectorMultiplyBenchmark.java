@@ -27,6 +27,7 @@ import org.openjdk.jmh.annotations.Scope;
 import org.openjdk.jmh.annotations.Setup;
 import org.openjdk.jmh.annotations.State;
 import org.openjdk.jmh.annotations.Warmup;
+import org.openjdk.jmh.infra.Blackhole;
 
 import java.util.Random;
 import java.util.concurrent.TimeUnit;
@@ -37,7 +38,7 @@ import java.util.concurrent.TimeUnit;
 @Warmup(iterations = 3, time = 1)
 @Measurement(iterations = 5, time = 1)
 @Fork(value = 1, jvmArgsPrepend = { "--add-modules=jdk.incubator.vector" })
-public class MatrixMultiplyBenchmark {
+public class MatrixVectorMultiplyBenchmark {
 
     static {
         BenchmarkLogging.configure();
@@ -47,7 +48,7 @@ public class MatrixMultiplyBenchmark {
     @Param({ "SCALAR", "PANAMA" })
     VectorImplementation implementation;
 
-    // ASH defaults are 10240 x 1024 x 512
+    // ASH defaults are 10240 x 1024
     // also use an odd number to exercise the tails
     @Param({ "192", "481", "768", "10240" })
     int m;
@@ -55,16 +56,13 @@ public class MatrixMultiplyBenchmark {
     @Param({ "192", "481", "768", "1024" })
     int k;
 
-    @Param({ "96", "241", "384", "512" })
-    int n;
-
     private ESVectorUtilSupport impl;
-    /** A is (m x k), shared by both benchmarks. */
+    /** A is (m x k) */
     private float[] a;
-    /** B for matrixMultiply: (k x n). */
-    private float[] bMul;
-    /** B for matrixMultiplyTA: (m x n). */
-    private float[] bTA;
+    /** V for matrixVectorMultiply: (k). */
+    private float[] vector;
+    /** Result for matrixVectorMultiply: (m). */
+    private float[] vectorResult;
 
     @Setup(Level.Trial)
     public void init() {
@@ -75,19 +73,14 @@ public class MatrixMultiplyBenchmark {
         };
         Random random = new Random();
         a = VectorTestUtils.randomFloatVector(random, m * k);
-        bMul = VectorTestUtils.randomFloatVector(random, k * n);
-        bTA = VectorTestUtils.randomFloatVector(random, m * n);
+        vector = VectorTestUtils.randomFloatVector(random, k);
+        vectorResult = new float[m];
     }
 
-    /** C = A @ B, A is (m x k), B is (k x n), C is (m x n). */
+    /** C = A @ v, A is (m x k), v is (k), C is (m). */
     @Benchmark
-    public float[] matrixMultiply() {
-        return impl.matrixMultiply(a, bMul, m, k, n);
-    }
-
-    /** C = A^T @ B, A is (m x k), B is (m x n), C is (k x n). */
-    @Benchmark
-    public float[] matrixMultiplyTA() {
-        return impl.matrixMultiplyTA(a, bTA, m, k, n);
+    public void matrixVectorMultiply(Blackhole bh) {
+        impl.matrixVectorMultiply(a, m, k, vector, vectorResult);
+        bh.consume(vectorResult);
     }
 }

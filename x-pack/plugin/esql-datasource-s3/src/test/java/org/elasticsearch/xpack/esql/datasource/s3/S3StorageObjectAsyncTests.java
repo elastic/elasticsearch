@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.esql.datasource.s3;
 
+import software.amazon.awssdk.awscore.exception.AwsErrorDetails;
 import software.amazon.awssdk.core.async.AsyncResponseTransformer;
 import software.amazon.awssdk.core.async.SdkPublisher;
 import software.amazon.awssdk.services.s3.S3AsyncClient;
@@ -14,13 +15,16 @@ import software.amazon.awssdk.services.s3.S3Client;
 import software.amazon.awssdk.services.s3.model.GetObjectRequest;
 import software.amazon.awssdk.services.s3.model.GetObjectResponse;
 import software.amazon.awssdk.services.s3.model.NoSuchKeyException;
+import software.amazon.awssdk.services.s3.model.S3Exception;
 
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.common.breaker.NoopCircuitBreaker;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.esql.datasources.spi.DirectBufferFactory;
 import org.elasticsearch.xpack.esql.datasources.spi.DirectReadBuffer;
+import org.elasticsearch.xpack.esql.datasources.spi.ExternalObjectChangedException;
 import org.elasticsearch.xpack.esql.datasources.spi.StoragePath;
+import org.mockito.ArgumentCaptor;
 import org.reactivestreams.Subscriber;
 import org.reactivestreams.Subscription;
 
@@ -38,6 +42,7 @@ import static org.hamcrest.Matchers.instanceOf;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
@@ -153,6 +158,155 @@ public class S3StorageObjectAsyncTests extends ESTestCase {
 
         assertEquals(1024L, obj.length());
         assertEquals(lastModified, obj.lastModified());
+    }
+
+    /**
+     * An S3-compatible store that does not implement If-Match on GET answers {@code NotImplemented}.
+     * The retry omits the unsupported header but validates the response ETag against the retained pin.
+     */
+    @SuppressWarnings("unchecked")
+    public void testAsyncIfMatchNotImplementedFallsBackUnpinned() throws Exception {
+        GetObjectResponse response = GetObjectResponse.builder()
+            .contentRange("bytes 0-18/19")
+            .contentLength((long) PAYLOAD.length)
+            .eTag("\"gen-1\"")
+            .build();
+
+        when(mockAsyncClient.getObject(any(GetObjectRequest.class), any(AsyncResponseTransformer.class))).thenAnswer(invocation -> {
+            GetObjectRequest request = invocation.getArgument(0);
+            if (request.ifMatch() != null) {
+                CompletableFuture<DirectReadBuffer> failed = new CompletableFuture<>();
+                failed.completeExceptionally(notImplemented());
+                return failed;
+            }
+            return completeTransformer(invocation.getArgument(1), response, PAYLOAD);
+        });
+
+        S3StorageObject obj = new S3StorageObject(mockSyncClient, mockAsyncClient, BUCKET, KEY, PATH);
+
+        CountDownLatch first = new CountDownLatch(1);
+        obj.readBytesAsync(0, PAYLOAD.length, FACTORY, Runnable::run, ActionListener.wrap(buf -> {
+            buf.close();
+            first.countDown();
+        }, e -> fail("first async GET should succeed: " + e)));
+        assertTrue(first.await(5, TimeUnit.SECONDS));
+        assertEquals("\"gen-1\"", obj.contentGeneration());
+
+        CountDownLatch second = new CountDownLatch(1);
+        AtomicReference<Exception> error = new AtomicReference<>();
+        obj.readBytesAsync(0, PAYLOAD.length, FACTORY, Runnable::run, ActionListener.wrap(buf -> {
+            buf.close();
+            second.countDown();
+        }, e -> {
+            error.set(e);
+            second.countDown();
+        }));
+        assertTrue(second.await(5, TimeUnit.SECONDS));
+        assertNull("an If-Match-unsupported answer must fall back to an unpinned GET", error.get());
+
+        ArgumentCaptor<GetObjectRequest> captor = ArgumentCaptor.forClass(GetObjectRequest.class);
+        verify(mockAsyncClient, times(3)).getObject(captor.capture(), any(AsyncResponseTransformer.class));
+        assertNull(captor.getAllValues().get(0).ifMatch());
+        assertEquals("\"gen-1\"", captor.getAllValues().get(1).ifMatch());
+        assertNull("compat fallback omits If-Match", captor.getAllValues().get(2).ifMatch());
+        assertEquals("\"gen-1\"", obj.contentGeneration());
+    }
+
+    @SuppressWarnings("unchecked")
+    public void testAsyncSuccessfulResponseFromDifferentGenerationFailsClosed() throws Exception {
+        AtomicReference<String> responseEtag = new AtomicReference<>("\"gen-1\"");
+        when(mockAsyncClient.getObject(any(GetObjectRequest.class), any(AsyncResponseTransformer.class))).thenAnswer(invocation -> {
+            GetObjectResponse response = GetObjectResponse.builder()
+                .contentRange("bytes 0-18/19")
+                .contentLength((long) PAYLOAD.length)
+                .eTag(responseEtag.get())
+                .build();
+            return completeTransformer(invocation.getArgument(1), response, PAYLOAD);
+        });
+        S3StorageObject obj = new S3StorageObject(mockSyncClient, mockAsyncClient, BUCKET, KEY, PATH);
+
+        CountDownLatch first = new CountDownLatch(1);
+        obj.readBytesAsync(0, PAYLOAD.length, FACTORY, Runnable::run, ActionListener.wrap(buf -> {
+            buf.close();
+            first.countDown();
+        }, e -> fail("first async GET should succeed: " + e)));
+        assertTrue(first.await(5, TimeUnit.SECONDS));
+
+        responseEtag.set("\"gen-2\"");
+        CountDownLatch second = new CountDownLatch(1);
+        AtomicReference<Exception> failure = new AtomicReference<>();
+        obj.readBytesAsync(0, PAYLOAD.length, FACTORY, Runnable::run, ActionListener.wrap(buf -> fail("expected generation failure"), e -> {
+            failure.set(e);
+            second.countDown();
+        }));
+        assertTrue(second.await(5, TimeUnit.SECONDS));
+        assertThat(failure.get(), instanceOf(ExternalObjectChangedException.class));
+    }
+
+    /**
+     * A plain 400 is not evidence the store lacks If-Match — a malformed range or a bad signature is
+     * also a 400. Unpinning on those would silently retry the request without the generation pin and
+     * leave the rest of the query unpinned, so the failure must surface instead.
+     */
+    @SuppressWarnings("unchecked")
+    public void testAsyncGenericBadRequestDoesNotDropThePin() throws Exception {
+        GetObjectResponse response = GetObjectResponse.builder()
+            .contentRange("bytes 0-18/19")
+            .contentLength((long) PAYLOAD.length)
+            .eTag("\"gen-1\"")
+            .build();
+
+        when(mockAsyncClient.getObject(any(GetObjectRequest.class), any(AsyncResponseTransformer.class))).thenAnswer(invocation -> {
+            GetObjectRequest request = invocation.getArgument(0);
+            if (request.ifMatch() != null) {
+                CompletableFuture<DirectReadBuffer> failed = new CompletableFuture<>();
+                failed.completeExceptionally(
+                    S3Exception.builder()
+                        .statusCode(400)
+                        .awsErrorDetails(AwsErrorDetails.builder().errorCode("InvalidArgument").errorMessage("Bad Request").build())
+                        .message("Bad Request")
+                        .build()
+                );
+                return failed;
+            }
+            return completeTransformer(invocation.getArgument(1), response, PAYLOAD);
+        });
+
+        S3StorageObject obj = new S3StorageObject(mockSyncClient, mockAsyncClient, BUCKET, KEY, PATH);
+
+        CountDownLatch first = new CountDownLatch(1);
+        obj.readBytesAsync(0, PAYLOAD.length, FACTORY, Runnable::run, ActionListener.wrap(buf -> {
+            buf.close();
+            first.countDown();
+        }, e -> fail("first async GET should succeed: " + e)));
+        assertTrue(first.await(5, TimeUnit.SECONDS));
+
+        CountDownLatch second = new CountDownLatch(1);
+        AtomicReference<Exception> error = new AtomicReference<>();
+        obj.readBytesAsync(0, PAYLOAD.length, FACTORY, Runnable::run, ActionListener.wrap(buf -> {
+            buf.close();
+            second.countDown();
+        }, e -> {
+            error.set(e);
+            second.countDown();
+        }));
+        assertTrue(second.await(5, TimeUnit.SECONDS));
+        assertNotNull("a generic 400 must surface, not be retried unpinned", error.get());
+
+        ArgumentCaptor<GetObjectRequest> captor = ArgumentCaptor.forClass(GetObjectRequest.class);
+        verify(mockAsyncClient, times(2)).getObject(captor.capture(), any(AsyncResponseTransformer.class));
+        assertEquals("the pin is still sent", "\"gen-1\"", captor.getAllValues().get(1).ifMatch());
+        assertEquals("the pin is kept", "\"gen-1\"", obj.contentGeneration());
+    }
+
+    private static S3Exception notImplemented() {
+        return (S3Exception) S3Exception.builder()
+            .statusCode(400)
+            .awsErrorDetails(
+                AwsErrorDetails.builder().errorCode("NotImplemented").errorMessage("A header you provided is not implemented").build()
+            )
+            .message("A header you provided is not implemented")
+            .build();
     }
 
     @SuppressWarnings("unchecked")

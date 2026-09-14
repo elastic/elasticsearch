@@ -12,7 +12,9 @@ import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.util.PartitionedHashTable;
 import org.elasticsearch.compute.aggregation.GroupingAggregator;
 import org.elasticsearch.compute.aggregation.GroupingAggregatorFunction;
+import org.elasticsearch.compute.aggregation.SeenGroupIds;
 import org.elasticsearch.compute.aggregation.blockhash.PartitionedBlockHash;
+import org.elasticsearch.compute.data.PartitionedAggregationBlock;
 import org.elasticsearch.core.AbstractRefCounted;
 import org.elasticsearch.core.Releasable;
 
@@ -83,6 +85,25 @@ final class PartitionedHashAggregations extends AbstractRefCounted implements Re
         return new Combiner(op);
     }
 
+    static PartitionedAggregationBlock splitToPartitionedBlock(CircuitBreaker breaker, HashAggregationOperator op) {
+        int numKeys = op.blockHash.numKeys();
+        PartitionedKeyAndAggs keysAndAggs = splitKeysAndAggs(breaker, op);
+        try {
+            var block = new PartitionedAggregationBlock(
+                op.driverContext.blockFactory(),
+                numKeys,
+                keysAndAggs.keys,
+                keysAndAggs.aggs.states
+            );
+            keysAndAggs = null;
+            return block;
+        } finally {
+            if (keysAndAggs != null) {
+                keysAndAggs.releaseAll(breaker);
+            }
+        }
+    }
+
     private static PartitionedKeyAndAggs splitKeysAndAggs(CircuitBreaker breaker, HashAggregationOperator op) {
         PartitionedHashTable.PartitionedHashKeys partitionedKeys = null;
         MultiAggsPartitionSplitter aggSplitter = new MultiAggsPartitionSplitter(breaker, op.aggregators);
@@ -95,6 +116,19 @@ final class PartitionedHashAggregations extends AbstractRefCounted implements Re
             aggSplitter.release(breaker);
             if (partitionedKeys != null) {
                 partitionedKeys.releaseAll(breaker);
+            }
+        }
+    }
+
+    /**
+     * Receive partitioned output blocks from initial operators
+     */
+    void addPartitionedBlocks(List<PartitionedAggregationBlock> blocks) {
+        // blocking but should be fast
+        synchronized (generations) {
+            for (PartitionedAggregationBlock block : blocks) {
+                var keys = block.takeKeys();
+                generations.add(new PartitionedKeyAndAggs(keys, new MultiAggsPartitionedState(block.takeAggs())));
             }
         }
     }
@@ -140,6 +174,13 @@ final class PartitionedHashAggregations extends AbstractRefCounted implements Re
             List<GroupingAggregator> aggregators = op.aggregators;
             for (int i = 0; i < aggregators.size(); i++) {
                 final var aggregator = aggregators.get(i).aggregatorFunction();
+                // If some group in any generation is missing a value we need to track groupIds
+                for (int g = 0; g < numGens; g++) {
+                    if (generations.get(g).aggs.states[i].hasAllValues(p) == false) {
+                        aggregator.selectedMayContainUnseenGroups(new SeenGroupIds.Empty());
+                        break;
+                    }
+                }
                 aggregator.maybeEnsureCapacity(blockHash.numKeys() + 1);
                 for (int g = 0; g < numGens; g++) {
                     PartitionedKeyAndAggs keysAndAggs = generations.get(g);

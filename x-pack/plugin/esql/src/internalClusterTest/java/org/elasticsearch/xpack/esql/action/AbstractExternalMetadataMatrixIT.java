@@ -332,7 +332,7 @@ public abstract class AbstractExternalMetadataMatrixIT extends AbstractExternalD
             assertThat(((Number) rows.get(0).get(countIdx)).longValue(), equalTo(3L));
         }
 
-        try (var response = run(syncEsqlQueryRequest("FROM employees METADATA _file.name | STATS c = COUNT(*) BY `_file.name`"), TIMEOUT)) {
+        try (var response = run(syncEsqlQueryRequest("FROM employees METADATA _file.name | STATS c = COUNT(*) BY _file.name"), TIMEOUT)) {
             List<List<Object>> rows = getValuesList(response);
             assertThat(rows, hasSize(1));
             int nameIdx = columnIndex(response.columns(), "_file.name");
@@ -353,7 +353,7 @@ public abstract class AbstractExternalMetadataMatrixIT extends AbstractExternalD
         names.addAll(FileMetadataColumns.COLUMNS.keySet());
         List<String> failures = new ArrayList<>();
         for (String name : names) {
-            String query = "FROM employees METADATA " + name + " | STATS c = COUNT(*) BY " + quoteMetadataName(name);
+            String query = "FROM employees METADATA " + name + " | STATS c = COUNT(*) BY " + name;
             try (var response = run(syncEsqlQueryRequest(query), TIMEOUT)) {
                 List<List<Object>> rows = getValuesList(response);
                 List<String> columns = response.columns().stream().map(ColumnInfo::name).toList();
@@ -433,10 +433,5 @@ public abstract class AbstractExternalMetadataMatrixIT extends AbstractExternalD
     /** Keyword values may surface as String or BytesRef depending on block plumbing; normalize to String. */
     private static String objToString(Object value) {
         return value == null ? null : value.toString();
-    }
-
-    /** Dotted {@code _file.*} names need backticks in {@code BY} so the parser does not treat the dot as qualification. */
-    private static String quoteMetadataName(String name) {
-        return name.indexOf('.') >= 0 ? "`" + name + "`" : name;
     }
 }

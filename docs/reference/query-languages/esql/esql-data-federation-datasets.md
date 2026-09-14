@@ -391,9 +391,12 @@ setting can bring them back.
 |---|---|---|
 | `delimiter` | `,` / `\t` | The field separator. <br> Must be a single character (or one of `\t`, `\n`, `\r`, `\\`). {applies_to}`stack: experimental 9.6+` |
 | `mode` | `quoted` / `plain` | A preset bundling quoting and escaping into one choice. Valid values: `"quoted"`, `"escaped"`, `"plain"`. <br> Using `mode: escaped` with an explicit `quote` setting is rejected at registration time, because it silently turns quoting on and disables the escaped-mode decode. {applies_to}`stack: experimental 9.6+` |
-| `header_row` | `true` | Whether the first row names the columns. |
+| `header_row` | `true` | Whether the first non-comment, non-blank record names the columns. Applied after `skip_rows`. |
+| `skip_rows` | `0` | Number of leading content records to discard per file, after gzip unwrap, on the first split only. Blank and comment lines are not counted. Applied before `header_row`. Maximum `1000`. |
 | `null_value` | `""` (empty) | The token read as null (for example `NULL`, `NA`, `\N`). |
 | `encoding` | `UTF-8` | The file's character encoding. |
+
+A file that starts with two prose lines then `state,ip,user_agent` is read with `"skip_rows": 2` and `"header_row": true`. Blank lines and lines that begin with the `comment` prefix (default `//`) are skipped without counting toward `skip_rows`. A `//` preamble with `"skip_rows": 0` is still skipped via `comment`.
 
 **Advanced:**
 

@@ -166,8 +166,14 @@ import java.util.function.Consumer;
  *           {@code brackets} opt-in and the element-splitter rules (always comma, even for TSV).</td></tr>
  *   <tr><td>{@code schema_sample_size}</td><td>20,000</td><td>Number of rows to sample for type inference</td></tr>
  *   <tr><td>{@code header_row}</td><td>{@code true}</td>
- *       <td>When {@code false}, no header row is read; column names are synthesized from
- *           {@code column_prefix} and types are inferred from the sample.</td></tr>
+ *       <td>When {@code true} (default), the first non-comment, non-blank record after
+ *           {@code skip_rows} names the columns. When {@code false}, no header row is read;
+ *           column names are synthesized from {@code column_prefix} and types are inferred
+ *           from the sample.</td></tr>
+ *   <tr><td>{@code skip_rows}</td><td>{@code 0}</td>
+ *       <td>Number of leading <em>content</em> records to discard on the first split of each
+ *           file, after gzip unwrap. Blank and comment-prefix records do not count toward N.
+ *           Applied before {@code header_row}. Default {@code 0}; maximum {@code 1000}.</td></tr>
  *   <tr><td>{@code column_prefix}</td><td>{@code col}</td>
  *       <td>Prefix for synthesized column names when {@code header_row} is {@code false};
  *           a 0-based counter is appended (e.g. {@code col0, col1, col2, ...}). Ignored when
@@ -246,6 +252,7 @@ import java.util.function.Consumer;
  *       {@code max_errors=100}</li>
  *   <li>A column holding {@code [a,b,c]} arrays: {@code multi_value_syntax=brackets}</li>
  *   <li>A gzipped file with no header line: {@code header_row=false}</li>
+ *   <li>Two prose lines then a header: {@code skip_rows=2}, {@code header_row=true}</li>
  * </ul>
  *
  * <p>Works with any {@link org.elasticsearch.xpack.esql.datasources.spi.StorageProvider}
@@ -420,6 +427,14 @@ public class CsvFormatReader implements SegmentableFormatReader {
     static final String CONFIG_COLUMN_PREFIX = "column_prefix";
     static final String CONFIG_TRIM_SPACES = "trim_spaces";
     static final String CONFIG_SCHEMA_SAMPLE_SIZE = "schema_sample_size";
+    static final String CONFIG_SKIP_ROWS = "skip_rows";
+
+    /**
+     * Upper bound on {@code skip_rows}. Preambles are a handful of lines; a larger cap would
+     * outrun a 64MB first split and leak leftover preamble into split 1. Must stay equal to
+     * the PUT-time cap in {@code FileDataSourceValidator}.
+     */
+    public static final int SKIP_ROWS_MAX = 1000;
 
     /** Keys recognised by {@link #withConfigTrackingConsumedKeys(Map)}. */
     static final Set<String> RECOGNIZED_KEYS = Set.of(
@@ -436,7 +451,8 @@ public class CsvFormatReader implements SegmentableFormatReader {
         CONFIG_HEADER_ROW,
         CONFIG_COLUMN_PREFIX,
         CONFIG_TRIM_SPACES,
-        CONFIG_SCHEMA_SAMPLE_SIZE
+        CONFIG_SCHEMA_SAMPLE_SIZE,
+        CONFIG_SKIP_ROWS
     );
 
     private final BlockFactory blockFactory;
@@ -836,6 +852,9 @@ public class CsvFormatReader implements SegmentableFormatReader {
         boolean headerRow = parseBooleanOption(CONFIG_HEADER_ROW, config.get(CONFIG_HEADER_ROW), baseline.headerRow());
         String columnPrefix = parseString(config.get(CONFIG_COLUMN_PREFIX), baseline.columnPrefix());
         boolean trimSpaces = parseBooleanOption(CONFIG_TRIM_SPACES, config.get(CONFIG_TRIM_SPACES), baseline.trimSpaces());
+        int skipRows = parseInt(CONFIG_SKIP_ROWS, config.get(CONFIG_SKIP_ROWS), baseline.skipRows());
+        Check.clientError(skipRows >= 0, CONFIG_SKIP_ROWS + " must be non-negative, got: {}", skipRows);
+        Check.clientError(skipRows <= SKIP_ROWS_MAX, CONFIG_SKIP_ROWS + " must be at most {}, got: {}", SKIP_ROWS_MAX, skipRows);
 
         CsvFormatOptions merged = new CsvFormatOptions(
             delimiter,
@@ -851,7 +870,8 @@ public class CsvFormatReader implements SegmentableFormatReader {
             columnPrefix,
             quoting,
             escaping,
-            trimSpaces
+            trimSpaces,
+            skipRows
         );
         return new ParsedOptions(merged.equals(baseline) ? null : merged, configWarnings);
     }
@@ -1346,14 +1366,14 @@ public class CsvFormatReader implements SegmentableFormatReader {
                 options.encoding(),
                 options.quoting()
             );
+            skipLeadingContentRows(recordReader, options.skipRows(), options.commentPrefix());
             if (options.headerRow() == false) {
                 return inferSchemaWithSyntheticNames(recordReader, sourceLocation, warningSink);
             }
             String headerLine = null;
             String record;
             while ((record = recordReader.readRecord(false)) != null) {
-                String trimmed = record.trim();
-                if (trimmed.isEmpty() || (options.commentPrefix().isEmpty() == false && trimmed.startsWith(options.commentPrefix()))) {
+                if (isLeadingBlankOrCommentRecord(record, options.commentPrefix())) {
                     continue;
                 }
                 headerLine = record;
@@ -2016,6 +2036,18 @@ public class CsvFormatReader implements SegmentableFormatReader {
                 context.projectedColumns() == null ? "null" : context.projectedColumns().size()
             );
         }
+        if (context.firstSplit() && options.skipRows() > 0) {
+            try {
+                skipLeadingContentRows(recordReader, options.skipRows(), options.commentPrefix());
+            } catch (Exception e) {
+                try {
+                    reader.close();
+                } catch (IOException suppressed) {
+                    e.addSuppressed(suppressed);
+                }
+                throw e;
+            }
+        }
         if (readSchema != null) {
             if (context.firstSplit() && options.headerRow()) {
                 // A declared (pinned) schema binds its columns to the header BY NAME (when declaredProvenanceBinding), which
@@ -2200,18 +2232,50 @@ public class CsvFormatReader implements SegmentableFormatReader {
      * Consumes one header line from {@code reader}, skipping over leading empty lines and
      * comment lines, and returns it ({@code null} when the input has no non-comment line).
      * Used by {@link #read} when a schema is already bound but the input split still starts
-     * with the file header.
+     * with the file header. Blank/comment classification is the same predicate as
+     * {@link #skipLeadingContentRows}.
      */
     private String consumeHeaderLine(CsvLogicalRecordReader recordReader) throws IOException {
         String record;
         while ((record = recordReader.readRecord(false)) != null) {
-            String trimmed = record.trim();
-            if (trimmed.isEmpty() || (options.commentPrefix().isEmpty() == false && trimmed.startsWith(options.commentPrefix()))) {
+            if (isLeadingBlankOrCommentRecord(record, options.commentPrefix())) {
                 continue;
             }
             return record;
         }
         return null;
+    }
+
+    /**
+     * Whole-record blank/comment used by the leading skip and the header hunt. A record is blank
+     * when {@link String#trim()} is empty, and a comment when the trimmed record starts with a
+     * non-empty comment prefix. Differs from the data-path {@link #isBlankOrComment} delimiter
+     * quirk: {@code \t\t} in TSV is blank here, matching today's header hunt.
+     */
+    static boolean isLeadingBlankOrCommentRecord(String record, String commentPrefix) {
+        String trimmed = record.trim();
+        if (trimmed.isEmpty()) {
+            return true;
+        }
+        return commentPrefix != null && commentPrefix.isEmpty() == false && trimmed.startsWith(commentPrefix);
+    }
+
+    /**
+     * Discards the first {@code n} content records from the start of {@code recordReader}. Blank
+     * and comment-prefix records do not count toward {@code n}. Remaining skip is a no-op at EOF.
+     */
+    static void skipLeadingContentRows(CsvLogicalRecordReader recordReader, int n, String commentPrefix) throws IOException {
+        if (n <= 0) {
+            return;
+        }
+        int skipped = 0;
+        String record;
+        while (skipped < n && (record = recordReader.readRecord(false)) != null) {
+            if (isLeadingBlankOrCommentRecord(record, commentPrefix)) {
+                continue;
+            }
+            skipped++;
+        }
     }
 
     /**
@@ -3978,9 +4042,7 @@ public class CsvFormatReader implements SegmentableFormatReader {
                     String headerLine = null;
                     String record;
                     while ((record = recordReader.readRecord(false)) != null) {
-                        String trimmed = record.trim();
-                        if (trimmed.isEmpty()
-                            || (options.commentPrefix().isEmpty() == false && trimmed.startsWith(options.commentPrefix()))) {
+                        if (isLeadingBlankOrCommentRecord(record, options.commentPrefix())) {
                             continue;
                         }
                         headerLine = record;

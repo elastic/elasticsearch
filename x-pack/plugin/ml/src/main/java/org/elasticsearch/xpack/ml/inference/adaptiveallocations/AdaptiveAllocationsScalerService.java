@@ -552,13 +552,19 @@ public class AdaptiveAllocationsScalerService implements ClusterStateListener {
                 );
             }
             Integer newNumberOfAllocations = adaptiveAllocationsScaler.scale();
-            if (adaptiveAllocationsScaler.getMaxNumberOfAllocationsByMemory() != null
-                && adaptiveAllocationsScaler.getNeededNumberOfAllocations() > adaptiveAllocationsScaler
-                    .getMaxNumberOfAllocationsByMemory()) {
+            Integer maxAllocationsByMemory = adaptiveAllocationsScaler.getMaxNumberOfAllocationsByMemory();
+            // Only attribute the cap to memory when it is the binding constraint on the applied count. The memory cap is
+            // applied last in scale() (after the safeguard and any explicit max), so it is the effective limiter only when
+            // the applied count sits exactly at the memory cap while raw demand is higher. If the safeguard or an explicit
+            // max already held the count lower, memory was not the limiter and this log would be misleading.
+            if (newNumberOfAllocations != null
+                && maxAllocationsByMemory != null
+                && newNumberOfAllocations == Math.max(1, maxAllocationsByMemory)
+                && adaptiveAllocationsScaler.getNeededNumberOfAllocations() > newNumberOfAllocations) {
                 logger.debug(
-                    "adaptive allocations scaler: deployment [{}] is capped at [{}] allocations by available memory " + "(needed [{}]).",
+                    "adaptive allocations scaler: deployment [{}] is capped at [{}] allocations by available memory (needed [{}]).",
                     deploymentId,
-                    adaptiveAllocationsScaler.getMaxNumberOfAllocationsByMemory(),
+                    maxAllocationsByMemory,
                     adaptiveAllocationsScaler.getNeededNumberOfAllocations()
                 );
             }
@@ -695,6 +701,11 @@ public class AdaptiveAllocationsScalerService implements ClusterStateListener {
         // the current allocations plus however many additional allocations fit in the remaining headroom. Flooring the
         // additional count at zero keeps the cap from ever forcing a scale-down below the current size (avoiding churn);
         // real scale-down is driven by the demand signal and enforced by the planner.
+        //
+        // Known limitation: totalFreeMlMemoryBytes is summed cluster-wide, so this cap assumes the free memory is fully
+        // fungible across nodes. It can therefore admit additional allocations that no single node can actually host
+        // (per-node fragmentation). That is acceptable here because this is a reactive defence-in-depth ceiling only: the
+        // assignment planner remains authoritative for placement and will reject allocations that do not fit on a node.
         long additionalAllocations = totalFreeMlMemoryBytes.getAsLong() / observedPerAllocationMemoryBytes;
         long cap = currentAllocations + Math.max(0L, additionalAllocations);
         return (int) Math.min(Integer.MAX_VALUE, cap);

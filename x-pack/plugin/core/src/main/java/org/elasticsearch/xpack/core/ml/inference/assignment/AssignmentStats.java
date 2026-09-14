@@ -440,12 +440,16 @@ public class AssignmentStats implements ToXContentObject, Writeable {
                 if (avgInferenceTimeExcludingCacheHit != null) {
                     builder.field("average_inference_time_ms_excluding_cache_hits", avgInferenceTimeExcludingCacheHit);
                 }
-                if (avgInferenceProcessMemoryRssBytes != null) {
-                    builder.field("average_inference_process_memory_rss_bytes", avgInferenceProcessMemoryRssBytes);
-                }
-                if (maxInferenceProcessMemoryRssBytes != null) {
-                    builder.field("peak_inference_process_memory_rss_bytes", maxInferenceProcessMemoryRssBytes);
-                }
+            }
+            // Native RSS is sampled from periodic pytorch_inference process stats, which are emitted even when the
+            // deployment is idle, so it is reported independently of the inference-count guard above. Each field is
+            // present only when a real native sample exists (null otherwise), matching the runtime_native_memory guard
+            // on TrainedModelSizeStats.
+            if (avgInferenceProcessMemoryRssBytes != null) {
+                builder.field("average_inference_process_memory_rss_bytes", avgInferenceProcessMemoryRssBytes);
+            }
+            if (maxInferenceProcessMemoryRssBytes != null) {
+                builder.field("peak_inference_process_memory_rss_bytes", maxInferenceProcessMemoryRssBytes);
             }
             if (cacheHitCount != null) {
                 builder.field("inference_cache_hit_count", cacheHitCount);

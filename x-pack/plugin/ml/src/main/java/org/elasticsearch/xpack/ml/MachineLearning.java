@@ -1532,6 +1532,7 @@ public class MachineLearning extends Plugin
             anomalyDetectionAuditor,
             client,
             adaptiveAllocationsScalerService,
+            trainedModelAllocationClusterService.get(),
             mlAssignmentNotifier,
             indexNameExpressionResolver,
             anomalyDetectionEnabled,

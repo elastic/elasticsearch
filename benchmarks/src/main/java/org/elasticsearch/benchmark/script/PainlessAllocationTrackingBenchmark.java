@@ -94,9 +94,26 @@ public class PainlessAllocationTrackingBenchmark {
      *       {@code String+int} concat, entrySet iterator, and {@code String+String} concat</li>
      *   <li>{@code def_alloc} – def-typed string concat (PR 7.5 MIC path) and def method
      *       dispatch to annotated targets (PR 7 PIC path)</li>
+     *   <li>{@code foreach_typed} – one typed {@code for-each}; the iterator charge on the typed path</li>
+     *   <li>{@code foreach_def} – the same loop through {@code def}, where the charge is inline</li>
+     *   <li>{@code foreach_many} – ten loops; shows whether the per-loop cost scales</li>
+     *   <li>{@code foreach_array} – control: an array loop has no iterator, so all modes should agree</li>
+     *   <li>{@code indexed_typed} – control: same list without a {@code for-each}</li>
      * </ul>
      */
-    @Param({ "trivial", "allocating", "contains", "complex", "def_alloc" })
+    @Param(
+        {
+            "trivial",
+            "allocating",
+            "contains",
+            "complex",
+            "def_alloc",
+            "foreach_typed",
+            "foreach_def",
+            "foreach_many",
+            "foreach_array",
+            "indexed_typed" }
+    )
     private String script;
 
     /**
@@ -169,6 +186,48 @@ public class PainlessAllocationTrackingBenchmark {
                         joined = joined + item;
                     }
                     return joined.length() > 0""";
+                // The typed path. The body only bumps a counter; an empty one is rejected as an extraneous loop.
+                case "foreach_typed" -> """
+                    long n = 0;
+                    List items = params.items;
+                    for (def item : items) {
+                        n++;
+                    }
+                    return n > 0""";
+                // The def path, where the charge is an inline constant.
+                case "foreach_def" -> """
+                    long n = 0;
+                    def items = params.items;
+                    for (def item : items) {
+                        n++;
+                    }
+                    return n > 0""";
+                // Ten loops, to lift the per-loop cost above run-to-run noise.
+                case "foreach_many" -> """
+                    long n = 0;
+                    List items = params.items;
+                    for (int outer = 0; outer < 10; outer++) {
+                        for (def item : items) {
+                            n++;
+                        }
+                    }
+                    return n > 0""";
+                // Control: an array loop has no iterator, so no mode should cost more.
+                case "foreach_array" -> """
+                    long n = 0;
+                    int[] a = (int[])params.numbers;
+                    for (int e : a) {
+                        n++;
+                    }
+                    return n > 0""";
+                // Control: same list, no for-each, so no iterator.
+                case "indexed_typed" -> """
+                    long n = 0;
+                    List items = params.items;
+                    for (int i = 0; i < items.size(); i++) {
+                        n++;
+                    }
+                    return n > 0""";
                 default -> throw new IllegalArgumentException("unknown script: " + script);
             };
 
@@ -188,6 +247,10 @@ public class PainlessAllocationTrackingBenchmark {
         public void setup(PainlessAllocationTrackingBenchmark benchmark) {
             Map<String, Object> params = new HashMap<>();
             params.put("word", "echo");
+            // Pre-built so the loop workloads allocate nothing but the iterator being measured.
+            params.put("items", List.of("alfa", "bravo", "charlie", "delta", "echo", "foxtrot", "golf", "hotel"));
+            // Also pre-built: an array built in the script would be charged, breaking the control.
+            params.put("numbers", new int[] { 1, 2, 3, 4, 5, 6, 7, 8 });
             Map<String, Object> context = new HashMap<>();
             context.put("message", "test");
 

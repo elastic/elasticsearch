@@ -15,6 +15,7 @@ import org.gradle.api.plugins.JavaBasePlugin;
 import org.gradle.api.plugins.JavaPlugin;
 import org.gradle.api.provider.Provider;
 import org.gradle.api.tasks.SourceSet;
+import org.gradle.api.tasks.TaskOutputs;
 import org.gradle.api.tasks.TaskProvider;
 import org.gradle.api.tasks.testing.Test;
 
@@ -26,6 +27,29 @@ import java.util.Map;
 public class RestTestUtil {
 
     private RestTestUtil() {}
+
+    /**
+     * Registers a plain {@link Test} task with the given name, wired to the provided source set, as a REST
+     * integ test in the {@code restTests} extension so that {@link RestTestBasePlugin} applies standard
+     * REST integ-test configuration (distribution wiring, system properties, caching, etc.).
+     * <p>
+     * Prefer this factory over the typed {@link #registerTestTask(Project, SourceSet, String, Class)}
+     * overload when no Gradle test-cluster functionality is required.
+     */
+    public static TaskProvider<Test> registerPlainRestTestTask(Project project, SourceSet sourceSet, String taskName) {
+        return project.getExtensions().getByType(RestIntegTestsExtension.class).register(taskName, testTask -> {
+            testTask.setGroup(JavaBasePlugin.VERIFICATION_GROUP);
+            testTask.setDescription("Runs the REST tests against an external cluster");
+            project.getPlugins().withType(JavaPlugin.class, t -> testTask.mustRunAfter(project.getTasks().named("test")));
+            testTask.setTestClassesDirs(sourceSet.getOutput().getClassesDirs());
+            testTask.setClasspath(sourceSet.getRuntimeClasspath());
+            // Preserve cacheability: plain Test tasks are not @CacheableTask, so opt in explicitly.
+            // The explicit cast to TaskOutputs (a public API type) is intentional: it forces the compiler
+            // to resolve cacheIf against the public interface rather than the internal TaskOutputsInternal
+            // returned by AbstractTask.getOutputs(), keeping RestTestUtil free of Gradle internal API deps.
+            ((TaskOutputs) testTask.getOutputs()).cacheIf("REST integ test", t -> true);
+        });
+    }
 
     /**
      * Creates a {@link RestIntegTestTask} task with the source set of the same name

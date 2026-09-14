@@ -335,7 +335,9 @@ public abstract class AbstractExternalMetadataMatrixIT extends AbstractExternalD
         try (var response = run(syncEsqlQueryRequest("FROM employees METADATA _file.name | STATS c = COUNT(*) BY `_file.name`"), TIMEOUT)) {
             List<List<Object>> rows = getValuesList(response);
             assertThat(rows, hasSize(1));
+            int nameIdx = columnIndex(response.columns(), "_file.name");
             int countIdx = columnIndex(response.columns(), "c");
+            assertThat(rows.get(0).get(nameIdx), notNullValue());
             assertThat(((Number) rows.get(0).get(countIdx)).longValue(), equalTo(3L));
         }
     }

@@ -185,11 +185,31 @@ public class ParquetLateMaterializationBreakerTests extends ESTestCase {
      * the cleanup path takes its reservation with it, which is silent in logs.
      */
     public void testBreakerTripLeavesNoOutstandingReservation() throws IOException {
-        byte[] parquetData = urlFileWithZeroMatchBatches();
+        assertNoBreakerLeaks(urlFileWithZeroMatchBatches());
+    }
 
+    /**
+     * The same accounting walk with a LIST column in the projection. Any list column forces the
+     * single-phase late-materialization path ({@code shouldUseTwoPhase} refuses list columns) and
+     * its decode goes through {@code ColumnReader} rather than {@link PageColumnReader}, so the
+     * partially-matching batch reaches the fallback arm of the Phase-3 loop: decode the full
+     * batch, then compact it via {@link PageColumnReader#filterBlock}. A breaker trip inside that
+     * compaction must not strand the fully-decoded block's reservation — the block was never
+     * published to the caller's array, so only that arm can release it.
+     */
+    public void testBreakerTripWithListColumnLeavesNoOutstandingReservation() throws IOException {
+        assertNoBreakerLeaks(urlFileWithListColumnAndZeroMatchBatches());
+    }
+
+    /**
+     * Walks the failure point across every breaker charge the given data set makes and asserts the
+     * breaker returns to zero after each run, regardless of whether it threw.
+     */
+    private void assertNoBreakerLeaks(byte[] parquetData) throws IOException {
         FailAtChargeBreaker counting = new FailAtChargeBreaker(-1);
         readToExhaustion(parquetData, counting);
         int totalCharges = counting.charges();
+        assertTrue("expected the read to charge the breaker at least once", totalCharges > 0);
 
         List<String> leaks = new ArrayList<>();
         for (int failAt = 1; failAt <= totalCharges; failAt++) {
@@ -207,6 +227,8 @@ public class ParquetLateMaterializationBreakerTests extends ESTestCase {
         assertTrue(
             "a finished read must return the breaker to zero, but "
                 + leaks.size()
+                + " of "
+                + totalCharges
                 + " charge points leaked: "
                 + leaks.subList(0, Math.min(5, leaks.size())),
             leaks.isEmpty()
@@ -274,12 +296,49 @@ public class ParquetLateMaterializationBreakerTests extends ESTestCase {
         return writeParquet(schema, factory -> {
             List<Group> groups = new ArrayList<>(ROWS);
             for (int i = 0; i < ROWS; i++) {
-                boolean matches = i >= FIRST_MATCHING_ROW && i % 2 == 0;
-                String url = matches ? "https://www.google.com/search?q=" + i : "https://example.org/page?id=" + i;
-                groups.add(factory.newGroup().append("url", url).append("search_phrase", "phrase_" + i).append("counter", (long) i));
+                groups.add(
+                    factory.newGroup().append("url", urlForRow(i)).append("search_phrase", "phrase_" + i).append("counter", (long) i)
+                );
             }
             return groups;
         });
+    }
+
+    /**
+     * The same row shape as {@link #urlFileWithZeroMatchBatches} plus a LIST&lt;INT64&gt; column
+     * ({@code tags}, standard 3-level encoding). Its presence disables two-phase I/O and routes
+     * its decode through {@code ColumnReader}, which is what exposes the Phase-3 fallback arm in
+     * the partially-matching final batch.
+     */
+    private byte[] urlFileWithListColumnAndZeroMatchBatches() throws IOException {
+        MessageType schema = Types.buildMessage()
+            .required(BINARY)
+            .as(LogicalTypeAnnotation.stringType())
+            .named("url")
+            .optionalGroup()
+            .as(LogicalTypeAnnotation.listType())
+            .repeatedGroup()
+            .optional(INT64)
+            .named("element")
+            .named("list")
+            .named("tags")
+            .named("late_mat_list_breaker_test");
+
+        return writeParquet(schema, factory -> {
+            List<Group> groups = new ArrayList<>(ROWS);
+            for (int i = 0; i < ROWS; i++) {
+                Group group = factory.newGroup().append("url", urlForRow(i));
+                Group tags = group.addGroup("tags");
+                tags.addGroup("list").add("element", (long) i);
+                tags.addGroup("list").add("element", (long) i * 2);
+                groups.add(group);
+            }
+            return groups;
+        });
+    }
+
+    private static String urlForRow(int i) {
+        return i >= FIRST_MATCHING_ROW && i % 2 == 0 ? "https://www.google.com/search?q=" + i : "https://example.org/page?id=" + i;
     }
 
     @FunctionalInterface

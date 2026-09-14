@@ -2939,8 +2939,16 @@ final class OptimizedParquetColumnIterator implements CloseableIterator<Page>, C
                 } else if (pageColumnReaders != null && pageColumnReaders[col] != null) {
                     blocks[col] = pageColumnReaders[col].readBatchFiltered(rowsToRead, blockFactory, positions, survivorCount);
                 } else {
+                    // filterBlock closes fullBlock on success only; on failure (e.g. a breaker trip in the
+                    // filtered allocation) we still own it, and it is not yet reachable from blocks[], so
+                    // the catch below cannot free it. Same guard as the twin call site in nextTwoPhaseBatch.
                     Block fullBlock = readColumnBlockNoCleanup(col, info, rowsToRead);
-                    blocks[col] = PageColumnReader.filterBlock(fullBlock, positions, survivorCount, blockFactory);
+                    try {
+                        blocks[col] = PageColumnReader.filterBlock(fullBlock, positions, survivorCount, blockFactory);
+                    } catch (RuntimeException filterEx) {
+                        ParquetReadFailures.closePreservingCause(filterEx, fullBlock);
+                        throw filterEx;
+                    }
                 }
             }
 

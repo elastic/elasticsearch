@@ -149,17 +149,8 @@ public abstract class AbstractEstimatedHeapAllocationDecider extends AllocationD
 
         final NodeHeapMetrics nodeHeapMetrics = allocation.clusterInfo().getNodeHeapMetrics().get(node.nodeId());
         assert nodeHeapMetrics != null : "expected heap metrics for node after guard passed";
-
         final Long capacityBytes = resolveCapacityBytes(nodeHeapMetrics, node, allocation);
-        if (capacityBytes == null) {
-            return allocation.decision(
-                Decision.YES,
-                name,
-                "no %s capacity data available for node [%s]",
-                deciderDescription,
-                node.getShortNodeDescription()
-            );
-        }
+        assert capacityBytes != null : "expected capacity bytes for node after guard passed";
 
         final double lowWatermarkPercent = getLowWatermarkPercent();
         final long currentUsageBytes = getCurrentUsageBytes(nodeHeapMetrics);
@@ -253,17 +244,8 @@ public abstract class AbstractEstimatedHeapAllocationDecider extends AllocationD
 
         final NodeHeapMetrics nodeHeapMetrics = allocation.clusterInfo().getNodeHeapMetrics().get(node.nodeId());
         assert nodeHeapMetrics != null : "expected heap metrics for node after guard passed";
-
         final Long capacityBytes = resolveCapacityBytes(nodeHeapMetrics, node, allocation);
-        if (capacityBytes == null) {
-            return allocation.decision(
-                Decision.YES,
-                name,
-                "no %s capacity data available for node [%s]",
-                deciderDescription,
-                node.getShortNodeDescription()
-            );
-        }
+        assert capacityBytes != null : "expected capacity bytes for node after guard passed";
 
         final double highWatermarkPercent = getHighWatermarkPercent();
         final long currentUsageBytes = getCurrentUsageBytes(nodeHeapMetrics);
@@ -329,6 +311,17 @@ public abstract class AbstractEstimatedHeapAllocationDecider extends AllocationD
                 name,
                 "estimated heap decider will not intervene if heap size is below [%s]",
                 minimumHeapSizeForEnabled
+            );
+        }
+
+        final Long capacityBytes = resolveCapacityBytes(nodeHeapMetrics, node, allocation);
+        if (capacityBytes == null) {
+            return allocation.decision(
+                Decision.YES,
+                name,
+                "no %s capacity data available for node [%s]",
+                deciderDescription,
+                node.getShortNodeDescription()
             );
         }
 

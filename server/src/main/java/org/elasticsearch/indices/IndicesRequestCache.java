@@ -77,6 +77,12 @@ public final class IndicesRequestCache implements Closeable {
         Property.NodeScope
     );
 
+    /**
+     * How many times a request reloads an entry after inheriting a cancellation before it loads the value for itself. Exceeding the
+     * cap costs one uncached load rather than a failure.
+     */
+    private static final int MAX_INHERITED_CANCELLATION_RELOADS = 3;
+
     private final ConcurrentMap<CleanupKey, Boolean> registeredClosedListeners = ConcurrentCollections.newConcurrentMap();
     private final Set<CleanupKey> keysToClean = ConcurrentCollections.newConcurrentSet();
     private final Cache<Key, BytesReference> cache;
@@ -158,11 +164,12 @@ public final class IndicesRequestCache implements Closeable {
     /**
      * Loads the entry through the cache. A {@link TaskCancelledException} inherited from a computation started by another request
      * belongs to that request, so the value is loaded again rather than failed. Cancellation is propagated instead when it came from
-     * this thread's own load, or when this request has been cancelled too.
+     * this thread's own load, or when this request has been cancelled too. Once the reloads run out the value is loaded outside the
+     * cache.
      */
     private BytesReference compute(Key key, Loader cacheLoader, Consumer<Runnable> cancellationRegistrar) throws ExecutionException {
         AtomicBoolean cancelled = null;
-        while (true) {
+        for (int reloads = 0;; reloads++) {
             try {
                 return cache.computeIfAbsent(key, cacheLoader, cancellationRegistrar);
             } catch (ExecutionException e) {
@@ -174,6 +181,17 @@ public final class IndicesRequestCache implements Closeable {
                 }
                 if (cancelled.get()) {
                     throw e;
+                }
+                if (reloads == MAX_INHERITED_CANCELLATION_RELOADS) {
+                    logger.debug(
+                        "loading request cache entry for [{}] outside the cache, every reload was given a cancellation",
+                        key.entity.getCacheIdentity()
+                    );
+                    try {
+                        return cacheLoader.loadWithoutCaching();
+                    } catch (Exception loadFailure) {
+                        throw new ExecutionException(loadFailure);
+                    }
                 }
                 logger.debug(
                     "reloading request cache entry for [{}], the computation it waited on was cancelled by another request",
@@ -234,9 +252,14 @@ public final class IndicesRequestCache implements Closeable {
 
         @Override
         public BytesReference load(Key key) throws Exception {
+            BytesReference value = loadWithoutCaching();
+            entity.onCached(key, value);
+            return value;
+        }
+
+        BytesReference loadWithoutCaching() throws IOException {
             loadAttempted = true;
             BytesReference value = loader.get();
-            entity.onCached(key, value);
             loaded = true;
             return value;
         }

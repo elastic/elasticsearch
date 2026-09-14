@@ -225,6 +225,8 @@ public class KnnEvalResponseTests extends ESTestCase {
             assertTrue(stats.p50() <= stats.p90());
             assertTrue(stats.p90() <= stats.p95());
             assertTrue(stats.p95() <= stats.max());
+            double expectedSem = stats.count() < 2 ? 0.0 : stats.stddev() / Math.sqrt(stats.count());
+            assertEquals("sem is stddev over the root of the count", expectedSem, stats.sem(), 1e-12);
             if (result.recallHistogram() != null) {
                 assertHistogramMatchesStats(result);
             }
@@ -318,7 +320,36 @@ public class KnnEvalResponseTests extends ESTestCase {
         assertEquals(0.9, stats.p95(), 1e-9);
         assertEquals(0.9, stats.max(), 1e-9);
         assertEquals(10L, stats.count());
+        // 0.0 ... 0.9 has a population stddev of sqrt(0.0825)
+        assertEquals(Math.sqrt(0.0825), stats.stddev(), 1e-12);
+        assertEquals(Math.sqrt(0.0825) / Math.sqrt(10), stats.sem(), 1e-12);
+        // the normal-approximation CI brackets the mean of the fixture
+        assertTrue(stats.mean() - 1.96 * stats.sem() < 0.45);
+        assertTrue(stats.mean() + 1.96 * stats.sem() > 0.45);
         assertEquals(KnnEvalResponse.DoubleStats.EMPTY, KnnEvalResponse.DoubleStats.of(List.of()));
+    }
+
+    /** A single query gives no spread, so there is no error bar to draw rather than an arbitrarily small one. */
+    public void testDoubleStatsOfASingleValueHaveNoSpread() {
+        KnnEvalResponse.DoubleStats stats = KnnEvalResponse.DoubleStats.of(List.of(0.7));
+        assertEquals(0.7, stats.mean(), 0.0);
+        assertEquals(0.0, stats.stddev(), 0.0);
+        assertEquals(0.0, stats.sem(), 0.0);
+        assertEquals(1L, stats.count());
+    }
+
+    public void testConfidenceIntervalBracketsAKnownMean() {
+        // 100 values alternating 0.4 and 0.6: mean 0.5, population stddev 0.1, so the CI is 0.5 +/- 1.96 * 0.01
+        List<Double> values = new ArrayList<>();
+        for (int i = 0; i < 100; i++) {
+            values.add(i % 2 == 0 ? 0.4 : 0.6);
+        }
+        KnnEvalResponse.DoubleStats stats = KnnEvalResponse.DoubleStats.of(values);
+        assertEquals(0.5, stats.mean(), 1e-12);
+        assertEquals(0.1, stats.stddev(), 1e-12);
+        assertEquals(0.01, stats.sem(), 1e-12);
+        assertTrue(stats.mean() - 1.96 * stats.sem() < 0.5);
+        assertTrue(stats.mean() + 1.96 * stats.sem() > 0.5);
     }
 
     public void testSerialization() throws IOException {
@@ -428,7 +459,8 @@ public class KnnEvalResponseTests extends ESTestCase {
                   "knn_settings": { "visit_percentage": 5.0 },
                   "recall": 0.5,
                   "recall_stats": {
-                    "mean": 0.5, "min": 0.25, "p10": 0.25, "p50": 0.25, "p90": 0.75, "p95": 0.75, "max": 0.75, "count": 2
+                    "mean": 0.5, "stddev": 0.25, "sem": 0.17677669529663687,
+                    "min": 0.25, "p10": 0.25, "p50": 0.25, "p90": 0.75, "p95": 0.75, "max": 0.75, "count": 2
                   },
                   "recall_histogram": [ { "recall": 0.25, "count": 1 }, { "recall": 0.75, "count": 1 } ],
                   "recall_value": null,
@@ -441,15 +473,20 @@ public class KnnEvalResponseTests extends ESTestCase {
                   "knn_settings": { "visit_percentage": 20.0, "num_candidates": 200 },
                   "recall": 0.5,
                   "recall_stats": {
-                    "mean": 0.5, "min": 0.5, "p10": 0.5, "p50": 0.5, "p90": 0.5, "p95": 0.5, "max": 0.5, "count": 1
+                    "mean": 0.5, "stddev": 0.0, "sem": 0.0,
+                    "min": 0.5, "p10": 0.5, "p50": 0.5, "p90": 0.5, "p95": 0.5, "max": 0.5, "count": 1
                   },
                   "recall_histogram": [ { "recall": 0.5, "count": 1 } ],
                   "recall_value": 0.75,
                   "recall_value_stats": {
-                    "mean": 0.75, "min": 0.75, "p10": 0.75, "p50": 0.75, "p90": 0.75, "p95": 0.75, "max": 0.75, "count": 1
+                    "mean": 0.75, "stddev": 0.0, "sem": 0.0,
+                    "min": 0.75, "p10": 0.75, "p50": 0.75, "p90": 0.75, "p95": 0.75, "max": 0.75, "count": 1
                   },
                   "fidelity": {
-                    "max_epsilon": { "mean": 0.5, "min": 0.5, "p10": 0.5, "p50": 0.5, "p90": 0.5, "p95": 0.5, "max": 0.5, "count": 1 },
+                    "max_epsilon": {
+                      "mean": 0.5, "stddev": 0.0, "sem": 0.0,
+                      "min": 0.5, "p10": 0.5, "p50": 0.5, "p90": 0.5, "p95": 0.5, "max": 0.5, "count": 1
+                    },
                     "infinite_count": 1,
                     "mean_epsilon_by_rank": [ 0.5, null ]
                   },

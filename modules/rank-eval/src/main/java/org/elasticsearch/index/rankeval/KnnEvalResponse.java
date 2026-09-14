@@ -652,14 +652,26 @@ public class KnnEvalResponse extends ActionResponse implements ToXContentObject 
      * Distribution of per-query recall. The mean alone hides the shape: 0.9 everywhere is a very different proposition from 1.0 on most
      * queries and 0.2 on a tail. Per-query recall is a multiple of {@code 1/k}, so these percentiles are step-like by construction.
      *
+     * @param sem   standard error of the mean, for the normal-approximation CI {@code mean +/- 1.96 * sem} that a plot needs; the
+     *              percentiles describe spread, not uncertainty
      * @param count equals the knob set's {@code took_ms.count}
      */
-    public record DoubleStats(double mean, double min, double p10, double p50, double p90, double p95, double max, long count)
-        implements
-            Writeable,
-            ToXContentObject {
+    public record DoubleStats(
+        double mean,
+        double stddev,
+        double sem,
+        double min,
+        double p10,
+        double p50,
+        double p90,
+        double p95,
+        double max,
+        long count
+    ) implements Writeable, ToXContentObject {
 
         static final ParseField MEAN_FIELD = new ParseField("mean");
+        static final ParseField STDDEV_FIELD = new ParseField("stddev");
+        static final ParseField SEM_FIELD = new ParseField("sem");
         static final ParseField MIN_FIELD = new ParseField("min");
         static final ParseField P10_FIELD = new ParseField("p10");
         static final ParseField P50_FIELD = new ParseField("p50");
@@ -668,7 +680,7 @@ public class KnnEvalResponse extends ActionResponse implements ToXContentObject 
         static final ParseField MAX_FIELD = new ParseField("max");
         static final ParseField COUNT_FIELD = new ParseField("count");
 
-        public static final DoubleStats EMPTY = new DoubleStats(0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0);
+        public static final DoubleStats EMPTY = new DoubleStats(0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0);
 
         /** Nearest-rank over a sorted copy: one request's worth of queries is too small to need a sketch. */
         public static DoubleStats of(List<Double> values) {
@@ -680,8 +692,17 @@ public class KnnEvalResponse extends ActionResponse implements ToXContentObject 
             for (double value : sorted) {
                 sum += value;
             }
+            double mean = sum / sorted.length;
+            double squaredError = 0.0;
+            for (double value : sorted) {
+                squaredError += (value - mean) * (value - mean);
+            }
+            // population, not sample: these are all the queries that were run, not a draw from a larger set of them
+            double stddev = sorted.length < 2 ? 0.0 : Math.sqrt(squaredError / sorted.length);
             return new DoubleStats(
-                sum / sorted.length,
+                mean,
+                stddev,
+                sorted.length < 2 ? 0.0 : stddev / Math.sqrt(sorted.length),
                 sorted[0],
                 nearestRank(sorted, 10),
                 nearestRank(sorted, 50),
@@ -706,6 +727,8 @@ public class KnnEvalResponse extends ActionResponse implements ToXContentObject 
                 in.readDouble(),
                 in.readDouble(),
                 in.readDouble(),
+                in.readDouble(),
+                in.readDouble(),
                 in.readVLong()
             );
         }
@@ -713,6 +736,8 @@ public class KnnEvalResponse extends ActionResponse implements ToXContentObject 
         @Override
         public void writeTo(StreamOutput out) throws IOException {
             out.writeDouble(mean);
+            out.writeDouble(stddev);
+            out.writeDouble(sem);
             out.writeDouble(min);
             out.writeDouble(p10);
             out.writeDouble(p50);
@@ -726,6 +751,8 @@ public class KnnEvalResponse extends ActionResponse implements ToXContentObject 
         public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
             builder.startObject();
             builder.field(MEAN_FIELD.getPreferredName(), mean);
+            builder.field(STDDEV_FIELD.getPreferredName(), stddev);
+            builder.field(SEM_FIELD.getPreferredName(), sem);
             builder.field(MIN_FIELD.getPreferredName(), min);
             builder.field(P10_FIELD.getPreferredName(), p10);
             builder.field(P50_FIELD.getPreferredName(), p50);

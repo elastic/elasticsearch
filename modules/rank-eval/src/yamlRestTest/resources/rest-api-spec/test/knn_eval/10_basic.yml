@@ -133,6 +133,10 @@ teardown:
   - match: { results.0.recall_stats.max: 1.0 }
   - match: { results.0.recall_stats.min: 1.0 }
   - match: { results.0.recall_stats.count: 10 }
+  # every per-query recall is 1.0, so there is no spread and no error bar
+  - match: { results.0.recall_stats.stddev: 0.0 }
+  - match: { results.0.recall_stats.sem: 0.0 }
+  - match: { results.0.recall_value_stats.sem: 0.0 }
   - match: { baseline_vector_ops_kind: "quantized_visit_plus_rescore" }
   # what the sweep was measured on: a fixed visit_percentage means something different on one segment than on twenty
   - match: { environment.index.docs.live: 30 }

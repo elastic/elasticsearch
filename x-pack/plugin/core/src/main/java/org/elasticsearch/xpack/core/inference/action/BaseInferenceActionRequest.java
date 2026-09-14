@@ -53,6 +53,8 @@ public abstract class BaseInferenceActionRequest extends UntypedActionRequest {
         TimeValue.timeValueSeconds(30),
         TaskType.RERANK,
         TimeValue.timeValueSeconds(30),
+        TaskType.DOCUMENT_EXTRACTION,
+        TimeValue.timeValueSeconds(120),
         TaskType.COMPLETION,
         TimeValue.timeValueSeconds(120),
         TaskType.CHAT_COMPLETION,

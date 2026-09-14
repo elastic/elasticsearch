@@ -170,6 +170,21 @@ public interface InferenceService extends Closeable {
     }
 
     /**
+     * Perform document extraction inference on the model.
+     *
+     * @param model The model
+     * @param request Parameters for the request
+     * @param timeout The timeout for the request
+     * @param listener Inference result listener
+     */
+    void documentExtractionInfer(
+        Model model,
+        DocumentExtractionRequest request,
+        TimeValue timeout,
+        ActionListener<InferenceServiceResults> listener
+    );
+
+    /**
      * Perform rerank inference on the model.
      *
      * @param model The model

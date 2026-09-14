@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.stateless.allocation;
 
+import org.apache.logging.log4j.Level;
 import org.elasticsearch.cluster.ClusterInfo;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
@@ -45,7 +46,9 @@ import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.snapshots.EmptySnapshotsInfoService;
+import org.elasticsearch.test.MockLog;
 import org.elasticsearch.test.gateway.TestGatewayAllocator;
+import org.elasticsearch.test.junit.annotations.TestLogging;
 import org.elasticsearch.xpack.stateless.EstimatedHeapSettings;
 
 import java.util.List;
@@ -63,6 +66,46 @@ public class EstimatedHeapUsageAllocationDeciderTests extends ESAllocationTestCa
     static final String NODE_ID = "node-id";
     static final String OTHER_NODE_ID = "not-" + NODE_ID;
     static final String SEARCH_NODE_ID = "search-node";
+
+    @TestLogging(
+        value = "org.elasticsearch.xpack.stateless.allocation.EstimatedHeapUsageAllocationDecider:DEBUG",
+        reason = "verify the concrete decider logger"
+    )
+    public void testLogsToSubclassLogger() {
+        final var decider = createEstimatedHeapUsageAllocationDecider(true, true, 85, 90, ByteSizeValue.ZERO);
+        final ShardRouting shard = createShardRouting();
+        final RoutingAllocation allocation = createRoutingAllocation(
+            decider,
+            shard,
+            createClusterInfoWithGenNodeAndShardHeap(Map.of(NODE_ID, 95L), shard.shardId())
+        );
+        allocation.debugDecision(false);
+        final var node = allocation.routingNodes().node(NODE_ID);
+        try (MockLog mockLog = MockLog.capture(EstimatedHeapUsageAllocationDecider.class)) {
+            mockLog.addExpectation(
+                new MockLog.SeenEventExpectation(
+                    "allocation rejection uses the subclass logger",
+                    EstimatedHeapUsageAllocationDecider.class.getCanonicalName(),
+                    Level.DEBUG,
+                    "insufficient estimated heap available on node *exceeds low watermark*"
+                )
+            );
+            mockLog.addExpectation(
+                new MockLog.SeenEventExpectation(
+                    "can-remain rejection uses the subclass logger",
+                    EstimatedHeapUsageAllocationDecider.class.getCanonicalName(),
+                    Level.DEBUG,
+                    "insufficient estimated heap available on node *exceeds high watermark*"
+                )
+            );
+            assertThat(decider.canAllocate(shard, node, allocation).type(), equalTo(Decision.Type.NO));
+            assertThat(
+                decider.canRemain(allocation.metadata().getProject(ProjectId.DEFAULT).index(shard.index()), shard, node, allocation).type(),
+                equalTo(Decision.Type.NO)
+            );
+            mockLog.assertAllExpectationsMatched();
+        }
+    }
 
     public void testYesDecisionWhenCanRemainDisabled() {
         final var decider = createEstimatedHeapUsageAllocationDecider(true, false, between(0, 100), between(0, 100), ByteSizeValue.ZERO);

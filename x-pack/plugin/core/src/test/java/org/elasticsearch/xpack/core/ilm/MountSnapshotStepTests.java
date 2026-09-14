@@ -205,7 +205,7 @@ public class MountSnapshotStepTests extends AbstractStepTestCase<MountSnapshotSt
                 indexName,
                 RESTORED_INDEX_PREFIX,
                 indexName,
-                new String[] { LifecycleSettings.LIFECYCLE_NAME },
+                new String[] { LifecycleSettings.LIFECYCLE_NAME, LifecycleSettings.LIFECYCLE_FORCE_MERGE_CLONE_SOURCE_UUID },
                 null,
                 0
             );
@@ -332,7 +332,7 @@ public class MountSnapshotStepTests extends AbstractStepTestCase<MountSnapshotSt
                 indexName,
                 RESTORED_INDEX_PREFIX,
                 indexNameSnippet,
-                new String[] { LifecycleSettings.LIFECYCLE_NAME },
+                new String[] { LifecycleSettings.LIFECYCLE_NAME, LifecycleSettings.LIFECYCLE_FORCE_MERGE_CLONE_SOURCE_UUID },
                 null,
                 0
             );
@@ -377,6 +377,7 @@ public class MountSnapshotStepTests extends AbstractStepTestCase<MountSnapshotSt
                 indexName,
                 new String[] {
                     LifecycleSettings.LIFECYCLE_NAME,
+                    LifecycleSettings.LIFECYCLE_FORCE_MERGE_CLONE_SOURCE_UUID,
                     ShardsLimitAllocationDecider.INDEX_TOTAL_SHARDS_PER_NODE_SETTING.getKey() },
                 null,
                 0
@@ -420,7 +421,7 @@ public class MountSnapshotStepTests extends AbstractStepTestCase<MountSnapshotSt
                 indexName,
                 RESTORED_INDEX_PREFIX,
                 indexName,
-                new String[] { LifecycleSettings.LIFECYCLE_NAME },
+                new String[] { LifecycleSettings.LIFECYCLE_NAME, LifecycleSettings.LIFECYCLE_FORCE_MERGE_CLONE_SOURCE_UUID },
                 null,
                 0
             );
@@ -466,7 +467,7 @@ public class MountSnapshotStepTests extends AbstractStepTestCase<MountSnapshotSt
                 indexName,
                 RESTORED_INDEX_PREFIX,
                 indexName,
-                new String[] { LifecycleSettings.LIFECYCLE_NAME },
+                new String[] { LifecycleSettings.LIFECYCLE_NAME, LifecycleSettings.LIFECYCLE_FORCE_MERGE_CLONE_SOURCE_UUID },
                 totalShardsPerNode,
                 replicas
             );
@@ -512,7 +513,7 @@ public class MountSnapshotStepTests extends AbstractStepTestCase<MountSnapshotSt
                 indexName,
                 RESTORED_INDEX_PREFIX,
                 indexName,
-                new String[] { LifecycleSettings.LIFECYCLE_NAME },
+                new String[] { LifecycleSettings.LIFECYCLE_NAME, LifecycleSettings.LIFECYCLE_FORCE_MERGE_CLONE_SOURCE_UUID },
                 totalShardsPerNode,
                 replicas
             );
@@ -526,6 +527,26 @@ public class MountSnapshotStepTests extends AbstractStepTestCase<MountSnapshotSt
                 replicas
             );
             performActionAndWait(step, indexMetadata, state, null);
+        }
+    }
+
+    public void testIgnoredIndexSettingsAlwaysContainsForceMergeCloneSourceUuid() {
+        // Verify the marker is always excluded so a mounted index never inherits it.
+        for (String phase : List.of(TimeseriesLifecycleType.FROZEN_PHASE, TimeseriesLifecycleType.COLD_PHASE, "hot")) {
+            MountSnapshotStep step = new MountSnapshotStep(
+                new StepKey(phase, randomAlphaOfLength(5), randomAlphaOfLength(5)),
+                randomStepKey(),
+                null,
+                RESTORED_INDEX_PREFIX,
+                randomStorageType(),
+                null,
+                0
+            );
+            assertThat(
+                "ignoredIndexSettings for phase [" + phase + "] must exclude the force-merge clone marker",
+                List.of(step.ignoredIndexSettings()),
+                org.hamcrest.Matchers.hasItem(LifecycleSettings.LIFECYCLE_FORCE_MERGE_CLONE_SOURCE_UUID)
+            );
         }
     }
 

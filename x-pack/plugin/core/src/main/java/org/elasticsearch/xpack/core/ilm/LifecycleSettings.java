@@ -52,6 +52,13 @@ public class LifecycleSettings {
         Setting.Property.Dynamic,
         Setting.Property.IndexScope
     );
+    public static final String LIFECYCLE_FORCE_MERGE_CLONE_SOURCE_UUID = "index.lifecycle.force_merge_clone_source_uuid";
+    public static final Setting<String> LIFECYCLE_FORCE_MERGE_CLONE_SOURCE_UUID_SETTING = Setting.simpleString(
+        LIFECYCLE_FORCE_MERGE_CLONE_SOURCE_UUID,
+        Setting.Property.IndexScope,
+        Setting.Property.InternalIndex,
+        Setting.Property.NotCopyableOnResize
+    );
     public static final Setting<Boolean> LIFECYCLE_HISTORY_INDEX_ENABLED_SETTING = Setting.boolSetting(
         LIFECYCLE_HISTORY_INDEX_ENABLED,
         true,

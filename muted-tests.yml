@@ -760,3 +760,6 @@ tests:
 - class: org.elasticsearch.search.basic.SearchWithRandomDisconnectsIT
   method: testSearchWithRandomDisconnects
   issue: https://github.com/elastic/elasticsearch/issues/157466
+- class: org.elasticsearch.gradle.internal.ForeignApiPluginFuncTest
+  method: extractForeignApiJar is not registered when minimumRuntimeVersion is not 21
+  issue: https://github.com/elastic/elasticsearch/issues/159227

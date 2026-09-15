@@ -22,98 +22,149 @@
 
 package org.elasticsearch.gradle.internal.ospackage.deb;
 
-import org.gradle.api.file.RegularFileProperty;
+import org.elasticsearch.gradle.internal.ospackage.Dependency;
 
+import java.io.BufferedReader;
 import java.io.File;
 import java.io.IOException;
+import java.io.StringReader;
 import java.io.UncheckedIOException;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
-import java.util.HashMap;
+import java.util.LinkedHashMap;
 import java.util.List;
-import java.util.Locale;
 import java.util.Map;
 
 /**
- * Generates the debian control file and the conffiles listing from the bundled templates and
- * installs the maintainer scripts (preinst/postinst/prerm/postrm). Script files declared on the
- * task are installed verbatim; the templated postinst is only used when explicit install dirs
- * require a generated script.
+ * Generates the debian control metadata files required by the Elasticsearch package build and
+ * materializes maintainer scripts in the same form as the main-branch package build.
  */
 class MaintainerScriptsGenerator {
 
+    private static final String CONTROL_FILE = "control";
+    private static final String CONFFILES_FILE = "conffiles";
+
     private final Deb task;
-    private final TemplateHelper templateHelper;
     private final File destination;
 
-    MaintainerScriptsGenerator(Deb task, TemplateHelper templateHelper, File destination) {
+    MaintainerScriptsGenerator(Deb task, File destination) {
         this.task = task;
-        this.templateHelper = templateHelper;
         this.destination = destination;
     }
 
-    void generate(Map<String, Object> context) {
-        templateHelper.generateFile("control", context);
+    void generate() {
+        writeFile(CONTROL_FILE, buildControlFile());
 
         List<String> configurationFiles = task.getConfigurationFiles().getOrElse(List.of());
         if (configurationFiles.isEmpty() == false) {
-            templateHelper.generateFile("conffiles", Map.of("files", configurationFiles));
+            writeFile(CONFFILES_FILE, String.join("\n", configurationFiles) + "\n\n");
         }
 
-        record MaintainerScript(String name, File file, boolean forceGeneration) {}
-        List<MaintainerScript> scripts = List.of(
-            new MaintainerScript("preinst", fileOrNull(task.getPreInstallFile()), false),
-            // postinst is also required when explicit install dirs need to be created
-            new MaintainerScript("postinst", fileOrNull(task.getPostInstallFile()), hasDirs(context)),
-            new MaintainerScript("prerm", fileOrNull(task.getPreUninstallFile()), false),
-            new MaintainerScript("postrm", fileOrNull(task.getPostUninstallFile()), false)
-        );
-        for (MaintainerScript script : scripts) {
-            if (script.file() != null) {
-                installScript(script.file(), new File(destination, script.name()));
-            } else if (script.forceGeneration()) {
-                Map<String, Object> scriptContext = new HashMap<>(context);
-                scriptContext.put("commands", List.of());
-                templateHelper.generateFile(script.name(), scriptContext);
+        writeScript("preinst", "#!/bin/bash -e\n", 1, task.getPreInstallCommands().getOrElse(List.of()));
+        writeScript("postinst", "#!/bin/bash -e\n", 1, task.getPostInstallCommands().getOrElse(List.of()));
+        writeScript("prerm", "#!/bin/sh -e\n\n\n", 2, task.getPreUninstallCommands().getOrElse(List.of()));
+        writeScript("postrm", "#!/bin/sh -e\n\n\n", 2, task.getPostUninstallCommands().getOrElse(List.of()));
+    }
+
+    private String buildControlFile() {
+        StringBuilder content = new StringBuilder();
+        appendField(content, "Source", task.getPackageName().get());
+        appendField(content, "Section", task.getPackageGroup().getOrNull());
+        appendField(content, "Priority", "optional");
+        appendField(content, "Maintainer", task.getMaintainer().getOrElse(""));
+        appendField(content, "Uploaders", "");
+        appendField(content, "Version", buildFullVersion());
+        appendField(content, "Standards-Version", "3.8.3");
+        appendField(content, "Package", task.getPackageName().get());
+        appendOptionalField(content, "Homepage", task.getUrl().getOrElse(""));
+        appendField(content, "Architecture", task.getArchString());
+        appendField(content, "Distribution", task.getDistribution().getOrElse(""));
+        appendField(content, "Depends", joinDependencies(task.getDependencies().getOrElse(List.of())));
+
+        String conflicts = joinDependencies(task.getConflicts().getOrElse(List.of()));
+        appendOptionalField(content, "Conflicts", conflicts);
+
+        for (Map.Entry<String, String> customField : customFields().entrySet()) {
+            appendField(content, customField.getKey(), customField.getValue());
+        }
+
+        appendField(content, "Description", task.getSummary().getOrElse(""));
+        for (String line : task.getPackageDescription().getOrElse("").split("\\R", -1)) {
+            content.append(' ').append(line).append('\n');
+        }
+        return content.toString();
+    }
+
+    private Map<String, String> customFields() {
+        Map<String, String> customFields = new LinkedHashMap<>();
+        task.getCustomFields().getOrElse(Map.of()).forEach((key, value) -> customFields.put("XB-" + capitalize(key), value));
+        return customFields;
+    }
+
+    private void writeScript(String name, String shebang, int trailingNewlines, List<String> commands) {
+        if (commands.isEmpty()) {
+            return;
+        }
+        StringBuilder content = new StringBuilder(shebang).append(stripShebangs(commands));
+        for (int i = 0; i < trailingNewlines; i++) {
+            content.append('\n');
+        }
+        writeFile(name, content.toString());
+    }
+
+    private static String stripShebangs(List<String> scripts) {
+        StringBuilder result = new StringBuilder();
+        for (String script : scripts) {
+            if (script == null) {
+                continue;
+            }
+            try (BufferedReader reader = new BufferedReader(new StringReader(script))) {
+                String line;
+                while ((line = reader.readLine()) != null) {
+                    if (line.startsWith("#!") == false) {
+                        result.append(line).append('\n');
+                    }
+                }
+            } catch (IOException e) {
+                throw new UncheckedIOException(e);
             }
         }
+        return result.toString();
     }
 
-    private static File fileOrNull(RegularFileProperty property) {
-        return property.isPresent() ? property.get().getAsFile() : null;
+    private static void appendField(StringBuilder content, String key, String value) {
+        content.append(key).append(": ").append(value == null ? "" : value).append('\n');
     }
 
-    /**
-     * Nebula/jdeb historically wrapped these maintainer scripts so they executed under bash even
-     * when the source file itself lacked a shebang. Preserve that behavior here because the shared
-     * Elasticsearch postinst script uses bash syntax (`<<<`).
-     */
-    private static void installScript(File source, File target) {
+    private static void appendOptionalField(StringBuilder content, String key, String value) {
+        if (value != null && value.isEmpty() == false) {
+            appendField(content, key, value);
+        }
+    }
+
+    private static String joinDependencies(List<Dependency> dependencies) {
+        return String.join(", ", dependencies.stream().map(Dependency::toDebString).toList());
+    }
+
+    private static String capitalize(String value) {
+        return value.isEmpty() ? value : Character.toUpperCase(value.charAt(0)) + value.substring(1);
+    }
+
+    private String buildFullVersion() {
+        StringBuilder fullVersion = new StringBuilder(task.getVersion().get());
+        String release = task.getRelease().getOrNull();
+        if (release != null && release.isEmpty() == false) {
+            fullVersion.append('-').append(release);
+        }
+        return fullVersion.toString();
+    }
+
+    private void writeFile(String name, String content) {
         try {
-            String content = Files.readString(source.toPath(), StandardCharsets.UTF_8);
-            if (content.startsWith("#!") == false) {
-                content = "#!/bin/bash\n" + content;
-            }
-            Files.writeString(target.toPath(), content, StandardCharsets.UTF_8);
+            Files.createDirectories(destination.toPath());
+            Files.writeString(new File(destination, name).toPath(), content, StandardCharsets.UTF_8);
         } catch (IOException e) {
             throw new UncheckedIOException(e);
         }
-    }
-
-    private static boolean hasDirs(Map<String, Object> context) {
-        return context.get("dirs") instanceof List<?> dirs && dirs.isEmpty() == false;
-    }
-
-    static String installLine(DebPackageWriter.InstallDir dir) {
-        StringBuilder sb = new StringBuilder("install ");
-        if (dir.user() != null && dir.user().isEmpty() == false) {
-            sb.append("-o ").append(dir.user()).append(' ');
-        }
-        if (dir.group() != null && dir.group().isEmpty() == false) {
-            sb.append("-g ").append(dir.group()).append(' ');
-        }
-        sb.append("-m ").append(String.format(Locale.ROOT, "%04o", dir.mode() & 07777)).append(' ');
-        sb.append("-d ").append(dir.name());
-        return sb.toString();
     }
 }

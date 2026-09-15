@@ -230,7 +230,8 @@ public class TransportPutMappingAction extends AcknowledgedTransportMasterNodeAc
 
         List<String> violations = new ArrayList<>();
 
-        final String requestMappings = request.source();
+        // TODO update SystemIndexDescriptor to use BytesReference
+        final String requestMappings = request.source().utf8ToString();
 
         for (Index index : concreteIndices) {
             final SystemIndexDescriptor descriptor = systemIndices.findMatchingDescriptor(index.getName());

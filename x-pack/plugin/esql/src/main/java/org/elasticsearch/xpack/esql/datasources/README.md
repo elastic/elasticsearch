@@ -114,10 +114,16 @@ Abstracts access to storage systems (HTTP, S3, local filesystem, etc.):
 public interface StorageProvider extends Closeable {
     StorageObject newObject(StoragePath path);
     StorageIterator listObjects(StoragePath directory) throws IOException;
+    StorageChildren listChildren(StoragePath prefix, int limit) throws IOException; // null = no directory support
     boolean exists(StoragePath path) throws IOException;
     List<String> supportedSchemes();
 }
 ```
+
+`listChildren` is the directory-aware listing (files plus subdirectories, via a delimiter listing on
+blob stores) powering partition-pruned enumeration of `**` globs: `GlobExpander` walks the Hive tree and
+never lists `key=value` folders a partition filter excludes. Returning `null` (no directory support, or
+more than `limit` children) keeps the flat `listObjects` path.
 
 **Built-in Implementations:**
 - `HttpStorageProvider` - HTTP/HTTPS access with Range request support

@@ -108,7 +108,10 @@ public class EstimatedHeapUsageAllocationDecider extends AbstractEstimatedHeapAl
         );
     }
 
-    private static Map<String, Double> nodeUsagePercentages(ClusterInfo clusterInfo, ClusterState clusterState) {
+    /**
+     * We don't use the cluster state here. The partitioned version does, though
+     */
+    private static Map<String, Double> nodeUsagePercentages(ClusterInfo clusterInfo, ClusterState ignored) {
         return clusterInfo.getNodeHeapMetrics()
             .entrySet()
             .stream()

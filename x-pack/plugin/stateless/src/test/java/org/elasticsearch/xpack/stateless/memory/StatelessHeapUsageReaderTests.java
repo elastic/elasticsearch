@@ -33,11 +33,10 @@ import static org.mockito.Mockito.when;
 public class StatelessHeapUsageReaderTests extends ESTestCase {
 
     public void testCollectEstimatedHeapUsageReadsRealServiceUsingPluginClusterState() {
+        ClusterService clusterService = mock(ClusterService.class);
         ClusterState clusterState = ClusterStateCreationUtils.state(randomIdentifier(), 2, 1);
-        StatelessMemoryMetricsService memoryMetricsService = new StatelessMemoryMetricsService(
-            () -> 1L,
-            new ClusterSettings(Settings.EMPTY, allSettings())
-        );
+        when(clusterService.getClusterSettings()).thenReturn(new ClusterSettings(Settings.EMPTY, allSettings()));
+        StatelessMemoryMetricsService memoryMetricsService = new StatelessMemoryMetricsService(() -> 1L, clusterService);
         memoryMetricsService.clusterChanged(new ClusterChangedEvent("init", clusterState, ClusterState.EMPTY_STATE));
         EstimatedHeapUsageStats expectedStats = memoryMetricsService.getEstimatedHeapUsageStats(clusterState);
         StatelessHeapUsageReader reader = new StatelessHeapUsageReader(createPlugin(memoryMetricsService, clusterState));

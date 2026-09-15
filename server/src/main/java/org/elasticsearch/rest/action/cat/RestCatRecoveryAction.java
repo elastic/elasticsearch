@@ -9,7 +9,6 @@
 
 package org.elasticsearch.rest.action.cat;
 
-import org.apache.lucene.util.CollectionUtil;
 import org.elasticsearch.action.admin.indices.recovery.RecoveryRequest;
 import org.elasticsearch.action.admin.indices.recovery.RecoveryResponse;
 import org.elasticsearch.action.admin.indices.recovery.ShardRecoveryInfo;
@@ -128,13 +127,11 @@ public class RestCatRecoveryAction extends AbstractCatAction {
 
         for (var entry : response.shardRecoveryInfos().entrySet()) {
             String index = entry.getKey();
-            List<ShardRecoveryInfo> shardRecoveryInfos = entry.getValue();
-            if (shardRecoveryInfos.isEmpty()) {
-                continue;
-            }
-
             // Sort ascending by shard id for readability
-            CollectionUtil.introSort(shardRecoveryInfos, Comparator.comparingInt(o -> o.recoveryState().getShardId().id()));
+            List<ShardRecoveryInfo> shardRecoveryInfos = entry.getValue()
+                .stream()
+                .sorted(Comparator.comparingInt(info -> info.recoveryState().getShardId().id()))
+                .toList();
 
             for (ShardRecoveryInfo recoveryInfo : shardRecoveryInfos) {
                 RecoveryState state = recoveryInfo.recoveryState();

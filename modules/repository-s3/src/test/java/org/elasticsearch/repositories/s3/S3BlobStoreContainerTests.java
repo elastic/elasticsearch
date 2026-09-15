@@ -502,7 +502,7 @@ public class S3BlobStoreContainerTests extends ESTestCase {
             );
         });
 
-        assertEquals("Unable to upload or copy object [" + blobName + "] using multipart upload", e.getMessage());
+        assertEquals("Unable to upload object [" + blobName + "] using multipart upload", e.getMessage());
         assertThat(e.getCause(), instanceOf(S3Exception.class));
         assertEquals(exceptions.get(stage).getMessage(), e.getCause().getMessage());
 
@@ -588,13 +588,13 @@ public class S3BlobStoreContainerTests extends ESTestCase {
         );
 
         if (stage == 0) {
-            assertEquals("Failed to upload parts", e.getMessage());
+            assertEquals("Concurrent multipart operation failed", e.getMessage());
             assertThat(e.getCause(), instanceOf(AwsServiceException.class));
         } else if (stage == 1) {
-            assertEquals("Unable to upload or copy object [" + blobName + "] using multipart upload", e.getMessage());
+            assertEquals("Unable to upload object [" + blobName + "] using multipart upload", e.getMessage());
             assertThat(e.getCause(), instanceOf(AwsServiceException.class));
         } else {
-            assertEquals("Failed to upload parts", e.getMessage());
+            assertEquals("Concurrent multipart operation failed", e.getMessage());
             assertSame(providerException, e.getCause());
         }
 
@@ -866,10 +866,10 @@ public class S3BlobStoreContainerTests extends ESTestCase {
         );
 
         if (stage == 0) {
-            assertEquals("Failed to upload parts", e.getMessage());
+            assertEquals("Concurrent multipart operation failed", e.getMessage());
             assertThat(e.getCause(), instanceOf(AwsServiceException.class));
         } else {
-            assertEquals("Unable to upload or copy object [" + blobName + "] using multipart upload", e.getMessage());
+            assertEquals("Unable to copy object [" + blobName + "] using multipart upload", e.getMessage());
             assertThat(e.getCause(), instanceOf(AwsServiceException.class));
         }
 

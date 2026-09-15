@@ -164,6 +164,8 @@ public final class IgnoredFieldMapper extends MetadataFieldMapper {
         }
 
         final EscfColumnData data = acc.finish(BytesRefRecycler.NON_RECYCLING_INSTANCE);
+        // One serialization, up to two field-type wrappers, so ownership is registered once.
+        context.addResource(data);
         if (context.indexSettings().getIndexVersionCreated().onOrAfter(IndexVersions.DOC_VALUES_FOR_IGNORED_META_FIELD)) {
             context.addColumn(LuceneBinaryColumn.of(data, NAME, SortedSetDocValuesField.TYPE));
             context.addColumn(LuceneBinaryColumn.of(data, NAME, StringField.TYPE_NOT_STORED));

@@ -84,10 +84,27 @@ public class FileDataSourceValidatorFormatConsistencyTests extends ESTestCase {
         assertThat(explicit.getMessage(), containsString("does not support whole-file compression"));
     }
 
-    public void testUnreadableNameWithoutFormatKeysIsAccepted() {
+    public void testUnreadableNameWithoutFormatKeysIsRejected() {
         FileDataSourceValidator validator = consistencyValidator();
-        assertNotNull(validator.validateDataset(Map.of(), "s3://bucket/data.tar.gz", Map.of()));
-        assertNotNull(validator.validateDataset(Map.of(), "s3://bucket/no_extension", Map.of()));
+        for (String resource : List.of("s3://bucket/data.tar.gz", "s3://bucket/no_extension", "s3://bucket/hits/*")) {
+            ValidationException e = expectThrows(ValidationException.class, () -> validator.validateDataset(Map.of(), resource, Map.of()));
+            assertThat(e.getMessage(), containsString(FormatNameResolver.ambiguousDatasetFormatMessage(resource)));
+        }
+    }
+
+    public void testPatternImpliesOneFormatIsAccepted() {
+        FileDataSourceValidator validator = consistencyValidator();
+        assertNotNull(validator.validateDataset(Map.of(), "s3://bucket/*.parquet", Map.of()));
+        assertNotNull(validator.validateDataset(Map.of(), "s3://bucket/a.csv,s3://bucket/b.csv.gz", Map.of()));
+        assertNotNull(validator.validateDataset(Map.of(), "s3://bucket/hits/*", Map.of("format", "csv")));
+    }
+
+    public void testMixedOrAmbiguousPatternWithoutFormatIsRejected() {
+        FileDataSourceValidator validator = consistencyValidator();
+        for (String resource : List.of("s3://bucket/a.parquet,s3://bucket/b.csv", "s3://bucket/*.{parquet,csv}", "s3://dir1/,s3://dir2/")) {
+            ValidationException e = expectThrows(ValidationException.class, () -> validator.validateDataset(Map.of(), resource, Map.of()));
+            assertThat(e.getMessage(), containsString("set the dataset's [format] setting"));
+        }
     }
 
     /**

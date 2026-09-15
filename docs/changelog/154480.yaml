@@ -1,5 +1,5 @@
 area: Analysis
 issues: []
 pr: 154480
-summary: Bound `min_hash` filter params to prevent OOM
+summary: Bound `min_hash` filter parameters to prevent out of memory errors
 type: bug

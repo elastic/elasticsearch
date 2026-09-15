@@ -17,6 +17,7 @@ import org.elasticsearch.action.admin.cluster.allocation.TransportClusterAllocat
 import org.elasticsearch.action.admin.cluster.allocation.TransportGetDesiredBalanceAction;
 import org.elasticsearch.action.admin.cluster.node.usage.NodeUsageStatsForThreadPoolsAction;
 import org.elasticsearch.action.admin.cluster.node.usage.TransportNodeUsageStatsForThreadPoolsAction;
+import org.elasticsearch.action.admin.indices.recovery.ShardRecoveryInfo;
 import org.elasticsearch.action.admin.indices.stats.CommonStats;
 import org.elasticsearch.action.admin.indices.stats.IndicesStatsAction;
 import org.elasticsearch.action.admin.indices.stats.ShardStats;
@@ -627,9 +628,10 @@ public class WriteLoadConstraintDeciderIT extends ESIntegTestCase {
         List<RecoveryState> recoveryStatesForMovedShard = admin().indices()
             .prepareRecoveries(harness.indexName)
             .get()
-            .shardRecoveryStates()
+            .shardRecoveryInfos()
             .get(harness.indexName)
             .stream()
+            .map(ShardRecoveryInfo::recoveryState)
             .filter(state -> state.getShardId().id() == movedShardId)
             // We're interesting on the recovery after the move to the second or third node, not the initial creation on the first node:
             .filter(state -> !state.getTargetNode().getId().equals(harness.firstDataNodeId))

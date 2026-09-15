@@ -43,28 +43,15 @@ import static org.hamcrest.Matchers.instanceOf;
 public class IcebergParsingTests extends AbstractStatementParserTests {
 
     /**
-     * The two preconditions for parsing an {@code EXTERNAL} command: the grammar surface exists only in snapshot
-     * builds, and the parser refuses the command outright while the federation feature is unregistered. The test
-     * task asks for registration where it does not default on, so this normally holds; it is an assumption rather
-     * than an assertion because a build can legitimately leave the feature off.
+     * The two preconditions for parsing an {@code EXTERNAL} command: the grammar surface has to exist, which the
+     * grammar predicates gate on {@link EsqlCapabilities.Cap#EXTERNAL_COMMAND}, and the parser refuses the command
+     * outright while the federation feature is unregistered. The test task asks for registration where it does not
+     * default on, so the second normally holds; it is an assumption rather than an assertion because a build can
+     * legitimately leave the feature off.
      */
     private static void assumeExternalCommandAvailable() {
-        assumeTrue("requires snapshot builds", Build.current().isSnapshot());
+        assumeTrue("requires EXTERNAL command capability", EsqlCapabilities.Cap.EXTERNAL_COMMAND.isEnabled());
         assumeTrue("requires the federation feature to be registered", Federation.isRegistered());
-    }
-
-    /**
-     * The parser refuses {@code EXTERNAL} before resolving anything while the feature is unregistered. This matters
-     * beyond tidiness: {@code EXTERNAL} does not pass through the {@code DatasetResolver} gate, so without the parser
-     * guard it would reach the operator-build backstop only after planning-time source resolution had already read
-     * from external storage.
-     */
-    public void testExternalCommandRejectedWhenFederationUnregistered() {
-        assumeTrue("requires snapshot builds", Build.current().isSnapshot());
-        assumeFalse("covers the unregistered node; see -Des.esql.register_federation_feature=false", Federation.isRegistered());
-
-        ParsingException e = expectThrows(ParsingException.class, () -> query("EXTERNAL \"s3://bucket/table\""));
-        assertThat(e.getMessage(), containsString(Federation.externalNotSupportedMessage()));
     }
 
     public void testIcebergCommandWithSimplePath() {

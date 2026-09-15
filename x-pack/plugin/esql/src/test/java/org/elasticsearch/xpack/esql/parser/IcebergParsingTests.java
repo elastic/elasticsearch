@@ -11,6 +11,7 @@ import org.elasticsearch.Build;
 import org.elasticsearch.common.lucene.BytesRefs;
 import org.elasticsearch.xpack.esql.action.EsqlCapabilities;
 import org.elasticsearch.xpack.esql.core.expression.Literal;
+import org.elasticsearch.xpack.esql.datasources.Federation;
 import org.elasticsearch.xpack.esql.plan.logical.UnresolvedExternalRelation;
 
 import java.util.List;
@@ -41,8 +42,20 @@ import static org.hamcrest.Matchers.instanceOf;
  */
 public class IcebergParsingTests extends AbstractStatementParserTests {
 
+    /**
+     * The two preconditions for parsing an {@code EXTERNAL} command: the grammar surface has to exist, which the
+     * grammar predicates gate on {@link EsqlCapabilities.Cap#EXTERNAL_COMMAND}, and the parser refuses the command
+     * outright while the federation feature is unregistered. The test task asks for registration where it does not
+     * default on, so the second normally holds; it is an assumption rather than an assertion because a build can
+     * legitimately leave the feature off.
+     */
+    private static void assumeExternalCommandAvailable() {
+        assumeTrue("requires EXTERNAL command capability", EsqlCapabilities.Cap.EXTERNAL_COMMAND.isEnabled());
+        assumeTrue("requires the federation feature to be registered", Federation.isRegistered());
+    }
+
     public void testIcebergCommandWithSimplePath() {
-        assumeTrue("requires snapshot builds", Build.current().isSnapshot());
+        assumeExternalCommandAvailable();
 
         var plan = query("EXTERNAL \"s3://bucket/table\"");
 
@@ -56,7 +69,7 @@ public class IcebergParsingTests extends AbstractStatementParserTests {
     }
 
     public void testIcebergCommandWithParameters() {
-        assumeTrue("requires snapshot builds", Build.current().isSnapshot());
+        assumeExternalCommandAvailable();
 
         var plan = query("""
             EXTERNAL "s3://bucket/table"
@@ -81,7 +94,7 @@ public class IcebergParsingTests extends AbstractStatementParserTests {
     }
 
     public void testIcebergCommandWithBooleanParameter() {
-        assumeTrue("requires snapshot builds", Build.current().isSnapshot());
+        assumeExternalCommandAvailable();
 
         var plan = query("EXTERNAL \"s3://bucket/table\" WITH { \"use_cache\": true }");
 
@@ -117,7 +130,7 @@ public class IcebergParsingTests extends AbstractStatementParserTests {
     }
 
     public void testIcebergCommandWithPipedCommands() {
-        assumeTrue("requires snapshot builds", Build.current().isSnapshot());
+        assumeExternalCommandAvailable();
 
         var plan = query("EXTERNAL \"s3://bucket/table\" | WHERE age > 25 | LIMIT 10");
 
@@ -127,7 +140,7 @@ public class IcebergParsingTests extends AbstractStatementParserTests {
     }
 
     public void testIcebergCommandWithParquetFile() {
-        assumeTrue("requires snapshot builds", Build.current().isSnapshot());
+        assumeExternalCommandAvailable();
 
         var plan = query("EXTERNAL \"s3://bucket/data/file.parquet\"");
 
@@ -140,7 +153,7 @@ public class IcebergParsingTests extends AbstractStatementParserTests {
     }
 
     public void testIcebergCommandWithParameter() {
-        assumeTrue("requires snapshot builds", Build.current().isSnapshot());
+        assumeExternalCommandAvailable();
 
         // Test with positional parameter placeholder
         var plan = query("EXTERNAL ?", new QueryParams(List.of(paramAsConstant(null, "s3://bucket/table"))));
@@ -155,7 +168,7 @@ public class IcebergParsingTests extends AbstractStatementParserTests {
         // The post-substitution invariant — every WITH-option value is a Literal — is enforced
         // because unbound parameters never get past the parser's own parameter-count check, which
         // fires upstream of foldOptionLiterals. The end-user observes a ParsingException either way.
-        assumeTrue("requires snapshot builds", Build.current().isSnapshot());
+        assumeExternalCommandAvailable();
 
         ParsingException pe = expectThrows(
             ParsingException.class,
@@ -168,7 +181,7 @@ public class IcebergParsingTests extends AbstractStatementParserTests {
         // A Literal whose value is null is also a strict-rule violation: option values must be
         // meaningful, not null. Without this check the entry would silently drop and downstream
         // would behave as if the option weren't set.
-        assumeTrue("requires snapshot builds", Build.current().isSnapshot());
+        assumeExternalCommandAvailable();
 
         ParsingException pe = expectThrows(ParsingException.class, () -> query("EXTERNAL \"s3://bucket/table\" WITH { \"k\": null }"));
         assertThat(pe.getMessage(), containsString("EXTERNAL option [k] has null value"));
@@ -182,7 +195,7 @@ public class IcebergParsingTests extends AbstractStatementParserTests {
      * {@code StoragePath.fileUri(Path)}, so EXTERNAL queries are parser-safe across OSes.
      */
     public void testExternalCommandRejectsBackslashesInUri() {
-        assumeTrue("requires snapshot builds", Build.current().isSnapshot());
+        assumeExternalCommandAvailable();
 
         ParsingException pe = expectThrows(ParsingException.class, () -> query("EXTERNAL \"file://C:\\build\\data.parquet\""));
         assertThat(pe.getMessage(), containsString("token recognition error"));
@@ -194,7 +207,7 @@ public class IcebergParsingTests extends AbstractStatementParserTests {
      * helper instead of {@code Path.toAbsolutePath().toString()}.
      */
     public void testExternalCommandAcceptsWindowsFileUri() {
-        assumeTrue("requires snapshot builds", Build.current().isSnapshot());
+        assumeExternalCommandAvailable();
 
         String uri = "file:///C:/build/data.parquet";
         var plan = query("EXTERNAL \"" + uri + "\"");

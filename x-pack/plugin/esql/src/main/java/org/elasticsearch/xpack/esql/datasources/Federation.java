@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.esql.datasources;
 
+import org.apache.lucene.util.Constants;
 import org.elasticsearch.Build;
 import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.common.settings.Setting;
@@ -30,7 +31,10 @@ import java.util.function.Function;
  *   <li>the system property {@value #REGISTER_PROPERTY} decides whether the feature is
  *       <em>registered</em> on this node at all. It defaults to {@code true}, and an operator
  *       suppresses the feature by setting it to {@code false}. Cloud/GovCloud can set system
- *       properties on any deployment.</li>
+ *       properties on any deployment. <strong>On Windows the default is {@code false}</strong>, so a
+ *       Windows node has external data sources off unless something explicitly asks for them — and on
+ *       a Windows <em>release</em> build nothing can, because the feature is not {@link #SUPPORTED}
+ *       there and the property is rejected outright (see {@link #resolveRegistered}).</li>
  *   <li>the setting {@link #FEDERATION_ENABLED} decides whether the registered feature is
  *       <em>enabled</em>. Its default follows the build: on in a snapshot build, so a development or
  *       test deployment gets the feature without configuring anything, and off in a release build,
@@ -70,13 +74,15 @@ import java.util.function.Function;
  *       rolling restart that has not yet reached this node) is refused whatever the plan turns into, including
  *       an ungrouped {@code COUNT}/{@code MIN}/{@code MAX} that {@code PushStatsToExternalSource} would answer
  *       from split stats without ever building a scanning operator.</li>
+ *   <li>The snapshot-only inline {@code EXTERNAL} command is refused by the parser
+ *       ({@code LogicalPlanBuilder.visitExternalCommand}) with {@link #externalNotSupportedMessage()}. It does
+ *       not go through the {@code DatasetResolver} gate above, so without this it would reach the operator-build
+ *       backstop only after planning-time source resolution and split discovery had already touched external
+ *       storage.</li>
  *   <li>Every node keeps a backstop at the physical external-source operator build
  *       ({@code LocalExecutionPlanner.planExternalSource}) that throws {@link #notAvailableException()}, which
- *       also covers plans built outside the data-node request path above. Coordinator-side work (the
- *       {@code FROM <dataset>} rewrite) is closed separately by the {@code DatasetResolver} gate above; the
- *       snapshot-only inline {@code EXTERNAL} command bypasses that gate and is only stopped here at operator
- *       build, so on a coordinator without federation its planning-time source resolution and split discovery
- *       can still touch external storage before this backstop fires.</li>
+ *       also covers plans built outside the data-node request path above — an {@code ExternalSourceExec}
+ *       deserialized from an enabled coordinator never passes through this node's parser.</li>
  * </ul>
  *
  * <p>Because any node can be the coordinating node for a query and any node can receive a data
@@ -104,7 +110,26 @@ public final class Federation {
         Setting.Property.NodeScope
     );
 
-    private static final boolean REGISTERED = readRegistered(System::getProperty);
+    /**
+     * Whether this node is capable of federation at all. External data sources are not shipped for Windows, so a
+     * Windows release build cannot run them and cannot be made to: {@link #REGISTER_PROPERTY} is rejected rather
+     * than ignored, and no federation setting exists to turn on. A Windows snapshot build is capable, so the
+     * feature's own tests can opt in there, but it still defaults to off (see {@link #defaultRegistered}).
+     *
+     * <p>Code that <em>configures</em> a node — test cluster builders, and anything else deciding whether to write
+     * a federation setting or property — should branch on this. Code that merely needs to know whether federation
+     * can be used right now wants {@link #isRegistered()} or {@link #isAvailable(Settings)} instead.
+     */
+    public static final boolean SUPPORTED = supported(Constants.WINDOWS, Build.current().isSnapshot());
+
+    /**
+     * Whether a node that leaves {@value #REGISTER_PROPERTY} alone ends up with the feature registered. False on
+     * Windows, where it must be asked for. Test infrastructure that needs to know whether a cluster it did not
+     * configure will have federation should read this rather than inspecting the platform itself.
+     */
+    public static final boolean DEFAULT_REGISTERED = defaultRegistered(Constants.WINDOWS);
+
+    private static final boolean REGISTERED = resolveRegistered(System::getProperty, Constants.WINDOWS, Build.current().isSnapshot());
 
     private Federation() {}
 
@@ -142,16 +167,76 @@ public final class Federation {
     }
 
     /**
-     * Parses the registered state from the given property source. Defaults to registered when the
-     * property is absent; an unparseable value fails fast (matching {@code FeatureFlag}).
+     * Parses the registered state from the given property source, falling back to {@code defaultValue} when the
+     * property is absent or blank; an unparseable value fails fast (matching {@code FeatureFlag}). The default is a
+     * parameter because it is platform-dependent — see {@link #defaultRegistered}.
      */
-    static boolean readRegistered(Function<String, String> getProperty) {
+    static boolean readRegistered(Function<String, String> getProperty, boolean defaultValue) {
         final String value = getProperty.apply(REGISTER_PROPERTY);
         try {
-            return Booleans.parseBoolean(value, true);
+            return Booleans.parseBoolean(value, defaultValue);
         } catch (IllegalArgumentException e) {
             throw new IllegalArgumentException("Invalid value [" + value + "] for system property [" + REGISTER_PROPERTY + "]", e);
         }
+    }
+
+    /**
+     * Whether federation can exist on the given platform and build. Only a Windows release build is incapable:
+     * external data sources are not shipped for it. A Windows snapshot build is capable so that the feature's own
+     * tests can run there.
+     */
+    static boolean supported(boolean windows, boolean snapshot) {
+        return windows == false || snapshot;
+    }
+
+    /**
+     * The registered state when {@value #REGISTER_PROPERTY} is not set. Off on Windows, so that a Windows node
+     * behaves out of the box like the release build does — a test that wants the feature there opts in explicitly.
+     * Unchanged (on) everywhere else.
+     */
+    static boolean defaultRegistered(boolean windows) {
+        return windows == false;
+    }
+
+    /**
+     * The registered state, combining the platform capability with {@value #REGISTER_PROPERTY}.
+     *
+     * <p>Where federation is not {@link #supported}, it cannot be turned on by any means: an explicit opt-in is
+     * refused rather than ignored, failing the node at startup exactly as an unparseable value does. Every way of
+     * setting the property (a {@code -D} flag, {@code ES_JAVA_OPTS}, {@code jvm.options}) arrives here as the same
+     * system property, so this one check covers all of them.
+     *
+     * <p>Where it is supported, the property decides, over a platform-dependent default: on as before, except on
+     * Windows, where it is off until something explicitly asks for it.
+     *
+     * <p>Platform and build arrive as parameters rather than being read from {@link Constants}/{@link Build} here,
+     * so that every combination is unit-testable on any host.
+     */
+    static boolean resolveRegistered(Function<String, String> getProperty, boolean windows, boolean snapshot) {
+        if (supported(windows, snapshot)) {
+            return readRegistered(getProperty, defaultRegistered(windows));
+        }
+        // Parsing with a false default distinguishes an explicit opt-in from an absent one: null, empty and
+        // whitespace-only all yield false, so leaving the property alone is not mistaken for setting it.
+        if (Booleans.parseBoolean(getProperty.apply(REGISTER_PROPERTY), false)) {
+            throw new IllegalArgumentException(
+                "System property ["
+                    + REGISTER_PROPERTY
+                    + "] cannot be set to [true] on this platform: ES|QL federation (external data sources) is not "
+                    + "supported on Windows"
+            );
+        }
+        return false;
+    }
+
+    /**
+     * Why external data sources will not work on this node, in the terms most useful to the caller: a node that
+     * could never run them says so, one that merely has them switched off reports them as unavailable. The single
+     * source of this wording — {@link #notAvailableException()} and the parser's {@code EXTERNAL} guard both use
+     * it, so every refusal reads the same whichever entry point produced it.
+     */
+    public static String externalNotSupportedMessage() {
+        return SUPPORTED ? "external data sources are not available" : "external data sources are not supported on Windows";
     }
 
     /**
@@ -198,11 +283,15 @@ public final class Federation {
 
     /**
      * The {@code 400} raised when external-source work reaches a node that does not have federation available,
-     * either at the data node's external-request entry point or at the operator-build backstop. The message
-     * deliberately omits the property and setting names so it reads as a plain "feature not present" error
-     * rather than a configuration hint.
+     * either at the data node's external-request entry point or at the operator-build backstop. The message comes
+     * from {@link #externalNotSupportedMessage()} and deliberately omits the property and setting names, so it
+     * reads as a plain "feature not present" error rather than a configuration hint.
+     *
+     * <p>This is reachable even where the feature could never run: an {@code ExternalSourceExec} deserialized from
+     * an enabled coordinator never passes through this node's parser, so the backstop is the first thing it meets.
+     * Such a node reports the platform rather than a bare "not available", which is the more actionable of the two.
      */
     public static ElasticsearchStatusException notAvailableException() {
-        return new ElasticsearchStatusException("external data sources are not available", RestStatus.BAD_REQUEST);
+        return new ElasticsearchStatusException(externalNotSupportedMessage(), RestStatus.BAD_REQUEST);
     }
 }

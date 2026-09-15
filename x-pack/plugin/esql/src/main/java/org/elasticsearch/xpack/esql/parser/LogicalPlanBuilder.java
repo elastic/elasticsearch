@@ -43,6 +43,7 @@ import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.core.util.CollectionUtils;
 import org.elasticsearch.xpack.esql.core.util.Holder;
 import org.elasticsearch.xpack.esql.core.util.StringUtils;
+import org.elasticsearch.xpack.esql.datasources.Federation;
 import org.elasticsearch.xpack.esql.datasources.FileMetadataColumns;
 import org.elasticsearch.xpack.esql.expression.Order;
 import org.elasticsearch.xpack.esql.expression.UnresolvedNamePattern;
@@ -1019,6 +1020,12 @@ public class LogicalPlanBuilder extends ExpressionBuilder {
 
     @Override
     public LogicalPlan visitExternalCommand(EsqlBaseParser.ExternalCommandContext ctx) {
+        // EXTERNAL does not pass through the DatasetResolver gate that closes FROM <dataset>, so without this it
+        // would reach the operator-build backstop only after planning-time source resolution had already read from
+        // external storage. Refusing here keeps an unregistered node from touching the network at all.
+        if (Federation.isRegistered() == false) {
+            throw new ParsingException(source(ctx), Federation.externalNotSupportedMessage());
+        }
         Source source = source(ctx);
         Expression tablePath = expression(ctx.stringOrParameter());
 

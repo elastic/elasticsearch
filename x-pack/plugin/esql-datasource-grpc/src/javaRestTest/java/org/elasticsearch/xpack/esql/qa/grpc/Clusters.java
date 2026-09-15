@@ -9,7 +9,7 @@ package org.elasticsearch.xpack.esql.qa.grpc;
 
 import org.elasticsearch.test.cluster.ElasticsearchCluster;
 import org.elasticsearch.test.cluster.local.distribution.DistributionType;
-import org.elasticsearch.xpack.esql.datasources.Federation;
+import org.elasticsearch.xpack.esql.datasources.FederationClusters;
 
 /**
  * Cluster configuration for Arrow Flight (gRPC) integration tests.
@@ -22,7 +22,7 @@ class Clusters {
             .shared(true)
             .setting("xpack.security.enabled", "false")
             .setting("xpack.license.self_generated.type", "trial")
-            .setting(Federation.FEDERATION_ENABLED.getKey(), "true")
+            .apply(FederationClusters::enable)
             .setting("xpack.ml.enabled", "false")
             .jvmArg("--add-opens=java.base/java.nio=ALL-UNNAMED")
             .jvmArg("-Darrow.allocation.manager.type=Unsafe")

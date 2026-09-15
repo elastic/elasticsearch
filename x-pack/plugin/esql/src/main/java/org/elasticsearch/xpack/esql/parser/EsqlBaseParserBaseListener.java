@@ -1010,25 +1010,25 @@ public class EsqlBaseParserBaseListener implements EsqlBaseParserListener {
    *
    * <p>The default implementation does nothing.</p>
    */
-  @Override public void enterFillnullCommand(EsqlBaseParser.FillnullCommandContext ctx) { }
+  @Override public void enterFillNullCommand(EsqlBaseParser.FillNullCommandContext ctx) { }
   /**
    * {@inheritDoc}
    *
    * <p>The default implementation does nothing.</p>
    */
-  @Override public void exitFillnullCommand(EsqlBaseParser.FillnullCommandContext ctx) { }
+  @Override public void exitFillNullCommand(EsqlBaseParser.FillNullCommandContext ctx) { }
   /**
    * {@inheritDoc}
    *
    * <p>The default implementation does nothing.</p>
    */
-  @Override public void enterFillnullValue(EsqlBaseParser.FillnullValueContext ctx) { }
+  @Override public void enterFillNullValue(EsqlBaseParser.FillNullValueContext ctx) { }
   /**
    * {@inheritDoc}
    *
    * <p>The default implementation does nothing.</p>
    */
-  @Override public void exitFillnullValue(EsqlBaseParser.FillnullValueContext ctx) { }
+  @Override public void exitFillNullValue(EsqlBaseParser.FillNullValueContext ctx) { }
   /**
    * {@inheritDoc}
    *

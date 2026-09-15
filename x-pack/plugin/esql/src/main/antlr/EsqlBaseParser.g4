@@ -83,7 +83,7 @@ processingCommand
     | {this.isDevVersion()}? lookupCommand
     | dedupCommand
     | {this.isDevVersion()}? denseVectorCommand
-    | {this.isDevVersion()}? fillnullCommand
+    | {this.isDevVersion()}? fillNullCommand
     ;
 
 whereCommand
@@ -405,11 +405,11 @@ qualifiedNames
     : qualifiedName (COMMA qualifiedName)*
     ;
 
-fillnullCommand
-    : DEV_FILLNULL fillnullValue ON qualifiedNamePatterns
+fillNullCommand
+    : DEV_FILLNULL fillNullValue ON qualifiedNamePatterns
     ;
 
-fillnullValue
+fillNullValue
     : NULL | DEFAULT | integerValue | decimalValue | booleanValue | string | parameter
     ;
 

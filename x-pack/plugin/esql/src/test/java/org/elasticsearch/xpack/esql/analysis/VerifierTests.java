@@ -3656,47 +3656,39 @@ public class VerifierTests extends ESTestCase {
         fullText().query("from test | where " + functionInvocation);
     }
 
-    public void testFillNullIncompatibleType() {
+    /**
+     * FILLNULL never fails over a column it cannot fill, however the column was selected - it leaves the column alone
+     * and warns. These all used to be verification errors. The warning text itself is asserted in fillnull.csv-spec,
+     * which is the layer that can observe response-header warnings.
+     */
+    public void testFillNullUnfillableColumnIsNotAnError() {
         assumeTrue("requires FILLNULL capability", EsqlCapabilities.Cap.FILLNULL.isEnabled());
-        defaultAnalyzer().error(
-            "FROM test | FILLNULL 0 ON first_name",
-            containsString("[FILLNULL] fill value type [integer] is incompatible with field [first_name] type [keyword]")
-        );
+        // incompatible type, by name and by pattern
+        defaultAnalyzer().query("FROM test | FILLNULL 0 ON first_name");
+        defaultAnalyzer().query("FROM test | FILLNULL 0 ON first_nam*");
+        defaultAnalyzer().query("FROM test | FILLNULL 0 ON emp_no, first_name, gender");
+        // value out of range for the column
+        defaultAnalyzer().query("FROM test | FILLNULL 9999999999999 ON emp_no");
+        defaultAnalyzer().query("FROM test | FILLNULL 9999999999999 ON avg_worked_seconds, emp_no");
+        // a fractional value would have to be rounded to fit an integral column
+        defaultAnalyzer().query("FROM test | FILLNULL 2.7 ON emp_no");
+        // unsigned_long is only ever compatible with unsigned_long
+        defaultAnalyzer().query("ROW ul = null | EVAL ul = ul::unsigned_long | FILLNULL 7 ON ul");
+        // a string that cannot be parsed into the column type
+        defaultAnalyzer().query("ROW a = null | EVAL a = a::ip | FILLNULL \"not-an-ip\" ON a");
+        defaultAnalyzer().query("ROW d = null | EVAL d = d::datetime | FILLNULL \"not-a-date\" ON d");
+        // a string into a type strings are not implicitly cast to
+        defaultAnalyzer().query("ROW i = 1 | FILLNULL \"x\" ON i");
+        // a null-typed column can never be filled
+        defaultAnalyzer().query("ROW a = null, b = 1 | FILLNULL \"x\" ON a");
     }
 
-    public void testFillNullIncompatibleTypeReportedPerField() {
-        assumeTrue("requires FILLNULL capability", EsqlCapabilities.Cap.FILLNULL.isEnabled());
-        defaultAnalyzer().error(
-            "FROM test | FILLNULL 0 ON emp_no, first_name, gender",
-            allOf(
-                containsString("[FILLNULL] fill value type [integer] is incompatible with field [first_name] type [keyword]"),
-                containsString("[FILLNULL] fill value type [integer] is incompatible with field [gender] type [keyword]")
-            )
-        );
-    }
-
-    public void testFillNullTargetedOutOfRangeValueRejected() {
-        assumeTrue("requires FILLNULL capability", EsqlCapabilities.Cap.FILLNULL.isEnabled());
-        defaultAnalyzer().error(
-            "FROM test | FILLNULL 9999999999999 ON emp_no",
-            containsString("[FILLNULL] fill value [9999999999999] does not fit field [emp_no] of type [integer]")
-        );
-    }
-
-    public void testFillNullTargetedMultiFieldValueFitsOneNotAnotherRejected() {
-        assumeTrue("requires FILLNULL capability", EsqlCapabilities.Cap.FILLNULL.isEnabled());
-        defaultAnalyzer().error(
-            "FROM test | FILLNULL 9999999999999 ON avg_worked_seconds, emp_no",
-            containsString("[FILLNULL] fill value [9999999999999] does not fit field [emp_no] of type [integer]")
-        );
-    }
-
-    public void testFillNullAllFieldsModeSkipsIncompatibleSilently() {
+    public void testFillNullAllFieldsModeSkipsIncompatible() {
         assumeTrue("requires FILLNULL capability", EsqlCapabilities.Cap.FILLNULL.isEnabled());
         defaultAnalyzer().query("FROM test | FILLNULL 0 ON *");
     }
 
-    public void testFillNullAllFieldsModeSkipsOutOfRangeValueSilently() {
+    public void testFillNullAllFieldsModeSkipsOutOfRangeValue() {
         assumeTrue("requires FILLNULL capability", EsqlCapabilities.Cap.FILLNULL.isEnabled());
         defaultAnalyzer().query("FROM test | FILLNULL 9999999999999 ON *");
     }
@@ -3741,41 +3733,33 @@ public class VerifierTests extends ESTestCase {
         defaultAnalyzer().query("ROW d = null | EVAL d = d::date_nanos | FILLNULL \"2025-04-11T00:00:00.000Z\" ON d");
     }
 
-    public void testFillNullWithUnparsableStringIpRejected() {
+    public void testFillNullStarMixedWithNameIsAllFieldsMode() {
         assumeTrue("requires FILLNULL capability", EsqlCapabilities.Cap.FILLNULL.isEnabled());
-        defaultAnalyzer().error(
-            "ROW a = null | EVAL a = a::ip | FILLNULL \"not-an-ip\" ON a",
-            containsString("[FILLNULL] fill value [not-an-ip] does not fit field [a] of type [ip]")
-        );
+        // `first_name` is a keyword an integer value cannot fill. It is skipped and warned about either way; co-listing
+        // `*` only changes which columns are in scope, never whether the query succeeds.
+        defaultAnalyzer().query("FROM test | FILLNULL 0 ON *, first_name");
     }
 
-    public void testFillNullWithUnparsableStringDateRejected() {
+    public void testFillNullStarMixedWithUnknownNameReportsUnknownColumn() {
         assumeTrue("requires FILLNULL capability", EsqlCapabilities.Cap.FILLNULL.isEnabled());
-        defaultAnalyzer().error(
-            "ROW d = null | EVAL d = d::datetime | FILLNULL \"not-a-date\" ON d",
-            containsString("[FILLNULL] fill value [not-a-date] does not fit field [d] of type [datetime]")
-        );
+        // A co-listed name is still resolved, so a typo is reported like in any other command - but the lenient
+        // all-fields contract means no [FILLNULL] fillability error is added on top.
+        for (String query : List.of("FROM test | FILLNULL 0 ON *, does_not_exist", "FROM test | FILLNULL 0 ON does_not_exist, *")) {
+            defaultAnalyzer().error(query, allOf(containsString("Unknown column [does_not_exist]"), not(containsString("[FILLNULL]"))));
+        }
     }
 
-    public void testFillNullWithStringIntoNonCastableTypeRejected() {
+    public void testFillNullStarMixedWithPatternMatchingNothingIsError() {
         assumeTrue("requires FILLNULL capability", EsqlCapabilities.Cap.FILLNULL.isEnabled());
         defaultAnalyzer().error(
-            "ROW i = 1 | FILLNULL \"x\" ON i",
-            containsString("[FILLNULL] fill value type [keyword] is incompatible with field [i] type [integer]")
+            "FROM test | FILLNULL 0 ON no_such_prefix_*, *",
+            allOf(containsString("No matches found for pattern [no_such_prefix_*]"), not(containsString("[FILLNULL]")))
         );
     }
 
     public void testFillNullPatternMatchingNothingIsError() {
         assumeTrue("requires FILLNULL capability", EsqlCapabilities.Cap.FILLNULL.isEnabled());
         defaultAnalyzer().error("FROM test | FILLNULL 0 ON no_such_prefix_*", containsString("No matches found for pattern"));
-    }
-
-    public void testFillNullIncompatibleValueOnPatternTargetRejected() {
-        assumeTrue("requires FILLNULL capability", EsqlCapabilities.Cap.FILLNULL.isEnabled());
-        defaultAnalyzer().error(
-            "FROM test | FILLNULL 0 ON first_nam*",
-            containsString("[FILLNULL] fill value type [integer] is incompatible")
-        );
     }
 
     public void testFillNullThenFullTextOnFilledFieldIsRuntimeSearch() throws Exception {

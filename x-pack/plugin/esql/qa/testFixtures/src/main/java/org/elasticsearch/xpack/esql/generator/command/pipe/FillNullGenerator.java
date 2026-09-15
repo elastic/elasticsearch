@@ -35,8 +35,9 @@ import static org.elasticsearch.test.ESTestCase.randomLongBetween;
 
 /**
  * Generates {@code FILLNULL} in all-fields ({@code | FILLNULL <value> ON *}) and targeted
- * ({@code | FILLNULL <value> ON f1, f2}) shapes; a targeted fill value is type-matched to the fields
- * (incompatible targeted fills are rejected by the verifier, by design). The targeted form occasionally emits a
+ * ({@code | FILLNULL <value> ON f1, f2}) shapes; a targeted fill value is type-matched to the fields, which keeps the
+ * generated queries meaningful - an incompatible fill is not an error, it just leaves the column unchanged and warns,
+ * so an untyped value would silently generate no-ops instead of coverage. The targeted form occasionally emits a
  * KEEP-style prefix wildcard pattern to exercise pattern resolution, but only when it matches exactly a subset of the
  * vetted candidate columns (so it never pulls in an incompatible-type or unsupported column). The {@link #ALL_FIELDS} /
  * {@link #FILLED_FIELDS} context entries let {@code GenerativeRestTest#updateIndexMapped} clear the filled columns'

@@ -857,25 +857,25 @@ public interface EsqlBaseParserListener extends ParseTreeListener {
    */
   void exitQualifiedNames(EsqlBaseParser.QualifiedNamesContext ctx);
   /**
-   * Enter a parse tree produced by {@link EsqlBaseParser#fillnullCommand}.
+   * Enter a parse tree produced by {@link EsqlBaseParser#fillNullCommand}.
    * @param ctx the parse tree
    */
-  void enterFillnullCommand(EsqlBaseParser.FillnullCommandContext ctx);
+  void enterFillNullCommand(EsqlBaseParser.FillNullCommandContext ctx);
   /**
-   * Exit a parse tree produced by {@link EsqlBaseParser#fillnullCommand}.
+   * Exit a parse tree produced by {@link EsqlBaseParser#fillNullCommand}.
    * @param ctx the parse tree
    */
-  void exitFillnullCommand(EsqlBaseParser.FillnullCommandContext ctx);
+  void exitFillNullCommand(EsqlBaseParser.FillNullCommandContext ctx);
   /**
-   * Enter a parse tree produced by {@link EsqlBaseParser#fillnullValue}.
+   * Enter a parse tree produced by {@link EsqlBaseParser#fillNullValue}.
    * @param ctx the parse tree
    */
-  void enterFillnullValue(EsqlBaseParser.FillnullValueContext ctx);
+  void enterFillNullValue(EsqlBaseParser.FillNullValueContext ctx);
   /**
-   * Exit a parse tree produced by {@link EsqlBaseParser#fillnullValue}.
+   * Exit a parse tree produced by {@link EsqlBaseParser#fillNullValue}.
    * @param ctx the parse tree
    */
-  void exitFillnullValue(EsqlBaseParser.FillnullValueContext ctx);
+  void exitFillNullValue(EsqlBaseParser.FillNullValueContext ctx);
   /**
    * Enter a parse tree produced by {@link EsqlBaseParser#uriPartsCommand}.
    * @param ctx the parse tree

@@ -3910,16 +3910,27 @@ public class StatementParserTests extends AbstractStatementParserTests {
 
     public void testFillNullStarMixedWithNamesIsAllColumns() {
         assumeTrue("requires FILLNULL capability", EsqlCapabilities.Cap.FILLNULL.isEnabled());
-        // `*` co-listed with names/patterns is still the all-columns form (empty targetFields), regardless of position.
+        // `*` co-listed with names/patterns selects every column regardless of position, but the co-listed names are
+        // retained so the analyzer still resolves them and reports a typo like any other command would.
         for (String targets : new String[] { "*, first_name", "first_name, *", "*, a*", "a, *, b*" }) {
             FillNull fillNull = as(processingCommand("fillnull 0 ON " + targets), FillNull.class);
             assertThat(fillNull.fillValue(), instanceOf(Literal.class));
-            assertTrue("expected all-columns form (empty targetFields) for [" + targets + "]", fillNull.targetFields().isEmpty());
+            assertTrue("expected the all-columns form for [" + targets + "]", fillNull.allColumns());
         }
-        // The same all-columns collapse applies to the DEFAULT value form (null fill value).
+        // The co-listed names survive for resolution; only the star is dropped.
+        assertEquals(1, as(processingCommand("fillnull 0 ON *, first_name"), FillNull.class).targetFields().size());
+        assertEquals(2, as(processingCommand("fillnull 0 ON a, *, b*"), FillNull.class).targetFields().size());
+        // A plain `ON *` has no targets at all.
+        FillNull star = as(processingCommand("fillnull 0 ON *"), FillNull.class);
+        assertTrue(star.allColumns());
+        assertTrue(star.targetFields().isEmpty());
+        // Without a star the form is the strict one.
+        assertFalse(as(processingCommand("fillnull 0 ON first_name"), FillNull.class).allColumns());
+        // The same applies to the DEFAULT value form (null fill value).
         FillNull withDefault = as(processingCommand("fillnull DEFAULT ON *, first_name"), FillNull.class);
         assertNull(withDefault.fillValue());
-        assertTrue(withDefault.targetFields().isEmpty());
+        assertTrue(withDefault.allColumns());
+        assertEquals(1, withDefault.targetFields().size());
     }
 
     public void testFillNullMissingOnFails() {

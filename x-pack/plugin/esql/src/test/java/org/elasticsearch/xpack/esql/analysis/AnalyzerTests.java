@@ -5432,6 +5432,19 @@ public class AnalyzerTests extends ESTestCase {
         assertThat(syntheticFieldAttr.id(), equalTo(syntheticField.id()));
     }
 
+    public void testFillNullAllFieldsSkipsUnionTypeSyntheticColumn() {
+        assumeTrue("requires FILLNULL capability", EsqlCapabilities.Cap.FILLNULL.isEnabled());
+        IndexResolution indexWithUnionTypedFields = indexWithDateDateNanosUnionType();
+        for (String value : List.of("DEFAULT", "0", "\"z\"")) {
+            String query = "FROM index* | FILLNULL " + value + " ON * | EVAL x = date_and_date_nanos::keyword";
+            LogicalPlan plan = analyzer().addIndex(indexWithUnionTypedFields).query(query);
+            assertThat(query, plan.resolved(), is(true));
+            for (Attribute attribute : plan.output()) {
+                assertThat("the synthetic union-type column must not reach the output: " + query, attribute.name(), not(startsWith("$$")));
+            }
+        }
+    }
+
     public void testImplicitCastingForDateAndDateNanosFields() {
         IndexResolution indexWithUnionTypedFields = indexWithDateDateNanosUnionType();
 

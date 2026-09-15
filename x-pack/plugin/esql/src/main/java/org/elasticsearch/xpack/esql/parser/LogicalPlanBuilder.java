@@ -487,9 +487,9 @@ public class LogicalPlanBuilder extends ExpressionBuilder {
     }
 
     @Override
-    public PlanFactory visitFillnullCommand(EsqlBaseParser.FillnullCommandContext ctx) {
+    public PlanFactory visitFillNullCommand(EsqlBaseParser.FillNullCommandContext ctx) {
         var source = source(ctx);
-        EsqlBaseParser.FillnullValueContext valueCtx = ctx.fillnullValue();
+        EsqlBaseParser.FillNullValueContext valueCtx = ctx.fillNullValue();
         final Expression fillValue;
         // DEFAULT -> type-appropriate default (represented as a null fill value); NULL -> explicit no-op.
         if (valueCtx.DEFAULT() != null) {
@@ -506,10 +506,13 @@ public class LogicalPlanBuilder extends ExpressionBuilder {
                 hasSeenStar.set(Boolean.TRUE);
             }
         });
-        // `ON *` (or `*` co-listed with names/patterns) is the lenient all-columns form, represented as an empty list;
-        // explicit names/patterns are strict and kept for resolution.
-        List<NamedExpression> targetFields = hasSeenStar.get() ? List.of() : patterns;
-        return input -> new FillNull(source, input, fillValue, targetFields);
+        // `*` sweeps up every user column. A co-listed name/pattern is kept, not discarded: it still has to resolve (so a
+        // typo is an error), it is still requested from field-caps, and it can name something `*` does not cover.
+        boolean allColumns = hasSeenStar.get();
+        List<NamedExpression> targetFields = allColumns
+            ? patterns.stream().filter(ne -> ne instanceof UnresolvedStar == false).toList()
+            : patterns;
+        return input -> new FillNull(source, input, fillValue, targetFields, allColumns);
     }
 
     @Override

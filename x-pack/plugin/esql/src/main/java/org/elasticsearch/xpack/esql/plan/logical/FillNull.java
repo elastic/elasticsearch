@@ -8,11 +8,8 @@ package org.elasticsearch.xpack.esql.plan.logical;
 
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.common.lucene.BytesRefs;
 import org.elasticsearch.core.Nullable;
-import org.elasticsearch.xpack.esql.capabilities.PostAnalysisVerificationAware;
 import org.elasticsearch.xpack.esql.capabilities.TelemetryAware;
-import org.elasticsearch.xpack.esql.common.Failures;
 import org.elasticsearch.xpack.esql.core.InvalidArgumentException;
 import org.elasticsearch.xpack.esql.core.capabilities.Resolvables;
 import org.elasticsearch.xpack.esql.core.expression.Alias;
@@ -21,12 +18,14 @@ import org.elasticsearch.xpack.esql.core.expression.AttributeSet;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.Expressions;
 import org.elasticsearch.xpack.esql.core.expression.Literal;
+import org.elasticsearch.xpack.esql.core.expression.MetadataAttribute;
 import org.elasticsearch.xpack.esql.core.expression.NamedExpression;
 import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.core.type.DataTypeConverter;
 import org.elasticsearch.xpack.esql.core.util.NumericUtils;
+import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToText;
 import org.elasticsearch.xpack.esql.expression.function.scalar.nulls.Coalesce;
 import org.elasticsearch.xpack.esql.session.Configuration;
 import org.elasticsearch.xpack.esql.type.EsqlDataTypeConverter;
@@ -40,44 +39,45 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
 
-import static org.elasticsearch.xpack.esql.common.Failure.fail;
-
 /**
  * Replaces nulls in the targeted columns with a fill value or type-appropriate defaults, expanding into a
- * {@link Project} over an {@link Eval} of {@link Coalesce} aliases that preserves column order. The aliases are
- * materialized during analysis like {@link Eval#fields()}; see #148232.
+ * {@link Project} over an {@link Eval} of {@link Coalesce} aliases that preserves column order. The aliases are derived
+ * during analysis like {@link Eval#fields()}.
  * <p>
- * Syntax is {@code FILLNULL <value> ON <fields>}. The targets are resolved like {@code KEEP}: explicit names and
- * wildcard patterns ({@code latency_*}) are strict (an incompatible value is a verification error), while {@code ON *}
- * targets every column leniently (an incompatible column is silently skipped). {@code ON *} - including a {@code *}
- * co-listed with other names/patterns - is represented here as an empty {@link #targetFields}; any other list is non-empty.
+ * Syntax is {@code FILLNULL <value> ON <fields>}. Each target resolves like {@code KEEP}, independently of the rest of
+ * the list, so an unknown name or a pattern matching nothing is an error even alongside a {@code *}. A bare {@code *}
+ * sweeps up every user column but no internals; naming a metadata or synthetic column explicitly still targets it.
  * <p>
- * The value is mandatory. {@code DEFAULT} fills each column with a type-appropriate default and is represented as a
- * {@code null} fill value; a column whose type has no default is left unchanged, and {@code WarnUnfillableFillNull}
- * surfaces a response-header warning for it. An explicit {@code NULL} value fills nothing: every targeted column is
- * left unchanged, with no type default applied (unlike {@code DEFAULT}) and no warning emitted. A string value is
- * implicitly cast to the types the language casts string literals to (datetime, date_nanos, ip, version, boolean),
- * mirroring {@code Analyzer.ImplicitCasting}.
+ * <b>Filling never fails.</b> A column the value cannot be applied to is left exactly as it was - null or not - and
+ * reported by {@code WarnUnfillableFillNull}. How the column was selected does not change the outcome or the message.
+ * This covers an incompatible type, an out-of-range value, a string that will not parse into a date / ip / version, a
+ * {@code null}-typed column, a type with no default under {@code DEFAULT}, and a multi-valued value. {@code DEFAULT}
+ * uses a type-appropriate default and is represented as a {@code null} fill value; an explicit {@code NULL} means "do
+ * not fill" and is the one form that reports nothing.
+ * <p>
+ * A column's type is never changed, only its null positions - which is why {@link #fillExpression} wraps a {@code text}
+ * column's {@link Coalesce} in {@code TO_TEXT}: {@code Coalesce} normalizes its own type to {@code keyword}.
  */
-public class FillNull extends UnaryPlan implements SurrogateLogicalPlan, PostAnalysisVerificationAware, TelemetryAware {
+public class FillNull extends UnaryPlan implements SurrogateLogicalPlan, TelemetryAware {
 
     private final @Nullable Expression fillValue;
-    /**
-     * The columns to fill. Empty means the {@code ON *} (all-columns, lenient) form. Otherwise holds the parsed
-     * targets - {@link org.elasticsearch.xpack.esql.core.expression.UnresolvedAttribute} names and
-     * {@code UnresolvedNamePattern} wildcards - which the analyzer resolves (KEEP-style) into concrete attributes.
-     */
+
+    // The parsed targets - UnresolvedAttributes UnresolvedNamePattern wildcards.
     private final List<NamedExpression> targetFields;
-    /**
-     * The {@code col = COALESCE(col, default)} aliases, or {@code null} until materialized during analysis;
-     * empty means nothing to fill (no-op).
-     */
+
+    // Whether {@code *} appeared in the target list, selecting every user column.
+    private final boolean allColumns;
+
+    // The col = COALESCE(col, default) aliases, or null until derived during analysis; empty means nothing to fill (no-op).
     private final @Nullable List<Alias> fields;
 
     private List<Attribute> lazyOutput;
 
+    // fields cannot be derived without the Configuration: converterFor reads the time zone from it for datetime/date_nanos.
+    private final @Nullable Configuration configuration;
+
     public FillNull(Source source, LogicalPlan child, @Nullable Expression fillValue, List<NamedExpression> targetFields) {
-        this(source, child, fillValue, targetFields, null);
+        this(source, child, fillValue, targetFields, false);
     }
 
     public FillNull(
@@ -85,12 +85,64 @@ public class FillNull extends UnaryPlan implements SurrogateLogicalPlan, PostAna
         LogicalPlan child,
         @Nullable Expression fillValue,
         List<NamedExpression> targetFields,
+        boolean allColumns
+    ) {
+        this(source, child, fillValue, targetFields, allColumns, null);
+    }
+
+    public FillNull(
+        Source source,
+        LogicalPlan child,
+        @Nullable Expression fillValue,
+        List<NamedExpression> targetFields,
+        boolean allColumns,
         @Nullable List<Alias> fields
+    ) {
+        this(source, child, fillValue, targetFields, allColumns, fields, null);
+    }
+
+    private FillNull(
+        Source source,
+        LogicalPlan child,
+        @Nullable Expression fillValue,
+        List<NamedExpression> targetFields,
+        boolean allColumns,
+        @Nullable List<Alias> fields,
+        @Nullable Configuration configuration
     ) {
         super(source, child);
         this.fillValue = fillValue;
         this.targetFields = targetFields;
+        this.allColumns = allColumns;
         this.fields = fields;
+        this.configuration = configuration;
+    }
+
+    // rebuilds the node with fields re-derived from the child output
+    private static FillNull rebuildFillNullWithFields(
+        Source source,
+        LogicalPlan child,
+        @Nullable Expression fillValue,
+        List<NamedExpression> targetFields,
+        boolean allColumns,
+        @Nullable Configuration configuration,
+        @Nullable List<Alias> previousFields
+    ) {
+        // Before the configuration arrives, or while the child is still unresolved, there is nothing to derive from;
+        // expressionsResolved() reports unresolved until then, so ResolveRefs comes back.
+        List<Alias> derived = configuration == null || child.resolved() == false
+            ? previousFields
+            : buildFields(child.output(), fillValue, targetFields, allColumns, configuration, previousFields);
+        return new FillNull(source, child, fillValue, targetFields, allColumns, derived, configuration);
+    }
+
+    public FillNull withConfiguration(Configuration newConfiguration) {
+        return rebuildFillNullWithFields(source(), child(), fillValue, targetFields, allColumns, newConfiguration, fields);
+    }
+
+    // Whether {@code *} was among the targets, i.e. every column is filled and skipping is lenient
+    public boolean allColumns() {
+        return allColumns;
     }
 
     @Nullable
@@ -159,89 +211,110 @@ public class FillNull extends UnaryPlan implements SurrogateLogicalPlan, PostAna
 
     @Override
     public boolean expressionsResolved() {
-        // Stay unresolved until the aliases are materialized so ResolveRefs (which skips resolved nodes) runs
-        // resolveFillNull - including the all-fields form `... | FILLNULL <value> ON *`, which has no unresolved targets.
+        // Stay unresolved until the aliases are derived so ResolveRefs (which skips resolved nodes) runs resolveFillNull
+        // to supply the Configuration - including the all-fields form `... | FILLNULL <value> ON *`, which has no unresolved targets
         if (inputsResolved() == false || fields == null) {
-            return false;
-        }
-        // All-fields form: unmapped_fields="load" injects columns after the first pass, so stay unresolved while a
-        // fillable column still lacks an alias and let ResolveRefs re-materialize (targeted form gates on inputsResolved()).
-        if (targetFields.isEmpty() && childrenResolved() && allFillableColumnsCovered() == false) {
             return false;
         }
         return Resolvables.resolved(fields);
     }
 
-    private boolean allFillableColumnsCovered() {
-        Set<String> filled = new HashSet<>(fields.size());
-        for (Alias a : fields) {
-            filled.add(a.name());
-        }
-        for (Attribute attr : child().output()) {
-            if (filled.contains(attr.name()) == false && resolveDefaultValue(attr.dataType(), null) != null) {
-                return false;
-            }
-        }
-        return true;
-    }
-
     @Override
     public FillNull replaceChild(LogicalPlan newChild) {
-        return new FillNull(source(), newChild, fillValue, targetFields, fields);
+        return rebuildFillNullWithFields(source(), newChild, fillValue, targetFields, allColumns, configuration, fields);
     }
 
     public FillNull withTargetFields(List<NamedExpression> newTargetFields) {
-        return new FillNull(source(), child(), fillValue, newTargetFields, fields);
+        return rebuildFillNullWithFields(source(), child(), fillValue, newTargetFields, allColumns, configuration, fields);
     }
 
-    /**
-     * Builds the fill aliases against the resolved child output and returns a copy carrying them.
-     */
-    public FillNull materialize(List<Attribute> childOutput, Configuration configuration) {
-        // A null fillNames set marks the `ON *` (all-columns) form; otherwise only the resolved target names are filled.
-        // Iterating childOutput once naturally de-duplicates overlapping targets - a column is filled at most once.
-        final Set<String> fillNames;
-        if (targetFields.isEmpty()) {
-            fillNames = null;
-        } else {
-            fillNames = new HashSet<>(targetFields.size());
-            for (NamedExpression ne : targetFields) {
-                fillNames.add(ne.name());
-            }
-        }
+    private static List<Alias> buildFields(
+        List<Attribute> childOutput,
+        @Nullable Expression fillValue,
+        List<NamedExpression> targetFields,
+        boolean allColumns,
+        Configuration configuration,
+        @Nullable List<Alias> previousFields
+    ) {
+        // A null fillNames set marks the all-columns form (the ON * form); otherwise only the resolved target names are filled.
+        Set<String> namedTargets = targetNames(targetFields);
+        final Set<String> fillNames = (allColumns || targetFields.isEmpty()) ? null : namedTargets;
 
         Map<String, Alias> existing;
-        if (fields == null || fields.isEmpty()) {
+        if (previousFields == null || previousFields.isEmpty()) {
             existing = Map.of();
         } else {
-            existing = new HashMap<>(fields.size());
-            for (Alias a : fields) {
+            existing = new HashMap<>(previousFields.size());
+            for (Alias a : previousFields) {
                 existing.put(a.name(), a);
             }
         }
 
         List<Alias> built = new ArrayList<>(childOutput.size());
         for (Attribute field : childOutput) {
+            // `*` sweeps up every user column, not the internals: metadata (_index, _score) and synthetic attributes such
+            // as the `$$<field>$converted_to$<type>` union-type columns. Naming one explicitly still fills it, even
+            // alongside a `*` - what a column does must not depend on whether a `*` happens to be in the same list.
+            if (isInternal(field) && namedTargets.contains(field.name()) == false) {
+                continue;
+            }
             if (fillNames == null || fillNames.contains(field.name())) {
                 Alias previous = existing.get(field.name());
-                // Reuse the existing alias (keeping its id) only while valid: resolved and same type
-                if (previous != null && previous.resolved() && previous.dataType() == field.dataType().noText()) {
+                // Reuse the existing alias (keeping its id) only while valid: resolved, same type, and still wrapping the same attribute
+                if (previous != null
+                    && previous.resolved()
+                    && previous.dataType() == field.dataType()
+                    && unwrapCoalesce(previous.child()) instanceof Coalesce c
+                    && c.children().get(0).equals(field)) {
                     built.add(previous);
                     continue;
                 }
-                Expression defaultValue = resolveDefaultValue(field.dataType(), configuration);
+                Expression defaultValue = resolveDefaultValue(field.dataType(), fillValue, configuration);
                 if (defaultValue != null) {
-                    Coalesce coalesce = new Coalesce(field.source(), field, List.of(defaultValue));
-                    built.add(new Alias(field.source(), field.name(), coalesce));
+                    built.add(new Alias(field.source(), field.name(), fillExpression(field, defaultValue)));
                 }
             }
         }
-        return new FillNull(source(), child(), fillValue, targetFields, built);
+        return built;
+    }
+
+    /**
+     * The fill expression for one column: {@code COALESCE(col, default)}, wrapped in {@code TO_TEXT} for a {@code text}
+     * column. {@link Coalesce#resolveType()} normalizes its type with {@code noText()}, so without the wrapper filling a
+     * {@code text} column would silently re-type it to {@code keyword} - and {@code FILLNULL} must not change a column's
+     * type, only its null positions.
+     */
+    private static Expression fillExpression(Attribute field, Expression defaultValue) {
+        Coalesce coalesce = new Coalesce(field.source(), field, List.of(defaultValue));
+        return field.dataType() == DataType.TEXT ? new ToText(field.source(), coalesce) : coalesce;
+    }
+
+    /** The {@link Coalesce} inside a fill expression, looking through the {@code text} wrapper added by {@link #fillExpression}. */
+    private static Expression unwrapCoalesce(Expression fillExpression) {
+        return fillExpression instanceof ToText toText ? toText.field() : fillExpression;
     }
 
     @Override
     protected NodeInfo<? extends LogicalPlan> info() {
-        return NodeInfo.create(this, FillNull::new, child(), fillValue, targetFields, fields);
+        // configuration is captured by the closure rather than being a property: it is an input, not something plan
+        // transformations rewrite, and it must survive a property rebuild or replaceChild could not re-derive fields.
+        return NodeInfo.create(
+            this,
+            (source, child, fillValue, targetFields, allColumns, fields) -> new FillNull(
+                source,
+                child,
+                fillValue,
+                targetFields,
+                allColumns,
+                fields,
+                configuration
+            ),
+            child(),
+            fillValue,
+            targetFields,
+            allColumns,
+            fields
+        );
     }
 
     @Override
@@ -256,7 +329,7 @@ public class FillNull extends UnaryPlan implements SurrogateLogicalPlan, PostAna
 
     @Override
     public int hashCode() {
-        return Objects.hash(super.hashCode(), fillValue, targetFields, fields);
+        return Objects.hash(super.hashCode(), fillValue, targetFields, allColumns, fields, configuration);
     }
 
     @Override
@@ -271,52 +344,9 @@ public class FillNull extends UnaryPlan implements SurrogateLogicalPlan, PostAna
         return super.equals(obj)
             && Objects.equals(fillValue, other.fillValue)
             && Objects.equals(targetFields, other.targetFields)
-            && Objects.equals(fields, other.fields);
-    }
-
-    @Override
-    public void postAnalysisVerification(Failures failures) {
-        if (fillValue != null && targetFields.isEmpty() == false) {
-            for (NamedExpression field : targetFields) {
-                if (field.resolved() == false) {
-                    continue;
-                }
-                DataType fieldType = field.dataType();
-                boolean stringImplicitCast = fillValue.dataType() == DataType.KEYWORD
-                    && fillValue instanceof Literal
-                    && EsqlDataTypeConverter.isStringImplicitlyCastableTo(fieldType.noText());
-                if (stringImplicitCast == false && DataType.areCompatible(fillValue.dataType(), fieldType) == false) {
-                    failures.add(
-                        fail(
-                            field,
-                            "[FILLNULL] fill value type [{}] is incompatible with field [{}] type [{}]",
-                            fillValue.dataType().typeName(),
-                            field.name(),
-                            fieldType.typeName()
-                        )
-                    );
-                    continue;
-                }
-
-                if (fillValue instanceof Literal lit
-                    && lit.value() != null
-                    && fillValue.dataType() != fieldType
-                    && DataType.isNull(fieldType) == false
-                    && resolveDefaultValue(fieldType, null) == null) {
-                    failures.add(
-                        fail(
-                            field,
-                            "[FILLNULL] fill value [{}] does not fit field [{}] of type [{}]",
-                            BytesRefs.toString(lit.value()),
-                            field.name(),
-                            fieldType.typeName()
-                        )
-                    );
-                }
-            }
-        }
-        // Columns targeted more than once (e.g. `ON a, a` or overlapping patterns) are intentionally NOT an error;
-        // they are de-duplicated during materialization so the column is filled exactly once.
+            && allColumns == other.allColumns
+            && Objects.equals(fields, other.fields)
+            && Objects.equals(configuration, other.configuration);
     }
 
     @Override
@@ -329,12 +359,17 @@ public class FillNull extends UnaryPlan implements SurrogateLogicalPlan, PostAna
     }
 
     @Nullable
-    private Expression resolveDefaultValue(DataType type, @Nullable Configuration configuration) {
+    private static Expression resolveDefaultValue(DataType type, @Nullable Expression fillValue, Configuration configuration) {
         if (DataType.isNull(type)) {
             return null;
         }
         if (fillValue != null) {
             if (fillValue instanceof Literal fillLiteral && fillLiteral.value() == null) {
+                return null;
+            }
+            if (multiValuedFill(fillValue) != null) {
+                // WarnUnfillableFillNull reports this; bail out here so the converters, which cast the literal value to
+                // Number/String, are never handed a List.
                 return null;
             }
             DataType fillType = fillValue.dataType();
@@ -347,16 +382,15 @@ public class FillNull extends UnaryPlan implements SurrogateLogicalPlan, PostAna
                 Object converted;
                 try {
                     converted = DataTypeConverter.convert(lit.value(), literalType);
+                    // RATIONAL_TO_INT/LONG round via Math.round instead of failing, so 2.7 into an integer column would
+                    // silently fill 3. Require the conversion to be exactly reversible; COALESCE rejects the pair outright.
+                    if (Objects.equals(lit.value(), DataTypeConverter.convert(converted, fillType)) == false) {
+                        return null;
+                    }
                 } catch (InvalidArgumentException e) {
-                    // Value does not fit the column type (e.g. LONG literal outside INTEGER range). All-fields targets are
-                    // silently skipped here; explicitly targeted fields are already rejected by postAnalysisVerification.
-                    return null;
-                }
-                // RATIONAL_TO_INT rounds (Math.round) rather than throwing, so 2.7 into an integer column would silently
-                // fill with 3. COALESCE rejects the same pair outright, so treat a lossy conversion as not fillable.
-                if (converted instanceof Number convertedNumber
-                    && lit.value() instanceof Number originalNumber
-                    && convertedNumber.doubleValue() != originalNumber.doubleValue()) {
+                    // Value does not fit the column type, or does not survive the round trip (e.g. a long that is not
+                    // exactly representable as a double). The column is left unchanged either way and reported by
+                    // WarnUnfillableFillNull; FILLNULL never fails over a value it cannot apply.
                     return null;
                 }
                 return new Literal(lit.source(), converted, literalType);
@@ -368,11 +402,10 @@ public class FillNull extends UnaryPlan implements SurrogateLogicalPlan, PostAna
                 DataType literalType = type.noText();
                 Object converted;
                 try {
-                    converted = castStringLiteral(lit.value(), literalType, configuration);
+                    converted = EsqlDataTypeConverter.convert(lit.value(), literalType, configuration);
                 } catch (IllegalArgumentException | InvalidArgumentException e) {
                     // Unparsable or out-of-range for the target type ("not-a-date" into datetime; a pre-1970 instant into
-                    // date_nanos, which DateUtils.toLong rejects with IllegalArgumentException). Narrow on purpose: a bug in
-                    // a converter must surface rather than be reported as "not fillable".
+                    // date_nanos, which DateUtils.toLong rejects with IllegalArgumentException)
                     return null;
                 }
                 return new Literal(lit.source(), converted, literalType);
@@ -382,23 +415,48 @@ public class FillNull extends UnaryPlan implements SurrogateLogicalPlan, PostAna
         return defaultForType(type);
     }
 
-    private static Object castStringLiteral(Object value, DataType type, @Nullable Configuration configuration) {
-        if (configuration != null) {
-            return EsqlDataTypeConverter.convert(value, type, configuration);
+    /** The names written in the target list. Empty for a bare {@code ON *}, which names nothing. */
+    private static Set<String> targetNames(List<NamedExpression> targetFields) {
+        Set<String> names = new HashSet<>(targetFields.size());
+        for (NamedExpression ne : targetFields) {
+            names.add(ne.name());
         }
-        if (type == DataType.DATETIME) {
-            return EsqlDataTypeConverter.dateTimeToLong(BytesRefs.toString(value));
-        }
-        if (type == DataType.DATE_NANOS) {
-            return EsqlDataTypeConverter.dateNanosToLong(BytesRefs.toString(value));
-        }
-        return EsqlDataTypeConverter.convert(value, type, null);
+        return names;
+    }
+
+    /** Columns {@code *} does not sweep up: metadata ({@code _index}, {@code _score}) and synthetic attributes. */
+    private static boolean isInternal(Attribute attr) {
+        return attr instanceof MetadataAttribute || attr.synthetic();
+    }
+
+    @Nullable
+    private static List<?> multiValuedFill(@Nullable Expression fillValue) {
+        return fillValue instanceof Literal lit && lit.value() instanceof List<?> values ? values : null;
     }
 
     /**
-     * The explicitly-targeted fields (or, in the all-fields form, the child columns) that will not be filled because
-     * their type has no default fill value and only {@code DEFAULT} (no explicit fill value) was provided. Only meaningful
-     * once {@link #fields} has been materialized.
+     * The values of a multi-valued fill value, or {@code null} if it is not one. Only reachable through a list-valued
+     * {@code ?param}; nothing can be filled with it, so {@code WarnUnfillableFillNull} reports it.
+     */
+    @Nullable
+    public List<?> multiValuedFill() {
+        return multiValuedFill(fillValue);
+    }
+
+    /**
+     * Whether the value is an explicit {@code NULL}, i.e. "do not fill". Nothing is unexpectedly left unfilled in that
+     * case, so it is the one form that warns about nothing.
+     */
+    public boolean isExplicitNullFill() {
+        return fillValue instanceof Literal lit && lit.value() == null;
+    }
+
+    /**
+     * The targeted columns that were left unchanged - whatever the reason: the type has no default under
+     * {@code DEFAULT}, the value's type is incompatible, the value is out of range for the column, a string could not be
+     * parsed into it, or the column is {@code null}-typed. {@code FILLNULL} never fails over any of these; they are all
+     * reported by {@code WarnUnfillableFillNull}, so this list is what it warns about. Only meaningful once
+     * {@link #fields} has been derived.
      */
     public List<Attribute> unfillableTargets() {
         Set<String> filled = new HashSet<>();
@@ -407,16 +465,28 @@ public class FillNull extends UnaryPlan implements SurrogateLogicalPlan, PostAna
                 filled.add(a.name());
             }
         }
+        Set<String> namedTargets = targetNames(targetFields);
         List<Attribute> result = new ArrayList<>();
-        if (targetFields.isEmpty()) {
+        if (allColumns || targetFields.isEmpty()) {
             for (Attribute attr : child().output()) {
+                // `*` never sweeps up the internals, so they were never in scope and are not "left unchanged". Naming
+                // one explicitly does put it in scope, so it is reported like any other target. Mirrors buildFields.
+                if (isInternal(attr) && namedTargets.contains(attr.name()) == false) {
+                    continue;
+                }
                 if (attr.resolved() && filled.contains(attr.name()) == false) {
                     result.add(attr);
                 }
             }
         } else {
             for (NamedExpression ne : targetFields) {
-                if (ne.resolved() && ne instanceof Attribute attr && filled.contains(attr.name()) == false) {
+                // Every resolved target is an Attribute (resolveAgainstList only ever yields those); assert rather than
+                // skip, so a future change that breaks that fails loudly instead of dropping a column from the warning.
+                if (ne.resolved() == false) {
+                    continue;
+                }
+                assert ne instanceof Attribute : "resolved FILLNULL target is not an Attribute: " + ne;
+                if (ne instanceof Attribute attr && filled.contains(attr.name()) == false) {
                     result.add(attr);
                 }
             }

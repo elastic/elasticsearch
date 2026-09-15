@@ -800,8 +800,44 @@ public class AnalyzerUnmappedTests extends AnalyzerUnmappedTestBase {
         assertThat(
             "all-fields FILLNULL must fill the load-injected unmapped keyword column [does_not_exist]",
             filledNames,
-            Matchers.hasItem("does_not_exist")
+            hasItem("does_not_exist")
         );
+    }
+
+    public void testAllFieldsFillNullWithColistedUnmappedNameResolvesUnderLoad() {
+        assumeTrue("Requires FILLNULL", EsqlCapabilities.Cap.FILLNULL.isEnabled());
+        // A name co-listed with `*` is resolved like in any other command, so under unmapped_fields="load" it resolves
+        // to the injected column rather than failing - and is covered by the all-fields form.
+        var plan = test().statement(setUnmappedLoad("FROM test | FILLNULL DEFAULT ON *, does_not_exist | KEEP emp_no, does_not_exist"));
+
+        Holder<FillNull> holder = new Holder<>();
+        plan.forEachDown(FillNull.class, holder::set);
+        FillNull fillNull = holder.get();
+        assertThat("FILLNULL node should be present in the analyzed plan", fillNull, notNullValue());
+        assertThat("`*` co-listed with a name is still the all-fields form", fillNull.allColumns(), is(true));
+
+        Set<String> filledNames = new HashSet<>();
+        fillNull.fields().forEach(alias -> filledNames.add(alias.name()));
+        assertThat("the co-listed load-injected column [does_not_exist] must be filled", filledNames, hasItem("does_not_exist"));
+    }
+
+    public void testAllFieldsFillNullWithNonStringValueResolvesUnderLoad() {
+        assumeTrue("Requires FILLNULL", EsqlCapabilities.Cap.FILLNULL.isEnabled());
+        for (String value : List.of("0", "true", "1.5", "null", "DEFAULT", "\"x\"")) {
+            var plan = test().statement(setUnmappedLoad("FROM test | FILLNULL " + value + " ON * | KEEP emp_no, does_not_exist"));
+            assertThat("FILLNULL " + value + " ON * must not leave the plan unresolved", plan.resolved(), is(true));
+        }
+    }
+
+    public void testTargetedFillNullIsUnaffectedByAnUnrelatedLoadInjectedColumn() {
+        assumeTrue("Requires FILLNULL", EsqlCapabilities.Cap.FILLNULL.isEnabled());
+        var plan = test().statement(setUnmappedLoad("FROM test | FILLNULL \"x\" ON first_name | KEEP first_name, does_not_exist"));
+
+        assertThat("the analyzed plan must be fully resolved", plan.resolved(), is(true));
+        Holder<FillNull> holder = new Holder<>();
+        plan.forEachDown(FillNull.class, holder::set);
+        assertThat(holder.get(), notNullValue());
+        assertThat(holder.get().expressionsResolved(), is(true));
     }
 
     // unmapped_fields="load" now supports branching views/subqueries (#142033): the branching-view equivalent analyzes successfully.

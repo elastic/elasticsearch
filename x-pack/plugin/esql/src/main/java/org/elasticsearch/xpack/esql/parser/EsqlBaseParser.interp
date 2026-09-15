@@ -449,8 +449,8 @@ lookupCommand
 dedupCommand
 highlightCommand
 qualifiedNames
-fillnullCommand
-fillnullValue
+fillNullCommand
+fillNullValue
 uriPartsCommand
 registeredDomainCommand
 userAgentCommand

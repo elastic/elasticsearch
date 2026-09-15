@@ -122,9 +122,15 @@ public class FieldNameUtilsTests extends ESTestCase {
 
     public void testFillNullStarMixedThenStats() {
         assumeTrue("FILLNULL required", EsqlCapabilities.Cap.FILLNULL.isEnabled());
-        // `ON *, salary` is the all-columns form (empty targets), so the co-listed `salary` is dropped and contributes no
-        // field-caps reference; a downstream STATS COUNT(*) references nothing else, so only _index metadata is requested.
-        assertFieldNames("from employees | fillnull 0 ON *, salary | stats c = count(*)", INDEX_METADATA_FIELD);
+        // `ON *, salary` is the all-columns form, but the co-listed `salary` is still resolved so a typo is reported like
+        // in any other command - which means it has to be requested from field-caps too, or it could never resolve.
+        assertFieldNames("from employees | fillnull 0 ON *, salary | stats c = count(*)", Set.of("_index", "salary", "salary.*"));
+    }
+
+    public void testFillNullStarAloneThenStats() {
+        assumeTrue("FILLNULL required", EsqlCapabilities.Cap.FILLNULL.isEnabled());
+        // A bare `ON *` names nothing, so with a downstream STATS COUNT(*) only _index metadata is requested.
+        assertFieldNames("from employees | fillnull 0 ON * | stats c = count(*)", INDEX_METADATA_FIELD);
     }
 
     public void testSort1() {

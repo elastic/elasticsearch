@@ -1,7 +1,7 @@
 ---
 setup:
   - requires:
-      test_runner_features: [ capabilities, contains ]
+      test_runner_features: [ capabilities, contains, warnings ]
       capabilities:
         - method: POST
           path: /_query
@@ -178,11 +178,13 @@ setup:
           capabilities: [ optional_fields_nullify_tech_preview ]
       reason: 'requires SET unmapped_fields="nullify" support'
   - do:
+      warnings:
+        - "Line 1:81: [FILLNULL] the fill value could not be applied to the following fields, which were left unchanged: [extra_tag]"
       esql.query:
         body:
-          # Under SET nullify the unmapped field surfaces as a NULL-typed all-null column.
-          # FILLNULL targeting it must not throw and must leave the column unchanged
-          # (NULL columns cannot be promoted to another type by FILLNULL).
+          # Under SET nullify the unmapped field surfaces as a NULL-typed all-null column. A NULL column cannot be
+          # promoted to another type, so FILLNULL leaves it unchanged - and says so, rather than failing or going
+          # quiet, which is the same contract every other un-fillable column gets.
           query: 'SET unmapped_fields="nullify"; FROM events_partial | KEEP event_id, extra_tag | FILLNULL "missing" ON extra_tag | SORT event_id | LIMIT 10'
   - match: { columns.0.name: event_id }
   - match: { columns.0.type: integer }
@@ -226,6 +228,8 @@ setup:
           capabilities: [ optional_fields_v5 ]
       reason: 'requires SET unmapped_fields="load" support'
   - do:
+      warnings:
+        - "Line 1:57: [FILLNULL] the fill value could not be applied to the following fields, which were left unchanged: [event_id]"
       esql.query:
         body:
           # `extra_tag` is unmapped and referenced only by the trailing KEEP, so SET load injects it into the source
@@ -251,6 +255,8 @@ setup:
           capabilities: [ optional_fields_nullify_tech_preview ]
       reason: 'requires SET unmapped_fields="nullify" support'
   - do:
+      warnings:
+        - "Line 1:90: [FILLNULL] the fill value could not be applied to the following fields, which were left unchanged: [event_id, extra_tag]"
       esql.query:
         body:
           # All-fields FILLNULL with a string value must leave NULL-typed columns unchanged.
@@ -266,6 +272,42 @@ setup:
   - length: { values: 2 }
   - match: { values.0: [ 10, 'first', null ] }
   - match: { values.1: [ 11, 'second', null ] }
+
+---
+'fillnull star co-listed with an unmapped name under SET unmapped_fields load':
+  - requires:
+      capabilities:
+        - method: POST
+          path: /_query
+          parameters: [ ]
+          capabilities: [ optional_fields_v5 ]
+      reason: 'requires SET unmapped_fields="load" support'
+  - do:
+      warnings:
+        - "Line 1:57: [FILLNULL] the fill value could not be applied to the following fields, which were left unchanged: [event_id]"
+      esql.query:
+        body:
+          # `*` co-listed with a name keeps the lenient all-fields behaviour, but the name is still resolved like in
+          # any other command. Under SET load the unmapped `extra_tag` resolves to the injected keyword column rather
+          # than failing, and the all-fields form fills it: event_id 21 has no extra_tag and becomes "filled".
+          query: 'SET unmapped_fields="load"; FROM events_partial_nulls | FILLNULL "filled" ON *, extra_tag | KEEP event_id, extra_tag | SORT event_id | LIMIT 10'
+  - match: { columns.0.name: event_id }
+  - match: { columns.0.type: integer }
+  - match: { columns.1.name: extra_tag }
+  - match: { columns.1.type: keyword }
+  - length: { values: 2 }
+  - match: { values.0: [ 20, 'gamma' ] }
+  - match: { values.1: [ 21, 'filled' ] }
+
+---
+'fillnull star co-listed with an unknown name is rejected':
+  - do:
+      catch: /Unknown column \[does_not_exist\]/
+      esql.query:
+        body:
+          # A co-listed name is resolved as usual, so a typo is an Unknown column error - not a [FILLNULL] error,
+          # FILLNULL itself never fails over a column it cannot fill.
+          query: 'FROM events_partial | FILLNULL "filled" ON *, does_not_exist'
 
 ---
 'fillnull on a union typed field cast to keyword is allowed':

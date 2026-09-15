@@ -2092,10 +2092,10 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
 
         private LogicalPlan resolveFillNull(FillNull fillNull, List<Attribute> childrenOutput, AnalyzerContext context) {
             FillNull result = fillNull;
-            // An empty target list is the `ON *` (all-columns) form and needs no resolution. Otherwise resolve the
-            // explicit names and KEEP-style wildcard patterns against the child output, de-duplicating overlapping
-            // targets (by NameId, via the LinkedHashSet); a name or pattern that matches nothing stays unresolved so
-            // the Verifier reports it.
+            // A bare `ON *` names nothing and so needs no resolution. Otherwise resolve the explicit names and
+            // KEEP-style wildcard patterns against the child output - including names co-listed with a `*`, so a typo is
+            // still reported - de-duplicating overlapping targets (by NameId, via the LinkedHashSet); a name or pattern
+            // that matches nothing stays unresolved so the Verifier reports it.
             if (fillNull.targetFields().isEmpty() == false) {
                 LinkedHashSet<NamedExpression> resolved = new LinkedHashSet<>();
                 for (NamedExpression target : fillNull.targetFields()) {
@@ -2115,10 +2115,11 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
                 }
                 result = fillNull.withTargetFields(new ArrayList<>(resolved));
             }
-            // Materialize the fill aliases as NodeInfo state once inputs resolve, in the same post-order ResolveRefs
-            // pass that builds the output so downstream consumers see the filled schema. See FillNull#materialize.
+            // Supply the query Configuration, which is what derives the fill aliases, in the same post-order ResolveRefs
+            // pass that builds the output so downstream consumers see the filled schema. Every later rebuild re-derives
+            // them from the current child output (see FillNull#rebuildFillNullWithFields), so this happens once.
             if (result.inputsResolved() && result.expressionsResolved() == false) {
-                result = result.materialize(childrenOutput, context.configuration());
+                result = result.withConfiguration(context.configuration());
             }
             return result;
         }

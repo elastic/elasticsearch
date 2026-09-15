@@ -8,6 +8,7 @@
 package org.elasticsearch.xpack.esql.optimizer;
 
 import org.elasticsearch.xpack.esql.action.EsqlCapabilities;
+import org.junit.Before;
 
 import java.util.EnumSet;
 
@@ -19,9 +20,8 @@ public class FillNullGoldenTests extends GoldenTestCase {
 
     private static final EnumSet<Stage> STAGES = EnumSet.of(Stage.ANALYSIS, Stage.LOGICAL_OPTIMIZATION);
 
-    @Override
-    public void setUp() throws Exception {
-        super.setUp();
+    @Before
+    public void checkCapability() {
         assumeTrue("FILLNULL is dev-gated", EsqlCapabilities.Cap.FILLNULL.isEnabled());
     }
 
@@ -47,6 +47,11 @@ public class FillNullGoldenTests extends GoldenTestCase {
             | KEEP emp_no, salary, gender
             | FILLNULL "Unknown" ON *
             """, STAGES);
+        // The two integer columns cannot take a keyword value, so they are left unchanged and reported.
+        assertWarnings(
+            "Line 3:3: [FILLNULL] the fill value could not be applied to the following fields, which were left "
+                + "unchanged: [emp_no, salary]"
+        );
     }
 
     public void testFillNullChainedPreservesNameIds() {

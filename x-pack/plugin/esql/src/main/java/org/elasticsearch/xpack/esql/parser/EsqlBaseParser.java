@@ -91,7 +91,7 @@ public class EsqlBaseParser extends ParserConfig {
     RULE_fuseCommand = 68, RULE_fuseConfiguration = 69, RULE_fuseKeyByFields = 70, 
     RULE_metricsInfoCommand = 71, RULE_tsInfoCommand = 72, RULE_tsCollapseCommand = 73, 
     RULE_lookupCommand = 74, RULE_dedupCommand = 75, RULE_highlightCommand = 76, 
-    RULE_qualifiedNames = 77, RULE_fillnullCommand = 78, RULE_fillnullValue = 79, 
+    RULE_qualifiedNames = 77, RULE_fillNullCommand = 78, RULE_fillNullValue = 79, 
     RULE_uriPartsCommand = 80, RULE_registeredDomainCommand = 81, RULE_userAgentCommand = 82, 
     RULE_ipLocationCommand = 83, RULE_setCommand = 84, RULE_setField = 85, 
     RULE_mmrCommand = 86, RULE_mmrQueryVectorParams = 87, RULE_denseVectorCommand = 88, 
@@ -127,7 +127,7 @@ public class EsqlBaseParser extends ParserConfig {
       "rerankCommand", "completionCommand", "inlineStatsCommand", "fuseCommand", 
       "fuseConfiguration", "fuseKeyByFields", "metricsInfoCommand", "tsInfoCommand", 
       "tsCollapseCommand", "lookupCommand", "dedupCommand", "highlightCommand", 
-      "qualifiedNames", "fillnullCommand", "fillnullValue", "uriPartsCommand", 
+      "qualifiedNames", "fillNullCommand", "fillNullValue", "uriPartsCommand", 
       "registeredDomainCommand", "userAgentCommand", "ipLocationCommand", "setCommand", 
       "setField", "mmrCommand", "mmrQueryVectorParams", "denseVectorCommand", 
       "booleanExpression", "regexBooleanExpression", "matchBooleanExpression", 
@@ -717,8 +717,8 @@ public class EsqlBaseParser extends ParserConfig {
     public DenseVectorCommandContext denseVectorCommand() {
       return getRuleContext(DenseVectorCommandContext.class,0);
     }
-    public FillnullCommandContext fillnullCommand() {
-      return getRuleContext(FillnullCommandContext.class,0);
+    public FillNullCommandContext fillNullCommand() {
+      return getRuleContext(FillNullCommandContext.class,0);
     }
     @SuppressWarnings("this-escape")
     public ProcessingCommandContext(ParserRuleContext parent, int invokingState) {
@@ -981,7 +981,7 @@ public class EsqlBaseParser extends ParserConfig {
         setState(314);
         if (!(this.isDevVersion())) throw new FailedPredicateException(this, "this.isDevVersion()");
         setState(315);
-        fillnullCommand();
+        fillNullCommand();
         }
         break;
       }
@@ -5954,45 +5954,45 @@ public class EsqlBaseParser extends ParserConfig {
   }
 
   @SuppressWarnings("CheckReturnValue")
-  public static class FillnullCommandContext extends ParserRuleContext {
+  public static class FillNullCommandContext extends ParserRuleContext {
     public TerminalNode DEV_FILLNULL() { return getToken(EsqlBaseParser.DEV_FILLNULL, 0); }
-    public FillnullValueContext fillnullValue() {
-      return getRuleContext(FillnullValueContext.class,0);
+    public FillNullValueContext fillNullValue() {
+      return getRuleContext(FillNullValueContext.class,0);
     }
     public TerminalNode ON() { return getToken(EsqlBaseParser.ON, 0); }
     public QualifiedNamePatternsContext qualifiedNamePatterns() {
       return getRuleContext(QualifiedNamePatternsContext.class,0);
     }
     @SuppressWarnings("this-escape")
-    public FillnullCommandContext(ParserRuleContext parent, int invokingState) {
+    public FillNullCommandContext(ParserRuleContext parent, int invokingState) {
       super(parent, invokingState);
     }
-    @Override public int getRuleIndex() { return RULE_fillnullCommand; }
+    @Override public int getRuleIndex() { return RULE_fillNullCommand; }
     @Override
     public void enterRule(ParseTreeListener listener) {
-      if ( listener instanceof EsqlBaseParserListener ) ((EsqlBaseParserListener)listener).enterFillnullCommand(this);
+      if ( listener instanceof EsqlBaseParserListener ) ((EsqlBaseParserListener)listener).enterFillNullCommand(this);
     }
     @Override
     public void exitRule(ParseTreeListener listener) {
-      if ( listener instanceof EsqlBaseParserListener ) ((EsqlBaseParserListener)listener).exitFillnullCommand(this);
+      if ( listener instanceof EsqlBaseParserListener ) ((EsqlBaseParserListener)listener).exitFillNullCommand(this);
     }
     @Override
     public <T> T accept(ParseTreeVisitor<? extends T> visitor) {
-      if ( visitor instanceof EsqlBaseParserVisitor ) return ((EsqlBaseParserVisitor<? extends T>)visitor).visitFillnullCommand(this);
+      if ( visitor instanceof EsqlBaseParserVisitor ) return ((EsqlBaseParserVisitor<? extends T>)visitor).visitFillNullCommand(this);
       else return visitor.visitChildren(this);
     }
   }
 
-  public final FillnullCommandContext fillnullCommand() throws RecognitionException {
-    FillnullCommandContext _localctx = new FillnullCommandContext(_ctx, getState());
-    enterRule(_localctx, 156, RULE_fillnullCommand);
+  public final FillNullCommandContext fillNullCommand() throws RecognitionException {
+    FillNullCommandContext _localctx = new FillNullCommandContext(_ctx, getState());
+    enterRule(_localctx, 156, RULE_fillNullCommand);
     try {
       enterOuterAlt(_localctx, 1);
       {
       setState(790);
       match(DEV_FILLNULL);
       setState(791);
-      fillnullValue();
+      fillNullValue();
       setState(792);
       match(ON);
       setState(793);
@@ -6011,7 +6011,7 @@ public class EsqlBaseParser extends ParserConfig {
   }
 
   @SuppressWarnings("CheckReturnValue")
-  public static class FillnullValueContext extends ParserRuleContext {
+  public static class FillNullValueContext extends ParserRuleContext {
     public TerminalNode NULL() { return getToken(EsqlBaseParser.NULL, 0); }
     public TerminalNode DEFAULT() { return getToken(EsqlBaseParser.DEFAULT, 0); }
     public IntegerValueContext integerValue() {
@@ -6030,28 +6030,28 @@ public class EsqlBaseParser extends ParserConfig {
       return getRuleContext(ParameterContext.class,0);
     }
     @SuppressWarnings("this-escape")
-    public FillnullValueContext(ParserRuleContext parent, int invokingState) {
+    public FillNullValueContext(ParserRuleContext parent, int invokingState) {
       super(parent, invokingState);
     }
-    @Override public int getRuleIndex() { return RULE_fillnullValue; }
+    @Override public int getRuleIndex() { return RULE_fillNullValue; }
     @Override
     public void enterRule(ParseTreeListener listener) {
-      if ( listener instanceof EsqlBaseParserListener ) ((EsqlBaseParserListener)listener).enterFillnullValue(this);
+      if ( listener instanceof EsqlBaseParserListener ) ((EsqlBaseParserListener)listener).enterFillNullValue(this);
     }
     @Override
     public void exitRule(ParseTreeListener listener) {
-      if ( listener instanceof EsqlBaseParserListener ) ((EsqlBaseParserListener)listener).exitFillnullValue(this);
+      if ( listener instanceof EsqlBaseParserListener ) ((EsqlBaseParserListener)listener).exitFillNullValue(this);
     }
     @Override
     public <T> T accept(ParseTreeVisitor<? extends T> visitor) {
-      if ( visitor instanceof EsqlBaseParserVisitor ) return ((EsqlBaseParserVisitor<? extends T>)visitor).visitFillnullValue(this);
+      if ( visitor instanceof EsqlBaseParserVisitor ) return ((EsqlBaseParserVisitor<? extends T>)visitor).visitFillNullValue(this);
       else return visitor.visitChildren(this);
     }
   }
 
-  public final FillnullValueContext fillnullValue() throws RecognitionException {
-    FillnullValueContext _localctx = new FillnullValueContext(_ctx, getState());
-    enterRule(_localctx, 158, RULE_fillnullValue);
+  public final FillNullValueContext fillNullValue() throws RecognitionException {
+    FillNullValueContext _localctx = new FillNullValueContext(_ctx, getState());
+    enterRule(_localctx, 158, RULE_fillNullValue);
     try {
       setState(802);
       _errHandler.sync(this);

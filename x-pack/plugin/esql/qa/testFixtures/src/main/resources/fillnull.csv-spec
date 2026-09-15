@@ -223,6 +223,7 @@ ROW i = null, k = null
 | EVAL i = i::integer, k = k::keyword
 | FILLNULL 0 ON *
 ;
+warning:Line 3:3: [FILLNULL] the fill value could not be applied to the following fields, which were left unchanged: [k]
 
 i:integer | k:keyword
 0         | null
@@ -235,6 +236,7 @@ ROW i = null, l = null
 | EVAL i = i::integer, l = l::long
 | FILLNULL 9999999999999 ON *
 ;
+warning:Line 3:3: [FILLNULL] the fill value could not be applied to the following fields, which were left unchanged: [i]
 
 i:integer | l:long
 null      | 9999999999999
@@ -320,6 +322,7 @@ ROW d = null, i = null
 | EVAL d = d::datetime, i = i::integer
 | FILLNULL "2025-04-11T00:00:00.000Z" ON *
 ;
+warning:Line 3:3: [FILLNULL] the fill value could not be applied to the following fields, which were left unchanged: [i]
 
 d:datetime               | i:integer
 2025-04-11T00:00:00.000Z | null
@@ -344,7 +347,7 @@ ROW d = null
 | EVAL d = d::datetime
 | FILLNULL DEFAULT ON d
 ;
-warning:Line 3:3: [FILLNULL] field [d] of type [datetime] has no default fill value and was left unchanged; provide an explicit value
+warning:Line 3:3: [FILLNULL] the following fields have no default fill value for their type and were left unchanged: [d]; provide an explicit value
 
 d:datetime
 null
@@ -506,6 +509,7 @@ FROM employees METADATA _index
 | FILLNULL 0 ON *
 | KEEP emp_no, _index, gender
 ;
+warning:Line 3:3: [FILLNULL] the fill value could not be applied to the following fields, which were left unchanged: [gender]
 
 emp_no:integer | _index:keyword | gender:keyword
 10001          | employees      | M
@@ -534,6 +538,7 @@ FROM employees
 | FILLNULL "None" ON *
 | KEEP emp_no, job_positions
 ;
+warning:Line 3:3: [FILLNULL] the fill value could not be applied to the following fields, which were left unchanged: [emp_no]
 
 emp_no:integer | job_positions:keyword
 10001          | [Accountant, Senior Python Developer]
@@ -634,6 +639,7 @@ ROW a = null, b = 1
 | FILLNULL "x" ON a
 | KEEP a, b
 ;
+warning:Line 2:3: [FILLNULL] the fill value could not be applied to the following fields, which were left unchanged: [a]
 
 a:null | b:integer
 null   | 1
@@ -646,6 +652,7 @@ ROW a = null, b = null
 | EVAL b = b::keyword
 | FILLNULL "x" ON *
 ;
+warning:Line 3:3: [FILLNULL] the fill value could not be applied to the following fields, which were left unchanged: [a]
 
 a:null | b:keyword
 null   | x
@@ -699,6 +706,7 @@ FROM partial_mapping_sample_data
 | SORT @timestamp DESC
 | LIMIT 2
 ;
+warning:Line 4:3: [FILLNULL] the fill value could not be applied to the following fields, which were left unchanged: [@timestamp, event_duration, unmapped_message]
 
 @timestamp:date          | event_duration:long | message:keyword        | unmapped_message:null
 2024-10-23T13:55:01.543Z | 1756466             | Connected to 10.1.0.1! | null
@@ -716,6 +724,7 @@ FROM partial_mapping_sample_data
 | SORT @timestamp DESC
 | LIMIT 2
 ;
+warning:Line 4:3: [FILLNULL] the fill value could not be applied to the following fields, which were left unchanged: [unmapped_message]
 
 @timestamp:date          | unmapped_message:null
 2024-10-23T13:55:01.543Z | null
@@ -855,6 +864,7 @@ ROW a = null, b = null, c = 3
 | FILLNULL "x" ON *
 | DROP b
 ;
+warning:Line 3:3: [FILLNULL] the fill value could not be applied to the following fields, which were left unchanged: [c]
 
 c:integer | a:keyword
 3         | x
@@ -1003,7 +1013,7 @@ FROM employees
 | FILLNULL DEFAULT ON birth_date
 | STATS c = COUNT(*)
 ;
-warning:Line 2:3: [FILLNULL] field [birth_date] of type [datetime] has no default fill value and was left unchanged; provide an explicit value
+warning:Line 2:3: [FILLNULL] the following fields have no default fill value for their type and were left unchanged: [birth_date]; provide an explicit value
 
 c:long
 100
@@ -1018,7 +1028,7 @@ FROM employees
 | SORT birth_date ASC NULLS FIRST
 | LIMIT 10
 ;
-warning:Line 2:3: [FILLNULL] field [birth_date] of type [datetime] has no default fill value and was left unchanged; provide an explicit value
+warning:Line 2:3: [FILLNULL] the following fields have no default fill value for their type and were left unchanged: [birth_date]; provide an explicit value
 
 c:long | birth_date:date
 10     | null
@@ -1093,6 +1103,7 @@ FROM voyager
 | KEEP row_no, @timestamp, active_instruments
 | FILLNULL "2025-04-11T00:00:00.000Z" ON *
 ;
+warning:Line 4:3: [FILLNULL] the fill value could not be applied to the following fields, which were left unchanged: [row_no, active_instruments]
 
 row_no:integer | @timestamp:date          | active_instruments:integer
 6              | 2025-04-11T00:00:00.000Z | null
@@ -1111,13 +1122,14 @@ d1:datetime | d2:datetime | d3:datetime | d4:datetime | d5:datetime | d6:datetim
 null        | null        | null        | null        | null        | null        | null        | null        | null        | null         | null         | null
 ;
 
-fillNullAllFieldsWithConstantFitsSomeSkipsOthersNoWarning
+fillNullAllFieldsWithConstantFitsSomeSkipsOthers
 required_capability: fillnull
 
 ROW d = null, i = null, a = null
 | EVAL d = d::datetime, i = i::integer, a = a::ip
 | FILLNULL "2025-04-11T00:00:00.000Z" ON *
 ;
+warning:Line 3:3: [FILLNULL] the fill value could not be applied to the following fields, which were left unchanged: [i, a]
 
 d:datetime               | i:integer | a:ip
 2025-04-11T00:00:00.000Z | null      | null
@@ -1131,8 +1143,8 @@ ROW d = null, a = null
 | FILLNULL DEFAULT ON d
 | FILLNULL DEFAULT ON a
 ;
-warning:Line 3:3: [FILLNULL] field [d] of type [datetime] has no default fill value and was left unchanged; provide an explicit value
-warning:Line 4:3: [FILLNULL] field [a] of type [ip] has no default fill value and was left unchanged; provide an explicit value
+warning:Line 3:3: [FILLNULL] the following fields have no default fill value for their type and were left unchanged: [d]; provide an explicit value
+warning:Line 4:3: [FILLNULL] the following fields have no default fill value for their type and were left unchanged: [a]; provide an explicit value
 
 d:datetime | a:ip
 null       | null
@@ -1147,7 +1159,7 @@ ROW d = null, a = null, i = null
 | FILLNULL DEFAULT ON d
 ;
 warning:Line 3:3: [FILLNULL] the following fields have no default fill value for their type and were left unchanged: [d, a]; provide an explicit value
-warning:Line 4:3: [FILLNULL] field [d] of type [datetime] has no default fill value and was left unchanged; provide an explicit value
+warning:Line 4:3: [FILLNULL] the following fields have no default fill value for their type and were left unchanged: [d]; provide an explicit value
 
 d:datetime | a:ip | i:integer
 null       | null | 0
@@ -1210,7 +1222,7 @@ FROM books
 | KEEP book_no, title
 ;
 
-book_no:keyword | title:keyword
+book_no:keyword | title:text
 2130            | The J. R. R. Tolkien Audio Collection
 ;
 
@@ -1325,7 +1337,7 @@ fillNullWildcardTargetThenRenameCastThenKeepWildcard
 required_capability: fillnull
 
 // Like the previous test, but the renamed `name` is re-EVAL'd (moving it to the end) and KEEP *name* now matches both
-// `last_name` and `name`. Uses ::keyword because ES|QL has no ToText converter yet (::text throws at parse time).
+// `last_name` and `name`. The re-EVAL uses ::keyword purely to move the column; the cast itself is incidental.
 FROM employees
 | FILLNULL "x" ON *_name
 | RENAME first_name AS name
@@ -1341,4 +1353,88 @@ Azuma             | Mona
 Baek              | Premal
 Bamford           | Parto
 Bernatsky         | Mokhtar
+;
+
+// The zone-less fill value is resolved in the query time zone: at -10:00 "1969-12-31T20:00:00" is 1970-01-01T06:00:00Z
+// inside the date_nanos range, so the fill applies
+fillNullDateNanosFillHonoursQueryTimeZone
+required_capability: fillnull
+required_capability: type_conversion_timezone_support
+
+SET time_zone = "-10:00"\;
+ROW foo_date = NULL::date_nanos
+| FILLNULL "1969-12-31T20:00:00" ON foo_date
+| EVAL epoch_nanos = foo_date::long
+| KEEP epoch_nanos, foo_date
+;
+
+  epoch_nanos:long  |      foo_date:date_nanos
+21600000000000      |1969-12-31T20:00:00.000-10:00
+;
+
+fillNullDateNanosFillOutsideRangeInUtcIsSkipped
+required_capability: fillnull
+
+// The counterpart of fillNullDateNanosFillHonoursQueryTimeZone with no SET time_zone: 1969-12-31T20:00:00Z is before
+// the date_nanos epoch, so the value cannot be applied. `ON *` is the lenient form, so the column is left untouched.
+ROW foo_date = NULL::date_nanos
+| FILLNULL "1969-12-31T20:00:00" ON *
+;
+warning:Line 2:3: [FILLNULL] the fill value could not be applied to the following fields, which were left unchanged: [foo_date]
+
+foo_date:date_nanos
+null
+;
+
+fillNullDefaultForUnsignedLong
+required_capability: fillnull
+
+// The unsigned_long default is the unsigned encoding of 0, not a plain 0L - a plain 0L would render as
+// 9223372036854775808.
+ROW ul = null
+| EVAL ul = ul::unsigned_long
+| FILLNULL DEFAULT ON ul
+;
+
+ul:unsigned_long
+0
+;
+
+fillNullStarMixedWithNameGetsSummaryWarning
+required_capability: fillnull
+
+ROW d = null, a = null, i = null
+| EVAL d = d::datetime, a = a::ip, i = i::integer
+| FILLNULL DEFAULT ON *, d
+;
+warning:Line 3:3: [FILLNULL] the following fields have no default fill value for their type and were left unchanged: [d, a]; provide an explicit value
+
+d:datetime | a:ip | i:integer
+null       | null | 0
+;
+
+fillNullExplicitValueForUnsignedLong
+required_capability: fillnull
+
+ROW ul = null
+| EVAL ul = ul::unsigned_long
+| FILLNULL 18446744073709551615 ON ul
+;
+
+ul:unsigned_long
+18446744073709551615
+;
+
+fillNullIntegerValueForUnsignedLongSkippedForAllFields
+required_capability: fillnull
+
+// An integer value cannot be applied to an unsigned_long column, so the column is left unchanged and reported.
+ROW ul = null, i = null
+| EVAL ul = ul::unsigned_long, i = i::integer
+| FILLNULL 7 ON *
+;
+warning:Line 3:3: [FILLNULL] the fill value could not be applied to the following fields, which were left unchanged: [ul]
+
+ul:unsigned_long | i:integer
+null             | 7
 ;

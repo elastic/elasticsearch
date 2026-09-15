@@ -522,17 +522,17 @@ public interface EsqlBaseParserVisitor<T> extends ParseTreeVisitor<T> {
    */
   T visitQualifiedNames(EsqlBaseParser.QualifiedNamesContext ctx);
   /**
-   * Visit a parse tree produced by {@link EsqlBaseParser#fillnullCommand}.
+   * Visit a parse tree produced by {@link EsqlBaseParser#fillNullCommand}.
    * @param ctx the parse tree
    * @return the visitor result
    */
-  T visitFillnullCommand(EsqlBaseParser.FillnullCommandContext ctx);
+  T visitFillNullCommand(EsqlBaseParser.FillNullCommandContext ctx);
   /**
-   * Visit a parse tree produced by {@link EsqlBaseParser#fillnullValue}.
+   * Visit a parse tree produced by {@link EsqlBaseParser#fillNullValue}.
    * @param ctx the parse tree
    * @return the visitor result
    */
-  T visitFillnullValue(EsqlBaseParser.FillnullValueContext ctx);
+  T visitFillNullValue(EsqlBaseParser.FillNullValueContext ctx);
   /**
    * Visit a parse tree produced by {@link EsqlBaseParser#uriPartsCommand}.
    * @param ctx the parse tree

@@ -70,9 +70,10 @@ public class SubstituteSurrogatePlansFillNullCommandTests extends AbstractLogica
             | FILLNULL DEFAULT ON d
             """);
         assertFalse("FILLNULL must be substituted away", plan.anyMatch(p -> p instanceof FillNull));
+        // A named target gets the same single summary warning as `ON *` - the form of the target list never changes it.
         assertWarnings(
-            "Line 3:3: [FILLNULL] field [d] of type [datetime] has no default fill value and was left unchanged; "
-                + "provide an explicit value"
+            "Line 3:3: [FILLNULL] the following fields have no default fill value for their type and were left "
+                + "unchanged: [d]; provide an explicit value"
         );
     }
 

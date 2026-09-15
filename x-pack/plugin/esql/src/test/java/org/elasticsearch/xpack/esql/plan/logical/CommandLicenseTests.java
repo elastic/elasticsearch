@@ -127,11 +127,9 @@ public class CommandLicenseTests extends ESTestCase {
             "Aggregate",
             "Join",
             "LookupJoin",
+            // Acronym class name; no camelCase grammar rule can produce it.
             "Mmr",
-            "MMR",
-            // visitFillnullCommand yields "Fillnull"; the class is FillNull.
-            "Fillnull",
-            "FillNull"
+            "MMR"
         );
         Map<String, String> commandNameMapper = Map.of(
             "ChangePoint",

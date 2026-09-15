@@ -19,19 +19,23 @@ import java.util.StringJoiner;
 import static org.elasticsearch.common.logging.HeaderWarning.addWarning;
 
 /**
- * Warns when a {@code FILLNULL DEFAULT} targets a column whose type has no default fill value (e.g. {@code date},
- * {@code date_nanos}, {@code ip}, {@code version}, geo types, or a genuinely {@code null}-typed column). Such columns
- * cannot be given a type default and are left unchanged; the user must supply an explicit value.
+ * Reports, as a response-header warning, every targeted column that {@code FILLNULL} left unchanged.
  * <p>
- * For an explicit name / pattern target list, one warning is emitted per un-fillable field. For the {@code ON *}
- * (all-columns) form a single summary warning lists the columns that were left unchanged, to avoid flooding the
- * response headers with one warning per column. That summary lists at most {@link #MAX_FIELDS_IN_WARNING} field names;
- * when more columns are left unchanged the message reports how many are shown so the header stays bounded.
+ * {@code FILLNULL} never fails over a column it cannot fill - not for a type mismatch, a value out of range for the
+ * column, a string that will not parse into a date / ip / version, a {@code null}-typed column, nor a type that has no
+ * default under {@code DEFAULT}. The outcome no longer depends on how the column was selected: naming a column, matching
+ * it with a pattern and sweeping it up with {@code *} all leave it unchanged and warn. The column keeps whatever it had,
+ * null or not.
  * <p>
- * This runs before {@link SubstituteSurrogatePlans} in {@code LogicalPlanOptimizer.substitutions()} because the
- * {@link FillNull} node is rewritten away by that substitution. When an explicit value is present there is nothing
- * to warn about: an incompatible explicitly-targeted field is a hard error and the {@code ON *} form intentionally
- * skips incompatible columns.
+ * Always a <em>single</em> summary warning listing the columns, whatever the target form, so the response headers stay
+ * bounded and the shape is predictable. It lists at most {@link #MAX_FIELDS_IN_WARNING} names and then reports how many
+ * of how many are shown.
+ * <p>
+ * The one silent form is an explicit {@code NULL} value, which means "do not fill": nothing is unexpectedly left
+ * unchanged, so there is nothing to report.
+ * <p>
+ * This runs before {@link SubstituteSurrogatePlans} in {@code LogicalPlanOptimizer.substitutions()} because that
+ * substitution rewrites the {@link FillNull} node away.
  */
 public final class WarnUnfillableFillNull extends Rule<LogicalPlan, LogicalPlan> {
 
@@ -44,54 +48,58 @@ public final class WarnUnfillableFillNull extends Rule<LogicalPlan, LogicalPlan>
     }
 
     private static void warn(FillNull fillNull) {
-        // Only the type-default form (DEFAULT, represented as a null fill value) can leave a targeted column unfilled
-        // without it being an error.
-        if (fillNull.fillValue() != null) {
-            return;
-        }
-        List<Attribute> unfillable = fillNull.unfillableTargets();
-        if (unfillable.isEmpty()) {
+        // An explicit NULL is a deliberate no-op, so nothing was unexpectedly left unchanged.
+        if (fillNull.isExplicitNullFill()) {
             return;
         }
         Source source = fillNull.source();
         int line = source.source().getLineNumber();
         int column = source.source().getColumnNumber();
-        if (fillNull.targetFields().isEmpty()) {
-            int shown = Math.min(unfillable.size(), MAX_FIELDS_IN_WARNING);
-            StringJoiner names = new StringJoiner(", ");
-            for (int i = 0; i < shown; i++) {
-                names.add(unfillable.get(i).name());
-            }
-            if (unfillable.size() > MAX_FIELDS_IN_WARNING) {
-                addWarning(
-                    "Line {}:{}: [FILLNULL] the following fields have no default fill value for their type and were left "
-                        + "unchanged: [{}]; provide an explicit value; only the first {} of {} fields are shown",
-                    line,
-                    column,
-                    names.toString(),
-                    MAX_FIELDS_IN_WARNING,
-                    unfillable.size()
-                );
-            } else {
-                addWarning(
-                    "Line {}:{}: [FILLNULL] the following fields have no default fill value for their type and were left "
-                        + "unchanged: [{}]; provide an explicit value",
-                    line,
-                    column,
-                    names.toString()
-                );
-            }
+
+        // A multi-valued value (only reachable through a list-valued ?param) fills nothing at all. Reported on its own:
+        // listing every targeted column would bury the actual problem, which is the value rather than the columns.
+        List<?> multiValued = fillNull.multiValuedFill();
+        if (multiValued != null) {
+            addWarning(
+                "Line {}:{}: [FILLNULL] fill value must be a single value, found [{}] values; no columns were filled",
+                line,
+                column,
+                multiValued.size()
+            );
+            return;
+        }
+
+        List<Attribute> unfillable = fillNull.unfillableTargets();
+        if (unfillable.isEmpty()) {
+            return;
+        }
+        int shown = Math.min(unfillable.size(), MAX_FIELDS_IN_WARNING);
+        StringJoiner names = new StringJoiner(", ");
+        for (int i = 0; i < shown; i++) {
+            names.add(unfillable.get(i).name());
+        }
+        String suffix = unfillable.size() > MAX_FIELDS_IN_WARNING
+            ? "; only the first " + MAX_FIELDS_IN_WARNING + " of " + unfillable.size() + " fields are shown"
+            : "";
+        if (fillNull.fillValue() == null) {
+            // DEFAULT: the type simply has no default, so the actionable advice is to pass a value.
+            addWarning(
+                "Line {}:{}: [FILLNULL] the following fields have no default fill value for their type and were left "
+                    + "unchanged: [{}]; provide an explicit value{}",
+                line,
+                column,
+                names.toString(),
+                suffix
+            );
         } else {
-            for (Attribute field : unfillable) {
-                addWarning(
-                    "Line {}:{}: [FILLNULL] field [{}] of type [{}] has no default fill value and was left unchanged; "
-                        + "provide an explicit value",
-                    line,
-                    column,
-                    field.name(),
-                    field.dataType().typeName()
-                );
-            }
+            addWarning(
+                "Line {}:{}: [FILLNULL] the fill value could not be applied to the following fields, which were left "
+                    + "unchanged: [{}]{}",
+                line,
+                column,
+                names.toString(),
+                suffix
+            );
         }
     }
 }

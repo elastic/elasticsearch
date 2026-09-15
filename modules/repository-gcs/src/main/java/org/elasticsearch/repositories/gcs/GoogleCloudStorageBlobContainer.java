@@ -24,6 +24,7 @@ import org.elasticsearch.common.blobstore.support.AbstractBlobContainer;
 import org.elasticsearch.common.blobstore.support.BlobMetadata;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.core.CheckedConsumer;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.rest.RestStatus;
 
 import java.io.IOException;
@@ -143,7 +144,8 @@ class GoogleCloudStorageBlobContainer extends AbstractBlobContainer {
         final BlobContainer sourceBlobContainer,
         final String sourceBlobName,
         final String blobName,
-        final long blobSize
+        final long blobSize,
+        @Nullable final Executor executor
     ) throws IOException {
         assert BlobContainer.assertPurposeConsistency(purpose, sourceBlobName);
         assert BlobContainer.assertPurposeConsistency(purpose, blobName);

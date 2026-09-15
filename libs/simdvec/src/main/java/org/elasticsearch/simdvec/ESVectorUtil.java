@@ -1054,13 +1054,72 @@ public class ESVectorUtil {
      * @return transposed matrix in row-major order, length cols*rows
      */
     public static float[] transposeMatrix(float[] m, int rows, int cols) {
+        // work in tiles of 16x16 floats, rather than whole rows at a time
+        // A 16-wide row is 64 bytes, which is 1 cache line, x16 rows.
+        // both read & write tiles fit in L1 at once.
+        final int transposeBlock = 16;
+
         float[] t = new float[cols * rows];
-        for (int i = 0; i < rows; i++) {
-            for (int j = 0; j < cols; j++) {
-                t[j * rows + i] = m[i * cols + j];
+        for (int ii = 0; ii < rows; ii += transposeBlock) {
+            int iMax = Math.min(ii + transposeBlock, rows);
+            for (int jj = 0; jj < cols; jj += transposeBlock) {
+                int jMax = Math.min(jj + transposeBlock, cols);
+                for (int i = ii; i < iMax; i++) {
+                    int mBase = i * cols;
+                    for (int j = jj; j < jMax; j++) {
+                        t[j * rows + i] = m[mBase + j];
+                    }
+                }
             }
         }
         return t;
+    }
+
+    /**
+     * Computes {@code C = A @ B} where A is (m x k) and B is (k x n), both row-major.
+     * Result C is (m x n).
+     */
+    public static float[] matrixMultiply(float[] a, float[] b, int m, int k, int n) {
+        if (a.length != m * k) throw new IllegalArgumentException("Invalid a array size [" + a.length + "] for matrix multiplication");
+        if (b.length != k * n) throw new IllegalArgumentException("Invalid b array size [" + b.length + "] for matrix multiplication");
+        return IMPL.matrixMultiply(a, b, m, k, n);
+    }
+
+    /**
+     * Computes {@code result = A @ v} where A is a (rows x cols) row-major matrix.
+     *
+     * @param a    flat row-major matrix, length rows*cols
+     * @param rows number of rows in A
+     * @param cols number of columns in A, and length of v
+     * @param v    input vector, length cols
+     * @return output vector, length rows
+     */
+    public static float[] matrixVectorMultiply(float[] a, int rows, int cols, float[] v) {
+        float[] result = new float[rows];
+        matrixVectorMultiply(a, rows, cols, v, result);
+        return result;
+    }
+
+    /**
+     * Computes {@code result = A @ v} where A is a (rows x cols) row-major matrix.
+     *
+     * @param a      flat row-major matrix, length rows*cols
+     * @param rows   number of rows in A
+     * @param cols   number of columns in A, and length of v
+     * @param v      input vector, length cols
+     * @param result output vector, length rows
+     */
+    public static void matrixVectorMultiply(float[] a, int rows, int cols, float[] v, float[] result) {
+        if (a.length != rows * cols) {
+            throw new IllegalArgumentException("Invalid a array size [" + a.length + "] for matrix vector multiplication");
+        }
+        if (v.length != cols) {
+            throw new IllegalArgumentException("Invalid v array size [" + v.length + "] for matrix vector multiplication");
+        }
+        if (result.length != rows) {
+            throw new IllegalArgumentException("Invalid result array size [" + result.length + "] for matrix vector multiplication");
+        }
+        IMPL.matrixVectorMultiply(a, rows, cols, v, result);
     }
 
     /**

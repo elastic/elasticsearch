@@ -72,7 +72,14 @@ public class MappingBuilder {
      * @param newFieldsBudget how many new fields may be added during the merge
      */
     public void merge(MappingBuilder incoming, MergeReason reason, long newFieldsBudget) {
-        MapperMergeContext mergeContext = MapperMergeContext.root(isSourceSynthetic(), false, reason, newFieldsBudget, isStrictColumnar);
+        MapperMergeContext mergeContext = MapperMergeContext.root(
+            isSourceSynthetic(),
+            false,
+            reason,
+            newFieldsBudget,
+            isStrictColumnar,
+            isSourceColumnarStored()
+        );
 
         // Merge root object builders
         MapperMergeContext objectMergeContext = mergeContext.createChildContext(null, rootBuilder.dynamic);
@@ -113,7 +120,13 @@ public class MappingBuilder {
      * @return the built {@link Mapping}
      */
     public Mapping build(MergeReason reason) {
-        MapperBuilderContext rootContext = MapperBuilderContext.root(isSourceSynthetic(), isDataStream(), reason, isStrictColumnar);
+        MapperBuilderContext rootContext = MapperBuilderContext.root(
+            isSourceSynthetic(),
+            isDataStream(),
+            reason,
+            isStrictColumnar,
+            isSourceColumnarStored()
+        );
         RootObjectMapper root = rootBuilder.build(rootContext);
         MetadataFieldMapper[] metadataMappers = metadataBuilders.values()
             .stream()
@@ -127,6 +140,11 @@ public class MappingBuilder {
         // columnar_stored pre-computes the synthetic source at indexing time, so mappers must
         // prepare the same fallback storage (doc values, stored fields) they would in synthetic mode.
         return builder instanceof SourceFieldMapper.Builder sfb && (sfb.isSynthetic() || sfb.isColumnarStored());
+    }
+
+    private boolean isSourceColumnarStored() {
+        MetadataFieldMapper.Builder builder = metadataBuilders.get(SourceFieldMapper.NAME);
+        return builder instanceof SourceFieldMapper.Builder sfb && sfb.isColumnarStored();
     }
 
     private boolean isDataStream() {

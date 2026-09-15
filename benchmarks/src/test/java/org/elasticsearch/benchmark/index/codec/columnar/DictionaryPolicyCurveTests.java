@@ -52,7 +52,7 @@ public class DictionaryPolicyCurveTests extends ESTestCase {
             for (int kb : BUDGETS_KB) {
                 // Only the budget constrains the survey here; whether to keep what it found is asked after.
                 final DictionaryPolicy surveying = new DictionaryPolicy(kb * 1024, 0.0, 1.0);
-                final Vocabulary.Terms terms = Vocabulary.survey(cursor(values), surveying, values.length);
+                final Vocabulary.Terms terms = Vocabulary.survey(cursor(values), surveying);
                 if (terms == null) {
                     // Nothing worth naming: every value is nearly its own term.
                     System.out.println(String.format(Locale.ROOT, "%-20s %9d %7s", data, kb, "none"));
@@ -100,8 +100,7 @@ public class DictionaryPolicyCurveTests extends ESTestCase {
         for (StringData data : new StringData[] { StringData.LOG_LEVEL, StringData.HIT_COLOR, StringData.HOSTNAME }) {
             final Vocabulary.Terms terms = Vocabulary.survey(
                 cursor(data.generate(DOCS, new Random(7))),
-                ColumNARDocValuesFormat.DEFAULT_DICTIONARY_POLICY,
-                DOCS
+                ColumNARDocValuesFormat.DEFAULT_DICTIONARY_POLICY
             );
             assertNotNull(data + " surveyed no terms", terms);
             assertEquals(data + " left values unnamed", 1.0, terms.coverage(), 0.0);
@@ -113,7 +112,7 @@ public class DictionaryPolicyCurveTests extends ESTestCase {
         for (StringData data : new StringData[] { StringData.TRACE_ID, StringData.URL }) {
             final BytesRef[] values = data.generate(DOCS, new Random(7));
             for (int kb : BUDGETS_KB) {
-                final Vocabulary.Terms terms = Vocabulary.survey(cursor(values), new DictionaryPolicy(kb * 1024, 0.0, 1.0), DOCS);
+                final Vocabulary.Terms terms = Vocabulary.survey(cursor(values), new DictionaryPolicy(kb * 1024, 0.0, 1.0));
                 assertNull(data + " named terms at " + kb + "KB", terms);
             }
         }
@@ -126,6 +125,12 @@ public class DictionaryPolicyCurveTests extends ESTestCase {
             @Override
             public int valueCount() {
                 return values[doc] == null ? 0 : 1;
+            }
+
+            /** A document with no value is skipped rather than carrying a null slot, so there are none. */
+            @Override
+            public int nullCount() {
+                return 0;
             }
 
             @Override

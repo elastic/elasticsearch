@@ -78,12 +78,12 @@ import org.elasticsearch.xpack.esql.datasources.spi.RangeAwareFormatReader;
 import org.elasticsearch.xpack.esql.datasources.spi.RangeAwareFormatReader.SplitRange;
 import org.elasticsearch.xpack.esql.datasources.spi.RangeReadContext;
 import org.elasticsearch.xpack.esql.datasources.spi.RowPositionStrategy;
+import org.elasticsearch.xpack.esql.datasources.spi.SharedErrorBudget;
 import org.elasticsearch.xpack.esql.datasources.spi.SimpleSourceMetadata;
 import org.elasticsearch.xpack.esql.datasources.spi.SkipWarnings;
 import org.elasticsearch.xpack.esql.datasources.spi.SourceMetadata;
 import org.elasticsearch.xpack.esql.datasources.spi.SourceStatistics;
 import org.elasticsearch.xpack.esql.datasources.spi.StorageObject;
-import org.elasticsearch.xpack.esql.datasources.spi.ThreadCpuTimer;
 import org.elasticsearch.xpack.esql.type.EsqlDataTypeConverter;
 
 import java.io.IOException;
@@ -585,7 +585,8 @@ public class OrcFormatReader implements RangeAwareFormatReader, NoConfigFormatRe
             declaredTypeColumns,
             object.path().toString(),
             resolveErrorPolicy(context.errorPolicy()),
-            context.informationalWarningSink()
+            context.informationalWarningSink(),
+            context.sharedErrorBudget()
         );
         return rowLimit != NO_LIMIT ? new RowLimitingIterator(iter, rowLimit) : iter;
     }
@@ -732,7 +733,8 @@ public class OrcFormatReader implements RangeAwareFormatReader, NoConfigFormatRe
             declaredTypeColumns,
             object.path().toString(),
             resolveErrorPolicy(context.errorPolicy()),
-            context.informationalWarningSink()
+            context.informationalWarningSink(),
+            context.sharedErrorBudget()
         );
     }
 
@@ -1412,11 +1414,14 @@ public class OrcFormatReader implements RangeAwareFormatReader, NoConfigFormatRe
             Set<String> declaredTypeColumns,
             String fileLocation,
             ErrorPolicy errorPolicy,
-            @Nullable Consumer<String> warningSink
+            @Nullable Consumer<String> warningSink,
+            @Nullable SharedErrorBudget sharedErrorBudget
         ) {
             this.errorPolicy = errorPolicy;
             this.warningSink = warningSink;
-            this.rowDropHelper = ColumnarRowDropHelper.forPolicy(errorPolicy, fileLocation);
+            this.rowDropHelper = sharedErrorBudget != null
+                ? ColumnarRowDropHelper.forSharedBudgetOwner(sharedErrorBudget)
+                : ColumnarRowDropHelper.forPolicy(errorPolicy, fileLocation);
             this.reader = reader;
             this.rows = rows;
             this.attributes = attributes;
@@ -1606,8 +1611,6 @@ public class OrcFormatReader implements RangeAwareFormatReader, NoConfigFormatRe
             if (batchReady) {
                 return true;
             }
-            long startNanos = System.nanoTime();
-            long startCpuNanos = ThreadCpuTimer.currentNanos();
             try {
                 while (true) {
                     if (stripeSkipTable != null && stripeSkipTable.noFurtherCandidates()) {
@@ -1634,11 +1637,6 @@ public class OrcFormatReader implements RangeAwareFormatReader, NoConfigFormatRe
                 }
             } catch (IOException e) {
                 throw new IllegalArgumentException("Failed to read ORC batch", e);
-            } finally {
-                if (startCpuNanos >= 0) {
-                    counters.addReadCpuNanos(ThreadCpuTimer.elapsedNanos(startCpuNanos));
-                }
-                counters.addReadNanos(System.nanoTime() - startNanos);
             }
         }
 

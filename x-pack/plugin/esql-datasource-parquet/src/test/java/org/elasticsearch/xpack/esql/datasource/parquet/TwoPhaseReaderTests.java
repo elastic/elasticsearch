@@ -1691,14 +1691,13 @@ public class TwoPhaseReaderTests extends ESTestCase {
         ParquetFormatReader reader = new ParquetFormatReader(blockFactory, true).withPushedFilter(pushed);
 
         try (CloseableIterator<Page> it = reader.read(obj, FormatReadContext.builder().batchSize(1024).build())) {
-            long readNanosAfterOpen = reader.statusSnapshot().readNanos();
             while (it.hasNext()) {
                 it.next().releaseBlocks();
             }
             assertThat(
-                "read_nanos must grow beyond the open phase as drainEmptyTwoPhaseBatches() performs real decode work",
-                reader.statusSnapshot().readNanos(),
-                greaterThan(readNanosAfterOpen)
+                "rows emitted must be > 0 as drainEmptyTwoPhaseBatches() performs real decode work",
+                reader.statusSnapshot().rowsEmitted(),
+                greaterThan(0L)
             );
         }
     }

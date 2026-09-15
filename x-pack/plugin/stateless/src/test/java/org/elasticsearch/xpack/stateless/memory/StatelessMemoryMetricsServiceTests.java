@@ -227,9 +227,15 @@ public class StatelessMemoryMetricsServiceTests extends ESTestCase {
         final NodeHeapEstimates nodeEstimate = estimatedHeapUsageStats.nodeHeapEstimates().get(node0.getId());
         final ShardAndIndexHeapUsage shardEstimate = estimatedHeapUsageStats.shardHeapUsageEstimates().perShard().get(shardId);
 
+        // Verify internal consistency: hostedShardsHeapUsage is shardHeapUsageBytes + indexHeapUsageBytes for a single shard.
+        // This only holds if both sides of EstimatedHeapUsageStats were derived from the same snapshot — a mismatch means
+        // one side observed different (e.g. post-update) metric values than the other.
+        assertThat(
+            nodeEstimate.hostedShardsHeapUsage(),
+            equalTo(shardEstimate.shardHeapUsageBytes() + shardEstimate.indexHeapUsageBytes())
+        );
+
         // Subsequent direct service reads use the live metric map, so they should observe the update made after the snapshot was copied.
-        // If either side of getEstimatedHeapUsageStats had read from a second (post-update) snapshot, that side's value would equal
-        // the subsequent read here — causing a not(equalTo) assertion below to pass trivially and the other to fail — detecting the bug.
         assertThat(service.getPerNodeMemoryMetrics(clusterState).get(node0.getId()), not(equalTo(nodeEstimate)));
         assertThat(service.getShardHeapUsageEstimates().perShard().get(shardId), not(equalTo(shardEstimate)));
     }

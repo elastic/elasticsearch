@@ -125,9 +125,7 @@ public class MapperServiceTests extends MapperServiceTestCase {
     }
 
     public void testDottedFieldNamesAreNotOvercountedAtParseTime() throws IOException {
-        Settings settings = Settings.builder()
-            .put(MapperService.INDEX_MAPPING_TOTAL_FIELDS_LIMIT_SETTING.getKey(), 4)
-            .build();
+        Settings settings = Settings.builder().put(MapperService.INDEX_MAPPING_TOTAL_FIELDS_LIMIT_SETTING.getKey(), 4).build();
         MapperService mapperService = createMapperService(settings, mapping(b -> {}));
 
         // x.a, x.b, x.c creates 4 fields (x, x.a, x.b, x.c) — fits within limit of 4.
@@ -146,10 +144,7 @@ public class MapperServiceTests extends MapperServiceTestCase {
             b.startObject("x.b").field("type", "keyword").endObject();
             b.startObject("y.c").field("type", "keyword").endObject();
         });
-        IllegalArgumentException e = expectThrows(
-            IllegalArgumentException.class,
-            () -> merge(mapperService2, fiveFields)
-        );
+        IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> merge(mapperService2, fiveFields));
         assertThat(e.getMessage(), containsString("Limit of total fields [4] has been exceeded"));
     }
 

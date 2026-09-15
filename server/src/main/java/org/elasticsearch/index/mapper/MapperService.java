@@ -641,9 +641,7 @@ public class MapperService extends AbstractIndexComponent implements Closeable {
                 throw new MapperParsingException("Failed to parse mapping: {}", e, e.getMessage());
             }
         }
-        long nestedFieldsLimit = reason == MergeReason.MAPPING_RECOVERY
-            ? Long.MAX_VALUE
-            : indexSettings.getMappingNestedFieldsLimit();
+        long nestedFieldsLimit = reason == MergeReason.MAPPING_RECOVERY ? Long.MAX_VALUE : indexSettings.getMappingNestedFieldsLimit();
         long existingNestedCount = currentMapper.mappers().nestedLookup().getNestedMappers().size();
         ParseFieldLimits fieldLimits = ParseFieldLimits.forMerge(nestedFieldsLimit, existingNestedCount, budget);
         MappingBuilder existingBuilder = mappingParser.parseToBuilder(currentMapper.type(), reason, currentMapper.mappingSource());

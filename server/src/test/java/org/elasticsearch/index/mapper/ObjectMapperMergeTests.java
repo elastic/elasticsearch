@@ -532,10 +532,20 @@ public final class ObjectMapperMergeTests extends ESTestCase {
         RootObjectMapper.Builder existing = new RootObjectMapper.Builder("_doc");
         RootObjectMapper.Builder incoming = new RootObjectMapper.Builder("_doc");
         incoming.add(
-            new NestedObjectMapper.Builder("nested1", IndexVersion.current(), q -> { throw new UnsupportedOperationException(); }, INDEX_SETTINGS)
+            new NestedObjectMapper.Builder(
+                "nested1",
+                IndexVersion.current(),
+                q -> { throw new UnsupportedOperationException(); },
+                INDEX_SETTINGS
+            )
         );
         incoming.add(
-            new NestedObjectMapper.Builder("nested2", IndexVersion.current(), q -> { throw new UnsupportedOperationException(); }, INDEX_SETTINGS)
+            new NestedObjectMapper.Builder(
+                "nested2",
+                IndexVersion.current(),
+                q -> { throw new UnsupportedOperationException(); },
+                INDEX_SETTINGS
+            )
         );
 
         MapperParsingException e = expectThrows(MapperParsingException.class, () -> existing.mergeWith(incoming, mergeContext));
@@ -552,7 +562,12 @@ public final class ObjectMapperMergeTests extends ESTestCase {
         );
         RootObjectMapper.Builder atLimit = new RootObjectMapper.Builder("_doc");
         atLimit.add(
-            new NestedObjectMapper.Builder("nested1", IndexVersion.current(), q -> { throw new UnsupportedOperationException(); }, INDEX_SETTINGS)
+            new NestedObjectMapper.Builder(
+                "nested1",
+                IndexVersion.current(),
+                q -> { throw new UnsupportedOperationException(); },
+                INDEX_SETTINGS
+            )
         );
         new RootObjectMapper.Builder("_doc").mergeWith(atLimit, mergeContextAtLimit); // must not throw
     }

@@ -30,7 +30,14 @@ public final class MapperMergeContext {
      * The root context, to be used when merging a tree of mappers
      */
     public static MapperMergeContext root(boolean isSourceSynthetic, boolean isDataStream, MergeReason mergeReason, long newFieldsBudget) {
-        return root(isSourceSynthetic, isDataStream, mergeReason, ParseFieldLimits.withBudget(NewFieldsBudget.dropping(newFieldsBudget)), false, false);
+        return root(
+            isSourceSynthetic,
+            isDataStream,
+            mergeReason,
+            ParseFieldLimits.withBudget(NewFieldsBudget.dropping(newFieldsBudget)),
+            false,
+            false
+        );
     }
 
     /**

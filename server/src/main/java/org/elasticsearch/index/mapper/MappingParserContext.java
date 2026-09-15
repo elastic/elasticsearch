@@ -33,7 +33,6 @@ import java.util.function.Supplier;
  */
 public class MappingParserContext {
 
-
     private final Function<String, SimilarityProvider> similarityLookupService;
     private final Function<String, Mapper.TypeParser> typeParsers;
     private final Function<String, RuntimeField.Parser> runtimeFieldParsers;

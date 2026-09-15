@@ -1360,19 +1360,25 @@ public class FileSplitProvider implements SplitProvider {
     }
 
     /**
-     * Planning {@link #gatherAsync} concurrency: when every file is Parquet and
+     * Planning {@link #gatherAsync} concurrency: when every file is Parquet
+     * ({@link FormatNameResolver#resolveFormatName} equals {@link FormatNameResolver#FORMAT_PARQUET},
+     * so {@code .parq} counts) and
      * {@link StorageObject#readBytesAsyncReleasesExecutor()} on one peeked
      * {@link StorageProvider#newObject} per distinct scheme,
      * {@link ExternalSourceSettings#externalIoThreads} (never 0). Otherwise
-     * {@link #splitDiscoveryConcurrency()}. Any {@code newObject} failure is conservative (16).
+     * {@link #splitDiscoveryConcurrency()}. A null {@code formatRegistry} or any
+     * {@code newObject} / resolve failure is conservative (16).
      * Probes and sync {@link BoundedParallelGather} keep {@link #splitDiscoveryConcurrency()}.
      */
     private int planningDiscoveryConcurrency(List<FileTask> tasks, @Nullable StorageProvider hoistedProvider) {
+        if (formatRegistry == null) {
+            return splitDiscoveryConcurrency();
+        }
         try {
             Set<String> seenSchemes = new HashSet<>();
             for (FileTask task : tasks) {
                 if (FormatNameResolver.FORMAT_PARQUET.equals(
-                    FormatNameResolver.resolve(task.config(), task.filePath().objectName())
+                    FormatNameResolver.resolveFormatName(task.config(), task.filePath().objectName(), formatRegistry)
                 ) == false) {
                     return splitDiscoveryConcurrency();
                 }
@@ -1493,6 +1499,19 @@ public class FileSplitProvider implements SplitProvider {
             types.put(a.name(), a.dataType());
         }
         return types;
+    }
+
+    /**
+     * File types for footer-stat normalization when no declaration overlaid the read schema. Prefers the
+     * pre-pin inferred map so a text UNION_BY_NAME pin on {@code readSchema} does not make
+     * {@code file == reconciled} and skip conversion; falls back to {@code readSchema} when nothing
+     * retyped this file.
+     */
+    private static Map<String, DataType> undeclaredStatsFileTypes(
+        List<Attribute> readSchema,
+        @Nullable Map<String, DataType> inferredFileTypes
+    ) {
+        return inferredFileTypes != null ? inferredFileTypes : attributesToTypeMap(readSchema);
     }
 
     /**
@@ -2152,12 +2171,14 @@ public class FileSplitProvider implements SplitProvider {
         for (SplitRange range : ranges) {
             Map<String, Object> rangeStats = range.statistics().isEmpty() ? null : range.statistics();
             if (rangeStats != null && readSchema != null && reconciledTypes != null) {
-                // The type authority for normalizing footer range stats. Without a declaration the footer values ARE
-                // in the readSchema (inferred) types — today's behavior. With a declaration, readSchema is the OVERLAID
-                // (declared) schema, so it lies about the raw footer values; use the file's PRE-overlay inferred types.
+                // Type authority for the raw footer values. Prefer inferredFileTypes when set (pre-pin / pre-overlay):
+                // a text UNION_BY_NAME pin stores the reconciled type on readSchema, which would make
+                // file == reconciled and skip the LONG->DOUBLE convert. Fall back to readSchema when nothing
+                // retyped this file. A declaration overlays readSchema, so the branch below rekeys and poisons
+                // before normalizing with the inferred types.
                 Map<String, DataType> statsFileTypes;
                 if (declaredReadSpec.isEmpty()) {
-                    statsFileTypes = attributesToTypeMap(readSchema);
+                    statsFileTypes = undeclaredStatsFileTypes(readSchema, inferredFileTypes);
                 } else {
                     // S1 boundary, split edition. Rekey the `path` renames (a pure move changes no value, so rekeyed
                     // stats stay exact) and poison declared-retyped / date-format columns (the scan's per-value
@@ -2189,10 +2210,11 @@ public class FileSplitProvider implements SplitProvider {
                         statsFileTypes = attributesToTypeMap(readSchema);
                     }
                 }
-                // Footer stats are in each file's LOCAL unit/representation; normalize to the reconciled query type so
-                // the split-filter classifier (which compares a reconciled-unit literal) and the filtered merge
-                // compare/serve in ONE unit across mixed DATETIME(millis)/DATE_NANOS(nanos) files, not unit-blind. A
-                // non-normalizable representation safe-misses via the marker.
+                // Footer stats are in each file's LOCAL unit/representation (footer or inferred types, not a
+                // pinned or unified type); normalize to the reconciled query type so the split-filter classifier
+                // and the filtered merge compare/serve in ONE unit across mixed DATETIME(millis)/DATE_NANOS(nanos)
+                // files and LONG/INTEGER files reconciled to DOUBLE, not unit-blind. A non-normalizable
+                // representation safe-misses via the marker.
                 rangeStats = SourceStatisticsSerializer.normalizeStatsToReconciled(rangeStats, statsFileTypes, reconciledTypes);
             }
             splits.add(
@@ -2231,12 +2253,14 @@ public class FileSplitProvider implements SplitProvider {
         if (stats == null || readSchema == null || reconciledTypes == null) {
             return stats;
         }
-        // The type authority for normalizing footer range stats. Without a declaration the footer values ARE
-        // in the readSchema (inferred) types — today's behavior. With a declaration, readSchema is the OVERLAID
-        // (declared) schema, so it lies about the raw footer values; use the file's PRE-overlay inferred types.
+        // Type authority for the raw footer values. Prefer inferredFileTypes when set (pre-pin / pre-overlay):
+        // a text UNION_BY_NAME pin stores the reconciled type on readSchema, which would make
+        // file == reconciled and skip the LONG->DOUBLE convert. Fall back to readSchema when nothing
+        // retyped this file. A declaration overlays readSchema, so the branch below rekeys and poisons
+        // before normalizing with the inferred types.
         Map<String, DataType> statsFileTypes;
         if (declaredReadSpec.isEmpty()) {
-            statsFileTypes = attributesToTypeMap(readSchema);
+            statsFileTypes = undeclaredStatsFileTypes(readSchema, inferredFileTypes);
         } else {
             // S1 boundary, split edition. Rekey the `path` renames (a pure move changes no value, so rekeyed
             // stats stay exact) and poison declared-retyped / date-format columns (the scan's per-value
@@ -2268,10 +2292,11 @@ public class FileSplitProvider implements SplitProvider {
                 statsFileTypes = attributesToTypeMap(readSchema);
             }
         }
-        // Footer stats are in each file's LOCAL unit/representation; normalize to the reconciled query type so
-        // the split-filter classifier (which compares a reconciled-unit literal) and the filtered merge
-        // compare/serve in ONE unit across mixed DATETIME(millis)/DATE_NANOS(nanos) files, not unit-blind. A
-        // non-normalizable representation safe-misses via the marker.
+        // Footer stats are in each file's LOCAL unit/representation (footer or inferred types, not a
+        // pinned or unified type); normalize to the reconciled query type so the split-filter classifier
+        // and the filtered merge compare/serve in ONE unit across mixed DATETIME(millis)/DATE_NANOS(nanos)
+        // files and LONG/INTEGER files reconciled to DOUBLE, not unit-blind. A non-normalizable
+        // representation safe-misses via the marker.
         return SourceStatisticsSerializer.normalizeStatsToReconciled(stats, statsFileTypes, reconciledTypes);
     }
 

@@ -45,7 +45,10 @@ jobs:
             const alreadyReacted = reactions.some(
               (reaction) =>
                 reaction.content === reactionContent &&
-                reaction.user?.type === 'Bot'
+                (
+                  reaction.user?.login === 'github-actions[bot]' ||
+                  reaction.user?.type === 'Bot'
+                )
             );
 
             if (alreadyReacted) {

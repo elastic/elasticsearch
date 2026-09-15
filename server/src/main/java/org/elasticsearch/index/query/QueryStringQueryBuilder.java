@@ -898,7 +898,8 @@ public final class QueryStringQueryBuilder extends LeafQueryBuilder<QueryStringQ
                     context,
                     QueryParserHelper.parseFieldsAndWeights(defaultFields)
                 );
-                queryParser = new QueryStringQueryParser(context, resolvedFields, isLenient);
+                boolean forceLenient = lenient == null && context.hasAllFieldsWildcardDefaultField();
+                queryParser = new QueryStringQueryParser(context, resolvedFields, forceLenient || isLenient);
             }
         }
 

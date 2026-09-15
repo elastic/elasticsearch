@@ -13,6 +13,7 @@ import com.carrotsearch.randomizedtesting.annotations.ThreadLeakFilters;
 import org.elasticsearch.test.AzureReactorThreadFilter;
 import org.elasticsearch.test.TestClustersThreadFilter;
 import org.elasticsearch.xpack.esql.CsvSpecReader.CsvTestCase;
+import org.elasticsearch.xpack.esql.qa.rest.BwcMatrixPolicy;
 
 import java.util.List;
 
@@ -22,6 +23,8 @@ import java.util.List;
  */
 @ThreadLeakFilters(filters = { TestClustersThreadFilter.class, AzureReactorThreadFilter.class })
 public class TsvFormatSpecIT extends AbstractDelimitedTextSpecTestCase {
+
+    private static final BwcMatrixPolicy BWC_MATRIX_POLICY = UNCOMPRESSED_BWC_MATRIX_POLICY;
 
     public TsvFormatSpecIT(
         String fileName,
@@ -35,6 +38,15 @@ public class TsvFormatSpecIT extends AbstractDelimitedTextSpecTestCase {
         super(fileName, groupName, testName, lineNumber, testCase, instructions, storageBackend, "tsv");
     }
 
+    @Override
+    protected BwcMatrixPolicy bwcMatrixPolicy() {
+        return BWC_MATRIX_POLICY;
+    }
+
+    // The tsv- owner prefix is globbed, so a new tsv-*.csv-spec is picked up without touching this
+    // factory. The cross-format picks stay curated: not every csv-*.csv-spec parses as TSV, and the
+    // shared datasources/external-* files are selected per suite rather than wholesale.
+    //
     // external-basic.csv-spec is dropped for TSV: its multi-value queries (MV_EXPAND / MV_COUNT on the
     // employees bracket columns) assume brackets parsing, which is no longer the default. Scalar
     // coverage comes from csv-basic.csv-spec (bracket-free employees twin) and multi-value coverage
@@ -43,6 +55,6 @@ public class TsvFormatSpecIT extends AbstractDelimitedTextSpecTestCase {
     // uses only the bracket-free employees_no_mv twin, so it parses under TSV's default too.
     @ParametersFactory(argumentFormatting = "csv-spec:%2$s.%3$s [%7$s]")
     public static List<Object[]> readScriptSpec() throws Exception {
-        return readExternalSpecTestsForSuite("tsv");
+        return readExternalSpecTestsForSuite(BWC_MATRIX_POLICY, "tsv");
     }
 }

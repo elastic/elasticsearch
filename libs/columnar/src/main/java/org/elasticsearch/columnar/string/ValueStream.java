@@ -146,6 +146,8 @@ public final class ValueStream {
         // Holds a block's length header, or one value's length as a vint, so neither is allocated per block.
         private byte[] scratch = new byte[0];
         // What stageRuns found, read by the sizing and the write that follow it.
+        /** Runs of equal values staged so far, counted per block, so one crossing a boundary counts twice. */
+        private long runs;
         private int[] runStarts = new int[0];
         private int[] runLens = new int[0];
         private int[] runReps = new int[0];
@@ -223,6 +225,7 @@ public final class ValueStream {
             // Finding the runs is the part that compares bytes, so it is done once and what it found is what
             // the sizing and the write both read.
             final int runCount = stageRuns();
+            runs += runCount;
             if (runsAreSmaller(runCount)) {
                 writeRuns(runCount);
                 pendingCount = 0;
@@ -336,6 +339,14 @@ public final class ValueStream {
                 from += length;
             }
             chunks.append(scratch, 0, at);
+        }
+
+        /**
+         * How many runs of equal values the stream staged, which is what it already found while sizing its blocks.
+         * A column of as many runs as values holds nothing that repeats where a reader would find it.
+         */
+        public long runs() {
+            return runs;
         }
 
         public Metadata finish() throws IOException {

@@ -8,14 +8,8 @@
 package org.elasticsearch.xpack.esql.datasource.s3;
 
 import fixture.s3.BlobEntry;
-import fixture.s3.S3ConsistencyModel;
-import fixture.s3.S3HttpFixture;
-import fixture.s3.S3HttpHandler;
-
-import com.sun.net.httpserver.HttpHandler;
 
 import org.elasticsearch.common.bytes.BytesArray;
-import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.esql.datasources.StorageEntry;
 import org.elasticsearch.xpack.esql.datasources.StorageIterator;
@@ -28,9 +22,6 @@ import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.regex.Pattern;
-
-import static fixture.aws.AwsCredentialsUtils.checkAuthorization;
-import static fixture.aws.AwsCredentialsUtils.fixedAccessKey;
 
 /**
  * Tests S3StorageProvider.listObjects() and glob-style filtering against an in-process
@@ -46,7 +37,7 @@ public class S3GlobDiscoveryTests extends ESTestCase {
     private static final String DISCOVER_PREFIX = "warehouse/discover";
 
     @ClassRule
-    public static HandlerExposingS3HttpFixture s3Fixture = new HandlerExposingS3HttpFixture();
+    public static HandlerExposingS3HttpFixture s3Fixture = new HandlerExposingS3HttpFixture(BUCKET, ACCESS_KEY);
 
     private static S3StorageProvider provider;
 
@@ -157,33 +148,4 @@ public class S3GlobDiscoveryTests extends ESTestCase {
         return entries;
     }
 
-    /**
-     * Local S3HttpFixture variant that captures the S3HttpHandler so tests can inject blobs directly.
-     * Mirrors the DataSourcesS3HttpFixture from x-pack/plugin/esql/qa:server (kept inline here to avoid
-     * dragging the heavyweight qa:server dependencies into this module's test classpath).
-     */
-    @SuppressForbidden(reason = "overrides S3HttpFixture.createHandler which returns com.sun.net.httpserver.HttpHandler")
-    public static final class HandlerExposingS3HttpFixture extends S3HttpFixture {
-
-        private S3HttpHandler handler;
-
-        public HandlerExposingS3HttpFixture() {
-            super(true, () -> S3ConsistencyModel.STRONG_MPUS);
-        }
-
-        @Override
-        protected HttpHandler createHandler() {
-            handler = new S3HttpHandler(BUCKET, null, S3ConsistencyModel.STRONG_MPUS);
-            var auth = fixedAccessKey(ACCESS_KEY, () -> "us-east-1", "s3");
-            return exchange -> {
-                if (checkAuthorization(auth, exchange)) {
-                    handler.handle(exchange);
-                }
-            };
-        }
-
-        S3HttpHandler handler() {
-            return handler;
-        }
-    }
 }

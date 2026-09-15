@@ -13,6 +13,8 @@ import com.carrotsearch.randomizedtesting.annotations.ThreadLeakFilters;
 import org.elasticsearch.test.AzureReactorThreadFilter;
 import org.elasticsearch.test.TestClustersThreadFilter;
 import org.elasticsearch.xpack.esql.CsvSpecReader.CsvTestCase;
+import org.elasticsearch.xpack.esql.qa.rest.BwcMatrixPolicy;
+import org.elasticsearch.xpack.esql.qa.rest.BwcMatrixPolicy.BwcTestId;
 
 import java.util.List;
 
@@ -22,6 +24,11 @@ import java.util.List;
  */
 @ThreadLeakFilters(filters = { TestClustersThreadFilter.class, AzureReactorThreadFilter.class })
 public class NdJsonFormatSpecIT extends AbstractNdJsonExternalSpecTestCase {
+
+    private static final BwcMatrixPolicy BWC_MATRIX_POLICY = BwcMatrixPolicy.uncompressed(
+        StorageBackend.S3,
+        new BwcTestId("external-basic.csv-spec", "readAllEmployees")
+    );
 
     /**
      * STRICT multi-file NDJSON tests still muted: the fixture's per-file schemas intentionally
@@ -45,6 +52,6 @@ public class NdJsonFormatSpecIT extends AbstractNdJsonExternalSpecTestCase {
 
     @ParametersFactory(argumentFormatting = "csv-spec:%2$s.%3$s [%7$s]")
     public static List<Object[]> readScriptSpec() throws Exception {
-        return readExternalSpecTestsForSuite("ndjson");
+        return readExternalSpecTestsForSuite(BWC_MATRIX_POLICY, "ndjson");
     }
 }

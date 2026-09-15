@@ -10,6 +10,7 @@ import org.elasticsearch.gradle.testclusters.StandaloneRestIntegTestTask
 apply plugin: 'elasticsearch.internal-java-rest-test'
 apply plugin: 'elasticsearch.esql-csv-spec-tests'
 apply from: project(xpackModule('esql:qa:fixture-common')).file('fixture-matrix.gradle')
+apply plugin: 'elasticsearch.esql-datasource-bwc'
 apply plugin: org.elasticsearch.gradle.internal.precommit.CheckstylePrecommitPlugin
 apply plugin: org.elasticsearch.gradle.internal.precommit.ForbiddenApisPrecommitPlugin
 apply plugin: org.elasticsearch.gradle.internal.precommit.ForbiddenPatternsPrecommitPlugin
@@ -203,3 +204,11 @@ ext.fixtureCoverageSpecDirs = [
 ]
 apply from: project(xpackModule('esql:qa:fixture-common')).file('fixture-coverage.gradle')
 apply from: project(xpackModule('esql:qa:fixture-common')).file('fixture-manifest.gradle')
+esqlDataSourceBwc {
+  minimumVersion '9.5.0'
+  classFilter 'org.elasticsearch.xpack.esql.qa.ndjson.NdJsonFormatSpecIT'
+  classFilter 'org.elasticsearch.xpack.esql.qa.ndjson.NdJsonCompressedFormatSpecIT'
+  coordinators 'old', 'current'
+  systemProperty 'tests.rest.client_timeout', '60'
+  systemProperty 'tests.rest.socket_timeout', '60'
+}

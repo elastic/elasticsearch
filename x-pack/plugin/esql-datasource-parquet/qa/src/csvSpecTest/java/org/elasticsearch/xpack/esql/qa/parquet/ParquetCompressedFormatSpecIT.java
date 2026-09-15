@@ -16,6 +16,9 @@ import org.elasticsearch.test.AzureReactorThreadFilter;
 import org.elasticsearch.test.TestClustersThreadFilter;
 import org.elasticsearch.xpack.esql.CsvSpecReader.CsvTestCase;
 import org.elasticsearch.xpack.esql.datasources.fixtures.FixtureMatrix;
+import org.elasticsearch.xpack.esql.qa.rest.BwcMatrixPolicy;
+import org.elasticsearch.xpack.esql.qa.rest.BwcMatrixPolicy.BwcTestId;
+import org.elasticsearch.xpack.esql.qa.rest.EsqlDataSourceCodecEligibility;
 import org.elasticsearch.xpack.esql.qa.rest.EsqlSpecTestCase;
 
 import java.util.List;
@@ -35,7 +38,14 @@ import java.util.List;
 @ThreadLeakFilters(filters = { TestClustersThreadFilter.class, AzureReactorThreadFilter.class })
 public class ParquetCompressedFormatSpecIT extends AbstractParquetExternalSpecTestCase {
 
-    private static final List<String> CODECS = FixtureMatrix.get().parquetCodecs("parquet-compressed");
+    private static final BwcMatrixPolicy BWC_MATRIX_POLICY = BwcMatrixPolicy.compressed(
+        StorageBackend.S3,
+        "gzip",
+        new BwcTestId("external-basic.csv-spec", "readAllEmployees")
+    );
+    private static final List<String> CODECS = EsqlDataSourceCodecEligibility.parquetCodecs(
+        FixtureMatrix.get().parquetCodecs("parquet-compressed").toArray(String[]::new)
+    );
 
     private final String codecName;
 
@@ -58,9 +68,20 @@ public class ParquetCompressedFormatSpecIT extends AbstractParquetExternalSpecTe
         return "standalone-" + codecName;
     }
 
-    // Migrated specs run via FROM <dataset> on S3 and via the rebuilt EXTERNAL query on the other backends.
-    // The reader: "java" this IT injects is redundant with the .parquet extension default (the codec lives
-    // inside the .parquet file, so the extension is unchanged), so FROM-on-S3 still uses the Java reader.
+    @Override
+    protected String multifileSplitDir() {
+        return "multifile_split-" + codecName;
+    }
+
+    @Override
+    protected String guardCodecIdentity() {
+        return EsqlDataSourceCodecEligibility.normalizeCodecToken(codecName);
+    }
+
+    @Override
+    protected BwcMatrixPolicy bwcMatrixPolicy() {
+        return BWC_MATRIX_POLICY;
+    }
 
     /**
      * This suite routes its own spec set, so its exclusions are declared under its own token.
@@ -74,6 +95,6 @@ public class ParquetCompressedFormatSpecIT extends AbstractParquetExternalSpecTe
 
     @ParametersFactory(argumentFormatting = "csv-spec:%2$s.%3$s [%7$s/%8$s]")
     public static List<Object[]> readScriptSpec() throws Exception {
-        return readExternalSpecTestsWithCodecsForSuite(CODECS, "parquet-compressed");
+        return readExternalSpecTestsWithCodecsForSuite(BWC_MATRIX_POLICY, CODECS, "parquet-compressed");
     }
 }

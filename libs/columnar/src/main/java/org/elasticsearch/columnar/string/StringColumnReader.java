@@ -14,7 +14,9 @@ import org.apache.lucene.search.TwoPhaseIterator;
 import org.apache.lucene.store.IndexInput;
 import org.apache.lucene.util.ArrayUtil;
 import org.apache.lucene.util.BytesRef;
+import org.apache.lucene.util.BytesRefBuilder;
 import org.apache.lucene.util.LongValues;
+import org.apache.lucene.util.RamUsageEstimator;
 import org.elasticsearch.columnar.substrate.ColumnIterator;
 import org.elasticsearch.columnar.substrate.ColumnIteratorReader;
 import org.elasticsearch.columnar.substrate.MonotonicReader;
@@ -73,6 +75,10 @@ public abstract sealed class StringColumnReader permits PlainStringColumnReader,
      */
     protected static final int MIN_PAGE_REPEAT = 2;
     protected int[] pageRanks = new int[0];
+    /** Values each document of the page holds, its nulls not counted. */
+    protected int[] pageValueCounts = new int[0];
+    /** Where each of the page's values is, which is a document's rank only where the column holds one apiece. */
+    protected long[] pageValueAddresses = new long[0];
     protected int[] pageOrdinals = new int[0];
     protected BytesRef[] pageValues = new BytesRef[0];
     protected BytesRef[] pageDictionary = new BytesRef[0];
@@ -80,6 +86,17 @@ public abstract sealed class StringColumnReader permits PlainStringColumnReader,
     private int[] pageLengths = new int[0];
     private byte[] pageBytes = new byte[0];
     protected int pageBytesLength;
+
+    private static final long BYTES_REF_BYTES = RamUsageEstimator.NUM_BYTES_OBJECT_REF + RamUsageEstimator.shallowSizeOfInstance(
+        BytesRef.class
+    );
+
+    /** Charged before the page's storage grows; see {@link #readBlock}. */
+    private PageBudget budget = PageBudget.UNLIMITED;
+    private boolean budgetBound;
+
+    /** The running extreme, held so comparing one value against another survives the buffer being reused. */
+    private final BytesRefBuilder extremeSoFar = new BytesRefBuilder();
 
     // A page's slots found by the bytes in them, so a value the page already holds is one slot and not two.
     // Stamped by generation rather than cleared, as the ordinal slots of a dictionary column are.
@@ -140,6 +157,29 @@ public abstract sealed class StringColumnReader permits PlainStringColumnReader,
         return meta.hasValueAddresses() == false && meta.hasNullSlots() == false;
     }
 
+    /**
+     * How many values each document of the page holds, filling {@link #pageValueCounts} and answering the total. A
+     * document's nulls are not among them: a null is not a value a page can carry, so it is dropped and a document
+     * left holding none is a document with nothing to offer.
+     */
+    protected int countPageValues(int docCount) throws IOException {
+        int total = 0;
+        for (int i = 0; i < docCount; i++) {
+            final int rank = pageRanks[i];
+            final long first = firstValueAddress(rank);
+            final long slots = valueCount(rank);
+            int values = 0;
+            for (long s = 0; s < slots; s++) {
+                if (isNullSlot(first + s) == false) {
+                    values++;
+                }
+            }
+            pageValueCounts[i] = values;
+            total += values;
+        }
+        return total;
+    }
+
     /** The value address of a document's first slot, given its rank. */
     public long firstValueAddress(int rank) {
         return valueAddresses == null ? rank : valueAddresses.get(rank);
@@ -148,6 +188,14 @@ public abstract sealed class StringColumnReader permits PlainStringColumnReader,
     /** The number of slots a document has, given its rank; null slots are counted. */
     public long valueCount(int rank) {
         return valueAddresses == null ? 1 : valueAddresses.get(rank + 1) - valueAddresses.get(rank);
+    }
+
+    /**
+     * Charges the page budget for storage about to be taken. Called before the allocation, so a budget with
+     * no room for it refuses while the reader still holds nothing it has not accounted for.
+     */
+    protected void charge(long bytes) {
+        budget.charge(bytes);
     }
 
     /**
@@ -221,6 +269,38 @@ public abstract sealed class StringColumnReader permits PlainStringColumnReader,
      */
     public boolean valuesSorted() {
         return meta.valuesSorted();
+    }
+
+    /**
+     * The largest or smallest value a document holds, or null when it holds none - its slots were all null, or it has
+     * no slot at all. The returned {@link BytesRef} is only valid until the next call.
+     *
+     * <p>Compared here as bytes, which is all a column that stores its values can do.
+     * {@link DictionaryStringColumnReader} decides it over ordinals instead, and reads one term rather than all of
+     * them.
+     */
+    public BytesRef extreme(int rank, boolean max, BytesRef dst) throws IOException {
+        final long first = firstValueAddress(rank);
+        final long count = valueCount(rank);
+        boolean found = false;
+        for (long i = 0; i < count; i++) {
+            final BytesRef value = valueAt(first + i);
+            if (value == null) {
+                continue;
+            }
+            // Copied rather than pointed at: the next read reuses the buffer this one came back in.
+            if (found == false || (max ? value.compareTo(extremeSoFar.get()) > 0 : value.compareTo(extremeSoFar.get()) < 0)) {
+                extremeSoFar.copyBytes(value);
+                found = true;
+            }
+        }
+        if (found == false) {
+            return null;
+        }
+        dst.bytes = extremeSoFar.bytes();
+        dst.offset = 0;
+        dst.length = extremeSoFar.length();
+        return dst;
     }
 
     /** Whether this column names its values with ordinals rather than storing them. */
@@ -477,14 +557,23 @@ public abstract sealed class StringColumnReader permits PlainStringColumnReader,
      *         a time; true when {@code sink} was called exactly once
      */
     public boolean readBlock(int[] docs, int offset, int count, StringBlockSink sink) throws IOException {
-        if (pageable() == false) {
-            return false;
-        }
+        return readBlock(docs, offset, count, sink, PageBudget.UNLIMITED);
+    }
+
+    /**
+     * As above, charging {@code budget} before the page's storage grows. The storage is reused between pages
+     * and only grows, so a page no larger than one already served is charged nothing.
+     */
+    public boolean readBlock(int[] docs, int offset, int count, StringBlockSink sink, PageBudget budget) throws IOException {
+        assert budgetBound == false || this.budget == budget
+            : "a reader's page storage outlives the call that grew it, so it answers to one budget for its life";
+        this.budgetBound = true;
+        this.budget = budget;
         if (count == 0) {
-            sink.appendValues(pageValues, 0);
+            sink.appendValues(pageValues, 0, null, 0);
             return true;
         }
-        growPage(count);
+        growPageDocs(count);
         if (ranksOfAll(docs, offset, count) == false) {
             return false;
         }
@@ -494,7 +583,6 @@ public abstract sealed class StringColumnReader permits PlainStringColumnReader,
     /** Hands {@code count} resolved ranks to the sink, in whichever form the column's values take. */
     protected abstract boolean appendPage(int count, StringBlockSink sink) throws IOException;
 
-    /** Copies a value into the page's own bytes, so the reader's buffer can be reused for the next one. */
     /**
      * Opens a page's dictionary for at most {@code slots} entries found by their bytes, which is what
      * {@link #pageSlotFor} then finds them by.
@@ -505,6 +593,7 @@ public abstract sealed class StringColumnReader permits PlainStringColumnReader,
             capacity <<= 1;
         }
         if (slotByHash.length < capacity) {
+            charge(2L * (capacity - slotByHash.length) * Integer.BYTES);
             slotByHash = new int[capacity];
             slotStamp = new int[capacity];
             slotGeneration = 0;
@@ -553,9 +642,14 @@ public abstract sealed class StringColumnReader permits PlainStringColumnReader,
             );
     }
 
+    /** Copies a value into the page's own bytes, so the reader's buffer can be reused for the next one. */
     protected void appendToPage(int slot, BytesRef value) {
-        if (pageBytes.length < pageBytesLength + value.length) {
-            pageBytes = ArrayUtil.grow(pageBytes, pageBytesLength + value.length);
+        final int needed = pageBytesLength + value.length;
+        if (pageBytes.length < needed) {
+            // Sized first and charged second, so a budget with no room refuses before the array is replaced.
+            final int grown = ArrayUtil.oversize(needed, Byte.BYTES);
+            charge((long) grown - pageBytes.length);
+            pageBytes = ArrayUtil.growExact(pageBytes, grown);
         }
         System.arraycopy(value.bytes, value.offset, pageBytes, pageBytesLength, value.length);
         pageStarts[slot] = pageBytesLength;
@@ -572,17 +666,32 @@ public abstract sealed class StringColumnReader permits PlainStringColumnReader,
         }
     }
 
-    protected void growPage(int count) {
-        if (pageRanks.length >= count) {
+    /** Room for a page covering {@code docCount} documents, whatever they turn out to hold. */
+    protected void growPageDocs(int docCount) {
+        if (pageRanks.length < docCount) {
+            charge(2L * (docCount - pageRanks.length) * Integer.BYTES);
+            pageRanks = new int[docCount];
+            pageValueCounts = new int[docCount];
+        }
+    }
+
+    /**
+     * Room for {@code valueCount} values. Separate from the documents because a page of multi-valued documents holds
+     * more values than documents, and a page whose documents are all null holds fewer.
+     */
+    protected void growPageValues(int valueCount) {
+        if (pageOrdinals.length >= valueCount) {
             return;
         }
-        pageRanks = new int[count];
-        pageOrdinals = new int[count];
-        pageStarts = new int[count];
-        pageLengths = new int[count];
-        pageValues = new BytesRef[count];
-        pageDictionary = new BytesRef[count];
-        for (int i = 0; i < count; i++) {
+        final int more = valueCount - pageOrdinals.length;
+        charge((long) more * (3L * Integer.BYTES + Long.BYTES + 2L * BYTES_REF_BYTES));
+        pageOrdinals = new int[valueCount];
+        pageValueAddresses = new long[valueCount];
+        pageStarts = new int[valueCount];
+        pageLengths = new int[valueCount];
+        pageValues = new BytesRef[valueCount];
+        pageDictionary = new BytesRef[valueCount];
+        for (int i = 0; i < valueCount; i++) {
             pageValues[i] = new BytesRef();
             pageDictionary[i] = new BytesRef();
         }

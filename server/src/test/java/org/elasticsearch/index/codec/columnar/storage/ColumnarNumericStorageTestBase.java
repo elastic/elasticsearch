@@ -34,8 +34,6 @@ import org.apache.lucene.util.InfoStream;
 import org.apache.lucene.util.NumericUtils;
 import org.apache.lucene.util.StringHelper;
 import org.apache.lucene.util.Version;
-import org.elasticsearch.columnar.ColumNARDocValuesFormat;
-import org.elasticsearch.columnar.ColumnarFieldType;
 import org.elasticsearch.columnar.numeric.NumericBinaryPayload;
 import org.elasticsearch.index.codec.bwc.Elasticsearch93Lucene104Codec;
 import org.elasticsearch.index.codec.tsdb.es95.ES95TSDBDocValuesFormatFactory;
@@ -47,7 +45,6 @@ import org.elasticsearch.test.ESTestCase;
 import java.io.IOException;
 import java.util.Collections;
 import java.util.HashMap;
-import java.util.Map;
 import java.util.Random;
 
 abstract class ColumnarNumericStorageTestBase extends ESTestCase {
@@ -236,7 +233,7 @@ abstract class ColumnarNumericStorageTestBase extends ESTestCase {
             DocValuesType.BINARY,
             DocValuesSkipIndexType.NONE,
             -1,
-            Map.of(ColumNARDocValuesFormat.TYPE_ATTRIBUTE, ColumnarFieldType.LONG.name()),
+            Collections.emptyMap(),
             0,
             0,
             0,

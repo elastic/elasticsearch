@@ -33,6 +33,7 @@ import org.elasticsearch.xpack.esql.action.EsqlCapabilities.Cap;
 import org.elasticsearch.xpack.esql.datasource.csv.CsvDataSourcePlugin;
 import org.elasticsearch.xpack.esql.datasource.ndjson.NdJsonDataSourcePlugin;
 import org.elasticsearch.xpack.esql.datasource.parquet.ParquetDataSourcePlugin;
+import org.elasticsearch.xpack.esql.datasources.FormatNameResolver;
 import org.elasticsearch.xpack.esql.datasources.dataset.DeleteDatasetAction;
 import org.elasticsearch.xpack.esql.datasources.dataset.PutDatasetAction;
 import org.elasticsearch.xpack.esql.datasources.datasource.DeleteDataSourceAction;
@@ -294,7 +295,9 @@ public class FromDatasetIT extends AbstractExternalDataSourceIT {
         "epoch_ovf_nj_skip",
         "epoch_ovf_nj_fail",
         "employees_parquet_absent_warn",
-        "employees_ndjson_absent_warn"
+        "employees_ndjson_absent_warn",
+        "mixed_ts_inferred",
+        "mixed_int_inferred"
     );
 
     /**
@@ -630,6 +633,61 @@ public class FromDatasetIT extends AbstractExternalDataSourceIT {
             assertThat(rows.get(1).get(1).toString(), equalTo("Bob"));
             assertThat(rows.get(2).get(0), equalTo(3));
             assertThat(rows.get(2).get(1).toString(), equalTo("Carol"));
+        }
+    }
+
+    /**
+     * The route to an analyzed column over a dataset: declare the column keyword, convert in the query, and name the
+     * analyzer as an argument. This is what the rejection message points a user at, so it is pinned end to end.
+     */
+    public void testToTextOverDeclaredKeywordGivesAnAnalyzedColumn() throws Exception {
+        assertAcked(client().execute(PutDataSourceAction.INSTANCE, putDataSourceRequest("local_ds", Map.of())));
+
+        Path docs = createTempDir().resolve("docs.csv");
+        Files.writeString(docs, String.join("\n", "id,msg", "1,The quick brown fox", "2,lazy dogs sleeping") + "\n");
+
+        Map<String, DatasetFieldMapping> properties = new LinkedHashMap<>();
+        properties.put("id", new DatasetFieldMapping("integer", null));
+        properties.put("msg", new DatasetFieldMapping("keyword", null));
+        assertAcked(
+            client().execute(
+                PutDatasetAction.INSTANCE,
+                new PutDatasetAction.Request(
+                    TIMEOUT,
+                    TIMEOUT,
+                    "docs_kw",
+                    "local_ds",
+                    docs.toUri().toString(),
+                    null,
+                    new HashMap<>(Map.of("format", "csv")),
+                    new DatasetMapping(new DatasetMapping.Mappings(DatasetMapping.Dynamic.FALSE, properties))
+                )
+            )
+        );
+
+        // Without the conversion the column is compared whole, so a two-term query matches nothing.
+        try (var response = run(syncEsqlQueryRequest("FROM docs_kw | WHERE MATCH(msg, \"quick fox\") | KEEP id"), TIMEOUT)) {
+            assertThat(getValuesList(response), hasSize(0));
+        }
+        // Converted, it is analyzed: both query terms hit the first row.
+        try (
+            var response = run(
+                syncEsqlQueryRequest("FROM docs_kw | EVAL t = TO_TEXT(msg) | WHERE MATCH(t, \"quick fox\") | KEEP id"),
+                TIMEOUT
+            )
+        ) {
+            assertThat(getValuesList(response), equalTo(List.of(List.of(1))));
+        }
+        // The analyzer is an argument here; a dataset mapping has no field for one.
+        try (
+            var response = run(
+                syncEsqlQueryRequest(
+                    "FROM docs_kw | EVAL t = TO_TEXT(msg, {\"analyzer\": \"standard\"}) | WHERE MATCH(t, \"quick fox\") | KEEP id"
+                ),
+                TIMEOUT
+            )
+        ) {
+            assertThat(getValuesList(response), equalTo(List.of(List.of(1))));
         }
     }
 
@@ -1471,11 +1529,9 @@ public class FromDatasetIT extends AbstractExternalDataSourceIT {
     public void testStrictDatasetWithUnknowableFormatFailsCleanlyNotNpe() throws Exception {
         assertAcked(client().execute(PutDataSourceAction.INSTANCE, putDataSourceRequest("local_ds", Map.of())));
 
-        // A strict dataset over an extensionless path with no `format` setting cannot resolve a reader. Strict now
-        // derives the sourceType through the registry (FormatNameResolver.resolveFormatName -> byExtension), which fails
-        // loud at resolution with a clean IllegalArgumentException — the shared unreadable-object message, which
-        // names the object, why it cannot be read, and the [format] remedy — propagated unwrapped as a 4xx,
-        // never an NPE-wrapped 500.
+        // A strict dataset over an extensionless path with no `format` setting cannot resolve a reader. The
+        // pattern implies zero formats, so resolution fails with the shared "set [format]" message — never
+        // an NPE-wrapped 500.
         Path noExt = createTempFile("dataset-noext-", "");
         Files.writeString(noExt, "id\n1\n");
         Map<String, DatasetFieldMapping> properties = new LinkedHashMap<>();
@@ -1500,9 +1556,7 @@ public class FromDatasetIT extends AbstractExternalDataSourceIT {
 
         Exception e = expectThrows(Exception.class, () -> run(syncEsqlQueryRequest("FROM logs_noext_strict | LIMIT 1"), TIMEOUT).close());
         assertThat(e.getMessage(), not(containsString("NullPointerException")));
-        assertThat(e.getMessage(), containsString("Cannot determine how to read"));
-        assertThat(e.getMessage(), containsString("no file extension"));
-        assertThat(e.getMessage(), containsString("[format]"));
+        assertThat(e.getMessage(), containsString(FormatNameResolver.ambiguousDatasetFormatMessage(noExt.toUri().toString())));
     }
 
     /**
@@ -2955,6 +3009,26 @@ public class FromDatasetIT extends AbstractExternalDataSourceIT {
         return baos.toByteArray();
     }
 
+    private byte[] int32FixtureBytes(String column, int... values) throws IOException {
+        MessageType schema = Types.buildMessage().required(PrimitiveType.PrimitiveTypeName.INT32).named(column).named("test");
+        ByteArrayOutputStream baos = new ByteArrayOutputStream();
+        SimpleGroupFactory factory = new SimpleGroupFactory(schema);
+        try (
+            ParquetWriter<Group> writer = ExampleParquetWriter.builder(createOutputFile(baos))
+                .withConf(new PlainParquetConfiguration())
+                .withType(schema)
+                .withCompressionCodec(CompressionCodecName.UNCOMPRESSED)
+                .build()
+        ) {
+            for (int value : values) {
+                Group g = factory.newGroup();
+                g.add(column, value);
+                writer.write(g);
+            }
+        }
+        return baos.toByteArray();
+    }
+
     private byte[] dateFixtureBytes(int... days) throws IOException {
         MessageType schema = MessageTypeParser.parseMessageType("message logs { required int32 d (DATE); }");
         ByteArrayOutputStream baos = new ByteArrayOutputStream();
@@ -3297,6 +3371,74 @@ public class FromDatasetIT extends AbstractExternalDataSourceIT {
             // micros -> millis: the .456 microsecond remainder truncates away
             assertThat(rows.get(0).get(0), equalTo(1704067200_123L));
         }
+    }
+
+    /**
+     * {@code TIMESTAMP(MICROS)} infers as {@code date_nanos}. A {@code TO_DATETIME} literal is the other date
+     * type, so reader prune and stats fold decline; {@code FilterExec} still keeps the matching row.
+     */
+    public void testDatetimeLiteralFiltersInferredTimestampMicros() throws Exception {
+        assertAcked(client().execute(PutDataSourceAction.INSTANCE, putDataSourceRequest("local_ds", Map.of())));
+        Path parquet = createTempDir().resolve("ts_micros.parquet");
+        Files.write(parquet, timestampMicrosFixtureBytes(1767312000_000_000L));
+        assertAcked(
+            client().execute(
+                PutDatasetAction.INSTANCE,
+                new PutDatasetAction.Request(
+                    TIMEOUT,
+                    TIMEOUT,
+                    "mixed_ts_inferred",
+                    "local_ds",
+                    parquet.toUri().toString(),
+                    null,
+                    new HashMap<>(Map.of("format", "parquet")),
+                    null
+                )
+            )
+        );
+        String iso = "2026-01-02T00:00:00Z";
+        assertQ(
+            "matching date_nanos literal",
+            "FROM mixed_ts_inferred | WHERE ts == TO_DATE_NANOS(\"" + iso + "\") | STATS c = COUNT(*)",
+            1L
+        );
+        assertQ("datetime equals", "FROM mixed_ts_inferred | WHERE ts == TO_DATETIME(\"" + iso + "\") | STATS c = COUNT(*)", 1L);
+        assertQ("datetime lte", "FROM mixed_ts_inferred | WHERE ts <= TO_DATETIME(\"" + iso + "\") | STATS c = COUNT(*)", 1L);
+        assertQ("datetime in", "FROM mixed_ts_inferred | WHERE ts IN (TO_DATETIME(\"" + iso + "\")) | STATS c = COUNT(*)", 1L);
+        assertQ(
+            "datetime range",
+            "FROM mixed_ts_inferred | WHERE ts >= TO_DATETIME(\"2026-01-01T00:00:00Z\") AND ts <= TO_DATETIME(\"2026-01-03T00:00:00Z\")"
+                + " | STATS c = COUNT(*)",
+            1L
+        );
+    }
+
+    /**
+     * An inferred {@code integer} compared to a {@code double} or {@code long} literal must stay in
+     * {@code FilterExec}; a column-typed bound would drop the matching row.
+     */
+    public void testNumericLiteralFiltersInferredInteger() throws Exception {
+        assertAcked(client().execute(PutDataSourceAction.INSTANCE, putDataSourceRequest("local_ds", Map.of())));
+        Path parquet = createTempDir().resolve("id.parquet");
+        Files.write(parquet, int32FixtureBytes("i", 5));
+        assertAcked(
+            client().execute(
+                PutDatasetAction.INSTANCE,
+                new PutDatasetAction.Request(
+                    TIMEOUT,
+                    TIMEOUT,
+                    "mixed_int_inferred",
+                    "local_ds",
+                    parquet.toUri().toString(),
+                    null,
+                    new HashMap<>(Map.of("format", "parquet")),
+                    null
+                )
+            )
+        );
+        assertQ("integer lt double", "FROM mixed_int_inferred | WHERE i < 5.5 | STATS c = COUNT(*)", 1L);
+        assertQ("integer lte long", "FROM mixed_int_inferred | WHERE i <= 3000000000 | STATS c = COUNT(*)", 1L);
+        assertQ("integer in int and double", "FROM mixed_int_inferred | WHERE i IN (5, 5.5) | STATS c = COUNT(*)", 1L);
     }
 
     /** Declares {@code {ts: date, format: <the composite>}} over one dataset and asserts ts recovers EPOCH_SECOND_MILLIS. */
@@ -5623,7 +5765,7 @@ public class FromDatasetIT extends AbstractExternalDataSourceIT {
                     "local_ds",
                     root.toUri() + "**/*.csv",
                     null,
-                    new HashMap<>(Map.of("format", "csv", "hive_partitioning", true)),
+                    new HashMap<>(Map.of("format", "csv", "partition_detection", "hive")),
                     mapping
                 )
             )
@@ -5711,7 +5853,7 @@ public class FromDatasetIT extends AbstractExternalDataSourceIT {
                     "local_ds",
                     root.toUri() + "**/*.csv",
                     null,
-                    new HashMap<>(Map.of("format", "csv", "hive_partitioning", true)),
+                    new HashMap<>(Map.of("format", "csv", "partition_detection", "hive")),
                     mapping
                 )
             )
@@ -5739,7 +5881,7 @@ public class FromDatasetIT extends AbstractExternalDataSourceIT {
                     "local_ds",
                     root.toUri() + "**/*.csv",
                     null,
-                    new HashMap<>(Map.of("format", "csv", "hive_partitioning", true)),
+                    new HashMap<>(Map.of("format", "csv", "partition_detection", "hive")),
                     pathMapping
                 )
             )
@@ -5776,7 +5918,7 @@ public class FromDatasetIT extends AbstractExternalDataSourceIT {
                     "local_ds",
                     root.toUri() + "**/*.csv",
                     null,
-                    new HashMap<>(Map.of("format", "csv", "hive_partitioning", true)),
+                    new HashMap<>(Map.of("format", "csv", "partition_detection", "hive")),
                     strictMapping
                 )
             )
@@ -5814,7 +5956,7 @@ public class FromDatasetIT extends AbstractExternalDataSourceIT {
                     "local_ds",
                     root.toUri() + "**/*.csv",
                     null,
-                    new HashMap<>(Map.of("format", "csv", "hive_partitioning", true)),
+                    new HashMap<>(Map.of("format", "csv", "partition_detection", "hive")),
                     collidingMapping
                 )
             )

@@ -264,6 +264,7 @@ public abstract class ColumnarStringTestCase extends ESTestCase {
                 blockSize,
                 chunkCodec,
                 targetChunkBytes,
+                targetChunkBytes,
                 policy,
                 null,
                 dir,

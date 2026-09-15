@@ -163,6 +163,7 @@ Because we now publish just one docs set off of the `main` branch, we use the [`
 `applies_to` allows us to clearly communicate when features are introduced, when they transition from preview to GA, and which versions support specific functionality.
 > [!TIP]
 > **Simple rule:** If you're documenting new or changed functionality, you almost always need an `applies_to` version tag.
+
 This metadata accepts a lifecycle and an optional version. The version supports three operators:
 
 - `=X.x` applies to that version only, for example `=9.4`

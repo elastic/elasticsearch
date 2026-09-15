@@ -22,7 +22,9 @@ import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.Param
  * Operator is a specialized binary predicate where both sides have the compatible types
  * (it's up to the analyzer to do any conversion if needed).
  */
-public abstract class BinaryOperator<T, U, R, F extends PredicateBiFunction<T, U, R>> extends BinaryPredicate<T, U, R, F> {
+public abstract class BinaryOperator<T, U, R, F extends PredicateBiFunction<T, U, R>> extends BinaryPredicate<T, U, R, F>
+    implements
+        StableHashable {
 
     protected BinaryOperator(Source source, Expression left, Expression right, F function) {
         super(source, left, right, function);
@@ -47,6 +49,16 @@ public abstract class BinaryOperator<T, U, R, F extends PredicateBiFunction<T, U
 
     protected boolean isCommutative() {
         return false;
+    }
+
+    @Override
+    public int stableHash() {
+        // Use canonical children so Add(a,b) and Add(b,a) hash the same.
+        BinaryOperator<?, ?, ?, ?> c = (BinaryOperator<?, ?, ?, ?>) canonical();
+        int h = getClass().getName().hashCode();
+        h = 31 * h + StableHashable.compute(c.left());
+        h = 31 * h + StableHashable.compute(c.right());
+        return h;
     }
 
     @Override

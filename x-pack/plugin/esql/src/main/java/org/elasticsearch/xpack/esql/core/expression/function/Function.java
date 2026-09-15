@@ -9,6 +9,7 @@ package org.elasticsearch.xpack.esql.core.expression.function;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.Expressions;
 import org.elasticsearch.xpack.esql.core.expression.Nullability;
+import org.elasticsearch.xpack.esql.core.expression.StableHashable;
 import org.elasticsearch.xpack.esql.core.tree.NodeStringMapper;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 
@@ -20,7 +21,7 @@ import java.util.Objects;
  * Any ESQL function; generally this is translated into a computation to be evaluated on arguments, including scalar functions (e.g. in
  * {@code EVAL}) or aggregation functions ({@code STATS}).
  */
-public abstract class Function extends Expression {
+public abstract class Function extends Expression implements StableHashable {
     // TODO: Functions supporting distinct should add a dedicated constructor Location, List<Expression>, boolean
     protected Function(Source source, List<Expression> children) {
         super(source, children);
@@ -42,6 +43,15 @@ public abstract class Function extends Expression {
     @Override
     public int hashCode() {
         return Objects.hash(getClass(), children());
+    }
+
+    @Override
+    public int stableHash() {
+        int h = getClass().getName().hashCode();
+        for (Expression child : children()) {
+            h = 31 * h + StableHashable.compute(child);
+        }
+        return h;
     }
 
     @Override

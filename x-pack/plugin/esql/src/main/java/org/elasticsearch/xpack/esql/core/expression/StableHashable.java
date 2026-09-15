@@ -7,15 +7,15 @@
 package org.elasticsearch.xpack.esql.core.expression;
 
 /**
- * Opt-in interface for expressions that can produce a stable hash code — one
+ * Opt-in interface for expressions that can produce a stable hash code - one
  * that does not include runtime-assigned {@link NameId}s and is therefore
- * consistent across JVM runs.  Used by {@link #compute(Expression)} to sort
+ * consistent across JVM runs. Used by {@link #compute(Expression)} to sort
  * commutative children into a canonical order.
  *
- * <p>Leaf expressions ({@link Attribute}, {@link Literal}, …) must implement
- * this interface because the default recursion in {@link #compute(Expression)}
- * has no children to recurse into.  Composite expressions obtain a stable hash
- * automatically via the recursive fallback in {@code compute()}.
+ * <p>Every expression type that may appear as a commutative child in
+ * {@code BinaryOperator.canonicalize()} or {@code In.canonicalize()} must
+ * implement this interface. {@link Attribute} and {@link Literal} are the
+ * primary implementors.
  */
 public interface StableHashable {
 
@@ -23,18 +23,14 @@ public interface StableHashable {
     int stableHash();
 
     /**
-     * Returns a stable hash for {@code e}: delegates to {@link #stableHash()}
-     * when {@code e} implements this interface, otherwise recurses over
-     * {@link Expression#children()} using the expression's class hash as a seed.
+     * Returns a stable hash for {@code e}.
+     *
+     * @throws IllegalStateException if {@code e} does not implement {@link StableHashable}
      */
     static int compute(Expression e) {
         if (e instanceof StableHashable sh) {
             return sh.stableHash();
         }
-        int h = e.getClass().hashCode();
-        for (Expression child : e.children()) {
-            h = 31 * h + compute(child);
-        }
-        return h;
+        throw new IllegalStateException("Expression does not implement StableHashable: " + e.getClass().getName());
     }
 }

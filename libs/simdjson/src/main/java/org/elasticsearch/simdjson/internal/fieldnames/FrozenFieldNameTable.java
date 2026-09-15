@@ -77,7 +77,8 @@ public final class FrozenFieldNameTable {
         long[] ordinalPrefix8,
         int[] slotOrdinals,
         int[] directOrdinals,
-        boolean[] prefixLenUnique
+        boolean[] prefixLenUnique,
+        ResolvedFieldName[] resolvedByOrdinal
     ) {
 
         String lookup(byte[] buf, int off, int len, int h) {
@@ -98,7 +99,7 @@ public final class FrozenFieldNameTable {
                 int directIdx = directIndex(pfx, len, directOrdinals.length);
                 int ordinal = directOrdinals[directIdx];
                 if (ordinal >= 0 && ordinalHashes[ordinal] == h && ordinalLens[ordinal] == len && ordinalPrefix8[ordinal] == pfx) {
-                    return new ResolvedFieldName(namesByOrdinal[ordinal], ordinal);
+                    return resolvedByOrdinal[ordinal];
                 }
             }
 
@@ -109,7 +110,7 @@ public final class FrozenFieldNameTable {
                 }
                 if (sh == h && lens[i] == len && prefix8[i] == pfx) {
                     if (len <= 8 || prefixLenUnique[i] || Arrays.equals(keys[i], 0, len, buf, off, off + len)) {
-                        return new ResolvedFieldName(names[i], slotOrdinals[i]);
+                        return resolvedByOrdinal[slotOrdinals[i]];
                     }
                 }
             }
@@ -226,6 +227,12 @@ public final class FrozenFieldNameTable {
             int[] ordinalHashes = new int[learnCount];
             int[] ordinalLens = new int[learnCount];
             long[] ordinalPrefix8 = new long[learnCount];
+            // Built once here so lookupField returns a cached instance per ordinal instead of
+            // allocating a new ResolvedFieldName on every call.
+            ResolvedFieldName[] resolvedByOrdinal = new ResolvedFieldName[learnCount];
+            for (int i = 0; i < learnCount; i++) {
+                resolvedByOrdinal[i] = new ResolvedFieldName(learnNames[i], i);
+            }
 
             HashMap<Long, Integer> prefixLenCounts = new HashMap<>();
             for (int i = 0; i < learnCount; i++) {
@@ -283,7 +290,8 @@ public final class FrozenFieldNameTable {
                 ordinalPrefix8,
                 slotOrdinals,
                 directOrdinals,
-                prefixLenUnique
+                prefixLenUnique,
+                resolvedByOrdinal
             );
             parent.mergeChild(frozen);
 

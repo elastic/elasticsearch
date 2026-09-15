@@ -1,5 +1,5 @@
 area: ES|QL
 issues: []
 pr: 158155
-summary: Clear reminted parquet/orc filters
+summary: Clear Parquet and ORC filter state between ES|QL query reuse cycles
 type: bug

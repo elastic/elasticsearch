@@ -7,7 +7,9 @@
 
 package org.elasticsearch.compute.aggregation;
 
+import org.apache.lucene.util.ArrayUtil;
 import org.apache.lucene.util.BytesRef;
+import org.apache.lucene.util.RamUsageEstimator;
 import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.ObjectArray;
@@ -17,6 +19,11 @@ import org.elasticsearch.compute.operator.BreakingBytesRefBuilder;
 import org.elasticsearch.compute.operator.DriverContext;
 import org.elasticsearch.core.Releasable;
 import org.elasticsearch.core.Releasables;
+
+import java.util.Arrays;
+
+import static org.elasticsearch.common.util.PartitionedHashTable.NUM_PARTITIONS;
+import static org.elasticsearch.common.util.PartitionedHashTable.PARTITION_WRITE_BATCH;
 
 /**
  * Aggregator state for an array of BytesRefs. It is created in a mode where it
@@ -56,7 +63,7 @@ public final class BytesRefArrayState implements GroupingAggregatorState, Releas
     }
 
     void set(int groupId, BytesRef value) {
-        ensureCapacity(groupId);
+        growForGroupId(groupId);
 
         var currentBuilder = values.get(groupId);
         if (currentBuilder == null) {
@@ -92,12 +99,14 @@ public final class BytesRefArrayState implements GroupingAggregatorState, Releas
         }
     }
 
-    private void ensureCapacity(int groupId) {
-        var minSize = groupId + 1;
+    void ensureCapacity(int minSize) {
         if (minSize > values.size()) {
-            long prevSize = values.size();
             values = bigArrays.grow(values, minSize);
         }
+    }
+
+    private void growForGroupId(int groupId) {
+        ensureCapacity(groupId + 1);
     }
 
     /** Extracts an intermediate view of the contents of this state.  */
@@ -149,5 +158,174 @@ public final class BytesRefArrayState implements GroupingAggregatorState, Releas
         }
 
         Releasables.close(values);
+    }
+
+    private static long bytesUsedByPointerPage(int length) {
+        return RamUsageEstimator.alignObjectSize(
+            (long) RamUsageEstimator.NUM_BYTES_ARRAY_HEADER + (long) RamUsageEstimator.NUM_BYTES_OBJECT_REF * length
+        );
+    }
+
+    private static long bytesUsedBySeenPage(int length) {
+        return RamUsageEstimator.alignObjectSize((long) RamUsageEstimator.NUM_BYTES_ARRAY_HEADER + length);
+    }
+
+    private static long bytesUsedByValue(BytesRef value) {
+        return RamUsageEstimator.shallowSizeOfInstance(BytesRef.class) + RamUsageEstimator.alignObjectSize(
+            (long) RamUsageEstimator.NUM_BYTES_ARRAY_HEADER + value.length
+        );
+    }
+
+    private static final class BytesRefPartitionedState implements GroupingAggregatorFunction.PartitionedState {
+        private static final long BASE_RAM_USAGE = RamUsageEstimator.shallowSizeOf(BytesRefPartitionedState.class);
+        static final String LABEL = "BytesRefArrayState#partition";
+
+        private final long baseBytes;
+        private final BytesRef[][] values;
+        private final boolean[][] seen;
+
+        BytesRefPartitionedState(CircuitBreaker breaker, int partitionSize, boolean trackSeen) {
+            long pageBytes = bytesUsedByPointerPage(partitionSize) + (trackSeen ? bytesUsedBySeenPage(partitionSize) : 0);
+            baseBytes = BASE_RAM_USAGE + bytesUsedByPointerPage(NUM_PARTITIONS) + (trackSeen ? bytesUsedByPointerPage(NUM_PARTITIONS) : 0);
+            breaker.addEstimateBytesAndMaybeBreak(baseBytes + NUM_PARTITIONS * pageBytes, LABEL);
+            values = new BytesRef[NUM_PARTITIONS][partitionSize];
+            seen = trackSeen ? new boolean[NUM_PARTITIONS][partitionSize] : null;
+        }
+
+        @Override
+        public boolean hasAllValues(int partition) {
+            return seen == null;
+        }
+
+        @Override
+        public void releasePartition(CircuitBreaker breaker, int partition) {
+            long usedBytes = 0;
+            if (values[partition] != null) {
+                for (BytesRef v : values[partition]) {
+                    if (v != null) {
+                        usedBytes += bytesUsedByValue(v);
+                    }
+                }
+                usedBytes += bytesUsedByPointerPage(values[partition].length);
+                values[partition] = null;
+            }
+            if (seen != null && seen[partition] != null) {
+                usedBytes += bytesUsedBySeenPage(seen[partition].length);
+                seen[partition] = null;
+            }
+            breaker.addWithoutBreaking(-usedBytes);
+        }
+
+        @Override
+        public void releaseAll(CircuitBreaker breaker) {
+            long usedBytes = baseBytes;
+            for (int p = 0; p < NUM_PARTITIONS; p++) {
+                if (values[p] != null) {
+                    for (BytesRef v : values[p]) {
+                        if (v != null) {
+                            usedBytes += bytesUsedByValue(v);
+                        }
+                    }
+                    usedBytes += bytesUsedByPointerPage(values[p].length);
+                    values[p] = null;
+                }
+                if (seen != null && seen[p] != null) {
+                    usedBytes += bytesUsedBySeenPage(seen[p].length);
+                    seen[p] = null;
+                }
+            }
+            breaker.addWithoutBreaking(-usedBytes);
+        }
+    }
+
+    private final class BytesRefPartitionSplitter implements GroupingAggregatorFunction.PartitionSplitter {
+        private final CircuitBreaker partitionBreaker;
+        private BytesRefPartitionedState partitionedState;
+
+        BytesRefPartitionSplitter(CircuitBreaker partitionBreaker) {
+            this.partitionBreaker = partitionBreaker;
+            int partitionSize = ArrayUtil.oversize(Math.max(1, Math.ceilDiv((int) values.size(), NUM_PARTITIONS)), Long.BYTES);
+            partitionedState = new BytesRefPartitionedState(partitionBreaker, partitionSize, groupIdTrackingEnabled);
+        }
+
+        @Override
+        public void split(int firstId, short[] shiftedIds, int batchSize, int[] batchPartitionCounts, int[] partitionOffsets) {
+            for (int p = 0; p < NUM_PARTITIONS; p++) {
+                final int count = batchPartitionCounts[p];
+                if (count == 0) {
+                    continue;
+                }
+                final int offset = partitionOffsets[p];
+                ensurePartitionCapacity(p, offset + count);
+                final int base = p * PARTITION_WRITE_BATCH;
+                for (int i = 0; i < count; i++) {
+                    final int id = firstId + shiftedIds[base + i];
+                    if (id < values.size()) {
+                        BreakingBytesRefBuilder builder = values.get(id);
+                        if (builder != null) {
+                            BytesRef copy = BytesRef.deepCopyOf(builder.bytesRefView());
+                            partitionBreaker.addEstimateBytesAndMaybeBreak(bytesUsedByValue(copy), BytesRefPartitionedState.LABEL);
+                            partitionedState.values[p][offset + i] = copy;
+                            if (partitionedState.seen != null) {
+                                partitionedState.seen[p][offset + i] = true;
+                            }
+                        }
+                    }
+                }
+            }
+        }
+
+        private void ensurePartitionCapacity(int partition, int minSize) {
+            BytesRef[] oldValues = partitionedState.values[partition];
+            if (oldValues.length >= minSize) {
+                return;
+            }
+            int newSize = ArrayUtil.oversize(minSize, Long.BYTES);
+            partitionBreaker.addEstimateBytesAndMaybeBreak(bytesUsedByPointerPage(newSize), BytesRefPartitionedState.LABEL);
+            partitionedState.values[partition] = Arrays.copyOf(oldValues, newSize);
+            partitionBreaker.addWithoutBreaking(-bytesUsedByPointerPage(oldValues.length));
+            if (partitionedState.seen != null) {
+                boolean[] oldSeen = partitionedState.seen[partition];
+                partitionBreaker.addEstimateBytesAndMaybeBreak(bytesUsedBySeenPage(newSize), BytesRefPartitionedState.LABEL);
+                partitionedState.seen[partition] = Arrays.copyOf(oldSeen, newSize);
+                partitionBreaker.addWithoutBreaking(-bytesUsedBySeenPage(oldSeen.length));
+            }
+        }
+
+        @Override
+        public BytesRefPartitionedState finish() {
+            BytesRefPartitionedState result = partitionedState;
+            partitionedState = null;
+            return result;
+        }
+
+        @Override
+        public void release(CircuitBreaker breaker) {
+            if (partitionedState != null) {
+                partitionedState.releaseAll(breaker);
+                partitionedState = null;
+            }
+        }
+    }
+
+    GroupingAggregatorFunction.PartitionSplitter createPartitioningSplitter(CircuitBreaker breaker) {
+        return new BytesRefPartitionSplitter(breaker);
+    }
+
+    BytesRef[] partitionValues(GroupingAggregatorFunction.PartitionedState source, int partition) {
+        return ((BytesRefPartitionedState) source).values[partition];
+    }
+
+    boolean[] partitionSeen(GroupingAggregatorFunction.PartitionedState source, int partition) {
+        boolean[][] seen = ((BytesRefPartitionedState) source).seen;
+        return seen == null ? null : seen[partition];
+    }
+
+    void appendPartition(BytesRef[] src, int firstId, int length) {
+        for (int i = 0; i < length; i++) {
+            if (src[i] != null) {
+                set(firstId + i, src[i]);
+            }
+        }
     }
 }

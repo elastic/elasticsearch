@@ -108,6 +108,12 @@ public class GroupingAggregatorImplementer {
     private final boolean anyArgumentSupportsVectors;
     private final boolean processNulls;
     private final boolean supportsPartitioning;
+    /**
+     * The element type of the partition values array used in {@link #combinePartition()}.
+     * For primitive-state aggregators this equals {@link AggregationState#declaredType()}.
+     * For non-primitive-state aggregators it equals the first agg-parameter type (e.g. {@code BytesRef}).
+     */
+    private final TypeName partitionValueType;
 
     public GroupingAggregatorImplementer(
         Elements elements,
@@ -135,13 +141,12 @@ public class GroupingAggregatorImplementer {
             requireName("combine"),
             combineArgs(aggState)
         );
-        this.combineOnState = aggState.declaredType().isPrimitive()
-            && optionalStaticMethod(
-                declarationType,
-                requireVoidType(),
-                requireName("combine"),
-                requireArgs(requireType(aggState.type()), requireType(TypeName.INT), requireAnyType("<aggregation input column type>"))
-            ) != null;
+        this.combineOnState = optionalStaticMethod(
+            declarationType,
+            requireVoidType(),
+            requireName("combine"),
+            requireArgs(requireType(aggState.type()), requireType(TypeName.INT), requireAnyType("<aggregation input column type>"))
+        ) != null;
         this.prepareEvaluateIntermediate = optionalStaticMethod(
             declarationType,
             requireType(GROUPING_AGGREGATOR_FUNCTION_PREPARED_FOR_EVALUATION),
@@ -175,6 +180,13 @@ public class GroupingAggregatorImplementer {
         this.anyArgumentSupportsVectors = aggParams.stream().anyMatch(a -> a instanceof StandardArgument && a.supportsVectorReadAccess());
         this.processNulls = processNulls;
         this.supportsPartitioning = supportsPartitioning;
+        if (aggState.declaredType().isPrimitive()) {
+            this.partitionValueType = aggState.declaredType();
+        } else if (supportsPartitioning && aggParams.isEmpty() == false && aggParams.get(0) instanceof StandardArgument sa) {
+            this.partitionValueType = sa.type();
+        } else {
+            this.partitionValueType = aggState.declaredType();
+        }
         if (supportsPartitioning && combineOnState == false) {
             throw new IllegalArgumentException(
                 "["
@@ -940,7 +952,7 @@ public class GroupingAggregatorImplementer {
         builder.beginControlFlow("if (length == 0)");
         builder.addStatement("return");
         builder.endControlFlow();
-        builder.addStatement("$T values = state.partitionValues(source, partition)", ArrayTypeName.of(aggState.declaredType()));
+        builder.addStatement("$T values = state.partitionValues(source, partition)", ArrayTypeName.of(partitionValueType));
         builder.addStatement("boolean[] seen = state.partitionSeen(source, partition)");
         builder.beginControlFlow("if (seen == null)");
         {

@@ -52,7 +52,6 @@ public class Netty4HttpHeaderThreadContextTests extends ESTestCase {
 
     @Before
     public void initChannel() throws Exception {
-        // no flow-control handler: Netty4HttpHeaderValidator does its own buffering, which is what this test exercises
         channel = new EmbeddedChannel();
         channel.config().setAutoRead(false);
         threadPool = new TestThreadPool(TEST_MOCK_TRANSPORT_THREAD_PREFIX);

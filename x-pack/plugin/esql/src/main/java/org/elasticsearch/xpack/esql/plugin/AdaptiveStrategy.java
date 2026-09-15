@@ -64,7 +64,8 @@ public final class AdaptiveStrategy implements ExternalDistributionStrategy {
         if (hasPipelineBreaker || manySplits) {
             boolean allHaveSize = true;
             for (ExternalSplit split : splits) {
-                if (split.estimatedSizeInBytes() <= 0) {
+                // Unknown size is negative. Zero is an empty file; it still has open cost.
+                if (split.estimatedSizeInBytes() < 0) {
                     allHaveSize = false;
                     break;
                 }

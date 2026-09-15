@@ -254,7 +254,7 @@ final class SvdUtil {
 
         for (int iter = 0; iter < iterations; iter++) {
             // mv = M @ v
-            matrixVectorMultiply(m, k, k, v, mv);
+            ESVectorUtil.matrixVectorMultiply(m, k, k, v, mv);
             // mtmv = M^T @ mv: row-broadcast so M is read contiguously
             for (int i = 0; i < k; i++) {
                 ESVectorUtil.linearCombination(mv[i], m, i * k, mtmv, 0, k);
@@ -271,7 +271,7 @@ final class SvdUtil {
         }
 
         // Compute ||M @ v|| which approximates sigma_max
-        matrixVectorMultiply(m, k, k, v, mv);
+        ESVectorUtil.matrixVectorMultiply(m, k, k, v, mv);
         return (float) Math.sqrt(ESVectorUtil.dotProduct(mv, mv, k));
     }
 
@@ -315,7 +315,7 @@ final class SvdUtil {
      * @param n   number of columns
      * @param k   number of top singular vectors to extract
      * @param seed random seed for initialization
-     * @return top-k right singular vectors as rows, row-major (k x n)
+     * @return top-k right singular vectors as columns, row-major (n x k)
      */
     public static float[] topKRightSingularVectors(float[] a, int m, int n, int k, long seed) {
         // Compute C = A^T A (n x n) -- this is symmetric positive semi-definite
@@ -335,18 +335,20 @@ final class SvdUtil {
         // This is O(iterations * m * n * k) total -- much faster than deflation for large k.
         int iters = 20; // sufficient for PCA init that gets refined by Procrustes
 
+        // Pre-transpose A so that A^T @ W uses sequential memory access in the inner loop.
+        float[] aT = transposeMatrix(a, m, n);
+
         float[] v = randomGaussians(new Random(seed), n * k);
         qrOrthogonalize(v, n, k);
 
         for (int iter = 0; iter < iters; iter++) {
-            float[] w = matrixMultiply(a, v, m, n, k);          // W = A @ V (m x k)
-            float[] vNew = matrixMultiplyTA(a, w, m, n, k); // V_new = A^T @ W (n x k)
+            float[] w = ESVectorUtil.matrixMultiply(a, v, m, n, k);      // W = A @ V (m x k)
+            float[] vNew = ESVectorUtil.matrixMultiply(aT, w, n, m, k);  // V_new = A^T @ W (n x k)
             qrOrthogonalize(vNew, n, k);
             v = vNew;
         }
 
-        // Convert columns of V to rows for return format (k x n)
-        return transposeMatrix(v, n, k);
+        return v;
     }
 
     private static float[] topKEigenvectorsGramTranspose(float[] a, int m, int n, int k, long seed) {
@@ -355,84 +357,25 @@ final class SvdUtil {
         // After convergence, recover right singular vectors: V = A^T U, normalize columns.
         int iters = 20;
 
+        // Pre-transpose A so that A^T @ U uses sequential memory access in the inner loop.
+        float[] aT = transposeMatrix(a, m, n);
+
         float[] u = randomGaussians(new Random(seed), m * k);
         qrOrthogonalize(u, m, k);
 
         for (int iter = 0; iter < iters; iter++) {
-            float[] w = matrixMultiplyTA(a, u, m, n, k);   // W = A^T @ U (n x k)
-            float[] uNew = matrixMultiply(a, w, m, n, k);  // U_new = A @ W (m x k)
+            float[] w = ESVectorUtil.matrixMultiply(aT, u, n, m, k);    // W = A^T @ U (n x k)
+            float[] uNew = ESVectorUtil.matrixMultiply(a, w, m, n, k);  // U_new = A @ W (m x k)
             qrOrthogonalize(uNew, m, k);
             u = uNew;
         }
 
         // Recover right singular vectors: V = A^T U (n x k), normalize each column
-        float[] v = matrixMultiplyTA(a, u, m, n, k);
+        float[] v = ESVectorUtil.matrixMultiply(aT, u, n, m, k);
         for (int j = 0; j < k; j++) {
             normalizeColumn(v, j, k, n);
         }
-        return transposeMatrix(v, n, k);
-    }
-
-    /**
-     * Computes {@code C = A @ B} where A is (m x k) and B is (k x n), both row-major.
-     * Result C is (m x n).
-     */
-    static float[] matrixMultiply(float[] a, float[] b, int m, int k, int n) {
-        float[] c = new float[m * n];
-        for (int i = 0; i < m; i++) {
-            int aBase = i * k;
-            int cBase = i * n;
-            for (int l = 0; l < k; l++) {
-                ESVectorUtil.linearCombination(a[aBase + l], b, l * n, c, cBase, n);
-            }
-        }
-        return c;
-    }
-
-    /**
-     * Computes {@code C = A^T @ B} where A is (m x k) and B is (m x n), both row-major.
-     * Result C is (k x n).
-     */
-    static float[] matrixMultiplyTA(float[] aT, float[] b, int m, int k, int n) {
-        float[] c = new float[k * n];
-        for (int l = 0; l < m; l++) {
-            int aBase = l * k;
-            int bBase = l * n;
-            for (int i = 0; i < k; i++) {
-                ESVectorUtil.linearCombination(aT[aBase + i], b, bBase, c, i * n, n);
-            }
-        }
-        return c;
-    }
-
-    /**
-     * Computes {@code result = A @ v} where A is a (rows x cols) row-major matrix.
-     *
-     * @param a      flat row-major matrix, length rows*cols
-     * @param rows   number of rows in A
-     * @param cols   number of columns in A (and length of v)
-     * @param v      input vector, length cols
-     * @return output vector, length rows
-     */
-    static float[] matrixVectorMultiply(float[] a, int rows, int cols, float[] v) {
-        float[] result = new float[rows];
-        matrixVectorMultiply(a, rows, cols, v, result);
-        return result;
-    }
-
-    /**
-     * Computes {@code result = A @ v} where A is a (rows x cols) row-major matrix.
-     *
-     * @param a      flat row-major matrix, length rows*cols
-     * @param rows   number of rows in A
-     * @param cols   number of columns in A (and length of v)
-     * @param v      input vector, length cols
-     * @param result output vector, length rows
-     */
-    static void matrixVectorMultiply(float[] a, int rows, int cols, float[] v, float[] result) {
-        for (int i = 0; i < rows; i++) {
-            result[i] = ESVectorUtil.dotProduct(a, i * cols, v, 0, cols);
-        }
+        return v;
     }
 
     /**

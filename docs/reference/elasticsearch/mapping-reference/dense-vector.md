@@ -754,6 +754,12 @@ PUT my-vector-index
 }
 ```
 
+:::{tip}
+:applies_to: {"vectordb": "ga"}
+On [Elasticsearch Vector Database](docs-content://solutions/vector-database.md) projects, new indices use `vectordb_document` automatically. It is the only supported index mode. For details, refer to [when to use this project type](docs-content://solutions/vector-database.md#when-to-use-this-project-type).
+:::
+
+
 When `vectordb_document` mode is active, the following settings are applied automatically unless you explicitly configure them:
 
 `element_type` (dense_vector)

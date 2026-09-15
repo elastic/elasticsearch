@@ -196,13 +196,25 @@ id:integer | label:keyword | _score:double
 //   id=4 [57,29,0]    9 bits differ  -> 15/24
 //   id=5 [32,39,39]  10 bits differ  -> 14/24
 knnRuntimeWithHammingSimilarity
+// Test 8: the vector_similarity option selects l2_norm (euclidean distance). Score is 1 / (1 + d²):
+//   id=0 [64,0,0]    d=0      -> 1.0
+//   id=4 [57,29,0]   d≈29.83  -> 1/(1+890) ≈ 0.001122
+//   id=3 [45,45,0]   d≈48.08  -> 1/(1+2881) ≈ 0.000347 (wait, that's wrong - let me recompute)
+// Euclidean distances from [64,0,0]:
+//   id=0: 0                     -> score 1.0
+//   id=4: sqrt((57-64)²+29²)=sqrt(49+841)=sqrt(890)≈29.83 -> score 1/(1+890) ≈ 0.001122
+//   id=3: sqrt((45-64)²+45²)=sqrt(361+2025)=sqrt(2386)≈48.85 -> score 1/(1+2386) ≈ 0.000419
+//   id=5: sqrt((32-64)²+39²+39²)=sqrt(1024+1521+1521)=sqrt(4066)≈63.77 -> score 1/(1+4066) ≈ 0.000246
+//   id=1: sqrt(64²+64²)=sqrt(8192)≈90.51 -> score 1/(1+8192) ≈ 0.000122
+//   id=2: same as id=1
+knnRuntimeWithL2NormSimilarity
 required_capability: knn_runtime_field
 required_capability: fn_knn_runtime_vector_similarity
 pragma: knn_runtime_field=true
 
 FROM knn_hex_vectors METADATA _score
 | EVAL dv = to_dense_vector(emb_hex)
-| WHERE knn(dv, [64, 0, 0], {"vector_similarity": "v_hamming"})
+| WHERE knn(dv, [64, 0, 0], {"vector_similarity": "l2_norm"})
 | SORT id ASC
 | KEEP id, _score
 | LIMIT 10
@@ -210,85 +222,16 @@ FROM knn_hex_vectors METADATA _score
 
 id:integer | _score:double
 0          | 1.0
-1          | 0.9166666666666666
-2          | 0.9166666666666666
-3          | 0.625
-4          | 0.625
-5          | 0.5833333333333334
+1          | 1.2205541733484257E-4
+2          | 1.2205541733484257E-4
+3          | 4.1893590634394916E-4
+4          | 1.122334395865555E-3
+5          | 2.458814876570497E-4
 ;
 
-// Test 9: L1 norm is a distance, so it is normalized as 1 / (1 + distance) to make closer vectors score higher.
-//   id=0 [64,0,0]    distance 0    -> 1.0
-//   id=1 [0,64,0]    distance 128  -> 1/129
-//   id=2 [0,0,64]    distance 128  -> 1/129
-//   id=3 [45,45,0]   distance 64   -> 1/65
-//   id=4 [57,29,0]   distance 36   -> 1/37
-//   id=5 [32,39,39]  distance 110  -> 1/111
-knnRuntimeWithL1NormSimilarity
-required_capability: knn_runtime_field
-required_capability: fn_knn_runtime_vector_similarity
-pragma: knn_runtime_field=true
-
-FROM knn_hex_vectors METADATA _score
-| EVAL dv = to_dense_vector(emb_hex)
-| WHERE knn(dv, [64, 0, 0], {"vector_similarity": "v_l1_norm"})
-| SORT id ASC
-| KEEP id, _score
-| LIMIT 10
-;
-
-id:integer | _score:double
-0          | 1.0
-1          | 0.007751937984496124
-2          | 0.007751937984496124
-3          | 0.015384615384615385
-4          | 0.02702702702702703
-5          | 0.009009009009009009
-;
-
-// Test 10: v_dot_product carries the same precondition as the dot_product mapping similarity - the raw value only
-// falls in [-1, 1], and so the score only falls in [0, 1], when both vectors are unit-length. Nothing normalizes a
-// runtime expression's vectors, so these deliberately non-unit vectors score well above 1. The ranking is still
-// correct, which is why the raw value is not clamped.
-knnRuntimeWithDotProductSimilarityOnNonUnitVectors
-// Test 10: v_dot_product requires unit-length vectors. A field vector with squared magnitude != 1 triggers
-// a per-row warning and is excluded; the result is empty.
-knnRuntimeWithDotProductSimilarityRejectsNonUnitVectors
-required_capability: knn_runtime_field
-required_capability: fn_knn_runtime_vector_similarity
-pragma: knn_runtime_field=true
-
-ROW dv = to_dense_vector([2.0, 0.0, 0.0])
-| WHERE knn(dv, [1.0, 0.0, 0.0], {"vector_similarity": "v_dot_product"})
-| KEEP dv
-| LIMIT 10
-;
-warning:Line 2:9: evaluation of [knn(dv, [1.0, 0.0, 0.0], {\"vector_similarity\": \"v_dot_product\"})] failed, treating result as null. Only first 20 failures recorded.
-warning:Line 2:9: java.lang.IllegalArgumentException: v_dot_product requires unit-length vectors but encountered squared magnitude [4.0]
-
-dv:dense_vector
-;
-
-// Test 11: v_dot_product on unit-length vectors, where the score does land in [0, 1]: the vectors are 36.87
-// degrees apart, so the dot product is 0.8 and the score (1 + 0.8) / 2.
-knnRuntimeWithDotProductSimilarityOnUnitVectors
-required_capability: knn_runtime_field
-required_capability: fn_knn_runtime_vector_similarity
-pragma: knn_runtime_field=true
-
-ROW dv = to_dense_vector([0.8, 0.6, 0.0])
-| WHERE knn(dv, [1.0, 0.0, 0.0], {"vector_similarity": "v_dot_product", "similarity": 0.5})
-| KEEP dv
-| LIMIT 10
-;
-
-dv:dense_vector
-[0.800000011920929, 0.6000000238418579, 0.0]
-;
-
-// Test 12: the similarity threshold is applied in the normalized score space, so for a distance metric it reads as
-// "at most this far" rather than "at least this similar". A L2 threshold of 50 keeps the vectors within euclidean
-// distance 50 of the query: id=0 (0), id=4 (29.83) and id=3 (48.85), but not id=5 (63.77) or id=1/id=2 (90.51).
+// Test 9: the similarity threshold is applied in the normalized score space. A l2_norm threshold of 50 keeps
+// vectors within euclidean distance 50 of the query: id=0 (d=0), id=4 (d≈29.83), id=3 (d≈48.85), but not
+// id=5 (d≈63.77) or id=1/id=2 (d≈90.51).
 knnRuntimeWithL2NormSimilarityAndThreshold
 required_capability: knn_runtime_field
 required_capability: fn_knn_runtime_vector_similarity
@@ -296,7 +239,7 @@ pragma: knn_runtime_field=true
 
 FROM knn_hex_vectors
 | EVAL dv = to_dense_vector(emb_hex)
-| WHERE knn(dv, [64, 0, 0], {"vector_similarity": "v_l2_norm", "similarity": 50.0})
+| WHERE knn(dv, [64, 0, 0], {"vector_similarity": "l2_norm", "similarity": 50.0})
 | SORT id ASC
 | KEEP id
 | LIMIT 10
@@ -308,6 +251,71 @@ id:integer
 4
 ;
 
+// Test 10: dot_product requires unit-length vectors. A field vector with squared magnitude != 1 triggers
+// a per-row warning and is excluded; the result is empty.
+knnRuntimeWithDotProductSimilarityRejectsNonUnitVectors
+required_capability: knn_runtime_field
+required_capability: fn_knn_runtime_vector_similarity
+pragma: knn_runtime_field=true
+
+ROW dv = to_dense_vector([2.0, 0.0, 0.0])
+| WHERE knn(dv, [1.0, 0.0, 0.0], {"vector_similarity": "dot_product"})
+| KEEP dv
+| LIMIT 10
+;
+warning:Line 2:9: evaluation of [knn(dv, [1.0, 0.0, 0.0], {\"vector_similarity\": \"dot_product\"})] failed, treating result as null. Only first 20 failures recorded.
+warning:Line 2:9: java.lang.IllegalArgumentException: dot_product requires unit-length vectors but encountered squared magnitude [4.0]
+
+dv:dense_vector
+;
+
+// Test 11: dot_product on unit-length vectors, where the score lands in [0, 1]: the vectors are 36.87
+// degrees apart, so the dot product is 0.8 and the score is (1 + 0.8) / 2 = 0.9.
+knnRuntimeWithDotProductSimilarityOnUnitVectors
+required_capability: knn_runtime_field
+required_capability: fn_knn_runtime_vector_similarity
+pragma: knn_runtime_field=true
+
+ROW dv = to_dense_vector([0.8, 0.6, 0.0])
+| WHERE knn(dv, [1.0, 0.0, 0.0], {"vector_similarity": "dot_product", "similarity": 0.5})
+| KEEP dv
+| LIMIT 10
+;
+
+dv:dense_vector
+[0.800000011920929, 0.6000000238418579, 0.0]
+;
+
+// Test 12: max_inner_product scores as (dot_product + 1) for positive products and 1/(1-dot_product) for
+// negative ones. With non-unit-length vectors the inner product can be large:
+//   id=0 [64,0,0]    dp=4096  -> 4097.0
+//   id=4 [57,29,0]   dp=3648  -> 3649.0
+//   id=3 [45,45,0]   dp=2880  -> 2881.0
+//   id=5 [32,39,39]  dp=2048  -> 2049.0
+//   id=1 [0,64,0]    dp=0     -> 1.0
+//   id=2 [0,0,64]    dp=0     -> 1.0
+knnRuntimeWithMaxInnerProductSimilarity
+required_capability: knn_runtime_field
+required_capability: fn_knn_runtime_vector_similarity
+pragma: knn_runtime_field=true
+
+FROM knn_hex_vectors METADATA _score
+| EVAL dv = to_dense_vector(emb_hex)
+| WHERE knn(dv, [64, 0, 0], {"vector_similarity": "max_inner_product"})
+| SORT id ASC
+| KEEP id, _score
+| LIMIT 10
+;
+
+id:integer | _score:double
+0          | 4097.0
+1          | 1.0
+2          | 1.0
+3          | 2881.0
+4          | 3649.0
+5          | 2049.0
+;
+
 // Test 13: the option value is case insensitive.
 knnRuntimeWithUppercaseSimilarityName
 required_capability: knn_runtime_field
@@ -316,7 +324,7 @@ pragma: knn_runtime_field=true
 
 FROM knn_hex_vectors
 | EVAL dv = to_dense_vector(emb_hex)
-| WHERE knn(dv, [64, 0, 0], {"vector_similarity": "V_L1_Norm", "similarity": 64})
+| WHERE knn(dv, [64, 0, 0], {"vector_similarity": "L2_Norm", "similarity": 50.0})
 | SORT id ASC
 | KEEP id
 | LIMIT 10

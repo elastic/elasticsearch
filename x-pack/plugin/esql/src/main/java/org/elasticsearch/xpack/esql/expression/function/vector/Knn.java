@@ -105,7 +105,7 @@ public class Knn extends SingleFieldFullTextFunction
     public static final String MIN_CANDIDATES_OPTION = "min_candidates";
 
     /**
-     * Names the {@link VectorSimilarityMetric} to compare the vectors with, e.g. {@code "v_l2_norm"}. Only accepted
+     * Names the {@link VectorSimilarityMetric} to compare the vectors with, e.g. {@code "l2_norm"}. Only accepted
      * when knn runs over a runtime expression - an indexed field takes its metric from the mapping instead. Not
      * documented as a function named parameter yet because runtime knn, the only path that accepts it, is snapshot
      * only; add the {@code @MapParam.MapParamEntry} for it when that path is released.
@@ -393,7 +393,7 @@ public class Knn extends SingleFieldFullTextFunction
             );
         }
         // Only cosine divides by the magnitude; the other metrics are well defined for a zero vector.
-        if (squaredMagnitude == 0.0f && similarityMetric() == VectorSimilarityMetric.V_COSINE) {
+        if (squaredMagnitude == 0.0f && similarityMetric() == VectorSimilarityMetric.COSINE) {
             failures.add(
                 Failure.fail(
                     query(),
@@ -402,11 +402,11 @@ public class Knn extends SingleFieldFullTextFunction
                 )
             );
         }
-        if (similarityMetric() == VectorSimilarityMetric.V_DOT_PRODUCT && Math.abs(squaredMagnitude - 1.0f) > 1e-4f) {
+        if (similarityMetric() == VectorSimilarityMetric.DOT_PRODUCT && Math.abs(squaredMagnitude - 1.0f) > 1e-4f) {
             failures.add(
                 Failure.fail(
                     query(),
-                    "[KNN] v_dot_product requires unit-length vectors; query vector [{}] has squared magnitude [{}]",
+                    "[KNN] dot_product requires unit-length vectors; query vector [{}] has squared magnitude [{}]",
                     query().sourceText(),
                     squaredMagnitude
                 )
@@ -438,8 +438,8 @@ public class Knn extends SingleFieldFullTextFunction
             metric,
             similarityThreshold,
             // Allocate a scratch buffer whenever we will actually read the field vector: either to compare against
-            // the threshold or to validate unit length for V_DOT_PRODUCT.
-            context -> (similarityThreshold == null && metric != VectorSimilarityMetric.V_DOT_PRODUCT) ? null : new float[queryVector.length]
+            // the threshold or to validate unit length for DOT_PRODUCT.
+            context -> (similarityThreshold == null && metric != VectorSimilarityMetric.DOT_PRODUCT) ? null : new float[queryVector.length]
         );
     }
 
@@ -479,10 +479,10 @@ public class Knn extends SingleFieldFullTextFunction
      */
     private VectorSimilarityMetric similarityMetric() {
         if (options() == null) {
-            return VectorSimilarityMetric.V_COSINE;
+            return VectorSimilarityMetric.COSINE;
         }
         String metric = BytesRefs.toString(queryOptions().get(VECTOR_SIMILARITY_METRIC_OPTION));
-        return metric == null ? VectorSimilarityMetric.V_COSINE : VectorSimilarityMetric.fromOptionValue(metric);
+        return metric == null ? VectorSimilarityMetric.COSINE : VectorSimilarityMetric.fromOptionValue(metric);
     }
 
     private float getBoost() {
@@ -669,7 +669,7 @@ public class Knn extends SingleFieldFullTextFunction
         float squaredMagnitude = VectorUtil.dotProduct(vector, vector);
         if (Math.abs(squaredMagnitude - 1.0f) > 1e-4f) {
             throw new IllegalArgumentException(
-                format(null, "v_dot_product requires unit-length vectors but encountered squared magnitude [{}]", squaredMagnitude)
+                format(null, "dot_product requires unit-length vectors but encountered squared magnitude [{}]", squaredMagnitude)
             );
         }
     }
@@ -709,7 +709,7 @@ public class Knn extends SingleFieldFullTextFunction
         for (int i = 0; i < dimensions; i++) {
             scratchVector[i] = fieldBlock.getFloat(first + i);
         }
-        if (similarityMetric == VectorSimilarityMetric.V_DOT_PRODUCT) {
+        if (similarityMetric == VectorSimilarityMetric.DOT_PRODUCT) {
             requireUnitLength(scratchVector, dimensions);
         }
         if (similarityThreshold == null) {
@@ -744,7 +744,7 @@ public class Knn extends SingleFieldFullTextFunction
         for (int i = 0; i < dimensions; i++) {
             scratchVector[i] = fieldBlock.getFloat(first + i);
         }
-        if (similarityMetric == VectorSimilarityMetric.V_DOT_PRODUCT) {
+        if (similarityMetric == VectorSimilarityMetric.DOT_PRODUCT) {
             requireUnitLength(scratchVector, dimensions);
         }
         return similarityMetric.score(similarityMetric.calculateSimilarity(scratchVector, queryVector), dimensions) * boost;

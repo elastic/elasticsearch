@@ -24,7 +24,7 @@ public class VectorSimilarityMetricTests extends ESTestCase {
     public void testOptionValuesMatchTheSimilarityFunctionNames() {
         assertThat(
             VectorSimilarityMetric.optionValues(),
-            equalTo(List.of("v_cosine", "v_dot_product", "v_hamming", "v_l1_norm", "v_l2_norm"))
+            equalTo(List.of("cosine", "dot_product", "l2_norm", "max_inner_product"))
         );
     }
 
@@ -37,56 +37,55 @@ public class VectorSimilarityMetricTests extends ESTestCase {
     }
 
     public void testFromOptionValueRejectsUnknownNames() {
-        // The mapping similarity names are deliberately not accepted; the option names the ES|QL function instead
-        assertThat(VectorSimilarityMetric.fromOptionValue("cosine"), nullValue());
-        assertThat(VectorSimilarityMetric.fromOptionValue("l2_norm"), nullValue());
+        // The old v_-prefixed names are deliberately not accepted
+        assertThat(VectorSimilarityMetric.fromOptionValue("v_cosine"), nullValue());
+        assertThat(VectorSimilarityMetric.fromOptionValue("v_dot_product"), nullValue());
+        assertThat(VectorSimilarityMetric.fromOptionValue("hamming"), nullValue());
+        assertThat(VectorSimilarityMetric.fromOptionValue("l1_norm"), nullValue());
         assertThat(VectorSimilarityMetric.fromOptionValue(""), nullValue());
         assertThat(VectorSimilarityMetric.fromOptionValue(null), nullValue());
     }
 
     public void testCosineScore() {
         // Identical, orthogonal and opposite vectors map to the ends and the middle of the interval
-        assertThat(VectorSimilarityMetric.V_COSINE.score(1.0f, 3), equalTo(1.0));
-        assertThat(VectorSimilarityMetric.V_COSINE.score(0.0f, 3), equalTo(0.5));
-        assertThat(VectorSimilarityMetric.V_COSINE.score(-1.0f, 3), equalTo(0.0));
+        assertThat(VectorSimilarityMetric.COSINE.score(1.0f, 3), equalTo(1.0));
+        assertThat(VectorSimilarityMetric.COSINE.score(0.0f, 3), equalTo(0.5));
+        assertThat(VectorSimilarityMetric.COSINE.score(-1.0f, 3), equalTo(0.0));
     }
 
     public void testDotProductScoreOnUnitLengthVectors() {
-        assertThat(VectorSimilarityMetric.V_DOT_PRODUCT.score(1.0f, 3), equalTo(1.0));
-        assertThat(VectorSimilarityMetric.V_DOT_PRODUCT.score(0.0f, 3), equalTo(0.5));
-        assertThat(VectorSimilarityMetric.V_DOT_PRODUCT.score(-1.0f, 3), equalTo(0.0));
+        assertThat(VectorSimilarityMetric.DOT_PRODUCT.score(1.0f, 3), equalTo(1.0));
+        assertThat(VectorSimilarityMetric.DOT_PRODUCT.score(0.0f, 3), equalTo(0.5));
+        assertThat(VectorSimilarityMetric.DOT_PRODUCT.score(-1.0f, 3), equalTo(0.0));
     }
 
-    public void testHammingScoreIsTheFractionOfMatchingBits() {
-        // Every dimension holds one byte, so a 3 dimensional vector is compared over 24 bits
-        assertThat(VectorSimilarityMetric.V_HAMMING.score(0.0f, 3), equalTo(1.0));
-        assertThat(VectorSimilarityMetric.V_HAMMING.score(12.0f, 3), equalTo(0.5));
-        assertThat(VectorSimilarityMetric.V_HAMMING.score(24.0f, 3), equalTo(0.0));
+    public void testL2NormScoreDecreaseWithDistance() {
+        assertThat(VectorSimilarityMetric.L2_NORM.score(0.0f, 3), equalTo(1.0));
+        assertThat(VectorSimilarityMetric.L2_NORM.score(1.0f, 3), equalTo(0.5));
+        assertThat(VectorSimilarityMetric.L2_NORM.score(2.0f, 3), equalTo(0.2));
     }
 
-    public void testDistanceMetricsScoreDecreaseWithDistance() {
-        assertThat(VectorSimilarityMetric.V_L1_NORM.score(0.0f, 3), equalTo(1.0));
-        assertThat(VectorSimilarityMetric.V_L1_NORM.score(1.0f, 3), equalTo(0.5));
-        assertThat(VectorSimilarityMetric.V_L1_NORM.score(3.0f, 3), equalTo(0.25));
-
-        assertThat(VectorSimilarityMetric.V_L2_NORM.score(0.0f, 3), equalTo(1.0));
-        assertThat(VectorSimilarityMetric.V_L2_NORM.score(1.0f, 3), equalTo(0.5));
-        assertThat(VectorSimilarityMetric.V_L2_NORM.score(2.0f, 3), equalTo(0.2));
+    public void testMaxInnerProductScore() {
+        // Positive inner products: similarity + 1
+        assertThat(VectorSimilarityMetric.MAX_INNER_PRODUCT.score(0.0f, 3), equalTo(1.0));
+        assertThat(VectorSimilarityMetric.MAX_INNER_PRODUCT.score(1.0f, 3), equalTo(2.0));
+        assertThat(VectorSimilarityMetric.MAX_INNER_PRODUCT.score(3.0f, 3), equalTo(4.0));
+        // Negative inner products: 1 / (1 - similarity)
+        assertThat(VectorSimilarityMetric.MAX_INNER_PRODUCT.score(-1.0f, 3), equalTo(0.5));
+        assertThat(VectorSimilarityMetric.MAX_INNER_PRODUCT.score(-3.0f, 3), equalTo(0.25));
     }
 
     /**
      * The point of the normalization is that a higher score always means more relevant, whichever metric produced
-     * it - that is what lets the evaluator rank rows and compare against a threshold without knowing the metric.
-     * Cosine and dot product grow as vectors get closer, the other three grow as they get further apart, so the
-     * normalization has to run the second group the other way round.
+     * it. Cosine, dot-product and max-inner-product grow as vectors get closer, while L2 grows as they get further
+     * apart, so the normalization has to invert the last group.
      */
     public void testScoreOrdersByRelevanceWhicheverWayTheRawValueRuns() {
         int dimensions = randomIntBetween(1, 16);
-        assertScoreIncreasesWithRawValue(VectorSimilarityMetric.V_COSINE, dimensions);
-        assertScoreIncreasesWithRawValue(VectorSimilarityMetric.V_DOT_PRODUCT, dimensions);
-        assertScoreDecreasesWithRawValue(VectorSimilarityMetric.V_HAMMING, dimensions);
-        assertScoreDecreasesWithRawValue(VectorSimilarityMetric.V_L1_NORM, dimensions);
-        assertScoreDecreasesWithRawValue(VectorSimilarityMetric.V_L2_NORM, dimensions);
+        assertScoreIncreasesWithRawValue(VectorSimilarityMetric.COSINE, dimensions);
+        assertScoreIncreasesWithRawValue(VectorSimilarityMetric.DOT_PRODUCT, dimensions);
+        assertScoreIncreasesWithRawValue(VectorSimilarityMetric.MAX_INNER_PRODUCT, dimensions);
+        assertScoreDecreasesWithRawValue(VectorSimilarityMetric.L2_NORM, dimensions);
     }
 
     private static void assertScoreIncreasesWithRawValue(VectorSimilarityMetric metric, int dimensions) {
@@ -100,18 +99,14 @@ public class VectorSimilarityMetricTests extends ESTestCase {
     }
 
     /**
-     * Every metric but dot product bounds its score to the unit interval for arbitrary vectors. Dot product only
-     * does so for unit-length vectors, which is the precondition it inherits from the dot_product mapping
-     * similarity, so it is checked separately with normalized input.
+     * Cosine and L2 bound their score to [0, 1] for arbitrary vectors. Dot product only does so for unit-length
+     * vectors (checked separately). Max inner product is unbounded above 1 for positive inner products.
      */
-    public void testScoresStayWithinTheUnitInterval() {
+    public void testCosineAndL2ScoresStayWithinTheUnitInterval() {
         int dimensions = randomIntBetween(1, 16);
-        for (VectorSimilarityMetric metric : VectorSimilarityMetric.values()) {
-            if (metric == VectorSimilarityMetric.V_DOT_PRODUCT) {
-                continue;
-            }
+        for (VectorSimilarityMetric metric : List.of(VectorSimilarityMetric.COSINE, VectorSimilarityMetric.L2_NORM)) {
             for (int i = 0; i < 100; i++) {
-                double score = score(metric, randomByteValuedVector(dimensions), randomByteValuedVector(dimensions), dimensions);
+                double score = score(metric, randomPositiveVector(dimensions), randomPositiveVector(dimensions), dimensions);
                 assertThat(metric.toString(), score, greaterThanOrEqualTo(0.0));
                 assertThat(metric.toString(), score, lessThanOrEqualTo(1.0));
             }
@@ -123,8 +118,8 @@ public class VectorSimilarityMetricTests extends ESTestCase {
         for (int i = 0; i < 100; i++) {
             float[] left = unitVector(dimensions);
             float[] right = unitVector(dimensions);
-            double score = VectorSimilarityMetric.V_DOT_PRODUCT.score(
-                VectorSimilarityMetric.V_DOT_PRODUCT.calculateSimilarity(left, right),
+            double score = VectorSimilarityMetric.DOT_PRODUCT.score(
+                VectorSimilarityMetric.DOT_PRODUCT.calculateSimilarity(left, right),
                 dimensions
             );
             // A tolerance is needed because the dot product of two unit vectors only lands in [-1, 1] up to the
@@ -137,10 +132,23 @@ public class VectorSimilarityMetricTests extends ESTestCase {
     public void testCosineScoreMatchesTheRawSimilarity() {
         float[] left = new float[] { 3.0f, 4.0f, 0.0f };
         float[] right = new float[] { 3.0f, 0.0f, 0.0f };
-        // cos = 3 / 5, so the score is (1 + 0.6) / 2
+        // cos = 3 / 5 = 0.6, so the score is (1 + 0.6) / 2 = 0.8
         assertThat(
-            VectorSimilarityMetric.V_COSINE.score(VectorSimilarityMetric.V_COSINE.calculateSimilarity(left, right), 3),
+            VectorSimilarityMetric.COSINE.score(VectorSimilarityMetric.COSINE.calculateSimilarity(left, right), 3),
             closeTo(0.8, 1e-6)
+        );
+    }
+
+    public void testMaxInnerProductScoreIsUnboundedAboveForPositiveProducts() {
+        float[] a = new float[] { 10.0f, 0.0f };
+        float[] b = new float[] { 10.0f, 0.0f };
+        // dot product = 100, score = 101
+        assertThat(
+            VectorSimilarityMetric.MAX_INNER_PRODUCT.score(
+                VectorSimilarityMetric.MAX_INNER_PRODUCT.calculateSimilarity(a, b),
+                2
+            ),
+            closeTo(101.0, 1e-4)
         );
     }
 
@@ -148,8 +156,7 @@ public class VectorSimilarityMetricTests extends ESTestCase {
         return metric.score(metric.calculateSimilarity(left, right), dimensions);
     }
 
-    /** Values a Hamming comparison can round-trip through a byte, so that all the metrics see the same vectors. */
-    private static float[] randomByteValuedVector(int dimensions) {
+    private static float[] randomPositiveVector(int dimensions) {
         float[] vector = new float[dimensions];
         for (int i = 0; i < dimensions; i++) {
             vector[i] = randomIntBetween(1, 100);

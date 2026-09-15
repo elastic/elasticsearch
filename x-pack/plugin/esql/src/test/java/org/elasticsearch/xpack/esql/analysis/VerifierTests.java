@@ -3683,7 +3683,7 @@ public class VerifierTests extends AnalyzerTestCase {
      */
     public void testKnnVectorSimilarityOption() throws Exception {
         fullText().error(
-            "FROM test | WHERE KNN(vector, [0.1, 0.2, 0.3], {\"vector_similarity\": \"v_l2_norm\"})",
+            "FROM test | WHERE KNN(vector, [0.1, 0.2, 0.3], {\"vector_similarity\": \"l2_norm\"})",
             containsString("[KNN] option [vector_similarity] is only supported when [vector] is a non-index-mapped field or expression")
         );
 
@@ -3696,10 +3696,10 @@ public class VerifierTests extends AnalyzerTestCase {
 
         // An unknown metric fails on the option value itself, before the plan is ever verified
         fullText().error(
-            "FROM test | WHERE KNN(vector, [0.1, 0.2, 0.3], {\"vector_similarity\": \"cosine\"})",
+            "FROM test | WHERE KNN(vector, [0.1, 0.2, 0.3], {\"vector_similarity\": \"v_cosine\"})",
             allOf(
                 containsString("Invalid option [vector_similarity]"),
-                containsString("expected one of [v_cosine, v_dot_product, v_hamming, v_l1_norm, v_l2_norm]")
+                containsString("expected one of [cosine, dot_product, l2_norm, max_inner_product]")
             )
         );
     }

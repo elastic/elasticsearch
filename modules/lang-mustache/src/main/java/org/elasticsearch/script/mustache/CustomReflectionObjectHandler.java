@@ -57,7 +57,59 @@ final class CustomReflectionObjectHandler extends ReflectionObjectHandler {
 
     @Override
     public Binding createBinding(String name, TemplateContext tc, Code code) {
-        return detectMissingParams ? new DetectMissingParamsGuardedBinding(this, name, tc, code) : super.createBinding(name, tc, code);
+        if (detectMissingParams) {
+            return new DetectMissingParamsGuardedBinding(this, name, tc, code);
+        }
+        return new DirectMapBinding(name);
+    }
+
+    /**
+     * A {@link Binding} that bypasses mustache.java's guard/reflection machinery entirely.
+     * <p>
+     * The standard {@link GuardedBinding} caches a {@link com.github.mustachejava.reflect.ReflectionWrapper}
+     * per scope-type signature and re-checks a set of type guards on every call to confirm the scope types
+     * haven't changed before dispatching via reflection. For ingest templates the model is always a
+     * {@code Map<String, Object>}, so the guards always pass and reflection always resolves to
+     * {@code Map.get} — the guard loop and reflective dispatch are pure overhead.
+     * <p>
+     * This binding skips all of that: it searches the scope stack right-to-left and resolves
+     * dot-separated components iteratively, using {@link #coerce} at each step so that arrays
+     * and collections are wrapped as {@code ArrayMap}/{@code CollectionMap} for index access.
+     */
+    private final class DirectMapBinding implements Binding {
+        private final String name;
+
+        DirectMapBinding(String name) {
+            this.name = name;
+        }
+
+        @Override
+        public Object get(List<Object> scopes) {
+            int dot = name.indexOf('.');
+            String first = dot == -1 ? name : name.substring(0, dot);
+            // Search scope stack right-to-left (innermost scope first) for the first component
+            Object value = null;
+            for (int i = scopes.size() - 1; i >= 0; i--) {
+                Object scope = coerce(scopes.get(i));
+                if (scope instanceof Map<?, ?> map && map.containsKey(first)) {
+                    value = map.get(first);
+                    break;
+                }
+            }
+            if (dot == -1) {
+                return coerce(value);
+            }
+            // Resolve remaining dot-separated components through coerce so that arrays and
+            // collections are accessible by index via ArrayMap/CollectionMap
+            for (String part : name.substring(dot + 1).split("\\.")) {
+                Object coerced = coerce(value);
+                if (!(coerced instanceof Map<?, ?> map)) {
+                    return null;
+                }
+                value = map.get(part);
+            }
+            return coerce(value);
+        }
     }
 
     @Override

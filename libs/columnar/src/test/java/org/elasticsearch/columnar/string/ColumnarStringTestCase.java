@@ -19,6 +19,7 @@ import org.apache.lucene.store.IndexOutput;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.IOUtils;
 import org.elasticsearch.columnar.FormatVersion;
+import org.elasticsearch.columnar.substrate.ChunkBounds;
 import org.elasticsearch.columnar.substrate.ChunkCodec;
 import org.elasticsearch.columnar.substrate.ColumnarCodecUtil;
 import org.elasticsearch.test.ESTestCase;
@@ -172,20 +173,24 @@ public abstract class ColumnarStringTestCase extends ESTestCase {
         final int slotCountsBlockSize,
         final ColumnCheck check
     ) throws IOException {
+        final StringColumnOptions.Sizes sizes = new StringColumnOptions.Sizes(
+            blockSize,
+            ChunkBounds.ofBytes(targetChunkBytes),
+            ChunkBounds.ofBytes(targetChunkBytes),
+            StringColumnOptions.DEFAULT_PACKED_ORDINAL_BLOCK_SIZE,
+            compressedOrdinalBlockSize,
+            StringColumnOptions.DEFAULT_ESCAPE_RANK_BLOCK_SIZE,
+            slotCountsBlockSize
+        );
+        withColumn(docSlots, new StringColumnOptions(policy, chunkCodec, sizes), check);
+    }
+
+    /** As above, with every choice named at once, for a test that cares about one the overloads do not reach. */
+    protected void withColumn(final BytesRef[][] docSlots, final StringColumnOptions options, final ColumnCheck check) throws IOException {
         final byte[] segmentId = new byte[16];
         random().nextBytes(segmentId);
         try (Directory dir = newDirectory()) {
-            final StringColumnMetadata metadata = writeColumn(
-                dir,
-                segmentId,
-                docSlots,
-                blockSize,
-                chunkCodec,
-                targetChunkBytes,
-                policy,
-                compressedOrdinalBlockSize,
-                slotCountsBlockSize
-            );
+            final StringColumnMetadata metadata = writeColumn(dir, segmentId, docSlots, options);
             try (IndexInput data = openData(dir, segmentId)) {
                 check.check(metadata, StringColumnReader.open(metadata, data));
             }
@@ -301,12 +306,7 @@ public abstract class ColumnarStringTestCase extends ESTestCase {
         final Directory dir,
         final byte[] segmentId,
         final BytesRef[][] docSlots,
-        final int blockSize,
-        final ChunkCodec chunkCodec,
-        final int targetChunkBytes,
-        final DictionaryPolicy policy,
-        final int compressedOrdinalBlockSize,
-        final int slotCountsBlockSize
+        final StringColumnOptions options
     ) throws IOException {
         final StringColumnMetadata written;
         try (IndexOutput out = dir.createOutput(DATA_FILE, IOContext.DEFAULT)) {
@@ -317,13 +317,7 @@ public abstract class ColumnarStringTestCase extends ESTestCase {
                 numValues(docSlots),
                 numNullSlots(docSlots),
                 () -> cursor(docSlots),
-                blockSize,
-                chunkCodec,
-                targetChunkBytes,
-                targetChunkBytes,
-                compressedOrdinalBlockSize,
-                slotCountsBlockSize,
-                policy,
+                options,
                 null,
                 dir,
                 IOContext.DEFAULT,

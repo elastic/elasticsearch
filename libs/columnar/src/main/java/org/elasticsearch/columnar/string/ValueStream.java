@@ -49,8 +49,11 @@ import java.util.Arrays;
  */
 public final class ValueStream {
 
-    /** Values behind one offset. Larger trades a longer walk on random access for a smaller offset table. */
-    public static final int VALUES_PER_BLOCK = 128;
+    /**
+     * What an empty stream reports as its block size. It holds no values, so nothing ever addresses one and
+     * the number only has to be one the reader accepts.
+     */
+    private static final int EMPTY_VALUES_PER_BLOCK = 1;
 
     /** Marks a block whose lengths sit in front of their own values rather than together at its head. */
     static final byte INLINE = 0;
@@ -84,7 +87,7 @@ public final class ValueStream {
     public record Metadata(long numValues, long valueBytes, int valuesPerBlock, ChunkIndexMetadata chunks, MonotonicWriter.Table offsets) {
 
         public static Metadata empty() {
-            return new Metadata(0, 0, VALUES_PER_BLOCK, ChunkIndexMetadata.empty(), MonotonicWriter.Table.NONE);
+            return new Metadata(0, 0, EMPTY_VALUES_PER_BLOCK, ChunkIndexMetadata.empty(), MonotonicWriter.Table.NONE);
         }
 
         public void writeTo(DataOutput out) throws IOException {

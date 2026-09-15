@@ -431,7 +431,7 @@ public class StringDictionaryTests extends ColumnarStringTestCase {
      * nowhere else.
      */
     public void testEscapesAtBlockBoundaries() throws IOException {
-        final int block = StringColumnWriter.ESCAPE_RANK_BLOCK;
+        final int block = StringColumnOptions.DEFAULT_ESCAPE_RANK_BLOCK_SIZE;
         final int size = block * 4;
         final int[] escapeAt = { 0, 1, block - 1, block, block + 1, 2 * block, size - 1 };
         final BytesRef[] docValues = withEscapesAt(size, escapeAt);
@@ -450,7 +450,7 @@ public class StringDictionaryTests extends ColumnarStringTestCase {
      * nothing downstream would notice.
      */
     public void testEscapesResolvedOutOfOrder() throws IOException {
-        final int block = StringColumnWriter.ESCAPE_RANK_BLOCK;
+        final int block = StringColumnOptions.DEFAULT_ESCAPE_RANK_BLOCK_SIZE;
         final int size = block * 4;
         final int[] escapeAt = { 3, block - 2, block + 5, 2 * block + 1, 3 * block, size - 2 };
         final BytesRef[] docValues = withEscapesAt(size, escapeAt);
@@ -493,7 +493,7 @@ public class StringDictionaryTests extends ColumnarStringTestCase {
 
     /** Every value in one block escaping, so a later block's base is offset by a whole block of them. */
     public void testAWholeBlockEscapes() throws IOException {
-        final int block = StringColumnWriter.ESCAPE_RANK_BLOCK;
+        final int block = StringColumnOptions.DEFAULT_ESCAPE_RANK_BLOCK_SIZE;
         final int size = block * 3;
         final int[] escapeAt = new int[block];
         for (int i = 0; i < block; i++) {
@@ -600,6 +600,40 @@ public class StringDictionaryTests extends ColumnarStringTestCase {
             }
             assertEquals("documents with a value", numDocsWithField(docSlots), seen);
         });
+    }
+
+    /**
+     * The escape-rank table is read at the block the column recorded, so a column written at any of them
+     * resolves its escapes and one written at a block other than the default is not read at the default.
+     */
+    public void testEscapesResolveAtEveryRankBlock() throws IOException {
+        for (int block : new int[] { 128, 256, 1024 }) {
+            final int size = block * 3;
+            final int[] escapeAt = { 0, 1, block - 1, block, block + 1, 2 * block, size - 1 };
+            final BytesRef[] docValues = withEscapesAt(size, escapeAt);
+            withColumn(singleValued(docValues), optionsWithEscapeRankBlock(block), (metadata, reader) -> {
+                final StringColumnMetadata.Dictionary dictionary = dictionaryOf(metadata);
+                assertEquals("recorded escape rank block", block, dictionary.escapeRankBlockSize());
+                assertEquals("one escape per position", escapeAt.length, (int) dictionary.escapes().numValues());
+                assertEveryValueReadsBack(docValues, reader);
+            });
+        }
+    }
+
+    private static StringColumnOptions optionsWithEscapeRankBlock(int escapeRankBlockSize) {
+        return new StringColumnOptions(
+            ROOMY,
+            randomChunkCodec(),
+            new StringColumnOptions.Sizes(
+                StringColumnOptions.DEFAULT_VALUES_PER_BLOCK,
+                StringColumnOptions.DEFAULT_PLAIN_CHUNKS,
+                StringColumnOptions.DEFAULT_ESCAPE_CHUNKS,
+                StringColumnOptions.DEFAULT_PACKED_ORDINAL_BLOCK_SIZE,
+                StringColumnOptions.DEFAULT_COMPRESSED_ORDINAL_BLOCK_SIZE,
+                escapeRankBlockSize,
+                StringColumnOptions.DEFAULT_SLOT_COUNTS_BLOCK_SIZE
+            )
+        );
     }
 
     private void withDictionary(final BytesRef[] docValues, final ColumnCheck check) throws IOException {

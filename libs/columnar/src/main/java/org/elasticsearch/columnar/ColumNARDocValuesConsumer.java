@@ -42,7 +42,6 @@ import org.elasticsearch.columnar.string.StringColumnOptionsSelector;
 import org.elasticsearch.columnar.string.StringColumnReader;
 import org.elasticsearch.columnar.string.StringColumnValues;
 import org.elasticsearch.columnar.string.StringColumnWriter;
-import org.elasticsearch.columnar.string.ValueStream;
 import org.elasticsearch.columnar.string.Vocabulary;
 import org.elasticsearch.columnar.substrate.BlockBytesCodec;
 import org.elasticsearch.columnar.substrate.ColumnarCodecUtil;
@@ -688,13 +687,7 @@ final class ColumNARDocValuesConsumer extends DocValuesConsumer {
             totals.numValues(),
             totals.numNullSlots(),
             cursors,
-            ValueStream.VALUES_PER_BLOCK,
-            options.chunkCodec(),
-            options.targetChunkBytes(),
-            options.plainPathTargetChunkBytes(),
-            options.compressedOrdinalBlockSize(),
-            options.slotCountsBlockSize(),
-            options.dictionary(),
+            options,
             known,
             directory,
             context,

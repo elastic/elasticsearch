@@ -69,22 +69,53 @@ public final class InstrumenterImpl implements Instrumenter {
     private final String registryClassMethodDescriptor;
     private final String handleClass;
     private final Map<String, Map<MethodSignature, InstrumentationInfo>> rulesByClass;
+    private final boolean injectCallerSensitive;
+
+    /**
+     * Default value for {@link #injectCallerSensitive}, controlled by the system property
+     * {@code es.entitlements.inject_caller_sensitive} (default {@code true}).
+     * <p>
+     * When {@code true}, {@link EntitlementMethodVisitor#visitCode()} injects a
+     * {@code jdk.internal.reflect.CallerSensitive} annotation onto every instrumented method
+     * that does not already carry one, so that {@link EntitlementMethodVisitor#pushCallerClass()}
+     * always uses the {@code jdk.internal.reflect.Reflection#getCallerClass()} intrinsic instead
+     * of the {@code StackWalker} fallback in {@code org.elasticsearch.entitlement.bridge.Util}.
+     * <p>
+     * The JVM only honors user-injected {@code @CallerSensitive} on classes loaded by the
+     * bootstrap classloader; every method instrumented by the entitlement agent in production
+     * lives in {@code java.base} (bootstrap-loaded), so the annotation is honored in practice.
+     * Unit tests instrument classes loaded by a non-bootstrap {@link ClassLoader}, so they
+     * construct {@code InstrumenterImpl} directly with {@code injectCallerSensitive=false}.
+     */
+    static final boolean INJECT_CALLER_SENSITIVE_DEFAULT = Boolean.parseBoolean(
+        System.getProperty("es.entitlements.inject_caller_sensitive", "true")
+    );
 
     InstrumenterImpl(
         String handleClass,
         String registryClassMethodDescriptor,
         Map<String, Map<MethodSignature, InstrumentationInfo>> rulesByClass
     ) {
+        this(handleClass, registryClassMethodDescriptor, rulesByClass, false);
+    }
+
+    InstrumenterImpl(
+        String handleClass,
+        String registryClassMethodDescriptor,
+        Map<String, Map<MethodSignature, InstrumentationInfo>> rulesByClass,
+        boolean injectCallerSensitive
+    ) {
         this.handleClass = handleClass;
         this.registryClassMethodDescriptor = registryClassMethodDescriptor;
         this.rulesByClass = rulesByClass;
+        this.injectCallerSensitive = injectCallerSensitive;
     }
 
     public static InstrumenterImpl create(Class<?> registryClass, Map<String, Map<MethodSignature, InstrumentationInfo>> rulesByClass) {
         Type registryClassType = Type.getType(registryClass);
         String handleClass = registryClassType.getInternalName() + "Handle";
         String getCheckerClassMethodDescriptor = Type.getMethodDescriptor(registryClassType);
-        return new InstrumenterImpl(handleClass, getCheckerClassMethodDescriptor, rulesByClass);
+        return new InstrumenterImpl(handleClass, getCheckerClassMethodDescriptor, rulesByClass, INJECT_CALLER_SENSITIVE_DEFAULT);
     }
 
     private static boolean isJvmConstant(Object value) {
@@ -390,6 +421,19 @@ public final class InstrumenterImpl implements Instrumenter {
         @SuppressWarnings("rawtypes")
         @Override
         public void visitCode() {
+            // If the target method is not already annotated @CallerSensitive, inject the annotation
+            // here (before any bytecode is emitted for this method body). The JVM only honors
+            // user-injected @CallerSensitive on bootstrap-loaded classes; every method instrumented
+            // by the entitlement agent in production lives in java.base, which satisfies that
+            // constraint. With the annotation in place, pushCallerClass() below emits a direct call
+            // to the Reflection.getCallerClass() intrinsic instead of routing through a StackWalker.
+            if (injectCallerSensitive && hasCallerSensitiveAnnotation == false) {
+                AnnotationVisitor av = super.visitAnnotation("Ljdk/internal/reflect/CallerSensitive;", true);
+                if (av != null) {
+                    av.visitEnd();
+                }
+                hasCallerSensitiveAnnotation = true;
+            }
             pushEntitlementChecker();
             pushInstrumentationId();
             pushCallerClass();

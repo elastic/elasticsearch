@@ -6581,25 +6581,40 @@ public class AnalyzerTests extends ESTestCase {
     /** Analyzer options reject borrowable predicates but do not affect predicates HIGHLIGHT ignores. */
     public void testHighlightHandlesAnalyzerOnWherePredicates() {
         assumeHighlightImplicitQueryAndFieldsEnabled();
-        var analyzerNotSupported = allOf(
-            containsString("cannot borrow a WHERE condition that sets analyzer"),
-            not(containsString("analyzer not found"))
-        );
-        supportsHighlight(basic()).error(
-            "FROM test | WHERE MATCH(first_name, \"x\", {\"analyzer\": \"standard\"}) | HIGHLIGHT ON first_name",
-            analyzerNotSupported
-        );
-        supportsHighlight(basic()).error(
-            "FROM test | WHERE MATCH(first_name, \"x\", {\"analyzer\": \"standard\"}) AND MATCH(last_name, \"y\") | HIGHLIGHT",
-            analyzerNotSupported
-        );
-        supportsHighlight(basic()).error("""
+
+        // A single borrowed leaf with an analyzer succeeds: HIGHLIGHT synthesizes the WITH option.
+        Highlight singleLeaf = soleHighlight(supportsHighlight(basic()).query("""
+            FROM test
+            | WHERE MATCH(first_name, "x", {"analyzer": "standard"})
+            | HIGHLIGHT ON first_name
+            """));
+        assertTrue(singleLeaf.implicitQuery());
+
+        // A named leaf plus an unlabeled sibling still borrows: unlabeled leaves inherit the uniform analyzer.
+        Highlight uniformWithUnlabeled = soleHighlight(supportsHighlight(basic()).query("""
+            FROM test
+            | WHERE MATCH(first_name, "x", {"analyzer": "standard"}) AND MATCH(last_name, "y")
+            | HIGHLIGHT
+            """));
+        assertTrue(uniformWithUnlabeled.implicitQuery());
+
+        // Two named leaves that agree, split across WHERE commands, still borrow.
+        Highlight uniformAcrossWheres = soleHighlight(supportsHighlight(basic()).query("""
             FROM test
             | WHERE MATCH(first_name, "x")
             | WHERE MATCH(last_name, "y", {"analyzer": "standard"})
             | HIGHLIGHT ON first_name
-            """, analyzerNotSupported);
+            """));
+        assertTrue(uniformAcrossWheres.implicitQuery());
 
+        // Named leaves that disagree fail with the uniform-analyzer error.
+        supportsHighlight(basic()).error(
+            "FROM test | WHERE MATCH(first_name, \"x\", {\"analyzer\": \"english\"})"
+                + " AND MATCH(last_name, \"y\", {\"analyzer\": \"whitespace\"}) | HIGHLIGHT",
+            containsString("HIGHLIGHT full-text functions use different analyzers")
+        );
+
+        // A non-borrowable NOT with an analyzer does not poison a sibling MATCH without one.
         Highlight highlight = soleHighlight(supportsHighlight(basic()).query("""
             FROM test
             | WHERE MATCH(first_name, "x") AND NOT MATCH(last_name, "y", {"analyzer": "standard"})

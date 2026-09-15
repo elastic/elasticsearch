@@ -30,9 +30,13 @@ describe("never-fail.sh", () => {
   afterEach(() => rmSync(dir, { recursive: true, force: true }));
 
   /** Runs the script with a wrapped command, returning what an observer could see afterwards. */
-  function run(command: string, opts: { kind?: string; timeout?: number; taskPaths?: string; parallelJob?: string } = {}) {
+  function run(
+    command: string,
+    opts: { kind?: string; timeout?: number; taskPaths?: string; parallelJob?: string; hardFailRc?: string } = {}
+  ) {
     const args = ["--context", "flakiness-detection:unit", "--inner-timeout-minutes", String(opts.timeout ?? 1)];
     if (opts.kind) args.push("--kind", opts.kind);
+    if (opts.hardFailRc) args.push("--hard-fail-rc", opts.hardFailRc);
     let status = 0;
     try {
       execFileSync("bash", [SCRIPT, ...args], {
@@ -149,6 +153,45 @@ describe("never-fail.sh", () => {
     const r = run("echo picked > marker.txt", { kind: "test", parallelJob: "1" });
     expect(r.status).toBe(0);
     expect(readFileSync(join(dir, "marker.txt"), "utf8").trim()).toBe("picked");
+  });
+
+  /**
+   * The analyze step's opt-in: on a PR whose team added its label to BLOCKING_LABELS, the verdict has to
+   * reach Buildkite. Only the designated code does - everything else still honours the never-fail
+   * contract, which is what keeps a crash or an overrun of the analyze step off the PR.
+   */
+  test("with --hard-fail-rc the designated code is propagated", () => {
+    const r = run("exit 42", { hardFailRc: "42" });
+    expect(r.status).toBe(42);
+    // The wrapped command annotated the report itself, so the wrapper adds no "exited with 42" noise.
+    expect(r.annotations).toBe("");
+  });
+
+  test("with --hard-fail-rc every other non-zero code still exits 0 and is annotated", () => {
+    const failed = run("exit 1", { hardFailRc: "42" });
+    expect(failed.status).toBe(0);
+    expect(failed.annotations).toContain("exited with 1");
+
+    const timedOut = run("exit 124", { hardFailRc: "42" });
+    expect(timedOut.status).toBe(0);
+    expect(timedOut.annotations).toContain("timed out");
+  });
+
+  test("without --hard-fail-rc even the designated code exits 0", () => {
+    // An unlabelled PR: analyze.ts reports the same verdict regardless of labels, and this is what makes
+    // it a no-op there.
+    const r = run("exit 42");
+    expect(r.status).toBe(0);
+  });
+
+  test("a hard-fail code that is not a positive integer is rejected before anything runs", () => {
+    // Checked up front on purpose: a bad value would otherwise only break the comparison at the very end
+    // of the step, after an hour of tests.
+    for (const bad of ["abc", "0", "-1"]) {
+      const r = run("echo ran > marker.txt", { hardFailRc: bad });
+      expect(r.status).toBe(2);
+      expect(existsSync(join(dir, "marker.txt"))).toBe(false);
+    }
   });
 
   test("a malformed direct invocation fails loudly instead of silently exiting 0", () => {

@@ -266,6 +266,24 @@ describe("toBuildkitePipeline", () => {
     expect(analyze.command).toContain("--inner-timeout-minutes 8");
   });
 
+  test("the analyze step is the only one that can fail, on the proven-flakiness code alone", () => {
+    const cmds: RunnableCommand[] = [
+      { kind: "test", label: "unit tests", key: "flakiness-detection:unit", command: "cmd" },
+    ];
+    const [batch, analyze] = toBuildkitePipeline(cmds, DEFAULT_AGENT_CONFIG).steps[0].steps;
+
+    // Unconditional: whether the analyze step ever reaches this code is its own call (shouldBlock, gated
+    // on the PR's labels), so nothing here needs to know about labels. 42 is FLAKINESS_PROVEN_EXIT_CODE;
+    // the selective propagation itself is covered by never-fail.test.ts.
+    expect(analyze.command).toBe(
+      ".buildkite/scripts/flakiness-detection/runners/never-fail.sh " +
+        "--context flakiness-detection:analyze --inner-timeout-minutes 8 --hard-fail-rc 42"
+    );
+    // A batch step must NOT carry it: its rc cannot tell a failing test from a timeout or an OOM-kill, and
+    // a gradle invocation that happened to exit 42 would otherwise redden a PR with no verdict behind it.
+    expect(batch.command).not.toContain("--hard-fail-rc");
+  });
+
   test("emits an analyze-only step when all tests are not_applicable (no batches)", () => {
     // All detected tests were BWC → zero batch commands, but the analyze step
     // must still run so the not_applicable records reach the outcomes artifact.

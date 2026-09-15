@@ -6,6 +6,7 @@ import {
   COMPILE_TASKS,
   FLAKINESS_PLAN_ARTIFACT,
   FLAKINESS_PRECOMPILE_ARTIFACT,
+  FLAKINESS_PROVEN_EXIT_CODE,
   FLAKINESS_REFS_ARTIFACT,
   FLAKINESS_TARGETS_ARCHIVE,
   FLAKINESS_TARGETS_DIR,
@@ -62,11 +63,22 @@ const NEVER_FAIL_SCRIPT = ".buildkite/scripts/flakiness-detection/runners/never-
  * up in state "timed_out".
  *
  * Omitting `kind` gives never-fail behaviour with no batch outcome, which is what the analyze step wants.
+ *
+ * `hardFail` lets the proven-flakiness exit code - and only that code - through. It is the analyze step's
+ * other special case, and deliberately NOT applied to a batch step: a gradle invocation that happened to
+ * exit with that value would otherwise redden a PR without any verdict behind it.
  */
-function wrapNeverFail(contextKey: string, outerTimeoutMin: number, emitOutcome?: { kind: TestKind }): string {
+function wrapNeverFail(
+  contextKey: string,
+  outerTimeoutMin: number,
+  opts: { kind?: TestKind; hardFail?: boolean } = {}
+): string {
   const args = [`--context ${contextKey}`, `--inner-timeout-minutes ${innerTimeout(outerTimeoutMin)}`];
-  if (emitOutcome) {
-    args.push(`--kind ${emitOutcome.kind}`);
+  if (opts.kind) {
+    args.push(`--kind ${opts.kind}`);
+  }
+  if (opts.hardFail) {
+    args.push(`--hard-fail-rc ${FLAKINESS_PROVEN_EXIT_CODE}`);
   }
   return `${NEVER_FAIL_SCRIPT} ${args.join(" ")}`;
 }
@@ -256,6 +268,9 @@ export function toBuildkitePipeline(
     const step: PipelineStep = {
       label: head.label,
       key,
+      // Batch steps never propagate a failure: a batch's rc cannot distinguish a proven flaky test from a
+      // timeout, an OOM-kill or a task Gradle skipped. Only the analyze step, which has deriveOutcome's
+      // verdict, is allowed to fail.
       command: wrapNeverFail(key, cfg.timeoutInMinutes, { kind: head.kind }),
       timeout_in_minutes: cfg.timeoutInMinutes,
       agents: { ...cfg.agents },
@@ -278,8 +293,11 @@ export function toBuildkitePipeline(
       key: "flakiness-detection:analyze",
       // The analyzer downloads each job's JUnit XML itself (`--step <jobId>`) so results stay attributed
       // to a job before classification. `|| true` tolerates a build with no status/skipped artifacts.
-      command: wrapNeverFail("flakiness-detection:analyze", 10),
-      // Never-fail like a batch step, but with no `kind`, so it writes no batch outcome of its own.
+      command: wrapNeverFail("flakiness-detection:analyze", 10, { hardFail: true }),
+      // Never-fail like a batch step, but with no `kind`, so it writes no batch outcome of its own. The
+      // exception is `hardFail`: this is the one step allowed to go red, and only on its proven-flakiness
+      // code. Whether it ever reaches that code is analyze.ts's call (`shouldBlock`), which is why the
+      // flag is unconditional here and this function needs to know nothing about PR labels.
       env: {
         [`${CMD_VAR_PREFIX}0`]: [
           `buildkite-agent artifact download "${FLAKINESS_STATUS_ARTIFACTS}" . || true`,

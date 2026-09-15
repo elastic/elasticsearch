@@ -208,6 +208,9 @@ A data source cannot be deleted while datasets still reference it. Delete the de
 :::
 
 ### Test a connection
+```{applies_to}
+stack: experimental 9.6+
+```
 
 Use `POST /_query/data_source/_test_connection` to verify that a configuration can reach its backend before saving it. The data source does not need to exist in cluster state — the endpoint accepts the same `type` and `settings` fields as the `PUT` request.
 

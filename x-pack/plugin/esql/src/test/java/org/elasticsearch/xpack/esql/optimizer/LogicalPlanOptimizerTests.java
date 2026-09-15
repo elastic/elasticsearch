@@ -10361,7 +10361,7 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
      * Nested subqueries are not supported yet.
      */
     public void testNestedSubqueries() {
-        assumeTrue("Requires subquery in FROM command support", EsqlCapabilities.Cap.SUBQUERY_IN_FROM_COMMAND.isEnabled());
+        assumeFalse("Requires subquery in FROM command support", EsqlCapabilities.Cap.NESTED_SUBQUERY_IN_FROM_COMMAND.isEnabled());
         VerificationException e = expectThrows(VerificationException.class, () -> planSubquery("""
             FROM test, (FROM test, (FROM languages
                                                       | WHERE language_code > 0))

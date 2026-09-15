@@ -758,6 +758,7 @@ public class KnnSearcher {
             int[][] nn = switch (vectorEncoding) {
                 case BYTE -> computeExactNNByte(dataGenerator, filterQuery, searchParameters.topK());
                 case FLOAT32 -> computeExactNN(dataGenerator, filterQuery, searchParameters.topK());
+                case FLOAT16 -> throw new IllegalStateException("IEEE FLOAT16 is not supported");
             };
             writeExactNN(nn, nnPath);
             long elapsedMS = TimeUnit.NANOSECONDS.toMillis(System.nanoTime() - startNS); // ns -> ms

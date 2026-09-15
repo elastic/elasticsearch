@@ -156,6 +156,7 @@ public class KnnIndexer {
         FieldType fieldType = switch (vectorEncoding) {
             case BYTE -> KnnByteVectorField.createFieldType(dim, similarityFunction);
             case FLOAT32 -> KnnFloatVectorField.createFieldType(dim, similarityFunction);
+            case FLOAT16 -> throw new IllegalStateException("IEEE FLOAT16 is not supported");
         };
         logger.debug(
             "KnnIndexer: using codec={}, vectorEncoding={}, dim={}, similarityFunction={}, normalizeVectors={}",
@@ -486,7 +487,7 @@ public class KnnIndexer {
                             ordinal = ov.ordinal();
                             field = new KnnFloatVectorField(VECTOR_FIELD, ov.vector(), fieldType);
                         }
-                        default -> throw new UnsupportedOperationException();
+                        case FLOAT16 -> throw new IllegalStateException("IEEE FLOAT16 is not supported");
                     }
 
                     Document doc = documentFactory.createDocument(field, ordinal);

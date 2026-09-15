@@ -53,6 +53,7 @@ public final class NonPartitionDataGenerator extends DataGenerator {
                     floatQueries[i] = targetReader.nextFloatVector().vector();
                 }
             }
+            case FLOAT16 -> throw new IllegalStateException("IEEE FLOAT16 is not supported");
         }
 
         Query selectivityFilter = searchParameters.filterSelectivity() < 1f

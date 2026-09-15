@@ -106,7 +106,8 @@ public interface TokenFilterFactory {
      * shares, which is always safe — at worst it misses a deduplication, never produces wrong
      * tokenization. Override it to opt into sharing: hold a single {@code Config} record over all
      * settings that influence behavior and return that record, so adding a setting means adding a
-     * record component (no separate place to forget). Stateless factories return a constant.
+     * record component (no separate place to forget). A factory that reads no settings returns a
+     * constant.
      *
      * <p>An override MUST capture all state that affects behavior, including any external resource
      * version (file mtime, synonyms-set generation, etc). The returned value's {@code equals}/
@@ -118,9 +119,9 @@ public interface TokenFilterFactory {
      *
      * <p><b>Testing contract</b>: every setting folded into this key must also be declared as a
      * distinguishing setting in the factory's {@code AnalysisFactoryTestCase} sharing probe (or the
-     * factory marked stateless / identity there). That test fails the build if a registered factory
-     * is left unclassified, and asserts each declared setting actually changes the key — so adding a
-     * setting here means adding it to that declaration too.
+     * factory declared {@code alwaysShares()} / {@code neverShares()} there). That test fails the
+     * build if a registered factory is left unclassified, and asserts each declared setting actually
+     * changes the key — so adding a setting here means adding it to that declaration too.
      */
     default Object sharingKey() {
         return this;

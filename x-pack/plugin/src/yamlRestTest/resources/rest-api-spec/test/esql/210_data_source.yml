@@ -116,6 +116,40 @@ teardown:
   - match: { data_sources: [] }
 
 ---
+"test-connection-unknown-type":
+  - requires:
+      capabilities:
+        - method: POST
+          path: /_query/data_source/_test_connection
+          capabilities: [data_source_test_connection]
+      test_runner_features: capabilities
+      reason: "ES|QL data source test-connection API"
+  - do:
+      catch: bad_request
+      esql.test_data_source_connection:
+        body:
+          type: "unknown-type-xyz"
+          settings: {}
+
+---
+"test-connection-internal-type-rejected":
+  # "file" is an internal source-factory type used for format-only reads.
+  # It is NOT registered as a PUT data source type, so the test-connection API rejects it with 400.
+  - requires:
+      capabilities:
+        - method: POST
+          path: /_query/data_source/_test_connection
+          capabilities: [data_source_test_connection]
+      test_runner_features: capabilities
+      reason: "ES|QL data source test-connection API — internal types must be rejected"
+  - do:
+      catch: bad_request
+      esql.test_data_source_connection:
+        body:
+          type: "file"
+          settings: {}
+
+---
 "region-on-datasource-warns":
   # region on a data-source PUT is valid (backward compat) but deprecated.
   # The PUT must return HTTP 200 and a Warning response header containing the deprecation message.

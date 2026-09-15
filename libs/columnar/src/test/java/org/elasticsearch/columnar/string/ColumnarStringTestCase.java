@@ -128,10 +128,40 @@ public abstract class ColumnarStringTestCase extends ESTestCase {
         final DictionaryPolicy policy,
         final ColumnCheck check
     ) throws IOException {
+        withColumn(
+            docSlots,
+            blockSize,
+            chunkCodec,
+            targetChunkBytes,
+            policy,
+            StringColumnOptions.DEFAULT_COMPRESSED_ORDINAL_BLOCK_SIZE,
+            check
+        );
+    }
+
+    /** As above, fixing the block a column's ordinals take when they are stored compressed. */
+    protected void withColumn(
+        final BytesRef[][] docSlots,
+        final int blockSize,
+        final ChunkCodec chunkCodec,
+        final int targetChunkBytes,
+        final DictionaryPolicy policy,
+        final int compressedOrdinalBlockSize,
+        final ColumnCheck check
+    ) throws IOException {
         final byte[] segmentId = new byte[16];
         random().nextBytes(segmentId);
         try (Directory dir = newDirectory()) {
-            final StringColumnMetadata metadata = writeColumn(dir, segmentId, docSlots, blockSize, chunkCodec, targetChunkBytes, policy);
+            final StringColumnMetadata metadata = writeColumn(
+                dir,
+                segmentId,
+                docSlots,
+                blockSize,
+                chunkCodec,
+                targetChunkBytes,
+                policy,
+                compressedOrdinalBlockSize
+            );
             try (IndexInput data = openData(dir, segmentId)) {
                 check.check(metadata, StringColumnReader.open(metadata, data));
             }
@@ -250,7 +280,8 @@ public abstract class ColumnarStringTestCase extends ESTestCase {
         final int blockSize,
         final ChunkCodec chunkCodec,
         final int targetChunkBytes,
-        final DictionaryPolicy policy
+        final DictionaryPolicy policy,
+        final int compressedOrdinalBlockSize
     ) throws IOException {
         final StringColumnMetadata written;
         try (IndexOutput out = dir.createOutput(DATA_FILE, IOContext.DEFAULT)) {
@@ -265,6 +296,7 @@ public abstract class ColumnarStringTestCase extends ESTestCase {
                 chunkCodec,
                 targetChunkBytes,
                 targetChunkBytes,
+                compressedOrdinalBlockSize,
                 policy,
                 null,
                 dir,

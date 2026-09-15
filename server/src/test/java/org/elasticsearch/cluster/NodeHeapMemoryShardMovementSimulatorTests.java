@@ -111,7 +111,7 @@ public class NodeHeapMemoryShardMovementSimulatorTests extends ESAllocationTestC
             ShardRouting.RecoveryPriority.RELOCATION_CAN_REMAIN_NO
         );
 
-        long shardHeap = 100L, indexHeap = 50L, postingsHeap = 5L;
+        long shardHeap = 100L, indexHeap = 50L, postingsHeap = randomLongBetween(0, shardHeap);
         var initialMetrics = Map.of(
             nodeA,
             nodeHeapMetrics(nodeA, 200, 30),  // total high (won't clamp), hosted low (will clamp)

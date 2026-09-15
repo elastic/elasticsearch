@@ -10,7 +10,6 @@ required_capability: fix_promql_time_bucket_v2
 required_capability: promql_nested_aggregates
 required_capability: promql_without_grouping
 required_capability: fix_ts_block_loader_passthrough_aliasing
-required_capability: fix_promql_metric_name_drop
 PROMQL index=prometheus-k8s step=1h result=(sum without (pod, region) (avg_over_time(network.cost[1h])))
 | SORT result;
 
@@ -27,7 +26,6 @@ required_capability: fix_promql_time_bucket_v2
 required_capability: promql_nested_aggregates
 required_capability: promql_without_grouping
 required_capability: fix_ts_block_loader_passthrough_aliasing
-required_capability: fix_promql_metric_name_drop
 PROMQL index=prometheus-k8s step=1h result=(sum(avg_over_time(network.cost[1h])) without (pod, region))
 | SORT result;
 
@@ -44,7 +42,6 @@ required_capability: fix_promql_time_bucket_v2
 required_capability: promql_nested_aggregates
 required_capability: promql_without_grouping
 required_capability: fix_ts_block_loader_passthrough_aliasing
-required_capability: fix_promql_metric_name_drop
 PROMQL index=prometheus-k8s step=1h result=(sum without (pod, region,) (avg_over_time(network.cost[1h])))
 | SORT result;
 
@@ -61,7 +58,6 @@ required_capability: fix_promql_time_bucket_v2
 required_capability: promql_nested_aggregates
 required_capability: promql_without_grouping
 required_capability: fix_ts_block_loader_passthrough_aliasing
-required_capability: fix_promql_metric_name_drop
 PROMQL index=prometheus-k8s step=1h result=(sum without (pod) (network.cost))
 | SORT result;
 
@@ -78,7 +74,6 @@ required_capability: fix_promql_time_bucket_v2
 required_capability: promql_nested_aggregates
 required_capability: promql_without_grouping
 required_capability: fix_ts_block_loader_passthrough_aliasing
-required_capability: fix_promql_metric_name_drop
 PROMQL index=prometheus-k8s step=1h result=(sum without (pod, region) (network.cost{cluster!="prod"}))
 | SORT result;
 
@@ -94,7 +89,6 @@ required_capability: fix_promql_time_bucket_v2
 required_capability: promql_nested_aggregates
 required_capability: promql_without_grouping
 required_capability: fix_ts_block_loader_passthrough_aliasing
-required_capability: fix_promql_metric_name_drop
 PROMQL index=prometheus-k8s step=1h result=(max without (pod, region) (avg_over_time(network.cost[1h])))
 | SORT result;
 
@@ -111,7 +105,6 @@ required_capability: fix_promql_time_bucket_v2
 required_capability: promql_nested_aggregates
 required_capability: promql_without_grouping
 required_capability: fix_ts_block_loader_passthrough_aliasing
-required_capability: fix_promql_metric_name_drop
 PROMQL index=prometheus-k8s step=1h result=(min without (pod, region) (avg_over_time(network.cost[1h])))
 | SORT result;
 
@@ -128,7 +121,6 @@ required_capability: fix_promql_time_bucket_v2
 required_capability: promql_nested_aggregates
 required_capability: promql_without_grouping
 required_capability: fix_ts_block_loader_passthrough_aliasing
-required_capability: fix_promql_metric_name_drop
 PROMQL index=prometheus-k8s step=1h result=(count without (pod, region) (avg_over_time(network.cost[1h])))
 | SORT _timeseries;
 
@@ -322,7 +314,6 @@ required_capability: fix_promql_time_bucket_v2
 required_capability: promql_nested_aggregates
 required_capability: promql_without_grouping
 required_capability: fix_ts_block_loader_passthrough_aliasing
-required_capability: fix_promql_metric_name_drop
 PROMQL index=prometheus-k8s step=1h result=(sum without (pod) (network.cost{cluster="staging"}))
 | EVAL has_pod = _timeseries LIKE "*pod*"
 | KEEP result, _timeseries, has_pod;
@@ -338,7 +329,6 @@ required_capability: fix_promql_time_bucket_v2
 required_capability: promql_nested_aggregates
 required_capability: promql_without_grouping
 required_capability: fix_ts_block_loader_passthrough_aliasing
-required_capability: fix_promql_metric_name_drop
 PROMQL index=prometheus-k8s step=1h result=(sum without (pod, region) (network.cost{cluster="staging"}))
 | EVAL has_pod = _timeseries LIKE "*pod*", has_region = _timeseries LIKE "*region*"
 | KEEP result, _timeseries, has_pod, has_region;

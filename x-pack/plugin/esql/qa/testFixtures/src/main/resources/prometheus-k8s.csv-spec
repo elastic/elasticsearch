@@ -54,7 +54,6 @@ bare_count_over_time_with_tbucket_outputs_dimensions_promql
 required_capability: promql_command_v0
 required_capability: fix_promql_time_bucket_v2
 required_capability: fix_ts_block_loader_passthrough_aliasing
-required_capability: fix_promql_metric_name_drop
 
 PROMQL index=prometheus-k8s step=1h count=(count_over_time(network.cost[1h]))
 | SORT count DESC
@@ -98,7 +97,6 @@ bare_avg_over_time_with_tbucket_outputs_dimensions_promql
 required_capability: promql_command_v0
 required_capability: fix_promql_time_bucket_v2
 required_capability: fix_ts_block_loader_passthrough_aliasing
-required_capability: fix_promql_metric_name_drop
 
 PROMQL index=prometheus-k8s step=1h avg=(avg_over_time(network.cost[1h]))
 | SORT avg DESC
@@ -121,7 +119,6 @@ bare_sum_over_time_with_tbucket_outputs_dimensions_promql
 required_capability: promql_command_v0
 required_capability: fix_promql_time_bucket_v2
 required_capability: fix_ts_block_loader_passthrough_aliasing
-required_capability: fix_promql_metric_name_drop
 
 PROMQL index=prometheus-k8s step=1h sum=(sum_over_time(network.cost[1h]))
 | SORT sum DESC
@@ -145,7 +142,6 @@ required_capability: promql_command_v0
 required_capability: fix_promql_time_bucket_v2
 required_capability: fix_displaying_ts_dimensions_in_metrics_group_by_all
 required_capability: fix_ts_block_loader_passthrough_aliasing
-required_capability: fix_promql_metric_name_drop
 
 PROMQL index=prometheus-k8s step=1h rate=(rate(network.total_bytes_in[1h]))
 | EVAL rate=ROUND(rate, 3)

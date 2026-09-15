@@ -812,7 +812,7 @@ public class ExternalSourceResolver {
                 // single-file resolve never touches a live object (fileMetadataOf). mtime is the cache key's version token;
                 // length + mtime rebuild the singleton FileList.
                 FileMetadata meta = fileMetadataOf(storagePath, provider, fileConfig);
-                String formatType = detectFormatType(storagePath);
+                String formatType = detectFormatType(storagePath, fileConfig);
                 SchemaCacheKey schemaKey = SchemaCacheKey.build(
                     storagePath.toString(),
                     meta.mtimeMillis(),
@@ -1205,7 +1205,7 @@ public class ExternalSourceResolver {
         if (cacheService == null || cacheService.isEnabled() == false) {
             return null;
         }
-        SchemaCacheKey key = SchemaCacheKey.build(path.toString(), mtimeMillis, detectFormatType(path), storageConfig(config));
+        SchemaCacheKey key = SchemaCacheKey.build(path.toString(), mtimeMillis, detectFormatType(path, config), storageConfig(config));
         SchemaCacheEntry entry = cacheService.getSchemaIfPresent(key);
         if (entry == null) {
             return null;
@@ -1342,13 +1342,28 @@ public class ExternalSourceResolver {
         return registry.provider(storagePath);
     }
 
-    private static String detectFormatType(StoragePath path) {
+    /**
+     * Registry format name for a per-file schema-cache key ({@code parquet}, {@code csv}), not a
+     * last-dot suffix. Uses {@link FormatNameResolver#resolveFormatNameForIdentity} so a whole-file
+     * compression veto cannot throw. Cache-key minting must not throw: a null registry, empty object
+     * name, or any resolve failure falls back to {@link FormatNameResolver#extractCleanExtension}
+     * (or {@code ""}). Package-private for testing.
+     */
+    String detectFormatType(StoragePath path, @Nullable Map<String, Object> config) {
         String name = path.objectName();
-        if (name == null) {
-            return "";
+        FormatReaderRegistry registry = dataSourceModule.formatReaderRegistry();
+        if (name.isEmpty() == false && registry != null) {
+            try {
+                String resolved = FormatNameResolver.resolveFormatNameForIdentity(config, name, registry);
+                if (resolved != null) {
+                    return resolved;
+                }
+            } catch (Exception e) {
+                // Fall through to extractCleanExtension.
+            }
         }
-        int dot = name.lastIndexOf('.');
-        return dot >= 0 ? name.substring(dot) : "";
+        String ext = FormatNameResolver.extractCleanExtension(name);
+        return ext != null ? ext : "";
     }
 
     /**
@@ -1500,61 +1515,67 @@ public class ExternalSourceResolver {
      * <p>
      * Keyed on the listing's file-set fingerprint (see {@link SchemaCacheKey#forDatasetAggregate}), so it
      * needs no invalidation: any add/remove/mtime/size change in the set derives a different key. The
-     * {@code formatType} slot uses the same extension-based detection the per-file keys use — a stable
-     * identity input; the logical source type may only diverge from it via config keys that are already
-     * part of the key's config fingerprint, with one benign exception: the {@code reader} override is
-     * absent from the fingerprint but can only select footer-format (Parquet-family) readers, which the
-     * format gate above refuses — so no dataset key is ever minted for a reader-overridden resolve.
-     * Package-private for testing.
+     * {@code formatType} slot is the registry format name from {@link FormatNameResolver#datasetFormat}
+     * ({@code csv}, {@code ndjson}), not a last-dot of {@code listing.path(0)}. Listing order and
+     * compression/alias suffixes ({@code a.csv}+{@code b.csv.gz}) therefore cannot mint two identities
+     * for one file set. Parquet aliases ({@code *.{parquet,parq}}) still refuse under either listing
+     * order. The logical source type may only diverge from it via
+     * config keys that are already part of the key's config fingerprint, with one benign exception: the
+     * {@code reader} override is absent from the fingerprint but can only select footer-format
+     * (Parquet-family) readers, which the format gate above refuses — so no dataset key is ever minted
+     * for a reader-overridden resolve. Package-private for testing.
      */
     @Nullable
     SchemaCacheKey datasetAggregateKey(FileList listing, Map<String, Object> config) {
         if (listing == null || listing.fileSetFingerprint() == null || listing.fileCount() < 2) {
             return null;
         }
-        if (datasetAggregateSafeForFormat(listing, config) == false) {
+        String format = datasetAggregateFormat(listing, config);
+        if (format == null) {
             return null;
         }
-        return SchemaCacheKey.forDatasetAggregate(
-            listing.originalPattern(),
-            listing.fileSetFingerprint(),
-            detectFormatType(listing.path(0)),
-            storageConfig(config)
-        );
+        return SchemaCacheKey.forDatasetAggregate(listing.originalPattern(), listing.fileSetFingerprint(), format, storageConfig(config));
     }
 
     /**
-     * Whether the listing's format treats an ABSENT per-column stat as "not harvested" (safe-miss to a
-     * re-scan) rather than "all null" — the text-format contract that makes a row-count-only aggregate
-     * safe to serve. The format is resolved exactly the way the READ path resolves it
-     * ({@link FormatNameResolver#resolveFormatName}: config {@code format}/{@code reader} override
-     * first, then the compound-extension-aware registry lookup), so this gate can never disagree with
-     * the reader that actually scans — a footer file under a {@code .ndjson} name with
+     * The listing's format name when a row-count-only dataset aggregate is safe to serve, or
+     * {@code null} to refuse. Text formats treat an ABSENT per-column stat as "not harvested"
+     * (safe-miss to a re-scan) rather than "all null"; footer formats (Parquet/ORC) fold absent as
+     * implicit nulls, so serving the aggregate to {@code COUNT(col)} would fold
+     * {@code rowCount - rowCount = 0}. The format is resolved exactly the way the READ path resolves
+     * it ({@link FormatNameResolver#datasetFormat}: config {@code format}/{@code reader} override
+     * first, then the unique format implied by the resource pattern), so this gate can never disagree
+     * with the reader that actually scans — a footer file under a {@code .ndjson} name with
      * {@code format=parquet} is gated as parquet, and compressed text ({@code .ndjson.gz}) resolves to
-     * {@code ndjson} and qualifies. The {@code formatName() -> findByName} round-trip deliberately
-     * unwraps {@code CompressionDelegatingFormatReader} to the inner reader, whose
+     * {@code ndjson} and qualifies. The {@code formatName() -> findByName} round-trip in
+     * {@link #foldsAbsentColumnAsImplicitNull} deliberately unwraps
+     * {@code CompressionDelegatingFormatReader} to the inner reader, whose
      * {@code aggregatePushdownSupport} is the authoritative one (the wrapper does not forward it).
-     * Any resolution failure refuses rather than throws: the registry rejects an unregistered extension
-     * with an {@link IllegalArgumentException}, and the aggregate is an optimization that must never turn
-     * a resolvable read into a throw — hence the broad catch. The catch is deliberately broad and must
-     * stay so: it is the refusal that matters here, not the exception type, and narrowing it to the type
-     * the registry happens to throw today would re-couple this gate to that choice.
+     * Any resolution failure refuses rather than throws: the registry rejects an unregistered
+     * extension with an {@link IllegalArgumentException}, and the aggregate is an optimization that
+     * must never turn a resolvable read into a throw — hence the broad catch. The catch is
+     * deliberately broad and must stay so: it is the refusal that matters here, not the exception
+     * type, and narrowing it to the type the registry happens to throw today would re-couple this
+     * gate to that choice.
      */
-    private boolean datasetAggregateSafeForFormat(FileList listing, Map<String, Object> config) {
+    @Nullable
+    private String datasetAggregateFormat(FileList listing, Map<String, Object> config) {
         try {
             String formatName = FormatNameResolver.datasetFormat(
                 config,
                 listing.originalPattern(),
                 dataSourceModule.formatReaderRegistry()
             );
-            // Same predicate as foldsAbsentColumnAsImplicitNull, negated: an absent-column stat is only
-            // safe to fold as an implicit null (and thus a dataset COUNT aggregate only correct) for a
-            // KNOWN format that does NOT treat an absent column as implicit null. Delegate so the two
-            // callers can't drift. This rail re-resolves the format from config because it prefetches
-            // before any SourceMetadata (and thus sourceType) exists.
-            return foldsAbsentColumnAsImplicitNull(formatName) == false;
+            // Refuse when the format folds an absent column as implicit nulls (Parquet/ORC): serving
+            // the row-count-only aggregate to COUNT(col) would fold rowCount - rowCount = 0. Admit
+            // only a known text format that safe-misses an unharvested column. Delegate so this gate
+            // cannot drift from foldsAbsentColumnAsImplicitNull.
+            if (foldsAbsentColumnAsImplicitNull(formatName)) {
+                return null;
+            }
+            return formatName;
         } catch (Exception e) {
-            return false;
+            return null;
         }
     }
 
@@ -1939,7 +1960,7 @@ public class ExternalSourceResolver {
         Map<String, Object> config,
         ActionListener<SourceMetadata> listener
     ) {
-        String formatType = detectFormatType(filePath);
+        String formatType = detectFormatType(filePath, config);
         SchemaCacheKey schemaKey = SchemaCacheKey.build(filePath.toString(), hint.lastModifiedMillis(), formatType, storageConfig(config));
         SchemaCacheEntry cached = cacheService.getSchemaIfPresent(schemaKey);
         if (cached != null) {
@@ -3024,7 +3045,7 @@ public class ExternalSourceResolver {
         long mtimeMillis
     ) throws Exception {
         if (isCacheable(provider) && FILE_TYPED_FORMATS.contains(sourceType) == false && warmsRowCountSafely(sourceType, config)) {
-            String formatType = detectFormatType(storagePath) + STRICT_DECLARED_SCHEMA_MARKER;
+            String formatType = detectFormatType(storagePath, config) + STRICT_DECLARED_SCHEMA_MARKER;
             SchemaCacheKey schemaKey = SchemaCacheKey.build(storagePath.toString(), mtimeMillis, formatType, storageConfig(config));
             // Seed the identity — mtime, config fingerprint, read configuration; the row-count is absent until the
             // first query's data node harvests
@@ -3535,7 +3556,7 @@ public class ExternalSourceResolver {
     }
 
     private SourceMetadata cachedResolveSingleSource(StoragePath filePath, long mtime, Map<String, Object> config) throws Exception {
-        String formatType = detectFormatType(filePath);
+        String formatType = detectFormatType(filePath, config);
         SchemaCacheKey schemaKey = SchemaCacheKey.build(filePath.toString(), mtime, formatType, storageConfig(config));
         SchemaCacheEntry entry = cacheService.getOrComputeSchema(
             schemaKey,

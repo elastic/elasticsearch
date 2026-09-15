@@ -69,7 +69,15 @@ public class HighlightSupportTests extends ESTestCase {
             kql,
             new And(EMPTY, match, phrase),
             new Or(EMPTY, qstr, kql),
-            match("title", "fox", options("fuzziness", "AUTO"))
+            match("title", "fox", options("fuzziness", "AUTO")),
+            // Analyzer/quote_analyzer options are shape-agnostic. Agreement across leaves is enforced later,
+            // by Highlight#postAnalysisVerification via HighlightSupport#requireUniformAnalyzer.
+            match("title", "fox", options("analyzer", "english")),
+            matchPhrase("body", "quick fox", options("analyzer", "english")),
+            queryString("fox", options("analyzer", "english")),
+            queryString("fox", options("quote_analyzer", "english")),
+            new Kql(EMPTY, of("title: fox"), options("analyzer", "english"), TEST_CFG),
+            new And(EMPTY, match, match("body", "fox", options("analyzer", "english")))
         )) {
             assertTrue(supported.toString(), HighlightSupport.isSupportedImplicitPredicate(supported));
         }
@@ -79,16 +87,89 @@ public class HighlightSupportTests extends ESTestCase {
             of("fox"),
             new And(EMPTY, match, new Not(EMPTY, phrase)),
             new Or(EMPTY, match, new Not(EMPTY, phrase)),
-            new Or(EMPTY, match, of("fox")),
-            match("title", "fox", options("analyzer", "english")),
-            matchPhrase("body", "quick fox", options("analyzer", "english")),
-            queryString("fox", options("analyzer", "english")),
-            queryString("fox", options("quote_analyzer", "english")),
-            new Kql(EMPTY, of("title: fox"), options("analyzer", "english"), TEST_CFG),
-            new And(EMPTY, match, match("body", "fox", options("analyzer", "english")))
+            new Or(EMPTY, match, of("fox"))
         )) {
             assertFalse(unsupported.toString(), HighlightSupport.isSupportedImplicitPredicate(unsupported));
         }
+    }
+
+    public void testUniformAnalyzerOfReturnsSingleNamedLeafAnalyzer() {
+        assertThat(HighlightSupport.uniformAnalyzerOf(match("title", "fox", options("analyzer", "english"))), equalTo("english"));
+        assertThat(
+            HighlightSupport.uniformAnalyzerOf(
+                new And(EMPTY, match("title", "fox", options("analyzer", "english")), match("body", "bar", options("analyzer", "english")))
+            ),
+            equalTo("english")
+        );
+        // Unlabeled leaves inherit; a single named leaf still fixes the analyzer.
+        assertThat(
+            HighlightSupport.uniformAnalyzerOf(
+                new Or(EMPTY, match("title", "fox", options("analyzer", "english")), match("body", "bar", null))
+            ),
+            equalTo("english")
+        );
+    }
+
+    public void testUniformAnalyzerOfReturnsNullWhenAllLeavesUnlabeled() {
+        assertNull(HighlightSupport.uniformAnalyzerOf(match("title", "fox", null)));
+        assertNull(HighlightSupport.uniformAnalyzerOf(new And(EMPTY, match("title", "fox", null), match("body", "bar", null))));
+    }
+
+    public void testUniformAnalyzerOfReturnsNullWhenLeavesDisagree() {
+        assertNull(
+            HighlightSupport.uniformAnalyzerOf(
+                new Or(
+                    EMPTY,
+                    match("title", "fox", options("analyzer", "english")),
+                    match("body", "bar", options("analyzer", "whitespace"))
+                )
+            )
+        );
+    }
+
+    public void testRequireUniformAnalyzerAcceptsAgreement() {
+        // All leaves omit analyzer, no WITH → OK.
+        HighlightSupport.requireUniformAnalyzer(match("title", "fox", null), null);
+        // Every named leaf equals WITH → OK.
+        HighlightSupport.requireUniformAnalyzer(match("title", "fox", options("analyzer", "english")), "english");
+        // WITH set, leaves unlabeled → OK (they inherit).
+        HighlightSupport.requireUniformAnalyzer(match("title", "fox", null), "english");
+        // Every named leaf agrees on the same name, no WITH → OK.
+        HighlightSupport.requireUniformAnalyzer(
+            new And(EMPTY, match("title", "fox", options("analyzer", "english")), match("body", "bar", options("analyzer", "english"))),
+            null
+        );
+    }
+
+    public void testRequireUniformAnalyzerRejectsMixedLeaves() {
+        Expression query = new Or(
+            EMPTY,
+            match("title", "fox", options("analyzer", "english")),
+            match("body", "bar", options("analyzer", "whitespace"))
+        );
+        IllegalArgumentException e = expectThrows(
+            IllegalArgumentException.class,
+            () -> HighlightSupport.requireUniformAnalyzer(query, null)
+        );
+        assertThat(
+            e.getMessage(),
+            equalTo(
+                "HIGHLIGHT full-text functions use different analyzers [english, whitespace]; "
+                    + "use the same analyzer for every clause, or set it on HIGHLIGHT with WITH { \"analyzer\": ... }"
+            )
+        );
+    }
+
+    public void testRequireUniformAnalyzerRejectsWithMismatch() {
+        Expression query = match("title", "fox", options("analyzer", "english"));
+        IllegalArgumentException e = expectThrows(
+            IllegalArgumentException.class,
+            () -> HighlightSupport.requireUniformAnalyzer(query, "whitespace")
+        );
+        assertThat(
+            e.getMessage(),
+            equalTo("HIGHLIGHT WITH analyzer [whitespace] does not match analyzer [english] specified by the query; they must be the same")
+        );
     }
 
     public void testAllHighlightableFieldsFiltersAndDeduplicates() {

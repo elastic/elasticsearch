@@ -266,6 +266,13 @@ public class EsqlCapabilities {
         OPTIONAL_FIELDS_FIX_NULL_MATCH_FIELD_IN_JOIN_AND_ENRICH,
 
         /**
+         * Fix for 500 return code when loading from {@code _source} (hence {@code KEYWORD}) and passing to a convert function that doesn't
+         * take {@code KEYWORD}s.
+         * See https://github.com/elastic/elasticsearch/issues/145998.
+         */
+        OPTIONAL_FIELDS_FIX_UNMAPPED_LOAD_CONVERT_FUNCTION,
+
+        /**
          * Support for optional fields (might or might not be present in the mappings) using DEFAULT/NULLIFY/LOAD.
          * V2: Prevent pushing down filters and sorts to Lucene of potentially unmapped fields.
          * V3: Fix synthetic _source numeric load bug (#143916)
@@ -1278,6 +1285,16 @@ public class EsqlCapabilities {
          * https://github.com/elastic/elasticsearch/issues/149509
          */
         SUBQUERY_IN_FROM_COMMAND_CARRY_OVER_SYNTHETIC_CONVERT_ATTRIBUTES,
+
+        /**
+         * Fix for the same conversion function applied more than once to the same attribute above a {@code UnionAll}
+         * (e.g. twice in one WHERE): {@code ResolveUnionTypesInUnionAll} dedupes the equal conversions into a single
+         * pushed-down alias and must replace every equal occurrence with the union output's attribute. Matching
+         * occurrences by identity used to leave all but one unreplaced, making the analyzer's Resolution batch loop
+         * until the rule execution limit.
+         * https://github.com/elastic/elasticsearch-serverless/issues/7693
+         */
+        SUBQUERY_IN_FROM_COMMAND_REPEATED_CONVERSIONS,
 
         /**
          * Fix for union types that have counter field renamed, but the data type is inconsistent with union all output.

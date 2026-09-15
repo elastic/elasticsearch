@@ -220,9 +220,12 @@ public class GlobExpanderTests extends ESTestCase {
         assertEquals("s3://bucket/data/file1.parquet", result.path(0).toString());
         assertEquals("s3://bucket/data/file2.parquet", result.path(1).toString());
 
-        assertWarnings(
-            "1 of 3 objects matching the resource under [s3://bucket/data/] was excluded by the [file_exclusions] "
-                + "dataset setting, for example [_SUCCESS] which matched entry [**/_*]"
+        assertEquals(
+            List.of(
+                "1 of 3 objects matching the resource under [s3://bucket/data/] was excluded by the [file_exclusions] "
+                    + "dataset setting, for example [_SUCCESS] which matched entry [**/_*]"
+            ),
+            result.listingWarnings()
         );
     }
 
@@ -242,9 +245,12 @@ public class GlobExpanderTests extends ESTestCase {
         assertEquals(1, result.fileCount());
         assertEquals("s3://bucket/data/file1.parquet", result.path(0).toString());
 
-        assertWarnings(
-            "1 of 2 objects matching the resource under [s3://bucket/data/] was excluded by the [file_exclusions] "
-                + "dataset setting, for example [.part-r-00001.parquet.crc] which matched entry [**/.*]"
+        assertEquals(
+            List.of(
+                "1 of 2 objects matching the resource under [s3://bucket/data/] was excluded by the [file_exclusions] "
+                    + "dataset setting, for example [.part-r-00001.parquet.crc] which matched entry [**/.*]"
+            ),
+            result.listingWarnings()
         );
     }
 
@@ -261,9 +267,12 @@ public class GlobExpanderTests extends ESTestCase {
         assertEquals(1, result.fileCount());
         assertEquals("s3://bucket/data/file1.parquet", result.path(0).toString());
 
-        assertWarnings(
-            "1 of 2 objects matching the resource under [s3://bucket/data/] was excluded by the [file_exclusions] "
-                + "dataset setting, for example [_metadata] which matched entry [**/_*]"
+        assertEquals(
+            List.of(
+                "1 of 2 objects matching the resource under [s3://bucket/data/] was excluded by the [file_exclusions] "
+                    + "dataset setting, for example [_metadata] which matched entry [**/_*]"
+            ),
+            result.listingWarnings()
         );
     }
 
@@ -315,9 +324,12 @@ public class GlobExpanderTests extends ESTestCase {
         assertEquals("only the data file survives", 1, result.fileCount());
         assertEquals("s3://bucket/data/file1.parquet", result.path(0).toString());
 
-        assertWarnings(
-            "1 of 2 objects matching the resource under [s3://bucket/data/] was excluded by the [file_exclusions] "
-                + "dataset setting, for example [_delta_log/00000000000000000001.json] which matched entry [**/_delta_log/**]"
+        assertEquals(
+            List.of(
+                "1 of 2 objects matching the resource under [s3://bucket/data/] was excluded by the [file_exclusions] "
+                    + "dataset setting, for example [_delta_log/00000000000000000001.json] which matched entry [**/_delta_log/**]"
+            ),
+            result.listingWarnings()
         );
     }
 
@@ -336,9 +348,12 @@ public class GlobExpanderTests extends ESTestCase {
         assertEquals("only the data file survives", 1, result.fileCount());
         assertEquals("s3://bucket/data/file1.parquet", result.path(0).toString());
 
-        assertWarnings(
-            "1 of 2 objects matching the resource under [s3://bucket/data/] was excluded by the [file_exclusions] "
-                + "dataset setting, for example [_temporary/task_0/part.parquet] which matched entry [**/_temporary/**]"
+        assertEquals(
+            List.of(
+                "1 of 2 objects matching the resource under [s3://bucket/data/] was excluded by the [file_exclusions] "
+                    + "dataset setting, for example [_temporary/task_0/part.parquet] which matched entry [**/_temporary/**]"
+            ),
+            result.listingWarnings()
         );
     }
 
@@ -362,9 +377,12 @@ public class GlobExpanderTests extends ESTestCase {
         assertEquals("s3://bucket/data/file1.parquet", result.path(0).toString());
         assertEquals("s3://bucket/data/file2.parquet", result.path(1).toString());
 
-        assertWarnings(
-            "2 of 4 objects matching the resource under [s3://bucket/data/] were excluded by the [file_exclusions] "
-                + "dataset setting, for example [_SUCCESS] which matched entry [**/_*]"
+        assertEquals(
+            List.of(
+                "2 of 4 objects matching the resource under [s3://bucket/data/] were excluded by the [file_exclusions] "
+                    + "dataset setting, for example [_SUCCESS] which matched entry [**/_*]"
+            ),
+            result.listingWarnings()
         );
     }
 
@@ -402,9 +420,12 @@ public class GlobExpanderTests extends ESTestCase {
         assertEquals("the partition directory survives; only the marker inside it is dropped", 1, result.fileCount());
         assertEquals("s3://bucket/data/_dept=alpha/part1.csv", result.path(0).toString());
 
-        assertWarnings(
-            "1 of 2 objects matching the resource under [s3://bucket/data/] was excluded by the [file_exclusions] "
-                + "dataset setting, for example [_dept=alpha/_SUCCESS] which matched entry [**/_*]"
+        assertEquals(
+            List.of(
+                "1 of 2 objects matching the resource under [s3://bucket/data/] was excluded by the [file_exclusions] "
+                    + "dataset setting, for example [_dept=alpha/_SUCCESS] which matched entry [**/_*]"
+            ),
+            result.listingWarnings()
         );
     }
 
@@ -428,9 +449,12 @@ public class GlobExpanderTests extends ESTestCase {
         assertEquals("s3://bucket/logs/year=2024/part-0.parquet", result.path(0).toString());
         assertEquals("a non-empty result must not trigger the rewrite fallback re-list", 1, provider.listCallCount);
 
-        assertWarnings(
-            "1 of 2 objects matching the resource under [s3://bucket/logs/year=2024/] was excluded by the [file_exclusions] "
-                + "dataset setting, for example [_SUCCESS] which matched entry [**/_*]"
+        assertEquals(
+            List.of(
+                "1 of 2 objects matching the resource under [s3://bucket/logs/year=2024/] was excluded by the [file_exclusions] "
+                    + "dataset setting, for example [_SUCCESS] which matched entry [**/_*]"
+            ),
+            result.listingWarnings()
         );
     }
 
@@ -1535,9 +1559,12 @@ public class GlobExpanderTests extends ESTestCase {
         assertEquals("default exclusions: only the data file survives", 1, withExclusion.fileCount());
         assertEquals("empty exclusion list: _SUCCESS included", 2, withoutExclusion.fileCount());
 
-        assertWarnings(
-            "1 of 2 objects matching the resource under [s3://bucket/data/] was excluded by the [file_exclusions] "
-                + "dataset setting, for example [_SUCCESS] which matched entry [**/_*]"
+        assertEquals(
+            List.of(
+                "1 of 2 objects matching the resource under [s3://bucket/data/] was excluded by the [file_exclusions] "
+                    + "dataset setting, for example [_SUCCESS] which matched entry [**/_*]"
+            ),
+            withExclusion.listingWarnings()
         );
     }
 
@@ -1557,9 +1584,12 @@ public class GlobExpanderTests extends ESTestCase {
         FileList raw = GlobExpander.expand("s3://bucket/data/*", provider, null, NO_EXCLUSION, MAX, MAX);
         assertEquals("empty exclusion list: _SUCCESS must be present", 2, raw.fileCount());
 
-        assertWarnings(
-            "1 of 2 objects matching the resource under [s3://bucket/data/] was excluded by the [file_exclusions] "
-                + "dataset setting, for example [_SUCCESS] which matched entry [**/_*]"
+        assertEquals(
+            List.of(
+                "1 of 2 objects matching the resource under [s3://bucket/data/] was excluded by the [file_exclusions] "
+                    + "dataset setting, for example [_SUCCESS] which matched entry [**/_*]"
+            ),
+            excluded.listingWarnings()
         );
     }
 
@@ -1586,11 +1616,14 @@ public class GlobExpanderTests extends ESTestCase {
         assertTrue(names.contains("s3://bucket/a/file1.parquet"));
         assertTrue(names.contains("s3://bucket/b/file2.parquet"));
 
-        assertWarnings(
-            "1 of 2 objects matching the resource under [s3://bucket/a/] was excluded by the [file_exclusions] "
-                + "dataset setting, for example [_SUCCESS] which matched entry [**/_*]",
-            "1 of 2 objects matching the resource under [s3://bucket/b/] was excluded by the [file_exclusions] "
-                + "dataset setting, for example [.part-r-00001.parquet.crc] which matched entry [**/.*]"
+        assertEquals(
+            List.of(
+                "1 of 2 objects matching the resource under [s3://bucket/a/] was excluded by the [file_exclusions] "
+                    + "dataset setting, for example [_SUCCESS] which matched entry [**/_*]",
+                "1 of 2 objects matching the resource under [s3://bucket/b/] was excluded by the [file_exclusions] "
+                    + "dataset setting, for example [.part-r-00001.parquet.crc] which matched entry [**/.*]"
+            ),
+            result.listingWarnings()
         );
     }
 
@@ -2262,9 +2295,12 @@ public class GlobExpanderTests extends ESTestCase {
         FileList result = GlobExpander.expandGlob("s3://bucket/data/**", new StubProvider(listing), null, HIVE_OFF);
 
         assertEquals("both data files survive", 2, result.fileCount());
-        assertWarnings(
-            "2 of 4 objects matching the resource under [s3://bucket/data/] were excluded by the [file_exclusions] "
-                + "dataset setting, for example [_SUCCESS] which matched entry [**/_*]"
+        assertEquals(
+            List.of(
+                "2 of 4 objects matching the resource under [s3://bucket/data/] were excluded by the [file_exclusions] "
+                    + "dataset setting, for example [_SUCCESS] which matched entry [**/_*]"
+            ),
+            result.listingWarnings()
         );
     }
 
@@ -2282,11 +2318,10 @@ public class GlobExpanderTests extends ESTestCase {
     }
 
     /**
-     * The cache loader uses {@link GlobExpander#expandAndCompact} which must attach the exclusion text
-     * without emitting it, so a later {@link GlobExpander#replayExclusionWarnings} does not double-warn
-     * on a miss.
+     * The cache loader uses {@link GlobExpander#expandAndCompact}; the exclusion text rides on the listing it returns,
+     * so a cache hit carries exactly what the miss did and nothing is written to headers here.
      */
-    public void testExpandAndCompactDefersExclusionWarningUntilReplay() throws IOException {
+    public void testExpandAndCompactCarriesExclusionWarningOnTheListing() throws IOException {
         List<StorageEntry> listing = List.of(entry("s3://bucket/data/_SUCCESS", 0), entry("s3://bucket/data/file.parquet", 100));
         String pattern = "s3://bucket/data/*";
         String warning = "1 of 2 objects matching the resource under [s3://bucket/data/] was excluded by the [file_exclusions] "
@@ -2294,10 +2329,24 @@ public class GlobExpanderTests extends ESTestCase {
 
         FileList compacted = GlobExpander.expandAndCompact(pattern, new StubProvider(listing), null, HIVE_OFF, StoragePath.of(pattern));
         assertEquals(1, compacted.fileCount());
-        assertEquals(List.of(warning), compacted.exclusionWarnings());
-        ensureNoWarnings();
 
-        GlobExpander.replayExclusionWarnings(compacted);
-        assertWarnings(warning);
+        assertEquals(List.of(warning), compacted.listingWarnings());
     }
+
+    /** A partition column renamed off a reserved name is a listing notice too, so it rides the listing like an exclusion. */
+    public void testPartitionRenameNoticeRidesTheListing() throws IOException {
+        StubProvider provider = new StubProvider(List.of(entry("s3://bucket/data/_index=alpha/file1.parquet", 100)));
+
+        FileList result = GlobExpander.expandGlob("s3://bucket/data/*/*.parquet", provider, null, Map.of("hive_partitioning", true));
+
+        assertEquals(1, result.fileCount());
+        assertEquals(
+            List.of(
+                "Partition columns shadowing reserved metadata names were renamed; reference them by the _partition.* name.",
+                "partition column [_index] surfaced as [_partition._index]"
+            ),
+            result.listingWarnings()
+        );
+    }
+
 }

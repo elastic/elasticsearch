@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.esql.datasource.parquet;
 
+import org.elasticsearch.monitor.jvm.JvmInfo;
 import org.elasticsearch.test.ESTestCase;
 
 import java.lang.ref.WeakReference;
@@ -297,7 +298,7 @@ public class PoolingHeapByteBufferAllocatorTests extends ESTestCase {
 
     public void testForHeapCapIsHeapOverDivisor() {
         PoolingHeapByteBufferAllocator pool = PoolingHeapByteBufferAllocator.forHeap();
-        long heapBytes = org.elasticsearch.monitor.jvm.JvmInfo.jvmInfo().getMem().getHeapMax().getBytes();
+        long heapBytes = JvmInfo.jvmInfo().getMem().getHeapMax().getBytes();
         assertEquals(Math.max(1L, heapBytes / PoolingHeapByteBufferAllocator.HEAP_DIVISOR), pool.cap());
     }
 }

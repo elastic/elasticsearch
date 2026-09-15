@@ -78,6 +78,12 @@ public class CircuitBreakerByteBufferAllocator implements ByteBufferAllocator {
         }
         Integer previous = outstanding.put(new Identity(buffer), buffer.capacity());
         if (previous != null) {
+            // Unreachable with the current delegates (both hand out fresh instances); if a delegate
+            // ever recycles a live identity, don't let the invariant failure also strand this
+            // allocation's charge and checkout. The previous charge is unrecoverable by design.
+            outstanding.remove(new Identity(buffer));
+            breaker.addWithoutBreaking(-buffer.capacity());
+            delegate.release(buffer);
             throw new IllegalStateException("checked out a buffer that is already charged");
         }
         return buffer;

@@ -8,6 +8,8 @@
 package org.elasticsearch.xpack.esql.datasource.parquet;
 
 import org.apache.parquet.bytes.ByteBufferAllocator;
+import org.elasticsearch.logging.LogManager;
+import org.elasticsearch.logging.Logger;
 import org.elasticsearch.monitor.jvm.JvmInfo;
 
 import java.lang.ref.Reference;
@@ -44,6 +46,10 @@ import java.util.concurrent.atomic.AtomicLongArray;
  * class.
  *
  * <p>Each {@link #allocate} wraps a fresh {@link ByteBuffer} around a pooled (or new) {@code byte[]}.
+ * Reused arrays are <em>not</em> zeroed: every parquet-mr consumer of this allocator fully
+ * overwrites {@code [0, limit)} before reading and never reads {@code array()}/{@code capacity()}
+ * past {@code limit()} (audited for parquet-mr 1.18.1; see the options note in
+ * {@code PlainParquetReadOptions.Builder} for what re-triggers that audit).
  * Identities are not recycled, so a stale {@link #release} of a previous checkout cannot re-pool an
  * array another caller still holds. A slice or foreign buffer is ignored; parquet-mr must
  * {@link #release} the instance {@link #allocate} returned. Checkouts are tracked through
@@ -53,6 +59,8 @@ import java.util.concurrent.atomic.AtomicLongArray;
  * pinning heap for the life of this node-wide pool.
  */
 final class PoolingHeapByteBufferAllocator implements ByteBufferAllocator {
+
+    private static final Logger logger = LogManager.getLogger(PoolingHeapByteBufferAllocator.class);
 
     /**
      * Idle pooled bytes cap as a fraction of max heap. Smaller than {@link ParquetIoWatermark}'s
@@ -213,7 +221,15 @@ final class PoolingHeapByteBufferAllocator implements ByteBufferAllocator {
         Reference<? extends ByteBuffer> stale;
         while ((stale = staleCheckouts.poll()) != null) {
             if (inUse.remove(stale) != null) {
-                leakedCheckouts.incrementAndGet();
+                long leaked = leakedCheckouts.incrementAndGet();
+                if (leaked == 1) {
+                    // A leak means parquet-mr (or a custom read path) broke the release contract; the
+                    // array is reclaimed but its breaker charge is not. First occurrence at WARN so the
+                    // signal is visible without letting a leaky loop flood the log.
+                    logger.warn("parquet buffer checkout was never released; reclaimed by GC");
+                } else {
+                    logger.debug("parquet buffer checkout was never released; reclaimed by GC ([{}] so far)", leaked);
+                }
             }
         }
     }

@@ -232,8 +232,10 @@ public class HttpClient implements Closeable {
 
             @Override
             public void failed(Exception ex) {
-                // only reachable before the response head arrived (e.g. connection failures); afterwards the failure is
-                // propagated through the body publisher and the notify-once listener drops this call
+                // Reachable before the response head arrived (e.g. connection failures) and mid-body when the socket timeout
+                // fires; after the head arrived the notify-once listener drops this call and the failure reaches the body
+                // publisher instead. This is the one hook guaranteed to fire regardless of subscription state, and the client
+                // discards the pooled endpoint before invoking it, so the connection is reclaimed even if nobody subscribed.
                 failUsingResponseThread(getException(ex), notifyOnceListener);
             }
 

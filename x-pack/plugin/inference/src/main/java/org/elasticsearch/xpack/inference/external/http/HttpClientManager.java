@@ -111,7 +111,12 @@ public class HttpClientManager implements Closeable {
         CircuitBreaker circuitBreaker,
         @Nullable TimeValue connectionTtl
     ) {
-        var connectionManager = createConnectionManager(null, connectionTtl, HttpSettings.CONNECTION_TIMEOUT.get(settings));
+        var connectionManager = createConnectionManager(
+            null,
+            connectionTtl,
+            HttpSettings.CONNECTION_TIMEOUT.get(settings),
+            HttpSettings.SOCKET_TIMEOUT.get(settings)
+        );
         return new HttpClientManager(settings, connectionManager, threadPool, clusterService, throttlerManager, circuitBreaker);
     }
 
@@ -126,7 +131,12 @@ public class HttpClientManager implements Closeable {
     ) {
         // Set the TLS strategy to ensure an encrypted connection, as Elastic Inference Service requires it.
         var tlsStrategy = sslService.profile(ELASTIC_INFERENCE_SERVICE_SSL_CONFIGURATION_PREFIX).clientTlsStrategy();
-        var connectionManager = createConnectionManager(tlsStrategy, connectionTtl, HttpSettings.CONNECTION_TIMEOUT.get(settings));
+        var connectionManager = createConnectionManager(
+            tlsStrategy,
+            connectionTtl,
+            HttpSettings.CONNECTION_TIMEOUT.get(settings),
+            HttpSettings.SOCKET_TIMEOUT.get(settings)
+        );
         return new HttpClientManager(settings, connectionManager, threadPool, clusterService, throttlerManager, circuitBreaker);
     }
 
@@ -165,9 +175,12 @@ public class HttpClientManager implements Closeable {
     private static PoolingAsyncClientConnectionManager createConnectionManager(
         @Nullable TlsStrategy tlsStrategy,
         @Nullable TimeValue connectionTtl,
-        TimeValue connectTimeout
+        TimeValue connectTimeout,
+        TimeValue socketTimeout
     ) {
-        var connectionConfig = ConnectionConfig.custom().setConnectTimeout(Timeout.ofMilliseconds(connectTimeout.millis()));
+        var connectionConfig = ConnectionConfig.custom()
+            .setConnectTimeout(Timeout.ofMilliseconds(connectTimeout.millis()))
+            .setSocketTimeout(Timeout.ofMilliseconds(socketTimeout.millis()));
 
         /*
           If the connection TTL is not set, the TTL will be controlled using the IdleConnectionEvictor and keep-alive strategy.

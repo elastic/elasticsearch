@@ -36,6 +36,14 @@ public class HttpSettings {
         Setting.Property.NodeScope
     );
 
+    // Upper bound for how long a leased connection can idle
+    public static final Setting<TimeValue> SOCKET_TIMEOUT = Setting.timeSetting(
+        "xpack.inference.http.socket_timeout",
+        TimeValue.timeValueMinutes(5),
+        TimeValue.timeValueSeconds(1),
+        Setting.Property.NodeScope
+    );
+
     private volatile ByteSizeValue maxResponseSize;
     private final int connectionTimeout;
 
@@ -61,6 +69,6 @@ public class HttpSettings {
     }
 
     public static List<Setting<?>> getSettingsDefinitions() {
-        return List.of(MAX_HTTP_RESPONSE_SIZE, CONNECTION_TIMEOUT);
+        return List.of(MAX_HTTP_RESPONSE_SIZE, CONNECTION_TIMEOUT, SOCKET_TIMEOUT);
     }
 }

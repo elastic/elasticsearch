@@ -37,6 +37,8 @@ import java.io.IOException;
 import java.util.Locale;
 import java.util.Random;
 import java.util.concurrent.TimeUnit;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
 
 import static java.nio.charset.StandardCharsets.UTF_8;
 
@@ -58,11 +60,11 @@ import static java.nio.charset.StandardCharsets.UTF_8;
  * <p>One invocation stands in for one bulk request against one concrete index, so that the costs
  * that are paid per bulk rather than per document land inside the measured region:
  * <ul>
- *   <li>A fresh {@link EscfEncoder} is constructed per invocation and closed at the end, matching
- *       {@code BulkBatchEncoders}, which creates one encoder per concrete index in a bulk and
- *       closes it once the shard requests are dispatched. The encoder resolves its thread's parser
- *       from {@link SimdJsonParserPool} at construction and publishes learned field names on
- *       close, so both of those per-bulk costs are measured.</li>
+ *   <li>{@code mappingCount} fresh {@link EscfEncoder}s are constructed per invocation and closed
+ *       at the end, matching {@code BulkBatchEncoders}, which creates one encoder per concrete
+ *       index in a bulk and closes it once the shard requests are dispatched. Each encoder resolves
+ *       its thread's parser from {@link SimdJsonParserPool} at construction and publishes learned
+ *       field names on close, so both of those per-bulk costs are measured.</li>
  *   <li>{@code docCount} spans realistic bulk sizes. The small values are the interesting ones for
  *       per-bulk overhead: at 10k documents the per-encoder work is amortized to invisibility,
  *       which is not representative of a typical bulk.</li>
@@ -91,6 +93,10 @@ import static java.nio.charset.StandardCharsets.UTF_8;
  * # All shapes, single bulk size:
  * ./gradlew :libs:simdjson:benchmark --args "SimdJsonParserBenchmark \
  *   -p shape=clickbench_flat,otel_nested,small_sparse -p docCount=1000"
+ *
+ * # Index fan-out, which is what prices the shared field name table:
+ * ../gradlew run --args "org.elasticsearch.benchmark.xcontent.SimdJsonParserBenchmark \
+ *   -p mappingCount=1,5,20 -p docCount=1000 -p shape=clickbench_flat"
  * }</pre>
  */
 @Fork(value = 1, jvmArgsAppend = { "--add-modules=jdk.incubator.vector" })
@@ -120,6 +126,18 @@ public class SimdJsonParserBenchmark {
     private int shardCount;
 
     /**
+     * Concrete indices the bulk fans out to, each with its own encoder and its own field name set.
+     * This is what prices the shared field name table: at {@code 1} every document has the same
+     * fields and the cache is warm after the first one, whereas a shipper writing to many data
+     * streams presents a different mapping per index and the table has to accumulate all of them.
+     *
+     * <p>Field names are made mapping-specific by suffixing them, so raising this genuinely widens
+     * the name set rather than just splitting the same documents across more encoders.
+     */
+    @Param({ "1" })
+    private int mappingCount;
+
+    /**
      * Document shape. {@code otel_nested} is omitted by default to keep the parameter matrix small;
      * pass it explicitly with {@code -p shape=...}.
      */
@@ -137,7 +155,7 @@ public class SimdJsonParserBenchmark {
         int minLen = Integer.MAX_VALUE, maxLen = 0;
         long totalLen = 0;
         for (int i = 0; i < docCount; i++) {
-            byte[] raw = generateDoc(random, shape, i).getBytes(UTF_8);
+            byte[] raw = applyMapping(generateDoc(random, shape, i), i % mappingCount).getBytes(UTF_8);
             docs[i] = new BytesArray(raw);
             minLen = Math.min(minLen, raw.length);
             maxLen = Math.max(maxLen, raw.length);
@@ -153,11 +171,13 @@ public class SimdJsonParserBenchmark {
     private void printSetupSummary(int minLen, long avgLen, int maxLen) {
         System.out.printf(
             Locale.ROOT,
-            "[setup] thread=%s shape=%s docCount=%d shardCount=%d docSize min=%d avg=%d max=%d nativeStage1=%s maxSimdDocBytes=%d%n",
+            "[setup] thread=%s shape=%s docCount=%d shardCount=%d mappingCount=%d docSize min=%d avg=%d max=%d "
+                + "nativeStage1=%s maxSimdDocBytes=%d%n",
             Thread.currentThread().getName(),
             shape,
             docCount,
             shardCount,
+            mappingCount,
             minLen,
             avgLen,
             maxLen,
@@ -168,43 +188,91 @@ public class SimdJsonParserBenchmark {
 
     @Benchmark
     public int jacksonEncode() throws IOException {
-        try (EscfEncoder encoder = new EscfEncoder(BytesRefRecycler.NON_RECYCLING_INSTANCE, false)) {
-            return encodeBulk(encoder);
-        }
+        return encodeBulk(false);
     }
 
     @Benchmark
     public int simdJsonEncode() throws IOException {
-        try (EscfEncoder encoder = new EscfEncoder(BytesRefRecycler.NON_RECYCLING_INSTANCE)) {
-            return encodeBulk(encoder);
-        }
+        return encodeBulk(true);
     }
 
     /**
-     * Encodes one bulk's worth of documents, fanning rows across shard partitions and building each,
-     * as {@code BulkBatchEncoders} does during routing and {@code finalizeBatches}.
+     * Encodes one bulk, mirroring {@code BulkBatchEncoders}: one encoder per concrete index, rows
+     * routed to that index's shard partitions, then every partition built during
+     * {@code finalizeBatches}, and finally every encoder closed.
      */
-    private int encodeBulk(EscfEncoder encoder) throws IOException {
-        for (int i = 0; i < docs.length; i++) {
-            encoder.parseToScratch(docs[i], XContentType.JSON, LeafSink.NO_OP);
-            encoder.commitScratchTo(i % shardCount);
-        }
-        int leafCount = 0;
-        for (int partition = 0; partition < shardCount; partition++) {
-            // A shard that received no rows is skipped, matching finalizeBatches iterating only
-            // over shards with pending attachments.
-            if (encoder.hasPartition(partition)) {
-                try (EscfBatch batch = encoder.buildPartition(partition)) {
-                    leafCount += batch.schema().leafCount();
+    private int encodeBulk(boolean allowSimd) throws IOException {
+        EscfEncoder[] encoders = new EscfEncoder[mappingCount];
+        try {
+            for (int m = 0; m < mappingCount; m++) {
+                encoders[m] = new EscfEncoder(BytesRefRecycler.NON_RECYCLING_INSTANCE, allowSimd);
+            }
+
+            for (int i = 0; i < docs.length; i++) {
+                EscfEncoder encoder = encoders[i % mappingCount];
+                encoder.parseToScratch(docs[i], XContentType.JSON, LeafSink.NO_OP);
+                encoder.commitScratchTo(i % shardCount);
+            }
+
+            int leafCount = 0;
+            for (EscfEncoder encoder : encoders) {
+                for (int partition = 0; partition < shardCount; partition++) {
+                    // A shard that received no rows is skipped, matching finalizeBatches iterating
+                    // only over shards with pending attachments.
+                    if (encoder.hasPartition(partition)) {
+                        try (EscfBatch batch = encoder.buildPartition(partition)) {
+                            leafCount += batch.schema().leafCount();
+                        }
+                    }
+                }
+            }
+            return leafCount;
+        } finally {
+            for (EscfEncoder encoder : encoders) {
+                if (encoder != null) {
+                    encoder.close();
                 }
             }
         }
-        return leafCount;
     }
 
     // ------------------------------------------------------------------
     // Document generators (same shapes as EscfFieldResolutionBenchmark)
     // ------------------------------------------------------------------
+
+    /**
+     * Object keys, used to give each simulated index its own field names. Deliberately narrow: it
+     * requires the quoted run to be a bare identifier, so a string <em>value</em> containing a
+     * colon (such as a URL) cannot match.
+     */
+    private static final Pattern OBJECT_KEY = Pattern.compile("\"([A-Za-z_][A-Za-z0-9_.]*)\"(\\s*):");
+
+    /**
+     * Suffixes every object key so the document belongs to mapping {@code mapping}'s field name
+     * set. Mapping 0 is returned untouched, so the default parameters measure the original shapes.
+     *
+     * <p>Asserts that the rewrite grew the document by exactly the suffix length per key, which
+     * catches the regex matching something that was not a key if a shape template ever changes.
+     */
+    private static String applyMapping(String json, int mapping) {
+        if (mapping == 0) {
+            return json;
+        }
+        String suffix = "_m" + mapping;
+        Matcher matcher = OBJECT_KEY.matcher(json);
+        StringBuilder out = new StringBuilder(json.length() + 64);
+        int keys = 0;
+        while (matcher.find()) {
+            matcher.appendReplacement(out, Matcher.quoteReplacement("\"" + matcher.group(1) + suffix + "\"" + matcher.group(2) + ":"));
+            keys++;
+        }
+        matcher.appendTail(out);
+
+        String renamed = out.toString();
+        assert renamed.length() == json.length() + (long) keys * suffix.length()
+            : "mapping rewrite altered more than object keys for shape";
+        return renamed;
+    }
 
     private static String generateDoc(Random random, String shape, int docIndex) {
         return switch (shape) {

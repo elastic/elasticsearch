@@ -52,6 +52,20 @@ public class ViewUnionAll extends UnionAll {
         return new ViewUnionAll(source(), asSubqueryMap(subPlans), output);
     }
 
+    /**
+     * Type-preserving override of {@link UnionAll#refreshOutput()}, which would otherwise return a plain {@link UnionAll} and drop
+     * {@link #namedSubqueries}. Children are unchanged, so the existing map carries over as-is.
+     * <p>
+     * Losing the type here is not merely cosmetic: {@code UnionAll.checkNestedUnionAlls} permits a nested plain {@link UnionAll} but
+     * rejects a nested {@link ViewUnionAll}, so a downgraded node below another union would slip past that verification and execute
+     * with its view metadata gone. {@code ResolveUnmapped.patchFork} calls {@code refreshOutput()} on every {@link Fork} it patches,
+     * which is how a view union reaches this method.
+     */
+    @Override
+    public ViewUnionAll refreshOutput() {
+        return new ViewUnionAll(source(), namedSubqueries, refreshedOutput());
+    }
+
     // Currently for testing only, could also be useful for EXPLAIN and PROFILE
     public Map<String, LogicalPlan> namedSubqueries() {
         return namedSubqueries;

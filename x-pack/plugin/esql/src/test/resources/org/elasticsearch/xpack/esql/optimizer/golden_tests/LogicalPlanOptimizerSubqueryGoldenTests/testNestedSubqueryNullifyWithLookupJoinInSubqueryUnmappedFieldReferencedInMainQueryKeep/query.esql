@@ -1,0 +1,8 @@
+SET unmapped_fields="nullify";
+FROM employees,
+     (FROM languages,
+           (FROM employees
+            | EVAL language_code = languages
+            | LOOKUP JOIN languages_lookup ON language_code
+            | KEEP emp_no, language_name))
+| KEEP emp_no, does_not_exist_field, language_name

@@ -349,16 +349,37 @@ public class FromDatasetSubqueryIT extends AbstractExternalDataSourceIT {
         }
     }
 
-    public void testIndexInMainMultipleDatasetInSubqueryRejected() {
+    /**
+     * A subquery whose own FROM references multiple datasets produces a {@code UnionAll} nested inside the outer
+     * {@code UnionAll}'s branch (outer: real_employees + subquery; inner: employees + employees_alt). Nested
+     * subqueries are supported: the result is the same flat union as spelling each dataset as its own subquery,
+     * see {@link #testIndexInMainDatasetInSubquery}.
+     */
+    public void testIndexInMainMultipleDatasetInSubquery() {
         createRealEmployees();
         registerEmployees();
         registerEmployeesAlt();
 
-        Exception ex = expectThrows(
-            Exception.class,
-            () -> run(syncEsqlQueryRequest("FROM real_employees, (FROM employees, employees_alt)"), TIMEOUT)
-        );
-        assertCauseMessageContains(ex, "Nested subqueries are not supported");
+        try (
+            var response = run(
+                syncEsqlQueryRequest("FROM real_employees, (FROM employees, employees_alt) | SORT emp_no, first_name"),
+                TIMEOUT
+            )
+        ) {
+            List<List<Object>> rows = getValuesList(response);
+            assertThat(rows, hasSize(10)); // 5 from real_employees + 3 from employees + 2 from employees_alt
+
+            // same union as testIndexInMainDatasetInSubquery, spot-check the overlap rows and branch provenance
+            assertThat(rows.get(0).get(0), equalTo(1));
+            assertThat(rows.get(0).get(1).toString(), equalTo("Alice"));
+            assertThat(rows.get(1).get(0), equalTo(1));
+            assertThat(rows.get(1).get(1).toString(), equalTo("Alice-real"));
+            assertNull(rows.get(1).get(2)); // real_employees has no last_name
+            assertThat(rows.get(5).get(0), equalTo(10));
+            assertThat(rows.get(5).get(1).toString(), equalTo("Diana"));
+            assertThat(rows.get(9).get(0), equalTo(101));
+            assertThat(rows.get(9).get(1).toString(), equalTo("Grace"));
+        }
     }
 
     // With basic(WHERE/STATS/KEEP/EVAL) processing command in subqueries or main query

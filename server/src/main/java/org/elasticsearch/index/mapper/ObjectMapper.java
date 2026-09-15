@@ -757,11 +757,9 @@ public class ObjectMapper extends Mapper {
                     // Count multi-fields before parsing so they are claimed atomically with the parent.
                     int multiFieldCount = propNode.get("fields") instanceof Map<?, ?> fieldsMap ? fieldsMap.size() : 0;
                     Mapper.Builder fieldBuilder;
-                    int parsedFieldsCount;
                     if (objBuilder.subobjects.value() != Subobjects.ENABLED) {
                         parserContext.checkFieldNameLength(fieldName);
                         fieldBuilder = typeParser.parse(fieldName, propNode, parserContext);
-                        parsedFieldsCount = 1 + multiFieldCount;
                     } else {
                         String[] fieldNameParts = fieldName.split("\\.");
                         if (fieldNameParts.length == 0) {
@@ -779,9 +777,8 @@ public class ObjectMapper extends Mapper {
                             intermediate.add(fieldBuilder);
                             fieldBuilder = intermediate;
                         }
-                        parsedFieldsCount = fieldNameParts.length + multiFieldCount;
                     }
-                    if (parserContext.tryAddFields(parsedFieldsCount)) {
+                    if (parserContext.tryAddFields(1 + multiFieldCount)) {
                         objBuilder.add(fieldBuilder);
                     }
                     propNode.remove("type");

@@ -124,6 +124,35 @@ public class MapperServiceTests extends MapperServiceTestCase {
         mapperService.parseMappings(new CompressedXContent(BytesReference.bytes(atLimitMapping)));
     }
 
+    public void testDottedFieldNamesAreNotOvercountedAtParseTime() throws IOException {
+        Settings settings = Settings.builder()
+            .put(MapperService.INDEX_MAPPING_TOTAL_FIELDS_LIMIT_SETTING.getKey(), 4)
+            .build();
+        MapperService mapperService = createMapperService(settings, mapping(b -> {}));
+
+        // x.a, x.b, x.c creates 4 fields (x, x.a, x.b, x.c) — fits within limit of 4.
+        // parseMappings() only parses, so an exception here means the limit was enforced at parse time.
+        XContentBuilder fourFields = mapping(b -> {
+            b.startObject("x.a").field("type", "keyword").endObject();
+            b.startObject("x.b").field("type", "keyword").endObject();
+            b.startObject("x.c").field("type", "keyword").endObject();
+        });
+        mapperService.parseMappings(new CompressedXContent(BytesReference.bytes(fourFields)));
+
+        // x.a, x.b, y.c creates 5 fields (x, x.a, x.b, y, y.c) — exceeds limit of 4.
+        MapperService mapperService2 = createMapperService(settings, mapping(b -> {}));
+        XContentBuilder fiveFields = mapping(b -> {
+            b.startObject("x.a").field("type", "keyword").endObject();
+            b.startObject("x.b").field("type", "keyword").endObject();
+            b.startObject("y.c").field("type", "keyword").endObject();
+        });
+        IllegalArgumentException e = expectThrows(
+            IllegalArgumentException.class,
+            () -> merge(mapperService2, fiveFields)
+        );
+        assertThat(e.getMessage(), containsString("Limit of total fields [4] has been exceeded"));
+    }
+
     private void createMappingSpecifyingNumberOfFields(XContentBuilder b, int numberOfFields) throws IOException {
         for (int i = 0; i < numberOfFields; i++) {
             b.startObject("field" + i);

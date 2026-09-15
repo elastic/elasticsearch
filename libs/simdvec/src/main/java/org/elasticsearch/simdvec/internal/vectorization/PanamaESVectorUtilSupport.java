@@ -2435,13 +2435,6 @@ public sealed class PanamaESVectorUtilSupport implements ESVectorUtilSupport per
         return c;
     }
 
-    @Override
-    public float[] matrixMultiplyTA(float[] aT, float[] b, int m, int k, int n) {
-        float[] c = new float[k * n];
-        multiplyAccumulate(aT, 1, k, b, c, k, m, n);
-        return c;
-    }
-
     /**
      * Panama version of matrix multiply, but operating on 4x[vector width] tiles of C cells
      * with a 1x1 tile and masked tails for overflow

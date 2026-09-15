@@ -235,7 +235,10 @@ public class SourceFilterTests extends ESTestCase {
         for (int i = 0; i < complexPatterns.length; i++) {
             complexPatterns[i] = "*" + randomAlphaOfLength(10) + "*";
         }
-        expectThrows(IllegalArgumentException.class, () -> new SourceFilter(complexPatterns, null).isPathFiltered("foo", false));
-        expectThrows(IllegalArgumentException.class, () -> new SourceFilter(null, complexPatterns).isPathFiltered("foo", false));
+        // Leaf probes fall back to glob matching. Object probes and per-document map filtering still fail closed.
+        new SourceFilter(complexPatterns, null).isPathFiltered("foo", false);
+        new SourceFilter(null, complexPatterns).isPathFiltered("foo", false);
+        expectThrows(IllegalArgumentException.class, () -> new SourceFilter(complexPatterns, null).isPathFiltered("foo", true));
+        expectThrows(IllegalArgumentException.class, () -> new SourceFilter(complexPatterns, null).filterMap(Source.empty(null)));
     }
 }

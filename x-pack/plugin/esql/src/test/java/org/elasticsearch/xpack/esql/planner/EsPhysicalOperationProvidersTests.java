@@ -346,7 +346,7 @@ public class EsPhysicalOperationProvidersTests extends MapperServiceTestCase {
         assertThat("exactly 2 fields survive", result.size(), equalTo(2));
     }
 
-    public void testBuildSourceFilterWithTooComplexPatternsThrowsIllegalArgument() throws IOException {
+    public void testBuildSourceFilterWithTooComplexPatternsStillBuilds() throws IOException {
         var indexSettings = Settings.builder().put("index.mapping.exclude_source_vectors", true).build();
         var mapperService = createMapperService(indexSettings, mapping(b -> {
             b.startObject("text_field").field("type", "text").endObject();
@@ -361,10 +361,11 @@ public class EsPhysicalOperationProvidersTests extends MapperServiceTestCase {
 
         var mappingLookup = searchExecutionContext.getMappingLookup();
         var idxSettings = searchExecutionContext.getIndexSettings();
-        expectThrows(
-            IllegalArgumentException.class,
-            () -> EsPhysicalOperationProviders.DefaultShardContext.buildSourceFilter(complexPaths, mappingLookup, idxSettings)
-        );
+        SourceFilter filter = EsPhysicalOperationProviders.DefaultShardContext.buildSourceFilter(complexPaths, mappingLookup, idxSettings);
+        assertNotNull(filter);
+        assertThat(Set.of(filter.getIncludes()), equalTo(complexPaths));
+        assertThat(List.of(filter.getExcludes()), equalTo(List.of("embedding")));
+        searchExecutionContext.newSourceLoader(filter, false);
     }
 
     private ValuesSourceReaderOperator.LoaderAndConverter temporalityLoader(EsPhysicalOperationProviders provider) {

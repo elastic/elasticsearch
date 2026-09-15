@@ -40,6 +40,7 @@ import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.regex.Pattern;
+import java.util.regex.PatternSyntaxException;
 
 import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.equalTo;
@@ -107,17 +108,24 @@ public class ReplaceStaticTests extends ESTestCase {
         );
     }
 
-    public void testInvalidConstantRegexAndNewStrThrowsPatternSyntaxException() {
-        expectThrows(
-            java.util.regex.PatternSyntaxException.class,
-            () -> AbstractScalarFunctionTestCase.evaluator(
+    public void testInvalidConstantRegexWarnsAndReturnsNull() {
+        PatternSyntaxException pse = expectThrows(PatternSyntaxException.class, () -> Pattern.compile("["));
+        try (
+            var eval = AbstractScalarFunctionTestCase.evaluator(
                 new Replace(
                     Source.EMPTY,
                     field("text", DataType.KEYWORD),
                     new Literal(Source.EMPTY, new BytesRef("["), DataType.KEYWORD),
                     new Literal(Source.EMPTY, new BytesRef("x"), DataType.KEYWORD)
                 )
-            ).get(driverContext())
+            ).get(driverContext());
+            Block block = eval.eval(row(List.of(new BytesRef("a"))));
+        ) {
+            assertTrue(block.isNull(0));
+        }
+        assertDriverWarnings(
+            "Line -1:-1: evaluation of [] failed, treating result as null. Only first 20 failures recorded.",
+            "Line -1:-1: " + pse.getClass().getName() + ": " + pse.getMessage()
         );
     }
 

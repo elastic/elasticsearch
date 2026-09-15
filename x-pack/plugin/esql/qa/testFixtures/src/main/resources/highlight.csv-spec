@@ -109,7 +109,7 @@ The quick brown <b>fox</b> jumps over the lazy dog.
 ;
 
 
-# A prefix containing whitespace 
+# A prefix containing whitespace
 highlightWhitespacePrefix
 required_capability: highlight_v6
 
@@ -1264,7 +1264,6 @@ highlight_title:keyword     | highlight_body:keyword
 Return of the <em>King</em> | null
 ;
 
-
 # Without default_field, QSTR expands an unqualified term over every ON field, highlighting each independently.
 highlightQueryStringMultiFieldExpansion
 required_capability: highlight_v6
@@ -1920,3 +1919,195 @@ ROW title = to_text("The Lord of the Rings")
 highlight_title:keyword
 The Lord of the <em>Rings</em>
 ;
+
+
+explicitQueryNoOnFallsBackToAllFields
+skip_flattened_rewrite: highlight_implicit_fields_exclude_flattened
+required_capability: highlight_implicit_query_and_fields
+
+FROM books
+| HIGHLIGHT "Tolkien"
+| WHERE book_no == "8875"
+| DROP author, `author.keyword`, book_no, collection, description, publisher, ratings, title, year
+;
+
+highlight_author:keyword           | highlight_author.keyword:keyword   | highlight_book_no:keyword | highlight_collection:keyword | highlight_description:keyword | highlight_publisher:keyword | highlight_title:keyword
+John Ronald Reuel <em>Tolkien</em> | John Ronald Reuel <em>Tolkien</em> | null                      | null                         | null                          | null                        | null
+;
+
+
+# KEEP of a generated highlight_* column after a no-ON HIGHLIGHT must still load every text/keyword
+# field. Unlike explicitQueryNoOnFallsBackToAllFields, KEEP does not name the source columns, so
+# field-caps has to request * rather than the KEEP list. Pin the same book so highlight_author matches.
+explicitQueryNoOnKeepGeneratedColumn
+skip_flattened_rewrite: highlight_implicit_fields_exclude_flattened
+required_capability: highlight_implicit_query_and_fields
+
+FROM books
+| HIGHLIGHT "Tolkien"
+| WHERE book_no == "8875"
+| KEEP highlight_author
+;
+
+highlight_author:keyword
+John Ronald Reuel <em>Tolkien</em>
+;
+
+
+# KEEP names book_no but not author; author still has to come from the no-ON fallback.
+explicitQueryNoOnKeepMappedAndGenerated
+skip_flattened_rewrite: highlight_implicit_fields_exclude_flattened
+required_capability: highlight_implicit_query_and_fields
+
+FROM books
+| HIGHLIGHT "Tolkien"
+| KEEP book_no, highlight_author
+| WHERE book_no == "8875"
+;
+
+book_no:keyword | highlight_author:keyword
+8875            | John Ronald Reuel <em>Tolkien</em>
+;
+
+
+# KEEP highlight_* is a name pattern, not a bare *, so it does not itself trigger ALL_FIELDS.
+explicitQueryNoOnKeepHighlightWildcard
+skip_flattened_rewrite: highlight_implicit_fields_exclude_flattened
+required_capability: highlight_implicit_query_and_fields
+
+FROM books
+| HIGHLIGHT "Tolkien"
+| WHERE book_no == "8875"
+| KEEP highlight_*
+;
+
+highlight_author:keyword           | highlight_author.keyword:keyword   | highlight_book_no:keyword | highlight_collection:keyword | highlight_description:keyword | highlight_publisher:keyword | highlight_title:keyword
+John Ronald Reuel <em>Tolkien</em> | John Ronald Reuel <em>Tolkien</em> | null                      | null                         | null                          | null                        | null
+;
+
+
+# Same expected columns as explicitQueryNoOnKeepHighlightWildcard: an explicit ON * must match the no-ON fallback.
+explicitQueryOnStarExpandsToAllFields
+skip_flattened_rewrite: highlight_implicit_fields_exclude_flattened
+required_capability: highlight_implicit_query_and_fields
+
+FROM books
+| HIGHLIGHT "Tolkien" ON *
+| WHERE book_no == "8875"
+| KEEP highlight_*
+;
+
+highlight_author:keyword           | highlight_author.keyword:keyword   | highlight_book_no:keyword | highlight_collection:keyword | highlight_description:keyword | highlight_publisher:keyword | highlight_title:keyword
+John Ronald Reuel <em>Tolkien</em> | John Ronald Reuel <em>Tolkien</em> | null                      | null                         | null                          | null                        | null
+;
+
+
+# MATCH without ON highlights only the named field. The result shape is the proof: body is present
+# unhighlighted and there is no highlight_body column. ON * would still emit highlight_body as null.
+highlightMatchOmitsOn
+required_capability: highlight_implicit_query_and_fields
+
+ROW title = "Return of the King", body = "An ordinary description."
+| HIGHLIGHT MATCH(title, "king")
+;
+
+title:keyword      | body:keyword             | highlight_title:keyword
+Return of the King | An ordinary description. | Return of the <em>King</em>
+;
+
+
+# ON * still generates a column for every text field, so a MATCH that names only title leaves highlight_body null.
+highlightMatchOnStarKeepsUnmatchedFields
+required_capability: highlight_implicit_query_and_fields
+
+ROW title = "Return of the King", body = "An ordinary description."
+| HIGHLIGHT MATCH(title, "king") ON *
+| KEEP highlight_title, highlight_body
+;
+
+highlight_title:keyword     | highlight_body:keyword
+Return of the <em>King</em> | null
+;
+
+
+# QSTR default_field must not drop field: qualifiers from the derived ON list. An explicit qualifier
+# overrides default_field, so description is highlighted and title is not.
+highlightQueryStringQualifierOverridesDefaultFieldNoOn
+required_capability: highlight_implicit_query_and_fields
+required_capability: qstr_function
+
+ROW title = "Return of the King", description = "Tolkien wrote the epic saga."
+| HIGHLIGHT QSTR("description:Tolkien", {"default_field": "title"})
+| KEEP highlight_title, highlight_description
+;
+
+highlight_title:keyword | highlight_description:keyword
+null                    | <em>Tolkien</em> wrote the epic saga.
+;
+
+
+# NOT KQL is recognised the same way KQL is: fall back to every string column rather than demanding
+# an explicit ON clause. Negative queries never produce spans, so the generated columns are null.
+highlightNotKqlFallsBackToAllStringFields
+required_capability: highlight_implicit_query_and_fields
+required_capability: kql_function
+
+ROW title = "Return of the King", body = "An ordinary description."
+| HIGHLIGHT NOT KQL("foo")
+| KEEP highlight_title, highlight_body
+;
+
+highlight_title:keyword | highlight_body:keyword
+null                    | null
+;
+
+
+# Negative QSTR still has to translate against the derived fields. Derivation excludes the negative
+# clause's names, so MATCH(title) AND NOT QSTR("body:bar") with no ON list falls back to every
+# highlightable column rather than failing verification. highlight_title is populated and
+# highlight_body is absent-as-null.
+highlightMatchAndNotQstrDerivesWithoutTranslationError
+required_capability: highlight_implicit_query_and_fields
+required_capability: match_function
+required_capability: qstr_function
+
+ROW title = "Return of the King", body = "An ordinary description."
+| HIGHLIGHT MATCH(title, "king") AND NOT QSTR("body:bar")
+| KEEP highlight_title, highlight_body
+;
+
+highlight_title:keyword     | highlight_body:keyword
+Return of the <em>King</em> | null
+;
+
+
+# KEEP of one generated column must not drop ON fields a QSTR qualifier still names. Pruning title
+# out of ON leaves Lucene with searchable fields [author] and rejects [title].
+highlightQstrQualifierSurvivesPruneOfUnusedOnField
+required_capability: highlight_v6
+required_capability: qstr_function
+
+ROW title = "Return of the King", author = "Tolkien"
+| HIGHLIGHT QSTR("title:King") ON title, author
+| KEEP highlight_author
+;
+
+highlight_author:keyword
+null
+;
+
+
+# MATCH(title) still translates against title after KEEP drops highlight_title.
+highlightMatchSurvivesPruneOfUnusedOnField
+required_capability: highlight_v6
+required_capability: match_function
+
+ROW title = "Return of the King", author = "Tolkien"
+| HIGHLIGHT MATCH(title, "king") ON title, author
+| KEEP highlight_author
+;
+
+highlight_author:keyword
+null
+;
+

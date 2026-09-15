@@ -1,0 +1,5 @@
+area: ES|QL
+issues: []
+pr: 159269
+summary: Fix incorrect TO_TEXT pushdown
+type: bug

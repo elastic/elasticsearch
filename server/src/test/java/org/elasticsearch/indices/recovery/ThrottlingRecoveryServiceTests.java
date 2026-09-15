@@ -679,11 +679,7 @@ public class ThrottlingRecoveryServiceTests extends ESTestCase {
         service.enqueue(
             ProjectId.DEFAULT,
             listener1,
-            mockIndexShard(
-                recoveryState,
-                UUIDs.randomBase64UUID(),
-                stats
-            ),
+            mockIndexShard(recoveryState, UUIDs.randomBase64UUID(), stats),
             newIndexMetadata(),
             l -> l.onRecoveryFailure(new RecoveryFailedException(recoveryState, null, null), ABORT)
         );

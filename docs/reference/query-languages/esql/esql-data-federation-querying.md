@@ -120,7 +120,7 @@ The following search functions are available for datasets:
 :::{include} _snippets/data-federation/experimental-warning.md
 :::
 
-The operations below require structures that only exist in an {{es}} index, such as the inverted index, doc values, or time series metadata. Each fails with a clear error rather than wrong results.
+The limitations below include operations that require structures available only in an {{es}} index, such as the inverted index, doc values, or time series metadata, as well as unsupported data shapes. Unsupported operations fail with a clear error; representation limitations are described in the table.
 
 | Operation | Reason | Error |
 |---|---|---|
@@ -131,9 +131,10 @@ The operations below require structures that only exist in an {{es}} index, such
 | More than 8 sources resolved in one `FROM` | A `FROM` that includes datasets runs one execution branch per resolved source, up to a limit of 8 branches. Query fewer sources together. | |
 | A column with conflicting types across sources | When you query a dataset together with other sources and the same column has types that cannot be reconciled, the query fails rather than returning mixed types. | `Column [<name>] has conflicting data types in subqueries` |
 | Document-level security (DLS) and field-level security (FLS) | A dataset's `read` grant cannot carry document- or field-level security. Queries where DLS or FLS applies to a dataset are rejected during authorization. The same check covers [{{esql}} views](esql-views.md). | `Datasets with document or field level security restrictions are not supported. Remove DLS/FLS restrictions from the affected datasets in the role definition, or exclude them from the request.` |
-| [Cross-cluster search](/reference/query-languages/esql/esql-cross-clusters.md) | Datasets on a remote cluster cannot be queried. Only local datasets are supported. | `ES\|QL queries with remote datasets are not supported. Matched [...]` |
+| [Cross-cluster search](/reference/query-languages/esql/esql-cross-clusters.md) | Only local datasets can be queried. {applies_to}`stack: experimental 9.6` A dataset on a remote cluster is invisible: a wildcard that matches its name returns that cluster's indices beside it, and naming it directly resolves to nothing, so the remote's `skip_unavailable` setting decides whether the query fails or that cluster is skipped. In earlier versions, a query that matched a remote dataset failed. | {applies_to}`stack: experimental 9.6` `Unknown index [<cluster>:<dataset>]`, when `skip_unavailable` is `false`. In earlier versions, `ES\|QL queries with remote datasets are not supported. Matched [...]` |
 | Snapshot and restore | Data sources and datasets cannot be snapshotted or restored. | |
 | Parquet MAP and nested LIST | These complex types are not currently supported and return null. STRUCT is supported and flattened to dot-notation column names (for example, `address.city`). | |
+| `null` elements inside a Parquet LIST | An {{esql}} multivalued field cannot hold `null`, so a `null` element inside a list is omitted and the column returns fewer values than the file holds. A list of `[1, null, 2]` reads as `[1, 2]`, and a list whose elements are all `null` reads as `null`. The response includes a warning naming the affected columns. | |
 
 ## Troubleshooting
 

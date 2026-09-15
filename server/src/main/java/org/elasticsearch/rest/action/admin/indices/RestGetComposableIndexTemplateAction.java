@@ -15,11 +15,12 @@ import org.elasticsearch.cluster.metadata.ComposableIndexTemplate;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.rest.BaseRestHandler;
 import org.elasticsearch.rest.RestRequest;
+import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.rest.RestUtils;
 import org.elasticsearch.rest.Scope;
 import org.elasticsearch.rest.ServerlessScope;
 import org.elasticsearch.rest.action.RestCancellableNodeClient;
-import org.elasticsearch.rest.action.RestToXContentListener;
+import org.elasticsearch.rest.action.RestChunkedToXContentListener;
 
 import java.io.IOException;
 import java.util.HashSet;
@@ -71,10 +72,13 @@ public class RestGetComposableIndexTemplateAction extends BaseRestHandler {
         return channel -> new RestCancellableNodeClient(client, request.getHttpChannel()).execute(
             GetComposableIndexTemplateAction.INSTANCE,
             getRequest,
-            new RestToXContentListener<>(channel, r -> {
-                final boolean templateExists = r.indexTemplates().isEmpty() == false;
-                return (templateExists || implicitAll) ? OK : NOT_FOUND;
-            })
+            new RestChunkedToXContentListener<>(channel) {
+                @Override
+                protected RestStatus getRestStatus(GetComposableIndexTemplateAction.Response response) {
+                    final boolean templateExists = response.indexTemplates().isEmpty() == false;
+                    return (templateExists || implicitAll) ? OK : NOT_FOUND;
+                }
+            }
         );
     }
 

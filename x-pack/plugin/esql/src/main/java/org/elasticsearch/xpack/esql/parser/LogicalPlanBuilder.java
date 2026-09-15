@@ -78,6 +78,7 @@ import org.elasticsearch.xpack.esql.plan.logical.LimitBy;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.esql.plan.logical.Lookup;
 import org.elasticsearch.xpack.esql.plan.logical.MMR;
+import org.elasticsearch.xpack.esql.plan.logical.MergePlan;
 import org.elasticsearch.xpack.esql.plan.logical.MetricsInfo;
 import org.elasticsearch.xpack.esql.plan.logical.MvExpand;
 import org.elasticsearch.xpack.esql.plan.logical.OrderBy;
@@ -149,6 +150,7 @@ public class LogicalPlanBuilder extends ExpressionBuilder {
     public static final int MAX_QUERY_DEPTH = 500;
 
     private static final String HIGHLIGHT_PREFIX_KEYWORD = "prefix";
+    private static final String DENSE_VECTOR_SUFFIX_KEYWORD = "suffix";
 
     public LogicalPlanBuilder(ParsingContext context) {
         super(context);
@@ -1303,8 +1305,8 @@ public class LogicalPlanBuilder extends ExpressionBuilder {
     @SuppressWarnings("unchecked")
     public PlanFactory visitForkCommand(EsqlBaseParser.ForkCommandContext ctx) {
         List<PlanFactory> subQueries = visitForkSubQueries(ctx.forkSubQueries());
-        if (subQueries.size() > Fork.MAX_BRANCHES) {
-            throw new ParsingException(source(ctx), "Fork supports up to " + Fork.MAX_BRANCHES + " branches");
+        if (subQueries.size() > MergePlan.MAX_BRANCHES) {
+            throw new ParsingException(source(ctx), "Fork supports up to " + MergePlan.MAX_BRANCHES + " branches");
         }
 
         return input -> {
@@ -1563,13 +1565,94 @@ public class LogicalPlanBuilder extends ExpressionBuilder {
         }
 
         // Explicit field list; no expressions or renames.
-        List<NamedExpression> fields = ctx.qualifiedNames()
-            .qualifiedName()
-            .stream()
-            .map(qn -> (NamedExpression) visitQualifiedName(qn))
-            .toList();
+        List<NamedExpression> fields = ctx.qualifiedNames() == null
+            ? List.<NamedExpression>of()
+            : ctx.qualifiedNames().qualifiedName().stream().map(qn -> (NamedExpression) visitQualifiedName(qn)).toList();
+        DenseVector.OutputNaming naming = denseVectorNaming(ctx.denseVectorNaming(), fields);
+        if (fields.isEmpty()) {
+            // A naming clause with nothing after it is a different mistake from omitting the field list altogether, and the
+            // caret sits on the command either way, so the message has to carry the distinction.
+            throw ctx.denseVectorNaming() == null
+                ? new ParsingException(source, "DENSE_VECTOR requires at least one input field")
+                : new ParsingException(source, "DENSE_VECTOR requires at least one input field after the naming clause");
+        }
         Literal rowLimit = Literal.integer(source, context.inferenceSettings().denseVectorRowLimit());
-        return p -> applyDenseVectorOptions(new DenseVector(source, p, rowLimit, fields), ctx.commandNamedParameters());
+        return p -> applyDenseVectorOptions(new DenseVector(source, p, rowLimit, fields, naming), ctx.commandNamedParameters());
+    }
+
+    /**
+     * Resolves the optional naming clause to the naming of the generated columns. Absent, every field takes the default
+     * {@code <field>_dense_vector}. The two forms are distinguished by the grammar: an identifier after {@code =} names a single
+     * output column outright, a string closed by {@code ON} supplies a suffix shared by every listed field.
+     */
+    private DenseVector.OutputNaming denseVectorNaming(EsqlBaseParser.DenseVectorNamingContext ctx, List<NamedExpression> fields) {
+        return switch (ctx) {
+            case null -> DenseVector.OutputNaming.DEFAULT;
+            case EsqlBaseParser.DenseVectorLiteralInputContext literalCtx -> throw literalInputRejected(literalCtx);
+            case EsqlBaseParser.DenseVectorSuffixContext suffixCtx -> DenseVector.OutputNaming.suffixed(denseVectorSuffix(suffixCtx));
+            case EsqlBaseParser.DenseVectorTargetNameContext targetCtx -> DenseVector.OutputNaming.explicit(
+                denseVectorTargetName(targetCtx, fields)
+            );
+            default -> throw new IllegalStateException("Unhandled DENSE_VECTOR naming clause [" + ctx.getClass().getSimpleName() + "]");
+        };
+    }
+
+    /**
+     * A string after {@code =} is the head of a suffix clause right up to the point {@code ON} fails to arrive, so the grammar
+     * accepts this shape only so the two cases can be told apart here: the suffix keyword means the clause is unterminated,
+     * anything else means the input is a literal, which DENSE_VECTOR does not take.
+     */
+    private ParsingException literalInputRejected(EsqlBaseParser.DenseVectorLiteralInputContext ctx) {
+        if (ctx.targetField != null && DENSE_VECTOR_SUFFIX_KEYWORD.equalsIgnoreCase(ctx.targetField.getText())) {
+            return new ParsingException(
+                source(ctx.literalInput),
+                "Missing [ON] after [{} = {}] in DENSE_VECTOR; the suffix clause must be followed by [ON <field>, ...]",
+                DENSE_VECTOR_SUFFIX_KEYWORD,
+                ctx.literalInput.getText()
+            );
+        }
+        return new ParsingException(
+            source(ctx.literalInput),
+            "DENSE_VECTOR input must be a field name, found string literal [{}]; compute the value with EVAL first "
+                + "and embed the resulting column",
+            ctx.literalInput.getText()
+        );
+    }
+
+    private String denseVectorSuffix(EsqlBaseParser.DenseVectorSuffixContext ctx) {
+        String suffixKeyword = visitIdentifier(ctx.suffixKeyword);
+        if (DENSE_VECTOR_SUFFIX_KEYWORD.equalsIgnoreCase(suffixKeyword) == false) {
+            throw new ParsingException(
+                source(ctx.suffixKeyword),
+                "Invalid modifier [{}] in DENSE_VECTOR, expected [{}]",
+                suffixKeyword,
+                DENSE_VECTOR_SUFFIX_KEYWORD
+            );
+        }
+        String suffix = BytesRefs.toString(visitString(ctx.suffix).fold(FoldContext.small()));
+        // A whitespace-only suffix would silently produce a column whose name differs from its input only by trailing spaces.
+        if (suffix.isBlank()) {
+            throw new ParsingException(source(ctx.suffix), "Option [{}] in DENSE_VECTOR must not be blank", DENSE_VECTOR_SUFFIX_KEYWORD);
+        }
+        return suffix;
+    }
+
+    private String denseVectorTargetName(EsqlBaseParser.DenseVectorTargetNameContext ctx, List<NamedExpression> fields) {
+        Attribute targetField = visitQualifiedName(ctx.targetField);
+        if (targetField.qualifier() != null) {
+            throw qualifiersUnsupportedInFieldDefinitions(targetField.source(), ctx.targetField.getText());
+        }
+        // One name cannot serve several generated columns; the suffix form is what scales to a list.
+        if (fields.size() > 1) {
+            throw new ParsingException(
+                targetField.source(),
+                "Naming a single output column with [=] in DENSE_VECTOR requires exactly one input field, found [{}]; "
+                    + "use [{} = \"<suffix>\" ON ...] to name several",
+                fields.size(),
+                DENSE_VECTOR_SUFFIX_KEYWORD
+            );
+        }
+        return targetField.name();
     }
 
     private DenseVector applyDenseVectorOptions(DenseVector denseVector, EsqlBaseParser.CommandNamedParametersContext ctx) {
@@ -1595,12 +1678,28 @@ public class LogicalPlanBuilder extends ExpressionBuilder {
             denseVector = denseVector.withTimeout(parseTimeoutOption(timeoutExpr, DenseVector.TIMEOUT_OPTION_NAME, "DENSE_VECTOR"));
         }
 
+        Expression typeExpr = optionsMap.remove(DenseVector.TYPE_OPTION_NAME);
+        if (typeExpr != null) {
+            denseVector = denseVector.withInputType(parseDenseVectorType(typeExpr));
+        }
+
         if (optionsMap.isEmpty() == false) {
             throw new ParsingException(
                 source(ctx),
                 "Invalid option [{}] in DENSE_VECTOR, expected one of [{}]",
                 optionsMap.keySet().stream().findAny().get(),
                 denseVector.validOptionNames()
+            );
+        }
+
+        // Both fallback endpoints embed text, and no multimodal endpoint is a default anywhere in the product, so an image input
+        // has nothing to fall back to. The query text alone settles this, so it is reported before any endpoint is looked up.
+        if (denseVector.inferenceIdIsFallback() && denseVector.inputType() == org.elasticsearch.inference.DataType.IMAGE) {
+            throw new ParsingException(
+                denseVector.source(),
+                "Option [{}] with value [image] in DENSE_VECTOR requires option [{}]",
+                DenseVector.TYPE_OPTION_NAME,
+                DenseVector.INFERENCE_ID_OPTION_NAME
             );
         }
 
@@ -1700,6 +1799,32 @@ public class LogicalPlanBuilder extends ExpressionBuilder {
                 e.getMessage()
             );
         }
+    }
+
+    /**
+     * Resolves the DENSE_VECTOR {@code type} option to an input modality. Accepts {@code text} and {@code image}, returning the
+     * matching {@link org.elasticsearch.inference.DataType}. Any other value raises a {@link ParsingException}.
+     */
+    private org.elasticsearch.inference.DataType parseDenseVectorType(Expression typeExpr) {
+        if (typeExpr instanceof Literal == false || DataType.isString(typeExpr.dataType()) == false) {
+            throw new ParsingException(
+                typeExpr.source(),
+                "Option [{}] in DENSE_VECTOR must be a string literal (one of [text, image]), found [{}]",
+                DenseVector.TYPE_OPTION_NAME,
+                typeExpr.source().text()
+            );
+        }
+        String typeStr = BytesRefs.toString(((Literal) typeExpr).value());
+        return switch (typeStr.trim().toLowerCase(java.util.Locale.ROOT)) {
+            case "text" -> org.elasticsearch.inference.DataType.TEXT;
+            case "image" -> org.elasticsearch.inference.DataType.IMAGE;
+            default -> throw new ParsingException(
+                typeExpr.source(),
+                "Invalid value [{}] for option [{}] in DENSE_VECTOR, expected one of [text, image]",
+                typeStr,
+                DenseVector.TYPE_OPTION_NAME
+            );
+        };
     }
 
     private <InferencePlanType extends InferencePlan<InferencePlanType>> InferencePlanType applyInferenceId(

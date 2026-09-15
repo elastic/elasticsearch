@@ -20,6 +20,7 @@ import org.elasticsearch.compute.data.UninitializedArrays;
 import org.elasticsearch.core.Releasable;
 
 import java.io.IOException;
+import java.nio.ByteBuffer;
 import java.util.ArrayDeque;
 import java.util.Deque;
 import java.util.List;
@@ -43,9 +44,11 @@ import java.util.concurrent.atomic.AtomicLong;
  * same-size pages do not re-charge. A grow charges the new size before dropping the old
  * charge so peak heap and breaker match while both arrays are live. Dictionary pages still
  * allocate via {@link BytesInputDecompressor#decompress(BytesInput, int)} and keep that
- * charge until close. Uncompressed pages alias the prefetched I/O bytes and are not charged
- * — those bytes are already accounted by the prefetch circuit breaker. Failed decompress
- * after a successful grow keeps the charge (the array is still referenced). A trip in
+ * charge until close. The compressed dictionary input is defensively copied into a separately
+ * breaker-accounted array at construction so it can outlive the prefetched I/O buffer safely.
+ * Uncompressed data pages alias the prefetched I/O bytes and are not charged — those bytes are
+ * already accounted by the prefetch circuit breaker. Failed decompress after a successful grow
+ * keeps the charge (the array is still referenced). A trip in
  * {@code addEstimateBytesAndMaybeBreak} leaves the previous array and charge unchanged.
  *
  * <p>{@link #readPage()} / {@link #readDictionaryPage()} run on the iterator thread.
@@ -58,6 +61,7 @@ import java.util.concurrent.atomic.AtomicLong;
 final class PrefetchedPageReader implements PageReader, Releasable {
 
     private static final String DECOMP_BREAKER_LABEL = "parquet page decompression";
+    private static final String DICTIONARY_COPY_BREAKER_LABEL = "parquet dictionary page copy";
 
     /**
      * A compressed data page paired with its {@code firstRowIndex}. Required because
@@ -73,7 +77,7 @@ final class PrefetchedPageReader implements PageReader, Releasable {
     private final CircuitBreaker breaker;
     private final long valueCount;
     private final Deque<CompressedPage> compressedPages;
-    private final DictionaryPage compressedDictionaryPage;
+    private volatile DictionaryPage compressedDictionaryPage;
 
     private DictionaryPage cachedDictionaryPage;
     private boolean dictionaryDecompressed;
@@ -86,6 +90,7 @@ final class PrefetchedPageReader implements PageReader, Releasable {
     /** Live capacity of {@link #reusableDecompBuf}, or the current allocating-decompress page. */
     private final AtomicLong dataPageCharge = new AtomicLong();
     private final AtomicLong dictCharge = new AtomicLong();
+    private final AtomicLong dictionaryCopyCharge = new AtomicLong();
     // AtomicBoolean (rather than a plain volatile flag) so concurrent close() callers race
     // on a single compareAndSet and only one thread actually releases the breaker charge.
     private final AtomicBoolean closed = new AtomicBoolean();
@@ -100,9 +105,56 @@ final class PrefetchedPageReader implements PageReader, Releasable {
         this.decompressor = decompressor;
         this.heapDest = decompressor instanceof PlainCompressionCodecFactory.HeapDestDecompressor h ? h : null;
         this.breaker = breaker;
-        this.compressedPages = new ArrayDeque<>(compressedPages);
-        this.compressedDictionaryPage = compressedDictionaryPage;
         this.valueCount = valueCount;
+        DictionaryPage dictionaryCopy = copyDictionaryPage(compressedDictionaryPage);
+        try {
+            this.compressedPages = new ArrayDeque<>(compressedPages);
+        } catch (Throwable t) {
+            releaseCharge(dictionaryCopyCharge);
+            throw t;
+        }
+        this.compressedDictionaryPage = dictionaryCopy;
+    }
+
+    private DictionaryPage copyDictionaryPage(DictionaryPage dictionaryPage) {
+        if (dictionaryPage == null) {
+            return null;
+        }
+        long copySize = dictionaryPage.getBytes().size();
+        if (copySize > Integer.MAX_VALUE) {
+            throw new ParquetDecodingException("Compressed dictionary page is too large to copy: " + copySize + " bytes");
+        }
+        breaker.addEstimateBytesAndMaybeBreak(copySize, DICTIONARY_COPY_BREAKER_LABEL);
+        boolean success = false;
+        try {
+            ByteBuffer source = dictionaryPage.getBytes().toByteBuffer().duplicate();
+            if (source.remaining() != copySize) {
+                throw new ParquetDecodingException(
+                    "Compressed dictionary page size mismatch: BytesInput reports ["
+                        + copySize
+                        + "] bytes but its buffer has ["
+                        + source.remaining()
+                        + "]"
+                );
+            }
+            byte[] copy = UninitializedArrays.newByteArray((int) copySize);
+            source.get(copy);
+            DictionaryPage result = new DictionaryPage(
+                BytesInput.from(copy),
+                dictionaryPage.getUncompressedSize(),
+                dictionaryPage.getDictionarySize(),
+                dictionaryPage.getEncoding()
+            );
+            dictionaryCopyCharge.set(copySize);
+            success = true;
+            return result;
+        } catch (IOException e) {
+            throw new ParquetDecodingException("Could not copy compressed dictionary page", e);
+        } finally {
+            if (success == false) {
+                breaker.addWithoutBreaking(-copySize);
+            }
+        }
     }
 
     @Override
@@ -144,40 +196,54 @@ final class PrefetchedPageReader implements PageReader, Releasable {
         throw new ParquetDecodingException("Unexpected page type: " + page.getClass().getName());
     }
 
+    /**
+     * Returns the lazily decompressed dictionary page, or {@code null} when this column has none.
+     * Once the reader is closed this method throws {@link ParquetDecodingException}, including
+     * when the column never had a dictionary page.
+     */
     @Override
     public DictionaryPage readDictionaryPage() {
-        if (compressedDictionaryPage == null) {
+        DictionaryPage dictionaryPage = compressedDictionaryPage;
+        if (closed.get()) {
+            throw new ParquetDecodingException("PrefetchedPageReader closed");
+        }
+        if (dictionaryPage == null) {
             return null;
         }
         if (dictionaryDecompressed) {
-            return cachedDictionaryPage;
+            DictionaryPage cached = cachedDictionaryPage;
+            if (closed.get()) {
+                throw new ParquetDecodingException("PrefetchedPageReader closed");
+            }
+            return cached;
         }
-        int uncompressedSize = compressedDictionaryPage.getUncompressedSize();
+        int uncompressedSize = dictionaryPage.getUncompressedSize();
         boolean charge = isNoopDecompressor() == false;
         if (charge) {
             breaker.addEstimateBytesAndMaybeBreak(uncompressedSize, DECOMP_BREAKER_LABEL);
         }
         boolean success = false;
+        DictionaryPage decodedDictionaryPage;
         try {
             // Heap decompressor path so the returned BytesInput is a plain byte[] rather than an
             // alias of the prefetched chunk. DictionaryPageReader (parquet-mr) caches this
             // DictionaryPage indefinitely in a ConcurrentHashMap; if the decompressed bytes
             // aliased a prefetch buffer they would outlive this reader's close at row-group
-            // rollover. The compressed input is also heap-backed —
-            // PrefetchedRowGroupBuilder.makeDictionaryPage eagerly copies it from the
-            // PrefetchedChunk. Uncompressed dictionaries skip the breaker charge and alias that
-            // heap copy.
-            BytesInput decompressed = decompressor.decompress(compressedDictionaryPage.getBytes(), uncompressedSize);
-            cachedDictionaryPage = new DictionaryPage(
+            // rollover. The compressed input is the constructor's breaker-accounted defensive
+            // copy. Uncompressed dictionaries skip the decompression charge and alias that copy.
+            BytesInput decompressed = decompressor.decompress(dictionaryPage.getBytes(), uncompressedSize);
+            decodedDictionaryPage = new DictionaryPage(
                 decompressed,
                 uncompressedSize,
-                compressedDictionaryPage.getDictionarySize(),
-                compressedDictionaryPage.getEncoding()
+                dictionaryPage.getDictionarySize(),
+                dictionaryPage.getEncoding()
             );
+            cachedDictionaryPage = decodedDictionaryPage;
             dictCharge.set(charge ? uncompressedSize : 0);
             // Charge is owned by dictCharge now; close() or releaseCharge below uncharges it.
             success = true;
             if (closed.get()) {
+                cachedDictionaryPage = null;
                 releaseCharge(dictCharge);
                 throw new ParquetDecodingException("PrefetchedPageReader closed");
             }
@@ -191,7 +257,7 @@ final class PrefetchedPageReader implements PageReader, Releasable {
         // Set the cache flag only after a successful decompression. If decompression throws,
         // the next call will retry instead of silently returning a null cachedDictionaryPage.
         dictionaryDecompressed = true;
-        return cachedDictionaryPage;
+        return decodedDictionaryPage;
     }
 
     private DataPageV1 decompressV1(DataPageV1 v1) {
@@ -374,6 +440,8 @@ final class PrefetchedPageReader implements PageReader, Releasable {
         // Drop the cached dictionary page reference. It is heap-backed (see readDictionaryPage),
         // so this is reference hygiene plus breaker release, not a native-buffer lifetime.
         cachedDictionaryPage = null;
+        compressedDictionaryPage = null;
+        releaseCharge(dictionaryCopyCharge);
         dropReusableDest();
         releaseCharge(dictCharge);
     }

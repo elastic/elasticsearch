@@ -17,6 +17,7 @@ import org.elasticsearch.action.admin.cluster.allocation.TransportClusterAllocat
 import org.elasticsearch.action.admin.cluster.allocation.TransportGetDesiredBalanceAction;
 import org.elasticsearch.action.admin.cluster.node.usage.NodeUsageStatsForThreadPoolsAction;
 import org.elasticsearch.action.admin.cluster.node.usage.TransportNodeUsageStatsForThreadPoolsAction;
+import org.elasticsearch.action.admin.indices.recovery.ShardRecoveryInfo;
 import org.elasticsearch.action.admin.indices.stats.CommonStats;
 import org.elasticsearch.action.admin.indices.stats.IndicesStatsAction;
 import org.elasticsearch.action.admin.indices.stats.ShardStats;
@@ -627,9 +628,10 @@ public class WriteLoadConstraintDeciderIT extends ESIntegTestCase {
         List<RecoveryState> recoveryStatesForMovedShard = admin().indices()
             .prepareRecoveries(harness.indexName)
             .get()
-            .shardRecoveryStates()
+            .shardRecoveryInfos()
             .get(harness.indexName)
             .stream()
+            .map(ShardRecoveryInfo::recoveryState)
             .filter(state -> state.getShardId().id() == movedShardId)
             // We're interesting on the recovery after the move to the second or third node, not the initial creation on the first node:
             .filter(state -> !state.getTargetNode().getId().equals(harness.firstDataNodeId))
@@ -854,6 +856,8 @@ public class WriteLoadConstraintDeciderIT extends ESIntegTestCase {
                 WriteLoadConstraintSettings.WRITE_LOAD_DECIDER_QUEUE_LATENCY_THRESHOLD_SETTING.getKey(),
                 TimeValue.timeValueMillis(queueLatencyThresholdMillis)
             )
+            // Disable minimum shard write load for simplicity
+            .put(WriteLoadConstraintSettings.WRITE_LOAD_DECIDER_HOTSPOT_MIN_SHARD_WRITE_LOAD_THRESHOLD_SETTING.getKey(), "-1")
             // Disable rebalancing so that testing can see Decider change outcomes only.
             .put(EnableAllocationDecider.CLUSTER_ROUTING_REBALANCE_ENABLE_SETTING.getKey(), "none")
             .build();

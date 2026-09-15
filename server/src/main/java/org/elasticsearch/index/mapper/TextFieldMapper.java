@@ -18,10 +18,12 @@ import org.apache.lucene.analysis.shingle.FixedShingleFilter;
 import org.apache.lucene.analysis.tokenattributes.BytesTermAttribute;
 import org.apache.lucene.analysis.tokenattributes.PositionIncrementAttribute;
 import org.apache.lucene.analysis.tokenattributes.TermToBytesRefAttribute;
+import org.apache.lucene.document.BinaryDocValuesField;
 import org.apache.lucene.document.Field;
 import org.apache.lucene.document.FieldType;
 import org.apache.lucene.document.SortedSetDocValuesField;
 import org.apache.lucene.document.StoredField;
+import org.apache.lucene.document.column.ObjectTupleCursor;
 import org.apache.lucene.index.IndexOptions;
 import org.apache.lucene.index.IndexWriter;
 import org.apache.lucene.index.LeafReader;
@@ -38,6 +40,7 @@ import org.apache.lucene.search.AutomatonQuery;
 import org.apache.lucene.search.BooleanClause;
 import org.apache.lucene.search.BooleanQuery;
 import org.apache.lucene.search.ConstantScoreQuery;
+import org.apache.lucene.search.DocIdSetIterator;
 import org.apache.lucene.search.FuzzyQuery;
 import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.MultiPhraseQuery;
@@ -50,6 +53,7 @@ import org.apache.lucene.search.SynonymQuery;
 import org.apache.lucene.search.TermQuery;
 import org.apache.lucene.search.WildcardQuery;
 import org.apache.lucene.util.BytesRef;
+import org.apache.lucene.util.BytesRefBuilder;
 import org.apache.lucene.util.automaton.Automata;
 import org.apache.lucene.util.automaton.Automaton;
 import org.apache.lucene.util.automaton.Operations;
@@ -57,9 +61,17 @@ import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.common.lucene.search.AutomatonQueries;
 import org.elasticsearch.common.lucene.search.MultiPhrasePrefixQuery;
+import org.elasticsearch.common.recycler.Recycler;
 import org.elasticsearch.common.unit.Fuzziness;
 import org.elasticsearch.common.xcontent.support.XContentMapValues;
 import org.elasticsearch.core.Nullable;
+import org.elasticsearch.escf.EscfColumn;
+import org.elasticsearch.escf.EscfColumnBuilder;
+import org.elasticsearch.escf.EscfColumnData;
+import org.elasticsearch.escf.EscfColumnKind;
+import org.elasticsearch.escf.EscfColumnTransforms;
+import org.elasticsearch.escf.LuceneBinaryColumn;
+import org.elasticsearch.escf.LuceneLongColumn;
 import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.IndexVersion;
@@ -80,16 +92,15 @@ import org.elasticsearch.index.fielddata.plain.SortedSetOrdinalsIndexFieldData;
 import org.elasticsearch.index.mapper.blockloader.DelegatingBlockLoader;
 import org.elasticsearch.index.mapper.blockloader.docvalues.BytesRefsFromBinaryBlockLoader;
 import org.elasticsearch.index.mapper.blockloader.docvalues.BytesRefsFromBinaryMultiSeparateCountBlockLoader;
-import org.elasticsearch.index.mapper.blockloader.docvalues.BytesRefsFromBinaryMultiSeparateCountBlockLoader.ArrayOrderSource;
 import org.elasticsearch.index.mapper.blockloader.docvalues.BytesRefsFromCustomBinaryBlockLoader;
 import org.elasticsearch.index.mapper.blockloader.docvalues.BytesRefsFromOrdsBlockLoader;
 import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.index.similarity.SimilarityProvider;
+import org.elasticsearch.lucene.queries.ScanningBinaryDocValuesAutomatonQuery;
 import org.elasticsearch.lucene.queries.ScanningBinaryDocValuesPrefixQuery;
 import org.elasticsearch.lucene.queries.ScanningBinaryDocValuesRegexpQuery;
 import org.elasticsearch.lucene.queries.ScanningBinaryDocValuesTermInSetQuery;
 import org.elasticsearch.lucene.queries.ScanningBinaryDocValuesTermQuery;
-import org.elasticsearch.lucene.queries.ScanningBinaryDocValuesWildcardQuery;
 import org.elasticsearch.lucene.queries.XSortedSetDocValuesRangeQuery;
 import org.elasticsearch.lucene.search.FuzzyQueries;
 import org.elasticsearch.script.Script;
@@ -338,8 +349,8 @@ public final class TextFieldMapper extends FieldMapper {
             IndexMode indexMode = indexSettings.getMode();
             this.norms = Parameter.normsParam(m -> ((TextFieldMapper) m).norms, () -> {
                 if (indexSettings.getIndexVersionCreated().onOrAfter(IndexVersions.DISABLE_NORMS_BY_DEFAULT_FOR_LOGSDB_AND_TSDB)) {
-                    // don't enable norms by default if the index mode is columnar.
-                    return indexMode == null || !indexMode.isColumnar();
+                    // Columnar modes disable norms by default, except the ones where text relevance scoring is important.
+                    return indexMode == null || indexMode.isColumnar() == false || indexMode.isSearchOptimizedColumnar();
                 }
                 // bwc - historically, norms were enabled by default on text fields regardless of which index mode was used
                 return true;
@@ -913,6 +924,14 @@ public final class TextFieldMapper extends FieldMapper {
             return useArrayOrderBinaryDocValues;
         }
 
+        /**
+         * Which framing a doc-values query has to decode for this field. A text field is never routed to the ColumNAR
+         * codec, so {@link BinaryDocValuesFormat#COLUMNAR_PAYLOAD} is not among the answers.
+         */
+        private BinaryDocValuesFormat binaryFormat() {
+            return useArrayOrderBinaryDocValues ? BinaryDocValuesFormat.ARRAY_ORDER_INLINE_NULL : BinaryDocValuesFormat.SEPARATE_COUNT;
+        }
+
         @Override
         public boolean eagerGlobalOrdinals() {
             return eagerGlobalOrdinals;
@@ -971,7 +990,7 @@ public final class TextFieldMapper extends FieldMapper {
             failIfNotIndexedNorDocValuesFallback(context);
 
             if (usesBinaryDocValues) {
-                return new ScanningBinaryDocValuesTermQuery(name(), indexedValueForSearch(value), useArrayOrderBinaryDocValues);
+                return new ScanningBinaryDocValuesTermQuery(name(), indexedValueForSearch(value), binaryFormat());
             } else {
                 return XSortedSetDocValuesRangeQuery.newSlowExactQuery(name(), indexedValueForSearch(value));
             }
@@ -987,7 +1006,7 @@ public final class TextFieldMapper extends FieldMapper {
 
             List<BytesRef> bytesRefs = values.stream().map(this::indexedValueForSearch).toList();
             if (usesBinaryDocValues) {
-                return new ScanningBinaryDocValuesTermInSetQuery(name(), bytesRefs, useArrayOrderBinaryDocValues);
+                return new ScanningBinaryDocValuesTermInSetQuery(name(), bytesRefs, binaryFormat());
             } else {
                 return SortedSetDocValuesField.newSlowSetQuery(name(), bytesRefs);
             }
@@ -1015,7 +1034,7 @@ public final class TextFieldMapper extends FieldMapper {
             }
             failIfNotIndexedNorDocValuesFallback(context);
             if (usesBinaryDocValues) {
-                return new ScanningBinaryDocValuesPrefixQuery(name(), value, caseInsensitive, useArrayOrderBinaryDocValues);
+                return new ScanningBinaryDocValuesPrefixQuery(name(), value, caseInsensitive, binaryFormat());
             }
             if (caseInsensitive == false) {
                 return new PrefixQuery(new Term(name(), value), MultiTermQuery.DOC_VALUES_REWRITE);
@@ -1041,7 +1060,7 @@ public final class TextFieldMapper extends FieldMapper {
             }
             failIfNotIndexedNorDocValuesFallback(context);
             if (usesBinaryDocValues) {
-                return new ScanningBinaryDocValuesWildcardQuery(name(), value, caseInsensitive, useArrayOrderBinaryDocValues);
+                return ScanningBinaryDocValuesAutomatonQuery.forWildcard(name(), value, caseInsensitive, binaryFormat());
             }
             if (caseInsensitive == false) {
                 Term term = new Term(name(), value);
@@ -1081,7 +1100,7 @@ public final class TextFieldMapper extends FieldMapper {
                     syntaxFlags,
                     matchFlags,
                     maxDeterminizedStates,
-                    useArrayOrderBinaryDocValues,
+                    binaryFormat(),
                     context.getCircuitBreaker()
                 );
             }
@@ -1388,10 +1407,7 @@ public final class TextFieldMapper extends FieldMapper {
                     if (docValuesParams != null && docValuesParams.multiValue() == false) {
                         return new BytesRefsFromBinaryBlockLoader(name());
                     }
-                    return new BytesRefsFromBinaryMultiSeparateCountBlockLoader(
-                        name(),
-                        useArrayOrderBinaryDocValues ? ArrayOrderSource.INLINE : ArrayOrderSource.NONE
-                    );
+                    return new BytesRefsFromBinaryMultiSeparateCountBlockLoader(name(), binaryFormat());
                 } else {
                     return new BytesRefsFromOrdsBlockLoader(name(), blContext.ordinalsByteSize());
                 }
@@ -1604,7 +1620,7 @@ public final class TextFieldMapper extends FieldMapper {
                     CoreValuesSourceType.KEYWORD,
                     TextDocValuesField::new,
                     indexCreatedVersion,
-                    useArrayOrderBinaryDocValues
+                    binaryFormat()
                 );
             } else {
                 return new SortedSetOrdinalsIndexFieldData.Builder(
@@ -1849,6 +1865,175 @@ public final class TextFieldMapper extends FieldMapper {
     public boolean isNullable() {
         // Text fields have no null_value parameter, so nullability is governed solely by the doc_values nullability setting.
         return docValuesParameters.nullability();
+    }
+
+    @Override
+    protected boolean doSupportsColumnarParse(IndexSettings indexSettings) {
+        return fieldType().usesBinaryDocValues()
+            && (fieldType().usesArrayOrderBinaryDocValues() || docValuesParameters.multiValue() == false)
+            && prefixFieldInfo == null
+            && phraseFieldInfo == null
+            && copyTo().copyToFields().isEmpty();
+    }
+
+    private static EscfColumnBuilder mergeStringColumn(Recycler<BytesRef> recycler) {
+        EscfColumnBuilder b = new EscfColumnBuilder(EscfColumnBuilder.CollisionPolicy.MERGE, recycler);
+        b.lockScalar(EscfColumnKind.STRING);
+        return b;
+    }
+
+    private static EscfColumnBuilder mergeLongColumn(Recycler<BytesRef> recycler) {
+        EscfColumnBuilder b = new EscfColumnBuilder(EscfColumnBuilder.CollisionPolicy.MERGE, recycler);
+        b.lockScalar(EscfColumnKind.LONG);
+        return b;
+    }
+
+    /**
+     * Simplified port of {@link KeywordFieldMapper#doMapColumnBatch}: text has no
+     * {@code ignore_above}/{@code null_value}/normalizer, so only the indexed (tokenized) field
+     * and binary doc-values encoding need reproducing.
+     */
+    @Override
+    protected void doMapColumnBatch(BatchMappingContext ctx, EscfColumn source) {
+        final boolean emitTerms = fieldType.indexOptions() != IndexOptions.NONE;
+        final boolean emitDvs = docValuesParameters.enabled();
+        if (emitTerms || emitDvs) {
+            if (fieldType().usesArrayOrderBinaryDocValues()) {
+                mapColumnBatchArrayOrder(ctx, source, emitTerms, emitDvs);
+            } else {
+                mapColumnBatchSingleValue(ctx, source, emitTerms, emitDvs);
+            }
+        }
+    }
+
+    private void mapColumnBatchArrayOrder(BatchMappingContext ctx, EscfColumn source, boolean emitTerms, boolean emitDvs) {
+        final int docCount = ctx.docCount();
+
+        final ObjectTupleCursor<BytesRef> cursor = EscfColumnTransforms.utf8Cursor(source, false);
+        try (
+            EscfColumnBuilder terms = emitTerms ? mergeStringColumn(ctx.recycler()) : null;
+            EscfColumnBuilder binaryDvs = emitDvs ? mergeStringColumn(ctx.recycler()) : null;
+            EscfColumnBuilder dvCounts = emitDvs ? mergeLongColumn(ctx.recycler()) : null
+        ) {
+            int currentDoc = -1;
+            final BytesRefBuilder docBlob = emitDvs ? new BytesRefBuilder() : null;
+            int pos = 0;
+            int docSlotCount = 0;
+            int lastValueLength = 0;
+            boolean hasNonNull = false;
+
+            while (true) {
+                final int nextDoc = cursor.nextDoc();
+                if (nextDoc != currentDoc) {
+                    if (binaryDvs != null && docSlotCount > 0) {
+                        dvCounts.setLong(currentDoc, docSlotCount);
+                        if (hasNonNull) {
+                            final int length = docSlotCount == 1 ? lastValueLength : pos;
+                            binaryDvs.setString(currentDoc, docBlob.bytes(), pos - length, length);
+                        }
+                        pos = 0;
+                        docSlotCount = 0;
+                        hasNonNull = false;
+                    }
+                    if (nextDoc == DocIdSetIterator.NO_MORE_DOCS) {
+                        break;
+                    }
+                    currentDoc = nextDoc;
+                }
+
+                final BytesRef value = cursor.value();
+
+                if (value == null) {
+                    if (binaryDvs != null) {
+                        pos = MultiValuedBinaryDocValuesField.ArrayOrderInlineNull.appendSlot(docBlob, pos, null);
+                        docSlotCount++;
+                    }
+                    continue;
+                }
+
+                if (terms != null) {
+                    terms.setString(currentDoc, value);
+                }
+                if (binaryDvs != null) {
+                    pos = MultiValuedBinaryDocValuesField.ArrayOrderInlineNull.appendSlot(docBlob, pos, value);
+                    lastValueLength = value.length;
+                    docSlotCount++;
+                    hasNonNull = true;
+                }
+            }
+
+            if (terms != null && terms.isEmpty() == false) {
+                final EscfColumnData termsData = terms.finish(docCount);
+                ctx.addColumn(LuceneBinaryColumn.of(termsData, fieldType().name(), fieldType), termsData);
+            }
+            if (binaryDvs != null && binaryDvs.isEmpty() == false) {
+                final EscfColumnData binaryDvsData = binaryDvs.finish(docCount);
+                ctx.addColumn(LuceneBinaryColumn.of(binaryDvsData, fieldType().name(), CustomDocValuesField.TYPE), binaryDvsData);
+            }
+            if (dvCounts != null && dvCounts.isEmpty() == false) {
+                final EscfColumnData dvCountsData = dvCounts.finish(docCount);
+                ctx.addColumn(LuceneLongColumn.counts(dvCountsData, fieldType().name()), dvCountsData);
+            }
+        }
+    }
+
+    private void mapColumnBatchSingleValue(BatchMappingContext ctx, EscfColumn source, boolean emitTerms, boolean emitDvs) {
+        assert docValuesParameters.multiValue() == false
+            : "mapColumnBatchSingleValue called on multi_value=true field [" + fullPath() + "]; this would corrupt doc-values";
+
+        final int docCount = ctx.docCount();
+        boolean valuesProduced = false;
+
+        final ObjectTupleCursor<BytesRef> cursor = EscfColumnTransforms.utf8Cursor(source, false);
+        try (
+            EscfColumnBuilder valuesBuilder = source.leafValueKind() != EscfColumnKind.STRING && (emitTerms || emitDvs)
+                ? mergeStringColumn(ctx.recycler())
+                : null
+        ) {
+            int currentDoc = -1;
+            boolean valueSeenThisDoc = false;
+            while (true) {
+                final int nextDoc = cursor.nextDoc();
+                if (nextDoc == DocIdSetIterator.NO_MORE_DOCS) {
+                    break;
+                }
+                if (nextDoc != currentDoc) {
+                    currentDoc = nextDoc;
+                    valueSeenThisDoc = false;
+                }
+                final BytesRef value = cursor.value();
+                if (value == null) {
+                    continue;
+                }
+
+                if (valueSeenThisDoc) {
+                    throw new UnsupportedOperationException(
+                        "mapColumnBatch: multi_value=false field [" + fullPath() + "] has more than one value for doc [" + currentDoc + "]"
+                    );
+                }
+                valueSeenThisDoc = true;
+                valuesProduced = true;
+
+                if (valuesBuilder != null) {
+                    valuesBuilder.setString(currentDoc, value);
+                }
+            }
+
+            if (valuesProduced) {
+                assert valuesBuilder != null || source.leafValueKind() == EscfColumnKind.STRING
+                    : "zero-copy reuse of source.columnData() is only safe for STRING columns";
+                final EscfColumnData data = valuesBuilder != null ? valuesBuilder.finish(docCount) : source.columnData();
+                if (valuesBuilder != null) {
+                    ctx.addResource(data);
+                }
+                if (emitTerms) {
+                    ctx.addColumn(LuceneBinaryColumn.of(data, fieldType().name(), fieldType));
+                }
+                if (emitDvs) {
+                    ctx.addColumn(LuceneBinaryColumn.of(data, fieldType().name(), BinaryDocValuesField.TYPE));
+                }
+            }
+        }
     }
 
     @Override

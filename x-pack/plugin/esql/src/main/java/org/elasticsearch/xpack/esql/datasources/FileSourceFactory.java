@@ -8,6 +8,9 @@
 package org.elasticsearch.xpack.esql.datasources;
 
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.common.logging.DeprecationCategory;
+import org.elasticsearch.common.logging.DeprecationLogger;
+import org.elasticsearch.common.logging.HeaderWarning;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.core.IOUtils;
@@ -18,17 +21,20 @@ import org.elasticsearch.xpack.esql.datasources.cache.ExternalSourceCacheSetting
 import org.elasticsearch.xpack.esql.datasources.cache.ReadConfigFingerprint;
 import org.elasticsearch.xpack.esql.datasources.cache.StorageProviderCache;
 import org.elasticsearch.xpack.esql.datasources.glob.ExclusionConfig;
+import org.elasticsearch.xpack.esql.datasources.glob.FileOrderConfig;
 import org.elasticsearch.xpack.esql.datasources.spi.ColumnExtractorAware;
 import org.elasticsearch.xpack.esql.datasources.spi.ConfigKeyValidator;
 import org.elasticsearch.xpack.esql.datasources.spi.Configured;
 import org.elasticsearch.xpack.esql.datasources.spi.ErrorPolicy;
 import org.elasticsearch.xpack.esql.datasources.spi.ExternalSourceFactory;
 import org.elasticsearch.xpack.esql.datasources.spi.ExternalSourceMetrics;
+import org.elasticsearch.xpack.esql.datasources.spi.FileDataSourceValidator;
 import org.elasticsearch.xpack.esql.datasources.spi.FileList;
 import org.elasticsearch.xpack.esql.datasources.spi.FilterPushdownSupport;
 import org.elasticsearch.xpack.esql.datasources.spi.FormatReader;
 import org.elasticsearch.xpack.esql.datasources.spi.ListingHint;
 import org.elasticsearch.xpack.esql.datasources.spi.SourceMetadata;
+import org.elasticsearch.xpack.esql.datasources.spi.SourceOperatorContext;
 import org.elasticsearch.xpack.esql.datasources.spi.SourceOperatorFactoryProvider;
 import org.elasticsearch.xpack.esql.datasources.spi.SplitProvider;
 import org.elasticsearch.xpack.esql.datasources.spi.StorageObject;
@@ -46,6 +52,7 @@ import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.Executor;
 import java.util.concurrent.ExecutorService;
+import java.util.function.Consumer;
 import java.util.function.Supplier;
 
 /**
@@ -59,6 +66,8 @@ import java.util.function.Supplier;
  */
 final class FileSourceFactory implements ExternalSourceFactory {
 
+    private static final DeprecationLogger deprecationLogger = DeprecationLogger.getLogger(FileSourceFactory.class);
+
     static final String CONFIG_FORMAT = "format";
 
     /**
@@ -66,8 +75,8 @@ final class FileSourceFactory implements ExternalSourceFactory {
      * Built from each component's own {@code CONFIG_KEYS} set so adding a new coordinator-level
      * configuration consumer requires updating only the consumer's own constant — the union here
      * picks it up automatically. Components contributing today: {@link ErrorPolicy},
-     * {@link FileSplitProvider}, {@link PartitionConfig}, the {@link #CONFIG_FORMAT} override read
-     * by this class, and the {@link FormatNameResolver#CONFIG_READER} override read by the
+     * {@link FileSplitProvider}, {@link PartitionConfig}, {@link FileOrderConfig}, the {@link #CONFIG_FORMAT}
+     * override read by this class, and the {@link FormatNameResolver#CONFIG_READER} override read by the
      * format-name resolver.
      */
     static final Set<String> COORDINATOR_KEYS;
@@ -83,6 +92,16 @@ final class FileSourceFactory implements ExternalSourceFactory {
      */
     static final Set<String> EXTERNAL_ONLY_KEYS = Set.of(FormatNameResolver.CONFIG_READER);
 
+    /**
+     * Handles existing problematic dataset configurations: before {@code schema_sample_size} became
+     * format-scoped at PUT time, it could be registered on any dataset (e.g. Parquet) and is still stored
+     * in cluster state. When such a stored key reaches a reader that does not consume it, it is ignored
+     * with a warning instead of failing the query as an "unknown option". Applied to every query, because
+     * nothing reliably marks a config as dataset-originated (the {@code _datasource} envelope is absent
+     * when the parent data source has no settings).
+     */
+    static final Set<String> LEGACY_VOCABULARY_KEYS = Set.of(FileDataSourceValidator.SCHEMA_SAMPLE_SIZE);
+
     static {
         Set<String> keys = new HashSet<>();
         keys.add(CONFIG_FORMAT);
@@ -92,6 +111,7 @@ final class FileSourceFactory implements ExternalSourceFactory {
         keys.addAll(ExternalSourceResolver.CONFIG_KEYS);
         keys.addAll(PartitionConfig.CONFIG_KEYS);
         keys.addAll(ExclusionConfig.CONFIG_KEYS);
+        keys.addAll(FileOrderConfig.CONFIG_KEYS);
         COORDINATOR_KEYS = Set.copyOf(keys);
     }
 
@@ -99,6 +119,12 @@ final class FileSourceFactory implements ExternalSourceFactory {
     private final FormatReaderRegistry formatRegistry;
     private final DecompressionCodecRegistry codecRegistry;
     private final Settings settings;
+    /**
+     * Executor for Phase-2 split discovery (Parquet/ORC footer fan-out and record-boundary probes).
+     * Production wires {@code esql_external_io}; tests may pass {@code null} and fall back to serial
+     * discovery on the calling thread. Must not be {@code SEARCH} or {@code GENERIC}: those pools must
+     * not issue object-store GETs, and {@code esql_external_io} must not join its own work.
+     */
     @Nullable
     private final ExecutorService splitDiscoveryExecutor;
     /**
@@ -218,26 +244,11 @@ final class FileSourceFactory implements ExternalSourceFactory {
         }
         try {
             StoragePath path = StoragePath.of(location);
-            String scheme = path.scheme();
-            String objectName = path.objectName();
-            if (objectName == null || objectName.isEmpty()) {
+            if (storageRegistry.hasProvider(path.scheme()) == false) {
                 return false;
             }
-            int lastDot = objectName.lastIndexOf('.');
-            if (lastDot < 0 || lastDot == objectName.length() - 1) {
-                return false;
-            }
-            if (storageRegistry.hasProvider(scheme) == false) {
-                return false;
-            }
-            String ext = objectName.substring(objectName.lastIndexOf('.'));
-            if (formatRegistry.hasExtension(ext)) {
-                return true;
-            }
-            if (codecRegistry.hasCompressionExtension(ext) && formatRegistry.hasCompressedExtension(objectName)) {
-                return true;
-            }
-            return false;
+            String format = FormatNameResolver.datasetFormat(null, location, formatRegistry);
+            return formatRegistry.hasFormat(format);
         } catch (IllegalArgumentException e) {
             return false;
         }
@@ -279,10 +290,36 @@ final class FileSourceFactory implements ExternalSourceFactory {
 
     @Override
     public void validateConfig(String location, Map<String, Object> config) {
+        // Direct callers run on a request thread, where HeaderWarning targets the caller's own
+        // ThreadContext. The resolver calls the sink variant instead — it validates on the
+        // metadata-read executor, where a direct HeaderWarning call would never reach the client.
+        validateConfig(location, config, HeaderWarning::addWarning);
+    }
+
+    @Override
+    public void validateConfig(String location, Map<String, Object> config, Consumer<String> warningSink) {
         // Gate file:// reads at planning time so the failure is clean and pre-execution.
         // This check runs before the empty-config early-return so bare file:// reads (no WITH clause)
         // are also validated — resolveMetadata calls validateConfig first, covering both paths.
         localFileAccess.check(location);
+        if (config != null) {
+            Object hivePartitioningValue = config.get(PartitionConfig.CONFIG_PARTITIONING_HIVE);
+            if (hivePartitioningValue != null) {
+                if ("false".equalsIgnoreCase(hivePartitioningValue.toString())) {
+                    deprecationLogger.warn(
+                        DeprecationCategory.API,
+                        FileDataSourceValidator.HIVE_PARTITIONING_FALSE_DEPRECATION_KEY,
+                        FileDataSourceValidator.HIVE_PARTITIONING_FALSE_DEPRECATION_MESSAGE
+                    );
+                } else {
+                    deprecationLogger.warn(
+                        DeprecationCategory.API,
+                        FileDataSourceValidator.HIVE_PARTITIONING_NOOP_DEPRECATION_KEY,
+                        FileDataSourceValidator.HIVE_PARTITIONING_NOOP_DEPRECATION_MESSAGE
+                    );
+                }
+            }
+        }
         if (config == null || config.isEmpty()) {
             return;
         }
@@ -293,10 +330,23 @@ final class FileSourceFactory implements ExternalSourceFactory {
             ExternalSourceResolver.storageConfig(config)
         );
         try {
-            Configured<FormatReader> resolvedReader = resolveFormatReader(storagePath.objectName(), config).withConfigTrackingConsumedKeys(
-                config
+            Configured<FormatReader> resolvedReader = unwrappedDatasetReader(location, config).withConfigTrackingConsumedKeys(config);
+            ConfigKeyValidator.check(
+                config,
+                List.of(resolvedStorage.consumedKeys(), resolvedReader.consumedKeys(), COORDINATOR_KEYS, LEGACY_VOCABULARY_KEYS)
             );
-            ConfigKeyValidator.check(config, List.of(resolvedStorage.consumedKeys(), resolvedReader.consumedKeys(), COORDINATOR_KEYS));
+            // Consume-and-warn: a legacy key the reader does not consume does nothing, and the user must be
+            // told. The message goes through the sink, not HeaderWarning directly — the resolver runs this
+            // on its metadata-read executor and flushes the sink under the restored request context.
+            // Identical warnings from per-file re-validation dedupe in the thread context at flush time.
+            for (String key : LEGACY_VOCABULARY_KEYS) {
+                if (config.containsKey(key) && resolvedReader.consumedKeys().contains(key) == false) {
+                    warningSink.accept(
+                        FileDataSourceValidator.notSupportedByFormatError(key, resolvedReader.value().formatName()) + "; ignored"
+                    );
+                }
+            }
+            FileOrderConfig.validate(config);
         } finally {
             StorageProviderCache.closeLease(resolvedStorage.value());
         }
@@ -313,10 +363,10 @@ final class FileSourceFactory implements ExternalSourceFactory {
             FormatReader reader;
             if (hasConfig) {
                 provider = storageRegistry.createProvider(scheme, settings, ExternalSourceResolver.storageConfig(config));
-                reader = resolveFormatReader(storagePath.objectName(), config).withConfig(config);
+                reader = readerForListedObject(location, storagePath.objectName(), config);
             } else {
                 provider = storageRegistry.provider(storagePath);
-                reader = resolveFormatReader(storagePath.objectName(), config).withConfig(config);
+                reader = readerForListedObject(location, storagePath.objectName(), config);
             }
 
             StorageObject storageObject = provider.newObject(storagePath);
@@ -347,6 +397,7 @@ final class FileSourceFactory implements ExternalSourceFactory {
         @Nullable ListingHint hint,
         Map<String, Object> config,
         Executor executor,
+        Consumer<String> warningSink,
         ActionListener<SourceMetadata> listener
     ) {
         final StorageObject storageObject;
@@ -357,7 +408,7 @@ final class FileSourceFactory implements ExternalSourceFactory {
         try {
             // Reject unknown configuration keys before any provider/reader work — same single source
             // of truth as the synchronous resolveMetadata path.
-            validateConfig(location, config);
+            validateConfig(location, config, warningSink);
             StoragePath storagePath = StoragePath.of(location);
             String scheme = storagePath.scheme();
 
@@ -367,10 +418,10 @@ final class FileSourceFactory implements ExternalSourceFactory {
                     settings,
                     ExternalSourceResolver.storageConfig(config)
                 ).value();
-                reader = resolveFormatReader(storagePath.objectName(), config).withConfigTrackingConsumedKeys(config).value();
+                reader = readerForListedObject(location, storagePath.objectName(), config);
             } else {
                 provider = storageRegistry.provider(storagePath);
-                reader = resolveFormatReader(storagePath.objectName(), config).withConfig(config);
+                reader = readerForListedObject(location, storagePath.objectName(), config);
             }
 
             if (hint != null) {
@@ -455,7 +506,10 @@ final class FileSourceFactory implements ExternalSourceFactory {
                     storage = storageRegistry.provider(path);
                 }
 
-                FormatReader format = resolveFormatReader(path.objectName(), config).withConfig(config)
+                FormatReader format = formatRegistry.byName(
+                    FormatNameResolver.datasetFormat(config, datasetResource(context), formatRegistry)
+                )
+                    .withConfig(config)
                     .withPushedFilter(context.pushedFilter())
                     .withSchema(context.attributes())
                     // Declared per-column date formats: the spec keys them by logical name, but the reader sees physical
@@ -550,6 +604,7 @@ final class FileSourceFactory implements ExternalSourceFactory {
                     .statsStripeSize(ExternalSourceCacheSettings.STRIPE_SIZE.get(settings).getBytes())
                     .statsColumnScope(ExternalSourceCacheSettings.STRIPE_COLUMNS.get(settings))
                     .streamingSegmentatorAdmission(segmentatorAdmission)
+                    .formatReaderRegistry(formatRegistry)
                     .parallelism(context.parallelism())
                     .pushedExpressions(pushedExpressions)
                     .pushdownSupport(pushdownSupport)
@@ -648,8 +703,28 @@ final class FileSourceFactory implements ExternalSourceFactory {
         return ErrorPolicy.forReader(config, format);
     }
 
-    private FormatReader resolveFormatReader(String objectName, Map<String, Object> config) {
-        return FormatNameResolver.resolveReader(config, objectName, formatRegistry);
+    /**
+     * Dataset-level unwrapped reader: {@code format} in config when already stamped, otherwise
+     * inferred from {@code location}. Per-object compression wrapping is {@link #readerForListedObject}.
+     */
+    private FormatReader unwrappedDatasetReader(String location, Map<String, Object> config) {
+        return formatRegistry.byName(FormatNameResolver.datasetFormat(config, location, formatRegistry));
+    }
+
+    /** Metadata/config for one listed object: dataset reader plus this object's wrap. */
+    private FormatReader readerForListedObject(String location, String objectName, Map<String, Object> config) {
+        return formatRegistry.wrapForObject(unwrappedDatasetReader(location, config).withConfig(config), objectName);
+    }
+
+    private static String datasetResource(SourceOperatorContext context) {
+        FileList files = context.fileList();
+        if (files != null) {
+            String pattern = files.originalPattern();
+            if (pattern != null && pattern.isEmpty() == false) {
+                return pattern;
+            }
+        }
+        return context.path().toString();
     }
 
     /**

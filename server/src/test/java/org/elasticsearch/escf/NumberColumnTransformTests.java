@@ -18,6 +18,8 @@ import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.NumericUtils;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
+import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.util.MockPageCacheRecycler;
 import org.elasticsearch.index.mapper.NumberFieldMapper.NumberType;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.transport.BytesRefRecycler;
@@ -1120,5 +1122,66 @@ public class NumberColumnTransformTests extends ESTestCase {
             case FLOAT, DOUBLE -> true;
             case HALF_FLOAT -> Float.isFinite(HalfFloatPoint.sortableShortToHalfFloat(HalfFloatPoint.halfFloatToSortableShort((float) d)));
         };
+    }
+
+    public void testLeakFree_longToFloat() throws Exception {
+        BytesRefRecycler recycler = new BytesRefRecycler(new MockPageCacheRecycler(Settings.EMPTY));
+        try (EscfBatch batch = encode("{\"f\": 5}", "{\"f\": -100}")) {
+            EscfColumn src = column(batch, "f");
+            EscfColumnData out = NumberColumnTransform.toSortableLongColumn(src, NumberType.FLOAT, false, recycler);
+            out.close();
+        }
+        MockPageCacheRecycler.ensureAllPagesAreReleased();
+    }
+
+    public void testLeakFree_doubleToDouble() throws Exception {
+        BytesRefRecycler recycler = new BytesRefRecycler(new MockPageCacheRecycler(Settings.EMPTY));
+        try (EscfBatch batch = encode("{\"f\": 1.5}", "{\"f\": -2.25}")) {
+            EscfColumn src = column(batch, "f");
+            EscfColumnData out = NumberColumnTransform.toSortableLongColumn(src, NumberType.DOUBLE, false, recycler);
+            out.close();
+        }
+        MockPageCacheRecycler.ensureAllPagesAreReleased();
+    }
+
+    public void testLeakFree_longToHalfFloat() throws Exception {
+        BytesRefRecycler recycler = new BytesRefRecycler(new MockPageCacheRecycler(Settings.EMPTY));
+        try (EscfBatch batch = encode("{\"f\": 0}", "{\"f\": 1}", "{\"f\": -1}")) {
+            EscfColumn src = column(batch, "f");
+            EscfColumnData out = NumberColumnTransform.toSortableLongColumn(src, NumberType.HALF_FLOAT, false, recycler);
+            out.close();
+        }
+        MockPageCacheRecycler.ensureAllPagesAreReleased();
+    }
+
+    public void testLeakFree_exceptionPath_midBatch() throws Exception {
+        BytesRefRecycler recycler = new BytesRefRecycler(new MockPageCacheRecycler(Settings.EMPTY));
+        try (EscfBatch batch = encode("{\"f\": 1.0}", "{\"f\": 1.0E300}")) {
+            EscfColumn src = column(batch, "f");
+            expectThrows(
+                IllegalArgumentException.class,
+                () -> NumberColumnTransform.toSortableLongColumn(src, NumberType.FLOAT, false, recycler)
+            );
+        }
+        MockPageCacheRecycler.ensureAllPagesAreReleased();
+    }
+
+    public void testLeakFree_stringToLong() throws Exception {
+        BytesRefRecycler recycler = new BytesRefRecycler(new MockPageCacheRecycler(Settings.EMPTY));
+        EscfColumnData src = stringColumnData("10", "20", "30");
+        EscfColumnData out = NumberColumnTransform.toSortableLongColumn(EscfColumn.from(src), NumberType.LONG, true, recycler);
+        out.close();
+        MockPageCacheRecycler.ensureAllPagesAreReleased();
+    }
+
+    public void testLeakFree_stringExceptionPath_midBatch() throws Exception {
+        BytesRefRecycler recycler = new BytesRefRecycler(new MockPageCacheRecycler(Settings.EMPTY));
+        // "100" is valid; Long.MAX_VALUE + 1 overflows and throws mid-processing.
+        EscfColumnData src = stringColumnData("100", "9223372036854775808");
+        expectThrows(
+            IllegalArgumentException.class,
+            () -> NumberColumnTransform.toSortableLongColumn(EscfColumn.from(src), NumberType.LONG, true, recycler)
+        );
+        MockPageCacheRecycler.ensureAllPagesAreReleased();
     }
 }

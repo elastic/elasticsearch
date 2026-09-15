@@ -747,12 +747,16 @@ public final class MappingLookup {
         @Nullable NestedDocuments nestedDocuments
     ) {
         if (isSourceSynthetic() || isSourceColumnarStored()) {
-            return new SourceLoader.Synthetic(
+            SourceLoader loader = new SourceLoader.Synthetic(
                 filter,
                 () -> mapping.syntheticFieldLoader(filter, isSourceColumnarStored()),
                 metrics,
                 mapping.ignoredSourceFormat()
             );
+            // columnar_stored leaves vectors out of its blob, so they are patched back in from the vector index or doc values.
+            // A synthetic _source has no patch loader: the loader above already rebuilds them.
+            var patchLoader = syntheticVectorsLoader(filter);
+            return patchLoader == null ? loader : new SourceLoader.SyntheticVectors(loader, patchLoader);
         }
         var syntheticVectorsLoader = syntheticVectorsLoader(filter);
         if (syntheticVectorsLoader != null) {

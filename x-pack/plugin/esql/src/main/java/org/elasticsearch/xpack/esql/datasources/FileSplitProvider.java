@@ -65,6 +65,7 @@ import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.Les
 import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.NotEquals;
 
 import java.io.IOException;
+import java.time.Instant;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.HashSet;
@@ -552,10 +553,15 @@ public class FileSplitProvider implements SplitProvider {
         Map<StoragePath, SchemaReconciliation.FileSchemaInfo> schemaInfo = context.schemaMap();
         Map<ColumnMapping, ColumnMapping> mappingCache = new ConcurrentHashMap<>();
         ExternalSchema unifiedSchema = context.unifiedSchema();
+        Set<String> metadataColumnNames = context.metadataColumnNames();
 
         int certifiedSkips = 0;
         long probedFileBytes = 0;
         List<FileTask> tasks = new ArrayList<>(fileList.fileCount());
+        // Hive / _file.* listing values already live in partitionValues. Overlay the engine
+        // per-file constants only when a hint names one of them.
+        boolean overlayPerFileConstants = filterHints.isEmpty() == false
+            && hintsReferencePerFileConstants(filterHints, metadataColumnNames);
         for (int i = 0; i < fileList.fileCount(); i++) {
             StoragePath filePath = fileList.path(i);
 
@@ -567,22 +573,25 @@ public class FileSplitProvider implements SplitProvider {
                 }
             }
             partitionValues.putAll(FileMetadataColumns.extractValues(fileList, i));
+            SchemaReconciliation.FileSchemaInfo fileSchemaInfo = schemaInfo.get(filePath);
 
-            if (partitionValues.isEmpty() == false && filterHints.isEmpty() == false) {
-                if (matchesPartitionFilters(partitionValues, filterHints) == false) {
+            if (filterHints.isEmpty() == false) {
+                Map<String, Object> filterValues = overlayPerFileConstants
+                    ? discoveryFilterValues(partitionValues, context.datasetName(), fileList, i, metadataColumnNames)
+                    : partitionValues;
+                if (filterValues.isEmpty() == false && matchesPartitionFilters(filterValues, filterHints) == false) {
                     certifiedSkips++;
                     continue;
                 }
-            }
-
-            SchemaReconciliation.FileSchemaInfo fileSchemaInfo = schemaInfo.get(filePath);
-
-            if (filterHints.isEmpty() == false && fileSchemaInfo != null) {
-                Set<String> fileColumnNames = new LinkedHashSet<>(fileSchemaInfo.fileSchema().names());
-                fileColumnNames.addAll(partitionValues.keySet());
-                if (skipIfFilterOnMissingColumns(filterHints, fileColumnNames)) {
-                    certifiedSkips++;
-                    continue;
+                if (fileSchemaInfo != null) {
+                    Set<String> fileColumnNames = new LinkedHashSet<>(fileSchemaInfo.fileSchema().names());
+                    fileColumnNames.addAll(filterValues.keySet());
+                    fileColumnNames.addAll(metadataColumnNames);
+                    addPerRowComposedColumnNames(fileColumnNames);
+                    if (skipIfFilterOnMissingColumns(filterHints, fileColumnNames)) {
+                        certifiedSkips++;
+                        continue;
+                    }
                 }
             }
 
@@ -1359,19 +1368,25 @@ public class FileSplitProvider implements SplitProvider {
     }
 
     /**
-     * Planning {@link #gatherAsync} concurrency: when every file is Parquet and
+     * Planning {@link #gatherAsync} concurrency: when every file is Parquet
+     * ({@link FormatNameResolver#resolveFormatName} equals {@link FormatNameResolver#FORMAT_PARQUET},
+     * so {@code .parq} counts) and
      * {@link StorageObject#readBytesAsyncReleasesExecutor()} on one peeked
      * {@link StorageProvider#newObject} per distinct scheme,
      * {@link ExternalSourceSettings#externalIoThreads} (never 0). Otherwise
-     * {@link #splitDiscoveryConcurrency()}. Any {@code newObject} failure is conservative (16).
+     * {@link #splitDiscoveryConcurrency()}. A null {@code formatRegistry} or any
+     * {@code newObject} / resolve failure is conservative (16).
      * Probes and sync {@link BoundedParallelGather} keep {@link #splitDiscoveryConcurrency()}.
      */
     private int planningDiscoveryConcurrency(List<FileTask> tasks, @Nullable StorageProvider hoistedProvider) {
+        if (formatRegistry == null) {
+            return splitDiscoveryConcurrency();
+        }
         try {
             Set<String> seenSchemes = new HashSet<>();
             for (FileTask task : tasks) {
                 if (FormatNameResolver.FORMAT_PARQUET.equals(
-                    FormatNameResolver.resolve(task.config(), task.filePath().objectName())
+                    FormatNameResolver.resolveFormatName(task.config(), task.filePath().objectName(), formatRegistry)
                 ) == false) {
                     return splitDiscoveryConcurrency();
                 }
@@ -1492,6 +1507,19 @@ public class FileSplitProvider implements SplitProvider {
             types.put(a.name(), a.dataType());
         }
         return types;
+    }
+
+    /**
+     * File types for footer-stat normalization when no declaration overlaid the read schema. Prefers the
+     * pre-pin inferred map so a text UNION_BY_NAME pin on {@code readSchema} does not make
+     * {@code file == reconciled} and skip conversion; falls back to {@code readSchema} when nothing
+     * retyped this file.
+     */
+    private static Map<String, DataType> undeclaredStatsFileTypes(
+        List<Attribute> readSchema,
+        @Nullable Map<String, DataType> inferredFileTypes
+    ) {
+        return inferredFileTypes != null ? inferredFileTypes : attributesToTypeMap(readSchema);
     }
 
     /**
@@ -1786,12 +1814,54 @@ public class FileSplitProvider implements SplitProvider {
     }
 
     /**
+     * Full-file {@link StorageObject} for {@code fileSplit}, seeded with listing length (and mtime
+     * when known) so {@code length()} / {@code lastModified()} do not probe the object store. Size
+     * {@code 0} is a real empty object; missing length falls back to the path-only constructor.
+     * <p>
+     * Used by {@link #storageObjectForSplit} (which then range-wraps the view span), COUNT(*) schema
+     * bind (file-leading bytes, not the split window), and range-leaf / batch reads.
+     */
+    static StorageObject newObjectForFile(StorageProvider storageProvider, FileSplit fileSplit) {
+        return newObject(storageProvider, fileSplit.path(), fileLengthHint(fileSplit), fileMtimeHint(fileSplit));
+    }
+
+    /**
+     * Picks the {@link StorageProvider#newObject} overload. Missing {@code length} is path-only;
+     * size {@code 0} is a known empty object; mtime {@code 0} is unknown.
+     */
+    static StorageObject newObject(StorageProvider storageProvider, StoragePath path, @Nullable Long length, long mtimeMillis) {
+        if (length == null) {
+            return storageProvider.newObject(path);
+        }
+        return mtimeMillis > 0
+            ? storageProvider.newObject(path, length, Instant.ofEpochMilli(mtimeMillis))
+            : storageProvider.newObject(path, length);
+    }
+
+    /**
      * Builds a {@link StorageObject} that exposes only the bytes for the given {@link FileSplit}.
      * Always wraps the provider's base object in {@link RangeStorageObject} so format readers and
      * splittable decompressors only see the split's compressed byte span (including offset {@code 0}).
+     * The inner object is the full file, seeded from listing metadata when present — never from
+     * {@link FileSplit#length()}, which is the view span.
      */
     public static StorageObject storageObjectForSplit(StorageProvider storageProvider, FileSplit fileSplit) {
-        return new RangeStorageObject(storageProvider.newObject(fileSplit.path()), fileSplit.offset(), fileSplit.length());
+        return new RangeStorageObject(newObjectForFile(storageProvider, fileSplit), fileSplit.offset(), fileSplit.length());
+    }
+
+    @Nullable
+    private static Long fileLengthHint(FileSplit fileSplit) {
+        Object configured = fileSplit.config().get(FILE_LENGTH_KEY);
+        if (configured instanceof String s) {
+            return Long.parseLong(s);
+        }
+        Object listed = fileSplit.partitionValues().get(FileMetadataColumns.SIZE);
+        return listed instanceof Number n ? n.longValue() : null;
+    }
+
+    private static long fileMtimeHint(FileSplit fileSplit) {
+        Object modified = fileSplit.partitionValues().get(FileMetadataColumns.MODIFIED);
+        return modified instanceof Number n ? n.longValue() : 0L;
     }
 
     /**
@@ -2109,12 +2179,14 @@ public class FileSplitProvider implements SplitProvider {
         for (SplitRange range : ranges) {
             Map<String, Object> rangeStats = range.statistics().isEmpty() ? null : range.statistics();
             if (rangeStats != null && readSchema != null && reconciledTypes != null) {
-                // The type authority for normalizing footer range stats. Without a declaration the footer values ARE
-                // in the readSchema (inferred) types — today's behavior. With a declaration, readSchema is the OVERLAID
-                // (declared) schema, so it lies about the raw footer values; use the file's PRE-overlay inferred types.
+                // Type authority for the raw footer values. Prefer inferredFileTypes when set (pre-pin / pre-overlay):
+                // a text UNION_BY_NAME pin stores the reconciled type on readSchema, which would make
+                // file == reconciled and skip the LONG->DOUBLE convert. Fall back to readSchema when nothing
+                // retyped this file. A declaration overlays readSchema, so the branch below rekeys and poisons
+                // before normalizing with the inferred types.
                 Map<String, DataType> statsFileTypes;
                 if (declaredReadSpec.isEmpty()) {
-                    statsFileTypes = attributesToTypeMap(readSchema);
+                    statsFileTypes = undeclaredStatsFileTypes(readSchema, inferredFileTypes);
                 } else {
                     // S1 boundary, split edition. Rekey the `path` renames (a pure move changes no value, so rekeyed
                     // stats stay exact) and poison declared-retyped / date-format columns (the scan's per-value
@@ -2146,10 +2218,11 @@ public class FileSplitProvider implements SplitProvider {
                         statsFileTypes = attributesToTypeMap(readSchema);
                     }
                 }
-                // Footer stats are in each file's LOCAL unit/representation; normalize to the reconciled query type so
-                // the split-filter classifier (which compares a reconciled-unit literal) and the filtered merge
-                // compare/serve in ONE unit across mixed DATETIME(millis)/DATE_NANOS(nanos) files, not unit-blind. A
-                // non-normalizable representation safe-misses via the marker.
+                // Footer stats are in each file's LOCAL unit/representation (footer or inferred types, not a
+                // pinned or unified type); normalize to the reconciled query type so the split-filter classifier
+                // and the filtered merge compare/serve in ONE unit across mixed DATETIME(millis)/DATE_NANOS(nanos)
+                // files and LONG/INTEGER files reconciled to DOUBLE, not unit-blind. A non-normalizable
+                // representation safe-misses via the marker.
                 rangeStats = SourceStatisticsSerializer.normalizeStatsToReconciled(rangeStats, statsFileTypes, reconciledTypes);
             }
             splits.add(
@@ -2188,12 +2261,14 @@ public class FileSplitProvider implements SplitProvider {
         if (stats == null || readSchema == null || reconciledTypes == null) {
             return stats;
         }
-        // The type authority for normalizing footer range stats. Without a declaration the footer values ARE
-        // in the readSchema (inferred) types — today's behavior. With a declaration, readSchema is the OVERLAID
-        // (declared) schema, so it lies about the raw footer values; use the file's PRE-overlay inferred types.
+        // Type authority for the raw footer values. Prefer inferredFileTypes when set (pre-pin / pre-overlay):
+        // a text UNION_BY_NAME pin stores the reconciled type on readSchema, which would make
+        // file == reconciled and skip the LONG->DOUBLE convert. Fall back to readSchema when nothing
+        // retyped this file. A declaration overlays readSchema, so the branch below rekeys and poisons
+        // before normalizing with the inferred types.
         Map<String, DataType> statsFileTypes;
         if (declaredReadSpec.isEmpty()) {
-            statsFileTypes = attributesToTypeMap(readSchema);
+            statsFileTypes = undeclaredStatsFileTypes(readSchema, inferredFileTypes);
         } else {
             // S1 boundary, split edition. Rekey the `path` renames (a pure move changes no value, so rekeyed
             // stats stay exact) and poison declared-retyped / date-format columns (the scan's per-value
@@ -2225,10 +2300,11 @@ public class FileSplitProvider implements SplitProvider {
                 statsFileTypes = attributesToTypeMap(readSchema);
             }
         }
-        // Footer stats are in each file's LOCAL unit/representation; normalize to the reconciled query type so
-        // the split-filter classifier (which compares a reconciled-unit literal) and the filtered merge
-        // compare/serve in ONE unit across mixed DATETIME(millis)/DATE_NANOS(nanos) files, not unit-blind. A
-        // non-normalizable representation safe-misses via the marker.
+        // Footer stats are in each file's LOCAL unit/representation (footer or inferred types, not a
+        // pinned or unified type); normalize to the reconciled query type so the split-filter classifier
+        // and the filtered merge compare/serve in ONE unit across mixed DATETIME(millis)/DATE_NANOS(nanos)
+        // files and LONG/INTEGER files reconciled to DOUBLE, not unit-blind. A non-normalizable
+        // representation safe-misses via the marker.
         return SourceStatisticsSerializer.normalizeStatsToReconciled(stats, statsFileTypes, reconciledTypes);
     }
 
@@ -2728,6 +2804,55 @@ public class FileSplitProvider implements SplitProvider {
             return querySchema;
         }
         return new ExternalSchema(filtered);
+    }
+
+    /**
+     * Hive partitions and {@code _file.*} listing values plus the engine-materialised per-file
+     * constants ({@code _index}, {@code _version}, and the all-null standard names). Used only for
+     * discovery filter evaluation; the {@link FileTask} carries hive + {@code _file.*} only.
+     * Only names bound as metadata in the relation's output receive constants, matching the
+     * reader. Data columns retain their physical values or missing-column null-fill.
+     */
+    private static Map<String, Object> discoveryFilterValues(
+        Map<String, Object> partitionValues,
+        @Nullable String datasetName,
+        FileList fileList,
+        int index,
+        Set<String> metadataColumnNames
+    ) {
+        Map<String, Object> filterValues = new HashMap<>(partitionValues.size() + ExternalMetadataColumns.PER_FILE_CONSTANT_NAMES.size());
+        filterValues.putAll(partitionValues);
+        for (Map.Entry<String, Object> constant : ExternalMetadataColumns.extractPerFileConstants(datasetName, fileList, index)
+            .entrySet()) {
+            if (metadataColumnNames.contains(constant.getKey())) {
+                filterValues.put(constant.getKey(), constant.getValue());
+            }
+        }
+        return filterValues;
+    }
+
+    private static boolean hintsReferencePerFileConstants(List<Expression> filterHints, Set<String> metadataColumnNames) {
+        for (Expression hint : filterHints) {
+            if (hint.references()
+                .stream()
+                .anyMatch(
+                    a -> metadataColumnNames.contains(a.name()) && ExternalMetadataColumns.PER_FILE_CONSTANT_NAMES.contains(a.name())
+                )) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    /**
+     * Per-row names have no constant for {@link #matchesPartitionFilters}. Conservatively leave
+     * their predicates to the reader: {@code _file.record_ref} can be materialized by name even
+     * when its output attribute is data-bound, so physical absence alone cannot certify a skip.
+     */
+    private static void addPerRowComposedColumnNames(Set<String> fileColumnNames) {
+        fileColumnNames.add(FileMetadataColumns.RECORD_REF);
+        fileColumnNames.add(ExternalMetadataColumns.ID);
+        fileColumnNames.add(ExternalMetadataColumns.SOURCE);
     }
 
     /**

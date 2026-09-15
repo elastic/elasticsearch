@@ -1363,4 +1363,62 @@ public class ESVectorUtilTests extends BaseVectorizationTests {
         assertArrayEqualsPercent(result1, result2, 0.15f);
     }
 
+    public void testMatrixMultiply() {
+        int m = randomIntBetween(2, 1024);
+        int k = randomIntBetween(2, 1024);
+        int n = randomIntBetween(2, 1024);
+
+        float[] a = VectorTestUtils.randomFloatVector(m * k);
+        float[] b = VectorTestUtils.randomFloatVector(k * n);
+
+        float[] expected = basicMatrixMultiply(a, b, m, k, n);
+
+        float[] scalar = defaultedProvider.getVectorUtilSupport().matrixMultiply(a, b, m, k, n);
+        assertArrayEquals(expected, scalar, 1e-3f);
+        float[] panama = panamaProvider.getVectorUtilSupport().matrixMultiply(a, b, m, k, n);
+        assertArrayEquals(expected, panama, 1e-3f);
+    }
+
+    private static float[] basicMatrixMultiply(float[] a, float[] b, int m, int k, int n) {
+        float[] c = new float[m * n];
+        for (int i = 0; i < m; i++) {
+            int aBase = i * k;
+            int cBase = i * n;
+            for (int l = 0; l < k; l++) {
+                for (int d = 0; d < n; d++) {
+                    c[cBase + d] = Math.fma(a[aBase + l], b[l * n + d], c[cBase + d]);
+                }
+            }
+        }
+        return c;
+    }
+
+    public void testMatrixVectorMultiply() {
+        int rows = randomIntBetween(2, 1024);
+        int cols = randomIntBetween(2, 1024);
+
+        float[] a = VectorTestUtils.randomFloatVector(rows * cols);
+        float[] v = VectorTestUtils.randomFloatVector(cols);
+
+        float[] expected = basicMatrixVectorMultiply(a, rows, cols, v);
+
+        float[] scalarResult = new float[rows];
+        defaultedProvider.getVectorUtilSupport().matrixVectorMultiply(a, rows, cols, v, scalarResult);
+        assertArrayEquals(expected, scalarResult, 1e-3f);
+        float[] panamaResult = new float[rows];
+        panamaProvider.getVectorUtilSupport().matrixVectorMultiply(a, rows, cols, v, panamaResult);
+        assertArrayEquals(expected, panamaResult, 1e-3f);
+    }
+
+    private static float[] basicMatrixVectorMultiply(float[] a, int rows, int cols, float[] v) {
+        float[] result = new float[rows];
+        for (int i = 0; i < rows; i++) {
+            int aBase = i * cols;
+            for (int j = 0; j < cols; j++) {
+                result[i] = Math.fma(a[aBase + j], v[j], result[i]);
+            }
+        }
+        return result;
+    }
+
 }

@@ -17,7 +17,7 @@ LIMIT max_number_of_rows
 
 :::{applies-item} { "stack": "ga 9.6+", "serverless": "ga" }
 ```esql
-LIMIT max_number_of_rows [BY grouping_expr1[, ..., grouping_exprN]]
+LIMIT max_number_of_rows BY grouping_expr1[, ..., grouping_exprN]
 ```
 :::
 ::::

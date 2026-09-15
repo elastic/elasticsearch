@@ -53,10 +53,7 @@ public final class SourceFilter {
     public SourceFilter(String[] includes, String[] excludes) {
         this.includes = includes == null ? Strings.EMPTY_ARRAY : includes;
         this.excludes = excludes == null ? Strings.EMPTY_ARRAY : excludes;
-        // TODO: Remove this once we upgrade to Jackson 2.14. There is currently a bug
-        // in exclude filtering if one of the excludes contains a wildcard '*'.
-        // see https://github.com/FasterXML/jackson-core/pull/729
-        this.canFilterBytes = CollectionUtils.isEmpty(excludes) || Arrays.stream(excludes).noneMatch(field -> field.contains("*"));
+        this.canFilterBytes = true;
         this.empty = CollectionUtils.isEmpty(this.includes) && CollectionUtils.isEmpty(this.excludes);
     }
 

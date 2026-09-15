@@ -78,17 +78,14 @@ public abstract sealed class DecodedVector permits DecodedVector.ByteVector, Dec
             );
         }
 
-        if (base64Bytes == null) {
-            StringBuilder sb = new StringBuilder("failed to decode vector: value must be a valid base64");
-            if (parseHex) {
-                sb.append(" or hex");
-            }
-            sb.append(" string");
-            throw new IllegalArgumentException(sb.toString());
+        // base64 was parsed but doesn't match dimensions
+        if (base64Bytes != null) {
+            throw invalidBase64Length(base64Bytes.length, elementType);
         }
 
-        // base64 was parsed but doesn't match dimensions
-        throw invalidBase64Length(base64Bytes.length, elementType);
+        throw new IllegalArgumentException(
+            "failed to decode vector: value must be a valid base64" + (parseHex ? " or hex" : "") + " string"
+        );
     }
 
     /**

@@ -19,7 +19,7 @@ public class LogSerializationTests extends AbstractExpressionSerializationTests<
         Source source = randomSource();
         Expression value = randomChild();
         Expression base = randomBoolean() ? null : randomChild();
-        return new Log(source, value, base);
+        return new Log(source, value, base, randomBoolean());
     }
 
     @Override
@@ -32,6 +32,6 @@ public class LogSerializationTests extends AbstractExpressionSerializationTests<
         } else {
             base = randomValueOtherThan(base, () -> randomBoolean() ? null : randomChild());
         }
-        return new Log(source, value, base);
+        return new Log(source, value, base, randomBoolean());
     }
 }

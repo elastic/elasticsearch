@@ -14,6 +14,6 @@ import org.elasticsearch.xpack.esql.expression.AbstractUnaryScalarSerializationT
 public class Log10SerializationTests extends AbstractUnaryScalarSerializationTests<Log10> {
     @Override
     protected Log10 create(Source source, Expression child) {
-        return new Log10(source, child);
+        return new Log10(source, child, randomBoolean());
     }
 }

@@ -234,7 +234,7 @@ public class HttpStorageObjectTests extends ESTestCase {
      * The 503 has to survive whatever shape the failure reaches the completion handler in. A single
      * {@code getCause()} peel there sees past the type in both of these — a typed exception carrying
      * a cause of its own, and one buried under the JDK body-processing wrap — and the read is then
-     * given up on as a client-class 400 or retyped as a generic transport EUE.
+     * retyped as a generic transport EUE ("transient read failure").
      */
     public void testAsyncUnavailableSurvivesWrapping() throws Exception {
         StoragePath path = StoragePath.of("https://example.com/file.parquet");

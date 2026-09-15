@@ -43,8 +43,9 @@ final class DirectByteBufferBodyHandlers {
      * <p>A {@code 206} body shorter or longer than {@code length} is a truncated or over-long range,
      * raised as a non-throttling {@link ExternalUnavailableException} like S3
      * {@code KnownLengthAsyncResponseTransformer}. A wrong {@code expectedLength} on our side still
-     * exhausts the retry budget. The {@code 200} skip-then-fill path is unchanged and still fails
-     * as {@link IOException}.
+     * exhausts the retry budget. The {@code 200} skip-then-fill path still raises {@link IOException}
+     * from the subscriber; {@code HttpStorageObject} then types that as a generic retryable 503.
+     * This handler only preserves a specific mismatch message on the {@code 206} path.
      *
      * @param factory factory used to produce the destination buffer on the 200/206 paths
      * @param path named in 206 length-mismatch messages so the typed exception identifies the object

@@ -16,6 +16,7 @@ import org.elasticsearch.action.ActionType;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.core.Releasables;
 import org.elasticsearch.indices.breaker.NoneCircuitBreakerService;
+import org.elasticsearch.rest.RestContentTypePolicy;
 import org.elasticsearch.rest.RestController;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.tasks.Task;
@@ -29,6 +30,7 @@ import org.junit.After;
 import org.junit.Before;
 
 import java.util.Collections;
+import java.util.List;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.BiFunction;
@@ -46,7 +48,14 @@ public abstract class RestActionTestCase extends ESTestCase {
     public void setUpController() {
         threadPool = createThreadPool();
         verifyingClient = new VerifyingClient(threadPool);
-        controller = new RestController(null, verifyingClient, new NoneCircuitBreakerService(), new UsageService(), TelemetryProvider.NOOP);
+        controller = new RestController(
+            List.of(),
+            RestContentTypePolicy.getDefault(),
+            verifyingClient,
+            new NoneCircuitBreakerService(),
+            new UsageService(),
+            TelemetryProvider.NOOP
+        );
     }
 
     @After

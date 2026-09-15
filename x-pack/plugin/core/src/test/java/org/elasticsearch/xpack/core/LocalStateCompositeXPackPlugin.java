@@ -85,6 +85,7 @@ import org.elasticsearch.plugins.internal.rewriter.QueryRewriteInterceptor;
 import org.elasticsearch.repositories.RepositoriesMetrics;
 import org.elasticsearch.repositories.Repository;
 import org.elasticsearch.repositories.SnapshotMetrics;
+import org.elasticsearch.rest.RestContentTypePolicy;
 import org.elasticsearch.rest.RestHandler;
 import org.elasticsearch.rest.RestHeaderDefinition;
 import org.elasticsearch.rest.RestInterceptor;
@@ -386,12 +387,21 @@ public class LocalStateCompositeXPackPlugin extends XPackPlugin
     }
 
     @Override
-    public RestInterceptor getRestHandlerInterceptor(ThreadContext threadContext) {
-        // There can be only one.
-        List<RestInterceptor> items = filterPlugins(ActionPlugin.class).stream()
+    public List<RestInterceptor> getRestHandlerInterceptors(ThreadContext threadContext) {
+        return filterPlugins(ActionPlugin.class).stream()
             .filter(RestServerActionPlugin.class::isInstance)
             .map(RestServerActionPlugin.class::cast)
-            .map(p -> p.getRestHandlerInterceptor(threadContext))
+            .flatMap(p -> p.getRestHandlerInterceptors(threadContext).stream())
+            .toList();
+    }
+
+    @Override
+    public RestContentTypePolicy getRestContentTypePolicy(ThreadContext threadContext) {
+        // There can be only one.
+        var items = filterPlugins(ActionPlugin.class).stream()
+            .filter(RestServerActionPlugin.class::isInstance)
+            .map(RestServerActionPlugin.class::cast)
+            .map(p -> p.getRestContentTypePolicy(threadContext))
             .filter(Objects::nonNull)
             .toList();
 

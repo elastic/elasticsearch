@@ -12,20 +12,17 @@ import org.elasticsearch.ElasticsearchSecurityException;
 import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
-import org.elasticsearch.rest.RestChannel;
 import org.elasticsearch.rest.RestHandler;
 import org.elasticsearch.rest.RestInterceptor;
+import org.elasticsearch.rest.RestInterceptorChain;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.RestRequest.Method;
 import org.elasticsearch.rest.RestRequestFilter;
-import org.elasticsearch.xpack.core.security.authc.Authentication;
-import org.elasticsearch.xpack.core.security.authc.support.AuthenticationContextSerializer;
 import org.elasticsearch.xpack.security.audit.AuditTrailService;
 import org.elasticsearch.xpack.security.authc.support.SecondaryAuthenticator;
 import org.elasticsearch.xpack.security.authz.restriction.WorkflowService;
 import org.elasticsearch.xpack.security.operator.OperatorPrivileges;
 
-import java.io.IOException;
 import java.util.function.Consumer;
 
 import static org.elasticsearch.core.Strings.format;
@@ -38,21 +35,17 @@ public class SecurityRestFilter implements RestInterceptor {
     private final SecondaryAuthenticator secondaryAuthenticator;
     private final AuditTrailService auditTrailService;
     private final boolean enabled;
-    private final boolean httpSslEnabled;
     private final ThreadContext threadContext;
     private final OperatorPrivileges.OperatorPrivilegesService operatorPrivilegesService;
-    private final AuthenticationContextSerializer authenticationSerializer = new AuthenticationContextSerializer();
 
     public SecurityRestFilter(
         boolean enabled,
-        boolean httpSslEnabled,
         ThreadContext threadContext,
         SecondaryAuthenticator secondaryAuthenticator,
         AuditTrailService auditTrailService,
         OperatorPrivileges.OperatorPrivilegesService operatorPrivilegesService
     ) {
         this.enabled = enabled;
-        this.httpSslEnabled = httpSslEnabled;
         this.threadContext = threadContext;
         this.secondaryAuthenticator = secondaryAuthenticator;
         this.auditTrailService = auditTrailService;
@@ -63,13 +56,12 @@ public class SecurityRestFilter implements RestInterceptor {
     }
 
     @Override
-    public void intercept(RestRequest request, RestChannel channel, RestHandler targetHandler, ActionListener<Boolean> listener)
-        throws Exception {
+    public void intercept(RestInterceptorChain chain, ActionListener<Void> listener) {
         // requests with the OPTIONS method should be handled elsewhere, and not by calling {@code RestHandler#handleRequest}
         // authn is bypassed for HTTP requests with the OPTIONS method, so this sanity check prevents dispatching unauthenticated requests
-        if (request.method() == Method.OPTIONS) {
+        if (chain.request().method() == Method.OPTIONS) {
             handleException(
-                request,
+                chain.request(),
                 new ElasticsearchSecurityException("Cannot dispatch OPTIONS request, as they are not authenticated"),
                 listener
             );
@@ -77,13 +69,13 @@ public class SecurityRestFilter implements RestInterceptor {
         }
 
         if (enabled == false) {
-            listener.onResponse(Boolean.TRUE);
+            chain.proceed(listener);
             return;
         }
 
         // RestRequest might have stream content, in some cases we need to aggregate request content, for example audit logging.
         final Consumer<RestRequest> aggregationCallback = (aggregatedRestRequest) -> {
-            final RestRequest wrappedRequest = maybeWrapRestRequest(aggregatedRestRequest, targetHandler);
+            final RestRequest wrappedRequest = maybeWrapRestRequest(aggregatedRestRequest, chain.handler());
             try {
                 auditTrailService.get().authenticationSuccess(wrappedRequest);
             } catch (ElasticsearchStatusException e) {
@@ -98,42 +90,33 @@ public class SecurityRestFilter implements RestInterceptor {
                         aggregatedRestRequest.uri()
                     );
                 }
-                WorkflowService.resolveWorkflowAndStoreInThreadContext(targetHandler, threadContext);
+                WorkflowService.resolveWorkflowAndStoreInThreadContext(chain.handler(), threadContext);
 
-                doHandleRequest(aggregatedRestRequest, channel, targetHandler, listener);
+                doHandleRequest(chain, aggregatedRestRequest, listener);
             }, e -> handleException(aggregatedRestRequest, e, listener)));
         };
-        if (request.isStreamedContent() && auditTrailService.includeRequestBody()) {
-            aggregate(request, aggregationCallback::accept);
+        if (chain.request().isStreamedContent() && auditTrailService.includeRequestBody()) {
+            aggregate(chain.request(), aggregationCallback);
         } else {
-            aggregationCallback.accept(request);
+            aggregationCallback.accept(chain.request());
         }
-
     }
 
     @Override
-    public boolean allowsBrowserSafelistedContentType(RestRequest request) {
-        if (enabled == false || httpSslEnabled == false) {
-            return false;
-        }
-        try {
-            final Authentication authentication = authenticationSerializer.readFromContext(threadContext);
-            return authentication != null && authentication.getAuthenticationType() != Authentication.AuthenticationType.ANONYMOUS;
-        } catch (IOException e) {
-            logger.debug(() -> format("failed to read authentication for REST request [%s]", request.uri()), e);
-            return false;
-        }
+    public int order() {
+        // Security interceptor should execute before the default ones
+        return -1000;
     }
 
-    private void doHandleRequest(RestRequest request, RestChannel channel, RestHandler targetHandler, ActionListener<Boolean> listener) {
+    private void doHandleRequest(RestInterceptorChain chain, RestRequest request, ActionListener<Void> listener) {
         threadContext.sanitizeHeaders();
         // operator privileges can short circuit to return a non-successful response
-        if (operatorPrivilegesService.checkRest(targetHandler, request, channel, threadContext)) {
-            listener.onResponse(Boolean.TRUE);
+        if (operatorPrivilegesService.checkRest(chain.handler(), request, chain.channel(), threadContext)) {
+            chain.proceed(listener);
         } else {
-            // The service sends its own response if it returns `false`.
+            // The service sends its own response if it returns `null`.
             // That's kind of ugly, and it would be better if we throw an exception and let the rest controller serialize it as normal
-            listener.onResponse(Boolean.FALSE);
+            listener.onResponse(null);
         }
     }
 

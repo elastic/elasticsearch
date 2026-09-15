@@ -81,7 +81,14 @@ public class RestHttpResponseHeadersTests extends ESTestCase {
         );
 
         UsageService usageService = new UsageService();
-        RestController restController = new RestController(null, null, circuitBreakerService, usageService, TelemetryProvider.NOOP);
+        RestController restController = new RestController(
+            List.of(),
+            RestContentTypePolicy.getDefault(),
+            null,
+            circuitBreakerService,
+            usageService,
+            TelemetryProvider.NOOP
+        );
 
         // A basic RestHandler handles requests to the endpoint
         RestHandler restHandler = (request, channel, client) -> channel.sendResponse(new RestResponse(RestStatus.OK, ""));

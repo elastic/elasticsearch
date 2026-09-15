@@ -96,6 +96,7 @@ import org.elasticsearch.plugins.SearchPlugin;
 import org.elasticsearch.plugins.SystemIndexPlugin;
 import org.elasticsearch.plugins.interceptor.RestServerActionPlugin;
 import org.elasticsearch.reservedstate.ReservedProjectStateHandler;
+import org.elasticsearch.rest.RestContentTypePolicy;
 import org.elasticsearch.rest.RestHandler;
 import org.elasticsearch.rest.RestHeaderDefinition;
 import org.elasticsearch.rest.RestInterceptor;
@@ -368,6 +369,7 @@ import org.elasticsearch.xpack.security.operator.OperatorOnlyRegistry;
 import org.elasticsearch.xpack.security.operator.OperatorPrivileges;
 import org.elasticsearch.xpack.security.profile.ProfileService;
 import org.elasticsearch.xpack.security.rest.RemoteHostHeader;
+import org.elasticsearch.xpack.security.rest.SecurityRestContentTypePolicy;
 import org.elasticsearch.xpack.security.rest.SecurityRestFilter;
 import org.elasticsearch.xpack.security.rest.action.RestAuthenticateAction;
 import org.elasticsearch.xpack.security.rest.action.RestDelegatePkiAuthenticationAction;
@@ -2415,15 +2417,15 @@ public class Security extends Plugin
     }
 
     @Override
-    public RestInterceptor getRestHandlerInterceptor(ThreadContext threadContext) {
-        return new SecurityRestFilter(
-            enabled,
-            HTTP_SSL_ENABLED.get(settings),
-            threadContext,
-            secondayAuthc.get(),
-            auditTrailService.get(),
-            operatorPrivilegesService.get()
+    public List<RestInterceptor> getRestHandlerInterceptors(ThreadContext threadContext) {
+        return List.of(
+            new SecurityRestFilter(enabled, threadContext, secondayAuthc.get(), auditTrailService.get(), operatorPrivilegesService.get())
         );
+    }
+
+    @Override
+    public RestContentTypePolicy getRestContentTypePolicy(ThreadContext threadContext) {
+        return new SecurityRestContentTypePolicy(enabled, HTTP_SSL_ENABLED.get(settings), threadContext);
     }
 
     @Override

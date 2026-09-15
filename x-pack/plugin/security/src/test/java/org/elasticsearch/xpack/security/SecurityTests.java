@@ -976,7 +976,7 @@ public class SecurityTests extends ESTestCase {
         try {
             UsageService usageService = new UsageService();
             Security security = new Security(settings);
-            assertTrue(security.getRestHandlerInterceptor(threadPool.getThreadContext()) != null);
+            assertFalse(security.getRestHandlerInterceptors(threadPool.getThreadContext()).isEmpty());
 
         } finally {
             threadPool.shutdown();

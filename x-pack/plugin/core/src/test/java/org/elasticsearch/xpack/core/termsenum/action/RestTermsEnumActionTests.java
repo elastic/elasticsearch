@@ -18,6 +18,7 @@ import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.indices.breaker.NoneCircuitBreakerService;
+import org.elasticsearch.rest.RestContentTypePolicy;
 import org.elasticsearch.rest.RestController;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.search.SearchModule;
@@ -40,6 +41,7 @@ import org.junit.BeforeClass;
 
 import java.util.Collections;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 
 import static java.util.Collections.emptyMap;
@@ -54,7 +56,8 @@ public class RestTermsEnumActionTests extends ESTestCase {
 
     private static UsageService usageService = new UsageService();
     private static RestController controller = new RestController(
-        null,
+        List.of(),
+        RestContentTypePolicy.getDefault(),
         client,
         new NoneCircuitBreakerService(),
         usageService,

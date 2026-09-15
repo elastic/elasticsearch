@@ -232,6 +232,28 @@ public final class FrequentItemSetCollector {
 
             return a.docCount < b.docCount;
         }
+
+        /**
+         * Removes an existing element by identity. Lucene dropped {@code PriorityQueue.remove}
+         * (apache/lucene#15493); heap access, {@code size}, {@code upHeap} and {@code downHeap} stay protected.
+         */
+        boolean remove(FrequentItemSetCandidate element) {
+            Object[] heap = getHeapArray();
+            for (int i = 1; i <= size; i++) {
+                if (heap[i] == element) {
+                    heap[i] = heap[size];
+                    heap[size] = null;
+                    size--;
+                    if (i <= size) {
+                        if (upHeap(i) == false) {
+                            downHeap(i);
+                        }
+                    }
+                    return true;
+                }
+            }
+            return false;
+        }
     }
 
     private final TransactionStore transactionStore;

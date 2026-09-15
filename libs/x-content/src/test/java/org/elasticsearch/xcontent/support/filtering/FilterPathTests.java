@@ -416,4 +416,37 @@ public class FilterPathTests extends ESTestCase {
         assertThat(ex.getMessage(), containsString("maximum depth"));
         assertThat(ex.getMessage(), containsString("[y]"));
     }
+
+    public void testLegacyBackslashSeparatorRestored() {
+        // Before 8.6 a backslash was a literal character and a dot was always a separator, so "\.nested_value"
+        // addressed the field "nested_value" under a field literally named "\". The 8.6 escape semantics
+        // (\. == a literal dot in a field name) silently changed that resolution. The pre-8.6 reading must keep
+        // working so existing _source filters do not need to be rewritten. See #136302.
+        FilterPath[] filterPaths = FilterPath.compile(singleton("\\.nested_value"));
+        assertNotNull(filterPaths);
+        assertThat(filterPaths, arrayWithSize(1));
+
+        // First segment matches the literal backslash field and yields a child filter.
+        List<FilterPath> nextFilters = new ArrayList<>();
+        FilterPath filterPath = filterPaths[0];
+        assertThat(filterPath.matches("\\", nextFilters, false), is(false));
+        assertEquals(1, nextFilters.size());
+
+        // Second segment matches the nested field.
+        filterPath = nextFilters.get(0);
+        nextFilters = new ArrayList<>();
+        assertThat(filterPath.matches("nested_value", nextFilters, false), is(true));
+        assertEquals(0, nextFilters.size());
+    }
+
+    public void testEscapedDotFieldNameStillMatches() {
+        // 8.6+ semantics must be preserved: "a\.b" still addresses a field literally named "a.b".
+        FilterPath[] filterPaths = FilterPath.compile(singleton("a\\.b"));
+        assertNotNull(filterPaths);
+        assertThat(filterPaths, arrayWithSize(1));
+
+        List<FilterPath> nextFilters = new ArrayList<>();
+        assertThat(filterPaths[0].matches("a.b", nextFilters, false), is(true));
+        assertEquals(0, nextFilters.size());
+    }
 }

@@ -4,8 +4,10 @@
 //
 // Authored as FROM <dataset>: each test declares its source via a `dataset:` directive. The external-source
 // format ITs (TSV/NDJSON/Java-Parquet) register the dataset on every storage backend and run the FROM query
-// verbatim; the generic EsqlSpecTestCase families that share this file skip it (no fixture). The dataset name
-// encodes the schema_resolution option so the same name always carries the same settings.
+// verbatim. The generic EsqlSpecTestCase families never see this file: those suites glob the resource root,
+// and this directory is reachable only through the /datasources/external-*.csv-spec patterns the format
+// suites use. The dataset name encodes the schema_resolution option so the same name always carries the same
+// settings.
 
 // ===== FIRST_FILE_WINS =====
 

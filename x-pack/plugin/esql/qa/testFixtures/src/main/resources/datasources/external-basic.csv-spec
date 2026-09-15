@@ -3,9 +3,11 @@
 //
 // Authored as FROM <dataset>: each test declares its source via a `dataset:` directive. The external-source
 // format ITs (ORC/NDJSON/Java-Parquet/multi-node) register the dataset on every storage backend and run the
-// FROM query verbatim; the generic EsqlSpecTestCase families that share this file via the testFixtures
-// classpath have no fixture to back the dataset and skip it. employees_no_mv has no index equivalent (bare
-// name kept); web_logs collides with the ES|QL web_logs index twin, so that dataset is named web_logs_ds.
+// FROM query verbatim. The generic EsqlSpecTestCase families (single-node / mixed-cluster / multi-cluster /
+// multi-node) never see this file: those suites glob the resource root, and this directory is reachable only
+// through the /datasources/external-*.csv-spec patterns the format suites use. employees_no_mv has no index
+// equivalent (bare name kept); web_logs collides with the ES|QL web_logs index twin, so that dataset is
+// named web_logs_ds.
 
 readAllEmployees
 required_capability: dataset_in_from_command
@@ -1113,7 +1115,7 @@ distinct_paths:long
 
 // ---- runtime match over an external source ----
 // External columns are not Lucene-mapped, so match runs at runtime.
-// Authored as FROM <dataset> so it runs verbatim on dataset-capable backends and as rebuilt EXTERNAL on the others.
+// Authored as FROM <dataset> so it runs verbatim on every storage backend, like the rest of this file.
 
 matchOnExternalKeyword
 required_capability: external_command

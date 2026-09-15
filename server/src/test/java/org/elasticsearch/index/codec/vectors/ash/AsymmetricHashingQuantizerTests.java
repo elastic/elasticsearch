@@ -228,7 +228,7 @@ public class AsymmetricHashingQuantizerTests extends ESTestCase {
         float[] query = SvdUtil.randomGaussians(random(), dim);
 
         // Project query: qt = wT @ query (raw, not centered)
-        float[] qt = SvdUtil.matrixVectorMultiply(wT, nDims, dim, query);
+        float[] qt = ESVectorUtil.matrixVectorMultiply(wT, nDims, dim, query);
         float queryDotCentroid = ESVectorUtil.dotProduct(query, centroids[0]);
 
         float[] scores = new float[nVectors];
@@ -280,7 +280,7 @@ public class AsymmetricHashingQuantizerTests extends ESTestCase {
             float[] query = SvdUtil.randomGaussians(random(), dim);
 
             // Raw query projection: qt = wT @ query
-            float[] qt = SvdUtil.matrixVectorMultiply(wT, nDims, dim, query);
+            float[] qt = ESVectorUtil.matrixVectorMultiply(wT, nDims, dim, query);
             float queryDotCentroid = ESVectorUtil.dotProduct(query, centroid, dim);
             AsymmetricHashingQuantizer.VectorAndNorm precomputed = AsymmetricHashingQuantizer.precomputeCentroid(centroid, wT);
 
@@ -403,20 +403,21 @@ public class AsymmetricHashingQuantizerTests extends ESTestCase {
         // Known matrix: diagonal with descending values
         int m = 6;
         int n = 4;
+        int k = 2;
         float[] a = new float[m * n];
         a[0 * n + 0] = 4.0f;
         a[1 * n + 1] = 3.0f;
         a[2 * n + 2] = 2.0f;
         a[3 * n + 3] = 1.0f;
 
-        // Top-2 right singular vectors should be close to e0 and e1
-        float[] topK = SvdUtil.topKRightSingularVectors(a, m, n, 2, 42L);
-        assertEquals(2 * n, topK.length);
+        // Top-2 right singular vectors returned as columns (n x k)
+        float[] topK = SvdUtil.topKRightSingularVectors(a, m, n, k, 42L);
+        assertEquals(n * k, topK.length);
 
-        // First vector should be dominated by dim 0 (corresponding to singular value 4)
-        assertThat(Math.abs(topK[0 * n + 0]), greaterThan(0.9f));
-        // Second vector should be dominated by dim 1 (singular value 3)
-        assertThat(Math.abs(topK[1 * n + 1]), greaterThan(0.9f));
+        // First column should be dominated by row 0 (corresponding to singular value 4)
+        assertThat(Math.abs(topK[0 * k + 0]), greaterThan(0.9f));
+        // Second column should be dominated by row 1 (singular value 3)
+        assertThat(Math.abs(topK[1 * k + 1]), greaterThan(0.9f));
     }
 
     public void testScoreReconstructsDotProduct() throws IOException {
@@ -480,7 +481,7 @@ public class AsymmetricHashingQuantizerTests extends ESTestCase {
         // Pre-transform each query: qt = wT @ q
         float[][] qt = new float[nQueries][];
         for (int q = 0; q < nQueries; q++) {
-            qt[q] = SvdUtil.matrixVectorMultiply(wT, nDims, dim, queries[q]);
+            qt[q] = ESVectorUtil.matrixVectorMultiply(wT, nDims, dim, queries[q]);
         }
 
         // Score matrices: approx[q][i] = ASH-approximated dot(q, v_i), exact[q][i] = true dot

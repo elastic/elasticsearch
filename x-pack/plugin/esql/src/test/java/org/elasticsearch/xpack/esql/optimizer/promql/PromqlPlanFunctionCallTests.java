@@ -8,6 +8,7 @@
 package org.elasticsearch.xpack.esql.optimizer.promql;
 
 import org.elasticsearch.xpack.esql.EsqlTestUtils;
+import org.elasticsearch.xpack.esql.capabilities.NonFiniteSupport;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.Expressions;
@@ -41,6 +42,7 @@ import org.elasticsearch.xpack.esql.plan.logical.UnpackDims;
 import java.time.Duration;
 import java.time.Instant;
 import java.time.ZoneId;
+import java.util.ArrayList;
 import java.util.List;
 
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.as;
@@ -381,5 +383,35 @@ public class PromqlPlanFunctionCallTests extends AbstractPromqlPlanOptimizerTest
         var bucketEval = as(tsAgg.child(), Eval.class);
         assertThat(bucketEval.fields(), hasSize(1));
         assertThat(tsAgg.timeBucket().buckets().fold(FoldContext.small()), equalTo(Duration.ofHours(1)));
+    }
+
+    /**
+     * PromQL arithmetic is translated to the non-finite-preserving (lenient) operators; native ES|QL EVAL uses the
+     * strict variants. The two must not be mixed: a PromQL {@code / 0} keeps {@code ±Inf}/{@code NaN}, while the same
+     * native division is rejected.
+     */
+    public void testLenientNonFiniteMathIsPromqlOnly() {
+        LogicalPlan nativeEval = optimizedPlan("FROM test | EVAL x = salary / emp_no");
+        assertThat(lenientNonFiniteExpressions(nativeEval), empty());
+        List<Div> nativeDivs = new ArrayList<>();
+        nativeEval.forEachExpressionDown(Div.class, nativeDivs::add);
+        assertThat(nativeDivs, not(empty()));
+        nativeDivs.forEach(div -> assertFalse("native Div must be strict", div.allowNonFinite()));
+
+        LogicalPlan promql = planPromql("PROMQL index=k8s step=1h result=(sum by (cluster) (network.cost) / 0)");
+        List<Div> promqlDivs = new ArrayList<>();
+        promql.forEachExpressionDown(Div.class, promqlDivs::add);
+        assertThat(promqlDivs, not(empty()));
+        assertTrue("PromQL Div must be lenient", promqlDivs.stream().anyMatch(NonFiniteSupport::allowNonFinite));
+    }
+
+    private static List<Expression> lenientNonFiniteExpressions(LogicalPlan plan) {
+        List<Expression> lenient = new ArrayList<>();
+        plan.forEachExpressionDown(Expression.class, e -> {
+            if (e instanceof NonFiniteSupport nonFinite && nonFinite.allowNonFinite()) {
+                lenient.add(e);
+            }
+        });
+        return lenient;
     }
 }

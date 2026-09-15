@@ -1062,6 +1062,14 @@ public class SharedBlobCacheService<KeyType extends SharedBlobCacheService.KeyBa
         return -1;
     }
 
+    // used by tests
+    int maxReachedFreq(CacheFileRegion<KeyType> cacheFileRegion) {
+        if (cache instanceof LFUCache lfuCache) {
+            return lfuCache.maxReachedFreq(cacheFileRegion);
+        }
+        return -1;
+    }
+
     @Override
     public void close() {
         cache.close();
@@ -1169,11 +1177,6 @@ public class SharedBlobCacheService<KeyType extends SharedBlobCacheService.KeyBa
         // side effects
         private SharedBytes.IO io = null;
 
-        // Highest LFU frequency this region has been promoted to during its lifetime. Starts at 1 (the
-        // insertion frequency). Decay and demote lower current freq but must not lower this peak.
-        // Written under the SharedBlobCacheService monitor (promote and eviction); no extra volatility.
-        private int maxReachedFreq = 1;
-
         CacheFileRegion(
             SharedBlobCacheService<KeyType> blobCacheService,
             RegionKey<KeyType> regionKey,
@@ -1225,7 +1228,6 @@ public class SharedBlobCacheService<KeyType extends SharedBlobCacheService.KeyBa
             if (refCount() <= 1 && evict()) {
                 logger.trace("evicted {} with channel offset {}", regionKey, physicalStartOffset());
                 blobCacheService.evictCount.increment();
-                recordEvictionAndResetPeakFreq();
                 decRef();
                 return true;
             }
@@ -1237,7 +1239,6 @@ public class SharedBlobCacheService<KeyType extends SharedBlobCacheService.KeyBa
             if (refCount() <= 1 && evict()) {
                 logger.trace("evicted and take {} with channel offset {}", regionKey, physicalStartOffset());
                 blobCacheService.evictCount.increment();
-                recordEvictionAndResetPeakFreq();
                 return true;
             }
 
@@ -1249,30 +1250,15 @@ public class SharedBlobCacheService<KeyType extends SharedBlobCacheService.KeyBa
             if (evict()) {
                 logger.trace("force evicted {} with channel offset {}", regionKey, physicalStartOffset());
                 blobCacheService.evictCount.increment();
-                recordEvictionAndResetPeakFreq();
                 decRef();
                 return true;
             }
             return false;
         }
 
-        void notePromotedFreq(int freq) {
-            assert Thread.holdsLock(blobCacheService) : "must hold lock when updating peak freq";
-            if (freq > maxReachedFreq) {
-                maxReachedFreq = freq;
-            }
-        }
-
-        private void recordEvictionAndResetPeakFreq() {
-            blobCacheService.blobCacheMetrics.recordEvictedRegionMaxFreq(maxReachedFreq);
-            // CacheFileRegion is not reused after eviction; reset so a stale object cannot
-            // report a previous life's peak if inspected after tryEvict/forceEvict.
-            maxReachedFreq = 1;
-        }
-
         // visible for tests
         int maxReachedFreq() {
-            return maxReachedFreq;
+            return blobCacheService.maxReachedFreq(this);
         }
 
         @Override
@@ -2268,6 +2254,10 @@ public class SharedBlobCacheService<KeyType extends SharedBlobCacheService.KeyBa
             LFUCacheEntry prev;
             LFUCacheEntry next;
             int freq;
+            // Highest LFU frequency this entry has been promoted to during its lifetime. Starts at 1
+            // (the insertion frequency). Decay and demote lower current freq but must not lower this peak.
+            // Written under the SharedBlobCacheService monitor (promote and eviction); no extra volatility.
+            int maxReachedFreq;
             volatile long lastAccessedEpoch;
 
             LFUCacheEntry(CacheFileRegion<KeyType> chunk, long lastAccessed) {
@@ -2279,6 +2269,7 @@ public class SharedBlobCacheService<KeyType extends SharedBlobCacheService.KeyBa
                 // seems ok for now, since if it were to get evicted soon, the decays done would ensure we have more level 1
                 // entries eventually and thus such an entry would (after some decays) be able to survive in the cache.
                 this.freq = 1;
+                this.maxReachedFreq = 1;
             }
 
             void touch() {
@@ -2286,6 +2277,17 @@ public class SharedBlobCacheService<KeyType extends SharedBlobCacheService.KeyBa
                 if (now > lastAccessedEpoch) {
                     maybePromote(now, this);
                 }
+            }
+
+            void maybeUpdateMaxReachedFreq() {
+                assert Thread.holdsLock(SharedBlobCacheService.this) : "must hold lock when updating peak freq";
+                if (freq > maxReachedFreq) {
+                    maxReachedFreq = freq;
+                }
+            }
+
+            void recordEvictionMaxFreq() {
+                blobCacheMetrics.recordEvictedRegionMaxFreq(maxReachedFreq);
             }
         }
 
@@ -2332,6 +2334,10 @@ public class SharedBlobCacheService<KeyType extends SharedBlobCacheService.KeyBa
         // used by tests
         int getFreq(CacheFileRegion<KeyType> cacheFileRegion) {
             return keyMapping.get(cacheFileRegion.regionKey.file().shardId(), cacheFileRegion.regionKey).freq;
+        }
+
+        int maxReachedFreq(CacheFileRegion<KeyType> cacheFileRegion) {
+            return keyMapping.get(cacheFileRegion.regionKey.file().shardId(), cacheFileRegion.regionKey).maxReachedFreq;
         }
 
         @Override
@@ -2479,11 +2485,14 @@ public class SharedBlobCacheService<KeyType extends SharedBlobCacheService.KeyBa
                     afterLockNanoTime = relativeNanosProvider.getAsLong();
                     for (LFUCacheEntry entry : matchingEntries) {
                         boolean evicted = entry.chunk.forceEvict();
-                        if (evicted && entry.chunk.volatileIO() != null) {
-                            assert shardId == null || shardId.equals(entry.chunk.regionKey.file.shardId())
-                                : shardId + " != " + entry.chunk.regionKey.file.shardId();
-                            unlinkAndRemoveForEviction(entry);
-                            evictedCount++;
+                        if (evicted) {
+                            entry.recordEvictionMaxFreq();
+                            if (entry.chunk.volatileIO() != null) {
+                                assert shardId == null || shardId.equals(entry.chunk.regionKey.file.shardId())
+                                    : shardId + " != " + entry.chunk.regionKey.file.shardId();
+                                unlinkAndRemoveForEviction(entry);
+                                evictedCount++;
+                            }
                         }
                     }
                 }
@@ -2687,7 +2696,7 @@ public class SharedBlobCacheService<KeyType extends SharedBlobCacheService.KeyBa
                     unlink(entry);
                     // go 2 up per epoch, allowing us to decay 1 every epoch.
                     entry.freq = Math.min(entry.freq + 2, maxFreq - 1);
-                    entry.chunk.notePromotedFreq(entry.freq);
+                    entry.maybeUpdateMaxReachedFreq();
                     entry.lastAccessedEpoch = epoch;
                     pushEntryToBack(entry);
                 }
@@ -2843,6 +2852,7 @@ public class SharedBlobCacheService<KeyType extends SharedBlobCacheService.KeyBa
 
                 boolean evicted = entry.chunk.tryEvictNoDecRef();
                 if (evicted) {
+                    entry.recordEvictionMaxFreq();
                     try {
                         SharedBytes.IO ioRef = entry.chunk.volatileIO();
                         if (ioRef != null) {
@@ -2936,10 +2946,13 @@ public class SharedBlobCacheService<KeyType extends SharedBlobCacheService.KeyBa
                     }
 
                     boolean evicted = entry.chunk.tryEvict();
-                    if (evicted && entry.chunk.volatileIO() != null) {
-                        unlinkAndRemoveForEviction(entry);
-                        found = true;
-                        break;
+                    if (evicted) {
+                        entry.recordEvictionMaxFreq();
+                        if (entry.chunk.volatileIO() != null) {
+                            unlinkAndRemoveForEviction(entry);
+                            found = true;
+                            break;
+                        }
                     }
                 }
             }

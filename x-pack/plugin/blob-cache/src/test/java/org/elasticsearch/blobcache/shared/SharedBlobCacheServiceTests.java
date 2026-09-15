@@ -584,15 +584,21 @@ public class SharedBlobCacheServiceTests extends ESTestCase {
     }
 
     private static boolean tryEvict(CacheFileRegion<TestCacheKey> region1) {
+        final boolean result;
         if (randomBoolean()) {
-            return region1.tryEvict();
+            result = region1.tryEvict();
         } else {
-            boolean result = region1.tryEvictNoDecRef();
+            result = region1.tryEvictNoDecRef();
             if (result) {
                 region1.decRef();
             }
-            return result;
         }
+        if (result) {
+            // Production eviction records from LFUCacheEntry after a successful tryEvict/forceEvict.
+            // Tests call CacheFileRegion.tryEvict directly, so record here to keep the same metric.
+            region1.blobCacheService.getBlobCacheMetrics().recordEvictedRegionMaxFreq(region1.maxReachedFreq());
+        }
+        return result;
     }
 
     public void testAutoEviction() throws IOException {
@@ -1201,10 +1207,10 @@ public class SharedBlobCacheServiceTests extends ESTestCase {
     }
 
     /**
-     * Eviction records the lifetime peak frequency, not the current (possibly decayed) frequency,
-     * then resets the peak back to the insertion frequency of 1.
+     * Eviction records the lifetime peak frequency, not the current (possibly decayed) frequency.
+     * The peak is retained after eviction; CacheFileRegion is not reused.
      */
-    public void testEvictedRegionRecordsPeakFreqThenResets() throws IOException {
+    public void testEvictedRegionRecordsPeakFreq() throws IOException {
         RecordingMeterRegistry recordingMeterRegistry = new RecordingMeterRegistry();
         BlobCacheMetrics metrics = new BlobCacheMetrics(recordingMeterRegistry);
         Settings settings = Settings.builder()
@@ -1275,7 +1281,7 @@ public class SharedBlobCacheServiceTests extends ESTestCase {
                 .getMeasurements(InstrumentType.LONG_HISTOGRAM, BLOB_CACHE_EVICTED_REGIONS_MAX_FREQ);
             assertThat(evictedMaxFreq, hasSize(measurementsBefore + 1));
             assertThat(evictedMaxFreq.getLast().getLong(), is(4L));
-            assertThat(region0.maxReachedFreq(), is(1));
+            assertThat("eviction must not reset the lifetime peak", region0.maxReachedFreq(), is(4));
         }
     }
 

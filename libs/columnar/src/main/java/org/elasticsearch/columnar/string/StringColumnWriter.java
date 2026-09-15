@@ -475,7 +475,7 @@ public final class StringColumnWriter {
             // One ordinal a slot, reached by value address: nothing asks the ordinals which document a slot
             // belongs to, and the string column already tables that, so they table nothing themselves.
             final NumericColumnMetadata ordinals = NumericColumnWriter.write(numDocsWithField, numDocsWithField, numValues, false, () -> {
-                final IndexInput in = directory.openInput(staged, context);
+                final IndexInput in = directory.openInput(staged, IOContext.READONCE);
                 replays.add(in);
                 return stagedOrdinals(cursors.get(), in);
             },
@@ -530,7 +530,7 @@ public final class StringColumnWriter {
             return ValueStream.Metadata.empty();
         }
         try (
-            IndexInput staged = directory.openInput(name, context);
+            IndexInput staged = directory.openInput(name, IOContext.READONCE);
             ValueStream.Writer writer = new ValueStream.Writer(
                 chunkCodec,
                 targetChunkBytes,

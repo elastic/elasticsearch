@@ -8,7 +8,9 @@ import { deriveOutcome } from "../analyzer/outcome.ts";
 import { renderMarkdown, severity } from "../analyzer/render.ts";
 import {
   DEFAULT_AGENT_CONFIG,
+  FLAKINESS_PROVEN_EXIT_CODE,
   KIND_KEYS,
+  matchedBlockingLabels,
   type SkippedTest,
   STATUS_DIR_NAME,
   TASK_STATUS_FILE_PREFIX,
@@ -327,6 +329,30 @@ export function buildFailedPayload(): FlakinessPayload {
   };
 }
 
+/**
+ * The jobs that proved flakiness: a test case that actually failed on a re-run.
+ *
+ * This is the only outcome that may fail the step, and the reason the verdict lives here rather than in the
+ * batch steps, whose rc cannot tell a failing test from a timeout or an OOM-kill. `timeout`, `infra_fail`,
+ * `hang` and `not_applicable` are the false failures the taxonomy exists to keep off PRs, and `build_failed`
+ * means the PR is already red from its own main build, so none of them are counted.
+ */
+export function provenFlakinessJobs<T extends { outcome: string }>(payloads: T[]): T[] {
+  return payloads.filter((p) => p.outcome === "flaky_detected");
+}
+
+/**
+ * Whether this step must fail the build: flakiness was proven AND the PR opted in.
+ *
+ * The single definition of what blocks, kept out of run()'s control flow so the rule is unit-testable and
+ * so both the exit code and the message it prints derive from one expression. `labels` is the raw
+ * `GITHUB_PR_LABELS` value; every other build - unlabelled PRs, and the manual pipeline, which has no PR -
+ * reports exactly as before.
+ */
+export function shouldBlock(payloads: { outcome: string }[], labels: string): boolean {
+  return provenFlakinessJobs(payloads).length > 0 && matchedBlockingLabels(labels).length > 0;
+}
+
 function annotate(context: string, style: string, body: string): void {
   try {
     execSync(`buildkite-agent annotate --style "${style}" --context "${context}"`, {
@@ -390,6 +416,28 @@ async function run(): Promise<void> {
   console.log(md);
   if (process.env.CI) {
     annotate("flakiness-detection-report", severity(report, buildFailed), md);
+  }
+
+  // The verdict, last, so the outcomes artifact and the annotation that explains a red step have already
+  // landed. Only the exit code is gated on the labels: the artifact, the annotation and the log say the
+  // same thing on every PR, so the observability data does not depend on who opted in.
+  //
+  // `exitCode` rather than `exit()`: the step's stdout is a pipe, and `exit()` abandons writes still
+  // queued on it - which would truncate the report just printed above, the one thing a blocked developer
+  // needs to read. Nothing runs after this, so the process exits with this code once the loop drains.
+  const labels = process.env.GITHUB_PR_LABELS ?? "";
+  const proven = provenFlakinessJobs(payloads);
+  // One boolean drives both the message and the exit code, so the log cannot claim one thing while the
+  // step does another. Naming the matched label is presentation only.
+  const blocking = shouldBlock(payloads, labels);
+  if (proven.length > 0) {
+    const verdict = blocking
+      ? `failing this step, PR labelled ${matchedBlockingLabels(labels).join(", ")}`
+      : "reported only, this PR carries no blocking label";
+    console.log(`${proven.length} job(s) proved flakiness; ${verdict}.`);
+  }
+  if (blocking) {
+    process.exitCode = FLAKINESS_PROVEN_EXIT_CODE;
   }
 }
 

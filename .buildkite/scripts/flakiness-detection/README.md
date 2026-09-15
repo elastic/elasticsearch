@@ -17,6 +17,8 @@ There are three ways to trigger flakiness detection. All of them share the same 
 
 Runs on every pull request. No action needed — the PR build includes the `flakiness-detection` sub-pipeline.
 
+It reports rather than blocks, unless your team opted in - see [Blocking on labeled PRs](#blocking-on-labeled-prs).
+
 The detector compares the PR branch against its merge base and selects:
 - **Changed tests** — every test file (`*Tests.java`, `*IT.java`, `*.yml` under `src/yamlRestTest/resources/`) added or modified in the PR.
 - **Unmuted tests** — every entry **removed** from `muted-tests.yml`.
@@ -185,6 +187,10 @@ PR, which means the job `state`/`exit_status` carry no signal at all — almost
 every job looks like `state=passed, exit_status=0`. But even without the
 wrapper, the richer taxonomy below would still be worth deriving.
 
+The one exception is a PR whose team opted into blocking (see "Blocking on
+labeled PRs" below). There the analyze step may exit non-zero, but nothing else
+about the run changes, and the batch jobs still look identical.
+
 ### How it works
 
 1. Each batch job's wrapper captures the wrapped command's return code `rc` and
@@ -250,12 +256,43 @@ also outside the batch predicate. The old in-pipeline compile gate keyed under
 `flakiness-detection:precompile` (which did produce that skipped-batch noise) has
 been removed.
 
+## Blocking on labeled PRs
+
+By default the pipeline reports and never blocks: `never-fail.sh` exits 0 whatever the tests did, because Buildkite's GitHub commit-status integration mirrors step state and ignores `soft_failed`, so annotating is the only way to report a failure without reddening the PR.
+A team that trusts the signal can opt out of that for its own PRs by adding its GitHub label to `BLOCKING_LABELS` in `domain.ts`.
+On a PR carrying one of those labels, proven flakiness fails the build.
+
+Nothing else about the run changes: detection, resolution, batching and reporting never look at labels, so a blocking PR and a non-blocking one execute identically and produce the same artifacts.
+
+**Only `flaky_detected` blocks** - a test case that actually failed on a re-run.
+`timeout`, `infra_fail`, `hang` and `not_applicable` do not, because they are the false failures the outcome taxonomy exists to separate; neither does `build_failed`, since the PR's own main build is already red for the same compile error.
+
+**The verdict lives in the analyze step**, which is why the batch steps keep their unconditional `exit 0` even on a labeled PR.
+A batch's `rc` cannot distinguish a proven flaky test from a timeout, a kernel OOM-kill, or a task Gradle skipped under `onlyIf`; only `deriveOutcome` can, and it runs in `analyze`.
+
+**The decision is made in one place.**
+`entrypoints/analyze.ts` owns it: `shouldBlock` is true when a job proved flakiness *and* `GITHUB_PR_LABELS` matches `BLOCKING_LABELS`, and only then does the step exit `FLAKINESS_PROVEN_EXIT_CODE`.
+Nothing upstream carries a "blocking" flag, so no step has to agree with any other about the policy, and adding another entrypoint cannot silently forget to pass it on.
+
+The analyze step is wrapped with `--hard-fail-rc <FLAKINESS_PROVEN_EXIT_CODE>` unconditionally, on every PR, which is what allows that exit code to reach Buildkite at all.
+That is not a second decision: the wrapper propagates one specific value and keeps returning 0 for every other, so the step can only go red by deliberately reaching the verdict above.
+Batch steps are never given the flag, because a gradle invocation that happened to exit with that value would fail a PR with no verdict behind it.
+
+Only the exit code is gated on the labels.
+The report annotation, the console output and `flakiness-outcomes.json` are identical on every PR, so the observability data never depends on who opted in, and the log always names the label that blocked (or says none did).
+The exit comes last, after the artifact and the annotation are written, and Buildkite uploads `artifact_paths` regardless of exit status, so a red run still publishes everything that explains it.
+
+Two caveats.
+Buildkite captures `GITHUB_PR_LABELS` when the build is created, so labelling an open PR takes effect on its next build - the same behaviour `allow-labels` has in `.buildkite/scripts/pull-request/pipeline.ts`.
+And the manually-triggered pipeline has no PR, hence no labels, so it is never blocking.
+
 ## File layout
 
 ```
 flakiness-detection/
   README.md
-  domain.ts              types (FlakinessRef, FlakinessPlan, PlanCommand, ClassifiedTest, ...), KIND_* tables, AGENTS/DEFAULT_AGENT_CONFIG
+  domain.ts              types (FlakinessRef, FlakinessPlan, PlanCommand, ClassifiedTest, ...), KIND_* tables, AGENTS/DEFAULT_AGENT_CONFIG,
+                         BLOCKING_LABELS + FLAKINESS_PROVEN_EXIT_CODE + matchedBlockingLabels (the blocking opt-in)
   detectors/
     unmutes.ts           muted-tests.yml diff → unmute refs (parse/diff kept; locate removed)
     explicit-list.ts     spec strings → explicit refs
@@ -273,7 +310,8 @@ flakiness-detection/
     manual.ts            bootstrap: FLAKINESS_CLASSES → explicit refs → refs.json → upload resolve pipeline
     local.ts             argv driven: refs → flakinessResolveProject → compile tasks → flakinessScan → planCommandsToRunnable → runLocally
     generate.ts          reads flakiness-plan.json → planCommandsToRunnable + upload batches/analyze; folds skip/buildFailed
-    analyze.ts           final BK step — classifies each job, uploads outcomes artifact + report annotation
+    analyze.ts           final BK step — classifies each job, uploads outcomes artifact + report annotation,
+                         and owns the blocking verdict (shouldBlock: proven flakiness + an opted-in PR label)
 
 build-tools-internal/.../gradle/internal/flakiness/   (the Java resolver)
   FlakinessResolvePlugin / FlakinessScanTask           root plugin + the scan task

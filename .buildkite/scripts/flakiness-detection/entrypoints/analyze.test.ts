@@ -1,8 +1,15 @@
 import { describe, expect, test } from "vitest";
 
-import type { SkippedTest } from "../domain.ts";
+import { BLOCKING_LABELS, type SkippedTest } from "../domain.ts";
 
-import { allTargetTasksSkipped, buildFailedPayload, isPrecompileFailure, notApplicablePayload } from "./analyze.ts";
+import {
+  allTargetTasksSkipped,
+  buildFailedPayload,
+  isPrecompileFailure,
+  notApplicablePayload,
+  provenFlakinessJobs,
+  shouldBlock,
+} from "./analyze.ts";
 
 describe("notApplicablePayload", () => {
   test("maps a skipped javaRestTest to a zeroed not_applicable record carrying the resolver's reason", () => {
@@ -95,6 +102,77 @@ describe("isPrecompileFailure", () => {
   test("false for malformed or empty marker content", () => {
     expect(isPrecompileFailure("not json")).toBe(false);
     expect(isPrecompileFailure("")).toBe(false);
+  });
+});
+
+describe("provenFlakinessJobs", () => {
+  test("counts only the jobs where a test actually failed on a re-run", () => {
+    const payloads = [
+      { outcome: "clean_pass" },
+      { outcome: "flaky_detected" },
+      { outcome: "flaky_detected" },
+    ];
+    expect(provenFlakinessJobs(payloads)).toHaveLength(2);
+  });
+
+  /**
+   * The false failures the outcome taxonomy exists to separate. If any of these could fail the step, an
+   * opted-in team would be blocked by agent trouble rather than by its own tests, which is exactly the
+   * experience that made the pipeline non-blocking in the first place.
+   */
+  test("no other outcome qualifies, including a timeout with no failing test", () => {
+    const payloads = [
+      { outcome: "timeout" },
+      { outcome: "infra_fail" },
+      { outcome: "hang" },
+      { outcome: "not_applicable" },
+      { outcome: "clean_pass" },
+    ];
+    expect(provenFlakinessJobs(payloads)).toEqual([]);
+  });
+
+  test("a build_failed PR is not blocked here - its own main build is already red", () => {
+    expect(provenFlakinessJobs([buildFailedPayload()])).toEqual([]);
+  });
+
+  /** A job that timed out *with* a real failure has proven flakiness, so it counts. */
+  test("a proven failure alongside an unrelated timeout still counts", () => {
+    expect(provenFlakinessJobs([{ outcome: "timeout" }, { outcome: "flaky_detected" }])).toHaveLength(1);
+  });
+
+  test("nothing to report when no job ran", () => {
+    expect(provenFlakinessJobs([])).toEqual([]);
+  });
+});
+
+describe("shouldBlock", () => {
+  const OPTED_IN = BLOCKING_LABELS[0];
+  const PROVEN = [{ outcome: "clean_pass" }, { outcome: "flaky_detected" }];
+  const CLEAN = [{ outcome: "clean_pass" }, { outcome: "timeout" }];
+
+  test("blocks only when flakiness was proven AND the PR opted in", () => {
+    expect(shouldBlock(PROVEN, `>bug,${OPTED_IN}`)).toBe(true);
+  });
+
+  test("a proven failure on a PR that did not opt in is reported, not blocked", () => {
+    // The default for the whole repo: the report and the outcomes artifact are identical either way, only
+    // the exit code differs.
+    expect(shouldBlock(PROVEN, ">bug,Team:Search")).toBe(false);
+  });
+
+  test("an opted-in PR with nothing proven still passes", () => {
+    expect(shouldBlock(CLEAN, OPTED_IN)).toBe(false);
+    expect(shouldBlock([], OPTED_IN)).toBe(false);
+  });
+
+  test("a build that did not compile is never blocked here", () => {
+    // Its own main build is already red for the same compile error.
+    expect(shouldBlock([buildFailedPayload()], OPTED_IN)).toBe(false);
+  });
+
+  test("no labels at all never blocks, which is what keeps the manual pipeline green", () => {
+    // GITHUB_PR_LABELS is unset outside a PR build, and the caller passes "" for that.
+    expect(shouldBlock(PROVEN, "")).toBe(false);
   });
 });
 

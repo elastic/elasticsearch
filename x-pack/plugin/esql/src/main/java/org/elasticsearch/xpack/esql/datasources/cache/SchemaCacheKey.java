@@ -119,12 +119,13 @@ public record SchemaCacheKey(
     }
 
     /**
-     * Reserved {@code formatType} suffix namespace: extension detection ({@code detectFormatType})
-     * derives {@code formatType} from a file name's last dot, so for any sane object name a
-     * {@code '#'}-suffixed formatType is minted only by an explicit factory. (A pathological object name
-     * literally containing {@code '#dataset-agg'} would collide on the suffix, but a per-file key carries a
-     * null {@code fileSetFingerprint} so it can never equal a dataset key - the only cost is that one file
-     * losing its warm enrichment, a miss, never a wrong answer.) Two members exist:
+     * Reserved {@code formatType} suffix namespace: the happy path is the registry format name
+     * ({@code parquet}, {@code csv}), which never contains {@code '#'}. Resolve failure still
+     * last-dot-falls-back, so a {@code '#'}-suffixed formatType is normally minted only by an
+     * explicit factory. A fallback suffix that {@code endsWith} {@link #DATASET_AGGREGATE_MARKER}
+     * would make {@link #isDatasetAggregate()} true on a per-file key, but a per-file key carries a
+     * null {@code fileSetFingerprint} so it can never equal a dataset key - the only cost is that
+     * one file losing its warm enrichment, a miss, never a wrong answer. Two members exist:
      * {@link #STRICT_DECLARED_SCHEMA_MARKER} (per-file entries on the strict-declared warm rail, which
      * the reconcile's contribution matching MUST still reach) and {@link #DATASET_AGGREGATE_MARKER}
      * (dataset-level aggregate entries, which contribution matching must NEVER reach - enforced in

@@ -48,6 +48,7 @@ public class StringColumnTempFileTests extends ColumnarStringTestCase {
                 randomChunkCodec(),
                 randomTargetChunkBytes(),
                 randomTargetChunkBytes(),
+                StringColumnOptions.DEFAULT_COMPRESSED_ORDINAL_BLOCK_SIZE,
                 ROOMY,
                 null,
                 dir,

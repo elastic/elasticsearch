@@ -2,7 +2,7 @@
 navigation_title: "Cluster settings"
 description: "Reference for ES|QL Data Federation cluster settings. Tune object limits, control request concurrency, and adjust file discovery and caching."
 applies_to:
-  stack: experimental 9.5+
+  stack: preview 9.5+
   serverless: unavailable
 products:
   - id: elasticsearch
@@ -35,7 +35,7 @@ These settings control how many concurrent requests each node sends to external 
 |---|---|---|
 | `esql.external.max_concurrent_requests` | `allocated processors * 3`, minimum 4 and maximum 100, further limited so concurrent 10 MiB reads stay within a quarter of heap (or half of `indices.breaker.request.limit` when tighter) | Maximum concurrent cloud API requests per storage scheme, per node. A positive value is still capped by that memory term, so an old explicit `16` cannot skip the budget. `0` removes the permit limit. Range 0–500. On tiny heaps the parse floor of 4 can exceed that memory term. Node-scoped: changing this setting, or tightening the request breaker, takes effect after a restart. |
 | `esql.external.throttle_max_retry_duration` | 30 | Maximum total time, in seconds, spent retrying throttled cloud API requests before failing the query. `0` removes the budget. Range 0–300 seconds. |
-| `esql.external.max_concurrent_segmenters` {applies_to}`stack: experimental 9.6+`<br>`esql.external.max_concurrent_segmentators` {applies_to}`stack: experimental =9.5` | `0` | Maximum number of file segmentation tasks that run concurrently. `0` derives the value automatically. Range 0–4096. |
+| `esql.external.max_concurrent_segmenters` {applies_to}`stack: preview 9.6+`<br>`esql.external.max_concurrent_segmentators` {applies_to}`stack: preview =9.5` | `0` | Maximum number of file segmentation tasks that run concurrently. `0` derives the value automatically. Range 0–4096. |
 
 ## Glob and file-discovery limits
 
@@ -52,8 +52,8 @@ These settings control which authentication modes data sources can use.
 
 | Setting | Default | Description |
 |---|---|---|
-| `esql.external.managed_identity.enabled` {applies_to}`stack: experimental 9.6+`<br>`esql.datasource.managed_identity.enabled` {applies_to}`stack: experimental 9.5, deprecated 9.6` | false | Enables `auth: "managed_identity"` (the node's own cloud identity through the instance metadata service (IMDS)). Operator-only. Intended for single-cloud, single-tenant deployments. Never enable in serverless or multi-tenant clusters. Refer to the managed identity row in [authentication models](esql-data-federation-sources.md#authentication) for guidance. |
-| `esql.external.federated_identity.enabled` {applies_to}`stack: experimental 9.6+`<br>`esql.datasource.federated_identity.enabled` {applies_to}`stack: experimental 9.5, deprecated 9.6` | false | Enables `auth: "federated_identity"` (OIDC-to-STS token exchange). Operator-only. Available on {{ech}} and {{serverless-short}}; not available on self-managed, {{ece}}, or {{eck}}. For setup details, refer to [connect with federated identity](esql-data-federation-federated-identity.md). |
+| `esql.external.managed_identity.enabled` {applies_to}`stack: preview 9.6+`<br>`esql.datasource.managed_identity.enabled` {applies_to}`stack: preview 9.5, deprecated 9.6` | false | Enables `auth: "managed_identity"` (the node's own cloud identity through the instance metadata service (IMDS)). Operator-only. Intended for single-cloud, single-tenant deployments. Never enable in serverless or multi-tenant clusters. Refer to the managed identity row in [authentication models](esql-data-federation-sources.md#authentication) for guidance. |
+| `esql.external.federated_identity.enabled` {applies_to}`stack: preview 9.6+`<br>`esql.datasource.federated_identity.enabled` {applies_to}`stack: preview 9.5, deprecated 9.6` | false | Enables `auth: "federated_identity"` (OIDC-to-STS token exchange). Operator-only. Available on {{ech}} and {{serverless-short}}; not available on self-managed, {{ece}}, or {{eck}}. For setup details, refer to [connect with federated identity](esql-data-federation-federated-identity.md). |
 
 
 ## Caching
@@ -62,15 +62,15 @@ These settings control the external-source cache, which stores inferred schemas,
 
 | Setting | Default | Description |
 |---|---|---|
-| `esql.external.cache.enabled` {applies_to}`stack: experimental 9.6+`<br>`esql.source.cache.enabled` {applies_to}`stack: experimental 9.5, deprecated 9.6` | true | Enables the external-source cache (inferred schemas and file listings). [Dynamic](docs-content://deploy-manage/stack-settings.md#dynamic-cluster-setting). |
-| `esql.external.cache.size` {applies_to}`stack: experimental 9.6+`<br>`esql.source.cache.size` {applies_to}`stack: experimental 9.5, deprecated 9.6` | 0.4% of heap | Memory budget for the cache. Applied at node startup only. |
+| `esql.external.cache.enabled` {applies_to}`stack: preview 9.6+`<br>`esql.source.cache.enabled` {applies_to}`stack: preview 9.5, deprecated 9.6` | true | Enables the external-source cache (inferred schemas and file listings). [Dynamic](docs-content://deploy-manage/stack-settings.md#dynamic-cluster-setting). |
+| `esql.external.cache.size` {applies_to}`stack: preview 9.6+`<br>`esql.source.cache.size` {applies_to}`stack: preview 9.5, deprecated 9.6` | 0.4% of heap | Memory budget for the cache. Applied at node startup only. |
 | `esql.source.cache.schema.ttl` | — | Deprecated and ignored. Inferred schemas are invalidated by file identity and bounded by the cache memory budget, not by a TTL. |
-| `esql.external.cache.listing.ttl` {applies_to}`stack: experimental 9.6+`<br>`esql.source.cache.listing.ttl` {applies_to}`stack: experimental 9.5, deprecated 9.6` | 30s | How long a file-listing result is cached. Applied at node startup only. |
-| `esql.external.cache.footer.size` {applies_to}`stack: experimental 9.6+` | 0.5% of heap | Memory budget for cached raw footer bytes (for example, Parquet footers), which are reused across the resolution, split discovery, and execution phases of a query and across back-to-back queries. The budget applies per columnar format reader. Accepts a percentage of heap or an absolute size, and must be greater than zero. Applied at node startup only. |
-| `esql.external.cache.footer.parsed.size` {applies_to}`stack: experimental 9.6+` | 1% of heap | Memory budget for cached deserialized footers, which avoid re-parsing a footer in every query phase. A parsed footer costs several times its serialized form and grows with column count rather than file size, so raise this when querying wide schemas across large file sets. Applies per columnar format reader, like `esql.external.cache.footer.size`. Applied at node startup only. |
-| `esql.external.cache.footer.ttl` {applies_to}`stack: experimental 9.6+` | 5m | How long a cached footer survives without being accessed. Shared by the raw and parsed footer caches. Footer entries are keyed by path and file length rather than modification time, so a file overwritten in place at the same length can be served from the cache until its entry expires. Lower this if your data files are mutated in place. Applied at node startup only. |
+| `esql.external.cache.listing.ttl` {applies_to}`stack: preview 9.6+`<br>`esql.source.cache.listing.ttl` {applies_to}`stack: preview 9.5, deprecated 9.6` | 30s | How long a file-listing result is cached. Applied at node startup only. |
+| `esql.external.cache.footer.size` {applies_to}`stack: preview 9.6+` | 0.5% of heap | Memory budget for cached raw footer bytes (for example, Parquet footers), which are reused across the resolution, split discovery, and execution phases of a query and across back-to-back queries. The budget applies per columnar format reader. Accepts a percentage of heap or an absolute size, and must be greater than zero. Applied at node startup only. |
+| `esql.external.cache.footer.parsed.size` {applies_to}`stack: preview 9.6+` | 1% of heap | Memory budget for cached deserialized footers, which avoid re-parsing a footer in every query phase. A parsed footer costs several times its serialized form and grows with column count rather than file size, so raise this when querying wide schemas across large file sets. Applies per columnar format reader, like `esql.external.cache.footer.size`. Applied at node startup only. |
+| `esql.external.cache.footer.ttl` {applies_to}`stack: preview 9.6+` | 5m | How long a cached footer survives without being accessed. Shared by the raw and parsed footer caches. Footer entries are keyed by path and file length rather than modification time, so a file overwritten in place at the same length can be served from the cache until its entry expires. Lower this if your data files are mutated in place. Applied at node startup only. |
 
 :::{note}
-:applies_to: stack: experimental 9.6+
+:applies_to: stack: preview 9.6+
 The `esql.source.cache.*` keys are accepted as deprecated fallbacks and emit a deprecation warning. You can set them in `elasticsearch.yml`, but you can't update them through the cluster settings API. Use the `esql.external.cache.*` keys for new configuration.
 :::

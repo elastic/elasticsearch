@@ -2,7 +2,7 @@
 navigation_title: "AWS static credentials"
 description: "Set up Amazon S3 static credentials for ES|QL Data Federation so Elasticsearch can read your private bucket with an access key and secret key."
 applies_to:
-  stack: experimental =9.5
+  stack: preview 9.5+
   serverless: unavailable
 products:
   - id: elasticsearch

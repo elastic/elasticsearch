@@ -2,7 +2,7 @@
 navigation_title: "Data Federation"
 description: "Query data stored in external cloud storage using ES|QL without ingesting it into Elasticsearch."
 applies_to:
-  stack: experimental =9.5
+  stack: preview 9.5+
   serverless: unavailable
 products:
   - id: elasticsearch
@@ -17,7 +17,7 @@ You can query data stored in compatible external data sources, using the same sy
 
 ## Requirements
 
-- This is an experimental feature and is not enabled by default. Refer to [Enable the feature](#enable-the-feature).
+- This feature is in technical preview and is not enabled by default. Refer to [Enable the feature](#enable-the-feature).
 - For {{ech}}, {{ece}}, and {{eck}} deployments or self-managed clusters, ES|QL Data Federation requires an [Enterprise subscription](https://www.elastic.co/subscriptions).
 
 ## Enable the feature

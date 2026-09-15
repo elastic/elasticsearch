@@ -19,7 +19,6 @@ import java.time.Instant;
 import java.util.ArrayList;
 import java.util.HashSet;
 import java.util.List;
-import java.util.Map;
 import java.util.Set;
 
 /**
@@ -48,7 +47,7 @@ public class FileListCompactorTests extends ESTestCase {
         for (int i = 0; i < keys.length; i++) {
             entries.add(new StorageEntry(StoragePath.of(keys[i]), 100L * (i + 1), mtime));
         }
-        PartitionMetadata pm = HivePartitionDetector.INSTANCE.detect(entries, Map.of());
+        PartitionMetadata pm = HivePartitionDetector.INSTANCE.detect(entries);
         return new GenericFileList(entries, pattern, pm == null || pm.isEmpty() ? null : pm);
     }
 
@@ -404,7 +403,7 @@ public class FileListCompactorTests extends ESTestCase {
         for (int i = 0; i < keys.length; i++) {
             entries.add(new StorageEntry(StoragePath.of(keys[i]), 100L * (i + 1), Instant.ofEpochMilli(mtimesMillis[i])));
         }
-        PartitionMetadata pm = HivePartitionDetector.INSTANCE.detect(entries, Map.of());
+        PartitionMetadata pm = HivePartitionDetector.INSTANCE.detect(entries);
         return new GenericFileList(entries, pattern, pm == null || pm.isEmpty() ? null : pm);
     }
 }

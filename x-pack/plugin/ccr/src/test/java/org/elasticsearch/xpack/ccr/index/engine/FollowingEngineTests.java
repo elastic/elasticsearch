@@ -404,7 +404,7 @@ public class FollowingEngineTests extends ESTestCase {
             EngineTestCase.waitForOpsToComplete(follower, leader.getProcessedLocalCheckpoint());
             assertThat(follower.getMaxSeqNoOfUpdatesOrDeletes(), equalTo(-1L));
             assertThat(getNumVersionLookups(follower), equalTo(0L));
-            assertThat(getDocIds(follower, true, false), equalTo(getDocIds(leader, true, false)));
+            assertThat(getDocIds(follower, true), equalTo(getDocIds(leader, true)));
 
             // Do not apply optimization for deletes or updates
             long versionLookUps = 0;
@@ -420,11 +420,11 @@ public class FollowingEngineTests extends ESTestCase {
             EngineTestCase.waitForOpsToComplete(follower, leader.getProcessedLocalCheckpoint());
             assertThat(getNumVersionLookups(follower), greaterThanOrEqualTo(versionLookUps));
             assertThat(follower.getMaxSeqNoOfUpdatesOrDeletes(), equalTo(leader.getMaxSeqNoOfUpdatesOrDeletes()));
-            assertThat(getDocIds(follower, true, false), equalTo(getDocIds(leader, true, false)));
+            assertThat(getDocIds(follower, true), equalTo(getDocIds(leader, true)));
             // Apply optimization for documents that do not exist
             long moreDocs = between(1, 100);
             versionLookUps = getNumVersionLookups(follower);
-            Set<String> docIds = getDocIds(follower, true, false).stream().map(doc -> doc.id()).collect(Collectors.toSet());
+            Set<String> docIds = getDocIds(follower, true).stream().map(doc -> doc.id()).collect(Collectors.toSet());
             for (int i = 0; i < moreDocs; i++) {
                 String docId = randomValueOtherThanMany(docIds::contains, () -> Integer.toString(between(1, 1000)));
                 docIds.add(docId);
@@ -433,7 +433,7 @@ public class FollowingEngineTests extends ESTestCase {
             EngineTestCase.waitForOpsToComplete(follower, leader.getProcessedLocalCheckpoint());
             assertThat(follower.getMaxSeqNoOfUpdatesOrDeletes(), equalTo(leader.getMaxSeqNoOfUpdatesOrDeletes()));
             assertThat(getNumVersionLookups(follower), equalTo(versionLookUps));
-            assertThat(getDocIds(follower, true, false), equalTo(getDocIds(leader, true, false)));
+            assertThat(getDocIds(follower, true), equalTo(getDocIds(leader, true)));
         });
     }
 
@@ -502,7 +502,7 @@ public class FollowingEngineTests extends ESTestCase {
         runFollowTest((leader, follower) -> {
             EngineTestCase.concurrentlyApplyOps(ops, leader);
             EngineTestCase.waitForOpsToComplete(follower, leader.getProcessedLocalCheckpoint());
-            assertThat(getDocIds(follower, true, false), equalTo(getDocIds(leader, true, false)));
+            assertThat(getDocIds(follower, true), equalTo(getDocIds(leader, true)));
 
             leader.delete(deleteForPrimary("id"));
             EngineTestCase.waitForOpsToComplete(follower, leader.getProcessedLocalCheckpoint());
@@ -627,7 +627,7 @@ public class FollowingEngineTests extends ESTestCase {
                     thread.join();
                 }
                 assertThat(follower.getMaxSeqNoOfUpdatesOrDeletes(), greaterThanOrEqualTo(leader.getMaxSeqNoOfUpdatesOrDeletes()));
-                assertThat(getDocIds(follower, true, false), equalTo(getDocIds(leader, true, false)));
+                assertThat(getDocIds(follower, true), equalTo(getDocIds(leader, true)));
                 EngineTestCase.assertConsistentHistoryBetweenTranslogAndLuceneIndex(follower);
                 EngineTestCase.assertAtMostOneLuceneDocumentPerSequenceNumber(follower);
             }
@@ -892,7 +892,7 @@ public class FollowingEngineTests extends ESTestCase {
                         assertThat(failure.getExistingPrimaryTerm().getAsLong(), equalTo(operationWithTerms.get(op.seqNo())));
                     }
                 }
-                for (DocIdSeqNoAndSource docId : getDocIds(followingEngine, true, false)) {
+                for (DocIdSeqNoAndSource docId : getDocIds(followingEngine, true)) {
                     assertThat(docId.primaryTerm(), equalTo(operationWithTerms.get(docId.seqNo())));
                 }
                 // Replica should accept duplicates
@@ -906,7 +906,7 @@ public class FollowingEngineTests extends ESTestCase {
                     Engine.Result result = applyOperation(followingEngine, op, newTerm, nonPrimary);
                     assertThat(result.getResultType(), equalTo(Engine.Result.Type.SUCCESS));
                 }
-                for (DocIdSeqNoAndSource docId : getDocIds(followingEngine, true, false)) {
+                for (DocIdSeqNoAndSource docId : getDocIds(followingEngine, true)) {
                     assertThat(docId.primaryTerm(), equalTo(operationWithTerms.get(docId.seqNo())));
                 }
             }

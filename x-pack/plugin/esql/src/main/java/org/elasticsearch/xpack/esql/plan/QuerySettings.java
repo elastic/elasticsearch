@@ -191,8 +191,7 @@ public final class QuerySettings {
             + " exact name. Other abstractions a wildcard matches are unaffected.\n\n"
             + "The default itself is configurable. If a query does not specify a value, the "
             + "`esql.query.settings.dataset_wildcards` cluster setting supplies it. If that cluster setting is not "
-            + "configured either, the value is `false`. "
-            + "{applies_to}`{\"stack\": \"ga 9.6+\", \"serverless\": \"unavailable\"}`"
+            + "configured either, the value is `false`."
     )
     public static final QuerySettingDef<Boolean> DATASET_WILDCARDS = QuerySettingDef.bool("dataset_wildcards")
         .withDefault(Boolean.FALSE)

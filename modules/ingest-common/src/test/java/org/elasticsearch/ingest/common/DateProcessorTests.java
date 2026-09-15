@@ -387,7 +387,7 @@ public class DateProcessorTests extends ESTestCase {
         document.put("date_as_string", "not-a-date");
         IngestDocument ingestDocument = RandomDocumentPicks.randomIngestDocument(random(), document);
         new CompoundProcessor(false, List.of(dateProcessor), List.of(onFailureProcessor)).execute(ingestDocument);
-        assertThat(capturedMessage[0], equalTo("Could not fully parse datetime"));
+        assertThat(capturedMessage[0], equalTo("failed to parse date field [not-a-date] with format [iso8601]"));
     }
 
     public void testOutputFormat() {
@@ -476,7 +476,7 @@ public class DateProcessorTests extends ESTestCase {
         document.put("date_as_string", "not-a-date");
         IngestDocument ingestDocument = RandomDocumentPicks.randomIngestDocument(random(), document);
         new CompoundProcessor(false, List.of(dateProcessor), List.of(onFailureProcessor)).execute(ingestDocument);
-        assertThat(capturedMessage[0], equalTo("Text 'not-a-date' could not be parsed at index 0"));
+        assertThat(capturedMessage[0], equalTo("failed to parse date field [not-a-date] with format [uuuu-MM-dd]"));
     }
 
     public void testMustacheTemplateExecutesAtMostTwiceWithMultipleFormats() {

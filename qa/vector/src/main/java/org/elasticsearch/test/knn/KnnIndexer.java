@@ -487,7 +487,9 @@ public class KnnIndexer {
                             ordinal = ov.ordinal();
                             field = new KnnFloatVectorField(VECTOR_FIELD, ov.vector(), fieldType);
                         }
-                        case FLOAT16 -> throw new IllegalStateException("IEEE FLOAT16 is not supported");
+                        case FLOAT16 -> {
+                            throw new IllegalStateException("IEEE FLOAT16 is not supported");
+                        }
                     }
 
                     Document doc = documentFactory.createDocument(field, ordinal);

@@ -80,14 +80,23 @@ public final class TextRowRenderer {
         for (int row = 0; row < parsed.rows().size(); row++) {
             Object[] values = parsed.rows().get(row);
             for (int column = 0; column < values.length; column++) {
-                out.append(column == 0 ? "" : delimiter).append(cell(values[column], row, column));
+                out.append(column == 0 ? "" : delimiter).append(cell(values[column], row, column, parsed.authoredBlank(row, column)));
             }
             out.append('\n');
         }
         return out.toString();
     }
 
-    private String cell(Object value, int row, int column) {
+    private String cell(Object value, int row, int column, boolean authoredBlank) {
+        if (value == null && authoredBlank) {
+            // The source had a BLANK here, not the literal null. Both arrive as Java null -- the parser
+            // collapses them so a columnar twin of an UNDECLARED dataset answers like the CSV read, which
+            // infers a blank as null. A text rendering must not inherit that collapse: writing the null
+            // token here put a null in the bytes where the source had a blank, and a declared keyword
+            // column then read null where the contract says it owes the empty string. Only ESCAPED showed
+            // it, because QUOTED and PLAIN spell a null as an empty field anyway.
+            return "";
+        }
         if (value == null) {
             // \N in ESCAPED, empty elsewhere: an escaped empty field is indistinguishable from an empty
             // string, and the two mean different things to the reader.

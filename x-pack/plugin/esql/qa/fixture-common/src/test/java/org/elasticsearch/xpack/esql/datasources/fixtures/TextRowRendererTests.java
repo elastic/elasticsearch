@@ -9,6 +9,8 @@ package org.elasticsearch.xpack.esql.datasources.fixtures;
 
 import org.elasticsearch.test.ESTestCase;
 
+import java.nio.file.Files;
+import java.nio.file.Path;
 import java.util.List;
 
 import static org.hamcrest.Matchers.containsString;
@@ -139,6 +141,32 @@ public class TextRowRendererTests extends ESTestCase {
     public void testNullSpellingUsesTheConfiguredEscape() {
         String out = new TextRowRenderer(',', '"', '~', TextRowRenderer.Dialect.ESCAPED, false).render(fixture(new Object[] { null, 1 }));
         assertThat(out, equalTo("~N,1\n"));
+    }
+
+
+    /**
+     * A blank source cell must stay a blank in every dialect, and a literal {@code null} must stay a null.
+     *
+     * <p>The parser maps both to Java {@code null} so a columnar twin of an UNDECLARED dataset answers like
+     * the CSV read of the same file. A text rendering cannot inherit that: ESCAPED spells a null {@code \N}
+     * and a blank as an empty field, so an authored blank came out as a null token and a declared keyword
+     * column then read {@code null} where the contract owes {@code ""}. QUOTED and PLAIN hid it, because a
+     * null renders empty there and reads back as the blank it started as -- which is why this asserts on
+     * both, not only on the dialect that failed.
+     */
+    public void testBlankStaysBlankAndLiteralNullStaysNullInEveryDialect() throws Exception {
+        Path src = createTempFile("blank", ".csv");
+        Files.writeString(src, "name:keyword,age:integer\nalice,30\n,31\nnull,32\n");
+        CsvFixtureParser.CsvFixtureResult parsed = CsvFixtureParser.parseCsvFile(src);
+
+        String escaped = new TextRowRenderer(',', TextRowRenderer.Dialect.ESCAPED, true).render(parsed);
+        assertThat("the blank row keeps a blank field", escaped, containsString("\n,31\n"));
+        assertThat("the literal null row keeps the null token", escaped, containsString("\\N,32"));
+
+        for (TextRowRenderer.Dialect d : List.of(TextRowRenderer.Dialect.QUOTED, TextRowRenderer.Dialect.PLAIN)) {
+            String out = new TextRowRenderer(',', d, true).render(parsed);
+            assertThat(d + " keeps the blank a blank", out, containsString("\n,31\n"));
+        }
     }
 
 }

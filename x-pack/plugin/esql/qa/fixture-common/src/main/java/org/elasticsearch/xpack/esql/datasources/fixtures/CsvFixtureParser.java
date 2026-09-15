@@ -57,6 +57,7 @@ public final class CsvFixtureParser {
         throws IOException {
         List<ColumnSpec> schema = new ArrayList<>();
         List<Object[]> rows = new ArrayList<>();
+        Set<Long> authoredBlanks = new HashSet<>();
 
         try (BufferedReader reader = Files.newBufferedReader(path, StandardCharsets.UTF_8)) {
             String line;
@@ -94,6 +95,9 @@ public final class CsvFixtureParser {
                     }
                     Object[] row = new Object[entries.length];
                     for (int i = 0; i < entries.length; i++) {
+                        if (entries[i] != null && entries[i].trim().isEmpty()) {
+                            authoredBlanks.add(CsvFixtureResult.key(rows.size(), i));
+                        }
                         row[i] = parseCell(entries[i], schema.get(i).type(), quote, escape);
                     }
                     rows.add(row);
@@ -106,7 +110,7 @@ public final class CsvFixtureParser {
             }
         }
 
-        return new CsvFixtureResult(schema, rows);
+        return new CsvFixtureResult(schema, rows, authoredBlanks);
     }
 
     /**
@@ -535,5 +539,29 @@ public final class CsvFixtureParser {
 
     public record ColumnSpec(String name, String type) {}
 
-    public record CsvFixtureResult(List<ColumnSpec> schema, List<Object[]> rows) {}
+    /**
+     * @param authoredBlanks cells whose source token was BLANK, as opposed to the literal {@code null}.
+     *                       {@link #parseCell} maps both to Java {@code null} on purpose -- see its comment --
+     *                       so the values alone cannot tell them apart, and the columnar generators depend on
+     *                       that collapse. A text rendering cannot: ESCAPED spells a null {@code \N} and a
+     *                       blank as an empty field, so rendering an authored blank from a Java null wrote a
+     *                       null token where the source had a blank, and the reader then answered {@code null}
+     *                       on a declared keyword column that owes {@code ""}. QUOTED and PLAIN hid it,
+     *                       because a null renders empty there and reads back as the blank it started as.
+     */
+    public record CsvFixtureResult(List<ColumnSpec> schema, List<Object[]> rows, Set<Long> authoredBlanks) {
+
+        public CsvFixtureResult(List<ColumnSpec> schema, List<Object[]> rows) {
+            this(schema, rows, Set.of());
+        }
+
+        /** Whether this cell's source token was a blank rather than the literal {@code null}. */
+        public boolean authoredBlank(int row, int column) {
+            return authoredBlanks.contains(key(row, column));
+        }
+
+        static Long key(int row, int column) {
+            return ((long) row << 32) | (column & 0xffffffffL);
+        }
+    }
 }

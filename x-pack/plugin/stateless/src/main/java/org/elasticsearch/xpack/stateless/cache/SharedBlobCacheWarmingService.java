@@ -1706,7 +1706,7 @@ public class SharedBlobCacheWarmingService {
 
             locations.forEach(
                 (blobFile, length) -> scheduleWarmingTask(
-                    new WarmBlobLocationTask(warmingRun.type, new BlobLocation(blobFile, 0, length), this::isCancelled, listeners.acquire())
+                    new WarmBlobLocationTask(warmingRun.type, new BlobLocation(blobFile, 0, length), listeners.acquire())
                 )
             );
         }
@@ -1815,7 +1815,6 @@ public class SharedBlobCacheWarmingService {
                         // just to compute the ending region. With this we avoid having to know the blob length
                         // upfront and we can just let the cache to fetch the entire region 0.
                         new BlobLocation(blobFile, 0, 1),
-                        this::isCancelled,
                         listeners.acquire()
                     )
                 );
@@ -1917,18 +1916,86 @@ public class SharedBlobCacheWarmingService {
             tasksCount.incrementAndGet();
         }
 
+        /// Warms a single blob region. Holds the [#warmingTaskRunner] slot until the [SharedBlobCacheService#maybeFetchRegion] completes
+        /// and so the number of the in flight to-read regions is bounded by the limit of [#warmingTaskRunner].
+        protected class WarmBlobRegionTask extends AbstractWarmingTask {
+            private final BlobFile blobFile;
+            private final int region;
+            private final ActionListener<Void> listener;
+
+            WarmBlobRegionTask(Type type, BlobFile blobFile, int region, ActionListener<Void> listener) {
+                super(type, warmingTaskNumber.getAndIncrement());
+                this.blobFile = Objects.requireNonNull(blobFile);
+                this.region = region;
+                this.listener = listener;
+                logger.trace("{} {}: scheduled {} region {}", warmingRun.shardId(), warmingRun.type(), blobFile, region);
+            }
+
+            @Override
+            public void onResponse(Releasable releasable) {
+                // Indexing-only warmer. Thus, can pass UNKNOWN cache-region timestamps in maybeFetchRegion later as timestamps are only
+                // used by search shards.
+                assert warmingRun.type == Type.INDEXING_MERGE || warmingRun.type == Type.INDEXING_BCC_HEADER_PREWARM : warmingRun.type;
+
+                var releasedListener = ActionListener.releaseAfter(listener, releasable);
+                if (isCancelled()) {
+                    releasedListener.onResponse(null);
+                    return;
+                }
+
+                var cacheKey = new FileCacheKey(warmingRun.shardId(), blobFile.primaryTerm(), blobFile.blobName());
+                long offset = (long) region * cacheService.getRegionSize();
+
+                cacheService.maybeFetchRegion(
+                    cacheKey,
+                    region,
+                    cacheService.getRegionSize(),
+                    new LazyRangeMissingHandler<>(
+                        () -> new SequentialRangeMissingHandler(
+                            WarmBlobRegionTask.this,
+                            cacheKey.fileName(),
+                            ByteRange.of(offset, offset + cacheService.getRegionSize()),
+                            directory.getCacheBlobReaderForWarming(blobFile),
+                            () -> writeBuffer.get().clear(),
+                            totalBytesCopied::addAndGet,
+                            StatelessPlugin.PREWARM_THREAD_POOL
+                        )
+                    ),
+                    fetchExecutor,
+                    SharedBlobCacheService.UNKNOWN_TIMESTAMP,
+                    releasedListener.map(b -> null)
+                );
+            }
+
+            @Override
+            public void onFailure(Exception e) {
+                logger.error(
+                    () -> format("%s %s failed to warm blob %s region %d", warmingRun.shardId(), warmingRun.type(), blobFile, region),
+                    e
+                );
+                listener.onFailure(e);
+            }
+
+            @Override
+            public String toString() {
+                return "WarmBlobRegionTask{blobFile=" + blobFile + ", region=" + region + "}";
+            }
+        }
+
+        /**
+         * Splits a blob into per-region {@link WarmBlobRegionTask}s enqueued at the same priority. Does no I/O itself, so it releases its
+         * {@link #warmingTaskRunner} slot immediately; completion is tracked separately via the {@link RefCountingListener}.
+         */
         protected class WarmBlobLocationTask extends AbstractWarmingTask {
 
             private final BlobLocation blobLocation;
             private final BlobFile blobFile;
-            private final BooleanSupplier isCancelled;
             private final ActionListener<Void> listener;
 
-            WarmBlobLocationTask(Type type, BlobLocation blobLocation, BooleanSupplier isCancelled, ActionListener<Void> listener) {
+            WarmBlobLocationTask(Type type, BlobLocation blobLocation, ActionListener<Void> listener) {
                 super(type, warmingTaskNumber.getAndIncrement());
                 this.blobLocation = Objects.requireNonNull(blobLocation);
                 this.blobFile = blobLocation.blobFile();
-                this.isCancelled = isCancelled;
                 this.listener = listener;
                 logger.trace("{} {}: scheduled {}", warmingRun.shardId(), warmingRun.type(), blobLocation);
             }
@@ -1938,39 +2005,19 @@ public class SharedBlobCacheWarmingService {
                 // Indexing-only warmer. Thus, can pass UNKNOWN cache-region timestamps in maybeFetchRegion later as timestamps are only
                 // used by search shards.
                 assert warmingRun.type == Type.INDEXING_MERGE || warmingRun.type == Type.INDEXING_BCC_HEADER_PREWARM : warmingRun.type;
-                var cacheKey = new FileCacheKey(warmingRun.shardId(), blobFile.primaryTerm(), blobFile.blobName());
                 int endingRegion = cacheService.getEndingRegion(blobLocation.fileLength());
 
                 // TODO: Evaluate reducing to fewer fetches in the future. For example, reading multiple fetches in a single read.
-                try (RefCountingListener ref = new RefCountingListener(ActionListener.releaseAfter(listener, releasable))) {
+                try (RefCountingListener ref = new RefCountingListener(listener)) {
                     for (int i = 0; i <= endingRegion; i++) {
                         if (isCancelled()) {
                             // Haven't acquired a listener yet so nothing to release either.
                             break;
                         }
-
-                        long offset = (long) i * cacheService.getRegionSize();
-                        cacheService.maybeFetchRegion(
-                            cacheKey,
-                            i,
-                            cacheService.getRegionSize(),
-                            new LazyRangeMissingHandler<>(
-                                () -> new SequentialRangeMissingHandler(
-                                    WarmBlobLocationTask.this,
-                                    cacheKey.fileName(),
-                                    ByteRange.of(offset, offset + cacheService.getRegionSize()),
-                                    directory.getCacheBlobReaderForWarming(blobFile),
-                                    () -> writeBuffer.get().clear(),
-                                    totalBytesCopied::addAndGet,
-                                    StatelessPlugin.PREWARM_THREAD_POOL
-                                )
-                            ),
-                            fetchExecutor,
-                            SharedBlobCacheService.UNKNOWN_TIMESTAMP,
-                            ref.acquire().map(b -> null)
-                        );
+                        warmingTaskRunner.enqueueTask(new WarmBlobRegionTask(type, blobFile, i, ref.acquire()));
                     }
                 }
+                releasable.close();
             }
 
             @Override

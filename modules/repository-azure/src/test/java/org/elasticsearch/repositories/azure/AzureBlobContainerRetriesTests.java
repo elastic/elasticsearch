@@ -55,6 +55,7 @@ import org.elasticsearch.threadpool.ThreadPool;
 import org.junit.After;
 import org.junit.Before;
 
+import java.io.ByteArrayInputStream;
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.io.InputStream;
@@ -72,7 +73,9 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.OptionalInt;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.stream.Collectors;
@@ -503,6 +506,133 @@ public class AzureBlobContainerRetriesTests extends AbstractBlobContainerRetries
             }
         });
         assertEquals(blobSize, bytesReceived.get());
+    }
+
+    /**
+     * Demonstrates that {@code writeBlobAtomic} can call {@code reset()} on a stream that is provided to {@code stageBlock} while a
+     * previous {@code read()} on that same stream is still executing on another thread.
+     *
+     * <p>When the per-try timeout fires on the client, the Azure SDK retries the request by re-subscribing to the body {@code Flux}.
+     * The {@code Flux.defer} wrapper in {@code AzureBlobStore.toFlux} calls {@code stream.reset()} on re-subscription, but the previous
+     * {@code Mono.fromCallable} thread is never interrupted — it remains blocked inside {@code stream.read()} as real disk I/O would.
+     * This creates a data race between the retry thread calling {@code reset()} and the old thread still inside {@code read()}.
+     *
+     * <p>Using a client-side timeout (rather than a server error response) is closer to the actual race: a server 500 completes the
+     * full HTTP request/response cycle before the retry begins, whereas a timeout fires while the old request is still in-flight, so
+     * the retry can re-subscribe to the body Flux before the old subscription's cancellation has reached the reading thread.
+     */
+    public void testWriteBlobAtomicResetsStreamDuringInFlightRead() throws Exception {
+        final AtomicBoolean raceDetected = new AtomicBoolean(false);
+        final AtomicBoolean reading = new AtomicBoolean(false);
+        final CountDownLatch readStarted = new CountDownLatch(1);
+        final CountDownLatch readReleased = new CountDownLatch(1);
+
+        final long blockSize = ByteSizeUnit.MB.toBytes(1);
+        final byte[] blockData = randomBytes(Math.toIntExact(blockSize));
+        final byte[] block1Data = randomBytes(Math.toIntExact(blockSize));
+
+        // A stream for block 0 that blocks inside read() on the first call and records any concurrent reset().
+        final InputStream racyStream = new InputStream() {
+            int pos = 0;
+            int markedPos = 0;
+
+            @Override
+            public int read(byte[] b, int off, int len) throws IOException {
+                if (readStarted.getCount() > 0) {
+                    reading.set(true);
+                    readStarted.countDown();
+                    // Simulate non-interruptible disk I/O: real InputStream.read() on a file does not
+                    // respond to thread interrupts. Reactor's boundedElastic scheduler may interrupt this
+                    // thread on subscription cancellation; ignoring it keeps `reading` true until reset()
+                    // explicitly releases us, making the race detectable.
+                    final long deadline = System.nanoTime() + TimeUnit.SECONDS.toNanos(30);
+                    while (readReleased.getCount() > 0 && System.nanoTime() < deadline) {
+                        try {
+                            readReleased.await(1L, TimeUnit.SECONDS);
+                        } catch (InterruptedException e) {
+                            // ignore: keep waiting to simulate non-interruptible I/O
+                        }
+                    }
+                    reading.set(false);
+                }
+                int n = Math.min(len, blockData.length - pos);
+                if (n <= 0) return -1;
+                System.arraycopy(blockData, pos, b, off, n);
+                pos += n;
+                return n;
+            }
+
+            @Override
+            public void mark(int readLimit) {
+                markedPos = pos;
+            }
+
+            @Override
+            public void reset() {
+                if (reading.get()) {
+                    raceDetected.set(true);
+                    readReleased.countDown();
+                }
+                pos = markedPos;
+            }
+
+            @Override
+            public boolean markSupported() {
+                return true;
+            }
+
+            @Override
+            public int read() throws IOException {
+                byte[] b = new byte[1];
+                int n = read(b, 0, 1);
+                return n == -1 ? -1 : (b[0] & 0xFF);
+            }
+        };
+
+        final int maxRetries = between(2, 4);
+        final long totalBlobSize = blockSize * 2;
+        // 1-second per-try timeout: the blocked read() stalls the body Flux, so no request is sent and
+        // no response arrives. After 1s, the client-side tryTimeoutDuration fires and the SDK retries
+        // by re-subscribing to the Flux (calling reset()) while Thread A is still inside read().
+        final BlobContainer blobContainer = createBlobContainer(
+            maxRetries,
+            null,
+            TimeValue.timeValueSeconds(1),
+            null,
+            null,
+            null,
+            null,
+            null
+        );
+
+        // Hold the connection open without sending any response so that the client's per-try timeout
+        // fires. readReleased is released when reset() is called by the first retry; after that,
+        // subsequent retry requests find the latch already at 0 and are closed immediately.
+        httpServer.createContext(downloadStorageEndpoint(blobContainer, "write_blob_atomic_race"), exchange -> {
+            try {
+                if ("PUT".equals(exchange.getRequestMethod())) {
+                    readStarted.await(10L, TimeUnit.SECONDS);
+                    readReleased.await(30L, TimeUnit.SECONDS);
+                }
+            } catch (InterruptedException e) {
+                Thread.currentThread().interrupt();
+            } finally {
+                exchange.close();
+            }
+        });
+
+        final BlobContainer.BlobMultiPartInputStreamProvider provider = (offset, length) -> offset == 0
+            ? racyStream
+            : new ByteArrayInputStream(block1Data, 0, Math.toIntExact(length));
+
+        boolean threw = false;
+        try {
+            blobContainer.writeBlobAtomic(randomPurpose(), "write_blob_atomic_race", totalBlobSize, provider, false, Runnable::run);
+        } catch (Exception | AssertionError e) {
+            threw = true;
+        }
+        assertTrue("writeBlobAtomic should have thrown because all retries fail", threw);
+        assertTrue("reset() should be called while read() is still executing on the previous thread", raceDetected.get());
     }
 
     public void testRetryUntilFail() throws Exception {

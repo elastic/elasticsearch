@@ -13,6 +13,7 @@ import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.service.ClusterService;
+import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.indices.TestIndexNameExpressionResolver;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.test.ESSingleNodeTestCase;
@@ -38,10 +39,19 @@ public abstract class AbstractEnrichTestCase extends ESSingleNodeTestCase {
         IndexNameExpressionResolver resolver = TestIndexNameExpressionResolver.newInstance();
         CountDownLatch latch = new CountDownLatch(1);
         AtomicReference<Exception> error = new AtomicReference<>();
-        EnrichStore.putPolicy(Metadata.DEFAULT_PROJECT_ID, name, policy, clusterService, resolver, e -> {
-            error.set(e);
-            latch.countDown();
-        });
+        EnrichStore.putPolicy(
+            Metadata.DEFAULT_PROJECT_ID,
+            name,
+            policy,
+            Integer.MAX_VALUE,
+            ByteSizeValue.ofGb(1),
+            clusterService,
+            resolver,
+            e -> {
+                error.set(e);
+                latch.countDown();
+            }
+        );
         latch.await();
         return error;
     }

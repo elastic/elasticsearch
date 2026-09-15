@@ -37,7 +37,8 @@ public class ViewMetadataIT extends AbstractEsqlIntegTestCase {
         Map.entry("view_languages_nested_b_it", "FROM view_languages_nested_c_it METADATA _index | EVAL viewB_index = _index"),
         Map.entry("view_languages_nested_a_it", "FROM view_languages_nested_b_it METADATA _index | EVAL viewA_index = _index"),
         Map.entry("view_languages_all_metadata_it", "FROM languages METADATA _index, _id, _version, _score, _ignored, _index_mode"),
-        Map.entry("view_languages_it", "FROM languages")
+        Map.entry("view_languages_it", "FROM languages"),
+        Map.entry("view_logs_exclusion_it", "FROM view_it_logs*, -view_it_logs_archive")
     );
 
     private final List<String> createdViews = new ArrayList<>();
@@ -84,6 +85,17 @@ public class ViewMetadataIT extends AbstractEsqlIntegTestCase {
         bulk.add(prepareIndex("languages").setSource("language_code", 4, "language_name", "German"));
         bulk.setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE).get();
         ensureGreen("languages");
+    }
+
+    @Before
+    public void createLogsIndices() {
+        for (String name : List.of("view_it_logs_a", "view_it_logs_b", "view_it_logs_archive")) {
+            if (indexExists(name)) {
+                continue;
+            }
+            assertAcked(client().admin().indices().prepareCreate(name).setMapping("tag", "type=keyword").get());
+            client().prepareIndex(name).setSource("tag", name).setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE).get();
+        }
     }
 
     public void testNestedViewMetadataPassesThroughAllLevels() {
@@ -176,6 +188,37 @@ public class ViewMetadataIT extends AbstractEsqlIntegTestCase {
             ex.getMessage(),
             equalTo("Found 2 problems\nline 1:1: unresolved metadata fields: [?_fake]\nline 1:33: Unresolved metadata pattern [_fake]")
         );
+    }
+
+    public void testViewWithIndexPatternExclusionOmitsExcludedIndex() {
+        assumeTrue("requires OUTER_METADATA_NULL_INJECTION", Cap.OUTER_METADATA_NULL_INJECTION.isEnabled());
+        assumeTrue("requires VIEWS_WITH_NO_BRANCHING", Cap.VIEWS_WITH_NO_BRANCHING.isEnabled());
+
+        try (var response = run("FROM view_logs_exclusion_it METADATA _index | KEEP tag, _index | SORT tag")) {
+            var rows = getValuesList(response);
+            assertThat(rows.size(), equalTo(2));
+            assertThat(rows.get(0).get(0), equalTo("view_it_logs_a"));
+            assertThat(rows.get(0).get(1), nullValue());
+            assertThat(rows.get(1).get(0), equalTo("view_it_logs_b"));
+            assertThat(rows.get(1).get(1), nullValue());
+        }
+    }
+
+    public void testViewExclusionScopeDoesNotBleedToSiblingSource() {
+        assumeTrue("requires OUTER_METADATA_NULL_INJECTION", Cap.OUTER_METADATA_NULL_INJECTION.isEnabled());
+        assumeTrue("requires VIEWS_WITH_BRANCHING", Cap.VIEWS_WITH_BRANCHING.isEnabled());
+
+        try (var response = run("FROM view_logs_exclusion_it, view_it_logs_archive METADATA _index | KEEP tag, _index | SORT tag")) {
+            var rows = getValuesList(response);
+            // archive appears between a and b lexicographically
+            assertThat(rows.size(), equalTo(3));
+            assertThat(rows.get(0).get(0), equalTo("view_it_logs_a"));
+            assertThat(rows.get(0).get(1), nullValue());
+            assertThat(rows.get(1).get(0), equalTo("view_it_logs_archive"));
+            assertThat(rows.get(1).get(1), equalTo("view_it_logs_archive"));
+            assertThat(rows.get(2).get(0), equalTo("view_it_logs_b"));
+            assertThat(rows.get(2).get(1), nullValue());
+        }
     }
 
     private static PutViewAction.Request putViewRequest(String name, String query) {

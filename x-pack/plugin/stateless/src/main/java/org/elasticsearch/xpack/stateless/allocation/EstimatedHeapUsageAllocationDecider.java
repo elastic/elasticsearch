@@ -95,7 +95,7 @@ public class EstimatedHeapUsageAllocationDecider extends AbstractEstimatedHeapAl
     /**
      * Returns the configuration for the estimated heap usage monitor.
      */
-    public static EstimatedHeapUsageMonitor.Configuration estimatedHeapConfiguration() {
+    public static EstimatedHeapUsageMonitor.Configuration monitorConfiguration() {
         return new EstimatedHeapUsageMonitor.Configuration(
             "estimated heap",
             InternalClusterInfoService.CLUSTER_ROUTING_ALLOCATION_ESTIMATED_HEAP_THRESHOLD_DECIDER_ENABLED,

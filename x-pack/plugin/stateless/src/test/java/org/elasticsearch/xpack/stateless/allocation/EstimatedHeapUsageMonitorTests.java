@@ -302,7 +302,7 @@ public class EstimatedHeapUsageMonitorTests extends ESTestCase {
             clusterSettings,
             clusterStateSupplier,
             rerouteService,
-            EstimatedHeapUsageAllocationDecider.estimatedHeapConfiguration()
+            EstimatedHeapUsageAllocationDecider.monitorConfiguration()
         );
     }
 

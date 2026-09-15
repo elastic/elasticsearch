@@ -974,7 +974,7 @@ public class StatelessPlugin extends Plugin
                     clusterService.getClusterSettings(),
                     clusterService::state,
                     rerouteService,
-                    EstimatedHeapUsageAllocationDecider.estimatedHeapConfiguration()
+                    EstimatedHeapUsageAllocationDecider.monitorConfiguration()
                 )::onNewInfo
             );
 

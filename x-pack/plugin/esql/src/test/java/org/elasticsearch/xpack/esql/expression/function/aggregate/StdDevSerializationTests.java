@@ -14,7 +14,19 @@ import java.io.IOException;
 public class StdDevSerializationTests extends AbstractExpressionSerializationTests<StdDev> {
     @Override
     protected StdDev createTestInstance() {
-        return new StdDev(randomSource(), randomChild());
+        return new StdDev(randomSource(), randomChild(), randomChild(), randomChild(), randomBoolean());
+    }
+
+    /**
+     * {@code createTestInstance} randomizes the non-finite flag, so a single generic round-trip only exercises one of
+     * the two forms; this covers both.
+     */
+    public void testAllowNonFiniteSurvivesCurrentVersionRoundTrip() throws IOException {
+        StdDev lenient = new StdDev(randomSource(), randomChild(), randomChild(), randomChild(), true);
+        assertTrue(copyInstance(lenient).allowNonFinite());
+
+        StdDev strict = new StdDev(randomSource(), randomChild(), randomChild(), randomChild(), false);
+        assertFalse(copyInstance(strict).allowNonFinite());
     }
 
     @Override

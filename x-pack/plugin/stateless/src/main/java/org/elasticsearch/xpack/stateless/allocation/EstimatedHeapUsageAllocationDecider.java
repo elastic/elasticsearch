@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.stateless.allocation;
 
+import org.elasticsearch.cluster.InternalClusterInfoService;
 import org.elasticsearch.cluster.NodeHeapMetrics;
 import org.elasticsearch.cluster.node.DiscoveryNodeRole;
 import org.elasticsearch.cluster.routing.RoutingNode;
@@ -16,7 +17,9 @@ import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.unit.RatioValue;
 import org.elasticsearch.xpack.stateless.EstimatedHeapSettings;
 
+import java.util.Map;
 import java.util.Set;
+import java.util.stream.Collectors;
 
 /**
  * An allocation decider that prevents shard allocation to index nodes where the estimated total JVM heap usage
@@ -87,5 +90,22 @@ public class EstimatedHeapUsageAllocationDecider extends AbstractEstimatedHeapAl
     @Override
     protected long getCurrentUsageBytes(NodeHeapMetrics metrics) {
         return metrics.nodeHeapEstimates().totalHeapUsage();
+    }
+
+    /**
+     * Returns the configuration for the estimated heap usage monitor.
+     */
+    public static EstimatedHeapUsageMonitor.Configuration estimatedHeapConfiguration() {
+        return new EstimatedHeapUsageMonitor.Configuration(
+            "estimated heap",
+            InternalClusterInfoService.CLUSTER_ROUTING_ALLOCATION_ESTIMATED_HEAP_THRESHOLD_DECIDER_ENABLED,
+            EstimatedHeapUsageAllocationDecider.CLUSTER_ROUTING_ALLOCATION_ESTIMATED_HEAP_LOW_WATERMARK,
+            EstimatedHeapUsageAllocationDecider.CLUSTER_ROUTING_ALLOCATION_ESTIMATED_HEAP_HIGH_WATERMARK_ENABLED,
+            EstimatedHeapUsageAllocationDecider.CLUSTER_ROUTING_ALLOCATION_ESTIMATED_HEAP_HIGH_WATERMARK,
+            (clusterInfo, clusterState) -> clusterInfo.getNodeHeapMetrics()
+                .entrySet()
+                .stream()
+                .collect(Collectors.toUnmodifiableMap(Map.Entry::getKey, entry -> entry.getValue().estimatedUsageAsPercentage()))
+        );
     }
 }

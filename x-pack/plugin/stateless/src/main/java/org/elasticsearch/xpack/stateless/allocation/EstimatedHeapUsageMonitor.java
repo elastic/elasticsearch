@@ -63,14 +63,6 @@ public class EstimatedHeapUsageMonitor {
     private final AtomicReference<Set<String>> lastKnownNodeIdsExceedingLowWatermark = new AtomicReference<>(Set.of());
     private final AtomicReference<Set<String>> lastKnownNodeIdsExceedingHighWatermark = new AtomicReference<>(Set.of());
 
-    public EstimatedHeapUsageMonitor(
-        ClusterSettings clusterSettings,
-        Supplier<ClusterState> clusterStateSupplier,
-        RerouteService rerouteService
-    ) {
-        this(clusterSettings, clusterStateSupplier, rerouteService, estimatedHeapConfiguration());
-    }
-
     /**
      * Creates a monitor for the resource described by {@code configuration}.
      */
@@ -164,19 +156,5 @@ public class EstimatedHeapUsageMonitor {
         } else {
             lastKnownNodeIdsExceedingHighWatermark.set(Set.of());
         }
-    }
-
-    private static Configuration estimatedHeapConfiguration() {
-        return new Configuration(
-            "estimated heap",
-            InternalClusterInfoService.CLUSTER_ROUTING_ALLOCATION_ESTIMATED_HEAP_THRESHOLD_DECIDER_ENABLED,
-            EstimatedHeapUsageAllocationDecider.CLUSTER_ROUTING_ALLOCATION_ESTIMATED_HEAP_LOW_WATERMARK,
-            EstimatedHeapUsageAllocationDecider.CLUSTER_ROUTING_ALLOCATION_ESTIMATED_HEAP_HIGH_WATERMARK_ENABLED,
-            EstimatedHeapUsageAllocationDecider.CLUSTER_ROUTING_ALLOCATION_ESTIMATED_HEAP_HIGH_WATERMARK,
-            (clusterInfo, clusterState) -> clusterInfo.getNodeHeapMetrics()
-                .entrySet()
-                .stream()
-                .collect(Collectors.toUnmodifiableMap(Map.Entry::getKey, entry -> entry.getValue().estimatedUsageAsPercentage()))
-        );
     }
 }

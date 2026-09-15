@@ -298,7 +298,12 @@ public class EstimatedHeapUsageMonitorTests extends ESTestCase {
                 EstimatedHeapUsageAllocationDecider.CLUSTER_ROUTING_ALLOCATION_ESTIMATED_HEAP_HIGH_WATERMARK
             )
         );
-        return new EstimatedHeapUsageMonitor(clusterSettings, clusterStateSupplier, rerouteService);
+        return new EstimatedHeapUsageMonitor(
+            clusterSettings,
+            clusterStateSupplier,
+            rerouteService,
+            EstimatedHeapUsageAllocationDecider.estimatedHeapConfiguration()
+        );
     }
 
     private ClusterInfo createClusterInfo(int lowWatermarkPercentage, int numNodesAboveLowWatermark) {

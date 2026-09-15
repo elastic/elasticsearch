@@ -186,9 +186,6 @@ tests:
 - class: org.elasticsearch.repositories.gcs.GoogleCloudStorageBlobContainerRetriesTests
   method: testWriteLargeBlob
   issue: https://github.com/elastic/elasticsearch/issues/150356
-- class: org.elasticsearch.xpack.esql.action.FileSourceSecretDecryptionAcrossNodesIT
-  method: testJoinedDataNodeDecryptsTheSecret
-  issue: https://github.com/elastic/elasticsearch/issues/150440
 - class: org.elasticsearch.upgrades.TransformSurvivesUpgradeIT
   method: testTransformRollingUpgrade
   issue: https://github.com/elastic/elasticsearch/issues/150442
@@ -306,9 +303,6 @@ tests:
 - class: org.elasticsearch.xpack.esql.ccq.MultiClusterSpecSpatialShapesIT
   method: test {csv-spec:spatial_shapes.convertFromStringParseError}
   issue: https://github.com/elastic/elasticsearch/issues/154157
-- class: org.elasticsearch.xpack.esql.action.FromDatasetIT
-  method: testWildcardSpanningIndexAndDatasetSucceeds
-  issue: https://github.com/elastic/elasticsearch/issues/154200
 - class: org.elasticsearch.reindex.ReindexerTests
   method: testRemoteReindexClosesRemoteInfoOnEarlyFailure
   issue: https://github.com/elastic/elasticsearch/issues/154237
@@ -751,9 +745,6 @@ tests:
 - class: org.elasticsearch.search.basic.SearchWithRandomDisconnectsIT
   method: testSearchWithRandomDisconnects
   issue: https://github.com/elastic/elasticsearch/issues/157466
-- class: org.elasticsearch.gradle.internal.ForeignApiPluginFuncTest
-  method: extractForeignApiJar is not registered when minimumRuntimeVersion is not 21
-  issue: https://github.com/elastic/elasticsearch/issues/159227
 - class: org.elasticsearch.gradle.internal.test.rest.LegacyYamlRestTestPluginFuncTest
   method: yamlRestTest does nothing when there are no tests
   issue: https://github.com/elastic/elasticsearch/issues/159229

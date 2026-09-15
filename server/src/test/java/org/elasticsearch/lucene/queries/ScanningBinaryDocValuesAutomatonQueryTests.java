@@ -26,7 +26,7 @@ import org.apache.lucene.tests.util.TestUtil;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.automaton.Automata;
 import org.apache.lucene.util.automaton.Automaton;
-import org.apache.lucene.util.automaton.ByteRunAutomaton;
+import org.apache.lucene.util.automaton.ByteRunnable;
 import org.apache.lucene.util.automaton.Operations;
 import org.elasticsearch.index.codec.tsdb.es819.ES819Version3TSDBDocValuesFormat;
 import org.elasticsearch.index.mapper.BinaryDocValuesFormat;
@@ -40,6 +40,7 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.function.Supplier;
 
 import static org.elasticsearch.index.mapper.BinaryDocValuesFormat.ARRAY_ORDER_INLINE_NULL;
 import static org.elasticsearch.index.mapper.BinaryDocValuesFormat.SEPARATE_COUNT;
@@ -385,11 +386,10 @@ public class ScanningBinaryDocValuesAutomatonQueryTests extends ESTestCase {
             }
 
             @Override
-            public void consumeTermsMatching(Query query, String field, java.util.function.Supplier<ByteRunAutomaton> automaton) {
+            public void consumeTermsMatching(Query query, String field, Supplier<ByteRunnable> automaton) {
                 called.set(true);
                 assertEquals("my_field", field);
-                // the automaton supplier returns a functional ByteRunAutomaton
-                ByteRunAutomaton bra = automaton.get();
+                ByteRunnable bra = automaton.get();
                 BytesRef hello = new BytesRef("hello");
                 assertTrue(bra.run(hello.bytes, hello.offset, hello.length));
                 BytesRef world = new BytesRef("world");
@@ -407,7 +407,7 @@ public class ScanningBinaryDocValuesAutomatonQueryTests extends ESTestCase {
             }
 
             @Override
-            public void consumeTermsMatching(Query q, String field, java.util.function.Supplier<ByteRunAutomaton> automaton) {
+            public void consumeTermsMatching(Query q, String field, Supplier<ByteRunnable> automaton) {
                 notCalled.set(true);
             }
         });

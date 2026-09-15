@@ -9,6 +9,20 @@ setup:
       reason: "ES|QL dataset CRUD API"
 
 ---
+teardown:
+  # Safety-net cleanup for the dataset-region-accepted test. Uses ignore: 404 because the
+  # resources are only created by that one test; every other test case in this file leaves
+  # them absent, so the deletes are no-ops there.
+  - do:
+      esql.delete_dataset:
+        name: events_eu
+        ignore: 404
+  - do:
+      esql.delete_data_source:
+        name: ds_for_region_test
+        ignore: 404
+
+---
 "get-empty":
   - do:
       esql.get_dataset: { }
@@ -146,6 +160,52 @@ setup:
             dynamic: "strict"
 
 ---
+"dataset-region-accepted":
+  # region is an S3-specific dataset key. A dataset PUT with region in settings must return HTTP 200
+  # — the historic rejection ("unknown setting [region]") must not recur.
+  - requires:
+      capabilities:
+        - method: PUT
+          path: /_query/dataset/{name}
+          capabilities: [dataset_region]
+      test_runner_features: capabilities
+      reason: "region accepted on dataset PUT"
+
+  - do:
+      esql.put_data_source:
+        name: ds_for_region_test
+        body:
+          type: s3
+          settings:
+            auth: anonymous
+
+  - do:
+      esql.put_dataset:
+        name: events_eu
+        body:
+          data_source: ds_for_region_test
+          resource: "s3://my-eu-bucket/events/*.parquet"
+          settings:
+            format: parquet
+            region: eu-west-1
+
+  - do:
+      esql.get_dataset:
+        name: events_eu
+
+  - match: { datasets.0.settings.region: eu-west-1 }
+
+  - do:
+      esql.delete_dataset:
+        name: events_eu
+        ignore: 404
+
+  - do:
+      esql.delete_data_source:
+        name: ds_for_region_test
+        ignore: 404
+
+---
 "delete-missing":
   - do:
       catch: missing
@@ -168,14 +228,16 @@ setup:
 
 ---
 "cluster-state-visibility":
-  # DatasetMetadata.context() includes API, so if a dataset existed it would appear under
-  # metadata.esql_dataset. With no datasets present, the custom is absent.
+  # DatasetMetadata.context() includes API, so datasets do appear under metadata.esql_dataset when
+  # they exist. Deleting all datasets leaves metadata.esql_dataset present with an empty map, which
+  # is harmless — datasets carry no credentials. We do NOT assert is_false on metadata.esql_dataset
+  # here because a previous test in this file may have left that empty object behind.
+  #
+  # The security-sensitive assertion is the data-source side: DataSourceMetadata.context() excludes
+  # API, so even a populated esql_datasource must never surface here.
   - do:
       cluster.state: { }
 
-  - is_false: metadata.esql_dataset
-
-  # Counterpart assertion for the data source side: even if one existed, it would not appear here.
   - is_false: metadata.esql_datasource
 
 ---

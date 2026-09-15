@@ -8,6 +8,8 @@ package org.elasticsearch.xpack.security.authc.pki;
 
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.PlainActionFuture;
+import org.elasticsearch.common.bytes.BytesArray;
+import org.elasticsearch.common.hash.MessageDigests;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.MockSecureSettings;
 import org.elasticsearch.common.settings.SecureString;
@@ -17,9 +19,11 @@ import org.elasticsearch.common.settings.SettingsException;
 import org.elasticsearch.common.ssl.SslConfigException;
 import org.elasticsearch.common.util.CollectionUtils;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
+import org.elasticsearch.core.Strings;
 import org.elasticsearch.env.TestEnvironment;
 import org.elasticsearch.license.MockLicenseState;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xpack.core.security.authc.Authentication;
 import org.elasticsearch.xpack.core.security.authc.Authentication.RealmRef;
 import org.elasticsearch.xpack.core.security.authc.AuthenticationResult;
@@ -31,6 +35,7 @@ import org.elasticsearch.xpack.core.security.authc.RealmSettings;
 import org.elasticsearch.xpack.core.security.authc.pki.PkiRealmSettings;
 import org.elasticsearch.xpack.core.security.authc.support.UserRoleMapper;
 import org.elasticsearch.xpack.core.security.authc.support.UsernamePasswordToken;
+import org.elasticsearch.xpack.core.security.authc.support.mapper.ExpressionRoleMapping;
 import org.elasticsearch.xpack.core.security.support.NoOpLogger;
 import org.elasticsearch.xpack.core.security.user.User;
 import org.elasticsearch.xpack.security.Security;
@@ -42,6 +47,7 @@ import org.mockito.Mockito;
 import java.io.InputStream;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.security.PublicKey;
 import java.security.cert.CertificateFactory;
 import java.security.cert.X509Certificate;
 import java.util.ArrayList;
@@ -137,6 +143,65 @@ public class PkiRealmTests extends ESTestCase {
         assertSuccessfulAuthentication(roles);
     }
 
+    public void testCertificateFingerprintsAreExposedAsMetadata() throws Exception {
+        final X509AuthenticationToken token = buildToken();
+        final X509Certificate leafCertificate = token.credentials()[0];
+        final String certificateFingerprint = MessageDigests.toHexString(MessageDigests.sha256().digest(leafCertificate.getEncoded()));
+        final String publicKeyFingerprint = MessageDigests.toHexString(
+            MessageDigests.sha256().digest(leafCertificate.getPublicKey().getEncoded())
+        );
+        final ExpressionRoleMapping certificateMapping = ExpressionRoleMapping.parse(
+            "certificate-fingerprint",
+            new BytesArray(Strings.format("""
+                roles:
+                - certificate_role
+                rules:
+                  field:
+                    metadata.pki_cert_fingerprint: "%s"
+                enabled: true
+                """, certificateFingerprint)),
+            XContentType.YAML
+        );
+        final ExpressionRoleMapping publicKeyMapping = ExpressionRoleMapping.parse(
+            "public-key-fingerprint",
+            new BytesArray(Strings.format("""
+                roles:
+                - public_key_role
+                rules:
+                  field:
+                    metadata.pki_public_key_fingerprint: "%s"
+                enabled: true
+                """, publicKeyFingerprint)),
+            XContentType.YAML
+        );
+        final List<ExpressionRoleMapping> mappings = List.of(certificateMapping, publicKeyMapping);
+        final PkiRealm realm = buildRealm(buildRoleMapper(mappings), globalSettings);
+
+        final AuthenticationResult<User> result = authenticate(token, realm);
+
+        assertThat(result.getStatus(), is(AuthenticationResult.Status.SUCCESS));
+        assertThat(result.getValue().metadata().get(PkiRealm.PKI_CERT_FINGERPRINT_METADATA_KEY), is(certificateFingerprint));
+        assertThat(result.getValue().metadata().get(PkiRealm.PKI_PUBLIC_KEY_FINGERPRINT_METADATA_KEY), is(publicKeyFingerprint));
+        assertThat(result.getValue().roles(), arrayContainingInAnyOrder("certificate_role", "public_key_role"));
+    }
+
+    public void testAuthenticationWithoutEncodedPublicKey() throws Exception {
+        final X509Certificate certificate = mock(X509Certificate.class);
+        when(certificate.getEncoded()).thenReturn(randomByteArrayOfLength(32));
+        when(certificate.getSubjectX500Principal()).thenReturn(new X500Principal("CN=Test Client"));
+        final PublicKey publicKey = mock(PublicKey.class);
+        when(publicKey.getEncoded()).thenReturn(null);
+        when(certificate.getPublicKey()).thenReturn(publicKey);
+        final X509AuthenticationToken token = new X509AuthenticationToken(new X509Certificate[] { certificate });
+        final PkiRealm realm = buildRealm(buildRoleMapper(), globalSettings);
+
+        final AuthenticationResult<User> result = authenticate(token, realm);
+
+        assertThat(result.getStatus(), is(AuthenticationResult.Status.SUCCESS));
+        assertThat(result.getValue().metadata().get(PkiRealm.PKI_CERT_FINGERPRINT_METADATA_KEY), notNullValue());
+        assertThat(result.getValue().metadata().get(PkiRealm.PKI_PUBLIC_KEY_FINGERPRINT_METADATA_KEY), nullValue());
+    }
+
     private void assertSuccessfulAuthentication(Set<String> roles) throws Exception {
         X509AuthenticationToken token = buildToken();
         UserRoleMapper roleMapper = buildRoleMapper(roles, token.dn());
@@ -183,6 +248,17 @@ public class PkiRealmTests extends ESTestCase {
             @SuppressWarnings("unchecked")
             ActionListener<Set<String>> listener = (ActionListener<Set<String>>) invocation.getArguments()[1];
             listener.onResponse(Collections.emptySet());
+            return null;
+        }).when(roleMapper).resolveRoles(any(UserRoleMapper.UserData.class), anyActionListener());
+        return roleMapper;
+    }
+
+    private UserRoleMapper buildRoleMapper(List<ExpressionRoleMapping> mappings) {
+        UserRoleMapper roleMapper = mock(UserRoleMapper.class);
+        Mockito.doAnswer(invocation -> {
+            final UserRoleMapper.UserData userData = invocation.getArgument(0);
+            final ActionListener<Set<String>> listener = invocation.getArgument(1);
+            listener.onResponse(ExpressionRoleMapping.resolveRoles(userData, mappings, null, NoOpLogger.INSTANCE));
             return null;
         }).when(roleMapper).resolveRoles(any(UserRoleMapper.UserData.class), anyActionListener());
         return roleMapper;
@@ -754,17 +830,21 @@ public class PkiRealmTests extends ESTestCase {
         mockCertChain[1] = mock(X509Certificate.class);
         when(mockCertChain[1].getSubjectX500Principal()).thenReturn(new X500Principal("CN=Test CA, OU=elasticsearch, O=org"));
         when(mockCertChain[1].getEncoded()).thenReturn(randomByteArrayOfLength(3));
-        BytesKey cacheKey = PkiRealm.computeTokenFingerprint(new X509AuthenticationToken(mockCertChain));
+        PkiRealm.TokenFingerprint fingerprint = PkiRealm.computeTokenFingerprint(new X509AuthenticationToken(mockCertChain));
+        BytesKey cacheKey = fingerprint.cacheKey();
+        assertArrayEquals(mockCertChain[0].getEncoded(), fingerprint.encodedLeafCertificate());
 
         BytesKey sameCacheKey = PkiRealm.computeTokenFingerprint(
             new X509AuthenticationToken(new X509Certificate[] { mockCertChain[0], mockCertChain[1] })
-        );
+        ).cacheKey();
         assertThat(cacheKey, is(sameCacheKey));
 
-        BytesKey cacheKeyClient = PkiRealm.computeTokenFingerprint(new X509AuthenticationToken(new X509Certificate[] { mockCertChain[0] }));
+        BytesKey cacheKeyClient = PkiRealm.computeTokenFingerprint(new X509AuthenticationToken(new X509Certificate[] { mockCertChain[0] }))
+            .cacheKey();
         assertThat(cacheKey, is(not(cacheKeyClient)));
 
-        BytesKey cacheKeyRoot = PkiRealm.computeTokenFingerprint(new X509AuthenticationToken(new X509Certificate[] { mockCertChain[1] }));
+        BytesKey cacheKeyRoot = PkiRealm.computeTokenFingerprint(new X509AuthenticationToken(new X509Certificate[] { mockCertChain[1] }))
+            .cacheKey();
         assertThat(cacheKey, is(not(cacheKeyRoot)));
         assertThat(cacheKeyClient, is(not(cacheKeyRoot)));
     }

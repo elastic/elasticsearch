@@ -1316,7 +1316,8 @@ public class ThrottlingRecoveryServiceTests extends ESTestCase {
     public void testGateBlocksAllRecoveriesUntilItAllows() {
         final var taskQueue = new DeterministicTaskQueue();
         // A blocking gate holds every recovery back until it flips to run.
-        final var gateDecision = new AtomicReference<>(RecoveryGate.Decision.block(randomIdentifier(), randomAlphaOfLengthBetween(5, 30)));
+        final String gateName = randomIdentifier();
+        final var gateDecision = new AtomicReference<>(RecoveryGate.Decision.block(gateName, randomAlphaOfLengthBetween(5, 30)));
         final var gateEvaluations = new AtomicInteger();
         final RecoveryGate gate = () -> {
             gateEvaluations.incrementAndGet();
@@ -1332,25 +1333,37 @@ public class ThrottlingRecoveryServiceTests extends ESTestCase {
         service.start();
 
         final var started = new AtomicInteger();
-        final Runnable enqueueRecovery = () -> service.enqueue(
-            ProjectId.DEFAULT,
-            RecoveryListener.NOOP,
-            mockIndexShard(newRecoveryState(), UUIDs.randomBase64UUID(), stats),
-            newIndexMetadata(),
-            listener -> {
-                started.incrementAndGet();
-                listener.onRecoveryDone(null, ShardLongFieldRange.EMPTY, ShardLongFieldRange.EMPTY);
-            }
-        );
+        final List<String> allocationIds = new ArrayList<>();
+        final Runnable enqueueRecovery = () -> {
+            final String allocationId = UUIDs.randomBase64UUID();
+            allocationIds.add(allocationId);
+            service.enqueue(
+                ProjectId.DEFAULT,
+                RecoveryListener.NOOP,
+                mockIndexShard(newRecoveryState(), allocationId, stats),
+                newIndexMetadata(),
+                listener -> {
+                    started.incrementAndGet();
+                    listener.onRecoveryDone(null, ShardLongFieldRange.EMPTY, ShardLongFieldRange.EMPTY);
+                }
+            );
+        };
         final int initialCount = between(2, 5);
         for (int i = 0; i < initialCount; i++) {
             enqueueRecovery.run();
         }
+        assertNull("a queued recovery is not gate-deferred until the gate blocks", service.blockedState());
+        assertThat(service.queuedAllocationIds(), equalTo(Set.copyOf(allocationIds)));
 
         taskQueue.runAllRunnableTasks();
         assertThat("gate should hold every recovery back", started.get(), equalTo(0));
         assertThat(service.currentQueueSize(), equalTo(initialCount));
         assertThat(gateEvaluations.get(), equalTo(2));
+        final var initiallyBlockedState = service.blockedState();
+        assertNotNull(initiallyBlockedState);
+        assertThat(initiallyBlockedState.gateName(), equalTo(gateName));
+        assertThat(initiallyBlockedState.sinceRelativeMillis(), equalTo(taskQueue.getThreadPool().relativeTimeInMillis()));
+        assertThat(service.queuedAllocationIds(), equalTo(Set.copyOf(allocationIds)));
 
         final int blockedCount = between(2, 5);
         for (int i = 0; i < blockedCount; i++) {
@@ -1361,6 +1374,8 @@ public class ThrottlingRecoveryServiceTests extends ESTestCase {
 
         final int totalCount = initialCount + blockedCount;
         assertThat(service.currentQueueSize(), equalTo(totalCount));
+        assertThat(service.blockedState(), equalTo(initiallyBlockedState));
+        assertThat(service.queuedAllocationIds(), equalTo(Set.copyOf(allocationIds)));
 
         // Conditions improve: the periodic recheck notices the gate now allows recoveries and wakes the scheduler.
         gateDecision.set(RecoveryGate.Decision.RUN);
@@ -1368,6 +1383,8 @@ public class ThrottlingRecoveryServiceTests extends ESTestCase {
         taskQueue.runAllRunnableTasks();
         assertThat(started.get(), equalTo(totalCount));
         assertThat(service.currentQueueSize(), equalTo(0));
+        assertNull(service.blockedState());
+        assertThat(service.queuedAllocationIds(), equalTo(Set.of()));
     }
 
     public void testEmptyGateDispatchesImmediately() {

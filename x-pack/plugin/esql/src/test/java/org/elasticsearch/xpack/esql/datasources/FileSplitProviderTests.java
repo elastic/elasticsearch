@@ -8,6 +8,7 @@
 package org.elasticsearch.xpack.esql.datasources;
 
 import org.apache.lucene.util.BytesRef;
+import org.apache.lucene.util.Constants;
 import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.action.ActionListener;
@@ -1114,6 +1115,10 @@ public class FileSplitProviderTests extends ESTestCase {
         assertPlanningPeak("s3://b/data-", "s3://b/*", 24, 0, true, true, 24, true);
     }
 
+    public void testDiscoverSplitsAsyncUncapsNativeParqOnS3() throws Exception {
+        assertPlanningPeak("s3://b/data-", "s3://b/*", 24, 0, true, true, 24, true, ".parq");
+    }
+
     public void testDiscoverSplitsAsyncKeepsGsNativeParquetCapped() throws Exception {
         assertPlanningPeak("gs://b/data-", "gs://b/*", 24, 0, true, false, 16, false);
     }
@@ -1140,6 +1145,30 @@ public class FileSplitProviderTests extends ESTestCase {
         int awaitStarted,
         boolean expectAbovePinningCap
     ) throws Exception {
+        assertPlanningPeak(
+            pathPrefix,
+            glob,
+            parquetFiles,
+            csvFiles,
+            nativeAsync,
+            releasesExecutor,
+            awaitStarted,
+            expectAbovePinningCap,
+            ".parquet"
+        );
+    }
+
+    private void assertPlanningPeak(
+        String pathPrefix,
+        String glob,
+        int parquetFiles,
+        int csvFiles,
+        boolean nativeAsync,
+        boolean releasesExecutor,
+        int awaitStarted,
+        boolean expectAbovePinningCap,
+        String parquetSuffix
+    ) throws Exception {
         Settings settings = Settings.builder().put("esql.external.max_concurrent_requests", 32).build();
         int concurrency = ExternalSourceSettings.blobStoreConcurrency(settings);
         if (expectAbovePinningCap) {
@@ -1161,7 +1190,15 @@ public class FileSplitProviderTests extends ESTestCase {
         try {
             FormatReaderRegistry formatRegistry = new FormatReaderRegistry(new DecompressionCodecRegistry());
             formatRegistry.registerLazy("parquet", (s, bf) -> delayedReader, Settings.EMPTY, null);
+            formatRegistry.registerExtension(parquetSuffix, "parquet");
             formatRegistry.byName("parquet");
+            // Non-range-aware csv: mixed parquet+csv must cap because csv != parquet, not because
+            // an unregistered .csv throws. Mockito is enough — planning only reads formatName().
+            FormatReader csv = mock(FormatReader.class);
+            when(csv.formatName()).thenReturn("csv");
+            when(csv.fileExtensions()).thenReturn(List.of(".csv"));
+            formatRegistry.registerLazy("csv", (s, bf) -> csv, Settings.EMPTY, null);
+            formatRegistry.registerExtension(".csv", "csv");
             FileSplitProvider provider = new FileSplitProvider(
                 FileSplitProvider.DEFAULT_TARGET_SPLIT_SIZE,
                 new DecompressionCodecRegistry(),
@@ -1172,7 +1209,7 @@ public class FileSplitProviderTests extends ESTestCase {
             );
             List<StorageEntry> entries = new ArrayList<>(parquetFiles + csvFiles);
             for (int i = 0; i < parquetFiles; i++) {
-                entries.add(new StorageEntry(StoragePath.of(pathPrefix + i + ".parquet"), 2000, Instant.EPOCH));
+                entries.add(new StorageEntry(StoragePath.of(pathPrefix + i + parquetSuffix), 2000, Instant.EPOCH));
             }
             for (int i = 0; i < csvFiles; i++) {
                 entries.add(new StorageEntry(StoragePath.of(pathPrefix + (parquetFiles + i) + ".csv"), 2000, Instant.EPOCH));
@@ -1279,7 +1316,9 @@ public class FileSplitProviderTests extends ESTestCase {
             assertEquals(s.offset(), a.offset());
             assertEquals(s.length(), a.length());
         }
-        assertThat("range-aware async discovery must accumulate cpuNanos", asyncResult.cpuNanos(), greaterThan(0L));
+        if (Constants.WINDOWS == false) {
+            assertThat("range-aware async discovery must accumulate cpuNanos", asyncResult.cpuNanos(), greaterThan(0L));
+        }
     }
 
     /**
@@ -1321,13 +1360,18 @@ public class FileSplitProviderTests extends ESTestCase {
         );
         // Each miss blocks an IO thread on release.await(), so the pool must be at least as large
         // as the number of misses for all readBytesAsync callbacks to start concurrently.
+        // MAX_CONCURRENT_REQUESTS=0 disables the permit semaphore so splitDiscoveryConcurrency()
+        // returns MAX_PARALLEL_SPLIT_DISCOVERY (=16=misses) instead of the memory-bounded default,
+        // which can be <16 on constrained machines. Without this, the ThrottledIterator starts
+        // fewer than misses items; they block on release, the rest never start, and the latch times out.
+        Settings providerSettings = Settings.builder().put(ExternalSourceSettings.MAX_CONCURRENT_REQUESTS.getKey(), 0).build();
         ExecutorService io = Executors.newFixedThreadPool(
             misses + 4,
             EsExecutors.daemonThreadFactory("test", EsqlPlugin.EXTERNAL_IO_THREAD_POOL_NAME)
         );
         PlainActionFuture<SplitDiscoveryResult> future = new PlainActionFuture<>();
         try {
-            FileSplitProvider provider = rangeAwareProvider(reader, io);
+            FileSplitProvider provider = rangeAwareProvider(reader, io, providerSettings);
             List<StorageEntry> entries = new ArrayList<>(misses + hits);
             for (int i = 0; i < misses; i++) {
                 entries.add(new StorageEntry(StoragePath.of("s3://b/miss-" + i + ".parquet"), 2000, Instant.EPOCH));
@@ -1376,7 +1420,9 @@ public class FileSplitProviderTests extends ESTestCase {
             assertEquals(files, result.splits().size());
             assertEquals(files, cacheHits.get());
             assertEquals("cached footers must not issue a GET", 1, started.getCount());
-            assertThat("cache-hit extract must record cpuNanos", result.cpuNanos(), greaterThan(0L));
+            if (Constants.WINDOWS == false) {
+                assertThat("cache-hit extract must record cpuNanos", result.cpuNanos(), greaterThan(0L));
+            }
         } finally {
             release.countDown();
             io.shutdownNow();
@@ -1417,6 +1463,7 @@ public class FileSplitProviderTests extends ESTestCase {
      * involved here — only the per-file accumulation inside the BPG lambda in {@link FileSplitProvider}.
      */
     public void testMultiFileParallelDiscoveryAccumulatesCpuNanos() throws Exception {
+        assumeFalse("Windows has bad CPU counters, skip", Constants.WINDOWS);
         Map<String, byte[]> payloads = Map.of("one.csv", delimitedPayload("a,b,c\n"), "two.csv", delimitedPayload("d,e,f\n"));
         ExecutorService executor = Executors.newFixedThreadPool(4);
         SplitDiscoveryResult result;
@@ -1434,6 +1481,7 @@ public class FileSplitProviderTests extends ESTestCase {
      * The BPG lambda in {@code probeDeferredBoundaries} must wrap each probe with {@link ThreadCpuTimer}.
      */
     public void testMultiFileParallelProbeAccumulatesCpuNanos() throws Exception {
+        assumeFalse("Windows has bad CPU counters, skip", Constants.WINDOWS);
         // Files ~3.5x stride → each file needs exactly one probe position in Phase 3.
         long stride = 2 * CSV_MIN_SEGMENT_BYTES;
         Map<String, byte[]> payloads = Map.of("one.csv", delimitedPayload("a,b,c\n"), "two.csv", delimitedPayload("d,e,f\n"));
@@ -1453,6 +1501,7 @@ public class FileSplitProviderTests extends ESTestCase {
      * the IO hop; wrapping only the joining BPG path is not enough.
      */
     public void testAsyncSplitDiscoveryAccumulatesCpuNanos() throws Exception {
+        assumeFalse("Windows has bad CPU counters, skip", Constants.WINDOWS);
         Map<String, byte[]> payloads = Map.of("one.csv", delimitedPayload("a,b,c\n"), "two.csv", delimitedPayload("d,e,f\n"));
         ExecutorService executor = Executors.newFixedThreadPool(4);
         SplitDiscoveryResult result;
@@ -1468,6 +1517,7 @@ public class FileSplitProviderTests extends ESTestCase {
      * Async Phase-3 probes must land on the recording fan-out executor the same way joining BPG does.
      */
     public void testAsyncSplitDiscoveryProbesAccumulateCpuNanos() throws Exception {
+        assumeFalse("Windows has bad CPU counters, skip", Constants.WINDOWS);
         long stride = 2 * CSV_MIN_SEGMENT_BYTES;
         Map<String, byte[]> payloads = Map.of("one.csv", delimitedPayload("a,b,c\n"), "two.csv", delimitedPayload("d,e,f\n"));
         ExecutorService executor = Executors.newFixedThreadPool(4);
@@ -4487,6 +4537,10 @@ public class FileSplitProviderTests extends ESTestCase {
     }
 
     private static FileSplitProvider rangeAwareProvider(RangeAwareFormatReader reader, @Nullable Executor executor) {
+        return rangeAwareProvider(reader, executor, Settings.EMPTY);
+    }
+
+    private static FileSplitProvider rangeAwareProvider(RangeAwareFormatReader reader, @Nullable Executor executor, Settings settings) {
         FormatReaderRegistry formatRegistry = new FormatReaderRegistry(new DecompressionCodecRegistry());
         formatRegistry.registerLazy("parquet", (s, bf) -> reader, Settings.EMPTY, null);
         formatRegistry.byName("parquet");
@@ -4495,7 +4549,7 @@ public class FileSplitProviderTests extends ESTestCase {
             new DecompressionCodecRegistry(),
             createMockStorageRegistry(),
             formatRegistry,
-            Settings.EMPTY,
+            settings,
             executor
         );
     }

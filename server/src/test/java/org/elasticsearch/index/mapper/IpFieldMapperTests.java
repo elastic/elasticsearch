@@ -39,6 +39,7 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.function.Supplier;
 import java.util.stream.Collectors;
+import java.util.stream.Stream;
 
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.empty;
@@ -402,11 +403,10 @@ public class IpFieldMapperTests extends MapperTestCase {
                     .map(NetworkAddress::format)
                     .collect(Collectors.toCollection(ArrayList::new));
             }
-            values.stream()
-                .filter(v -> false == v.v2() instanceof InetAddress)
-                .map(Tuple::v2)
-                .sorted(SyntheticSourceMalformedValueSorter.comparator())
-                .forEach(outList::add);
+            // Columnar indices route malformed values to the UNSORTED ._on_failure column (encounter order);
+            // non-columnar indices use the SORTED ._ignore_malformed column.
+            Stream<Object> malformedStream = values.stream().filter(v -> false == v.v2() instanceof InetAddress).map(Tuple::v2);
+            (isColumnar ? malformedStream : malformedStream.sorted(SyntheticSourceMalformedValueSorter.comparator())).forEach(outList::add);
             Object out = outList.size() == 1 ? outList.get(0) : outList;
             return new SyntheticSourceExample(in, out, this::mapping);
         }

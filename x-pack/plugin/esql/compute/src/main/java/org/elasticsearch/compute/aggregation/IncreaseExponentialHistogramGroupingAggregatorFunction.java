@@ -713,10 +713,8 @@ public final class IncreaseExponentialHistogramGroupingAggregatorFunction extend
                 if (state == null || state.samples == 0) {
                     rate = null;
                 } else if (ctx instanceof TimeSeriesGroupingAggregatorEvaluationContext tsContext) {
-                    int previousGroupId = tsContext.previousGroupId(group);
-                    var previousState = (0 <= previousGroupId && previousGroupId < reducedStates.size())
-                        ? reducedStates.get(previousGroupId)
-                        : null;
+                    int previousGroupId = findPreviousGroupWithSamples(group, tsContext);
+                    ReducedState previousState = previousGroupId >= 0 ? reducedStates.get(previousGroupId) : null;
                     rate = computeIncrease(previousState, state, tmp1, tmp2);
                 } else {
                     rate = computeIncrease(null, state, tmp1, tmp2);
@@ -1055,6 +1053,22 @@ public final class IncreaseExponentialHistogramGroupingAggregatorFunction extend
     private final ExponentialHistogramScratch rateScratchFirst = new ExponentialHistogramScratch();
     private final ExponentialHistogramScratch rateScratchLast = new ExponentialHistogramScratch();
     private final ExponentialHistogramScratch rateScratchPrevLast = new ExponentialHistogramScratch();
+
+    private int findPreviousGroupWithSamples(int group, TimeSeriesGroupingAggregatorEvaluationContext context) {
+        int candidate = context.previousGroupId(group);
+        // the previous group for this TSID is not guaranteed to have values for our metric
+        // It might exist due to another metric which is part of the same query
+        // so we have to look back further in case it has no values
+        // This is an edge case though, typically this loop exits in the first iteration
+        while (AbstractRateGroupingFunction.isPreviousGroupWithinLookback(context, candidate, group)) {
+            ReducedState state = candidate < reducedStates.size() ? reducedStates.get(candidate) : null;
+            if (state != null && state.samples > 0) {
+                return candidate;
+            }
+            candidate = context.previousGroupId(candidate);
+        }
+        return -1;
+    }
 
     private ExponentialHistogram computeIncrease(
         @Nullable ReducedState previousState,

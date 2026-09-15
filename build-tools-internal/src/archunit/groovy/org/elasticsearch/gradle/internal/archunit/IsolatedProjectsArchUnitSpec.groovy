@@ -55,8 +55,6 @@ class IsolatedProjectsArchUnitSpec extends AbstractArchUnitSpec {
         "org.elasticsearch.gradle.internal.InternalDistributionBwcSetupPlugin",
         "org.elasticsearch.gradle.internal.info.GlobalBuildInfoPlugin",
         "org.elasticsearch.gradle.internal.precommit.SplitPackagesAuditPrecommitPlugin",
-        "org.elasticsearch.gradle.internal.test.StandaloneRestTestPlugin",
-        "org.elasticsearch.gradle.internal.test.TestWithSslPlugin",
         "org.elasticsearch.gradle.internal.test.rest.RestTestBasePlugin",
     ] as Set
 

@@ -53,11 +53,8 @@ public class BuildPlugin implements Plugin<Project> {
     @Override
     public void apply(final Project project) {
         applyGlobalBuildInfoIfRoot(project);
-        if (project.getPluginManager().hasPlugin("elasticsearch.standalone-test")
-            || project.getPluginManager().hasPlugin("elasticsearch.standalone-rest-test")) {
-            throw new InvalidUserDataException(
-                "elasticsearch.standalone-test, elasticsearch.standalone-rest-test, and elasticsearch.build are mutually exclusive"
-            );
+        if (project.getPluginManager().hasPlugin("elasticsearch.standalone-test")) {
+            throw new InvalidUserDataException("elasticsearch.standalone-test and elasticsearch.build are mutually exclusive");
         }
 
         project.getPluginManager().apply("elasticsearch.java");

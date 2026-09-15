@@ -19,8 +19,7 @@ import spock.lang.Specification
  * <p>
  * Uses a real {@link ProjectBuilder}-backed project to exercise the name-based REST integ test
  * detection path (plain {@link Test} tasks registered via {@link RestIntegTestsExtension#register}).
- * The {@code StandaloneRestIntegTestTask} type-based path is covered by legacy functional tests
- * (e.g. {@code LegacyYamlRestTestPluginFuncTest}).
+ * The {@code StandaloneRestIntegTestTask} type-based path is not exercised here.
  */
 class RestIntegTestsExtensionSpec extends Specification {
 

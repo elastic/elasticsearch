@@ -10,6 +10,7 @@
 package org.elasticsearch.columnar.string;
 
 import org.apache.lucene.search.DocIdSetIterator;
+import org.apache.lucene.store.ByteBuffersDataOutput;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.store.IOContext;
 import org.apache.lucene.store.IndexInput;
@@ -19,6 +20,7 @@ import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.BytesRefBuilder;
 import org.apache.lucene.util.IOSupplier;
 import org.apache.lucene.util.IOUtils;
+import org.elasticsearch.columnar.numeric.NumericBlockEncoder;
 import org.elasticsearch.columnar.numeric.NumericColumnMetadata;
 import org.elasticsearch.columnar.numeric.NumericColumnValues;
 import org.elasticsearch.columnar.numeric.NumericColumnWriter;
@@ -53,10 +55,17 @@ import java.util.List;
 public final class StringColumnWriter {
 
     /**
-     * Ordinals are packed a block at a time to the width the block needs, so this is how far a run of
-     * narrow ordinals has to reach before a single wide one stops widening it.
+     * Block size for ordinals stored packed. Ordinals are packed a block at a time to the width the block
+     * needs, and a small block keeps a single wide ordinal from widening many narrow ones; it also keeps
+     * reaching one ordinal to decoding few.
      */
     private static final int ORDINAL_BLOCK_SIZE = 128;
+
+    /** Blocks of ordinals read to decide whether compressing them pays, so the trial costs a block or two. */
+    private static final int ORDINAL_TRIAL_BLOCKS = 2;
+
+    /** How much of what packing them costs compressing them has to save before the larger block is worth it. */
+    private static final double ORDINAL_TRIAL_GAIN = 0.5;
 
     /** Terms to a block in the dictionary, so the stream records an offset for every term. */
     private static final int TERMS_PER_BLOCK = 1;
@@ -100,6 +109,7 @@ public final class StringColumnWriter {
         ChunkCodec chunkCodec,
         int targetChunkBytes,
         int plainPathTargetChunkBytes,
+        int compressedOrdinalBlockSize,
         DictionaryPolicy policy,
         Vocabulary.Terms known,
         Directory directory,
@@ -114,10 +124,7 @@ public final class StringColumnWriter {
         Vocabulary.Terms surveyed = null;
         if (policy.enabled()) {
             // A merge that worked out the vocabulary from what its inputs recorded does not survey again.
-            // Nulls are named by a reserved ordinal, not by a term, so they are no part of what a dictionary
-            // could cover. Counting them in the denominator would cost a column its dictionary on the
-            // strength of slots no dictionary was ever going to name.
-            surveyed = known != null ? known : Vocabulary.survey(cursors.get(), policy, numValues - numNullSlots);
+            surveyed = known != null ? known : Vocabulary.survey(cursors.get(), policy);
             // Coverage is a lower bound, so a column admitted here covers at least as much as it claims.
             if (surveyed != null && policy.worthKeeping(surveyed.coverage(), surveyed.dictionaryBytes(), surveyed.columnBytes())) {
                 return withSummary(
@@ -132,6 +139,7 @@ public final class StringColumnWriter {
                         valuesPerBlock,
                         chunkCodec,
                         targetChunkBytes,
+                        compressedOrdinalBlockSize,
                         directory,
                         context,
                         data
@@ -308,6 +316,7 @@ public final class StringColumnWriter {
         int valuesPerBlock,
         ChunkCodec chunkCodec,
         int targetChunkBytes,
+        int compressedOrdinalBlockSize,
         Directory directory,
         IOContext context,
         IndexOutput data
@@ -459,13 +468,21 @@ public final class StringColumnWriter {
             }
 
             final String staged = ordinalTempName;
-            final NumericColumnMetadata ordinals = NumericColumnWriter.write(numDocsWithField, numDocsWithField, numValues, () -> {
+            // Compressing the ordinals only pays where they repeat, and it takes a larger block to reach
+            // that repetition at all. A sample says which of the two shapes this column's ordinals take.
+            final boolean compressOrdinals = compressionPaysForOrdinals(directory, context, staged, numValues, compressedOrdinalBlockSize);
+            final int ordinalBlockSize = compressOrdinals ? compressedOrdinalBlockSize : ORDINAL_BLOCK_SIZE;
+            // One ordinal a slot, reached by value address: nothing asks the ordinals which document a slot
+            // belongs to, and the string column already tables that, so they table nothing themselves.
+            final NumericColumnMetadata ordinals = NumericColumnWriter.write(numDocsWithField, numDocsWithField, numValues, false, () -> {
                 final IndexInput in = directory.openInput(staged, IOContext.READONCE);
                 replays.add(in);
                 return stagedOrdinals(cursors.get(), in);
             },
-                NumericPipeline.defaultPipeline(ORDINAL_BLOCK_SIZE),
-                BlockBytesCodec.forId(BlockBytesCodec.IDENTITY_ID),
+                compressOrdinals
+                    ? NumericPipeline.compressedOrdinalPipeline(ordinalBlockSize)
+                    : NumericPipeline.ordinalPipeline(ordinalBlockSize),
+                BlockBytesCodec.forId(compressOrdinals ? BlockBytesCodec.ZSTD_ID : BlockBytesCodec.IDENTITY_ID),
                 // The ordinals build no skip index, so nothing is ever written to one.
                 null,
                 directory,
@@ -538,6 +555,71 @@ public final class StringColumnWriter {
             }
             return writer.finish();
         }
+    }
+
+    /**
+     * Whether storing this column's ordinals compressed beats storing them packed. Both sides are priced as
+     * they would actually be written — compressed through the minimal pipeline at
+     * {@code compressedBlockSize}, packed through the run and patched stages at {@link #ORDINAL_BLOCK_SIZE} —
+     * over the first {@link #ORDINAL_TRIAL_BLOCKS} blocks of ordinals.
+     *
+     * <p>Packing is what a column falls back to, and those stages already take out the runs and the outliers
+     * a compressor would have found, so a column they handle has to stay packed: the larger block costs a
+     * point read the whole of it.
+     */
+    private static boolean compressionPaysForOrdinals(
+        Directory directory,
+        IOContext context,
+        String staged,
+        long numValues,
+        int compressedBlockSize
+    ) throws IOException {
+        final int trialValues = ORDINAL_TRIAL_BLOCKS * compressedBlockSize;
+        if (numValues < trialValues) {
+            // Too few to hold repetition worth reaching, and too few to fill the larger block.
+            return false;
+        }
+        final long[] sample = new long[trialValues];
+        try (IndexInput in = directory.openInput(staged, context)) {
+            for (int i = 0; i < trialValues; i++) {
+                sample[i] = in.readVInt();
+            }
+        }
+        final long packed = packedOrdinalBytes(sample);
+        final long compressed = compressedOrdinalBytes(sample, compressedBlockSize);
+        return packed > 0 && compressed <= packed * ORDINAL_TRIAL_GAIN;
+    }
+
+    /** What {@code sample} occupies under the pipeline and block a packed column is written with. */
+    private static long packedOrdinalBytes(long[] sample) throws IOException {
+        final NumericBlockEncoder encoder = new NumericBlockEncoder(
+            NumericPipeline.ordinalPipeline(ORDINAL_BLOCK_SIZE),
+            ORDINAL_BLOCK_SIZE
+        );
+        final long[] block = new long[ORDINAL_BLOCK_SIZE];
+        final ByteBuffersDataOutput out = new ByteBuffersDataOutput();
+        for (int start = 0; start + ORDINAL_BLOCK_SIZE <= sample.length; start += ORDINAL_BLOCK_SIZE) {
+            // The encoder transforms the block in place, so each measurement takes its own copy.
+            System.arraycopy(sample, start, block, 0, ORDINAL_BLOCK_SIZE);
+            encoder.encode(block, ORDINAL_BLOCK_SIZE, out);
+        }
+        return out.size();
+    }
+
+    /** What {@code sample} occupies under the pipeline, block and codec a compressed column is written with. */
+    private static long compressedOrdinalBytes(long[] sample, int blockSize) throws IOException {
+        final NumericBlockEncoder encoder = new NumericBlockEncoder(NumericPipeline.compressedOrdinalPipeline(blockSize), blockSize);
+        final BlockBytesCodec codec = BlockBytesCodec.forId(BlockBytesCodec.ZSTD_ID);
+        final long[] block = new long[blockSize];
+        final ByteBuffersDataOutput out = new ByteBuffersDataOutput();
+        for (int start = 0; start + blockSize <= sample.length; start += blockSize) {
+            final int at = start;
+            codec.write(o -> {
+                System.arraycopy(sample, at, block, 0, blockSize);
+                encoder.encode(block, blockSize, o);
+            }, out);
+        }
+        return out.size();
     }
 
     /** The staged ordinals, over the documents {@code source} walks, so they can be written as a numeric column. */

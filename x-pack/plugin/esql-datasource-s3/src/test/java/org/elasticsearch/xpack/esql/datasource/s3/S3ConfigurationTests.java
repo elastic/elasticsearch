@@ -216,6 +216,22 @@ public class S3ConfigurationTests extends ESTestCase {
         assertEquals(Set.of(), result.consumedKeys());
     }
 
+    public void testFromQueryConfigConsumesRegion() {
+        // region is a dataset-level key. fromQueryConfig must recognise it, include it in
+        // consumedKeys(), and surface it via region() — so the storage provider seeds the right
+        // signing region for the S3 client.
+        Map<String, Object> raw = new HashMap<>();
+        raw.put("auth", "anonymous");
+        raw.put("region", "eu-west-1");
+        raw.put("header_row", false); // dataset-level format key — should be dropped
+
+        Configured<S3Configuration> result = S3Configuration.fromQueryConfig(raw);
+        S3Configuration config = result.value();
+        assertNotNull(config);
+        assertEquals("eu-west-1", config.region());
+        assertThat(result.consumedKeys(), containsInAnyOrder("auth", "region"));
+    }
+
     public void testFromQueryConfigWithNullReturnsNull() {
         Configured<S3Configuration> result = S3Configuration.fromQueryConfig(null);
         assertNull(result.value());
@@ -223,16 +239,16 @@ public class S3ConfigurationTests extends ESTestCase {
     }
 
     public void testEqualsWithAuth() {
-        S3Configuration config1 = S3Configuration.fromFields(null, null, "ep", null, "anonymous");
-        S3Configuration config2 = S3Configuration.fromFields(null, null, "ep", null, "anonymous");
+        S3Configuration config1 = S3Configuration.fromFields(null, null, "http://ep", null, "anonymous");
+        S3Configuration config2 = S3Configuration.fromFields(null, null, "http://ep", null, "anonymous");
         assertEquals(config1, config2);
         assertEquals(config1.hashCode(), config2.hashCode());
     }
 
     public void testNotEqualsWithDifferentAuth() {
         // Two resolvable configs differing only in auth: anonymous vs managed_identity (neither needs a secret).
-        S3Configuration config1 = S3Configuration.fromFields(null, null, "ep", null, "anonymous");
-        S3Configuration config2 = S3Configuration.fromFields(null, null, "ep", null, "managed_identity");
+        S3Configuration config1 = S3Configuration.fromFields(null, null, "http://ep", null, "anonymous");
+        S3Configuration config2 = S3Configuration.fromFields(null, null, "http://ep", null, "managed_identity");
         assertNotEquals(config1, config2);
     }
 
@@ -282,15 +298,15 @@ public class S3ConfigurationTests extends ESTestCase {
     }
 
     public void testEqualsWithSessionToken() {
-        S3Configuration config1 = S3Configuration.fromFields("ak", "sk", "tok", "ep", null, null);
-        S3Configuration config2 = S3Configuration.fromFields("ak", "sk", "tok", "ep", null, null);
+        S3Configuration config1 = S3Configuration.fromFields("ak", "sk", "tok", "http://ep", null, null);
+        S3Configuration config2 = S3Configuration.fromFields("ak", "sk", "tok", "http://ep", null, null);
         assertEquals(config1, config2);
         assertEquals(config1.hashCode(), config2.hashCode());
     }
 
     public void testNotEqualsWithDifferentSessionToken() {
-        S3Configuration config1 = S3Configuration.fromFields("ak", "sk", "tok1", "ep", null, null);
-        S3Configuration config2 = S3Configuration.fromFields("ak", "sk", "tok2", "ep", null, null);
+        S3Configuration config1 = S3Configuration.fromFields("ak", "sk", "tok1", "http://ep", null, null);
+        S3Configuration config2 = S3Configuration.fromFields("ak", "sk", "tok2", "http://ep", null, null);
         assertNotEquals(config1, config2);
     }
 
@@ -325,6 +341,24 @@ public class S3ConfigurationTests extends ESTestCase {
         assertNull(config.roleSessionName());
         assertNull(config.stsEndpoint());
         assertNull(config.stsRegion());
+    }
+
+    public void testStsRegionFallsBackToDatasetRegion() {
+        // When sts_region is absent, the STS client is expected to use the dataset-level region.
+        // buildStsAsyncClient resolves: stsRegion() != null ? stsRegion() : region().
+        // Verify the configuration exposes these correctly so the fallback chain works.
+        S3Configuration config = S3Configuration.fromFederatedFields(
+            "arn:aws:iam::123456789012:role/example",
+            null,
+            "audience",
+            null,
+            /* stsRegion= */ null,
+            null,
+            "ap-southeast-1"
+        );
+        assertNotNull(config);
+        assertNull("sts_region absent — should not override dataset region", config.stsRegion());
+        assertEquals("ap-southeast-1", config.region());
     }
 
     public void testFederatedAuthStsRegionDistinctFromBucketRegion() {

@@ -69,7 +69,7 @@ public final class MonotonicWriter implements Closeable {
         dataTemp.close();
         dataClosed = true;
         long dataOffset = data.getFilePointer();
-        try (IndexInput in = directory.openInput(tempName, context)) {
+        try (IndexInput in = directory.openInput(tempName, IOContext.READONCE)) {
             data.copyBytes(in, in.length());
         }
         return new Table(dataOffset, data.getFilePointer() - dataOffset, metaBuffer.toArrayCopy());

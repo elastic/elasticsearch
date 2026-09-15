@@ -434,7 +434,7 @@ class S3BlobContainer extends AbstractBlobContainer {
             }
             succeeded = true;
         } catch (SdkException e) {
-            throw new IOException("Unable to upload object [" + blobName + "] using concurrent multipart upload", e);
+            throw new IOException("Unable to upload object [" + blobName + "] using multipart upload", e);
         } finally {
             if (succeeded == false) {
                 abortMultiPartUploadOnFailure(purpose, uploadId, absoluteBlobKey);
@@ -791,7 +791,9 @@ class S3BlobContainer extends AbstractBlobContainer {
             if (e instanceof SdkServiceException sse && sse.statusCode() == RestStatus.NOT_FOUND.getStatus()) {
                 throw new NoSuchFileException(blobName, null, e.getMessage());
             }
-            throw new IOException("Unable to upload or copy object [" + blobName + "] using multipart upload", e);
+            assert operation == Operation.COPY_MULTIPART_OBJECT || operation == Operation.PUT_MULTIPART_OBJECT;
+            final String action = operation == Operation.COPY_MULTIPART_OBJECT ? "copy" : "upload";
+            throw new IOException("Unable to " + action + " object [" + blobName + "] using multipart upload", e);
         } finally {
             abortMultiPartUploadOnFailure(purpose, uploadId, blobName);
         }

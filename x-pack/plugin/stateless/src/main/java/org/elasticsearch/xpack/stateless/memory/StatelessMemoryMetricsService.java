@@ -1037,8 +1037,11 @@ public class StatelessMemoryMetricsService implements ClusterStateListener {
         SelfReportedShardOverhead selfReportedShardOverhead,
         BiConsumer<ShardId, ShardMemoryMetrics> metricVisitor
     ) {
-        final ShardHeapEstimator shardHeapEstimator = createShardHeapEstimator(selfReportedShardOverhead);
-        return shardHeapEstimator.aggregateShardMetrics(shardMemoryMetrics, postingsInEstimate, metricVisitor);
+        return createShardHeapEstimator(selfReportedShardOverhead).aggregateShardMetrics(
+            shardMemoryMetrics,
+            postingsInEstimate,
+            metricVisitor
+        );
     }
 
     /// Create a [ShardHeapEstimator] with the default self-reported-shard overhead behaviour

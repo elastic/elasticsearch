@@ -1,0 +1,5 @@
+area: TSDB
+issues: []
+pr: 157968
+summary: Guard against oversized protobuf requests causing out of memory failures
+type: bug

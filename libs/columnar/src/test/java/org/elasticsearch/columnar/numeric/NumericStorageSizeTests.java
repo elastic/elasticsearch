@@ -16,6 +16,8 @@ import org.elasticsearch.test.ESTestCase;
 import java.io.IOException;
 import java.util.Arrays;
 
+import static org.hamcrest.Matchers.lessThan;
+
 /**
  * Byte-exact storage-size checks for {@link NumericBlockEncoder} with the default pipeline. Deterministic
  * block shapes are encoded and their encoded length is pinned, so a silent storage regression (a stage
@@ -96,6 +98,38 @@ public class NumericStorageSizeTests extends ESTestCase {
         int size = encodedSize(pipeline, block);
         assertTrue("ALP constant-double block must be far below raw: " + size, size < RAW_BYTES / 100);
         assertEquals(7, size);
+    }
+
+    public void testAnOrdinalShapeIsSmallerThroughTheOrdinalPipeline() throws IOException {
+        // The block a mostly-empty column's ordinals produce: almost every document names the same term
+        // and one rare escape sets the packed width for all 128 of them.
+        long[] block = new long[BLOCK];
+        Arrays.fill(block, 1L);
+        block[BLOCK / 2] = 400L;
+
+        int asOrdinals = encodedSize(NumericPipeline.ordinalPipeline(BLOCK), block);
+        int asAField = encodedSize(NumericPipeline.defaultPipeline(BLOCK), block);
+        assertThat(asOrdinals, lessThan(asAField));
+    }
+
+    public void testOnlyOrdinalsCarryTheRunAndPatchedStages() {
+        for (byte stage : new byte[] { RunTransform.ID, PatchedTransform.ID }) {
+            assertTrue("ordinals want stage [" + stage + "]", carries(NumericPipeline.ordinalPipeline(BLOCK), stage));
+            assertFalse("a numeric field pays for stage [" + stage + "]", carries(NumericPipeline.defaultPipeline(BLOCK), stage));
+            assertFalse(
+                "a monotonic long field pays for stage [" + stage + "]",
+                carries(NumericPipeline.monotonicLongPipeline(BLOCK), stage)
+            );
+        }
+    }
+
+    private static boolean carries(NumericPipeline pipeline, byte stage) {
+        for (byte id : pipeline.transformIds()) {
+            if (id == stage) {
+                return true;
+            }
+        }
+        return false;
     }
 
     private static int encodedSize(long[] block) throws IOException {

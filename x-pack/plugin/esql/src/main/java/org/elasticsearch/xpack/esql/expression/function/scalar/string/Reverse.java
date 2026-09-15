@@ -118,6 +118,11 @@ public class Reverse extends UnaryScalarFunction implements AnyNullIsNull {
             ) {
                 return false;
             }
+            // A carriage return followed by a line feed is a single grapheme cluster, so reversing
+            // the bytes would wrongly split it into "\n\r". Fall back to the grapheme-aware path.
+            if (ref.bytes[i] == '\r' && i + 1 < end && ref.bytes[i + 1] == '\n') {
+                return false;
+            }
         }
         return true;
     }

@@ -11,6 +11,7 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.compute.expression.ExpressionEvaluator;
 import org.elasticsearch.compute.operator.DriverContext;
 import org.elasticsearch.compute.operator.Operator;
+import org.elasticsearch.compute.operator.Warnings;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.inference.DataType;
 import org.elasticsearch.inference.TaskType;
@@ -32,6 +33,8 @@ import org.elasticsearch.xpack.esql.inference.InferenceService;
  */
 public class EmbeddingOperator extends InferenceOperator {
 
+    private final int batchSize;
+
     EmbeddingOperator(
         DriverContext driverContext,
         InferenceService inferenceService,
@@ -46,11 +49,20 @@ public class EmbeddingOperator extends InferenceOperator {
         super(
             driverContext,
             inferenceService,
-            new EmbeddingRequestIterator.Factory(inferenceId, TaskType.EMBEDDING, inputEvaluator, dataType, batchSize, timeout),
+            new EmbeddingRequestIterator.Factory(
+                inferenceId,
+                TaskType.EMBEDDING,
+                inputEvaluator,
+                dataType,
+                batchSize,
+                timeout,
+                Warnings.createOnlyWarnings(driverContext, source)
+            ),
             new EmbeddingOutputBuilder(driverContext.blockFactory(), tolerateFailures),
             source,
             tolerateFailures
         );
+        this.batchSize = batchSize;
     }
 
     @Override
@@ -64,7 +76,7 @@ public class EmbeddingOperator extends InferenceOperator {
 
     @Override
     public String toString() {
-        return "EmbeddingOperator[inference_id=[" + inferenceId() + "]]";
+        return "EmbeddingOperator[inference_id=[" + inferenceId() + "], batch_size=[" + batchSize + "]]";
     }
 
     /**
@@ -88,7 +100,7 @@ public class EmbeddingOperator extends InferenceOperator {
 
         @Override
         public String describe() {
-            return "EmbeddingOperator[inference_id=[" + inferenceId + "]]";
+            return "EmbeddingOperator[inference_id=[" + inferenceId + "], batch_size=[" + batchSize + "]]";
         }
 
         @Override

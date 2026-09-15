@@ -30,7 +30,7 @@ public class UnionAll extends MergePlan implements PostOptimizationPlanVerificat
     }
 
     @Override
-    public LogicalPlan replaceChildren(List<LogicalPlan> newChildren) {
+    public UnionAll replaceChildren(List<LogicalPlan> newChildren) {
         return new UnionAll(source(), newChildren, output());
     }
 
@@ -51,7 +51,7 @@ public class UnionAll extends MergePlan implements PostOptimizationPlanVerificat
 
     @Override
     public UnionAll refreshOutput() {
-        return new UnionAll(source(), children(), refreshedOutput());
+        return replaceSubPlansAndOutput(children(), refreshedOutput());
     }
 
     /**
@@ -76,7 +76,7 @@ public class UnionAll extends MergePlan implements PostOptimizationPlanVerificat
 
     @Override
     public int hashCode() {
-        return Objects.hash(UnionAll.class, children());
+        return Objects.hash(UnionAll.class, output(), children());
     }
 
     @Override
@@ -89,7 +89,7 @@ public class UnionAll extends MergePlan implements PostOptimizationPlanVerificat
         }
         UnionAll other = (UnionAll) o;
 
-        return Objects.equals(children(), other.children());
+        return Objects.equals(output(), other.output()) && Objects.equals(children(), other.children());
     }
 
     @Override

@@ -156,6 +156,10 @@ public class CsvTestsDataLoader {
         ),
         new TestDataset("no_mapping_sample_data", "mapping-no_mapping_sample_data.json", "partial_mapping_sample_data.csv"),
         new TestDataset("unmapped_array_data", "mapping-unmapped_array_data.json", "unmapped_array_data.csv"),
+        new TestDataset("source_representation", "mapping-source_representation.json", "source_representation.csv"),
+        new TestDataset("source_representation_unmapped", "mapping-source_representation.json", "source_representation.csv")
+            .withTypeMapping(removeFields("loc", "wkt", "d"))
+            .withDynamic("false"),
         new TestDataset("unmapped_object_data", "mapping-unmapped_object_data.json", "unmapped_object_data.csv"),
         // Four indices that give the same conceptual "unmapped" field a different shape each, for LOAD_ALL multi-index expansion:
         // a foo leaf only, a bar leaf only, foo / bar / deep.leaf across separate documents (synthetic source), and a bare scalar plus a

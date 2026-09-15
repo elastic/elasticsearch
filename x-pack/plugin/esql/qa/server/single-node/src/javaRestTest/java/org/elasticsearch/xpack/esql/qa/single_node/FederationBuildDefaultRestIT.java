@@ -35,8 +35,7 @@ import static org.hamcrest.Matchers.equalTo;
  * source is that request: it needs the whole feature to be available, and unlike creating a dataset it stands alone,
  * with no parent to create first that would make the two builds do different amounts of work.
  *
- * <p>Skipped where registration does not default on — on Windows the feature defaults off whatever the build says,
- * so the {@code esql.federation.enabled} default this suite exists to observe is never reached.
+ * <p>Skipped on Windows since the {@code esql.federation.enabled} default this suite exists to observe is never reached.
  * {@link FederationDisabledOnWindowsRestIT} covers that cluster there instead: it takes the same
  * {@link Clusters#clusterWithoutFederationSettings()} and asserts the unavailable surface.
  */
@@ -56,7 +55,7 @@ public class FederationBuildDefaultRestIT extends ESRestTestCase {
     public void testCreatingADataSourceFollowsTheBuildDefault() throws IOException {
         // This cluster sets no property, so the node takes the platform default; where that is off, the build
         // default under test is never consulted.
-        assumeTrue("registration must default on for the build default to matter", Federation.DEFAULT_REGISTERED);
+        assumeTrue("registration must default to true for the build default to matter", Federation.DEFAULT_REGISTERED);
         Request putDataSource = new Request("PUT", "/_query/data_source/" + DATA_SOURCE);
         putDataSource.setJsonEntity("""
             {"type": "s3", "settings": {"region": "us-east-1", "auth": "anonymous"}}""");

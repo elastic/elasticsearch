@@ -11,6 +11,7 @@ import org.elasticsearch.Build;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.compute.data.BlockFactory;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.xpack.esql.core.util.Check;
 import org.elasticsearch.xpack.esql.datasources.spi.DecompressionCodec;
 import org.elasticsearch.xpack.esql.datasources.spi.FormatReader;
@@ -185,6 +186,34 @@ public class FormatReaderRegistry {
 
     public FormatReader byExtension(String objectName) {
         return byExtension(objectName, objectName);
+    }
+
+    /**
+     * Format name claimed by {@code objectName}'s inner extension, with a compression suffix stripped.
+     * Does not wrap a codec or instantiate the reader, so a whole-file-compression veto cannot throw.
+     * Returns {@code null} when the name is empty or the inner extension is unregistered.
+     */
+    @Nullable
+    public String formatNameForObject(String objectName) {
+        if (Strings.isNullOrEmpty(objectName)) {
+            return null;
+        }
+        String name = objectName;
+        if (codecRegistry != null) {
+            String stripped = codecRegistry.stripCompressionSuffix(name);
+            if (stripped != null) {
+                name = stripped;
+            }
+        }
+        String extension = trailingExtension(name);
+        if (extension == null) {
+            return null;
+        }
+        Supplier<FormatReader> supplier = byExtension.get(extension);
+        if (supplier == null) {
+            return null;
+        }
+        return byName.entrySet().stream().filter(e -> e.getValue() == supplier).map(Map.Entry::getKey).findFirst().orElse(null);
     }
 
     /**

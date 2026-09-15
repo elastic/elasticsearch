@@ -62,6 +62,19 @@ public class PushFiltersToSourceTests extends ESTestCase {
         assertNotNull(((ExternalSourceExec) result).pushedFilter());
     }
 
+    /**
+     * {@code sourceType=parquet} still pushes when the path uses the {@code .parq} alias. The rule keys
+     * the reader on {@code sourceType}, not a last-dot of {@code sourcePath()}.
+     */
+    public void testPushesParquetSourceTypeForParqAliasPaths() {
+        for (String path : List.of("file:///data/*.parq", "file:///data/file.parq")) {
+            FilterExec filterExec = filterOverExternalSource(path, "parquet", "null_field", Set.of());
+            PhysicalPlan result = applyRule(filterExec, registry(true));
+            assertThat(path, result, instanceOf(ExternalSourceExec.class));
+            assertNotNull(path, ((ExternalSourceExec) result).pushedFilter());
+        }
+    }
+
     // -- referencesAnyColumn: partition/data conjunct split --
 
     public void testReferencesAnyColumnReturnsTrueForPartitionColumn() {

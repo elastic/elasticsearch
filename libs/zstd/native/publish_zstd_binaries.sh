@@ -86,7 +86,7 @@ DARWIN_ARM_BREW=$(fetch_homebrew_artifact 'arm64')
 DARWIN_X86_BREW=$(fetch_homebrew_artifact 'amd64')
 
 build_darwin_jar() {
-  ARTIFACT="$TEMP/zstd-$ARTIFACT_VERSION-darwin-$2.jar"
+  ARTIFACT="$TEMP/libzstd-$ARTIFACT_VERSION-darwin-$2.jar"
   TAR_DIR="$TEMP/darwin-$2"
   mkdir $TAR_DIR
   tar zxf $1 --strip-components=2 -C $TAR_DIR "zstd/$VERSION/LICENSE" "zstd/$VERSION/lib/libzstd.$VERSION.dylib" && rm $1
@@ -105,7 +105,7 @@ DARWIN_ARM_JAR=$(build_darwin_jar $DARWIN_ARM_BREW "aarch64")
 DARWIN_X86_JAR=$(build_darwin_jar $DARWIN_X86_BREW "x86-64")
 
 build_linux_jar() {
-  ARTIFACT="$TEMP/zstd-$ARTIFACT_VERSION-linux-$2.jar"
+  ARTIFACT="$TEMP/libzstd-$ARTIFACT_VERSION-linux-$2.jar"
   OUTPUT_DIR="$TEMP/linux-$2"
   mkdir $OUTPUT_DIR
   DOCKER_IMAGE=$(docker build --build-arg="ZSTD_VERSION=${VERSION}" --file zstd.Dockerfile --platform $1 --quiet .)
@@ -120,7 +120,7 @@ LINUX_ARM_JAR=$(build_linux_jar "linux/arm64" "aarch64")
 LINUX_X86_JAR=$(build_linux_jar "linux/amd64" "x86-64")
 
 build_windows_jar() {
-  ARTIFACT="$TEMP/zstd-$ARTIFACT_VERSION-windows-x86-64.jar"
+  ARTIFACT="$TEMP/libzstd-$ARTIFACT_VERSION-windows-x86-64.jar"
   OUTPUT_DIR="$TEMP/win32-x86-64"
   mkdir $OUTPUT_DIR
   curl -sS --retry 3 --location https://github.com/facebook/zstd/releases/download/v${VERSION}/zstd-v${VERSION}-win64.zip --output $OUTPUT_DIR/zstd.zip
@@ -135,7 +135,7 @@ echo 'Building Windows jar...'
 WINDOWS_X86_JAR=$(build_windows_jar)
 
 upload_artifact() {
-  curl -sS -X PUT -H "X-JFrog-Art-Api: ${ARTIFACTORY_API_KEY}" --data-binary "@$1" --location "${ARTIFACTORY_REPOSITORY}/org/elasticsearch/zstd/${ARTIFACT_VERSION}/$(basename $1)"
+  curl -sS -X PUT -H "X-JFrog-Art-Api: ${ARTIFACTORY_API_KEY}" --data-binary "@$1" --location "${ARTIFACTORY_REPOSITORY}/org/elasticsearch/libzstd/${ARTIFACT_VERSION}/$(basename $1)"
 }
 
 install_locally() {

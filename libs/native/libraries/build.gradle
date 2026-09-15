@@ -69,7 +69,7 @@ repositories {
       }
     }
     filter {
-      includeModule("org.elasticsearch", "zstd")
+      includeModule("org.elasticsearch", "libzstd")
       includeModule("org.elasticsearch", "vec")
       includeModule("org.elasticsearch", "libsimdjson")
     }
@@ -89,11 +89,11 @@ dependencies {
   // libs/native/libraries/build/platform/<os>-<arch>/libzstd.so (or .dylib on macOS).
   // Build locally with: cd libs/zstd/native && ./publish_zstd_binaries.sh --local-only
   if (System.getenv("LOCAL_ZSTD_BINARY") == null) {
-    libs "org.elasticsearch:zstd:${zstdVersion}:darwin-aarch64"
-    libs "org.elasticsearch:zstd:${zstdVersion}:darwin-x86-64"
-    libs "org.elasticsearch:zstd:${zstdVersion}:linux-aarch64"
-    libs "org.elasticsearch:zstd:${zstdVersion}:linux-x86-64"
-    libs "org.elasticsearch:zstd:${zstdVersion}:windows-x86-64"
+    libs "org.elasticsearch:libzstd:${zstdVersion}:darwin-aarch64"
+    libs "org.elasticsearch:libzstd:${zstdVersion}:darwin-x86-64"
+    libs "org.elasticsearch:libzstd:${zstdVersion}:linux-aarch64"
+    libs "org.elasticsearch:libzstd:${zstdVersion}:linux-x86-64"
+    libs "org.elasticsearch:libzstd:${zstdVersion}:windows-x86-64"
   }
 }
 

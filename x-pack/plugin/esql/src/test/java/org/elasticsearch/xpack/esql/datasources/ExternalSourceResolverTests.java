@@ -1391,7 +1391,13 @@ public class ExternalSourceResolverTests extends ESTestCase {
             List.of(entry("s3://bucket/data/a.ndjson", 100), entry("s3://bucket/data/b.ndjson", 200)),
             "s3://bucket/data/*.ndjson"
         );
-        assertNotNull("a text-format listing must qualify (positive control)", resolver.datasetAggregateKey(textListing, Map.of()));
+        SchemaCacheKey textKey = resolver.datasetAggregateKey(textListing, Map.of());
+        assertNotNull("a text-format listing must qualify (positive control)", textKey);
+        assertEquals(
+            "formatType is the registry name, not a last-dot suffix",
+            "ndjson" + SchemaCacheKey.DATASET_AGGREGATE_MARKER,
+            textKey.formatType()
+        );
     }
 
     /**
@@ -1427,6 +1433,80 @@ public class ExternalSourceResolverTests extends ESTestCase {
             "format=parquet must gate .ndjson-named files as parquet (config wins over extension)",
             resolver.datasetAggregateKey(ndjsonNamed, Map.of("format", "parquet"))
         );
+    }
+
+    /**
+     * Compressed siblings of one format share one aggregate key regardless of listing order.
+     * Last-dot of {@code path(0)} would mint {@code .csv#dataset-agg} vs {@code .gz#dataset-agg}.
+     */
+    public void testDatasetAggregateKeyStableAcrossCsvGzListingOrder() {
+        ExternalSourceResolver resolver = datasetGateResolver(null);
+        String pattern = "s3://bucket/data/*.{csv,csv.gz}";
+        StorageEntry csv = entry("s3://bucket/data/a.csv", 100);
+        StorageEntry gzipped = entry("s3://bucket/data/b.csv.gz", 200);
+        FileList csvThenGz = GlobExpander.fileListOf(List.of(csv, gzipped), pattern);
+        FileList gzThenCsv = GlobExpander.fileListOf(List.of(gzipped, csv), pattern);
+        assertEquals("s3://bucket/data/a.csv", csvThenGz.path(0).toString());
+        assertEquals("s3://bucket/data/b.csv.gz", gzThenCsv.path(0).toString());
+        assertEquals(csvThenGz.fileSetFingerprint(), gzThenCsv.fileSetFingerprint());
+        SchemaCacheKey keyA = resolver.datasetAggregateKey(csvThenGz, Map.of());
+        SchemaCacheKey keyB = resolver.datasetAggregateKey(gzThenCsv, Map.of());
+        assertNotNull("csv+csv.gz must qualify for a dataset aggregate key", keyA);
+        assertEquals(keyA, keyB);
+        assertEquals("csv" + SchemaCacheKey.DATASET_AGGREGATE_MARKER, keyA.formatType());
+    }
+
+    /**
+     * Parquet and {@code .parq} are one format. Listing order must not fork the key; the footer
+     * implicit-nulls gate still refuses both, so both keys are null.
+     */
+    public void testDatasetAggregateKeyStableAcrossParquetParqListingOrder() {
+        ExternalSourceResolver resolver = datasetGateResolver(null);
+        String pattern = "s3://bucket/data/*.{parquet,parq}";
+        StorageEntry parquet = entry("s3://bucket/data/a.parquet", 100);
+        StorageEntry parq = entry("s3://bucket/data/b.parq", 200);
+        FileList parquetThenParq = GlobExpander.fileListOf(List.of(parquet, parq), pattern);
+        FileList parqThenParquet = GlobExpander.fileListOf(List.of(parq, parquet), pattern);
+        assertEquals("s3://bucket/data/a.parquet", parquetThenParq.path(0).toString());
+        assertEquals("s3://bucket/data/b.parq", parqThenParquet.path(0).toString());
+        assertEquals("parquet", resolver.detectFormatType(parquetThenParq.path(0), Map.of()));
+        assertEquals("parquet", resolver.detectFormatType(parqThenParquet.path(0), Map.of()));
+        assertEquals(parquetThenParq.fileSetFingerprint(), parqThenParquet.fileSetFingerprint());
+        assertEquals(resolver.datasetAggregateKey(parquetThenParq, Map.of()), resolver.datasetAggregateKey(parqThenParquet, Map.of()));
+        assertNull(
+            "parquet (including .parq) still refuses the row-count-only aggregate",
+            resolver.datasetAggregateKey(parquetThenParq, Map.of())
+        );
+    }
+
+    /**
+     * Per-file cache keys use the registry format name. Distinct paths stay distinct keys; an
+     * unrecognized extension falls back to {@link FormatNameResolver#extractCleanExtension} without throwing.
+     * A whole-file compression veto must not last-dot to {@code gz}.
+     */
+    public void testDetectFormatTypeUsesRegistryNameNotLastDot() {
+        ExternalSourceResolver resolver = datasetGateResolver(null);
+        assertEquals("parquet", resolver.detectFormatType(StoragePath.of("s3://b/file.parq"), Map.of()));
+        assertEquals("parquet", resolver.detectFormatType(StoragePath.of("s3://b/file.parquet"), Map.of()));
+        assertEquals("parquet", resolver.detectFormatType(StoragePath.of("s3://b/file.parquet.gz"), Map.of()));
+        assertEquals("csv", resolver.detectFormatType(StoragePath.of("s3://b/hits.csv.gz"), Map.of()));
+        assertEquals("csv", resolver.detectFormatType(StoragePath.of("s3://b/file.log"), Map.of("format", "csv")));
+        assertEquals("log", resolver.detectFormatType(StoragePath.of("s3://b/file.log"), Map.of()));
+        SchemaCacheKey parqKey = SchemaCacheKey.build(
+            "s3://b/file.parq",
+            1L,
+            resolver.detectFormatType(StoragePath.of("s3://b/file.parq"), Map.of()),
+            Map.of()
+        );
+        SchemaCacheKey parquetKey = SchemaCacheKey.build(
+            "s3://b/file.parquet",
+            1L,
+            resolver.detectFormatType(StoragePath.of("s3://b/file.parquet"), Map.of()),
+            Map.of()
+        );
+        assertNotEquals(parqKey, parquetKey);
+        assertEquals("parquet", parqKey.formatType());
+        assertEquals("parquet", parquetKey.formatType());
     }
 
     /**
@@ -1750,9 +1830,19 @@ public class ExternalSourceResolverTests extends ESTestCase {
         return new ExternalSourceResolver(EsExecutors.DIRECT_EXECUTOR_SERVICE, module, Settings.EMPTY, cacheService);
     }
 
-    /** Shared parquet+ndjson module for the dataset-aggregate gate tests; see {@link TextAggregatePushdownSupport}. */
+    /** Shared parquet+ndjson+csv module for the dataset-aggregate gate tests; see {@link TextAggregatePushdownSupport}. */
     private ExternalSourceResolver datasetGateResolver(ExternalSourceCacheService cacheService) {
-        StubFormatReaderWithStats footerReader = new StubFormatReaderWithStats(Map.of(), Map.of());
+        StubFormatReaderWithStats footerReader = new StubFormatReaderWithStats(Map.of(), Map.of()) {
+            @Override
+            public List<String> fileExtensions() {
+                return List.of(".parquet", ".parq");
+            }
+
+            @Override
+            public boolean supportsWholeFileCompression() {
+                return false;
+            }
+        };
         // Same stub, but named ndjson and declaring the text contract: an absent column stat safe-misses
         // to a re-scan. formatName() must round-trip through the registry back to THIS reader — the gate
         // resolves reader -> formatName -> findByName, exactly like the read path.
@@ -1772,15 +1862,55 @@ public class ExternalSourceResolverTests extends ESTestCase {
                 return new TextAggregatePushdownSupport();
             }
         };
+        StubFormatReaderWithStats csvReader = new StubFormatReaderWithStats(Map.of(), Map.of()) {
+            @Override
+            public String formatName() {
+                return "csv";
+            }
+
+            @Override
+            public List<String> fileExtensions() {
+                return List.of(".csv");
+            }
+
+            @Override
+            public AggregatePushdownSupport aggregatePushdownSupport() {
+                return new TextAggregatePushdownSupport();
+            }
+        };
         DataSourcePlugin plugin = new DataSourcePlugin() {
             @Override
             public Set<FormatSpec> formatSpecs() {
-                return Set.of(FormatSpec.of("parquet", ".parquet"), FormatSpec.of("ndjson", ".ndjson"));
+                return Set.of(
+                    new FormatSpec("parquet", Set.of(".parquet", ".parq"), Set.of(), null),
+                    FormatSpec.of("ndjson", ".ndjson"),
+                    FormatSpec.of("csv", ".csv")
+                );
             }
 
             @Override
             public Map<String, FormatReaderFactory> formatReaders(Settings settings) {
-                return Map.of("parquet", (s, bf) -> footerReader, "ndjson", (s, bf) -> textReader);
+                return Map.of("parquet", (s, bf) -> footerReader, "ndjson", (s, bf) -> textReader, "csv", (s, bf) -> csvReader);
+            }
+
+            @Override
+            public List<DecompressionCodec> decompressionCodecs(Settings settings) {
+                return List.of(new DecompressionCodec() {
+                    @Override
+                    public String name() {
+                        return "gzip";
+                    }
+
+                    @Override
+                    public List<String> extensions() {
+                        return List.of(".gz");
+                    }
+
+                    @Override
+                    public InputStream decompress(InputStream raw) {
+                        return raw;
+                    }
+                });
             }
         };
         List<DataSourcePlugin> plugins = List.of(plugin);

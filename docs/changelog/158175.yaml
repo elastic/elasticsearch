@@ -1,5 +1,5 @@
 area: Templates
 issues: []
 pr: 158175
-summary:  Reduce memory usage when serializing component and composable templates in GET API responses
+summary: Reduce memory usage when serializing component and composable templates in GET API responses
 type: bug

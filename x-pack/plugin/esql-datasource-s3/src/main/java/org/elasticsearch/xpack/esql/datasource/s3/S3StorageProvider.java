@@ -293,7 +293,7 @@ public class S3StorageProvider implements StorageProvider {
             builder.region(Region.US_EAST_1);
         }
 
-        if (config != null && config.endpoint() != null) {
+        if (config != null && Strings.hasText(config.endpoint())) {
             builder.endpointOverride(URI.create(config.endpoint()));
         }
 
@@ -304,8 +304,10 @@ public class S3StorageProvider implements StorageProvider {
             case PATH -> builder.forcePathStyle(true);
             case VIRTUAL_HOSTED -> builder.forcePathStyle(false);
             case AUTO -> {
-                // path-style when an endpoint override is set, SDK default otherwise
-                if (config != null && config.endpoint() != null) {
+                // path-style when an endpoint override is set, SDK default otherwise. Same hasText test as
+                // the endpointOverride guard above: a blank endpoint sets no override, so it must not
+                // force path-style either.
+                if (config != null && Strings.hasText(config.endpoint())) {
                     builder.forcePathStyle(true);
                 }
             }

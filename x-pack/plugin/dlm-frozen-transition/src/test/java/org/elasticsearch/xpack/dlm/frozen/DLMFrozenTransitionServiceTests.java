@@ -25,6 +25,7 @@ import org.elasticsearch.datastreams.DataStreamsPlugin;
 import org.elasticsearch.datastreams.lifecycle.DataStreamLifecycleService;
 import org.elasticsearch.dlm.DataStreamLifecycleErrorStore;
 import org.elasticsearch.gateway.GatewayService;
+import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.threadpool.FixedExecutorBuilder;
@@ -55,7 +56,7 @@ public class DLMFrozenTransitionServiceTests extends ESTestCase {
      * allowing tests to observe the transition as running and to record which indices were submitted.
      */
     static class TestDLMFrozenTransitionRunnable implements DLMFrozenTransitionRunnable {
-        private final String indexName;
+        private final Index index;
         private final ProjectId projectId;
         private final CountDownLatch blockUntil;
         private final CountDownLatch started;
@@ -65,15 +66,15 @@ public class DLMFrozenTransitionServiceTests extends ESTestCase {
         }
 
         TestDLMFrozenTransitionRunnable(String indexName, ProjectId projectId, CountDownLatch blockUntil, CountDownLatch started) {
-            this.indexName = indexName;
+            this.index = new Index(indexName, indexName);
             this.projectId = projectId;
             this.blockUntil = blockUntil;
             this.started = started;
         }
 
         @Override
-        public String getIndexName() {
-            return indexName;
+        public Index getIndex() {
+            return index;
         }
 
         @Override
@@ -146,7 +147,7 @@ public class DLMFrozenTransitionServiceTests extends ESTestCase {
     private DLMFrozenTransitionService createService() {
         return new DLMFrozenTransitionService(
             clusterService,
-            (indexName, projectId) -> new TestDLMFrozenTransitionRunnable(indexName, projectId, new CountDownLatch(0)),
+            (index, projectId) -> new TestDLMFrozenTransitionRunnable(index.getName(), projectId, new CountDownLatch(0)),
             transitionExecutor,
             transitionSettings
         );
@@ -247,9 +248,9 @@ public class DLMFrozenTransitionServiceTests extends ESTestCase {
         CountDownLatch blockUntil = new CountDownLatch(1);
         CountDownLatch tasksStarted = new CountDownLatch(2);
         List<String> submittedIndices = new CopyOnWriteArrayList<>();
-        var service = new DLMFrozenTransitionService(clusterService, (indexName, projectId) -> {
-            submittedIndices.add(indexName);
-            return new TestDLMFrozenTransitionRunnable(indexName, projectId, blockUntil, tasksStarted);
+        var service = new DLMFrozenTransitionService(clusterService, (index, projectId) -> {
+            submittedIndices.add(index.getName());
+            return new TestDLMFrozenTransitionRunnable(index.getName(), projectId, blockUntil, tasksStarted);
         }, transitionExecutor, transitionSettings);
         try {
             ProjectMetadata.Builder projectBuilder = ProjectMetadata.builder(randomProjectIdOrDefault());
@@ -286,9 +287,9 @@ public class DLMFrozenTransitionServiceTests extends ESTestCase {
         CountDownLatch blockUntil = new CountDownLatch(1);
         CountDownLatch taskStarted = new CountDownLatch(1);
         List<String> submittedIndices = new CopyOnWriteArrayList<>();
-        var service = new DLMFrozenTransitionService(clusterService, (indexName, projectId) -> {
-            submittedIndices.add(indexName);
-            return new TestDLMFrozenTransitionRunnable(indexName, projectId, blockUntil, taskStarted);
+        var service = new DLMFrozenTransitionService(clusterService, (index, projectId) -> {
+            submittedIndices.add(index.getName());
+            return new TestDLMFrozenTransitionRunnable(index.getName(), projectId, blockUntil, taskStarted);
         }, transitionExecutor, transitionSettings);
         try {
             IndexMetadata markedIndex = createMarkedIndex("frozen-ds");
@@ -317,10 +318,10 @@ public class DLMFrozenTransitionServiceTests extends ESTestCase {
         CountDownLatch blockUntil = new CountDownLatch(1);
         CountDownLatch allSubmitted = new CountDownLatch(maxJobs);
         List<String> submittedIndices = new CopyOnWriteArrayList<>();
-        var service = new DLMFrozenTransitionService(clusterService, (indexName, projectId) -> {
-            submittedIndices.add(indexName);
+        var service = new DLMFrozenTransitionService(clusterService, (index, projectId) -> {
+            submittedIndices.add(index.getName());
             allSubmitted.countDown();
-            return new TestDLMFrozenTransitionRunnable(indexName, projectId, blockUntil);
+            return new TestDLMFrozenTransitionRunnable(index.getName(), projectId, blockUntil);
         }, transitionExecutor, transitionSettings);
         try {
             // Start with exactly maxJobs marked indices so the initial poll fills capacity without rejection
@@ -402,9 +403,9 @@ public class DLMFrozenTransitionServiceTests extends ESTestCase {
             addDataStream(projectBuilder, "second-ds", secondIndex);
             setState(localClusterService, ClusterState.builder(localClusterService.state()).putProjectMetadata(projectBuilder).build());
 
-            var service = new DLMFrozenTransitionService(localClusterService, (indexName, projectId) -> {
-                submittedIndices.add(indexName);
-                return new TestDLMFrozenTransitionRunnable(indexName, projectId, blockUntil);
+            var service = new DLMFrozenTransitionService(localClusterService, (index, projectId) -> {
+                submittedIndices.add(index.getName());
+                return new TestDLMFrozenTransitionRunnable(index.getName(), projectId, blockUntil);
             }, localTransitionExecutor, localTransitionSettings);
             try {
                 service.clusterChanged(createMasterEventFor(localClusterService, true));
@@ -448,9 +449,9 @@ public class DLMFrozenTransitionServiceTests extends ESTestCase {
             .applySettings(Settings.builder().put(DLMFrozenTransitionSettings.TRANSITION_ENABLED_SETTING.getKey(), false).build());
 
         List<String> submittedIndices = new CopyOnWriteArrayList<>();
-        var service = new DLMFrozenTransitionService(clusterService, (indexName, projectId) -> {
-            submittedIndices.add(indexName);
-            return new TestDLMFrozenTransitionRunnable(indexName, projectId, new CountDownLatch(0));
+        var service = new DLMFrozenTransitionService(clusterService, (index, projectId) -> {
+            submittedIndices.add(index.getName());
+            return new TestDLMFrozenTransitionRunnable(index.getName(), projectId, new CountDownLatch(0));
         }, transitionExecutor, transitionSettings);
         try {
             service.clusterChanged(createMasterEvent(true));
@@ -473,9 +474,9 @@ public class DLMFrozenTransitionServiceTests extends ESTestCase {
         CountDownLatch firstTaskStarted = new CountDownLatch(1);
         List<String> submittedIndices = new CopyOnWriteArrayList<>();
 
-        var service = new DLMFrozenTransitionService(clusterService, (indexName, projectId) -> {
-            submittedIndices.add(indexName);
-            return new TestDLMFrozenTransitionRunnable(indexName, projectId, blockUntil, firstTaskStarted);
+        var service = new DLMFrozenTransitionService(clusterService, (index, projectId) -> {
+            submittedIndices.add(index.getName());
+            return new TestDLMFrozenTransitionRunnable(index.getName(), projectId, blockUntil, firstTaskStarted);
         }, transitionExecutor, transitionSettings);
         try {
             ProjectId projectId = randomProjectIdOrDefault();

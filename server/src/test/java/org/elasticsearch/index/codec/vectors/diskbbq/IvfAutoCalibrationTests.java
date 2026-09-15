@@ -17,6 +17,7 @@ import org.apache.lucene.index.DocValuesSkipIndexType;
 import org.apache.lucene.index.DocValuesType;
 import org.apache.lucene.index.FieldInfo;
 import org.apache.lucene.index.FieldInfos;
+import org.apache.lucene.index.Float16VectorValues;
 import org.apache.lucene.index.FloatVectorValues;
 import org.apache.lucene.index.IndexOptions;
 import org.apache.lucene.index.LeafReader;
@@ -668,10 +669,18 @@ public class IvfAutoCalibrationTests extends ESTestCase {
             }
 
             @Override
+            public Float16VectorValues getFloat16VectorValues(String field) {
+                return null;
+            }
+
+            @Override
             public void search(String field, float[] target, KnnCollector knnCollector, AcceptDocs acceptDocs) {}
 
             @Override
             public void search(String field, byte[] target, KnnCollector knnCollector, AcceptDocs acceptDocs) {}
+
+            @Override
+            public void search(String field, short[] target, KnnCollector knnCollector, AcceptDocs acceptDocs) {}
 
             @Override
             public Map<String, Long> getOffHeapByteSize(FieldInfo info) {
@@ -1000,12 +1009,22 @@ public class IvfAutoCalibrationTests extends ESTestCase {
         }
 
         @Override
+        public Float16VectorValues getFloat16VectorValues(String field) {
+            throw new UnsupportedOperationException();
+        }
+
+        @Override
         public void search(String field, float[] target, KnnCollector knnCollector, AcceptDocs acceptDocs) {
             throw new UnsupportedOperationException();
         }
 
         @Override
         public void search(String field, byte[] target, KnnCollector knnCollector, AcceptDocs acceptDocs) {
+            throw new UnsupportedOperationException();
+        }
+
+        @Override
+        public void search(String field, short[] target, KnnCollector knnCollector, AcceptDocs acceptDocs) {
             throw new UnsupportedOperationException();
         }
 

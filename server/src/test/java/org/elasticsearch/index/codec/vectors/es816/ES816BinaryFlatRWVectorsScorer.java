@@ -90,6 +90,15 @@ class ES816BinaryFlatRWVectorsScorer implements FlatVectorsScorer {
         return nonQuantizedDelegate.getRandomVectorScorer(similarityFunction, vectorValues, target);
     }
 
+    @Override
+    public RandomVectorScorer getRandomVectorScorer(
+        VectorSimilarityFunction similarityFunction,
+        KnnVectorValues vectorValues,
+        short[] target
+    ) throws IOException {
+        return nonQuantizedDelegate.getRandomVectorScorer(similarityFunction, vectorValues, target);
+    }
+
     RandomVectorScorerSupplier getRandomVectorScorerSupplier(
         VectorSimilarityFunction similarityFunction,
         ES816BinaryQuantizedVectorsWriter.OffHeapBinarizedQueryVectorValues scoringVectors,

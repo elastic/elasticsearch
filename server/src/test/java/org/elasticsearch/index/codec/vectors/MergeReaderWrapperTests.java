@@ -13,6 +13,7 @@ import org.apache.lucene.codecs.hnsw.FlatVectorsReader;
 import org.apache.lucene.codecs.hnsw.FlatVectorsScorer;
 import org.apache.lucene.index.ByteVectorValues;
 import org.apache.lucene.index.FieldInfo;
+import org.apache.lucene.index.Float16VectorValues;
 import org.apache.lucene.index.FloatVectorValues;
 import org.apache.lucene.index.MergePolicy;
 import org.apache.lucene.search.AcceptDocs;
@@ -67,6 +68,11 @@ public class MergeReaderWrapperTests extends ESTestCase {
         }
 
         @Override
+        public RandomVectorScorer getRandomVectorScorer(String field, short[] target) {
+            throw new UnsupportedOperationException();
+        }
+
+        @Override
         public void checkIntegrity(MergePolicy.OneMerge merge) {}
 
         @Override
@@ -80,10 +86,18 @@ public class MergeReaderWrapperTests extends ESTestCase {
         }
 
         @Override
+        public Float16VectorValues getFloat16VectorValues(String field) {
+            return null;
+        }
+
+        @Override
         public void search(String field, float[] target, KnnCollector knnCollector, AcceptDocs acceptDocs) {}
 
         @Override
         public void search(String field, byte[] target, KnnCollector knnCollector, AcceptDocs acceptDocs) {}
+
+        @Override
+        public void search(String field, short[] target, KnnCollector knnCollector, AcceptDocs acceptDocs) {}
 
         @Override
         public long ramBytesUsed() {

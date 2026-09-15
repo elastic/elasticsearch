@@ -60,6 +60,7 @@ import org.elasticsearch.xpack.esql.datasources.spi.NoConfigFormatReader;
 import org.elasticsearch.xpack.esql.datasources.spi.PassThroughRowPositionStrategy;
 import org.elasticsearch.xpack.esql.datasources.spi.RowPositionStrategy;
 import org.elasticsearch.xpack.esql.datasources.spi.SimpleSourceMetadata;
+import org.elasticsearch.xpack.esql.datasources.spi.SkipWarnings;
 import org.elasticsearch.xpack.esql.datasources.spi.SourceMetadata;
 import org.elasticsearch.xpack.esql.datasources.spi.SourceStatistics;
 import org.elasticsearch.xpack.esql.datasources.spi.StorageObject;
@@ -98,6 +99,7 @@ import java.util.function.Supplier;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.hasItem;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.lessThan;
 import static org.hamcrest.Matchers.not;
@@ -305,6 +307,118 @@ public class ExternalSourceResolverTests extends ESTestCase {
             future
         );
         return future.actionGet();
+    }
+
+    /**
+     * Configure-time notices belong to the dataset's options, not to a file, and the strict declared-schema rail reads
+     * no file at all; they are raised once per path in {@code resolveNextPath} so every rail delivers them, and the
+     * inferred rail, which reads metadata per file, delivers them exactly once too.
+     */
+    public void testConfigWarningsDeliveredOncePerPathOnEveryRail() throws Exception {
+        String file = "s3://bucket/data/file1.parquet";
+        Map<String, List<Attribute>> schemasByPath = Map.of(file, List.of(attr("id", DataType.INTEGER)));
+        CountingStorageProvider provider = new CountingStorageProvider(
+            Map.of("s3://bucket/data/", List.of(entry(file, 100))),
+            schemasByPath
+        );
+        String notice = "option [x] is undone by option [y]";
+        FormatReader reader = new StubFormatReader(schemasByPath) {
+            @Override
+            public List<String> configWarnings() {
+                return List.of(notice);
+            }
+        };
+        ExternalSourceResolver resolver = createResolverWithReader(provider, reader, null);
+
+        Map<String, DatasetFieldMapping> props = new LinkedHashMap<>();
+        props.put("id", new DatasetFieldMapping("integer", null));
+        DatasetMapping strict = new DatasetMapping(new DatasetMapping.Mappings(DatasetMapping.Dynamic.FALSE, props));
+        PlainActionFuture<ExternalSourceResolution> strictFuture = new PlainActionFuture<>();
+        resolver.resolve(
+            List.of(DECLARED_GLOB),
+            Map.of(DECLARED_GLOB, new HashMap<>()),
+            null,
+            Map.of(DECLARED_GLOB, strict),
+            null,
+            strictFuture
+        );
+        assertEquals("strict reads no file, the notice must still arrive", List.of(notice), strictFuture.actionGet().warnings());
+
+        PlainActionFuture<ExternalSourceResolution> inferredFuture = new PlainActionFuture<>();
+        resolver.resolve(List.of(DECLARED_GLOB), Map.of(DECLARED_GLOB, new HashMap<>()), inferredFuture);
+        assertEquals(
+            "inferred reads metadata per file, the notice must arrive once",
+            List.of(notice),
+            inferredFuture.actionGet().warnings()
+        );
+    }
+
+    /**
+     * Listing notices and schema notices are separate channels: a comma list with more segments than the cap raises one
+     * exclusion notice per segment, and the notice that the user's numbers came back as strings must still be delivered.
+     */
+    public void testListingNoticesDoNotStarveSchemaNotices() throws Exception {
+        Map<String, List<Attribute>> schemasByPath = new HashMap<>();
+        Map<String, List<StorageEntry>> listingsByPrefix = new HashMap<>();
+        List<String> segments = new ArrayList<>();
+        for (int i = 0; i < SkipWarnings.MAX_ADDED_WARNINGS + 5; i++) {
+            String prefix = "s3://bucket/p" + i + "/";
+            schemasByPath.put(prefix + "a.parquet", List.of(attr("id", DataType.INTEGER)));
+            listingsByPrefix.put(prefix, List.of(entry(prefix + "a.parquet", 100), entry(prefix + "_SUCCESS", 0)));
+            segments.add(prefix + "*");
+        }
+        // One segment disagrees on the type, so reconciliation widens [id] to keyword.
+        schemasByPath.put("s3://bucket/p0/b.parquet", List.of(attr("id", DataType.KEYWORD)));
+        listingsByPrefix.put(
+            "s3://bucket/p0/",
+            List.of(entry("s3://bucket/p0/a.parquet", 100), entry("s3://bucket/p0/b.parquet", 100), entry("s3://bucket/p0/_SUCCESS", 0))
+        );
+
+        ExternalSourceResolution resolution = resolveResourceWithConfig(
+            String.join(",", segments),
+            schemasByPath,
+            listingsByPrefix,
+            configFor(FormatReader.SchemaResolution.UNION_BY_NAME)
+        );
+
+        List<String> warnings = resolution.warnings();
+        assertThat(warnings, hasItem(containsString("widened columns to keyword")));
+        assertEquals(
+            "the listing channel is still capped on its own",
+            SkipWarnings.MAX_ADDED_WARNINGS,
+            warnings.stream().filter(w -> w.contains("was excluded by the [file_exclusions] dataset setting")).count()
+        );
+        assertEquals(SkipWarnings.overflowMessage(), warnings.get(warnings.size() - 1));
+    }
+
+    /**
+     * A brace group holds a comma the glob grammar owns, so the anchor for the once-per-path config notice must come
+     * from the shared comma decomposition; splitting on the first comma would leave no extension to resolve the format
+     * from and the notice would be dropped for a query that otherwise works.
+     */
+    public void testConfigWarningsDeliveredForBraceGroupGlob() throws Exception {
+        String glob = "s3://bucket/data/{a,b}/*.parquet";
+        String file = "s3://bucket/data/a/file1.parquet";
+        Map<String, List<Attribute>> schemasByPath = Map.of(file, List.of(attr("id", DataType.INTEGER)));
+        CountingStorageProvider provider = new CountingStorageProvider(
+            Map.of("s3://bucket/data/", List.of(entry(file, 100))),
+            schemasByPath
+        );
+        String notice = "option [x] is undone by option [y]";
+        FormatReader reader = new StubFormatReader(schemasByPath) {
+            @Override
+            public List<String> configWarnings() {
+                return List.of(notice);
+            }
+        };
+        ExternalSourceResolver resolver = createResolverWithReader(provider, reader, null);
+
+        PlainActionFuture<ExternalSourceResolution> future = new PlainActionFuture<>();
+        resolver.resolve(List.of(glob), Map.of(glob, new HashMap<>()), future);
+        ExternalSourceResolution resolution = future.actionGet();
+
+        assertEquals(1, resolution.resolvedSource(glob).fileList().fileCount());
+        assertEquals(List.of(notice), resolution.warnings());
     }
 
     // ===== FIRST_FILE_WINS tests (current behavior) =====
@@ -2810,13 +2924,40 @@ public class ExternalSourceResolverTests extends ESTestCase {
 
         assertThat(e.getMessage(), containsString("Glob pattern matched no files"));
         assertThat(e.getMessage(), containsString("s3://bucket/vpcflow/*"));
-        // "matched no files" on a prefix that visibly holds a file is the least actionable error this path can
-        // produce. The exclusion warning is what turns it into something the user can act on: the object was found
-        // and then dropped, and here is the rule that dropped it.
-        assertWarnings(
-            "1 of 1 objects matching the resource under [s3://bucket/vpcflow/] was excluded by the "
-                + "[file_exclusions] dataset setting, for example [_SUCCESS] which matched entry [**/_*]"
+        // A failed resolve delivers no notices, so the one that explains the empty listing rides the message.
+        assertThat(e.getMessage(), containsString("[_SUCCESS] which matched entry [**/_*]"));
+    }
+
+    /**
+     * A comma list raises one exclusion notice per segment, each naming its own prefix, so exact-text deduplication
+     * alone would deliver one header per segment. The listing channel is capped like the metadata channel, with a
+     * single overflow marker after everything else.
+     */
+    public void testListingNoticesAreCapped() throws Exception {
+        List<Attribute> schema = List.of(attr("id", DataType.INTEGER));
+        Map<String, List<Attribute>> schemasByPath = new HashMap<>();
+        Map<String, List<StorageEntry>> listingsByPrefix = new HashMap<>();
+        List<String> segments = new ArrayList<>();
+        for (int i = 0; i < SkipWarnings.MAX_ADDED_WARNINGS + 5; i++) {
+            String prefix = "s3://bucket/p" + i + "/";
+            schemasByPath.put(prefix + "a.parquet", schema);
+            listingsByPrefix.put(prefix, List.of(entry(prefix + "a.parquet", 100), entry(prefix + "_SUCCESS", 0)));
+            segments.add(prefix + "*");
+        }
+
+        ExternalSourceResolution resolution = resolveResourceWithConfig(
+            String.join(",", segments),
+            schemasByPath,
+            listingsByPrefix,
+            Map.of()
         );
+
+        List<String> warnings = resolution.warnings();
+        assertEquals(SkipWarnings.MAX_ADDED_WARNINGS + 1, warnings.size());
+        for (String warning : warnings.subList(0, SkipWarnings.MAX_ADDED_WARNINGS)) {
+            assertThat(warning, containsString("was excluded by the [file_exclusions] dataset setting"));
+        }
+        assertEquals(SkipWarnings.overflowMessage(), warnings.get(SkipWarnings.MAX_ADDED_WARNINGS));
     }
 
     /**
@@ -3469,8 +3610,8 @@ public class ExternalSourceResolverTests extends ESTestCase {
             resolver.resolve(List.of(glob), pathConfigs, first);
             ExternalSourceResolution res1 = first.actionGet();
             assertEquals(1, res1.resolvedSource(glob).fileList().fileCount());
-            assertEquals(List.of(warning), res1.resolvedSource(glob).fileList().exclusionWarnings());
-            assertWarnings(warning);
+            assertEquals(List.of(warning), res1.resolvedSource(glob).fileList().listingWarnings());
+            assertEquals("the exclusion notice rides the resolution object", List.of(warning), res1.warnings());
             int listCallsAfterFirst = countingProvider.listCallCount.get();
             assertTrue("first resolve must list", listCallsAfterFirst > 0);
 
@@ -3478,9 +3619,9 @@ public class ExternalSourceResolverTests extends ESTestCase {
             resolver.resolve(List.of(glob), pathConfigs, second);
             ExternalSourceResolution res2 = second.actionGet();
             assertEquals(1, res2.resolvedSource(glob).fileList().fileCount());
-            assertEquals(List.of(warning), res2.resolvedSource(glob).fileList().exclusionWarnings());
+            assertEquals(List.of(warning), res2.resolvedSource(glob).fileList().listingWarnings());
             assertEquals("second resolve must be a listing cache hit", listCallsAfterFirst, countingProvider.listCallCount.get());
-            assertWarnings(warning);
+            assertEquals("a cached listing must replay the notice onto the resolution object", List.of(warning), res2.warnings());
         }
     }
 

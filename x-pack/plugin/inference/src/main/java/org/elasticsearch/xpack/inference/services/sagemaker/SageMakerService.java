@@ -35,6 +35,7 @@ import org.elasticsearch.inference.UnparsedModel;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.core.inference.chunking.EmbeddingRequestChunker;
+import org.elasticsearch.xpack.core.inference.chunking.RecursiveChunkingSettings;
 import org.elasticsearch.xpack.inference.services.ServiceUtils;
 import org.elasticsearch.xpack.inference.services.sagemaker.model.SageMakerModel;
 import org.elasticsearch.xpack.inference.services.sagemaker.model.SageMakerModelBuilder;
@@ -293,6 +294,7 @@ public class SageMakerService implements InferenceService, RerankingInferenceSer
             var batchedRequests = new EmbeddingRequestChunker<>(
                 input,
                 sageMakerModel.batchSize().orElse(DEFAULT_BATCH_SIZE),
+                clusterService.getClusterSettings().get(RecursiveChunkingSettings.REGEX_READ_LIMIT_FACTOR_SETTING),
                 sageMakerModel.getConfigurations().getChunkingSettings()
             ).batchRequestsWithListeners(listener);
 

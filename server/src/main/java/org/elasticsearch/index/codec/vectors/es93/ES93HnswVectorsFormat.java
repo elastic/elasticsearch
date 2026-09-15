@@ -28,6 +28,12 @@ import static org.apache.lucene.codecs.lucene99.Lucene99HnswVectorsFormat.DEFAUL
 
 public class ES93HnswVectorsFormat extends AbstractHnswVectorsFormat {
 
+    /**
+     * Buffer raw vectors off-heap while the segment is written, so graph construction scores them
+     * through the native scorers rather than copying out of an on-heap list.
+     */
+    private static final boolean OFF_HEAP_BUFFERING = true;
+
     static final String NAME = "ES93HnswVectorsFormat";
     /**
      * For k=100, we ask by default to search a graph of 100*1.5=150 results.
@@ -39,17 +45,17 @@ public class ES93HnswVectorsFormat extends AbstractHnswVectorsFormat {
 
     public ES93HnswVectorsFormat() {
         super(NAME, DEFAULT_MAX_CONN, DEFAULT_BEAM_WIDTH, DEFAULT_NUM_MERGE_WORKER, null, HNSW_GRAPH_THRESHOLD);
-        flatVectorsFormat = new ES93GenericFlatVectorsFormat();
+        flatVectorsFormat = new ES93GenericFlatVectorsFormat(DenseVectorFieldMapper.ElementType.FLOAT, false, OFF_HEAP_BUFFERING);
     }
 
     public ES93HnswVectorsFormat(DenseVectorFieldMapper.ElementType elementType) {
         super(NAME, DEFAULT_MAX_CONN, DEFAULT_BEAM_WIDTH, DEFAULT_NUM_MERGE_WORKER, null, HNSW_GRAPH_THRESHOLD);
-        flatVectorsFormat = new ES93GenericFlatVectorsFormat(elementType, false);
+        flatVectorsFormat = new ES93GenericFlatVectorsFormat(elementType, false, OFF_HEAP_BUFFERING);
     }
 
     public ES93HnswVectorsFormat(int maxConn, int beamWidth, DenseVectorFieldMapper.ElementType elementType) {
         super(NAME, maxConn, beamWidth, DEFAULT_NUM_MERGE_WORKER, null, HNSW_GRAPH_THRESHOLD);
-        flatVectorsFormat = new ES93GenericFlatVectorsFormat(elementType, false);
+        flatVectorsFormat = new ES93GenericFlatVectorsFormat(elementType, false, OFF_HEAP_BUFFERING);
     }
 
     public ES93HnswVectorsFormat(
@@ -60,7 +66,7 @@ public class ES93HnswVectorsFormat extends AbstractHnswVectorsFormat {
         ExecutorService mergeExec
     ) {
         super(NAME, maxConn, beamWidth, numMergeWorkers, mergeExec, HNSW_GRAPH_THRESHOLD);
-        flatVectorsFormat = new ES93GenericFlatVectorsFormat(elementType, false);
+        flatVectorsFormat = new ES93GenericFlatVectorsFormat(elementType, false, OFF_HEAP_BUFFERING);
     }
 
     public ES93HnswVectorsFormat(
@@ -72,7 +78,7 @@ public class ES93HnswVectorsFormat extends AbstractHnswVectorsFormat {
         int hnswGraphThreshold
     ) {
         super(NAME, maxConn, beamWidth, numMergeWorkers, mergeExec, resolveThreshold(hnswGraphThreshold, HNSW_GRAPH_THRESHOLD));
-        flatVectorsFormat = new ES93GenericFlatVectorsFormat(elementType, false);
+        flatVectorsFormat = new ES93GenericFlatVectorsFormat(elementType, false, OFF_HEAP_BUFFERING);
     }
 
     @Override

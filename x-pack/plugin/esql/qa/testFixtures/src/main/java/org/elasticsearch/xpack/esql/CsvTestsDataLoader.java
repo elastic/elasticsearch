@@ -481,6 +481,12 @@ public class CsvTestsDataLoader {
         new ViewConfig("employees_in_subquery_nested_view", List.of(WHERE_IN_SUBQUERY_WITH_VIEW)),
         new ViewConfig("view_partial_mapping_sample_data"),
         new ViewConfig("view_sample_data"),
+        new ViewConfig("view_languages"),
+        new ViewConfig("view_languages_meta_index", List.of(EsqlCapabilities.Cap.OUTER_METADATA_NULL_INJECTION)),
+        new ViewConfig("view_languages_all_metadata", List.of(EsqlCapabilities.Cap.OUTER_METADATA_NULL_INJECTION)),
+        new ViewConfig("view_languages_nested_c", List.of(EsqlCapabilities.Cap.OUTER_METADATA_NULL_INJECTION)),
+        new ViewConfig("view_languages_nested_b", List.of(EsqlCapabilities.Cap.OUTER_METADATA_NULL_INJECTION)),
+        new ViewConfig("view_languages_nested_a", List.of(EsqlCapabilities.Cap.OUTER_METADATA_NULL_INJECTION)),
         new ViewConfig(
             "employees_stats_where_in_subquery_view",
             List.of(WHERE_IN_SUBQUERY_WITH_VIEW, EsqlCapabilities.Cap.STATS_WHERE_IN_SUBQUERY)

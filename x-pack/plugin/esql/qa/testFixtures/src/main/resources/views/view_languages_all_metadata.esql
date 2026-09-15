@@ -1,0 +1,1 @@
+FROM languages METADATA _index, _id, _version, _score, _ignored, _index_mode, _size, _source

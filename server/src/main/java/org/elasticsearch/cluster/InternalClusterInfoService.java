@@ -260,36 +260,31 @@ public class InternalClusterInfoService implements ClusterInfoService, ClusterSt
         private void maybeFetchNodesUsageStatsForThreadPools(boolean shouldFetch) {
             if (shouldFetch) {
                 try (var ignored = threadPool.getThreadContext().clearTraceContext()) {
-                    fetchNodesUsageStatsForThreadPools();
+                    nodeUsageStatsForThreadPoolsCollector.collectUsageStats(
+                        client,
+                        clusterStateSupplier.get(),
+                        // Per-shard write loads from this action are only needed when the write loads are not fetched via the indices
+                        // stats.
+                        writeLoadDeciderShardWriteLoadType == WriteLoadDeciderShardWriteLoadType.AVERAGE,
+                        ActionListener.releaseAfter(new ActionListener<>() {
+                            @Override
+                            public void onResponse(NodeUsageStatsForThreadPoolsCollector.CollectedUsageStats stats) {
+                                nodeThreadPoolUsageStatsPerNode = stats.nodeUsageStats();
+                                averageShardWriteLoads = stats.shardWriteLoads();
+                            }
+
+                            @Override
+                            public void onFailure(Exception e) {
+                                logger.warn("failed to fetch thread pool usage estimates for nodes", e);
+                                nodeThreadPoolUsageStatsPerNode = Map.of();
+                                averageShardWriteLoads = Map.of();
+                            }
+                        }, fetchRefs.acquire())
+                    );
                 }
             } else {
                 logger.trace("skipping collecting shard/node write load estimates from cluster, feature currently disabled");
                 nodeThreadPoolUsageStatsPerNode = Map.of();
-            }
-        }
-
-        private void fetchNodesUsageStatsForThreadPools() {
-            try (var ignored = threadPool.getThreadContext().clearTraceContext()) {
-                nodeUsageStatsForThreadPoolsCollector.collectUsageStats(
-                    client,
-                    clusterStateSupplier.get(),
-                    // Per-shard write loads from this action are only needed when the write loads are not fetched via the indices stats.
-                    writeLoadDeciderShardWriteLoadType.useIndicesStats() == false,
-                    ActionListener.releaseAfter(new ActionListener<>() {
-                        @Override
-                        public void onResponse(NodeUsageStatsForThreadPoolsCollector.CollectedUsageStats stats) {
-                            nodeThreadPoolUsageStatsPerNode = stats.nodeUsageStats();
-                            averageShardWriteLoads = stats.shardWriteLoads();
-                        }
-
-                        @Override
-                        public void onFailure(Exception e) {
-                            logger.warn("failed to fetch thread pool usage estimates for nodes", e);
-                            nodeThreadPoolUsageStatsPerNode = Map.of();
-                            averageShardWriteLoads = Map.of();
-                        }
-                    }, fetchRefs.acquire())
-                );
             }
         }
 

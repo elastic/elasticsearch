@@ -79,8 +79,9 @@ public class NodeUsageStatsForThreadPoolsCollector {
         var dataNodeIds = clusterState.nodes().getDataNodes().values().stream().map(DiscoveryNode::getId).toArray(String[]::new);
         // Discard last-seen values for any nodes no longer present in the cluster state
         lastNodeUsageStatsPerNode.keySet().retainAll(Arrays.asList(dataNodeIds));
-        lastShardWriteLoadsPerNode.keySet().retainAll(Arrays.asList(dataNodeIds));
-        if (fetchShardWriteLoads == false) {
+        if (fetchShardWriteLoads) {
+            lastShardWriteLoadsPerNode.keySet().retainAll(Arrays.asList(dataNodeIds));
+        } else {
             lastShardWriteLoadsPerNode.clear();
         }
 
@@ -100,7 +101,14 @@ public class NodeUsageStatsForThreadPoolsCollector {
                     }
 
                     final var allShardWriteLoads = new HashMap<ShardId, Double>();
-                    lastShardWriteLoadsPerNode.values().forEach(allShardWriteLoads::putAll);
+                    for (var nodeShardWriteLoads : lastShardWriteLoadsPerNode.values()) {
+                        for (var shardWriteLoad : nodeShardWriteLoads.entrySet()) {
+                            // Favor the node reporting the higher shard write load, if two nodes report on the same shard that just moved.
+                            if (shardWriteLoad.getValue() > allShardWriteLoads.getOrDefault(shardWriteLoad.getKey(), -1.0)) {
+                                allShardWriteLoads.put(shardWriteLoad.getKey(), shardWriteLoad.getValue());
+                            }
+                        }
+                    }
                     return new CollectedUsageStats(Map.copyOf(lastNodeUsageStatsPerNode), allShardWriteLoads);
                 })
             );

@@ -73,19 +73,7 @@ public class OpenAiUnifiedChatCompletionRequestEntityTests extends ESTestCase {
     public void testReasoningEffort_IsMappedToOpenAiReasoningEffort() throws IOException {
         Message message = new Message(new ContentString("Hello, world!"), ROLE, null, null);
         var reasoning = new Reasoning(ReasoningEffort.NONE, null, null, null);
-        var unifiedRequest = new UnifiedCompletionRequest(
-            java.util.List.of(message),
-            null,
-            null,
-            null,
-            null,
-            null,
-            null,
-            null,
-            reasoning,
-            null,
-            null
-        );
+        var unifiedRequest = new UnifiedCompletionRequest(java.util.List.of(message), null, null, null, null, null, null, null, reasoning);
 
         UnifiedChatInput unifiedChatInput = new UnifiedChatInput(unifiedRequest, false);
         OpenAiChatCompletionModel model = createChatCompletionModel("test-url", "organizationId", "api-key", "gpt-5.6", USER);
@@ -125,19 +113,7 @@ public class OpenAiUnifiedChatCompletionRequestEntityTests extends ESTestCase {
 
     public void testMaxCompletionTokens_IsSerialized() throws IOException {
         Message message = new Message(new ContentString("Hello, world!"), ROLE, null, null);
-        var unifiedRequest = new UnifiedCompletionRequest(
-            java.util.List.of(message),
-            null,
-            128L,
-            null,
-            null,
-            null,
-            null,
-            null,
-            null,
-            null,
-            null
-        );
+        var unifiedRequest = new UnifiedCompletionRequest(java.util.List.of(message), null, 128L, null, null, null, null, null, null);
 
         UnifiedChatInput unifiedChatInput = new UnifiedChatInput(unifiedRequest, false);
         OpenAiChatCompletionModel model = createChatCompletionModel("test-url", "organizationId", "api-key", "gpt-5.6", USER);

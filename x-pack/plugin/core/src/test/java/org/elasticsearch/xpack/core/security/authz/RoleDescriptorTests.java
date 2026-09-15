@@ -529,7 +529,7 @@ public class RoleDescriptorTests extends ESTestCase {
         RoleDescriptor rd = RoleDescriptor.parserBuilder().build().parse("test", new BytesArray(q3), XContentType.JSON);
         assertThat(rd.getRemoteClusterPermissions().groups().size(), equalTo(0));
         assertThat(rd.getRemoteClusterPermissions(), equalTo(RemoteClusterPermissions.NONE));
-        if (assertsAreEnabled) {
+        if (TEST_ASSERTS_ENABLED) {
             expectThrows(AssertionError.class, () -> rd.getRemoteClusterPermissions().validate());
         }
         // similarly, missing both but with a group placeholder does not cause an exception while parsing but will still raise an exception

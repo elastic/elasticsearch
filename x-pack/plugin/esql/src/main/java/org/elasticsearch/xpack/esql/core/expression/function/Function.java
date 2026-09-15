@@ -47,11 +47,7 @@ public abstract class Function extends Expression implements StableHashable {
 
     @Override
     public int stableHash() {
-        int h = getClass().getName().hashCode();
-        for (Expression child : children()) {
-            h = 31 * h + StableHashable.compute(child);
-        }
-        return h;
+        return Objects.hash(getClass().getName(), children().stream().mapToInt(StableHashable::compute).boxed().toList());
     }
 
     @Override

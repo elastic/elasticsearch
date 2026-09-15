@@ -14,6 +14,7 @@ import org.elasticsearch.xpack.esql.core.tree.Source;
 import java.util.ArrayList;
 import java.util.Iterator;
 import java.util.List;
+import java.util.Objects;
 
 import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.ParamOrdinal.FIRST;
 import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.ParamOrdinal.SECOND;
@@ -55,10 +56,7 @@ public abstract class BinaryOperator<T, U, R, F extends PredicateBiFunction<T, U
     public int stableHash() {
         // Use canonical children so Add(a,b) and Add(b,a) hash the same.
         BinaryOperator<?, ?, ?, ?> c = (BinaryOperator<?, ?, ?, ?>) canonical();
-        int h = getClass().getName().hashCode();
-        h = 31 * h + StableHashable.compute(c.left());
-        h = 31 * h + StableHashable.compute(c.right());
-        return h;
+        return Objects.hash(getClass().getName(), StableHashable.compute(c.left()), StableHashable.compute(c.right()));
     }
 
     @Override

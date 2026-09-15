@@ -94,7 +94,7 @@ changelogs:
     issues: []
     source_repo: elastic/ml-cpp
   - pr: 153577
-    summary: Unified and faster calibration path
+    summary: Improve vector search calibration performance
     area: Vector Search
     type: enhancement
     issues: []
@@ -110,7 +110,7 @@ changelogs:
     issues:
       - 153260
   - pr: 155310
-    summary: Treat machine learning node exhaustion as 4xx
+    summary: Return HTTP 4xx status codes when machine learning nodes are exhausted
     area: Machine Learning
     type: bug
     issues: []
@@ -119,7 +119,7 @@ changelogs:
     area: Authorization
     type: enhancement
   - pr: 157295
-    summary: Bump jackson to 2.21.6
+    summary: Upgrade Jackson to 2.21.6
     area: Infra/Core
     type: upgrade
     issues:
@@ -135,24 +135,24 @@ changelogs:
     type: bug
     issues: []
   - pr: 158108
-    summary: Fix leaking bulk cancellation task in `IncrementalBulkService`
+    summary: Fix leaked cancellation task in bulk indexing
     area: Task Management
     type: bug
     issues:
       - 158018
   - pr: 158112
-    summary: Fix leaking bulk task on shard dispatch failure
+    summary: Fix leaked bulk task when shard dispatch fails
     area: Task Management
     type: bug
     issues:
       - 158019
   - pr: 158175
-    summary: Reduce memory usage during serialization when retrieving component and composable templates via the GET APIs
+    summary: Reduce memory usage when serializing component and composable templates in GET API responses
     area: Templates
     type: bug
     issues: []
   - pr: 158187
-    summary: "Handle missing counts in contains query"
+    summary:"Fix missing counts in `contains` mapper query"
     area: Mapping
     type: bug
     issues: []
@@ -167,7 +167,7 @@ changelogs:
     type: bug
     issues: []
   - pr: 158296
-    summary: Update knn query automatic pre-filtering to handle exists queries on inference fields
+    summary: Fix `knn` query pre-filtering for `exists` queries on inference fields
     area: Search
     type: bug
     issues:

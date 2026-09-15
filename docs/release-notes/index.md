@@ -31,7 +31,7 @@ Authorization:
 * Add `manage`, `create_index`, `read`, `index`, `write`, `delete`, permission for third party agent indices `kibana_system` [#156029](https://github.com/elastic/elasticsearch/pull/156029)
 
 Infra/Core:
-* Bump jackson to 2.21.6 [#157295](https://github.com/elastic/elasticsearch/pull/157295) (issue: [#141442](https://github.com/elastic/elasticsearch/issues/141442))
+* Upgrade Jackson to 2.21.6 [#157295](https://github.com/elastic/elasticsearch/pull/157295) (issue: [#141442](https://github.com/elastic/elasticsearch/issues/141442))
 
 Machine Learning:
 * Add EuroBERT and Jina v5 ops to graph validation allowlist [#3015](https://github.com/elastic/ml-cpp/pull/3015)
@@ -48,7 +48,7 @@ Search:
 * Apply `_msearch` memory bounds, cancellation, and metrics to `_msearch/template` API [#157642](https://github.com/elastic/elasticsearch/pull/157642)
 
 Vector Search:
-* Unified and faster calibration path [#153577](https://github.com/elastic/elasticsearch/pull/153577)
+* Improve vector search calibration performance [#153577](https://github.com/elastic/elasticsearch/pull/153577)
 
 
 ### Fixes [elasticsearch-9.5.4-fixes]
@@ -82,24 +82,24 @@ Machine Learning:
 * Prevent anomaly detection job reopen from exhausting search scroll contexts during mass reassignment [#154925](https://github.com/elastic/elasticsearch/pull/154925) (issue: [#153260](https://github.com/elastic/elasticsearch/issues/153260))
 * Reject TorchScript custom state hooks before load and forbid `inductor::_reinterpret_tensor` [#3078](https://github.com/elastic/ml-cpp/pull/3078)
 * Harden the Linux system call filter for machine learning native processes to block non-native instruction set variants [#3080](https://github.com/elastic/ml-cpp/pull/3080)
-* Treat machine learning node exhaustion as 4xx [#155310](https://github.com/elastic/elasticsearch/pull/155310)
+* Return HTTP 4xx status codes when machine learning nodes are exhausted [#155310](https://github.com/elastic/elasticsearch/pull/155310)
 
 Mapping:
 * Fix LIKE/RLIKE list of patterns returning wrong results on non-indexed keyword fields and errors on wildcard fields [#158228](https://github.com/elastic/elasticsearch/pull/158228)
-* Handle missing counts in contains query [#158187](https://github.com/elastic/elasticsearch/pull/158187)
+* Fix missing counts in `contains` mapper query [#158187](https://github.com/elastic/elasticsearch/pull/158187)
 
 Search:
-* Update knn query automatic pre-filtering to handle exists queries on inference fields [#158296](https://github.com/elastic/elasticsearch/pull/158296) (issue: [#157951](https://github.com/elastic/elasticsearch/issues/157951))
+* Fix `knn` query pre-filtering for `exists` queries on inference fields [#158296](https://github.com/elastic/elasticsearch/pull/158296) (issue: [#157951](https://github.com/elastic/elasticsearch/issues/157951))
 
 TSDB:
 * Guard against oversized protobuf requests causing out of memory failures [#157968](https://github.com/elastic/elasticsearch/pull/157968)
 
 Task Management:
-* Fix leaking bulk cancellation task in `IncrementalBulkService` [#158108](https://github.com/elastic/elasticsearch/pull/158108) (issue: [#158018](https://github.com/elastic/elasticsearch/issues/158018))
-* Fix leaking bulk task on shard dispatch failure [#158112](https://github.com/elastic/elasticsearch/pull/158112) (issue: [#158019](https://github.com/elastic/elasticsearch/issues/158019))
+* Fix leaked cancellation task in bulk indexing [#158108](https://github.com/elastic/elasticsearch/pull/158108) (issue: [#158018](https://github.com/elastic/elasticsearch/issues/158018))
+* Fix leaked bulk task when shard dispatch fails [#158112](https://github.com/elastic/elasticsearch/pull/158112) (issue: [#158019](https://github.com/elastic/elasticsearch/issues/158019))
 
 Templates:
-* Reduce memory usage during serialization when retrieving component and composable templates via the GET APIs [#158175](https://github.com/elastic/elasticsearch/pull/158175)
+* Reduce memory usage when serializing component and composable templates in GET API responses [#158175](https://github.com/elastic/elasticsearch/pull/158175)
 
 
 

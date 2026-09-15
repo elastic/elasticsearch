@@ -108,6 +108,7 @@ import org.elasticsearch.xpack.esql.plan.logical.promql.PromqlCommand;
 import org.elasticsearch.xpack.esql.plan.logical.promql.PromqlFunctionCall;
 import org.elasticsearch.xpack.esql.plan.logical.promql.ScalarConversionFunction;
 import org.elasticsearch.xpack.esql.plan.logical.promql.ScalarFunction;
+import org.elasticsearch.xpack.esql.plan.logical.promql.SortByLabelFunction;
 import org.elasticsearch.xpack.esql.plan.logical.promql.SortFunction;
 import org.elasticsearch.xpack.esql.plan.logical.promql.UnresolvedPromqlFunction;
 import org.elasticsearch.xpack.esql.plan.logical.promql.ValueTransformationFunction;
@@ -175,6 +176,7 @@ public class ApproximationSupportTests extends ESTestCase {
         ScalarConversionFunction.class,
         ScalarFunction.class,
         SortFunction.class,
+        SortByLabelFunction.class,
         ValueTransformationFunction.class,
         VectorBinarySet.class,
         VectorBinaryArithmetic.class,

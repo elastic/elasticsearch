@@ -207,6 +207,56 @@ public class PromqlBuiltinFunctionDefinitions {
         .stack(PromqlFunctionDefinition.STACK_GA_9_6)
         .name("sort_desc");
 
+    public static final PromqlFunctionDefinition SORT_BY_LABEL = PromqlFunctionDefinition.def()
+        .resultOrderingByLabel()
+        .counterSupport(PromqlFunctionDefinition.CounterSupport.SUPPORTED)
+        .description(
+            "Sorts instant-vector series by the values of the given labels in natural ascending order. "
+                + "Missing labels compare as the empty string."
+        )
+        .example("sort_by_label(http_requests_total, \"job\", \"instance\")")
+        .extendedDescription(
+            "Ordering is observable only on instant queries. Range queries return the series in their input order, "
+                + "without applying the requested ordering. Label comparison uses natural order, with digit runs "
+                + "compared numerically."
+        )
+        .differenceFromPrometheus(
+            "Prometheus hides these functions behind `--enable-feature=promql-experimental-functions`. "
+                + "Elasticsearch has no PromQL feature flag and marks them preview instead. Ties are broken by "
+                + "series identity rather than by Prometheus `labels.Compare`. Range queries emit a warning that "
+                + "the ordering is discarded, where Prometheus discards it silently. Digit runs that are "
+                + "numerically equal but differ in leading zeros, and empty label values, get a stable order "
+                + "rather than Prometheus's unstable natsort. Digit runs longer than about 20 digits are still "
+                + "compared numerically, where Prometheus falls back to text comparison."
+        )
+        .stack(PromqlFunctionDefinition.STACK_PREVIEW_9_6)
+        .name("sort_by_label");
+
+    public static final PromqlFunctionDefinition SORT_BY_LABEL_DESC = PromqlFunctionDefinition.def()
+        .resultOrderingByLabel()
+        .counterSupport(PromqlFunctionDefinition.CounterSupport.SUPPORTED)
+        .description(
+            "Sorts instant-vector series by the values of the given labels in natural descending order. "
+                + "Missing labels compare as the empty string."
+        )
+        .example("sort_by_label_desc(http_requests_total, \"job\", \"instance\")")
+        .extendedDescription(
+            "Ordering is observable only on instant queries. Range queries return the series in their input order, "
+                + "without applying the requested ordering. Label comparison uses natural order, with digit runs "
+                + "compared numerically."
+        )
+        .differenceFromPrometheus(
+            "Prometheus hides these functions behind `--enable-feature=promql-experimental-functions`. "
+                + "Elasticsearch has no PromQL feature flag and marks them preview instead. Ties are broken by "
+                + "series identity rather than by Prometheus `labels.Compare`. Range queries emit a warning that "
+                + "the ordering is discarded, where Prometheus discards it silently. Digit runs that are "
+                + "numerically equal but differ in leading zeros, and empty label values, get a stable order "
+                + "rather than Prometheus's unstable natsort. Digit runs longer than about 20 digits are still "
+                + "compared numerically, where Prometheus falls back to text comparison."
+        )
+        .stack(PromqlFunctionDefinition.STACK_PREVIEW_9_6)
+        .name("sort_by_label_desc");
+
     public static final PromqlFunctionDefinition VECTOR = PromqlFunctionDefinition.def()
         .vectorConversion()
         .counterSupport(PromqlFunctionDefinition.CounterSupport.SUPPORTED)

@@ -206,6 +206,41 @@ public class PrometheusInstantQueryRestIT extends AbstractPrometheusRestIT {
         }
     }
 
+    public void testInstantQuerySortByLabelOrdersByPod() throws Exception {
+        ingestLabelledSeries(METRIC);
+
+        List<PromqlResponseSeries> series = instantSeries("sort_by_label(" + METRIC + ", \"pod\")");
+        // p1 before p2; ties broken by remaining identity (cluster a before b in _timeseries).
+        assertThat(series, contains(LABELLED_SERIES.get(0), LABELLED_SERIES.get(2), LABELLED_SERIES.get(1), LABELLED_SERIES.get(3)));
+        assertMetricObjectUnchanged(series);
+        assertNoSyntheticSortLabels(series);
+    }
+
+    public void testInstantQuerySortByLabelDescOrdersByPodReversed() throws Exception {
+        ingestLabelledSeries(METRIC);
+
+        List<PromqlResponseSeries> series = instantSeries("sort_by_label_desc(" + METRIC + ", \"pod\")");
+        assertThat(series, contains(LABELLED_SERIES.get(3), LABELLED_SERIES.get(1), LABELLED_SERIES.get(2), LABELLED_SERIES.get(0)));
+        assertMetricObjectUnchanged(series);
+        assertNoSyntheticSortLabels(series);
+    }
+
+    private static void assertMetricObjectUnchanged(List<PromqlResponseSeries> series) {
+        for (PromqlResponseSeries s : series) {
+            assertEquals("duplicate labels in metric object: " + s.labels(), s.labels().size(), LABELLED_SERIES_LABELS.size());
+            assertTrue(s.labels().keySet().containsAll(LABELLED_SERIES_LABELS));
+        }
+    }
+
+    private static void assertNoSyntheticSortLabels(List<PromqlResponseSeries> series) {
+        for (PromqlResponseSeries s : series) {
+            for (String label : s.labels().keySet()) {
+                assertFalse("synthetic sort key leaked into metric labels: " + s.labels(), label.contains("promql_sort"));
+                assertFalse("synthetic sort key leaked into metric labels: " + s.labels(), label.startsWith("$$"));
+            }
+        }
+    }
+
     private static PromqlResponseSeries[] seriesWithValueAbove(double threshold) {
         return LABELLED_SERIES.stream().filter(series -> series.value() > threshold).toArray(PromqlResponseSeries[]::new);
     }

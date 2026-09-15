@@ -277,9 +277,10 @@ public final class AsymmetricHashingQuantizer {
     }
 
     private float[] randomOrthogonal(int originalDim, int nDims) {
-        float[] q = SvdUtil.randomGaussians(new Random(seed), originalDim * nDims);
-        SvdUtil.qrOrthogonalize(q, originalDim, nDims);
-        return q;
+        // qrOrthogonalize orthonormalizes rows, so it produces W^T (nDims x originalDim)
+        float[] qT = SvdUtil.randomGaussians(new Random(seed), originalDim * nDims);
+        SvdUtil.qrOrthogonalize(qT, originalDim, nDims);
+        return ESVectorUtil.transposeMatrix(qT, nDims, originalDim);
     }
 
     /**

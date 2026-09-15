@@ -338,14 +338,20 @@ final class SvdUtil {
         // Pre-transpose A so that A^T @ W uses sequential memory access in the inner loop.
         float[] aT = transposeMatrix(a, m, n);
 
-        float[] v = randomGaussians(new Random(seed), n * k);
-        qrOrthogonalize(v, n, k);
+        // qrOrthogonalize wants the block as rows, both products want it as columns, so it is
+        // transposed either side of each orthogonalization. Keeping the products in this
+        // orientation leaves the small operand on the right, which multiplyAccumulate streams once
+        // per four output rows; restating them to work on (k x n) throughout would put A there.
+        float[] vT = randomGaussians(new Random(seed), n * k);
+        qrOrthogonalize(vT, n, k);
+        float[] v = transposeMatrix(vT, k, n);
 
         for (int iter = 0; iter < iters; iter++) {
             float[] w = ESVectorUtil.matrixMultiply(a, v, m, n, k);      // W = A @ V (m x k)
             float[] vNew = ESVectorUtil.matrixMultiply(aT, w, n, m, k);  // V_new = A^T @ W (n x k)
-            qrOrthogonalize(vNew, n, k);
-            v = vNew;
+            vT = transposeMatrix(vNew, n, k);
+            qrOrthogonalize(vT, n, k);
+            v = transposeMatrix(vT, k, n);
         }
 
         return v;
@@ -360,14 +366,18 @@ final class SvdUtil {
         // Pre-transpose A so that A^T @ U uses sequential memory access in the inner loop.
         float[] aT = transposeMatrix(a, m, n);
 
-        float[] u = randomGaussians(new Random(seed), m * k);
-        qrOrthogonalize(u, m, k);
+        // As in topKEigenvectorsGram, the block is transposed either side of each orthogonalization
+        // so that qrOrthogonalize sees contiguous vectors while the products keep U as columns.
+        float[] uT = randomGaussians(new Random(seed), m * k);
+        qrOrthogonalize(uT, m, k);
+        float[] u = transposeMatrix(uT, k, m);
 
         for (int iter = 0; iter < iters; iter++) {
             float[] w = ESVectorUtil.matrixMultiply(aT, u, n, m, k);    // W = A^T @ U (n x k)
             float[] uNew = ESVectorUtil.matrixMultiply(a, w, m, n, k);  // U_new = A @ W (m x k)
-            qrOrthogonalize(uNew, m, k);
-            u = uNew;
+            uT = transposeMatrix(uNew, m, k);
+            qrOrthogonalize(uT, m, k);
+            u = transposeMatrix(uT, k, m);
         }
 
         // Recover right singular vectors: V = A^T U (n x k), normalize each column
@@ -405,21 +415,25 @@ final class SvdUtil {
     }
 
     /**
-     * Modified Gram-Schmidt QR orthogonalization in-place on columns of V (n x k), row-major.
+     * Modified Gram-Schmidt QR orthogonalization in-place on the rows of V^T (k x n), row-major.
+     * <p>
+     * Each vector is stored in a row. This allows each step to run on contiguous blocks of data.
+     * For matrices storing vectors as columns, you need to transpose before/after, but that
+     * is cheaper than this operation having to access strided data across many cache lines.
+     *
+     * @param vT the k vectors, each of length n, row-major (k x n)
+     * @param n  the length of each vector
+     * @param k  the number of vectors
      */
-    static void qrOrthogonalize(float[] v, int n, int k) {
+    static void qrOrthogonalize(float[] vT, int n, int k) {
         for (int j = 0; j < k; j++) {
-            // Subtract projections of previous columns
+            int row = j * n;
+            // Subtract the projections onto the already orthonormalized vectors
             for (int prev = 0; prev < j; prev++) {
-                double dot = 0;
-                for (int i = 0; i < n; i++) {
-                    dot = Math.fma(v[i * k + j], v[i * k + prev], dot);
-                }
-                for (int i = 0; i < n; i++) {
-                    v[i * k + j] = (float) Math.fma(-dot, v[i * k + prev], v[i * k + j]);
-                }
+                float dot = ESVectorUtil.dotProduct(vT, row, vT, prev * n, n);
+                ESVectorUtil.linearCombination(-dot, vT, prev * n, vT, row, n);
             }
-            normalizeColumn(v, j, k, n);
+            ESVectorUtil.l2Normalize(vT, row, n);
         }
     }
 }

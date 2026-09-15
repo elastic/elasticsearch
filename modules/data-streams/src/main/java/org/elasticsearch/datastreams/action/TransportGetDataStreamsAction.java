@@ -260,21 +260,46 @@ public class TransportGetDataStreamsAction extends TransportLocalProjectMetadata
                 SystemDataStreamDescriptor dataStreamDescriptor = systemIndices.findMatchingDataStreamDescriptor(dataStream.getName());
                 indexTemplate = dataStreamDescriptor != null ? dataStreamDescriptor.getDataStreamName() : null;
                 if (dataStreamDescriptor != null) {
-                    Settings settings = MetadataIndexTemplateService.resolveSettings(
-                        dataStreamDescriptor.getComposableIndexTemplate(),
-                        dataStreamDescriptor.getComponentTemplates()
-                    );
-                    ilmPolicyName = settings.get(IndexMetadata.LIFECYCLE_NAME);
-                    if (indexMode == null) {
-                        indexMode = resolveMode(
-                            state,
-                            indexSettingProviders,
-                            dataStream,
-                            settings,
-                            dataStreamDescriptor.getComposableIndexTemplate()
+                    // When the descriptor owns its template, resolve settings from the embedded template + component templates.
+                    // When the template is managed externally (ownsTemplate() == false), fall back to the cluster-state template
+                    // lookup used for non-system streams so that ILM policy, index mode, and prefer-ILM are still surfaced.
+                    if (dataStreamDescriptor.ownsTemplate()) {
+                        Settings settings = MetadataIndexTemplateService.resolveSettings(
+                            dataStreamDescriptor.getComposableIndexTemplate(),
+                            dataStreamDescriptor.getComponentTemplates()
                         );
+                        ilmPolicyName = settings.get(IndexMetadata.LIFECYCLE_NAME);
+                        if (indexMode == null) {
+                            indexMode = resolveMode(
+                                state,
+                                indexSettingProviders,
+                                dataStream,
+                                settings,
+                                dataStreamDescriptor.getComposableIndexTemplate()
+                            );
+                        }
+                        indexTemplatePreferIlmValue = PREFER_ILM_SETTING.get(settings);
+                    } else {
+                        // Descriptor registered without an owned template: resolve from cluster state, same as non-system streams.
+                        indexTemplate = MetadataIndexTemplateService.findV2Template(state.metadata(), dataStream.getName(), false);
+                        if (indexTemplate != null) {
+                            ComposableIndexTemplate clusterTemplate = MetadataCreateDataStreamService.lookupTemplateForDataStream(
+                                dataStream.getName(),
+                                state.metadata()
+                            );
+                            if (clusterTemplate != null) {
+                                Settings settings = MetadataIndexTemplateService.resolveSettings(
+                                    clusterTemplate,
+                                    state.metadata().componentTemplates()
+                                );
+                                ilmPolicyName = settings.get(IndexMetadata.LIFECYCLE_NAME);
+                                if (indexMode == null) {
+                                    indexMode = resolveMode(state, indexSettingProviders, dataStream, settings, clusterTemplate);
+                                }
+                                indexTemplatePreferIlmValue = PREFER_ILM_SETTING.get(settings);
+                            }
+                        }
                     }
-                    indexTemplatePreferIlmValue = PREFER_ILM_SETTING.get(settings);
                 }
             } else {
                 indexTemplate = MetadataIndexTemplateService.findV2Template(state.metadata(), dataStream.getName(), false);

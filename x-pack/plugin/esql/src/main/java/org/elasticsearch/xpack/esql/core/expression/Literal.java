@@ -42,7 +42,7 @@ import static org.elasticsearch.xpack.esql.core.util.SpatialCoordinateTypes.GEO;
 /**
  * Literal or constant.
  */
-public class Literal extends LeafExpression implements Accountable, EvaluatorMapper {
+public class Literal extends LeafExpression implements Accountable, EvaluatorMapper, StableHashable {
     private static final long BASE_RAM_BYTES_USED = RamUsageEstimator.shallowSizeOfInstance(Literal.class);
 
     public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(
@@ -135,6 +135,11 @@ public class Literal extends LeafExpression implements Accountable, EvaluatorMap
     @Override
     public int hashCode() {
         return Objects.hash(dataType, value);
+    }
+
+    @Override
+    public int stableHash() {
+        return hashCode();
     }
 
     @Override

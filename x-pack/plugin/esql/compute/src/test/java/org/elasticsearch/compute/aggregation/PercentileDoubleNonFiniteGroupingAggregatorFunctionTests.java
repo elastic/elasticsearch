@@ -25,11 +25,11 @@ import java.util.stream.LongStream;
 import static org.hamcrest.Matchers.closeTo;
 
 /**
- * Grouping counterpart of {@link PercentileDoubleLenientAggregatorFunctionTests}. Beyond the lenient ranking, this
+ * Grouping counterpart of {@link PercentileDoubleNonFiniteAggregatorFunctionTests}. Beyond the non-finite ranking, this
  * pins that a group whose observations are all non-finite still holds a value: rendering it as {@code null} would drop
  * the series from the result.
  */
-public class PercentileDoubleLenientGroupingAggregatorFunctionTests extends GroupingAggregatorFunctionTestCase {
+public class PercentileDoubleNonFiniteGroupingAggregatorFunctionTests extends GroupingAggregatorFunctionTestCase {
 
     private double percentile;
 
@@ -40,19 +40,25 @@ public class PercentileDoubleLenientGroupingAggregatorFunctionTests extends Grou
 
     @Override
     protected AggregatorFunctionSupplier aggregatorFunction() {
-        return new PercentileDoubleLenientAggregatorFunctionSupplier(percentile, QuantileStates.DEFAULT_COMPRESSION);
+        return new PercentileDoubleAggregatorFunctionSupplier(percentile, QuantileStates.DEFAULT_COMPRESSION, true);
     }
 
     @Override
     protected String expectedDescriptionOfAggregator() {
-        return "percentile_double of lenients";
+        return "percentile of doubles";
+    }
+
+    @Override
+    protected String expectedToStringOfSimpleAggregator() {
+        // Both modes run the same aggregator, so the name cannot be derived from this test class's name.
+        return "PercentileDoubleGroupingAggregatorFunction[channels=[1]]";
     }
 
     @Override
     protected SourceOperator simpleInput(BlockFactory blockFactory, int end) {
         return new LongDoubleTupleBlockSourceOperator(
             blockFactory,
-            LongStream.range(0, end).mapToObj(l -> Tuple.tuple(randomLongBetween(0, 4), randomLenientDouble()))
+            LongStream.range(0, end).mapToObj(l -> Tuple.tuple(randomLongBetween(0, 4), randomMaybeNonFinite()))
         );
     }
 
@@ -69,7 +75,7 @@ public class PercentileDoubleLenientGroupingAggregatorFunctionTests extends Grou
 
         try (TDigestState td = TDigestState.create(newLimitedBreaker(ByteSizeValue.ofMb(100)), QuantileStates.DEFAULT_COMPRESSION)) {
             Arrays.stream(values).filter(Double::isFinite).forEach(td::add);
-            double expected = LenientQuantileStates.quantile(percentile / 100, td, nanCount, negInfCount, posInfCount);
+            double expected = QuantileStates.quantile(percentile / 100, td, nanCount, negInfCount, posInfCount);
             assertFalse("a group with observations must not be null", result.isNull(position));
             double value = ((DoubleBlock) result).getDouble(position);
             if (Double.isNaN(expected)) {
@@ -83,7 +89,7 @@ public class PercentileDoubleLenientGroupingAggregatorFunctionTests extends Grou
         }
     }
 
-    private double randomLenientDouble() {
+    private double randomMaybeNonFinite() {
         if (randomIntBetween(0, 7) == 0) {
             return randomFrom(Double.NaN, Double.POSITIVE_INFINITY, Double.NEGATIVE_INFINITY);
         }

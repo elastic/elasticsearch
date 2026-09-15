@@ -12,7 +12,6 @@ import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.BytesRefBlock;
 import org.elasticsearch.compute.data.DoubleBlock;
 import org.elasticsearch.compute.data.IntVector;
-import org.elasticsearch.compute.data.LongBlock;
 import org.elasticsearch.compute.operator.DriverContext;
 import org.elasticsearch.compute.test.ComputeTestCase;
 
@@ -22,11 +21,11 @@ import static org.elasticsearch.compute.aggregation.QuantileStates.DEFAULT_COMPR
 import static org.hamcrest.Matchers.equalTo;
 
 /**
- * The lenient quantile state must accept non-finite observations, which IEEE-754 arithmetic can legitimately produce,
- * and rank them as {@code NaN < -Inf < finite < +Inf}. The strict state's t-digest rejects such observations outright,
- * aborting the whole query rather than producing a result for the series.
+ * In non-finite mode the quantile state must accept the non-finite observations that IEEE-754 arithmetic legitimately
+ * produces, and rank them as {@code NaN < -Inf < finite < +Inf}. Strict mode leaves them to the t-digest, which
+ * rejects them outright.
  */
-public class LenientQuantileStatesTests extends ComputeTestCase {
+public class QuantileStatesTests extends ComputeTestCase {
 
     public void testAllPositiveInfinity() {
         assertQuantile(
@@ -88,36 +87,48 @@ public class LenientQuantileStatesTests extends ComputeTestCase {
     }
 
     /**
-     * With no non-finite observation the lenient state must agree with the strict one, so ordinary data is unaffected
-     * by the different rank resolution.
+     * With no non-finite observation the two modes must agree, so ordinary data is unaffected by the different rank
+     * resolution.
      */
-    public void testMatchesStrictStateForFiniteValues() {
+    public void testModesAgreeForFiniteValues() {
         var blockFactory = blockFactory();
         var driverContext = new DriverContext(blockFactory.bigArrays(), blockFactory, null);
         List<Double> values = List.of(1.0, 2.0, 3.0, 4.0, 5.0, 6.0, 7.0);
         double percentile = randomFrom(0.0, 25.0, 50.0, 75.0, 90.0, 100.0);
 
         try (
-            var lenient = new LenientQuantileStates.SingleState(blockFactory.breaker(), percentile, DEFAULT_COMPRESSION);
+            var nonFinite = new QuantileStates.SingleState(blockFactory.breaker(), percentile, DEFAULT_COMPRESSION, true);
             var strict = new QuantileStates.SingleState(blockFactory.breaker(), percentile, DEFAULT_COMPRESSION)
         ) {
             values.forEach(v -> {
-                lenient.add(v);
+                nonFinite.add(v);
                 strict.add(v);
             });
             try (
-                Block lenientResult = lenient.evaluatePercentile(driverContext);
+                Block nonFiniteResult = nonFinite.evaluatePercentile(driverContext);
                 Block strictResult = strict.evaluatePercentile(driverContext)
             ) {
-                assertEquals(((DoubleBlock) strictResult).getDouble(0), ((DoubleBlock) lenientResult).getDouble(0), 0.0);
+                assertEquals(((DoubleBlock) strictResult).getDouble(0), ((DoubleBlock) nonFiniteResult).getDouble(0), 0.0);
             }
+        }
+    }
+
+    /**
+     * Strict mode hands every observation to the t-digest, which rejects a non-finite one. This is what the PromQL
+     * translation opts out of; it is also why the tallies cannot simply be kept unconditionally.
+     */
+    public void testStrictModeRejectsNonFiniteObservation() {
+        var blockFactory = blockFactory();
+        try (var state = new QuantileStates.SingleState(blockFactory.breaker(), 50.0, DEFAULT_COMPRESSION)) {
+            expectThrows(IllegalArgumentException.class, () -> state.add(Double.POSITIVE_INFINITY));
+            expectThrows(IllegalArgumentException.class, () -> state.add(Double.NaN));
         }
     }
 
     public void testEmptyStateIsNull() {
         var blockFactory = blockFactory();
         var driverContext = new DriverContext(blockFactory.bigArrays(), blockFactory, null);
-        try (var state = new LenientQuantileStates.SingleState(blockFactory.breaker(), 50.0, DEFAULT_COMPRESSION)) {
+        try (var state = new QuantileStates.SingleState(blockFactory.breaker(), 50.0, DEFAULT_COMPRESSION, true)) {
             try (Block result = state.evaluatePercentile(driverContext)) {
                 assertTrue(result.isNull(0));
             }
@@ -125,16 +136,16 @@ public class LenientQuantileStatesTests extends ComputeTestCase {
     }
 
     /**
-     * A t-digest cannot carry the non-finite observations, so they ride along the intermediate state as separate
-     * tallies. Without them a partial aggregation computed on a data node would lose its infinities on the way to the
+     * A t-digest cannot carry the non-finite observations, so they ride along in the serialized intermediate state.
+     * Without them a partial aggregation computed on a data node would lose its infinities on the way to the
      * coordinating node.
      */
     public void testIntermediateStateCarriesNonFiniteTallies() {
         var blockFactory = blockFactory();
         var driverContext = new DriverContext(blockFactory.bigArrays(), blockFactory, null);
-        Block[] intermediate = new Block[4];
+        Block[] intermediate = new Block[1];
 
-        try (var partial = new LenientQuantileStates.SingleState(blockFactory.breaker(), 50.0, DEFAULT_COMPRESSION)) {
+        try (var partial = new QuantileStates.SingleState(blockFactory.breaker(), 50.0, DEFAULT_COMPRESSION, true)) {
             partial.add(Double.POSITIVE_INFINITY);
             partial.add(Double.POSITIVE_INFINITY);
             partial.add(1.0);
@@ -142,18 +153,10 @@ public class LenientQuantileStatesTests extends ComputeTestCase {
         }
 
         try (
-            var merged = new LenientQuantileStates.SingleState(blockFactory.breaker(), 50.0, DEFAULT_COMPRESSION);
-            Block digest = intermediate[0];
-            Block nan = intermediate[1];
-            Block negInf = intermediate[2];
-            Block posInf = intermediate[3]
+            var merged = new QuantileStates.SingleState(blockFactory.breaker(), 50.0, DEFAULT_COMPRESSION, true);
+            Block serialized = intermediate[0]
         ) {
-            merged.add(
-                ((BytesRefBlock) digest).getBytesRef(0, new BytesRef()),
-                ((LongBlock) nan).getLong(0),
-                ((LongBlock) negInf).getLong(0),
-                ((LongBlock) posInf).getLong(0)
-            );
+            merged.add(((BytesRefBlock) serialized).getBytesRef(0, new BytesRef()));
             try (Block result = merged.evaluatePercentile(driverContext)) {
                 assertThat(((DoubleBlock) result).getDouble(0), equalTo(Double.POSITIVE_INFINITY));
             }
@@ -161,19 +164,40 @@ public class LenientQuantileStatesTests extends ComputeTestCase {
     }
 
     /**
-     * A group whose every observation is non-finite holds a value and must not be rendered as {@code null}, which would
-     * drop the series from the result.
+     * The tallies are only appended in non-finite mode, so a strict intermediate state stays byte-identical to what an
+     * older node writes and reads.
+     */
+    public void testStrictIntermediateStateRoundTrips() {
+        var blockFactory = blockFactory();
+        var driverContext = new DriverContext(blockFactory.bigArrays(), blockFactory, null);
+        Block[] intermediate = new Block[1];
+
+        try (var partial = new QuantileStates.SingleState(blockFactory.breaker(), 50.0, DEFAULT_COMPRESSION)) {
+            partial.add(1.0);
+            partial.add(3.0);
+            partial.toIntermediate(intermediate, 0, driverContext);
+        }
+
+        try (
+            var merged = new QuantileStates.SingleState(blockFactory.breaker(), 50.0, DEFAULT_COMPRESSION);
+            Block serialized = intermediate[0]
+        ) {
+            merged.add(((BytesRefBlock) serialized).getBytesRef(0, new BytesRef()));
+            try (Block result = merged.evaluatePercentile(driverContext)) {
+                assertThat(((DoubleBlock) result).getDouble(0), equalTo(2.0));
+            }
+        }
+    }
+
+    /**
+     * A group whose every observation is non-finite holds a value and must not be rendered as {@code null}, which
+     * would drop the series from the result.
      */
     public void testGroupWithOnlyNonFiniteValuesIsNotDropped() {
         var blockFactory = blockFactory();
         var driverContext = new DriverContext(blockFactory.bigArrays(), blockFactory, null);
         try (
-            var state = new LenientQuantileStates.GroupingState(
-                blockFactory.breaker(),
-                blockFactory.bigArrays(),
-                50.0,
-                DEFAULT_COMPRESSION
-            );
+            var state = new QuantileStates.GroupingState(blockFactory.breaker(), blockFactory.bigArrays(), 50.0, DEFAULT_COMPRESSION, true);
             IntVector selected = blockFactory.newIntArrayVector(new int[] { 0, 1, 2 }, 3)
         ) {
             state.add(0, Double.POSITIVE_INFINITY);
@@ -193,12 +217,7 @@ public class LenientQuantileStatesTests extends ComputeTestCase {
         var blockFactory = blockFactory();
         var driverContext = new DriverContext(blockFactory.bigArrays(), blockFactory, null);
         try (
-            var state = new LenientQuantileStates.GroupingState(
-                blockFactory.breaker(),
-                blockFactory.bigArrays(),
-                50.0,
-                DEFAULT_COMPRESSION
-            );
+            var state = new QuantileStates.GroupingState(blockFactory.breaker(), blockFactory.bigArrays(), 50.0, DEFAULT_COMPRESSION, true);
             IntVector selected = blockFactory.newIntArrayVector(new int[] { 0, 1 }, 2)
         ) {
             state.add(1, 2.0);
@@ -210,6 +229,52 @@ public class LenientQuantileStatesTests extends ComputeTestCase {
         }
     }
 
+    /**
+     * The per-group tallies must travel with their own group. Merging a serialized group into a different group id
+     * would otherwise attribute the infinities to the wrong series.
+     */
+    public void testGroupingIntermediateStateKeepsTalliesPerGroup() {
+        var blockFactory = blockFactory();
+        var driverContext = new DriverContext(blockFactory.bigArrays(), blockFactory, null);
+        Block[] intermediate = new Block[1];
+
+        try (
+            var partial = new QuantileStates.GroupingState(
+                blockFactory.breaker(),
+                blockFactory.bigArrays(),
+                50.0,
+                DEFAULT_COMPRESSION,
+                true
+            );
+            IntVector selected = blockFactory.newIntArrayVector(new int[] { 0, 1 }, 2)
+        ) {
+            partial.add(0, Double.NEGATIVE_INFINITY);
+            partial.add(1, 5.0);
+            partial.toIntermediate(intermediate, 0, selected, driverContext);
+        }
+
+        try (
+            var merged = new QuantileStates.GroupingState(
+                blockFactory.breaker(),
+                blockFactory.bigArrays(),
+                50.0,
+                DEFAULT_COMPRESSION,
+                true
+            );
+            Block serialized = intermediate[0];
+            IntVector selected = blockFactory.newIntArrayVector(new int[] { 0, 1 }, 2)
+        ) {
+            BytesRefBlock block = (BytesRefBlock) serialized;
+            merged.add(0, block.getBytesRef(0, new BytesRef()));
+            merged.add(1, block.getBytesRef(1, new BytesRef()));
+
+            try (Block result = merged.evaluatePercentile(selected, driverContext)) {
+                assertThat(((DoubleBlock) result).getDouble(0), equalTo(Double.NEGATIVE_INFINITY));
+                assertThat(((DoubleBlock) result).getDouble(1), equalTo(5.0));
+            }
+        }
+    }
+
     private void assertQuantile(double percentile, List<Double> values, double expected) {
         assertQuantile(percentile, values, expected, 0.0);
     }
@@ -217,7 +282,7 @@ public class LenientQuantileStatesTests extends ComputeTestCase {
     private void assertQuantile(double percentile, List<Double> values, double expected, double delta) {
         var blockFactory = blockFactory();
         var driverContext = new DriverContext(blockFactory.bigArrays(), blockFactory, null);
-        try (var state = new LenientQuantileStates.SingleState(blockFactory.breaker(), percentile, DEFAULT_COMPRESSION)) {
+        try (var state = new QuantileStates.SingleState(blockFactory.breaker(), percentile, DEFAULT_COMPRESSION, true)) {
             values.forEach(state::add);
             try (Block result = state.evaluatePercentile(driverContext)) {
                 assertFalse(result.isNull(0));

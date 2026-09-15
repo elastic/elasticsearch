@@ -13,7 +13,6 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.compute.aggregation.AggregatorFunctionSupplier;
 import org.elasticsearch.compute.aggregation.PercentileDoubleAggregatorFunctionSupplier;
-import org.elasticsearch.compute.aggregation.PercentileDoubleLenientAggregatorFunctionSupplier;
 import org.elasticsearch.compute.aggregation.PercentileIntAggregatorFunctionSupplier;
 import org.elasticsearch.compute.aggregation.PercentileLongAggregatorFunctionSupplier;
 import org.elasticsearch.compute.aggregation.QuantileStates;
@@ -79,6 +78,7 @@ public class Percentile extends NumericAggregate implements SurrogateExpression,
 
     private final Expression percentile;
     private final double tDigestStateCompression;
+
     /**
      * When {@code true}, the {@code double} percentile accepts non-finite observations and ranks them as
      * {@code NaN < -Inf < finite < +Inf}. Set only by the PromQL translation; native ES|QL {@code PERCENTILE} uses the
@@ -293,10 +293,8 @@ public class Percentile extends NumericAggregate implements SurrogateExpression,
 
     @Override
     protected AggregatorFunctionSupplier doubleSupplier() {
-        // The PromQL value column is always a double, so only the double path has a lenient (non-finite) variant.
-        return allowNonFinite
-            ? new PercentileDoubleLenientAggregatorFunctionSupplier(percentileValue(), tDigestStateCompression)
-            : new PercentileDoubleAggregatorFunctionSupplier(percentileValue(), tDigestStateCompression);
+        // The PromQL value column is always a double, so only the double path can be asked to preserve non-finite values.
+        return new PercentileDoubleAggregatorFunctionSupplier(percentileValue(), tDigestStateCompression, allowNonFinite);
     }
 
     private double percentileValue() {

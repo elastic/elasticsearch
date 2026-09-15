@@ -28,6 +28,7 @@ import static org.elasticsearch.xpack.esql.EsqlTestUtils.referenceAttribute;
 import static org.elasticsearch.xpack.esql.core.type.DataType.INTEGER;
 import static org.elasticsearch.xpack.esql.core.type.DataType.KEYWORD;
 import static org.hamcrest.Matchers.contains;
+import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.instanceOf;
 
 public class PruneRedundantAggregateGroupingsTests extends AbstractLogicalPlanOptimizerTests {
@@ -276,6 +277,54 @@ public class PruneRedundantAggregateGroupingsTests extends AbstractLogicalPlanOp
 
         var aggregate = as(as(plan, Limit.class).child(), Aggregate.class);
         assertThat(Expressions.names(aggregate.groupings()), contains("ClientIP", "ip_mul"));
+    }
+
+    /**
+     * The heap-attack shape from https://github.com/elastic/elasticsearch/issues/150104: thousands of chained EVAL aliases
+     * grouped on, over an ordinary index. Expanding the chain recursively overflowed the stack and killed the node.
+     */
+    public void testLongAliasChainOverOrdinaryIndexDoesNotOverflow() {
+        int count = 5000;
+        StringBuilder query = new StringBuilder("FROM test\n| EVAL i0 = emp_no + salary, i1 = salary + i0");
+        for (int i = 2; i < count; i++) {
+            query.append(", i").append(i).append(" = i").append(i - 2).append(" + i").append(i - 1);
+        }
+        query.append("\n| STATS c = COUNT(*) BY emp_no, salary, i0");
+        for (int i = 1; i < count; i++) {
+            query.append(", i").append(i);
+        }
+        var plan = plan(query.toString());
+
+        var aggregate = as(as(plan, Limit.class).child(), Aggregate.class);
+        assertThat(aggregate.groupings().size(), equalTo(count + 2));
+    }
+
+    /** A chain of depth {@code d} takes {@code d - 1} substitutions to reach the external attribute. */
+    public void testPrunesDerivedExternalGroupingWithinAliasBudget() {
+        int depth = PruneRedundantAggregateGroupings.MAX_ALIAS_SUBSTITUTIONS + 1;
+        var plan = externalPlan(chainedExternalQuery(depth));
+
+        var project = rewrittenProject(plan);
+        assertThat(Expressions.names(project.projections()), contains("c", "ClientIP", "ip_" + depth));
+        var aggregate = rewrittenAggregate(as(project.child(), Eval.class));
+        assertThat(Expressions.names(aggregate.groupings()), contains("ClientIP"));
+    }
+
+    public void testDoesNotPruneDerivedExternalGroupingBeyondAliasBudget() {
+        int depth = PruneRedundantAggregateGroupings.MAX_ALIAS_SUBSTITUTIONS + 2;
+        var plan = externalPlan(chainedExternalQuery(depth));
+
+        var aggregate = as(as(plan, Limit.class).child(), Aggregate.class);
+        assertThat(Expressions.names(aggregate.groupings()), contains("ClientIP", "ip_" + depth));
+    }
+
+    /** {@code ip_1 = ClientIP - 1, ip_2 = ip_1 - 1, ...} grouped by {@code ClientIP} and the last alias. */
+    private static String chainedExternalQuery(int depth) {
+        StringBuilder query = new StringBuilder("FROM ext_ds\n| EVAL ip_1 = ClientIP - 1");
+        for (int i = 2; i <= depth; i++) {
+            query.append(", ip_").append(i).append(" = ip_").append(i - 1).append(" - 1");
+        }
+        return query.append("\n| STATS c = COUNT(*) BY ClientIP, ip_").append(depth).toString();
     }
 
     private LogicalPlan externalPlan(String query) {

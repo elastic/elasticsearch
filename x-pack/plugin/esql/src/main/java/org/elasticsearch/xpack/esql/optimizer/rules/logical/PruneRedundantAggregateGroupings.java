@@ -41,6 +41,13 @@ public final class PruneRedundantAggregateGroupings extends OptimizerRules.Optim
     implements
         OptimizerRules.LocalAware<Aggregate> {
 
+    /**
+     * Cap on alias substitutions while expanding one grouping. Each substitution recurses and re-expands shared aliases,
+     * so an unbounded chain of {@code EVAL}s exhausts the stack or the heap and takes the node down
+     * (https://github.com/elastic/elasticsearch/issues/150104). A grouping whose chain exceeds the cap is simply kept.
+     */
+    static final int MAX_ALIAS_SUBSTITUTIONS = 100;
+
     @Override
     protected LogicalPlan rule(Aggregate aggregate) {
         if (shouldSkipAggregate(aggregate)) {
@@ -215,7 +222,18 @@ public final class PruneRedundantAggregateGroupings extends OptimizerRules.Optim
             return definition;
         }
 
-        Expression expanded = expandAliases(definition, evalAliases, retainedGroupingAttributes, new HashSet<>());
+        // Derived groupings are only prunable over external relations; don't expand when there is nothing to prune against.
+        if (externalAttributes.isEmpty()) {
+            return null;
+        }
+
+        Expression expanded = expandAliases(
+            definition,
+            evalAliases,
+            retainedGroupingAttributes,
+            new HashSet<>(),
+            new int[] { MAX_ALIAS_SUBSTITUTIONS }
+        );
         if (isSafeDerivedExpression(expanded, retainedGroupingAttributes, externalAttributes, groupingOutputAttributes)) {
             // The expression references the retained grouping attributes as they exist below the aggregate; rebind them
             // to the attributes the aggregate exposes so the rebuilt Eval above the aggregate stays consistent.
@@ -224,22 +242,28 @@ public final class PruneRedundantAggregateGroupings extends OptimizerRules.Optim
         return null;
     }
 
+    /**
+     * An alias left unexpanded, because of a cycle or an exhausted {@code remainingSubstitutions}, is not a retained
+     * grouping attribute, so {@link #isSafeDerivedExpression} rejects the result and the grouping is kept.
+     */
     private static Expression expandAliases(
         Expression expression,
         AttributeMap<Expression> evalAliases,
         AttributeSet retainedGroupingAttributes,
-        Set<Attribute> expanding
+        Set<Attribute> expanding,
+        int[] remainingSubstitutions
     ) {
         return expression.transformUp(Attribute.class, attribute -> {
             if (retainedGroupingAttributes.contains(attribute)) {
                 return attribute;
             }
             Expression replacement = evalAliases.get(attribute);
-            if (replacement == null || expanding.add(attribute) == false) {
+            if (replacement == null || remainingSubstitutions[0] == 0 || expanding.add(attribute) == false) {
                 return attribute;
             }
+            remainingSubstitutions[0]--;
             try {
-                return expandAliases(replacement, evalAliases, retainedGroupingAttributes, expanding);
+                return expandAliases(replacement, evalAliases, retainedGroupingAttributes, expanding, remainingSubstitutions);
             } finally {
                 expanding.remove(attribute);
             }

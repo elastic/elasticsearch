@@ -1,0 +1,6 @@
+area: ES|QL
+issues:
+ - 150104
+pr: 159360
+summary: Bound alias expansion in grouping pruning
+type: bug

@@ -4415,19 +4415,6 @@ public class VerifierTests extends ESTestCase {
             );
     }
 
-    // Fork inside subquery is tested in LogicalPlanOptimizerTests
-    public void testSubqueryInFromWithForkInMainQuery() {
-        assumeTrue("Requires subquery in FROM command support", EsqlCapabilities.Cap.SUBQUERY_IN_FROM_COMMAND.isEnabled());
-        defaultAnalyzer().addDefaultIncompatible().error("""
-            FROM test, (FROM test_mixed_types
-                                 | WHERE languages > 0
-                                 | EVAL emp_no = emp_no::int
-                                 | KEEP emp_no)
-            | FORK (WHERE emp_no > 10000) (WHERE emp_no <= 10000)
-            | KEEP emp_no
-            """, containsString("1:6: FORK after subquery is not supported"));
-    }
-
     // LookupJoin on FTF after subquery is not supported, as join is not pushed down into subquery yet
     // FTF on the join(after subquery) on condition is not visible inside subquery yet. FTF after Fork fails with a similar error.
     public void testSubqueryInFromWithLookupJoinOnFullTextFunction() {

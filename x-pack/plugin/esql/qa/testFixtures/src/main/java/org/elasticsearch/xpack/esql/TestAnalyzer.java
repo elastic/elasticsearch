@@ -715,7 +715,7 @@ public class TestAnalyzer {
             subplans.put(namedSubquery.name(), namedSubquery.child());
         }
         if (subplans.size() == 1) {
-            return namedSubqueries.get(0).child();
+            return subplans.values().iterator().next();
         } else {
             return new ViewUnionAll(ur.source(), subplans, List.of());
         }

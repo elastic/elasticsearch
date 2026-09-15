@@ -163,28 +163,31 @@ public class FieldNameUtils {
                 mergeRefsResult.addAll(referencesBuilder.get());
                 var parentKeepRefs = AttributeSet.builder();
                 parentKeepRefs.addAll(keepRefs);
+                // The KEEP refs of every branch, applied to keepRefs once the loop is done so that plans downstream of the whole
+                // fork still observe all of them.
+                var mergeKeepRefsResult = AttributeSet.builder();
+                mergeKeepRefsResult.addAll(parentKeepRefs);
+                // When this fork sits inside a branch of an enclosing fork (nested subqueries), the enclosing fork is mid-loop and
+                // its own branch state must survive this one. Restored at every exit below, the same way the AbstractSubqueryJoin
+                // handler restores state around an independent subquery. Note that holding the enclosing builder and putting it
+                // back is safe only because currentBranchKeepRefs is replaced, never cleared; keepRefs is cleared, so it is saved
+                // by copy into parentKeepRefs above.
+                var enclosingBranchKeepRefs = currentBranchKeepRefs.get();
 
                 for (var branch : mergePlan.children()) {
-                    // Reset branch-specific state for each merge branch
+                    // Reset branch-specific state for each merge branch. keepRefs accumulates across the whole plan, so without
+                    // resetting it a KEEP in one branch would reach the next branch and make it look column-constrained: a nested
+                    // merge there would inherit those refs as its parentKeepRefs and never request all fields, and a LookupJoin
+                    // there would skip wildcard lookup-index resolution. Either way the query under-collects fields.
+                    keepRefs.clear();
+                    keepRefs.addAll(parentKeepRefs);
                     currentBranchKeepRefs.set(AttributeSet.builder());
                     currentBranchKeepRefs.get().addAll(parentKeepRefs);
                     referencesBuilder.set(AttributeSet.builder());
 
-                    var isNestedFork = branch.forEachDownMayReturnEarly(forEachDownProcessor.get());
-
-                    // This assert is just for good measure. FORKs within FORKs is yet not supported.
-                    LogicalPlan lastMerge = lastSeenMerge.get();
-                    if (lastMerge != null && lastMerge != mergePlan && mergePlan instanceof Fork && lastMerge instanceof Fork) {
-                        // Nested FORKs are not supported. Fork after subquery (UnionAll) or nested subqueries can
-                        // be flattened and supported by LogicalPlanOptimizer and ComputeService in the future, defer this assertion
-                        // LogicalPlanOptimizer verifier. Add the check here to avoid assertion on subqueries nested with fork.
-                        // TODO consider deferring the nested fork check to Analyzer verifier or LogicalPlanOptimizer verifier.
-                        //
-                        // Note: lastMerge == mergePlan is excluded here because an AbstractSubqueryJoin handler inside a merge branch saves
-                        // and restores lastSeenMerge (to preserve context across the subquery traversal), which transiently sets it
-                        // back to the current merge — that is not a nested-fork signal.
-                        assert isNestedFork == false : "Nested FORKs are not yet supported";
-                    }
+                    // Validation of whether two user FORKs have an intervening union boundary belongs to Fork's analyzer verifier.
+                    // Field collection must traverse every shape that the parser, view compaction, or dataset rewriting can produce.
+                    branch.forEachDownMayReturnEarly(forEachDownProcessor.get());
 
                     // Determine if this merge branch requires all fields from the index (projectAll = true).
                     // This happens when a branch has no explicit field selection and no KEEP constraints.
@@ -208,14 +211,19 @@ public class FieldNameUtils {
                         && false == reduceColumnsAfterMerge.get()) {
                         projectAll.set(true);
                         // Return early, we'll be returning all references no matter what the remainder of the query is.
+                        currentBranchKeepRefs.set(enclosingBranchKeepRefs);
                         breakEarly.set(true);
                         return;
                     }
                     mergeRefsResult.addAll(referencesBuilder.get());
+                    mergeKeepRefsResult.addAll(keepRefs);
                 }
 
                 mergeRefsResult.removeIf(attr -> attr.name().equals(Fork.FORK_FIELD));
                 referencesBuilder.set(mergeRefsResult);
+                keepRefs.clear();
+                keepRefs.addAll(mergeKeepRefsResult);
+                currentBranchKeepRefs.set(enclosingBranchKeepRefs);
 
                 // Return early, we've already explored all merge branches.
                 breakEarly.set(true);
@@ -260,10 +268,15 @@ public class FieldNameUtils {
                 // The subquery (right side) is an independent query: save all mutable traversal state, traverse it
                 // with a clean slate, then restore before traversing the left (main pipeline) side. Only joinRefs,
                 // wildcardJoinIndices, protectedSubqueryRefs, and projectAll accumulate across the boundary.
+                //
+                // keepRefs and dropWildcardRefs are saved by copy, not by build(): AttributeSet.Builder.build() hands back a view
+                // over the builder's own map, so the clear() below would empty the "saved" set too and the restore would put
+                // nothing back. The two Holder-based builders do not need this - they are replaced with a fresh builder rather
+                // than cleared, which leaves the built view attached to the old one.
                 AttributeSet savedRefs = referencesBuilder.get().build();
-                AttributeSet savedKeepRefs = keepRefs.build();
+                AttributeSet savedKeepRefs = AttributeSet.builder().addAll(keepRefs).build();
                 AttributeSet savedBranchKeepRefs = currentBranchKeepRefs.get().build();
-                AttributeSet savedDropWildcardRefs = dropWildcardRefs.build();
+                AttributeSet savedDropWildcardRefs = AttributeSet.builder().addAll(dropWildcardRefs).build();
                 boolean savedCanRemoveAliases = canRemoveAliases.get();
                 LogicalPlan savedLastSeenMerge = lastSeenMerge.get();
                 boolean savedReduceColumnsAfterMerge = reduceColumnsAfterMerge.get();

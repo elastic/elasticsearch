@@ -2403,3 +2403,39 @@ FROM employees_stats_where_in_subquery_view
 view_rows:long | max_doubled:long
 1              | 6
 ;
+
+nestedViewUnionAllSubquery
+required_capability: views_with_no_branching
+required_capability: views_crud_as_index_actions
+required_capability: subquery_in_from_command
+required_capability: nested_subquery_in_from_command
+
+FROM (FROM view_with_unionall | WHERE emp_no == 10001),
+     (FROM employees_all | WHERE emp_no == 10002)
+| KEEP emp_no, first_name
+| SORT emp_no
+;
+
+emp_no:integer | first_name:keyword
+10001          | Georgi
+10002          | Bezalel
+;
+
+viewForkInsideAndAfterUnionAllSubquery
+required_capability: views_with_no_branching
+required_capability: views_crud_as_index_actions
+required_capability: subquery_in_from_command
+required_capability: nested_subquery_in_from_command
+
+FROM (FROM view_with_fork),
+     (FROM employees_all | WHERE emp_no == 10093 | EVAL _fork = "fork1")
+| FORK (WHERE emp_no > 10091) (WHERE emp_no <= 10091)
+| KEEP _fork, emp_no
+| SORT _fork, emp_no
+;
+
+_fork:keyword | emp_no:integer
+fork1         | 10092
+fork1         | 10093
+fork2         | 10091
+;

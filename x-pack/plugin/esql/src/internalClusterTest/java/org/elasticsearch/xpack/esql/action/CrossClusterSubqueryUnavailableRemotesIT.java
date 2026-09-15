@@ -204,6 +204,86 @@ public class CrossClusterSubqueryUnavailableRemotesIT extends AbstractCrossClust
     }
 
     /*
+     * Like testSubqueryWithDisconnectedRemoteClusterWithSkipUnavailableTrue, but the unavailable remote is referenced
+     * from a nested subquery - two union levels down. The extra union level must behave exactly like the flat case:
+     * skip the remote and keep the data flowing when its branch still resolves against another cluster, and degrade to
+     * the (current) whole-query <no-fields> behavior when the branch references only the unavailable remote.
+     */
+    public void testNestedSubqueryWithDisconnectedRemoteClusterWithSkipUnavailableTrue() throws IOException {
+        setSkipUnavailable(REMOTE_CLUSTER_1, true);
+        setSkipUnavailable(REMOTE_CLUSTER_2, true);
+        try {
+            // close the remote cluster so that it is unavailable
+            cluster(REMOTE_CLUSTER_1).close();
+
+            // The nested branch targets both remotes, so it survives the skipped one and returns the reachable one's data.
+            try (EsqlQueryResponse resp = runQuery("""
+                FROM logs-*, (FROM r*:logs-*, (FROM *:logs-*))
+                | KEEP v, tag
+                """, randomBoolean())) {
+                var columns = resp.columns().stream().map(ColumnInfoImpl::name).toList();
+                assertThat(columns, hasItems("v", "tag"));
+                // 10 local rows, 10 from the reachable remote's own branch, 10 more from it via the nested *: branch
+                List<List<Object>> values = getValuesList(resp);
+                assertThat(values, hasSize(30));
+                EsqlExecutionInfo executionInfo = resp.getExecutionInfo();
+                assertClusterEsqlExecutionInfo(executionInfo, LOCAL_CLUSTER, EsqlExecutionInfo.Cluster.Status.SUCCESSFUL);
+                assertClusterEsqlExecutionInfo(executionInfo, REMOTE_CLUSTER_1, EsqlExecutionInfo.Cluster.Status.SKIPPED);
+                assertClusterEsqlExecutionInfo(executionInfo, REMOTE_CLUSTER_2, EsqlExecutionInfo.Cluster.Status.SUCCESSFUL);
+                assertClusterEsqlExecutionInfoFailureReason(
+                    executionInfo,
+                    REMOTE_CLUSTER_1,
+                    "Remote cluster [cluster-a] (with setting skip_unavailable=true) is not available"
+                );
+            }
+
+            // A nested branch referencing only the unavailable remote behaves like the flat case today: the whole
+            // query resolves to <no-fields> and returns no rows, without throwing.
+            try (EsqlQueryResponse resp = runQuery("""
+                FROM logs-*, (FROM r*:logs-*, (FROM c*:logs-*))
+                | KEEP v, tag
+                """, randomBoolean())) {
+                var columns = resp.columns().stream().map(ColumnInfoImpl::name).toList();
+                assertThat(columns, hasItems("<no-fields>"));
+                List<List<Object>> values = getValuesList(resp);
+                assertThat(values, hasSize(0));
+                EsqlExecutionInfo executionInfo = resp.getExecutionInfo();
+                assertClusterEsqlExecutionInfo(executionInfo, LOCAL_CLUSTER, EsqlExecutionInfo.Cluster.Status.SUCCESSFUL);
+                assertClusterEsqlExecutionInfo(executionInfo, REMOTE_CLUSTER_1, EsqlExecutionInfo.Cluster.Status.SKIPPED);
+                assertClusterEsqlExecutionInfoFailureReason(executionInfo, REMOTE_CLUSTER_1, "unable to connect to remote cluster");
+                // The healthy remote is SKIPPED too: the empty result comes from a planning-time short circuit
+                // (EsqlCCSUtils.updateExecutionInfoToReturnEmptyResult), which never runs the query anywhere and
+                // marks every remote as skipped with the triggering failure.
+                assertClusterEsqlExecutionInfo(executionInfo, REMOTE_CLUSTER_2, EsqlExecutionInfo.Cluster.Status.SKIPPED);
+                assertClusterEsqlExecutionInfoFailureReason(executionInfo, REMOTE_CLUSTER_2, "unable to connect to remote cluster");
+            }
+        } finally {
+            clearSkipUnavailable(3);
+        }
+    }
+
+    /*
+     * With skip_unavailable=false, an unavailable remote referenced from a nested subquery must fail the whole query,
+     * exactly as it does when referenced from a top-level subquery: the extra union level must not swallow the error.
+     */
+    public void testNestedSubqueryWithDisconnectedRemoteClusterWithSkipUnavailableFalse() throws IOException {
+        setSkipUnavailable(REMOTE_CLUSTER_1, false);
+        setSkipUnavailable(REMOTE_CLUSTER_2, false);
+        try {
+            // close the remote cluster so that it is unavailable
+            cluster(REMOTE_CLUSTER_1).close();
+
+            Exception ex = expectThrows(ElasticsearchException.class, () -> runQuery("""
+                FROM logs-*, (FROM r*:logs-*, (FROM c*:logs-*))
+                | KEEP v, tag
+                """, randomBoolean()));
+            assertTrue(ExceptionsHelper.isRemoteUnavailableException(ex));
+        } finally {
+            clearSkipUnavailable(3);
+        }
+    }
+
+    /*
      * Mocks a bad REMOTE_CLUSTER_1.
      */
     private Exception mockTransportServiceToReceiveSimulatedFailure() {

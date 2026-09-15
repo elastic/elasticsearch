@@ -1,0 +1,1 @@
+FROM employees_all | WHERE emp_no >= 10091 AND emp_no <= 10093 | FORK (WHERE emp_no == 10091) (WHERE emp_no == 10092)

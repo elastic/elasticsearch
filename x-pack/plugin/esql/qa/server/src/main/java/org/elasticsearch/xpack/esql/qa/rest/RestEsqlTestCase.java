@@ -1355,8 +1355,6 @@ public abstract class RestEsqlTestCase extends ESRestTestCase {
     }
 
     public void testTopLevelFilterWithSubqueriesInFromCommand() throws IOException {
-        assumeTrue("subqueries in from command", EsqlCapabilities.Cap.SUBQUERY_IN_FROM_COMMAND.isEnabled());
-
         bulkLoadTestData(10);
 
         String query = format(null, "FROM {} , (FROM {} | WHERE integer < 8) | STATS count(*)", testIndexName(), testIndexName());
@@ -1374,67 +1372,55 @@ public abstract class RestEsqlTestCase extends ESRestTestCase {
     }
 
     public void testNestedSubqueries() throws IOException {
-        assumeTrue("subqueries in from command", EsqlCapabilities.Cap.SUBQUERY_IN_FROM_COMMAND.isEnabled());
-
         bulkLoadTestData(10);
-
-        ResponseException re = expectThrows(
-            ResponseException.class,
-            () -> runEsqlSync(
-                requestObjectBuilder().query(
-                    format(
-                        null,
-                        "from {}, (from {}, (from {} | where integer > 1) | where integer < 8) | stats count(*)",
-                        testIndexName(),
-                        testIndexName(),
-                        testIndexName()
-                    )
+        // subquery1: 10(0-9) rows, subquery2: 8(0-7) rows, subquery3: 6(2-7) rows, total 24 rows
+        Map<String, Object> result = runEsql(
+            requestObjectBuilder().query(
+                format(
+                    null,
+                    "from {}, (from {}, (from {} | where integer > 1) | where integer < 8) | stats count(*)",
+                    testIndexName(),
+                    testIndexName(),
+                    testIndexName()
                 )
             )
         );
-        String error = re.getMessage().replaceAll("\\\\\n\s+\\\\", "");
-        assertThat(error, containsString("VerificationException"));
-        assertThat(error, containsString("Nested subqueries are not supported"));
+        assertResultMap(result, matchesList().item(matchesMap().entry("name", "count(*)").entry("type", "long")), List.of(List.of(24)));
     }
 
     public void testSubqueryWithFork() throws IOException {
-        assumeTrue("subqueries in from command", EsqlCapabilities.Cap.SUBQUERY_IN_FROM_COMMAND.isEnabled());
-
         bulkLoadTestData(10);
 
-        ResponseException re = expectThrows(
-            ResponseException.class,
-            () -> runEsqlSync(
-                requestObjectBuilder().query(
-                    format(
-                        null,
-                        "from {}, (from {} | where integer > 1) | fork (where long > 2) (where ip == \"127.0.0.1\") | stats count(*)",
-                        testIndexName(),
-                        testIndexName()
-                    )
+        // The two source branches return 10 rows (integer 0-9) and 8 rows (integer 2-9), respectively.
+        // FORK sees all 18 rows: long > 2 returns 7 rows from each source branch (14 total), while
+        // ip == "127.0.0.1" returns one row from the first source and none from the filtered source.
+        // The fork therefore returns 15 rows in total.
+        Map<String, Object> result = runEsqlSync(
+            requestObjectBuilder().query(
+                format(
+                    null,
+                    "from {}, (from {} | where integer > 1) | fork (where long > 2) (where ip == \"127.0.0.1\") | stats count(*)",
+                    testIndexName(),
+                    testIndexName()
                 )
             )
         );
-        String error = re.getMessage().replaceAll("\\\\\n\s+\\\\", "");
-        assertThat(error, containsString("VerificationException"));
-        assertThat(error, containsString("FORK after subquery is not supported"));
+        assertResultMap(result, matchesList().item(matchesMap().entry("name", "count(*)").entry("type", "long")), List.of(List.of(15)));
 
-        re = expectThrows(
-            ResponseException.class,
-            () -> runEsqlSync(
-                requestObjectBuilder().query(
-                    format(
-                        null,
-                        "from {}, (from {} | where integer > 1 | fork (where long > 2) ( where ip == \"127.0.0.1\")) | stats count(*)",
-                        testIndexName(),
-                        testIndexName()
-                    )
+        // The first source branch returns all 10 rows. The second source starts with 8 rows (integer 2-9),
+        // then its nested FORK returns 7 rows for long > 2 and no rows for ip == "127.0.0.1" because
+        // that document has integer 1. The outer union therefore returns 10 + 7 = 17 rows.
+        result = runEsqlSync(
+            requestObjectBuilder().query(
+                format(
+                    null,
+                    "from {}, (from {} | where integer > 1 | fork (where long > 2) ( where ip == \"127.0.0.1\")) | stats count(*)",
+                    testIndexName(),
+                    testIndexName()
                 )
             )
         );
-        error = re.getMessage().replaceAll("\\\\\n\s+\\\\", "");
-        assertThat(error, containsString("VerificationException"));
-        assertThat(error, containsString("FORK inside subquery is not supported"));
+        assertResultMap(result, matchesList().item(matchesMap().entry("name", "count(*)").entry("type", "long")), List.of(List.of(17)));
     }
 
     private static String queryWithComplexFieldNames(int field) {

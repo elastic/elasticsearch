@@ -17,7 +17,6 @@ import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.core.util.Holder;
-import org.elasticsearch.xpack.esql.plan.logical.join.AbstractSubqueryJoin;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -25,7 +24,6 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
 import java.util.function.BiConsumer;
-import java.util.function.Consumer;
 import java.util.function.Predicate;
 
 import static org.elasticsearch.xpack.esql.analysis.Analyzer.NO_FIELDS;
@@ -113,7 +111,7 @@ public abstract class MergePlan extends LogicalPlan implements PostAnalysisPlanV
      *       with zero children. The caller is expected either to short-circuit the
      *       all-empty case before calling (e.g. {@code PruneEmptyMergeBranches} replaces with
      *       a {@code LocalRelation} when every branch reduces to empty) or to let the
-     *       analyzer's verifier surface the empty-merge state via {@link #checkBranchCount}.</li>
+     *       analyzer's verifier surface the empty-merge state via {@link #checkNonEmpty}.</li>
      * </ul>
      * Single-survivor collapse semantics — a {@link UnionAll}/{@link ViewUnionAll} with one
      * branch left is equivalent to that branch — are not part of this primitive; callers that
@@ -234,15 +232,15 @@ public abstract class MergePlan extends LogicalPlan implements PostAnalysisPlanV
 
     @Override
     public BiConsumer<LogicalPlan, Failures> postAnalysisPlanVerification() {
-        return MergePlan::checkBranchCount;
+        return MergePlan::checkNonEmpty;
     }
 
     /**
-     * Branch-count bounds shared by all {@link MergePlan} subclasses (Fork, UnionAll, ViewUnionAll).
-     * Lives at post-analysis verification rather than the constructor so that compaction
-     * passes (e.g. ViewCompaction) get a chance to reduce the count first. Called from both
-     * {@code Fork::checkFork} and {@code UnionAll::checkUnionAll} since each subclass dispatches
-     * to its own {@link #postAnalysisPlanVerification()} override.
+     * Shared empty-merge check for every {@link MergePlan} subclass. Lives at post-analysis
+     * verification rather than the constructor so that compaction passes (e.g. ViewCompaction)
+     * get a chance to reduce the count first. Called from both {@code Fork::checkFork} and
+     * {@code UnionAll::checkUnionAll} since each subclass dispatches to its own
+     * {@link #postAnalysisPlanVerification()} override.
      * <p>
      * The lower bound (≥ 1 branch) catches invalid plans where {@link #pruneEmptyBranches}
      * removed every branch — e.g. a CCS subquery whose {@code IndexResolution} came back
@@ -251,31 +249,14 @@ public abstract class MergePlan extends LogicalPlan implements PostAnalysisPlanV
      * {@code PruneEmptyUnionAllBranch}, {@code ViewCompaction.stripViewShadowRelations}) rely on
      * this check to surface the bad state with a clear message rather than letting an empty
      * {@code MergePlan} propagate silently.
+     * <p>
+     * The user-written {@code FORK} command has a separate upper bound ({@link #MAX_BRANCHES}),
+     * enforced in {@code Fork}. {@link UnionAll} and {@link ViewUnionAll} width is bounded later
+     * by the query-wide {@code max_query_branches} / {@code max_query_branch_levels} pragmas.
      */
-    static void checkBranchCount(LogicalPlan plan, Failures failures) {
-        if (plan instanceof MergePlan merge) {
-            int size = merge.children().size();
-            if (exceedsMaxBranches(size)) {
-                failures.add(Failure.fail(merge, "FORK supports up to {} branches, got: {}", MAX_BRANCHES, size));
-            } else if (size == 0) {
-                failures.add(Failure.fail(merge, "{} requires at least one branch", merge.getClass().getSimpleName()));
-            }
-        }
-    }
-
-    /**
-     * Traverses the plan tree downward, invoking {@code action} for each {@link MergePlan} encountered,
-     * but does not descend into the right-hand side (subquery plan) of an {@link AbstractSubqueryJoin}.
-     * The right side is a separate query scope; a FORK or merge inside it is independent of any FORK
-     * or merge in the enclosing query.
-     */
-    static void forEachMergePlanSkippingSubqueries(LogicalPlan plan, Consumer<MergePlan> action) {
-        if (plan instanceof MergePlan merge) {
-            action.accept(merge);
-        }
-        List<LogicalPlan> children = plan instanceof AbstractSubqueryJoin join ? List.of(join.left()) : plan.children();
-        for (LogicalPlan child : children) {
-            forEachMergePlanSkippingSubqueries(child, action);
+    static void checkNonEmpty(LogicalPlan plan, Failures failures) {
+        if (plan instanceof MergePlan merge && merge.children().isEmpty()) {
+            failures.add(Failure.fail(merge, "{} requires at least one branch", merge.getClass().getSimpleName()));
         }
     }
 }

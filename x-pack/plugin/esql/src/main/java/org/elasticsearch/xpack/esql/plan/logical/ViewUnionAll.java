@@ -52,6 +52,19 @@ public class ViewUnionAll extends UnionAll {
         return new ViewUnionAll(source(), asSubqueryMap(subPlans), output);
     }
 
+    /**
+     * Type-preserving override of {@link UnionAll#refreshOutput()}, which would otherwise return a plain {@link UnionAll} and drop
+     * {@link #namedSubqueries}. Children are unchanged, so the existing map carries over as-is.
+     * <p>
+     * Losing the type here is not merely cosmetic: view compaction and diagnostics use the named branches while generic downstream
+     * analysis and planning treat this as a union. {@code ResolveUnmapped.patchMergePlan} calls {@code refreshOutput()} on every
+     * {@link MergePlan} it patches, which is how a view union reaches this method.
+     */
+    @Override
+    public ViewUnionAll refreshOutput() {
+        return new ViewUnionAll(source(), namedSubqueries, refreshedOutput());
+    }
+
     // Currently for testing only, could also be useful for EXPLAIN and PROFILE
     public Map<String, LogicalPlan> namedSubqueries() {
         return namedSubqueries;

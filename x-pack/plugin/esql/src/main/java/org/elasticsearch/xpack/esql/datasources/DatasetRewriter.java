@@ -304,8 +304,8 @@ public final class DatasetRewriter {
         }
 
         // Cap the real-read branches (datasets + the index branch) here, BEFORE the speculative shadows. A shadow
-        // strips when its name has no remote namesake, so it must not consume the rewrite-time budget; a matched
-        // shadow is a real read bounded post-analysis by MergePlan.checkBranchCount.
+        // strips when its name has no remote namesake, so it must not consume the rewrite-time budget. A matched
+        // shadow is a real read; this rewrite-time {@link MergePlan#MAX_BRANCHES} cap is what bounds it.
         if (MergePlan.exceedsMaxBranches(children.size())) {
             throw new VerificationException(
                 "FROM ["

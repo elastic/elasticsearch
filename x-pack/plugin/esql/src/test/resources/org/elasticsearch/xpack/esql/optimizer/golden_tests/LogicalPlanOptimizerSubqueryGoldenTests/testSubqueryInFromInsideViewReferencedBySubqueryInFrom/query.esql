@@ -1,0 +1,1 @@
+FROM (FROM branching_view | LIMIT 10), (FROM employees | LIMIT 10)

@@ -21,6 +21,7 @@ import org.elasticsearch.xpack.esql.action.AbstractEsqlIntegTestCase;
 import org.junit.Before;
 
 import java.io.IOException;
+import java.util.Arrays;
 import java.util.List;
 import java.util.Locale;
 
@@ -34,8 +35,8 @@ public class KnnRuntimeFunctionIT extends AbstractEsqlIntegTestCase {
 
     private static final String QUERY_VECTOR = "[1.0, 0.0, 0.0]";
 
-    private final String metric;
-    private final String similarityFunction;
+    private final String knnSimilarityFunction;
+    private final String denseVectorSimilarityFunction;
     private final double threshold;
 
     @ParametersFactory
@@ -49,16 +50,24 @@ public class KnnRuntimeFunctionIT extends AbstractEsqlIntegTestCase {
     }
 
     public KnnRuntimeFunctionIT(
-        @Name("metric") String metric,
-        @Name("similarityFunction") String similarityFunction,
+        @Name("knnSimilarityFunction") String knnSimilarityFunction,
+        @Name("denseVectorSimilarityFunction") String denseVectorSimilarityFunction,
         @Name("threshold") double threshold
     ) {
-        this.metric = metric;
-        this.similarityFunction = similarityFunction;
+        this.knnSimilarityFunction = knnSimilarityFunction;
+        this.denseVectorSimilarityFunction = denseVectorSimilarityFunction;
         this.threshold = threshold;
     }
 
-    public void testScoresMatchVectorFunction() {
+    public void testScores() {
+        assertScoresMatchVectorFunction(QUERY_VECTOR);
+    }
+
+    public void testScoresWithRandomQuery() {
+        assertScoresMatchVectorFunction(randomQueryVector());
+    }
+
+    private void assertScoresMatchVectorFunction(String queryVector) {
         String query = String.format(Locale.ROOT, """
             FROM test METADATA _score
             | EVAL vector = to_dense_vector(vector_hex)
@@ -67,25 +76,30 @@ public class KnnRuntimeFunctionIT extends AbstractEsqlIntegTestCase {
             | WHERE knn(vector, %s, {"vector_similarity": "%s"})
             | SORT id ASC
             | KEEP id, _score, expected_score
-            """, similarityFunction, QUERY_VECTOR, expectedScoreExpression(), QUERY_VECTOR, metric);
+            """, denseVectorSimilarityFunction, queryVector, expectedScoreExpression(), queryVector, knnSimilarityFunction);
 
         try (var response = run(query)) {
             List<List<Object>> rows = EsqlTestUtils.getValuesList(response);
             assertEquals(testVectors().size(), rows.size());
             for (List<Object> row : rows) {
-                assertEquals("metric [" + metric + "] id [" + row.get(0) + "]", (Double) row.get(2), (Double) row.get(1), 1e-6);
+                assertEquals(
+                    "metric [" + knnSimilarityFunction + "] id [" + row.get(0) + "]",
+                    (Double) row.get(2),
+                    (Double) row.get(1),
+                    1e-6
+                );
             }
         }
     }
 
-    public void testFilteringMatchesVectorFunction() {
+    public void testFiltering() {
         String knnQuery = String.format(Locale.ROOT, """
             FROM test
             | EVAL vector = to_dense_vector(vector_hex)
             | WHERE knn(vector, %s, {"vector_similarity": "%s", "similarity": %s})
             | SORT id ASC
             | KEEP id
-            """, QUERY_VECTOR, metric, threshold);
+            """, QUERY_VECTOR, knnSimilarityFunction, threshold);
         String baselineQuery = String.format(Locale.ROOT, """
             FROM test
             | EVAL vector = to_dense_vector(vector_hex)
@@ -93,25 +107,25 @@ public class KnnRuntimeFunctionIT extends AbstractEsqlIntegTestCase {
             | WHERE raw_similarity %s %s
             | SORT id ASC
             | KEEP id
-            """, similarityFunction, QUERY_VECTOR, thresholdComparison(), threshold);
+            """, denseVectorSimilarityFunction, QUERY_VECTOR, thresholdComparison(), threshold);
 
         try (var knnResponse = run(knnQuery); var baselineResponse = run(baselineQuery)) {
             assertEquals(
-                "filtered ids for metric [" + metric + "]",
+                "filtered ids for metric [" + knnSimilarityFunction + "]",
                 EsqlTestUtils.getValuesList(baselineResponse),
                 EsqlTestUtils.getValuesList(knnResponse)
             );
         }
     }
 
-    public void testRankingMatchesVectorFunction() {
+    public void testRanking() {
         String knnQuery = String.format(Locale.ROOT, """
             FROM test METADATA _score
             | EVAL vector = to_dense_vector(vector_hex)
             | WHERE knn(vector, %s, {"vector_similarity": "%s"})
             | SORT _score DESC, id ASC
             | KEEP id
-            """, QUERY_VECTOR, metric);
+            """, QUERY_VECTOR, knnSimilarityFunction);
         String baselineQuery = String.format(Locale.ROOT, """
             FROM test
             | EVAL vector = to_dense_vector(vector_hex)
@@ -119,11 +133,11 @@ public class KnnRuntimeFunctionIT extends AbstractEsqlIntegTestCase {
             | EVAL expected_score = %s
             | SORT expected_score DESC, id ASC
             | KEEP id
-            """, similarityFunction, QUERY_VECTOR, expectedScoreExpression());
+            """, denseVectorSimilarityFunction, QUERY_VECTOR, expectedScoreExpression());
 
         try (var knnResponse = run(knnQuery); var baselineResponse = run(baselineQuery)) {
             assertEquals(
-                "ranked ids for metric [" + metric + "]",
+                "ranked ids for metric [" + knnSimilarityFunction + "]",
                 EsqlTestUtils.getValuesList(baselineResponse),
                 EsqlTestUtils.getValuesList(knnResponse)
             );
@@ -173,7 +187,7 @@ public class KnnRuntimeFunctionIT extends AbstractEsqlIntegTestCase {
     }
 
     private List<TestVector> testVectors() {
-        if (metric.equals("dot_product")) {
+        if (knnSimilarityFunction.equals("dot_product")) {
             return List.of(
                 new TestVector(0, "010000"), // [1, 0, 0]
                 new TestVector(1, "000100"), // [0, 1, 0]
@@ -190,16 +204,35 @@ public class KnnRuntimeFunctionIT extends AbstractEsqlIntegTestCase {
     }
 
     private String expectedScoreExpression() {
-        return switch (metric) {
+        return switch (knnSimilarityFunction) {
             case "cosine", "dot_product" -> "(raw_similarity + 1.0) / 2.0";
             case "l2_norm" -> "1.0 / (1.0 + raw_similarity * raw_similarity)";
             case "max_inner_product" -> "CASE(raw_similarity < 0, 1.0 / (1.0 - raw_similarity), raw_similarity + 1.0)";
-            default -> throw new IllegalArgumentException("unexpected vector similarity metric [" + metric + "]");
+            default -> throw new IllegalArgumentException("unexpected vector similarity metric [" + knnSimilarityFunction + "]");
         };
     }
 
     private String thresholdComparison() {
-        return metric.equals("l2_norm") ? "<=" : ">=";
+        return knnSimilarityFunction.equals("l2_norm") ? "<=" : ">=";
+    }
+
+    private String randomQueryVector() {
+        float[] vector = new float[3];
+        double squaredMagnitude = 0.0;
+        while (squaredMagnitude == 0.0) {
+            squaredMagnitude = 0.0;
+            for (int i = 0; i < vector.length; i++) {
+                vector[i] = randomIntBetween(-100, 100) / 10.0f;
+                squaredMagnitude += vector[i] * vector[i];
+            }
+        }
+        if (knnSimilarityFunction.equals("dot_product")) {
+            double magnitude = Math.sqrt(squaredMagnitude);
+            for (int i = 0; i < vector.length; i++) {
+                vector[i] = (float) (vector[i] / magnitude);
+            }
+        }
+        return Arrays.toString(vector);
     }
 
     private record TestVector(int id, String hex) {}

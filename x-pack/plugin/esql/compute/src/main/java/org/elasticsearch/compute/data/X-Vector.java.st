@@ -315,6 +315,7 @@ $if(BytesRef)$
             return builder.build();
         }
     }
+
 $else$
     private static $Type$Vector readValues(int positions, StreamInput in, BlockFactory blockFactory) throws IOException {
         try (var builder = blockFactory.new$Type$VectorFixedBuilder(positions)) {
@@ -324,8 +325,8 @@ $else$
             return builder.build();
         }
     }
-$endif$
 
+$endif$
     private static void writeValues($Type$Vector v, int positions, StreamOutput out) throws IOException {
 $if(BytesRef)$
         var scratch = new BytesRef();

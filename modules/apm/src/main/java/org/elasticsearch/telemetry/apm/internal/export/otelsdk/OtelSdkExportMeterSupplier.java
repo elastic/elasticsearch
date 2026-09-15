@@ -31,6 +31,7 @@ import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.ssl.TrustEverythingConfig;
 import org.elasticsearch.core.Booleans;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
 import org.elasticsearch.telemetry.apm.internal.APMAgentSettings;
@@ -39,7 +40,6 @@ import org.elasticsearch.telemetry.apm.internal.metrics.spi.SdkMeterProviderCust
 
 import java.nio.file.Path;
 import java.security.GeneralSecurityException;
-import java.util.List;
 import java.util.Objects;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.BiConsumer;
@@ -70,21 +70,26 @@ public class OtelSdkExportMeterSupplier implements MeterSupplier {
 
     private final Settings settings;
     private final Path diskBufferPath;
-    private final List<SdkMeterProviderCustomizer> meterProviderCustomizers;
+    @Nullable
+    private final SdkMeterProviderCustomizer meterProviderCustomizer;
     private volatile OTelMetricsResources resources;
     private final Object mutex = new Object();
 
-    public OtelSdkExportMeterSupplier(Settings settings, Path diskBufferPath, List<SdkMeterProviderCustomizer> meterProviderCustomizers) {
+    public OtelSdkExportMeterSupplier(
+        Settings settings,
+        Path diskBufferPath,
+        @Nullable SdkMeterProviderCustomizer meterProviderCustomizer
+    ) {
         this.settings = settings;
         this.diskBufferPath = diskBufferPath;
-        this.meterProviderCustomizers = List.copyOf(meterProviderCustomizers);
+        this.meterProviderCustomizer = meterProviderCustomizer;
     }
 
     /** For testing: pre-initializes resources so tests can inject readable providers. */
     OtelSdkExportMeterSupplier(Settings settings, Path diskBufferPath, OTelMetricsResources testResources) {
         this.settings = settings;
         this.diskBufferPath = diskBufferPath;
-        this.meterProviderCustomizers = List.of();
+        this.meterProviderCustomizer = null;
         this.resources = testResources;
     }
 
@@ -152,8 +157,8 @@ public class OtelSdkExportMeterSupplier implements MeterSupplier {
             .registerMetricReader(reader, instrumentType -> METRIC_CARDINALITY_LIMIT);
         registerDisabledMetricViews(builder, settings);
 
-        for (SdkMeterProviderCustomizer customizer : meterProviderCustomizers) {
-            builder = customizer.customize(builder);
+        if (meterProviderCustomizer != null) {
+            builder = meterProviderCustomizer.customize(builder);
         }
 
         return builder.build();

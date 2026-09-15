@@ -12,6 +12,7 @@ package org.elasticsearch.telemetry.apm.internal;
 import io.opentelemetry.sdk.common.CompletableResultCode;
 
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.telemetry.TelemetryLogResourceProvider;
 import org.elasticsearch.telemetry.TelemetryLoggingFilterProvider;
 import org.elasticsearch.telemetry.TelemetryProvider;
@@ -40,9 +41,9 @@ public class APMTelemetryProvider implements TelemetryProvider {
         Path configDir,
         Collection<TelemetryLoggingFilterProvider> filterProviders,
         TelemetryLogResourceProvider logResourceProvider,
-        List<SdkMeterProviderCustomizer> meterProviderCustomizers
+        @Nullable SdkMeterProviderCustomizer meterProviderCustomizer
     ) {
-        apmMeterService = new APMMeterService(settings, diskBufferPath, meterProviderCustomizers);
+        apmMeterService = new APMMeterService(settings, diskBufferPath, meterProviderCustomizer);
         apmTracer = new APMTracer(settings, apmMeterService::getHealthMeterProvider);
         loggingService = new APMLoggingService(settings, configDir, filterProviders, logResourceProvider);
         apmHttpServerInstrumentation = new APMHttpServerInstrumentation(apmTracer);

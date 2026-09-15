@@ -59,7 +59,7 @@ public class APM extends Plugin implements NetworkPlugin, TelemetryPlugin, Exten
 
     private final SetOnce<APMTelemetryProvider> telemetryProvider = new SetOnce<>();
     private final Settings settings;
-    private final SetOnce<List<SdkMeterProviderCustomizer>> meterProviderCustomizers = new SetOnce<>();
+    private final SetOnce<SdkMeterProviderCustomizer> meterProviderCustomizer = new SetOnce<>();
 
     public APM(Settings settings) {
         this.settings = settings;
@@ -67,7 +67,12 @@ public class APM extends Plugin implements NetworkPlugin, TelemetryPlugin, Exten
 
     @Override
     public void loadExtensions(ExtensionLoader loader) {
-        meterProviderCustomizers.set(loader.loadExtensions(SdkMeterProviderCustomizer.class));
+        List<SdkMeterProviderCustomizer> customizers = loader.loadExtensions(SdkMeterProviderCustomizer.class);
+        assert customizers.size() <= 1 : "There must be at most 1 SdkMeterProviderCustomizer instance provided";
+
+        if (customizers.isEmpty() == false) {
+            meterProviderCustomizer.set(customizers.getFirst());
+        }
     }
 
     @Override
@@ -83,7 +88,7 @@ public class APM extends Plugin implements NetworkPlugin, TelemetryPlugin, Exten
             environment.configDir(),
             filterProviders,
             logResourceProvider,
-            meterProviderCustomizers.get()
+            meterProviderCustomizer.get()
         );
         telemetryProvider.set(apmTelemetryProvider);
         return apmTelemetryProvider;

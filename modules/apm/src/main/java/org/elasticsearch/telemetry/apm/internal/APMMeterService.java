@@ -20,6 +20,7 @@ import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.component.AbstractLifecycleComponent;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.Booleans;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.telemetry.apm.internal.export.MeterSupplier;
 import org.elasticsearch.telemetry.apm.internal.export.agent.AgentExportMeterSupplier;
 import org.elasticsearch.telemetry.apm.internal.export.otelsdk.OtelSdkExportMeterSupplier;
@@ -28,7 +29,6 @@ import org.elasticsearch.telemetry.apm.internal.metrics.APMMeterRegistry;
 import org.elasticsearch.telemetry.apm.internal.metrics.spi.SdkMeterProviderCustomizer;
 
 import java.nio.file.Path;
-import java.util.List;
 import java.util.concurrent.TimeUnit;
 
 import static org.elasticsearch.telemetry.TelemetryProvider.OTEL_METRICS_ENABLED_SYSTEM_PROPERTY;
@@ -44,8 +44,8 @@ public class APMMeterService extends AbstractLifecycleComponent {
 
     protected volatile boolean enabled;
 
-    public APMMeterService(Settings settings, Path diskBufferPath, List<SdkMeterProviderCustomizer> meterProviderConfigurers) {
-        this(settings, createOtelMeterSupplier(settings, diskBufferPath, meterProviderConfigurers), new NoOpMeterSupplier());
+    public APMMeterService(Settings settings, Path diskBufferPath, @Nullable SdkMeterProviderCustomizer meterProviderConfigurer) {
+        this(settings, createOtelMeterSupplier(settings, diskBufferPath, meterProviderConfigurer), new NoOpMeterSupplier());
     }
 
     public APMMeterService(Settings settings, MeterSupplier otelMeterSupplier, MeterSupplier noopMeterSupplier) {
@@ -60,11 +60,11 @@ public class APMMeterService extends AbstractLifecycleComponent {
     private static MeterSupplier createOtelMeterSupplier(
         Settings settings,
         Path diskBufferPath,
-        List<SdkMeterProviderCustomizer> meterProviderCustomizers
+        @Nullable SdkMeterProviderCustomizer meterProviderCustomizer
     ) {
         boolean otelMetricsEnabled = Booleans.parseBoolean(System.getProperty(OTEL_METRICS_ENABLED_SYSTEM_PROPERTY, "false"));
         if (otelMetricsEnabled) {
-            return new OtelSdkExportMeterSupplier(settings, diskBufferPath, meterProviderCustomizers);
+            return new OtelSdkExportMeterSupplier(settings, diskBufferPath, meterProviderCustomizer);
         } else {
             return new AgentExportMeterSupplier(settings);
         }

@@ -1467,6 +1467,9 @@ public class AzureOpenAiServiceTests extends InferenceServiceTestCase {
                                   "completion",
                                   "chat_completion"
                               ],
+                              "features": {
+                                  "supports_non_streaming_chat": true
+                              },
                               "configurations": {
                                   "tenant_id": {
                                       "description": "The directory tenant that you want to request permission from.",

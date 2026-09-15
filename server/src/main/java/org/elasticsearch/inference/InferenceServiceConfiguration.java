@@ -15,6 +15,7 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.xcontent.XContentHelper;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.xcontent.ConstructingObjectParser;
 import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xcontent.ToXContentObject;
@@ -31,6 +32,7 @@ import java.util.Map;
 import java.util.Objects;
 
 import static org.elasticsearch.xcontent.ConstructingObjectParser.constructorArg;
+import static org.elasticsearch.xcontent.ConstructingObjectParser.optionalConstructorArg;
 
 /**
  * Represents the configuration field settings for an inference provider.
@@ -41,6 +43,7 @@ public class InferenceServiceConfiguration implements Writeable, ToXContentObjec
     private final String name;
     private final EnumSet<TaskType> taskTypes;
     private final Map<String, SettingsConfiguration> configurations;
+    private final Features features;
 
     /**
      * Constructs a new {@link InferenceServiceConfiguration} instance with specified properties.
@@ -48,31 +51,38 @@ public class InferenceServiceConfiguration implements Writeable, ToXContentObjec
      * @param service        The name of the service provider.
      * @param name           The user-friendly name of the service provider.
      * @param taskTypes      A list of {@link TaskType} supported by the service provider.
-     * @param configurations  The configuration of the service provider, defined by {@link SettingsConfiguration}.
+     * @param configurations The configuration of the service provider, defined by {@link SettingsConfiguration}.
+     * @param features       The features the service supports
      */
     private InferenceServiceConfiguration(
         String service,
         String name,
         EnumSet<TaskType> taskTypes,
-        Map<String, SettingsConfiguration> configurations
+        Map<String, SettingsConfiguration> configurations,
+        @Nullable Features features
     ) {
-        this.service = service;
-        this.name = name;
-        this.taskTypes = taskTypes;
-        this.configurations = configurations;
+        this.service = Objects.requireNonNull(service);
+        this.name = Objects.requireNonNull(name);
+        this.taskTypes = Objects.requireNonNull(taskTypes);
+        this.configurations = Objects.requireNonNull(configurations);
+        this.features = features;
     }
 
     public InferenceServiceConfiguration(StreamInput in) throws IOException {
-        this.service = in.readString();
-        this.name = in.readString();
-        this.taskTypes = in.readEnumSet(TaskType.class);
-        this.configurations = in.readMap(SettingsConfiguration::new);
+        this(
+            in.readString(),
+            in.readString(),
+            in.readEnumSet(TaskType.class),
+            in.readMap(SettingsConfiguration::new),
+            in.readOptionalWriteable(Features::new)
+        );
     }
 
     static final ParseField SERVICE_FIELD = new ParseField("service");
     static final ParseField NAME_FIELD = new ParseField("name");
     static final ParseField TASK_TYPES_FIELD = new ParseField("task_types");
     static final ParseField CONFIGURATIONS_FIELD = new ParseField("configurations");
+    static final ParseField FEATURES_FIELD = new ParseField("features");
 
     @SuppressWarnings("unchecked")
     private static final ConstructingObjectParser<InferenceServiceConfiguration, Void> PARSER = new ConstructingObjectParser<>(
@@ -82,6 +92,7 @@ public class InferenceServiceConfiguration implements Writeable, ToXContentObjec
             .setName((String) args[1])
             .setTaskTypes((List<String>) args[2])
             .setConfigurations((Map<String, SettingsConfiguration>) args[3])
+            .setFeatures((Features) args[4])
             .build()
     );
 
@@ -89,7 +100,8 @@ public class InferenceServiceConfiguration implements Writeable, ToXContentObjec
         PARSER.declareString(constructorArg(), SERVICE_FIELD);
         PARSER.declareString(constructorArg(), NAME_FIELD);
         PARSER.declareStringArray(constructorArg(), TASK_TYPES_FIELD);
-        PARSER.declareObject(constructorArg(), (p, c) -> p.map(), CONFIGURATIONS_FIELD);
+        PARSER.declareObject(constructorArg(), (p, c) -> p.map(HashMap::new, SettingsConfiguration::fromXContent), CONFIGURATIONS_FIELD);
+        PARSER.declareObject(optionalConstructorArg(), Features.PARSER::apply, FEATURES_FIELD);
     }
 
     public String getService() {
@@ -105,7 +117,11 @@ public class InferenceServiceConfiguration implements Writeable, ToXContentObjec
     }
 
     public Map<String, SettingsConfiguration> getConfigurations() {
-        return configurations;
+        return new HashMap<>(configurations);
+    }
+
+    public Features getFeatures() {
+        return features;
     }
 
     @Override
@@ -116,6 +132,9 @@ public class InferenceServiceConfiguration implements Writeable, ToXContentObjec
             builder.field(NAME_FIELD.getPreferredName(), name);
             builder.field(TASK_TYPES_FIELD.getPreferredName(), taskTypes);
             builder.field(CONFIGURATIONS_FIELD.getPreferredName(), configurations);
+            if (features != null) {
+                builder.field(FEATURES_FIELD.getPreferredName(), features);
+            }
         }
         builder.endObject();
         return builder;
@@ -138,18 +157,8 @@ public class InferenceServiceConfiguration implements Writeable, ToXContentObjec
         out.writeString(service);
         out.writeString(name);
         out.writeCollection(taskTypes);
-        out.writeMapValues(configurations);
-    }
-
-    public Map<String, Object> toMap() {
-        Map<String, Object> map = new HashMap<>();
-
-        map.put(SERVICE_FIELD.getPreferredName(), service);
-        map.put(NAME_FIELD.getPreferredName(), name);
-        map.put(TASK_TYPES_FIELD.getPreferredName(), taskTypes);
-        map.put(CONFIGURATIONS_FIELD.getPreferredName(), configurations);
-
-        return map;
+        out.writeMap(configurations, StreamOutput::writeWriteable);
+        out.writeOptionalWriteable(features);
     }
 
     @Override
@@ -160,20 +169,22 @@ public class InferenceServiceConfiguration implements Writeable, ToXContentObjec
         return service.equals(that.service)
             && name.equals(that.name)
             && Objects.equals(taskTypes, that.taskTypes)
-            && Objects.equals(configurations, that.configurations);
+            && Objects.equals(configurations, that.configurations)
+            && Objects.equals(features, that.features);
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(service, name, taskTypes, configurations);
+        return Objects.hash(service, name, taskTypes, configurations, features);
     }
 
     public static class Builder {
 
         private String service;
         private String name;
-        private EnumSet<TaskType> taskTypes;
-        private Map<String, SettingsConfiguration> configurations;
+        private EnumSet<TaskType> taskTypes = EnumSet.noneOf(TaskType.class);
+        private Map<String, SettingsConfiguration> configurations = Map.of();
+        private Features features;
 
         public Builder setService(String service) {
             this.service = service;
@@ -205,8 +216,48 @@ public class InferenceServiceConfiguration implements Writeable, ToXContentObjec
             return this;
         }
 
+        public Builder setFeatures(Features features) {
+            this.features = features;
+            return this;
+        }
+
         public InferenceServiceConfiguration build() {
-            return new InferenceServiceConfiguration(service, name, taskTypes, configurations);
+            return new InferenceServiceConfiguration(service, name, taskTypes, configurations, features);
+        }
+    }
+
+    public record Features(boolean supportsNonStreamingChat) implements Writeable, ToXContentObject {
+
+        public static final ParseField SUPPORTS_NON_STREAMING_CHAT = new ParseField("supports_non_streaming_chat");
+        private static final ConstructingObjectParser<Features, Void> PARSER = new ConstructingObjectParser<>(
+            Features.class.getSimpleName(),
+            true,
+            args -> new Features((Boolean) args[0])
+        );
+
+        static {
+            PARSER.declareBoolean(constructorArg(), SUPPORTS_NON_STREAMING_CHAT);
+        }
+
+        public Features(StreamInput in) throws IOException {
+            this(in.readBoolean());
+        }
+
+        @Override
+        public void writeTo(StreamOutput out) throws IOException {
+            out.writeBoolean(supportsNonStreamingChat);
+        }
+
+        @Override
+        public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
+            builder.startObject();
+            builder.field(SUPPORTS_NON_STREAMING_CHAT.getPreferredName(), supportsNonStreamingChat);
+            builder.endObject();
+            return builder;
+        }
+
+        public static Features fromXContent(XContentParser parser) throws IOException {
+            return PARSER.parse(parser, null);
         }
     }
 }

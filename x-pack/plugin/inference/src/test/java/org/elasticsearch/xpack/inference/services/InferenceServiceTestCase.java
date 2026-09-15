@@ -236,6 +236,27 @@ public abstract class InferenceServiceTestCase extends ESTestCase {
         }
     }
 
+    /**
+     * Validates that services which report {@link InferenceService#supportsNonStreamingChatCompletion()} true
+     * also expose that via the {@code features.supports_non_streaming_chat} flag in their configuration, so that
+     * API consumers can discover the capability through {@code GET _inference/_services}.
+     */
+    public void testSupportsNonStreamingChatCompletion_IsReportedInConfiguration() throws IOException {
+        try (var service = createInferenceService()) {
+            if (service.supportsNonStreamingChatCompletion() == false) {
+                return;
+            }
+
+            // ElasticInferenceService.getConfiguration() throws because its config depends on authorization
+            var configuration = service instanceof ElasticInferenceService
+                ? ElasticInferenceService.createConfiguration(ElasticInferenceService.IMPLEMENTED_TASK_TYPES)
+                : service.getConfiguration();
+
+            assertNotNull(configuration.getFeatures());
+            assertTrue(configuration.getFeatures().supportsNonStreamingChat());
+        }
+    }
+
     public void testChunkedInferDoesNotSupportMultipleItemsPerContent() throws IOException {
         try (var inferenceService = createInferenceService()) {
             var multipleItemsInput = new InferenceStringGroup(fromStringList(List.of("input1", "input2")));

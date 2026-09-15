@@ -213,6 +213,7 @@ public class DeepSeekService extends SenderService<DeepSeekChatCompletionModel> 
                     .setName(SERVICE_NAME)
                     .setTaskTypes(SUPPORTED_TASK_TYPES_FOR_SERVICES_API)
                     .setConfigurations(configurationMap)
+                    .setFeatures(new InferenceServiceConfiguration.Features(true))
                     .build();
             }
         );

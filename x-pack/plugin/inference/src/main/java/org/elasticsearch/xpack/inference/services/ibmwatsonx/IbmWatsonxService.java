@@ -343,6 +343,7 @@ public class IbmWatsonxService extends SenderService<IbmWatsonxModel> implements
                     .setName(SERVICE_NAME)
                     .setTaskTypes(SUPPORTED_TASK_TYPES)
                     .setConfigurations(configurationMap)
+                    .setFeatures(new InferenceServiceConfiguration.Features(true))
                     .build();
             }
         );

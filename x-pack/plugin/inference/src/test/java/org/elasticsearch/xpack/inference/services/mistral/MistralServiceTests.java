@@ -1106,6 +1106,9 @@ public class MistralServiceTests extends InferenceServiceTestCase {
                        "service": "mistral",
                        "name": "Mistral",
                        "task_types": ["text_embedding", "completion", "chat_completion"],
+                       "features": {
+                           "supports_non_streaming_chat": true
+                       },
                        "configurations": {
                            "api_key": {
                                "description": "API Key for the provider you're connecting to.",

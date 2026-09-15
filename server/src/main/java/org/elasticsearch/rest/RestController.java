@@ -22,7 +22,6 @@ import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.bytes.ReleasableBytesReference;
-import org.elasticsearch.common.io.stream.BytesStream;
 import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.common.path.PathTrie;
 import org.elasticsearch.common.recycler.Recycler;
@@ -48,12 +47,10 @@ import org.elasticsearch.transport.Transports;
 import org.elasticsearch.usage.SearchUsageHolder;
 import org.elasticsearch.usage.UsageService;
 import org.elasticsearch.xcontent.XContentBuilder;
-import org.elasticsearch.xcontent.XContentType;
 
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.io.InputStream;
-import java.io.OutputStream;
 import java.util.Collections;
 import java.util.EnumSet;
 import java.util.Iterator;
@@ -901,71 +898,6 @@ public class RestController implements HttpServerTransport.Dispatcher {
             requestsCounter.incrementBy(1, attributes);
         } catch (Exception ex) {
             logger.error("Cannot track request status code", ex);
-        }
-    }
-
-    private static class DelegatingRestChannel implements RestChannel {
-
-        private final RestChannel delegate;
-
-        private DelegatingRestChannel(RestChannel delegate) {
-            this.delegate = delegate;
-        }
-
-        @Override
-        public XContentBuilder newBuilder() throws IOException {
-            return delegate.newBuilder();
-        }
-
-        @Override
-        public XContentBuilder newErrorBuilder() throws IOException {
-            return delegate.newErrorBuilder();
-        }
-
-        @Override
-        public XContentBuilder newBuilder(@Nullable XContentType xContentType, boolean useFiltering) throws IOException {
-            return delegate.newBuilder(xContentType, useFiltering);
-        }
-
-        @Override
-        public XContentBuilder newBuilder(XContentType xContentType, XContentType responseContentType, boolean useFiltering)
-            throws IOException {
-            return delegate.newBuilder(xContentType, responseContentType, useFiltering);
-        }
-
-        @Override
-        public XContentBuilder newBuilder(
-            XContentType xContentType,
-            XContentType responseContentType,
-            boolean useFiltering,
-            OutputStream out
-        ) throws IOException {
-            return delegate.newBuilder(xContentType, responseContentType, useFiltering, out);
-        }
-
-        @Override
-        public BytesStream bytesOutput() {
-            return delegate.bytesOutput();
-        }
-
-        @Override
-        public void releaseOutputBuffer() {
-            delegate.releaseOutputBuffer();
-        }
-
-        @Override
-        public RestRequest request() {
-            return delegate.request();
-        }
-
-        @Override
-        public boolean detailedErrorsEnabled() {
-            return delegate.detailedErrorsEnabled();
-        }
-
-        @Override
-        public void sendResponse(RestResponse response) {
-            delegate.sendResponse(response);
         }
     }
 

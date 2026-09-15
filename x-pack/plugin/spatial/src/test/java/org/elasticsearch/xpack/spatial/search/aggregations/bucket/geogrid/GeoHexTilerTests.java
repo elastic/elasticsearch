@@ -232,6 +232,33 @@ public class GeoHexTilerTests extends GeoGridTilerTestCase<GeoHexGridTiler> {
         assertThat("[" + precision + "] bucket count", numBuckets, equalTo(expected));
     }
 
+    // A final-resolution cell touching the dateline can extend outside its H3 parent.
+    public void testThinDatelineShape_BoundedGeoShapeCellValues() throws Exception {
+        int precision = 2;
+        Geometry geometry = new Polygon(
+            new LinearRing(
+                new double[] { -180.0, 136.48279527545918, 136.48279527545918, -180.0, -180.0 },
+                new double[] { 0.0, 0.0, Float.MIN_VALUE, Float.MIN_VALUE, 0.0 }
+            )
+        );
+        GeoBoundingBox geoBoundingBox = new GeoBoundingBox(
+            new GeoPoint(-3.3697718896934674, -173.64313711362234),
+            new GeoPoint(-67.13117134753928, -180.0)
+        );
+        GeoShapeValues.GeoShapeValue value = geoShapeValue(geometry);
+        GeoShapeCellValues cellValues = new GeoShapeCellValues(
+            makeGeoShapeValues(value),
+            getGridTiler(geoBoundingBox, precision),
+            NOOP_BREAKER
+        );
+
+        assertTrue(cellValues.advanceExact(0));
+        int numBuckets = cellValues.docValueCount();
+        int expected = expectedBuckets(value, precision, geoBoundingBox);
+        assertThat(expected, equalTo(2));
+        assertThat(numBuckets, equalTo(expected));
+    }
+
     public void testIssue96057() throws Exception {
         int precision = 3;
         Geometry geometry = new Polygon(

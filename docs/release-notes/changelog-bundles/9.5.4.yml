@@ -152,7 +152,7 @@ changelogs:
     type: bug
     issues: []
   - pr: 158187
-    summary:"Fix missing counts in `contains` mapper query"
+    summary: "Fix missing counts in `contains` mapper query"
     area: Mapping
     type: bug
     issues: []

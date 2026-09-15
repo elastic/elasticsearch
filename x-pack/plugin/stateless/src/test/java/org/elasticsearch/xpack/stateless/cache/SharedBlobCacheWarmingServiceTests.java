@@ -3142,7 +3142,7 @@ public class SharedBlobCacheWarmingServiceTests extends ESTestCase {
 
             int regionCount = randomIntBetween(2, 5);
             System.out.println("REGION COUNT: " + regionCount);
-            final String blobName =  StatelessCompoundCommit.blobNameFromGeneration(1);
+            final String blobName = StatelessCompoundCommit.blobNameFromGeneration(1);
             var blobFile = new BlobFile(blobName, new PrimaryTermAndGeneration(primaryTerm, 1));
             var blobLocation = new BlobLocation(blobFile, 0, (long) regionCount * fakeNode.sharedCacheService.getRegionSize());
             var mergeWarmFuture = new PlainActionFuture<Void>();

@@ -446,6 +446,58 @@ public abstract class EsqlRemoteFetchTopNTestCase extends AbstractEsqlIntegTestC
         }
     }
 
+    public void testRemoteFetchDeferredSource() {
+        try (
+            EsqlQueryResponse response = runQuery(
+                "FROM " + indexName + " METADATA _source | SORT unique_sort DESC | LIMIT 3 | KEEP _source"
+            )
+        ) {
+            List<List<Object>> rows = EsqlTestUtils.getValuesList(response);
+            assertThat(rows, hasSize(3));
+            for (int row = 0; row < rows.size(); row++) {
+                Map<?, ?> source = (Map<?, ?>) rows.get(row).getFirst();
+                assertThat(((Number) source.get("unique_sort")).longValue(), equalTo(63L - row));
+                assertThat(source.get("payload"), equalTo("payload-" + (63 - row)));
+            }
+            assertRemoteFetchRows(response, 3);
+            assertFieldLoadedBeforeFetch(response, "unique_sort");
+            assertFieldNotLoadedBeforeFetch(response, "_source");
+        }
+    }
+
+    public void testRemoteFetchDeferredSyntheticSource() {
+        String syntheticIndex = indexName + "_synthetic";
+        client().admin()
+            .indices()
+            .prepareCreate(syntheticIndex)
+            .setSettings(indexSettings(4, 0).put("index.mapping.source.mode", "synthetic"))
+            .setMapping("unique_sort", "type=long", "payload", "type=keyword")
+            .get();
+
+        BulkRequestBuilder bulk = client().prepareBulk();
+        for (int i = 0; i < 8; i++) {
+            bulk.add(prepareIndex(syntheticIndex).setId(Integer.toString(i)).setSource("unique_sort", i, "payload", "payload-" + i));
+        }
+        bulk.setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE).get();
+
+        try (
+            EsqlQueryResponse response = runQuery(
+                "FROM " + syntheticIndex + " METADATA _source | SORT unique_sort DESC | LIMIT 3 | KEEP _source"
+            )
+        ) {
+            List<List<Object>> rows = EsqlTestUtils.getValuesList(response);
+            assertThat(rows, hasSize(3));
+            for (int row = 0; row < rows.size(); row++) {
+                Map<?, ?> source = (Map<?, ?>) rows.get(row).getFirst();
+                assertThat(((Number) source.get("unique_sort")).longValue(), equalTo(7L - row));
+                assertThat(source.get("payload"), equalTo("payload-" + (7 - row)));
+            }
+            assertRemoteFetchRows(response, 3);
+            assertFieldLoadedBeforeFetch(response, "unique_sort");
+            assertFieldNotLoadedBeforeFetch(response, "_source");
+        }
+    }
+
     public void testNoRemoteFetchAfterAggregation() {
         try (
             EsqlQueryResponse response = runQuery(

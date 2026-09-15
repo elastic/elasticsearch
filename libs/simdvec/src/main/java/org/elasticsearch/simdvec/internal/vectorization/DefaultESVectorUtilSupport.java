@@ -776,13 +776,6 @@ public final class DefaultESVectorUtilSupport implements ESVectorUtilSupport {
         return c;
     }
 
-    @Override
-    public float[] matrixMultiplyTA(float[] aT, float[] b, int m, int k, int n) {
-        float[] c = new float[k * n];
-        multiplyAccumulate(aT, 1, k, b, c, k, m, n);
-        return c;
-    }
-
     /**
      * Accumulates {@code C += A @ B}, where element (i, l) of the left operand is
      * {@code a[i * aRowStride + l * aInnerStride]}. The strides let {@code A @ B} and

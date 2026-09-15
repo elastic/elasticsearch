@@ -1086,16 +1086,6 @@ public class ESVectorUtil {
     }
 
     /**
-     * Computes {@code C = A^T @ B} where A is (m x k) and B is (m x n), both row-major.
-     * Result C is (k x n).
-     */
-    public static float[] matrixMultiplyTA(float[] aT, float[] b, int m, int k, int n) {
-        if (aT.length != m * k) throw new IllegalArgumentException("Invalid a array size [" + aT.length + "] for matrix multiplication");
-        if (b.length != m * n) throw new IllegalArgumentException("Invalid b array size [" + b.length + "] for matrix multiplication");
-        return IMPL.matrixMultiplyTA(aT, b, m, k, n);
-    }
-
-    /**
      * Computes {@code result = A @ v} where A is a (rows x cols) row-major matrix.
      *
      * @param a    flat row-major matrix, length rows*cols

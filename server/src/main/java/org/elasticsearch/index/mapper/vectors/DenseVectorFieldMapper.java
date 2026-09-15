@@ -3092,9 +3092,7 @@ public class DenseVectorFieldMapper extends FieldMapper {
                 return false;
             }
             BBQIVFIndexOptions that = (BBQIVFIndexOptions) update;
-            return this.doPrecondition == that.doPrecondition
-                && this.autoCalibrate == that.autoCalibrate
-                && Objects.equals(this.quantizationType, that.quantizationType);
+            return this.doPrecondition == that.doPrecondition && Objects.equals(this.quantizationType, that.quantizationType);
         }
 
         @Override

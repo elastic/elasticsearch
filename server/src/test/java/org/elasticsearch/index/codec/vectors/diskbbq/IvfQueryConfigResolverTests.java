@@ -51,8 +51,9 @@ public class IvfQueryConfigResolverTests extends ESTestCase {
                 IvfSegmentConfig resolved = resolver.resolve(fieldInfo, leaf);
 
                 assertThat(resolved.osqEncoding(), equalTo(QuantEncoding.fromBits((byte) MAPPING_BITS)));
-                assertTrue(resolved.usePrecondition());
                 assertThat(resolved.rescoreOversample(), equalTo(MAPPING_OVERSAMPLE));
+                // preconditioning is the one field that follows the segment rather than the mapping
+                assertFalse(resolved.usePrecondition());
             }
         }
     }
@@ -80,7 +81,12 @@ public class IvfQueryConfigResolverTests extends ESTestCase {
         }
     }
 
-    public void testResolveIgnoresPersistedPreconditionWhenAutoCalibrateDisabled() throws IOException {
+    /**
+     * A segment preconditioned by merge calibration stores transformed vectors, so it must keep being
+     * scored with a transformed query after {@code auto_calibrate} is switched off in the mapping.
+     * Preconditioning therefore follows the segment even though the mapping says {@code false}.
+     */
+    public void testResolveUsesPersistedPreconditionWhenAutoCalibrateDisabled() throws IOException {
         try (Directory dir = newDirectory()) {
             try (
                 DirectoryReader reader = ESNextRescoreOversampleTestFixture.buildTwoCommitsTwoSegments(
@@ -109,7 +115,36 @@ public class IvfQueryConfigResolverTests extends ESTestCase {
                 IvfQueryConfigResolver resolver = IvfQueryConfigResolver.from(false, false, 1, MAPPING_OVERSAMPLE, null);
                 IvfSegmentConfig resolved = resolver.resolve(fieldInfo, leaf);
 
-                assertFalse(resolved.usePrecondition());
+                assertTrue(resolved.usePrecondition());
+            }
+        }
+    }
+
+    /**
+     * The mirror of {@link #testResolveUsesPersistedPreconditionWhenAutoCalibrateDisabled}: a segment
+     * written without a preconditioner must not be scored with a transformed query, even when the mapping
+     * asks for preconditioning. Together the two pin preconditioning to the segment in both directions,
+     * which is what makes toggling {@code auto_calibrate} on a populated index safe.
+     */
+    public void testResolveIgnoresMappingPreconditionForUnpreconditionedSegment() throws IOException {
+        try (Directory dir = newDirectory()) {
+            try (
+                DirectoryReader reader = ESNextRescoreOversampleTestFixture.buildTwoCommitsTwoSegmentsPreconditioning(
+                    dir,
+                    4,
+                    64,
+                    false,
+                    false,
+                    IvfMergeConfigResolver.useCodecDefault()
+                )
+            ) {
+                LeafReader leaf = reader.leaves().getFirst().reader();
+                assertFalse(ESNextRescoreOversampleTestFixture.persistedPreconditionOnLeaf(leaf));
+
+                FieldInfo fieldInfo = leaf.getFieldInfos().fieldInfo(ESNextRescoreOversampleTestFixture.FIELD_NAME);
+                IvfQueryConfigResolver resolver = IvfQueryConfigResolver.from(false, true, 1, MAPPING_OVERSAMPLE, null);
+
+                assertFalse(resolver.resolve(fieldInfo, leaf).usePrecondition());
             }
         }
     }

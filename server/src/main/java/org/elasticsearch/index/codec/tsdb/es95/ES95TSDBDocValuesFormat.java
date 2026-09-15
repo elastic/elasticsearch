@@ -172,7 +172,7 @@ public class ES95TSDBDocValuesFormat extends DocValuesFormat {
             SKIP_CODEC,
             SKIP_EXTENSION,
             formatConfig,
-            DocOffsetsCodec.BITPACKING.getEncoder(),
+            DocOffsetsCodec.BITPACKING,
             formatConfig.writePrefixPartitions()
                 ? field -> field.number == AbstractTSDBDocValuesProducer.primarySortFieldNumber(state.segmentInfo, state.fieldInfos)
                     ? new PrefixedPartitionsWriter()
@@ -200,7 +200,7 @@ public class ES95TSDBDocValuesFormat extends DocValuesFormat {
             SKIP_CODEC,
             SKIP_EXTENSION,
             formatConfig,
-            DocOffsetsCodec.BITPACKING.getDecoder(),
+            DocOffsetsCodec.BITPACKING,
             numericBlockCodec,
             ORDINAL_CODEC
         );

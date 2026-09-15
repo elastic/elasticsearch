@@ -85,6 +85,8 @@ public abstract class AbstractTSDBDocValuesProducer extends DocValuesProducer {
     private final long[] skipIndexJumpLengthPerLevel;
     private static final int DEFAULT_NUMERIC_BLOCK_SHIFT = 7;
     private final TSDBDocValuesFormatConfig formatConfig;
+    /** Identity of the doc offsets encoding, so a merge can tell whether a source segment's blocks are byte-compatible. */
+    final DocOffsetsCodec docOffsetsCodec;
     private final DocOffsetsCodec.Decoder docOffsetsDecoder;
     private final NumericBlockCodec numericCodec;
     private final OrdinalBlockCodec ordinalCodec;
@@ -100,11 +102,12 @@ public abstract class AbstractTSDBDocValuesProducer extends DocValuesProducer {
         final String skipCodec,
         final String skipExtension,
         final TSDBDocValuesFormatConfig formatConfig,
-        final DocOffsetsCodec.Decoder docOffsetsDecoder,
+        final DocOffsetsCodec docOffsetsCodec,
         final NumericBlockCodec numericCodec,
         final OrdinalBlockCodec ordinalCodec
     ) throws IOException {
-        this.docOffsetsDecoder = docOffsetsDecoder;
+        this.docOffsetsCodec = docOffsetsCodec;
+        this.docOffsetsDecoder = docOffsetsCodec.getDecoder();
         this.numericCodec = numericCodec;
         this.ordinalCodec = ordinalCodec;
         this.numerics = new IntObjectHashMap<>();
@@ -211,6 +214,7 @@ public abstract class AbstractTSDBDocValuesProducer extends DocValuesProducer {
     }
 
     protected AbstractTSDBDocValuesProducer(final AbstractTSDBDocValuesProducer original) {
+        this.docOffsetsCodec = original.docOffsetsCodec;
         this.docOffsetsDecoder = original.docOffsetsDecoder;
         this.numericCodec = original.numericCodec;
         this.ordinalCodec = original.ordinalCodec;
@@ -263,6 +267,40 @@ public abstract class AbstractTSDBDocValuesProducer extends DocValuesProducer {
             case NO_COMPRESS -> getUncompressedBinary(entry);
             default -> getCompressedBinary(entry);
         };
+    }
+
+    /**
+     * Returns a raw block-level view of a compressed binary field so that a merge can splice whole blocks
+     * into the target segment, or {@code null} when this field has no spliceable block structure.
+     *
+     * <p>Three shapes have no blocks to offer. An uncompressed field stores its values as one flat byte range
+     * with a separate address table rather than as blocks. An empty field (marked by a
+     * {@code docsWithFieldOffset} of -2) has nothing stored at all. A sparse field does have blocks, but a
+     * source doc id is then not its index into the value stream, which is the mapping block splicing relies
+     * on to decide contiguity cheaply; those fall back to the value-by-value merge path.
+     */
+    BinaryBlockSource binaryBlockSource(FieldInfo field) throws IOException {
+        final BinaryEntry entry = binaries.get(field.number);
+        if (entry == null
+            || entry.compression == BinaryDVCompressionMode.NO_COMPRESS
+            || entry.numDocsWithField == 0
+            || entry.numCompressedBlocks == 0
+            || entry.docsWithFieldOffset != -1) {
+            return null;
+        }
+
+        final RandomAccessInput addressesData = data.randomAccessSlice(entry.addressesOffset, entry.addressesLength);
+        final LongValues blockAddresses = DirectMonotonicReader.getInstance(entry.addressesMeta, addressesData);
+        final RandomAccessInput docRangesData = data.randomAccessSlice(entry.docOffsetsOffset, entry.docOffsetLength);
+        final LongValues blockDocRanges = DirectMonotonicReader.getInstance(entry.docOffsetMeta, docRangesData);
+        return new BinaryBlockSource(
+            entry.compression,
+            docOffsetsCodec,
+            entry.numCompressedBlocks,
+            blockAddresses,
+            blockDocRanges,
+            data.clone()
+        );
     }
 
     private BinaryDocValues getUncompressedBinary(BinaryEntry entry) throws IOException {

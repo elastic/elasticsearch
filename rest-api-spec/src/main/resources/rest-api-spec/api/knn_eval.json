@@ -1,0 +1,63 @@
+{
+  "knn_eval": {
+    "documentation": {
+      "url": "https://www.elastic.co/docs/api/doc/elasticsearch/operation/operation-knn-eval",
+      "description": "Estimate the recall and cost of approximate kNN search configurations against a more thorough baseline. Each knn_settings entry reports recall of the baseline's top-k, not of relevance judgments, with a recall_stats distribution and an opt-in recall_histogram. All configurations run against one point-in-time, and the baseline runs first, so took_ms reflects an index it has already warmed while vector_ops does not. A top-level environment block reports the segment layout, field configuration, index version and search.allow_expensive_queries the sweep ran against; its monitor-privileged parts are omitted rather than failing the request."
+    },
+    "stability": "experimental",
+    "visibility": "private",
+    "headers": {
+      "accept": [
+        "application/json"
+      ],
+      "content_type": [
+        "application/json"
+      ]
+    },
+    "url": {
+      "paths": [
+        {
+          "path": "/{index}/_knn_eval",
+          "methods": [
+            "GET",
+            "POST"
+          ],
+          "parts": {
+            "index": {
+              "type": "list",
+              "description": "A comma-separated list of index names to search"
+            }
+          }
+        }
+      ]
+    },
+    "params": {
+      "ignore_unavailable": {
+        "type": "boolean",
+        "default": false,
+        "description": "Whether specified concrete indices should be ignored when unavailable (missing or closed)"
+      },
+      "allow_no_indices": {
+        "type": "boolean",
+        "default": true,
+        "description": "Whether to allow (1) wildcard index expressions that match no indices and (2) requests where the final resolved set is empty."
+      },
+      "expand_wildcards": {
+        "type": "list",
+        "options": [
+          "open",
+          "closed",
+          "hidden",
+          "none",
+          "all"
+        ],
+        "default": "open",
+        "description": "Whether to expand wildcard expression to concrete indices that are open, closed or both."
+      }
+    },
+    "body": {
+      "description": "The kNN evaluation definition: field, k, exactly one of queries or sample, an optional baseline (default exact:true, gated by search.allow_expensive_queries), knn_settings (visit_percentage for bbq_disk, num_candidates for any type, oversample for quantized types; an inapplicable knob is rejected), optional filter, batching (max_queries_per_batch, max_concurrent_searches) and opt-in output (include_details, include_histogram, include_fidelity, value_tolerance).",
+      "required": true
+    }
+  }
+}

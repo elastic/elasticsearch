@@ -1,0 +1,25 @@
+/*
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
+ */
+apply plugin: 'elasticsearch.internal-yaml-rest-test'
+
+esplugin {
+  description = 'Experimental _knn_eval API: measures ANN recall of a dense_vector field against a more thorough search of the same index.'
+  classname = 'org.elasticsearch.index.knneval.KnnEvalPlugin'
+}
+
+restResources {
+  restApi {
+    include '_common', 'cluster', 'indices', 'index', 'bulk', 'knn_eval'
+  }
+}
+
+dependencies {
+  // the yaml tests index into a bbq_disk field, which only the diskbbq plugin can serve
+  clusterModules project(':x-pack:plugin:diskbbq')
+}

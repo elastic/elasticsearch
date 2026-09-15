@@ -22,10 +22,11 @@ import org.elasticsearch.index.IndexModule;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.query.MatchAllQueryBuilder;
 import org.elasticsearch.test.disruption.NetworkDisruption;
+import org.elasticsearch.threadpool.ThreadPool;
+import org.elasticsearch.threadpool.ThreadPoolStats;
 
 import java.util.ArrayList;
 import java.util.List;
-import java.util.concurrent.ExecutionException;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.stream.IntStream;
 
@@ -34,7 +35,7 @@ import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcke
 @LuceneTestCase.SuppressFileSystems(value = "HandleLimitFS") // we sometimes have >2048 open files
 public class SearchWithRandomDisconnectsIT extends AbstractDisruptionTestCase {
 
-    public void testSearchWithRandomDisconnects() throws InterruptedException, ExecutionException {
+    public void testSearchWithRandomDisconnects() throws Exception {
         // make sure we have a couple data nodes
         int minDataNodes = randomIntBetween(3, 7);
         internalCluster().ensureAtLeastNumDataNodes(minDataNodes);
@@ -108,6 +109,7 @@ public class SearchWithRandomDisconnectsIT extends AbstractDisruptionTestCase {
             }
         }
         ensureGreen(new TimeValue(DISRUPTION_HEALING_OVERHEAD.millis() + 2000L * indexNames.length), indexNames);
+        awaitRefreshExecutorIdle();
         assertAcked(indicesAdmin().prepareDelete(indexNames));
     }
 
@@ -116,5 +118,19 @@ public class SearchWithRandomDisconnectsIT extends AbstractDisruptionTestCase {
             .setSize(9999)
             .setFetchSource(true)
             .setAllowPartialSearchResults(randomBoolean());
+    }
+
+    private void awaitRefreshExecutorIdle() throws Exception {
+        assertBusy(() -> {
+            for (String nodeName : internalCluster().getNodeNames()) {
+                final ThreadPoolStats threadPoolStats = internalCluster().getInstance(ThreadPool.class, nodeName).stats();
+                for (ThreadPoolStats.Stats stats : threadPoolStats) {
+                    if (stats.name().equals(ThreadPool.Names.REFRESH)) {
+                        assertEquals(nodeName + " refresh executor should have no active tasks", 0, stats.active());
+                        assertEquals(nodeName + " refresh executor should have no queued tasks", 0, stats.queue());
+                    }
+                }
+            }
+        });
     }
 }

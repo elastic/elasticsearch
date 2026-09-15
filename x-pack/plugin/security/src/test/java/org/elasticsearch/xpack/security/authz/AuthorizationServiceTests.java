@@ -2804,6 +2804,37 @@ public class AuthorizationServiceTests extends ESTestCase {
         verifyNoMoreInteractions(auditTrail);
     }
 
+    public void testRemoteFetchExchangeSetupActionIsAuthorizedByName() {
+        assertCompositeReadActionIsAuthorizedByName("indices:data/read/esql/remote_fetch/exchange_setup");
+    }
+
+    public void testRemoteFetchReleaseActionIsAuthorizedByName() {
+        assertCompositeReadActionIsAuthorizedByName("indices:data/read/esql/remote_fetch/release");
+    }
+
+    private void assertCompositeReadActionIsAuthorizedByName(String action) {
+        final TransportRequest request = new MockCompositeIndicesRequest();
+        final Authentication authentication = createAuthentication(new User("test user", "role"));
+        final RoleDescriptor role = new RoleDescriptor(
+            "role",
+            null,
+            new IndicesPrivileges[] { IndicesPrivileges.builder().indices("index").privileges("read").build() },
+            null
+        );
+        roleMap.put("role", role);
+        final String requestId = AuditUtil.getOrGenerateRequestId(threadContext);
+
+        authorize(authentication, action, request);
+        verify(auditTrail).accessGranted(
+            eq(requestId),
+            eq(authentication),
+            eq(action),
+            eq(request),
+            authzInfoRoles(new String[] { role.getName() })
+        );
+        verifyNoMoreInteractions(auditTrail);
+    }
+
     public void testCompositeActionsMustImplementCompositeIndicesRequest() {
         String action = randomCompositeRequest().v1();
         TransportRequest request = mock(TransportRequest.class);
@@ -3479,7 +3510,7 @@ public class AuthorizationServiceTests extends ESTestCase {
     }
 
     private static Tuple<String, TransportRequest> randomCompositeRequest() {
-        return switch (randomIntBetween(0, 8)) {
+        return switch (randomIntBetween(0, 10)) {
             case 0 -> Tuple.tuple(TransportMultiGetAction.NAME, new MultiGetRequest().add("index", "id"));
             case 1 -> Tuple.tuple(TransportMultiSearchAction.TYPE.name(), new MultiSearchRequest().add(new SearchRequest()));
             case 2 -> Tuple.tuple(MultiTermVectorsAction.NAME, new MultiTermVectorsRequest().add("index", "id"));
@@ -3489,6 +3520,8 @@ public class AuthorizationServiceTests extends ESTestCase {
             case 6 -> Tuple.tuple("indices:data/read/search/template", new MockCompositeIndicesRequest());
             case 7 -> Tuple.tuple("indices:data/write/reindex", new MockCompositeIndicesRequest());
             case 8 -> Tuple.tuple("indices:data/write/reindex/resume", new MockCompositeIndicesRequest());
+            case 9 -> Tuple.tuple("indices:data/read/esql/remote_fetch/exchange_setup", new MockCompositeIndicesRequest());
+            case 10 -> Tuple.tuple("indices:data/read/esql/remote_fetch/release", new MockCompositeIndicesRequest());
             default -> throw new UnsupportedOperationException();
         };
     }

@@ -17,6 +17,7 @@ import org.apache.lucene.index.IndexWriterConfig;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.CompositeIndicesRequest;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.node.DiscoveryNode;
@@ -118,6 +119,18 @@ public class RemoteFetchServiceTests extends MapperServiceTestCase {
     private Directory directory;
     private IndexReader reader;
     private BlockFactory blockFactory;
+
+    public void testTransportRequestsAreCompositeIndicesRequests() {
+        assertCompositeIndicesRequest(RemoteFetchService.ExchangeSetupRequest.class);
+        assertCompositeIndicesRequest(RemoteFetchService.ReleaseRequest.class);
+    }
+
+    private static void assertCompositeIndicesRequest(Class<?> requestClass) {
+        assertTrue(
+            requestClass.getSimpleName() + " must implement CompositeIndicesRequest",
+            CompositeIndicesRequest.class.isAssignableFrom(requestClass)
+        );
+    }
 
     public void testInputPagePreservesHandleCoordinates() {
         blockFactory = blockFactory();

@@ -7,7 +7,7 @@
 :::{include} brief-summary/sort.md
 :::
 
-Ordering is observable only on instant queries. After a range query the Prometheus engine re-sorts the matrix by label set, so the sort has no effect on the returned series order.
+Ordering is observable only on instant queries. Range queries return the series in their input order, without applying the requested ordering.
 
 **Return type**
 
@@ -26,4 +26,4 @@ sort(http_requests_total)
 
 **Differences from Prometheus**
 
-A range vector argument is rejected with `expected type instant_vector in call to function [sort], got range_vector`, which differs from Prometheus's wording. Range queries emit an HTTP warning `sort: ordering is discarded for range queries`; Prometheus silently discards the order and emits no warning. The warning is an HTTP `Warning` header, not the Prometheus JSON `warnings` array.
+Range queries emit a warning that the ordering is discarded. Prometheus discards it silently.

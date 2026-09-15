@@ -185,17 +185,22 @@ public class Segment implements Writeable {
                 Boolean missingFirst = in.readOptionalBoolean();
                 boolean max = in.readBoolean();
                 boolean reverse = in.readBoolean();
-                fields[i] = new SortedSetSortField(field, reverse, max ? SortedSetSelector.Type.MAX : SortedSetSelector.Type.MIN);
-                if (missingFirst != null) {
-                    fields[i].setMissingValue(missingFirst ? SortedSetSortField.STRING_FIRST : SortedSetSortField.STRING_LAST);
-                }
+                Object missingValue = missingFirst == null ? null
+                    : missingFirst ? SortedSetSortField.STRING_FIRST
+                    : SortedSetSortField.STRING_LAST;
+                fields[i] = new SortedSetSortField(
+                    field,
+                    reverse,
+                    max ? SortedSetSelector.Type.MAX : SortedSetSelector.Type.MIN,
+                    missingValue
+                );
             } else if (type == SORT_STRING_SINGLE) {
                 Boolean missingFirst = in.readOptionalBoolean();
                 boolean reverse = in.readBoolean();
-                fields[i] = new SortField(field, SortField.Type.STRING, reverse);
-                if (missingFirst != null) {
-                    fields[i].setMissingValue(missingFirst ? SortedSetSortField.STRING_FIRST : SortedSetSortField.STRING_LAST);
-                }
+                Object missingValue = missingFirst == null ? null
+                    : missingFirst ? SortedSetSortField.STRING_FIRST
+                    : SortedSetSortField.STRING_LAST;
+                fields[i] = new SortField(field, SortField.Type.STRING, reverse, missingValue);
             } else {
                 Object missing = in.readGenericValue();
                 boolean max = in.readBoolean();
@@ -211,11 +216,9 @@ public class Segment implements Writeable {
                     field,
                     numericType,
                     reverse,
-                    max ? SortedNumericSelector.Type.MAX : SortedNumericSelector.Type.MIN
+                    max ? SortedNumericSelector.Type.MAX : SortedNumericSelector.Type.MIN,
+                    missing
                 );
-                if (missing != null) {
-                    fields[i].setMissingValue(missing);
-                }
             }
         }
         return new Sort(fields);

@@ -55,6 +55,7 @@ import static org.elasticsearch.inference.TaskType.SPARSE_EMBEDDING;
 import static org.elasticsearch.inference.TaskType.TEXT_EMBEDDING;
 import static org.elasticsearch.xpack.inference.services.ServiceUtils.createInvalidTaskTypeException;
 import static org.elasticsearch.xpack.inference.services.ServiceUtils.createUnsupportedMultimodalRerankException;
+import static org.elasticsearch.xpack.inference.services.ServiceUtils.createUnsupportedNonStreamingChatCompletionException;
 import static org.elasticsearch.xpack.inference.services.ServiceUtils.removeFromMap;
 import static org.elasticsearch.xpack.inference.services.ServiceUtils.removeFromMapOrDefaultEmpty;
 import static org.elasticsearch.xpack.inference.services.ServiceUtils.removeFromMapOrThrowIfNull;
@@ -133,7 +134,9 @@ public abstract class SenderService<M extends Model> implements InferenceService
             ChunkingSettings chunkingSettings = null;
             if (CHUNKING_TASK_TYPES.contains(taskType)) {
                 chunkingSettings = ChunkingSettingsBuilder.fromMap(
-                    removeFromMapOrDefaultEmpty(config, ModelConfigurations.CHUNKING_SETTINGS)
+                    removeFromMapOrDefaultEmpty(config, ModelConfigurations.CHUNKING_SETTINGS),
+                    true,
+                    true
                 );
             }
 
@@ -252,16 +255,20 @@ public abstract class SenderService<M extends Model> implements InferenceService
     ) {
         try {
             var resolvedInferenceTimeout = resolveInferenceTimeout(timeout, InputType.UNSPECIFIED, clusterService, CHAT_COMPLETION);
-            if (supportsChatCompletionReasoning() == false && request.containsChatCompletionReasoning()) {
+            var body = request.body();
+            if (supportsChatCompletionReasoning() == false && body.containsChatCompletionReasoning()) {
                 throwUnsupportedReasoningUnifiedCompletionOperation(name());
             }
-            if (supportsChatCompletionCacheControl() == false && request.containsChatCompletionCacheControl()) {
+            if (supportsChatCompletionCacheControl() == false && body.containsChatCompletionCacheControl()) {
                 throwUnsupportedCacheControlUnifiedCompletionOperation(name());
             }
-            if (supportsChatCompletionSessionId() == false && request.containsSessionId()) {
+            if (supportsChatCompletionSessionId() == false && body.containsSessionId()) {
                 throwUnsupportedSessionIdUnifiedCompletionOperation(name());
             }
-            doUnifiedCompletionInfer(model, new UnifiedChatInput(request, true), resolvedInferenceTimeout, listener);
+            if (request.stream() == false && supportsNonStreamingChatCompletion() == false) {
+                throw createUnsupportedNonStreamingChatCompletionException(name());
+            }
+            doUnifiedCompletionInfer(model, new UnifiedChatInput(request), resolvedInferenceTimeout, listener);
         } catch (Exception e) {
             listener.onFailure(e);
         }

@@ -188,7 +188,7 @@ public class StatelessMemoryMetricsServiceTests extends ESTestCase {
     }
 
     public void testEstimatedHeapUsageStatsUsesSingleShardMemoryMetricsSnapshot() {
-        final ClusterState clusterState = randomInitialSingleNodeClusterState(1);
+        final ClusterState clusterState = randomInitialSingleNodeClusterState(1, 1);
         final DiscoveryNode node0 = clusterState.nodes().get("node_0");
         final ShardId shardId = clusterState.getRoutingNodes().node(node0.getId()).iterator().next().shardId();
         service.clusterChanged(new ClusterChangedEvent("init", clusterState, ClusterState.EMPTY_STATE));
@@ -710,6 +710,10 @@ public class StatelessMemoryMetricsServiceTests extends ESTestCase {
     }
 
     private ClusterState randomInitialSingleNodeClusterState(int numberOfIndices) {
+        return randomInitialSingleNodeClusterState(numberOfIndices, between(1, 3));
+    }
+
+    private ClusterState randomInitialSingleNodeClusterState(int numberOfIndices, int numberOfShards) {
         DiscoveryNodes discoveryNodes = DiscoveryNodes.builder()
             .add(DiscoveryNodeUtils.create("node_0"))
             .localNodeId("node_0")
@@ -717,7 +721,7 @@ public class StatelessMemoryMetricsServiceTests extends ESTestCase {
             .build();
         String[] indices = IntStream.range(0, numberOfIndices).mapToObj(i -> randomIdentifier()).toArray(String[]::new);
         Tuple<ProjectMetadata.Builder, RoutingTable.Builder> projectAndRt = ClusterStateCreationUtils
-            .projectWithAssignedPrimariesAndReplicas(ProjectId.DEFAULT, indices, between(1, 3), 0, discoveryNodes);
+            .projectWithAssignedPrimariesAndReplicas(ProjectId.DEFAULT, indices, numberOfShards, 0, discoveryNodes);
         return ClusterState.builder(new ClusterName("test"))
             .nodes(discoveryNodes)
             .routingTable(GlobalRoutingTable.builder().put(ProjectId.DEFAULT, projectAndRt.v2()).build())

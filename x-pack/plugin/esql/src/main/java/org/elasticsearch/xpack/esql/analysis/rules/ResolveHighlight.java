@@ -10,26 +10,34 @@ package org.elasticsearch.xpack.esql.analysis.rules;
 import org.elasticsearch.xpack.esql.analysis.AnalyzerRules.AnalyzerRule;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
+import org.elasticsearch.xpack.esql.core.expression.Literal;
+import org.elasticsearch.xpack.esql.core.expression.MapExpression;
 import org.elasticsearch.xpack.esql.core.expression.NamedExpression;
 import org.elasticsearch.xpack.esql.core.expression.UnresolvedAttribute;
 import org.elasticsearch.xpack.esql.core.expression.UnresolvedStar;
+import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.plan.logical.Highlight;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.esql.plan.logical.highlight.HighlightSupport;
 
+import java.util.ArrayList;
 import java.util.List;
 
 /**
- * Derives the HIGHLIGHT columns the user left implicit during analysis so the generated {@code <prefix><field>}
- * columns exist for a later KEEP: the fields an explicit query names, or - for {@code ON *} - every text/keyword
- * column reaching the command. This has to settle during analysis because those columns are part of
- * {@link Highlight#output()}, so a downstream {@code KEEP highlight_title} can only resolve once they exist.
+ * Fills implicit HIGHLIGHT query and ON fields during analysis so generated columns exist for later KEEP. This has to
+ * settle during analysis because those columns are part of {@link Highlight#output()}, so a downstream
+ * {@code KEEP highlight_title} can only resolve once they exist. Deriving nothing leaves the node untouched and lets
+ * {@code Highlight#postAnalysisVerification} report the failure the user can act on.
  * <p>
- * The bare and {@code ON *} forms are visited because {@link Highlight#expressionsResolved()} treats an empty field
- * list as unsettled. Deriving nothing leaves the node untouched and lets {@link Highlight#postAnalysisVerification}
- * report the failure the user can act on.
+ * {@link #skipResolved()} is false because {@code WHERE <full-text> | HIGHLIGHT ON <fields>} is already resolved and
+ * would otherwise be skipped.
  */
 public class ResolveHighlight extends AnalyzerRule<Highlight> {
+
+    @Override
+    protected boolean skipResolved() {
+        return false;
+    }
 
     @Override
     protected LogicalPlan rule(Highlight highlight) {
@@ -38,12 +46,22 @@ public class ResolveHighlight extends AnalyzerRule<Highlight> {
         }
 
         Expression query = highlight.query();
+        boolean implicit = highlight.implicitQuery();
+        if (query == null) {
+            query = HighlightSupport.collectImplicitQuery(highlight.child(), highlight.source()).query();
+            implicit = query != null;
+        }
+
         List<NamedExpression> fields = highlight.fields();
         List<Attribute> generated = highlight.generatedAttributes();
         boolean star = fields.size() == 1 && fields.getFirst() instanceof UnresolvedStar;
         if (star || (fields.isEmpty() && query != null && query.resolved())) {
             List<Attribute> childOutput = highlight.child().output();
-            String unhighlightable = star ? null : HighlightSupport.unhighlightableQueryField(query, childOutput);
+            // A derived query is not held to the field types an explicit one is: it was borrowed from an upstream WHERE
+            // that may legitimately search non-text fields, and deriveFields already drops those names. Highlighting the
+            // text fields that remain beats rejecting a query the user never wrote on this command. Same explicit-strict,
+            // implicit-lenient split as the ON-membership check in Highlight#verifyQuery.
+            String unhighlightable = star || implicit ? null : HighlightSupport.unhighlightableQueryField(query, childOutput);
             if (unhighlightable != null) {
                 // The query names a concrete field that is not text/keyword (a missing one would have failed query
                 // resolution). Report it through the unresolved-attribute channel so Verifier#checkUnresolvedAttributes
@@ -74,9 +92,34 @@ public class ResolveHighlight extends AnalyzerRule<Highlight> {
             }
         }
 
-        if (query == highlight.query() && fields == highlight.fields()) {
+        MapExpression options = withUniformAnalyzer(highlight.options(), query, highlight.source());
+        if (query == highlight.query() && fields == highlight.fields() && options == highlight.options()) {
             return highlight;
         }
-        return highlight.withResolved(query, highlight.implicitQuery(), fields, generated);
+        Highlight updated = highlight.withResolved(query, implicit, fields, generated);
+        return options == highlight.options() ? updated : updated.withOptions(options);
+    }
+
+    /**
+     * Copies the query's uniform leaf analyzer into WITH so the runtime context registers it and the query translates
+     * against the same analyzer as the document side. Returns {@code options} unchanged when WITH already sets an
+     * analyzer, the query is absent/unresolved or names no analyzer, or its leaves disagree - the last is left for
+     * verification to report as "must be the same" rather than a downstream "analyzer not found".
+     */
+    private static MapExpression withUniformAnalyzer(MapExpression options, Expression query, Source source) {
+        if (query == null || query.resolved() == false || (options != null && options.get(Highlight.ANALYZER) != null)) {
+            return options;
+        }
+        String uniform = HighlightSupport.uniformAnalyzerOf(query);
+        if (uniform == null) {
+            return options;
+        }
+        List<Expression> entries = new ArrayList<>();
+        if (options != null) {
+            entries.addAll(options.children());
+        }
+        entries.add(Literal.keyword(source, Highlight.ANALYZER));
+        entries.add(Literal.keyword(source, uniform));
+        return new MapExpression(options != null ? options.source() : source, entries);
     }
 }

@@ -33,6 +33,7 @@ import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.io.stream.PlanStreamInput;
 import org.elasticsearch.xpack.esql.plan.GeneratingPlan;
+import org.elasticsearch.xpack.esql.plan.logical.highlight.HighlightSupport;
 import org.elasticsearch.xpack.esql.planner.HighlightQueryBuilders;
 import org.elasticsearch.xpack.esql.planner.PlannerUtils;
 
@@ -44,7 +45,12 @@ import java.util.Objects;
 import static org.elasticsearch.xpack.esql.common.Failure.fail;
 import static org.elasticsearch.xpack.esql.expression.NamedExpressions.mergeOutputAttributes;
 
-public class Highlight extends UnaryPlan implements TelemetryAware, GeneratingPlan<Highlight>, PostAnalysisVerificationAware {
+public class Highlight extends UnaryPlan
+    implements
+        TelemetryAware,
+        GeneratingPlan<Highlight>,
+        PostAnalysisVerificationAware,
+        DocPreserving {
 
     public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(
         LogicalPlan.class,
@@ -322,9 +328,15 @@ public class Highlight extends UnaryPlan implements TelemetryAware, GeneratingPl
     public void postAnalysisVerification(Failures failures) {
         verifyFieldTypes(failures);
         if (query == null) {
-            failures.add(fail(this, "HIGHLIGHT requires a query"));
+            // ResolveHighlight stores the borrowed query, not why borrowing failed, so recompute the reason here.
+            failures.add(fail(this, "{}", HighlightSupport.collectImplicitQuery(child(), source()).reasonIfMissing()));
         } else if (fields.isEmpty()) {
-            failures.add(fail(this, "HIGHLIGHT found no text or keyword fields to highlight; add an explicit ON clause"));
+            failures.add(fail(this, "{}", HighlightSupport.noHighlightableFieldsMessage(query)));
+        } else if (implicitQuery && query.resolved()) {
+            String mismatch = HighlightSupport.implicitQueryFieldMismatchMessage(query, fields);
+            if (mismatch != null) {
+                failures.add(fail(this, "{}", mismatch));
+            }
         }
         if (options == null) {
             return;
@@ -340,29 +352,41 @@ public class Highlight extends UnaryPlan implements TelemetryAware, GeneratingPl
     @Override
     public void postAnalysisVerification(AnalysisRegistry analysisRegistry, Failures failures) {
         postAnalysisVerification(failures);
-        Analyzer analyzer;
+
+        String commandAnalyzerName;
         try {
-            analyzer = resolveAnalyzer(analysisRegistry);
-        } catch (InvalidArgumentException e) {
-            // The analyzer name is a valid string but doesn't resolve.
-            failures.add(fail(this, "{}", e.getMessage()));
-            return;
+            commandAnalyzerName = commandAnalyzerName();
         } catch (IllegalArgumentException e) {
             // The analyzer value isn't a string. Type errors have already been reported by verifyValue, but still
             // validate the query with the default analyzer so query errors are surfaced too.
             verifyQuery(defaultAnalyzer(analysisRegistry), failures);
             return;
         }
+        if (query != null && query.resolved()) {
+            try {
+                HighlightSupport.requireUniformAnalyzer(query, commandAnalyzerName);
+            } catch (IllegalArgumentException e) {
+                failures.add(fail(this, "{}", e.getMessage()));
+                return;
+            }
+        }
+        Analyzer analyzer;
+        try {
+            analyzer = commandAnalyzerName == null
+                ? defaultAnalyzer(analysisRegistry)
+                : PlannerUtils.resolveAnalyzer(commandAnalyzerName, analysisRegistry);
+        } catch (InvalidArgumentException e) {
+            // The analyzer name is a valid string but doesn't resolve.
+            failures.add(fail(this, "{}", e.getMessage()));
+            return;
+        }
         verifyQuery(analyzer, failures);
     }
 
-    private Analyzer resolveAnalyzer(AnalysisRegistry analysisRegistry) {
+    /** Value of the {@code analyzer} option, or {@code null} when unset. Throws when set but not a string. */
+    private String commandAnalyzerName() {
         Expression value = options == null ? null : foldableOption(ANALYZER);
-        if (value == null) {
-            return defaultAnalyzer(analysisRegistry);
-        }
-        String name = HighlightOptions.analyzerName(ANALYZER, value, FoldContext.small());
-        return PlannerUtils.resolveAnalyzer(name, analysisRegistry);
+        return value == null ? null : HighlightOptions.analyzerName(ANALYZER, value, FoldContext.small());
     }
 
     private static Analyzer defaultAnalyzer(AnalysisRegistry analysisRegistry) {
@@ -375,8 +399,9 @@ public class Highlight extends UnaryPlan implements TelemetryAware, GeneratingPl
         }
         List<String> fieldNames = fields.stream().map(NamedExpression::name).toList();
         try {
-            // ON membership is enforced only when the user wrote both the query and the field list.
-            HighlightQueryBuilders.verify(query, fieldNames, analyzer, implicitQuery == false && derivedFields == false);
+            // ON membership is enforced only when the user wrote both the query and the field list. A borrowed
+            // query translates leniently so a predicate naming a non-ON field becomes match-none rather than failing.
+            HighlightQueryBuilders.verify(query, fieldNames, analyzer, implicitQuery == false && derivedFields == false, implicitQuery);
         } catch (IllegalArgumentException e) {
             // Attach to the query node, not this Highlight node: failures dedupe by node, so pinning it here would let a
             // co-located option/analyzer failure on this node swallow the query error (see VerifierTests#testHighlightAnalyzerOption).

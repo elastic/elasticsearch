@@ -17,13 +17,20 @@ import org.elasticsearch.xpack.esql.core.expression.Literal;
 import org.elasticsearch.xpack.esql.core.expression.MapExpression;
 import org.elasticsearch.xpack.esql.core.expression.MetadataAttribute;
 import org.elasticsearch.xpack.esql.core.expression.NamedExpression;
+import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
+import org.elasticsearch.xpack.esql.expression.function.fulltext.FullTextFunction;
 import org.elasticsearch.xpack.esql.expression.function.fulltext.Kql;
 import org.elasticsearch.xpack.esql.expression.function.fulltext.Match;
 import org.elasticsearch.xpack.esql.expression.function.fulltext.MatchPhrase;
 import org.elasticsearch.xpack.esql.expression.function.fulltext.QueryString;
+import org.elasticsearch.xpack.esql.expression.function.fulltext.SingleFieldFullTextFunction;
+import org.elasticsearch.xpack.esql.expression.predicate.Predicates;
 import org.elasticsearch.xpack.esql.expression.predicate.logical.BinaryLogic;
 import org.elasticsearch.xpack.esql.expression.predicate.logical.Not;
+import org.elasticsearch.xpack.esql.plan.logical.DocPreserving;
+import org.elasticsearch.xpack.esql.plan.logical.Filter;
+import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
 
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
@@ -32,12 +39,176 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 
+import static org.elasticsearch.index.query.MatchQueryBuilder.ANALYZER_FIELD;
+
 /**
- * Analysis-time helpers for derived HIGHLIGHT field lists. Does not use {@code SearchExecutionContext}.
+ * Analysis-time helpers for implicit HIGHLIGHT query and field lists. Does not use {@code SearchExecutionContext}.
  */
 public final class HighlightSupport {
 
     private HighlightSupport() {}
+
+    /**
+     * Returns whether a {@code WHERE} conjunct can be borrowed for highlighting. Positive full-text predicates and
+     * boolean combinations of them are supported; negative and mixed full-text/non-full-text predicates are not.
+     * Every accepted expression must also be supported by
+     * {@link org.elasticsearch.xpack.esql.planner.HighlightQueryBuilders#build}.
+     */
+    public static boolean isSupportedImplicitPredicate(Expression expr) {
+        if (expr instanceof BinaryLogic binary) {
+            return isSupportedImplicitPredicate(binary.left()) && isSupportedImplicitPredicate(binary.right());
+        }
+        return isBorrowableFullText(expr);
+    }
+
+    private static boolean isBorrowableFullText(Expression expr) {
+        return expr instanceof Match || expr instanceof MatchPhrase || expr instanceof QueryString || expr instanceof Kql;
+    }
+
+    /** The leaf's {@code analyzer} option, or {@code null} if absent, not foldable, or unsupported on that leaf type. */
+    private static String analyzerNameOf(Expression fullTextLeaf) {
+        Expression options = switch (fullTextLeaf) {
+            case SingleFieldFullTextFunction single -> single.options();
+            case QueryString queryString -> queryString.options();
+            case Kql kql -> kql.options();
+            default -> null;
+        };
+        return foldedOption(options, ANALYZER_FIELD.getPreferredName());
+    }
+
+    /** The folded string value of option {@code name} in {@code options}, or {@code null} if absent or not a foldable constant. */
+    private static String foldedOption(Expression options, String name) {
+        if (options instanceof MapExpression map) {
+            Expression value = map.get(name);
+            if (value != null && value.foldable()) {
+                return BytesRefs.toString(value.fold(FoldContext.small()));
+            }
+        }
+        return null;
+    }
+
+    /**
+     * The single analyzer name every full-text leaf that names one agrees on, or {@code null} when no leaf names
+     * one or (silently) when leaves disagree. Unlabeled leaves do not constrain the result: HIGHLIGHT's runtime
+     * context registers one analyzer, so an unlabeled leaf naturally uses it.
+     * <p>
+     * This is a quiet lookup used by {@code ResolveHighlight} to synthesize a WITH analyzer. Verification calls
+     * {@link #requireUniformAnalyzer} which throws on disagreement.
+     */
+    public static @Nullable String uniformAnalyzerOf(Expression query) {
+        Set<String> named = namedLeafAnalyzers(query);
+        return named.size() == 1 ? named.iterator().next() : null;
+    }
+
+    /**
+     * Verifies HIGHLIGHT's full-text leaves and command-level {@code WITH {"analyzer"}} agree on a single analyzer.
+     * <ul>
+     *   <li>When {@code commandAnalyzerName} is non-null, every explicit leaf {@code analyzer} must equal it.</li>
+     *   <li>Otherwise the named leaves must all share the same name.</li>
+     * </ul>
+     * HIGHLIGHT's runtime context registers one analyzer; leaves that disagree with it either fail translation
+     * (query side) or produce empty snippets (document side), so we reject them at analysis instead.
+     *
+     * @throws IllegalArgumentException with a user-facing message when the leaves and WITH cannot agree.
+     */
+    public static void requireUniformAnalyzer(Expression query, @Nullable String commandAnalyzerName) {
+        Set<String> named = namedLeafAnalyzers(query);
+        if (commandAnalyzerName != null) {
+            for (String leaf : named) {
+                if (leaf.equals(commandAnalyzerName) == false) {
+                    throw new IllegalArgumentException(
+                        "HIGHLIGHT WITH analyzer ["
+                            + commandAnalyzerName
+                            + "] does not match analyzer ["
+                            + leaf
+                            + "] specified by the query; they must be the same"
+                    );
+                }
+            }
+            return;
+        }
+        if (named.size() > 1) {
+            throw new IllegalArgumentException(
+                "HIGHLIGHT full-text functions use different analyzers "
+                    + named
+                    + "; use the same analyzer for every clause, or set it on HIGHLIGHT with WITH { \"analyzer\": ... }"
+            );
+        }
+    }
+
+    private static Set<String> namedLeafAnalyzers(Expression query) {
+        Set<String> names = new LinkedHashSet<>();
+        query.forEachDown(FullTextFunction.class, leaf -> {
+            String analyzer = analyzerNameOf(leaf);
+            if (analyzer != null) {
+                names.add(analyzer);
+            }
+        });
+        return names;
+    }
+
+    /**
+     * Result of walking the doc-preserving chain above HIGHLIGHT to derive an implicit query from an upstream WHERE.
+     *
+     * @param query           the borrowed query (an {@code OR} of the qualifying conjuncts), or {@code null} when none
+     *                        was found
+     * @param reasonIfMissing when {@code query} is {@code null}, a user-facing explanation of why nothing was borrowed
+     *                        for HIGHLIGHT's post-analysis verification to report; {@code null} when a query was found
+     */
+    public record ImplicitQuery(@Nullable Expression query, @Nullable String reasonIfMissing) {
+        public ImplicitQuery {
+            assert (query == null) == (reasonIfMissing != null);
+        }
+    }
+
+    /**
+     * Collects full-text conjuncts while walking upstream through {@link DocPreserving} plans. The walk stops when rows
+     * no longer map to individual documents.
+     * <p>
+     * Borrowed conjuncts are OR-ed because highlighting is display, not selection. Fields renamed or dropped after the
+     * filter are kept in the query and become match-none during translation; tracking them by {@code NameId} would lose
+     * predicates across commands that replace attributes. Analyzer options on borrowed predicates come along with the
+     * query; agreement between them (and with a command-level {@code WITH {"analyzer"}}) is enforced later by
+     * {@link #requireUniformAnalyzer}.
+     *
+     * @param source HIGHLIGHT's source, used as the location of the combined query
+     */
+    public static ImplicitQuery collectImplicitQuery(LogicalPlan child, Source source) {
+        List<Expression> predicates = new ArrayList<>();
+        boolean sawUnborrowableFullText = false;
+        LogicalPlan current = child;
+        while (current instanceof DocPreserving docPreserving) {
+            if (current instanceof Filter filter) {
+                for (Expression conjunct : Predicates.splitAnd(filter.condition())) {
+                    if (isSupportedImplicitPredicate(conjunct)) {
+                        predicates.add(conjunct);
+                    } else if (conjunct.anyMatch(e -> e instanceof FullTextFunction)) {
+                        sawUnborrowableFullText = true;
+                    }
+                }
+            }
+            current = docPreserving.preservingInput();
+        }
+        LogicalPlan blockedBy = current.children().isEmpty() ? null : current;
+
+        if (predicates.isEmpty() == false) {
+            return new ImplicitQuery(Predicates.combineOrWithSource(predicates, source), null);
+        }
+        return new ImplicitQuery(null, missingQueryReason(sawUnborrowableFullText, blockedBy));
+    }
+
+    private static String missingQueryReason(boolean sawUnborrowableFullText, @Nullable LogicalPlan blockedBy) {
+        if (blockedBy != null) {
+            return "HIGHLIGHT cannot borrow the WHERE before ["
+                + blockedBy.sourceText()
+                + "] because that command does not preserve documents; add an explicit query";
+        }
+        if (sawUnborrowableFullText) {
+            return "HIGHLIGHT found no borrowable condition in the preceding WHERE: only positive MATCH, MATCH_PHRASE, "
+                + "QSTR or KQL conditions joined by AND/OR can be borrowed; NOT and mixed conditions cannot";
+        }
+        return "HIGHLIGHT requires a query or a preceding full-text WHERE (MATCH, MATCH_PHRASE, QSTR or KQL)";
+    }
 
     /**
      * Every text or keyword column of {@code childrenOutput}, in output order. This is what {@code ON *} expands to,
@@ -94,6 +265,9 @@ public final class HighlightSupport {
      * literal, {@code KQL}, a {@code QSTR}, or a negative clause), since those fall back to every highlightable column
      * and name nothing specific to reject. Callers surface the result through the unresolved-attribute channel so
      * verification points at the offending field rather than reporting a generic "no fields to highlight".
+     * <p>
+     * This is for queries the user wrote on the command. A query derived from an upstream {@code WHERE} may name
+     * non-text fields legitimately, so callers skip this check there and let {@link #deriveFields} drop those names.
      */
     public static @Nullable String unhighlightableQueryField(Expression query, List<Attribute> childrenOutput) {
         Set<String> names = new LinkedHashSet<>();
@@ -107,6 +281,55 @@ public final class HighlightSupport {
             }
         }
         return null;
+    }
+
+    /**
+     * The concrete field names a resolvable query narrows to, or {@code null} when it cannot be narrowed (a string
+     * literal, {@code QSTR}, {@code KQL}, or a negative clause). Names preserve query order.
+     */
+    static @Nullable Set<String> queryFieldNames(Expression query) {
+        Set<String> names = new LinkedHashSet<>();
+        if (collectFieldNames(query, names, FieldWalk.DERIVE) == false) {
+            return null;
+        }
+        return names;
+    }
+
+    /**
+     * Message when a resolved query produced no highlightable fields. Names the query's fields when they can be
+     * narrowed, instead of only advising an ON clause that would yield an all-null column.
+     */
+    public static String noHighlightableFieldsMessage(@Nullable Expression query) {
+        Set<String> queryNames = query == null ? null : queryFieldNames(query);
+        if (queryNames == null || queryNames.isEmpty()) {
+            return "HIGHLIGHT found no text or keyword fields to highlight; add an explicit ON clause";
+        }
+        return "HIGHLIGHT found no text or keyword fields to highlight: the derived query names "
+            + whichIsAre(queryNames)
+            + " not a text or keyword column of the input (it may have been renamed or dropped); add an explicit query and ON clause";
+    }
+
+    /**
+     * Message when an implicit query narrows to concrete fields none of which is highlighted, or {@code null} when
+     * the query also names a highlighted field or cannot be narrowed ({@code QSTR}, {@code KQL}, a literal).
+     */
+    public static @Nullable String implicitQueryFieldMismatchMessage(Expression query, List<NamedExpression> fields) {
+        Set<String> queryNames = queryFieldNames(query);
+        if (queryNames == null || queryNames.isEmpty()) {
+            return null;
+        }
+        if (fields.stream().anyMatch(f -> queryNames.contains(f.name()))) {
+            return null;
+        }
+        return "HIGHLIGHT derived its query from a preceding WHERE, but that query targets only "
+            + whichIsAre(queryNames)
+            + " not among the highlighted fields "
+            + fields.stream().map(NamedExpression::name).toList()
+            + "; add an explicit query and ON clause";
+    }
+
+    private static String whichIsAre(Set<String> names) {
+        return names.stream().toList() + ", which " + (names.size() == 1 ? "is" : "are");
     }
 
     /**
@@ -174,12 +397,6 @@ public final class HighlightSupport {
      * constant. The value may be a wildcard pattern; callers decide whether that still identifies a single field.
      */
     public static String queryStringDefaultField(QueryString queryString) {
-        if (queryString.options() instanceof MapExpression map) {
-            Expression value = map.get("default_field");
-            if (value != null && value.foldable()) {
-                return BytesRefs.toString(value.fold(FoldContext.small()));
-            }
-        }
-        return null;
+        return foldedOption(queryString.options(), "default_field");
     }
 }

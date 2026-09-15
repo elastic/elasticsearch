@@ -1160,6 +1160,7 @@ class NodeConstruction {
         );
 
         final ResponseCollectorService responseCollectorService = new ResponseCollectorService(clusterService);
+        new AdaptiveReplicaSelectionMetrics(telemetryProvider.getMeterRegistry(), responseCollectorService);
         modules.bindToInstance(ResponseCollectorService.class, responseCollectorService);
         modules.bindToInstance(CrossProjectModeDecider.class, crossProjectModeDecider);
 

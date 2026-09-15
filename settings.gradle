@@ -60,6 +60,7 @@ List projects = [
   'client:client-benchmark-noop-api-plugin',
   'client:benchmark',
   'benchmarks',
+  'benchmarks:common',
   'benchmarks:processor',
   'distribution:archives:integ-test-zip',
   'distribution:archives:windows-zip',
@@ -184,3 +185,9 @@ if (extraProjects.exists()) {
 }
 
 include 'qa:vector'
+
+gradle.lifecycle.beforeProject { Project project ->
+  if (project == project.rootProject) return
+  project.pluginManager.apply('elasticsearch.base')
+  project.pluginManager.apply('elasticsearch.formatting')
+}

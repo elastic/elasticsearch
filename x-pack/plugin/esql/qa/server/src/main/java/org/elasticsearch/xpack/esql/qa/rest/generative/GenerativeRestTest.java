@@ -233,7 +233,16 @@ public abstract class GenerativeRestTest extends ESRestTestCase implements Query
         "class java\\.util\\.ArrayList cannot be cast to class java\\.lang\\.Boolean.*",
 
         // https://github.com/elastic/elasticsearch/issues/154080
-        "unexpected data type \\[NULL\\]"
+        "unexpected data type \\[NULL\\]",
+
+        // https://github.com/elastic/elasticsearch/issues/159298
+        "Invalid types \\[DATETIME, NULL\\] If you see this error, there is a bug in DateDiff\\.resolveType\\(\\)",
+
+        // Queries can time out in the test cluster (e.g. ip_location on non-IP values, wide
+        // inline-stats schemas, CHANGE_POINT + LOOKUP JOIN). The timeout itself is a test
+        // infrastructure limit; the query was valid ES|QL.
+        // https://github.com/elastic/elasticsearch/issues/158881
+        "\\d[\\d ,]*milliseconds timeout on connection.*"
     );
 
     /**
@@ -256,8 +265,8 @@ public abstract class GenerativeRestTest extends ESRestTestCase implements Query
      * Matches "Unknown column [X]" errors, optionally followed by ", did you mean [Y]?".
      * This error is expected when an unmapped field is used after a schema-fixing command (KEEP, DROP, STATS)
      * that included a different unmapped field but not this one, making the second one legitimately unknown.
-     * We only allow this error when the unknown column is an unmapped field name, and if a suggestion is present,
-     * the suggested column must also be an unmapped field name.
+     * We allow this error when the unknown column is one of the names {@code KeepGenerator} injects on purpose;
+     * the suggestion is deliberately NOT checked, since it names whichever loaded column happens to be closest.
      */
     private static final Pattern UNKNOWN_COLUMN_WITH_SUGGESTION_PATTERN = Pattern.compile(
         ".*Unknown column \\[([^]]+)], did you mean \\[([^]]+)]\\?.*",
@@ -590,7 +599,9 @@ public abstract class GenerativeRestTest extends ESRestTestCase implements Query
         ctx -> isInlineStatsSubqueryAggregateExecBug(ctx.normalizedErrorMessage, ctx.query),
         ctx -> isEvalWhereFilterBug(ctx.normalizedErrorMessage, ctx.query),
         ctx -> isRenameInlineStatsProjectBug(ctx.normalizedErrorMessage, ctx.query),
-        ctx -> isEvalInlineStatsAggregateBug(ctx.normalizedErrorMessage, ctx.query), };
+        ctx -> isEvalInlineStatsAggregateBug(ctx.normalizedErrorMessage, ctx.query),
+        ctx -> isForkAttributesInSubplansBug(ctx.normalizedErrorMessage, ctx.query),
+        ctx -> isEvalInlineStatsProjectBug(ctx.normalizedErrorMessage, ctx.query), };
 
     /**
      * Returns extra error-message patterns the {@link #enabledFeatures()} are allowed to surface. Aggregated
@@ -741,8 +752,12 @@ public abstract class GenerativeRestTest extends ESRestTestCase implements Query
         Matcher matcher = UNKNOWN_COLUMN_WITH_SUGGESTION_PATTERN.matcher(errorWithoutLineBreaks);
         if (matcher.matches()) {
             String unknownColumn = matcher.group(1);
-            String suggestedColumn = matcher.group(2);
-            return UNMAPPED_NAMES.contains(unknownColumn) && UNMAPPED_NAMES.contains(suggestedColumn);
+            // Only the unknown column is checked. The suggestion is whichever in-scope name is closest, so it depends on
+            // which datasets happen to be loaded - a field named `unmapped.*` in any index makes it a real column rather
+            // than one of ours. What makes the error expected is that the MISSING column is a name KeepGenerator injects
+            // on purpose; those four names exist in no index, so a genuine missing-column bug still names a real column
+            // and still fails here.
+            return UNMAPPED_NAMES.contains(unknownColumn);
         }
 
         matcher = UNKNOWN_COLUMN_PATTERN.matcher(errorWithoutLineBreaks);
@@ -839,8 +854,12 @@ public abstract class GenerativeRestTest extends ESRestTestCase implements Query
      * </ul>
      * Columns that are explicitly created by the command are marked {@code indexMapped=false};
      * columns that survive unchanged from the previous schema inherit their previous status.
+     * <p>
+     * Implements {@link QueryExecutor#updateIndexMapped} so that both the top-level generation loop and
+     * {@code SubqueryGenerator} (which only holds a {@link QueryExecutor} reference) track the flags identically.
      */
-    static List<Column> updateIndexMapped(
+    @Override
+    public List<Column> updateIndexMapped(
         List<Column> newSchema,
         List<Column> previousSchema,
         CommandGenerator.CommandDescription command
@@ -848,6 +867,21 @@ public abstract class GenerativeRestTest extends ESRestTestCase implements Query
         if (newSchema == null || newSchema.isEmpty()) {
             return newSchema;
         }
+
+        // FROM is always the first command so previousSchema is empty. Handle it here, before the guard below short-circuits,
+        // so that subquery-derived indexMapped flags are not silently dropped.
+        if (FromGenerator.isFromSource(command)) {
+            if (command.context().get(FromGenerator.SUBQUERY_COLUMNS) instanceof Map<?, ?> subqueryMapped) {
+                return newSchema.stream().map(col -> {
+                    // Column only from a real index source: indexMapped=true (unchanged). Column from a subquery (possibly also present
+                    // in a real index): use the subquery flag directly — logicalAnd(subqueryFlag, true) == subqueryFlag.
+                    boolean mapped = subqueryMapped.get(col.name()) instanceof Boolean fromSubquery ? fromSubquery : true;
+                    return new Column(col.name(), col.type(), col.originalTypes(), mapped);
+                }).toList();
+            }
+            return newSchema;
+        }
+
         if (previousSchema == null || previousSchema.isEmpty()) {
             return newSchema;
         }
@@ -1038,20 +1072,21 @@ public abstract class GenerativeRestTest extends ESRestTestCase implements Query
     }
 
     private static final Pattern FULL_TEXT_AFTER_SUBQUERY_IN_FROM_PATTERN = Pattern.compile(
-        ".*(?:(?:\\[(?:KQL|QSTR|MATCH|MatchPhrase)] function)|(?:\\[:\\] operator)) cannot be used after "
-            + "(?:LIMIT|INLINE|LOOKUP|MV_EXPAND|STATS|CHANGE_POINT|DEDUP|LIMIT BY|TOP|[^\\n]*,\\s*\\(\\s*FROM\\b|"
-            + "\\(\\s*FROM\\b).*",
+        ".*(?:"
+            // Any full-text function/operator after a pipeline-breaking command, LOOKUP JOIN, or a multi-source FROM union.
+            + "(?:(?:\\[(?:KQL|QSTR|MATCH|MatchPhrase)] function)|(?:\\[:\\] operator)) cannot be used after "
+            + "(?:LIMIT|INLINE|LOOKUP|MV_EXPAND|STATS|SORT|CHANGE_POINT|DEDUP|LIMIT BY|TOP|[^\\n]*,\\s*\\(\\s*FROM\\b|\\(\\s*FROM\\b)"
+            + "|"
+            // QSTR/KQL are only valid directly after FROM/WHERE/SORT: tolerate them being rejected after any other command.
+            + "\\[(?:KQL|QSTR)] function cannot be used after (?!(?:FROM|WHERE|SORT)\\b)\\w+"
+            + ").*",
         Pattern.DOTALL | Pattern.CASE_INSENSITIVE
     );
 
     /**
-     * Product rejects full-text in {@code WHERE} when a subquery branch in {@code FROM} still contains a
-     * pipeline-breaking command ({@code LIMIT}, {@code DEDUP}, {@code INLINE STATS}, etc.) or when full-text functions/operators
-     * are placed after {@code LOOKUP JOIN}; the generator only walks the outer command list. It also rejects full-text after the
-     * {@code UnionAll} formed by a multi-source {@code FROM} (the union of subqueries / indices): there the verifier embeds the
-     * union's source text, which it truncates to {@code Node.TO_STRING_MAX_WIDTH} chars plus {@code "..."}, so the message may end
-     * mid-branch (before the comma separating the branches). Gated on a parenthesised inner {@code FROM}.
-     * See <a href="https://github.com/elastic/elasticsearch/issues/149516">#149516</a>.
+     * Full-text rejected after a command or {@code UnionAll} that lives inside a {@code FROM} subquery.
+     * The generator only inspects the outer command list, so it cannot avoid these. Gated on a parenthesised
+     * inner {@code FROM}. See <a href="https://github.com/elastic/elasticsearch/issues/149516">#149516</a>.
      */
     static boolean isFullTextAfterSubqueryInFromBug(String errorMessage, String query) {
         if (errorMessage == null || query == null) {
@@ -1359,6 +1394,50 @@ public abstract class GenerativeRestTest extends ESRestTestCase implements Query
         return EVAL_COMMAND_PATTERN.matcher(query).find()
             && INLINE_STATS_COMMAND_PATTERN.matcher(query).find()
             && STATS_COMMAND_PATTERN.matcher(query).find();
+    }
+
+    private static final Pattern OPTIMIZED_INCORRECTLY_ATTRIBUTES_IN_SUBPLANS_PATTERN = Pattern.compile(
+        ".*optimized incorrectly due to missing attributes in subplans.*",
+        Pattern.DOTALL
+    );
+
+    /**
+     * FORK + STATS (or INLINE STATS) followed by DROP _fork causes the optimizer to lose track
+     * of grouping-key references, producing "optimized incorrectly due to missing attributes in
+     * subplans". Distinct from {@link #isForkOptimizedIncorrectlyBug} which catches the
+     * "missing references" variant.
+     * See <a href="https://github.com/elastic/elasticsearch/issues/136927">#136927</a>,
+     * <a href="https://github.com/elastic/elasticsearch/issues/146165">#146165</a>.
+     */
+    static boolean isForkAttributesInSubplansBug(String errorMessage, String query) {
+        if (errorMessage == null || query == null) {
+            return false;
+        }
+        if (OPTIMIZED_INCORRECTLY_ATTRIBUTES_IN_SUBPLANS_PATTERN.matcher(errorMessage).matches() == false) {
+            return false;
+        }
+        return FORK_COMMAND_PATTERN.matcher(query).find();
+    }
+
+    /**
+     * EVAL reassigning an existing index field followed by INLINE STATS (without a downstream
+     * plain STATS) causes the optimizer to drop the EVAL-reassigned reference from the Project
+     * plan node. Same root cause as {@link #isRenameInlineStatsProjectBug} (#154145): INLINE
+     * STATS with a null-typed aggregate input confuses an optimizer rule into dropping unrelated
+     * derived references; here the derived references come from EVAL reassignments rather than
+     * RENAME.
+     * See <a href="https://github.com/elastic/elasticsearch/issues/154145">#154145</a>.
+     */
+    static boolean isEvalInlineStatsProjectBug(String errorMessage, String query) {
+        if (errorMessage == null || query == null) {
+            return false;
+        }
+        if (OPTIMIZED_INCORRECTLY_PATTERN.matcher(errorMessage).matches() == false) {
+            return false;
+        }
+        return EVAL_COMMAND_PATTERN.matcher(query).find()
+            && INLINE_STATS_COMMAND_PATTERN.matcher(query).find()
+            && FORK_COMMAND_PATTERN.matcher(query).find() == false;
     }
 
     @Override

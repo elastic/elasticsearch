@@ -9,10 +9,13 @@ package org.elasticsearch.xpack.esql.datasources;
 
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.core.IOUtils;
+import org.elasticsearch.core.Releasable;
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
+import org.elasticsearch.tasks.TaskCancelledException;
 import org.elasticsearch.xpack.esql.datasources.spi.DirectBufferFactory;
 import org.elasticsearch.xpack.esql.datasources.spi.DirectReadBuffer;
+import org.elasticsearch.xpack.esql.datasources.spi.ExternalObjectChangedException;
 import org.elasticsearch.xpack.esql.datasources.spi.ExternalSourceMetrics;
 import org.elasticsearch.xpack.esql.datasources.spi.ExternalUnavailableException;
 import org.elasticsearch.xpack.esql.datasources.spi.StorageObject;
@@ -25,6 +28,8 @@ import java.io.InputStream;
 import java.nio.ByteBuffer;
 import java.time.Instant;
 import java.util.concurrent.Executor;
+import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.concurrent.atomic.AtomicReference;
 
 /**
  * Wraps a {@link StorageObject} with retry logic for transient storage failures.
@@ -171,6 +176,16 @@ class RetryableStorageObject implements StorageObject {
     }
 
     @Override
+    public long knownLength() {
+        return delegate.knownLength();
+    }
+
+    @Override
+    public String contentGeneration() {
+        return delegate.contentGeneration();
+    }
+
+    @Override
     public long length() throws IOException {
         // Metadata ops (length/lastModified/exists) never bump the read-scoped registry request counter, so their
         // retries/errors/read-stall must NOT feed the registry sink — that would leak storage.retries/errors/read_stall
@@ -181,6 +196,17 @@ class RetryableStorageObject implements StorageObject {
         return retryPolicy.execute(
             delegate::length,
             "length",
+            delegate.path(),
+            retryCounters::addRetryProfileOnly,
+            RetryPolicy.RetryTelemetry.NONE
+        );
+    }
+
+    @Override
+    public long lengthForFooterCacheKey() throws IOException {
+        return retryPolicy.execute(
+            delegate::lengthForFooterCacheKey,
+            "lengthForFooterCacheKey",
             delegate.path(),
             retryCounters::addRetryProfileOnly,
             RetryPolicy.RetryTelemetry.NONE
@@ -251,7 +277,48 @@ class RetryableStorageObject implements StorageObject {
         Executor executor,
         ActionListener<DirectReadBuffer> listener
     ) {
-        readBytesAsyncWithRetry(position, length, factory, executor, listener, 0, System.nanoTime(), 0L);
+        startReadBytesAsync(position, length, factory, executor, listener);
+    }
+
+    @Override
+    public Releasable startReadBytesAsync(
+        long position,
+        long length,
+        DirectBufferFactory factory,
+        Executor executor,
+        ActionListener<DirectReadBuffer> listener
+    ) {
+        AtomicBoolean cancelled = new AtomicBoolean();
+        AtomicReference<InflightSlot> inflight = new AtomicReference<>(InflightSlot.NONE);
+        readBytesAsyncWithRetry(position, length, factory, executor, listener, 0, System.nanoTime(), 0L, inflight, cancelled);
+        return () -> {
+            cancelled.set(true);
+            inflight.get().handle().close();
+        };
+    }
+
+    /**
+     * Generation-tagged cancel handle. A later retry must not be overwritten by a stale
+     * {@code startReadBytesAsync} return after an inline {@code onFailure} already started attempt N+1.
+     */
+    private record InflightSlot(int attempt, Releasable handle) {
+        static final InflightSlot NONE = new InflightSlot(-1, () -> {});
+    }
+
+    private static void registerInflight(int attempt, Releasable inner, AtomicReference<InflightSlot> inflight, AtomicBoolean cancelled) {
+        InflightSlot next = new InflightSlot(attempt, inner);
+        while (true) {
+            InflightSlot current = inflight.get();
+            if (current.attempt() > attempt) {
+                return;
+            }
+            if (inflight.compareAndSet(current, next)) {
+                if (cancelled.get()) {
+                    inner.close();
+                }
+                return;
+            }
+        }
     }
 
     private void readBytesAsyncWithRetry(
@@ -262,9 +329,15 @@ class RetryableStorageObject implements StorageObject {
         ActionListener<DirectReadBuffer> listener,
         int attempt,
         long startNanos,
-        long accumulatedBackoffMillis
+        long accumulatedBackoffMillis,
+        AtomicReference<InflightSlot> inflight,
+        AtomicBoolean cancelled
     ) {
-        delegate.readBytesAsync(position, length, factory, executor, new ActionListener<>() {
+        if (cancelled.get()) {
+            listener.onFailure(new TaskCancelledException(StorageRetryCancellation.CANCELLED_MESSAGE));
+            return;
+        }
+        Releasable inner = delegate.startReadBytesAsync(position, length, factory, executor, new ActionListener<>() {
             @Override
             public void onResponse(DirectReadBuffer result) {
                 retryPolicy.notifySuccess();
@@ -289,6 +362,10 @@ class RetryableStorageObject implements StorageObject {
 
             @Override
             public void onFailure(Exception e) {
+                if (cancelled.get()) {
+                    listener.onFailure(e);
+                    return;
+                }
                 // One shared decision point (classify, budget, backoff) for every driver. The delegate has
                 // already released its DirectReadBuffer on the failure path, so a retry simply allocates a
                 // fresh one via the factory on the next attempt — nothing to release here.
@@ -323,7 +400,9 @@ class RetryableStorageObject implements StorageObject {
                             listener,
                             attempt + 1,
                             startNanos,
-                            accumulatedBackoffMillis + decision.delayMillis()
+                            accumulatedBackoffMillis + decision.delayMillis(),
+                            inflight,
+                            cancelled
                         ),
                         decision.delayMillis(),
                         executor
@@ -337,11 +416,17 @@ class RetryableStorageObject implements StorageObject {
                 }
             }
         });
+        registerInflight(attempt, inner, inflight, cancelled);
     }
 
     @Override
     public boolean supportsNativeAsync() {
         return delegate.supportsNativeAsync();
+    }
+
+    @Override
+    public boolean readBytesAsyncReleasesExecutor() {
+        return delegate.readBytesAsyncReleasesExecutor();
     }
 
     @Override
@@ -361,7 +446,10 @@ class RetryableStorageObject implements StorageObject {
      * Wraps a range read so a transient transport fault <em>during</em> the read re-opens the remaining byte
      * range and resumes, instead of failing the whole read. Resume is byte-exact: {@code delivered} tracks
      * bytes already handed to the caller, so a re-open requests {@code [position + delivered, end]} and no
-     * byte is delivered twice or skipped (object content is immutable for the life of a query). Whether a
+     * byte is delivered twice or skipped. A clean {@code -1} short of the expected byte count is treated
+     * as a truncated body and resumed like a thrown transport fault; a re-open that observes a different
+     * generation or object size fails with {@link ExternalObjectChangedException} rather than splicing
+     * bytes. Whether a
      * fault is retryable, the backoff, and the total-time budget all come from the same {@link RetryPolicy}
      * used for opens; a non-retryable fault or an exhausted budget propagates unchanged. Reading raw object
      * bytes, a failure here is almost always transport (parsing happens above this stream); a rare
@@ -377,11 +465,24 @@ class RetryableStorageObject implements StorageObject {
         // currentStream()) from the operator/cancel thread, so the abort must see the live stream, not a stale ref.
         private volatile InputStream current;
         private long delivered = 0;
+        /**
+         * The provider's generation pin ({@link StorageObject#contentGeneration()}) as of the first open.
+         * A successful re-open proves the generation is unchanged because the provider either sends this
+         * as a request condition or validates the response generation. {@code null} when the provider
+         * could not pin (for example, GCS with metadata access denied); the check below then refuses to
+         * adopt a pin that only materializes after bytes were delivered, which is the one case where an
+         * unpinned re-open could splice.
+         */
+        private String pinnedGeneration;
+        /** {@link StorageObject#knownLength()} at the first open; {@link #READ_TO_END} if unknown. */
+        private long pinnedKnownLength;
 
         ResumingInputStream(InputStream initial, long position, long length) {
             this.current = initial;
             this.position = position;
             this.length = length;
+            this.pinnedGeneration = delegate.contentGeneration();
+            this.pinnedKnownLength = delegate.knownLength();
         }
 
         // Consecutive re-opens since the last byte of progress, and when that "stuck" episode began.
@@ -414,6 +515,19 @@ class RetryableStorageObject implements StorageObject {
                         delivered += n;
                         failuresSinceProgress = 0;
                         episodeStartNanos = 0;
+                        return n;
+                    }
+                    if (n < 0 && isPrematureEof()) {
+                        reopenOrThrow(
+                            new ExternalUnavailableException(
+                                false,
+                                "Premature end of object body for [{}] after [{}] of [{}] bytes",
+                                delegate.path(),
+                                delivered,
+                                expectedCount()
+                            )
+                        );
+                        continue;
                     }
                     return n;
                 } catch (IOException | ExternalUnavailableException e) {
@@ -482,6 +596,59 @@ class RetryableStorageObject implements StorageObject {
                         storageTelemetry
                     )
                     : InputStream.nullInputStream();
+            }
+            ensureGenerationConsistent();
+        }
+
+        /**
+         * Bytes this stream still owes the caller. {@link StorageObject#READ_TO_END} when the expected
+         * count is unknown (open-ended read with no cached object size) — a clean {@code -1} is then
+         * trusted as EOF. A non-positive remaining count is real EOF (open-ended resume at/after the
+         * end of the object).
+         */
+        private long expectedCount() {
+            if (length != READ_TO_END) {
+                return length;
+            }
+            long known = pinnedKnownLength != READ_TO_END ? pinnedKnownLength : delegate.knownLength();
+            if (known == READ_TO_END) {
+                return READ_TO_END;
+            }
+            long remaining = known - position;
+            return remaining < 0 ? 0 : remaining;
+        }
+
+        private boolean isPrematureEof() {
+            long expected = expectedCount();
+            return expected != READ_TO_END && delivered < expected;
+        }
+
+        /**
+         * Backstop for the case the provider's pin cannot cover. When the provider is pinned, the
+         * re-open either carried If-Match / generationMatch or had its response generation validated,
+         * so a rewrite surfaces as {@link ExternalObjectChangedException} from the provider and there is
+         * nothing left to compare.
+         * When it is <em>not</em> pinned, a pin that materializes only after bytes were delivered is a
+         * generation this stream cannot attribute to its earlier bytes — adopting it would splice — and a
+         * changed object size is the same story with no generation at all.
+         */
+        private void ensureGenerationConsistent() {
+            String observed = delegate.contentGeneration();
+            if (pinnedGeneration == null) {
+                if (observed != null && delivered > 0) {
+                    throw new ExternalObjectChangedException("Object changed during read of [{}]", delegate.path());
+                }
+                pinnedGeneration = observed;
+            } else if (observed != null && pinnedGeneration.equals(observed) == false) {
+                // Providers set the pin once, so this is unreachable today; kept as an assertion of that
+                // invariant rather than as a silent splice if a provider ever moves its pin.
+                throw new ExternalObjectChangedException("Object changed during read of [{}]", delegate.path());
+            }
+            long observedLength = delegate.knownLength();
+            if (pinnedKnownLength == READ_TO_END) {
+                pinnedKnownLength = observedLength;
+            } else if (observedLength != READ_TO_END && observedLength != pinnedKnownLength) {
+                throw new ExternalObjectChangedException("Object changed during read of [{}]", delegate.path());
             }
         }
 

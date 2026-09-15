@@ -20,6 +20,7 @@ import org.apache.parquet.schema.PrimitiveType;
 import org.apache.parquet.schema.Types;
 import org.elasticsearch.ResourceNotFoundException;
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.cluster.metadata.Dataset;
 import org.elasticsearch.cluster.metadata.DatasetFieldMapping;
 import org.elasticsearch.cluster.metadata.DatasetMapping;
 import org.elasticsearch.cluster.metadata.View;
@@ -33,7 +34,9 @@ import org.elasticsearch.xpack.esql.action.EsqlCapabilities.Cap;
 import org.elasticsearch.xpack.esql.datasource.csv.CsvDataSourcePlugin;
 import org.elasticsearch.xpack.esql.datasource.ndjson.NdJsonDataSourcePlugin;
 import org.elasticsearch.xpack.esql.datasource.parquet.ParquetDataSourcePlugin;
+import org.elasticsearch.xpack.esql.datasources.FormatNameResolver;
 import org.elasticsearch.xpack.esql.datasources.dataset.DeleteDatasetAction;
+import org.elasticsearch.xpack.esql.datasources.dataset.GetDatasetAction;
 import org.elasticsearch.xpack.esql.datasources.dataset.PutDatasetAction;
 import org.elasticsearch.xpack.esql.datasources.datasource.DeleteDataSourceAction;
 import org.elasticsearch.xpack.esql.datasources.datasource.PutDataSourceAction;
@@ -170,132 +173,6 @@ public class FromDatasetIT extends AbstractExternalDataSourceIT {
     }
 
     /**
-     * Names every dataset a {@code testXxx} body PUTs via the raw {@link PutDatasetAction} (our tests carry declared
-     * mappings, which the base {@code registerDataset} helper does not model). New tests must register their dataset
-     * name here so the SUITE-scoped cluster doesn't carry state across methods — {@link #cleanupRawDatasets} deletes
-     * them (the base {@code cleanupRegistry} only tears down datasets created through its own helpers).
-     */
-    private static final Set<String> CREATED_DATASETS = Set.of(
-        "employees",
-        "employees_alt",
-        "logs_dataset",
-        "events_hive",
-        "employees_external",
-        "employees_mixed",
-        "stats_ds",
-        "employees_strict",
-        "employees_nonstrict",
-        "employees_strict_multi",
-        "employees_nonstrict_multi",
-        "employees_rename_strict",
-        "employees_headerless_strict",
-        "employees_headerless_dynamic",
-        "employees_absent_warn",
-        "employees_parity_strict",
-        "employees_parity_dynamic",
-        "employees_order_strict",
-        "employees_order_dynamic",
-        "employees_rename_nonstrict",
-        "employees_rename_keep",
-        "employees_ndjson_rename_strict",
-        "employees_ndjson_rename_nonstrict",
-        "employees_parquet_rename",
-        "employees_rename_multi",
-        "employees_swap",
-        "employees_id_from_col",
-        "employees_id_bad_path",
-        "employees_id_renamed",
-        "employees_strict_hive",
-        "employees_strict_hive_collide",
-        "employees_parquet_type_conflict",
-        "employees_strict_wrong_order",
-        "logs_csv_strict",
-        "logs_csv_nonstrict",
-        "logs_csv_filelevel",
-        "logs_csv_iso",
-        "logs_parquet_format",
-        "logs_ndjson",
-        "logs_csv_rename",
-        "logs_csv_gz",
-        "logs_csv_gz_strict",
-        "logs_tsv_gz_strict",
-        "logs_ndjson_gz_strict",
-        "logs_csv_gz_strict_multi",
-        "logs_parquet_strict_format",
-        "logs_noext_strict",
-        "employees_extensionless",
-        "logs_id_partition",
-        "logs_partition_collide_nonstrict",
-        "logs_partition_collide_none",
-        "logs_partition_collide_path",
-        "employees_strict_coerce",
-        "employees_strict_uncoercible",
-        "employees_strict_coerce_multi",
-        "employees_int_to_long",
-        "employees_declared_narrow",
-        "logs_parquet_string_date",
-        "coerced_long_to_double",
-        "logs_csv_equiv",
-        "logs_parquet_equiv",
-        "long_csv_equiv",
-        "long_parquet_equiv",
-        "typed_strings_parquet",
-        "empty_string_double",
-        "logs_deferred_coerce",
-        "logs_bad_date_token",
-        "logs_bad_date_failfast",
-        "logs_csv_bad_date_failfast",
-        "logs_ndjson_bad_date_failfast",
-        "logs_ndjson_bad_date_permissive",
-        "employees_divergent_multi",
-        "tsv_declared_type",
-        "tsv_declared_date",
-        "tsv_declared_rename",
-        "mapped_ds_for_view",
-        "mapped_ds_for_subquery",
-        "ndjson_mv_coerce",
-        "logs_ts_declared_long",
-        "logs_date_inferred",
-        "rp_micros",
-        "rp_nanos",
-        "rp_millis",
-        "rp_bare_s",
-        "rp_bare_ms",
-        "rp_date",
-        "rpn_bare_ns",
-        "rpn_bare_s",
-        "rpn_micros",
-        "rp_prune_s",
-        "rpn_prune_s",
-        "scale_diff_a",
-        "scale_diff_b",
-        "scale_diff_c",
-        "scale_diff_d",
-        "scale_diff_e",
-        "scale_diff_f",
-        "scale_diff_g",
-        "scale_xdecl_seconds",
-        "scale_xdecl_millis",
-        "cb_inferred",
-        "cb_nonstrict",
-        "cb_strict",
-        "cb_ndjson_inferred",
-        "cb_ndjson_nonstrict",
-        "cb_ndjson_strict",
-        "epoch_ovf_pq_null",
-        "epoch_ovf_pq_skip",
-        "epoch_ovf_pq_fail",
-        "epoch_ovf_csv_null",
-        "epoch_ovf_csv_skip",
-        "epoch_ovf_csv_fail",
-        "epoch_ovf_nj_null",
-        "epoch_ovf_nj_skip",
-        "epoch_ovf_nj_fail",
-        "employees_parquet_absent_warn",
-        "employees_ndjson_absent_warn"
-    );
-
-    /**
      * Names every {@code testXxx} body creates via {@link PutViewAction}. As with datasets, the SUITE-scoped
      * cluster requires explicit teardown so views don't leak across methods.
      */
@@ -305,7 +182,7 @@ public class FromDatasetIT extends AbstractExternalDataSourceIT {
     public void cleanupViews() throws Exception {
         for (String view : CREATED_VIEWS) {
             try {
-                client().execute(DeleteViewAction.INSTANCE, deleteViewRequest(view)).get(30, java.util.concurrent.TimeUnit.SECONDS);
+                client().execute(DeleteViewAction.INSTANCE, deleteViewRequest(view)).actionGet(30, SECONDS);
             } catch (ResourceNotFoundException ignored) {
                 // already deleted by the test itself
             } catch (Exception e) {
@@ -315,25 +192,24 @@ public class FromDatasetIT extends AbstractExternalDataSourceIT {
     }
 
     /**
-     * Tears down the datasets our tests create through the raw {@link PutDatasetAction} (they carry declared mappings,
-     * which the base {@code registerDataset} helper does not model, so they are not in the base registry). The base
-     * {@code cleanupRegistry} runs alongside this and clears anything created through its own helpers; a distinct name
-     * keeps both from overriding each other.
+     * Tears down every dataset in cluster state, not just those the base {@code registerDataset} helper recorded: tests
+     * here PUT through the raw {@link PutDatasetAction} (declared mappings the helper does not model), and a
+     * hand-maintained allowlist of their names kept drifting, leaking datasets into a later {@code FROM logs_*} on this
+     * SUITE-scoped cluster. A distinct name keeps this from overriding the base {@code cleanupRegistry}.
      */
     @After
     public void cleanupRawDatasets() throws Exception {
-        for (String ds : CREATED_DATASETS) {
+        GetDatasetAction.Request allDatasets = new GetDatasetAction.Request(TIMEOUT);
+        allDatasets.indices("*");
+        for (Dataset ds : client().execute(GetDatasetAction.INSTANCE, allDatasets).get(30, SECONDS).getDatasets()) {
             try {
-                client().execute(DeleteDatasetAction.INSTANCE, deleteDatasetRequest(ds)).get(30, java.util.concurrent.TimeUnit.SECONDS);
-            } catch (ResourceNotFoundException ignored) {
-                // already deleted by the test itself
+                client().execute(DeleteDatasetAction.INSTANCE, deleteDatasetRequest(ds.name())).actionGet(30, SECONDS);
             } catch (Exception e) {
-                logger.warn("dataset cleanup [{}] failed", ds, e);
+                logger.warn("dataset cleanup [{}] failed", ds.name(), e);
             }
         }
         try {
-            client().execute(DeleteDataSourceAction.INSTANCE, deleteDataSourceRequest("local_ds"))
-                .get(30, java.util.concurrent.TimeUnit.SECONDS);
+            client().execute(DeleteDataSourceAction.INSTANCE, deleteDataSourceRequest("local_ds")).actionGet(30, SECONDS);
         } catch (ResourceNotFoundException ignored) {
             // already deleted by the test itself
         } catch (Exception e) {
@@ -628,6 +504,61 @@ public class FromDatasetIT extends AbstractExternalDataSourceIT {
             assertThat(rows.get(1).get(1).toString(), equalTo("Bob"));
             assertThat(rows.get(2).get(0), equalTo(3));
             assertThat(rows.get(2).get(1).toString(), equalTo("Carol"));
+        }
+    }
+
+    /**
+     * The route to an analyzed column over a dataset: declare the column keyword, convert in the query, and name the
+     * analyzer as an argument. This is what the rejection message points a user at, so it is pinned end to end.
+     */
+    public void testToTextOverDeclaredKeywordGivesAnAnalyzedColumn() throws Exception {
+        assertAcked(client().execute(PutDataSourceAction.INSTANCE, putDataSourceRequest("local_ds", Map.of())));
+
+        Path docs = createTempDir().resolve("docs.csv");
+        Files.writeString(docs, String.join("\n", "id,msg", "1,The quick brown fox", "2,lazy dogs sleeping") + "\n");
+
+        Map<String, DatasetFieldMapping> properties = new LinkedHashMap<>();
+        properties.put("id", new DatasetFieldMapping("integer", null));
+        properties.put("msg", new DatasetFieldMapping("keyword", null));
+        assertAcked(
+            client().execute(
+                PutDatasetAction.INSTANCE,
+                new PutDatasetAction.Request(
+                    TIMEOUT,
+                    TIMEOUT,
+                    "docs_kw",
+                    "local_ds",
+                    docs.toUri().toString(),
+                    null,
+                    new HashMap<>(Map.of("format", "csv")),
+                    new DatasetMapping(new DatasetMapping.Mappings(DatasetMapping.Dynamic.FALSE, properties))
+                )
+            )
+        );
+
+        // Without the conversion the column is compared whole, so a two-term query matches nothing.
+        try (var response = run(syncEsqlQueryRequest("FROM docs_kw | WHERE MATCH(msg, \"quick fox\") | KEEP id"), TIMEOUT)) {
+            assertThat(getValuesList(response), hasSize(0));
+        }
+        // Converted, it is analyzed: both query terms hit the first row.
+        try (
+            var response = run(
+                syncEsqlQueryRequest("FROM docs_kw | EVAL t = TO_TEXT(msg) | WHERE MATCH(t, \"quick fox\") | KEEP id"),
+                TIMEOUT
+            )
+        ) {
+            assertThat(getValuesList(response), equalTo(List.of(List.of(1))));
+        }
+        // The analyzer is an argument here; a dataset mapping has no field for one.
+        try (
+            var response = run(
+                syncEsqlQueryRequest(
+                    "FROM docs_kw | EVAL t = TO_TEXT(msg, {\"analyzer\": \"standard\"}) | WHERE MATCH(t, \"quick fox\") | KEEP id"
+                ),
+                TIMEOUT
+            )
+        ) {
+            assertThat(getValuesList(response), equalTo(List.of(List.of(1))));
         }
     }
 
@@ -1469,11 +1400,9 @@ public class FromDatasetIT extends AbstractExternalDataSourceIT {
     public void testStrictDatasetWithUnknowableFormatFailsCleanlyNotNpe() throws Exception {
         assertAcked(client().execute(PutDataSourceAction.INSTANCE, putDataSourceRequest("local_ds", Map.of())));
 
-        // A strict dataset over an extensionless path with no `format` setting cannot resolve a reader. Strict now
-        // derives the sourceType through the registry (FormatNameResolver.resolveFormatName -> byExtension), which fails
-        // loud at resolution with a clean IllegalArgumentException — the shared unreadable-object message, which
-        // names the object, why it cannot be read, and the [format] remedy — propagated unwrapped as a 4xx,
-        // never an NPE-wrapped 500.
+        // A strict dataset over an extensionless path with no `format` setting cannot resolve a reader. The
+        // pattern implies zero formats, so resolution fails with the shared "set [format]" message — never
+        // an NPE-wrapped 500.
         Path noExt = createTempFile("dataset-noext-", "");
         Files.writeString(noExt, "id\n1\n");
         Map<String, DatasetFieldMapping> properties = new LinkedHashMap<>();
@@ -1498,9 +1427,79 @@ public class FromDatasetIT extends AbstractExternalDataSourceIT {
 
         Exception e = expectThrows(Exception.class, () -> run(syncEsqlQueryRequest("FROM logs_noext_strict | LIMIT 1"), TIMEOUT).close());
         assertThat(e.getMessage(), not(containsString("NullPointerException")));
-        assertThat(e.getMessage(), containsString("Cannot determine how to read"));
-        assertThat(e.getMessage(), containsString("no file extension"));
-        assertThat(e.getMessage(), containsString("[format]"));
+        assertThat(e.getMessage(), containsString(FormatNameResolver.ambiguousDatasetFormatMessage(noExt.toUri().toString())));
+    }
+
+    /**
+     * Strict dataset over an extensionless Parquet file with an explicit {@code format=parquet} setting must succeed.
+     * Contrast with {@link #testStrictDatasetWithUnknowableFormatFailsCleanlyNotNpe}: that case has no format setting
+     * (format truly unknown). This case has the setting — the file factory picks it up via the explicit format and reads
+     * the file correctly. The companion S3 regression (Iceberg wrapper mis-routing on extensionless S3 paths) is covered
+     * by the unit test {@code DataSourceModuleTests#testLazyTableCatalogWrapperDeclinesExplicitRegisteredFormat}.
+     */
+    public void testStrictParquetWithExtensionlessFileAndExplicitFormat() throws Exception {
+        assertAcked(client().execute(PutDataSourceAction.INSTANCE, putDataSourceRequest("local_ds", Map.of())));
+
+        // Write a 3-row Parquet fixture to a path with no file extension.
+        Path noExt = createTempDir().resolve("employees");
+        writeParquet(noExt, 3, 1000);
+
+        Map<String, DatasetFieldMapping> properties = new LinkedHashMap<>();
+        properties.put("id", new DatasetFieldMapping("long", null));
+        properties.put("name", new DatasetFieldMapping("keyword", null));
+        properties.put("value", new DatasetFieldMapping("integer", null));
+        DatasetMapping mapping = new DatasetMapping(new DatasetMapping.Mappings(DatasetMapping.Dynamic.FALSE, properties));
+
+        assertAcked(
+            client().execute(
+                PutDatasetAction.INSTANCE,
+                new PutDatasetAction.Request(
+                    TIMEOUT,
+                    TIMEOUT,
+                    "logs_noext_parquet_strict",
+                    "local_ds",
+                    noExt.toUri().toString(),
+                    null,
+                    new HashMap<>(Map.of("format", "parquet")),
+                    mapping
+                )
+            )
+        );
+
+        // Cold query (schema cache empty for a fresh dataset) must succeed.
+        try (var response = run(syncEsqlQueryRequest("FROM logs_noext_parquet_strict | SORT id | LIMIT 5"), TIMEOUT)) {
+            List<List<Object>> rows = getValuesList(response);
+            assertThat(rows, hasSize(3));
+            assertThat(rows.get(0).get(0), equalTo(0L));
+            assertThat(rows.get(1).get(0), equalTo(1L));
+            assertThat(rows.get(2).get(0), equalTo(2L));
+        }
+
+        // Companion: same extensionless file, same strict mapping, but schema_resolution also present in settings.
+        // schema_resolution is another dataset-level key the Iceberg catalog's validateConfig would reject as unknown;
+        // verifying it works cold confirms the factory-routing fix covers all dataset settings, not just format.
+        assertAcked(
+            client().execute(
+                PutDatasetAction.INSTANCE,
+                new PutDatasetAction.Request(
+                    TIMEOUT,
+                    TIMEOUT,
+                    "logs_noext_parquet_strict_sr",
+                    "local_ds",
+                    noExt.toUri().toString(),
+                    null,
+                    new HashMap<>(Map.of("format", "parquet", "schema_resolution", "first_file_wins")),
+                    mapping
+                )
+            )
+        );
+        try (var response = run(syncEsqlQueryRequest("FROM logs_noext_parquet_strict_sr | SORT id | LIMIT 5"), TIMEOUT)) {
+            List<List<Object>> rows = getValuesList(response);
+            assertThat(rows, hasSize(3));
+            assertThat(rows.get(0).get(0), equalTo(0L));
+            assertThat(rows.get(1).get(0), equalTo(1L));
+            assertThat(rows.get(2).get(0), equalTo(2L));
+        }
     }
 
     public void testNdJsonRenameStrictReadsByPhysicalJsonKey() throws Exception {
@@ -2881,6 +2880,26 @@ public class FromDatasetIT extends AbstractExternalDataSourceIT {
         return baos.toByteArray();
     }
 
+    private byte[] int32FixtureBytes(String column, int... values) throws IOException {
+        MessageType schema = Types.buildMessage().required(PrimitiveType.PrimitiveTypeName.INT32).named(column).named("test");
+        ByteArrayOutputStream baos = new ByteArrayOutputStream();
+        SimpleGroupFactory factory = new SimpleGroupFactory(schema);
+        try (
+            ParquetWriter<Group> writer = ExampleParquetWriter.builder(createOutputFile(baos))
+                .withConf(new PlainParquetConfiguration())
+                .withType(schema)
+                .withCompressionCodec(CompressionCodecName.UNCOMPRESSED)
+                .build()
+        ) {
+            for (int value : values) {
+                Group g = factory.newGroup();
+                g.add(column, value);
+                writer.write(g);
+            }
+        }
+        return baos.toByteArray();
+    }
+
     private byte[] dateFixtureBytes(int... days) throws IOException {
         MessageType schema = MessageTypeParser.parseMessageType("message logs { required int32 d (DATE); }");
         ByteArrayOutputStream baos = new ByteArrayOutputStream();
@@ -3223,6 +3242,74 @@ public class FromDatasetIT extends AbstractExternalDataSourceIT {
             // micros -> millis: the .456 microsecond remainder truncates away
             assertThat(rows.get(0).get(0), equalTo(1704067200_123L));
         }
+    }
+
+    /**
+     * {@code TIMESTAMP(MICROS)} infers as {@code date_nanos}. A {@code TO_DATETIME} literal is the other date
+     * type, so reader prune and stats fold decline; {@code FilterExec} still keeps the matching row.
+     */
+    public void testDatetimeLiteralFiltersInferredTimestampMicros() throws Exception {
+        assertAcked(client().execute(PutDataSourceAction.INSTANCE, putDataSourceRequest("local_ds", Map.of())));
+        Path parquet = createTempDir().resolve("ts_micros.parquet");
+        Files.write(parquet, timestampMicrosFixtureBytes(1767312000_000_000L));
+        assertAcked(
+            client().execute(
+                PutDatasetAction.INSTANCE,
+                new PutDatasetAction.Request(
+                    TIMEOUT,
+                    TIMEOUT,
+                    "mixed_ts_inferred",
+                    "local_ds",
+                    parquet.toUri().toString(),
+                    null,
+                    new HashMap<>(Map.of("format", "parquet")),
+                    null
+                )
+            )
+        );
+        String iso = "2026-01-02T00:00:00Z";
+        assertQ(
+            "matching date_nanos literal",
+            "FROM mixed_ts_inferred | WHERE ts == TO_DATE_NANOS(\"" + iso + "\") | STATS c = COUNT(*)",
+            1L
+        );
+        assertQ("datetime equals", "FROM mixed_ts_inferred | WHERE ts == TO_DATETIME(\"" + iso + "\") | STATS c = COUNT(*)", 1L);
+        assertQ("datetime lte", "FROM mixed_ts_inferred | WHERE ts <= TO_DATETIME(\"" + iso + "\") | STATS c = COUNT(*)", 1L);
+        assertQ("datetime in", "FROM mixed_ts_inferred | WHERE ts IN (TO_DATETIME(\"" + iso + "\")) | STATS c = COUNT(*)", 1L);
+        assertQ(
+            "datetime range",
+            "FROM mixed_ts_inferred | WHERE ts >= TO_DATETIME(\"2026-01-01T00:00:00Z\") AND ts <= TO_DATETIME(\"2026-01-03T00:00:00Z\")"
+                + " | STATS c = COUNT(*)",
+            1L
+        );
+    }
+
+    /**
+     * An inferred {@code integer} compared to a {@code double} or {@code long} literal must stay in
+     * {@code FilterExec}; a column-typed bound would drop the matching row.
+     */
+    public void testNumericLiteralFiltersInferredInteger() throws Exception {
+        assertAcked(client().execute(PutDataSourceAction.INSTANCE, putDataSourceRequest("local_ds", Map.of())));
+        Path parquet = createTempDir().resolve("id.parquet");
+        Files.write(parquet, int32FixtureBytes("i", 5));
+        assertAcked(
+            client().execute(
+                PutDatasetAction.INSTANCE,
+                new PutDatasetAction.Request(
+                    TIMEOUT,
+                    TIMEOUT,
+                    "mixed_int_inferred",
+                    "local_ds",
+                    parquet.toUri().toString(),
+                    null,
+                    new HashMap<>(Map.of("format", "parquet")),
+                    null
+                )
+            )
+        );
+        assertQ("integer lt double", "FROM mixed_int_inferred | WHERE i < 5.5 | STATS c = COUNT(*)", 1L);
+        assertQ("integer lte long", "FROM mixed_int_inferred | WHERE i <= 3000000000 | STATS c = COUNT(*)", 1L);
+        assertQ("integer in int and double", "FROM mixed_int_inferred | WHERE i IN (5, 5.5) | STATS c = COUNT(*)", 1L);
     }
 
     /** Declares {@code {ts: date, format: <the composite>}} over one dataset and asserts ts recovers EPOCH_SECOND_MILLIS. */
@@ -5549,7 +5636,7 @@ public class FromDatasetIT extends AbstractExternalDataSourceIT {
                     "local_ds",
                     root.toUri() + "**/*.csv",
                     null,
-                    new HashMap<>(Map.of("format", "csv", "hive_partitioning", true)),
+                    new HashMap<>(Map.of("format", "csv", "partition_detection", "hive")),
                     mapping
                 )
             )
@@ -5637,7 +5724,7 @@ public class FromDatasetIT extends AbstractExternalDataSourceIT {
                     "local_ds",
                     root.toUri() + "**/*.csv",
                     null,
-                    new HashMap<>(Map.of("format", "csv", "hive_partitioning", true)),
+                    new HashMap<>(Map.of("format", "csv", "partition_detection", "hive")),
                     mapping
                 )
             )
@@ -5665,7 +5752,7 @@ public class FromDatasetIT extends AbstractExternalDataSourceIT {
                     "local_ds",
                     root.toUri() + "**/*.csv",
                     null,
-                    new HashMap<>(Map.of("format", "csv", "hive_partitioning", true)),
+                    new HashMap<>(Map.of("format", "csv", "partition_detection", "hive")),
                     pathMapping
                 )
             )
@@ -5702,7 +5789,7 @@ public class FromDatasetIT extends AbstractExternalDataSourceIT {
                     "local_ds",
                     root.toUri() + "**/*.csv",
                     null,
-                    new HashMap<>(Map.of("format", "csv", "hive_partitioning", true)),
+                    new HashMap<>(Map.of("format", "csv", "partition_detection", "hive")),
                     strictMapping
                 )
             )
@@ -5740,7 +5827,7 @@ public class FromDatasetIT extends AbstractExternalDataSourceIT {
                     "local_ds",
                     root.toUri() + "**/*.csv",
                     null,
-                    new HashMap<>(Map.of("format", "csv", "hive_partitioning", true)),
+                    new HashMap<>(Map.of("format", "csv", "partition_detection", "hive")),
                     collidingMapping
                 )
             )
@@ -5850,6 +5937,157 @@ public class FromDatasetIT extends AbstractExternalDataSourceIT {
 
     private static PutDataSourceAction.Request putDataSourceRequest(String name, Map<String, Object> settings) {
         return new PutDataSourceAction.Request(TIMEOUT, TIMEOUT, name, "test", null, new HashMap<>(settings));
+    }
+
+    /**
+     * A marker and a sidecar in an otherwise clean prefix used to fail the whole query. They are excluded by
+     * default now, and a {@code _}-prefixed Hive partition directory in the same tree still resolves — the two
+     * halves of the default that a single glob list could not express together.
+     *
+     * <p>The resource is {@code **}{@code /*} rather than {@code **}{@code /*.csv} deliberately: under the
+     * narrower glob the marker and the sidecar never match in the first place, so the assertion would hold with
+     * exclusion stubbed out entirely and would prove nothing.
+     */
+    public void testDefaultExclusionsSkipMarkersAndKeepPartitionDirectories() throws Exception {
+        Path root = createTempDir();
+        Path partition = Files.createDirectories(root.resolve("_dept=alpha"));
+        Files.writeString(partition.resolve("part1.csv"), "emp_no:integer,name:keyword\n1,Alice\n");
+        Files.writeString(root.resolve("_SUCCESS"), "");
+        Files.writeString(root.resolve(".part1.csv.crc"), "junk");
+
+        assertAcked(client().execute(PutDataSourceAction.INSTANCE, putDataSourceRequest("local_ds", Map.of())));
+        assertAcked(
+            client().execute(
+                PutDatasetAction.INSTANCE,
+                putDatasetRequest("logs_default_exclusions", "local_ds", root.toUri() + "**/*", Map.of("format", "csv"))
+            )
+        );
+
+        try (var response = run(syncEsqlQueryRequest("FROM logs_default_exclusions | KEEP name | LIMIT 5"), TIMEOUT)) {
+            assertEquals("the marker and sidecar must not reach the reader", 1, getValuesList(response).size());
+        }
+    }
+
+    /**
+     * Exclusion runs before schema reconciliation, so it must fix the marker problem under BOTH resolution
+     * strategies. They fail differently without it — {@code union_by_name} opens every listed file and aborts the
+     * resolve on the first unclaimable one, while {@code first_file_wins} can pass planning and fail later on a
+     * data node — so a fix that only covered one would look green on half the datasets in the wild.
+     */
+    public void testDefaultExclusionsHoldUnderBothSchemaResolutions() throws Exception {
+        assertAcked(client().execute(PutDataSourceAction.INSTANCE, putDataSourceRequest("local_ds", Map.of())));
+        for (String resolution : List.of("union_by_name", "first_file_wins")) {
+            Path root = createTempDir();
+            Files.writeString(root.resolve("part1.csv"), "emp_no:integer,name:keyword\n1,Alice\n");
+            Files.writeString(root.resolve("part2.csv"), "emp_no:integer,name:keyword\n2,Bob\n");
+            // Sorts ahead of both data files, so under first_file_wins it would anchor the schema if it survived.
+            Files.writeString(root.resolve("_SUCCESS"), "");
+
+            String dataset = "logs_resolution_" + resolution;
+            assertAcked(
+                client().execute(
+                    PutDatasetAction.INSTANCE,
+                    putDatasetRequest(dataset, "local_ds", root.toUri() + "*", Map.of("format", "csv", "schema_resolution", resolution))
+                )
+            );
+
+            try (var response = run(syncEsqlQueryRequest("FROM " + dataset + " | KEEP name | SORT name | LIMIT 5"), TIMEOUT)) {
+                List<String> names = getValuesList(response).stream().map(r -> (String) r.get(0)).toList();
+                assertEquals("both data files must resolve under " + resolution, List.of("Alice", "Bob"), names);
+            }
+        }
+    }
+
+    /**
+     * The defect this whole exclusion design exists to remove. Under {@code partition_detection: template} the
+     * directories are bare values rather than {@code key=value}, so a value beginning with {@code _} had nothing to
+     * distinguish it from a Spark marker: the old default matched every path segment and dropped the whole
+     * partition, silently, along with its rows. The default now matches only the file name, which a partition value
+     * can never be, so the question cannot arise under any detection mode.
+     */
+    public void testTemplatePartitionValueStartingWithUnderscoreSurvives() throws Exception {
+        Path root = createTempDir();
+        Path underscore = Files.createDirectories(root.resolve("_foo"));
+        Files.writeString(underscore.resolve("part1.csv"), "emp_no:integer,name:keyword\n1,Alice\n");
+        Path ordinary = Files.createDirectories(root.resolve("bar"));
+        Files.writeString(ordinary.resolve("part1.csv"), "emp_no:integer,name:keyword\n2,Bob\n");
+        // A marker inside the underscore-named partition, to show the leaf rule still does its job in there.
+        Files.writeString(underscore.resolve("_SUCCESS"), "");
+
+        assertAcked(client().execute(PutDataSourceAction.INSTANCE, putDataSourceRequest("local_ds", Map.of())));
+        assertAcked(
+            client().execute(
+                PutDatasetAction.INSTANCE,
+                putDatasetRequest(
+                    "logs_template_underscore",
+                    "local_ds",
+                    root.toUri() + "*/*",
+                    Map.of("format", "csv", "partition_detection", "template", "partition_path", "{dept}")
+                )
+            )
+        );
+
+        try (var response = run(syncEsqlQueryRequest("FROM logs_template_underscore | KEEP name | SORT name | LIMIT 5"), TIMEOUT)) {
+            List<String> names = getValuesList(response).stream().map(r -> (String) r.get(0)).toList();
+            assertEquals("the _foo partition must not disappear", List.of("Alice", "Bob"), names);
+        }
+    }
+
+    /**
+     * The gap this feature closes: an object that no convention covers — a README beside the data — fails the
+     * query on main with no way out short of moving the file. Naming it in {@code file_exclusions} resolves it.
+     */
+    public void testCustomExclusionSkipsAnObjectNoConventionCovers() throws Exception {
+        Path root = createTempDir();
+        Files.writeString(root.resolve("part1.csv"), "emp_no:integer,name:keyword\n1,Alice\n");
+        Files.writeString(root.resolve("README.md"), "not data");
+
+        assertAcked(client().execute(PutDataSourceAction.INSTANCE, putDataSourceRequest("local_ds", Map.of())));
+        assertAcked(
+            client().execute(
+                PutDatasetAction.INSTANCE,
+                putDatasetRequest(
+                    "logs_custom_exclusions",
+                    "local_ds",
+                    root.toUri() + "*",
+                    Map.of("format", "csv", "file_exclusions", List.of("_*", ".*", "README.md"))
+                )
+            )
+        );
+
+        try (var response = run(syncEsqlQueryRequest("FROM logs_custom_exclusions | KEEP name | LIMIT 5"), TIMEOUT)) {
+            assertEquals(1, getValuesList(response).size());
+        }
+    }
+
+    /**
+     * An empty {@code file_exclusions} list turns name-based exclusion off, so the marker reaches the reader again
+     * and the query fails the way it did before any of this existed. This is the escape hatch, and it has to
+     * actually change what is listed rather than merely be accepted at registration. It does not restore directory
+     * placeholder keys, which are skipped as listing normalization regardless of any setting.
+     */
+    public void testEmptyExclusionListRestoresTheRawListing() throws Exception {
+        Path root = createTempDir();
+        Files.writeString(root.resolve("part1.csv"), "emp_no:integer,name:keyword\n1,Alice\n");
+        Files.writeString(root.resolve("_SUCCESS"), "");
+
+        assertAcked(client().execute(PutDataSourceAction.INSTANCE, putDataSourceRequest("local_ds", Map.of())));
+        assertAcked(
+            client().execute(
+                PutDatasetAction.INSTANCE,
+                putDatasetRequest(
+                    "logs_no_exclusions",
+                    "local_ds",
+                    root.toUri() + "*",
+                    Map.of("format", "csv", "file_exclusions", List.of())
+                )
+            )
+        );
+
+        Exception e = expectThrows(Exception.class, () -> {
+            try (var ignored = run(syncEsqlQueryRequest("FROM logs_no_exclusions | LIMIT 5"), TIMEOUT)) {}
+        });
+        assertThat("the marker must reach the reader and fail loudly", e.getMessage() + e.getCause(), containsString("_SUCCESS"));
     }
 
     private static PutDatasetAction.Request putDatasetRequest(

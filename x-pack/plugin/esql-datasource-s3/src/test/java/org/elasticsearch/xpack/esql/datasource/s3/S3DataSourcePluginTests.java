@@ -15,6 +15,7 @@ import org.elasticsearch.env.Environment;
 import org.elasticsearch.env.TestEnvironment;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.watcher.ResourceWatcherService;
+import org.elasticsearch.xpack.esql.datasources.spi.DataSourceTelemetryVocabulary.Type;
 import org.elasticsearch.xpack.esql.datasources.spi.StorageProviderFactory;
 import org.elasticsearch.xpack.esql.datasources.spi.StorageProviderServices;
 import org.junit.Before;
@@ -80,6 +81,15 @@ public class S3DataSourcePluginTests extends ESTestCase {
     public void testSupportedSchemes() throws IOException {
         try (S3DataSourcePlugin plugin = new S3DataSourcePlugin()) {
             assertEquals(Set.of("s3", "s3a", "s3n"), plugin.supportedSchemes());
+        }
+    }
+
+    public void testSchemeFoldAgreesWithTypeId() throws IOException {
+        try (S3DataSourcePlugin plugin = new S3DataSourcePlugin()) {
+            String typeId = plugin.datasourceValidators(Settings.EMPTY).keySet().iterator().next();
+            for (String scheme : plugin.supportedSchemes()) {
+                assertSame(Type.fromTypeId(typeId), Type.fromScheme(scheme));
+            }
         }
     }
 

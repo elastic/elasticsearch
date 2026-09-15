@@ -149,6 +149,11 @@ public class SplitStatsTests extends ESTestCase {
         assertNull(stats.columnMin("poisoned"));
         assertNull(stats.columnMax("poisoned"));
         assertNull(stats.columnMin("nodata"));
+        // ...and positionally. Behavioural documentation, not a discriminator: the constructor asserts the
+        // "unservable => no value" invariant, so the stored value is already null and the servability check in
+        // min(int)/max(int) is a production-only (asserts-off) backstop that no constructible input can distinguish.
+        assertNull(stats.min(0));
+        assertNull(stats.max(0));
 
         // ...but the flat map distinguishes them: the poisoned column carries the marker, no-data does not.
         Map<String, Object> map = stats.toMap();

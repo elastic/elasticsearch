@@ -408,6 +408,13 @@ class S3Repository extends MeteredBlobStoreRepository {
         UNSAFELY_INCOMPATIBLE_WITH_S3_CONDITIONAL_WRITES.getKey()
     );
 
+    static String deprecatedClientSettingDeprecationWarning(String settingKey) {
+        return Strings.format(
+            "This repository's settings include the deprecated S3 client setting [%s] which must be removed before upgrade.",
+            settingKey
+        );
+    }
+
     @Override
     public Collection<RepositoryDeprecationInfo> getDeprecationInfos() {
         final List<RepositoryDeprecationInfo> deprecationInfos = new ArrayList<>();
@@ -422,6 +429,24 @@ class S3Repository extends MeteredBlobStoreRepository {
                     false
                 )
             );
+        }
+        for (String normalizedKey : S3ClientSettings.normalizeRepositorySettings(getMetadata().settings()).keySet()) {
+            for (Setting.AffixSetting<?> setting : S3RepositorySettings.DEPRECATED_CLIENT_SETTINGS) {
+                if (setting.match(normalizedKey)) {
+                    deprecationInfos.add(
+                        new RepositoryDeprecationInfo(
+                            RepositoryDeprecationInfo.Level.CRITICAL,
+                            "S3 repository explicitly configures a deprecated client setting",
+                            ReferenceDocs.TROUBLESHOOT_REPOSITORY,
+                            deprecatedClientSettingDeprecationWarning(
+                                normalizedKey.substring(S3ClientSettings.REPOSITORY_CLIENT_SETTINGS_PREFIX.length())
+                            ),
+                            false
+                        )
+                    );
+                    break;
+                }
+            }
         }
         if (UNSAFELY_INCOMPATIBLE_WITH_S3_CONDITIONAL_WRITES.exists(getMetadata().settings())) {
             deprecationInfos.add(

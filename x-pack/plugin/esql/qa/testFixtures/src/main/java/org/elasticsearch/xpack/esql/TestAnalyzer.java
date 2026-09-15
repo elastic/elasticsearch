@@ -45,6 +45,7 @@ import org.elasticsearch.xpack.esql.parser.QueryParams;
 import org.elasticsearch.xpack.esql.plan.IndexPattern;
 import org.elasticsearch.xpack.esql.plan.LinkedIndexPattern;
 import org.elasticsearch.xpack.esql.plan.QuerySettings;
+import org.elasticsearch.xpack.esql.plan.logical.Aggregate;
 import org.elasticsearch.xpack.esql.plan.logical.Enrich;
 import org.elasticsearch.xpack.esql.plan.logical.Eval;
 import org.elasticsearch.xpack.esql.plan.logical.Filter;
@@ -177,6 +178,11 @@ public class TestAnalyzer {
      * Convenience overload of {@link #addLenientResolution(LinkedIndexPattern, IndexResolution)} for the
      * common no-exclusion case: keys the entry by an {@link IndexPattern} built from
      * {@code esIndex.name()} (which the test should match the local view name).
+     * <p>
+     * The shadow rules treat a resolution with no resolved indices as no-match, so a matched
+     * fixture's {@code EsIndex} must carry {@code indexProperties} (build it with the 3-arg
+     * {@code EsIndexGenerator.esIndex(name, mapping, indexNameWithModes)}); otherwise the shadow
+     * is stripped instead of resolved.
      */
     public TestAnalyzer addLenientResolution(EsIndex esIndex) {
         return addLenientResolution(
@@ -659,6 +665,11 @@ public class TestAnalyzer {
                 // EVAL IN subqueries become MarkJoins; recurse so views in their now-exposed subquery plans are resolved too.
                 return resolved == eval ? eval : resolveViews(resolved, viewDefinitions);
             }
+            if (p instanceof Aggregate aggregate) {
+                LogicalPlan resolved = InSubqueryResolver.resolveInSubqueryInAggregate(aggregate);
+                // Recurse into rewritten joins so views referenced by the newly exposed subquery plans are expanded too.
+                return resolved == aggregate ? aggregate : resolveViews(resolved, viewDefinitions);
+            }
             if (p instanceof UnresolvedRelation ur) {
                 LogicalPlan resolved = resolveViewReference(ur, viewDefinitions);
                 // Recurse into the expanded view body so IN subqueries / nested views anywhere in it (including its root) are resolved.
@@ -939,13 +950,20 @@ public class TestAnalyzer {
      * {@link Analyzer} and call {@link Analyzer#analyze} directly, possibly against several different queries.
      */
     public Analyzer buildAnalyzer(Verifier verifier) {
-        return new Analyzer(buildContext(), verifier) {
+        lastAnalyzer = new Analyzer(buildContext(), verifier) {
             @Override
             public LogicalPlan analyze(LogicalPlan plan) {
                 resolveEnrichResolution(plan);
                 return super.analyze(plan);
             }
         };
+        return lastAnalyzer;
+    }
+
+    private Analyzer lastAnalyzer;
+
+    public Analyzer lastAnalyzer() {
+        return lastAnalyzer;
     }
 
     /**

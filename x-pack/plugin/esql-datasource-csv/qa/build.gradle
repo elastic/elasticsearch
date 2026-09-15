@@ -64,6 +64,11 @@ tasks.register('syncCsvIcebergFixtures', Sync) {
   duplicatesStrategy = DuplicatesStrategy.FAIL
   from(testFixturesProject.file('src/main/resources/data')) {
     include fixtureMatrix.datasetsFor('csv').collect { it + '.csv' }
+    // Copied verbatim, deliberately outside the declared dataset set. The matrix's datasets are logical
+    // TABLES it renders into each format; this one is a byte fixture whose leading prose preamble is the
+    // thing under test, so it has no rendered form and the parser cannot read it as rows. Declaring it a
+    // dataset makes generateCsvVectorVariants try to re-render it and fail on the preamble.
+    include 'skip_rows_sessions.csv'
   }
   into file("${csvIcebergFixtureRoot}/iceberg-fixtures/standalone")
 }

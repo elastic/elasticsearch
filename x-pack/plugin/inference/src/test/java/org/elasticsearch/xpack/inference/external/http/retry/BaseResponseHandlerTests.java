@@ -83,13 +83,7 @@ public class BaseResponseHandlerTests extends ESTestCase {
     }
 
     private static HttpResult httpResult(int statusCode) {
-        var statusLine = mock(StatusLine.class);
-        when(statusLine.getStatusCode()).thenReturn(statusCode);
-
-        var httpResponse = mock(HttpResponse.class);
-        when(httpResponse.getStatusLine()).thenReturn(statusLine);
-
-        return new HttpResult(httpResponse, new byte[0]);
+        return new HttpResult(new BasicHttpResponse(statusCode), new byte[0]);
     }
 
     public void testToRestStatus_ReturnsBadRequest_WhenStatusIs501() {

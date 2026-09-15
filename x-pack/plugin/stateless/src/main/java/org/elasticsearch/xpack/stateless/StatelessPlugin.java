@@ -970,7 +970,12 @@ public class StatelessPlugin extends Plugin
         services.allocationService()
             .getClusterInfoService()
             .addListener(
-                new EstimatedHeapUsageMonitor(clusterService.getClusterSettings(), clusterService::state, rerouteService)::onNewInfo
+                new EstimatedHeapUsageMonitor(
+                    clusterService.getClusterSettings(),
+                    clusterService::state,
+                    rerouteService,
+                    EstimatedHeapUsageAllocationDecider.monitorConfiguration()
+                )::onNewInfo
             );
 
         services.allocationService()

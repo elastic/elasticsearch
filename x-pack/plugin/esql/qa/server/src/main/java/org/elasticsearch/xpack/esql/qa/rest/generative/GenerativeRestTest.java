@@ -236,7 +236,16 @@ public abstract class GenerativeRestTest extends ESRestTestCase implements Query
         "class java\\.util\\.ArrayList cannot be cast to class java\\.lang\\.Boolean.*",
 
         // https://github.com/elastic/elasticsearch/issues/154080
-        "unexpected data type \\[NULL\\]"
+        "unexpected data type \\[NULL\\]",
+
+        // https://github.com/elastic/elasticsearch/issues/159298
+        "Invalid types \\[DATETIME, NULL\\] If you see this error, there is a bug in DateDiff\\.resolveType\\(\\)",
+
+        // Queries can time out in the test cluster (e.g. ip_location on non-IP values, wide
+        // inline-stats schemas, CHANGE_POINT + LOOKUP JOIN). The timeout itself is a test
+        // infrastructure limit; the query was valid ES|QL.
+        // https://github.com/elastic/elasticsearch/issues/158881
+        "\\d[\\d ,]*milliseconds timeout on connection.*"
     );
 
     /**
@@ -593,7 +602,9 @@ public abstract class GenerativeRestTest extends ESRestTestCase implements Query
         ctx -> isInlineStatsSubqueryAggregateExecBug(ctx.normalizedErrorMessage, ctx.query),
         ctx -> isEvalWhereFilterBug(ctx.normalizedErrorMessage, ctx.query),
         ctx -> isRenameInlineStatsProjectBug(ctx.normalizedErrorMessage, ctx.query),
-        ctx -> isEvalInlineStatsAggregateBug(ctx.normalizedErrorMessage, ctx.query), };
+        ctx -> isEvalInlineStatsAggregateBug(ctx.normalizedErrorMessage, ctx.query),
+        ctx -> isForkAttributesInSubplansBug(ctx.normalizedErrorMessage, ctx.query),
+        ctx -> isEvalInlineStatsProjectBug(ctx.normalizedErrorMessage, ctx.query), };
 
     /**
      * Returns extra error-message patterns the {@link #enabledFeatures()} are allowed to surface. Aggregated
@@ -1386,6 +1397,50 @@ public abstract class GenerativeRestTest extends ESRestTestCase implements Query
         return EVAL_COMMAND_PATTERN.matcher(query).find()
             && INLINE_STATS_COMMAND_PATTERN.matcher(query).find()
             && STATS_COMMAND_PATTERN.matcher(query).find();
+    }
+
+    private static final Pattern OPTIMIZED_INCORRECTLY_ATTRIBUTES_IN_SUBPLANS_PATTERN = Pattern.compile(
+        ".*optimized incorrectly due to missing attributes in subplans.*",
+        Pattern.DOTALL
+    );
+
+    /**
+     * FORK + STATS (or INLINE STATS) followed by DROP _fork causes the optimizer to lose track
+     * of grouping-key references, producing "optimized incorrectly due to missing attributes in
+     * subplans". Distinct from {@link #isForkOptimizedIncorrectlyBug} which catches the
+     * "missing references" variant.
+     * See <a href="https://github.com/elastic/elasticsearch/issues/136927">#136927</a>,
+     * <a href="https://github.com/elastic/elasticsearch/issues/146165">#146165</a>.
+     */
+    static boolean isForkAttributesInSubplansBug(String errorMessage, String query) {
+        if (errorMessage == null || query == null) {
+            return false;
+        }
+        if (OPTIMIZED_INCORRECTLY_ATTRIBUTES_IN_SUBPLANS_PATTERN.matcher(errorMessage).matches() == false) {
+            return false;
+        }
+        return FORK_COMMAND_PATTERN.matcher(query).find();
+    }
+
+    /**
+     * EVAL reassigning an existing index field followed by INLINE STATS (without a downstream
+     * plain STATS) causes the optimizer to drop the EVAL-reassigned reference from the Project
+     * plan node. Same root cause as {@link #isRenameInlineStatsProjectBug} (#154145): INLINE
+     * STATS with a null-typed aggregate input confuses an optimizer rule into dropping unrelated
+     * derived references; here the derived references come from EVAL reassignments rather than
+     * RENAME.
+     * See <a href="https://github.com/elastic/elasticsearch/issues/154145">#154145</a>.
+     */
+    static boolean isEvalInlineStatsProjectBug(String errorMessage, String query) {
+        if (errorMessage == null || query == null) {
+            return false;
+        }
+        if (OPTIMIZED_INCORRECTLY_PATTERN.matcher(errorMessage).matches() == false) {
+            return false;
+        }
+        return EVAL_COMMAND_PATTERN.matcher(query).find()
+            && INLINE_STATS_COMMAND_PATTERN.matcher(query).find()
+            && FORK_COMMAND_PATTERN.matcher(query).find() == false;
     }
 
     @Override

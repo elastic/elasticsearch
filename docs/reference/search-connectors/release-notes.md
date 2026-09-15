@@ -17,7 +17,6 @@ It includes detailed steps, tooling, and resources to help you transition to sup
 
 ### Fixes [connectors-9.5.4-fixes]
 * Fix connectors running under Elastic Agent crashing on check-in when the Elasticsearch output policy included an `ssl` block. Agent SSL settings are now read correctly from the protobuf config payload. [#4456](https://github.com/elastic/connectors/pull/4456), [#4084](https://github.com/elastic/connectors/issues/4084)
-* Fix the Outlook connector aborting long syncs when the LDAP admin-user query ran on a stale Active Directory connection. User enumeration now opens a fresh connection per search and retries transient network failures. [#4441](https://github.com/elastic/connectors/pull/4441)
 * Fix MD5 hashing being blocked on FIPS-enabled hosts, where OpenSSL rejects `hashlib.md5()` without the `usedforsecurity=False` flag. Existing document IDs are unaffected. [#4416](https://github.com/elastic/connectors/pull/4416)
 * Fix Network Drive Document Level Security granting read access to users who only have write permission on a file, instead of matching Windows file server behavior. [#4410](https://github.com/elastic/connectors/pull/4410), [#1963](https://github.com/elastic/connectors/issues/1963), [#2875](https://github.com/elastic/connectors/issues/2875)
 * Fix MSSQL connector syncs failing with `Invalid TDS marker` when large table queries were retried on a poisoned connection. [#4407](https://github.com/elastic/connectors/pull/4407), [#3723](https://github.com/elastic/connectors/issues/3723)

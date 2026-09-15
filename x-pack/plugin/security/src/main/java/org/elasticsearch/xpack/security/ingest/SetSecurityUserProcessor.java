@@ -144,7 +144,7 @@ public final class SetSecurityUserProcessor extends AbstractProcessor {
                     break;
                 case API_KEY:
                     if (authentication.isApiKey()) {
-                        final Map<String, Object> apiKeyField = valueOrMapOfSize(userObject.get(API_KEY), 3);
+                        final Map<String, Object> apiKeyField = valueOrMapOfSize(userObject.get(API_KEY), 3); // name, id, metadata
 
                         final Map<String, Object> subjectMetadata = authentication.getAuthenticatingSubject().getMetadata();
                         final Object apiKeyName = subjectMetadata.getOrDefault(AuthenticationField.API_KEY_NAME_KEY, NOT_FOUND);
@@ -166,7 +166,7 @@ public final class SetSecurityUserProcessor extends AbstractProcessor {
                     }
                     break;
                 case REALM:
-                    final Map<String, Object> realmField = valueOrMapOfSize(userObject.get(REALM_KEY), 2);
+                    final Map<String, Object> realmField = valueOrMapOfSize(userObject.get(REALM_KEY), 2); // name, type
 
                     final Object realmName = ApiKeyService.getCreatorRealmName(authentication);
                     if (realmName != null) {

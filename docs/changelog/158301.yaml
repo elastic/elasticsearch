@@ -2,5 +2,5 @@ area: ES|QL
 issues:
  - 157876
 pr: 158301
-summary: Return 400 for unresolved MMR query vector
+summary: Return HTTP 400 for an unresolved maximal marginal relevance (MMR) query vector
 type: bug

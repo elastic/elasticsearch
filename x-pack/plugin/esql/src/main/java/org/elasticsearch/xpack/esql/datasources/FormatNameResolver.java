@@ -154,6 +154,24 @@ public final class FormatNameResolver {
         return resolveReader(config, objectName, registry).formatName();
     }
 
+    /**
+     * Registry format name for cache-key identity: config {@code reader}/{@code format} first, then
+     * the inner extension's claimed format with a compression suffix stripped. Does not wrap a codec
+     * or instantiate the reader, so a whole-file-compression veto cannot throw. Returns {@code null}
+     * when undetermined.
+     */
+    @Nullable
+    public static String resolveFormatNameForIdentity(Map<String, Object> config, String objectName, FormatReaderRegistry registry) {
+        String explicit = explicitFormatName(config);
+        if (explicit != null) {
+            return explicit;
+        }
+        if (registry == null) {
+            return null;
+        }
+        return registry.formatNameForObject(objectName);
+    }
+
     public static String datasetFormat(Map<String, Object> config, String resource, FormatReaderRegistry registry) {
         return datasetFormat(config, resource, candidate -> {
             if (registry == null) {

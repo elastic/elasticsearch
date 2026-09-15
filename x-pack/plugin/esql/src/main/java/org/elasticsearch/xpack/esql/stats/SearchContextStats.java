@@ -517,34 +517,30 @@ public class SearchContextStats implements SearchStats {
     //
     private static long countEntries(IndexReader indexReader, String field) {
         long count = 0;
-        try {
-            for (LeafReaderContext context : indexReader.leaves()) {
-                LeafReader reader = context.reader();
-                FieldInfos fieldInfos = reader.getFieldInfos();
-                FieldInfo fieldInfo = fieldInfos.fieldInfo(field);
+        for (LeafReaderContext context : indexReader.leaves()) {
+            LeafReader reader = context.reader();
+            FieldInfos fieldInfos = reader.getFieldInfos();
+            FieldInfo fieldInfo = fieldInfos.fieldInfo(field);
 
-                if (fieldInfo != null) {
-                    if (fieldInfo.getDocValuesType() == DocValuesType.NONE) {
-                        // no shortcut possible: it's a text field, empty values are counted as no value.
-                        return -1;
+            if (fieldInfo != null) {
+                if (fieldInfo.getDocValuesType() == DocValuesType.NONE) {
+                    // no shortcut possible: it's a text field, empty values are counted as no value.
+                    return -1;
+                }
+                if (fieldInfo.getPointIndexDimensionCount() > 0) {
+                    PointValues points = reader.getPointValues(field);
+                    if (points != null) {
+                        count += points.size();
                     }
-                    if (fieldInfo.getPointIndexDimensionCount() > 0) {
-                        PointValues points = reader.getPointValues(field);
-                        if (points != null) {
-                            count += points.size();
-                        }
-                    } else if (fieldInfo.getIndexOptions() != IndexOptions.NONE) {
-                        Terms terms = reader.terms(field);
-                        if (terms != null) {
-                            count += terms.getSumTotalTermFreq();
-                        }
-                    } else {
-                        return -1; // no shortcut possible for fields that are not indexed
+                } else if (fieldInfo.getIndexOptions() != IndexOptions.NONE) {
+                    Terms terms = reader.terms(field);
+                    if (terms != null) {
+                        count += terms.getSumTotalTermFreq();
                     }
+                } else {
+                    return -1; // no shortcut possible for fields that are not indexed
                 }
             }
-        } catch (IOException ex) {
-            throw new EsqlIllegalArgumentException("Cannot access data storage", ex);
         }
         return count;
     }

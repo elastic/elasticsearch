@@ -15,8 +15,10 @@ import java.util.ArrayList;
 import java.util.List;
 
 /**
- * Classifies a data age (milliseconds between a timestamp and now) into a discrete named bucket
- * using the same thresholds as {@code TIME_RANGE_FILTER_FROM_ATTRIBUTE} for search requests.
+ * Classifies a data age (milliseconds between a timestamp and now) into a discrete named bucket.
+ * The thresholds defined here are the single source of truth for both the search-request
+ * {@code TIME_RANGE_FILTER_FROM_ATTRIBUTE} (via {@link SearchRequestAttributesExtractor#introspectTimeRange})
+ * and the blob-cache read/miss age histogram bucket boundaries.
  *
  * <p>Negative ages (future timestamps) fall into the {@link #FifteenMinutes} bucket.
  * {@link #OlderThan14Days} is the catch-all last bucket.

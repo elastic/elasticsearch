@@ -22,11 +22,13 @@ import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.plugins.PluginsService;
+import org.elasticsearch.repositories.blobstore.BlobStoreRepository;
 import org.elasticsearch.snapshots.mockstore.MockRepository;
 import org.elasticsearch.telemetry.Measurement;
 import org.elasticsearch.telemetry.TelemetryProvider;
 import org.elasticsearch.telemetry.TestTelemetryPlugin;
 import org.elasticsearch.threadpool.ThreadPool;
+import org.elasticsearch.threadpool.ThreadPoolStats;
 import org.elasticsearch.xpack.stateless.TestUtils;
 import org.elasticsearch.xpack.stateless.commits.BlobFile;
 import org.elasticsearch.xpack.stateless.commits.StatelessCommitService;
@@ -360,7 +362,7 @@ public class BlobCacheMetricsIT extends AbstractBlobCacheMetricsIntegTestCase {
      * 13 minutes of slack before the age crosses the 15-minute boundary. The full test is
      * expected to complete well within that window on any reasonable CI machine.
      */
-    public void testTimestampAgeBuckets() {
+    public void testTimestampAgeBuckets() throws Exception {
         startMasterAndIndexNode();
 
         // Capture "now" once. Every per-bucket timestamp is derived from this reference so that
@@ -370,14 +372,16 @@ public class BlobCacheMetricsIT extends AbstractBlobCacheMetricsIntegTestCase {
         // For each TimeRangeBucket, create an index whose @timestamp sits at the midpoint of
         // that bucket's age window and index two segments' worth of data.
         record BucketCase(TimeRangeBucket bucket, String indexName) {}
-        final List<BucketCase> cases = new ArrayList<>();
-        for (TimeRangeBucket bucket : TimeRangeBucket.values()) {
+        final TimeRangeBucket[] buckets = TimeRangeBucket.values();
+        final BucketCase[] cases = new BucketCase[buckets.length];
+        startInParallel(buckets.length, i -> {
+            final TimeRangeBucket bucket = buckets[i];
             final String indexName = createTimestampedIndex(bucket.label().replace('_', '-'));
             final long docTimestampMillis = nowMillis - midpointAgeMillisForBucket(bucket);
             indexTimestampedSegments(indexName, docTimestampMillis);
             flush(indexName);
-            cases.add(new BucketCase(bucket, indexName));
-        }
+            cases[i] = new BucketCase(bucket, indexName);
+        });
 
         // Sentinel path: an index without @timestamp mapping — regions receive UNKNOWN_TIMESTAMP
         // and are omitted from the age histograms.
@@ -402,9 +406,12 @@ public class BlobCacheMetricsIT extends AbstractBlobCacheMetricsIntegTestCase {
         final String searchNode = startSearchNode();
         ensureStableCluster(2);
         final List<String> allIndices = new ArrayList<>();
-        cases.forEach(c -> allIndices.add(c.indexName()));
+        for (BucketCase c : cases) {
+            allIndices.add(c.indexName());
+        }
         allIndices.add(otherIndexName);
         ensureGreen(allIndices.toArray(String[]::new));
+        assertShardReadPoolIdle(searchNode);
 
         final TestTelemetryPlugin plugin = getTestTelemetryPlugin(searchNode);
 
@@ -549,6 +556,25 @@ public class BlobCacheMetricsIT extends AbstractBlobCacheMetricsIntegTestCase {
             }
             case OlderThan14Days -> ageMillis > TimeRangeBucket.FourteenDays.millis();
         };
+    }
+
+    /**
+     * Wait until the search node's {@code stateless_shard_read} pool has no queued or active tasks,
+     * so cache population from recovery/warming is finished before we evict and collect metrics.
+     */
+    private void assertShardReadPoolIdle(String searchNode) throws Exception {
+        assertBusy(() -> {
+            ThreadPoolStats.Stats stats = null;
+            for (ThreadPoolStats.Stats poolStats : internalCluster().getInstance(ThreadPool.class, searchNode).stats()) {
+                if (BlobStoreRepository.STATELESS_SHARD_READ_THREAD_NAME.equals(poolStats.name())) {
+                    stats = poolStats;
+                    break;
+                }
+            }
+            assertNotNull("missing " + BlobStoreRepository.STATELESS_SHARD_READ_THREAD_NAME + " pool", stats);
+            assertEquals("active " + BlobStoreRepository.STATELESS_SHARD_READ_THREAD_NAME + " tasks", 0, stats.active());
+            assertEquals("queued " + BlobStoreRepository.STATELESS_SHARD_READ_THREAD_NAME + " tasks", 0, stats.queue());
+        });
     }
 
     /**

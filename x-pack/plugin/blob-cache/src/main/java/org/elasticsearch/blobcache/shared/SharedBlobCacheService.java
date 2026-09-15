@@ -1624,6 +1624,10 @@ public class SharedBlobCacheService<KeyType extends SharedBlobCacheService.KeyBa
             return cacheKey;
         }
 
+        /**
+         * Construction-time timestamp stamped on this cache file. {@link CacheFileRegion} timestamps
+         * may later be updated by backfill; metric recording uses the region's current timestamp.
+         */
         public long timestampMillis() {
             return timestampMillis;
         }

@@ -405,6 +405,10 @@ public class RecoveryDirectCancellationService extends AbstractLifecycleComponen
         protected synchronized void doRun() {
             pendingSnapshotCancellationPermit.release();
             final ClusterState currentState = clusterService.state();
+            if (currentState.nodes().isLocalNodeElectedMaster() == false) {
+                // The node stepped down while the run was scheduled, abort
+                return;
+            }
             final Map<DiscoveryNode, CancelRecoveriesAction.Request> requests = computeCancellationCandidatesForSnapshots(currentState);
             if (requests.isEmpty()) {
                 return;

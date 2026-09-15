@@ -419,6 +419,37 @@ public class S3RepositoryTests extends ESTestCase {
         }
     }
 
+    public void testDeprecationInfosForMissingEndpointSchemeEvenIfUriIsInvalid() {
+        // A space makes URI.create fail after the missing-scheme callback has already run.
+        final var endpointWithoutScheme = randomIdentifier() + " " + randomIdentifier();
+        try (
+            var repo = createS3Repo(
+                new RepositoryMetadata(
+                    randomRepoName(),
+                    "mock",
+                    Settings.builder()
+                        .put(S3Repository.BUCKET_SETTING.getKey(), "bucket")
+                        .put("region", randomIdentifier())
+                        .put("endpoint", endpointWithoutScheme)
+                        .build()
+                )
+            )
+        ) {
+            assertThat(
+                repo.getDeprecationInfos(),
+                contains(
+                    new RepositoryDeprecationInfo(
+                        RepositoryDeprecationInfo.Level.CRITICAL,
+                        S3Repository.MISSING_ENDPOINT_SCHEME_DEPRECATION_MESSAGE,
+                        ReferenceDocs.TROUBLESHOOT_REPOSITORY,
+                        S3Repository.missingEndpointSchemeDeprecationWarning(endpointWithoutScheme, "https://" + endpointWithoutScheme),
+                        false
+                    )
+                )
+            );
+        }
+    }
+
     public void testDeprecationInfosForRegionGuessedFromEndpoint() {
         final var guessedRegion = "eu-west-1";
         final var endpoint = "https://s3.eu-west-1.amazonaws.com";

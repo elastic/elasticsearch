@@ -390,7 +390,7 @@ public final class DictionaryStringColumnReader extends StringColumnReader {
 
             @Override
             public boolean matches() throws IOException {
-                return matchesRank(presence.rank(), value, prefix, exact, lowOrdinal, highOrdinal, escapesCanMatch);
+                return matchesRank(presence.rank(), prefix, exact, lowOrdinal, highOrdinal, escapesCanMatch);
             }
 
             @Override
@@ -413,15 +413,8 @@ public final class DictionaryStringColumnReader extends StringColumnReader {
      * Whether any of a document's values matches. The ordinals decide every value the dictionary names, and
      * an escaped value is read only when {@code escapesCanMatch}.
      */
-    private boolean matchesRank(
-        int rank,
-        BytesRef value,
-        BytesRef prefix,
-        BytesRef exact,
-        int lowOrdinal,
-        int highOrdinal,
-        boolean escapesCanMatch
-    ) throws IOException {
+    private boolean matchesRank(int rank, BytesRef prefix, BytesRef exact, int lowOrdinal, int highOrdinal, boolean escapesCanMatch)
+        throws IOException {
         final long first = firstValueAddress(rank);
         final long count = valueCount(rank);
         for (long i = 0; i < count; i++) {

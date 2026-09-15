@@ -112,7 +112,6 @@ enum DateFormat {
                 }
 
                 return DateFormatters.from(accessor, locale, zoneId).withZoneSameInstant(zoneId);
-
             };
         }
     };

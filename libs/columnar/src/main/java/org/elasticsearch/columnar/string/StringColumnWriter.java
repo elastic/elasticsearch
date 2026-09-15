@@ -61,14 +61,8 @@ public final class StringColumnWriter {
      */
     private static final int ORDINAL_BLOCK_SIZE = 128;
 
-    /**
-     * Ordinals stored compressed. A block has to be large enough to hold repetition a compressor can find;
-     * a block of {@link #ORDINAL_BLOCK_SIZE} packs to a few dozen bytes, which is too little to work with.
-     */
-    private static final int COMPRESSED_ORDINAL_BLOCK_SIZE = 8192;
-
-    /** Ordinals read to decide whether compressing them pays, bounded so the trial costs a block or two. */
-    private static final int ORDINAL_TRIAL_VALUES = 2 * COMPRESSED_ORDINAL_BLOCK_SIZE;
+    /** Blocks of ordinals read to decide whether compressing them pays, so the trial costs a block or two. */
+    private static final int ORDINAL_TRIAL_BLOCKS = 2;
 
     /** How much of what packing them costs compressing them has to save before the larger block is worth it. */
     private static final double ORDINAL_TRIAL_GAIN = 0.5;
@@ -115,6 +109,7 @@ public final class StringColumnWriter {
         ChunkCodec chunkCodec,
         int targetChunkBytes,
         int plainPathTargetChunkBytes,
+        int compressedOrdinalBlockSize,
         DictionaryPolicy policy,
         Vocabulary.Terms known,
         Directory directory,
@@ -147,6 +142,7 @@ public final class StringColumnWriter {
                         valuesPerBlock,
                         chunkCodec,
                         targetChunkBytes,
+                        compressedOrdinalBlockSize,
                         directory,
                         context,
                         data
@@ -323,6 +319,7 @@ public final class StringColumnWriter {
         int valuesPerBlock,
         ChunkCodec chunkCodec,
         int targetChunkBytes,
+        int compressedOrdinalBlockSize,
         Directory directory,
         IOContext context,
         IndexOutput data
@@ -476,8 +473,8 @@ public final class StringColumnWriter {
             final String staged = ordinalTempName;
             // Compressing the ordinals only pays where they repeat, and it takes a larger block to reach
             // that repetition at all. A sample says which of the two shapes this column's ordinals take.
-            final boolean compressOrdinals = compressionPaysForOrdinals(directory, context, staged, numValues);
-            final int ordinalBlockSize = compressOrdinals ? COMPRESSED_ORDINAL_BLOCK_SIZE : ORDINAL_BLOCK_SIZE;
+            final boolean compressOrdinals = compressionPaysForOrdinals(directory, context, staged, numValues, compressedOrdinalBlockSize);
+            final int ordinalBlockSize = compressOrdinals ? compressedOrdinalBlockSize : ORDINAL_BLOCK_SIZE;
             // One ordinal a slot, reached by value address: nothing asks the ordinals which document a slot
             // belongs to, and the string column already tables that, so they table nothing themselves.
             final NumericColumnMetadata ordinals = NumericColumnWriter.write(numDocsWithField, numDocsWithField, numValues, false, () -> {
@@ -566,27 +563,33 @@ public final class StringColumnWriter {
     /**
      * Whether storing this column's ordinals compressed beats storing them packed. Both sides are priced as
      * they would actually be written — compressed through the minimal pipeline at
-     * {@link #COMPRESSED_ORDINAL_BLOCK_SIZE}, packed through the run and patched stages at
-     * {@link #ORDINAL_BLOCK_SIZE} — over the first {@link #ORDINAL_TRIAL_VALUES} ordinals.
+     * {@code compressedBlockSize}, packed through the run and patched stages at {@link #ORDINAL_BLOCK_SIZE} —
+     * over the first {@link #ORDINAL_TRIAL_BLOCKS} blocks of ordinals.
      *
      * <p>Packing is what a column falls back to, and those stages already take out the runs and the outliers
      * a compressor would have found, so a column they handle has to stay packed: the larger block costs a
      * point read the whole of it.
      */
-    private static boolean compressionPaysForOrdinals(Directory directory, IOContext context, String staged, long numValues)
-        throws IOException {
-        if (numValues < ORDINAL_TRIAL_VALUES) {
+    private static boolean compressionPaysForOrdinals(
+        Directory directory,
+        IOContext context,
+        String staged,
+        long numValues,
+        int compressedBlockSize
+    ) throws IOException {
+        final int trialValues = ORDINAL_TRIAL_BLOCKS * compressedBlockSize;
+        if (numValues < trialValues) {
             // Too few to hold repetition worth reaching, and too few to fill the larger block.
             return false;
         }
-        final long[] sample = new long[ORDINAL_TRIAL_VALUES];
+        final long[] sample = new long[trialValues];
         try (IndexInput in = directory.openInput(staged, context)) {
-            for (int i = 0; i < ORDINAL_TRIAL_VALUES; i++) {
+            for (int i = 0; i < trialValues; i++) {
                 sample[i] = in.readVInt();
             }
         }
         final long packed = packedOrdinalBytes(sample);
-        final long compressed = compressedOrdinalBytes(sample);
+        final long compressed = compressedOrdinalBytes(sample, compressedBlockSize);
         return packed > 0 && compressed <= packed * ORDINAL_TRIAL_GAIN;
     }
 
@@ -607,19 +610,16 @@ public final class StringColumnWriter {
     }
 
     /** What {@code sample} occupies under the pipeline, block and codec a compressed column is written with. */
-    private static long compressedOrdinalBytes(long[] sample) throws IOException {
-        final NumericBlockEncoder encoder = new NumericBlockEncoder(
-            NumericPipeline.compressedOrdinalPipeline(COMPRESSED_ORDINAL_BLOCK_SIZE),
-            COMPRESSED_ORDINAL_BLOCK_SIZE
-        );
+    private static long compressedOrdinalBytes(long[] sample, int blockSize) throws IOException {
+        final NumericBlockEncoder encoder = new NumericBlockEncoder(NumericPipeline.compressedOrdinalPipeline(blockSize), blockSize);
         final BlockBytesCodec codec = BlockBytesCodec.forId(BlockBytesCodec.ZSTD_ID);
-        final long[] block = new long[COMPRESSED_ORDINAL_BLOCK_SIZE];
+        final long[] block = new long[blockSize];
         final ByteBuffersDataOutput out = new ByteBuffersDataOutput();
-        for (int start = 0; start + COMPRESSED_ORDINAL_BLOCK_SIZE <= sample.length; start += COMPRESSED_ORDINAL_BLOCK_SIZE) {
+        for (int start = 0; start + blockSize <= sample.length; start += blockSize) {
             final int at = start;
             codec.write(o -> {
-                System.arraycopy(sample, at, block, 0, COMPRESSED_ORDINAL_BLOCK_SIZE);
-                encoder.encode(block, COMPRESSED_ORDINAL_BLOCK_SIZE, o);
+                System.arraycopy(sample, at, block, 0, blockSize);
+                encoder.encode(block, blockSize, o);
             }, out);
         }
         return out.size();

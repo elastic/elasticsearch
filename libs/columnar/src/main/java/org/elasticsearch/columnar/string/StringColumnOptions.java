@@ -9,6 +9,7 @@
 
 package org.elasticsearch.columnar.string;
 
+import org.elasticsearch.columnar.ColumNARDocValuesFormat;
 import org.elasticsearch.columnar.substrate.ChunkCodec;
 
 /**
@@ -25,8 +26,17 @@ import org.elasticsearch.columnar.substrate.ChunkCodec;
  *                                than {@code targetChunkBytes} because plain-path columns are scanned
  *                                sequentially and never bisected, so a larger chunk compresses better
  *                                at no extra read cost
+ * @param compressedOrdinalBlockSize ordinals a block holds when a column's ordinals are stored compressed,
+ *                                which trades what the compressor can reach against what reaching one
+ *                                ordinal has to decode
  */
-public record StringColumnOptions(DictionaryPolicy dictionary, ChunkCodec chunkCodec, int targetChunkBytes, int plainPathTargetChunkBytes) {
+public record StringColumnOptions(
+    DictionaryPolicy dictionary,
+    ChunkCodec chunkCodec,
+    int targetChunkBytes,
+    int plainPathTargetChunkBytes,
+    int compressedOrdinalBlockSize
+) {
 
     /**
      * The bounds a string column's dictionary is chosen under when a field names none of its own.
@@ -58,11 +68,22 @@ public record StringColumnOptions(DictionaryPolicy dictionary, ChunkCodec chunkC
      */
     public static final int DEFAULT_PLAIN_PATH_TARGET_CHUNK_BYTES = 512 * 1024;
 
+    /**
+     * Ordinals a block holds when they are stored compressed.
+     *
+     * <p>A block has to be large enough to hold repetition a compressor can find, and a block of
+     * {@link #DEFAULT_TARGET_CHUNK_BYTES} worth of packed ordinals is not. It is also what a point read
+     * decodes to answer for one ordinal, so the size is a trade rather than a maximum: past this the
+     * compressor gains little and a read that did not choose its address pays for all of it.
+     */
+    public static final int DEFAULT_COMPRESSED_ORDINAL_BLOCK_SIZE = 2048;
+
     public static final StringColumnOptions DEFAULT = new StringColumnOptions(
         DEFAULT_DICTIONARY,
         ChunkCodec.ZSTD,
         DEFAULT_TARGET_CHUNK_BYTES,
-        DEFAULT_PLAIN_PATH_TARGET_CHUNK_BYTES
+        DEFAULT_PLAIN_PATH_TARGET_CHUNK_BYTES,
+        DEFAULT_COMPRESSED_ORDINAL_BLOCK_SIZE
     );
 
     public StringColumnOptions {
@@ -78,10 +99,22 @@ public record StringColumnOptions(DictionaryPolicy dictionary, ChunkCodec chunkC
         if (plainPathTargetChunkBytes <= 0) {
             throw new IllegalArgumentException("plainPathTargetChunkBytes must be positive, got " + plainPathTargetChunkBytes);
         }
+        if (compressedOrdinalBlockSize < ColumNARDocValuesFormat.MIN_BLOCK_SIZE
+            || compressedOrdinalBlockSize > ColumNARDocValuesFormat.MAX_BLOCK_SIZE
+            || Integer.bitCount(compressedOrdinalBlockSize) != 1) {
+            throw new IllegalArgumentException(
+                "compressedOrdinalBlockSize must be a power of 2 in ["
+                    + ColumNARDocValuesFormat.MIN_BLOCK_SIZE
+                    + ", "
+                    + ColumNARDocValuesFormat.MAX_BLOCK_SIZE
+                    + "], got "
+                    + compressedOrdinalBlockSize
+            );
+        }
     }
 
     /** These options with a different dictionary policy, for a field that should decide it differently. */
     public StringColumnOptions withDictionary(DictionaryPolicy policy) {
-        return new StringColumnOptions(policy, chunkCodec, targetChunkBytes, plainPathTargetChunkBytes);
+        return new StringColumnOptions(policy, chunkCodec, targetChunkBytes, plainPathTargetChunkBytes, compressedOrdinalBlockSize);
     }
 }

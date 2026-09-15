@@ -76,7 +76,11 @@ public class OrdinalEncodingTests extends ColumnarStringTestCase {
     public void testRepeatingOrdinalsAreCompressed() throws IOException {
         final NumericColumnMetadata ordinals = ordinalsOf(repeatingSets());
         assertEquals("repeating ordinals should be compressed", BlockBytesCodec.ZSTD_ID, ordinals.blockBytesCodecId());
-        assertEquals("a compressed column takes the larger block", 8192, ordinals.blockSize());
+        assertEquals(
+            "a compressed column takes the larger block",
+            StringColumnOptions.DEFAULT_COMPRESSED_ORDINAL_BLOCK_SIZE,
+            ordinals.blockSize()
+        );
         assertArrayEquals(
             "a compressed column leaves the repetition in the bytes the codec reaches",
             NumericPipeline.compressedOrdinalPipeline(ordinals.blockSize()).transformIds(),
@@ -133,6 +137,30 @@ public class OrdinalEncodingTests extends ColumnarStringTestCase {
         final NumericColumnMetadata ordinals = ordinalsOf(docs);
         assertEquals("a column of runs should stay packed", BlockBytesCodec.IDENTITY_ID, ordinals.blockBytesCodecId());
         assertEquals("a packed column keeps the small block", 128, ordinals.blockSize());
+    }
+
+    /**
+     * The block a compressed column takes is the caller's choice, since it trades what the compressor can
+     * reach against what reaching one ordinal decodes. Whatever is asked for is what the column records, and
+     * the trial prices that block rather than some other one.
+     */
+    public void testCompressedBlockSizeFollowsTheOption() throws IOException {
+        final BytesRef[][] docs = repeatingSets();
+        for (int blockSize : new int[] { 1024, 2048, 8192 }) {
+            final NumericColumnMetadata[] found = new NumericColumnMetadata[1];
+            withColumn(docs, 1024, ChunkCodec.ZSTD, 64 * 1024, StringColumnOptions.DEFAULT_DICTIONARY, blockSize, (meta, reader) -> {
+                found[0] = dictionaryOf(meta).ordinals();
+                // Whatever block it took, every value still reads back.
+                for (int d = 0; d < docs.length; d += 997) {
+                    final long first = reader.firstValueAddress(d);
+                    for (int slot = 0; slot < docs[d].length; slot++) {
+                        assertEquals(docs[d][slot], reader.valueAt(first + slot));
+                    }
+                }
+            });
+            assertEquals("repeating ordinals are compressed at every block size", BlockBytesCodec.ZSTD_ID, found[0].blockBytesCodecId());
+            assertEquals("the column records the block it was asked for", blockSize, found[0].blockSize());
+        }
     }
 
     /** Too few ordinals to fill the larger block, so there is nothing for a compressor to work with. */

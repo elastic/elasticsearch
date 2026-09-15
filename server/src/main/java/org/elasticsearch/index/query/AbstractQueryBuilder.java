@@ -549,9 +549,12 @@ public abstract class AbstractQueryBuilder<QB extends AbstractQueryBuilder<QB>> 
                             if (aqb.queryName() != null) {
                                 estimate += aqb.queryName().length() * 2L + 64L;
                             }
+                        } else if (namedObject instanceof ParseTimeBreakerEstimatable ptbe) {
+                            estimate = ptbe.parseTimeBreakerEstimate();
                         } else {
                             // QueryBuilder registered without extending AbstractQueryBuilder
-                            // (e.g. SpanGapQueryBuilder) — charge the baseline so it is not free.
+                            // and without implementing ParseTimeBreakerEstimatable — charge
+                            // the baseline so it is not free.
                             estimate = QUERY_BUILDER_SIZE_ESTIMATE_BYTES;
                         }
                         breaker.addEstimateBytesAndMaybeBreak(estimate, "query-parsing");

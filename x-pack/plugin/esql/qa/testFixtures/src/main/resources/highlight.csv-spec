@@ -1940,6 +1940,51 @@ The Lord of the <em>Rings</em>
 ;
 
 
+# The nested MATCH analyzer is copied into HIGHLIGHT's WITH options when it is omitted, so the runtime side runs
+# with the same analyzer as the query side without the user restating it.
+highlightUniformAnalyzerFromExplicitMatch
+required_capability: highlight_implicit_query_and_fields
+
+ROW title = to_text("The Lord of the Rings")
+| HIGHLIGHT MATCH(title, "ring", { "analyzer": "english" }) ON title
+| KEEP highlight_title
+;
+
+highlight_title:keyword
+The Lord of the <em>Rings</em>
+;
+
+
+# Two leaves that agree on the same analyzer share it — the shared name is synthesized into WITH once and every
+# named field is highlighted with it. English stems both "Rings" and "rings" to "ring", so the query term matches.
+highlightUniformAnalyzerAcrossFields
+required_capability: highlight_implicit_query_and_fields
+
+ROW title = to_text("The Lord of the Rings"), author = to_text("J.R.R. Tolkien wrote about rings")
+| HIGHLIGHT MATCH(title, "ring", { "analyzer": "english" }) AND MATCH(author, "ring", { "analyzer": "english" }) ON title, author
+| KEEP highlight_title, highlight_author
+;
+
+highlight_title:keyword        | highlight_author:keyword
+The Lord of the <em>Rings</em> | Tolkien wrote about <em>rings</em>
+;
+
+
+# An implicit query borrows the analyzer from the upstream WHERE and highlights with it.
+highlightUniformAnalyzerFromImplicitWhere
+required_capability: highlight_implicit_query_and_fields
+
+FROM books
+| WHERE MATCH(title, "shadow", { "analyzer": "english" })
+| HIGHLIGHT
+| KEEP title, highlight_title
+;
+
+title:text            | highlight_title:keyword
+Return of the Shadow  | Return of the <em>Shadow</em>
+;
+
+
 implicitQueryBareForm
 required_capability: highlight_implicit_query_and_fields
 

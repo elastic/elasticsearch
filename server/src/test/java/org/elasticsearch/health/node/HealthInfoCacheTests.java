@@ -148,6 +148,27 @@ public class HealthInfoCacheTests extends ESTestCase {
         assertThat(healthInfoCache.getHealthInfo().fileSettingsHealthInfo(), equalTo(green));
     }
 
+    public void testDlmFrozenTransitionsHealthInfoOnlyAcceptedFromMaster() {
+        HealthInfoCache healthInfoCache = HealthInfoCache.create(clusterService);
+        // node1 is local node, master, and health node
+        ClusterState state = ClusterStateCreationUtils.state(node1, node1, node1, allNodes);
+        healthInfoCache.clusterChanged(new ClusterChangedEvent("test", state, state));
+
+        DlmFrozenTransitionsHealthInfo fromMaster = randomDlmFrozenTransitionsHealthInfo();
+        DlmFrozenTransitionsHealthInfo fromNonMaster = randomValueOtherThan(
+            fromMaster,
+            HealthInfoTests::randomDlmFrozenTransitionsHealthInfo
+        );
+
+        // update from master (node1) is accepted
+        healthInfoCache.updateNodeHealth(node1.getId(), GREEN, null, null, FileSettingsHealthInfo.INDETERMINATE, fromMaster);
+        assertThat(healthInfoCache.getHealthInfo().dlmFrozenTransitionsHealthInfo(), equalTo(fromMaster));
+
+        // update from non-master (node2) is rejected; old value is preserved
+        healthInfoCache.updateNodeHealth(node2.getId(), RED, null, null, FileSettingsHealthInfo.INDETERMINATE, fromNonMaster);
+        assertThat(healthInfoCache.getHealthInfo().dlmFrozenTransitionsHealthInfo(), equalTo(fromMaster));
+    }
+
     public void testNotAHealthNode() {
         HealthInfoCache healthInfoCache = HealthInfoCache.create(clusterService);
         healthInfoCache.updateNodeHealth(

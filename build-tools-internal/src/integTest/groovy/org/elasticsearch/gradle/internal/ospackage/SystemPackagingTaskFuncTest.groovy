@@ -63,6 +63,7 @@ class SystemPackagingTaskFuncTest extends AbstractJavaGradleFuncTest {
         file('files/conf/app.conf') << "setting: value\n"
         file('files/conf/sub/nested.conf') << "nested: value\n"
         file('files/lib/real.txt') << "real content\n"
+        file('scripts/custom-postinst') << "# custom post-install hook\necho custom postinst\n"
         Path link = file('files/lib/link.txt').toPath()
         Files.deleteIfExists(link)
         Files.createSymbolicLink(link, Path.of('real.txt'))
@@ -150,6 +151,15 @@ class SystemPackagingTaskFuncTest extends AbstractJavaGradleFuncTest {
             packageGroup = 'test'
             customFields.put('License', 'Test-License')
         }
+
+        tasks.register('buildDebWithExplicitPostinst', Deb) {
+            configure(commonConfig('1.2.3'))
+            archiveFileName = 'test-pkg-with-postinst_1.2.3_all.deb'
+            arch = 'all'
+            packageGroup = 'test'
+            customFields.put('License', 'Test-License')
+            postInstall file('scripts/custom-postinst')
+        }
         """
     }
 
@@ -215,6 +225,21 @@ class SystemPackagingTaskFuncTest extends AbstractJavaGradleFuncTest {
         // in-tree symlink preserved as a link entry
         entries['/opt/test/lib/link.txt'].isSymbolicLink()
         entries['/opt/test/lib/link.txt'].linkName == 'real.txt'
+    }
+
+    def "adds a bash shebang to explicit deb maintainer scripts when missing"() {
+        when:
+        def result = gradleRunner('buildDebWithExplicitPostinst').build()
+
+        then:
+        result.task(':buildDebWithExplicitPostinst').outcome == TaskOutcome.SUCCESS
+
+        def deb = file('build/dists/test-pkg-with-postinst_1.2.3_all.deb')
+        deb.exists()
+        def postinst = readDebControlFile(deb, './postinst')
+        postinst.startsWith('#!/bin/bash\n')
+        postinst.contains('# custom post-install hook')
+        postinst.contains('echo custom postinst')
     }
 
     def "normalizes qualified project versions for package metadata"() {

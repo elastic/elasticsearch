@@ -15,7 +15,7 @@ LIMIT max_number_of_rows
 ```
 :::
 
-:::{applies-item} { "stack": "ga 9.6+", "serverless": "ga" }
+:::{applies-item} { "stack": "preview 9.4-9.5, ga 9.6+", "serverless": "ga" }
 ```esql
 LIMIT max_number_of_rows BY grouping_expr1[, ..., grouping_exprN]
 ```
@@ -51,7 +51,7 @@ Precede `LIMIT <N> BY` with a `SORT` to keep the top N for each group.
 
 ### With groups
 ```{applies_to}
-stack: ga 9.6
+stack: preview 9.4-9.5, ga 9.6+
 serverless: ga
 ```
 
@@ -60,7 +60,7 @@ serverless: ga
 
 ### Group by multiple values
 ```{applies_to}
-stack: ga 9.6
+stack: preview 9.4-9.5, ga 9.6+
 serverless: ga
 ```
 

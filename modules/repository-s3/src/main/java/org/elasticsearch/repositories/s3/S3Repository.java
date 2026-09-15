@@ -443,11 +443,11 @@ class S3Repository extends MeteredBlobStoreRepository {
             cross-region access; configure the region before upgrade.""", endpointDescription);
     }
 
-    static final String UNRESOLVED_CLIENT_DEPRECATION_MESSAGE = "S3 repository client could not be resolved";
+    static final String CLIENT_CREATION_FAILURE_DEPRECATION_MESSAGE = "S3 repository client could not be created";
 
-    static String unresolvedClientDeprecationWarning(String clientName) {
+    static String clientCreationFailureDeprecationWarning(String clientName) {
         return Strings.format("""
-            This repository is configured to use S3 client [%s] which could not be resolved on this node. Configure that client, or \
+            This repository is configured to use S3 client [%s] which could not be created on this node. Configure that client, or \
             change the repository's [%s] setting, before upgrade.""", clientName, CLIENT_NAME.getKey());
     }
 
@@ -510,9 +510,9 @@ class S3Repository extends MeteredBlobStoreRepository {
             deprecationInfos.add(
                 new RepositoryDeprecationInfo(
                     RepositoryDeprecationInfo.Level.CRITICAL,
-                    UNRESOLVED_CLIENT_DEPRECATION_MESSAGE,
+                    CLIENT_CREATION_FAILURE_DEPRECATION_MESSAGE,
                     ReferenceDocs.TROUBLESHOOT_REPOSITORY,
-                    unresolvedClientDeprecationWarning(CLIENT_NAME.get(getMetadata().settings())),
+                    clientCreationFailureDeprecationWarning(CLIENT_NAME.get(getMetadata().settings())),
                     false
                 )
             );

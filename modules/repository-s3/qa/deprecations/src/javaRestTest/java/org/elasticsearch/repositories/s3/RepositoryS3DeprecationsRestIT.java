@@ -194,9 +194,9 @@ public class RepositoryS3DeprecationsRestIT extends ESRestTestCase {
         try {
             assertDeprecationIssue(
                 repoName,
-                S3Repository.UNRESOLVED_CLIENT_DEPRECATION_MESSAGE,
+                S3Repository.CLIENT_CREATION_FAILURE_DEPRECATION_MESSAGE,
                 ReferenceDocs.TROUBLESHOOT_REPOSITORY,
-                S3Repository.unresolvedClientDeprecationWarning(clientName)
+                S3Repository.clientCreationFailureDeprecationWarning(clientName)
             );
         } finally {
             assertOK(client().performRequest(new Request("DELETE", "/_snapshot/" + repoName)));

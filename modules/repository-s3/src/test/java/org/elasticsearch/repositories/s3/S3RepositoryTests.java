@@ -334,9 +334,9 @@ public class S3RepositoryTests extends ESTestCase {
                     // the client anyway
                     new RepositoryDeprecationInfo(
                         RepositoryDeprecationInfo.Level.CRITICAL,
-                        S3Repository.UNRESOLVED_CLIENT_DEPRECATION_MESSAGE,
+                        S3Repository.CLIENT_CREATION_FAILURE_DEPRECATION_MESSAGE,
                         ReferenceDocs.TROUBLESHOOT_REPOSITORY,
-                        S3Repository.unresolvedClientDeprecationWarning("default"),
+                        S3Repository.clientCreationFailureDeprecationWarning("default"),
                         false
                     )
                 )
@@ -379,9 +379,9 @@ public class S3RepositoryTests extends ESTestCase {
                 contains(
                     new RepositoryDeprecationInfo(
                         RepositoryDeprecationInfo.Level.CRITICAL,
-                        S3Repository.UNRESOLVED_CLIENT_DEPRECATION_MESSAGE,
+                        S3Repository.CLIENT_CREATION_FAILURE_DEPRECATION_MESSAGE,
                         ReferenceDocs.TROUBLESHOOT_REPOSITORY,
-                        S3Repository.unresolvedClientDeprecationWarning(clientName),
+                        S3Repository.clientCreationFailureDeprecationWarning(clientName),
                         false
                     )
                 )

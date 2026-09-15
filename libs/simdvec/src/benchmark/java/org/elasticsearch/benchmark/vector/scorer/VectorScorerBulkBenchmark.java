@@ -17,6 +17,7 @@ import org.apache.lucene.util.hnsw.RandomVectorScorer;
 import org.apache.lucene.util.hnsw.UpdateableRandomVectorScorer;
 import org.elasticsearch.benchmark.internal.BenchmarkLogging;
 import org.elasticsearch.benchmark.store.DirectoryType;
+import org.elasticsearch.benchmark.vector.VectorizationInfo;
 import org.elasticsearch.benchmark.vector.store.DirectoryFactory;
 import org.elasticsearch.core.SuppressForbidden;
 import org.openjdk.jmh.annotations.Benchmark;
@@ -53,6 +54,7 @@ public abstract class VectorScorerBulkBenchmark {
 
     static {
         BenchmarkLogging.configure();
+        VectorizationInfo.printOnce();
     }
 
     @Param({ "1024" })

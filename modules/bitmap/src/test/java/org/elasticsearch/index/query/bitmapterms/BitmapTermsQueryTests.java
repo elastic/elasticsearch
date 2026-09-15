@@ -30,6 +30,7 @@ import org.apache.lucene.search.ScoreMode;
 import org.apache.lucene.search.ScorerSupplier;
 import org.apache.lucene.search.Sort;
 import org.apache.lucene.search.SortField;
+import org.apache.lucene.search.SortedNumericSelector;
 import org.apache.lucene.search.SortedNumericSortField;
 import org.apache.lucene.search.TermInSetQuery;
 import org.apache.lucene.search.TopDocs;
@@ -138,7 +139,7 @@ public class BitmapTermsQueryTests extends ESTestCase {
 
         abstract SortField.Type sortType();
 
-        /** Boxed as the type {@link SortField#setMissingValue} demands for this type. */
+        /** Boxed as the type {@link SortField} constructors demand for this type. */
         abstract Object missingValue(long value);
 
         void addField(Document doc, long value) {
@@ -575,8 +576,13 @@ public class BitmapTermsQueryTests extends ESTestCase {
     public void testSortedIndexWithInterleavedMissingValues() throws IOException {
         for (NumberType type : NumberType.values()) {
             IndexWriterConfig config = newIndexWriterConfig();
-            SortedNumericSortField sortField = new SortedNumericSortField(FIELD, type.sortType());
-            sortField.setMissingValue(type.missingValue(100));
+            SortedNumericSortField sortField = new SortedNumericSortField(
+                FIELD,
+                type.sortType(),
+                false,
+                SortedNumericSelector.Type.MIN,
+                type.missingValue(100)
+            );
             config.setIndexSort(new Sort(sortField));
             try (Directory dir = newDirectory(); RandomIndexWriter w = new RandomIndexWriter(random(), dir, config)) {
                 int withValue = 0;

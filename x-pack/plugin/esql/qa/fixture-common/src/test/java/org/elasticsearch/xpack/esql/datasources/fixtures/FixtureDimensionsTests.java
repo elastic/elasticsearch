@@ -904,6 +904,7 @@ public class FixtureDimensionsTests extends ESTestCase {
         FixtureDimensions.parse(props);
     }
 
+    /** Declaring the baseline missing cannot be true -- every vector carries the default. */
     public void testAnAbsenceOnTheDefaultValueIsRejected() {
         String[] lines = ArrayUtils.append(wellFormed(), "dimension.error_mode.gap.fail_fast = gap: nope");
         Exception e = expectThrows(IllegalStateException.class, () -> FixtureDimensions.parse(declaration(lines)));

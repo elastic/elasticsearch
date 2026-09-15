@@ -205,6 +205,7 @@ public class DimensionDiscriminationTests extends ESTestCase {
         assertTrue("reachable but never exercised:\n" + String.join("\n", unexercised), unexercised.isEmpty());
     }
 
+    /** Read from the contract: the gate that guards copies caught this list being one of them. */
     private static final List<String> FORMATS = FixtureDimensions.get().values("format");
 
     private static Map<String, String> settingsFor(FixtureDimensions dimensions, String dimension, String value, String format) {

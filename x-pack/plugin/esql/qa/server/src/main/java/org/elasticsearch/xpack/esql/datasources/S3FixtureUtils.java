@@ -71,6 +71,7 @@ public final class S3FixtureUtils {
      */
     private static final boolean RECORD_REQUESTS = Boolean.parseBoolean(System.getProperty("tests.s3.request_log", "false"));
 
+    /** Thread-safe list of S3 request logs. */
     private static final CopyOnWriteArrayList<S3RequestLog> requestLogs = new CopyOnWriteArrayList<>();
 
     /** Set of unsupported operations encountered during test execution */

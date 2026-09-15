@@ -1227,6 +1227,7 @@ public final class FixtureDimensions {
         }
     }
 
+    /** Whether one off-default slot can be made real by any of the seams on offer. */
     private boolean seamServesAnySeam(String dimension, String value, String format) {
         return seamServes(dimension, value, format, EnumSet.allOf(Seam.class));
     }
@@ -1271,6 +1272,7 @@ public final class FixtureDimensions {
         return out.toString();
     }
 
+    /** The formats a group can be exercised on: the intersection of its members' applicability. */
     public Set<String> formatsFor(Set<String> group) {
         Set<String> formats = new LinkedHashSet<>(values("format"));
         for (String d : group) {

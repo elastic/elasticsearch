@@ -133,7 +133,7 @@ public class ErrorModelTests extends ESTestCase {
 
     public void testEstimateQuantizationErrorStdModelReturnsFiniteModel() throws IOException {
         CalibrationFixture fixture = newCalibrationFixture(8);
-        CalibrationSource source = fixture.toSource(VectorSimilarityFunction.EUCLIDEAN, 10);
+        CalibrationSource source = fixture.toSource(randomFrom(VectorSimilarityFunction.values()), 10);
         QuantizationErrorStdModel model = ErrorModel.estimateErrorScalingFit(source, 128).scalingModel();
         assertTrue(Double.isFinite(model.params().beta0()));
         assertTrue(Double.isFinite(model.params().beta1()));
@@ -142,7 +142,7 @@ public class ErrorModelTests extends ESTestCase {
 
     public void testEstimateMagnitudeModelReturnsFiniteModel() throws IOException {
         CalibrationFixture fixture = newCalibrationFixture(8);
-        CalibrationSource source = fixture.toSource(VectorSimilarityFunction.EUCLIDEAN, 10);
+        CalibrationSource source = fixture.toSource(randomFrom(VectorSimilarityFunction.values()), 10);
         ErrorScalingFit scalingFit = ErrorModel.estimateErrorScalingFit(source, 128);
         QuantizationErrorStdModel magnitudeModel = ErrorModel.estimateMagnitudeModel(scalingFit, source, true, 4, 2, 128);
         assertTrue(Double.isFinite(magnitudeModel.params().beta0()));
@@ -152,7 +152,7 @@ public class ErrorModelTests extends ESTestCase {
 
     public void testEstimateMagnitudeModelReusesScalingSlope() throws IOException {
         CalibrationFixture fixture = newCalibrationFixture(8);
-        CalibrationSource source = fixture.toSource(VectorSimilarityFunction.EUCLIDEAN, 10);
+        CalibrationSource source = fixture.toSource(randomFrom(VectorSimilarityFunction.values()), 10);
         ErrorScalingFit scalingFit = ErrorModel.estimateErrorScalingFit(source, 128);
         QuantizationErrorStdModel magnitudeModel = ErrorModel.estimateMagnitudeModel(scalingFit, source, true, 4, 2, 128);
         assertEquals(scalingFit.scalingModel().params().beta1(), magnitudeModel.params().beta1(), 0.0);
@@ -164,7 +164,7 @@ public class ErrorModelTests extends ESTestCase {
         int[] queryOrdinals = { 0, 1, 2, 3 };
         int[] corpusOrdinals = { 4, 5, 6, 7, 8, 9, 10, 11 };
         CalibrationSource source = new CalibrationSource(
-            VectorSimilarityFunction.EUCLIDEAN,
+            randomFrom(VectorSimilarityFunction.values()),
             8,
             fvv,
             queryOrdinals,
@@ -185,7 +185,7 @@ public class ErrorModelTests extends ESTestCase {
 
     public void testGrowingCorpusSweepReusesWarmStartCentroids() throws IOException {
         CalibrationFixture fixture = newCalibrationFixture(8);
-        CalibrationSource source = fixture.toSource(VectorSimilarityFunction.EUCLIDEAN, 10);
+        CalibrationSource source = fixture.toSource(randomFrom(VectorSimilarityFunction.values()), 10);
         HierarchicalKMeans<float[]> kmeans = HierarchicalKMeans.ofSerial(CentroidOps.FLOAT, 8);
         float[][] docWarmStart = null;
         float[][] queryWarmStart = null;
@@ -230,7 +230,7 @@ public class ErrorModelTests extends ESTestCase {
 
     public void testMagnitudeFitReusesScalingFitClusteringState() throws IOException {
         CalibrationFixture fixture = newCalibrationFixture(8);
-        CalibrationSource source = fixture.toSource(VectorSimilarityFunction.EUCLIDEAN, 10);
+        CalibrationSource source = fixture.toSource(randomFrom(VectorSimilarityFunction.values()), 10);
         ErrorScalingFit scalingFit = ErrorModel.estimateErrorScalingFit(source, 128);
         QuantizationErrorStdModel magnitudeModel = ErrorModel.estimateMagnitudeModel(scalingFit, source, true, 4, 2, 128);
         assertTrue(Double.isFinite(magnitudeModel.params().beta0()));
@@ -255,7 +255,7 @@ public class ErrorModelTests extends ESTestCase {
         float[][] rows = randomNormalizedRows(numQueries + corpusSize, dim, 43L);
         FloatVectorValues fvv = KMeansFloatVectorValues.build(List.of(rows), null, dim);
         CalibrationSource source = new CalibrationSource(
-            VectorSimilarityFunction.EUCLIDEAN,
+            randomFrom(VectorSimilarityFunction.values()),
             dim,
             fvv,
             range(0, numQueries),
@@ -361,7 +361,7 @@ public class ErrorModelTests extends ESTestCase {
         float[][] rows = randomNormalizedRows(9000, dim, 7L);
         FloatVectorValues fvv = KMeansFloatVectorValues.build(List.of(rows), null, dim);
         CalibrationSource source = new CalibrationSource(
-            VectorSimilarityFunction.EUCLIDEAN,
+            randomFrom(VectorSimilarityFunction.values()),
             dim,
             fvv,
             range(0, 256),

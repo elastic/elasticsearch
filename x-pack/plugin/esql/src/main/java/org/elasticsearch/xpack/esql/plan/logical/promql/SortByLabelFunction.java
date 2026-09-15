@@ -35,9 +35,10 @@ import java.util.Set;
 /**
  * PromQL {@code sort_by_label} / {@code sort_by_label_desc}: identity-preserving ordering of an instant vector
  * by one or more label values. Requested labels that resolve on an open header (the child still exposes
- * {@code _timeseries}) are added to the command output so translation can materialize them; on a closed header
- * they are skipped so the sort cannot split already-aggregated series. Ordering is injected above
- * {@code TimeSeriesCollapse} by the result-ordering analyzer rule.
+ * {@code _timeseries}) are added to the command output so translation can materialize them, and are projected
+ * away again above the sort so ordering does not widen the result schema. On a closed header they are skipped
+ * so the sort cannot split already-aggregated series. Ordering is injected above {@code TimeSeriesCollapse}
+ * by the result-ordering analyzer rule.
  */
 public final class SortByLabelFunction extends PromqlFunctionCall implements ResultOrderingFunction {
 
@@ -119,6 +120,11 @@ public final class SortByLabelFunction extends PromqlFunctionCall implements Res
         out.addAll(childOut);
         out.addAll(extra);
         return out;
+    }
+
+    @Override
+    public List<Attribute> orderingOnlyColumns() {
+        return usableSortLabels();
     }
 
     @Override

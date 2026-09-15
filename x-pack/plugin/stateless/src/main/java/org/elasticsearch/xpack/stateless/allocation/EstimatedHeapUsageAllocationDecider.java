@@ -7,6 +7,8 @@
 
 package org.elasticsearch.xpack.stateless.allocation;
 
+import org.elasticsearch.cluster.ClusterInfo;
+import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.InternalClusterInfoService;
 import org.elasticsearch.cluster.NodeHeapMetrics;
 import org.elasticsearch.cluster.node.DiscoveryNodeRole;
@@ -102,10 +104,14 @@ public class EstimatedHeapUsageAllocationDecider extends AbstractEstimatedHeapAl
             CLUSTER_ROUTING_ALLOCATION_ESTIMATED_HEAP_LOW_WATERMARK,
             CLUSTER_ROUTING_ALLOCATION_ESTIMATED_HEAP_HIGH_WATERMARK_ENABLED,
             CLUSTER_ROUTING_ALLOCATION_ESTIMATED_HEAP_HIGH_WATERMARK,
-            (clusterInfo, clusterState) -> clusterInfo.getNodeHeapMetrics()
-                .entrySet()
-                .stream()
-                .collect(Collectors.toUnmodifiableMap(Map.Entry::getKey, entry -> entry.getValue().estimatedUsageAsPercentage()))
+            EstimatedHeapUsageAllocationDecider::nodeUsagePercentages
         );
+    }
+
+    private static Map<String, Double> nodeUsagePercentages(ClusterInfo clusterInfo, ClusterState clusterState) {
+        return clusterInfo.getNodeHeapMetrics()
+            .entrySet()
+            .stream()
+            .collect(Collectors.toUnmodifiableMap(Map.Entry::getKey, entry -> entry.getValue().estimatedUsageAsPercentage()));
     }
 }

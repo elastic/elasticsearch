@@ -9,6 +9,7 @@ package org.elasticsearch.xpack.esql.expression.function.scalar.string;
 
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.breaker.CircuitBreaker;
+import org.elasticsearch.common.logging.HeaderWarning;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.MockBigArrays;
@@ -85,12 +86,17 @@ public class RepeatStaticTests extends ESTestCase {
     }
 
     public String process(String str, int number) {
+        DriverContext ctx = driverContext();
         try (
             var eval = AbstractScalarFunctionTestCase.evaluator(
                 new Repeat(Source.EMPTY, field("string", DataType.KEYWORD), field("number", DataType.INTEGER))
-            ).get(driverContext());
+            ).get(ctx);
             Block block = eval.eval(row(List.of(new BytesRef(str), number)));
         ) {
+            ctx.finish();
+            for (String w : ctx.warnings()) {
+                HeaderWarning.addWarning(w);
+            }
             return block.isNull(0) ? null : ((BytesRef) BlockUtils.toJavaObject(block, 0)).utf8ToString();
         }
     }

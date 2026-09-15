@@ -28,6 +28,7 @@ import org.elasticsearch.compute.lucene.LuceneSliceQueue.PartitioningStrategy;
 import org.elasticsearch.compute.operator.DriverContext;
 import org.elasticsearch.compute.operator.Limiter;
 import org.elasticsearch.compute.operator.SourceOperator;
+import org.elasticsearch.compute.querydsl.query.QueryWarnings;
 import org.elasticsearch.core.Releasables;
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
@@ -70,7 +71,8 @@ public class LuceneSourceOperator extends LuceneOperator {
             int taskConcurrency,
             int maxPageSize,
             int limit,
-            boolean needsScore
+            boolean needsScore,
+            QueryWarnings singleValueQueryWarnings
         ) {
             super(
                 contexts,
@@ -81,7 +83,8 @@ public class LuceneSourceOperator extends LuceneOperator {
                 taskConcurrency,
                 limit,
                 needsScore,
-                shardContext -> needsScore ? COMPLETE : COMPLETE_NO_SCORES
+                shardContext -> needsScore ? COMPLETE : COMPLETE_NO_SCORES,
+                singleValueQueryWarnings
             );
             this.maxPageSize = maxPageSize;
             // TODO: use a single limiter for multiple stage execution
@@ -90,7 +93,7 @@ public class LuceneSourceOperator extends LuceneOperator {
 
         @Override
         public SourceOperator get(DriverContext driverContext) {
-            return new LuceneSourceOperator(driverContext.blockFactory(), maxPageSize, sliceQueue, limit, limiter, needsScore);
+            return new LuceneSourceOperator(driverContext, maxPageSize, sliceQueue, limit, limiter, needsScore, singleValueQueryWarnings);
         }
 
         public int maxPageSize() {
@@ -218,14 +221,16 @@ public class LuceneSourceOperator extends LuceneOperator {
 
     @SuppressWarnings("this-escape")
     public LuceneSourceOperator(
-        BlockFactory blockFactory,
+        DriverContext driverContext,
         int maxPageSize,
         LuceneSliceQueue sliceQueue,
         int limit,
         Limiter limiter,
-        boolean needsScore
+        boolean needsScore,
+        QueryWarnings singleValueQueryWarnings
     ) {
-        super(blockFactory, maxPageSize, sliceQueue);
+        super(driverContext, maxPageSize, sliceQueue, singleValueQueryWarnings);
+        BlockFactory blockFactory = driverContext.blockFactory();
         this.minPageSize = Math.max(1, maxPageSize / 2);
         this.remainingDocs = limit;
         this.limiter = limiter;

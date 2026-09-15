@@ -104,7 +104,7 @@ class ByteArrayFlowPublisher implements Flow.Publisher<byte[]> {
         private final AtomicLong unreleasedBytes = new AtomicLong(0);
         private final AtomicLong pendingRequests = new AtomicLong(0);
         private volatile Flow.Subscription upstreamSubscription;
-        private volatile Exception error;
+        private final AtomicReference<Exception> error = new AtomicReference<>();
         private volatile boolean completed = false;
 
         RelaySubscriber(Flow.Subscriber<? super byte[]> downstream) {
@@ -162,11 +162,13 @@ class ByteArrayFlowPublisher implements Flow.Publisher<byte[]> {
         @Override
         public void onError(Throwable throwable) {
             if (throwable instanceof Exception e) {
-                error = e;
+                error.compareAndSet(null, e);
             } else {
                 ExceptionsHelper.maybeError(throwable).ifPresent(ExceptionsHelper::maybeDieOnAnotherThread);
-                error = new RuntimeException("Unhandled error while streaming", throwable);
+                error.compareAndSet(null, new RuntimeException("Unhandled error while streaming", throwable));
             }
+            // the terminal signal downstream still needs demand, which may never arrive; free the reservation now
+            close();
             taskRunner.requestNextRun();
         }
 
@@ -180,7 +182,7 @@ class ByteArrayFlowPublisher implements Flow.Publisher<byte[]> {
             // Deliver at most `pendingRequests` chunks, decrementing per delivery, so the downstream never receives more signals
             // than it requested. An error preempts queued data, matching the previous publisher's behavior.
             byte[] nextBytes;
-            while (error == null && pendingRequests.get() > 0 && (nextBytes = contentQueue.poll()) != null) {
+            while (error.get() == null && pendingRequests.get() > 0 && (nextBytes = contentQueue.poll()) != null) {
                 pendingRequests.decrementAndGet();
                 releaseBreakerBytes(nextBytes.length);
                 downstream.onNext(nextBytes);
@@ -188,11 +190,12 @@ class ByteArrayFlowPublisher implements Flow.Publisher<byte[]> {
 
             // Terminal signals also consume a unit of demand, so they are only delivered when the downstream has an outstanding
             // request. If it does not yet, the next request(n) reschedules this run and delivers them then.
-            if (error != null) {
+            var failure = error.get();
+            if (failure != null) {
                 if (pendingRequests.get() > 0 && terminated.compareAndSet(false, true)) {
                     pendingRequests.decrementAndGet();
                     close();
-                    downstream.onError(error);
+                    downstream.onError(failure);
                 }
             } else if (completed && contentQueue.isEmpty() && pendingRequests.get() > 0 && terminated.compareAndSet(false, true)) {
                 pendingRequests.decrementAndGet();
@@ -206,11 +209,13 @@ class ByteArrayFlowPublisher implements Flow.Publisher<byte[]> {
          * circuit breaker trips or the downstream violates the subscription contract.
          */
         void abort(Exception e) {
-            error = e;
+            error.compareAndSet(null, e);
             var subscription = upstreamSubscription;
             if (subscription != null) {
                 subscription.cancel();
             }
+            abortExchange.run();
+            close();
             taskRunner.requestNextRun();
         }
 

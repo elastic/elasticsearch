@@ -7,6 +7,9 @@
 
 package org.elasticsearch.xpack.inference.external.http;
 
+import org.elasticsearch.common.breaker.CircuitBreaker;
+import org.elasticsearch.common.breaker.CircuitBreakingException;
+import org.elasticsearch.common.breaker.NoopCircuitBreaker;
 import org.elasticsearch.common.breaker.TestCircuitBreaker;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -63,7 +66,11 @@ public class ByteArrayFlowPublisherTests extends ESTestCase {
     private final AtomicBoolean exchangeAborted = new AtomicBoolean();
 
     private ByteArrayFlowPublisher publisher(Publisher<ByteBuffer> upstream) {
-        return new ByteArrayFlowPublisher(upstream, threadPool, new TestCircuitBreaker(), "inference-id", () -> exchangeAborted.set(true));
+        return publisher(upstream, new TestCircuitBreaker());
+    }
+
+    private ByteArrayFlowPublisher publisher(Publisher<ByteBuffer> upstream, CircuitBreaker circuitBreaker) {
+        return new ByteArrayFlowPublisher(upstream, threadPool, circuitBreaker, "inference-id", () -> exchangeAborted.set(true));
     }
 
     /**
@@ -178,6 +185,60 @@ public class ByteArrayFlowPublisherTests extends ESTestCase {
         subscriber.request(5);
 
         assertThat(upstream.requested(), equalTo(5L));
+    }
+
+    /**
+     * Given queued (accounted) chunks and a downstream with zero outstanding demand
+     * When the upstream fails
+     * Then the breaker reservation is released immediately — the terminal onError still needs demand that may never arrive
+     * (e.g. a socket timeout on a stream whose client stalled), so the release must not wait for it
+     */
+    public void testErrorWithoutDemandReleasesBreakerReservationImmediately() {
+        var upstream = new TestUpstreamPublisher();
+        var breaker = new BytesTrackingCircuitBreaker();
+        var subscriber = new TestSubscriber(0); // zero demand for the whole test until the end
+        publisher(upstream, breaker).subscribe(subscriber);
+
+        upstream.emit(randomByteArrayOfLength(5));
+        upstream.emit(randomByteArrayOfLength(7));
+        assertThat("queued chunks must be accounted against the breaker", breaker.used(), equalTo(12L));
+
+        var exception = new IllegalStateException("socket timed out");
+        upstream.error(exception);
+
+        // released synchronously by onError's eager close(), even though no terminal signal could be delivered yet
+        assertThat(breaker.used(), equalTo(0L));
+        assertThat(subscriber.events, is(empty()));
+
+        subscriber.request(1); // a late request still gets the terminal signal
+        subscriber.awaitTerminalSignal();
+        assertThat(subscriber.events, contains("onError"));
+        assertThat(subscriber.error, sameInstance(exception));
+        assertThat("no double release", breaker.used(), equalTo(0L));
+    }
+
+    /**
+     * Given a circuit breaker that trips on the next accounted chunk
+     * When the upstream emits
+     * Then the exchange is aborted (upstream cancelled AND exchange future cancelled) and the downstream is failed with the
+     * breaker's exception once demand is available
+     */
+    public void testBreakerTripAbortsExchange() {
+        var upstream = new TestUpstreamPublisher();
+        var breaker = new TestCircuitBreaker();
+        var subscriber = new TestSubscriber(0);
+        publisher(upstream, breaker).subscribe(subscriber);
+
+        breaker.startBreaking();
+        upstream.emit(randomByteArrayOfLength(5));
+
+        assertTrue("breaker trip must cancel the upstream subscription", upstream.isCancelled());
+        assertTrue("breaker trip must abort the exchange to release the leased connection", exchangeAborted.get());
+
+        subscriber.request(1);
+        subscriber.awaitTerminalSignal();
+        assertThat(subscriber.events, contains("onError"));
+        assertThat(subscriber.error, instanceOf(CircuitBreakingException.class));
     }
 
     /**
@@ -354,6 +415,33 @@ public class ByteArrayFlowPublisherTests extends ESTestCase {
         private void awaitTerminalSignal() {
             safeAwait(terminalLatch);
             assertThat("only one terminal signal may be delivered", terminalLatch.getCount(), is(0L));
+        }
+    }
+
+    /**
+     * Tracks the net bytes currently claimed via addEstimateBytesAndMaybeBreak/addWithoutBreaking. A stub is required because
+     * {@link TestCircuitBreaker} does not record accounting, and the real breakers need a parent breaker service — this test only
+     * needs to observe that every reservation is eventually released.
+     */
+    private static class BytesTrackingCircuitBreaker extends NoopCircuitBreaker {
+        private final AtomicLong used = new AtomicLong();
+
+        BytesTrackingCircuitBreaker() {
+            super("test");
+        }
+
+        @Override
+        public void addEstimateBytesAndMaybeBreak(long bytes, String label) throws CircuitBreakingException {
+            used.addAndGet(bytes);
+        }
+
+        @Override
+        public void addWithoutBreaking(long bytes) {
+            used.addAndGet(bytes);
+        }
+
+        private long used() {
+            return used.get();
         }
     }
 }

@@ -20,6 +20,7 @@ import org.apache.lucene.document.StringField;
 import org.apache.lucene.index.CodecReader;
 import org.apache.lucene.index.DirectoryReader;
 import org.apache.lucene.index.IndexWriter;
+import org.apache.lucene.index.MergePolicy;
 import org.apache.lucene.index.StoredFieldVisitor;
 import org.apache.lucene.tests.codecs.asserting.AssertingCodec;
 import org.apache.lucene.tests.index.BaseStoredFieldsFormatTestCase;
@@ -97,7 +98,7 @@ public class TSDBStoredFieldsFormatTests extends BaseStoredFieldsFormatTestCase 
         var storedFields = new RecordingStoredFieldsReader();
         var reader = format.new TSDBStoredFieldsReader(storedFields, null);
 
-        reader.checkIntegrity();
+        reader.checkIntegrity(null);
         reader.prefetch(7);
         assertThat(storedFields.integrityChecks, equalTo(1));
         assertThat(storedFields.prefetched, equalTo(7));
@@ -116,7 +117,7 @@ public class TSDBStoredFieldsFormatTests extends BaseStoredFieldsFormatTestCase 
         }
 
         @Override
-        public void checkIntegrity() {
+        public void checkIntegrity(MergePolicy.OneMerge merge) {
             integrityChecks += 1;
         }
 

@@ -19,6 +19,7 @@ import org.apache.lucene.index.DocValuesType;
 import org.apache.lucene.index.FieldInfo;
 import org.apache.lucene.index.FieldInfos;
 import org.apache.lucene.index.IndexOptions;
+import org.apache.lucene.index.MergePolicy;
 import org.apache.lucene.index.NumericDocValues;
 import org.apache.lucene.index.SegmentInfo;
 import org.apache.lucene.index.SortedDocValues;
@@ -50,7 +51,7 @@ public class TSDBSyntheticIdStoredFieldsReaderTests extends ESTestCase {
             var producer = new RecordingDocValuesProducer();
             var reader = reader(directory, producer);
 
-            reader.checkIntegrity();
+            reader.checkIntegrity(null);
 
             assertEquals("checkIntegrity must reach the doc values the synthetic id is built from", 1, producer.integrityChecks);
         }
@@ -201,7 +202,7 @@ public class TSDBSyntheticIdStoredFieldsReaderTests extends ESTestCase {
         }
 
         @Override
-        public void checkIntegrity() {
+        public void checkIntegrity(MergePolicy.OneMerge merge) {
             integrityChecks += 1;
         }
 

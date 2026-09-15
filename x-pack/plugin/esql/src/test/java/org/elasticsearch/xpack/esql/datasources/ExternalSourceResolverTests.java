@@ -356,6 +356,8 @@ public class ExternalSourceResolverTests extends ESTestCase {
     /**
      * Listing notices and schema notices are separate channels: a comma list with more segments than the cap raises one
      * exclusion notice per segment, and the notice that the user's numbers came back as strings must still be delivered.
+     * Each segment is a prefix glob ({@code pN/*}) with no implied format, so the dataset must declare parquet
+     * — the same requirement a prefix glob has at PUT.
      */
     public void testListingNoticesDoNotStarveSchemaNotices() throws Exception {
         Map<String, List<Attribute>> schemasByPath = new HashMap<>();
@@ -374,11 +376,13 @@ public class ExternalSourceResolverTests extends ESTestCase {
             List.of(entry("s3://bucket/p0/a.parquet", 100), entry("s3://bucket/p0/b.parquet", 100), entry("s3://bucket/p0/_SUCCESS", 0))
         );
 
+        Map<String, Object> config = new HashMap<>(configFor(FormatReader.SchemaResolution.UNION_BY_NAME));
+        config.put("format", "parquet");
         ExternalSourceResolution resolution = resolveResourceWithConfig(
             String.join(",", segments),
             schemasByPath,
             listingsByPrefix,
-            configFor(FormatReader.SchemaResolution.UNION_BY_NAME)
+            config
         );
 
         List<String> warnings = resolution.warnings();
@@ -2928,7 +2932,8 @@ public class ExternalSourceResolverTests extends ESTestCase {
     /**
      * A comma list raises one exclusion notice per segment, each naming its own prefix, so exact-text deduplication
      * alone would deliver one header per segment. The listing channel is capped like the metadata channel, with a
-     * single overflow marker after everything else.
+     * single overflow marker after everything else. Prefix globs imply no format, so parquet is declared the same
+     * way a PUT of {@code pN/*} would have to.
      */
     public void testListingNoticesAreCapped() throws Exception {
         List<Attribute> schema = List.of(attr("id", DataType.INTEGER));
@@ -2946,7 +2951,7 @@ public class ExternalSourceResolverTests extends ESTestCase {
             String.join(",", segments),
             schemasByPath,
             listingsByPrefix,
-            Map.of()
+            Map.of("format", "parquet")
         );
 
         List<String> warnings = resolution.warnings();

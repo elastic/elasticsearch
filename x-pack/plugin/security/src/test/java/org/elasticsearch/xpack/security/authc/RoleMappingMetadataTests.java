@@ -9,6 +9,7 @@ package org.elasticsearch.xpack.security.authc;
 
 import org.elasticsearch.TransportVersion;
 import org.elasticsearch.TransportVersions;
+import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.ByteBufferStreamInput;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
@@ -27,6 +28,7 @@ import java.util.HashSet;
 import java.util.Set;
 
 import static org.elasticsearch.xpack.security.authc.support.mapper.ExpressionRoleMappingTests.randomRoleMapping;
+import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
 
 public class RoleMappingMetadataTests extends AbstractWireSerializingTestCase<RoleMappingMetadata> {
@@ -73,6 +75,12 @@ public class RoleMappingMetadataTests extends AbstractWireSerializingTestCase<Ro
         streamInput.setTransportVersion(version);
         RoleMappingMetadata deserialized = new RoleMappingMetadata(streamInput);
         assertEquals(original, deserialized);
+    }
+
+    public void testRoleMappingsAreNotRestorableFromSnapshot() {
+        RoleMappingMetadata roleMappingMetadata = new RoleMappingMetadata(randomSet(0, 3, () -> randomRoleMapping(true)));
+        assertThat(roleMappingMetadata.context(), equalTo(Metadata.API_AND_GATEWAY));
+        assertThat(roleMappingMetadata.isRestorable(), is(false));
     }
 
     public void testEquals() {

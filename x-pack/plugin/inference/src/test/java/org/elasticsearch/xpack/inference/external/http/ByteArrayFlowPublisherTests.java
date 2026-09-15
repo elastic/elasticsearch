@@ -242,6 +242,54 @@ public class ByteArrayFlowPublisherTests extends ESTestCase {
     }
 
     /**
+     * Given accumulated demand that would overflow a long
+     * When more demand is requested
+     * Then demand saturates at Long.MAX_VALUE (Reactive Streams treats it as unbounded) instead of going negative,
+     * which would silently stall delivery forever
+     */
+    public void testDemandSaturatesInsteadOfOverflowing() {
+        var upstream = new TestUpstreamPublisher();
+        var events = Collections.synchronizedList(new ArrayList<String>());
+        var terminal = new CountDownLatch(1);
+        // a plain subscriber without the demand-tracking guard: unbounded demand deliberately exceeds what it consumes
+        var subscriber = new Flow.Subscriber<byte[]>() {
+            private Flow.Subscription subscription;
+
+            @Override
+            public void onSubscribe(Flow.Subscription subscription) {
+                this.subscription = subscription;
+                subscription.request(Long.MAX_VALUE);
+                subscription.request(Long.MAX_VALUE); // would overflow negative without saturation
+            }
+
+            @Override
+            public void onNext(byte[] item) {
+                events.add("onNext");
+            }
+
+            @Override
+            public void onError(Throwable throwable) {
+                events.add("onError");
+                terminal.countDown();
+            }
+
+            @Override
+            public void onComplete() {
+                events.add("onComplete");
+                terminal.countDown();
+            }
+        };
+        publisher(upstream).subscribe(subscriber);
+
+        upstream.emit(randomByteArrayOfLength(5));
+        upstream.emit(randomByteArrayOfLength(5));
+        upstream.complete();
+
+        safeAwait(terminal);
+        assertThat(events, contains("onNext", "onNext", "onComplete"));
+    }
+
+    /**
      * Given a publisher that already has a subscriber
      * When a second subscriber subscribes
      * Then it is rejected with onError and the upstream is never subscribed twice — httpcore5-reactive's ReactiveDataConsumer

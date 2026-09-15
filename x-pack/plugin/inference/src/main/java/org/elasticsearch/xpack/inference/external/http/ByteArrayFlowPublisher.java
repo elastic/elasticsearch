@@ -90,7 +90,6 @@ class ByteArrayFlowPublisher implements Flow.Publisher<byte[]> {
     }
 
     private static byte[] toBytes(ByteBuffer buffer) {
-        // always copy: the upstream owns the buffer and may reuse it after onNext returns
         var bytes = new byte[buffer.remaining()];
         buffer.get(bytes);
         return bytes;
@@ -122,7 +121,11 @@ class ByteArrayFlowPublisher implements Flow.Publisher<byte[]> {
                         abort(new IllegalArgumentException("Subscriber requested a non-positive number " + n));
                         return;
                     }
-                    pendingRequests.addAndGet(n);
+                    pendingRequests.accumulateAndGet(n, (current, requested) -> {
+                        var sum = current + requested;
+                        // Reactive Streams treats Long.MAX_VALUE as unbounded demand, so saturate instead of overflowing negative
+                        return sum < 0 ? Long.MAX_VALUE : sum;
+                    });
                     subscription.request(n);
                     taskRunner.requestNextRun();
                 }
@@ -139,10 +142,10 @@ class ByteArrayFlowPublisher implements Flow.Publisher<byte[]> {
 
         @Override
         public void onNext(ByteBuffer item) {
-            var bytes = toBytes(item);
             if (closed) {
                 return;
             }
+            var bytes = toBytes(item);
             try {
                 circuitBreaker.addEstimateBytesAndMaybeBreak(bytes.length, inferenceEntityId);
             } catch (Exception e) {

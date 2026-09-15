@@ -13,7 +13,7 @@ import org.elasticsearch.core.Nullable;
 import org.elasticsearch.inference.ModelConfigurations;
 import org.elasticsearch.inference.ModelSecrets;
 import org.elasticsearch.inference.TaskType;
-import org.elasticsearch.inference.UnifiedCompletionRequest;
+import org.elasticsearch.inference.UnifiedCompletionRequestBody;
 import org.elasticsearch.xpack.inference.external.action.ExecutableAction;
 import org.elasticsearch.xpack.inference.services.ConfigurationParseContext;
 import org.elasticsearch.xpack.inference.services.googlevertexai.GoogleVertexAiModel;
@@ -146,7 +146,7 @@ public class GoogleVertexAiChatCompletionModel extends GoogleVertexAiModel {
         streamingURI = model.streamingURI();
     }
 
-    public static GoogleVertexAiChatCompletionModel of(GoogleVertexAiChatCompletionModel model, UnifiedCompletionRequest request) {
+    public static GoogleVertexAiChatCompletionModel of(GoogleVertexAiChatCompletionModel model, UnifiedCompletionRequestBody request) {
         var originalModelServiceSettings = model.getServiceSettings();
 
         var newServiceSettings = new GoogleVertexAiChatCompletionServiceSettings(

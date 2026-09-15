@@ -27,6 +27,7 @@ import org.elasticsearch.inference.ModelSecrets;
 import org.elasticsearch.inference.ServiceSettings;
 import org.elasticsearch.inference.TaskType;
 import org.elasticsearch.inference.UnifiedCompletionRequest;
+import org.elasticsearch.inference.UnifiedCompletionRequestBody;
 import org.elasticsearch.inference.UnparsedModel;
 import org.elasticsearch.inference.completion.ContentString;
 import org.elasticsearch.inference.completion.Message;
@@ -628,7 +629,9 @@ public class AnthropicServiceTests extends InferenceServiceTestCase {
             PlainActionFuture<InferenceServiceResults> listener = new PlainActionFuture<>();
             service.unifiedCompletionInfer(
                 model,
-                UnifiedCompletionRequest.of(List.of(new Message(new ContentString("Hello"), "user", null, null))),
+                UnifiedCompletionRequest.streaming(
+                    UnifiedCompletionRequestBody.of(List.of(new Message(new ContentString("Hello"), "user", null, null)))
+                ),
                 TIMEOUT,
                 listener
             );

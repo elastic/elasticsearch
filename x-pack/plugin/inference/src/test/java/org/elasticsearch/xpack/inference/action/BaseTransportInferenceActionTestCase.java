@@ -434,6 +434,7 @@ public abstract class BaseTransportInferenceActionTestCase<Request extends BaseI
 
         when(service.canStream(any())).thenReturn(stream);
         when(service.supportedStreamingTasks()).thenReturn(supportedStreamingTasks);
+        when(service.supportsNonStreamingChatCompletion()).thenReturn(true);
         doAnswer(ans -> {
             listenerAction.accept(ans.getArgument(6));
             return null;

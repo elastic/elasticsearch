@@ -222,7 +222,7 @@ public class GroupedTopNOperator implements Operator, Accountable {
             rowFiller.writeValues(position, spare);
             queue.add(spare);
             spare = null;
-        } else if (queue.lessThan(queue.top(), spare)) {
+        } else if (queue.top().compareTo(spare) < 0) {
             rowFiller.writeValues(position, spare);
             TopNRow nextSpare = queue.top();
             queue.updateTop(spare);

@@ -459,7 +459,7 @@ public class TopNOperator implements Operator, Accountable {
                     inputQueue.add(spare);
                     spare = null;
                     modified = true;
-                } else if (inputQueue.lessThan(inputQueue.top(), spare)) {
+                } else if (inputQueue.top().compareTo(spare) < 0) {
                     // Heap full AND this node fits in it.
                     TopNRow nextSpare = inputQueue.top();
                     rowFiller.writeValues(i, spare);

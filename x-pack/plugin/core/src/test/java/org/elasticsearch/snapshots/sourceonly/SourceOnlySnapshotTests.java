@@ -26,8 +26,6 @@ import org.apache.lucene.index.KeepOnlyLastCommitDeletionPolicy;
 import org.apache.lucene.index.LeafReader;
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.index.NoMergePolicy;
-import org.apache.lucene.index.SegmentCommitInfo;
-import org.apache.lucene.index.SegmentInfos;
 import org.apache.lucene.index.SegmentReader;
 import org.apache.lucene.index.SnapshotDeletionPolicy;
 import org.apache.lucene.index.SoftDeletesDirectoryReaderWrapper;
@@ -152,12 +150,7 @@ public class SourceOnlySnapshotTests extends ESTestCase {
                 dir,
                 newIndexWriterConfig().setSoftDeletesField(Lucene.SOFT_DELETES_FIELD)
                     .setIndexDeletionPolicy(deletionPolicy)
-                    .setMergePolicy(new FilterMergePolicy(NoMergePolicy.INSTANCE) {
-                        @Override
-                        public boolean useCompoundFile(SegmentInfos infos, SegmentCommitInfo mergedInfo, MergeContext mergeContext) {
-                            return randomBoolean();
-                        }
-                    })
+                    .setMergePolicy(NoMergePolicy.INSTANCE)
             );
             Document doc = new Document();
             doc.add(new StringField("id", "1", Field.Store.YES));
@@ -289,11 +282,6 @@ public class SourceOnlySnapshotTests extends ESTestCase {
                 newIndexWriterConfig().setSoftDeletesField(Lucene.SOFT_DELETES_FIELD)
                     .setIndexDeletionPolicy(deletionPolicy)
                     .setMergePolicy(new FilterMergePolicy(NoMergePolicy.INSTANCE) {
-                        @Override
-                        public boolean useCompoundFile(SegmentInfos infos, SegmentCommitInfo mergedInfo, MergeContext mergeContext) {
-                            return randomBoolean();
-                        }
-
                         @Override
                         public boolean keepFullyDeletedSegment(IOSupplier<CodecReader> readerIOSupplier) throws IOException {
                             return true;

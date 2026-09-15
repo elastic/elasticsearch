@@ -3141,8 +3141,7 @@ public class SharedBlobCacheWarmingServiceTests extends ESTestCase {
             var segmentCommitInfo = new SegmentCommitInfo(segmentInfo, 0, 0, -1L, -1L, -1L, new byte[16]);
 
             int regionCount = randomIntBetween(2, 5);
-            System.out.println("REGION COUNT: " + regionCount);
-            final String blobName = StatelessCompoundCommit.blobNameFromGeneration(1);
+            var blobName = StatelessCompoundCommit.blobNameFromGeneration(1);
             var blobFile = new BlobFile(blobName, new PrimaryTermAndGeneration(primaryTerm, 1));
             var blobLocation = new BlobLocation(blobFile, 0, (long) regionCount * fakeNode.sharedCacheService.getRegionSize());
             var mergeWarmFuture = new PlainActionFuture<Void>();

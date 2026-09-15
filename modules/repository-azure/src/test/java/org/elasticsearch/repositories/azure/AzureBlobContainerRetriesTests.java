@@ -43,7 +43,6 @@ import org.elasticsearch.common.util.concurrent.CountDown;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.core.TimeValue;
-import org.elasticsearch.index.snapshots.blobstore.SlicedInputStream;
 import org.elasticsearch.mocksocket.MockHttpServer;
 import org.elasticsearch.repositories.RepositoriesMetrics;
 import org.elasticsearch.repositories.blobstore.AbstractBlobContainerRetriesTestCase;
@@ -595,7 +594,16 @@ public class AzureBlobContainerRetriesTests extends AbstractBlobContainerRetries
         // 1-second per-try timeout: the blocked read() stalls the body Flux, so no request is sent and
         // no response arrives. After 1s, the client-side tryTimeoutDuration fires and the SDK retries
         // by re-subscribing to the Flux (calling reset()) while Thread A is still inside read().
-        final BlobContainer blobContainer = createBlobContainer(maxRetries, null, TimeValue.timeValueSeconds(1), null, null, null, null, null);
+        final BlobContainer blobContainer = createBlobContainer(
+            maxRetries,
+            null,
+            TimeValue.timeValueSeconds(1),
+            null,
+            null,
+            null,
+            null,
+            null
+        );
 
         // Hold the connection open without sending any response so that the client's per-try timeout
         // fires. readReleased is released when reset() is called by the first retry; after that,

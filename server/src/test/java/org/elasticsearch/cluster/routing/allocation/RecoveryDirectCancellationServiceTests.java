@@ -1539,7 +1539,7 @@ public class RecoveryDirectCancellationServiceTests extends ESAllocationTestCase
         final var clusterSettings = new ClusterSettings(nodeSettings, settingSet);
         final var currentState = new AtomicReference<>(unrecoveredState);
         final var clusterService = createMockClusterService(unrecoveredState, nodeSettings, clusterSettings);
-        doReturn(currentState.get()).when(clusterService).state();
+        when(clusterService.state()).thenAnswer(ignored -> currentState.get());
 
         final var service = new RecoveryDirectCancellationService(
             transportService,

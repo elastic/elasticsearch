@@ -27,6 +27,7 @@ import org.gradle.api.file.RegularFileProperty;
 import java.io.File;
 import java.io.IOException;
 import java.io.UncheckedIOException;
+import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.StandardCopyOption;
 import java.util.HashMap;
@@ -70,12 +71,7 @@ class MaintainerScriptsGenerator {
         );
         for (MaintainerScript script : scripts) {
             if (script.file() != null) {
-                // a script file provided by the build is installed verbatim
-                try {
-                    Files.copy(script.file().toPath(), new File(destination, script.name()).toPath(), StandardCopyOption.REPLACE_EXISTING);
-                } catch (IOException e) {
-                    throw new UncheckedIOException(e);
-                }
+                installScript(script.file(), new File(destination, script.name()));
             } else if (script.forceGeneration()) {
                 Map<String, Object> scriptContext = new HashMap<>(context);
                 scriptContext.put("commands", List.of());
@@ -86,6 +82,23 @@ class MaintainerScriptsGenerator {
 
     private static File fileOrNull(RegularFileProperty property) {
         return property.isPresent() ? property.get().getAsFile() : null;
+    }
+
+    /**
+     * Nebula/jdeb historically wrapped these maintainer scripts so they executed under bash even
+     * when the source file itself lacked a shebang. Preserve that behavior here because the shared
+     * Elasticsearch postinst script uses bash syntax (`<<<`).
+     */
+    private static void installScript(File source, File target) {
+        try {
+            String content = Files.readString(source.toPath(), StandardCharsets.UTF_8);
+            if (content.startsWith("#!") == false) {
+                content = "#!/bin/bash\n" + content;
+            }
+            Files.writeString(target.toPath(), content, StandardCharsets.UTF_8);
+        } catch (IOException e) {
+            throw new UncheckedIOException(e);
+        }
     }
 
     private static boolean hasDirs(Map<String, Object> context) {

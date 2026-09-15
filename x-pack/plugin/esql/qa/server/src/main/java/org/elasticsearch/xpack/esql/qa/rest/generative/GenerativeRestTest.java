@@ -145,6 +145,9 @@ public abstract class GenerativeRestTest extends ESRestTestCase implements Query
         "INLINE STATS cannot be used after an explicit or implicit LIMIT command",
         // Full-text functions and `:` operator are not allowed after FORK
         "(?:(?:\\[(?:KQL|QSTR|MATCH|MatchPhrase|KNN)] function)|(?:\\[:\\] operator)) cannot be used after FORK",
+        // A FORK output column filled from a mapped text field cannot be searched: the merge drops the field's
+        // mapping analyzer, so the search would silently use the standard analyzer instead
+        "(?:(?:\\[(?:MATCH|MatchPhrase)] function)|(?:\\[:\\] operator)) cannot search column \\[.*\\] after FORK",
         // Full-text functions and `:` operator are not allowed after HIGHLIGHT
         "(?:(?:\\[(?:KQL|QSTR|MATCH|MatchPhrase|KNN)] function)|(?:\\[:\\] operator)) cannot be used after HIGHLIGHT",
         // Full-text functions and `:` operator are not allowed after LIMIT (can arise when a FORK

@@ -339,6 +339,63 @@ public class MatchFunctionIT extends AbstractEsqlIntegTestCase {
         assertThat(error.getMessage(), containsString("[MATCH] function is only supported in WHERE and STATS commands"));
     }
 
+    public void testRuntimeMatchAfterLimit() {
+        var query = """
+            FROM test
+            | EVAL summary = to_text(concat("content: ", content))
+            | SORT id
+            | LIMIT 3
+            | WHERE match(summary, "fox")
+            | KEEP id
+            """;
+
+        // The LIMIT keeps ids 1-3, of which only 1 mentions a fox. Id 6 does too, so a filter that ran before the
+        // LIMIT - or that the LIMIT failed to constrain - would return it as well.
+        try (var resp = run(query)) {
+            assertColumnNames(resp.columns(), List.of("id"));
+            assertColumnTypes(resp.columns(), List.of("integer"));
+            assertValues(resp.values(), List.of(List.of(1)));
+        }
+    }
+
+    public void testRuntimeMatchAfterStats() {
+        var query = """
+            FROM test
+            | STATS ids = count(*) BY summary = to_text(concat("content: ", content))
+            | WHERE match(summary, "fox")
+            | KEEP summary, ids
+            | SORT summary
+            """;
+
+        try (var resp = run(query)) {
+            assertColumnNames(resp.columns(), List.of("summary", "ids"));
+            assertColumnTypes(resp.columns(), List.of("text", "long"));
+            assertValues(
+                resp.values(),
+                List.of(List.of("content: The quick brown fox jumps over the lazy dog", 1L), List.of("content: This is a brown fox", 1L))
+            );
+        }
+    }
+
+    public void testRuntimeMatchAfterLimitWithScore() {
+        var query = """
+            FROM test METADATA _score
+            | EVAL summary = to_text(concat("content: ", content))
+            | SORT id
+            | LIMIT 3
+            | WHERE match(summary, "fox")
+            | KEEP id, _score
+            """;
+
+        // The LIMIT is a pipeline breaker, so this filter runs on the coordinator. Runtime scoring needs no shard
+        // context, so the matched term must still score its point there, exactly as it does on a data node.
+        try (var resp = run(query)) {
+            assertColumnNames(resp.columns(), List.of("id", "_score"));
+            assertColumnTypes(resp.columns(), List.of("integer", "double"));
+            assertValues(resp.values(), List.of(List.of(1, 1.0)));
+        }
+    }
+
     public void testMatchAfterMvExpand() {
         var query = """
             FROM test
@@ -1104,6 +1161,77 @@ public class MatchFunctionIT extends AbstractEsqlIntegTestCase {
                 + "[my_date]",
             error.getMessage()
         );
+    }
+
+    public void testMatchOnMappedTextAfterForkThrowsError() {
+        // The LIMIT in each branch stops the filter being pushed into them, so the search runs on the merged column
+        // and would analyze a mapped text field's values with the standard analyzer instead of the field's own.
+        var query = """
+            FROM test
+            | FORK (WHERE match(content, "fox") | SORT id | LIMIT 5)
+                   (WHERE match(content, "dog") | SORT id | LIMIT 5)
+            | WHERE match(content, "brown")
+            """;
+
+        var error = expectThrows(VerificationException.class, () -> run(query));
+        assertThat(error.getMessage(), containsString("[MATCH] function cannot search column [content] after FORK"));
+        assertThat(error.getMessage(), containsString("Search [content] in the FORK branches instead"));
+        assertThat(error.getMessage(), containsString("TO_TEXT(content, {\"analyzer\": ...})"));
+    }
+
+    public void testMatchOnMappedTextAfterForkWithDeclaredAnalyzer() {
+        // Declaring the values analyzer makes the same merge searchable. Whitespace lowercases neither side, so
+        // document 4 - retrieved by the dog branch, and the only other row containing "this" - is dropped for
+        // spelling it in lower case. Under the standard analyzer it would come back.
+        var query = """
+            FROM test
+            | FORK (WHERE match(content, "fox") | SORT id | LIMIT 5)
+                   (WHERE match(content, "dog") | SORT id | LIMIT 5)
+            | EVAL t = to_text(content, {"analyzer": "whitespace"})
+            | WHERE match(t, "This")
+            | KEEP _fork, id, content
+            | SORT _fork, id
+            """;
+
+        try (var resp = run(query)) {
+            assertColumnNames(resp.columns(), List.of("_fork", "id", "content"));
+            assertValues(
+                resp.values(),
+                List.of(
+                    List.of("fork1", 1, "This is a brown fox"),
+                    List.of("fork2", 2, "This is a brown dog"),
+                    List.of("fork2", 3, "This dog is really brown")
+                )
+            );
+        }
+    }
+
+    public void testMatchOnMappedTextAfterForkWithoutPipelineBreaker() {
+        // No pipeline breaker in either branch, so the filter is pushed into them and this stays an indexed search
+        // that honors the field's mapped analyzer - nothing for the FORK restriction to reject.
+        var query = """
+            FROM test
+            | FORK (WHERE match(content, "fox"))
+                   (WHERE match(content, "dog"))
+            | WHERE match(content, "brown")
+            | KEEP _fork, id
+            | SORT _fork, id
+            """;
+
+        try (var resp = run(query)) {
+            assertColumnNames(resp.columns(), List.of("_fork", "id"));
+            assertValues(
+                resp.values(),
+                List.of(
+                    List.of("fork1", 1),
+                    List.of("fork1", 6),
+                    List.of("fork2", 2),
+                    List.of("fork2", 3),
+                    List.of("fork2", 4),
+                    List.of("fork2", 6)
+                )
+            );
+        }
     }
 
     static void createAndPopulateIndices(Consumer<String[]> ensureYellow) {

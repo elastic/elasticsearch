@@ -1234,6 +1234,86 @@ content:text
 [This is a brown dog, extra]
 ;
 
+// The LIMIT keeps only the six lowest book_no, of which just 1463 and 2130 mention Tolkien. Book 2301 does too but
+// is cut by the LIMIT, so a filter wrongly evaluated before it would return three rows instead of two.
+matchOnRuntimeTextAfterLimit
+
+required_capability: match_function
+required_capability: fn_match_runtime_anywhere
+
+FROM books
+| SORT book_no
+| LIMIT 6
+| EVAL content = to_text(concat(title, " ", description))
+| WHERE match(content, "Tolkien")
+| KEEP book_no, title
+;
+
+book_no:keyword | title:text
+1463            | Realms of Tolkien: Images of Middle-earth
+2130            | The J. R. R. Tolkien Audio Collection
+;
+
+matchOnRuntimeTextAfterStats
+
+required_capability: match_function
+required_capability: fn_match_runtime_anywhere
+
+FROM books
+| STATS max_year = max(year) BY book_no
+| EVAL b = to_text(book_no)
+| WHERE match(b, "2130")
+| KEEP book_no, max_year
+;
+
+book_no:keyword | max_year:integer
+2130            | 2002
+;
+
+// Grouping on a constant makes LIMIT ... BY keep the same six lowest book_no as matchOnRuntimeTextAfterLimit, so the
+// window stays predictable. Book 2301 mentions Tolkien too but falls outside it, and would come back if the filter
+// were evaluated before the breaker.
+matchOnRuntimeTextAfterLimitBy
+
+required_capability: match_function
+required_capability: esql_limit_by
+required_capability: fn_match_runtime_anywhere
+
+FROM books
+| SORT book_no
+| EVAL g = 1
+| LIMIT 6 BY g
+| EVAL content = to_text(concat(title, " ", description))
+| WHERE match(content, "Tolkien")
+| KEEP book_no
+| SORT book_no
+;
+
+book_no:keyword
+1463
+2130
+;
+
+// DEDUP compares whole rows, so only book_no is kept going into it - a text column is not something to group on.
+matchOnRuntimeTextAfterDedup
+
+required_capability: match_function
+required_capability: dedup_command
+required_capability: fn_match_runtime_anywhere
+
+FROM books
+| SORT book_no
+| LIMIT 6
+| KEEP book_no
+| DEDUP
+| EVAL b = to_text(book_no)
+| WHERE match(b, "2130")
+;
+
+book_no:keyword | b:text
+2130            | 2130
+;
+
 matchOnRuntimeKeyword
 
 required_capability: match_function
@@ -2288,6 +2368,85 @@ content:text
 the Fox jumped
 ;
 
+matchOnRuntimeTextAfterForkHonorsValuesAnalyzer
+required_capability: match_function
+required_capability: fn_to_text_analyzer
+required_capability: fork_v9
+required_capability: fn_match_runtime_anywhere
+
+// the values analyzer declared below FORK has to survive the merge into its output. Whitespace does not lowercase,
+// so only the capitalised row matches; losing the declaration would fall back to standard and match both rows.
+ROW content = to_text(["the Fox jumped", "the fox jumped"], {"analyzer": "whitespace"})
+| MV_EXPAND content
+| FORK (WHERE true)
+       (WHERE true)
+| WHERE match(content, "Fox")
+| KEEP content, _fork
+| SORT _fork
+;
+
+content:text   | _fork:keyword
+the Fox jumped | fork1
+the Fox jumped | fork2
+;
+
+// Two unrelated retrieval strategies merged - Tolkien's own books, and every edition of one Faulkner novel - then
+// filtered on the merged title column. The branches share no rows, and the filter is on an axis neither of them
+// searched, so a row survives independently of why it was retrieved.
+//
+// Declaring the values analyzer is what makes that last filter legal: TO_TEXT rejects the analyzer option on an
+// index-mapped field, but the merged column is no longer index-mapped. The top-N in each branch is also what keeps the
+// filter above the merge - with no pipeline breaker it would be pushed into the branches and search the index instead.
+//
+// The three Unvanquished editions differ only in the case of their titles, so they show exactly what the whitespace
+// analyzer does: it lowercases neither side, so 4977 and 8077 match "The" while 4724, titled "THE UNVANQUISHED",
+// does not. Under the standard analyzer all three would match.
+matchOnMappedTextAfterForkWithDeclaredAnalyzer
+required_capability: match_function
+required_capability: fn_to_text_analyzer
+required_capability: fork_v9
+required_capability: fn_match_runtime_anywhere
+
+FROM books
+| FORK (WHERE match(author, "Tolkien") | SORT book_no | LIMIT 5)
+       (WHERE match(title, "unvanquished") | SORT book_no | LIMIT 3)
+| EVAL t = to_text(title, {"analyzer": "whitespace"})
+| WHERE match(t, "The")
+| KEEP _fork, book_no, author, title
+| SORT _fork, book_no
+;
+
+_fork:keyword | book_no:keyword | author:text                                      | title:text
+fork1         | 2130            | [Christopher Tolkien, John Ronald Reuel Tolkien] | The J. R. R. Tolkien Audio Collection
+fork1         | 2675            | J.R.R. Tolkien                                   | The Lord of the Rings - Boxed Set
+fork1         | 2714            | J. R. R. Tolkien                                 | Return of the King Being the Third Part of The Lord of the Rings
+fork2         | 4977            | William Faulkner                                 | The Unvanquished
+fork2         | 8077            | William Faulkner                                 | The unvanquished
+;
+
+// The same merge with a lowercase term selects a different set of rows, which is the proof that the declared
+// analyzer is in force: under the standard analyzer "the" and "The" would both match every row above. Here only
+// the two titles carrying a lowercase "the" as a whole token come back, and the Faulkner branch drops out entirely.
+matchOnMappedTextAfterForkWithDeclaredAnalyzerIsCaseSensitive
+required_capability: match_function
+required_capability: fn_to_text_analyzer
+required_capability: fork_v9
+required_capability: fn_match_runtime_anywhere
+
+FROM books
+| FORK (WHERE match(author, "Tolkien") | SORT book_no | LIMIT 5)
+       (WHERE match(title, "unvanquished") | SORT book_no | LIMIT 3)
+| EVAL t = to_text(title, {"analyzer": "whitespace"})
+| WHERE match(t, "the")
+| KEEP _fork, book_no, author, title
+| SORT _fork, book_no
+;
+
+_fork:keyword | book_no:keyword | author:text      | title:text
+fork1         | 2675            | J.R.R. Tolkien   | The Lord of the Rings - Boxed Set
+fork1         | 2714            | J. R. R. Tolkien | Return of the King Being the Third Part of The Lord of the Rings
+;
+
 matchOnRuntimeTextWithKeywordAnalyzer
 required_capability: match_function
 required_capability: fn_to_text_analyzer
@@ -2423,6 +2582,26 @@ book_no:keyword | _score:double
 1463            | 1.0
 2130            | 1.0
 2301            | 1.0
+;
+
+matchOnRuntimeTextAfterLimitWithScore
+required_capability: match_function
+required_capability: metadata_score
+required_capability: fn_match_runtime_anywhere
+
+// The LIMIT puts this filter on the coordinator, which has no shard contexts. Runtime scoring does not need one,
+// so the matched term still scores its point there.
+FROM books METADATA _score
+| SORT book_no
+| LIMIT 6
+| EVAL content = to_text(concat(title, " ", description))
+| WHERE match(content, "Tolkien")
+| KEEP book_no, _score
+;
+
+book_no:keyword | _score:double
+1463            | 1.0
+2130            | 1.0
 ;
 
 matchOnRuntimeTextMultipleTermsWithScore

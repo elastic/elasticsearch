@@ -820,6 +820,38 @@ book_no:keyword
 2883
 ;
 
+// Only the six lowest book_no survive the LIMIT, and 2130 is the one of those titled as an audio collection.
+matchPhraseOnRuntimeTextAfterLimit
+required_capability: match_phrase_function
+required_capability: fn_match_phrase_runtime_anywhere
+
+FROM books
+| SORT book_no
+| LIMIT 6
+| EVAL content = to_text(concat(title, " ", description))
+| WHERE match_phrase(content, "Audio Collection")
+| KEEP book_no, title
+;
+
+book_no:keyword | title:text
+2130            | The J. R. R. Tolkien Audio Collection
+;
+
+matchPhraseOnRuntimeTextAfterStats
+required_capability: match_phrase_function
+required_capability: fn_match_phrase_runtime_anywhere
+
+FROM books
+| STATS max_year = max(year) BY book_no
+| EVAL b = to_text(book_no)
+| WHERE match_phrase(b, "2130")
+| KEEP book_no, max_year
+;
+
+book_no:keyword | max_year:integer
+2130            | 2002
+;
+
 matchPhraseOnTextWithRow
 required_capability: match_phrase_function
 required_capability: fn_match_phrase_runtime_filter

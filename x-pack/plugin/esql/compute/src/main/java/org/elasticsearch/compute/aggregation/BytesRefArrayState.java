@@ -160,7 +160,7 @@ public final class BytesRefArrayState implements GroupingAggregatorState, Releas
         Releasables.close(values);
     }
 
-    private static long bytesUsedByPagesArray(int length) {
+    private static long bytesUsedByPointerPage(int length) {
         return RamUsageEstimator.alignObjectSize(
             (long) RamUsageEstimator.NUM_BYTES_ARRAY_HEADER + (long) RamUsageEstimator.NUM_BYTES_OBJECT_REF * length
         );
@@ -185,8 +185,8 @@ public final class BytesRefArrayState implements GroupingAggregatorState, Releas
         private final boolean[][] seen;
 
         BytesRefPartitionedState(CircuitBreaker breaker, int partitionSize, boolean trackSeen) {
-            long pageBytes = bytesUsedByPagesArray(partitionSize) + (trackSeen ? bytesUsedBySeenPage(partitionSize) : 0);
-            baseBytes = BASE_RAM_USAGE + bytesUsedByPagesArray(NUM_PARTITIONS) + (trackSeen ? bytesUsedByPagesArray(NUM_PARTITIONS) : 0);
+            long pageBytes = bytesUsedByPointerPage(partitionSize) + (trackSeen ? bytesUsedBySeenPage(partitionSize) : 0);
+            baseBytes = BASE_RAM_USAGE + bytesUsedByPointerPage(NUM_PARTITIONS) + (trackSeen ? bytesUsedByPointerPage(NUM_PARTITIONS) : 0);
             breaker.addEstimateBytesAndMaybeBreak(baseBytes + NUM_PARTITIONS * pageBytes, LABEL);
             values = new BytesRef[NUM_PARTITIONS][partitionSize];
             seen = trackSeen ? new boolean[NUM_PARTITIONS][partitionSize] : null;
@@ -206,7 +206,7 @@ public final class BytesRefArrayState implements GroupingAggregatorState, Releas
                         usedBytes += bytesUsedByValue(v);
                     }
                 }
-                usedBytes += bytesUsedByPagesArray(values[partition].length);
+                usedBytes += bytesUsedByPointerPage(values[partition].length);
                 values[partition] = null;
             }
             if (seen != null && seen[partition] != null) {
@@ -226,7 +226,7 @@ public final class BytesRefArrayState implements GroupingAggregatorState, Releas
                             usedBytes += bytesUsedByValue(v);
                         }
                     }
-                    usedBytes += bytesUsedByPagesArray(values[p].length);
+                    usedBytes += bytesUsedByPointerPage(values[p].length);
                     values[p] = null;
                 }
                 if (seen != null && seen[p] != null) {
@@ -281,9 +281,9 @@ public final class BytesRefArrayState implements GroupingAggregatorState, Releas
                 return;
             }
             int newSize = ArrayUtil.oversize(minSize, Long.BYTES);
-            partitionBreaker.addEstimateBytesAndMaybeBreak(bytesUsedByPagesArray(newSize), BytesRefPartitionedState.LABEL);
+            partitionBreaker.addEstimateBytesAndMaybeBreak(bytesUsedByPointerPage(newSize), BytesRefPartitionedState.LABEL);
             partitionedState.values[partition] = Arrays.copyOf(oldValues, newSize);
-            partitionBreaker.addWithoutBreaking(-bytesUsedByPagesArray(oldValues.length));
+            partitionBreaker.addWithoutBreaking(-bytesUsedByPointerPage(oldValues.length));
             if (partitionedState.seen != null) {
                 boolean[] oldSeen = partitionedState.seen[partition];
                 partitionBreaker.addEstimateBytesAndMaybeBreak(bytesUsedBySeenPage(newSize), BytesRefPartitionedState.LABEL);

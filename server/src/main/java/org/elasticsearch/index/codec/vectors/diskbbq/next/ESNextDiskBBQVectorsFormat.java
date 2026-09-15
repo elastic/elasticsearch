@@ -105,6 +105,7 @@ public class ESNextDiskBBQVectorsFormat extends KnnVectorsFormat {
     private final int vectorPerCluster;
     private final int centroidsPerParentCluster;
     private final boolean useDirectIO;
+    private final boolean onDiskMerge;
     private final DirectIOCapableFlatVectorsFormat rawVectorFormat;
     private final TaskExecutor mergeExec;
     private final int numMergeWorkers;
@@ -215,6 +216,41 @@ public class ESNextDiskBBQVectorsFormat extends KnnVectorsFormat {
         IvfFlushConfigSource ivfFlushConfigSource,
         IvfMergeConfigResolver ivfMergeConfigResolver
     ) {
+        this(
+            quantEncoding,
+            vectorPerCluster,
+            centroidsPerParentCluster,
+            elementType,
+            useDirectIO,
+            mergingExecutorService,
+            maxMergingWorkers,
+            doPrecondition,
+            preconditioningBlockDimension,
+            flatVectorThreshold,
+            sliceField,
+            ivfFlushConfigSource,
+            ivfMergeConfigResolver,
+            false
+        );
+    }
+
+    /** @param onDiskMerge whether merges use direct I/O for the raw vectors (the field's {@code on_disk_merge} option) */
+    public ESNextDiskBBQVectorsFormat(
+        QuantEncoding quantEncoding,
+        int vectorPerCluster,
+        int centroidsPerParentCluster,
+        DenseVectorFieldMapper.ElementType elementType,
+        boolean useDirectIO,
+        ExecutorService mergingExecutorService,
+        int maxMergingWorkers,
+        boolean doPrecondition,
+        int preconditioningBlockDimension,
+        int flatVectorThreshold,
+        String sliceField,
+        IvfFlushConfigSource ivfFlushConfigSource,
+        IvfMergeConfigResolver ivfMergeConfigResolver,
+        boolean onDiskMerge
+    ) {
         super(NAME);
         if (vectorPerCluster < MIN_VECTORS_PER_CLUSTER || vectorPerCluster > MAX_VECTORS_PER_CLUSTER) {
             throw new IllegalArgumentException(
@@ -262,6 +298,7 @@ public class ESNextDiskBBQVectorsFormat extends KnnVectorsFormat {
             default -> throw new IllegalArgumentException("Unsupported element type " + elementType);
         };
         this.useDirectIO = useDirectIO;
+        this.onDiskMerge = onDiskMerge;
         this.mergeExec = mergingExecutorService == null ? null : new TaskExecutor(mergingExecutorService);
         this.numMergeWorkers = maxMergingWorkers;
         this.preconditioningBlockDimension = preconditioningBlockDimension;
@@ -283,7 +320,8 @@ public class ESNextDiskBBQVectorsFormat extends KnnVectorsFormat {
             state,
             rawVectorFormat.getName(),
             useDirectIO,
-            rawVectorFormat.fieldsWriter(state),
+            onDiskMerge,
+            rawVectorFormat.fieldsWriter(state, onDiskMerge),
             centroidIndexFormat,
             quantEncoding,
             vectorPerCluster,
@@ -301,10 +339,10 @@ public class ESNextDiskBBQVectorsFormat extends KnnVectorsFormat {
 
     @Override
     public KnnVectorsReader fieldsReader(SegmentReadState state) throws IOException {
-        return new ESNextDiskBBQVectorsReader(state, (f, dio) -> {
+        return new ESNextDiskBBQVectorsReader(state, (f, dio, odm) -> {
             var format = supportedFormats.get(f);
             if (format == null) return null;
-            return format.fieldsReader(state, dio);
+            return format.fieldsReader(state, dio, odm);
         });
     }
 

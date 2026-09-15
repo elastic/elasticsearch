@@ -31,28 +31,32 @@ public class GenericFlatVectorReaders {
 
     @FunctionalInterface
     public interface LoadFlatVectorsReader {
-        FlatVectorsReader getReader(String formatName, boolean useDirectIO) throws IOException;
+        FlatVectorsReader getReader(String formatName, boolean useDirectIO, boolean onDiskMerge) throws IOException;
     }
 
-    private record FlatVectorsReaderKey(String formatName, boolean useDirectIO) {
-        private FlatVectorsReaderKey(Field field) {
-            this(field.rawVectorFormatName(), field.useDirectIOReads());
+    private record FlatVectorsReaderKey(String formatName, boolean useDirectIO, boolean onDiskMerge) {
+        private FlatVectorsReaderKey(Field field, boolean onDiskMerge) {
+            this(field.rawVectorFormatName(), field.useDirectIOReads(), onDiskMerge);
         }
 
         @Override
         public String toString() {
-            return formatName + (useDirectIO ? " with Direct IO" : "");
+            return formatName + (useDirectIO ? " with Direct IO" : "") + (onDiskMerge ? " with Direct IO merges" : "");
         }
     }
 
     private final Map<FlatVectorsReaderKey, FlatVectorsReader> readers = new HashMap<>();
     private final Map<Integer, FlatVectorsReader> readersForFields = new HashMap<>();
 
-    public void loadField(int fieldNumber, Field field, LoadFlatVectorsReader loadReader) throws IOException {
-        FlatVectorsReaderKey key = new FlatVectorsReaderKey(field);
+    /**
+     * @param onDiskMerge whether merges read this field's raw vectors with direct I/O (the field's {@code on_disk_merge}
+     *                    option, as recorded in the segment's field info)
+     */
+    public void loadField(int fieldNumber, Field field, boolean onDiskMerge, LoadFlatVectorsReader loadReader) throws IOException {
+        FlatVectorsReaderKey key = new FlatVectorsReaderKey(field, onDiskMerge);
         FlatVectorsReader reader = readers.get(key);
         if (reader == null) {
-            reader = loadReader.getReader(field.rawVectorFormatName(), field.useDirectIOReads());
+            reader = loadReader.getReader(field.rawVectorFormatName(), field.useDirectIOReads(), onDiskMerge);
             if (reader == null) {
                 throw new IllegalStateException("Cannot find flat vector format: " + field.rawVectorFormatName());
             }

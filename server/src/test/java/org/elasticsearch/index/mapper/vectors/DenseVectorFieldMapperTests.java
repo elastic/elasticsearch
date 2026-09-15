@@ -2705,7 +2705,7 @@ public class DenseVectorFieldMapperTests extends SyntheticVectorsMapperTestCase 
 
     public void testPushingDownExecutorAndThreads() {
         TestDenseVectorIndexOptions testIndexOptions = new TestDenseVectorIndexOptions(
-            new DenseVectorFieldMapper.HnswIndexOptions(16, 200, -1)
+            new DenseVectorFieldMapper.HnswIndexOptions(16, 200, -1, false)
         );
         var mapper = new DenseVectorFieldMapper.Builder("field", IndexVersion.current(), IndexMode.STANDARD, true, false, List.of(), false)
             .indexOptions(testIndexOptions)
@@ -2809,6 +2809,75 @@ public class DenseVectorFieldMapperTests extends SyntheticVectorsMapperTestCase 
         // The mapper expects to parse an array of values by default, it's not compatible with array of arrays.
     }
 
+    /**
+     * {@code on_disk_merge} is accepted by every index type, round-trips through the mapping, defaults to off, and
+     * can be switched either way by a mapping update, since the type stays the same.
+     */
+    public void testOnDiskMergeIndexOptions() throws IOException {
+        for (String type : new String[] {
+            "hnsw",
+            "int8_hnsw",
+            "int4_hnsw",
+            "flat",
+            "int8_flat",
+            "int4_flat",
+            "bbq_hnsw",
+            "bbq_flat",
+            "bbq_disk" }) {
+            MapperService mapperService = createMapperService(fieldMapping(b -> onDiskMergeMapping(b, type, true)));
+            assertTrue(type, onDiskMergeOf(mapperService));
+            assertThat(type, mapperService.documentMapper().mappingSource().toString(), containsString("\"on_disk_merge\":true"));
+
+            merge(mapperService, fieldMapping(b -> onDiskMergeMapping(b, type, false)));
+            assertFalse(type, onDiskMergeOf(mapperService));
+            assertThat(type, mapperService.documentMapper().mappingSource().toString(), not(containsString("on_disk_merge")));
+
+            merge(mapperService, fieldMapping(b -> onDiskMergeMapping(b, type, true)));
+            assertTrue(type, onDiskMergeOf(mapperService));
+        }
+    }
+
+    public void testOnDiskMergeDefaultsToOff() throws IOException {
+        MapperService mapperService = createMapperService(fieldMapping(b -> {
+            b.field("type", "dense_vector");
+            b.field("dims", 64);
+            b.field("index", true);
+            b.startObject("index_options");
+            b.field("type", "bbq_hnsw");
+            b.endObject();
+        }));
+        assertFalse(onDiskMergeOf(mapperService));
+        assertThat(mapperService.documentMapper().mappingSource().toString(), not(containsString("on_disk_merge")));
+    }
+
+    public void testOnDiskMergeMustBeBoolean() {
+        Exception e = expectThrows(MapperParsingException.class, () -> createMapperService(fieldMapping(b -> {
+            b.field("type", "dense_vector");
+            b.field("dims", 64);
+            b.field("index", true);
+            b.startObject("index_options");
+            b.field("type", "hnsw");
+            b.field("on_disk_merge", "sometimes");
+            b.endObject();
+        })));
+        assertThat(e.getMessage(), containsString("only [true] or [false] are allowed"));
+    }
+
+    private static void onDiskMergeMapping(XContentBuilder b, String type, boolean onDiskMerge) throws IOException {
+        b.field("type", "dense_vector");
+        b.field("dims", 64);
+        b.field("index", true);
+        b.startObject("index_options");
+        b.field("type", type);
+        b.field("on_disk_merge", onDiskMerge);
+        b.endObject();
+    }
+
+    private static boolean onDiskMergeOf(MapperService mapperService) {
+        DenseVectorFieldMapper mapper = (DenseVectorFieldMapper) mapperService.mappingLookup().getMapper("field");
+        return mapper.fieldType().getIndexOptions().isOnDiskMerge();
+    }
+
     private static class TestDenseVectorIndexOptions extends DenseVectorFieldMapper.DenseVectorIndexOptions {
 
         private final DenseVectorFieldMapper.DenseVectorIndexOptions inner;
@@ -2816,7 +2885,7 @@ public class DenseVectorFieldMapperTests extends SyntheticVectorsMapperTestCase 
         private int passedNumMergeWorkers = -1;
 
         TestDenseVectorIndexOptions(DenseVectorFieldMapper.DenseVectorIndexOptions inner) {
-            super(inner.type);
+            super(inner.type, inner.isOnDiskMerge());
             this.inner = inner;
         }
 
@@ -2848,8 +2917,8 @@ public class DenseVectorFieldMapperTests extends SyntheticVectorsMapperTestCase 
         }
 
         @Override
-        public void toXContentFragment(XContentBuilder builder, Params params) throws IOException {
-            inner.toXContentFragment(builder, params);
+        void doXContentFragment(XContentBuilder builder, Params params) throws IOException {
+            inner.doXContentFragment(builder, params);
         }
     }
 }

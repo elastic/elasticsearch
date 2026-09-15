@@ -118,7 +118,8 @@ public class DenseVectorFieldMapperTestUtils {
                 bits,
                 experimentalFeaturesEnabled,
                 false,
-                DenseVectorFieldMapper.BBQIVFIndexOptions.QuantizationType.OSQ
+                DenseVectorFieldMapper.BBQIVFIndexOptions.QuantizationType.OSQ,
+                false
             );
         }
 
@@ -128,7 +129,8 @@ public class DenseVectorFieldMapperTestUtils {
                 Lucene99HnswVectorsFormat.DEFAULT_BEAM_WIDTH,
                 false,
                 new DenseVectorFieldMapper.RescoreVector(DEFAULT_OVERSAMPLE),
-                -1
+                -1,
+                false
             );
         }
         if (defaultInt8Hnsw) {
@@ -137,7 +139,8 @@ public class DenseVectorFieldMapperTestUtils {
                 Lucene99HnswVectorsFormat.DEFAULT_BEAM_WIDTH,
                 false,
                 null,
-                -1
+                -1,
+                false
             );
         }
 

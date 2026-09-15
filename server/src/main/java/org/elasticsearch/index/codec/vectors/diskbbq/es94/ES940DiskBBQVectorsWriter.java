@@ -83,6 +83,7 @@ public class ES940DiskBBQVectorsWriter extends IVFVectorsWriter<ES940DiskBBQVect
         SegmentWriteState state,
         String rawVectorFormatName,
         boolean useDirectIOReads,
+        boolean onDiskMerge,
         FlatVectorsWriter rawVectorDelegate,
         ES940DiskBBQVectorsFormat.QuantEncoding encoding,
         int vectorPerCluster,
@@ -97,6 +98,7 @@ public class ES940DiskBBQVectorsWriter extends IVFVectorsWriter<ES940DiskBBQVect
             state,
             rawVectorFormatName,
             useDirectIOReads,
+            onDiskMerge,
             rawVectorDelegate,
             encoding,
             vectorPerCluster,
@@ -114,6 +116,7 @@ public class ES940DiskBBQVectorsWriter extends IVFVectorsWriter<ES940DiskBBQVect
         SegmentWriteState state,
         String rawVectorFormatName,
         boolean useDirectIOReads,
+        boolean onDiskMerge,
         FlatVectorsWriter rawVectorDelegate,
         ES940DiskBBQVectorsFormat.QuantEncoding encoding,
         int vectorPerCluster,
@@ -136,7 +139,8 @@ public class ES940DiskBBQVectorsWriter extends IVFVectorsWriter<ES940DiskBBQVect
             ES940DiskBBQVectorsFormat.CENTROID_EXTENSION,
             ES940DiskBBQVectorsFormat.CLUSTER_EXTENSION,
             true,
-            flatVectorThreshold
+            flatVectorThreshold,
+            onDiskMerge
         );
         this.vectorPerCluster = vectorPerCluster;
         this.centroidsPerParentCluster = centroidsPerParentCluster;

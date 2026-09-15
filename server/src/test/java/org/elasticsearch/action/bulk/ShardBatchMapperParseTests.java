@@ -540,15 +540,16 @@ public class ShardBatchMapperParseTests extends IndexShardTestCase {
                 assertTrue("parent field f should be present", fields.stream().anyMatch(f -> "f".equals(f.name())));
                 assertTrue("sub-field f.raw should be present", fields.stream().anyMatch(f -> "f.raw".equals(f.name())));
 
-                // "abcdefgh" trips the sub-field's ignore_above but not the parent's, so only f.raw lands in _ignored.
                 cursor.advance();
                 fields = cursor.fields();
                 assertTrue("parent field f should still be present", fields.stream().anyMatch(f -> "f".equals(f.name())));
-                // LuceneBinaryColumn stores field names as BytesRef, so check binaryValue(), not stringValue().
-                final BytesRef rawRef = new BytesRef("f.raw");
                 assertTrue(
-                    "f.raw should be recorded in _ignored",
-                    fields.stream().anyMatch(f -> "_ignored".equals(f.name()) && rawRef.equals(f.binaryValue()))
+                    "f.raw should be present even for over-limit values (ignore_above is a no-op in columnar mode)",
+                    fields.stream().anyMatch(f -> "f.raw".equals(f.name()))
+                );
+                assertFalse(
+                    "_ignored must not be populated in columnar mode (ignore_above is a no-op)",
+                    fields.stream().anyMatch(f -> "_ignored".equals(f.name()))
                 );
             }
         } finally {

@@ -85,6 +85,11 @@ public class VectorScorerBFloat16BulkOperationBenchmark {
     @Param
     public BFloat16QueryType queryType;
 
+    // Fraction of the dataset seeded as near-duplicates of the query. Only the bf16 x bf16 Euclidean path
+    // recomputes these exactly, so this measures the cost of that fallback as the clash rate rises.
+    @Param({ "0", "1", "2", "5", "10" })
+    public int nearDuplicatePercent;
+
     private Arena arena;
 
     // Dataset: numVectors bf16 vectors laid out contiguously in native memory.
@@ -103,7 +108,7 @@ public class VectorScorerBFloat16BulkOperationBenchmark {
 
     record VectorData(int numVectorsToScore, short[][] bf16Vectors, float[] f32QueryVector, int[] ordinals, int targetOrd) {
 
-        static VectorData create(int dims, int numVectors, int numVectorsToScore, Random random) {
+        static VectorData create(int dims, int numVectors, int numVectorsToScore, int nearDuplicatePercent, Random random) {
             var bf16Vectors = new short[numVectors][];
             var f32QueryVector = new float[dims];
 
@@ -121,13 +126,29 @@ public class VectorScorerBFloat16BulkOperationBenchmark {
                 }
             }
 
+            // Replace a fraction of the dataset with near-duplicates of the query (a copy perturbed by one bf16
+            // ulp in a few components), so the bf16 x bf16 Euclidean fallback is exercised at a controlled rate.
+            int nearDuplicates = (int) ((long) numVectors * nearDuplicatePercent / 100);
+            for (int k = 0; k < nearDuplicates; k++) {
+                int v = random.nextInt(numVectors);
+                if (v == targetOrd) {
+                    continue;
+                }
+                short[] dup = bf16Vectors[targetOrd].clone();
+                int perturbed = 1 + random.nextInt(Math.min(4, dims));
+                for (int p = 0; p < perturbed; p++) {
+                    dup[random.nextInt(dims)] += 1;
+                }
+                bf16Vectors[v] = dup;
+            }
+
             return new VectorData(numVectorsToScore, bf16Vectors, f32QueryVector, ordinals, targetOrd);
         }
     }
 
     @Setup
     public void setup() {
-        setup(VectorData.create(dims, numVectors, Math.min(numVectors, 20_000), ThreadLocalRandom.current()));
+        setup(VectorData.create(dims, numVectors, Math.min(numVectors, 20_000), nearDuplicatePercent, ThreadLocalRandom.current()));
     }
 
     void setup(VectorData vectorData) {

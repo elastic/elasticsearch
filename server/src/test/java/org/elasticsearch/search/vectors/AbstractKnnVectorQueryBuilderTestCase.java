@@ -402,8 +402,7 @@ abstract class AbstractKnnVectorQueryBuilderTestCase extends AbstractQueryTestCa
                 IllegalArgumentException.class,
                 () -> vectorFieldType.resolveQueryVector(parsed.queryVector())
             );
-            assertThat(e.getMessage(), containsString("query_vector"));
-            assertThat(e.getMessage(), containsString("base64"));
+            assertThat(e.getMessage(), containsString("must be a valid base64 or hex string"));
         }
     }
 

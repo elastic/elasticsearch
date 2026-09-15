@@ -474,7 +474,7 @@ public class Knn extends SingleFieldFullTextFunction
     }
 
     /**
-     * The metric the runtime search path compares vectors with, defaulting to cosine when the
+     * The vector similarity metric used for runtime search path, defaulting to cosine when the
      * {@code vector_similarity} option is absent.
      */
     private VectorSimilarityMetric similarityMetric() {
@@ -676,14 +676,11 @@ public class Knn extends SingleFieldFullTextFunction
 
     /**
      * Evaluator factory for runtime KNN filter (boolean result): returns true for rows whose field vector is at
-     * least as similar to the query vector as the threshold (or always true when no threshold is set), false for
-     * rows below the threshold, and false for rows with a null field vector.
+     * least as similar to the query vector as the threshold (or always true when no threshold is set), false otherwise.
      * <p>
      * Both sides are compared as normalized scores rather than as raw similarities, which is what makes the
-     * threshold mean "at least this similar" for every metric: raw L1/L2/Hamming values run the other way, so
-     * comparing those directly would keep the least similar rows instead. This is the same normalize-then-compare
-     * the knn query does, and for cosine it is equivalent to comparing the raw values, the normalization being
-     * monotonic.
+     * threshold mean "at least this similar" for every metric. This is the same normalize-then-compare check
+     * the knn query does.
      */
     @Evaluator(extraName = "RuntimeFilter", allNullsIsNull = false, warnExceptions = { IllegalArgumentException.class })
     static boolean runtimeFilter(
@@ -701,8 +698,9 @@ public class Knn extends SingleFieldFullTextFunction
         if (dimensions != queryVector.length) {
             throw new IllegalArgumentException("dense_vector dimensions do not match");
         }
-        // scratchVector is null when no threshold is set and no per-row validation is required.
-        if (scratchVector == null) {
+        // If there is no threshold, we don't need to read the field vector at all: every row with a non-null vector passes.
+        // except for DOT_PRODUCT, we continue to read and validate that the field vector is unit length.
+        if (similarityThreshold == null && similarityMetric != VectorSimilarityMetric.DOT_PRODUCT) {
             return true;
         }
         int first = fieldBlock.getFirstValueIndex(position);

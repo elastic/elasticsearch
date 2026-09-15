@@ -177,6 +177,88 @@ public class EsqlStreamQueryIT extends ESRestTestCase {
         assertNoColumnTrimmed("{\"query\": \"ROW x = 1\"}", "x");
     }
 
+    public void testDropNullColumnsViewOverRowKeepsColumn() throws IOException {
+        String viewName = "test-view-row-" + getTestName().toLowerCase(java.util.Locale.ROOT);
+        Request createView = new Request("PUT", "/_query/view/" + viewName);
+        createView.setJsonEntity("{\"query\": \"ROW f = 1\"}");
+        try {
+            client().performRequest(createView);
+            assertNoColumnTrimmed(streamBody("FROM " + viewName), "f");
+        } finally {
+            try {
+                client().performRequest(new Request("DELETE", "/_query/view/" + viewName));
+            } catch (ResponseException ignore) {}
+        }
+    }
+
+    public void testDropNullColumnsUnionOfIndexViewAndSubqueryDropsNothing() throws IOException {
+        Request createIndex2 = new Request("PUT", "/stream-test-2");
+        createIndex2.setJsonEntity("""
+            {
+              "mappings": {
+                "properties": {
+                  "value":        { "type": "integer" },
+                  "sparse_field": { "type": "keyword" }
+                }
+              }
+            }
+            """);
+        assertOK(client().performRequest(createIndex2));
+        Request bulk2 = new Request("POST", "/_bulk?index=stream-test-2&refresh=true");
+        bulk2.setJsonEntity("""
+            {"index": {}}
+            {"value": 10}
+            """);
+        assertOK(client().performRequest(bulk2));
+
+        Request createIndex3 = new Request("PUT", "/stream-test-3");
+        createIndex3.setJsonEntity("""
+            {
+              "mappings": {
+                "properties": {
+                  "value":        { "type": "integer" }
+                }
+              }
+            }
+            """);
+        assertOK(client().performRequest(createIndex3));
+        Request bulk3 = new Request("POST", "/_bulk?index=stream-test-3&refresh=true");
+        bulk3.setJsonEntity("""
+            {"index": {}}
+            {"value": 20}
+            """);
+        assertOK(client().performRequest(bulk3));
+
+        assertUnionDropsNothing("row-view", "ROW f1 = 1", "f1");
+        assertUnionDropsNothing("from-eval-view", "FROM stream-test-3 | EVAL f2 = 2", "f2");
+    }
+
+    private void assertUnionDropsNothing(String viewSuffix, String viewBody, String viewColumn) throws IOException {
+        String viewName = "test-union-view-" + viewSuffix + "-" + getTestName().toLowerCase(java.util.Locale.ROOT);
+        Request createView = new Request("PUT", "/_query/view/" + viewName);
+        createView.setJsonEntity("{\"query\": \"" + viewBody.replace("\"", "\\\"") + "\"}");
+        try {
+            client().performRequest(createView);
+            String query = "FROM stream-test, " + viewName + ", (FROM stream-test-2)" + " | KEEP value, sparse_field, " + viewColumn;
+            List<Map<String, Object>> lines = stream(streamBody(query), "drop_null_columns=true");
+            Map<String, Object> header = lines.get(0);
+            assertThat("header must contain all_columns", header, hasKey("all_columns"));
+            assertThat("header must contain columns", header, hasKey("columns"));
+            List<String> allNames = columnNames(header, "all_columns");
+            List<String> trimmedNames = columnNames(header, "columns");
+            assertTrue(viewColumn + " (view column) must survive in columns", trimmedNames.contains(viewColumn));
+            assertTrue(
+                "sparse_field must survive: union queries skip the probe entirely, so no dropping occurs",
+                trimmedNames.contains("sparse_field")
+            );
+            assertEquals("columns must equal all_columns: nothing is dropped for union-sourced queries", allNames, trimmedNames);
+        } finally {
+            try {
+                client().performRequest(new Request("DELETE", "/_query/view/" + viewName));
+            } catch (ResponseException ignore) {}
+        }
+    }
+
     public void testErrorFraming() throws IOException {
         ResponseException re = expectThrows(ResponseException.class, () -> EsqlStreamTestUtils.rawStream(client(), """
             {"query": "FROM stream-test | EVAL x = unknown_function(value)"}

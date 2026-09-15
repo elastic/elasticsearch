@@ -23,6 +23,7 @@ import org.elasticsearch.xpack.esql.core.expression.Alias;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.expression.AttributeMap;
 import org.elasticsearch.xpack.esql.core.expression.FieldAttribute;
+import org.elasticsearch.xpack.esql.core.expression.Literal;
 import org.elasticsearch.xpack.esql.core.expression.MetadataAttribute;
 import org.elasticsearch.xpack.esql.core.expression.NameId;
 import org.elasticsearch.xpack.esql.core.expression.ReferenceAttribute;
@@ -304,6 +305,33 @@ public class TransportEsqlStreamQueryActionTests extends ESTestCase {
     public void testResolveIndexFieldNamesEmptyOutput() {
         String[] names = TransportEsqlStreamQueryAction.resolveIndexFieldNames(List.of(), AttributeMap.emptyAttributeMap());
         assertEquals(0, names.length);
+    }
+
+    public void testResolveIndexFieldNamesRowLiteralAliasIsNull() {
+        // ROW f = 1 produces Alias(Literal(1), "f"). collectAliasSources only folds aliases whose
+        // child is an Attribute; a Literal is not, so the alias never enters the map.
+        // resolveIndexFieldNames then resolves alias.toAttribute() to itself (a ReferenceAttribute)
+        // and returns null — the column is structurally ineligible for dropping.
+        Literal literal = new Literal(Source.EMPTY, 1, DataType.INTEGER);
+        Alias alias = new Alias(Source.EMPTY, "f", literal);
+        EvalExec plan = new EvalExec(
+            Source.EMPTY,
+            new EsSourceExec(Source.EMPTY, "idx", IndexMode.STANDARD, List.of(), null),
+            List.of(alias)
+        );
+        AttributeMap<Attribute> aliasSources = TransportEsqlStreamQueryAction.collectAliasSources(plan);
+        assertTrue("alias over a Literal must not appear in aliasSources", aliasSources.isEmpty());
+        String[] names = TransportEsqlStreamQueryAction.resolveIndexFieldNames(List.of(alias.toAttribute()), aliasSources);
+        assertEquals(1, names.length);
+        assertNull("alias over a Literal (ROW output shape) must not be a drop candidate", names[0]);
+    }
+
+    public void testCollectIndexNamesPlanWithoutRelationIsEmpty() {
+        // A plan with no FragmentExec (e.g. from a ROW command, which maps to a LeafPlan with no
+        // EsRelation) yields an empty index set, short-circuiting the field-caps probe entirely.
+        EsSourceExec plan = new EsSourceExec(Source.EMPTY, "irrelevant", IndexMode.STANDARD, List.of(), null);
+        Set<String> names = TransportEsqlStreamQueryAction.collectIndexNames(plan);
+        assertEquals(Set.of(), names);
     }
 
     public void testCollectIndexNamesFragmentExec() {

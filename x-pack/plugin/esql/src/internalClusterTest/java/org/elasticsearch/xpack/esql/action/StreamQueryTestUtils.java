@@ -32,6 +32,15 @@ public final class StreamQueryTestUtils {
         EsqlQueryRequest source,
         CountingStreamSubscriber subscriber
     ) throws Exception {
+        return executeStreamRequest(client, source, subscriber, false);
+    }
+
+    public static EsqlStreamQueryAction.ResultStream executeStreamRequest(
+        Client client,
+        EsqlQueryRequest source,
+        CountingStreamSubscriber subscriber,
+        boolean dropNullColumns
+    ) throws Exception {
         int batchSize = ESTestCase.randomIntBetween(1, 10);
         AtomicReference<EsqlStreamQueryAction.ResultStream> startRef = new AtomicReference<>();
         ActionFuture<ActionResponse.Empty> future = client.execute(
@@ -39,7 +48,7 @@ public final class StreamQueryTestUtils {
             new EsqlStreamQueryRequest(source, ActionListener.wrap(resultStream -> {
                 startRef.set(resultStream);
                 resultStream.publisher().subscribe(subscriber);
-            }, subscriber.failure::set), false, batchSize)
+            }, subscriber.failure::set), dropNullColumns, batchSize)
         );
         future.actionGet(ESTestCase.TEST_REQUEST_TIMEOUT);
         EsqlStreamQueryAction.ResultStream resultStream = startRef.get();

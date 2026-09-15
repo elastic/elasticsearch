@@ -47,8 +47,27 @@ teardown:
         ignore: 404
 
   - do:
+      security.delete_service_token:
+        namespace: apps
+        service: oauth2_self_minter
+        name: self-mint-token
+        ignore: 404
+
+  - do:
+      security.delete_user_managed_service_account:
+        namespace: apps
+        service: oauth2_self_minter
+        force: true
+        ignore: 404
+
+  - do:
       security.delete_role:
         name: "umsa_oauth2_monitor"
+        ignore: 404
+
+  - do:
+      security.delete_role:
+        name: "umsa_oauth2_manage_token"
         ignore: 404
 
   - do:
@@ -200,6 +219,56 @@ teardown:
       headers:
         Authorization: Bearer ${umsa_access_token}
       security.authenticate: {}
+
+---
+"Test a user-managed service account with manage_token cannot mint its own token with client_credentials":
+  - do:
+      security.put_role:
+        name: "umsa_oauth2_manage_token"
+        body:
+          cluster: ["manage_token"]
+
+  - do:
+      security.put_user_managed_service_account:
+        namespace: apps
+        service: oauth2_self_minter
+        body: >
+          {
+            "roles": ["umsa_oauth2_manage_token"],
+            "enabled": true
+          }
+  - match: { created: true }
+
+  - do:
+      security.create_service_token:
+        namespace: apps
+        service: oauth2_self_minter
+        name: self-mint-token
+  - is_true: created
+  - set: { "token.value": self_minter_token }
+
+  # The account holds manage_token, so authorization passes; the rejection comes from the long-standing rule that service
+  # accounts may not create OAuth2 tokens for themselves. It is reported as a generic exception rather than an RFC 6749
+  # token error, so pin the status through the error body rather than a named catch.
+  - do:
+      headers:
+        Authorization: Bearer ${self_minter_token}
+      security.has_privileges:
+        user: null
+        body:
+          cluster: ["manage_token"]
+  - match: { "cluster.manage_token": true }
+
+  - do:
+      catch: request
+      headers:
+        Authorization: Bearer ${self_minter_token}
+      security.get_token:
+        body:
+          grant_type: "client_credentials"
+  - match: { status: 500 }
+  - match: { error.type: "exception" }
+  - match: { error.reason: "OAuth2 token creation is not supported for service accounts" }
 
 ---
 "Test the user-managed service account grant rejects built-in service account tokens":

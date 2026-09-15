@@ -554,6 +554,20 @@ public class BlockFactory {
         return v;
     }
 
+    /** Charges for a constant {@link BytesRefVector} whose value has {@code length} bytes, before that value is allocated. */
+    public long preAdjustBreakerForConstantBytesRef(int length) {
+        long bytes = ConstantBytesRefVector.ramBytesEstimated(length, bytesRefRamOverestimateThreshold, bytesRefRamOverestimateFactor);
+        adjustBreaker(bytes);
+        return bytes;
+    }
+
+    /** Wraps {@code value} without copying it, so the caller must not reuse or share it. */
+    BytesRefVector newConstantBytesRefVector(BytesRef value, int positions, long preAdjustedBytes) {
+        var v = new ConstantBytesRefVector(value, positions, this);
+        adjustBreaker(v.ramBytesUsed() - preAdjustedBytes);
+        return v;
+    }
+
     public Block newConstantNullBlock(int positions) {
         var b = new ConstantNullBlock(positions, this);
         adjustBreaker(b.ramBytesUsed());

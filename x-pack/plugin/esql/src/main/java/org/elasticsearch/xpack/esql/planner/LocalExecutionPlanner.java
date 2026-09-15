@@ -171,6 +171,7 @@ import org.elasticsearch.xpack.esql.plan.physical.CompoundOutputEvalExec;
 import org.elasticsearch.xpack.esql.plan.physical.DissectExec;
 import org.elasticsearch.xpack.esql.plan.physical.DistinctByExec;
 import org.elasticsearch.xpack.esql.plan.physical.EnrichExec;
+import org.elasticsearch.xpack.esql.plan.physical.EsGeoGridAggQueryExec;
 import org.elasticsearch.xpack.esql.plan.physical.EsQueryExec;
 import org.elasticsearch.xpack.esql.plan.physical.EsStatsQueryExec;
 import org.elasticsearch.xpack.esql.plan.physical.EvalExec;
@@ -471,6 +472,8 @@ public class LocalExecutionPlanner {
             return planEsQueryNode(esQuery, context);
         } else if (node instanceof EsStatsQueryExec statsQuery) {
             return planEsStats(statsQuery, context);
+        } else if (node instanceof EsGeoGridAggQueryExec geoGridAgg) {
+            return planEsGeoGridAgg(geoGridAgg, context);
         } else if (node instanceof LocalSourceExec localSource) {
             return planLocal(localSource, context);
         } else if (node instanceof ShowExec show) {
@@ -730,6 +733,25 @@ public class LocalExecutionPlanner {
 
         Layout.Builder layout = new Layout.Builder();
         layout.append(statsQuery.outputSet());
+        int instanceCount = Math.max(1, luceneFactory.taskConcurrency());
+        context.driverParallelism(new DriverParallelism(DriverParallelism.Type.DATA_PARALLELISM, instanceCount));
+        return PhysicalOperation.fromSource(luceneFactory, layout.build());
+    }
+
+    private PhysicalOperation planEsGeoGridAgg(EsGeoGridAggQueryExec geoGridAgg, LocalExecutionPlannerContext context) {
+        if (physicalOperationProviders instanceof EsPhysicalOperationProviders == false) {
+            throw new EsqlIllegalArgumentException("EsGeoGridAggQueryExec should only occur against a Lucene backend");
+        }
+        EsPhysicalOperationProviders esProvider = (EsPhysicalOperationProviders) physicalOperationProviders;
+        final LuceneOperator.Factory luceneFactory = esProvider.geoGridAggSource(
+            context,
+            geoGridAgg.query(),
+            geoGridAgg.fieldName(),
+            geoGridAgg.precision(),
+            geoGridAgg.gridType()
+        );
+        Layout.Builder layout = new Layout.Builder();
+        layout.append(geoGridAgg.outputSet());
         int instanceCount = Math.max(1, luceneFactory.taskConcurrency());
         context.driverParallelism(new DriverParallelism(DriverParallelism.Type.DATA_PARALLELISM, instanceCount));
         return PhysicalOperation.fromSource(luceneFactory, layout.build());

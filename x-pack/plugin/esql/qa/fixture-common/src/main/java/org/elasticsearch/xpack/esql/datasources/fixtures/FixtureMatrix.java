@@ -397,20 +397,35 @@ public final class FixtureMatrix {
      * Spec files a suite must NOT load even though its patterns match them, as declared in
      * {@code suite.<token>.specs.exclude}.
      *
-     * <p>Deliberately rare -- one entry today. It exists because a glob cannot know that a spec belongs to
-     * a different suite, and the alternative was what this replaced: registering all 43 ClickBench cases in
-     * three suites and calling assumeFalse on every one, a skip that no gate could see and no report could
-     * count.
+     * <p>Deliberately rare. It exists because a glob cannot know that a spec belongs to a different suite, and
+     * the alternative was what this replaced: registering all 43 ClickBench cases in three suites and calling
+     * assumeFalse on every one, a skip that no gate could see and no report could count.
+     *
+     * <p>Own token, then the one it inherits from -- the order the per-case lookup in the harness already uses,
+     * for the reason it gives: consulting only one token loses whichever set is not it. This read only the
+     * inherited token, so an exclusion declared on a vector suite itself was parsed, accepted and never
+     * consulted. A vector suite needs both: it runs its sibling's corpus, so the sibling's exclusions apply,
+     * and it crosses that corpus with vectors, which a spec over a verbatim dataset cannot honestly carry.
      */
     public Set<String> excludedSpecs(String suiteToken) {
-        String value = declaration.getProperty("suite." + exclusionSource(suiteToken) + ".specs.exclude");
+        Set<String> excluded = new LinkedHashSet<>(declaredSpecExclusions(suiteToken));
+        String inherited = exclusionSource(suiteToken);
+        if (inherited.equals(suiteToken) == false) {
+            excluded.addAll(declaredSpecExclusions(inherited));
+        }
+        return Set.copyOf(excluded);
+    }
+
+    /** The spec files one token itself declares excluded. Each token's list must carry its own reason. */
+    private Set<String> declaredSpecExclusions(String token) {
+        String value = declaration.getProperty("suite." + token + ".specs.exclude");
         if (value == null || value.isBlank()) {
             return Set.of();
         }
-        if (declaration.getProperty("suite." + exclusionSource(suiteToken) + ".specs.exclude.reason") == null) {
+        if (declaration.getProperty("suite." + token + ".specs.exclude.reason") == null) {
             throw new IllegalStateException(
                 "suite ["
-                    + suiteToken
+                    + token
                     + "] excludes spec files but declares no reason; a whole-file exclusion "
                     + "removes every case in that file and must say why"
             );

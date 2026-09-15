@@ -120,4 +120,34 @@ public class FixtureMatrixTests extends ESTestCase {
     public void testSplitPartsIsPositive() {
         assertTrue("a split layout must produce at least two files", FixtureMatrix.get().splitParts() > 1);
     }
+
+    /**
+     * A vector suite honours whole-spec exclusions declared on its OWN token as well as the ones it inherits.
+     *
+     * <p>The lookup used to read only the inherited token, so {@code suite.csv-vector.specs.exclude} was parsed,
+     * accepted, and never consulted: {@code csv-skip-rows} kept registering in the csv vector suite and failed
+     * 88 cases with a 400, because its only dataset is verbatim and has no per-vector rendering. Pinned against
+     * the real declaration, and in both directions -- the plain {@code csv} suite must keep running that spec,
+     * because its fixture does exist there, so moving the exclusion onto the inherited token would have been the
+     * wrong fix.
+     */
+    public void testAVectorSuiteHonoursItsOwnAndItsInheritedSpecExclusions() {
+        FixtureMatrix matrix = FixtureMatrix.get();
+        assertThat(
+            "csv-vector must exclude what it declares itself, which the inherited-only lookup silently dropped",
+            matrix.excludedSpecs("csv-vector"),
+            hasItem("csv-skip-rows")
+        );
+        assertThat(
+            "and still exclude what it inherits from csv",
+            matrix.excludedSpecs("csv-vector"),
+            hasItem("external-clickbench")
+        );
+        assertThat(
+            "the plain csv suite has the fixture, so it must keep running the spec",
+            matrix.excludedSpecs("csv"),
+            not(hasItem("csv-skip-rows"))
+        );
+    }
+
 }

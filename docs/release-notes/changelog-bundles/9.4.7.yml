@@ -3,7 +3,7 @@ released: false
 generated: 2026-09-11T00:08:33.894988994Z
 changelogs:
   - pr: 2841
-    summary: Better messaging regarding OOM process termination
+    summary: Better messaging regarding out of memory process termination
     area: Machine Learning
     type: enhancement
     issues: []
@@ -21,7 +21,7 @@ changelogs:
     issues: []
     source_repo: elastic/ml-cpp
   - pr: 2851
-    summary: Restrict file system access for pytorch models
+    summary: Restrict file system access for PyTorch models
     area: Machine Learning
     type: enhancement
     issues: []
@@ -51,7 +51,7 @@ changelogs:
     issues: []
     source_repo: elastic/ml-cpp
   - pr: 3008
-    summary: Harden pytorch_inference with TorchScript model graph validation
+    summary: Harden `pytorch_inference` with TorchScript model graph validation
     area: Machine Learning
     type: enhancement
     issues:
@@ -63,38 +63,32 @@ changelogs:
     type: enhancement
     issues: []
     source_repo: elastic/ml-cpp
-  - pr: 3017
-    summary: Fix flaky CIoManagerTest/testFileIoGood test
-    area: Machine Learning
-    type: bug
-    issues: []
-    source_repo: elastic/ml-cpp
   - pr: 3078
-    summary: Reject TorchScript custom state hooks before load and forbid inductor::_reinterpret_tensor
+    summary: Reject TorchScript custom state hooks before load and forbid `inductor::_reinterpret_tensor`
     area: Machine Learning
     type: bug
     issues: []
     source_repo: elastic/ml-cpp
   - pr: 3080
-    summary: Reject non-native ABIs in ML seccomp filter (socketcall/getuid collision)
+    summary: Harden the Linux system call filter for machine learning native processes to block non-native instruction set variants
     area: Machine Learning
     type: bug
     issues: []
     source_repo: elastic/ml-cpp
   - pr: 3081
-    summary: Mark ML controller non-dumpable before accepting commands
+    summary: Mark machine learning controller non-dumpable before accepting commands
     area: Machine Learning
     type: bug
     issues: []
     source_repo: elastic/ml-cpp
   - pr: 3090
-    summary: Fix flaky concurrent LFU cache count invariant under lock timeouts
+    summary: Fix flaky concurrent least frequently used (LFU) cache count invariant under lock timeouts
     area: Machine Learning
     type: bug
     issues: []
     source_repo: elastic/ml-cpp
   - pr: 3143
-    summary: Fail gracefully when restoring a categorizer with an out-of-range token ID
+    summary: Fail gracefully when restoring a categorizer with an out of range token ID
     area: Machine Learning
     type: bug
     issues: []
@@ -106,125 +100,125 @@ changelogs:
     issues: []
     source_repo: elastic/ml-cpp
   - pr: 154480
-    summary: Bound `min_hash` filter params to prevent OOM
+    summary: Bound `min_hash` filter parameters to prevent out of memory errors
     area: Analysis
     type: bug
     issues: []
   - pr: 155310
-    summary: Treat ML node exhaustion as 4xx
+    summary: Return HTTP 4xx status codes when machine learning nodes are exhausted
     area: Machine Learning
     type: bug
     issues: []
   - pr: 156412
-    summary: Fix ROUND of an integer with a negative precision silently overflowing to a negative value
+    summary: Fix `ROUND` overflowing integer values when used with negative precision
     area: ES|QL
     type: bug
     issues:
       - 156411
   - pr: 157044
-    summary: Honor pruning in the `_shard_doc` sort comparator
+    summary: Speed up `_shard_doc` `search_after` pagination by applying sort pruning
     area: Search
     type: bug
     issues:
       - 155559
   - pr: 157567
-    summary: Surface CCS skipped-cluster stats on datafeed extraction failure
+    summary: Report skipped clusters in datafeed stats after a cross-cluster search failure
     area: Machine Learning
     type: bug
     issues: []
   - pr: 157634
-    summary: "`DataStreamAutoShardingService.calculate()` works on stale data [#134505]"
+    summary: Fix data stream auto-sharding using stale index settings
     area: Data streams
     type: bug
     issues:
       - 134505
   - pr: 157642
-    summary: "Msearch/template parity with msearch: memory bounds, cancellation, metrics"
+    summary: Apply `_msearch` memory bounds, cancellation, and metrics to `_msearch/template` API
     area: Search
     type: enhancement
     issues: []
   - pr: 157730
-    summary: Fix bfloat16 reading from old index versions with endianness mismatches
+    summary: Fix reading `bfloat16` values from older index formats with different endianness
     area: Vector Search
     type: bug
     issues:
       - 157696
   - pr: 157752
-    summary: Fix result size limit check on INSERT
+    summary: Fix the SQL `INSERT` function ignoring the result size limit
     area: SQL
     type: bug
     issues: []
   - pr: 157760
-    summary: "Audit: reject oversized request bodies"
+    summary: Reject oversized request bodies when request-body auditing is enabled
     area: Audit
     type: enhancement
     issues: []
   - pr: 157798
-    summary: Fix backwards read of `_ignored_source` doc values
+    summary: Fix failures when reading `_ignored_source` out of document order
     area: ES|QL
     type: bug
     issues: []
   - pr: 157889
-    summary: Fix FLS field names term state filtering
+    summary: Fix field-level security filtering for `_field_names` terms
     area: Authorization
     type: bug
     issues: []
   - pr: 157929
-    summary: Reject blank datafeed ID in stop datafeed request
+    summary: Reject a blank datafeed ID in stop datafeed requests
     area: Machine Learning
     type: bug
     issues: []
   - pr: 157968
-    summary: Guard against protobuf label/attribute fan-out
+    summary: Guard against oversized protobuf requests causing out of memory failures
     area: TSDB
     type: bug
     issues: []
   - pr: 158020
-    summary: Reject blank job id on close request
+    summary: Reject a blank job ID in close job requests
     area: Machine Learning
     type: bug
     issues: []
   - pr: 158060
-    summary: Fix composite agg on doc values skipper fields
+    summary: Fix composite aggregations returning no buckets on logsdb timestamp fields
     area: Mapping
     type: bug
     issues:
       - 158008
   - pr: 158143
-    summary: "Audit: emit `request.raw_body` for protobuf bodies"
+    summary: Add `request.raw_body` to audit events for protobuf request bodies
     area: Audit
     type: enhancement
     issues: []
   - pr: 158175
-    summary: Reduce memory usage during serialization when retrieving component and composable templates via the GET APIs
+    summary: Reduce memory usage when serializing component and composable templates in GET API responses
     area: Templates
     type: bug
     issues: []
   - pr: 158211
-    summary: Cap `min_hash` filter params
+    summary: Cap `min_hash` filter parameters to a valid range
     area: Analysis
     type: bug
     issues: []
   - pr: 158296
-    summary: Update knn query automatic pre-filtering to handle exists queries on inference fields
+    summary: Fix `knn` query pre-filtering for `exists` queries on inference fields
     area: Search
     type: bug
     issues:
       - 157951
   - pr: 158301
-    summary: Return 400 for unresolved MMR query vector
+    summary: Return HTTP 400 for an unresolved maximal marginal relevance (MMR) query vector
     area: ES|QL
     type: bug
     issues:
       - 157876
   - pr: 158527
-    summary: Fix NPE in Amazon Bedrock chat completion when a message has no content
+    summary: Fix null pointer exception in Amazon Bedrock chat completion when a message has no content
     area: Inference
     type: bug
     issues:
       - 158521
   - pr: 158537
-    summary: Fix synthetic `_id` `Terms#getMax` crash during relocation id-lookup prewarm
+    summary: Fix crash in synthetic `_id` lookup during shard relocation prewarm
     area: Codec
     type: bug
     issues: []
@@ -234,12 +228,12 @@ changelogs:
     type: bug
     issues: []
   - pr: 158745
-    summary: "When reversing strings, treat Carriage Return Line Feed as a single control character, in line with UTF guidelines"
+    summary: When reversing strings, treat carriage return line feed (CRLF) as a single control character, in line with UTF guidelines
     area: ES|QL
     type: bug
     issues: []
   - pr: 158831
-    summary: Reject `allow_restricted_indices=true` consistently in roles granted by users with the `manage_roles` privilege.
+    summary: Reject `allow_restricted_indices=true` consistently in roles granted by users with the `manage_roles` privilege
     area: Authorization
     type: bug
     issues: []

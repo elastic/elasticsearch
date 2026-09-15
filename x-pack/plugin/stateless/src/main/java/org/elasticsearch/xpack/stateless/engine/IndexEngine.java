@@ -916,6 +916,14 @@ public class IndexEngine extends InternalEngine {
                 }
             };
         } else {
+            // Nothing is replayed and the shard still starts, so without this line the recovery leaves no trace at all.
+            logger.info(
+                "[{}] no stateless translog recovery: recovery commit names no node ephemeral id "
+                    + "[fromSeqNo={}, translogRecoveryStartFile={}]",
+                shardId,
+                fromSeqNo,
+                translogRecoveryStartFile
+            );
             return Translog.Snapshot.EMPTY;
         }
     }

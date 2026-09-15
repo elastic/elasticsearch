@@ -28,11 +28,11 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 
-final class CustomReflectionObjectHandler extends AbstractObjectHandler {
+final class CustomObjectHandler extends AbstractObjectHandler {
 
     private final boolean detectMissingParams;
 
-    CustomReflectionObjectHandler(boolean detectMissingParams) {
+    CustomObjectHandler(boolean detectMissingParams) {
         this.detectMissingParams = detectMissingParams;
     }
 

@@ -214,7 +214,7 @@ public abstract class Mapper implements ToXContentFragment, Iterable<Mapper> {
             return Integer.valueOf(get()).equals(defaultValue) == false;
         }
 
-        /** Returns {@link Integer#MAX_VALUE} when {@code ignore_above} is inert (strictly columnar at or after the gate), else the limit. */
+        /** Returns {@link Integer#MAX_VALUE} when {@code ignore_above} is inert (strictly columnar at or after the gate), else the limit.*/
         public int limit() {
             return limit;
         }

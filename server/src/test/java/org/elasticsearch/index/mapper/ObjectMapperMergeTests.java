@@ -10,6 +10,7 @@ package org.elasticsearch.index.mapper;
 
 import org.elasticsearch.common.Explicit;
 import org.elasticsearch.index.IndexSettings;
+import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.script.ScriptCompiler;
 import org.elasticsearch.test.ESTestCase;
 
@@ -19,6 +20,7 @@ import static org.elasticsearch.index.mapper.MapperService.MergeReason.INDEX_TEM
 import static org.elasticsearch.index.mapper.MapperService.MergeReason.MAPPING_AUTO_UPDATE;
 import static org.elasticsearch.index.mapper.MapperService.MergeReason.MAPPING_AUTO_UPDATE_PREFLIGHT;
 import static org.elasticsearch.index.mapper.MapperService.MergeReason.MAPPING_UPDATE;
+import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.is;
@@ -512,6 +514,47 @@ public final class ObjectMapperMergeTests extends ESTestCase {
 
     private TextFieldMapper.Builder createTextKeywordMultiField(String name) {
         return createTextKeywordMultiField(name, "keyword");
+    }
+
+    public void testNestedFieldLimitAtMergeTime() {
+        // Build builders directly, bypassing MapperService, so no parse-time check runs.
+        // This demonstrates the bug: merging nested objects should enforce the nested fields limit.
+        long nestedFieldsLimit = 1;
+        MapperMergeContext mergeContext = MapperMergeContext.root(
+            false,
+            false,
+            MAPPING_UPDATE,
+            ParseFieldLimits.forMerge(nestedFieldsLimit),
+            false,
+            false
+        );
+
+        RootObjectMapper.Builder existing = new RootObjectMapper.Builder("_doc");
+        RootObjectMapper.Builder incoming = new RootObjectMapper.Builder("_doc");
+        incoming.add(
+            new NestedObjectMapper.Builder("nested1", IndexVersion.current(), q -> { throw new UnsupportedOperationException(); }, INDEX_SETTINGS)
+        );
+        incoming.add(
+            new NestedObjectMapper.Builder("nested2", IndexVersion.current(), q -> { throw new UnsupportedOperationException(); }, INDEX_SETTINGS)
+        );
+
+        MapperParsingException e = expectThrows(MapperParsingException.class, () -> existing.mergeWith(incoming, mergeContext));
+        assertThat(e.getMessage(), containsString("Limit of nested fields [" + nestedFieldsLimit + "] has been exceeded"));
+
+        // One nested object at the limit is fine; use a fresh context so the counter resets.
+        MapperMergeContext mergeContextAtLimit = MapperMergeContext.root(
+            false,
+            false,
+            MAPPING_UPDATE,
+            ParseFieldLimits.forMerge(nestedFieldsLimit),
+            false,
+            false
+        );
+        RootObjectMapper.Builder atLimit = new RootObjectMapper.Builder("_doc");
+        atLimit.add(
+            new NestedObjectMapper.Builder("nested1", IndexVersion.current(), q -> { throw new UnsupportedOperationException(); }, INDEX_SETTINGS)
+        );
+        new RootObjectMapper.Builder("_doc").mergeWith(atLimit, mergeContextAtLimit); // must not throw
     }
 
     private TextFieldMapper.Builder createTextKeywordMultiField(String name, String multiFieldName) {

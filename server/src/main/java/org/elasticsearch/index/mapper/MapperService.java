@@ -293,7 +293,7 @@ public class MapperService extends AbstractIndexComponent implements Closeable {
             mapperRegistry.getVectorsFormatProviders(),
             mapperRegistry.getNamespaceValidator(),
             projectMetadataSupplier,
-            MappingParserContext.parseFieldLimits(reason, indexSettings)
+            ParseFieldLimits.parseFieldLimits(reason, indexSettings)
         );
         this.documentParser = new DocumentParser(
             parserConfiguration,
@@ -641,14 +641,19 @@ public class MapperService extends AbstractIndexComponent implements Closeable {
                 throw new MapperParsingException("Failed to parse mapping: {}", e, e.getMessage());
             }
         }
+        long nestedFieldsLimit = reason == MergeReason.MAPPING_RECOVERY
+            ? Long.MAX_VALUE
+            : indexSettings.getMappingNestedFieldsLimit();
+        long existingNestedCount = currentMapper.mappers().nestedLookup().getNestedMappers().size();
+        ParseFieldLimits fieldLimits = ParseFieldLimits.forMerge(nestedFieldsLimit, existingNestedCount, budget);
         MappingBuilder existingBuilder = mappingParser.parseToBuilder(currentMapper.type(), reason, currentMapper.mappingSource());
-        existingBuilder.merge(incomingBuilder, reason, budget);
+        existingBuilder.merge(incomingBuilder, reason, fieldLimits);
         return buildMapping(existingBuilder, reason);
     }
 
     private static MappingBuilder applyFieldsBudget(MappingBuilder builder, NewFieldsBudget budget, MergeReason reason) {
         MappingBuilder shallowBuilder = builder.withoutMappers();
-        shallowBuilder.merge(builder, reason, budget);
+        shallowBuilder.merge(builder, reason, ParseFieldLimits.withBudget(budget));
         return shallowBuilder;
     }
 
@@ -718,17 +723,15 @@ public class MapperService extends AbstractIndexComponent implements Closeable {
         return NewFieldsBudget.throwing(remaining, totalFieldsLimit);
     }
 
+    // TODO - this is only used in tests, can we remove it?
     Mapping mergeMappings(CompressedXContent incomingMappingSource, MergeReason reason, long newFieldsBudget) {
         MappingBuilder incomingBuilder = mappingParser.parseToBuilder(SINGLE_MAPPING_NAME, reason, incomingMappingSource);
-        return mergeMappings(incomingBuilder, reason, NewFieldsBudget.dropping(newFieldsBudget));
-    }
-
-    private Mapping mergeMappings(MappingBuilder incomingBuilder, MergeReason reason, NewFieldsBudget budget) {
+        NewFieldsBudget budget = NewFieldsBudget.dropping(newFieldsBudget);
         if (this.mapper == null) {
             return applyFieldsBudget(incomingBuilder, budget, reason).build(reason);
         }
         MappingBuilder existingBuilder = mappingParser.parseToBuilder(this.mapper.type(), reason, this.mapper.mappingSource());
-        existingBuilder.merge(incomingBuilder, reason, budget);
+        existingBuilder.merge(incomingBuilder, reason, ParseFieldLimits.withBudget(budget));
         return existingBuilder.build(reason);
     }
 

@@ -521,6 +521,9 @@ public class ObjectMapper extends Mapper {
 
                 if (existingBuilder == null) {
                     Mapper.Builder incomingBuilder = entry.getValue();
+                    if (incomingBuilder instanceof NestedObjectMapper.Builder) {
+                        objectMergeContext.checkNestedFieldCount();
+                    }
                     if (objectMergeContext.decrementFieldBudgetIfPossible(incomingBuilder.getTotalFieldsCount())) {
                         mergedBuilders.put(incomingName, incomingBuilder);
                     } else if (incomingBuilder instanceof ObjectMapper.Builder objectMapperBuilder) {

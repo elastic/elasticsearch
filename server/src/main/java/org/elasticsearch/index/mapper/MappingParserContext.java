@@ -33,61 +33,6 @@ import java.util.function.Supplier;
  */
 public class MappingParserContext {
 
-    /**
-     * Tracks field counts and enforces mapping limits during parse. Shared across
-     * {@link MultiFieldParserContext} instances so that multi-fields count against the same budget
-     * as the parent field. Dynamic-template contexts use {@link #UNLIMITED} to avoid counting
-     * template definitions as real fields.
-     */
-    private static final class ParseFieldLimits {
-
-        static final ParseFieldLimits UNLIMITED = new ParseFieldLimits(Long.MAX_VALUE, Long.MAX_VALUE, NewFieldsBudget.unlimited());
-
-        private final long fieldNameLengthLimit;
-        private final long nestedFieldsLimit;
-        private long nestedFieldsCount = 0;
-        private final NewFieldsBudget totalFieldsBudget;
-
-        private ParseFieldLimits(long fieldNameLengthLimit, long nestedFieldsLimit, NewFieldsBudget totalFieldsBudget) {
-            this.fieldNameLengthLimit = fieldNameLengthLimit;
-            this.nestedFieldsLimit = nestedFieldsLimit;
-            this.totalFieldsBudget = totalFieldsBudget;
-        }
-
-        void checkFieldNameLength(String leafName) {
-            if (leafName.length() > fieldNameLengthLimit) {
-                throw new MapperParsingException(
-                    "Field name [" + leafName + "] is longer than the limit of [" + fieldNameLengthLimit + "] characters"
-                );
-            }
-        }
-
-        void checkNestedFieldCount() {
-            nestedFieldsCount++;
-            if (nestedFieldsCount > nestedFieldsLimit) {
-                throw new MapperParsingException("Limit of nested fields [" + nestedFieldsLimit + "] has been exceeded");
-            }
-        }
-    }
-
-    /**
-     * Builds the {@link ParseFieldLimits} appropriate for the given merge reason and index settings.
-     * Recovery re-uses a mapping that was already validated, so no limits are enforced. Auto-updates
-     * in drop-mode use per-field name/nested limits but leave total-fields counting to the merge-time
-     * budget. All other updates additionally enforce a parse-time total-fields throwing budget.
-     */
-    static ParseFieldLimits parseFieldLimits(MapperService.MergeReason reason, IndexSettings indexSettings) {
-        if (reason == MapperService.MergeReason.MAPPING_RECOVERY) {
-            return ParseFieldLimits.UNLIMITED;
-        }
-        long nameLimit = indexSettings.getMappingFieldNameLengthLimit();
-        long nestedLimit = indexSettings.getMappingNestedFieldsLimit();
-        if (reason.isAutoUpdate() && indexSettings.isIgnoreDynamicFieldsBeyondLimit()) {
-            return new ParseFieldLimits(nameLimit, nestedLimit, NewFieldsBudget.unlimited());
-        }
-        long totalLimit = indexSettings.getMappingTotalFieldsLimit();
-        return new ParseFieldLimits(nameLimit, nestedLimit, NewFieldsBudget.throwing(totalLimit, totalLimit));
-    }
 
     private final Function<String, SimilarityProvider> similarityLookupService;
     private final Function<String, Mapper.TypeParser> typeParsers;
@@ -174,7 +119,8 @@ public class MappingParserContext {
             new ParseFieldLimits(
                 indexSettings.getMappingFieldNameLengthLimit(),
                 indexSettings.getMappingNestedFieldsLimit(),
-                NewFieldsBudget.unlimited()
+                NewFieldsBudget.unlimited(),
+                0
             )
         );
     }
@@ -338,7 +284,7 @@ public class MappingParserContext {
      * Always returns {@code true} when the budget is unlimited.
      */
     public boolean tryAddFields(int count) {
-        return parseFieldLimits.totalFieldsBudget.decrementIfPossible(count);
+        return parseFieldLimits.decrementTotalFieldsIfPossible(count);
     }
 
     public MappingParserContext createMultiFieldContext() {

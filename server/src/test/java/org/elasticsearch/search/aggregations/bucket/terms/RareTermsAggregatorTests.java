@@ -68,6 +68,7 @@ import java.util.function.Consumer;
 
 import static java.util.stream.Collectors.toList;
 import static org.elasticsearch.index.mapper.SeqNoFieldMapper.PRIMARY_TERM_NAME;
+import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 
 public class RareTermsAggregatorTests extends AggregatorTestCase {
@@ -160,6 +161,26 @@ public class RareTermsAggregatorTests extends AggregatorTestCase {
                 assertThat(bucket.getDocCount(), equalTo(2L));
             }
         );
+    }
+
+    /** The include/exclude regex is bounded by {@code index.max_regex_length}, like the regexp query. */
+    public void testIncludeExcludeRegexLengthLimit() {
+        int maxRegexLength = IndexSettings.MAX_REGEX_LENGTH_SETTING.getDefault(Settings.EMPTY);
+        String tooLong = "a".repeat(maxRegexLength + 1);
+        IncludeExclude includeExclude = randomBoolean()
+            ? new IncludeExclude(tooLong, null, null, null)
+            : new IncludeExclude(null, tooLong, null, null);
+        IllegalArgumentException e = expectThrows(
+            IllegalArgumentException.class,
+            () -> testSearchCase(
+                Queries.ALL_DOCS_INSTANCE,
+                dataset,
+                aggregation -> aggregation.field(KEYWORD_FIELD).includeExclude(includeExclude),
+                agg -> fail("the regex must be rejected")
+            )
+        );
+        assertThat(e.getMessage(), containsString("allowed maximum of [" + maxRegexLength + "]"));
+        assertThat(e.getMessage(), containsString(IndexSettings.MAX_REGEX_LENGTH_SETTING.getKey()));
     }
 
     public void testEmbeddedMaxAgg() throws IOException {

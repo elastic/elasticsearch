@@ -239,6 +239,9 @@ public class SignificantTermsAggregatorFactory extends ValuesSourceAggregatorFac
 
         this.aggregatorSupplier = aggregatorSupplier;
         this.includeExclude = includeExclude;
+        if (includeExclude != null) {
+            includeExclude.validateRegex(context.getIndexSettings().getMaxRegexLength());
+        }
         this.executionHint = executionHint;
         this.backgroundFilter = backgroundFilter;
         this.bucketCountThresholds = bucketCountThresholds;
@@ -343,7 +346,9 @@ public class SignificantTermsAggregatorFactory extends ValuesSourceAggregatorFac
                 Map<String, Object> metadata
             ) throws IOException {
 
-                final IncludeExclude.StringFilter filter = includeExclude == null ? null : includeExclude.convertToStringFilter(format);
+                final IncludeExclude.StringFilter filter = includeExclude == null
+                    ? null
+                    : includeExclude.convertToStringFilter(format, context.getIndexSettings().getMaxRegexLength(), context.breaker());
                 return new MapStringTermsAggregator(
                     name,
                     factories,
@@ -405,7 +410,13 @@ public class SignificantTermsAggregatorFactory extends ValuesSourceAggregatorFac
                     null,
                     format,
                     bucketCountThresholds,
-                    TermsAggregatorFactory.gloabalOrdsFilter(includeExclude, format, values),
+                    TermsAggregatorFactory.gloabalOrdsFilter(
+                        includeExclude,
+                        format,
+                        values,
+                        context.getIndexSettings().getMaxRegexLength(),
+                        context.breaker()
+                    ),
                     context,
                     parent,
                     remapGlobalOrd,

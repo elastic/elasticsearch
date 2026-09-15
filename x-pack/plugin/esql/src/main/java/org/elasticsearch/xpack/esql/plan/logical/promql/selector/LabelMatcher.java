@@ -11,8 +11,10 @@ import org.apache.lucene.util.automaton.Automata;
 import org.apache.lucene.util.automaton.Automaton;
 import org.apache.lucene.util.automaton.Operations;
 import org.apache.lucene.util.automaton.RegExp;
+import org.apache.lucene.util.automaton.TooComplexToDeterminizeException;
+import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.lucene.util.automaton.MinimizationOperations;
-import org.elasticsearch.xpack.esql.core.QlIllegalArgumentException;
 import org.elasticsearch.xpack.esql.core.tree.Node;
 import org.elasticsearch.xpack.esql.core.tree.NodeStringMapper;
 import org.elasticsearch.xpack.esql.core.tree.NodeStringRenderable;
@@ -74,6 +76,7 @@ public class LabelMatcher implements NodeStringRenderable {
     private final String name;
     private final List<String> values;
     private final Matcher matcher;
+    private final int maxRegexLength;
 
     private Automaton automaton;
 
@@ -82,9 +85,15 @@ public class LabelMatcher implements NodeStringRenderable {
     }
 
     public LabelMatcher(String name, List<String> values, Matcher matcher) {
+        this(name, values, matcher, MAX_REGEX_LENGTH);
+    }
+
+    /** Tests lift the length bound to reach the compiler's own overflow guard with a pattern the bound would reject first. */
+    LabelMatcher(String name, List<String> values, Matcher matcher, int maxRegexLength) {
         this.name = name;
         this.values = values;
         this.matcher = matcher;
+        this.maxRegexLength = maxRegexLength;
     }
 
     public String name() {
@@ -119,12 +128,31 @@ public class LabelMatcher implements NodeStringRenderable {
         return matcher;
     }
 
+    /**
+     * The bound the regexp query applies through {@code index.max_regex_length}, at its default: a label matcher has no
+     * index to read the setting from, but an unbounded pattern is how a query author overflows the compiler's stack.
+     */
+    public static final int MAX_REGEX_LENGTH = IndexSettings.MAX_REGEX_LENGTH_SETTING.getDefault(Settings.EMPTY);
+
     // TODO: externalize this to allow pluggable strategies (such as caching across labels/requests)
     public Automaton automaton() {
         if (automaton != null) {
             return automaton;
         }
+        // A bad pattern is the user's, so every failure is a client error; QlIllegalArgumentException would be a 500.
+        // minimize() and complement() determinize too, so the guard covers the whole build, not just the parse.
+        try {
+            automaton = buildAutomaton();
+        } catch (TooComplexToDeterminizeException e) {
+            throw new IllegalArgumentException("The regex used in a label matcher is too complex to determinize", e);
+        } catch (StackOverflowError e) {
+            // Lucene's parser and toAutomaton() both recurse on nesting; an Error here would take the node down.
+            throw new IllegalArgumentException("The regex used in a label matcher is too deeply nested");
+        }
+        return automaton;
+    }
 
+    private Automaton buildAutomaton() {
         Automaton result;
         if (isMultiValue() && matcher.isRegex() == false) {
             // Multi-value exact match: union of all literal values
@@ -132,24 +160,36 @@ public class LabelMatcher implements NodeStringRenderable {
             result = Operations.union(automata);
         } else if (isMultiValue()) {
             // Multi-value regex: union of all regex patterns
-            List<Automaton> automata = values.stream().map(v -> new RegExp(v).toAutomaton()).toList();
+            List<Automaton> automata = values.stream().map(this::regexAutomaton).toList();
             result = Operations.union(automata);
         } else {
             // Single value
             String v = getFirstValue();
-            try {
-                result = matcher.isRegex() ? new RegExp(v).toAutomaton() : Automata.makeString(v);
-            } catch (IllegalArgumentException ex) {
-                throw new QlIllegalArgumentException(ex, "Cannot parse regex {}", v);
-            }
+            result = matcher.isRegex() ? regexAutomaton(v) : Automata.makeString(v);
         }
         result = MinimizationOperations.minimize(result, Operations.DEFAULT_DETERMINIZE_WORK_LIMIT);
         // negate if needed
         if (matcher == NEQ || matcher == NREG) {
             result = Operations.complement(result, Operations.DEFAULT_DETERMINIZE_WORK_LIMIT);
         }
-        automaton = result;
-        return automaton;
+        return result;
+    }
+
+    private Automaton regexAutomaton(String regex) {
+        if (regex.length() > maxRegexLength) {
+            throw new IllegalArgumentException(
+                "The length of regex ["
+                    + regex.length()
+                    + "] used in a label matcher has exceeded the allowed maximum of ["
+                    + maxRegexLength
+                    + "]"
+            );
+        }
+        try {
+            return new RegExp(regex).toAutomaton();
+        } catch (IllegalArgumentException ex) {
+            throw new IllegalArgumentException("Cannot parse regex " + regex, ex);
+        }
     }
 
     public boolean matchesAll() {

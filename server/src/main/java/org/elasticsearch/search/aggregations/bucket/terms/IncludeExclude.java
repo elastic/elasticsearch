@@ -23,12 +23,19 @@ import org.apache.lucene.util.automaton.ByteRunAutomaton;
 import org.apache.lucene.util.automaton.CompiledAutomaton;
 import org.apache.lucene.util.automaton.Operations;
 import org.apache.lucene.util.automaton.RegExp;
+import org.apache.lucene.util.automaton.TooComplexToDeterminizeException;
 import org.elasticsearch.ElasticsearchParseException;
+import org.elasticsearch.common.breaker.ChildMemoryCircuitBreaker;
+import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.core.Nullable;
+import org.elasticsearch.index.IndexSettings;
+import org.elasticsearch.lucene.search.cost.AutomatonQueryCostEstimator;
+import org.elasticsearch.lucene.search.cost.RegexpNfaRamEstimator;
+import org.elasticsearch.lucene.util.automaton.CircuitBreakingOperations;
 import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xcontent.ToXContentFragment;
@@ -41,6 +48,7 @@ import java.util.Objects;
 import java.util.Set;
 import java.util.SortedSet;
 import java.util.TreeSet;
+import java.util.function.Supplier;
 
 /**
  * Defines the include/exclude regular expression filtering for string terms aggregation. In this filtering logic,
@@ -69,12 +77,7 @@ public class IncludeExclude implements Writeable, ToXContentFragment {
             throw new IllegalArgumentException("Cannot specify any excludes when using a partition-based include");
         }
 
-        return new IncludeExclude(
-            include.include == null ? null : include.include.getOriginalString(),
-            exclude.exclude == null ? null : exclude.exclude.getOriginalString(),
-            include.includeValues,
-            exclude.excludeValues
-        );
+        return new IncludeExclude(include.include, exclude.exclude, include.includeValues, exclude.excludeValues);
     }
 
     public static IncludeExclude parseInclude(XContentParser parser) throws IOException {
@@ -215,9 +218,9 @@ public class IncludeExclude implements Writeable, ToXContentFragment {
         private final Set<BytesRef> valids;
         private final Set<BytesRef> invalids;
 
-        private SetAndRegexStringFilter(DocValueFormat format) {
-            Automaton automaton = toAutomaton();
-            this.runAutomaton = automaton == null ? null : new ByteRunAutomaton(automaton);
+        private SetAndRegexStringFilter(DocValueFormat format, int maxRegexLength, CircuitBreaker breaker) {
+            Automaton automaton = toAutomaton(maxRegexLength, breaker);
+            this.runAutomaton = automaton == null ? null : reserving(automaton, breaker, () -> new ByteRunAutomaton(automaton));
             this.valids = parseForDocValues(includeValues, format);
             this.invalids = parseForDocValues(excludeValues, format);
         }
@@ -272,9 +275,9 @@ public class IncludeExclude implements Writeable, ToXContentFragment {
         private final SortedSet<BytesRef> valids;
         private final SortedSet<BytesRef> invalids;
 
-        private SetAndRegexOrdinalsFilter(DocValueFormat format) {
-            Automaton automaton = toAutomaton();
-            this.compiled = automaton == null ? null : new CompiledAutomaton(automaton);
+        private SetAndRegexOrdinalsFilter(DocValueFormat format, int maxRegexLength, CircuitBreaker breaker) {
+            Automaton automaton = toAutomaton(maxRegexLength, breaker);
+            this.compiled = automaton == null ? null : reserving(automaton, breaker, () -> new CompiledAutomaton(automaton));
             this.valids = parseForDocValues(includeValues, format);
             this.invalids = parseForDocValues(excludeValues, format);
         }
@@ -334,7 +337,12 @@ public class IncludeExclude implements Writeable, ToXContentFragment {
         }
     }
 
-    private final RegExp include, exclude;
+    /**
+     * Kept as source text and compiled only in {@link #toAutomaton(int, CircuitBreaker)}: parsing happens on the coordinator's HTTP thread
+     * and on every data node's transport thread, and a deep pattern can overflow the stack in Lucene's parser, so it must
+     * not run before the length check.
+     */
+    private final String include, exclude;
     private final SortedSet<BytesRef> includeValues, excludeValues;
     private final int incZeroBasedPartition;
     private final int incNumPartitions;
@@ -358,8 +366,8 @@ public class IncludeExclude implements Writeable, ToXContentFragment {
         if (exclude != null && excludeValues != null) {
             throw new IllegalArgumentException();
         }
-        this.include = include == null ? null : new RegExp(include, RegExp.ALL | RegExp.DEPRECATED_COMPLEMENT);
-        this.exclude = exclude == null ? null : new RegExp(exclude, RegExp.ALL | RegExp.DEPRECATED_COMPLEMENT);
+        this.include = include;
+        this.exclude = exclude;
         this.includeValues = includeValues;
         this.excludeValues = excludeValues;
         this.incZeroBasedPartition = 0;
@@ -384,10 +392,8 @@ public class IncludeExclude implements Writeable, ToXContentFragment {
      */
     public IncludeExclude(StreamInput in) throws IOException {
         if (in.readBoolean()) {
-            String includeString = in.readOptionalString();
-            include = includeString == null ? null : new RegExp(includeString);
-            String excludeString = in.readOptionalString();
-            exclude = excludeString == null ? null : new RegExp(excludeString);
+            include = in.readOptionalString();
+            exclude = in.readOptionalString();
         } else {
             include = null;
             exclude = null;
@@ -419,8 +425,8 @@ public class IncludeExclude implements Writeable, ToXContentFragment {
         boolean regexBased = isRegexBased();
         out.writeBoolean(regexBased);
         if (regexBased) {
-            out.writeOptionalString(include == null ? null : include.getOriginalString());
-            out.writeOptionalString(exclude == null ? null : exclude.getOriginalString());
+            out.writeOptionalString(include);
+            out.writeOptionalString(exclude);
         }
         boolean hasIncludes = includeValues != null;
         out.writeBoolean(hasIncludes);
@@ -516,27 +522,167 @@ public class IncludeExclude implements Writeable, ToXContentFragment {
         return incNumPartitions > 0;
     }
 
-    private Automaton toAutomaton() {
-        Automaton a = null;
-        if (include == null && exclude == null) {
-            return a;
-        }
-        if (include != null) {
-            a = include.toAutomaton();
-        } else {
-            a = Automata.makeAnyString();
-        }
-        if (exclude != null) {
-            a = Operations.minus(a, exclude.toAutomaton(), Operations.DEFAULT_DETERMINIZE_WORK_LIMIT);
-        }
-        return Operations.determinize(a, Operations.DEFAULT_DETERMINIZE_WORK_LIMIT);
+    private static final int REGEX_FLAGS = RegExp.ALL | RegExp.DEPRECATED_COMPLEMENT;
+
+    /**
+     * Rejects a pattern the shard could never compile, before the aggregator is built. An unmapped field builds no
+     * filter, so without this a malformed or over-long pattern on one would be accepted silently instead of failing as
+     * it did when the request was parsed.
+     */
+    public void validateRegex(int maxRegexLength) {
+        checkRegexLength(include, INCLUDE_FIELD, maxRegexLength);
+        checkRegexLength(exclude, EXCLUDE_FIELD, maxRegexLength);
+        parse(include, INCLUDE_FIELD);
+        parse(exclude, EXCLUDE_FIELD);
     }
 
-    public StringFilter convertToStringFilter(DocValueFormat format) {
+    private Automaton toAutomaton(int maxRegexLength, CircuitBreaker breaker) {
+        if (include == null && exclude == null) {
+            return null;
+        }
+        checkRegexLength(include, INCLUDE_FIELD, maxRegexLength);
+        checkRegexLength(exclude, EXCLUDE_FIELD, maxRegexLength);
+        try {
+            Automaton a = include != null ? compile(include, INCLUDE_FIELD, breaker) : Automata.makeAnyString();
+            if (exclude != null) {
+                a = minus(a, determinize(compile(exclude, EXCLUDE_FIELD, breaker), breaker), breaker);
+            }
+            return determinize(a, breaker);
+        } catch (TooComplexToDeterminizeException e) {
+            throw new IllegalArgumentException(
+                "The regex used in the [include] or [exclude] of an aggregation is too complex to determinize",
+                e
+            );
+        }
+    }
+
+    /**
+     * Heap reserved per reachable state of the include/exclude product, before {@code Operations.minus} builds it.
+     * Measured as the bytes allocated on the calling thread during {@code minus}, divided by include states times
+     * exclude states, over a corpus of realistic and adversarial pairs: dense products (a short pattern against an
+     * exclude that determinizes to thousands of states) cost 540 to 1,450 bytes per product state, sparse ones
+     * (two chains, two long alternations) 10 to 30. Density is unknowable before the build, so this covers the densest
+     * pair with margin and over-reserves sparse pairs for the duration of one build. The pair that exhausted a 512 MB
+     * heap in that measurement, {@code [ab]{1000}{5}} against {@code (a|b)*b(a|b){10}}, reserves 20 GB and is refused.
+     */
+    static final long PRODUCT_STATE_BYTES = 2048;
+    static final long PRODUCT_RESERVATION_FLOOR_BYTES = 64 * 1024;
+
+    /**
+     * {@code Operations.minus} intersects {@code a} with the complement of {@code excluded}: a product construction over
+     * both automata with no accounting of its own, whose reachable states are bounded by include states times exclude
+     * states. Reserve {@link #PRODUCT_STATE_BYTES} for each before running it.
+     */
+    private static Automaton minus(Automaton a, Automaton excluded, CircuitBreaker breaker) {
+        long reservation;
+        try {
+            long productStates = Math.multiplyExact((long) a.getNumStates(), excluded.getNumStates());
+            reservation = Math.max(PRODUCT_RESERVATION_FLOOR_BYTES, Math.multiplyExact(productStates, PRODUCT_STATE_BYTES));
+        } catch (ArithmeticException e) {
+            reservation = Long.MAX_VALUE;
+        }
+        return reserving(reservation, breaker, () -> Operations.minus(a, excluded, Operations.DEFAULT_DETERMINIZE_WORK_LIMIT));
+    }
+
+    private static Automaton determinize(Automaton a, CircuitBreaker breaker) {
+        return CircuitBreakingOperations.determinize(
+            a,
+            Operations.DEFAULT_DETERMINIZE_WORK_LIMIT,
+            breaker,
+            ChildMemoryCircuitBreaker.CATEGORY_REGEXP
+        );
+    }
+
+    @Nullable
+    private static RegExp parse(@Nullable String regex, ParseField field) {
+        if (regex == null) {
+            return null;
+        }
+        try {
+            return new RegExp(regex, REGEX_FLAGS);
+        } catch (StackOverflowError e) {
+            throw tooDeeplyNested(field);
+        }
+    }
+
+    /**
+     * Builds the NFA with its estimated peak heap reserved on {@code breaker}, as the regexp query does: a short pattern of
+     * nested bounded repeats expands to a state count that no length limit catches, and an {@code OutOfMemoryError} is
+     * as fatal to the node as the stack overflow.
+     */
+    private static Automaton compile(String regex, ParseField field, CircuitBreaker breaker) {
+        try {
+            RegExp re = parse(regex, field);
+            // The estimator walks the parse tree recursively too, so it stays inside the overflow guard.
+            long reservation = RegexpNfaRamEstimator.estimateRamBytes(re);
+            breaker.addEstimateBytesAndMaybeBreak(reservation, ChildMemoryCircuitBreaker.CATEGORY_REGEXP);
+            try {
+                return re.toAutomaton();
+            } finally {
+                breaker.addWithoutBreaking(-reservation, ChildMemoryCircuitBreaker.CATEGORY_REGEXP);
+            }
+        } catch (StackOverflowError e) {
+            throw tooDeeplyNested(field);
+        } catch (TooComplexToDeterminizeException e) {
+            throw new IllegalArgumentException(
+                "The regex used in the [" + field.getPreferredName() + "] of an aggregation is too complex to determinize",
+                e
+            );
+        }
+    }
+
+    /** Lucene's parser and toAutomaton() both recurse on nesting; outside the aggregation-build guards this Error is fatal. */
+    private static IllegalArgumentException tooDeeplyNested(ParseField field) {
+        return new IllegalArgumentException(
+            "The regex used in the [" + field.getPreferredName() + "] of an aggregation is too deeply nested"
+        );
+    }
+
+    /**
+     * Runs {@code build}, which compiles a DFA into its UTF-8 run form ({@code ByteRunAutomaton} or
+     * {@code CompiledAutomaton}), with the peak heap the query path measured for that step reserved on {@code breaker}.
+     */
+    private static <T> T reserving(Automaton dfa, CircuitBreaker breaker, Supplier<T> build) {
+        return reserving(new AutomatonQueryCostEstimator(dfa.ramBytesUsed()).estimate(), breaker, build);
+    }
+
+    /** Runs {@code build} with {@code reservation} bytes held on {@code breaker} for the duration, released whatever happens. */
+    private static <T> T reserving(long reservation, CircuitBreaker breaker, Supplier<T> build) {
+        breaker.addEstimateBytesAndMaybeBreak(reservation, ChildMemoryCircuitBreaker.CATEGORY_REGEXP);
+        try {
+            return build.get();
+        } finally {
+            breaker.addWithoutBreaking(-reservation, ChildMemoryCircuitBreaker.CATEGORY_REGEXP);
+        }
+    }
+
+    private static void checkRegexLength(@Nullable String regex, ParseField field, int maxRegexLength) {
+        if (regex != null && regex.length() > maxRegexLength) {
+            throw new IllegalArgumentException(
+                "The length of regex ["
+                    + regex.length()
+                    + "] used in the ["
+                    + field.getPreferredName()
+                    + "] of an aggregation has exceeded the allowed maximum of ["
+                    + maxRegexLength
+                    + "]. This maximum can be set by changing the ["
+                    + IndexSettings.MAX_REGEX_LENGTH_SETTING.getKey()
+                    + "] index level setting."
+            );
+        }
+    }
+
+    /**
+     * @param maxRegexLength the index's {@link IndexSettings#MAX_REGEX_LENGTH_SETTING}; patterns longer than this are rejected
+     *                       before compilation, the same bound the regexp query applies
+     * @param breaker        charged with the automaton's estimated peak heap while it is built, the same accounting the
+     *                       regexp query applies
+     */
+    public StringFilter convertToStringFilter(DocValueFormat format, int maxRegexLength, CircuitBreaker breaker) {
         if (isPartitionBased()) {
             return new PartitionedStringFilter();
         }
-        return new SetAndRegexStringFilter(format);
+        return new SetAndRegexStringFilter(format, maxRegexLength, breaker);
     }
 
     private static SortedSet<BytesRef> parseForDocValues(SortedSet<BytesRef> endUserFormattedValues, DocValueFormat format) {
@@ -552,12 +698,16 @@ public class IncludeExclude implements Writeable, ToXContentFragment {
         return result;
     }
 
-    public OrdinalsFilter convertToOrdinalsFilter(DocValueFormat format) {
+    /**
+     * @param maxRegexLength the index's {@link IndexSettings#MAX_REGEX_LENGTH_SETTING}; see {@link #convertToStringFilter}
+     * @param breaker        see {@link #convertToStringFilter}
+     */
+    public OrdinalsFilter convertToOrdinalsFilter(DocValueFormat format, int maxRegexLength, CircuitBreaker breaker) {
         if (isPartitionBased()) {
             return new PartitionedOrdinalsFilter();
         }
 
-        return new SetAndRegexOrdinalsFilter(format);
+        return new SetAndRegexOrdinalsFilter(format, maxRegexLength, breaker);
     }
 
     public LongFilter convertToLongFilter(DocValueFormat format) {
@@ -608,7 +758,7 @@ public class IncludeExclude implements Writeable, ToXContentFragment {
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         if (include != null) {
-            builder.field(INCLUDE_FIELD.getPreferredName(), include.getOriginalString());
+            builder.field(INCLUDE_FIELD.getPreferredName(), include);
         } else if (includeValues != null) {
             builder.startArray(INCLUDE_FIELD.getPreferredName());
             for (BytesRef value : includeValues) {
@@ -622,7 +772,7 @@ public class IncludeExclude implements Writeable, ToXContentFragment {
             builder.endObject();
         }
         if (exclude != null) {
-            builder.field(EXCLUDE_FIELD.getPreferredName(), exclude.getOriginalString());
+            builder.field(EXCLUDE_FIELD.getPreferredName(), exclude);
         } else if (excludeValues != null) {
             builder.startArray(EXCLUDE_FIELD.getPreferredName());
             for (BytesRef value : excludeValues) {
@@ -635,14 +785,7 @@ public class IncludeExclude implements Writeable, ToXContentFragment {
 
     @Override
     public int hashCode() {
-        return Objects.hash(
-            include == null ? null : include.getOriginalString(),
-            exclude == null ? null : exclude.getOriginalString(),
-            includeValues,
-            excludeValues,
-            incZeroBasedPartition,
-            incNumPartitions
-        );
+        return Objects.hash(include, exclude, includeValues, excludeValues, incZeroBasedPartition, incNumPartitions);
     }
 
     @Override
@@ -654,14 +797,8 @@ public class IncludeExclude implements Writeable, ToXContentFragment {
             return false;
         }
         IncludeExclude other = (IncludeExclude) obj;
-        return Objects.equals(
-            include == null ? null : include.getOriginalString(),
-            other.include == null ? null : other.include.getOriginalString()
-        )
-            && Objects.equals(
-                exclude == null ? null : exclude.getOriginalString(),
-                other.exclude == null ? null : other.exclude.getOriginalString()
-            )
+        return Objects.equals(include, other.include)
+            && Objects.equals(exclude, other.exclude)
             && Objects.equals(includeValues, other.includeValues)
             && Objects.equals(excludeValues, other.excludeValues)
             && Objects.equals(incZeroBasedPartition, other.incZeroBasedPartition)

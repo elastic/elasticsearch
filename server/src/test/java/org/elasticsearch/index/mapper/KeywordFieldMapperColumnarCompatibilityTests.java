@@ -309,9 +309,7 @@ public class KeywordFieldMapperColumnarCompatibilityTests extends AbstractColumn
         );
     }
 
-    public void testIgnoreAboveMultiValueFalse() throws IOException {
-        // ignore_above: the too-long value is recorded in _ignored and stored as a plain
-        // BinaryDocValuesField synthetic-source fallback (no counts sidecar).
+    public void testIgnoreAboveIsNoOpMultiValueFalse() throws IOException {
         assertColumnarMatchesXContent(mapping(b -> {
             b.startObject(FIELD).field("type", "keyword").field("ignore_above", 8);
             b.startObject("doc_values").field("multi_value", false).endObject();

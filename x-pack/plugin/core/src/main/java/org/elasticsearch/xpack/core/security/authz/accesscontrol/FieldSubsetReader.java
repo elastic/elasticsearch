@@ -190,6 +190,14 @@ public final class FieldSubsetReader extends SequentialStoredFieldsLeafReader {
                 }
             }
 
+            String countsSuffix = MultiValuedBinaryDocValuesField.SeparateCount.COUNT_FIELD_SUFFIX;
+            if (name.endsWith(countsSuffix) && isMapped.apply(fi.getName()) == false) {
+                String parent = name.substring(0, name.length() - countsSuffix.length());
+                if (parent.isEmpty() == false && in.getFieldInfos().fieldInfo(parent) != null) {
+                    name = parent;
+                }
+            }
+
             // _ignored_source must always pass through to the synthetic-source loader so FLS content-filtering runs inside
             // FilteredIgnoredSourceDocValues. Blocking the binary doc values field entirely makes the loader see an empty
             // doc values iterator, silently dropping every value stored only in _ignored_source (e.g. dynamically-mapped

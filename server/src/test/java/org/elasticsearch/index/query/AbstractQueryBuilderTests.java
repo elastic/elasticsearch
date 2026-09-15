@@ -12,7 +12,11 @@ package org.elasticsearch.index.query;
 import org.apache.lucene.index.IndexWriter;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.ParsingException;
+import org.elasticsearch.common.breaker.CircuitBreaker;
+import org.elasticsearch.common.breaker.CircuitBreakingException;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.unit.ByteSizeValue;
+import org.elasticsearch.common.util.LimitedBreaker;
 import org.elasticsearch.search.SearchModule;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xcontent.NamedXContentRegistry;
@@ -22,6 +26,9 @@ import org.junit.AfterClass;
 import org.junit.BeforeClass;
 
 import java.io.IOException;
+import java.util.ArrayList;
+import java.util.List;
+import java.util.Map;
 
 import static java.util.Collections.emptyList;
 import static org.elasticsearch.index.query.AbstractQueryBuilder.parseInnerQueryBuilder;
@@ -86,6 +93,93 @@ public class AbstractQueryBuilderTests extends ESTestCase {
     @Override
     protected NamedXContentRegistry xContentRegistry() {
         return xContentRegistry;
+    }
+
+    public void testEstimateValueHelper() {
+        // null → 0
+        assertEquals(0L, AbstractQueryBuilder.estimateValue(null));
+        // String → length*2+64
+        assertEquals(68L, AbstractQueryBuilder.estimateValue("hi"));  // 2*2+64
+        // byte[] → length+32
+        assertEquals(34L, AbstractQueryBuilder.estimateValue(new byte[2]));  // 2+32
+        // BytesRef → length+64
+        assertEquals(67L, AbstractQueryBuilder.estimateValue(new BytesRef(new byte[3])));  // 3+64
+        // empty List → 32+0+0
+        assertEquals(32L, AbstractQueryBuilder.estimateValue(new ArrayList<>()));
+        // List with null → 32 + 1*8 + 0
+        List<Object> withNull = new ArrayList<>();
+        withNull.add(null);
+        assertEquals(40L, AbstractQueryBuilder.estimateValue(withNull));
+        // List with one String → 32 + 1*8 + 68
+        assertEquals(108L, AbstractQueryBuilder.estimateValue(List.of("hi")));
+        // Nested: List containing an empty List → 32 + 1*8 + 32
+        assertEquals(72L, AbstractQueryBuilder.estimateValue(List.of(List.of())));
+        // empty Map → 32+0+0
+        assertEquals(32L, AbstractQueryBuilder.estimateValue(Map.of()));
+        // Map with one entry: key "k" (1*2+64=66), value "v" (1*2+64=66) → 32+48+66+66
+        assertEquals(212L, AbstractQueryBuilder.estimateValue(Map.of("k", "v")));
+    }
+
+    public void testQueryNameChargedAtParsesite() throws IOException {
+        // The _name field is charged centrally at the parse site (not inside parseTimeBreakerEstimate).
+        // Verify that: (a) the unnamed query succeeds at exactly the unnamed-estimate limit, and
+        // (b) the same query with a _name trips the breaker at that same limit.
+        // NOTE: must use parseTopLevelQuery (not the protected parseInnerQueryBuilder) because only
+        // parseTopLevelQuery wraps the parser in a FilterXContentParserWrapper that fires the charge site.
+        String name = "my_name";
+        long expectedNameCharge = name.length() * 2L + 64L;
+
+        MatchQueryBuilder unnamed = new MatchQueryBuilder("f", "v");
+        long unnamedEstimate = unnamed.parseTimeBreakerEstimate();
+
+        MatchQueryBuilder named = new MatchQueryBuilder("f", "v");
+        named.queryName(name);
+        // parseTimeBreakerEstimate() itself does NOT include the name cost
+        assertEquals(unnamedEstimate, named.parseTimeBreakerEstimate());
+
+        // Unnamed query must not trip the breaker at exactly the unnamed estimate
+        LimitedBreaker breaker = new LimitedBreaker(CircuitBreaker.REQUEST, ByteSizeValue.ofBytes(unnamedEstimate));
+        AbstractQueryBuilder.setQueryParsingBreaker(breaker);
+        try {
+            String unnamedJson = unnamed.toString();
+            try (XContentParser parser = createParser(JsonXContent.jsonXContent, unnamedJson)) {
+                AbstractQueryBuilder.parseTopLevelQuery(parser); // must not throw
+            }
+            // Named query must trip the breaker: name charge pushes it past the limit
+            assertEquals(0L, breaker.getUsed()); // charge was released after successful parse
+            String namedJson = named.toString();
+            try (XContentParser parser = createParser(JsonXContent.jsonXContent, namedJson)) {
+                expectThrows(CircuitBreakingException.class, () -> AbstractQueryBuilder.parseTopLevelQuery(parser));
+            }
+            // Confirm the name charge accounts for the difference
+            LimitedBreaker exactBreaker = new LimitedBreaker(
+                CircuitBreaker.REQUEST,
+                ByteSizeValue.ofBytes(unnamedEstimate + expectedNameCharge)
+            );
+            AbstractQueryBuilder.setQueryParsingBreaker(exactBreaker);
+            try (XContentParser parser = createParser(JsonXContent.jsonXContent, namedJson)) {
+                AbstractQueryBuilder.parseTopLevelQuery(parser); // must not throw at exact limit
+            }
+            AbstractQueryBuilder.setQueryParsingBreaker(breaker);
+        } finally {
+            AbstractQueryBuilder.setQueryParsingBreaker(null);
+        }
+    }
+
+    public void testBreakerAtExactLimitDoesNotThrow() throws IOException {
+        // LimitedBreaker uses strict > (not >=), so a charge exactly equal to the limit must succeed.
+        MatchQueryBuilder q = new MatchQueryBuilder("f", "v");
+        long estimate = q.parseTimeBreakerEstimate();
+        LimitedBreaker breaker = new LimitedBreaker(CircuitBreaker.REQUEST, ByteSizeValue.ofBytes(estimate));
+        AbstractQueryBuilder.setQueryParsingBreaker(breaker);
+        try {
+            String json = q.toString();
+            try (XContentParser parser = createParser(JsonXContent.jsonXContent, json)) {
+                AbstractQueryBuilder.parseTopLevelQuery(parser); // exactly at limit — must not throw
+            }
+        } finally {
+            AbstractQueryBuilder.setQueryParsingBreaker(null);
+        }
     }
 
     public void testMaybeConvertToBytesRefLongTerm() {

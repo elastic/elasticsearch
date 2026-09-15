@@ -582,6 +582,12 @@ public final class InnerHitBuilder implements Writeable, ToXContentObject {
         );
     }
 
+    /**
+     * Parses an {@code inner_hits} block from XContent. {@code inner_hits} is fetch-phase
+     * configuration (it shapes the response, not the match) and is therefore outside the scope
+     * of the parse-time circuit breaker that charges input-side query clauses. Releasables are
+     * intentionally not threaded here.
+     */
     public static InnerHitBuilder fromXContent(XContentParser parser) throws IOException {
         return PARSER.parse(parser, new InnerHitBuilder(), null);
     }

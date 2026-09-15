@@ -20,6 +20,7 @@ import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.Nullable;
+import org.elasticsearch.core.Releasable;
 import org.elasticsearch.index.query.AbstractQueryBuilder;
 import org.elasticsearch.index.query.BoolQueryBuilder;
 import org.elasticsearch.index.query.BoostingQueryBuilder;
@@ -831,9 +832,22 @@ public class SearchModule {
     }
 
     private void registerRescorers(List<SearchPlugin> plugins) {
-        registerRescorer(new RescorerSpec<>(QueryRescorerBuilder.NAME, QueryRescorerBuilder::new, QueryRescorerBuilder::fromXContent));
+        // QueryRescorerBuilder registered directly so the namedObject context (query-parsing releasables) is threaded through.
+        namedXContents.add(
+            new NamedXContentRegistry.Entry(
+                RescorerBuilder.class,
+                new ParseField(QueryRescorerBuilder.NAME),
+                (p, c) -> QueryRescorerBuilder.fromXContent(p, castToReleasables(c))
+            )
+        );
+        namedWriteables.add(new NamedWriteableRegistry.Entry(RescorerBuilder.class, QueryRescorerBuilder.NAME, QueryRescorerBuilder::new));
         registerRescorer(new RescorerSpec<>(ScriptRescorerBuilder.NAME, ScriptRescorerBuilder::new, ScriptRescorerBuilder::fromXContent));
         registerFromPlugin(plugins, SearchPlugin::getRescorers, this::registerRescorer);
+    }
+
+    @SuppressWarnings("unchecked")
+    private static List<Releasable> castToReleasables(Object context) {
+        return context instanceof List<?> list ? (List<Releasable>) list : null;
     }
 
     private void registerRescorer(RescorerSpec<?> spec) {

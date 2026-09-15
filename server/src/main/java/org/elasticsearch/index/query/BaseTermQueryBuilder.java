@@ -153,6 +153,11 @@ public abstract class BaseTermQueryBuilder<QB extends BaseTermQueryBuilder<QB>> 
     }
 
     @Override
+    protected long parseTimeBreakerEstimate() {
+        return QUERY_BUILDER_SIZE_ESTIMATE_BYTES + fieldName.length() * 2L + 64L + estimateValue(value);
+    }
+
+    @Override
     protected int doHashCode() {
         return Objects.hash(fieldName, value);
     }

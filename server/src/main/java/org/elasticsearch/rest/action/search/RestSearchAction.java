@@ -10,6 +10,7 @@
 package org.elasticsearch.rest.action.search;
 
 import org.elasticsearch.ExceptionsHelper;
+import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.search.SearchResponse;
@@ -23,6 +24,7 @@ import org.elasticsearch.features.NodeFeature;
 import org.elasticsearch.index.SliceIndexing;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.rest.BaseRestHandler;
+import org.elasticsearch.rest.RestChannel;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.Scope;
 import org.elasticsearch.rest.ServerlessScope;
@@ -142,18 +144,41 @@ public class RestSearchAction extends BaseRestHandler {
             )
         );
 
-        return channel -> {
-            RestCancellableNodeClient cancelClient = new RestCancellableNodeClient(client, request.getHttpChannel());
-            var params = serializationParams(searchRequest, channel.request());
-            cancelClient.execute(
-                TransportSearchAction.TYPE,
-                searchRequest,
-                RestActions.wrapWithSearchMetricsHeader(
+        // Capture source before returning. Two release paths, both needed:
+        // 1. Completion listener (runAfter): fires when the action pipeline finishes, including
+        // action-filter rejection before TransportSearchAction.doExecute runs.
+        // 2. close() guard: fires via BaseRestHandler's try-with-resources when the request is
+        // abandoned before dispatch (e.g., rejected for unknown URL params).
+        // SearchSourceBuilder.close() is idempotent, so overlapping paths are safe.
+        final SearchSourceBuilder parsedSource = searchRequest.source();
+        return new RestChannelConsumer() {
+            private boolean dispatched = false;
+
+            @Override
+            public void accept(RestChannel channel) {
+                dispatched = true;
+                RestCancellableNodeClient cancelClient = new RestCancellableNodeClient(client, request.getHttpChannel());
+                var params = serializationParams(searchRequest, channel.request());
+                ActionListener<SearchResponse> completionListener = RestActions.wrapWithSearchMetricsHeader(
                     client.threadPool().getThreadContext(),
                     SearchResponse::getDirectoryMetrics,
                     new RestRefCountedChunkedToXContentListener<>(channel, params)
-                )
-            );
+                );
+                cancelClient.execute(
+                    TransportSearchAction.TYPE,
+                    searchRequest,
+                    parsedSource != null ? ActionListener.runAfter(completionListener, parsedSource::close) : completionListener
+                );
+            }
+
+            @Override
+            public void close() {
+                // Handles abandonment only: request parsed but never dispatched (unknown params,
+                // etc.). When dispatched, the completion listener's runAfter owns cleanup.
+                if (dispatched == false && parsedSource != null) {
+                    parsedSource.close();
+                }
+            }
         };
     }
 
@@ -232,69 +257,80 @@ public class RestSearchAction extends BaseRestHandler {
          * expected and valid.
          */
         SearchRequest searchRequestForParsing = crossProjectEnabled.orElse(false) ? searchRequest : null;
-        if (requestContentParser != null) {
-            if (searchUsageHolder == null) {
-                searchRequest.source().parseXContent(searchRequestForParsing, requestContentParser, true, clusterSupportsFeature);
-            } else {
-                searchRequest.source()
-                    .parseXContent(searchRequestForParsing, requestContentParser, true, searchUsageHolder, clusterSupportsFeature);
+        // Close source on any failure: parseXContent may commit partial breaker charges, and validateSearchRequest
+        // may throw after charges are fully committed. Both must be covered.
+        boolean committed = false;
+        try {
+            if (requestContentParser != null) {
+                if (searchUsageHolder == null) {
+                    searchRequest.source().parseXContent(searchRequestForParsing, requestContentParser, true, clusterSupportsFeature);
+                } else {
+                    searchRequest.source()
+                        .parseXContent(searchRequestForParsing, requestContentParser, true, searchUsageHolder, clusterSupportsFeature);
+                }
             }
-        }
+            final int batchedReduceSize = request.paramAsInt("batched_reduce_size", searchRequest.getBatchedReduceSize());
+            searchRequest.setBatchedReduceSize(batchedReduceSize);
+            if (request.hasParam("pre_filter_shard_size")) {
+                searchRequest.setPreFilterShardSize(
+                    request.paramAsInt("pre_filter_shard_size", SearchRequest.DEFAULT_PRE_FILTER_SHARD_SIZE)
+                );
+            }
+            if (request.hasParam("enable_fields_emulation")) {
+                // this flag is a no-op from 8.0 on, we only want to consume it so its presence doesn't cause errors
+                request.paramAsBoolean("enable_fields_emulation", false);
+            }
+            if (request.hasParam("max_concurrent_shard_requests")) {
+                // only set if we have the parameter since we auto adjust the max concurrency on the coordinator
+                // based on the number of nodes in the cluster
+                final int maxConcurrentShardRequests = request.paramAsInt(
+                    "max_concurrent_shard_requests",
+                    searchRequest.getMaxConcurrentShardRequests()
+                );
+                searchRequest.setMaxConcurrentShardRequests(maxConcurrentShardRequests);
+            }
 
-        final int batchedReduceSize = request.paramAsInt("batched_reduce_size", searchRequest.getBatchedReduceSize());
-        searchRequest.setBatchedReduceSize(batchedReduceSize);
-        if (request.hasParam("pre_filter_shard_size")) {
-            searchRequest.setPreFilterShardSize(request.paramAsInt("pre_filter_shard_size", SearchRequest.DEFAULT_PRE_FILTER_SHARD_SIZE));
-        }
-        if (request.hasParam("enable_fields_emulation")) {
-            // this flag is a no-op from 8.0 on, we only want to consume it so its presence doesn't cause errors
-            request.paramAsBoolean("enable_fields_emulation", false);
-        }
-        if (request.hasParam("max_concurrent_shard_requests")) {
-            // only set if we have the parameter since we auto adjust the max concurrency on the coordinator
-            // based on the number of nodes in the cluster
-            final int maxConcurrentShardRequests = request.paramAsInt(
-                "max_concurrent_shard_requests",
-                searchRequest.getMaxConcurrentShardRequests()
-            );
-            searchRequest.setMaxConcurrentShardRequests(maxConcurrentShardRequests);
-        }
+            if (request.hasParam("allow_partial_search_results")) {
+                // only set if we have the parameter passed to override the cluster-level default
+                searchRequest.allowPartialSearchResults(request.paramAsBoolean("allow_partial_search_results", null));
+            }
 
-        if (request.hasParam("allow_partial_search_results")) {
-            // only set if we have the parameter passed to override the cluster-level default
-            searchRequest.allowPartialSearchResults(request.paramAsBoolean("allow_partial_search_results", null));
-        }
+            searchRequest.searchType(request.param("search_type"));
+            parseSearchSource(searchRequest.source(), request, setSize);
+            searchRequest.requestCache(request.paramAsBoolean("request_cache", searchRequest.requestCache()));
 
-        searchRequest.searchType(request.param("search_type"));
-        parseSearchSource(searchRequest.source(), request, setSize);
-        searchRequest.requestCache(request.paramAsBoolean("request_cache", searchRequest.requestCache()));
+            String scroll = request.param("scroll");
+            if (scroll != null) {
+                searchRequest.scroll(parseTimeValue(scroll, null, "scroll"));
+            }
+            final SliceIndexing.ParsedRouting parsedRouting = SliceIndexing.parseSearchRoutingOrSliceWithProvenance(request);
+            SliceIndexing.applySearchRoutingOrSlice(parsedRouting, searchRequest);
+            searchRequest.preference(request.param("preference"));
+            IndicesOptions indicesOptions = IndicesOptions.fromRequest(request, searchRequest.indicesOptions());
+            if (crossProjectEnabled.orElse(false) && searchRequest.allowsCrossProject()) {
+                indicesOptions = IndicesOptions.builder(indicesOptions)
+                    .crossProjectModeOptions(new IndicesOptions.CrossProjectModeOptions(true))
+                    .build();
+            }
+            searchRequest.indicesOptions(indicesOptions);
 
-        String scroll = request.param("scroll");
-        if (scroll != null) {
-            searchRequest.scroll(parseTimeValue(scroll, null, "scroll"));
-        }
-        final SliceIndexing.ParsedRouting parsedRouting = SliceIndexing.parseSearchRoutingOrSliceWithProvenance(request);
-        SliceIndexing.applySearchRoutingOrSlice(parsedRouting, searchRequest);
-        searchRequest.preference(request.param("preference"));
-        IndicesOptions indicesOptions = IndicesOptions.fromRequest(request, searchRequest.indicesOptions());
-        if (crossProjectEnabled.orElse(false) && searchRequest.allowsCrossProject()) {
-            indicesOptions = IndicesOptions.builder(indicesOptions)
-                .crossProjectModeOptions(new IndicesOptions.CrossProjectModeOptions(true))
-                .build();
-        }
-        searchRequest.indicesOptions(indicesOptions);
+            validateSearchRequest(request, searchRequest);
 
-        validateSearchRequest(request, searchRequest);
-
-        if (searchRequest.pointInTimeBuilder() != null) {
-            preparePointInTime(searchRequest, request);
-        } else {
-            searchRequest.setCcsMinimizeRoundtrips(
-                SearchParamsParser.parseCcsMinimizeRoundtrips(crossProjectEnabled, request, searchRequest.isCcsMinimizeRoundtrips())
-            );
-        }
-        if (request.paramAsBoolean("force_synthetic_source", false)) {
-            searchRequest.setForceSyntheticSource(true);
+            if (searchRequest.pointInTimeBuilder() != null) {
+                preparePointInTime(searchRequest, request);
+            } else {
+                searchRequest.setCcsMinimizeRoundtrips(
+                    SearchParamsParser.parseCcsMinimizeRoundtrips(crossProjectEnabled, request, searchRequest.isCcsMinimizeRoundtrips())
+                );
+            }
+            if (request.paramAsBoolean("force_synthetic_source", false)) {
+                searchRequest.setForceSyntheticSource(true);
+            }
+            committed = true;
+        } finally {
+            if (committed == false && searchRequest.source() != null) {
+                searchRequest.source().close();
+            }
         }
     }
 

@@ -9,6 +9,7 @@
 
 package org.elasticsearch.reindex;
 
+import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.ActionType;
 import org.elasticsearch.action.support.ActiveShardCount;
@@ -18,9 +19,11 @@ import org.elasticsearch.index.reindex.AbstractBulkByPaginatedSearchRequest;
 import org.elasticsearch.index.reindex.BulkByPaginatedSearchResponse;
 import org.elasticsearch.index.reindex.BulkByPaginatedSearchTask;
 import org.elasticsearch.rest.BaseRestHandler;
+import org.elasticsearch.rest.RestChannel;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.RestResponse;
 import org.elasticsearch.rest.RestStatus;
+import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.xcontent.XContentBuilder;
 
@@ -53,7 +56,27 @@ public abstract class AbstractBaseReindexRestHandler<
             params.put(BulkByPaginatedSearchTask.Status.INCLUDE_CREATED, Boolean.toString(includeCreated));
             params.put(BulkByPaginatedSearchTask.Status.INCLUDE_UPDATED, Boolean.toString(includeUpdated));
 
-            return channel -> client.execute(action, internal, new BulkIndexByPaginatedSearchResponseContentListener(channel, params));
+            final SearchSourceBuilder source = internal.getSearchRequest().source();
+            return new RestChannelConsumer() {
+                @Override
+                public void accept(RestChannel channel) throws Exception {
+                    client.execute(
+                        action,
+                        internal,
+                        source != null
+                            ? ActionListener.runAfter(new BulkIndexByPaginatedSearchResponseContentListener(channel, params), source::close)
+                            : new BulkIndexByPaginatedSearchResponseContentListener(channel, params)
+                    );
+                }
+
+                @Override
+                public void close() {
+                    // Abandonment path (e.g. unknown-parameter rejection). SearchSourceBuilder.close() is idempotent.
+                    if (source != null) {
+                        source.close();
+                    }
+                }
+            };
         } else {
             internal.setShouldStoreResult(true);
         }
@@ -65,12 +88,26 @@ public abstract class AbstractBaseReindexRestHandler<
          */
         ActionRequestValidationException validationException = internal.validate();
         if (validationException != null) {
+            if (internal.getSearchRequest().source() != null) {
+                internal.getSearchRequest().source().close();
+            }
             throw validationException;
         }
         final var responseListener = new SubscribableListener<BulkByPaginatedSearchResponse>();
-        final var task = client.executeAndReturnTask(action, internal, responseListener);
-        responseListener.addListener(new LoggingReindexTaskListener(task));
-        return sendTask(client.getLocalNodeId(), task);
+        try {
+            final var task = client.executeAndReturnTask(action, internal, responseListener);
+            responseListener.addListener(new LoggingReindexTaskListener(task));
+            // Parsing is done; release the parse-time breaker charges. SearchSourceBuilder.close() is idempotent.
+            if (internal.getSearchRequest().source() != null) {
+                internal.getSearchRequest().source().close();
+            }
+            return sendTask(client.getLocalNodeId(), task);
+        } catch (Exception e) {
+            if (internal.getSearchRequest().source() != null) {
+                internal.getSearchRequest().source().close();
+            }
+            throw e;
+        }
     }
 
     /**

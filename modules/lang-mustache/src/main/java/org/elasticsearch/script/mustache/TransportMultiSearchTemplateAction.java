@@ -135,6 +135,11 @@ public class TransportMultiSearchTemplateAction extends HandledTransportAction<M
         long[] failureBytesCharged = { 0L };   // charged/released under [failure] (errors and substitutes)
         long startTimeNanos = System.nanoTime();
 
+        // Declare before breakerReleasingListener so the lambda can capture it for source cleanup.
+        MultiSearchRequest multiSearchRequest = new MultiSearchRequest();
+        multiSearchRequest.indicesOptions(request.indicesOptions());
+        multiSearchRequest.maxConcurrentSearchRequests(maxConcurrent);
+
         ActionListener<MultiSearchTemplateResponse> breakerReleasingListener = ActionListener.runAfter(listener, () -> {
             if (renderBytesCharged[0] > 0) {
                 circuitBreaker.addWithoutBreaking(-renderBytesCharged[0], MSEARCH_TEMPLATE_RENDER_BREAKER_LABEL);
@@ -144,6 +149,13 @@ public class TransportMultiSearchTemplateAction extends HandledTransportAction<M
             }
             if (failureBytesCharged[0] > 0) {
                 circuitBreaker.addWithoutBreaking(-failureBytesCharged[0], MSEARCH_TEMPLATE_FAILURE_BREAKER_LABEL);
+            }
+            // Release parse-time breaker charges accumulated when each template was rendered into a
+            // SearchSourceBuilder. SearchSourceBuilder.close() is idempotent.
+            for (SearchRequest sr : multiSearchRequest.requests()) {
+                if (sr.source() != null) {
+                    sr.source().close();
+                }
             }
         });
         ActionListener<MultiSearchTemplateResponse> safeListener = new ActionListener<>() {
@@ -167,9 +179,6 @@ public class TransportMultiSearchTemplateAction extends HandledTransportAction<M
         // Render all templates. Simulate-only and render-error slots are filled here;
         // searchable slots collect their SearchRequest for the single multiSearch call below.
         List<Integer> searchSlots = new ArrayList<>(n);
-        MultiSearchRequest multiSearchRequest = new MultiSearchRequest();
-        multiSearchRequest.indicesOptions(request.indicesOptions());
-        multiSearchRequest.maxConcurrentSearchRequests(maxConcurrent);
 
         // One CountingStreamOutput reused across all renders — no per-item buffer allocation.
         CountingStreamOutput counter = new CountingStreamOutput();

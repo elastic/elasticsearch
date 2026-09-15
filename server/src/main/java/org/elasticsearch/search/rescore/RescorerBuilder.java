@@ -15,6 +15,8 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.VersionedNamedWriteable;
+import org.elasticsearch.core.Nullable;
+import org.elasticsearch.core.Releasable;
 import org.elasticsearch.index.query.Rewriteable;
 import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
@@ -24,6 +26,7 @@ import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentParser;
 
 import java.io.IOException;
+import java.util.List;
 import java.util.Objects;
 import java.util.function.Consumer;
 
@@ -72,6 +75,14 @@ public abstract class RescorerBuilder<RB extends RescorerBuilder<RB>>
     }
 
     public static RescorerBuilder<?> parseFromXContent(XContentParser parser, Consumer<String> rescorerNameConsumer) throws IOException {
+        return parseFromXContent(parser, rescorerNameConsumer, null);
+    }
+
+    public static RescorerBuilder<?> parseFromXContent(
+        XContentParser parser,
+        Consumer<String> rescorerNameConsumer,
+        @Nullable List<Releasable> releasables
+    ) throws IOException {
         String fieldName = null;
         RescorerBuilder<?> rescorer = null;
         Integer windowSize = null;
@@ -95,7 +106,7 @@ public abstract class RescorerBuilder<RB extends RescorerBuilder<RB>>
                             "Can't have more than one rescore type in a [rescore] object"
                         );
                     }
-                    rescorer = parser.namedObject(RescorerBuilder.class, fieldName, null);
+                    rescorer = parser.namedObject(RescorerBuilder.class, fieldName, releasables);
                     rescorerNameConsumer.accept(fieldName);
                     rescorerType = fieldName;
                 }

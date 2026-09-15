@@ -106,7 +106,7 @@ public class TransportUpdateByQueryAction extends HandledTransportAction<UpdateB
             listener,
             client,
             clusterService.localNode(),
-            () -> {
+            wrappedListener -> {
                 ParentTaskAssigningClient assigningClient = new ParentTaskAssigningClient(
                     client,
                     clusterService.localNode(),
@@ -119,7 +119,7 @@ public class TransportUpdateByQueryAction extends HandledTransportAction<UpdateB
                     threadPool,
                     scriptService,
                     request,
-                    ActionListener.runAfter(listener, () -> {
+                    ActionListener.runAfter(wrappedListener, () -> {
                         long elapsedTime = TimeUnit.NANOSECONDS.toSeconds(System.nanoTime() - startTime);
                         if (updateByQueryMetrics != null) {
                             updateByQueryMetrics.recordTookTime(elapsedTime);

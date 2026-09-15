@@ -124,6 +124,13 @@ public class DistanceFeatureQueryBuilder extends LeafQueryBuilder<DistanceFeatur
     }
 
     @Override
+    protected long parseTimeBreakerEstimate() {
+        long estimate = QUERY_BUILDER_SIZE_ESTIMATE_BYTES + field.length() * 2L + 64L + pivot.length() * 2L + 64L;
+        estimate += estimateValue(origin.origin());
+        return estimate;
+    }
+
+    @Override
     protected int doHashCode() {
         return Objects.hash(field, origin, pivot);
     }

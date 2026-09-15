@@ -15,8 +15,16 @@ import org.apache.lucene.search.DisjunctionMaxQuery;
 import org.apache.lucene.search.PrefixQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.QueryVisitor;
+import org.elasticsearch.common.breaker.CircuitBreaker;
+import org.elasticsearch.common.breaker.CircuitBreakingException;
+import org.elasticsearch.common.bytes.BytesReference;
+import org.elasticsearch.common.unit.ByteSizeValue;
+import org.elasticsearch.common.util.LimitedBreaker;
+import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.core.Strings;
 import org.elasticsearch.test.AbstractQueryTestCase;
+import org.elasticsearch.xcontent.XContentParser;
+import org.elasticsearch.xcontent.XContentType;
 
 import java.io.IOException;
 import java.util.Collection;
@@ -129,6 +137,45 @@ public class DisMaxQueryBuilderTests extends AbstractQueryTestCase<DisMaxQueryBu
         assertEquals(json, 1.2, parsed.boost(), 0.0001);
         assertEquals(json, 0.7, parsed.tieBreaker(), 0.0001);
         assertEquals(json, 2, parsed.innerQueries().size());
+    }
+
+    public void testTooManyClausesRejectedAtParseTime() throws IOException {
+        int max = 5;
+        long baseline = AbstractQueryBuilder.QUERY_BUILDER_SIZE_ESTIMATE_BYTES;
+        // DisMaxQueryBuilder charges BASELINE + queries.size() * 8 for slot overhead.
+        // Set limit = cost of (max children + root dis_max with max slots), so the big query's
+        // root dis_max charge (BASELINE + (max+1)*8) tips it over.
+        long okTotal = max * baseline + (baseline + (long) max * 8);
+        LimitedBreaker limitedBreaker = new LimitedBreaker(CircuitBreaker.REQUEST, ByteSizeValue.ofBytes(okTotal));
+        AbstractQueryBuilder.setQueryParsingBreaker(limitedBreaker);
+        try {
+            // dis_max with max inner clauses: root + max children charge exactly at the limit — must succeed
+            DisMaxQueryBuilder okQuery = new DisMaxQueryBuilder();
+            for (int i = 0; i < max; i++) {
+                okQuery.add(new MatchAllQueryBuilder());
+            }
+            for (XContentType type : new XContentType[] { XContentType.JSON, XContentType.SMILE }) {
+                BytesReference bytes = XContentHelper.toXContent(okQuery, type, false);
+                try (XContentParser parser = createParser(type.xContent(), bytes)) {
+                    parseQuery(parser); // must not throw
+                }
+            }
+
+            // dis_max with max+1 inner clauses: root dis_max is the last charge; it tips over the limit.
+            // Root charge happens outside ObjectParser so CircuitBreakingException is not wrapped.
+            DisMaxQueryBuilder bigQuery = new DisMaxQueryBuilder();
+            for (int i = 0; i < max + 1; i++) {
+                bigQuery.add(new MatchAllQueryBuilder());
+            }
+            for (XContentType type : new XContentType[] { XContentType.JSON, XContentType.SMILE }) {
+                BytesReference bytes = XContentHelper.toXContent(bigQuery, type, false);
+                try (XContentParser parser = createParser(type.xContent(), bytes)) {
+                    expectThrows(CircuitBreakingException.class, () -> parseQuery(parser));
+                }
+            }
+        } finally {
+            AbstractQueryBuilder.setQueryParsingBreaker(null);
+        }
     }
 
     public void testRewriteMultipleTimes() throws IOException {

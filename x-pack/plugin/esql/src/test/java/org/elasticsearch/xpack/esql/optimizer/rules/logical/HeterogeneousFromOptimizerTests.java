@@ -1029,7 +1029,7 @@ public class HeterogeneousFromOptimizerTests extends AbstractLogicalPlanOptimize
         UnionAll unionAll = new UnionAll(EMPTY, List.of(esRelation, extRelation), List.of(unionEmpNo, unionSalary));
 
         GreaterThan salaryFilter = new GreaterThan(EMPTY, unionSalary, new Literal(EMPTY, 0, INTEGER), null);
-        CountDistinct cdFiltered = new CountDistinct(EMPTY, unionEmpNo, null).withFilter(salaryFilter);
+        AggregateFunction cdFiltered = new CountDistinct(EMPTY, unionEmpNo, null).withFilter(salaryFilter);
         Alias cdAlias = new Alias(EMPTY, "d", cdFiltered);
         Aggregate aggregate = new Aggregate(EMPTY, unionAll, List.of(), List.of(cdAlias));
 
@@ -1121,7 +1121,7 @@ public class HeterogeneousFromOptimizerTests extends AbstractLogicalPlanOptimize
         UnionAll unionAll = new UnionAll(EMPTY, List.of(esRelation, extRelation), List.of(unionSalary));
 
         GreaterThan salaryFilter = new GreaterThan(EMPTY, unionSalary, new Literal(EMPTY, 0, INTEGER), null);
-        Sum sumFiltered = new Sum(EMPTY, unionSalary).withFilter(salaryFilter);
+        AggregateFunction sumFiltered = new Sum(EMPTY, unionSalary).withFilter(salaryFilter);
         Alias sumAlias = new Alias(EMPTY, "s", sumFiltered);
         Aggregate aggregate = new Aggregate(EMPTY, unionAll, List.of(), List.of(sumAlias));
 

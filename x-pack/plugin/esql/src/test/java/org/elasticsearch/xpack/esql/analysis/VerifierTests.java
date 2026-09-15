@@ -3717,6 +3717,10 @@ public class VerifierTests extends ESTestCase {
             "from test metadata _score | stats c = max(_score) where " + functionInvocation,
             containsString("cannot use _score aggregations with a WHERE filter in a STATS command")
         );
+        fullText().error(
+            "from test metadata _score | stats c = weighted_avg(id, _score) where " + functionInvocation,
+            containsString("cannot use _score aggregations with a WHERE filter in a STATS command")
+        );
     }
 
     public void testVectorSimilarityFunctionsNullArgs() throws Exception {

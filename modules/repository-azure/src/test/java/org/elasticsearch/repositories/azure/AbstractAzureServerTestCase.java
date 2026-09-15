@@ -58,6 +58,7 @@ import static org.elasticsearch.repositories.azure.AzureRepository.Repository.CO
 import static org.elasticsearch.repositories.azure.AzureRepository.Repository.COPY_POLL_INTERVAL;
 import static org.elasticsearch.repositories.azure.AzureRepository.Repository.LOCATION_MODE_SETTING;
 import static org.elasticsearch.repositories.azure.AzureRepository.Repository.MAX_SINGLE_PART_UPLOAD_SIZE_SETTING;
+import static org.elasticsearch.repositories.azure.AzureRepository.Repository.MULTIPART_UPLOAD_PART_SIZE_SETTING;
 import static org.elasticsearch.repositories.azure.AzureStorageSettings.ACCOUNT_SETTING;
 import static org.elasticsearch.repositories.azure.AzureStorageSettings.ENDPOINT_SUFFIX_SETTING;
 import static org.elasticsearch.repositories.azure.AzureStorageSettings.KEY_SETTING;
@@ -180,11 +181,6 @@ public abstract class AbstractAzureServerTestCase extends ESTestCase {
             }
 
             @Override
-            long getUploadBlockSize() {
-                return ByteSizeUnit.MB.toBytes(1);
-            }
-
-            @Override
             int getMaxReadRetries(ProjectId projectId, String clientName) {
                 return maxRetries;
             }
@@ -198,6 +194,7 @@ public abstract class AbstractAzureServerTestCase extends ESTestCase {
                 .put(ACCOUNT_SETTING.getKey(), clientName)
                 .put(LOCATION_MODE_SETTING.getKey(), locationMode)
                 .put(MAX_SINGLE_PART_UPLOAD_SIZE_SETTING.getKey(), ByteSizeValue.of(1, ByteSizeUnit.MB))
+                .put(MULTIPART_UPLOAD_PART_SIZE_SETTING.getKey(), ByteSizeValue.of(1, ByteSizeUnit.MB))
                 .put(COPY_POLL_INTERVAL.getKey(), TimeValue.timeValueMillis(100))
                 .build()
         );

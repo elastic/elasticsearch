@@ -83,6 +83,7 @@ import static org.elasticsearch.repositories.azure.AbstractAzureServerTestCase.r
 import static org.elasticsearch.repositories.azure.AzureRepository.Repository.CONTAINER_SETTING;
 import static org.elasticsearch.repositories.azure.AzureRepository.Repository.LOCATION_MODE_SETTING;
 import static org.elasticsearch.repositories.azure.AzureRepository.Repository.MAX_SINGLE_PART_UPLOAD_SIZE_SETTING;
+import static org.elasticsearch.repositories.azure.AzureRepository.Repository.MULTIPART_UPLOAD_PART_SIZE_SETTING;
 import static org.elasticsearch.repositories.azure.AzureStorageSettings.ACCOUNT_SETTING;
 import static org.elasticsearch.repositories.azure.AzureStorageSettings.ENDPOINT_SUFFIX_SETTING;
 import static org.elasticsearch.repositories.azure.AzureStorageSettings.KEY_SETTING;
@@ -778,11 +779,6 @@ public class AzureBlobContainerRetriesTests extends AbstractBlobContainerRetries
                     secondaryHost != null ? secondaryHost.replaceFirst("/" + ACCOUNT, "") : null
                 );
             }
-
-            @Override
-            long getUploadBlockSize() {
-                return ByteSizeUnit.MB.toBytes(1);
-            }
         };
 
         final RepositoryMetadata repositoryMetadata = new RepositoryMetadata(
@@ -793,6 +789,7 @@ public class AzureBlobContainerRetriesTests extends AbstractBlobContainerRetries
                 .put(ACCOUNT_SETTING.getKey(), clientName)
                 .put(LOCATION_MODE_SETTING.getKey(), locationMode)
                 .put(MAX_SINGLE_PART_UPLOAD_SIZE_SETTING.getKey(), ByteSizeValue.of(1, ByteSizeUnit.MB))
+                .put(MULTIPART_UPLOAD_PART_SIZE_SETTING.getKey(), ByteSizeValue.of(1, ByteSizeUnit.MB))
                 .build()
         );
 

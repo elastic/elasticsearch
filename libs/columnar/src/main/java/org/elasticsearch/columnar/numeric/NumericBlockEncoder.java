@@ -65,7 +65,7 @@ public final class NumericBlockEncoder {
         int fireBitmask = 0;
         for (int i = 0; i < transforms.length; i++) {
             MetadataBuffer params = paramBuffers[i];
-            params.reset();
+            params.clear();
             if (transforms[i].tryEncode(in, valueCount, params)) {
                 fireBitmask |= 1 << i;
             }
@@ -75,7 +75,7 @@ public final class NumericBlockEncoder {
         terminal.encode(in, valueCount, out);
         for (int i = transforms.length - 1; i >= 0; i--) {
             if ((fireBitmask & (1 << i)) != 0) {
-                paramBuffers[i].copyTo(out);
+                paramBuffers[i].writeTo(out);
             }
         }
     }

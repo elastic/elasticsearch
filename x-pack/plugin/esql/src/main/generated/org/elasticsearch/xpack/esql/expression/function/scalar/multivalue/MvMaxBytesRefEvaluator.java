@@ -44,11 +44,11 @@ public final class MvMaxBytesRefEvaluator extends AbstractMultivalueFunction.Abs
       BytesRef firstScratch = new BytesRef();
       BytesRef nextScratch = new BytesRef();
       for (int p = 0; p < positionCount; p++) {
-        int valueCount = v.getValueCount(p);
-        if (valueCount == 0) {
+        if (v.isNull(p)) {
           builder.appendNull();
           continue;
         }
+        int valueCount = v.getValueCount(p);
         int first = v.getFirstValueIndex(p);
         int end = first + valueCount;
         BytesRef value = v.getBytesRef(first, firstScratch);
@@ -102,11 +102,11 @@ public final class MvMaxBytesRefEvaluator extends AbstractMultivalueFunction.Abs
       BytesRef firstScratch = new BytesRef();
       BytesRef nextScratch = new BytesRef();
       for (int p = 0; p < positionCount; p++) {
-        int valueCount = v.getValueCount(p);
-        if (valueCount == 0) {
+        if (v.isNull(p)) {
           builder.appendNull();
           continue;
         }
+        int valueCount = v.getValueCount(p);
         int first = v.getFirstValueIndex(p);
         int idx = MvMax.ascendingIndex(valueCount);
         BytesRef result = v.getBytesRef(first + idx, firstScratch);

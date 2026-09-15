@@ -62,7 +62,6 @@ import org.mockito.Mockito;
 import java.nio.charset.StandardCharsets;
 import java.time.Clock;
 import java.util.Base64;
-import java.util.Collections;
 import java.util.Map;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
@@ -232,7 +231,7 @@ public class TransportCreateTokenActionTests extends ESTestCase {
         final TransportCreateTokenAction action = new TransportCreateTokenAction(
             threadPool,
             transportService,
-            new ActionFilters(Collections.emptySet()),
+            ActionFilters.EMPTY,
             tokenService,
             authenticationService,
             securityContext
@@ -274,7 +273,7 @@ public class TransportCreateTokenActionTests extends ESTestCase {
         final TransportCreateTokenAction action = new TransportCreateTokenAction(
             threadPool,
             transportService,
-            new ActionFilters(Collections.emptySet()),
+            ActionFilters.EMPTY,
             tokenService,
             authenticationService,
             securityContext
@@ -318,7 +317,7 @@ public class TransportCreateTokenActionTests extends ESTestCase {
         final TransportCreateTokenAction action = new TransportCreateTokenAction(
             threadPool,
             transportService,
-            new ActionFilters(Collections.emptySet()),
+            ActionFilters.EMPTY,
             tokenService,
             authenticationService,
             securityContext
@@ -372,7 +371,7 @@ public class TransportCreateTokenActionTests extends ESTestCase {
         final TransportCreateTokenAction action = new TransportCreateTokenAction(
             threadPool,
             transportService,
-            new ActionFilters(Collections.emptySet()),
+            ActionFilters.EMPTY,
             tokenService,
             authenticationService,
             securityContext
@@ -412,7 +411,7 @@ public class TransportCreateTokenActionTests extends ESTestCase {
         final TransportCreateTokenAction action = new TransportCreateTokenAction(
             threadPool,
             transportService,
-            new ActionFilters(Collections.emptySet()),
+            ActionFilters.EMPTY,
             tokenService,
             authenticationService,
             securityContext

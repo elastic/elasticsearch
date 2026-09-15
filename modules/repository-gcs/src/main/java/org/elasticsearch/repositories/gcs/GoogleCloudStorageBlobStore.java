@@ -143,10 +143,12 @@ class GoogleCloudStorageBlobStore implements BlobStore {
     private final GoogleCloudStorageService storageService;
     private final GcsRepositoryStatsCollector statsCollector;
     private final int bufferSize;
+    private final long multipartUploadChunkSize;
     private final BigArrays bigArrays;
     private final BackoffPolicy casBackoffPolicy;
     private volatile boolean closed = false;
     private final boolean tenaciousRetriesEnabled;
+    private final long largeBlobThresholdInBytes;
 
     @Nullable
     private final StorageClass dataStorageClass;
@@ -161,6 +163,8 @@ class GoogleCloudStorageBlobStore implements BlobStore {
         GoogleCloudStorageService storageService,
         BigArrays bigArrays,
         int bufferSize,
+        long largeBlobThresholdInBytes,
+        long multipartUploadChunkSize,
         BackoffPolicy casBackoffPolicy,
         GcsRepositoryStatsCollector statsCollector,
         @Nullable String dataStorageClass,
@@ -174,6 +178,8 @@ class GoogleCloudStorageBlobStore implements BlobStore {
         this.bigArrays = bigArrays;
         this.statsCollector = statsCollector;
         this.bufferSize = bufferSize;
+        this.largeBlobThresholdInBytes = largeBlobThresholdInBytes;
+        this.multipartUploadChunkSize = multipartUploadChunkSize;
         this.casBackoffPolicy = casBackoffPolicy;
         this.tenaciousRetriesEnabled = storageService.clientSettings(projectId, clientName).getTenaciousRetriesEnabled();
         this.dataStorageClass = initStorageClass(dataStorageClass);
@@ -434,9 +440,9 @@ class GoogleCloudStorageBlobStore implements BlobStore {
         }
     }
 
-    // non-static, package private for testing
+    // package private for testing
     long getLargeBlobThresholdInBytes() {
-        return LARGE_BLOB_THRESHOLD_BYTE_SIZE;
+        return largeBlobThresholdInBytes;
     }
 
     // possible options for #writeBlobResumable uploads
@@ -653,7 +659,7 @@ class GoogleCloudStorageBlobStore implements BlobStore {
         boolean failIfAlreadyExists,
         Executor executor
     ) throws IOException {
-        if (blobSize <= getLargeBlobThresholdInBytes()) {
+        if (blobSize <= multipartUploadChunkSize) {
             try (var stream = provider.apply(0L, blobSize)) {
                 writeBlob(purpose, blobName, stream, blobSize, failIfAlreadyExists);
             }
@@ -662,8 +668,7 @@ class GoogleCloudStorageBlobStore implements BlobStore {
         if (failIfAlreadyExists) {
             throw new UnsupportedOperationException("GCS XML API multipart upload does not support failIfAlreadyExists");
         }
-        final long chunkSize = LARGE_BLOB_THRESHOLD_BYTE_SIZE;
-        final int nbParts = ConcurrentMultipartHelper.numberOfParts(blobSize, chunkSize);
+        final int nbParts = ConcurrentMultipartHelper.numberOfParts(blobSize, multipartUploadChunkSize);
 
         final StorageClass storageClass = resolveStorageClass(purpose);
         final var createRequestBuilder = CreateMultipartUploadRequest.builder().bucket(bucketName).key(blobName);
@@ -675,19 +680,28 @@ class GoogleCloudStorageBlobStore implements BlobStore {
         boolean succeeded = false;
         try {
             final CompletedPart[] completedParts = new CompletedPart[nbParts];
-            ConcurrentMultipartHelper.runConcurrentParts(blobSize, chunkSize, executor, (partNum, offset, partSize, lastPart) -> {
-                final var partRequest = UploadPartRequest.builder()
-                    .bucket(bucketName)
-                    .key(blobName)
-                    .uploadId(uploadId)
-                    .partNumber(partNum + 1)
-                    .build();
-                try (var stream = provider.apply(offset, partSize)) {
-                    final byte[] partBytes = stream.readNBytes(Math.toIntExact(partSize));
-                    final var partResponse = client().meteredUploadPart(purpose, partRequest, RequestBody.of(ByteBuffer.wrap(partBytes)));
-                    completedParts[partNum] = CompletedPart.builder().partNumber(partNum + 1).eTag(partResponse.eTag()).build();
+            ConcurrentMultipartHelper.runConcurrentParts(
+                blobSize,
+                multipartUploadChunkSize,
+                executor,
+                (partNum, offset, partSize, lastPart) -> {
+                    final var partRequest = UploadPartRequest.builder()
+                        .bucket(bucketName)
+                        .key(blobName)
+                        .uploadId(uploadId)
+                        .partNumber(partNum + 1)
+                        .build();
+                    try (var stream = provider.apply(offset, partSize)) {
+                        final byte[] partBytes = stream.readNBytes(Math.toIntExact(partSize));
+                        final var partResponse = client().meteredUploadPart(
+                            purpose,
+                            partRequest,
+                            RequestBody.of(ByteBuffer.wrap(partBytes))
+                        );
+                        completedParts[partNum] = CompletedPart.builder().partNumber(partNum + 1).eTag(partResponse.eTag()).build();
+                    }
                 }
-            });
+            );
 
             client().meteredCompleteMultipartUpload(
                 purpose,

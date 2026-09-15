@@ -256,7 +256,7 @@ public class LookupJoinTypesIT extends ESIntegTestCase {
                         || type == DENSE_VECTOR  // need special handling for loads at the moment
                         || type == EXPONENTIAL_HISTOGRAM
                         || type == DATE_RANGE // need special handling for loads at the moment
-                        || type == DOUBLE_RANGE // block loading is not supported yet
+                        || type == DOUBLE_RANGE // need special handling for loads at the moment
                         || type == FLATTENED // need special handling for loads at the moment
                         || type == TDIGEST
                         || type == HISTOGRAM

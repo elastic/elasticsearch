@@ -28,6 +28,10 @@ Roles are governed by a set of configurable privileges grouped into these catego
 
 When creating roles, refer to this page for a complete list of available privileges.
 
+:::{note}
+Privileges do not grant a fixed set of operations. Each privilege is defined by the action name patterns it matches, which means it automatically covers any new operations added to {{es}} in future releases that fall within its scope. For example, the `all` cluster privilege covers every cluster action, and `manage` covers all administrative actions — including new ones as they are introduced. The operations described for each privilege below are representative examples, not an exhaustive list.
+:::
+
 ## Cluster privileges [privileges-list-cluster]
 
 `all`
@@ -166,7 +170,9 @@ When creating roles, refer to this page for a complete list of available privile
 :   All security-related operations such as CRUD operations on users and roles and cache clearing.
 
 `manage_service_account` {applies_to}`serverless: unavailable`
-:   All security-related operations on {{es}} service accounts including [Get service accounts](https://www.elastic.co/docs/api/doc/elasticsearch/operation/operation-security-get-service-accounts), [Create service account tokens](https://www.elastic.co/docs/api/doc/elasticsearch/operation/operation-security-create-service-token), [Delete service account token](https://www.elastic.co/docs/api/doc/elasticsearch/operation/operation-security-delete-service-token), and [Get service account credentials](https://www.elastic.co/docs/api/doc/elasticsearch/operation/operation-security-get-service-credentials).
+:   Security-related operations on {{es}} service accounts including [Get service accounts](https://www.elastic.co/docs/api/doc/elasticsearch/operation/operation-security-get-service-accounts), [Create service account tokens](https://www.elastic.co/docs/api/doc/elasticsearch/operation/operation-security-create-service-token), [Delete service account token](https://www.elastic.co/docs/api/doc/elasticsearch/operation/operation-security-delete-service-token), and [Get service account credentials](https://www.elastic.co/docs/api/doc/elasticsearch/operation/operation-security-get-service-credentials). 
+
+   {applies_to}`stack: ga 9.6+` This privilege grants token creation and deletion for Elastic-managed service accounts (in the `elastic` namespace) only. Managing user-managed service accounts and their tokens requires the `manage_security` privilege.
 
 
 `manage_slm` {applies_to}`serverless: unavailable` {applies_to}`stack: deprecated 8.15`
@@ -205,7 +211,7 @@ When creating roles, refer to this page for a complete list of available privile
 :   All read-only operations related to managing and executing enrich policies.
 
 `monitor_esql` {applies_to}`stack: ga 9.1`
-:   All read-only operations related to ES|QL queries.
+:   All read-only operations for listing and inspecting currently running ES|QL queries (`GET /_query/queries` and `GET /_query/queries/{id}`). This privilege does not grant the ability to run ES|QL queries or retrieve async query results. To run a query, you need the index `read` privilege on the queried indices.
 
 `monitor_inference`
 :   All read-only operations related to {{infer}}.
@@ -321,6 +327,9 @@ When creating roles, refer to this page for a complete list of available privile
 `create_index`
 :   Privilege to create an index or data stream. A create index request may contain aliases to be added to the index once created. In that case the request requires the `manage` privilege as well, on both the index and the aliases names.
 
+`create_view` {applies_to}`stack: preview 9.4` {applies_to}`serverless: preview`
+:   Privilege to create or update an [{{esql}} view](/reference/query-languages/esql/esql-views.md), granted on the view name. It does not grant the privilege to query the view, nor any access to the indices that the view definition references. Refer to [view privileges](/reference/query-languages/esql/esql-views.md#esql-views-privileges).
+
 `cross_cluster_replication` {applies_to}`serverless: unavailable`
 :   Privileges to perform cross-cluster replication for indices located on [remote clusters configured with the API key based model](docs-content://deploy-manage/remote-clusters/remote-clusters-api-key.md). This privilege should only be used for the `privileges` field of [remote indices privileges](https://www.elastic.co/guide/en/elasticsearch/reference/current/defining-roles.html#roles-remote-indices-priv).
 
@@ -338,6 +347,9 @@ When creating roles, refer to this page for a complete list of available privile
 
 `delete_index`
 :   Privilege to delete an index or data stream.
+
+`delete_view` {applies_to}`stack: preview 9.4` {applies_to}`serverless: preview`
+:   Privilege to delete an [{{esql}} view](/reference/query-languages/esql/esql-views.md), granted on the view name. Refer to [view privileges](/reference/query-languages/esql/esql-views.md#esql-views-privileges).
 
 `index`
 :   Privilege to index and update documents.
@@ -372,17 +384,23 @@ When creating roles, refer to this page for a complete list of available privile
 :   All actions that are required to manage the lifecycle of a leader index, which includes [forgetting a follower](https://www.elastic.co/docs/api/doc/elasticsearch/operation/operation-ccr-forget-follower). This privilege is necessary only on clusters that contain leader indices.
 
 
+`manage_view` {applies_to}`stack: preview 9.4` {applies_to}`serverless: preview`
+:   Privilege to create, update, retrieve, and delete [{{esql}} view](/reference/query-languages/esql/esql-views.md) definitions, granted on the view name. It does not grant the privilege to query a view with `FROM`, nor any access to the indices that a view definition references. Refer to [view privileges](/reference/query-languages/esql/esql-views.md#esql-views-privileges).
+
 `monitor`
 :   All actions that are required for monitoring (recovery, segments info, index stats and status).
 
 `read`
-:   Read-only access to actions (count, explain, get, mget, get indexed scripts, more like this, multi percolate/search/termvector, percolate, scroll, clear_scroll, search, suggest, tv).
+:   Read-only access to actions (count, explain, get, mget, get indexed scripts, more like this, multi percolate/search/termvector, percolate, scroll, clear_scroll, search, suggest, tv, ES|QL query, ES|QL views, async ES|QL get, and async ES|QL stop).
 
 `read_cross_cluster` {applies_to}`serverless: unavailable`
 :   Read-only access to the search action from a [remote cluster](docs-content://deploy-manage/remote-clusters/remote-clusters-self-managed.md).
 
 `read_failure_store` {applies_to}`stack: ga 9.1`
 :   Read-only access to actions performed on a data stream's failure store. Required for access to failure store data (count, explain, get, mget, get indexed scripts, more like this, multi percolate/search/termvector, percolate, scroll, clear_scroll, search, suggest, tv). Applies only to data streams when accessed through the [index component selector syntax](/reference/elasticsearch/rest-apis/api-conventions.md#api-component-selectors).
+
+`read_view_metadata` {applies_to}`stack: preview 9.4` {applies_to}`serverless: preview`
+:   Privilege to retrieve an [{{esql}} view](/reference/query-languages/esql/esql-views.md) definition, granted on the view name. It does not grant the privilege to query the view, nor any access to the indices that the view definition references. Refer to [view privileges](/reference/query-languages/esql/esql-views.md#esql-views-privileges).
 
 `view_index_metadata`
 :   Read-only access to index and data stream metadata (aliases, exists, field capabilities, field mappings, get index, get data stream, ilm explain, mappings, search shards, settings, validate query). This privilege is available for use primarily by {{kib}} users.

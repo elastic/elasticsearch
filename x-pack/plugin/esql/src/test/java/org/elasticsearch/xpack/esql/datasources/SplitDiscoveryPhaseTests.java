@@ -7,6 +7,8 @@
 
 package org.elasticsearch.xpack.esql.datasources;
 
+import org.elasticsearch.action.support.PlainActionFuture;
+import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
@@ -41,6 +43,10 @@ import java.time.Instant;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
+import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
+import java.util.concurrent.TimeUnit;
 
 public class SplitDiscoveryPhaseTests extends ESTestCase {
 
@@ -234,7 +240,7 @@ public class SplitDiscoveryPhaseTests extends ESTestCase {
         // A provider that exhaustively prunes: zero splits out, reported as a row-count-safe prune.
         Map<String, ExternalSourceFactory> factories = Map.of(
             "parquet",
-            testFactory(new FixedSplitProvider(new SplitDiscoveryResult(List.of(), 0, true)))
+            testFactory(new FixedSplitProvider(new SplitDiscoveryResult(List.of(), 0, true, 0L)))
         );
 
         SplitDiscoveryPhase.Result result = SplitDiscoveryPhase.resolveExternalSplitsWithStats(
@@ -254,8 +260,8 @@ public class SplitDiscoveryPhaseTests extends ESTestCase {
 
     /**
      * Empty splits are NOT enough to swap: when the provider reports the empty result is not an exhaustive prune
-     * (e.g. files were dropped by the row-count-unsafe no-column-overlap heuristic, whose rows a {@code COUNT(*)}
-     * still needs), the source must fall through unchanged to the whole read so the row filter runs.
+     * (unresolved glob, empty file list, or a provider that cannot certify a filter contradiction), the source
+     * must fall through unchanged to the whole read so the row filter runs.
      */
     public void testEmptySplitsNotExhaustivelyPrunedNotSwapped() {
         FileList fileList = createFileList(3); // resolved, non-empty
@@ -263,13 +269,59 @@ public class SplitDiscoveryPhaseTests extends ESTestCase {
         // Zero splits, but explicitly NOT an exhaustive prune.
         Map<String, ExternalSourceFactory> factories = Map.of(
             "parquet",
-            testFactory(new FixedSplitProvider(new SplitDiscoveryResult(List.of(), 0, false)))
+            testFactory(new FixedSplitProvider(new SplitDiscoveryResult(List.of(), 0, false, 0L)))
         );
 
         PhysicalPlan result = SplitDiscoveryPhase.resolveExternalSplits(exec, factories);
 
         assertSame("a non-exhaustive empty result must fall through unchanged, not be swapped to EMPTY", exec, result);
         assertSame("the resolved fileList must be preserved for the whole read", fileList, ((ExternalSourceExec) result).fileList());
+    }
+
+    public void testNonExhaustiveEmptyResultAccountsWholeRead() {
+        FileList fileList = createFileList(3);
+        ExternalSourceExec exec = createExternalSourceExec(fileList, "parquet");
+        Map<String, ExternalSourceFactory> factories = Map.of(
+            "parquet",
+            testFactory(new FixedSplitProvider(new SplitDiscoveryResult(List.of(), 0, false, 0L)))
+        );
+
+        SplitDiscoveryPhase.Result result = SplitDiscoveryPhase.resolveExternalSplitsWithStats(
+            exec,
+            factories,
+            SegmentableFormatReader.DEFAULT_MAX_RECORD_BYTES
+        );
+
+        assertSame("a non-exhaustive empty result must fall through unchanged, not be swapped to EMPTY", exec, result.plan());
+        assertEquals("the whole read that follows scans every file in the resolved list", 3, result.filesScanned());
+        assertEquals("the whole read processes each file as one unit", 3, result.splitsScanned());
+        assertEquals("the whole read scans the listed bytes", 600L, result.bytesScanned());
+    }
+
+    public void testNonExhaustiveEmptyResultSkipsUnknownSizes() {
+        FileList fileList = GlobExpander.fileListOf(
+            List.of(
+                new StorageEntry(StoragePath.of("s3://bucket/data/a.parquet"), 100, Instant.EPOCH),
+                new StorageEntry(StoragePath.of("s3://bucket/data/b.parquet"), 0, Instant.EPOCH)
+            ),
+            "s3://bucket/data/*.parquet"
+        );
+        ExternalSourceExec exec = createExternalSourceExec(fileList, "parquet");
+        Map<String, ExternalSourceFactory> factories = Map.of(
+            "parquet",
+            testFactory(new FixedSplitProvider(new SplitDiscoveryResult(List.of(), 0, false, 0L)))
+        );
+
+        SplitDiscoveryPhase.Result result = SplitDiscoveryPhase.resolveExternalSplitsWithStats(
+            exec,
+            factories,
+            SegmentableFormatReader.DEFAULT_MAX_RECORD_BYTES
+        );
+
+        assertSame(exec, result.plan());
+        assertEquals(2, result.filesScanned());
+        assertEquals(2, result.splitsScanned());
+        assertEquals("only the known size contributes to the byte sum", 100L, result.bytesScanned());
     }
 
     /**
@@ -308,9 +360,16 @@ public class SplitDiscoveryPhaseTests extends ESTestCase {
         ExternalSourceExec exec = createExternalSourceExec(FileList.EMPTY, "parquet");
         Map<String, ExternalSourceFactory> factories = Map.of("parquet", testFactory(new RecordingSplitProvider()));
 
-        PhysicalPlan result = SplitDiscoveryPhase.resolveExternalSplits(exec, factories);
+        SplitDiscoveryPhase.Result result = SplitDiscoveryPhase.resolveExternalSplitsWithStats(
+            exec,
+            factories,
+            SegmentableFormatReader.DEFAULT_MAX_RECORD_BYTES
+        );
 
-        assertSame("an already-empty glob needs no swap", exec, result);
+        assertSame("an already-empty glob needs no swap", exec, result.plan());
+        assertEquals("an already-empty glob reads nothing", 0, result.filesScanned());
+        assertEquals(0, result.splitsScanned());
+        assertEquals(0L, result.bytesScanned());
     }
 
     /** {@link ExternalRelation#withFileList} swaps only the fileList, preserving the rest of the relation. */
@@ -538,6 +597,112 @@ public class SplitDiscoveryPhaseTests extends ESTestCase {
         SplitDiscoveryPhase.resolveExternalSplits(limit, factories);
 
         assertTrue(recorder.lastContext.filterHints().isEmpty());
+    }
+
+    /**
+     * Default {@link SplitProvider#discoverSplitsAsync} wraps sync discovery on the executor so
+     * connectors keep a one-line {@code discoverSplits}. The inbound thread must still return.
+     */
+    public void testDiscoverSplitsAsyncDefaultWrapDoesNotBlockCaller() throws Exception {
+        CountDownLatch started = new CountDownLatch(1);
+        CountDownLatch release = new CountDownLatch(1);
+        SplitProvider delayed = new SplitProvider() {
+            @Override
+            public SplitDiscoveryResult discoverSplits(SplitDiscoveryContext context) {
+                started.countDown();
+                try {
+                    if (release.await(30, TimeUnit.SECONDS) == false) {
+                        throw new AssertionError("timed out waiting to release sync wrap");
+                    }
+                } catch (InterruptedException e) {
+                    Thread.currentThread().interrupt();
+                    throw new AssertionError(e);
+                }
+                return SplitDiscoveryResult.EMPTY;
+            }
+        };
+        ExternalSourceExec exec = createExternalSourceExec(createFileList(2), "parquet");
+        Map<String, ExternalSourceFactory> factories = Map.of("parquet", testFactory(delayed));
+        ExecutorService executor = Executors.newFixedThreadPool(1);
+        PlainActionFuture<SplitDiscoveryPhase.Result> future = new PlainActionFuture<>();
+        try {
+            SplitDiscoveryPhase.resolveExternalSplitsWithStatsAsync(
+                exec,
+                factories,
+                SegmentableFormatReader.DEFAULT_MAX_RECORD_BYTES,
+                () -> false,
+                List.of(),
+                executor,
+                future
+            );
+            assertTrue("wrap must start on the executor after the caller returns", started.await(10, TimeUnit.SECONDS));
+            assertFalse(future.isDone());
+            release.countDown();
+            assertNotNull(future.actionGet(30, TimeUnit.SECONDS).plan());
+        } finally {
+            release.countDown();
+            executor.shutdownNow();
+        }
+    }
+
+    public void testDiscoverSplitsAsyncMatchesSyncForFixedProvider() throws Exception {
+        FileList fileList = createFileList(3);
+        ExternalSourceExec exec = createExternalSourceExec(fileList, "parquet");
+        SplitDiscoveryResult fixed = new SplitDiscoveryResult(List.of(), 0, true, 0L);
+        Map<String, ExternalSourceFactory> factories = Map.of("parquet", testFactory(new FixedSplitProvider(fixed)));
+
+        SplitDiscoveryPhase.Result sync = SplitDiscoveryPhase.resolveExternalSplitsWithStats(
+            exec,
+            factories,
+            SegmentableFormatReader.DEFAULT_MAX_RECORD_BYTES
+        );
+        PlainActionFuture<SplitDiscoveryPhase.Result> future = new PlainActionFuture<>();
+        SplitDiscoveryPhase.resolveExternalSplitsWithStatsAsync(
+            exec,
+            factories,
+            SegmentableFormatReader.DEFAULT_MAX_RECORD_BYTES,
+            () -> false,
+            List.of(),
+            EsExecutors.DIRECT_EXECUTOR_SERVICE,
+            future
+        );
+        SplitDiscoveryPhase.Result async = future.actionGet(30, TimeUnit.SECONDS);
+        assertEquals(sync.filesScanned(), async.filesScanned());
+        assertEquals(FileList.EMPTY, ((ExternalSourceExec) async.plan()).fileList());
+        assertEquals(((ExternalSourceExec) sync.plan()).fileList(), ((ExternalSourceExec) async.plan()).fileList());
+    }
+
+    /**
+     * Async {@link SplitDiscoveryPhase.Result} must keep {@code cpuNanos} from the provider.
+     * The 4-arg Result constructor defaults CPU to 0 and would drop it from the query profile.
+     */
+    public void testAsyncDiscoveryForwardsCpuNanos() {
+        FileList fileList = createFileList(1);
+        ExternalSourceExec exec = createExternalSourceExec(fileList, "parquet");
+        FileSplit split = new FileSplit("parquet", StoragePath.of("s3://bucket/data/file0.parquet"), 0, 100, "parquet", Map.of(), Map.of());
+        long cpuNanos = 42L;
+        Map<String, ExternalSourceFactory> factories = Map.of(
+            "parquet",
+            testFactory(new FixedSplitProvider(new SplitDiscoveryResult(List.of(split), 1, false, cpuNanos)))
+        );
+        SplitDiscoveryPhase.Result sync = SplitDiscoveryPhase.resolveExternalSplitsWithStats(
+            exec,
+            factories,
+            SegmentableFormatReader.DEFAULT_MAX_RECORD_BYTES
+        );
+        PlainActionFuture<SplitDiscoveryPhase.Result> future = new PlainActionFuture<>();
+        SplitDiscoveryPhase.resolveExternalSplitsWithStatsAsync(
+            exec,
+            factories,
+            SegmentableFormatReader.DEFAULT_MAX_RECORD_BYTES,
+            () -> false,
+            List.of(),
+            EsExecutors.DIRECT_EXECUTOR_SERVICE,
+            future
+        );
+        SplitDiscoveryPhase.Result async = future.actionGet(30, TimeUnit.SECONDS);
+        assertEquals(cpuNanos, sync.cpuNanos());
+        assertEquals(cpuNanos, async.cpuNanos());
     }
 
     // -- helpers --

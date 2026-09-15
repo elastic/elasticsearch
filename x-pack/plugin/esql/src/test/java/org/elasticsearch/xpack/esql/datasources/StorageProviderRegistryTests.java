@@ -9,6 +9,7 @@ package org.elasticsearch.xpack.esql.datasources;
 
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.xpack.esql.datasources.cache.StorageProviderCache;
 import org.elasticsearch.xpack.esql.datasources.spi.Configured;
 import org.elasticsearch.xpack.esql.datasources.spi.StorageObject;
 import org.elasticsearch.xpack.esql.datasources.spi.StoragePath;
@@ -20,6 +21,8 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.time.Instant;
 import java.util.List;
+import java.util.Map;
+import java.util.concurrent.atomic.AtomicInteger;
 
 import static org.hamcrest.Matchers.containsString;
 
@@ -44,8 +47,39 @@ public class StorageProviderRegistryTests extends ESTestCase {
         }
     }
 
+    public void testFrameworkOnlyWithDoesNotCloseDefault() {
+        AtomicInteger closes = new AtomicInteger();
+        try (StorageProviderRegistry registry = new StorageProviderRegistry(Settings.EMPTY)) {
+            registry.registerFactory("stub", StorageProviderFactory.noConfigKeys(() -> new CountingStub(closes)));
+            StoragePath path = StoragePath.of("stub://bucket/file.csv");
+            StorageProvider def = registry.provider(path);
+            StorageProvider fromWith = registry.createProvider("stub", Settings.EMPTY, Map.of("format", "parquet"));
+            assertFalse(StorageProviderCache.isPooledLease(fromWith));
+            assertSame(def, fromWith);
+            StorageProviderCache.closeLease(fromWith);
+            assertEquals("framework-only WITH must not true-close the scheme default", 0, closes.get());
+        } catch (IOException e) {
+            throw new AssertionError(e);
+        }
+        assertEquals(1, closes.get());
+    }
+
+    public void testStorageConfigCreateProviderReturnsPooledLease() {
+        AtomicInteger closes = new AtomicInteger();
+        try (StorageProviderRegistry registry = new StorageProviderRegistry(Settings.EMPTY)) {
+            registry.registerFactory("stub", StorageProviderFactory.noConfigKeys(() -> new CountingStub(closes)));
+            StorageProvider leased = registry.createProvider("stub", Settings.EMPTY, Map.of("region", "us-east-1"));
+            assertTrue(StorageProviderCache.isPooledLease(leased));
+            StorageProviderCache.closeLease(leased);
+            assertEquals("returning a lease must not true-close the client", 0, closes.get());
+        } catch (IOException e) {
+            throw new AssertionError(e);
+        }
+        assertEquals(1, closes.get());
+    }
+
     /** Minimal no-op storage provider; only the scheme + lifecycle matter for the wrap-order assertion. */
-    private static final class StubStorageProvider implements StorageProvider {
+    private static class StubStorageProvider implements StorageProvider {
         @Override
         public StorageObject newObject(StoragePath path) {
             throw new UnsupportedOperationException();
@@ -78,6 +112,19 @@ public class StorageProviderRegistryTests extends ESTestCase {
 
         @Override
         public void close() {}
+    }
+
+    private static final class CountingStub extends StubStorageProvider {
+        private final AtomicInteger closes;
+
+        CountingStub(AtomicInteger closes) {
+            this.closes = closes;
+        }
+
+        @Override
+        public void close() {
+            closes.incrementAndGet();
+        }
     }
 
     public void testThrottleScopeIsPerBucketNotPerScheme() {
@@ -161,12 +208,12 @@ public class StorageProviderRegistryTests extends ESTestCase {
             IllegalArgumentException.class,
             () -> registry.provider(StoragePath.of("file:///etc/passwd"))
         );
-        assertThat(e.getMessage(), containsString("esql.datasource.local_allowed_paths"));
+        assertThat(e.getMessage(), containsString("esql.external.local_allowed_paths"));
     }
 
     public void testProviderAllowsFileWhenUnderRoot() throws IOException {
         Path allowed = createTempDir();
-        Settings settings = Settings.builder().putList("esql.datasource.local_allowed_paths", allowed.toString()).build();
+        Settings settings = Settings.builder().putList("esql.external.local_allowed_paths", allowed.toString()).build();
         StorageProviderRegistry registry = registryWithFileAccess(LocalFileAccess.create(settings));
 
         Path file = allowed.resolve("data.parquet");
@@ -179,7 +226,7 @@ public class StorageProviderRegistryTests extends ESTestCase {
     public void testProviderRejectsFileOutsideRoot() throws IOException {
         Path allowed = createTempDir();
         Path outside = createTempDir();
-        Settings settings = Settings.builder().putList("esql.datasource.local_allowed_paths", allowed.toString()).build();
+        Settings settings = Settings.builder().putList("esql.external.local_allowed_paths", allowed.toString()).build();
         StorageProviderRegistry registry = registryWithFileAccess(LocalFileAccess.create(settings));
 
         Path file = outside.resolve("secret.csv");
@@ -188,13 +235,13 @@ public class StorageProviderRegistryTests extends ESTestCase {
             IllegalArgumentException.class,
             () -> registry.provider(StoragePath.of("file://" + file.toAbsolutePath()))
         );
-        assertThat(e.getMessage(), containsString("esql.datasource.local_allowed_paths"));
+        assertThat(e.getMessage(), containsString("esql.external.local_allowed_paths"));
     }
 
     public void testProviderRejectsDotDotEscape() throws IOException {
         Path allowed = createTempDir();
         Path sibling = createTempDir();
-        Settings settings = Settings.builder().putList("esql.datasource.local_allowed_paths", allowed.toString()).build();
+        Settings settings = Settings.builder().putList("esql.external.local_allowed_paths", allowed.toString()).build();
         StorageProviderRegistry registry = registryWithFileAccess(LocalFileAccess.create(settings));
 
         String traversal = allowed.toAbsolutePath() + "/../" + sibling.getFileName() + "/secret.csv";
@@ -202,7 +249,7 @@ public class StorageProviderRegistryTests extends ESTestCase {
             IllegalArgumentException.class,
             () -> registry.provider(StoragePath.of("file://" + traversal))
         );
-        assertThat(e.getMessage(), containsString("esql.datasource.local_allowed_paths"));
+        assertThat(e.getMessage(), containsString("esql.external.local_allowed_paths"));
     }
 
     // --- createProviderTrackingConsumedKeys — scheme-level disabled reject ---
@@ -213,12 +260,12 @@ public class StorageProviderRegistryTests extends ESTestCase {
             IllegalArgumentException.class,
             () -> registry.createProviderTrackingConsumedKeys("file", Settings.EMPTY, java.util.Map.of())
         );
-        assertThat(e.getMessage(), containsString("esql.datasource.local_allowed_paths"));
+        assertThat(e.getMessage(), containsString("esql.external.local_allowed_paths"));
     }
 
     public void testCreateProviderAllowsFileWhenEnabled() throws IOException {
         Path allowed = createTempDir();
-        Settings settings = Settings.builder().putList("esql.datasource.local_allowed_paths", allowed.toString()).build();
+        Settings settings = Settings.builder().putList("esql.external.local_allowed_paths", allowed.toString()).build();
         StorageProviderRegistry registry = registryWithFileAccess(LocalFileAccess.create(settings));
 
         // Empty config — should proceed to the default provider without throwing

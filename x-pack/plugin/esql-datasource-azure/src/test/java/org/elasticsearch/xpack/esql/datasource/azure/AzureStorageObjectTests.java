@@ -7,18 +7,26 @@
 
 package org.elasticsearch.xpack.esql.datasource.azure;
 
+import com.azure.storage.blob.BlobAsyncClient;
 import com.azure.storage.blob.BlobClient;
 import com.azure.storage.blob.BlobServiceClientBuilder;
 import com.azure.storage.common.policy.RequestRetryOptions;
 import com.azure.storage.common.policy.RetryPolicyType;
 import com.carrotsearch.randomizedtesting.ThreadFilter;
 import com.carrotsearch.randomizedtesting.annotations.ThreadLeakFilters;
+import com.sun.net.httpserver.HttpExchange;
 import com.sun.net.httpserver.HttpServer;
 
+import org.elasticsearch.ExceptionsHelper;
+import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.mocksocket.MockHttpServer;
+import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.test.AzureReactorThreadFilter;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.xpack.esql.datasources.spi.DirectBufferFactory;
+import org.elasticsearch.xpack.esql.datasources.spi.DirectReadBuffer;
+import org.elasticsearch.xpack.esql.datasources.spi.ExternalObjectChangedException;
 import org.elasticsearch.xpack.esql.datasources.spi.StorageObjectMetrics;
 import org.elasticsearch.xpack.esql.datasources.spi.StoragePath;
 
@@ -26,7 +34,13 @@ import java.io.IOException;
 import java.io.InputStream;
 import java.net.InetAddress;
 import java.net.InetSocketAddress;
+import java.nio.ByteBuffer;
+import java.nio.charset.StandardCharsets;
 import java.time.Duration;
+import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicInteger;
+import java.util.concurrent.atomic.AtomicReference;
 
 /**
  * Unit tests for AzureStorageObject.
@@ -106,6 +120,193 @@ public class AzureStorageObjectTests extends ESTestCase {
         }
     }
 
+    public void testReadBytesAsyncConstrainsOverAllocatedDestination() throws Exception {
+        byte[] payload = randomByteArrayOfLength(between(32, 512));
+        HttpServer server = MockHttpServer.createHttp(new InetSocketAddress(InetAddress.getLoopbackAddress(), 0), 0);
+        server.createContext("/", exchange -> {
+            exchange.getResponseHeaders().add("Content-Type", "application/octet-stream");
+            exchange.getResponseHeaders().add("Content-Range", "bytes 0-" + (payload.length - 1) + "/" + payload.length);
+            exchange.getResponseHeaders().add("ETag", "\"0x1\"");
+            exchange.getResponseHeaders().add("x-ms-creation-time", "Wed, 01 Jan 2026 00:00:00 GMT");
+            exchange.sendResponseHeaders(206, payload.length);
+            exchange.getResponseBody().write(payload);
+            exchange.close();
+        });
+        server.start();
+        try {
+            BlobClient blobClient = newBlobClient(server, "container", "blob.parquet");
+            BlobAsyncClient blobAsyncClient = newBlobAsyncClient(server, "container", "blob.parquet");
+            StoragePath path = StoragePath.of("wasbs://devstoreaccount1.blob.core.windows.net/container/blob.parquet");
+            AzureStorageObject obj = new AzureStorageObject(blobClient, blobAsyncClient, "container", "blob.parquet", path);
+
+            AtomicInteger closeCalls = new AtomicInteger();
+            DirectBufferFactory factory = length -> {
+                ByteBuffer buffer = ByteBuffer.allocate(length + 17);
+                buffer.limit(1);
+                return new DirectReadBuffer(buffer, closeCalls::incrementAndGet);
+            };
+            CountDownLatch latch = new CountDownLatch(1);
+            AtomicReference<DirectReadBuffer> result = new AtomicReference<>();
+            AtomicReference<Exception> error = new AtomicReference<>();
+
+            obj.readBytesAsync(0, payload.length, factory, Runnable::run, ActionListener.wrap(buffer -> {
+                result.set(buffer);
+                latch.countDown();
+            }, e -> {
+                error.set(e);
+                latch.countDown();
+            }));
+
+            assertTrue(latch.await(10, TimeUnit.SECONDS));
+            assertNull(error.get());
+            assertNotNull(result.get());
+            try (DirectReadBuffer drb = result.get()) {
+                assertEquals(payload.length + 17, drb.buffer().capacity());
+                assertEquals(payload.length, drb.buffer().remaining());
+                byte[] actual = new byte[payload.length];
+                drb.buffer().get(actual);
+                assertArrayEquals(payload, actual);
+            }
+            assertEquals(1, closeCalls.get());
+        } finally {
+            server.stop(0);
+        }
+    }
+
+    public void testSecondGetSendsIfMatchOfFirstEtag() throws IOException {
+        byte[] payload = "hello azure".getBytes(StandardCharsets.UTF_8);
+        AtomicInteger gets = new AtomicInteger();
+        AtomicReference<String> firstIfMatch = new AtomicReference<>();
+        AtomicReference<String> secondIfMatch = new AtomicReference<>();
+
+        HttpServer server = MockHttpServer.createHttp(new InetSocketAddress(InetAddress.getLoopbackAddress(), 0), 0);
+        server.createContext("/", exchange -> {
+            int n = gets.getAndIncrement();
+            String ifMatch = exchange.getRequestHeaders().getFirst("If-Match");
+            if (n == 0) {
+                firstIfMatch.set(ifMatch);
+            } else {
+                secondIfMatch.set(ifMatch);
+            }
+            addBlobHeaders(exchange, payload.length, payload.length, "\"0x1\"");
+            exchange.sendResponseHeaders(206, payload.length);
+            exchange.getResponseBody().write(payload);
+            exchange.close();
+        });
+        server.start();
+        try {
+            BlobClient blobClient = newBlobClient(server, "container", "blob.csv.gz");
+            StoragePath path = StoragePath.of("wasbs://devstoreaccount1.blob.core.windows.net/container/blob.csv.gz");
+            AzureStorageObject obj = new AzureStorageObject(blobClient, "container", "blob.csv.gz", path);
+
+            try (InputStream stream = obj.newStream()) {
+                stream.readAllBytes();
+            }
+            try (InputStream stream = obj.newStream()) {
+                stream.readAllBytes();
+            }
+
+            assertNull("first GET is unpinned", firstIfMatch.get());
+            assertNotNull("resume/later GET sends If-Match", secondIfMatch.get());
+            assertEquals("0x1", secondIfMatch.get().replace("\"", ""));
+            assertEquals("0x1", obj.contentGeneration().replace("\"", ""));
+        } finally {
+            server.stop(0);
+        }
+    }
+
+    public void testGetRefreshesKnownLengthFromResponseNotListing() throws IOException {
+        byte[] payload = "shorter".getBytes(StandardCharsets.UTF_8);
+        HttpServer server = MockHttpServer.createHttp(new InetSocketAddress(InetAddress.getLoopbackAddress(), 0), 0);
+        server.createContext("/", exchange -> {
+            addBlobHeaders(exchange, payload.length, payload.length, "\"live\"");
+            exchange.sendResponseHeaders(206, payload.length);
+            exchange.getResponseBody().write(payload);
+            exchange.close();
+        });
+        server.start();
+        try {
+            BlobClient blobClient = newBlobClient(server, "container", "blob.csv.gz");
+            StoragePath path = StoragePath.of("wasbs://devstoreaccount1.blob.core.windows.net/container/blob.csv.gz");
+            AzureStorageObject obj = new AzureStorageObject(blobClient, "container", "blob.csv.gz", path, 1_000_000L);
+            assertEquals("listing size is known before the GET", 1_000_000L, obj.knownLength());
+
+            try (InputStream stream = obj.newStream()) {
+                stream.readAllBytes();
+            }
+            assertEquals("GET blob size replaces the stale listing size", payload.length, obj.knownLength());
+        } finally {
+            server.stop(0);
+        }
+    }
+
+    public void testPreconditionFailedIsObjectChanged() throws IOException {
+        byte[] payload = "hello".getBytes(StandardCharsets.UTF_8);
+        AtomicInteger gets = new AtomicInteger();
+        HttpServer server = MockHttpServer.createHttp(new InetSocketAddress(InetAddress.getLoopbackAddress(), 0), 0);
+        server.createContext("/", exchange -> {
+            if (gets.getAndIncrement() == 0) {
+                addBlobHeaders(exchange, payload.length, payload.length, "\"0x1\"");
+                exchange.sendResponseHeaders(206, payload.length);
+                exchange.getResponseBody().write(payload);
+            } else {
+                exchange.sendResponseHeaders(412, -1);
+            }
+            exchange.close();
+        });
+        server.start();
+        try {
+            BlobClient blobClient = newBlobClient(server, "container", "blob.csv.gz");
+            StoragePath path = StoragePath.of("wasbs://devstoreaccount1.blob.core.windows.net/container/blob.csv.gz");
+            AzureStorageObject obj = new AzureStorageObject(blobClient, "container", "blob.csv.gz", path);
+
+            try (InputStream stream = obj.newStream()) {
+                stream.readAllBytes();
+            }
+            ExternalObjectChangedException thrown = expectThrows(ExternalObjectChangedException.class, () -> obj.newStream(1, 2));
+            assertEquals(RestStatus.SERVICE_UNAVAILABLE, ExceptionsHelper.status(thrown));
+            assertThat(thrown.getMessage(), org.hamcrest.Matchers.containsString(path.toString()));
+        } finally {
+            server.stop(0);
+        }
+    }
+
+    public void testSuccessfulResponseFromDifferentGenerationIsObjectChanged() throws IOException {
+        byte[] payload = "hello".getBytes(StandardCharsets.UTF_8);
+        AtomicInteger gets = new AtomicInteger();
+        HttpServer server = MockHttpServer.createHttp(new InetSocketAddress(InetAddress.getLoopbackAddress(), 0), 0);
+        server.createContext("/", exchange -> {
+            String etag = gets.getAndIncrement() == 0 ? "\"0x1\"" : "\"0x2\"";
+            addBlobHeaders(exchange, payload.length, payload.length, etag);
+            exchange.sendResponseHeaders(206, payload.length);
+            exchange.getResponseBody().write(payload);
+            exchange.close();
+        });
+        server.start();
+        try {
+            BlobClient blobClient = newBlobClient(server, "container", "blob.csv.gz");
+            StoragePath path = StoragePath.of("wasbs://devstoreaccount1.blob.core.windows.net/container/blob.csv.gz");
+            AzureStorageObject obj = new AzureStorageObject(blobClient, "container", "blob.csv.gz", path);
+
+            try (InputStream stream = obj.newStream()) {
+                stream.readAllBytes();
+            }
+            expectThrows(ExternalObjectChangedException.class, obj::newStream);
+        } finally {
+            server.stop(0);
+        }
+    }
+
+    private static void addBlobHeaders(HttpExchange exchange, int contentLength, long blobSize, String etag) {
+        // BlobInputStream always issues a ranged GET and requires Content-Range (see existing
+        // range-read tests). Whole-object opens are the same SDK path.
+        exchange.getResponseHeaders().add("Content-Type", "application/octet-stream");
+        exchange.getResponseHeaders().add("Content-Range", "bytes 0-" + (contentLength - 1) + "/" + blobSize);
+        exchange.getResponseHeaders().add("ETag", etag);
+        exchange.getResponseHeaders().add("x-ms-blob-type", "BlockBlob");
+        exchange.getResponseHeaders().add("x-ms-creation-time", "Wed, 01 Jan 2026 00:00:00 GMT");
+    }
+
     /**
      * Metadata-probe paths (length(), exists(), lastModified()) are intentionally NOT counted in
      * metrics() — they are not data reads. Even when fetchMetadata fails, requestCount stays at 0.
@@ -143,6 +344,14 @@ public class AzureStorageObjectTests extends ESTestCase {
      * disabled so unit tests stay fast and deterministic.
      */
     private static BlobClient newBlobClient(HttpServer server, String container, String blobName) {
+        return newBlobServiceClientBuilder(server).buildClient().getBlobContainerClient(container).getBlobClient(blobName);
+    }
+
+    private static BlobAsyncClient newBlobAsyncClient(HttpServer server, String container, String blobName) {
+        return newBlobServiceClientBuilder(server).buildAsyncClient().getBlobContainerAsyncClient(container).getBlobAsyncClient(blobName);
+    }
+
+    private static BlobServiceClientBuilder newBlobServiceClientBuilder(HttpServer server) {
         String endpoint = "http://" + server.getAddress().getHostString() + ":" + server.getAddress().getPort() + "/devstoreaccount1";
         // Azurite's well-known dev-storage shared key — value comes from public Azure SDK docs.
         // Used here only to satisfy the SDK's auth-header-signing pipeline against our local server.
@@ -160,10 +369,6 @@ public class AzureStorageObjectTests extends ESTestCase {
             1L,
             null
         );
-        return new BlobServiceClientBuilder().connectionString(connectionString)
-            .retryOptions(noRetries)
-            .buildClient()
-            .getBlobContainerClient(container)
-            .getBlobClient(blobName);
+        return new BlobServiceClientBuilder().connectionString(connectionString).retryOptions(noRetries);
     }
 }

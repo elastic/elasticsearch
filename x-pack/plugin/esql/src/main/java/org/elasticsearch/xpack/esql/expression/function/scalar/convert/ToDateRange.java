@@ -61,7 +61,7 @@ public class ToDateRange extends AbstractConvertFunction implements Configuratio
         briefSummary = "Converts a value to a date_range.",
         description = """
             Converts an input value to a `date_range` value.
-            A string will be parsed as a date range in the format `start..end`, where start and end are dates in ISO format. \
+            Strings are parsed as a date range in the format `start..end`, where `start` and `end` are dates in ISO format. \
             The range is half-open `[start, end)`.""",
         examples = { @Example(file = "date_range", tag = "to_date_range-str") }
     )

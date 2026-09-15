@@ -100,7 +100,7 @@ public class CsvRecordCappingInputStreamTests extends ESTestCase {
                 in.readAllBytes();
             }
         });
-        assertThat(ex.getMessage(), org.hamcrest.Matchers.containsString("max_record_size [" + max + "]"));
+        assertThat(ex.getMessage(), org.hamcrest.Matchers.containsString("external_max_record_size [" + max + "]"));
     }
 
     public void testSingleByteReadEnforcesSameCap() throws IOException {
@@ -112,7 +112,7 @@ public class CsvRecordCappingInputStreamTests extends ESTestCase {
                     // drain byte-by-byte to exercise the single-byte read path
                 }
             });
-            assertThat(ex.getMessage(), org.hamcrest.Matchers.containsString("max_record_size [" + max + "]"));
+            assertThat(ex.getMessage(), org.hamcrest.Matchers.containsString("external_max_record_size [" + max + "]"));
         }
     }
 
@@ -153,7 +153,7 @@ public class CsvRecordCappingInputStreamTests extends ESTestCase {
                 in.readAllBytes();
             }
         });
-        assertThat(ex.getMessage(), org.hamcrest.Matchers.containsString("max_record_size [" + maxRecordBytes + "]"));
+        assertThat(ex.getMessage(), org.hamcrest.Matchers.containsString("external_max_record_size [" + maxRecordBytes + "]"));
     }
 
     /** Returns no more than two bytes per {@code read(byte[], off, len)} so cross-buffer carry paths get exercised. */

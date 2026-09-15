@@ -81,11 +81,38 @@ public class ReservedRolesStore implements BiConsumer<Set<String>, ActionListene
     public static final String LISTS_ITEMS_INDEX = ".items-*";
     public static final String LISTS_ITEMS_INDEX_REINDEXED_V8 = ".reindexed-v8-items-*";
 
+    /**
+     * "Security Solutions" threat intelligence indicators, produced by the threat intel supply
+     * pipeline. Kibana creates and writes the index and manages the per-space filtered aliases;
+     * Detection Engine Indicator Match rules read those aliases as the rule's own user.
+     *
+     * The two patterns differ deliberately. {@code kibana_system} needs the index and its aliases,
+     * so it is granted {@link #THREAT_INTEL_INDICATORS_INDEX}. {@code viewer} and {@code editor}
+     * are granted only {@link #THREAT_INTEL_INDICATORS_ALIAS}, which requires the trailing hyphen
+     * and so never matches the bare {@code .threat-intel-indicators} index. That index holds every
+     * space's candidate indicators at every confidence level, and only the filtered per-space
+     * aliases are safe for a rule to read.
+     */
+    public static final String THREAT_INTEL_INDICATORS_INDEX = ".threat-intel-indicators*";
+    public static final String THREAT_INTEL_INDICATORS_ALIAS = ".threat-intel-indicators-*";
+
     /** "Security Solutions" Entity Store and Asset Criticality indices for Asset Inventory and Entity Analytics */
     public static final String ENTITY_STORE_V1_LATEST_INDEX = ".entities.v1.latest.security_*";
-    public static final String ENTITY_STORE_V2_LATEST_INDEX = ".entities.v2.latest.security_*";
-    public static final String ENTITY_STORE_V2_UPDATES_INDEX = ".entities.v2.updates.security_*";
-    public static final String ENTITY_STORE_V2_METADATA_INDEX = ".entities.v2.metadata.security_*";
+    /**
+     * Entity Store v2 latest indices. Solution-neutral {@code .entities.v2.latest.{namespace}-*} names,
+     * including legacy {@code .entities.v2.latest.security_*} compatibility aliases.
+     */
+    public static final String ENTITY_STORE_V2_LATEST_INDEX = ".entities.v2.latest.*";
+    /**
+     * Entity Store v2 updates data streams. Solution-neutral {@code .entities.v2.updates.{namespace}} names,
+     * including legacy {@code .entities.v2.updates.security_*} names during migration.
+     */
+    public static final String ENTITY_STORE_V2_UPDATES_INDEX = ".entities.v2.updates.*";
+    /**
+     * Entity Store v2 metadata data streams. Solution-neutral {@code .entities.v2.metadata.{namespace}} names,
+     * including legacy {@code .entities.v2.metadata.security_*} compatibility aliases.
+     */
+    public static final String ENTITY_STORE_V2_METADATA_INDEX = ".entities.v2.metadata.*";
     public static final String ENTITY_STORE_HISTORY_INDEX = ".entities.*.history.*";
     public static final String ASSET_CRITICALITY_INDEX = ".asset-criticality.asset-criticality-*";
     public static final String PRIVILEGED_USER_MONITORING_INDEX = ".entity_analytics.monitoring*";
@@ -776,7 +803,7 @@ public class ReservedRolesStore implements BiConsumer<Set<String>, ActionListene
                 // Stack
                 RoleDescriptor.IndicesPrivileges.builder()
                     .indices("/~(([.]|ilm-history-).*)/")
-                    .privileges("read", "view_index_metadata")
+                    .privileges("read", "view_index_metadata", "read_view_metadata")
                     .build(),
                 // Observability
                 RoleDescriptor.IndicesPrivileges.builder()
@@ -805,6 +832,12 @@ public class ReservedRolesStore implements BiConsumer<Set<String>, ActionListene
                         ReservedRolesStore.ENTITY_STORE_HISTORY_INDEX
                     )
                     .privileges("read", "view_index_metadata")
+                    .build(),
+                // Threat intel indicators. Only the per-space filtered aliases are granted, so the
+                // trailing hyphen is load-bearing: it never matches the bare .threat-intel-indicators index.
+                RoleDescriptor.IndicesPrivileges.builder()
+                    .indices(ReservedRolesStore.THREAT_INTEL_INDICATORS_ALIAS)
+                    .privileges("read")
                     .build(),
                 // Alerts-as-data
                 RoleDescriptor.IndicesPrivileges.builder()
@@ -845,7 +878,7 @@ public class ReservedRolesStore implements BiConsumer<Set<String>, ActionListene
                 // Stack
                 RoleDescriptor.IndicesPrivileges.builder()
                     .indices("/~(([.]|ilm-history-).*)/")
-                    .privileges("read", "view_index_metadata")
+                    .privileges("read", "view_index_metadata", "read_view_metadata")
                     .build(),
                 // Observability
                 RoleDescriptor.IndicesPrivileges.builder()
@@ -886,6 +919,12 @@ public class ReservedRolesStore implements BiConsumer<Set<String>, ActionListene
                         ReservedRolesStore.ENTITY_STORE_HISTORY_INDEX
                     )
                     .privileges("read", "view_index_metadata")
+                    .build(),
+                // Threat intel indicators. Only the per-space filtered aliases are granted, so the
+                // trailing hyphen is load-bearing: it never matches the bare .threat-intel-indicators index.
+                RoleDescriptor.IndicesPrivileges.builder()
+                    .indices(ReservedRolesStore.THREAT_INTEL_INDICATORS_ALIAS)
+                    .privileges("read")
                     .build(),
                 // Alerts-as-data
                 RoleDescriptor.IndicesPrivileges.builder()

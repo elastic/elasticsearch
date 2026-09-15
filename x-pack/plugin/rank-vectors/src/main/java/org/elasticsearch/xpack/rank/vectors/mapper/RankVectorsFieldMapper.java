@@ -60,6 +60,13 @@ public class RankVectorsFieldMapper extends FieldMapper {
     public static final String VECTOR_MAGNITUDES_SUFFIX = "._magnitude";
     public static final String CONTENT_TYPE = "rank_vectors";
 
+    /**
+     * Maximum number of vectors accepted in a single rank vectors value, whether it is a document's field value or a
+     * max-sim query vector. Some late-interaction models emit up to this many vectors for one piece of text:
+     * Jina-ColBERT-v2, for instance, produces one vector per token over an 8192 token context.
+     */
+    public static final int MAX_VECTORS = 8192;
+
     private static RankVectorsFieldMapper toType(FieldMapper in) {
         return (RankVectorsFieldMapper) in;
     }
@@ -148,7 +155,7 @@ public class RankVectorsFieldMapper extends FieldMapper {
             // Validate again here because the dimensions or element type could have been set programmatically,
             // which affects index option validity
             validate();
-            boolean isExcludeSourceVectorsFinal = context.isSourceSynthetic() == false && isExcludeSourceVectors;
+            boolean isExcludeSourceVectorsFinal = isExcludeSourceVectors && (context.isSourceStored() || context.isSourceColumnarStored());
             return new RankVectorsFieldMapper(
                 leafName(),
                 new RankVectorsFieldType(
@@ -291,7 +298,7 @@ public class RankVectorsFieldMapper extends FieldMapper {
     }
 
     @Override
-    public void parse(DocumentParserContext context) throws IOException {
+    public ParseResult parse(DocumentParserContext context) throws IOException {
         if (RANK_VECTORS_FEATURE.check(licenseState) == false) {
             throw LicenseUtils.newComplianceException("Rank Vectors");
         }
@@ -305,7 +312,7 @@ public class RankVectorsFieldMapper extends FieldMapper {
             );
         }
         if (XContentParser.Token.VALUE_NULL == context.parser().currentToken()) {
-            return;
+            return ParseResult.INDEXED;
         }
         if (XContentParser.Token.START_ARRAY != context.parser().currentToken()) {
             throw new IllegalArgumentException(
@@ -314,8 +321,12 @@ public class RankVectorsFieldMapper extends FieldMapper {
         }
         if (fieldType().dims == null) {
             int currentDims = -1;
+            int vectorCount = 0;
             while (XContentParser.Token.END_ARRAY != context.parser().nextToken()) {
                 int dims = fieldType().element.parseDimensionCount(context);
+                if (++vectorCount > MAX_VECTORS) {
+                    throw tooManyVectors();
+                }
                 if (currentDims == -1) {
                     currentDims = dims;
                 } else if (currentDims != dims) {
@@ -324,10 +335,19 @@ public class RankVectorsFieldMapper extends FieldMapper {
                     );
                 }
             }
+            if (currentDims == -1) {
+                throw new IllegalArgumentException(
+                    "Field ["
+                        + fullPath()
+                        + "] of type ["
+                        + typeName()
+                        + "] requires at least one vector; use null to indicate a missing value"
+                );
+            }
             var builder = (Builder) getMergeBuilder();
             builder.dimensions(currentDims);
             context.addDynamicMapper(builder, fullPath());
-            return;
+            return ParseResult.INDEXED;
         }
         int dims = fieldType().dims;
         Element element = fieldType().element;
@@ -341,6 +361,14 @@ public class RankVectorsFieldMapper extends FieldMapper {
                 }
             }, null);
             vectors.add(vector);
+            if (vectors.size() > MAX_VECTORS) {
+                throw tooManyVectors();
+            }
+        }
+        if (vectors.isEmpty()) {
+            throw new IllegalArgumentException(
+                "Field [" + fullPath() + "] of type [" + typeName() + "] requires at least one vector; use null to indicate a missing value"
+            );
         }
         int bufferSize = element.getNumBytes(dims) * vectors.size();
         ByteBuffer buffer = ByteBuffer.allocate(bufferSize).order(ByteOrder.LITTLE_ENDIAN);
@@ -357,6 +385,19 @@ public class RankVectorsFieldMapper extends FieldMapper {
                 vectorMagnitudeFieldName,
                 new BinaryDocValuesField(vectorMagnitudeFieldName, new BytesRef(magnitudeBuffer.array()))
             );
+        return ParseResult.INDEXED;
+    }
+
+    private IllegalArgumentException tooManyVectors() {
+        return new IllegalArgumentException(
+            "Field ["
+                + fullPath()
+                + "] of type ["
+                + typeName()
+                + "] cannot be indexed with more than ["
+                + MAX_VECTORS
+                + "] vectors in a single document"
+        );
     }
 
     private void checkDimensionExceeded(int index, DocumentParserContext context) {

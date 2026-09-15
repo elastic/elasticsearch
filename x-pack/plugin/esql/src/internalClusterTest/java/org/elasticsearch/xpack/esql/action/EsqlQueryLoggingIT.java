@@ -185,6 +185,7 @@ public class EsqlQueryLoggingIT extends AbstractEsqlIntegTestCase {
                 "rows_emitted",
                 "bytes_read",
                 "read_nanos",
+                "read_cpu_nanos",
                 "cpu_nanos" }) {
                 String fullKey = EsqlLogProducer.PROFILE_PREFIX + key;
                 assertTrue("Expected rollup field present: " + fullKey, message.containsKey(fullKey));

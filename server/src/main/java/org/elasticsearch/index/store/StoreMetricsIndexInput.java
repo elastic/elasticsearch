@@ -31,6 +31,9 @@ public class StoreMetricsIndexInput extends FilterIndexInput implements DirectAc
         if (in instanceof StoreMetricsIndexInput) {
             // annoyingly, source-only snapshots do this for linked files.
             return in;
+        } else if (in instanceof SelfAccountingIndexInput selfAccounting) {
+            selfAccounting.accountBytesReadTo(metricHolder);
+            return in;
         } else if (in instanceof RandomAccessInput) {
             return new RandomAccessIndexInput(resourceDescription, in, metricHolder);
         } else {

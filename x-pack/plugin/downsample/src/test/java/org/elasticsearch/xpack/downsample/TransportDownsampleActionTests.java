@@ -70,7 +70,6 @@ import org.mockito.stubbing.Answer;
 import java.io.IOException;
 import java.util.List;
 import java.util.Map;
-import java.util.Set;
 import java.util.UUID;
 
 import static org.elasticsearch.xpack.downsample.DownsampleActionSingleNodeTests.randomSamplingMethod;
@@ -149,7 +148,7 @@ public class TransportDownsampleActionTests extends ESTestCase {
             featureService,
             threadPool,
             mock(MetadataCreateIndexService.class),
-            new ActionFilters(Set.of()),
+            ActionFilters.EMPTY,
             projectResolver,
             IndexScopedSettings.DEFAULT_SCOPED_SETTINGS,
             persistentTaskService,

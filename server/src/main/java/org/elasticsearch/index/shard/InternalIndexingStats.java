@@ -19,8 +19,10 @@ import org.elasticsearch.common.metrics.MeanMetric;
 import org.elasticsearch.common.util.ThreadUtilizationTracker;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.engine.Engine;
+import org.elasticsearch.index.engine.IndexOperationBatch;
 import org.elasticsearch.index.engine.VersionConflictEngineException;
 
+import java.util.List;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.concurrent.atomic.LongAdder;
@@ -132,6 +134,64 @@ public final class InternalIndexingStats implements IndexingOperationListener {
             if (ExceptionsHelper.unwrapCause(ex) instanceof VersionConflictEngineException) {
                 totalStats.indexFailedDueToVersionConflicts.inc();
             }
+        }
+    }
+
+    @Override
+    public IndexOperationBatch preIndexBatch(ShardId shardId, IndexOperationBatch batch) {
+        if (batch.origin().isRecovery() == false) {
+            totalStats.indexCurrent.inc(batch.docCount());
+        }
+        return batch;
+    }
+
+    /**
+     * Batch equivalent of {@link #postIndex(ShardId, Engine.Index, Engine.IndexResult)} calls. Successes and Failures are
+     * aggregated without materializing per-operation {@link Engine.Index} instances.
+     */
+    @Override
+    public void postIndexBatch(ShardId shardId, IndexOperationBatch batch, List<Engine.IndexResult> results) {
+        if (batch.origin().isRecovery()) {
+            return;
+        }
+        long tookTotal = 0;
+        long failed = 0;
+        long versionConflicts = 0;
+        for (Engine.IndexResult result : results) {
+            switch (result.getResultType()) {
+                case SUCCESS -> {
+                    long took = result.getTook();
+                    tookTotal += took;
+                    totalStats.indexMetric.inc(took);
+                }
+                case FAILURE -> {
+                    failed++;
+                    if (ExceptionsHelper.unwrapCause(result.getFailure()) instanceof VersionConflictEngineException) {
+                        versionConflicts++;
+                    }
+                }
+                default -> throw new IllegalArgumentException("unknown result type: " + result.getResultType());
+            }
+        }
+        if (tookTotal > 0) {
+            totalStats.recentIndexMetric.addIncrement(tookTotal, relativeTimeInNanosSupplier.getAsLong());
+            totalStats.totalExecutionTimeNanos.add(tookTotal);
+        }
+        totalStats.indexCurrent.dec(results.size());
+        totalStats.indexFailed.inc(failed);
+        totalStats.indexFailedDueToVersionConflicts.inc(versionConflicts);
+    }
+
+    /**
+     * Batch equivalent of {@link #postIndex(ShardId, Engine.Index, Exception)}, the engine
+     * level exception fails the whole batch, so every operation counts as failed.
+     */
+    @Override
+    public void postIndexBatch(ShardId shardId, IndexOperationBatch batch, Exception ex) {
+        if (batch.origin().isRecovery() == false) {
+            final int docCount = batch.docCount();
+            totalStats.indexCurrent.dec(docCount);
+            totalStats.indexFailed.inc(docCount);
         }
     }
 

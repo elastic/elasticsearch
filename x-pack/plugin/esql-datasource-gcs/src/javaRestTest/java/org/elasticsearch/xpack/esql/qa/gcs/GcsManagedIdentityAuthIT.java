@@ -58,7 +58,7 @@ import static org.hamcrest.Matchers.hasSize;
  * which Java cannot set on its own JVM at runtime — so the cluster must be a separate process.
  * Mirrors the pattern in {@code DefaultCredentialsRepositoryGcsClientYamlTestSuiteIT}.
  *
- * <p>Validator-level coverage of the {@code esql.datasource.managed_identity.enabled} gate
+ * <p>Validator-level coverage of the {@code esql.external.managed_identity.enabled} gate
  * lives in {@code GcsDataSourceValidatorTests}; this IT focuses on the credential-resolution
  * happy path that unit tests cannot reach.
  */
@@ -87,7 +87,7 @@ public class GcsManagedIdentityAuthIT extends ESRestTestCase {
         .setting("xpack.license.self_generated.type", "trial")
         .setting(Federation.FEDERATION_ENABLED.getKey(), "true")
         // Open the workload identity gate so the validator accepts auth=managed_identity.
-        .setting("esql.datasource.managed_identity.enabled", "true")
+        .setting("esql.external.managed_identity.enabled", "true")
         // Redirect the GCE metadata server to our fixture so ComputeEngineCredentials.refresh()
         // resolves a bearer token against FakeOAuth2HttpHandler instead of metadata.google.internal.
         .environment("GCE_METADATA_HOST", () -> fixture.getAddress().replace("http://", ""))
@@ -163,7 +163,7 @@ public class GcsManagedIdentityAuthIT extends ESRestTestCase {
             assertThat(ex.getResponse().getStatusLine().getStatusCode(), equalTo(400));
             assertThat(
                 org.apache.http.util.EntityUtils.toString(ex.getResponse().getEntity()),
-                containsString("esql.datasource.managed_identity.enabled")
+                containsString("esql.external.managed_identity.enabled")
             );
         } finally {
             // Restore for the rest of the suite. @Before's cleanup runs against fresh state.
@@ -236,7 +236,7 @@ public class GcsManagedIdentityAuthIT extends ESRestTestCase {
     private static void setManagedIdentityCredentialsEnabled(boolean enabled) throws IOException {
         Request req = new Request("PUT", "/_cluster/settings");
         try (XContentBuilder b = jsonBuilder()) {
-            b.startObject().startObject("persistent").field("esql.datasource.managed_identity.enabled", enabled).endObject().endObject();
+            b.startObject().startObject("persistent").field("esql.external.managed_identity.enabled", enabled).endObject().endObject();
             req.setJsonEntity(Strings.toString(b));
         }
         Response r = client().performRequest(req);

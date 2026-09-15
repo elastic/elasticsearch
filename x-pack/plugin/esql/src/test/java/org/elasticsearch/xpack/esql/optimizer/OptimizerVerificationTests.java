@@ -19,11 +19,14 @@ import org.elasticsearch.xpack.esql.expression.function.scalar.string.regex.RLik
 import org.elasticsearch.xpack.esql.expression.predicate.logical.Not;
 import org.elasticsearch.xpack.esql.expression.predicate.nulls.IsNotNull;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.Equals;
+import org.elasticsearch.xpack.esql.plan.logical.Aggregate;
 import org.elasticsearch.xpack.esql.plan.logical.Enrich;
 import org.elasticsearch.xpack.esql.plan.logical.Eval;
 import org.elasticsearch.xpack.esql.plan.logical.Filter;
+import org.elasticsearch.xpack.esql.plan.logical.InlineStats;
 import org.elasticsearch.xpack.esql.plan.logical.Limit;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
+import org.elasticsearch.xpack.esql.plan.logical.join.InlineJoin;
 import org.elasticsearch.xpack.esql.plan.logical.local.LocalRelation;
 
 import static org.elasticsearch.xpack.core.enrich.EnrichPolicy.MATCH_TYPE;
@@ -36,8 +39,10 @@ import static org.elasticsearch.xpack.esql.analysis.AnalyzerExternalTests.extern
 import static org.elasticsearch.xpack.esql.analysis.AnalyzerTestUtils.EMBEDDING_INFERENCE_ID;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.is;
+import static org.hamcrest.Matchers.not;
 
 public class OptimizerVerificationTests extends AbstractLogicalPlanOptimizerTests {
 
@@ -499,6 +504,47 @@ public class OptimizerVerificationTests extends AbstractLogicalPlanOptimizerTest
             2:3: Unbounded SORT not supported yet [SORT languages] please add a LIMIT
             line 3:3: MV_EXPAND [MV_EXPAND languages] cannot yet have an unbounded SORT [SORT languages] before it: either move the SORT \
             after it, or add a LIMIT after the SORT"""));
+    }
+
+    /**
+     * The full-text verifier runs twice: on the analyzed plan, where INLINE STATS is an {@link InlineStats}, and again on the
+     * optimized plan, where {@code SubstituteSurrogatePlans} has turned it into an {@link InlineJoin}. The two node types never
+     * coexist, so the verifier has to recognize the aggregate under either shape or a query would pass one phase and fail the
+     * other. These queries reach {@code optimize} only if the analyzer accepted them, and {@code optimize} itself throws if the
+     * post-optimization verifier rejects them.
+     */
+    public void testFullTextFunctionAfterInlineStatsAgreesAcrossVerificationPhases() {
+        assumeTrue("INLINE STATS must be enabled", INLINE_STATS.isEnabled());
+
+        var plan = optimize(defaultAnalyzer().query("""
+            FROM test
+            | INLINE STATS a = MAX(salary) BY gender
+            | WHERE MATCH(first_name, "Anna")
+            """));
+
+        assertThat(plan.anyMatch(p -> p instanceof InlineStats), is(false));
+        assertThat(plan.anyMatch(p -> p instanceof InlineJoin), is(true));
+    }
+
+    /**
+     * An aggregate expression is rewritten by {@code ReplaceAggregateAggExpressionWithEval} into an Eval over the Aggregate, so
+     * the Aggregate is no longer the root of the InlineJoin's right-hand side. The verifier has to search the whole subtree.
+     */
+    public void testFullTextFunctionAfterInlineStatsWithAggregateExpression() {
+        assumeTrue("INLINE STATS must be enabled", INLINE_STATS.isEnabled());
+
+        var plan = optimize(defaultAnalyzer().query("""
+            FROM test
+            | INLINE STATS a = MAX(salary) + 1 BY gender
+            | WHERE MATCH(first_name, "Anna")
+            """));
+
+        var inlineJoins = plan.collect(p -> p instanceof InlineJoin);
+        assertThat(inlineJoins, hasSize(1));
+        var right = ((InlineJoin) inlineJoins.getFirst()).right();
+        // the Aggregate sits below an Eval/Project rather than at the root of the right-hand side
+        assertThat(right, not(instanceOf(Aggregate.class)));
+        assertThat(right.anyMatch(p -> p instanceof Aggregate), is(true));
     }
 
     public void testDanglingOrderByInInlineStats() {
@@ -1070,5 +1116,79 @@ public class OptimizerVerificationTests extends AbstractLogicalPlanOptimizerTest
         );
         assertFalse(plan.anyMatch(p -> p instanceof Filter));
         assertTrue(plan.anyMatch(p -> p instanceof LocalRelation));
+    }
+
+    /**
+     * Regression test for https://github.com/elastic/elasticsearch/issues/155979 where ip
+     * ended up as unresolved in the logical plan optimizations
+     */
+    public void testOrCidrMatchNotPruned() {
+        var testAnalyzer = analyzer().addIndex("hosts", "mapping-hosts.json");
+        optimize(testAnalyzer.query("""
+            FROM hosts
+            | EVAL ip = CASE(CIDR_MATCH(ip0, "10.0.0.0/8") OR ip0 == "127.0.0.1"::ip, TO_STRING(ip0), null)
+            """));
+    }
+
+    /**
+     * Regression test for https://github.com/elastic/elasticsearch/issues/155979 where ip
+     * disappeared from the plan in the logical optimizations
+     */
+    public void testOrCidrMatchNotPruned2() {
+        var testAnalyzer = analyzer().addIndex("hosts", "mapping-hosts.json");
+        optimize(testAnalyzer.query("""
+            FROM hosts
+            | EVAL ip = CASE(CIDR_MATCH(ip0, "10.0.0.0/8") OR ip0 == "127.0.0.1"::ip, TO_STRING(ip0), null),
+                   field = CASE(ip IS NOT NULL, "a", "b")
+            | STATS count = COUNT(*) BY field
+            """));
+    }
+
+    public void testOrCidrMatchWithInNotPruned() {
+        var testAnalyzer = analyzer().addIndex("hosts", "mapping-hosts.json");
+        optimize(testAnalyzer.query("""
+            FROM hosts
+            | EVAL ip = CASE(CIDR_MATCH(ip0, "10.0.0.0/8") OR ip0 IN ("127.0.0.1"::ip, "192.168.1.1"::ip), TO_STRING(ip0), null)
+            """));
+    }
+
+    public void testOrCidrMatchWithInNotPruned2() {
+        var testAnalyzer = analyzer().addIndex("hosts", "mapping-hosts.json");
+        optimize(testAnalyzer.query("""
+            FROM hosts
+            | EVAL ip = CASE(CIDR_MATCH(ip0, "10.0.0.0/8") OR ip0 IN ("127.0.0.1"::ip, "192.168.1.1"::ip), TO_STRING(ip0), null),
+                   field = CASE(ip IS NOT NULL, "a", "b")
+            | STATS count = COUNT(*) BY field
+            """));
+    }
+
+    public void testOrCidrMatchWithMixedTypeInNotPruned() {
+        var testAnalyzer = analyzer().addIndex("hosts", "mapping-hosts.json");
+        optimize(testAnalyzer.query("""
+            FROM hosts
+            | EVAL ip = CASE(CIDR_MATCH(ip0, "10.0.0.0/8") OR ip0 IN ("127.0.0.1"::ip, "192.168.1.1"), TO_STRING(ip0), null)
+            """));
+    }
+
+    public void testIpInWithoutCidrMatchNotPruned() {
+        var testAnalyzer = analyzer().addIndex("hosts", "mapping-hosts.json");
+        optimize(testAnalyzer.query("""
+            FROM hosts
+            | EVAL ip = CASE(ip0 IN ("127.0.0.1"::ip, "192.168.1.1"::ip), TO_STRING(ip0), null),
+                   field = CASE(ip IS NOT NULL, "a", "b")
+            | STATS count = COUNT(*) BY field
+            """));
+    }
+
+    public void testIpEqualityAndInCombinedWithCidrMatchNotPruned() {
+        var testAnalyzer = analyzer().addIndex("hosts", "mapping-hosts.json");
+        optimize(testAnalyzer.query("""
+            FROM hosts
+            | EVAL ip = CASE(
+                CIDR_MATCH(ip0, "10.0.0.0/8") OR ip0 == "127.0.0.1"::ip OR ip0 IN ("192.168.1.1"::ip, "172.16.0.1"::ip),
+                TO_STRING(ip0), null),
+                   field = CASE(ip IS NOT NULL, "a", "b")
+            | STATS count = COUNT(*) BY field
+            """));
     }
 }

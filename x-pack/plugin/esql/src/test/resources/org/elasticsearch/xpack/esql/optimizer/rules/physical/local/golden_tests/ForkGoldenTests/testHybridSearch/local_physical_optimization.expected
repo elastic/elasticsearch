@@ -7,9 +7,9 @@ TopNExec[[Order[_score{r}#0,DESC,FIRST]],10000[INTEGER],null]
       |   \_TopNExec[[Order[_score{m}#63,ASC,LAST], Order[_id{m}#61,DESC,FIRST]],3[INTEGER],null]
       |     \_ExchangeExec[[author{f}#52, author.keyword{f}#53, book_no{f}#54, collection{f}#55, description{f}#56, publisher{f}#57, ratings{f}#58, title{f}#59, year{f}#60, _id{m}#61, _index{m}#62, _score{m}#63],false]
       |       \_ProjectExec[[author{f}#52, author.keyword{f}#53, book_no{f}#54, collection{f}#55, description{f}#56, publisher{f}#57, ratings{f}#58, title{f}#59, year{f}#60, _id{m}#61, _index{m}#62, _score{m}#63]]
-      |         \_FieldExtractExec[author{f}#52, author.keyword{f}#53, book_no{f}#54, collection{f}#55, description{f}#56, publisher{f}#57, ratings{f}#58, title{f}#59, year{f}#60, _index{m}#62]<[],[],[]>
+      |         \_FieldExtractExec[[author{f}#52, author.keyword{f}#53, book_no{f}#54, collection{f}#55, description{f}#56, publisher{f}#57, ratings{f}#58, title{f}#59, year{f}#60, _index{m}#62]<[],[],[]>,_doc{f}#65]
       |           \_TopNExec[[Order[_score{m}#63,ASC,LAST], Order[_id{m}#61,DESC,FIRST]],3[INTEGER],5360]
-      |             \_FieldExtractExec[_id{m}#61]<[],[],[]>
+      |             \_FieldExtractExec[[_id{m}#61]<[],[],[]>,_doc{f}#65]
       |               \_EsQueryExec[books], indexMode[standard], [_doc{f}#65, _score{m}#63], limit[], sort[] estimatedRowSize[54] queryBuilderAndTags [[QueryBuilderAndTags[query={
   "match" : {
     "title" : {
@@ -23,9 +23,9 @@ TopNExec[[Order[_score{r}#0,DESC,FIRST]],10000[INTEGER],null]
           \_TopNExec[[Order[_score{m}#63,ASC,LAST], Order[_id{m}#61,DESC,FIRST]],3[INTEGER],null]
             \_ExchangeExec[[author{f}#66, author.keyword{f}#67, book_no{f}#68, collection{f}#69, description{f}#70, publisher{f}#71, ratings{f}#72, title{f}#73, year{f}#74, _id{m}#61, _index{m}#62, _score{m}#63],false]
               \_ProjectExec[[author{f}#66, author.keyword{f}#67, book_no{f}#68, collection{f}#69, description{f}#70, publisher{f}#71, ratings{f}#72, title{f}#73, year{f}#74, _id{m}#61, _index{m}#62, _score{m}#63]]
-                \_FieldExtractExec[author{f}#66, author.keyword{f}#67, book_no{f}#68, collection{f}#69, description{f}#70, publisher{f}#71, ratings{f}#72, title{f}#73, year{f}#74, _index{m}#62]<[],[],[]>
+                \_FieldExtractExec[[author{f}#66, author.keyword{f}#67, book_no{f}#68, collection{f}#69, description{f}#70, publisher{f}#71, ratings{f}#72, title{f}#73, year{f}#74, _index{m}#62]<[],[],[]>,_doc{f}#76]
                   \_TopNExec[[Order[_score{m}#63,ASC,LAST], Order[_id{m}#61,DESC,FIRST]],3[INTEGER],5360]
-                    \_FieldExtractExec[_id{m}#61]<[],[],[]>
+                    \_FieldExtractExec[[_id{m}#61]<[],[],[]>,_doc{f}#76]
                       \_EsQueryExec[books], indexMode[standard], [_doc{f}#76, _score{m}#63], limit[], sort[] estimatedRowSize[54] queryBuilderAndTags [[QueryBuilderAndTags[query={
   "match" : {
     "author" : {

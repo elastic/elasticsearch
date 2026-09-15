@@ -369,6 +369,7 @@ max:double | step:datetime            | pod:keyword
 
 first_over_time_of_keyword_dimension
 required_capability: ts_command_v0
+required_capability: fn_first_over_time_flattened
 TS k8s | STATS r = max(first_over_time(pod)) BY cluster, time_bucket = bucket(@timestamp, 10minute) | SORT time_bucket, cluster | LIMIT 10;
 
 r:keyword | cluster:keyword | time_bucket:datetime

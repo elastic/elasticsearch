@@ -7,16 +7,23 @@
 
 package org.elasticsearch.xpack.inference;
 
-import org.elasticsearch.cluster.ClusterState;
-import org.elasticsearch.cluster.metadata.IndexAbstraction;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
-import org.elasticsearch.cluster.metadata.MappingMetadata;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.features.FeatureService;
-import org.elasticsearch.indices.SystemIndexDescriptor;
 
-import java.util.Map;
-
+/**
+ * Defines the settings and the versioned mappings of the {@code .inference} system index.
+ *
+ * <p><b>Compatibility constraint on every mappings bump:</b> {@link InferenceIndexMappingManager}
+ * force-installs this node's latest mappings on the write path via an origin-carrying put-mapping
+ * request, bypassing the minimum-mappings-version downgrade the server applies elsewhere. In a
+ * mixed-version cluster the result is published in cluster state to older nodes, which must be able
+ * to parse it. Therefore every {@code mappingsVN()} must be <em>additive</em> and stick to field
+ * types and mapping parameters that all node versions a rolling upgrade can pair this node with
+ * already understand. A mapping that needs a newer construct must not rely on the force-install and
+ * needs an explicit compatibility strategy instead. This invariant is enforced by
+ * {@code InferenceIndexMappingsCompatibilityTests}, which parses each mappings version with the
+ * oldest supported index version.
+ */
 public class InferenceIndex {
 
     private InferenceIndex() {}
@@ -32,57 +39,6 @@ public class InferenceIndex {
     // Public to allow tests to create the index with custom settings
     public static Settings.Builder builder() {
         return Settings.builder().put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1).put(IndexMetadata.SETTING_AUTO_EXPAND_REPLICAS, "0-1");
-    }
-
-    /**
-     * Returns true when the .inference index already has v4 mappings that include the {@code doc_type} field,
-     * or when the index does not yet exist and it is safe to assume it will be created with v4 mappings.
-     * <p>
-     * When the index does not yet exist, returns true only if all nodes in the cluster carry the
-     * {@link InferenceFeatures#INFERENCE_INFERENCE_INDEX_DOC_TYPE} feature, which guarantees that whichever
-     * node creates the index will apply the v4 mappings. Returns false if any node is missing the feature.
-     * <p>
-     * When the index exists, returns false if it still carries v3 or earlier mappings (before the mapping
-     * migration completes during a rolling upgrade).
-     * <p>
-     * Callers are responsible for also checking the region-policy feature flag before acting on this result.
-     */
-    public static boolean inferenceIndexHasV4Mappings(ClusterState clusterState, FeatureService featureService) {
-        var projectMetadata = clusterState.metadata().getProject();
-        IndexMetadata indexMetadata = projectMetadata.index(InferenceIndex.INDEX_NAME);
-        if (indexMetadata == null) {
-            // The primary index name may have become an alias after a system index migration
-            // (e.g. ".inference" → ".inference-reindexed-for-10"). ProjectMetadata.index() only
-            // resolves concrete names, so we must fall back to the indices lookup, mirroring the
-            // pattern used by SystemIndexMappingUpdateService.getSystemIndexMetadata().
-            IndexAbstraction indexAbstraction = projectMetadata.getIndicesLookup().get(InferenceIndex.INDEX_NAME);
-            if (indexAbstraction != null && indexAbstraction.getWriteIndex() != null) {
-                indexMetadata = projectMetadata.getIndexSafe(indexAbstraction.getWriteIndex());
-            }
-        }
-        if (indexMetadata == null) {
-            // The index doesn't exist yet. Return true only when all nodes carry the doc_type feature,
-            // which guarantees that whoever creates the index will apply v4 mappings. An old node missing
-            // the feature would create the index with v3 mappings, causing a strict_dynamic_mapping_exception
-            // if doc_type were written.
-            return featureService.clusterHasFeature(clusterState, InferenceFeatures.INFERENCE_INFERENCE_INDEX_DOC_TYPE);
-        }
-        MappingMetadata mappingMetadata = indexMetadata.mapping();
-        if (mappingMetadata == null) {
-            return false;
-        }
-        @SuppressWarnings("unchecked")
-        Map<String, Object> meta = (Map<String, Object>) mappingMetadata.sourceAsMap().get("_meta");
-        if (meta == null) {
-            return false;
-        }
-        if (meta.containsKey(SystemIndexDescriptor.VERSION_META_KEY) == false) {
-            return false;
-        }
-        if (meta.get(SystemIndexDescriptor.VERSION_META_KEY) instanceof Integer version) {
-            return version >= 4;
-        }
-        return false;
     }
 
     /**

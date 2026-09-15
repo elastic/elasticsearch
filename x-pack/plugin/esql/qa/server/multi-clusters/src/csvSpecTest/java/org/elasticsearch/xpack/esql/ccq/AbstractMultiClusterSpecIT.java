@@ -39,6 +39,7 @@ import java.nio.file.Path;
 import java.util.List;
 import java.util.Locale;
 import java.util.Set;
+import java.util.concurrent.TimeUnit;
 import java.util.regex.Pattern;
 import java.util.stream.Stream;
 
@@ -48,6 +49,7 @@ import static org.elasticsearch.xpack.esql.CsvTestsDataLoader.CSV_DATASET;
 import static org.elasticsearch.xpack.esql.CsvTestsDataLoader.ENRICH_POLICIES;
 import static org.elasticsearch.xpack.esql.action.EsqlCapabilities.Cap.APPROXIMATION_LOOKUP_JOIN_V2;
 import static org.elasticsearch.xpack.esql.action.EsqlCapabilities.Cap.COMPLETION;
+import static org.elasticsearch.xpack.esql.action.EsqlCapabilities.Cap.DENSE_VECTOR_COMMAND;
 import static org.elasticsearch.xpack.esql.action.EsqlCapabilities.Cap.DENSE_VECTOR_EQUALITY;
 import static org.elasticsearch.xpack.esql.action.EsqlCapabilities.Cap.EMBEDDING_FUNCTION;
 import static org.elasticsearch.xpack.esql.action.EsqlCapabilities.Cap.ENABLE_FORK_FOR_REMOTE_INDICES_V2;
@@ -105,7 +107,8 @@ public abstract class AbstractMultiClusterSpecIT extends EsqlSpecTestCase {
         RERANK.capabilityName(),
         COMPLETION.capabilityName(),
         TEXT_EMBEDDING_FUNCTION.capabilityName(),
-        EMBEDDING_FUNCTION.capabilityName()
+        EMBEDDING_FUNCTION.capabilityName(),
+        DENSE_VECTOR_COMMAND.capabilityName()
     );
 
     private static final RequestOptions DEPRECATED_DEFAULT_METRIC_WARNING_HANDLER = RequestOptions.DEFAULT.toBuilder()
@@ -170,6 +173,26 @@ public abstract class AbstractMultiClusterSpecIT extends EsqlSpecTestCase {
         "Lookup join before and after stats by"
     );
 
+    /**
+     * The suite starts loading data and running queries as soon as the local node's own HTTP is up, but the cross-cluster
+     * connection to the remote is established asynchronously. Because these suites run with
+     * {@code skip_unavailable=true}, a query issued before the remote has connected silently skips it and fails. So we
+     * must wait until the remote cluster is ready before starting the test suite.
+     */
+    @Override
+    protected void ensureRemoteClustersConnected() throws Exception {
+        // /_remote/info must go to the local (coordinating) cluster only. The shared client() mirrors non-query requests to
+        // the remote too, whose nodes lack the remote_cluster_client role and reject it, so build a throwaway local client.
+        // connected==true is the meaningful signal (num_nodes_connected is capped by connections_per_cluster=1, not node count).
+        HttpHost[] localHosts = parseClusterHosts(localCluster.getHttpAddresses()).toArray(HttpHost[]::new);
+        try (RestClient localClient = super.buildClient(restAdminSettings(), localHosts)) {
+            assertBusy(() -> {
+                var remoteInfo = assertOKAndCreateObjectPath(localClient.performRequest(new Request("GET", "/_remote/info")));
+                assertEquals(Boolean.TRUE, remoteInfo.evaluate(Clusters.REMOTE_CLUSTER_NAME + ".connected"));
+            }, 60, TimeUnit.SECONDS);
+        }
+    }
+
     @Override
     protected void shouldSkipTest(String testName) throws IOException {
         boolean remoteMetadata = testCase.requiredCapabilities.contains(METADATA_FIELDS_REMOTE_TEST.capabilityName());
@@ -186,7 +209,7 @@ public abstract class AbstractMultiClusterSpecIT extends EsqlSpecTestCase {
         // slice parameter (see clusterHasCapability). Slice indexing is unreleased, so skip them in a bwc CCS cluster.
         assumeFalse(
             "Slice indexing is unreleased and unsupported on the older bwc cluster",
-            slicesSupportedByBothClusters() == false
+            bothClustersAtCurrentVersion() == false
                 && testCase.requiredCapabilities.contains(EsqlCapabilities.Cap.METADATA_SLICE.capabilityName())
         );
 
@@ -263,7 +286,7 @@ public abstract class AbstractMultiClusterSpecIT extends EsqlSpecTestCase {
 
         assumeFalse(
             "Dense vector equality is not supported in CCS unless all nodes support it",
-            testCase.requiredCapabilities.contains(DENSE_VECTOR_EQUALITY.capabilityName())
+            bothClustersAtCurrentVersion() == false && testCase.requiredCapabilities.contains(DENSE_VECTOR_EQUALITY.capabilityName())
         );
 
     }
@@ -349,7 +372,8 @@ public abstract class AbstractMultiClusterSpecIT extends EsqlSpecTestCase {
      * - '_bulk' requests are randomly sent to either the local or remote cluster to populate data. Some spec tests, such as AVG,
      *   prevent the splitting of bulk requests.
      * - '_query' requests are dispatched to the local cluster only, as we are testing cross-cluster queries.
-     * - '_inference' requests are dispatched to the local cluster only, as inference endpoints are not available on remote clusters.
+     * - '_inference' requests go to the local cluster, and are mirrored to the remote when it can host the inference
+     *   test service, so that a dataset naming an inference endpoint can be loaded into either cluster.
      */
     static RestClient twoClients(RestClient localClient, RestClient remoteClient) throws IOException {
         RestClient twoClients = mock(RestClient.class);
@@ -362,6 +386,15 @@ public abstract class AbstractMultiClusterSpecIT extends EsqlSpecTestCase {
             if (endpoint.startsWith("/_query")) {
                 return localClient.performRequest(request);
             } else if (endpoint.startsWith("/_inference")) {
+                // Endpoints must exist wherever an index that names them is created, so mirror them onto the remote
+                // whenever it can host the test service. The local response is the one callers see.
+                if (Clusters.remoteClusterSupportsInferenceTestService()) {
+                    Request[] inferenceClones = cloneRequests(request, 2);
+                    Response resp1 = remoteClient.performRequest(inferenceClones[0]);
+                    Response resp2 = localClient.performRequest(inferenceClones[1]);
+                    assertEquals(resp1.getStatusLine().getStatusCode(), resp2.getStatusLine().getStatusCode());
+                    return resp2;
+                }
                 return localClient.performRequest(request);
             } else if (endpoint.endsWith("/_bulk") && METADATA_INDICES.stream().anyMatch(i -> endpoint.equals("/" + i + "/_bulk"))) {
                 return remoteClient.performRequest(request);
@@ -444,9 +477,11 @@ public abstract class AbstractMultiClusterSpecIT extends EsqlSpecTestCase {
                 return "1:" + newPosition;
             }));
         }
-        if (Clusters.bwcVersion().before(Version.V_9_6_0)) {
-            testCase.makeWarningsOptional();
-        }
+        // To make warnings optional for some version, uncomment this. Tests might also
+        // need changing, but that's fine.
+        // if (Clusters.bwcVersion().before(Version.V_9_6_0)) {
+        // testCase.makeWarningsOptional();
+        // }
         return testCase;
     }
 
@@ -469,7 +504,9 @@ public abstract class AbstractMultiClusterSpecIT extends EsqlSpecTestCase {
 
     @Override
     protected boolean supportsSemanticTextInference() {
-        return false;
+        // The semantic_text dataset's mapping names its inference endpoints, and dataLocation decides at random
+        // which cluster receives the bulk load, so both clusters have to be able to host the test service.
+        return Clusters.bothClustersSupportInferenceTestService();
     }
 
     @Override
@@ -505,7 +542,7 @@ public abstract class AbstractMultiClusterSpecIT extends EsqlSpecTestCase {
     protected boolean clusterHasCapability(EsqlCapabilities.Cap capability) {
         // Skip loading the slice dataset when a cluster predates the current (renamed) slice parameter: slice indexing
         // is unreleased, so the older bwc cluster cannot ingest it via the `slice` bulk parameter.
-        if (capability == EsqlCapabilities.Cap.METADATA_SLICE && slicesSupportedByBothClusters() == false) {
+        if (capability == EsqlCapabilities.Cap.METADATA_SLICE && bothClustersAtCurrentVersion() == false) {
             return false;
         }
         try {
@@ -515,7 +552,7 @@ public abstract class AbstractMultiClusterSpecIT extends EsqlSpecTestCase {
         }
     }
 
-    private static boolean slicesSupportedByBothClusters() {
+    private static boolean bothClustersAtCurrentVersion() {
         return Version.min(Clusters.localClusterVersion(), Clusters.remoteClusterVersion()).before(Version.CURRENT) == false;
     }
 

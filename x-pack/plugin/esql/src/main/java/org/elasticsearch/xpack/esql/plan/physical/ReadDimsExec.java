@@ -128,7 +128,7 @@ public class ReadDimsExec extends UnaryExec implements EstimatesRowSize {
         sb.append(nodeName());
         NodeUtils.toString(sb, dims, format, mapper);
         sb.append("<tsid=");
-        tsidAttribute.nodeString(sb, format, mapper);
+        NodeUtils.toString(sb, tsidAttribute, format, mapper);
         sb.append(">");
     }
 }

@@ -213,6 +213,12 @@ public class SplitTargetService {
         }
     }
 
+    // visible for testing: a split should leave this empty once it completes or is cancelled. A stale entry pins the IndexShard it
+    // is keyed by, so the shard is never collected even after it closes.
+    Set<ShardId> getShardsWithOngoingSplits() {
+        return onGoingSplits.keySet().stream().map(IndexShard::shardId).collect(Collectors.toSet());
+    }
+
     record Split(ShardId shardId, DiscoveryNode sourceNode, DiscoveryNode targetNode, long sourcePrimaryTerm, long targetPrimaryTerm) {}
 
     private class StateMachine {
@@ -248,7 +254,9 @@ public class SplitTargetService {
         }
 
         void cancel() {
-            cancelled.set(true);
+            final boolean isFirstCancellation = cancelled.getAndSet(true) == false;
+            assert isFirstCancellation : "split for " + shard.shardId() + " cancelled twice";
+            reshardIndexService.failAndStopTrackingSplit(shard, new IndexShardClosedException(shard.shardId()));
         }
 
         private synchronized void advance(State newState) {
@@ -317,14 +325,14 @@ public class SplitTargetService {
                 }
                 case State.SplitApplied splitApplied -> {
                     logger.info("notifying of split completion for target shard {}", shard.shardId());
-                    reshardIndexService.notifySplitCompletion(shard.shardId());
+                    reshardIndexService.notifySplitCompletion(shard);
                     deleteUnownedData();
                 }
                 case State.UnownedDataDeleted ignored -> {
                     changeStateToDone();
                 }
                 case State.Done ignored -> {
-                    reshardIndexService.stopTrackingSplit(shard.shardId());
+                    reshardIndexService.stopTrackingSplit(shard);
                     onCompleted.run();
                 }
 
@@ -354,7 +362,7 @@ public class SplitTargetService {
                     logger.warn("Failed to complete split target shard sequence", failed.exception);
 
                     if (failed.destinationState instanceof State.Split) {
-                        reshardIndexService.notifySplitFailure(shard.shardId(), failed.exception);
+                        reshardIndexService.notifySplitFailure(shard, failed.exception);
                         /// Transition to SPLIT failed in some unexpected way and now we are failing all incoming refresh requests
                         /// due to the `notifySplitFailure` call above.
                         /// There is nothing we can really do at this point to recover so we hope we can figure this out on recovery.

@@ -13,7 +13,6 @@ import org.elasticsearch.action.admin.indices.template.post.SimulateIndexTemplat
 import org.elasticsearch.action.admin.indices.template.post.SimulateIndexTemplateRequest;
 import org.elasticsearch.action.admin.indices.template.put.TransportPutComposableIndexTemplateAction;
 import org.elasticsearch.client.internal.node.NodeClient;
-import org.elasticsearch.cluster.metadata.ComposableIndexTemplate;
 import org.elasticsearch.rest.BaseRestHandler;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.Scope;
@@ -23,12 +22,17 @@ import org.elasticsearch.rest.action.RestToXContentListener;
 
 import java.io.IOException;
 import java.util.List;
+import java.util.Set;
 
 import static org.elasticsearch.rest.RestRequest.Method.POST;
 import static org.elasticsearch.rest.RestUtils.getMasterNodeTimeout;
+import static org.elasticsearch.rest.action.admin.indices.RestPutComposableIndexTemplateAction.INDEX_TEMPLATE_REGISTRY_INSTALLED_FIELD;
+import static org.elasticsearch.rest.action.admin.indices.RestPutComposableIndexTemplateAction.parseAndValidateTemplate;
 
 @ServerlessScope(Scope.PUBLIC)
 public class RestSimulateIndexTemplateAction extends BaseRestHandler {
+
+    private static final Set<String> CAPABILITIES = Set.of(INDEX_TEMPLATE_REGISTRY_INSTALLED_FIELD);
 
     @Override
     public List<Route> routes() {
@@ -52,7 +56,7 @@ public class RestSimulateIndexTemplateAction extends BaseRestHandler {
                 "simulating_template"
             );
             try (var parser = request.contentParser()) {
-                indexTemplateRequest.indexTemplate(ComposableIndexTemplate.parse(parser));
+                indexTemplateRequest.indexTemplate(parseAndValidateTemplate(parser));
             }
             indexTemplateRequest.create(request.paramAsBoolean("create", false));
             indexTemplateRequest.cause(request.param("cause", "api"));
@@ -65,5 +69,10 @@ public class RestSimulateIndexTemplateAction extends BaseRestHandler {
             simulateIndexTemplateRequest,
             new RestToXContentListener<>(channel)
         );
+    }
+
+    @Override
+    public Set<String> supportedCapabilities() {
+        return CAPABILITIES;
     }
 }

@@ -56,7 +56,7 @@ import static org.hamcrest.Matchers.hasSize;
  *   <li>{@code AWS_CONTAINER_CREDENTIALS_FULL_URI} env var pointing at the local
  *       {@link PodIdentityCredentialsHttpFixture} so {@code ContainerCredentialsProvider}
  *       resolves credentials against a fake endpoint instead of the real EKS Pod Identity Agent,</li>
- *   <li>{@code esql.datasource.managed_identity.enabled=true} so the validator accepts the data
+ *   <li>{@code esql.external.managed_identity.enabled=true} so the validator accepts the data
  *       source.</li>
  * </ul>
  *
@@ -95,7 +95,7 @@ public class PodIdentityManagedIdentityAuthIT extends ESRestTestCase {
         .setting("xpack.security.enabled", "false")
         .setting("xpack.license.self_generated.type", "trial")
         .setting(Federation.FEDERATION_ENABLED.getKey(), "true")
-        .setting("esql.datasource.managed_identity.enabled", "true")
+        .setting("esql.external.managed_identity.enabled", "true")
         // Operator-managed symlink the plugin redirects the AWS SDK at via JVM sysprop.
         .configFile("esql-datasource-s3/eks-pod-identity-token", Resource.fromString(AUTH_TOKEN_FILE_CONTENTS))
         // The plugin only checks the env var for presence to decide whether to set the sysprop;
@@ -159,7 +159,7 @@ public class PodIdentityManagedIdentityAuthIT extends ESRestTestCase {
                 () -> putManagedIdentityDataSource(DATASOURCE_NAME + "_disabled", s3HttpFixture.getAddress())
             );
             assertThat(ex.getResponse().getStatusLine().getStatusCode(), equalTo(400));
-            assertThat(EntityUtils.toString(ex.getResponse().getEntity()), containsString("esql.datasource.managed_identity.enabled"));
+            assertThat(EntityUtils.toString(ex.getResponse().getEntity()), containsString("esql.external.managed_identity.enabled"));
         } finally {
             setManagedIdentityEnabled(true);
         }
@@ -210,7 +210,7 @@ public class PodIdentityManagedIdentityAuthIT extends ESRestTestCase {
     private static void setManagedIdentityEnabled(boolean enabled) throws IOException {
         Request req = new Request("PUT", "/_cluster/settings");
         try (XContentBuilder b = jsonBuilder()) {
-            b.startObject().startObject("persistent").field("esql.datasource.managed_identity.enabled", enabled).endObject().endObject();
+            b.startObject().startObject("persistent").field("esql.external.managed_identity.enabled", enabled).endObject().endObject();
             req.setJsonEntity(Strings.toString(b));
         }
         Response r = client().performRequest(req);

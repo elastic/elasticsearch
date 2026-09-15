@@ -44,6 +44,7 @@ import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Iterator;
 import java.util.List;
+import java.util.Objects;
 
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.getValuesList;
@@ -301,5 +302,27 @@ public abstract class AbstractEsqlIntegTestCase extends ESIntegTestCase {
             case 3 -> new Tuple<>(null, Boolean.FALSE);
             default -> throw new AssertionError("should not get here");
         };
+    }
+
+    public static void assertOk(EsqlQueryResponse response) {
+        assertThat(response.isPartial(), equalTo(false));
+    }
+
+    public static void assertPartial(EsqlQueryResponse response) {
+        assertThat(response.isPartial(), equalTo(true));
+    }
+
+    public static void assertColumnContainsInAnyOrder(EsqlQueryResponse response, String column, Object... indices) {
+        var indexColumn = findColumnIndex(response, column);
+        assertThat(() -> response.column(indexColumn), containsInAnyOrder(indices));
+    }
+
+    public static int findColumnIndex(EsqlQueryResponse response, String column) {
+        for (int c = 0; c < response.columns().size(); c++) {
+            if (Objects.equals(response.columns().get(c).name(), column)) {
+                return c;
+            }
+        }
+        throw new AssertionError("no _index column found");
     }
 }

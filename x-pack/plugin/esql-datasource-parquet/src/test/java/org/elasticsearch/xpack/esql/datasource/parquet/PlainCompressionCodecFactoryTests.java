@@ -21,6 +21,7 @@ import org.junit.Before;
 import java.io.IOException;
 import java.nio.ByteBuffer;
 import java.nio.ByteOrder;
+import java.util.Arrays;
 
 import static org.hamcrest.Matchers.containsString;
 
@@ -56,6 +57,86 @@ public class PlainCompressionCodecFactoryTests extends ESTestCase {
 
     public void testLz4RawRoundTrip() throws IOException {
         assertRoundTrip(CompressionCodecName.LZ4_RAW);
+    }
+
+    public void testNoopDecompressorIsNotHeapDest() {
+        BytesInputDecompressor decompressor = factory.getDecompressor(CompressionCodecName.UNCOMPRESSED);
+        assertFalse(decompressor instanceof PlainCompressionCodecFactory.HeapDestDecompressor);
+    }
+
+    public void testDecompressIntoOversizedDest() throws IOException {
+        // Honor destLen, not dest.length: reused dest is often larger than this page.
+        for (CompressionCodecName codec : new CompressionCodecName[] {
+            CompressionCodecName.SNAPPY,
+            CompressionCodecName.ZSTD,
+            CompressionCodecName.GZIP,
+            CompressionCodecName.LZ4_RAW }) {
+            assertDecompressIntoOversizedDest(
+                codec,
+                factory.getCompressor(codec),
+                (PlainCompressionCodecFactory.HeapDestDecompressor) factory.getDecompressor(codec)
+            );
+        }
+        LegacyLz4HadoopFramedCodecFactory lz4Write = new LegacyLz4HadoopFramedCodecFactory();
+        try {
+            assertDecompressIntoOversizedDest(
+                CompressionCodecName.LZ4,
+                lz4Write.getCompressor(CompressionCodecName.LZ4),
+                (PlainCompressionCodecFactory.HeapDestDecompressor) factory.getDecompressor(CompressionCodecName.LZ4)
+            );
+        } finally {
+            lz4Write.release();
+        }
+    }
+
+    public void testGzipDecompressIntoRejectsExtraUncompressedBytes() throws IOException {
+        BytesInputCompressor compressor = factory.getCompressor(CompressionCodecName.GZIP);
+        byte[] original = randomByteArrayOfLength(between(200, 4096));
+        BytesInput compressed = compressor.compress(BytesInput.from(original));
+        byte[] dest = new byte[original.length + between(16, 256)];
+        Arrays.fill(dest, (byte) 0x5A);
+        int destLen = original.length / 2;
+        assert destLen > 0 && destLen < original.length;
+        PlainCompressionCodecFactory.HeapDestDecompressor decompressor = (PlainCompressionCodecFactory.HeapDestDecompressor) factory
+            .getDecompressor(CompressionCodecName.GZIP);
+        IOException e = expectThrows(IOException.class, () -> decompressor.decompressInto(compressed, dest, destLen));
+        assertThat(e.getMessage(), containsString("GZIP"));
+        for (int i = destLen; i < dest.length; i++) {
+            assertEquals("must not write past destLen", (byte) 0x5A, dest[i]);
+        }
+    }
+
+    private void assertDecompressIntoOversizedDest(
+        CompressionCodecName codec,
+        BytesInputCompressor compressor,
+        PlainCompressionCodecFactory.HeapDestDecompressor decompressor
+    ) throws IOException {
+        byte[] original = randomByteArrayOfLength(between(100, 4096));
+        BytesInput compressed = compressor.compress(BytesInput.from(original));
+        byte[] dest = new byte[original.length + between(16, 256)];
+        Arrays.fill(dest, (byte) 0x5A);
+        decompressor.decompressInto(compressed, dest, original.length);
+        assertArrayEquals(codec + " prefix", original, Arrays.copyOf(dest, original.length));
+        for (int i = original.length; i < dest.length; i++) {
+            assertEquals(codec + " must not write past destLen at index " + i, (byte) 0x5A, dest[i]);
+        }
+    }
+
+    public void testSnappyDecompressIntoRejectsLengthMismatchOnOversizedDest() throws IOException {
+        BytesInputCompressor compressor = factory.getCompressor(CompressionCodecName.SNAPPY);
+        byte[] original = randomByteArrayOfLength(between(200, 4096));
+        BytesInput compressed = compressor.compress(BytesInput.from(original));
+        byte[] dest = new byte[original.length + between(16, 256)];
+        Arrays.fill(dest, (byte) 0x5A);
+        int destLen = original.length / 2;
+        assert destLen > 0 && destLen < original.length;
+        PlainCompressionCodecFactory.HeapDestDecompressor decompressor = (PlainCompressionCodecFactory.HeapDestDecompressor) factory
+            .getDecompressor(CompressionCodecName.SNAPPY);
+        IOException e = expectThrows(IOException.class, () -> decompressor.decompressInto(compressed, dest, destLen));
+        assertThat(e.getMessage(), containsString("Snappy"));
+        for (int i = 0; i < dest.length; i++) {
+            assertEquals("must not write before the uncompressedLength check", (byte) 0x5A, dest[i]);
+        }
     }
 
     /**

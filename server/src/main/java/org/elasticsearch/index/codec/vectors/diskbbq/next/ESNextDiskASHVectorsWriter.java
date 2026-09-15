@@ -58,7 +58,6 @@ import org.elasticsearch.index.codec.vectors.diskbbq.IvfMergeConfigResolver;
 import org.elasticsearch.index.codec.vectors.diskbbq.IvfSegmentConfig;
 import org.elasticsearch.index.codec.vectors.diskbbq.OverspillAssignments;
 import org.elasticsearch.index.codec.vectors.diskbbq.Preconditioner;
-import org.elasticsearch.index.codec.vectors.diskbbq.QuantEncoding;
 import org.elasticsearch.index.codec.vectors.diskbbq.TieredMergeStrategy;
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
@@ -83,6 +82,7 @@ public class ESNextDiskASHVectorsWriter extends IVFVectorsWriter<FlatCentroidInd
     private final String sliceField;
     private final IvfFlushConfigSource flushConfigSource;
     private final IvfMergeConfigResolver mergeConfigResolver;
+    private final IvfSegmentConfig.AshConfig ashConfig;
 
     // Temporary storage for ASH projection matrix between buildAndWritePostingsLists and writePreconditioner
     private AshProjectionMatrix pendingAshMatrix;
@@ -99,7 +99,8 @@ public class ESNextDiskASHVectorsWriter extends IVFVectorsWriter<FlatCentroidInd
         int flatVectorThreshold,
         String sliceField,
         IvfFlushConfigSource flushConfigSource,
-        IvfMergeConfigResolver mergeConfigResolver
+        IvfMergeConfigResolver mergeConfigResolver,
+        IvfSegmentConfig.AshConfig ashConfig
     ) throws IOException {
         super(
             state,
@@ -121,6 +122,7 @@ public class ESNextDiskASHVectorsWriter extends IVFVectorsWriter<FlatCentroidInd
         this.sliceField = sliceField;
         this.flushConfigSource = flushConfigSource != null ? flushConfigSource : IvfFlushConfigSource.empty();
         this.mergeConfigResolver = mergeConfigResolver != null ? mergeConfigResolver : IvfMergeConfigResolver.useCodecDefault();
+        this.ashConfig = ashConfig;
         if (sliceField != null) {
             Sort sort = state.segmentInfo.getIndexSort();
             if (sort == null || sort.getSort().length == 0) {
@@ -138,12 +140,12 @@ public class ESNextDiskASHVectorsWriter extends IVFVectorsWriter<FlatCentroidInd
 
     @Override
     protected IvfSegmentConfig beginIvfFieldFlush(FieldInfo fieldInfo) throws IOException {
-        return IvfSegmentConfig.fromCodecDefaultsWithAsh(CentroidIndexFormat.FLAT, QuantEncoding.ONE_BIT_4BIT_QUERY);
+        return IvfSegmentConfig.fromCodecDefaults(CentroidIndexFormat.FLAT, ashConfig, false);
     }
 
     @Override
     protected IvfSegmentConfig resolveMergeConfig(FieldInfo fieldInfo, MergeState mergeState) throws IOException {
-        return IvfSegmentConfig.fromCodecDefaultsWithAsh(CentroidIndexFormat.FLAT, QuantEncoding.ONE_BIT_4BIT_QUERY);
+        return IvfSegmentConfig.fromCodecDefaults(CentroidIndexFormat.FLAT, ashConfig, false);
     }
 
     @Override
@@ -227,6 +229,9 @@ public class ESNextDiskASHVectorsWriter extends IVFVectorsWriter<FlatCentroidInd
         if (vectorValues instanceof FloatVectorValues == false) {
             throw new IllegalStateException("ASH requires float vectors, got: " + vectorValues.getClass().getSimpleName());
         }
+        // In the sliced flush case (single centroid), skip writing per-block doc IDs.
+        // The reader uses vector ordinal order for doc translation via ordToDoc().
+        boolean skipDocIds = sliceField != null && centroidSupplier.size() == 1;
         var ashWriter = new AshPostingsListWriter();
         var result = ashWriter.buildAndWrite(
             fieldInfo,
@@ -236,8 +241,9 @@ public class ESNextDiskASHVectorsWriter extends IVFVectorsWriter<FlatCentroidInd
             fileOffset,
             assignments,
             overspillAssignments,
-            segmentConfig.ash(),
-            fieldInfo.getVectorSimilarityFunction()
+            segmentConfig.ashConfig(),
+            fieldInfo.getVectorSimilarityFunction(),
+            skipDocIds
         );
         pendingAshMatrix = ashWriter.getAshProjectionMatrix();
         return new CentroidOffsetAndLength(result.offsets(), result.lengths());
@@ -271,9 +277,7 @@ public class ESNextDiskASHVectorsWriter extends IVFVectorsWriter<FlatCentroidInd
             }
         }
         // ASH-specific: bits per dimension
-        metaOutput.writeVInt(
-            ivfSegmentConfig.ash() != null ? ivfSegmentConfig.ash().bitsPerDim() : IvfSegmentConfig.AshConfig.DEFAULT_BITS_PER_DIM
-        );
+        metaOutput.writeVInt(ivfSegmentConfig.ashConfig().bitsPerDim());
     }
 
     @Override

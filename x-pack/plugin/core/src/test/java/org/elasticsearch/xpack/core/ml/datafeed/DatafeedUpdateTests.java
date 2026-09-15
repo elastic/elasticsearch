@@ -67,6 +67,7 @@ import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasKey;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.not;
+import static org.hamcrest.Matchers.nullValue;
 import static org.mockito.Mockito.mock;
 
 public class DatafeedUpdateTests extends AbstractXContentSerializingTestCase<DatafeedUpdate> {
@@ -626,6 +627,60 @@ public class DatafeedUpdateTests extends AbstractXContentSerializingTestCase<Dat
                 in.setTransportVersion(TransportVersion.current());
                 DatafeedUpdate deserialized = new DatafeedUpdate(in);
                 assertThat(deserialized.getProjectRouting(), equalTo(projectRouting));
+            }
+        }
+    }
+
+    public void testForceRekeyingParsing() throws IOException {
+        String json = """
+            {
+              "datafeed_id": "test-datafeed",
+              "_force_rekeying": true
+            }
+            """;
+        try (
+            XContentParser parser = XContentFactory.xContent(XContentType.JSON)
+                .createParser(XContentParserConfiguration.EMPTY.withRegistry(xContentRegistry()), json)
+        ) {
+            DatafeedUpdate update = DatafeedUpdate.PARSER.apply(parser, null).build();
+            assertThat(update.getForceRekeying(), equalTo(true));
+        }
+    }
+
+    public void testForceRekeyingToXContent() throws IOException {
+        DatafeedUpdate update = new DatafeedUpdate.Builder("test-datafeed").setForceRekeying(true).build();
+
+        BytesReference bytes = org.elasticsearch.common.xcontent.XContentHelper.toXContent(update, XContentType.JSON, false);
+        String json = bytes.utf8ToString();
+
+        assertThat(json, containsString("\"_force_rekeying\":true"));
+    }
+
+    public void testForceRekeyingSerialization() throws IOException {
+        DatafeedUpdate update = new DatafeedUpdate.Builder("test-datafeed").setForceRekeying(true).build();
+
+        try (BytesStreamOutput output = new BytesStreamOutput()) {
+            output.setTransportVersion(TransportVersion.current());
+            update.writeTo(output);
+            try (StreamInput in = new NamedWriteableAwareStreamInput(output.bytes().streamInput(), getNamedWriteableRegistry())) {
+                in.setTransportVersion(TransportVersion.current());
+                DatafeedUpdate deserialized = new DatafeedUpdate(in);
+                assertThat(deserialized.getForceRekeying(), equalTo(true));
+            }
+        }
+    }
+
+    public void testForceRekeyingOmittedOnOlderTransportVersion() throws IOException {
+        TransportVersion oldVersion = TransportVersion.fromName("datafeed_cloud_internal_credential");
+        DatafeedUpdate update = new DatafeedUpdate.Builder("test-datafeed").setForceRekeying(true).build();
+
+        try (BytesStreamOutput output = new BytesStreamOutput()) {
+            output.setTransportVersion(oldVersion);
+            update.writeTo(output);
+            try (StreamInput in = new NamedWriteableAwareStreamInput(output.bytes().streamInput(), getNamedWriteableRegistry())) {
+                in.setTransportVersion(oldVersion);
+                DatafeedUpdate deserialized = new DatafeedUpdate(in);
+                assertThat(deserialized.getForceRekeying(), nullValue());
             }
         }
     }

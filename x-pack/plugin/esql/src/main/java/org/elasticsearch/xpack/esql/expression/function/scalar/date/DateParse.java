@@ -32,6 +32,7 @@ import org.elasticsearch.xpack.esql.expression.function.FunctionInfo;
 import org.elasticsearch.xpack.esql.expression.function.MapParam;
 import org.elasticsearch.xpack.esql.expression.function.Options;
 import org.elasticsearch.xpack.esql.expression.function.Param;
+import org.elasticsearch.xpack.esql.expression.function.Signature;
 import org.elasticsearch.xpack.esql.expression.function.TwoOptionalArguments;
 import org.elasticsearch.xpack.esql.expression.function.scalar.EsqlConfigurationFunction;
 import org.elasticsearch.xpack.esql.io.stream.PlanStreamInput;
@@ -79,6 +80,11 @@ public class DateParse extends EsqlConfigurationFunction implements TwoOptionalA
     @FunctionInfo(
         appliesTo = { @FunctionAppliesTo(lifeCycle = FunctionAppliesToLifecycle.GA) },
         returnType = "date",
+        signatures = {
+            @Signature(params = { "STRING" }, returnType = "date"),
+            @Signature(params = { "STRING", "STRING" }, returnType = "date"),
+            @Signature(params = { "STRING", "object" }, returnType = "date"),
+            @Signature(params = { "STRING", "STRING", "object" }, returnType = "date") },
         briefSummary = "Parses a string into a date using the specified format.",
         description = "Returns a date by parsing the second argument using the format specified in the first argument.",
         examples = @Example(file = "docs", tag = "dateParse")

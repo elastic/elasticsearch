@@ -8,6 +8,7 @@
 package org.elasticsearch.xpack.transform.action;
 
 import org.elasticsearch.ElasticsearchSecurityException;
+import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionResponse;
@@ -77,6 +78,7 @@ import java.util.function.Consumer;
 
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasEntry;
+import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.notNullValue;
@@ -1456,6 +1458,107 @@ public class TransformUpdaterTests extends ESTestCase {
                 assertThat(updateResult.getConfig().getHeaders(), hasEntry(AuthenticationField.AUTHENTICATION_KEY, "new-minted-auth"));
             }
         );
+    }
+
+    /**
+     * Empty update with {@code _force_rekeying: true} remints even when nothing else changed —
+     * aligned with datafeed {@code CredentialTransitions} force-rekey intent.
+     */
+    public void testForceRekeyingRemintsWithoutOtherChanges() throws InterruptedException {
+        assumeTrue("Only relevant if feature flag is enabled", TransformConfig.TRANSFORM_CROSS_PROJECT.isEnabled());
+
+        InMemoryTransformConfigManager transformConfigManager = new InMemoryTransformConfigManager();
+        String priorTokenId = "prior-token-id";
+        Map<String, String> priorHeaders = Map.of(AuthenticationField.AUTHENTICATION_KEY, "prior-minted-auth");
+        TransformConfig existing = new TransformConfig.Builder(
+            TransformConfigTests.randomTransformConfig(randomAlphaOfLengthBetween(1, 10), TransformConfigVersion.CURRENT)
+        ).setCredentialId(priorTokenId).setHeaders(priorHeaders).build();
+        transformConfigManager.putTransformConfiguration(existing, ActionListener.noop());
+
+        String newTokenId = "new-token-id";
+        Map<String, String> mintedHeaders = Map.of(AuthenticationField.AUTHENTICATION_KEY, "new-minted-auth");
+        CloudCredential callerCredential = stubMintWithRemintedConfig(cloudCredentialManager, newTokenId, mintedHeaders);
+
+        TransformConfigUpdate forceRekey = new TransformConfigUpdate(null, null, null, null, null, null, null, null, true);
+
+        assertUpdate(
+            listener -> TransformUpdater.updateTransform(
+                bobSecurityContext,
+                indexNameExpressionResolver,
+                ClusterState.EMPTY_STATE,
+                settings,
+                client,
+                transformConfigManager,
+                auditor,
+                existing,
+                forceRekey,
+                null,
+                true,
+                false,
+                false,
+                true,
+                AcknowledgedRequest.DEFAULT_ACK_TIMEOUT,
+                destIndexSettings,
+                cloudCredentialManager,
+                true,
+                callerCredential,
+                listener
+            ),
+            updateResult -> {
+                assertThat(updateResult.getStatus(), equalTo(UpdateResult.Status.UPDATED));
+                assertThat(updateResult.getConfig().getCredentialId(), equalTo(newTokenId));
+                assertThat(updateResult.getConfig().getHeaders(), hasEntry(AuthenticationField.AUTHENTICATION_KEY, "new-minted-auth"));
+            }
+        );
+        verify(cloudCredentialManager).mintAndPersist(any(), any(), any(), any());
+    }
+
+    public void testForceRekeyingRejectedWithoutCloudCredential() throws InterruptedException {
+        assumeTrue("Only relevant if feature flag is enabled", TransformConfig.TRANSFORM_CROSS_PROJECT.isEnabled());
+
+        InMemoryTransformConfigManager transformConfigManager = new InMemoryTransformConfigManager();
+        TransformConfig existing = new TransformConfig.Builder(
+            TransformConfigTests.randomTransformConfig(randomAlphaOfLengthBetween(1, 10), TransformConfigVersion.CURRENT)
+        ).setCredentialId("prior-token-id").build();
+        transformConfigManager.putTransformConfiguration(existing, ActionListener.noop());
+
+        TransformConfigUpdate forceRekey = new TransformConfigUpdate(null, null, null, null, null, null, null, null, true);
+
+        CountDownLatch latch = new CountDownLatch(1);
+        AtomicBoolean listenerCalled = new AtomicBoolean(false);
+        LatchedActionListener<UpdateResult> listener = new LatchedActionListener<>(ActionListener.wrap(r -> {
+            fail("expected force-rekeying validation failure");
+        }, e -> {
+            assertTrue("listener called more than once", listenerCalled.compareAndSet(false, true));
+            assertThat(e, instanceOf(ElasticsearchStatusException.class));
+            assertThat(e.getMessage(), equalTo(TransformConfig.FORCE_REKEYING_REQUIRES_CPS_AND_CLOUD_AUTH_MESSAGE));
+        }), latch);
+
+        TransformUpdater.updateTransform(
+            bobSecurityContext,
+            indexNameExpressionResolver,
+            ClusterState.EMPTY_STATE,
+            settings,
+            client,
+            transformConfigManager,
+            auditor,
+            existing,
+            forceRekey,
+            null,
+            true,
+            false,
+            false,
+            true,
+            AcknowledgedRequest.DEFAULT_ACK_TIMEOUT,
+            destIndexSettings,
+            cloudCredentialManager,
+            true,
+            null, // no caller credential
+            listener
+        );
+        assertTrue("timed out after 20s", latch.await(20, TimeUnit.SECONDS));
+        assertTrue(listenerCalled.get());
+        verify(cloudCredentialManager, never()).mintAndPersist(any(), any(), any(), any());
     }
 
     /**

@@ -27,9 +27,14 @@ import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.operator.CloseableIterator;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.xpack.esql.core.expression.Literal;
+import org.elasticsearch.xpack.esql.core.expression.ReferenceAttribute;
+import org.elasticsearch.xpack.esql.core.tree.Source;
+import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.datasources.spi.FormatReadContext;
 import org.elasticsearch.xpack.esql.datasources.spi.StorageObject;
 import org.elasticsearch.xpack.esql.datasources.spi.StoragePath;
+import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.GreaterThan;
 import org.junit.Before;
 
 import java.io.ByteArrayInputStream;
@@ -211,6 +216,42 @@ public class ParquetBloomFilterTests extends ESTestCase {
     }
 
     /**
+     * {@code withPushedFilter(null)} must drop a previously installed {@link FilterCompat.Filter}.
+     * Uses a predicate that matches no rows so the clear is observable as a full read.
+     */
+    public void testWithPushedFilterNullClearsExistingFilter() throws IOException {
+        byte[] parquetData = createParquetFileWithBloomFilter();
+        FilterPredicate filter = FilterApi.eq(FilterApi.longColumn("id"), 999999L);
+        ParquetFormatReader filtered = new ParquetFormatReader(blockFactory).withPushedFilter(FilterCompat.get(filter));
+        assertEquals(0, readAllRows(filtered, parquetData));
+
+        ParquetFormatReader cleared = filtered.withPushedFilter(null);
+        assertNotSame(filtered, cleared);
+        assertSame(cleared, cleared.withPushedFilter(null));
+        assertEquals(300, readAllRows(cleared, parquetData));
+    }
+
+    /**
+     * {@code withPushedFilter(null)} must drop previously installed {@link ParquetPushedExpressions},
+     * the opaque type the coordinator stamps at plan time and remints per file. Uses a LONG
+     * comparison that matches no rows so the clear is observable as a full read.
+     */
+    public void testWithPushedFilterNullClearsPushedExpressions() throws IOException {
+        byte[] parquetData = createParquetFileWithBloomFilter();
+        ReferenceAttribute idAttr = new ReferenceAttribute(Source.EMPTY, "id", DataType.LONG);
+        ParquetPushedExpressions pushed = new ParquetPushedExpressions(
+            List.of(new GreaterThan(Source.EMPTY, idAttr, new Literal(Source.EMPTY, 1000L, DataType.LONG), null))
+        );
+        ParquetFormatReader filtered = new ParquetFormatReader(blockFactory).withPushedFilter(pushed);
+        assertEquals(0, readAllRows(filtered, parquetData));
+
+        ParquetFormatReader cleared = filtered.withPushedFilter(null);
+        assertNotSame(filtered, cleared);
+        assertSame(cleared, cleared.withPushedFilter(null));
+        assertEquals(300, readAllRows(cleared, parquetData));
+    }
+
+    /**
      * Test that filterPushdownSupport returns non-null.
      */
     public void testFilterPushdownSupport() {
@@ -257,7 +298,10 @@ public class ParquetBloomFilterTests extends ESTestCase {
         if (filter != null) {
             reader = reader.withPushedFilter(FilterCompat.get(filter));
         }
+        return readAllRows(reader, parquetData);
+    }
 
+    private int readAllRows(ParquetFormatReader reader, byte[] parquetData) throws IOException {
         StorageObject storageObject = createStorageObject(parquetData);
         int totalRows = 0;
         try (CloseableIterator<Page> iter = reader.read(storageObject, FormatReadContext.of(List.of("id", "value", "name"), 1000))) {

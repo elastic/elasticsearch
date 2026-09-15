@@ -1,0 +1,2 @@
+    FROM all_types
+    | WHERE mv_in_range(ip, "1.1.1.1"::ip, "2.2.2.2"::ip)

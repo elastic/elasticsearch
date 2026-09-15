@@ -13,14 +13,12 @@ import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.xpack.esql.VerificationException;
 import org.elasticsearch.xpack.esql.action.AbstractEsqlIntegTestCase;
-import org.elasticsearch.xpack.esql.action.EsqlQueryResponse;
 
 import java.util.Map;
 
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.elasticsearch.xpack.esql.action.EsqlQueryRequest.syncEsqlQueryRequest;
 import static org.hamcrest.Matchers.containsString;
-import static org.hamcrest.Matchers.equalTo;
 
 public class LookupIndexResolutionIT extends AbstractEsqlIntegTestCase {
 
@@ -53,10 +51,6 @@ public class LookupIndexResolutionIT extends AbstractEsqlIntegTestCase {
             containsString("Unknown index [fake-lookup]"),
             () -> run(syncEsqlQueryRequest("FROM index-1 | LOOKUP JOIN fake-lookup ON language_code"))
         );
-    }
-
-    private static void assertOk(EsqlQueryResponse response) {
-        assertThat(response.isPartial(), equalTo(false));
     }
 
     private void createMainIndex(String name) {

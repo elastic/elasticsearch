@@ -11,7 +11,6 @@ import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.TransportVersion;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.inference.ModelConfigurations;
 import org.elasticsearch.inference.TaskSettings;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.xcontent.XContentBuilder;
@@ -20,6 +19,8 @@ import org.elasticsearch.xpack.inference.services.elastic.completion.ElasticInfe
 
 import java.io.IOException;
 import java.util.Map;
+
+import static org.elasticsearch.xpack.inference.services.SettingsScope.TASK_SETTINGS;
 
 /**
  * This class defines an empty task settings object that cannot be updated. If the {@link #updatedTaskSettings} is called with a
@@ -38,7 +39,7 @@ public record ImmutableEmptyTaskSettings() implements TaskSettings {
         throw new ElasticsearchStatusException(
             "[{}] Configuration contains unknown settings {}",
             RestStatus.BAD_REQUEST,
-            ModelConfigurations.TASK_SETTINGS,
+            TASK_SETTINGS,
             settings.keySet()
         );
     }

@@ -108,6 +108,7 @@ import org.elasticsearch.painless.symbol.IRDecorations.IRCContinuous;
 import org.elasticsearch.painless.symbol.IRDecorations.IRCInitialize;
 import org.elasticsearch.painless.symbol.IRDecorations.IRCInstanceCancellationCheck;
 import org.elasticsearch.painless.symbol.IRDecorations.IRCInstanceCapture;
+import org.elasticsearch.painless.symbol.IRDecorations.IRCRecordAllocationMetrics;
 import org.elasticsearch.painless.symbol.IRDecorations.IRCScriptAware;
 import org.elasticsearch.painless.symbol.IRDecorations.IRCStatic;
 import org.elasticsearch.painless.symbol.IRDecorations.IRCStaticCancellationCheck;
@@ -270,11 +271,11 @@ public class DefaultIRTreeToASMBytesPhase implements IRTreeVisitor<WriteScope> {
             pollCancellation.endMethod();
         }
 
-        // The per-context allocation limit (-1 when tracking is disabled) is fixed for the whole compile, so it is baked
-        // directly into the generated $checkAllocBytes override rather than threaded to each call site.
+        // Fixed for the whole compile, so it is baked into $checkAllocBytes rather than threaded to each call site.
         long maxAllocationBytes = scriptScope.getCompilerSettings().getMaxAllocationBytes();
 
-        if (maxAllocationBytes > 0L) {
+        // Enforcing a limit or recording metrics: either one alone needs the counter.
+        if (scriptScope.getCompilerSettings().isAllocationTrackingEnabled()) {
             // private long $allocBytes — the running heuristic allocation total, accessed only by the generated
             // $incAllocBytes/getAllocBytes/$checkAllocBytes overrides below and reset at the execute entry.
             classVisitor.visitField(Opcodes.ACC_PRIVATE, WriterConstants.ALLOC_BYTES_FIELD, "J", null, null).visitEnd();
@@ -302,9 +303,10 @@ public class DefaultIRTreeToASMBytesPhase implements IRTreeVisitor<WriteScope> {
 
             // public void $checkAllocBytes(long bytes) {
             // long total = this.$allocBytes += bytes;
-            // if (total > <limit>) AllocationGuard.allocationLimitExceeded(bytes, total, <limit>);
+            // if (total > <limit>) AllocationGuard.allocationLimitExceeded(bytes, total, <limit>); // only when enforcing
             // }
             // The limit is a baked-in constant; the breach path delegates to AllocationGuard to keep this method compact.
+            // Metrics-only omits the comparison and just charges the total.
             MethodWriter checkAllocBytes = classWriter.newMethodWriter(Opcodes.ACC_PUBLIC, WriterConstants.CHECK_ALLOC_BYTES);
             checkAllocBytes.visitCode();
             checkAllocBytes.loadThis();
@@ -312,19 +314,25 @@ public class DefaultIRTreeToASMBytesPhase implements IRTreeVisitor<WriteScope> {
             checkAllocBytes.getField(WriterConstants.CLASS_TYPE, WriterConstants.ALLOC_BYTES_FIELD, Type.LONG_TYPE);
             checkAllocBytes.loadArg(0);
             checkAllocBytes.math(MethodWriter.ADD, Type.LONG_TYPE);
-            checkAllocBytes.visitInsn(Opcodes.DUP2_X1);
-            checkAllocBytes.putField(WriterConstants.CLASS_TYPE, WriterConstants.ALLOC_BYTES_FIELD, Type.LONG_TYPE);
-            int totalSlot = checkAllocBytes.newLocal(Type.LONG_TYPE);
-            checkAllocBytes.storeLocal(totalSlot);
-            Label withinLimit = checkAllocBytes.newLabel();
-            checkAllocBytes.loadLocal(totalSlot);
-            checkAllocBytes.push(maxAllocationBytes);
-            checkAllocBytes.ifCmp(Type.LONG_TYPE, MethodWriter.LE, withinLimit);
-            checkAllocBytes.loadArg(0);
-            checkAllocBytes.loadLocal(totalSlot);
-            checkAllocBytes.push(maxAllocationBytes);
-            checkAllocBytes.invokeStatic(WriterConstants.ALLOCATION_GUARD_TYPE, WriterConstants.ALLOCATION_LIMIT_EXCEEDED);
-            checkAllocBytes.mark(withinLimit);
+
+            if (maxAllocationBytes > 0L) {
+                checkAllocBytes.visitInsn(Opcodes.DUP2_X1);
+                checkAllocBytes.putField(WriterConstants.CLASS_TYPE, WriterConstants.ALLOC_BYTES_FIELD, Type.LONG_TYPE);
+                int totalSlot = checkAllocBytes.newLocal(Type.LONG_TYPE);
+                checkAllocBytes.storeLocal(totalSlot);
+                Label withinLimit = checkAllocBytes.newLabel();
+                checkAllocBytes.loadLocal(totalSlot);
+                checkAllocBytes.push(maxAllocationBytes);
+                checkAllocBytes.ifCmp(Type.LONG_TYPE, MethodWriter.LE, withinLimit);
+                checkAllocBytes.loadArg(0);
+                checkAllocBytes.loadLocal(totalSlot);
+                checkAllocBytes.push(maxAllocationBytes);
+                checkAllocBytes.invokeStatic(WriterConstants.ALLOCATION_GUARD_TYPE, WriterConstants.ALLOCATION_LIMIT_EXCEEDED);
+                checkAllocBytes.mark(withinLimit);
+            } else {
+                checkAllocBytes.putField(WriterConstants.CLASS_TYPE, WriterConstants.ALLOC_BYTES_FIELD, Type.LONG_TYPE);
+            }
+
             checkAllocBytes.returnValue();
             checkAllocBytes.endMethod();
         }
@@ -417,11 +425,14 @@ public class DefaultIRTreeToASMBytesPhase implements IRTreeVisitor<WriteScope> {
         boolean staticScriptCapture = irFunctionNode.hasCondition(IRCStaticScriptCapture.class);
         boolean hasThis = irFunctionNode.hasCondition(IRCStatic.class) == false;
         long maxAllocationBytes = irFunctionNode.getDecorationValueOrDefault(IRDMaxAllocationBytes.class, -1L);
+        boolean recordAllocationMetrics = irFunctionNode.hasCondition(IRCRecordAllocationMetrics.class);
+        // A limit or metrics, either one alone, needs the counter.
+        boolean allocationTracking = maxAllocationBytes > 0L || recordAllocationMetrics;
         int maxLoopCounter = irFunctionNode.getDecorationValue(IRDMaxLoopCounter.class);
 
         // Define #scriptThis (= `this`) for instance functions under cancellation or tracking, so a nested static lambda
         // can capture it at its construction site. Static lambdas instead receive it as parameter 0.
-        if (hasThis && (instanceCancellation || maxAllocationBytes > 0L)) {
+        if (hasThis && (instanceCancellation || allocationTracking)) {
             Variable scriptThis = writeScope.defineInternalVariable(Object.class, "scriptThis");
             methodWriter.loadThis();
             methodWriter.visitVarInsn(Opcodes.ASTORE, scriptThis.getSlot());
@@ -442,18 +453,25 @@ public class DefaultIRTreeToASMBytesPhase implements IRTreeVisitor<WriteScope> {
             methodWriter.mark(skipEntry);
         }
 
-        // Reset the per-instance allocation counter at the entry of the execute method so each execution starts fresh.
         // The entry method is the single non-static method named "execute"; user functions are mangled and lambdas are static.
-        if (maxAllocationBytes > 0L && hasThis && "execute".equals(method.getName())) {
+        boolean isEntryMethod = hasThis && "execute".equals(method.getName());
+
+        // Reset the per-instance allocation counter at the entry of the execute method so each execution starts fresh.
+        if (allocationTracking && isEntryMethod) {
             methodWriter.loadThis();
             methodWriter.push(0L);
             methodWriter.putField(WriterConstants.CLASS_TYPE, WriterConstants.ALLOC_BYTES_FIELD, Type.LONG_TYPE);
         }
 
+        // A marker, never read or written: its presence in the entry method is what tells visitReturn to record.
+        if (recordAllocationMetrics && isEntryMethod) {
+            writeScope.defineInternalVariable(void.class, "recordAllocation");
+        }
+
         // Define the #allocLimit marker when tracking is on and a script pointer is reachable: `this` (instance functions)
         // or the captured #scriptThis (static lambdas, see IRCStaticScriptCapture). Its presence signals allocation sites to
         // emit pre-checks (see writeAllocationCheck); the limit itself is baked into $checkAllocBytes.
-        if (maxAllocationBytes > 0L && (hasThis || staticScriptCapture)) {
+        if (allocationTracking && (hasThis || staticScriptCapture)) {
             Variable allocLimit = writeScope.defineInternalVariable(long.class, "allocLimit");
             methodWriter.push(maxAllocationBytes);
             methodWriter.visitVarInsn(Opcodes.LSTORE, allocLimit.getSlot());
@@ -935,7 +953,25 @@ public class DefaultIRTreeToASMBytesPhase implements IRTreeVisitor<WriteScope> {
             visit(irReturnNode.getExpressionNode(), writeScope);
         }
 
+        writeExecutionAllocationRecord(writeScope, methodWriter);
         methodWriter.returnValue();
+    }
+
+    /**
+     * Records this execution's total on the way out of {@code execute}. Keys off {@code #recordAllocation}, which
+     * {@link #visitFunction} defines only in the entry method, so user functions, lambdas and metrics-off compiles emit
+     * nothing. Sits after the return expression, the last point at which the counter still holds this execution's total;
+     * the recorder takes its own arguments, so a return value already on the stack is untouched.
+     */
+    private static void writeExecutionAllocationRecord(WriteScope writeScope, MethodWriter methodWriter) {
+        if (writeScope.getInternalVariable("recordAllocation") == null) {
+            return;
+        }
+
+        methodWriter.getStatic(WriterConstants.CLASS_TYPE, WriterConstants.ALLOC_METRICS_FIELD, WriterConstants.ALLOC_METRICS_TYPE);
+        methodWriter.loadThis();
+        methodWriter.getField(WriterConstants.CLASS_TYPE, WriterConstants.ALLOC_BYTES_FIELD, Type.LONG_TYPE);
+        methodWriter.invokeVirtual(WriterConstants.ALLOC_METRICS_TYPE, WriterConstants.RECORD_EXECUTION_ALLOCATION);
     }
 
     @Override

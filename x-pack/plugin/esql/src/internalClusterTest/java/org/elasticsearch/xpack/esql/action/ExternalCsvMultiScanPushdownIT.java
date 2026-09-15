@@ -50,9 +50,9 @@ public class ExternalCsvMultiScanPushdownIT extends AbstractExternalDataSourceIT
 
     @Override
     protected QueryPragmas getPragmas() {
-        // parsing_parallelism > 1 forces the parallel parser (per-chunk PARTIAL contributions); see
+        // external_parsing_parallelism > 1 forces the parallel parser (per-chunk PARTIAL contributions); see
         // ExternalNdJsonMultiScanPushdownIT for why this is required to reach the bug's code path.
-        return new QueryPragmas(Settings.builder().put("parsing_parallelism", 4).build());
+        return new QueryPragmas(Settings.builder().put("external_parsing_parallelism", 4).build());
     }
 
     /** Pins every query to one coordinator so the cold (poisoning) scan and the warm query share the per-coordinator cache. */

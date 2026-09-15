@@ -48,7 +48,7 @@ class LegacyYamlRestTestPluginFuncTest extends AbstractRestResourcesFuncTest {
             apply plugin: 'elasticsearch.legacy-yaml-rest-test'
 
             dependencies {
-               yamlRestTestImplementation "junit:junit:4.12"
+               yamlRestTestImplementation "junit:junit:4.13"
             }
 
             // can't actually spin up test cluster from this test
@@ -103,7 +103,7 @@ class LegacyYamlRestTestPluginFuncTest extends AbstractRestResourcesFuncTest {
             apply plugin: 'elasticsearch.legacy-yaml-rest-test'
 
             dependencies {
-               yamlRestTestImplementation "junit:junit:4.12"
+               yamlRestTestImplementation "junit:junit:4.13"
             }
 
             esplugin {

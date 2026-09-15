@@ -71,10 +71,11 @@ public final class Atan2Evaluator implements ExpressionEvaluator {
   public DoubleBlock eval(int positionCount, DoubleBlock yBlock, DoubleBlock xBlock) {
     try(DoubleBlock.Builder result = driverContext.blockFactory().newDoubleBlockBuilder(positionCount)) {
       position: for (int p = 0; p < positionCount; p++) {
+        if (yBlock.isNull(p)) {
+          result.appendNull();
+          continue position;
+        }
         switch (yBlock.getValueCount(p)) {
-          case 0:
-              result.appendNull();
-              continue position;
           case 1:
               break;
           default:
@@ -82,10 +83,11 @@ public final class Atan2Evaluator implements ExpressionEvaluator {
               result.appendNull();
               continue position;
         }
+        if (xBlock.isNull(p)) {
+          result.appendNull();
+          continue position;
+        }
         switch (xBlock.getValueCount(p)) {
-          case 0:
-              result.appendNull();
-              continue position;
           case 1:
               break;
           default:

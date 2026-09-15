@@ -64,7 +64,6 @@ import java.util.Arrays;
 import java.util.Comparator;
 import java.util.HashMap;
 import java.util.List;
-import java.util.Locale;
 import java.util.Map;
 import java.util.stream.Collectors;
 
@@ -212,6 +211,7 @@ public class TransportGetDataStreamsAction extends TransportLocalProjectMetadata
                 MetadataIndexTemplateService.VALIDATE_INDEX_NAME,
                 dataStream.getName(),
                 indexMode,
+                indexTemplate.isRegistryInstalled(),
                 state.metadata(),
                 Instant.now(),
                 settings,
@@ -222,13 +222,13 @@ public class TransportGetDataStreamsAction extends TransportLocalProjectMetadata
             Settings addlSettings = builder.build();
             var rawMode = addlSettings.get(IndexSettings.MODE.getKey());
             if (rawMode != null) {
-                indexMode = Enum.valueOf(IndexMode.class, rawMode.toUpperCase(Locale.ROOT));
+                indexMode = IndexMode.fromString(rawMode);
             }
         }
         if (indexMode == null) {
             String rawMode = settings.get(IndexSettings.MODE.getKey());
             if (rawMode != null) {
-                indexMode = Enum.valueOf(IndexMode.class, rawMode.toUpperCase(Locale.ROOT));
+                indexMode = IndexMode.fromString(rawMode);
             }
         }
         return indexMode;

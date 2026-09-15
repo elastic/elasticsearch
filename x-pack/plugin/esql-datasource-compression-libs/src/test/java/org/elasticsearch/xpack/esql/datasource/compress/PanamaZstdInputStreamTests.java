@@ -10,6 +10,8 @@ package org.elasticsearch.xpack.esql.datasource.compress;
 import com.github.luben.zstd.ZstdInputStream;
 import com.github.luben.zstd.ZstdOutputStream;
 
+import org.elasticsearch.common.breaker.CircuitBreaker;
+import org.elasticsearch.common.breaker.CircuitBreakingException;
 import org.elasticsearch.nativeaccess.NativeAccess;
 import org.elasticsearch.nativeaccess.Zstd;
 import org.elasticsearch.test.ESTestCase;
@@ -20,7 +22,9 @@ import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.io.InputStream;
 import java.nio.charset.StandardCharsets;
+import java.util.concurrent.atomic.AtomicLong;
 
+import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 
 /**
@@ -326,9 +330,108 @@ public class PanamaZstdInputStreamTests extends ESTestCase {
     // weight. If the invariant ever becomes load-bearing (e.g. an allocation appears between
     // newDStream and the byte[] alloc), revisit.
 
+    /**
+     * Breaker accounting across many streams: each construct/decompress/close cycle must charge a
+     * positive footprint while the stream is live and release it fully on {@code close()}, so the
+     * breaker's used-bytes return to zero every iteration. A leak in the charge/uncharge pair would
+     * drift the counter up across the 200 cycles. Uses a real used-bytes-tracking breaker — a Noop
+     * breaker would report 0 regardless and prove nothing.
+     */
+    public void testBreakerAccountingReturnsToZeroAcrossStreams() throws IOException {
+        byte[] data = randomBytesForCompression(64 * 1024);
+        byte[] compressed = compress(data);
+        UsedBytesCircuitBreaker breaker = new UsedBytesCircuitBreaker();
+        for (int i = 0; i < 200; i++) {
+            try (InputStream s = new PanamaZstdInputStream(new ByteArrayInputStream(compressed), zstd, breaker)) {
+                // A live stream has charged a positive native footprint against the breaker.
+                assertThat("iteration " + i, breaker.getUsed(), greaterThanOrEqualTo(1L));
+                assertArrayEquals(data, s.readAllBytes());
+            }
+            // close() releases the reservation — used bytes back to zero every cycle.
+            assertEquals("iteration " + i, 0L, breaker.getUsed());
+        }
+        assertEquals(0L, breaker.getUsed());
+    }
+
+    /**
+     * Leak visibility through the breaker: a wrapper that is opened but never closed keeps its native
+     * footprint charged against the breaker. This is the exact signal an operator would use to spot a
+     * leaked decompression stream — the reservation only clears on {@code close()}. Directly exercises
+     * the "memory consumption is wired through the circuit breaker" contract this PR adds.
+     */
+    public void testUnclosedStreamStaysChargedOnBreaker() throws IOException {
+        byte[] data = randomBytesForCompression(32 * 1024);
+        byte[] compressed = compress(data);
+        UsedBytesCircuitBreaker breaker = new UsedBytesCircuitBreaker();
+        PanamaZstdInputStream s = new PanamaZstdInputStream(new ByteArrayInputStream(compressed), zstd, breaker);
+        try {
+            // Read some bytes but deliberately do NOT close — the footprint must stay charged.
+            assertArrayEquals(data, s.readAllBytes());
+            assertThat(breaker.getUsed(), greaterThanOrEqualTo(1L));
+        } finally {
+            s.close();
+        }
+        // Only after close does the breaker return to zero.
+        assertEquals(0L, breaker.getUsed());
+    }
+
+    public void testConstructionChargeTripsBreaker() throws IOException {
+        byte[] compressed = compress(randomBytesForCompression(1024));
+        UsedBytesCircuitBreaker breaker = new UsedBytesCircuitBreaker(1L);
+        expectThrows(CircuitBreakingException.class, () -> new PanamaZstdInputStream(new ByteArrayInputStream(compressed), zstd, breaker));
+        assertEquals(0L, breaker.getUsed());
+    }
+
+    /**
+     * A {@code null} breaker disables accounting and must reproduce the historical behavior — no
+     * charge, and a clean full round-trip. This pins that the nullable-breaker contract stays intact.
+     */
+    public void testNullBreakerRoundTripsCleanly() throws IOException {
+        byte[] data = randomBytesForCompression(32 * 1024);
+        byte[] compressed = compress(data);
+        try (InputStream s = new PanamaZstdInputStream(new ByteArrayInputStream(compressed), zstd, null)) {
+            assertArrayEquals(data, s.readAllBytes());
+        }
+    }
+
+    /**
+     * The decoder caps its back-reference window at 8 MiB (windowLog 23). A frame declaring a larger
+     * window (here 16 MiB, windowLog 24, produced via zstd-jni's long-distance-matching mode) must be
+     * rejected on the first read with libzstd's "Frame requires too much memory" rather than honoured
+     * — the memory-safety bound against a producer-controlled window. zstd-jni (whose default cap is
+     * libzstd's 128 MiB) decodes the same frame cleanly, proving the rejection is our cap, not a corrupt
+     * frame. Feeds > 16 MiB so the frame header genuinely declares windowLog 24 instead of zstd clamping
+     * it down to the content size.
+     */
+    public void testFrameExceedingWindowCapIsRejected() throws IOException {
+        int windowLog = 24;
+        byte[] data = randomBytesForCompression((1 << windowLog) + (1 << 20));
+        byte[] compressed = compressWithWindowLog(data, windowLog);
+
+        try (InputStream jni = new ZstdInputStream(new ByteArrayInputStream(compressed))) {
+            assertArrayEquals(data, jni.readAllBytes());
+        }
+
+        IOException e = expectThrows(IOException.class, () -> {
+            try (InputStream s = new PanamaZstdInputStream(new ByteArrayInputStream(compressed), zstd, null)) {
+                s.readAllBytes();
+            }
+        });
+        assertThat(e.getMessage(), containsString("Frame requires too much memory"));
+    }
+
     private static byte[] compress(byte[] data) throws IOException {
         ByteArrayOutputStream baos = new ByteArrayOutputStream(data.length + 32);
         try (ZstdOutputStream out = new ZstdOutputStream(baos)) {
+            out.write(data);
+        }
+        return baos.toByteArray();
+    }
+
+    private static byte[] compressWithWindowLog(byte[] data, int windowLog) throws IOException {
+        ByteArrayOutputStream baos = new ByteArrayOutputStream(data.length / 2 + 32);
+        try (ZstdOutputStream out = new ZstdOutputStream(baos)) {
+            out.setLong(windowLog);
             out.write(data);
         }
         return baos.toByteArray();
@@ -390,5 +493,73 @@ public class PanamaZstdInputStreamTests extends ESTestCase {
             closeCount++;
             delegate.close();
         }
+    }
+
+    /**
+     * Minimal {@link CircuitBreaker} that tracks used bytes. Construction charges via
+     * {@link #addEstimateBytesAndMaybeBreak(long, String)} and trips when {@code used} would exceed
+     * the configured limit; window refresh and close use {@link #addWithoutBreaking(long)}.
+     */
+    private static final class UsedBytesCircuitBreaker implements CircuitBreaker {
+        private final AtomicLong used = new AtomicLong();
+        private final long limit;
+
+        UsedBytesCircuitBreaker() {
+            this(Long.MAX_VALUE);
+        }
+
+        UsedBytesCircuitBreaker(long limit) {
+            this.limit = limit;
+        }
+
+        @Override
+        public void circuitBreak(String fieldName, long bytesNeeded) {}
+
+        @Override
+        public void addEstimateBytesAndMaybeBreak(long bytes, String label) throws CircuitBreakingException {
+            long next = used.addAndGet(bytes);
+            if (next > limit) {
+                used.addAndGet(-bytes);
+                throw new CircuitBreakingException("zstd-dstream", bytes, limit, Durability.TRANSIENT);
+            }
+        }
+
+        @Override
+        public void addWithoutBreaking(long bytes) {
+            used.addAndGet(bytes);
+        }
+
+        @Override
+        public long getUsed() {
+            return used.get();
+        }
+
+        @Override
+        public long getLimit() {
+            return limit;
+        }
+
+        @Override
+        public double getOverhead() {
+            return 1.0;
+        }
+
+        @Override
+        public long getTrippedCount() {
+            return 0;
+        }
+
+        @Override
+        public String getName() {
+            return "test-used-bytes";
+        }
+
+        @Override
+        public Durability getDurability() {
+            return Durability.TRANSIENT;
+        }
+
+        @Override
+        public void setLimitAndOverhead(long limit, double overhead) {}
     }
 }

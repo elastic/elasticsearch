@@ -27,7 +27,7 @@ import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 
 /**
- * Regression test for NDJSON record-aligned macro splits when parsing_parallelism=1.
+ * Regression test for NDJSON record-aligned macro splits when external_parsing_parallelism=1.
  * The query forces many macro splits and validates exact row accounting across split boundaries.
  */
 public class ExternalNdJsonRecordAlignedFallbackIT extends AbstractExternalDataSourceIT {
@@ -39,7 +39,7 @@ public class ExternalNdJsonRecordAlignedFallbackIT extends AbstractExternalDataS
 
     @Override
     protected QueryPragmas getPragmas() {
-        return new QueryPragmas(Settings.builder().put("parsing_parallelism", 1).build());
+        return new QueryPragmas(Settings.builder().put("external_parsing_parallelism", 1).build());
     }
 
     public void testCountMinMaxWithMacroSplitsInSingleThreadFallback() throws Exception {

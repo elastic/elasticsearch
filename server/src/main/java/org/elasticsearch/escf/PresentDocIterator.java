@@ -19,7 +19,7 @@ import org.apache.lucene.util.FixedBitSet;
  * the validity bitset; for dense columns ({@code validity == null}, every doc present) it counts
  * through every doc.
  */
-final class PresentDocIterator {
+public final class PresentDocIterator {
     private final BitSetIterator sparse; // null => dense
     private final int docCount;
     private int doc = -1;
@@ -30,7 +30,7 @@ final class PresentDocIterator {
     }
 
     /** The next present doc id, or {@link DocIdSetIterator#NO_MORE_DOCS} when exhausted. */
-    int nextDoc() {
+    public int nextDoc() {
         if (sparse != null) {
             return doc = sparse.nextDoc();
         }

@@ -530,29 +530,29 @@ public class DataStreamTests extends AbstractXContentSerializingTestCase<DataStr
         assertThat(rolledDs.getIndexMode(), equalTo(IndexMode.LOGSDB));
     }
 
-    public void testUnsafeRolloverToLookupThrows() {
+    public void testUnsafeRolloverToLookup() {
         DataStream ds = DataStreamTestHelper.randomInstance().copy().setIndexMode(randomBoolean() ? IndexMode.STANDARD : null).build();
         final var project = ProjectMetadata.builder(randomProjectIdOrDefault()).build();
         var newCoordinates = ds.unsafeNextWriteIndexAndGeneration(project, ds.getDataComponent());
+        var newWriteIndex = new Index(newCoordinates.v1(), UUIDs.randomBase64UUID());
 
-        IllegalArgumentException e = expectThrows(
-            IllegalArgumentException.class,
-            () -> ds.unsafeRollover(new Index(newCoordinates.v1(), UUIDs.randomBase64UUID()), newCoordinates.v2(), IndexMode.LOOKUP, null)
-        );
-        assertThat(e.getMessage(), containsString("is not allowed"));
+        var rolledDs = ds.unsafeRollover(newWriteIndex, newCoordinates.v2(), IndexMode.LOOKUP, null);
+        assertThat(rolledDs.getGeneration(), equalTo(ds.getGeneration() + 1));
+        assertThat(rolledDs.getIndices().size(), equalTo(ds.getIndices().size() + 1));
+        assertThat(rolledDs.getIndexMode(), equalTo(IndexMode.LOOKUP));
     }
 
-    public void testUnsafeRolloverFromLookupThrows() {
+    public void testUnsafeRolloverFromLookup() {
         DataStream ds = DataStreamTestHelper.randomInstance().copy().setIndexMode(IndexMode.LOOKUP).build();
         final var project = ProjectMetadata.builder(randomProjectIdOrDefault()).build();
         var newCoordinates = ds.unsafeNextWriteIndexAndGeneration(project, ds.getDataComponent());
         IndexMode templateMode = randomFrom(IndexMode.values());
+        var newWriteIndex = new Index(newCoordinates.v1(), UUIDs.randomBase64UUID());
 
-        IllegalArgumentException e = expectThrows(
-            IllegalArgumentException.class,
-            () -> ds.unsafeRollover(new Index(newCoordinates.v1(), UUIDs.randomBase64UUID()), newCoordinates.v2(), templateMode, null)
-        );
-        assertThat(e.getMessage(), containsString("is not allowed"));
+        var rolledDs = ds.unsafeRollover(newWriteIndex, newCoordinates.v2(), templateMode, null);
+        assertThat(rolledDs.getGeneration(), equalTo(ds.getGeneration() + 1));
+        assertThat(rolledDs.getIndices().size(), equalTo(ds.getIndices().size() + 1));
+        assertThat(rolledDs.getIndexMode(), equalTo(templateMode));
     }
 
     public void testRolloverFailureStore() {
@@ -2050,6 +2050,14 @@ public class DataStreamTests extends AbstractXContentSerializingTestCase<DataStr
         String dataStreamName = "metrics-foo";
         long now = System.currentTimeMillis();
 
+        String lookupIndexName = DataStream.getDefaultBackingIndexName(dataStreamName, now - 3400);
+        IndexMetadata lookupIndexMetadata = IndexMetadata.builder(lookupIndexName)
+            .settings(settings(IndexVersion.current()).put(IndexSettings.MODE.getKey(), IndexMode.LOOKUP.getName()))
+            .numberOfShards(1)
+            .numberOfReplicas(1)
+            .build();
+        Index lookupIndex = lookupIndexMetadata.getIndex();
+
         List<DataStreamMetadata> creationAndRolloverTimes = List.of(
             DataStreamMetadata.dataStreamMetadata(now - 5000, now - 4000),
             DataStreamMetadata.dataStreamMetadata(now - 4000, now - 3000),
@@ -2057,7 +2065,8 @@ public class DataStreamTests extends AbstractXContentSerializingTestCase<DataStr
             DataStreamMetadata.dataStreamMetadata(now - 2000, now - 1000),
             DataStreamMetadata.dataStreamMetadata(now, null)
         );
-        Metadata.Builder builder = Metadata.builder();
+
+        Metadata.Builder builder = Metadata.builder().put(lookupIndexMetadata, true);
         DataStream dataStream = createDataStream(
             builder,
             dataStreamName,
@@ -2065,6 +2074,7 @@ public class DataStreamTests extends AbstractXContentSerializingTestCase<DataStr
             settings(IndexVersion.current()),
             DataStreamLifecycle.dataLifecycleBuilder().dataRetention(TimeValue.ZERO).build()
         );
+        dataStream.unsafeAddBackingIndex(lookupIndex);
         Metadata metadata = builder.build();
 
         {
@@ -2073,6 +2083,11 @@ public class DataStreamTests extends AbstractXContentSerializingTestCase<DataStr
                 dataStream.isIndexManagedByDataStreamLifecycle(new Index("standalone_index", "uuid"), metadata.getProject()::index),
                 is(false)
             );
+        }
+
+        {
+            // false for lookup indices even when part of the data stream
+            assertThat(dataStream.isIndexManagedByDataStreamLifecycle(lookupIndex, metadata.getProject()::index), is(false));
         }
 
         {

@@ -33,6 +33,7 @@ import java.time.Instant;
 import java.util.Comparator;
 import java.util.List;
 import java.util.Locale;
+import java.util.Map;
 
 import static org.elasticsearch.rest.RestRequest.Method.GET;
 
@@ -90,6 +91,7 @@ public class RestCatRecoveryAction extends AbstractCatAction {
             .addCell("time", "alias:t,ti;desc:recovery time")
             .addCell("type", "alias:ty;desc:recovery type")
             .addCell("stage", "alias:st;desc:recovery stage")
+            .addCell("local_retries", "alias:lr;desc:count of locally-retryable recovery failures on data node")
             .addCell("priority", "alias:pr;desc:recovery priority")
             .addCell("source_host", "alias:shost;desc:source host")
             .addCell("source_node", "alias:snode;desc:source node name")
@@ -124,10 +126,11 @@ public class RestCatRecoveryAction extends AbstractCatAction {
 
         Table t = getTableWithHeader(request);
 
-        for (String index : response.shardRecoveryStates().keySet()) {
-
-            List<RecoveryState> shardRecoveryStates = response.shardRecoveryStates().get(index);
-            if (shardRecoveryStates.size() == 0) {
+        final Map<String, List<RecoveryState>> recoveryStatesByIndex = response.shardRecoveryStates();
+        for (var entry : recoveryStatesByIndex.entrySet()) {
+            String index = entry.getKey();
+            List<RecoveryState> shardRecoveryStates = entry.getValue();
+            if (shardRecoveryStates.isEmpty()) {
                 continue;
             }
 
@@ -145,6 +148,7 @@ public class RestCatRecoveryAction extends AbstractCatAction {
                 t.addCell(new TimeValue(state.getTimer().time()));
                 t.addCell(state.getRecoverySource().getType().toString().toLowerCase(Locale.ROOT));
                 t.addCell(state.getStage().toString().toLowerCase(Locale.ROOT));
+                t.addCell(state.getLocalRetries());
                 t.addCell(state.getRecoveryPriority().toString().toLowerCase(Locale.ROOT));
                 t.addCell(state.getSourceNode() == null ? "n/a" : state.getSourceNode().getHostName());
                 t.addCell(state.getSourceNode() == null ? "n/a" : state.getSourceNode().getName());

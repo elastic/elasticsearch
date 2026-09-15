@@ -91,7 +91,7 @@ public class SystemMetrics extends AbstractLifecycleComponent {
     // and jvm.memory.limit (per-pool, with jvm.memory.pool.name and jvm.memory.type attributes)
     private void registerJvmMemoryMetrics() {
         metrics.add(
-            registry.registerLongGauge(
+            registry.registerLongAsyncGauge(
                 "jvm.memory.heap.used",
                 "The amount of used heap memory in bytes.",
                 "By",
@@ -99,7 +99,7 @@ public class SystemMetrics extends AbstractLifecycleComponent {
             )
         );
         metrics.add(
-            registry.registerLongGauge(
+            registry.registerLongAsyncGauge(
                 "jvm.memory.heap.committed",
                 "The amount of heap memory in bytes that is committed for the JVM to use.",
                 "By",
@@ -114,7 +114,7 @@ public class SystemMetrics extends AbstractLifecycleComponent {
             () -> MEMORY_BEAN.getHeapMemoryUsage().getMax()
         );
         metrics.add(
-            registry.registerLongGauge(
+            registry.registerLongAsyncGauge(
                 "jvm.memory.non_heap.used",
                 "The amount of used non-heap memory in bytes.",
                 "By",
@@ -122,7 +122,7 @@ public class SystemMetrics extends AbstractLifecycleComponent {
             )
         );
         metrics.add(
-            registry.registerLongGauge(
+            registry.registerLongAsyncGauge(
                 "jvm.memory.non_heap.committed",
                 "The amount of non-heap memory in bytes that is committed for the JVM to use.",
                 "By",
@@ -145,7 +145,7 @@ public class SystemMetrics extends AbstractLifecycleComponent {
         if (pools.isEmpty()) {
             return;
         }
-        metrics.add(registry.registerLongsGauge(prefix + ".used", "The amount of memory in bytes used by this pool.", "By", () -> {
+        metrics.add(registry.registerLongsAsyncGauge(prefix + ".used", "The amount of memory in bytes used by this pool.", "By", () -> {
             var result = new ArrayList<LongWithAttributes>(pools.size());
             for (MemoryPoolMXBean pool : pools) {
                 result.add(
@@ -158,7 +158,7 @@ public class SystemMetrics extends AbstractLifecycleComponent {
             return result;
         }));
         metrics.add(
-            registry.registerLongsGauge(
+            registry.registerLongsAsyncGauge(
                 prefix + ".committed",
                 "The amount of memory in bytes committed for the JVM to use in this pool.",
                 "By",
@@ -177,7 +177,7 @@ public class SystemMetrics extends AbstractLifecycleComponent {
             )
         );
         metrics.add(
-            registry.registerLongsGauge(
+            registry.registerLongsAsyncGauge(
                 prefix + ".max",
                 "The maximum amount of memory in bytes that can be used by this pool.",
                 "By",
@@ -206,7 +206,7 @@ public class SystemMetrics extends AbstractLifecycleComponent {
             return;
         }
 
-        metrics.add(registry.registerLongsGauge("jvm.gc.count", "The total number of collections that have occurred.", "1", () -> {
+        metrics.add(registry.registerLongsAsyncGauge("jvm.gc.count", "The total number of collections that have occurred.", "1", () -> {
             var measurements = new ArrayList<LongWithAttributes>(beans.size());
             for (GarbageCollectorMXBean bean : beans) {
                 long count = bean.getCollectionCount();
@@ -220,22 +220,27 @@ public class SystemMetrics extends AbstractLifecycleComponent {
         }));
 
         metrics.add(
-            registry.registerLongsGauge("jvm.gc.time", "The approximate accumulated collection elapsed time in milliseconds.", "ms", () -> {
-                var measurements = new ArrayList<LongWithAttributes>(beans.size());
-                for (GarbageCollectorMXBean bean : beans) {
-                    long timeMs = bean.getCollectionTime();
-                    if (timeMs >= 0) {
-                        measurements.add(
-                            new LongWithAttributes(timeMs, Map.of("name", bean.getName(), INTERNAL_DATASET_KEY, INTERNAL_DATASET_VALUE))
-                        );
+            registry.registerLongsAsyncGauge(
+                "jvm.gc.time",
+                "The approximate accumulated collection elapsed time in milliseconds.",
+                "ms",
+                () -> {
+                    var measurements = new ArrayList<LongWithAttributes>(beans.size());
+                    for (GarbageCollectorMXBean bean : beans) {
+                        long timeMs = bean.getCollectionTime();
+                        if (timeMs >= 0) {
+                            measurements.add(
+                                new LongWithAttributes(timeMs, Map.of("name", bean.getName(), INTERNAL_DATASET_KEY, INTERNAL_DATASET_VALUE))
+                            );
+                        }
                     }
+                    return measurements;
                 }
-                return measurements;
-            })
+            )
         );
 
         metrics.add(
-            registry.registerLongGauge(
+            registry.registerLongAsyncGauge(
                 "jvm.gc.alloc",
                 "An approximation of the total amount of memory, in bytes, allocated in heap memory.",
                 "By",
@@ -248,7 +253,7 @@ public class SystemMetrics extends AbstractLifecycleComponent {
     // (with jvm.thread.daemon and jvm.thread.state attributes)
     private void registerJvmThreadMetrics() {
         metrics.add(
-            registry.registerLongGauge(
+            registry.registerLongAsyncGauge(
                 "jvm.thread.count",
                 "The current number of live threads including both daemon and non-daemon threads.",
                 "{thread}",
@@ -297,7 +302,7 @@ public class SystemMetrics extends AbstractLifecycleComponent {
             return;
         }
         metrics.add(
-            registry.registerLongGauge(
+            registry.registerLongAsyncGauge(
                 "system.memory.actual.free",
                 "Actual free memory in bytes.",
                 "By",
@@ -305,7 +310,7 @@ public class SystemMetrics extends AbstractLifecycleComponent {
             )
         );
         metrics.add(
-            registry.registerLongGauge(
+            registry.registerLongAsyncGauge(
                 "system.memory.total",
                 "Total memory.",
                 "By",
@@ -323,7 +328,7 @@ public class SystemMetrics extends AbstractLifecycleComponent {
 
     private void registerCgroupMemoryMetrics() {
         metrics.add(
-            registry.registerLongGauge(
+            registry.registerLongAsyncGauge(
                 "system.process.cgroup.memory.mem.usage.bytes",
                 "Memory usage in current cgroup slice.",
                 "By",
@@ -331,7 +336,7 @@ public class SystemMetrics extends AbstractLifecycleComponent {
             )
         );
         metrics.add(
-            registry.registerLongGauge(
+            registry.registerLongAsyncGauge(
                 "system.process.cgroup.memory.mem.limit.bytes",
                 "Memory limit for current cgroup slice.",
                 "By",
@@ -343,14 +348,14 @@ public class SystemMetrics extends AbstractLifecycleComponent {
     // TODO: system.process.cpu.total.norm.pct can be removed when dashboards are migrated to OTel SDK
     // auto-emitted jvm.cpu.recent_utilization. system.cpu.total.norm.pct has no OTel SDK equivalent and must be kept.
     private void registerSystemCpuMetrics() {
-        metrics.add(registry.registerDoublesGauge("system.cpu.total.norm.pct", "System-wide CPU usage as a ratio.", "1", () -> {
+        metrics.add(registry.registerDoublesAsyncGauge("system.cpu.total.norm.pct", "System-wide CPU usage as a ratio.", "1", () -> {
             double cpuLoad = OsProbe.getCpuLoad();
             if (cpuLoad < 0) {
                 return List.of();
             }
             return List.of(new DoubleWithAttributes(cpuLoad, INTERNAL_DATASET));
         }));
-        metrics.add(registry.registerDoublesGauge("system.process.cpu.total.norm.pct", "Process CPU usage as a ratio.", "1", () -> {
+        metrics.add(registry.registerDoublesAsyncGauge("system.process.cpu.total.norm.pct", "Process CPU usage as a ratio.", "1", () -> {
             double cpuLoad = ProcessProbe.getProcessCpuLoad();
             if (cpuLoad < 0) {
                 return List.of();
@@ -370,7 +375,9 @@ public class SystemMetrics extends AbstractLifecycleComponent {
         if (initial < 0) {
             return;
         }
-        metrics.add(registry.registerLongGauge(name, description, unit, () -> new LongWithAttributes(supplier.getAsLong(), attributes)));
+        metrics.add(
+            registry.registerLongAsyncGauge(name, description, unit, () -> new LongWithAttributes(supplier.getAsLong(), attributes))
+        );
     }
 
     private static final class AllocatedBytesMetrics {

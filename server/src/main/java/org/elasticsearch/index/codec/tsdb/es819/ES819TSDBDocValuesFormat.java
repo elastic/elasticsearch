@@ -308,7 +308,7 @@ public class ES819TSDBDocValuesFormat extends org.apache.lucene.codecs.DocValues
             SKIP_CODEC,
             SKIP_EXTENSION,
             formatConfig,
-            docOffsetsCodec.getEncoder(),
+            docOffsetsCodec,
             formatConfig.writePrefixPartitions()
                 ? field -> field.number == AbstractTSDBDocValuesProducer.primarySortFieldNumber(state.segmentInfo, state.fieldInfos)
                     ? new PrefixedPartitionsWriter()
@@ -328,7 +328,7 @@ public class ES819TSDBDocValuesFormat extends org.apache.lucene.codecs.DocValues
             SKIP_CODEC,
             SKIP_EXTENSION,
             formatConfig,
-            docOffsetsCodec.getDecoder()
+            docOffsetsCodec
         );
     }
 }

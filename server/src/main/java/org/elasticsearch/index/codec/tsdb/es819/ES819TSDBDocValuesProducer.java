@@ -32,7 +32,7 @@ final class ES819TSDBDocValuesProducer extends AbstractTSDBDocValuesProducer {
         final String skipCodec,
         final String skipExtension,
         final TSDBDocValuesFormatConfig formatConfig,
-        final DocOffsetsCodec.Decoder docOffsetsDecoder
+        final DocOffsetsCodec docOffsetsCodec
     ) throws IOException {
         super(
             state,
@@ -43,7 +43,7 @@ final class ES819TSDBDocValuesProducer extends AbstractTSDBDocValuesProducer {
             skipCodec,
             skipExtension,
             formatConfig,
-            docOffsetsDecoder,
+            docOffsetsCodec,
             new TSDBNumericBlockCodec(),
             new TSDBOrdinalBlockCodec()
         );

@@ -34,7 +34,7 @@ final class ES95TSDBDocValuesProducer extends AbstractTSDBDocValuesProducer {
         final String skipCodec,
         final String skipExtension,
         final TSDBDocValuesFormatConfig formatConfig,
-        final DocOffsetsCodec.Decoder docOffsetsDecoder,
+        final DocOffsetsCodec docOffsetsCodec,
         final NumericBlockCodec numericCodec,
         final OrdinalBlockCodec ordinalCodec
     ) throws IOException {
@@ -47,7 +47,7 @@ final class ES95TSDBDocValuesProducer extends AbstractTSDBDocValuesProducer {
             skipCodec,
             skipExtension,
             formatConfig,
-            docOffsetsDecoder,
+            docOffsetsCodec,
             numericCodec,
             ordinalCodec
         );

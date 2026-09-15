@@ -36,7 +36,7 @@ final class ES95TSDBDocValuesConsumer extends AbstractTSDBDocValuesConsumer {
         final String skipCodec,
         final String skipExtension,
         final TSDBDocValuesFormatConfig formatConfig,
-        final DocOffsetsCodec.Encoder docOffsetsEncoder,
+        final DocOffsetsCodec docOffsetsCodec,
         final SortedFieldObserverFactory sortedFieldObserverFactory,
         final NumericBlockCodec numericCodec,
         final OrdinalBlockCodec ordinalCodec
@@ -51,7 +51,7 @@ final class ES95TSDBDocValuesConsumer extends AbstractTSDBDocValuesConsumer {
             skipCodec,
             skipExtension,
             formatConfig,
-            docOffsetsEncoder,
+            docOffsetsCodec,
             sortedFieldObserverFactory,
             numericCodec,
             ordinalCodec

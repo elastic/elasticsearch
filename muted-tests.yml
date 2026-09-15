@@ -713,9 +713,6 @@ tests:
 - class: org.elasticsearch.multiproject.test.XpackWithMultipleProjectsClientYamlTestSuiteIT
   method: test {yaml=esql/40_tsdb/PromQL missing field outside the command fails under nullify}
   issue: https://github.com/elastic/elasticsearch/issues/159152
-- class: org.elasticsearch.backwards.MixedClusterClientYamlTestSuiteIT
-  method: test {p0=snapshot.restore/10_basic/Create a snapshot and then restore single index from it}
-  issue: https://github.com/elastic/elasticsearch/issues/159161
 - class: org.elasticsearch.xpack.application.CohereServiceUpgradeIT
   method: testCohereCompletions {upgradedNodes=3}
   issue: https://github.com/elastic/elasticsearch/issues/159162

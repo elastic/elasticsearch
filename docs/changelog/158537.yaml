@@ -1,5 +1,5 @@
 pr: 158537
-summary: Fix synthetic `_id` `Terms#getMax` crash during relocation id-lookup prewarm
+summary: Fix crash in synthetic `_id` lookup during shard relocation prewarm
 area: Codec
 type: bug
 issues: []

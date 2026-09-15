@@ -9,23 +9,17 @@
 
 package org.elasticsearch.columnar.string;
 
-import org.apache.lucene.search.DocIdSetIterator;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.store.IOContext;
-import org.apache.lucene.store.IndexInput;
 import org.apache.lucene.store.IndexOutput;
 import org.apache.lucene.util.IOUtils;
-import org.elasticsearch.columnar.numeric.NumericColumnMetadata;
-import org.elasticsearch.columnar.numeric.NumericColumnValues;
-import org.elasticsearch.columnar.numeric.NumericColumnWriter;
+import org.elasticsearch.columnar.numeric.LongBlocks;
 import org.elasticsearch.columnar.numeric.NumericPipeline;
 import org.elasticsearch.columnar.substrate.BlockBytesCodec;
 import org.elasticsearch.columnar.substrate.MonotonicWriter;
 
 import java.io.Closeable;
 import java.io.IOException;
-import java.util.ArrayList;
-import java.util.List;
 
 /**
  * Builds what says where each document's slots begin: a count a document, and the address every block of
@@ -37,9 +31,9 @@ import java.util.List;
  * question — a dictionary has a spare ordinal to name a null with, and only {@link StringColumnLayout#PLAIN}
  * needs {@link NullSlotWriter}.
  *
- * <p>The counts are staged to a temporary file as they arrive and written as a numeric column once the last
- * one is in, so they go through the same adaptive per-block encoding a field's values do. The bases are
- * built as the documents arrive, since a block's first address is known when its first document starts.
+ * <p>A count is known only once the next document starts, so the counts arrive one document behind and the
+ * last of them is closed by the total. Both the counts and the bases build where they belong while the
+ * column's values are still being written, and land in it when they are done.
  */
 final class AddressingWriter implements Closeable {
 
@@ -51,25 +45,20 @@ final class AddressingWriter implements Closeable {
 
     private final int numDocsWithField;
     private final long numValues;
-    /** Documents a block of counts holds, and so the granularity the bases are kept at. */
     private final int countsBlockSize;
-    private final Directory directory;
-    private final IOContext context;
 
     /** Null when the slots are in step with the documents, in which case nothing is written. */
-    private final IndexOutput countsTemp;
+    private final LongBlocks.Writer counts;
     private final MonotonicWriter bases;
-    private final List<IndexInput> replays = new ArrayList<>();
 
     /** Where the document last started, whose count is only known once the next one starts. */
     private long previousAddress = -1;
     private long written;
-    /** Set once the staged counts are closed, so closing this writer does not close them a second time. */
-    private boolean countsStaged;
 
     /**
      * @param numDocsWithField documents that have at least one slot
      * @param numValues        slots across all of them, null slots included
+     * @param countsBlockSize  documents a block of counts holds, and so the granularity of the bases
      */
     static AddressingWriter open(
         int numDocsWithField,
@@ -82,50 +71,47 @@ final class AddressingWriter implements Closeable {
         // A document holding several slots and one holding none both put the slots out of step with the
         // documents, and either way a rank stops being its own value address.
         if (numValues == numDocsWithField) {
-            return new AddressingWriter(null, null, numDocsWithField, numValues, countsBlockSize, directory, context);
+            return new AddressingWriter(null, null, numDocsWithField, numValues, countsBlockSize);
         }
-        IndexOutput countsTemp = null;
+        LongBlocks.Writer counts = null;
         try {
-            countsTemp = directory.createTempOutput(name, "columnar-counts", context);
+            // One count a document, through the chain that takes out the runs a column of like documents
+            // makes and the occasional document holding far more than the rest.
+            counts = new LongBlocks.Writer(
+                NumericPipeline.runsAndOutliersPipeline(countsBlockSize),
+                BlockBytesCodec.forId(BlockBytesCodec.IDENTITY_ID),
+                numDocsWithField,
+                directory,
+                context,
+                name,
+                "columnar-counts"
+            );
             final MonotonicWriter bases = new MonotonicWriter(
                 directory,
                 context,
                 name,
                 SlotAddressing.numBlocks(numDocsWithField, countsBlockSize)
             );
-            return new AddressingWriter(countsTemp, bases, numDocsWithField, numValues, countsBlockSize, directory, context);
+            return new AddressingWriter(counts, bases, numDocsWithField, numValues, countsBlockSize);
         } catch (Throwable t) {
-            if (countsTemp != null) {
-                IOUtils.closeWhileHandlingException(countsTemp);
-                IOUtils.deleteFilesIgnoringExceptions(directory, countsTemp.getName());
-            }
+            IOUtils.closeWhileHandlingException(counts);
             throw t;
         }
     }
 
-    private AddressingWriter(
-        IndexOutput countsTemp,
-        MonotonicWriter bases,
-        int numDocsWithField,
-        long numValues,
-        int countsBlockSize,
-        Directory directory,
-        IOContext context
-    ) {
-        this.countsTemp = countsTemp;
+    private AddressingWriter(LongBlocks.Writer counts, MonotonicWriter bases, int numDocsWithField, long numValues, int countsBlockSize) {
+        this.counts = counts;
         this.bases = bases;
         this.numDocsWithField = numDocsWithField;
         this.numValues = numValues;
         this.countsBlockSize = countsBlockSize;
-        this.directory = directory;
-        this.context = context;
     }
 
     /** Records that the document about to be written begins at {@code valueAddress}. */
     void startDocument(long valueAddress) throws IOException {
-        if (countsTemp != null) {
+        if (counts != null) {
             if (previousAddress >= 0) {
-                countsTemp.writeVLong(valueAddress - previousAddress);
+                counts.add(valueAddress - previousAddress);
             }
             if (written % countsBlockSize == 0) {
                 bases.add(valueAddress);
@@ -141,9 +127,9 @@ final class AddressingWriter implements Closeable {
      * count.
      *
      * <p>The totals are checked rather than asserted, because nothing else would catch them. A caller that
-     * reported a document count it then contradicted would leave the counts column declaring a length it
-     * never fills; one that reported the wrong slot total would close the last document on the wrong count,
-     * and every read of that document would answer wrongly in a release build with nothing to say so.
+     * reported a document count it then contradicted would leave the counts declaring a length they never
+     * fill; one that reported the wrong slot total would close the last document on the wrong count, and
+     * every read of that document would answer wrongly in a release build with nothing to say so.
      */
     SlotAddressing finish(long writtenSlots, IndexOutput data) throws IOException {
         if (written != numDocsWithField) {
@@ -152,83 +138,16 @@ final class AddressingWriter implements Closeable {
         if (writtenSlots != numValues) {
             throw new IllegalStateException("wrote " + writtenSlots + " slots, counted " + numValues);
         }
-        if (countsTemp == null) {
+        if (counts == null) {
             return SlotAddressing.NONE;
         }
-        countsTemp.writeVLong(writtenSlots - previousAddress);
-        final String staged = countsTemp.getName();
-        countsTemp.close();
-        countsStaged = true;
-
+        counts.add(writtenSlots - previousAddress);
         final MonotonicWriter.Table basesTable = bases.finish(data);
-        // One count a document, reached by the document's own rank, so the counts table no addressing.
-        final NumericColumnMetadata counts = NumericColumnWriter.write(numDocsWithField, numDocsWithField, numDocsWithField, false, () -> {
-            final IndexInput in = directory.openInput(staged, context);
-            replays.add(in);
-            return stagedCounts(in, numDocsWithField);
-        },
-            NumericPipeline.runsAndOutliersPipeline(countsBlockSize),
-            BlockBytesCodec.forId(BlockBytesCodec.IDENTITY_ID),
-            // The counts build no skip index, so nothing is ever written to one.
-            null,
-            directory,
-            context,
-            data,
-            null
-        );
-        return new SlotAddressing(counts, basesTable);
-    }
-
-    /** The staged counts, one a document over a dense run of ranks, so they can be written as a numeric column. */
-    private static NumericColumnValues stagedCounts(IndexInput staged, int numDocs) {
-        return new NumericColumnValues() {
-            private int rank = -1;
-
-            @Override
-            public int valueCount() {
-                return 1;
-            }
-
-            @Override
-            public long nextValue() throws IOException {
-                return staged.readVLong();
-            }
-
-            @Override
-            public int docID() {
-                return rank;
-            }
-
-            @Override
-            public int nextDoc() {
-                if (rank == DocIdSetIterator.NO_MORE_DOCS || rank + 1 >= numDocs) {
-                    return rank = DocIdSetIterator.NO_MORE_DOCS;
-                }
-                return ++rank;
-            }
-
-            @Override
-            public int advance(int target) {
-                throw new UnsupportedOperationException();
-            }
-
-            @Override
-            public long cost() {
-                return numDocs;
-            }
-        };
+        return new SlotAddressing(counts.finish(data), basesTable);
     }
 
     @Override
     public void close() throws IOException {
-        final String staged = countsTemp == null ? null : countsTemp.getName();
-        try {
-            IOUtils.close(replays);
-            IOUtils.close(countsStaged ? null : countsTemp, bases);
-        } finally {
-            if (staged != null) {
-                IOUtils.deleteFilesIgnoringExceptions(directory, staged);
-            }
-        }
+        IOUtils.close(counts, bases);
     }
 }

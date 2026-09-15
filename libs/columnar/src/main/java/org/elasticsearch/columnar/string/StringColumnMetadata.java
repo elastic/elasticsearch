@@ -396,9 +396,7 @@ public sealed interface StringColumnMetadata extends ColumnMetadata permits Stri
         long numNullSlots = in.readVLong();
         long valueBytes = in.readVLong();
         boolean valuesSorted = in.readByte() == SORTED;
-        SlotAddressing addressing = numValues != numDocsWithField
-            ? SlotAddressing.readFrom(in, numDocsWithField, formatVersion)
-            : SlotAddressing.NONE;
+        SlotAddressing addressing = numValues != numDocsWithField ? SlotAddressing.readFrom(in) : SlotAddressing.NONE;
         StringColumnLayout layout = StringColumnLayout.fromId(in.readByte());
         final StringColumnMetadata column = switch (layout) {
             case PLAIN -> {

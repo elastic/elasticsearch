@@ -11,8 +11,7 @@ package org.elasticsearch.columnar.string;
 
 import org.apache.lucene.store.DataInput;
 import org.apache.lucene.store.DataOutput;
-import org.elasticsearch.columnar.FormatVersion;
-import org.elasticsearch.columnar.numeric.NumericColumnMetadata;
+import org.elasticsearch.columnar.numeric.LongBlocks;
 import org.elasticsearch.columnar.substrate.MonotonicWriter;
 
 import java.io.IOException;
@@ -22,7 +21,7 @@ import java.io.IOException;
  *
  * <p>A document's first slot is every count before it added up. Counts are what is kept because they stay
  * small, bounded by what one document holds, and on a column whose documents mostly hold the same number
- * they are the same value over and over, which the stages the counts column runs take out.
+ * they are the same value over and over, which the stages the counts run take out.
  *
  * <p>A base is the address its block of counts starts at, so reaching a document costs the counts in that
  * block and nothing for the column before it.
@@ -30,7 +29,7 @@ import java.io.IOException;
  * @param counts how many slots each document holds, one value a document, in rank order
  * @param bases  the first slot address of every block of {@code counts}
  */
-public record SlotAddressing(NumericColumnMetadata counts, MonotonicWriter.Table bases) {
+public record SlotAddressing(LongBlocks.Metadata counts, MonotonicWriter.Table bases) {
 
     /** What a column whose slots are in step with its documents holds: a rank is its own value address. */
     public static final SlotAddressing NONE = new SlotAddressing(null, MonotonicWriter.Table.NONE);
@@ -48,9 +47,8 @@ public record SlotAddressing(NumericColumnMetadata counts, MonotonicWriter.Table
         out.writeBytes(bases.meta(), 0, bases.meta().length);
     }
 
-    /** Reads what {@link #writeTo} wrote, {@code numDocsWithField} being the documents the counts cover. */
-    static SlotAddressing readFrom(DataInput in, int numDocsWithField, FormatVersion formatVersion) throws IOException {
-        final NumericColumnMetadata counts = NumericColumnMetadata.readFrom(in, numDocsWithField, formatVersion);
+    static SlotAddressing readFrom(DataInput in) throws IOException {
+        final LongBlocks.Metadata counts = LongBlocks.Metadata.readFrom(in);
         final long dataOffset = in.readVLong();
         final long dataLength = in.readVLong();
         final byte[] meta = new byte[in.readVInt()];

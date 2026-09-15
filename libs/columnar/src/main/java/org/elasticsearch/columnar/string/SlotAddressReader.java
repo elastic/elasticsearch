@@ -11,7 +11,7 @@ package org.elasticsearch.columnar.string;
 
 import org.apache.lucene.store.IndexInput;
 import org.apache.lucene.util.LongValues;
-import org.elasticsearch.columnar.numeric.NumericColumnReader;
+import org.elasticsearch.columnar.numeric.LongBlocks;
 import org.elasticsearch.columnar.substrate.MonotonicReader;
 
 import java.io.IOException;
@@ -24,7 +24,7 @@ import java.io.IOException;
  */
 final class SlotAddressReader {
 
-    private final NumericColumnReader counts;
+    private final LongBlocks.Reader counts;
     private final LongValues bases;
     private final int numDocsWithField;
     private final int blockSize;
@@ -37,7 +37,7 @@ final class SlotAddressReader {
     private long cachedBlock = -1;
 
     SlotAddressReader(SlotAddressing addressing, int numDocsWithField, IndexInput data) throws IOException {
-        this.counts = new NumericColumnReader(addressing.counts(), data);
+        this.counts = new LongBlocks.Reader(addressing.counts(), data);
         this.numDocsWithField = numDocsWithField;
         this.blockSize = addressing.counts().blockSize();
         assert (blockSize & (blockSize - 1)) == 0 : "counts per block must be a power of two, got " + blockSize;

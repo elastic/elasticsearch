@@ -148,7 +148,7 @@ public final class IgnoredFieldMapper extends MetadataFieldMapper {
     }
 
     @Override
-    public boolean supportsColumnarParse(IndexSettings indexSettings) {
+    protected boolean doSupportsColumnarParse(IndexSettings indexSettings) {
         // Field mappers that support columnar parsing call BatchMappingContext#addIgnoredFieldColumnar
         // (the columnar equivalent of DocumentParserContext#addIgnoredField) when a value is dropped
         // (e.g. ignore_above on keyword). postColumnarParse drains that accumulator and writes the
@@ -164,6 +164,8 @@ public final class IgnoredFieldMapper extends MetadataFieldMapper {
         }
 
         final EscfColumnData data = acc.finish(BytesRefRecycler.NON_RECYCLING_INSTANCE);
+        // One serialization, up to two field-type wrappers, so ownership is registered once.
+        context.addResource(data);
         if (context.indexSettings().getIndexVersionCreated().onOrAfter(IndexVersions.DOC_VALUES_FOR_IGNORED_META_FIELD)) {
             context.addColumn(LuceneBinaryColumn.of(data, NAME, SortedSetDocValuesField.TYPE));
             context.addColumn(LuceneBinaryColumn.of(data, NAME, StringField.TYPE_NOT_STORED));

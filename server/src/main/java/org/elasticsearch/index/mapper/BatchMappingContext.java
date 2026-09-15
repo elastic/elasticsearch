@@ -122,7 +122,15 @@ public final class BatchMappingContext implements Releasable {
         return recycler;
     }
 
-    /** Attaches a fully-assembled {@link LuceneColumn} covering all {@code docCount} rows. */
+    /**
+     * Attaches a fully-assembled {@link LuceneColumn} covering all {@code docCount} rows.
+     *
+     * <p>Use this overload only when the column's backing data is owned by something other than this
+     * context — for example, a zero-copy alias into the source batch, or data already registered via
+     * {@link #addResource}. When the column owns freshly-allocated recycler buffers, use
+     * {@link #addColumn(LuceneColumn, EscfColumnData)} instead so the buffers are released when this
+     * context closes.
+     */
     public void addColumn(LuceneColumn column) {
         assert frozen == false;
         columns.add(column);

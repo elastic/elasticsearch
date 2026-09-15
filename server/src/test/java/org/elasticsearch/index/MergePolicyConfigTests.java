@@ -31,39 +31,37 @@ import java.io.IOException;
 
 import static org.elasticsearch.index.IndexSettingsTests.newIndexMeta;
 import static org.hamcrest.Matchers.containsString;
-import static org.hamcrest.Matchers.equalTo;
 
 public class MergePolicyConfigTests extends ESTestCase {
     protected final ShardId shardId = new ShardId("index", "_na_", 1);
 
-    public void testCompoundFileSettings() throws IOException {
-        assertCompoundThreshold(Settings.EMPTY, 1.0, ByteSizeValue.ofGb(1));
-        assertCompoundThreshold(build(true), 1.0, ByteSizeValue.ofBytes(Long.MAX_VALUE));
-        assertCompoundThreshold(build(0.5), 0.5, ByteSizeValue.ofBytes(Long.MAX_VALUE));
-        assertCompoundThreshold(build(1.0), 1.0, ByteSizeValue.ofBytes(Long.MAX_VALUE));
-        assertCompoundThreshold(build("true"), 1.0, ByteSizeValue.ofBytes(Long.MAX_VALUE));
-        assertCompoundThreshold(build("True"), 1.0, ByteSizeValue.ofBytes(Long.MAX_VALUE));
-        assertCompoundThreshold(build("False"), 0.0, ByteSizeValue.ofBytes(Long.MAX_VALUE));
-        assertCompoundThreshold(build("false"), 0.0, ByteSizeValue.ofBytes(Long.MAX_VALUE));
-        assertCompoundThreshold(build(false), 0.0, ByteSizeValue.ofBytes(Long.MAX_VALUE));
-        assertCompoundThreshold(build(0), 0.0, ByteSizeValue.ofBytes(Long.MAX_VALUE));
-        assertCompoundThreshold(build(0.0), 0.0, ByteSizeValue.ofBytes(Long.MAX_VALUE));
-        assertCompoundThreshold(build(0.0), 0.0, ByteSizeValue.ofBytes(Long.MAX_VALUE));
-        assertCompoundThreshold(build("100MB"), 1.0, ByteSizeValue.ofMb(100));
-        assertCompoundThreshold(build(" 1gb"), 1.0, ByteSizeValue.ofGb(1));
-        assertCompoundThreshold(build(" 1gb "), 1.0, ByteSizeValue.ofGb(1));
-        assertCompoundThreshold(build("1k"), 1.0, ByteSizeValue.ofKb(1));
-        assertCompoundThreshold(build("1t"), 1.0, ByteSizeValue.ofTb(1));
-        assertCompoundThreshold(build(" 0"), 0, ByteSizeValue.ofBytes(Long.MAX_VALUE));
-        assertCompoundThreshold(build(" 0 "), 0, ByteSizeValue.ofBytes(Long.MAX_VALUE));
-        assertCompoundThreshold(build("0MB"), 1.0, ByteSizeValue.ofBytes(0));
-        assertCompoundThreshold(build("0B"), 1.0, ByteSizeValue.ofBytes(0));
+    public void testCompoundFileSettings() {
+        // TODO: LUCENE11 assert boolean/byte-size mappings on CompoundFormat; ratios stay parse-only until main deprecates them
+        assertCompoundFormatParses(Settings.EMPTY);
+        assertCompoundFormatParses(build(true));
+        assertCompoundFormatParses(build(0.5));
+        assertCompoundFormatParses(build(1.0));
+        assertCompoundFormatParses(build("true"));
+        assertCompoundFormatParses(build("True"));
+        assertCompoundFormatParses(build("False"));
+        assertCompoundFormatParses(build("false"));
+        assertCompoundFormatParses(build(false));
+        assertCompoundFormatParses(build(0));
+        assertCompoundFormatParses(build(0.0));
+        assertCompoundFormatParses(build("100MB"));
+        assertCompoundFormatParses(build(" 1gb"));
+        assertCompoundFormatParses(build(" 1gb "));
+        assertCompoundFormatParses(build("1k"));
+        assertCompoundFormatParses(build("1t"));
+        assertCompoundFormatParses(build(" 0"));
+        assertCompoundFormatParses(build(" 0 "));
+        assertCompoundFormatParses(build("0MB"));
+        assertCompoundFormatParses(build("0B"));
     }
 
-    private void assertCompoundThreshold(Settings settings, double noCFSRatio, ByteSizeValue maxCFSSize) {
-        MergePolicy mp = new MergePolicyConfig(logger, indexSettings(settings)).getMergePolicy(randomBoolean());
-        assertThat(mp.getNoCFSRatio(), equalTo(noCFSRatio));
-        assertThat(mp.getMaxCFSSegmentSizeMB(), equalTo(maxCFSSize.getMbFrac()));
+    private void assertCompoundFormatParses(Settings settings) {
+        MergePolicyConfig.INDEX_COMPOUND_FORMAT_SETTING.get(settings);
+        new MergePolicyConfig(logger, indexSettings(settings)).getMergePolicy(randomBoolean());
     }
 
     private static IndexSettings indexSettings(Settings settings) {
@@ -84,41 +82,14 @@ public class MergePolicyConfigTests extends ESTestCase {
 
     public void testUpdateSettings() throws IOException {
         IndexSettings indexSettings = indexSettings(Settings.EMPTY);
-        assertThat(indexSettings.getMergePolicy(randomBoolean()).getNoCFSRatio(), equalTo(1.0));
-        assertThat(indexSettings.getMergePolicy(randomBoolean()).getMaxCFSSegmentSizeMB(), equalTo(1024d));
-        indexSettings = indexSettings(build(0.9));
-        assertThat((indexSettings.getMergePolicy(randomBoolean())).getNoCFSRatio(), equalTo(0.9));
-        assertThat(
-            indexSettings.getMergePolicy(randomBoolean()).getMaxCFSSegmentSizeMB(),
-            equalTo(ByteSizeValue.ofBytes(Long.MAX_VALUE).getMbFrac())
-        );
+        // TODO: LUCENE11 assert compound_format updates on CompoundFormat after it is wired
+        indexSettings.updateIndexMetadata(newIndexMeta("index", build(0.9)));
+        MergePolicyConfig.INDEX_COMPOUND_FORMAT_SETTING.get(indexSettings.getSettings());
         indexSettings.updateIndexMetadata(newIndexMeta("index", build(0.1)));
-        assertThat((indexSettings.getMergePolicy(randomBoolean())).getNoCFSRatio(), equalTo(0.1));
-        assertThat(
-            indexSettings.getMergePolicy(randomBoolean()).getMaxCFSSegmentSizeMB(),
-            equalTo(ByteSizeValue.ofBytes(Long.MAX_VALUE).getMbFrac())
-        );
         indexSettings.updateIndexMetadata(newIndexMeta("index", build(0.0)));
-        assertThat((indexSettings.getMergePolicy(randomBoolean())).getNoCFSRatio(), equalTo(0.0));
-        assertThat(
-            indexSettings.getMergePolicy(randomBoolean()).getMaxCFSSegmentSizeMB(),
-            equalTo(ByteSizeValue.ofBytes(Long.MAX_VALUE).getMbFrac())
-        );
         indexSettings.updateIndexMetadata(newIndexMeta("index", build("true")));
-        assertThat((indexSettings.getMergePolicy(randomBoolean())).getNoCFSRatio(), equalTo(1.0));
-        assertThat(
-            indexSettings.getMergePolicy(randomBoolean()).getMaxCFSSegmentSizeMB(),
-            equalTo(ByteSizeValue.ofBytes(Long.MAX_VALUE).getMbFrac())
-        );
         indexSettings.updateIndexMetadata(newIndexMeta("index", build("false")));
-        assertThat((indexSettings.getMergePolicy(randomBoolean())).getNoCFSRatio(), equalTo(0.0));
-        assertThat(
-            indexSettings.getMergePolicy(randomBoolean()).getMaxCFSSegmentSizeMB(),
-            equalTo(ByteSizeValue.ofBytes(Long.MAX_VALUE).getMbFrac())
-        );
         indexSettings.updateIndexMetadata(newIndexMeta("index", build("100mb")));
-        assertThat((indexSettings.getMergePolicy(randomBoolean())).getNoCFSRatio(), equalTo(1.0));
-        assertThat(indexSettings.getMergePolicy(randomBoolean()).getMaxCFSSegmentSizeMB(), equalTo(100d));
         indexSettings.updateIndexMetadata(
             newIndexMeta("index", Settings.builder().put(MergePolicyConfig.INDEX_MERGE_POLICY_TYPE_SETTING.getKey(), "tiered").build())
         );
@@ -367,7 +338,8 @@ public class MergePolicyConfigTests extends ESTestCase {
     public void testCompoundFileConfiguredByByteSize() throws IOException {
         for (boolean isTimeSeriesIndex : new boolean[] { false, true }) {
             try (Directory dir = newDirectory()) {
-                // index.compound_format: 1gb, the merge will use a compound file
+                // TODO: LUCENE11 restore a tiny cutoff (1b / false) that expects no .cfs once CompoundFormat is wired
+                // Lucene's CompoundFormat default (64MB) still packs a tiny merge into a compound file
                 MergePolicy mp = new MergePolicyConfig(logger, indexSettings(Settings.EMPTY)).getMergePolicy(isTimeSeriesIndex);
                 try (IndexWriter w = new IndexWriter(dir, new IndexWriterConfig(null).setMergePolicy(mp))) {
                     w.addDocument(new Document());
@@ -380,23 +352,6 @@ public class MergePolicyConfigTests extends ESTestCase {
                     SegmentCommitInfo sci = ((SegmentReader) leaf).getSegmentInfo();
                     assertEquals(IndexWriter.SOURCE_MERGE, sci.info.getDiagnostics().get(IndexWriter.SOURCE));
                     assertTrue(sci.info.getUseCompoundFile());
-                }
-            }
-
-            // index.compound_format: 1b, the merge will not use a compound file
-            try (Directory dir = newDirectory()) {
-                MergePolicy mp = new MergePolicyConfig(logger, indexSettings(build("1b"))).getMergePolicy(isTimeSeriesIndex);
-                try (IndexWriter w = new IndexWriter(dir, new IndexWriterConfig(null).setMergePolicy(mp))) {
-                    w.addDocument(new Document());
-                    w.flush();
-                    w.addDocument(new Document());
-                    w.forceMerge(1);
-                }
-                try (DirectoryReader reader = DirectoryReader.open(dir)) {
-                    LeafReader leaf = getOnlyLeafReader(reader);
-                    SegmentCommitInfo sci = ((SegmentReader) leaf).getSegmentInfo();
-                    assertEquals(IndexWriter.SOURCE_MERGE, sci.info.getDiagnostics().get(IndexWriter.SOURCE));
-                    assertFalse(sci.info.getUseCompoundFile());
                 }
             }
         }

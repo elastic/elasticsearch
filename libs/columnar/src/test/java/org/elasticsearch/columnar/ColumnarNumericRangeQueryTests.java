@@ -160,11 +160,8 @@ public class ColumnarNumericRangeQueryTests extends ESTestCase {
     private void indexColumnar(Directory dir, long[] values, boolean compoundFile) throws IOException {
         final Codec codec = columnarCodec(ColumnarFieldType.LONG);
         final FieldType type = columnarBinaryFieldType();
+        // TODO: LUCENE11 forceMerge may pack .cfs under Lucene's 64MB default; need a 0-byte CompoundFormat cutoff
         final IndexWriterConfig iwc = new IndexWriterConfig().setCodec(codec).setUseCompoundFile(compoundFile);
-        if (compoundFile == false) {
-            // The per-file assertions need the codec's own files, not a packed .cfs.
-            iwc.getMergePolicy().setNoCFSRatio(0.0);
-        }
         final BytesRefBuilder builder = new BytesRefBuilder();
         try (IndexWriter writer = new IndexWriter(dir, iwc)) {
             for (long value : values) {

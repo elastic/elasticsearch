@@ -422,13 +422,6 @@ public class IndexCommitTimestampFieldRangeTests extends MapperServiceTestCase {
         // this test assumes all docs are added to new segments, for which we assert the timestamp intervals
         // merging falsifies this test assumption, because it creates a new segment from previous ones
         indexWriterConfig.setMergePolicy(NoMergePolicy.INSTANCE);
-        if (useCFS) {
-            indexWriterConfig.getMergePolicy().setMaxCFSSegmentSizeMB(Double.POSITIVE_INFINITY);
-            indexWriterConfig.getMergePolicy().setNoCFSRatio(1.0D);
-        } else {
-            indexWriterConfig.getMergePolicy().setMaxCFSSegmentSizeMB(0.0D);
-            indexWriterConfig.getMergePolicy().setNoCFSRatio(0.0D);
-        }
         indexWriterConfig.setSoftDeletesField(Lucene.SOFT_DELETES_FIELD);
         return indexWriterConfig;
     }

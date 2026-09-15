@@ -22,7 +22,10 @@ import java.io.File;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.util.Set;
+import java.util.TimeZone;
 
+import static org.junit.Assert.assertArrayEquals;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertNotNull;
@@ -46,7 +49,7 @@ public class BuildNativeLibraryTaskTests {
     @Test
     public void testGradleGeneratesManagedProperties() {
         assertNotNull(task.getSourceFiles());
-        assertNotNull(task.getNativeDir());
+        assertNotNull(task.getWorkingDir());
         assertNotNull(task.getMode());
         assertNotNull(task.getToolchainImage());
         assertNotNull(task.getOutputDir());
@@ -69,7 +72,7 @@ public class BuildNativeLibraryTaskTests {
     @Test
     public void testInvalidModeThrows() {
         task.getMode().set("invalid");
-        task.getNativeDir().set(temporaryFolder.getRoot());
+        task.getWorkingDir().set(temporaryFolder.getRoot());
         task.getOutputDir().set(new File(temporaryFolder.getRoot(), "output"));
 
         GradleException ex = assertThrows(GradleException.class, task::build);
@@ -122,34 +125,78 @@ public class BuildNativeLibraryTaskTests {
         assertTrue(ex.getMessage().contains("Expected build output not found"));
     }
 
+    /**
+     * An unconfigured platform set must not silently verify nothing: with no expected platforms a
+     * build that produced no library at all would be accepted, and the missing file would surface far
+     * later as a link error.
+     */
+    @Test
+    public void testVerifyOutputRequiresAtLeastOneExpectedPlatform() throws IOException {
+        File outputDir = temporaryFolder.newFolder("output");
+
+        GradleException ex = assertThrows(GradleException.class, () -> BuildNativeLibraryTask.verifyOutput(outputDir, Set.of()));
+        assertTrue(ex.getMessage().contains("supportedPlatforms"));
+    }
+
     @Test
     public void testVerifyOutputThrowsWhenNothingProduced() throws IOException {
         File outputDir = temporaryFolder.newFolder("output");
 
-        GradleException ex = assertThrows(GradleException.class, () -> BuildNativeLibraryTask.verifyOutput(outputDir));
-        assertTrue(ex.getMessage().contains(BuildNativeLibraryTask.hostPlatform()));
+        GradleException ex = assertThrows(
+            GradleException.class,
+            () -> BuildNativeLibraryTask.verifyOutput(outputDir, Set.of("darwin-aarch64", "linux-x64"))
+        );
+        assertTrue(ex.getMessage().contains("darwin-aarch64"));
+        assertTrue(ex.getMessage().contains("linux-x64"));
         assertTrue(ex.getMessage().contains("<empty>"));
     }
 
     @Test
-    public void testVerifyOutputThrowsWhenOnlyOtherPlatformsProduced() throws IOException {
+    public void testVerifyOutputNamesOnlyTheMissingPlatforms() throws IOException {
         File outputDir = temporaryFolder.newFolder("output");
-        Path wrongPlace = outputDir.toPath().resolve("some-other-platform/libfoo.so");
-        Files.createDirectories(wrongPlace.getParent());
-        Files.writeString(wrongPlace, "binary");
-
-        GradleException ex = assertThrows(GradleException.class, () -> BuildNativeLibraryTask.verifyOutput(outputDir));
-        assertTrue(ex.getMessage().contains("some-other-platform/libfoo.so"));
-    }
-
-    @Test
-    public void testVerifyOutputPassesWhenHostPlatformPopulated() throws IOException {
-        File outputDir = temporaryFolder.newFolder("output");
-        Path produced = outputDir.toPath().resolve(BuildNativeLibraryTask.hostPlatform()).resolve("libfoo.so");
+        Path produced = outputDir.toPath().resolve("linux-x64/libfoo.so");
         Files.createDirectories(produced.getParent());
         Files.writeString(produced, "binary");
 
-        BuildNativeLibraryTask.verifyOutput(outputDir);
+        GradleException ex = assertThrows(
+            GradleException.class,
+            () -> BuildNativeLibraryTask.verifyOutput(outputDir, Set.of("darwin-aarch64", "linux-x64"))
+        );
+        assertTrue(ex.getMessage().contains("darwin-aarch64"));
+        assertFalse("the platform that was produced should not be reported missing", ex.getMessage().contains("[linux-x64"));
+    }
+
+    @Test
+    public void testVerifyOutputPassesWhenEveryExpectedPlatformPopulated() throws IOException {
+        File outputDir = temporaryFolder.newFolder("output");
+        for (String platform : Set.of("darwin-aarch64", "linux-aarch64", "linux-x64")) {
+            Path produced = outputDir.toPath().resolve(platform).resolve("libfoo.so");
+            Files.createDirectories(produced.getParent());
+            Files.writeString(produced, "binary");
+        }
+
+        BuildNativeLibraryTask.verifyOutput(outputDir, Set.of("darwin-aarch64", "linux-aarch64", "linux-x64"));
+    }
+
+    /**
+     * The reason verification takes its expected platforms as an argument: a container build
+     * cross-compiles every platform, so it must verify identically wherever it runs, including on a
+     * host the library is never built for, such as Windows or an Intel Mac. Deliberately expects a set
+     * that excludes this machine's own platform.
+     */
+    @Test
+    public void testVerifyOutputDoesNotDependOnTheHostPlatform() throws IOException {
+        File outputDir = temporaryFolder.newFolder("output");
+        Set<String> expected = Set.of("some-other-os-x64", "another-os-aarch64");
+        assertFalse("fixture must not accidentally match the host", expected.contains(BuildNativeLibraryTask.hostPlatform()));
+
+        for (String platform : expected) {
+            Path produced = outputDir.toPath().resolve(platform).resolve("libfoo.so");
+            Files.createDirectories(produced.getParent());
+            Files.writeString(produced, "binary");
+        }
+
+        BuildNativeLibraryTask.verifyOutput(outputDir, expected);
     }
 
     @Test
@@ -170,5 +217,56 @@ public class BuildNativeLibraryTaskTests {
         Files.writeString(source, "updated-binary");
         BuildNativeLibraryTask.copyBuildOutput(source, dest);
         assertEquals("updated-binary", Files.readString(dest));
+    }
+
+    /**
+     * A cached all-platforms entry is trusted to mean the artifact for that hash is published, so the
+     * one kind of build that uploads nothing has to be recognised and kept out of the cache.
+     */
+    @Test
+    public void testOnlyADockerBuildWithoutACredentialUploadsNothing() {
+        assertTrue(taskFor(BuildNativeLibraryTask.DOCKER_MODE, null).buildsWithoutPublishing());
+        assertFalse(taskFor(BuildNativeLibraryTask.DOCKER_MODE, "a-credential").buildsWithoutPublishing());
+        // Takes the published artifact rather than building, so there is nothing it could fail to upload.
+        assertFalse(taskFor(BuildNativeLibraryTask.PUBLISHED_MODE, null).buildsWithoutPublishing());
+        // Never publishable, and excluded from the cache for depending on the local compiler instead.
+        assertFalse(taskFor(BuildNativeLibraryTask.HOST_MODE, null).buildsWithoutPublishing());
+    }
+
+    private BuildNativeLibraryTask taskFor(String mode, String credential) {
+        var created = project.getTasks().create("build-" + mode + "-" + (credential == null ? "anonymous" : "keyed"), BuildNativeLibraryTask.class);
+        created.getMode().set(mode);
+        if (credential != null) {
+            created.getPublishApiKey().set(credential);
+        }
+        return created;
+    }
+
+    /**
+     * Publishing compares artifacts by content, so packing the same content twice has to give the same
+     * bytes, whenever and on whichever machine it runs.
+     */
+    @Test
+    public void testTheSameContentAlwaysPacksToTheSameBytes() throws Exception {
+        File outputDir = temporaryFolder.newFolder("native-libs");
+        Path platform = outputDir.toPath().resolve("linux-x64");
+        Files.createDirectories(platform);
+        Files.writeString(platform.resolve("libtest.so"), "binary-content");
+
+        TimeZone original = TimeZone.getDefault();
+        try {
+            TimeZone.setDefault(TimeZone.getTimeZone("UTC"));
+            byte[] first = BuildNativeLibraryTask.pack(outputDir, temporaryFolder.getRoot().toPath().resolve("first.zip"));
+
+            // A zip records times to the nearest two seconds, so a clock reading only shows up as a
+            // difference once more than that has passed.
+            Thread.sleep(2_100);
+            TimeZone.setDefault(TimeZone.getTimeZone("Asia/Tokyo"));
+            byte[] second = BuildNativeLibraryTask.pack(outputDir, temporaryFolder.getRoot().toPath().resolve("second.zip"));
+
+            assertArrayEquals(first, second);
+        } finally {
+            TimeZone.setDefault(original);
+        }
     }
 }

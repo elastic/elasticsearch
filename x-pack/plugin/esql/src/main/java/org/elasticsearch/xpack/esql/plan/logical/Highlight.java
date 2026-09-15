@@ -352,29 +352,41 @@ public class Highlight extends UnaryPlan
     @Override
     public void postAnalysisVerification(AnalysisRegistry analysisRegistry, Failures failures) {
         postAnalysisVerification(failures);
-        Analyzer analyzer;
+
+        String commandAnalyzerName;
         try {
-            analyzer = resolveAnalyzer(analysisRegistry);
-        } catch (InvalidArgumentException e) {
-            // The analyzer name is a valid string but doesn't resolve.
-            failures.add(fail(this, "{}", e.getMessage()));
-            return;
+            commandAnalyzerName = commandAnalyzerName();
         } catch (IllegalArgumentException e) {
             // The analyzer value isn't a string. Type errors have already been reported by verifyValue, but still
             // validate the query with the default analyzer so query errors are surfaced too.
             verifyQuery(defaultAnalyzer(analysisRegistry), failures);
             return;
         }
+        if (query != null && query.resolved()) {
+            try {
+                HighlightSupport.requireUniformAnalyzer(query, commandAnalyzerName);
+            } catch (IllegalArgumentException e) {
+                failures.add(fail(this, "{}", e.getMessage()));
+                return;
+            }
+        }
+        Analyzer analyzer;
+        try {
+            analyzer = commandAnalyzerName == null
+                ? defaultAnalyzer(analysisRegistry)
+                : PlannerUtils.resolveAnalyzer(commandAnalyzerName, analysisRegistry);
+        } catch (InvalidArgumentException e) {
+            // The analyzer name is a valid string but doesn't resolve.
+            failures.add(fail(this, "{}", e.getMessage()));
+            return;
+        }
         verifyQuery(analyzer, failures);
     }
 
-    private Analyzer resolveAnalyzer(AnalysisRegistry analysisRegistry) {
+    /** Value of the {@code analyzer} option, or {@code null} when unset. Throws when set but not a string. */
+    private String commandAnalyzerName() {
         Expression value = options == null ? null : foldableOption(ANALYZER);
-        if (value == null) {
-            return defaultAnalyzer(analysisRegistry);
-        }
-        String name = HighlightOptions.analyzerName(ANALYZER, value, FoldContext.small());
-        return PlannerUtils.resolveAnalyzer(name, analysisRegistry);
+        return value == null ? null : HighlightOptions.analyzerName(ANALYZER, value, FoldContext.small());
     }
 
     private static Analyzer defaultAnalyzer(AnalysisRegistry analysisRegistry) {

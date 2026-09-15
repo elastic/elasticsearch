@@ -387,9 +387,6 @@ tests:
 - class: org.elasticsearch.gradle.internal.precommit.ForbiddenApisPrecommitPluginFuncTest
   method: selects launcher when minimum runtime differs from current jvm
   issue: https://github.com/elastic/elasticsearch/issues/154984
-- class: org.elasticsearch.upgrades.MlJobSnapshotUpgradeIT
-  method: testSnapshotUpgrader
-  issue: https://github.com/elastic/elasticsearch/issues/154988
 - class: org.elasticsearch.xpack.transform.integration.TransformDestIndexIT
   method: testUnattendedTransformDestIndexCreatedDuringUpdate_EmptySourceIndex_NoDeferValidation
   issue: https://github.com/elastic/elasticsearch/issues/152599

@@ -37,6 +37,7 @@ import org.elasticsearch.compute.operator.Operator;
 import org.elasticsearch.compute.operator.PageConsumerOperator;
 import org.elasticsearch.compute.operator.SinkOperator;
 import org.elasticsearch.compute.operator.SourceOperator;
+import org.elasticsearch.compute.querydsl.query.QueryWarnings;
 import org.elasticsearch.compute.test.OperatorTestCase;
 import org.elasticsearch.compute.test.SourceOperatorTestCase;
 import org.elasticsearch.compute.test.TestDriverFactory;
@@ -256,7 +257,8 @@ public class LuceneSourceOperatorTests extends SourceOperatorTestCase {
             limit,
             scoring,
             () -> 0L,
-            LuceneSliceQueue.MIN_DOCS_PER_SLICE
+            LuceneSliceQueue.MIN_DOCS_PER_SLICE,
+            QueryWarnings.EMIT
         );
     }
 
@@ -464,7 +466,8 @@ public class LuceneSourceOperatorTests extends SourceOperatorTestCase {
                 LuceneOperator.NO_LIMIT,
                 scoring,
                 () -> 0L,
-                LuceneSliceQueue.MIN_DOCS_PER_SLICE
+                LuceneSliceQueue.MIN_DOCS_PER_SLICE,
+                QueryWarnings.EMIT
             );
             DriverContext ctx = driverContext();
             LuceneSourceOperator sourceOperator = (LuceneSourceOperator) factory.get(ctx);

@@ -37,6 +37,7 @@ import org.elasticsearch.compute.operator.DriverContext;
 import org.elasticsearch.compute.operator.Operator;
 import org.elasticsearch.compute.operator.SourceOperator;
 import org.elasticsearch.compute.operator.TimeSeriesAggregationOperator;
+import org.elasticsearch.compute.querydsl.query.QueryWarnings;
 import org.elasticsearch.core.AbstractRefCounted;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.RefCounted;
@@ -203,17 +204,21 @@ public class EsPhysicalOperationProviders extends AbstractPhysicalOperationProvi
 
     private final LongSupplier directoryBytesRead;
 
+    private final QueryWarnings singleValueQueryWarnings;
+
     public EsPhysicalOperationProviders(
         FoldContext foldContext,
         IndexedByShardId<? extends ShardContext> shardContexts,
         AnalysisRegistry analysisRegistry,
         PlannerSettings plannerSettings,
-        LongSupplier directoryBytesRead
+        LongSupplier directoryBytesRead,
+        QueryWarnings singleValueQueryWarnings
     ) {
         super(foldContext, analysisRegistry);
         this.shardContexts = shardContexts;
         this.plannerSettings = plannerSettings;
         this.directoryBytesRead = directoryBytesRead;
+        this.singleValueQueryWarnings = singleValueQueryWarnings;
     }
 
     @Override
@@ -260,7 +265,7 @@ public class EsPhysicalOperationProviders extends AbstractPhysicalOperationProvi
     }
 
     private ValuesSourceReaderOperator.LoaderAndConverter blockLoaderAndConverter(
-        DriverContext.WarningsMode warningsMode,
+        DriverContext driverContext,
         int shardId,
         Attribute attr,
         MappedFieldType.FieldExtractPreference fieldExtractPreference
@@ -273,7 +278,7 @@ public class EsPhysicalOperationProviders extends AbstractPhysicalOperationProvi
         // Apply any block loader function if present
 
         BlockLoaderFunctionConfig functionConfig = null;
-        BlockLoaderWarnings warnings = new BlockLoaderWarnings(warningsMode, attr.source());
+        BlockLoaderWarnings warnings = new BlockLoaderWarnings(driverContext, attr.source());
         String fieldName = getFieldName(attr);
         if (attr instanceof TimeSeriesMetadataAttribute timeSeriesMetadataAttribute) {
             functionConfig = new BlockLoaderFunctionConfig.TimeSeriesMetadata(false, timeSeriesMetadataAttribute.excludedFields());
@@ -542,7 +547,8 @@ public class EsPhysicalOperationProviders extends AbstractPhysicalOperationProvi
                 sortBuilders,
                 estimatedPerRowSortSize,
                 scoring,
-                directoryBytesRead
+                directoryBytesRead,
+                singleValueQueryWarnings
             );
         } else if (esQueryExec.indexMode().isTsdb()) {
             luceneFactory = new TimeSeriesSourceOperator.Factory(
@@ -553,7 +559,8 @@ public class EsPhysicalOperationProviders extends AbstractPhysicalOperationProvi
                 taskConcurrency,
                 context.pageSize(esQueryExec, rowEstimatedSize),
                 limit,
-                directoryBytesRead
+                directoryBytesRead,
+                singleValueQueryWarnings
             );
         } else {
             luceneFactory = new LuceneSourceOperator.Factory(
@@ -567,7 +574,8 @@ public class EsPhysicalOperationProviders extends AbstractPhysicalOperationProvi
                 limit,
                 scoring,
                 directoryBytesRead,
-                context.queryPragmas().minDocsPerSlice(LuceneSliceQueue.MIN_DOCS_PER_SLICE)
+                context.queryPragmas().minDocsPerSlice(LuceneSliceQueue.MIN_DOCS_PER_SLICE),
+                singleValueQueryWarnings
             );
         }
         Layout.Builder layout = new Layout.Builder();
@@ -600,8 +608,8 @@ public class EsPhysicalOperationProviders extends AbstractPhysicalOperationProvi
             DataType dataType = attr.dataType();
             var fieldExtractPreference = fieldExtractExec.fieldExtractPreference(attr);
             ElementType elementType = PlannerUtils.toElementType(dataType, fieldExtractPreference);
-            ValuesSourceReaderOperator.BuildLoader buildLoader = (warningsMode, s) -> blockLoaderAndConverter(
-                warningsMode,
+            ValuesSourceReaderOperator.BuildLoader buildLoader = (driverContext, s) -> blockLoaderAndConverter(
+                driverContext,
                 s,
                 attr,
                 fieldExtractPreference
@@ -656,7 +664,8 @@ public class EsPhysicalOperationProviders extends AbstractPhysicalOperationProvi
             tagTypes,
             limit == null ? NO_LIMIT : (Integer) limit.fold(context.foldCtx()),
             directoryBytesRead,
-            context.queryPragmas().minDocsPerSlice(LuceneSliceQueue.MIN_DOCS_PER_SLICE)
+            context.queryPragmas().minDocsPerSlice(LuceneSliceQueue.MIN_DOCS_PER_SLICE),
+            singleValueQueryWarnings
         );
     }
 
@@ -819,6 +828,9 @@ public class EsPhysicalOperationProviders extends AbstractPhysicalOperationProvi
                 )
             );
             if (loader == null) {
+                // Compute-time warning: queued for the later warnings-sink fix. Not routed through the in-scope
+                // blockloader `warnings` object because its only method, registerException(Class, String), would
+                // reframe this plain message as a located exception-style warning, changing the emitted content.
                 HeaderWarning.addWarning("Field [{}] cannot be retrieved, it is unsupported or not indexed; returning null", name);
                 return ConstantNull.INSTANCE;
             }

@@ -66,7 +66,7 @@ public final class IncreaseExponentialHistogramGroupingAggregatorFunction extend
             DriverContext driverContext,
             List<Integer> channels
         ) {
-            var warnings = Warnings.createWarnings(driverContext.warningsMode(), source);
+            var warnings = driverContext.createWarnings(source);
             return new IncreaseExponentialHistogramGroupingAggregatorFunction(channels, driverContext, warnings);
         }
 

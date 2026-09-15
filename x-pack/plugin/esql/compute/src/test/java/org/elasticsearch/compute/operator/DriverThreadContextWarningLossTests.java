@@ -37,10 +37,6 @@ import static org.hamcrest.Matchers.stringContainsInOrder;
 /**
  * Regression test guarding against ESQL response warnings going missing when a {@link Driver}
  * hops between worker threads mid-execution.
- * <p>
- *     For {@link Warnings#registerWarning} to work, we need to carefully hand off the thread
- *     context every time the {@link Driver} shifts from one thread to another.
- * </p>
  */
 public class DriverThreadContextWarningLossTests extends ESTestCase {
 
@@ -98,15 +94,8 @@ public class DriverThreadContextWarningLossTests extends ESTestCase {
             };
 
             CountDownLatch completed = new CountDownLatch(1);
-            AtomicReference<List<String>> warningsSeenOnCompletion = new AtomicReference<>();
             AtomicReference<Exception> failure = new AtomicReference<>();
-            runner.runToCompletion(List.of(driver), ActionListener.wrap(ignored -> {
-                // Read the response headers on whatever thread the driver actually completed on -
-                // exactly what production code does immediately after runToCompletion's listener
-                // fires, before anything might hop to yet another thread.
-                warningsSeenOnCompletion.set(threadContext.getResponseHeaders().getOrDefault("Warning", List.of()));
-                completed.countDown();
-            }, e -> {
+            runner.runToCompletion(List.of(driver), ActionListener.wrap(ignored -> completed.countDown(), e -> {
                 failure.set(e);
                 completed.countDown();
             }));
@@ -114,9 +103,11 @@ public class DriverThreadContextWarningLossTests extends ESTestCase {
             assertTrue("driver did not complete in time", completed.await(30, TimeUnit.SECONDS));
             assertNull(failure.get());
             assertTrue("warning was never registered", warned.get());
+            // The warning was registered on the hopped-away thread but lives in the per-driver sink, which is
+            // snapshotted at DriverContext#finish() regardless of which thread completed the driver.
             assertThat(
-                "warning registered on the hopped-away thread should still be visible when the driver completes",
-                warningsSeenOnCompletion.get(),
+                "warning registered on the hopped-away thread should survive to the driver's snapshotted sink",
+                driverContext.warnings(),
                 hasItem(stringContainsInOrder(WARNING_MESSAGE))
             );
         } finally {
@@ -177,12 +168,8 @@ public class DriverThreadContextWarningLossTests extends ESTestCase {
             };
 
             CountDownLatch completed = new CountDownLatch(1);
-            AtomicReference<List<String>> warningsSeenOnCompletion = new AtomicReference<>();
             AtomicReference<Exception> failure = new AtomicReference<>();
-            runner.runToCompletion(List.of(driver), ActionListener.wrap(ignored -> {
-                warningsSeenOnCompletion.set(threadContext.getResponseHeaders().getOrDefault("Warning", List.of()));
-                completed.countDown();
-            }, e -> {
+            runner.runToCompletion(List.of(driver), ActionListener.wrap(ignored -> completed.countDown(), e -> {
                 failure.set(e);
                 completed.countDown();
             }));
@@ -191,14 +178,15 @@ public class DriverThreadContextWarningLossTests extends ESTestCase {
             assertNull(failure.get());
             assertTrue("first warning was never registered", warnedFirst.get());
             assertTrue("second warning was never registered", warnedSecond.get());
+            List<String> collected = driverContext.warnings();
             assertThat(
-                "warning registered on the first hopped-away thread should still be visible when the driver completes",
-                warningsSeenOnCompletion.get(),
+                "warning registered on the first hopped-away thread should survive to the driver's snapshotted sink",
+                collected,
                 hasItem(stringContainsInOrder(WARNING_MESSAGE))
             );
             assertThat(
-                "warning registered on the second hopped-away thread should still be visible when the driver completes",
-                warningsSeenOnCompletion.get(),
+                "warning registered on the second hopped-away thread should survive to the driver's snapshotted sink",
+                collected,
                 hasItem(stringContainsInOrder(SECOND_WARNING_MESSAGE))
             );
         } finally {
@@ -236,7 +224,7 @@ public class DriverThreadContextWarningLossTests extends ESTestCase {
         @Override
         protected Page process(Page page) {
             if (warned.compareAndSet(false, true)) {
-                Warnings warnings = Warnings.createOnlyWarnings(driverContext.warningsMode(), TEST_SOURCE_LOCATION);
+                Warnings warnings = driverContext.createOnlyWarnings(TEST_SOURCE_LOCATION);
                 warnings.registerWarning(warningMessage);
             }
             return page;
@@ -297,7 +285,7 @@ public class DriverThreadContextWarningLossTests extends ESTestCase {
         protected Page process(Page page) {
             Warning warning = warningsByPageIndex.get(pageIndex.getAndIncrement());
             if (warning != null && warning.warned().compareAndSet(false, true)) {
-                Warnings warnings = Warnings.createOnlyWarnings(driverContext.warningsMode(), WarnOnFirstPageOperator.TEST_SOURCE_LOCATION);
+                Warnings warnings = driverContext.createOnlyWarnings(WarnOnFirstPageOperator.TEST_SOURCE_LOCATION);
                 warnings.registerWarning(warning.message());
             }
             return page;

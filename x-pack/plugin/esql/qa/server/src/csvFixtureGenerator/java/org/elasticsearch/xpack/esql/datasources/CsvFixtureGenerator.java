@@ -103,6 +103,12 @@ public final class CsvFixtureGenerator {
             Path slugRoot = outputRoot.resolve("vector").resolve(slug.getKey()).resolve("standalone");
             Files.createDirectories(slugRoot);
             for (String dataset : matrix.datasetsFor(format)) {
+                if (matrix.isVerbatim(dataset)) {
+                    // Its authored bytes ARE the fixture; re-rendering would parse them as rows, which
+                    // either fails or destroys the byte property under test.
+                    logger.info("Skipping [{}] in [{}]: declared verbatim", dataset, slug.getKey());
+                    continue;
+                }
                 if (matrix.unrepresentableDialects(dataset, delimiterName).contains(dialect.name().toLowerCase(Locale.ROOT))) {
                     logger.info("Skipping [{}] in [{}]: declared unrepresentable in {}", dataset, slug.getKey(), dialect);
                     continue;

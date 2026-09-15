@@ -53,7 +53,7 @@ public final class FixtureMatrix {
     private static final List<Pattern> KNOWN_KEYS = List.of(
         Pattern.compile("formats"),
         Pattern.compile("dataset\\.[a-z0-9_]+"),
-        Pattern.compile("dataset\\.[a-z0-9_]+\\.(reason|write_dialect|padded|unrepresentable_dialects)"),
+        Pattern.compile("dataset\\.[a-z0-9_]+\\.(reason|write_dialect|padded|verbatim|unrepresentable_dialects)"),
         Pattern.compile("dataset\\.[a-z0-9_]+\\.unrepresentable_dialects(\\.[a-z_]+)?\\.reason"),
         Pattern.compile("dataset\\.[a-z0-9_]+\\.unrepresentable_dialects\\.[a-z_]+"),
         Pattern.compile("layout\\.[a-z_]+\\.(dir|glob|sources|derived_from|bucket_by|partition_column)"),
@@ -437,6 +437,22 @@ public final class FixtureMatrix {
      * licence; an undeclared unrepresentable value makes the renderer throw instead, so the difference
      * between "we decided" and "we did not notice" stays visible.
      */
+    /**
+     * Whether a dataset's AUTHORED bytes are the fixture, so no generator may re-render it.
+     *
+     * <p>The matrix's datasets are logical tables it renders into each applicable format. A few are not
+     * tables at all: their byte layout is the thing under test, and parsing them as rows either fails or
+     * destroys the property being tested. {@code skip_rows_sessions} opens with a prose preamble that
+     * {@code skip_rows} exists to drop, and the row parser rejects it outright.
+     *
+     * <p>Such a dataset still has to be DECLARED, because the resolver requires every template a spec
+     * names to be a declared cell -- being un-rendered is not the same as being absent. This flag is what
+     * lets the two coexist: declared for resolution, skipped for generation.
+     */
+    public boolean isVerbatim(String dataset) {
+        return Boolean.parseBoolean(declaration.getProperty("dataset." + dataset + ".verbatim", "false").trim());
+    }
+
     public Set<String> unrepresentableDialects(String dataset) {
         return unrepresentableDialects(dataset, null);
     }

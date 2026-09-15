@@ -44,13 +44,15 @@ import java.util.List;
 final class AddressingWriter implements Closeable {
 
     /**
-     * Documents to a block of counts, and so to a base. Small, so that a read landing in a block it was not
-     * already in sums few counts to reach its document.
+     * Documents to a block of counts when a caller names none. Small, so that a read landing in a block it
+     * was not already in sums few counts to reach its document.
      */
-    static final int COUNTS_BLOCK_SIZE = 128;
+    static final int DEFAULT_COUNTS_BLOCK_SIZE = 128;
 
     private final int numDocsWithField;
     private final long numValues;
+    /** Documents a block of counts holds, and so the granularity the bases are kept at. */
+    private final int countsBlockSize;
     private final Directory directory;
     private final IOContext context;
 
@@ -69,12 +71,18 @@ final class AddressingWriter implements Closeable {
      * @param numDocsWithField documents that have at least one slot
      * @param numValues        slots across all of them, null slots included
      */
-    static AddressingWriter open(int numDocsWithField, long numValues, Directory directory, IOContext context, String name)
-        throws IOException {
+    static AddressingWriter open(
+        int numDocsWithField,
+        long numValues,
+        int countsBlockSize,
+        Directory directory,
+        IOContext context,
+        String name
+    ) throws IOException {
         // A document holding several slots and one holding none both put the slots out of step with the
         // documents, and either way a rank stops being its own value address.
         if (numValues == numDocsWithField) {
-            return new AddressingWriter(null, null, numDocsWithField, numValues, directory, context);
+            return new AddressingWriter(null, null, numDocsWithField, numValues, countsBlockSize, directory, context);
         }
         IndexOutput countsTemp = null;
         try {
@@ -83,9 +91,9 @@ final class AddressingWriter implements Closeable {
                 directory,
                 context,
                 name,
-                SlotAddressing.numBlocks(numDocsWithField, COUNTS_BLOCK_SIZE)
+                SlotAddressing.numBlocks(numDocsWithField, countsBlockSize)
             );
-            return new AddressingWriter(countsTemp, bases, numDocsWithField, numValues, directory, context);
+            return new AddressingWriter(countsTemp, bases, numDocsWithField, numValues, countsBlockSize, directory, context);
         } catch (Throwable t) {
             if (countsTemp != null) {
                 IOUtils.closeWhileHandlingException(countsTemp);
@@ -100,6 +108,7 @@ final class AddressingWriter implements Closeable {
         MonotonicWriter bases,
         int numDocsWithField,
         long numValues,
+        int countsBlockSize,
         Directory directory,
         IOContext context
     ) {
@@ -107,6 +116,7 @@ final class AddressingWriter implements Closeable {
         this.bases = bases;
         this.numDocsWithField = numDocsWithField;
         this.numValues = numValues;
+        this.countsBlockSize = countsBlockSize;
         this.directory = directory;
         this.context = context;
     }
@@ -117,7 +127,7 @@ final class AddressingWriter implements Closeable {
             if (previousAddress >= 0) {
                 countsTemp.writeVLong(valueAddress - previousAddress);
             }
-            if (written % COUNTS_BLOCK_SIZE == 0) {
+            if (written % countsBlockSize == 0) {
                 bases.add(valueAddress);
             }
             previousAddress = valueAddress;
@@ -157,7 +167,7 @@ final class AddressingWriter implements Closeable {
             replays.add(in);
             return stagedCounts(in, numDocsWithField);
         },
-            NumericPipeline.runsAndOutliersPipeline(COUNTS_BLOCK_SIZE),
+            NumericPipeline.runsAndOutliersPipeline(countsBlockSize),
             BlockBytesCodec.forId(BlockBytesCodec.IDENTITY_ID),
             // The counts build no skip index, so nothing is ever written to one.
             null,

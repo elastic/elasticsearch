@@ -110,6 +110,7 @@ public final class StringColumnWriter {
         int targetChunkBytes,
         int plainPathTargetChunkBytes,
         int compressedOrdinalBlockSize,
+        int slotCountsBlockSize,
         DictionaryPolicy policy,
         Vocabulary.Terms known,
         Directory directory,
@@ -143,6 +144,7 @@ public final class StringColumnWriter {
                         chunkCodec,
                         targetChunkBytes,
                         compressedOrdinalBlockSize,
+                        slotCountsBlockSize,
                         directory,
                         context,
                         data
@@ -181,7 +183,14 @@ public final class StringColumnWriter {
                 data.getName(),
                 data
             );
-            AddressingWriter slots = AddressingWriter.open(numDocsWithField, numValues, directory, context, data.getName());
+            AddressingWriter slots = AddressingWriter.open(
+                numDocsWithField,
+                numValues,
+                slotCountsBlockSize,
+                directory,
+                context,
+                data.getName()
+            );
             // Bytes have no spare value to mean null with, so this layout alone tables its null slots.
             NullSlotWriter nullSlots = NullSlotWriter.open(numNullSlots, directory, context, data.getName())
         ) {
@@ -320,6 +329,7 @@ public final class StringColumnWriter {
         ChunkCodec chunkCodec,
         int targetChunkBytes,
         int compressedOrdinalBlockSize,
+        int slotCountsBlockSize,
         Directory directory,
         IOContext context,
         IndexOutput data
@@ -371,7 +381,14 @@ public final class StringColumnWriter {
             try (
                 MonotonicWriter ranks = new MonotonicWriter(directory, context, data.getName(), escapeRankEntries(numValues));
                 // Nulls are named by a reserved ordinal below, so this layout keeps no null-slot table.
-                AddressingWriter slots = AddressingWriter.open(numDocsWithField, numValues, directory, context, data.getName())
+                AddressingWriter slots = AddressingWriter.open(
+                    numDocsWithField,
+                    numValues,
+                    slotCountsBlockSize,
+                    directory,
+                    context,
+                    data.getName()
+                )
             ) {
                 // Opened one at a time, each named before the next is asked for: a temporary file that the
                 // one after it fails to open is still a file to delete, and only its name says which.

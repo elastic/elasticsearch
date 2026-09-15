@@ -104,7 +104,8 @@ public class DatasetResolverTests extends ESTestCase {
 
         // Under CPS a wildcard matching a local dataset keeps the original wildcard as a sibling UnresolvedRelation so the
         // remote half (and the field-caps remote-detect) is reached, alongside the local UnresolvedExternalRelation.
-        LogicalPlan rewritten = replaceDatasets(resolver, relationOf("log*"));
+        // The dataset here is reached through a wildcard, so resolve with dataset_wildcards on.
+        LogicalPlan rewritten = replaceDatasets(resolver, relationOf("log*"), project(), true);
         assertThat(rewritten, instanceOf(UnionAll.class));
         UnionAll unionAll = (UnionAll) rewritten;
         assertEquals(2, unionAll.children().size());
@@ -142,13 +143,23 @@ public class DatasetResolverTests extends ESTestCase {
 
     // --- harness ---
 
+    /** Resolves with dataset_wildcards off — the production default; these cases name their dataset exactly. */
     private LogicalPlan replaceDatasets(DatasetResolver resolver, UnresolvedRelation relation) {
-        return replaceDatasets(resolver, relation, project());
+        return replaceDatasets(resolver, relation, project(), false);
     }
 
     private LogicalPlan replaceDatasets(DatasetResolver resolver, UnresolvedRelation relation, ProjectMetadata project) {
+        return replaceDatasets(resolver, relation, project, false);
+    }
+
+    private LogicalPlan replaceDatasets(
+        DatasetResolver resolver,
+        UnresolvedRelation relation,
+        ProjectMetadata project,
+        boolean datasetWildcards
+    ) {
         PlainActionFuture<LogicalPlan> future = new PlainActionFuture<>();
-        resolver.replaceDatasets(relation, project, future);
+        resolver.replaceDatasets(relation, project, datasetWildcards, future);
         return future.actionGet();
     }
 

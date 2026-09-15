@@ -6,6 +6,9 @@
 :::{include} column_metadata.md
 :::
 
+:::{include} dataset_wildcards.md
+:::
+
 :::{include} project_routing.md
 :::
 

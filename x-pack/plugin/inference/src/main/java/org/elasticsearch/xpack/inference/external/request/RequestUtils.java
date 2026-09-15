@@ -7,9 +7,9 @@
 
 package org.elasticsearch.xpack.inference.external.request;
 
-import org.apache.http.Header;
-import org.apache.http.HttpHeaders;
-import org.apache.http.message.BasicHeader;
+import org.apache.hc.core5.http.Header;
+import org.apache.hc.core5.http.HttpHeaders;
+import org.apache.hc.core5.http.message.BasicHeader;
 import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.common.CheckedSupplier;
 import org.elasticsearch.common.Strings;

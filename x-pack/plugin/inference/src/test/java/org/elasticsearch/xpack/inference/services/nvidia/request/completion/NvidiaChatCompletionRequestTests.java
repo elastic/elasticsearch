@@ -7,8 +7,7 @@
 
 package org.elasticsearch.xpack.inference.services.nvidia.request.completion;
 
-import org.apache.http.HttpHeaders;
-import org.apache.http.client.methods.HttpPost;
+import org.apache.hc.core5.http.HttpHeaders;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.test.ESTestCase;
@@ -22,7 +21,6 @@ import java.util.Map;
 
 import static org.elasticsearch.xpack.inference.external.http.Utils.entityAsMap;
 import static org.hamcrest.Matchers.aMapWithSize;
-import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.nullValue;
 import static org.hamcrest.Matchers.sameInstance;
@@ -47,10 +45,9 @@ public class NvidiaChatCompletionRequestTests extends ESTestCase {
         var request = createRequest(URL_VALUE, input, true);
         var httpRequest = RequestTests.getHttpRequestSync(request);
 
-        assertThat(httpRequest.httpRequestBase(), instanceOf(HttpPost.class));
-        var httpPost = (HttpPost) httpRequest.httpRequestBase();
+        var httpPost = httpRequest.httpRequest();
 
-        var requestMap = entityAsMap(httpPost.getEntity().getContent());
+        var requestMap = entityAsMap(httpPost.getBodyText());
         assertThat(request.getURI().toString(), is(URL_VALUE));
         assertThat(requestMap.get(STREAM_FIELD_NAME), is(true));
         assertThat(requestMap.get(MODEL_FIELD_NAME), is(MODEL_VALUE));
@@ -65,10 +62,9 @@ public class NvidiaChatCompletionRequestTests extends ESTestCase {
         var request = createRequest(URL_VALUE, input, false);
         var httpRequest = RequestTests.getHttpRequestSync(request);
 
-        assertThat(httpRequest.httpRequestBase(), instanceOf(HttpPost.class));
-        var httpPost = (HttpPost) httpRequest.httpRequestBase();
+        var httpPost = httpRequest.httpRequest();
 
-        var requestMap = entityAsMap(httpPost.getEntity().getContent());
+        var requestMap = entityAsMap(httpPost.getBodyText());
         assertThat(request.getURI().toString(), is(URL_VALUE));
         assertThat(requestMap.get(STREAM_FIELD_NAME), is(false));
         assertThat(requestMap.get(MODEL_FIELD_NAME), is(MODEL_VALUE));
@@ -83,10 +79,9 @@ public class NvidiaChatCompletionRequestTests extends ESTestCase {
         var request = createRequest(null, input, false);
         var httpRequest = RequestTests.getHttpRequestSync(request);
 
-        assertThat(httpRequest.httpRequestBase(), instanceOf(HttpPost.class));
-        var httpPost = (HttpPost) httpRequest.httpRequestBase();
+        var httpPost = httpRequest.httpRequest();
 
-        var requestMap = entityAsMap(httpPost.getEntity().getContent());
+        var requestMap = entityAsMap(httpPost.getBodyText());
         assertThat(request.getURI().toString(), is(URL_DEFAULT_VALUE));
         assertThat(requestMap.get(STREAM_FIELD_NAME), is(false));
         assertThat(requestMap.get(MODEL_FIELD_NAME), is(MODEL_VALUE));

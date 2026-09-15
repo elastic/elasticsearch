@@ -20,7 +20,7 @@ org.apache.httpcomponents.core5.httpcore5:
   - manage_threads
   - outbound_network
 org.apache.httpcomponents.client5.httpclient5:
-  - outbound_network # For SAML metadata resolver
+  - outbound_network # For SAML metadata resolver and Inference IBM Watsonx/Vertex AI token fetches
   - manage_threads
 org.apache.httpcomponents.core5.httpcore5.h2:
   - manage_threads

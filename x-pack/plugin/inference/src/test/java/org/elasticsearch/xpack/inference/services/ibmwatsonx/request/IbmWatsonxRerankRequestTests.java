@@ -7,29 +7,27 @@
 
 package org.elasticsearch.xpack.inference.services.ibmwatsonx.request;
 
-import org.apache.http.HttpHeaders;
-import org.apache.http.client.methods.HttpPost;
+import org.apache.hc.core5.http.HttpHeaders;
 import org.elasticsearch.core.Strings;
 import org.elasticsearch.test.ESTestCase;
-import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xpack.inference.external.request.RequestTests;
 import org.elasticsearch.xpack.inference.services.ibmwatsonx.rerank.IbmWatsonxRerankModelTests;
 
 import java.io.IOException;
 import java.net.URI;
+import java.net.URISyntaxException;
 import java.util.List;
 import java.util.Map;
 
 import static org.elasticsearch.xpack.inference.external.http.Utils.entityAsMap;
 import static org.hamcrest.Matchers.aMapWithSize;
 import static org.hamcrest.Matchers.endsWith;
-import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.is;
 
 public class IbmWatsonxRerankRequestTests extends ESTestCase {
     private static final String AUTH_HEADER_VALUE = "foo";
 
-    public void testCreateRequest() throws IOException {
+    public void testCreateRequest() throws IOException, URISyntaxException {
         var model = "model";
         var projectId = "project_id";
         URI uri = null;
@@ -47,14 +45,13 @@ public class IbmWatsonxRerankRequestTests extends ESTestCase {
         var request = createRequest(model, projectId, uri, apiVersion, apiKey, query, input, topN, returnDocuments, truncateInputTokens);
         var httpRequest = RequestTests.getHttpRequestSync(request);
 
-        assertThat(httpRequest.httpRequestBase(), instanceOf(HttpPost.class));
-        var httpPost = (HttpPost) httpRequest.httpRequestBase();
+        var httpPost = httpRequest.httpRequest();
 
-        assertThat(httpPost.getURI().toString(), endsWith(Strings.format("%s=%s", "version", apiVersion)));
-        assertThat(httpPost.getLastHeader(HttpHeaders.CONTENT_TYPE).getValue(), is(XContentType.JSON.mediaType()));
+        assertThat(httpPost.getUri().toString(), endsWith(Strings.format("%s=%s", "version", apiVersion)));
+        assertThat(httpPost.getBody().getContentType().toString(), is("application/json; charset=UTF-8"));
         assertThat(httpPost.getLastHeader(HttpHeaders.AUTHORIZATION).getValue(), is(AUTH_HEADER_VALUE));
 
-        var requestMap = entityAsMap(httpPost.getEntity().getContent());
+        var requestMap = entityAsMap(httpPost.getBodyText());
         assertThat(requestMap, aMapWithSize(5));
         assertThat(
             requestMap,

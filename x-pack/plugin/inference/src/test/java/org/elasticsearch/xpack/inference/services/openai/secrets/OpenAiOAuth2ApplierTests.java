@@ -7,9 +7,9 @@
 
 package org.elasticsearch.xpack.inference.services.openai.secrets;
 
-import org.apache.http.HttpHeaders;
-import org.apache.http.client.methods.HttpGet;
-import org.apache.http.client.methods.HttpRequestBase;
+import org.apache.hc.client5.http.async.methods.SimpleHttpRequest;
+import org.apache.hc.client5.http.async.methods.SimpleRequestBuilder;
+import org.apache.hc.core5.http.HttpHeaders;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.PlainActionFuture;
@@ -38,8 +38,8 @@ public class OpenAiOAuth2ApplierTests extends ESTestCase {
         var cache = recordingCacheReturning(new CachedToken(BEARER_VALUE, Instant.now().plusSeconds(60)));
         var applier = new OpenAiOAuth2Applier(INFERENCE_ID, cache, listener -> fail(FAILURE_MESSAGE));
 
-        var request = new HttpGet(URL);
-        var future = new PlainActionFuture<HttpRequestBase>();
+        var request = SimpleRequestBuilder.get(URL).build();
+        var future = new PlainActionFuture<SimpleHttpRequest>();
         applier.applyTo(request, future);
 
         var resultRequest = future.actionGet();
@@ -65,8 +65,8 @@ public class OpenAiOAuth2ApplierTests extends ESTestCase {
         };
         var applier = new OpenAiOAuth2Applier(INFERENCE_ID, cache, listener -> fail(FAILURE_MESSAGE));
 
-        var request = new HttpGet(URL);
-        var future = new PlainActionFuture<HttpRequestBase>();
+        var request = SimpleRequestBuilder.get(URL).build();
+        var future = new PlainActionFuture<SimpleHttpRequest>();
         applier.applyTo(request, future);
 
         var thrown = expectThrows(ElasticsearchException.class, future::actionGet);

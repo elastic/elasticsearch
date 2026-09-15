@@ -2630,13 +2630,13 @@ final class OptimizedParquetColumnIterator implements CloseableIterator<Page>, C
                     }
                 }
                 survivorPositions = truncated;
-                // sliceBlockHead either returns the same block (no slice needed) or closes the
-                // source on success. predicateBlocks[col] is reassigned to the result before any
-                // subsequent call so a failure on column N+1 leaves columns 0..N owned by
-                // predicateBlocks[] for the catch to release.
+                // sliceBlockHead now closes source on failure. Null the slot first so the outer
+                // catch cannot double-close a block that sliceBlockHead already released.
                 for (int col = 0; col < columnInfos.length; col++) {
                     if (isPredicateColumn[col] && predicateBlocks[col] != null) {
-                        predicateBlocks[col] = sliceBlockHead(predicateBlocks[col], newCount);
+                        Block source = predicateBlocks[col];
+                        predicateBlocks[col] = null;
+                        predicateBlocks[col] = sliceBlockHead(source, newCount);
                     }
                 }
                 emitCount = newCount;
@@ -2678,31 +2678,15 @@ final class OptimizedParquetColumnIterator implements CloseableIterator<Page>, C
                     // transferred predicate Blocks) — that's the production crash signature.
                     Block fullBlock = readColumnBlockNoCleanup(col, info, sourceRows);
                     if (budgetExhaustsBatch) {
-                        // sliceBlockHead returns the same block when sizes match (no slice), or
-                        // closes source on success. On failure we own fullBlock and must close it.
-                        try {
-                            blocks[col] = sliceBlockHead(fullBlock, emitCount);
-                        } catch (RuntimeException sliceEx) {
-                            ParquetReadFailures.closePreservingCause(sliceEx, fullBlock);
-                            throw sliceEx;
-                        }
+                        blocks[col] = sliceBlockHead(fullBlock, emitCount);
                     } else {
                         blocks[col] = fullBlock;
                     }
                 } else if (pageColumnReaders != null && pageColumnReaders[col] != null) {
                     blocks[col] = pageColumnReaders[col].readBatchSparse(sourceRows, blockFactory, survivorPositions, emitCount);
                 } else {
-                    // Read the full source-rows block and immediately filter to survivors.
-                    // We hand fullBlock to filterBlock which closes it on success; on failure
-                    // (e.g. a breaker trip during the new filtered allocation) filterBlock does
-                    // NOT close source, so we must close it explicitly to avoid a leak.
                     Block fullBlock = readColumnBlockNoCleanup(col, info, sourceRows);
-                    try {
-                        blocks[col] = PageColumnReader.filterBlock(fullBlock, survivorPositions, emitCount, blockFactory);
-                    } catch (RuntimeException filterEx) {
-                        ParquetReadFailures.closePreservingCause(filterEx, fullBlock);
-                        throw filterEx;
-                    }
+                    blocks[col] = filterBlockClosingOnFailure(fullBlock, survivorPositions, emitCount);
                 }
             }
         } catch (CircuitBreakingException e) {
@@ -2772,7 +2756,22 @@ final class OptimizedParquetColumnIterator implements CloseableIterator<Page>, C
         for (int i = 0; i < newCount; i++) {
             head[i] = i;
         }
-        return PageColumnReader.filterBlock(source, head, newCount, blockFactory);
+        return filterBlockClosingOnFailure(source, head, newCount);
+    }
+
+    /**
+     * Calls {@link PageColumnReader#filterBlock} and, on any {@link RuntimeException}, closes
+     * {@code source} via {@link ParquetReadFailures#closePreservingCause} before rethrowing.
+     * Use only when {@code source} is a local variable not yet stored in a {@code blocks[]} array
+     * that an outer catch can clean up; leave in-array sources owned by their array.
+     */
+    private Block filterBlockClosingOnFailure(Block source, int[] positions, int count) {
+        try {
+            return PageColumnReader.filterBlock(source, positions, count, blockFactory);
+        } catch (RuntimeException e) {
+            ParquetReadFailures.closePreservingCause(e, source);
+            throw e;
+        }
     }
 
     private void closeTwoPhaseState() {
@@ -2939,16 +2938,8 @@ final class OptimizedParquetColumnIterator implements CloseableIterator<Page>, C
                 } else if (pageColumnReaders != null && pageColumnReaders[col] != null) {
                     blocks[col] = pageColumnReaders[col].readBatchFiltered(rowsToRead, blockFactory, positions, survivorCount);
                 } else {
-                    // filterBlock closes fullBlock on success only; on failure (e.g. a breaker trip in the
-                    // filtered allocation) we still own it, and it is not yet reachable from blocks[], so
-                    // the catch below cannot free it. Same guard as the twin call site in nextTwoPhaseBatch.
                     Block fullBlock = readColumnBlockNoCleanup(col, info, rowsToRead);
-                    try {
-                        blocks[col] = PageColumnReader.filterBlock(fullBlock, positions, survivorCount, blockFactory);
-                    } catch (RuntimeException filterEx) {
-                        ParquetReadFailures.closePreservingCause(filterEx, fullBlock);
-                        throw filterEx;
-                    }
+                    blocks[col] = filterBlockClosingOnFailure(fullBlock, positions, survivorCount);
                 }
             }
 

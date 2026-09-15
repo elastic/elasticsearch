@@ -43,13 +43,13 @@ public class ESRestTestCaseTests extends ESTestCase {
     @Before
     public void setUpClusterAvailabilityFields() {
         subject = new MinimalRestTestCase();
-        ESRestTestCase.client = null;
+        ESRestTestCase.adminClient = null;
         ESRestTestCase.clusterUnavailable = false;
     }
 
     @After
     public void tearDownClusterAvailabilityFields() {
-        ESRestTestCase.client = null;
+        ESRestTestCase.adminClient = null;
         ESRestTestCase.clusterUnavailable = false;
     }
 
@@ -75,16 +75,17 @@ public class ESRestTestCaseTests extends ESTestCase {
     public void testNullClientSetsUnavailableWithOriginalFailureSuppressed() throws Throwable {
         RuntimeException original = new RuntimeException("test failure");
         AssertionError thrown = expectThrows(AssertionError.class, () -> evaluateRule(original));
-        assertThat(thrown.getMessage(), containsString("initialization"));
+        assertThat(thrown.getMessage(), containsString("initialization failed"));
         assertNull(thrown.getCause());
         assertSame(original, thrown.getSuppressed()[0]);
         assertTrue(ESRestTestCase.clusterUnavailable);
     }
 
     public void testSuccessfulPingRethrownOriginalFailure() throws Throwable {
+        // RestClient requires a live HTTP server to construct; mock to control ping response
         RestClient mockClient = mock(RestClient.class);
         // performRequest returns normally — ping succeeds, cluster is alive
-        ESRestTestCase.client = mockClient;
+        ESRestTestCase.adminClient = mockClient;
 
         RuntimeException original = new RuntimeException("test failure");
         RuntimeException thrown = expectThrows(RuntimeException.class, () -> evaluateRule(original));
@@ -93,10 +94,26 @@ public class ESRestTestCaseTests extends ESTestCase {
     }
 
     public void testIOExceptionPingSetsUnreachable() throws Throwable {
+        // RestClient requires a live HTTP server to construct; mock to control ping response
         RestClient mockClient = mock(RestClient.class);
         IOException pingFailure = new IOException("connection refused");
         when(mockClient.performRequest(any(Request.class))).thenThrow(pingFailure);
-        ESRestTestCase.client = mockClient;
+        ESRestTestCase.adminClient = mockClient;
+
+        RuntimeException original = new RuntimeException("test failure");
+        AssertionError thrown = expectThrows(AssertionError.class, () -> evaluateRule(original));
+        assertEquals("Test cluster is unreachable", thrown.getMessage());
+        assertSame(pingFailure, thrown.getCause());
+        assertSame(original, thrown.getSuppressed()[0]);
+        assertTrue(ESRestTestCase.clusterUnavailable);
+    }
+
+    public void testUncheckExceptionPingSetsUnreachable() throws Throwable {
+        // RestClient requires a live HTTP server to construct; mock to control ping response
+        RestClient mockClient = mock(RestClient.class);
+        IllegalStateException pingFailure = new IllegalStateException("client closed");
+        when(mockClient.performRequest(any(Request.class))).thenThrow(pingFailure);
+        ESRestTestCase.adminClient = mockClient;
 
         RuntimeException original = new RuntimeException("test failure");
         AssertionError thrown = expectThrows(AssertionError.class, () -> evaluateRule(original));
@@ -107,10 +124,11 @@ public class ESRestTestCaseTests extends ESTestCase {
     }
 
     public void testResponseExceptionPingSetsBadState() throws Throwable {
+        // RestClient requires a live HTTP server to construct; mock to control ping response
         RestClient mockClient = mock(RestClient.class);
         ResponseException pingFailure = mockResponseException();
         when(mockClient.performRequest(any(Request.class))).thenThrow(pingFailure);
-        ESRestTestCase.client = mockClient;
+        ESRestTestCase.adminClient = mockClient;
 
         RuntimeException original = new RuntimeException("test failure");
         AssertionError thrown = expectThrows(AssertionError.class, () -> evaluateRule(original));
@@ -120,9 +138,11 @@ public class ESRestTestCaseTests extends ESTestCase {
         assertTrue(ESRestTestCase.clusterUnavailable);
     }
 
-    public void testSkipIfClusterUnavailableSkipsWhenFlagIsSet() throws Exception {
+    public void testRuleSkipsWhenClusterUnavailable() throws Throwable {
         ESRestTestCase.clusterUnavailable = true;
-        expectThrows(AssumptionViolatedException.class, () -> subject.skipIfClusterUnavailable());
+        expectThrows(AssumptionViolatedException.class, () -> evaluateRule(new RuntimeException("would fail")));
+        // flag unchanged — skip, not a new failure
+        assertTrue(ESRestTestCase.clusterUnavailable);
     }
 
     public void testPreviousFailureSkipsRemainingReflectsFlag() {
@@ -137,6 +157,7 @@ public class ESRestTestCaseTests extends ESTestCase {
         assertFalse(ESRestTestCase.clusterUnavailable);
     }
 
+    // ResponseException requires a Response, which requires a live HTTP exchange; mock the chain
     private static ResponseException mockResponseException() throws IOException {
         Response response = mock(Response.class);
         RequestLine requestLine = mock(RequestLine.class);

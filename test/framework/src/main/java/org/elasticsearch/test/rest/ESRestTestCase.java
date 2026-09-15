@@ -271,12 +271,12 @@ public abstract class ESRestTestCase extends ESTestCase {
     /**
      * A client for the running Elasticsearch cluster
      */
-    static RestClient client;
+    private static RestClient client;
     /**
      * A client for the running Elasticsearch cluster configured to take test administrative actions like remove all indexes after the test
      * completes
      */
-    private static RestClient adminClient;
+    static RestClient adminClient;
     /**
      * A client for the running Elasticsearch cluster configured to clean up the cluster after tests
      */
@@ -399,36 +399,32 @@ public abstract class ESRestTestCase extends ESTestCase {
         multiProjectEnabled = Booleans.parseBoolean(System.getProperty("tests.multi_project.enabled", "false"));
     }
 
-    @Before
-    public final void skipIfClusterUnavailable() {
-        assumeFalse("cluster unavailable", clusterUnavailable);
-    }
-
     /**
-     * Wraps each test with logic that, on any (non-assumption) test failure, pings the cluster to
-     * check whether it is still usable. If the ping fails for any reason (unreachable or error
-     * response), the remaining tests in the suite are skipped and the original failure is replaced
-     * with a clearer error, avoiding a cascade of redundant, confusing failures.
+     * Wraps each test with logic that skips the test if the cluster was previously found to be
+     * unavailable, and on any (non-assumption) test failure pings the cluster to check whether it
+     * is still usable. If the ping fails for any reason (unreachable or error response), the
+     * remaining tests in the suite are skipped and the original failure is replaced with a clearer
+     * error, avoiding a cascade of redundant, confusing failures.
      */
     @Rule
     public final TestRule clusterDeadRule = (base, description) -> new Statement() {
         @Override
         public void evaluate() throws Throwable {
+            assumeFalse("cluster unavailable", clusterUnavailable);
             try {
                 base.evaluate();
             } catch (AssumptionViolatedException e) {
                 throw e;
             } catch (Throwable originalFailure) {
-                RestClient c = client();
+                RestClient c = adminClient();
                 if (c == null) {
-                    // initClient() failed before any test body ran — terminal state for the suite
-                    throw markClusterUnavailable("Test cluster was unreachable during client initialization", null, originalFailure);
+                    throw markClusterUnavailable("Test cluster client initialization failed", null, originalFailure);
                 }
                 try {
                     c.performRequest(new Request("HEAD", "/"));
                 } catch (ResponseException e) {
                     throw markClusterUnavailable("Test cluster is in a bad state", e, originalFailure);
-                } catch (IOException e) {
+                } catch (Exception e) {
                     throw markClusterUnavailable("Test cluster is unreachable", e, originalFailure);
                 }
                 throw originalFailure;

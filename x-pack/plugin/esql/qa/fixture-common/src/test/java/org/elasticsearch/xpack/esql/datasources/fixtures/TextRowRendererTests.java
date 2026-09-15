@@ -143,7 +143,6 @@ public class TextRowRendererTests extends ESTestCase {
         assertThat(out, equalTo("~N,1\n"));
     }
 
-
     /**
      * A blank source cell must stay a blank in every dialect, and a literal {@code null} must stay a null.
      *

@@ -198,6 +198,98 @@ public class SimdJsonDirectWalkerTests extends SimdJsonTestCase {
         assertEquals(List.of("long(n=-42,fitsInt=true)"), events);
     }
 
+    // ---- Integer field values across digit-count boundaries ----
+    //
+    // These values (and their array-element and buffer-padding variants) are also exercised via
+    // SimdJsonTestDocuments, shared with SimdJsonJacksonComparisonTests; the checks here pin the
+    // exact emitted event, which the shared, Jackson-agreement-only checks don't.
+
+    // The 0/1 boolean-flag shape that dominates many real payloads.
+    public void testZeroField() {
+        assertEquals(List.of("long(n=0,fitsInt=true)"), walkJson("{\"n\":0}"));
+    }
+
+    public void testSingleDigitField() {
+        assertEquals(List.of("long(n=9,fitsInt=true)"), walkJson("{\"n\":9}"));
+    }
+
+    public void testNegativeSingleDigitField() {
+        assertEquals(List.of("long(n=-5,fitsInt=true)"), walkJson("{\"n\":-5}"));
+    }
+
+    // "-0" as an integer has no sign: Java's long negation of 0 is 0.
+    public void testNegativeZeroIntegerField() {
+        assertEquals(List.of("long(n=0,fitsInt=true)"), walkJson("{\"n\":-0}"));
+    }
+
+    public void testTwoDigitField() {
+        assertEquals(List.of("long(n=10,fitsInt=true)"), walkJson("{\"n\":10}"));
+        assertEquals(List.of("long(n=99,fitsInt=true)"), walkJson("{\"n\":99}"));
+    }
+
+    public void testNegativeTwoDigitField() {
+        assertEquals(List.of("long(n=-99,fitsInt=true)"), walkJson("{\"n\":-99}"));
+    }
+
+    // Just above the two-digit values above.
+    public void testThreeDigitField() {
+        assertEquals(List.of("long(n=100,fitsInt=true)"), walkJson("{\"n\":100}"));
+    }
+
+    public void testTenDigitFieldFitsInt() {
+        assertEquals(List.of("long(n=1234567890,fitsInt=true)"), walkJson("{\"n\":1234567890}"));
+    }
+
+    public void testTenDigitFieldExceedsIntRange() {
+        assertEquals(List.of("long(n=9876543210,fitsInt=false)"), walkJson("{\"n\":9876543210}"));
+    }
+
+    // A short integer prefix immediately followed by '.'/'e'/'E' must still be classified as a
+    // double, not misread as a short integer.
+    public void testSingleDigitBeforeDecimalPoint() {
+        List<String> events = walkJson("{\"n\":1.5}");
+        assertEquals(1, events.size());
+        assertTrue(events.get(0).startsWith("double(n=1.5,"));
+    }
+
+    public void testSingleDigitBeforeExponent() {
+        List<String> events = walkJson("{\"n\":1e2}");
+        assertEquals(1, events.size());
+        assertTrue(events.get(0).startsWith("double(n=100.0,"));
+    }
+
+    public void testTwoDigitBeforeDecimalPoint() {
+        List<String> events = walkJson("{\"n\":12.5}");
+        assertEquals(1, events.size());
+        assertTrue(events.get(0).startsWith("double(n=12.5,"));
+    }
+
+    // Same digit-count boundaries as array elements.
+    public void testSmallDigitArrayElements() {
+        assertEquals(
+            List.of(
+                "startArray(a)",
+                "arrayElemLong(0,fitsInt=true)",
+                "arrayElemLong(9,fitsInt=true)",
+                "arrayElemLong(10,fitsInt=true)",
+                "arrayElemLong(99,fitsInt=true)",
+                "arrayElemLong(100,fitsInt=true)",
+                "arrayElemLong(1234567890,fitsInt=true)",
+                "arrayElemLong(-5,fitsInt=true)",
+                "arrayElemLong(-99,fitsInt=true)",
+                "endArray()"
+            ),
+            walkJson("{\"a\":[0,9,10,99,100,1234567890,-5,-99]}")
+        );
+    }
+
+    public void testSmallDigitDoubleArrayElements() {
+        List<String> events = walkJson("{\"a\":[1.5,12.5]}");
+        assertEquals(4, events.size());
+        assertTrue(events.get(1).startsWith("arrayElemDouble(1.5,"));
+        assertTrue(events.get(2).startsWith("arrayElemDouble(12.5,"));
+    }
+
     public void testNegativeDouble() {
         List<String> events = walkJson("{\"n\":-3.14}");
         assertEquals(1, events.size());

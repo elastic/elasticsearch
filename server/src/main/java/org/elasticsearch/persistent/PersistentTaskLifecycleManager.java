@@ -238,7 +238,6 @@ public final class PersistentTaskLifecycleManager extends AbstractLifecycleCompo
         final boolean taskExists = PersistentTasksCustomMetadata.getTaskWithId(project, taskId) != null;
         final boolean enabled = registration.enabled().getAsBoolean();
         // A project under deletion rejects new persistent tasks; don't keep trying to start one on every metadata change.
-        // Removal stays allowed so existing tasks can be cleaned up.
         final boolean underDeletion = ProjectMetadata.isProjectUnderDeletion(state.blocks(), projectId);
         if (enabled && taskExists == false && underDeletion == false) {
             sendProjectTaskStartRequest(registration, projectId, taskId);

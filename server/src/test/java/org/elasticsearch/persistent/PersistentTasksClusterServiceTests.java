@@ -401,7 +401,7 @@ public class PersistentTasksClusterServiceTests extends ESTestCase {
         assertTrue("persistent tasks changed (task assigned)", persistentTasksChanged(new ClusterChangedEvent("test", current, previous)));
     }
 
-    public void testPersistentTasksChangedProjectRemoved() {
+    public void testProjectRemovalTriggersPersistentTasksChangedHook() {
         final var nodes = DiscoveryNodes.builder().add(DiscoveryNodeUtils.create("_node_1")).build();
         final var removedProject = randomUniqueProjectId();
         final var otherProject = randomUniqueProjectId();

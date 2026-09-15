@@ -1,11 +1,8 @@
 # Runs the ES|QL generative suites off the pull-request path.
 #
 # A generated query is chosen by a seed, not by the change under test, so a failure here cannot be
-# attributed to any one pull request. Running on a schedule instead lets everything run unmuted
-# (-Ptests.mutes.enabled=false) without gating anyone's merge. That matters more than it sounds:
-# on the pull-request path only GenerativeIT test {feature:PROMQL} is unmuted, and the other
-# single-node generative suites are muted at class level, so most of this is coverage that
-# currently runs nowhere.
+# attributed to any one pull request. Running on a schedule instead lets every GenerativeFeature
+# variant run unmuted (-Ptests.mutes.enabled=false) without gating anyone's merge.
 #
 # One run is one sample. To confirm a failure, re-run the class through the FLAKINESS_ITERS harness
 # in .buildkite/pipelines/flakiness-detection-manual.yml rather than adding retries here: a retry

@@ -115,8 +115,7 @@ tasks.named('javaRestTest') {
 
 // GenerativeIT picks its query from a seed rather than from the change under test, so a failure cannot be
 // attributed to the pull request that hit it. This task exists so the suite can run on a schedule instead,
-// with all GenerativeFeature variants unmuted (-Ptests.mutes.enabled=false). Unlike single-node, this
-// project has only the one generative suite.
+// with all GenerativeFeature variants unmuted (-Ptests.mutes.enabled=false).
 // Deliberately not wired into 'check': the scheduled pipeline invokes it by name.
 // See .buildkite/pipelines/periodic-esql-generative.yml.
 tasks.register('generativeTests', StandaloneRestIntegTestTask) {

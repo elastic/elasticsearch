@@ -815,6 +815,24 @@ public class StatelessMemoryMetricsServiceTests extends ESTestCase {
         assertThat(manyIndicesHeapBytes, lessThan(service.getIndexMemoryOverhead()));
     }
 
+    public void testGetIndexMetadataEstimatedHeapBytesClearedWhenNotMaster() {
+        ClusterState masterState = randomInitialTwoNodeClusterState(1);
+        service.clusterChanged(new ClusterChangedEvent("elected", masterState, ClusterState.EMPTY_STATE));
+        assertThat(service.getIndexMetadataEstimatedHeapBytes(), greaterThan(0L));
+
+        ClusterState notMaster = ClusterState.builder(masterState)
+            .nodes(DiscoveryNodes.builder(masterState.nodes()).masterNodeId("node_1").build())
+            .build();
+        service.clusterChanged(new ClusterChangedEvent("demoted", notMaster, masterState));
+        assertThat(service.getIndexMetadataEstimatedHeapBytes(), equalTo(0L));
+
+        ClusterState reelected = ClusterState.builder(notMaster)
+            .nodes(DiscoveryNodes.builder(notMaster.nodes()).masterNodeId("node_0").build())
+            .build();
+        service.clusterChanged(new ClusterChangedEvent("reelected", reelected, notMaster));
+        assertThat(service.getIndexMetadataEstimatedHeapBytes(), greaterThan(0L));
+    }
+
     private ClusterState randomInitialTwoNodeClusterState(int numberOfIndices) {
         DiscoveryNodes discoveryNodes = DiscoveryNodes.builder()
             .add(DiscoveryNodeUtils.create("node_0"))

@@ -281,8 +281,8 @@ public abstract class BaseMlIntegTestCase extends ESIntegTestCase {
         waitForPendingTasks(client());
         assertBusy(() -> {
             RecoveryResponse recoveryResponse = client().admin().indices().prepareRecoveries().setActiveOnly(true).get();
-            for (var recoveryStates : recoveryResponse.shardRecoveryInfos().values()) {
-                assertThat(recoveryStates.size(), equalTo(0));
+            for (var recoveryInfos : recoveryResponse.shardRecoveryInfos().values()) {
+                assertThat(recoveryInfos.size(), equalTo(0));
             }
         });
     }

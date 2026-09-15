@@ -61,6 +61,10 @@ public class RecoveryResponse extends BaseBroadcastResponse implements ChunkedTo
         return shardRecoveryInfos.isEmpty() == false;
     }
 
+    public Map<String, List<ShardRecoveryInfo>> shardRecoveryInfos() {
+        return shardRecoveryInfos;
+    }
+
     @Override
     public Iterator<ToXContent> toXContentChunked(ToXContent.Params params) {
         return Iterators.concat(
@@ -91,10 +95,6 @@ public class RecoveryResponse extends BaseBroadcastResponse implements ChunkedTo
                 .iterator(),
             Iterators.single((b, p) -> b.endObject())
         );
-    }
-
-    public Map<String, List<ShardRecoveryInfo>> shardRecoveryInfos() {
-        return shardRecoveryInfos;
     }
 
     @Override

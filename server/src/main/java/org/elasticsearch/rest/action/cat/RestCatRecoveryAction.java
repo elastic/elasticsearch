@@ -126,6 +126,9 @@ public class RestCatRecoveryAction extends AbstractCatAction {
         Table t = getTableWithHeader(request);
 
         for (var entry : response.shardRecoveryInfos().entrySet()) {
+            if (entry.getValue().isEmpty()) {
+                continue;
+            }
             String index = entry.getKey();
             // Sort ascending by shard id for readability
             List<ShardRecoveryInfo> shardRecoveryInfos = entry.getValue()

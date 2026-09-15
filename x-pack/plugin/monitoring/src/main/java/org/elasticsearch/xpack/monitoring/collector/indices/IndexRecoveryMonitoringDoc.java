@@ -52,13 +52,13 @@ public class IndexRecoveryMonitoringDoc extends MonitoringDoc {
                     Map<String, List<ShardRecoveryInfo>> shards = recoveryResponse.shardRecoveryInfos();
                     if (shards != null) {
                         for (Map.Entry<String, List<ShardRecoveryInfo>> shard : shards.entrySet()) {
-                            List<ShardRecoveryInfo> indexShards = shard.getValue();
-                            if (indexShards != null) {
-                                for (ShardRecoveryInfo indexShard : indexShards) {
+                            List<ShardRecoveryInfo> shardRecoveryInfos = shard.getValue();
+                            if (shardRecoveryInfos != null) {
+                                for (ShardRecoveryInfo shardRecoveryInfo : shardRecoveryInfos) {
                                     builder.startObject();
                                     {
                                         builder.field("index_name", shard.getKey());
-                                        indexShard.recoveryState().toXContent(builder, params);
+                                        shardRecoveryInfo.recoveryState().toXContent(builder, params);
                                     }
                                     builder.endObject();
                                 }

@@ -22,7 +22,11 @@ import static org.hamcrest.Matchers.is;
  */
 public class AnalyzerUnmappedEnrichTests extends AnalyzerUnmappedTestBase {
 
-    private static TestAnalyzer testWithLanguagesEnrich() {
+    public AnalyzerUnmappedEnrichTests(String name, boolean pinCurrentVersion) {
+        super(name, pinCurrentVersion);
+    }
+
+    private TestAnalyzer testWithLanguagesEnrich() {
         return test().addEnrichPolicy(EnrichPolicy.MATCH_TYPE, "languages", "language_code", "languages_idx", "mapping-languages.json");
     }
 

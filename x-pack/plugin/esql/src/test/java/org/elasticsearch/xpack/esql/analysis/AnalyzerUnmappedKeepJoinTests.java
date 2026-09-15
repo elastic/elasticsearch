@@ -28,6 +28,10 @@ import static org.hamcrest.Matchers.is;
  */
 public class AnalyzerUnmappedKeepJoinTests extends AnalyzerUnmappedTestBase {
 
+    public AnalyzerUnmappedKeepJoinTests(String name, boolean pinCurrentVersion) {
+        super(name, pinCurrentVersion);
+    }
+
     // -------------------------------------------------------------------------
     // load mode
     // -------------------------------------------------------------------------

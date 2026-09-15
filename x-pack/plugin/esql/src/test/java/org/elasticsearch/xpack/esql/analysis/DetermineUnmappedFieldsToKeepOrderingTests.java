@@ -26,6 +26,10 @@ import static org.hamcrest.Matchers.nullValue;
 
 public class DetermineUnmappedFieldsToKeepOrderingTests extends AnalyzerUnmappedTestBase {
 
+    public DetermineUnmappedFieldsToKeepOrderingTests(String name, boolean pinCurrentVersion) {
+        super(name, pinCurrentVersion);
+    }
+
     /** An explicit term still beats a wildcard and keeps its written position, because the real KEEP resolver decides. */
     public void testKeepOrderingHonouredForDiscoveredFields() {
         assertThat(orderFor("FROM test | KEEP unmapped.*, emp_no", "unmapped.a"), equalTo(List.of("unmapped.a", "emp_no")));
@@ -166,7 +170,7 @@ public class DetermineUnmappedFieldsToKeepOrderingTests extends AnalyzerUnmapped
         assertThat(analyzer.lastAnalyzer().unmappedFieldsOrdering(), nullValue());
     }
 
-    private static List<String> orderFor(String query, String... discovered) {
+    private List<String> orderFor(String query, String... discovered) {
         TestAnalyzer analyzer = test();
         analyzer.statement(setUnmappedLoadAll(query));
         UnmappedFieldsOrdering ordering = analyzer.lastAnalyzer().unmappedFieldsOrdering();

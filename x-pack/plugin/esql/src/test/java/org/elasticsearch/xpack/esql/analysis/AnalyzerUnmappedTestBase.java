@@ -7,8 +7,12 @@
 
 package org.elasticsearch.xpack.esql.analysis;
 
+import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
+
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.xpack.esql.EsqlTestUtils;
 import org.elasticsearch.xpack.esql.TestAnalyzer;
 import org.elasticsearch.xpack.esql.action.EsqlCapabilities;
 import org.elasticsearch.xpack.esql.core.type.DataType;
@@ -20,13 +24,29 @@ import org.elasticsearch.xpack.esql.index.IndexResolution;
 import java.util.List;
 import java.util.Map;
 
-import static org.elasticsearch.xpack.esql.EsqlTestUtils.analyzer;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.withDefaultLimitWarning;
 import static org.elasticsearch.xpack.esql.analysis.AnalyzerTests.withInlinestatsWarning;
 
-abstract class AnalyzerUnmappedTestBase extends ESTestCase {
+public abstract class AnalyzerUnmappedTestBase extends ESTestCase {
 
-    static TestAnalyzer test() {
+    @ParametersFactory(argumentFormatting = "%1$s")
+    public static List<Object[]> params() {
+        return List.of(new Object[] { "current", true }, new Object[] { "historical", false });
+    }
+
+    protected final boolean pinCurrentVersion;
+
+    AnalyzerUnmappedTestBase(@SuppressWarnings("unused") String name, boolean pinCurrentVersion) {
+        this.pinCurrentVersion = pinCurrentVersion;
+    }
+
+    /** Pins {@link TransportVersion#current()} for the {@code current} run so a version-gated plan change surfaces here. */
+    TestAnalyzer analyzer() {
+        TestAnalyzer analyzer = EsqlTestUtils.analyzer();
+        return pinCurrentVersion ? analyzer.minimumTransportVersion(TransportVersion.current()) : analyzer;
+    }
+
+    TestAnalyzer test() {
         return analyzer().addEmployees("test");
     }
 
@@ -73,7 +93,7 @@ abstract class AnalyzerUnmappedTestBase extends ESTestCase {
         );
     }
 
-    static TestAnalyzer partialMappingTest() {
+    TestAnalyzer partialMappingTest() {
         return analyzer().addIndex("partial_mapping_sample_data", "mapping-partial_mapping_sample_data.json")
             .addLookupIndex("partial_message_types_lookup", "mapping-partial_message_types_lookup.json");
     }

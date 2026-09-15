@@ -248,6 +248,11 @@ public interface GroupingAggregatorFunction extends Releasable {
 
     interface PartitionedState {
         /**
+         * Whether every group of the given partition has value.
+         */
+        boolean hasAllValues(int partition);
+
+        /**
          * Releases the given partition without waiting for the remaining ones.
          * One partition index must be released by one thread at a time,
          * but different partitions can be released by different threads.

@@ -575,4 +575,50 @@ public class NumberFieldMapperColumnarCompatibilityTests extends AbstractColumna
             batch("integer dimension", 1L, doc(idA, ST_ROUTING, ST_TSID, 1L, "{\"@timestamp\":" + ST_TS_A + ",\"f\":7}"))
         );
     }
+
+    /**
+     * A {@code long} parent stringifies into its keyword sub-field on both paths. Kept to scalar values: mixing a scalar and an
+     * array promotes the ESCF column to UNION, which {@code NumberFieldMapper#mapColumnBatch} does not handle yet and rejects by
+     * throwing so the batch falls back — a pre-existing limitation of that mapper, unrelated to multi-fields.
+     */
+    public void testMultiValueViolationBailsOutOfColumnarPath() throws IOException {
+        // Two values for a multi_value=false field: mapColumnBatch must throw so that
+        // ShardBatchMapper falls back to the row path, which raises the correct
+        // on_failure=FAIL document-level error instead.
+        final var mapperService = createMapperService(
+            columnarSettings(),
+            mapping(b -> b.startObject(FIELD).field("type", "long").endObject())
+        );
+        expectThrows(UnsupportedOperationException.class, () -> mapColumnarLeaf(mapperService, FIELD, "{\"f\":[1,2]}"));
+    }
+
+    public void testNullabilityViolationBailsOutOfColumnarPath() throws IOException {
+        // A null value for a nullability=false field: mapColumnBatch must throw so that
+        // ShardBatchMapper falls back to the row path, which raises the correct
+        // on_failure=FAIL document-level error instead.
+        final var mapperService = createMapperService(columnarSettings(), mapping(b -> {
+            b.startObject(FIELD).field("type", "long");
+            b.startObject("doc_values").field("nullability", false).endObject();
+            b.endObject();
+        }));
+        expectThrows(UnsupportedOperationException.class, () -> mapColumnarLeaf(mapperService, FIELD, "{\"f\":1}", "{\"f\":null}"));
+    }
+
+    public void testLongParentWithKeywordSubField() throws IOException {
+        assertColumnarMatchesXContent(mapping(b -> {
+            b.startObject(FIELD).field("type", "long");
+            b.startObject("fields").startObject("raw").field("type", "keyword").endObject().endObject();
+            b.endObject();
+        }),
+            columnarSettings(),
+            batch(
+                "long parent, keyword sub-field",
+                1L,
+                doc("d1", 1L, "{\"f\":42}"),
+                doc("d2", 2L, "{\"f\":-7}"),
+                doc("d3", 3L, "{\"f\":9876543210}"),
+                doc("d4", 4L, "{}")
+            )
+        );
+    }
 }

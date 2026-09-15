@@ -20,6 +20,9 @@ import org.elasticsearch.core.Releasables;
 
 import java.util.Arrays;
 
+import static org.elasticsearch.common.util.PartitionedHashTable.NUM_PARTITIONS;
+import static org.elasticsearch.common.util.PartitionedHashTable.PARTITION_WRITE_BATCH;
+
 /**
  * Aggregator state for an array of longs. It is created in a mode where it
  * won't track the {@code groupId}s that are sent to it and it is the
@@ -71,15 +74,33 @@ final class LongArrayState extends AbstractArrayState implements GroupingAggrega
         trackGroupId(groupId);
     }
 
-    long getOrDefault(int groupId) {
-        return groupId < capacity ? get(groupId) : init;
-    }
-
-    void increment(int groupId, long value) {
+    void addExact(int groupId, long value) {
         if (groupId >= capacity) {
             grow(groupId + 1);
         }
-        pages[groupId >>> PAGE_SHIFT][groupId & PAGE_MASK] += value;
+        final long[] page = pages[groupId >>> PAGE_SHIFT];
+        final int index = groupId & PAGE_MASK;
+        page[index] = Math.addExact(page[index], value);
+        trackGroupId(groupId);
+    }
+
+    void min(int groupId, long value) {
+        if (groupId >= capacity) {
+            grow(groupId + 1);
+        }
+        final long[] page = pages[groupId >>> PAGE_SHIFT];
+        final int index = groupId & PAGE_MASK;
+        page[index] = Math.min(page[index], value);
+        trackGroupId(groupId);
+    }
+
+    void max(int groupId, long value) {
+        if (groupId >= capacity) {
+            grow(groupId + 1);
+        }
+        final long[] page = pages[groupId >>> PAGE_SHIFT];
+        final int index = groupId & PAGE_MASK;
+        page[index] = Math.max(page[index], value);
         trackGroupId(groupId);
     }
 
@@ -208,6 +229,178 @@ final class LongArrayState extends AbstractArrayState implements GroupingAggrega
 
     static long bytesUsedByPage(int length) {
         return RamUsageEstimator.alignObjectSize((long) RamUsageEstimator.NUM_BYTES_ARRAY_HEADER + (long) Long.BYTES * length);
+    }
+
+    private static long bytesUsedByPartitionPage(int length) {
+        return RamUsageEstimator.alignObjectSize((long) RamUsageEstimator.NUM_BYTES_ARRAY_HEADER + (long) Long.BYTES * length);
+    }
+
+    private static long bytesUsedBySeenPage(int length) {
+        return RamUsageEstimator.alignObjectSize((long) RamUsageEstimator.NUM_BYTES_ARRAY_HEADER + length);
+    }
+
+    private static final class LongPartitionedState implements GroupingAggregatorFunction.PartitionedState {
+        private static final long BASE_RAM_USAGE = RamUsageEstimator.shallowSizeOf(LongPartitionedState.class);
+        private static final String LABEL = "LongArrayState#partition";
+
+        private final long baseBytes;
+        private final long[][] values;
+        private final boolean[][] seen;
+
+        private LongPartitionedState(CircuitBreaker breaker, int partitionSize, boolean trackSeen) {
+            baseBytes = BASE_RAM_USAGE + bytesUsedByPagesArray(NUM_PARTITIONS) + (trackSeen ? bytesUsedByPagesArray(NUM_PARTITIONS) : 0);
+            long pageBytes = bytesUsedByPartitionPage(partitionSize) + (trackSeen ? bytesUsedBySeenPage(partitionSize) : 0);
+            breaker.addEstimateBytesAndMaybeBreak(baseBytes + NUM_PARTITIONS * pageBytes, LABEL);
+            values = new long[NUM_PARTITIONS][partitionSize];
+            seen = trackSeen ? new boolean[NUM_PARTITIONS][partitionSize] : null;
+        }
+
+        @Override
+        public boolean hasAllValues(int partition) {
+            return seen == null;
+        }
+
+        @Override
+        public void releasePartition(CircuitBreaker breaker, int partition) {
+            long usedBytes = 0;
+            if (values[partition] != null) {
+                usedBytes += bytesUsedByPartitionPage(values[partition].length);
+                values[partition] = null;
+            }
+            if (seen != null && seen[partition] != null) {
+                usedBytes += bytesUsedBySeenPage(seen[partition].length);
+                seen[partition] = null;
+            }
+            breaker.addWithoutBreaking(-usedBytes);
+        }
+
+        @Override
+        public void releaseAll(CircuitBreaker breaker) {
+            long usedBytes = baseBytes;
+            for (int p = 0; p < NUM_PARTITIONS; p++) {
+                if (values[p] != null) {
+                    usedBytes += bytesUsedByPartitionPage(values[p].length);
+                    values[p] = null;
+                }
+                if (seen != null && seen[p] != null) {
+                    usedBytes += bytesUsedBySeenPage(seen[p].length);
+                    seen[p] = null;
+                }
+            }
+            breaker.addWithoutBreaking(-usedBytes);
+        }
+    }
+
+    private final class LongPartitionSplitter implements GroupingAggregatorFunction.PartitionSplitter {
+        private final CircuitBreaker partitionBreaker;
+        private LongPartitionedState partitionedState;
+
+        private LongPartitionSplitter(CircuitBreaker partitionBreaker) {
+            this.partitionBreaker = partitionBreaker;
+            int partitionSize = ArrayUtil.oversize(Math.max(1, Math.ceilDiv(capacity, NUM_PARTITIONS)), Long.BYTES);
+            partitionedState = new LongPartitionedState(partitionBreaker, partitionSize, trackingGroupIds());
+        }
+
+        @Override
+        public void split(int firstId, short[] shiftedIds, int batchSize, int[] batchPartitionCounts, int[] partitionOffsets) {
+            if (partitionedState.seen == null) {
+                splitWithAllValues(firstId, shiftedIds, batchSize, batchPartitionCounts, partitionOffsets);
+                return;
+            }
+            for (int p = 0; p < NUM_PARTITIONS; p++) {
+                final int count = batchPartitionCounts[p];
+                if (count == 0) {
+                    continue;
+                }
+                final int offset = partitionOffsets[p];
+                ensurePartitionCapacity(p, offset + count);
+                final int base = p * PARTITION_WRITE_BATCH;
+                for (int i = 0; i < count; i++) {
+                    final int id = firstId + shiftedIds[base + i];
+                    if (hasValue(id)) {
+                        assert id < capacity : id + ">=" + capacity;
+                        partitionedState.values[p][offset + i] = get(id);
+                        partitionedState.seen[p][offset + i] = true;
+                    }
+                }
+            }
+        }
+
+        void splitWithAllValues(int firstId, short[] shiftedIds, int batchSize, int[] batchPartitionCounts, int[] partitionOffsets) {
+            for (int p = 0; p < NUM_PARTITIONS; p++) {
+                final int count = batchPartitionCounts[p];
+                if (count == 0) {
+                    continue;
+                }
+                final int offset = partitionOffsets[p];
+                ensurePartitionCapacity(p, offset + count);
+                final int base = p * PARTITION_WRITE_BATCH;
+                for (int i = 0; i < count; i++) {
+                    final int id = firstId + shiftedIds[base + i];
+                    assert id < capacity : id + ">=" + capacity;
+                    partitionedState.values[p][offset + i] = get(id);
+                }
+            }
+        }
+
+        private void ensurePartitionCapacity(int partition, int minSize) {
+            final long[] oldValues = partitionedState.values[partition];
+            if (oldValues.length >= minSize) {
+                return;
+            }
+            final int newSize = ArrayUtil.oversize(minSize, Long.BYTES);
+            partitionBreaker.addEstimateBytesAndMaybeBreak(bytesUsedByPartitionPage(newSize), LongPartitionedState.LABEL);
+            partitionedState.values[partition] = Arrays.copyOf(oldValues, newSize);
+            partitionBreaker.addWithoutBreaking(-bytesUsedByPartitionPage(oldValues.length));
+
+            if (partitionedState.seen != null) {
+                final boolean[] oldSeen = partitionedState.seen[partition];
+                partitionBreaker.addEstimateBytesAndMaybeBreak(bytesUsedBySeenPage(newSize), LongPartitionedState.LABEL);
+                partitionedState.seen[partition] = Arrays.copyOf(oldSeen, newSize);
+                partitionBreaker.addWithoutBreaking(-bytesUsedBySeenPage(oldSeen.length));
+            }
+        }
+
+        @Override
+        public LongPartitionedState finish() {
+            final LongPartitionedState result = partitionedState;
+            partitionedState = null;
+            return result;
+        }
+
+        @Override
+        public void release(CircuitBreaker breaker) {
+            if (partitionedState != null) {
+                partitionedState.releaseAll(breaker);
+                partitionedState = null;
+            }
+        }
+    }
+
+    GroupingAggregatorFunction.PartitionSplitter createPartitioningSplitter(CircuitBreaker breaker) {
+        return new LongPartitionSplitter(breaker);
+    }
+
+    long[] partitionValues(GroupingAggregatorFunction.PartitionedState source, int partition) {
+        return ((LongPartitionedState) source).values[partition];
+    }
+
+    boolean[] partitionSeen(GroupingAggregatorFunction.PartitionedState source, int partition) {
+        final boolean[][] seen = ((LongPartitionedState) source).seen;
+        return seen == null ? null : seen[partition];
+    }
+
+    void appendPartition(long[] src, int firstId, int length) {
+        final int end = firstId + length;
+        assert end <= capacity : end + " > " + capacity;
+        for (int id = firstId, i = 0; id < end;) {
+            final int indexInPage = id & PAGE_MASK;
+            final int copyLength = Math.min(PAGE_SIZE - indexInPage, end - id);
+            System.arraycopy(src, i, pages[id >>> PAGE_SHIFT], indexInPage, copyLength);
+            id += copyLength;
+            i += copyLength;
+        }
+        trackGroupIds(firstId, end);
     }
 
     @Override

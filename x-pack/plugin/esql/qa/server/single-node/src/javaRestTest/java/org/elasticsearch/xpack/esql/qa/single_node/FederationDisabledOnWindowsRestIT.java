@@ -10,6 +10,7 @@ package org.elasticsearch.xpack.esql.qa.single_node;
 import com.carrotsearch.randomizedtesting.annotations.ThreadLeakFilters;
 
 import org.apache.http.util.EntityUtils;
+import org.apache.lucene.util.Constants;
 import org.elasticsearch.client.Request;
 import org.elasticsearch.client.ResponseException;
 import org.elasticsearch.common.Strings;
@@ -25,7 +26,6 @@ import java.io.IOException;
 
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
-import static org.junit.Assume.assumeFalse;
 
 /**
  * End-to-end REST coverage for a node that was given no federation configuration at all, on the platform where that
@@ -55,15 +55,18 @@ public class FederationDisabledOnWindowsRestIT extends AbstractFederationUnavail
     private static final ElasticsearchCluster cluster = Clusters.clusterWithoutFederationSettings();
 
     /**
-     * The assumption has to run <em>before</em> the cluster rule, not in {@code @BeforeClass}: JUnit applies class
+     * Windows only — this suite asserts a platform policy and its expectations are written for it, so it is gated on
+     * the platform directly rather than on {@link Federation#DEFAULT_REGISTERED}, which merely happens to coincide.
+     *
+     * <p>The assumption has to run <em>before</em> the cluster rule, not in {@code @BeforeClass}: JUnit applies class
      * rules around the before-class methods, so an assumption there would boot a node on every other platform and
      * only then skip. Chaining it outside the cluster skips the suite without starting anything.
      */
     @ClassRule
-    public static TestRule clusterWhereRegistrationDefaultsOff = RuleChain.outerRule((base, description) -> new Statement() {
+    public static TestRule windowsOnlyCluster = RuleChain.outerRule((base, description) -> new Statement() {
         @Override
         public void evaluate() throws Throwable {
-            assumeFalse("covers the platform where federation is off unless asked for", Federation.DEFAULT_REGISTERED);
+            assumeTrue("federation is only off-by-default on Windows", Constants.WINDOWS);
             base.evaluate();
         }
     }).around(cluster);
@@ -98,7 +101,7 @@ public class FederationDisabledOnWindowsRestIT extends AbstractFederationUnavail
      * {@code FederationDisabledRestIT#testFederationSettingsAreRejectedOverRest}, except that here nothing was
      * configured to produce the state — the platform default alone did.
      */
-    public void testFederationSettingsAreUnknown() throws IOException {
+    public void testFederationSettingsAreUnknown() {
         Request update = new Request("PUT", "/_cluster/settings");
         update.setJsonEntity(Strings.format("""
             {"persistent": {"%s": true}}""", Federation.FEDERATION_ENABLED.getKey()));

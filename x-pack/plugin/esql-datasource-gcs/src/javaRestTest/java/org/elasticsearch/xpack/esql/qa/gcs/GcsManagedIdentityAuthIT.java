@@ -22,7 +22,7 @@ import org.elasticsearch.test.cluster.ElasticsearchCluster;
 import org.elasticsearch.test.cluster.local.distribution.DistributionType;
 import org.elasticsearch.test.rest.ESRestTestCase;
 import org.elasticsearch.xcontent.XContentBuilder;
-import org.elasticsearch.xpack.esql.datasources.Federation;
+import org.elasticsearch.xpack.esql.datasources.FederationClusters;
 import org.junit.AfterClass;
 import org.junit.Before;
 import org.junit.BeforeClass;
@@ -85,7 +85,7 @@ public class GcsManagedIdentityAuthIT extends ESRestTestCase {
         .distribution(DistributionType.DEFAULT)
         .setting("xpack.security.enabled", "false")
         .setting("xpack.license.self_generated.type", "trial")
-        .setting(Federation.FEDERATION_ENABLED.getKey(), "true")
+        .apply(FederationClusters::enable)
         // Open the workload identity gate so the validator accepts auth=managed_identity.
         .setting("esql.external.managed_identity.enabled", "true")
         // Redirect the GCE metadata server to our fixture so ComputeEngineCredentials.refresh()

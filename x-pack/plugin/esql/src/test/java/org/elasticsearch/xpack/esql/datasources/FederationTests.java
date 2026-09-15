@@ -163,13 +163,13 @@ public class FederationTests extends ESTestCase {
     public void testEnsureEnabledThrowsBadRequestWhenDisabled() {
         ElasticsearchStatusException e = expectThrows(ElasticsearchStatusException.class, () -> Federation.ensureEnabled(false));
         assertEquals(RestStatus.BAD_REQUEST, e.status());
-        assertTrue(e.getMessage().contains("external data sources are not available"));
+        assertTrue(e.getMessage().contains(Federation.externalNotSupportedMessage()));
     }
 
     public void testNotAvailableExceptionIsBadRequest() {
         ElasticsearchStatusException e = Federation.notAvailableException();
         assertEquals(RestStatus.BAD_REQUEST, e.status());
-        assertEquals("external data sources are not available", e.getMessage());
+        assertEquals(Federation.externalNotSupportedMessage(), e.getMessage());
     }
 
     /**
@@ -179,7 +179,7 @@ public class FederationTests extends ESTestCase {
      */
     public void testExternalNotSupportedMessageMatchesCapability() {
         assertEquals(
-            Federation.SUPPORTED ? "external data sources are not available" : "External data sources are not supported on Windows",
+            Federation.SUPPORTED ? "external data sources are not available" : "external data sources are not supported on Windows",
             Federation.externalNotSupportedMessage()
         );
     }

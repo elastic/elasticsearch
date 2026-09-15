@@ -427,9 +427,9 @@ public class LocalExecutionPlannerTests extends MapperServiceTestCase {
      * enabled coordinator, from a remote cluster, or from a rolling restart that has not reached this node yet.
      *
      * <p>Either lever produces this, so the test also passes on a node where the feature is unregistered rather than
-     * merely disabled; it pins the refusal and its message, not which lever caused it. The message stays the generic
-     * {@link Federation#notAvailableException()} wording on every platform — only the parser's {@code EXTERNAL} guard
-     * uses {@link Federation#externalNotSupportedMessage()}, so do not route this path through that helper.
+     * merely disabled; it pins the refusal and its message, not which lever caused it. The expected message is asked
+     * for rather than hardcoded because it names the platform where the feature could never run — see
+     * {@link Federation#externalNotSupportedMessage()}, which backs both this backstop and the parser's guard.
      */
     public void testExternalSourceRefusedWhenFederationIsNotAvailable() throws IOException {
         SourceOperatorFactoryProvider provider = capturingProvider(new AtomicReference<>());
@@ -461,7 +461,7 @@ public class LocalExecutionPlannerTests extends MapperServiceTestCase {
             )
         );
         assertThat(e.status(), equalTo(RestStatus.BAD_REQUEST));
-        assertThat(e.getMessage(), equalTo("external data sources are not available"));
+        assertThat(e.getMessage(), equalTo(Federation.externalNotSupportedMessage()));
     }
 
     /**

@@ -13,6 +13,7 @@ import org.elasticsearch.test.cluster.local.LocalClusterConfigProvider;
 import org.elasticsearch.test.cluster.local.LocalClusterSpecBuilder;
 import org.elasticsearch.test.cluster.local.distribution.DistributionType;
 import org.elasticsearch.xpack.esql.datasources.Federation;
+import org.elasticsearch.xpack.esql.datasources.FederationClusters;
 import org.elasticsearch.xpack.esql.datasources.FixtureUtils;
 import org.elasticsearch.xpack.esql.qa.rest.EsqlDataSourceMixedClusterTestSupport;
 
@@ -55,9 +56,9 @@ public class Clusters {
             .setting("xpack.security.enabled", "false")
             .setting("xpack.license.self_generated.type", "trial")
             // Every suite here queries external data, so the federation gate is pinned rather than left to the build
-            // default. This default is a supplier rather than a plain value so that a per-node override added later
-            // still wins: explicit settings beat suppliers.
-            .setting(Federation.FEDERATION_ENABLED.getKey(), () -> "true")
+            // default. The helper supplies it as a supplier rather than a plain value, which is what lets the per-node
+            // override in multiNodeCoordinatorEnabledDataNodeDisabledCluster win.
+            .apply(FederationClusters::enable)
             // Disable ML to avoid native code loading issues in some environments
             .setting("xpack.ml.enabled", "false")
             // Allow the LOCAL storage backend to read fixture files from the test resources directory.
@@ -157,9 +158,14 @@ public class Clusters {
      * rather than toggled at runtime.
      */
     public static ElasticsearchCluster multiNodeCoordinatorEnabledDataNodeDisabledCluster(Supplier<String> s3EndpointSupplier) {
-        return baseBuilder(s3EndpointSupplier, config -> {}).withNode(node -> node.name("coordinator").setting("node.roles", "[]"))
-            .withNode(node -> node.name("data-node").setting("node.roles", "[master, data]"))
-            .setting(Federation.FEDERATION_ENABLED.getKey(), () -> "false", nodeSpec -> "data-node".equals(nodeSpec.getName()))
-            .build();
+        var builder = baseBuilder(s3EndpointSupplier, config -> {}).withNode(node -> node.name("coordinator").setting("node.roles", "[]"))
+            .withNode(node -> node.name("data-node").setting("node.roles", "[master, data]"));
+        // Only where the platform can run federation at all. Where it cannot, baseBuilder left the feature
+        // unregistered, so writing its gate here would make the node reject an unknown setting at startup — taking the
+        // cluster down rather than producing the disabled data node this suite wants.
+        if (Federation.SUPPORTED) {
+            builder.setting(Federation.FEDERATION_ENABLED.getKey(), () -> "false", nodeSpec -> "data-node".equals(nodeSpec.getName()));
+        }
+        return builder.build();
     }
 }

@@ -38,7 +38,9 @@ public final class FederationClusters {
         if (Federation.SUPPORTED == false) {
             return false;
         }
-        spec.setting(Federation.FEDERATION_ENABLED.getKey(), "true");
+        // A supplier rather than a plain value, so that a per-node override still wins: explicit settings beat
+        // suppliers. FederationDataNodeBackstopRestIT relies on this to turn the gate off for one node only.
+        spec.setting(Federation.FEDERATION_ENABLED.getKey(), () -> "true");
         // Only where the default is off, so this does not fight the suites that deliberately unregister the feature.
         if (Federation.DEFAULT_REGISTERED == false) {
             spec.systemProperty(Federation.REGISTER_PROPERTY, "true");

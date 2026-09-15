@@ -230,12 +230,13 @@ public final class Federation {
     }
 
     /**
-     * The message for refusing an inline {@code EXTERNAL} command before it resolves anything. A node that could
-     * never run the feature says so; one that merely has it switched off reuses the wording of
-     * {@link #notAvailableException()}, so the two entry points read the same and existing assertions hold.
+     * Why external data sources will not work on this node, in the terms most useful to the caller: a node that
+     * could never run them says so, one that merely has them switched off reports them as unavailable. The single
+     * source of this wording — {@link #notAvailableException()} and the parser's {@code EXTERNAL} guard both use
+     * it, so every refusal reads the same whichever entry point produced it.
      */
     public static String externalNotSupportedMessage() {
-        return SUPPORTED ? "external data sources are not available" : "External data sources are not supported on Windows";
+        return SUPPORTED ? "external data sources are not available" : "external data sources are not supported on Windows";
     }
 
     /**
@@ -282,11 +283,15 @@ public final class Federation {
 
     /**
      * The {@code 400} raised when external-source work reaches a node that does not have federation available,
-     * either at the data node's external-request entry point or at the operator-build backstop. The message
-     * deliberately omits the property and setting names so it reads as a plain "feature not present" error
-     * rather than a configuration hint.
+     * either at the data node's external-request entry point or at the operator-build backstop. The message comes
+     * from {@link #externalNotSupportedMessage()} and deliberately omits the property and setting names, so it
+     * reads as a plain "feature not present" error rather than a configuration hint.
+     *
+     * <p>This is reachable even where the feature could never run: an {@code ExternalSourceExec} deserialized from
+     * an enabled coordinator never passes through this node's parser, so the backstop is the first thing it meets.
+     * Such a node reports the platform rather than a bare "not available", which is the more actionable of the two.
      */
     public static ElasticsearchStatusException notAvailableException() {
-        return new ElasticsearchStatusException("external data sources are not available", RestStatus.BAD_REQUEST);
+        return new ElasticsearchStatusException(externalNotSupportedMessage(), RestStatus.BAD_REQUEST);
     }
 }

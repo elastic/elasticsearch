@@ -2,7 +2,7 @@
   "comment" : "PromQL function definition for Kibana. See https://prometheus.io/docs/prometheus/latest/querying/functions/",
   "type" : "result_ordering",
   "name" : "sort_by_label_desc",
-  "description" : "Sorts instant-vector series by the values of the given labels in natural descending order. Missing labels compare as the empty string. Ordering is observable only on instant queries. After a range query the Prometheus engine re-sorts the matrix by label set, so the sort has no effect on the returned series order. Label comparison uses natural order (digit runs compared numerically).",
+  "description" : "Sorts instant-vector series by the values of the given labels in natural descending order. Missing labels compare as the empty string. Ordering is observable only on instant queries. Range queries return the series in their input order, without applying the requested ordering. Label comparison uses natural order, with digit runs compared numerically.",
   "signatures" : [
     {
       "params" : [

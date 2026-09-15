@@ -10,6 +10,7 @@ package org.elasticsearch.xpack.esql.inference.textembedding;
 import org.elasticsearch.compute.expression.ExpressionEvaluator;
 import org.elasticsearch.compute.operator.DriverContext;
 import org.elasticsearch.compute.operator.Operator;
+import org.elasticsearch.compute.operator.Warnings;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.inference.TaskType;
 import org.elasticsearch.xpack.esql.core.tree.Source;
@@ -24,6 +25,8 @@ import org.elasticsearch.xpack.esql.inference.embedding.EmbeddingOutputBuilder;
  */
 public class TextEmbeddingOperator extends InferenceOperator {
 
+    private final int batchSize;
+
     TextEmbeddingOperator(
         DriverContext driverContext,
         InferenceService inferenceService,
@@ -37,16 +40,24 @@ public class TextEmbeddingOperator extends InferenceOperator {
         super(
             driverContext,
             inferenceService,
-            new TextEmbeddingRequestIterator.Factory(inferenceId, TaskType.TEXT_EMBEDDING, inputEvaluator, batchSize, timeout),
+            new TextEmbeddingRequestIterator.Factory(
+                inferenceId,
+                TaskType.TEXT_EMBEDDING,
+                inputEvaluator,
+                batchSize,
+                timeout,
+                Warnings.createOnlyWarnings(driverContext, source)
+            ),
             new EmbeddingOutputBuilder(driverContext.blockFactory(), tolerateFailures),
             source,
             tolerateFailures
         );
+        this.batchSize = batchSize;
     }
 
     @Override
     public String toString() {
-        return "TextEmbeddingOperator[inference_id=[" + inferenceId() + "]]";
+        return "TextEmbeddingOperator[inference_id=[" + inferenceId() + "], batch_size=[" + batchSize + "]]";
     }
 
     /**
@@ -69,7 +80,7 @@ public class TextEmbeddingOperator extends InferenceOperator {
 
         @Override
         public String describe() {
-            return "TextEmbeddingOperator[inference_id=[" + inferenceId + "]]";
+            return "TextEmbeddingOperator[inference_id=[" + inferenceId + "], batch_size=[" + batchSize + "]]";
         }
 
         @Override

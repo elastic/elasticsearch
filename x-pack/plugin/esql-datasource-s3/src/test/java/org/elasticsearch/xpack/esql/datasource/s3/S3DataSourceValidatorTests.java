@@ -8,11 +8,18 @@
 package org.elasticsearch.xpack.esql.datasource.s3;
 
 import org.elasticsearch.common.ValidationException;
+import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.xpack.esql.datasources.DecompressionCodecRegistry;
+import org.elasticsearch.xpack.esql.datasources.FormatNameResolver;
+import org.elasticsearch.xpack.esql.datasources.FormatReaderRegistry;
 import org.elasticsearch.xpack.esql.datasources.metadata.DataSourceSetting;
 import org.elasticsearch.xpack.esql.datasources.spi.AbstractDataSourceValidatorTests;
 import org.elasticsearch.xpack.esql.datasources.spi.DataSourceValidator;
+import org.elasticsearch.xpack.esql.datasources.spi.DecompressionCodec;
 import org.elasticsearch.xpack.esql.datasources.spi.FileDataSourceValidator;
+import org.elasticsearch.xpack.esql.datasources.spi.FormatReader;
 
+import java.io.InputStream;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -22,10 +29,13 @@ import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.hasItem;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.not;
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.when;
 
 public class S3DataSourceValidatorTests extends AbstractDataSourceValidatorTests {
 
-    private final DataSourceValidator validator = new FileDataSourceValidator("s3", S3Configuration::fromMap, Set.of("s3", "s3a", "s3n"));
+    private final DataSourceValidator validator = new FileDataSourceValidator("s3", S3Configuration::fromMap, Set.of("s3", "s3a", "s3n"))
+        .withResourceCheck(S3ResourceCheck::validate);
 
     @Override
     protected DataSourceValidator validator() {
@@ -83,7 +93,8 @@ public class S3DataSourceValidatorTests extends AbstractDataSourceValidatorTests
         "header_row",
         "column_prefix",
         "trim_spaces",
-        "schema_sample_size"
+        "schema_sample_size",
+        "skip_rows"
     );
 
     // The real production resolver (FormatConfigKeyResolver.of, the same factory EsqlPlugin uses),
@@ -102,7 +113,40 @@ public class S3DataSourceValidatorTests extends AbstractDataSourceValidatorTests
         "s3",
         S3Configuration::fromMap,
         Set.of("s3", "s3a", "s3n")
-    ).withFormatConfigKeyResolver(CSV_RESOLVER, Set.of(".gz"));
+    ).withFormatConfigKeyResolver(CSV_RESOLVER).withFormatReaderRegistry(csvGzipRegistry());
+
+    /**
+     * Registry the production validator uses for compound-extension inference. Mockito stub: only
+     * {@link FormatReader#formatName()}, {@link FormatReader#fileExtensions()}, and
+     * {@link FormatReader#supportsWholeFileCompression()} are consulted.
+     */
+    private static FormatReaderRegistry csvGzipRegistry() {
+        FormatReader csv = mock(FormatReader.class);
+        when(csv.formatName()).thenReturn("csv");
+        when(csv.fileExtensions()).thenReturn(List.of(".csv"));
+        when(csv.supportsWholeFileCompression()).thenReturn(true);
+        DecompressionCodecRegistry codecs = new DecompressionCodecRegistry();
+        codecs.register(new DecompressionCodec() {
+            @Override
+            public String name() {
+                return "gzip";
+            }
+
+            @Override
+            public List<String> extensions() {
+                return List.of(".gz");
+            }
+
+            @Override
+            public InputStream decompress(InputStream raw) {
+                return raw;
+            }
+        });
+        FormatReaderRegistry registry = new FormatReaderRegistry(codecs);
+        registry.registerLazy("csv", (s, bf) -> csv, Settings.EMPTY, null);
+        registry.registerExtension(".csv", "csv");
+        return registry;
+    }
 
     public void testValidateDatasourceWithCredentials() {
         var result = validator.validateDatasource(Map.of("access_key", "AKIA123", "secret_key", "secret", "region", "us-east-1"));
@@ -119,6 +163,14 @@ public class S3DataSourceValidatorTests extends AbstractDataSourceValidatorTests
 
     public void testValidateDatasourceRejectsInvalidAuth() {
         expectThrows(ValidationException.class, () -> validator.validateDatasource(Map.of("auth", "oauth2")));
+    }
+
+    public void testValidateDatasourceRejectsInvalidAddressingStyle() {
+        var e = expectThrows(
+            ValidationException.class,
+            () -> validator.validateDatasource(Map.of("access_key", "ak", "secret_key", "sk", "addressing_style", "ftp_style"))
+        );
+        assertThat(e.getMessage(), containsString("Unsupported addressing_style value [ftp_style]"));
     }
 
     public void testValidateDatasourceAuthCaseInsensitive() {
@@ -370,9 +422,9 @@ public class S3DataSourceValidatorTests extends AbstractDataSourceValidatorTests
     }
 
     /**
-     * The three combinations in which one of the partition settings would be silently ignored. Rejected at
-     * registration only — {@code PartitionConfig.fromConfig} still resolves them leniently so datasets stored
-     * before this validation existed keep reading.
+     * The combinations in which one of the partition settings would be silently ignored. Rejected at registration
+     * only — {@code PartitionConfig.fromConfig} still resolves them leniently so datasets stored before this
+     * validation existed keep reading.
      */
     public void testValidateDatasetRejectsSilentlyIgnoredPartitionSettings() {
         expectThrows(
@@ -381,15 +433,7 @@ public class S3DataSourceValidatorTests extends AbstractDataSourceValidatorTests
         );
         expectThrows(
             ValidationException.class,
-            () -> validator.validateDataset(Map.of(), "s3://b/p", Map.of("partition_detection", "hive", "hive_partitioning", "false"))
-        );
-        expectThrows(
-            ValidationException.class,
             () -> validator.validateDataset(Map.of(), "s3://b/p", Map.of("partition_detection", "none", "partition_path", "{year}"))
-        );
-        expectThrows(
-            ValidationException.class,
-            () -> validator.validateDataset(Map.of(), "s3://b/p", Map.of("hive_partitioning", "false", "partition_path", "{year}"))
         );
         // hive never reads a path template, so storing one would store a setting that does nothing.
         expectThrows(
@@ -398,18 +442,31 @@ public class S3DataSourceValidatorTests extends AbstractDataSourceValidatorTests
         );
     }
 
-    /** hive_partitioning:true asserts nothing — it is the default — so it never contradicts a strategy. */
-    public void testValidateDatasetAcceptsHivePartitioningTrueWithAnyStrategy() {
-        assertEquals(
-            "hive",
-            validator.validateDataset(Map.of(), "s3://b/p", Map.of("partition_detection", "hive", "hive_partitioning", "true"))
-                .get("partition_detection")
-        );
-        assertEquals(
-            "none",
-            validator.validateDataset(Map.of(), "s3://b/p", Map.of("partition_detection", "none", "hive_partitioning", "true"))
-                .get("partition_detection")
-        );
+    /**
+     * {@code hive_partitioning} is a deprecated no-op: any value alongside any {@code partition_detection} is
+     * accepted without error, and a deprecation warning is emitted. The message is value-aware: {@code false} names
+     * the canonical replacement; any other value tells the user to simply remove the key.
+     */
+    public void testValidateDatasetAcceptsHivePartitioningWithAnyStrategy() {
+        // false: names the replacement setting
+        for (Object value : List.of("false", false)) {
+            validator.validateDataset(Map.of(), "s3://b/p", Map.of("partition_detection", "hive", "hive_partitioning", value));
+            assertWarnings(FileDataSourceValidator.HIVE_PARTITIONING_FALSE_DEPRECATION_MESSAGE);
+            validator.validateDataset(Map.of(), "s3://b/p", Map.of("partition_detection", "none", "hive_partitioning", value));
+            assertWarnings(FileDataSourceValidator.HIVE_PARTITIONING_FALSE_DEPRECATION_MESSAGE);
+            // alongside a partition_path (formerly rejected when hive_partitioning:false)
+            validator.validateDataset(Map.of(), "s3://b/p", Map.of("hive_partitioning", value, "partition_path", "{year}"));
+            assertWarnings(FileDataSourceValidator.HIVE_PARTITIONING_FALSE_DEPRECATION_MESSAGE);
+        }
+        // non-false: tells the user to remove the key (canonical booleans plus junk values)
+        for (Object value : List.of("true", true, "yes", "banana")) {
+            validator.validateDataset(Map.of(), "s3://b/p", Map.of("partition_detection", "hive", "hive_partitioning", value));
+            assertWarnings(FileDataSourceValidator.HIVE_PARTITIONING_NOOP_DEPRECATION_MESSAGE);
+            validator.validateDataset(Map.of(), "s3://b/p", Map.of("partition_detection", "none", "hive_partitioning", value));
+            assertWarnings(FileDataSourceValidator.HIVE_PARTITIONING_NOOP_DEPRECATION_MESSAGE);
+            validator.validateDataset(Map.of(), "s3://b/p", Map.of("hive_partitioning", value, "partition_path", "{year}"));
+            assertWarnings(FileDataSourceValidator.HIVE_PARTITIONING_NOOP_DEPRECATION_MESSAGE);
+        }
     }
 
     public void testValidateDatasetSchemeCaseInsensitive() {
@@ -591,14 +648,51 @@ public class S3DataSourceValidatorTests extends AbstractDataSourceValidatorTests
 
     public void testValidateDatasetPartitionPath() {
         assertEquals(
-            "year=*/month=*",
-            validator.validateDataset(Map.of(), "s3://b/p", Map.of("partition_path", "year=*/month=*")).get("partition_path")
+            "{year}/{month}",
+            validator.validateDataset(Map.of(), "s3://b/p", Map.of("partition_path", "{year}/{month}")).get("partition_path")
         );
     }
 
+    public void testValidateDatasetRejectsPlaceholderlessPartitionPath() {
+        ValidationException e = expectThrows(
+            ValidationException.class,
+            () -> validator.validateDataset(Map.of(), "s3://b/p", Map.of("partition_path", "year={year}"))
+        );
+        assertThat(e.getMessage(), containsString("partition_path"));
+        assertThat(e.getMessage(), containsString("{name}"));
+    }
+
+    public void testValidateDatasetRejectsGlobShapedPartitionPath() {
+        ValidationException e = expectThrows(
+            ValidationException.class,
+            () -> validator.validateDataset(Map.of(), "s3://b/p", Map.of("partition_path", "{year}/{month}/*.csv"))
+        );
+        assertThat(e.getMessage(), containsString("partition_path"));
+        assertThat(e.getMessage(), containsString("*.csv"));
+    }
+
+    public void testValidateDatasetRejectsDuplicatePlaceholderPartitionPath() {
+        ValidationException e = expectThrows(
+            ValidationException.class,
+            () -> validator.validateDataset(Map.of(), "s3://b/p", Map.of("partition_path", "{year}/junk/{year}"))
+        );
+        assertThat(e.getMessage(), containsString("partition_path"));
+        assertThat(e.getMessage(), containsString("more than once"));
+    }
+
+    /**
+     * The raw value is stored as-is (so stored datasets round-trip correctly), and a deprecation warning is emitted.
+     *
+     * <p>Note: {@code assertWarnings} captures the deprecation-log stream, not the HTTP response header.
+     * In production, {@code DatasetService.validatePutDataset} calls {@code validateDataset} twice per PUT (pre-CAS
+     * and inside the CAS task), so the warning fires twice; {@code ThreadContext.putResponse} then deduplicates it to
+     * a single response header. That dedup is not exercised here — it requires a full REST integration test.
+     */
     public void testValidateDatasetHivePartitioning() {
         assertEquals(false, validator.validateDataset(Map.of(), "s3://b/p", Map.of("hive_partitioning", false)).get("hive_partitioning"));
+        assertWarnings(FileDataSourceValidator.HIVE_PARTITIONING_FALSE_DEPRECATION_MESSAGE);
         assertEquals(true, validator.validateDataset(Map.of(), "s3://b/p", Map.of("hive_partitioning", true)).get("hive_partitioning"));
+        assertWarnings(FileDataSourceValidator.HIVE_PARTITIONING_NOOP_DEPRECATION_MESSAGE);
     }
 
     public void testValidateDatasetTargetSplitSize() {
@@ -812,7 +906,7 @@ public class S3DataSourceValidatorTests extends AbstractDataSourceValidatorTests
                 containsString(
                     "known settings: [error_mode, file_exclusions, file_order, file_sort_by, format, hive_partitioning, "
                         + "max_error_ratio, max_errors, max_split_probes, partition_detection, partition_path, "
-                        + "schema_resolution, schema_sample_size, split_probe_window, target_split_size]"
+                        + "schema_resolution, split_probe_window, target_split_size]"
                 )
             )
         );
@@ -836,42 +930,38 @@ public class S3DataSourceValidatorTests extends AbstractDataSourceValidatorTests
     }
 
     public void testUnknownFormatWithFormatSettingGivesSetFormatHint() {
-        // No explicit format, unknown extension, format-specific setting present: targeted hint.
+        // No explicit format, unknown extension: fail closed. Format-specific keys are not diagnosed
+        // separately once the pattern itself cannot imply a format.
         var e = expectThrows(
             ValidationException.class,
             () -> formatAwareValidator.validateDataset(Map.of(), "s3://test", Map.of("delimiter", "|"))
         );
-        assertEquals(List.of(FileDataSourceValidator.cannotDetermineFormatError("s3://test", Set.of("delimiter"))), e.validationErrors());
+        assertEquals(List.of(FormatNameResolver.ambiguousDatasetFormatMessage("s3://test")), e.validationErrors());
     }
 
     public void testUnknownFormatGenuineTypoReportedAsUnknownSetting() {
-        // No explicit format, unknown extension, a key no registered format recognises: this is a real
-        // typo and must read as an unknown setting, not a misleading "set format" hint.
+        // Prefix without format is refused before per-key checks, so a typo is not reported as unknown setting.
         var e = expectThrows(
             ValidationException.class,
             () -> formatAwareValidator.validateDataset(Map.of(), "s3://test", Map.of("not_a_setting", "x"))
         );
-        assertThat(e.validationErrors(), hasSize(1));
-        assertThat(e.validationErrors().get(0), containsString("unknown setting [not_a_setting]"));
-        assertThat(e.validationErrors().get(0), containsString("file_sort_by"));
-        assertThat(e.validationErrors().get(0), containsString("file_order"));
-        assertThat(e.getMessage(), not(containsString("cannot determine format")));
+        assertEquals(List.of(FormatNameResolver.ambiguousDatasetFormatMessage("s3://test")), e.validationErrors());
     }
 
     public void testUnknownFormatMixedKeysReportBothDiagnoses() {
-        // A real format-specific key gets the "set format" hint; a genuine typo gets "unknown setting".
         var e = expectThrows(
             ValidationException.class,
             () -> formatAwareValidator.validateDataset(Map.of(), "s3://test", Map.of("delimiter", "|", "not_a_setting", "x"))
         );
-        assertThat(e.validationErrors(), hasItem(FileDataSourceValidator.cannotDetermineFormatError("s3://test", Set.of("delimiter"))));
-        assertThat(e.validationErrors(), hasItem(containsString("unknown setting [not_a_setting]")));
+        assertEquals(List.of(FormatNameResolver.ambiguousDatasetFormatMessage("s3://test")), e.validationErrors());
     }
 
     public void testUnknownFormatBaseSettingsOnlyAccepted() {
-        // No explicit format, unknown extension, only base settings -> accepted (resolves per-file at query).
-        var result = formatAwareValidator.validateDataset(Map.of(), "s3://test", Map.of("partition_detection", "hive"));
-        assertEquals("hive", result.get("partition_detection"));
+        var e = expectThrows(
+            ValidationException.class,
+            () -> formatAwareValidator.validateDataset(Map.of(), "s3://test", Map.of("partition_detection", "hive"))
+        );
+        assertEquals(List.of(FormatNameResolver.ambiguousDatasetFormatMessage("s3://test")), e.validationErrors());
     }
 
     public void testFormatAutoFallsBackToExtension() {
@@ -885,6 +975,524 @@ public class S3DataSourceValidatorTests extends AbstractDataSourceValidatorTests
         expectThrows(
             ValidationException.class,
             () -> formatAwareValidator.validateDataset(Map.of(), "s3://test", Map.of("format", "auto", "delimiter", "|"))
+        );
+    }
+
+    // --- Endpoint URL validation ---
+
+    public void testValidateDatasourceRejectsBareWordEndpoint() {
+        var e = expectThrows(ValidationException.class, () -> validator.validateDatasource(Map.of("endpoint", "notaurl")));
+        assertThat(e.getMessage(), containsString("endpoint [notaurl]"));
+        assertThat(e.getMessage(), containsString("must be an absolute http"));
+    }
+
+    public void testValidateDatasourceRejectsEndpointWithEmbeddedSpace() {
+        var e = expectThrows(ValidationException.class, () -> validator.validateDatasource(Map.of("endpoint", "not a url")));
+        assertThat(e.getMessage(), containsString("endpoint [not a url]"));
+    }
+
+    public void testValidateDatasourceRejectsMissingSchemeEndpoint() {
+        var e = expectThrows(
+            ValidationException.class,
+            () -> validator.validateDatasource(Map.of("endpoint", "//bucket.s3.amazonaws.com"))
+        );
+        assertThat(e.getMessage(), containsString("endpoint [//bucket.s3.amazonaws.com]"));
+        assertThat(e.getMessage(), containsString("must be an absolute http"));
+    }
+
+    public void testValidateDatasourceRejectsNonHttpEndpoint() {
+        var e = expectThrows(
+            ValidationException.class,
+            () -> validator.validateDatasource(Map.of("endpoint", "ftp://s3-proxy.example.com"))
+        );
+        assertThat(e.getMessage(), containsString("endpoint [ftp://s3-proxy.example.com]"));
+        assertThat(e.getMessage(), containsString("must be an absolute http"));
+    }
+
+    public void testValidateDatasourceAcceptsHttpEndpoint() {
+        var result = validator.validateDatasource(Map.of("endpoint", "http://s3-proxy.example.com", "auth", "anonymous"));
+        assertEquals("http://s3-proxy.example.com", result.get("endpoint").nonSecretValue());
+    }
+
+    public void testValidateDatasourceAcceptsHttpsEndpoint() {
+        var result = validator.validateDatasource(Map.of("endpoint", "https://s3-proxy.example.com:9000", "auth", "anonymous"));
+        assertEquals("https://s3-proxy.example.com:9000", result.get("endpoint").nonSecretValue());
+    }
+
+    public void testValidateDatasourceAbsentEndpointAccepted() {
+        // No endpoint: accepted — the SDK uses the default regional endpoint.
+        var result = validator.validateDatasource(Map.of("access_key", "AKIA123", "secret_key", "sk", "region", "us-east-1"));
+        assertNull(result.get("endpoint"));
+    }
+
+    public void testValidateDatasourceRejectsSchemeOnlyEndpoint() {
+        // "http:" has an empty scheme-specific part; URI.create throws, landing in the catch branch.
+        var e = expectThrows(ValidationException.class, () -> validator.validateDatasource(Map.of("endpoint", "http:")));
+        assertThat(e.getMessage(), containsString("endpoint [http:]"));
+        assertThat(e.getMessage(), containsString("is not a valid URL"));
+    }
+
+    public void testValidateDatasourceRejectsUnderscoreHostEndpoint() {
+        // Java's URI leaves getHost() null for non-RFC hostnames like minio_s3, and the AWS SDK's
+        // endpointOverride throws URISyntaxException on them, so they must be rejected at PUT time.
+        var e = expectThrows(
+            ValidationException.class,
+            () -> validator.validateDatasource(Map.of("endpoint", "http://minio_s3:9000", "auth", "anonymous"))
+        );
+        assertThat(e.getMessage(), containsString("endpoint [http://minio_s3:9000]"));
+        assertThat(e.getMessage(), containsString("must be an absolute http"));
+    }
+
+    public void testValidateDatasourceRejectsJunkPortEndpoint() {
+        // http://localhost:abc — URI.create parses fine; getHost() returns null for non-RFC-3986 ports, caught by the null check.
+        var e = expectThrows(
+            ValidationException.class,
+            () -> validator.validateDatasource(Map.of("endpoint", "http://localhost:abc", "auth", "anonymous"))
+        );
+        assertThat(e.getMessage(), containsString("endpoint [http://localhost:abc]"));
+        assertThat(e.getMessage(), containsString("must be an absolute http"));
+    }
+
+    public void testValidateDatasourceRejectsNoAuthorityEndpoint() {
+        // http:/path — valid URI with a path but no authority; getHost() returns null.
+        var e = expectThrows(
+            ValidationException.class,
+            () -> validator.validateDatasource(Map.of("endpoint", "http:/path", "auth", "anonymous"))
+        );
+        assertThat(e.getMessage(), containsString("endpoint [http:/path]"));
+        assertThat(e.getMessage(), containsString("must be an absolute http"));
+    }
+
+    public void testValidateDatasourceAcceptsUppercaseSchemeEndpoint() {
+        // URI schemes are case-insensitive (RFC 3986) and HTTP:// works at query time today.
+        var result = validator.validateDatasource(Map.of("endpoint", "HTTP://s3-proxy.example.com", "auth", "anonymous"));
+        assertEquals("HTTP://s3-proxy.example.com", result.get("endpoint").nonSecretValue());
+    }
+
+    public void testValidateDatasourceRejectsInvalidStsEndpoint() {
+        // sts_endpoint is an endpoint override too and gets the same URL validation as endpoint.
+        var federatedValidator = new FileDataSourceValidator("s3", S3Configuration::fromMap, Set.of("s3", "s3a", "s3n"))
+            .withFederatedIdentityEnabled(() -> true);
+        var e = expectThrows(
+            ValidationException.class,
+            () -> federatedValidator.validateDatasource(
+                Map.of("role_arn", "arn:aws:iam::123456789012:role/example", "sts_endpoint", "notaurl")
+            )
+        );
+        assertThat(e.getMessage(), containsString("sts_endpoint [notaurl]"));
+        assertThat(e.getMessage(), containsString("must be an absolute http"));
+    }
+
+    public void testValidateDatasourceAcceptsValidStsEndpoint() {
+        var federatedValidator = new FileDataSourceValidator("s3", S3Configuration::fromMap, Set.of("s3", "s3a", "s3n"))
+            .withFederatedIdentityEnabled(() -> true);
+        var result = federatedValidator.validateDatasource(
+            Map.of("role_arn", "arn:aws:iam::123456789012:role/example", "sts_endpoint", "https://sts.us-east-1.amazonaws.com")
+        );
+        assertEquals("https://sts.us-east-1.amazonaws.com", result.get("sts_endpoint").nonSecretValue());
+    }
+
+    // --- Format value validation at PUT time (via format-aware validator with validator wired) ---
+
+    /**
+     * A resolver identical to CSV_RESOLVER but wiring a test-local strict-char validator for delimiter.
+     *
+     * <p>The rule and the message below are a hand-copy of {@code CsvFormatReader.parseChar}: this module
+     * cannot depend on esql-datasource-csv, so the real validator is out of reach here. The copy is
+     * therefore NOT covered by the validator/reader message-parity guarantee — if the real message
+     * changes, this stub silently diverges and these tests keep passing. That is acceptable because what
+     * they pin is the <em>dispatch</em> ({@code FileDataSourceValidator} resolves the format, forwards
+     * only format-specific keys, and folds the throw into the ValidationException), not the CSV rule
+     * itself. The rule and its message are owned by
+     * {@code CsvFormatReaderRecognizedKeysTests#testValidatorAndReaderAgreeCsvFormat}, and the real
+     * wiring end to end by {@code DataSourceCrudRestIT#testPutDatasetRejectsMultiCharDelimiterOnCsvResource}.
+     */
+    private static final FileDataSourceValidator.FormatConfigKeyResolver CSV_RESOLVER_WITH_VALIDATOR =
+        FileDataSourceValidator.FormatConfigKeyResolver.of(Map.of("csv", CSV_CONFIG_KEYS), Map.of(".csv", "csv"), Map.of("csv", config -> {
+            // Mirror parseChar: reject multi-char values not in the four known escapes.
+            Object delimiter = config.get("delimiter");
+            if (delimiter != null) {
+                String s = delimiter.toString();
+                if (s.isEmpty() == false
+                    && s.length() > 1
+                    && "\\t".equals(s) == false
+                    && "\\n".equals(s) == false
+                    && "\\r".equals(s) == false
+                    && "\\\\".equals(s) == false) {
+                    throw new IllegalArgumentException(
+                        "Invalid character value for [delimiter] ["
+                            + delimiter
+                            + "]: expected a single character or one of \\t, \\n, \\r, \\\\"
+                    );
+                }
+            }
+        }));
+
+    private final DataSourceValidator formatAwareValidatorWithValueValidation = new FileDataSourceValidator(
+        "s3",
+        S3Configuration::fromMap,
+        Set.of("s3", "s3a", "s3n")
+    ).withFormatConfigKeyResolver(CSV_RESOLVER_WITH_VALIDATOR).withFormatReaderRegistry(csvGzipRegistry());
+
+    public void testFormatValueValidationRejectsMultiCharDelimiter() {
+        var e = expectThrows(
+            ValidationException.class,
+            () -> formatAwareValidatorWithValueValidation.validateDataset(Map.of(), "s3://bucket/data.csv", Map.of("delimiter", "||"))
+        );
+        assertThat(e.getMessage(), containsString("delimiter"));
+        assertThat(e.getMessage(), containsString("||"));
+    }
+
+    public void testFormatValueValidationAcceptsSingleCharDelimiter() {
+        var result = formatAwareValidatorWithValueValidation.validateDataset(Map.of(), "s3://bucket/data.csv", Map.of("delimiter", "|"));
+        assertEquals("|", result.get("delimiter"));
+    }
+
+    public void testFormatValueValidationAcceptsTabEscapeAsDelimiter() {
+        var result = formatAwareValidatorWithValueValidation.validateDataset(Map.of(), "s3://bucket/data.csv", Map.of("delimiter", "\\t"));
+        assertEquals("\\t", result.get("delimiter"));
+    }
+
+    public void testBaseAndFormatErrorsBothAppear() {
+        // A bad base-level value and a bad format-specific value both appear in the ValidationException.
+        // Note: if both values are format-specific, only the first error is reported (the format validator is fail-fast).
+        var e = expectThrows(
+            ValidationException.class,
+            () -> formatAwareValidatorWithValueValidation.validateDataset(
+                Map.of(),
+                "s3://bucket/data.csv",
+                Map.of("delimiter", "||", "error_mode", "bogus")
+            )
+        );
+        assertThat(e.validationErrors(), hasSize(2));
+    }
+
+    /** A resolver whose format validator trips if it is ever handed a base dataset field. */
+    private static final FileDataSourceValidator.FormatConfigKeyResolver BASE_FIELD_TRIPWIRE_RESOLVER =
+        FileDataSourceValidator.FormatConfigKeyResolver.of(Map.of("csv", CSV_CONFIG_KEYS), Map.of(".csv", "csv"), Map.of("csv", config -> {
+            if (config.containsKey("schema_sample_size")) {
+                throw new IllegalArgumentException("format validator must never receive base field [schema_sample_size]");
+            }
+        }));
+
+    private final DataSourceValidator baseFieldTripwireValidator = new FileDataSourceValidator(
+        "s3",
+        S3Configuration::fromMap,
+        Set.of("s3", "s3a", "s3n")
+    ).withFormatConfigKeyResolver(BASE_FIELD_TRIPWIRE_RESOLVER).withFormatReaderRegistry(csvGzipRegistry());
+
+    /**
+     * {@code schema_sample_size} is in the CSV reader's recognised keys (the reader consumes it), but at
+     * PUT it is owned by the base bounded-int check — the format validator must not see it, or one bad
+     * value reports twice with two different messages.
+     */
+    public void testBaseFieldsAreNotForwardedToTheFormatValidator() {
+        var result = baseFieldTripwireValidator.validateDataset(
+            Map.of(),
+            "s3://bucket/data.csv",
+            Map.of("schema_sample_size", 50, "delimiter", "|")
+        );
+        assertEquals(50, result.get("schema_sample_size"));
+        assertEquals("|", result.get("delimiter"));
+    }
+
+    public void testBadBaseFieldReportsExactlyOnce() {
+        var e = expectThrows(
+            ValidationException.class,
+            () -> baseFieldTripwireValidator.validateDataset(Map.of(), "s3://bucket/data.csv", Map.of("schema_sample_size", 0))
+        );
+        assertThat(e.validationErrors(), hasSize(1));
+        assertThat(e.validationErrors().get(0), containsString("[schema_sample_size] must be between"));
+    }
+
+    // --- ARN and MRAP resource rejection ---
+
+    public void testValidateDatasetRejectsMrapHost() {
+        var e = expectThrows(
+            ValidationException.class,
+            () -> validator.validateDataset(Map.of(), "s3://mfzwi23gnjvgw.mrap/data/f.parquet", Map.of())
+        );
+        assertThat(e.getMessage(), containsString("looks like a multi-region access point, which is not supported"));
+        assertThat(e.getMessage(), containsString("s3://mfzwi23gnjvgw.mrap/data/f.parquet"));
+    }
+
+    public void testValidateDatasetRejectsMrapArn() {
+        // ARN whose first path segment ends with .mrap — gets MRAP message, not generic ARN message.
+        // The not() assertion catches a missing return after the MRAP branch.
+        var e = expectThrows(
+            ValidationException.class,
+            () -> validator.validateDataset(
+                Map.of(),
+                "s3://arn:aws:s3::444732909647:accesspoint/mfzwi23gnjvgw.mrap/data/f.parquet",
+                Map.of()
+            )
+        );
+        assertThat(e.getMessage(), containsString("looks like a multi-region access point, which is not supported"));
+        assertThat(e.getMessage(), not(containsString("does not accept an ARN")));
+    }
+
+    public void testValidateDatasetRejectsMrapFqdn() {
+        // Full AWS global endpoint hostname that MRAP aliases resolve to — must get the MRAP message.
+        var e = expectThrows(
+            ValidationException.class,
+            () -> validator.validateDataset(
+                Map.of(),
+                "s3://mfzwi23gnjvgw.mrap.accesspoint.s3-global.amazonaws.com/data/f.parquet",
+                Map.of()
+            )
+        );
+        assertThat(e.getMessage(), containsString("looks like a multi-region access point, which is not supported"));
+        assertThat(e.getMessage(), not(containsString("does not accept an ARN")));
+    }
+
+    public void testValidateDatasetRejectsEmptyLocation() {
+        // s3:// matches the scheme check but names no bucket. Must fail as an incomplete location,
+        // not as "cannot determine a format" — that message is for a complete URI whose pattern
+        // implies no registered format.
+        var e = expectThrows(ValidationException.class, () -> validator.validateDataset(Map.of(), "s3://", Map.of()));
+        assertThat(e.getMessage(), containsString("is not a complete object location"));
+        assertThat(e.getMessage(), not(containsString("cannot determine")));
+        var withSlash = expectThrows(ValidationException.class, () -> validator.validateDataset(Map.of(), "s3:///", Map.of()));
+        assertThat(withSlash.getMessage(), containsString("is not a complete object location"));
+    }
+
+    public void testFormatAwareValidatorEmptyLocationIsIncompleteNotFormat() {
+        FileDataSourceValidator v = new FileDataSourceValidator("s3", S3Configuration::fromMap, Set.of("s3", "s3a", "s3n"))
+            .withResourceCheck(S3ResourceCheck::validate)
+            .withFormatConfigKeyResolver(CSV_RESOLVER)
+            .withFormatReaderRegistry(csvGzipRegistry());
+        var e = expectThrows(ValidationException.class, () -> v.validateDataset(Map.of(), "s3://", Map.of()));
+        assertThat(e.getMessage(), containsString("is not a complete object location"));
+        assertThat(e.getMessage(), not(containsString("cannot determine")));
+        assertEquals(1, e.validationErrors().size());
+    }
+
+    public void testValidateDatasetRejectsAccessPointArn() {
+        var e = expectThrows(
+            ValidationException.class,
+            () -> validator.validateDataset(Map.of(), "s3://arn:aws:s3:us-east-1:444732909647:accesspoint/my-ap/data/f.parquet", Map.of())
+        );
+        assertThat(e.getMessage(), containsString("does not accept an ARN"));
+        assertThat(e.getMessage(), containsString("Use a bucket name, or an access point alias"));
+    }
+
+    public void testValidateDatasetRejectsObjectLambdaArn() {
+        var e = expectThrows(
+            ValidationException.class,
+            () -> validator.validateDataset(
+                Map.of(),
+                "s3://arn:aws:s3-object-lambda:us-east-1:444732909647:accesspoint/olap/data/f.parquet",
+                Map.of()
+            )
+        );
+        assertThat(e.getMessage(), containsString("does not accept an ARN"));
+    }
+
+    public void testValidateDatasetRejectsOutpostsArn() {
+        var e = expectThrows(
+            ValidationException.class,
+            () -> validator.validateDataset(
+                Map.of(),
+                "s3://arn:aws:s3-outposts:us-east-1:444732909647:outpost/op-x/accesspoint/ap/data/f.parquet",
+                Map.of()
+            )
+        );
+        assertThat(e.getMessage(), containsString("does not accept an ARN"));
+    }
+
+    public void testValidateDatasetRejectsS3TablesArn() {
+        var e = expectThrows(
+            ValidationException.class,
+            () -> validator.validateDataset(Map.of(), "s3://arn:aws:s3tables:us-east-1:444732909647:bucket/tb/ns/tbl", Map.of())
+        );
+        assertThat(e.getMessage(), containsString("does not accept an ARN"));
+    }
+
+    public void testValidateDatasetRejectsAccessGrantsArn() {
+        var e = expectThrows(
+            ValidationException.class,
+            () -> validator.validateDataset(
+                Map.of(),
+                "s3://arn:aws:s3:us-east-1:444732909647:access-grants/default/data/f.parquet",
+                Map.of()
+            )
+        );
+        assertThat(e.getMessage(), containsString("does not accept an ARN"));
+    }
+
+    public void testValidateDatasetArnCheckIsCaseInsensitive() {
+        // ARN prefix matching must be case-insensitive
+        var e = expectThrows(
+            ValidationException.class,
+            () -> validator.validateDataset(Map.of(), "s3://ARN:aws:s3:us-east-1:123:accesspoint/x/f.parquet", Map.of())
+        );
+        assertThat(e.getMessage(), containsString("does not accept an ARN"));
+    }
+
+    public void testValidateDatasetMrapCheckIsCaseInsensitive() {
+        // .mrap suffix matching must be case-insensitive
+        var e = expectThrows(
+            ValidationException.class,
+            () -> validator.validateDataset(Map.of(), "s3://mfzwi23gnjvgw.MRAP/data/f.parquet", Map.of())
+        );
+        assertThat(e.getMessage(), containsString("looks like a multi-region access point, which is not supported"));
+    }
+
+    public void testValidateDatasetAcceptsNormalBucket() {
+        // control — must not be rejected
+        assertNotNull(validator.validateDataset(Map.of(), "s3://my-bucket/data/f.parquet", Map.of()));
+    }
+
+    public void testValidateDatasetAcceptsMrapInKey() {
+        // .mrap appears in the key path, not the host — legal bucket + key, must be accepted
+        assertNotNull(validator.validateDataset(Map.of(), "s3://my-bucket/archive.mrap/data.parquet", Map.of()));
+    }
+
+    public void testValidateDatasetAccessPointAlias() {
+        assertNotNull(validator.validateDataset(Map.of(), "s3://my-ap-a1b2c3d4e-s3alias/data/f.parquet", Map.of()));
+    }
+
+    public void testValidateDatasetObjectLambdaAlias() {
+        assertNotNull(validator.validateDataset(Map.of(), "s3://myolap-1a4n8t--ol-s3/data/f.parquet", Map.of()));
+    }
+
+    public void testValidateDatasetOutpostsAlias() {
+        assertNotNull(validator.validateDataset(Map.of(), "s3://my-access-po-o01ac--op-s3/data/f.parquet", Map.of()));
+    }
+
+    public void testValidateDatasetExpressDirectoryBucket() {
+        assertNotNull(validator.validateDataset(Map.of(), "s3://my-bucket--use1-az4--x-s3/data/f.parquet", Map.of()));
+    }
+
+    public void testValidateDatasetDottedBucketName() {
+        assertNotNull(validator.validateDataset(Map.of(), "s3://my.dotted.bucket/data/f.parquet", Map.of()));
+    }
+
+    public void testValidateDatasetMrapInsideNameNotRejected() {
+        // ends-with check: ".mrap" must appear at the end, not as a substring in the middle
+        assertNotNull(validator.validateDataset(Map.of(), "s3://bucket-with.mrap-inside/data/f.parquet", Map.of()));
+    }
+
+    public void testValidateDatasetArnPrefixWithoutColonNotRejected() {
+        // "arn" without the colon is a legal bucket name prefix — only "arn:" triggers the check
+        assertNotNull(validator.validateDataset(Map.of(), "s3://arnold-bucket/data/f.parquet", Map.of()));
+    }
+
+    /**
+     * The load-bearing rewrap-survival test: the S3 resource check must survive all EsqlPlugin
+     * withers. If the resourceCheck field is missing from any wither's private-constructor call, it is
+     * silently dropped and ARN/MRAP resources pass validation after the re-wrap.
+     */
+    public void testResourceCheckSurvivesAllWithers() {
+        FileDataSourceValidator v = new FileDataSourceValidator("s3", S3Configuration::fromMap, Set.of("s3", "s3a", "s3n"))
+            .withResourceCheck(S3ResourceCheck::validate)
+            .withManagedIdentityEnabled(() -> false)
+            .withFederatedIdentityEnabled(() -> false)
+            .withFormatReaderRegistry(csvGzipRegistry())
+            .withFormatConfigKeyResolver(CSV_RESOLVER);
+
+        var e = expectThrows(
+            ValidationException.class,
+            () -> v.validateDataset(Map.of(), "s3://arn:aws:s3:us-east-1:123456789012:accesspoint/my-ap/data/f.parquet", Map.of())
+        );
+        assertThat(e.getMessage(), containsString("does not accept an ARN"));
+
+        var e2 = expectThrows(
+            ValidationException.class,
+            () -> v.validateDataset(Map.of(), "s3://mfzwi23gnjvgw.mrap/data/f.parquet", Map.of())
+        );
+        assertThat(e2.getMessage(), containsString("looks like a multi-region access point, which is not supported"));
+    }
+
+    /**
+     * Verifies that {@link S3DataSourcePlugin#datasourceValidators} wires the S3 resource check.
+     * If {@code .withResourceCheck(...)} were dropped from the plugin, this test would fail while
+     * unit tests that construct {@link FileDataSourceValidator} directly would still pass.
+     */
+    public void testDatasourceValidatorsIncludesResourceCheck() {
+        DataSourceValidator v = new S3DataSourcePlugin().datasourceValidators(org.elasticsearch.common.settings.Settings.EMPTY).get("s3");
+        var e = expectThrows(
+            ValidationException.class,
+            () -> v.validateDataset(Map.of(), "s3://arn:aws:s3:us-east-1:123456789012:accesspoint/my-ap/data/f.parquet", Map.of())
+        );
+        assertThat(e.getMessage(), containsString("does not accept an ARN"));
+    }
+
+    // --- Glob metacharacter and object-key special-character tests ---
+    // '?' is a first-class glob metacharacter (StoragePath.GLOB_METACHARACTERS). Every object matched by
+    // "day?.csv" ends in ".csv", so the format is inferable from the pattern's own extension. The validator
+    // must not apply URL query-string semantics (truncation at '?') to object-store paths.
+
+    public void testFormatAwareValidatorInfersFormatThroughQuestionMarkGlob() {
+        // '?' is a glob metacharacter; every object this pattern matches ends in .csv.
+        var result = formatAwareValidator.validateDataset(Map.of(), "s3://bucket/logs/day?.csv", Map.of("delimiter", ";"));
+        assertEquals(";", result.get("delimiter"));
+    }
+
+    public void testFormatAwareValidatorInfersFormatThroughQuestionMarkGlobCompoundExtension() {
+        // '?' glob + compound extension (.csv.gz): outer ext .gz triggers compression fallback,
+        // inner ext .csv resolves the format. A naive strip at '?' would yield "day" (no extension).
+        var result = formatAwareValidator.validateDataset(Map.of(), "s3://bucket/logs/day?.csv.gz", Map.of("delimiter", ";"));
+        assertEquals(";", result.get("delimiter"));
+    }
+
+    public void testFormatAwareValidatorInfersFormatThroughStarGlob() {
+        // '*' glob: same extension guarantee, same fix must not regress it.
+        var result = formatAwareValidator.validateDataset(Map.of(), "s3://bucket/logs/day*.csv", Map.of("delimiter", ";"));
+        assertEquals(";", result.get("delimiter"));
+    }
+
+    public void testFormatAwareValidatorHashInObjectKeyInfersFormat() {
+        // '#' is a legal object-store key character; it must not be treated as a URI fragment delimiter.
+        var result = formatAwareValidator.validateDataset(Map.of(), "s3://bucket/report#1.csv", Map.of("delimiter", ";"));
+        assertEquals(";", result.get("delimiter"));
+    }
+
+    public void testFormatAwareValidatorVersionIdQueryStringInfersFormat() {
+        // '?' after the extension (e.g. S3 versionId URLs) must not break format inference.
+        // FormatNameResolverTests pins this shape as supported at query time; CRUD must agree.
+        var result = formatAwareValidator.validateDataset(Map.of(), "s3://bucket/file.csv?versionId=abc", Map.of("delimiter", ";"));
+        assertEquals(";", result.get("delimiter"));
+    }
+
+    public void testFormatAwareValidatorFormatFlipEdgeCaseDocumented() {
+        // An S3 key literally named "data.parquet?x=.csv": last extension is ".csv", so the validator
+        // resolves format=csv and accepts CSV settings. Pre-fix this was rejected (ext ".parquet" maps
+        // to no format in this test resolver); after fix it is accepted because the last dot wins.
+        var result = formatAwareValidator.validateDataset(Map.of(), "s3://bucket/data.parquet?x=.csv", Map.of("delimiter", ";"));
+        assertEquals(";", result.get("delimiter"));
+    }
+
+    /** Validator configured as the plugin does: additional dataset key + deprecation hook for region. */
+    private final FileDataSourceValidator pluginValidator = new FileDataSourceValidator(
+        "s3",
+        S3Configuration::fromMap,
+        Set.of("s3", "s3a", "s3n")
+    ).withAdditionalDatasetKeys(Set.of("region"))
+        .withDeprecatedDatasourceKey(
+            "region",
+            "[region] on a data source is deprecated and will be ignored; "
+                + "set [region] on the dataset instead, or omit it to have the bucket region detected automatically"
+        );
+
+    public void testValidateDatasetAcceptsRegion() {
+        // region is an additional dataset key registered by the S3 plugin; a dataset PUT with region
+        // must succeed without an "unknown field" error.
+        var result = pluginValidator.validateDataset(Map.of(), "s3://bucket/data.parquet", Map.of("region", "eu-west-1"));
+        assertEquals("eu-west-1", result.get("region"));
+    }
+
+    public void testValidateDatasourceRegionDeprecationWarningEmitted() {
+        // Placing region on a data source is valid (backward compat) but deprecated.
+        // The PUT must succeed, emit the expected deprecation warning, and store the value unchanged
+        // so GET still returns it (the storage provider ignores it; only the dataset-level value is used).
+        var stored = pluginValidator.validateDatasource(
+            Map.of("access_key", "AKIAIOSFODNN7EXAMPLE", "secret_key", "secret", "region", "us-east-1")
+        );
+        assertEquals("us-east-1", stored.get("region").nonSecretValue());
+        assertWarnings(
+            "[region] on a data source is deprecated and will be ignored; "
+                + "set [region] on the dataset instead, or omit it to have the bucket region detected automatically"
         );
     }
 
@@ -913,5 +1521,4 @@ public class S3DataSourceValidatorTests extends AbstractDataSourceValidatorTests
             )
         );
     }
-
 }

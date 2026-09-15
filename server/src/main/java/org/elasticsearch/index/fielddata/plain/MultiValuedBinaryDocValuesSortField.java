@@ -23,6 +23,7 @@ import org.apache.lucene.store.DataInput;
 import org.apache.lucene.store.DataOutput;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.columnar.string.StringBinaryPayload;
+import org.elasticsearch.columnar.string.StringColumnSource;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.index.mapper.BinaryDocValuesFormat;
 import org.elasticsearch.index.mapper.MultiValuedBinaryDocValuesField;
@@ -31,7 +32,7 @@ import java.io.IOException;
 
 /**
  * A {@link BinarySortField} for keyword/IP fields stored as high-cardinality binary doc values, in whichever
- * {@link BinaryDocValuesFormat} the mapping chose — see {@link #binaryFormat()}.
+ * {@link BinaryDocValuesFormat} the mapping chose; see {@link #binaryFormat()}.
  *
  * <p>For single-valued documents the blob is the raw term bytes and no decoding is needed, except under
  * {@link BinaryDocValuesFormat#COLUMNAR_PAYLOAD}, which frames every document. For multi-valued documents this
@@ -111,10 +112,10 @@ public final class MultiValuedBinaryDocValuesSortField extends BinarySortField {
      * {@link MinMaxBinaryDocValues#binaryValue()} and {@code LongValuesComparatorSource}'s host.name singleton check.
      *
      * <p>{@code count} is the companion {@code .counts} value, and is ignored for a columnar payload, which carries
-     * its own count and writes no companion — so a caller that has no count in hand can pass anything for it.
+     * its own count and writes no companion; callers that have no count can pass anything for it.
      *
-     * <p>Returns {@code null} for a columnar payload holding no non-null slot — an empty array, or one holding nothing
-     * but nulls. The other formats never write a blob for such a document, so they have nothing to be asked about and
+     * <p>Returns {@code null} for a columnar payload holding no non-null slot (an empty array, or one holding nothing
+     * but nulls). The other formats never write a blob for such a document, so they have nothing to be asked about and
      * always return a key; the payload describes them, and handing its bytes back would sort the document on its own
      * framing.
      */
@@ -134,18 +135,28 @@ public final class MultiValuedBinaryDocValuesSortField extends BinarySortField {
      * Wraps a columnar payload field, returning either the minimum or maximum non-null value as the sort key.
      *
      * <p>A payload is written for every present document, including one whose slots are all null and one holding no slot at all. Neither
-     * has a value to sort on, so both are skipped here and read as missing — which is what the other encodings get for free by writing no
-     * blob for them. Skipping in the iterator rather than at {@link #binaryValue()} is what both index-sort drivers understand: they take
-     * a document the cursor stepped over as having no value.
+     * has a value to sort on, so both are skipped here and read as missing, consistent with how the other encodings
+     * treat absent documents by writing no blob. Skipping in the iterator rather than at {@link #binaryValue()} is what both
+     * index-sort drivers understand: they take a document the cursor stepped over as having no value.
      */
     private static final class ColumnarPayloadMinMaxBinaryDocValues extends FilterBinaryDocValues {
         private final boolean maxMode;
         private final StringBinaryPayload.Decoder decoder = new StringBinaryPayload.Decoder();
+
+        /**
+         * The column behind these values, where there is one. Asked for the extreme directly: it decides it over
+         * ordinals and resolves only the value that wins, where the payload route below has to build the whole
+         * payload out of the column and then take it apart again to find the same value.
+         */
+        @Nullable
+        private final StringColumnSource columnar;
+        private final BytesRef scratch = new BytesRef();
         private BytesRef sortKey;
 
         ColumnarPayloadMinMaxBinaryDocValues(BinaryDocValues values, boolean maxMode) {
             super(values);
             this.maxMode = maxMode;
+            this.columnar = values instanceof StringColumnSource source ? source : null;
         }
 
         @Override
@@ -189,7 +200,7 @@ public final class MultiValuedBinaryDocValuesSortField extends BinarySortField {
 
         /** Decodes the sort key of the document {@code in} is positioned on, reporting whether it has one at all. */
         private boolean decodeSortKey() throws IOException {
-            sortKey = decoder.extreme(in.binaryValue(), maxMode);
+            sortKey = columnar != null ? columnar.extreme(maxMode, scratch) : decoder.extreme(in.binaryValue(), maxMode);
             return sortKey != null;
         }
     }
@@ -245,6 +256,21 @@ public final class MultiValuedBinaryDocValuesSortField extends BinarySortField {
         public BytesRef binaryValue() throws IOException {
             return decodeExtreme(in.binaryValue(), counts.longValue(), maxMode, binaryFormat);
         }
+    }
+
+    @Override
+    public boolean equals(Object obj) {
+        if (!super.equals(obj)) return false;
+        final MultiValuedBinaryDocValuesSortField other = (MultiValuedBinaryDocValuesSortField) obj;
+        return maxMode == other.maxMode && binaryFormat == other.binaryFormat;
+    }
+
+    @Override
+    public int hashCode() {
+        int h = super.hashCode();
+        h = 31 * h + Boolean.hashCode(maxMode);
+        h = 31 * h + binaryFormat.hashCode();
+        return h;
     }
 
     /** SPI provider so this sort field can be serialized to and deserialized from segment info. */

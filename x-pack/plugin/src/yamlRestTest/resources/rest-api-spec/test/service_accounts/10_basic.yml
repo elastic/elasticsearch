@@ -29,6 +29,10 @@ teardown:
   - is_true: "elastic/fleet-server"
   - is_true: "elastic/fleet-server-remote"
   - is_true: "elastic/kibana"
+  - match: { "elastic/auto-ops.type": "built_in" }
+  - match: { "elastic/fleet-server.type": "built_in" }
+  - match: { "elastic/fleet-server-remote.type": "built_in" }
+  - match: { "elastic/kibana.type": "built_in" }
 
   - do:
       security.get_service_accounts:
@@ -45,6 +49,66 @@ teardown:
         service: fleet-server
   - length: { '': 1 }
   - is_true: "elastic/fleet-server"
+  - match: { "elastic/fleet-server.type": "built_in" }
+
+---
+"Test get service accounts filtered by type":
+  - do:
+      security.get_service_accounts:
+        type: built_in
+  - length: { '': 4 }
+  - is_true: "elastic/auto-ops"
+  - is_true: "elastic/fleet-server"
+  - is_true: "elastic/fleet-server-remote"
+  - is_true: "elastic/kibana"
+
+  - do:
+      security.get_service_accounts:
+        type: [ built_in, user_managed ]
+  - length: { '': 4 }
+  - is_true: "elastic/auto-ops"
+  - is_true: "elastic/fleet-server"
+  - is_true: "elastic/fleet-server-remote"
+  - is_true: "elastic/kibana"
+
+  - do:
+      security.get_service_accounts:
+        type: user_managed
+  - length: { '': 0 }
+
+  - do:
+      security.get_service_accounts:
+        namespace: elastic
+        service: fleet-server
+        type: user_managed
+  - length: { '': 0 }
+
+  - do:
+      catch: bad_request
+      security.get_service_accounts:
+        type: elasticsearch
+  - match: { "error.type": "illegal_argument_exception" }
+  - match: { "error.reason": "invalid type value [elasticsearch]; must be one of [built_in, user_managed]" }
+
+  - do:
+      catch: bad_request
+      security.get_service_accounts:
+        type: ""
+  - match: { "error.type": "action_request_validation_exception" }
+  - match: { "error.reason": "Validation Failed: 1: type must name at least one of [built_in, user_managed];" }
+
+---
+"Test get service accounts scoped outside the elastic namespace":
+  - do:
+      security.get_service_accounts:
+        namespace: foo
+  - length: { '': 0 }
+
+  - do:
+      security.get_service_accounts:
+        namespace: foo
+        service: bar
+  - length: { '': 0 }
 
 ---
 "Test service account tokens":
@@ -157,5 +221,16 @@ teardown:
 
   - match: { "error.type": "illegal_argument_exception" }
   - match: { "error.reason": "service account [foo/bar] does not exist" }
+
+---
+"Test delete service token for an unknown service account":
+  - do:
+      catch: missing
+      security.delete_service_token:
+        namespace: foo
+        service: bar
+        name: api-token-foo
+
+  - match: { found: false }
 
 

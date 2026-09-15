@@ -10,10 +10,11 @@ package org.elasticsearch.xpack.esql.qa.csv;
 import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
 import com.carrotsearch.randomizedtesting.annotations.ThreadLeakFilters;
 
-import org.elasticsearch.Build;
 import org.elasticsearch.test.AzureReactorThreadFilter;
 import org.elasticsearch.test.TestClustersThreadFilter;
 import org.elasticsearch.xpack.esql.CsvSpecReader.CsvTestCase;
+import org.elasticsearch.xpack.esql.qa.rest.BwcMatrixPolicy;
+import org.elasticsearch.xpack.esql.qa.rest.EsqlDataSourceCodecEligibility;
 
 import java.util.List;
 
@@ -24,11 +25,8 @@ import java.util.List;
 @ThreadLeakFilters(filters = { TestClustersThreadFilter.class, AzureReactorThreadFilter.class })
 public class TsvCompressedFormatSpecIT extends AbstractCsvExternalSpecTestCase {
 
-    // bzip2 is outside the GA text-format codec surface (uncompressed/gzip/zstd) and is rejected on release
-    // builds, so .tsv.bz2/.tsv.bz are exercised on snapshot builds only. See elastic/esql-planning#938.
-    private static final List<String> COMPRESSED_FORMATS = Build.current().isSnapshot()
-        ? List.of("tsv.gz", "tsv.zst", "tsv.zstd", "tsv.bz2", "tsv.bz")
-        : List.of("tsv.gz", "tsv.zst", "tsv.zstd");
+    private static final BwcMatrixPolicy BWC_MATRIX_POLICY = COMPRESSED_BWC_MATRIX_POLICY;
+    private static final List<String> COMPRESSED_FORMATS = EsqlDataSourceCodecEligibility.textCompressionFormats("tsv");
 
     public TsvCompressedFormatSpecIT(
         String fileName,
@@ -43,6 +41,11 @@ public class TsvCompressedFormatSpecIT extends AbstractCsvExternalSpecTestCase {
         super(fileName, groupName, testName, lineNumber, testCase, instructions, storageBackend, format);
     }
 
+    @Override
+    protected BwcMatrixPolicy bwcMatrixPolicy() {
+        return BWC_MATRIX_POLICY;
+    }
+
     @ParametersFactory(argumentFormatting = "csv-spec:%2$s.%3$s [%7$s/%8$s]")
     public static List<Object[]> readScriptSpec() throws Exception {
         // external-basic's multi-value queries assume brackets parsing, no longer the default. Use the
@@ -50,13 +53,14 @@ public class TsvCompressedFormatSpecIT extends AbstractCsvExternalSpecTestCase {
         // the default for TSV (tab delimiter — no misalignment). tsv-multivalue covers the explicit
         // brackets opt-in on bracket data plus the literal-string read under the new default.
         return readExternalSpecTestsWithFormats(
+            BWC_MATRIX_POLICY,
             COMPRESSED_FORMATS,
             "/csv-basic.csv-spec",
             "/csv-declared-schema.csv-spec",
-            "/external-declared-schema.csv-spec",
+            "/datasources/external-declared-schema.csv-spec",
             "/csv-declared-schema-multifile.csv-spec",
-            "/external-multifile.csv-spec",
-            "/external-multifile-resolution.csv-spec",
+            "/datasources/external-multifile.csv-spec",
+            "/datasources/external-multifile-resolution.csv-spec",
             "/tsv-multivalue.csv-spec"
         );
     }

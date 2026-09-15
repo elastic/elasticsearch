@@ -156,6 +156,17 @@ f_distance:long            | f_active_instruments:integer | f_collision_risk:dou
 
 # ----------------------------------------------------------------------------------------------------------------------
 
+constantFieldSharedAcrossAggs
+required_capability: aggs_more_inputs_via_eval
+FROM voyager | STATS a = FIRST(7, @timestamp), b = LAST(7, @timestamp)
+;
+
+a:integer | b:integer
+7         | 7
+;
+
+# ----------------------------------------------------------------------------------------------------------------------
+
 Test retrieval of nulls
 
 required_capability: first_agg_with_null_and_mv_support

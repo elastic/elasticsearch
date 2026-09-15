@@ -34,6 +34,11 @@ import static fixture.aws.AwsFixtureUtils.sendError;
  * {@code repository-s3}) does not customize the AWS SDK's {@code User-Agent} header. Seeding
  * bypasses auth entirely because it writes directly into the in-memory blob map rather than over
  * HTTP.
+ *
+ * <p>Calling {@link #setCorrectRegion} switches the fixture into region-discovery mode: requests
+ * signed for any region other than the configured one receive 400 AuthorizationHeaderMalformed
+ * (HEAD bucket also carries {@code x-amz-bucket-region}), exactly as a custom-endpoint store like
+ * Scaleway would. Correctly-signed requests proceed through normal auth and handler logic.
  */
 @SuppressForbidden(reason = "test fixture seeds blobs directly into the S3 handler's in-memory store")
 public class SeedingS3HttpFixture extends S3HttpFixture {
@@ -42,12 +47,18 @@ public class SeedingS3HttpFixture extends S3HttpFixture {
     private final BiPredicate<String, String> authorizationPredicate;
     private S3HttpHandler handler;
 
+    /**
+     * When non-null, requests signed for a different region receive 400 AuthorizationHeaderMalformed
+     * (or, for HEAD bucket, 400 + {@code x-amz-bucket-region}) before the normal auth check runs.
+     */
+    private volatile String correctRegion;
+
     public SeedingS3HttpFixture(String bucket, BiPredicate<String, String> authorizationPredicate) {
         super(
             true,
             null,
-            bucket,
-            "" /* no base path: external sources address objects by full key */,
+            () -> bucket,
+            () -> "" /* no base path: external sources address objects by full key */,
             () -> S3ConsistencyModel.STRONG_MPUS,
             authorizationPredicate
         );
@@ -55,11 +66,42 @@ public class SeedingS3HttpFixture extends S3HttpFixture {
         this.authorizationPredicate = authorizationPredicate;
     }
 
+    /**
+     * Configures region-discovery mode. After this call, any S3 request signed for a region other
+     * than {@code region} will receive 400 AuthorizationHeaderMalformed (HEAD bucket additionally
+     * carries {@code x-amz-bucket-region: region}), simulating a custom endpoint that validates the
+     * signing region. Must be called after the fixture has started (i.e. from {@code @BeforeClass}).
+     */
+    public void setCorrectRegion(String region) {
+        this.correctRegion = region;
+    }
+
     @Override
     protected HttpHandler createHandler() {
         handler = new S3HttpHandler(bucket, "", S3ConsistencyModel.STRONG_MPUS);
         return exchange -> {
             try {
+                // Region-validating mode: simulate a custom endpoint that rejects wrong-region signing.
+                final String cr = correctRegion;
+                if (cr != null) {
+                    String signingRegion = extractSigningRegion(exchange.getRequestHeaders().getFirst("Authorization"));
+                    if (cr.equals(signingRegion) == false) {
+                        if ("HEAD".equals(exchange.getRequestMethod()) && isHeadBucketPath(exchange.getRequestURI().getPath())) {
+                            // HEAD responses must carry no body (HTTP spec). Add x-amz-bucket-region so the SDK
+                            // can discover the correct region, then close the response without a body (-1 length).
+                            exchange.getResponseHeaders().add("x-amz-bucket-region", cr);
+                            exchange.sendResponseHeaders(RestStatus.BAD_REQUEST.getStatus(), -1);
+                            return;
+                        }
+                        sendError(
+                            exchange,
+                            RestStatus.BAD_REQUEST,
+                            "AuthorizationHeaderMalformed",
+                            "The authorization header is malformed; the region '" + signingRegion + "' is wrong; expecting '" + cr + "'"
+                        );
+                        return;
+                    }
+                }
                 if (checkAuthorization(authorizationPredicate, exchange)) {
                     if (addressesAnotherBucket(exchange.getRequestURI().getPath())) {
                         // S3 answers a request for a bucket that does not exist with 404 NoSuchBucket;
@@ -95,6 +137,28 @@ public class SeedingS3HttpFixture extends S3HttpFixture {
      */
     private boolean addressesAnotherBucket(String requestPath) {
         return requestPath.startsWith("/" + bucket + "/") == false && requestPath.equals("/" + bucket) == false;
+    }
+
+    private boolean isHeadBucketPath(String requestPath) {
+        return requestPath.equals("/" + bucket) || requestPath.equals("/" + bucket + "/");
+    }
+
+    /**
+     * Extracts the signing region from an AWS v4 Authorization header.
+     * Header format: {@code AWS4-HMAC-SHA256 Credential=KEY/YYYYMMDD/REGION/SERVICE/aws4_request, ...}
+     * Returns {@code null} when the header is absent or does not follow that format.
+     */
+    static String extractSigningRegion(String authorizationHeader) {
+        if (authorizationHeader == null) {
+            return null;
+        }
+        int credIdx = authorizationHeader.indexOf("Credential=");
+        if (credIdx < 0) {
+            return null;
+        }
+        // Skip "Credential=", then split on "/" to get [accessKey, date, region, service, ...]
+        String[] parts = authorizationHeader.substring(credIdx + "Credential=".length()).split("/");
+        return parts.length >= 3 ? parts[2] : null;
     }
 
 }

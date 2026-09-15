@@ -108,9 +108,8 @@ public class CsvModeReadTests extends ESTestCase {
     }
 
     /**
-     * {@code escaped} + a custom {@code null_value}: the two null routes stay consistent — a field
-     * equal to {@code null_value} nulls via the tokenizer before the decode runs, and a whole-field
-     * {@code \N} nulls via the decode. Both must land on null in the same read.
+     * {@code escaped} + a custom {@code null_value}: a field equal to {@code null_value} after
+     * decode, and a whole-field {@code \N}, both land on null in the same read.
      */
     public void testEscapedWithCustomNullValueKeepsBothNullRoutes() throws IOException {
         String tsv = """
@@ -119,27 +118,20 @@ public class CsvModeReadTests extends ESTestCase {
             """;
         List<List<String>> values = readAll(tsvReader(Map.of("mode", "escaped", "null_value", "NULL")), tsv);
         assertEquals(1, values.size());
-        assertNull(values.get(0).get(0)); // null_value match — tokenizer route
-        assertNull(values.get(0).get(1)); // \N — decode route
+        assertNull(values.get(0).get(0)); // null_value match after decode
+        assertNull(values.get(0).get(1)); // whole-field \N
         assertEquals("value", values.get(0).get(2));
     }
 
     /**
-     * Documents the escaped-mode residual: {@code escaped} (quoting off, escaping on) keeps
-     * {@code jacksonGrammarApplies()} true even under no-trim (the house grammar mirrors only the QUOTED /
-     * PLAIN dialects, not the C-style decode), so escaped reads still tokenize with Jackson and inherit its
-     * {@code SKIP_EMPTY_LINES} first-column leading-whitespace eating. This is a real no-trim gap for escaped
-     * mode — but it is uniform across every escaped arm (per-record + bulk + inference all go through Jackson),
-     * so there is no cross-path misbind. Pinned so a future widening of the house grammar to escaped mode (which
-     * WOULD start preserving col-0 whitespace) is a deliberate, visible change rather than a silent drift.
+     * Escaped mode tokenizes with the house grammar, which preserves first-column leading whitespace
+     * under no-trim (it does not apply Jackson {@code SKIP_EMPTY_LINES}).
      */
-    public void testEscapedModeStillEatsColumnZeroLeadingWhitespaceUnderNoTrim() throws IOException {
+    public void testEscapedModePreservesColumnZeroLeadingWhitespaceUnderNoTrim() throws IOException {
         String tsv = "a:keyword\tb:keyword\n  x\t  y\n";
         List<List<String>> values = readAll(tsvReader(Map.of("mode", "escaped")), tsv);
         assertEquals(1, values.size());
-        // Column 0's leading whitespace is eaten by Jackson's SKIP_EMPTY_LINES; a non-first column keeps its
-        // padding, so the residual is column-0-specific (not general trimming).
-        assertEquals("x", values.get(0).get(0));
+        assertEquals("  x", values.get(0).get(0));
         assertEquals("  y", values.get(0).get(1));
     }
 
@@ -153,6 +145,102 @@ public class CsvModeReadTests extends ESTestCase {
         List<List<String>> values = readAll(tsvReader(Map.of("mode", "escaped")), tsv);
         assertEquals(2, values.size());
         assertEquals("\"starts with quote", values.get(0).get(0));
+    }
+
+    public void testEscapedSemicolonDelimiterStaysInField() throws IOException {
+        String csv = "ts:keyword;url:keyword;agent:keyword;host:keyword;ip:keyword\n"
+            + "1704880800000;https://www.elastic.co/downloads/elasticsearch;"
+            + "Mozilla/5.0 (Windows NT 10.0\\; Win64\\; x64) AppleWebKit/537.36;www.elastic.co;8.8.8.8\n";
+        List<List<String>> values = readAll(csvReader(Map.of("mode", "escaped", "delimiter", ";")), csv);
+        assertEquals(1, values.size());
+        assertEquals(5, values.get(0).size());
+        assertEquals("Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36", values.get(0).get(2));
+    }
+
+    public void testEscapedCommaDelimiterStaysInField() throws IOException {
+        String csv = "a:keyword,b:keyword\nfoo\\,bar,ok\n";
+        List<List<String>> values = readAll(csvReader(Map.of("mode", "escaped")), csv);
+        assertEquals(1, values.size());
+        assertEquals(List.of("foo,bar", "ok"), values.get(0));
+    }
+
+    public void testEscapedRawTabDelimiterStaysInField() throws IOException {
+        String tsv = "a:keyword\tb:keyword\nhello\\\tworld\tok\n";
+        List<List<String>> values = readAll(tsvReader(Map.of("mode", "escaped")), tsv);
+        assertEquals(1, values.size());
+        assertEquals("hello\tworld", values.get(0).get(0));
+        assertEquals("ok", values.get(0).get(1));
+    }
+
+    public void testEscapedRawTabDelimiterStaysInFieldUnderTrimSpaces() throws IOException {
+        String tsv = "a:keyword\tb:keyword\nhello\\\tworld\tok\n";
+        List<List<String>> values = readAll(tsvReader(Map.of("mode", "escaped", "trim_spaces", true)), tsv);
+        assertEquals(1, values.size());
+        assertEquals("hello\tworld", values.get(0).get(0));
+        assertEquals("ok", values.get(0).get(1));
+    }
+
+    public void testEscapedNonDelimTabAtFieldEdgeSurvivesTrimSpaces() throws IOException {
+        String csv = "a:keyword,b:keyword\nhello\\\t,ok\n";
+        List<List<String>> values = readAll(csvReader(Map.of("mode", "escaped", "trim_spaces", true)), csv);
+        assertEquals(List.of("hello\t", "ok"), values.get(0));
+    }
+
+    public void testEscapedDoubledEscapeThenNonDelimTabStillTrims() throws IOException {
+        String csv = "a:keyword,b:keyword\nhello\\\\\t,ok\n";
+        List<List<String>> values = readAll(csvReader(Map.of("mode", "escaped", "trim_spaces", true)), csv);
+        assertEquals(List.of("hello\\", "ok"), values.get(0));
+    }
+
+    public void testEscapedBackslashThenDelimiterStillSplits() throws IOException {
+        String csv = "a:keyword;b:keyword\nfoo\\\\;bar\n";
+        List<List<String>> values = readAll(csvReader(Map.of("mode", "escaped", "delimiter", ";")), csv);
+        assertEquals(1, values.size());
+        assertEquals(List.of("foo\\", "bar"), values.get(0));
+    }
+
+    public void testEscapedCustomEscapeCharProtectsDelimiter() throws IOException {
+        String csv = "a:keyword;b:keyword\nfoo~;bar;ok\n";
+        List<List<String>> values = readAll(csvReader(Map.of("mode", "escaped", "delimiter", ";", "escape", "~")), csv);
+        assertEquals(1, values.size());
+        assertEquals(List.of("foo;bar", "ok"), values.get(0));
+    }
+
+    public void testQuotedWrapsDelimiterAndPlainSplits() throws IOException {
+        String quoted = "a:keyword;b:keyword\n\"foo;bar\";ok\n";
+        List<List<String>> quotedValues = readAll(csvReader(Map.of("delimiter", ";")), quoted);
+        assertEquals(List.of("foo;bar", "ok"), quotedValues.get(0));
+
+        String plain = "a:keyword;b:keyword;c:keyword\nfoo\\;bar;ok\n";
+        List<List<String>> plainValues = readAll(csvReader(Map.of("mode", "plain", "delimiter", ";")), plain);
+        assertEquals(List.of("foo\\", "bar", "ok"), plainValues.get(0));
+    }
+
+    public void testEscapedDelimiterHoldsPastSampleWindow() throws IOException {
+        int rows = 80;
+        StringBuilder csv = new StringBuilder("a:keyword,b:keyword\n");
+        for (int i = 0; i < rows; i++) {
+            csv.append("foo\\,bar,").append(i).append('\n');
+        }
+        List<List<String>> values = readAll(csvReader(Map.of("mode", "escaped", "schema_sample_size", 8)), csv.toString());
+        assertEquals(rows, values.size());
+        assertEquals("foo,bar", values.get(0).get(0));
+        assertEquals("foo,bar", values.get(rows - 1).get(0));
+        assertEquals(Integer.toString(rows - 1), values.get(rows - 1).get(1));
+    }
+
+    public void testEscapedDelimiterDoesNotExplodeInferredWidth() throws IOException {
+        String csv = "a,b\nfoo\\,bar,ok\n1,2\n";
+        List<List<String>> values = readAll(csvReader(Map.of("mode", "escaped")), csv);
+        assertEquals(2, values.size());
+        assertEquals(List.of("foo,bar", "ok"), values.get(0));
+        assertEquals(List.of("1", "2"), values.get(1));
+    }
+
+    public void testEscapedSemicolonDelimiterStaysInFieldUnderTrimSpaces() throws IOException {
+        String csv = "a:keyword;b:keyword\nfoo\\;bar;ok\n";
+        List<List<String>> values = readAll(csvReader(Map.of("mode", "escaped", "delimiter", ";", "trim_spaces", true)), csv);
+        assertEquals(List.of("foo;bar", "ok"), values.get(0));
     }
 
     /** The default CSV path is untouched: RFC-4180 wrapping and doubling still work. */
@@ -221,7 +309,7 @@ public class CsvModeReadTests extends ESTestCase {
         assertEquals(1, values.size());
         assertEquals("x\ty", values.get(0).get(0)); // tab inside quotes is data — quoting is on
         assertEquals("z", values.get(0).get(1));
-        drainWarnings(); // escaped+quote emits the expected decode-disabled config warning; clear it
+        assertTrue("the decode-disabled notice rides on the metadata, not on this thread's headers", drainWarnings().isEmpty());
     }
 
     /**
@@ -260,9 +348,8 @@ public class CsvModeReadTests extends ESTestCase {
     }
 
     /**
-     * Volume guard: the escaped mode decodes on the BULK data path (the merge's only per-value seam
-     * there), so {@code \t} un-escapes and a whole-field {@code \N} is null across many batches,
-     * exactly as on the per-record path.
+     * Volume guard: escaped-mode C-style decode ({@code \t}, whole-field {@code \N}) holds across
+     * many batches after the sample window, on the house per-record iterator.
      */
     public void testBulkPathEscapedDecodesAtVolume() throws IOException {
         int rows = 500;
@@ -331,30 +418,54 @@ public class CsvModeReadTests extends ESTestCase {
     }
 
     /**
-     * Tripwire for the hint: a non-decoding mode ({@code plain} here) whose sample carries the
-     * whole-field {@code \N} null marker emits a one-time response {@code Warning} header nudging
-     * toward {@code mode: escaped}. The query author reads the response, so the channel is a Warning
-     * header, not a DEBUG log they would never see. If the hint scan is dropped, no header is emitted
-     * and this fails.
+     * Tripwire for the hint: a non-decoding mode ({@code plain} here) whose sample carries the whole-field {@code \N}
+     * null marker nudges toward {@code mode: escaped}. The hint is raised at resolve time (schema inference) and at
+     * read time (first-split inference). Neither runs on a thread whose response headers reach the client, so the
+     * former rides on the metadata and the latter goes to the read context's sink; nothing may land on this thread's
+     * headers.
      */
     public void testPlainNullMarkerEmitsWarning() throws IOException {
-        readAll(tsvReader(Map.of("mode", "plain", "header_row", false)), "id0\t\\N\nid1\tplain note\n");
+        CsvFormatReader reader = tsvReader(Map.of("mode", "plain", "header_row", false));
+        StorageObject object = new InMemoryStorageObject("id0\t\\N\nid1\tplain note\n".getBytes(StandardCharsets.UTF_8));
+
+        assertNullMarkerWarning(reader.metadata(object).warnings());
+
+        assertNullMarkerWarning(readAllCollectingWarnings(reader, object));
+        assertTrue("the hint must never land on this thread's response headers", drainWarnings().isEmpty());
+    }
+
+    /**
+     * A read context without a sink (tests, benchmarks) falls back to this thread's response headers, the same fallback
+     * {@code SkipWarnings} uses, so the two read-time channels agree. Production read paths always supply a sink.
+     */
+    public void testPlainNullMarkerFallsBackToHeaderWarningWithoutSink() throws IOException {
+        CsvFormatReader reader = tsvReader(Map.of("mode", "plain", "header_row", false));
+        readAll(reader, "id0\t\\N\nid1\tplain note\n");
         assertNullMarkerWarning(drainWarnings());
     }
 
     /**
-     * Sharp-edge mitigation, config-time arm: {@code mode: escaped, quote: …} resolves to quoted,
-     * which hands the escape char to Jackson and drops the C-style decode. The data scan can't catch
-     * this (Jackson rewrites {@code \N} to {@code N} before the sample exists), so the resolver emits a
-     * deterministic config-time response warning. Building the reader is enough to trigger it.
+     * Sharp-edge mitigation, config-time arm: {@code mode: escaped, quote: …} resolves to quoted, which hands the
+     * escape char to Jackson and drops the C-style decode. The data scan can't catch this (Jackson rewrites
+     * {@code \N} to {@code N} before the sample exists), so the notice is decided when the config is parsed and
+     * exposed as {@link CsvFormatReader#configWarnings()} for the resolver to raise once per path. It is about the
+     * options, not a file, so it stays off per-file metadata; and it is never a header on this thread.
      */
-    public void testEscapedPlusQuoteWarnsDecodeDisabled() {
-        tsvReader(Map.of("mode", "escaped", "quote", "\""));
-        List<String> warnings = drainWarnings();
+    public void testEscapedPlusQuoteWarnsDecodeDisabled() throws IOException {
+        CsvFormatReader reader = tsvReader(Map.of("mode", "escaped", "quote", "\""));
+        StorageObject object = new InMemoryStorageObject("a:keyword\tb:keyword\nx\ty\n".getBytes(StandardCharsets.UTF_8));
+
+        List<String> configWarnings = reader.configWarnings();
         assertTrue(
-            "expected a config-time decode-disabled warning, got: " + warnings,
-            warnings.stream().anyMatch(w -> w.contains("disables the escaped-mode decode"))
+            "expected a config-time decode-disabled warning, got: " + configWarnings,
+            configWarnings.stream().anyMatch(w -> w.contains("disables the escaped-mode decode"))
         );
+        List<String> fileWarnings = reader.metadata(object).warnings();
+        assertTrue(
+            "a file's metadata must not repeat the dataset-level notice, got: " + fileWarnings,
+            fileWarnings.stream().noneMatch(w -> w.contains("disables the escaped-mode decode"))
+        );
+        assertTrue("the notice must never land on this thread's response headers", drainWarnings().isEmpty());
     }
 
     /**
@@ -364,9 +475,17 @@ public class CsvModeReadTests extends ESTestCase {
      * with no quote (already decoding). No response warning of any kind should accumulate.
      */
     public void testNoWarningForCleanWindowsPathOrEscapedMode() throws IOException {
-        readAll(tsvReader(Map.of("mode", "plain", "header_row", false)), "id0\tclean\nid1\talso clean\n");
-        readAll(tsvReader(Map.of("mode", "plain", "header_row", false)), "id0\tC:\\temp\nid1\tC:\\Users\n");
-        readAll(tsvReader(Map.of("mode", "escaped", "header_row", false)), "id0\t\\N\nid1\tvalue\n");
+        CsvFormatReader plain = tsvReader(Map.of("mode", "plain", "header_row", false));
+        CsvFormatReader escaped = tsvReader(Map.of("mode", "escaped", "header_row", false));
+        for (var readerAndContent : List.of(
+            Map.entry(plain, "id0\tclean\nid1\talso clean\n"),
+            Map.entry(plain, "id0\tC:\\temp\nid1\tC:\\Users\n"),
+            Map.entry(escaped, "id0\t\\N\nid1\tvalue\n")
+        )) {
+            StorageObject object = new InMemoryStorageObject(readerAndContent.getValue().getBytes(StandardCharsets.UTF_8));
+            assertTrue("no resolve-time notice expected", readerAndContent.getKey().metadata(object).warnings().isEmpty());
+            assertTrue("no read-time notice expected", readAllCollectingWarnings(readerAndContent.getKey(), object).isEmpty());
+        }
         assertTrue("no response warning expected", drainWarnings().isEmpty());
     }
 
@@ -398,8 +517,7 @@ public class CsvModeReadTests extends ESTestCase {
 
     /**
      * Escaped-mode separator-only row: {@code \t\t} in TSV with mode=escaped must also emit
-     * null/empty fields — not be dropped. Mode=escaped has {@code decodesEscapes=true}, so
-     * {@code jacksonGrammarApplies()} is true and Jackson handles the record.
+     * null/empty fields, not be dropped.
      */
     public void testTsvEscapedModeSeparatorOnlyRowEmitsNullFields() throws IOException {
         String tsv = "a:keyword\tb:keyword\tc:keyword\nreal\tdata\trow\n\t\t\nmore\treal\tdata\n";
@@ -480,9 +598,7 @@ public class CsvModeReadTests extends ESTestCase {
     }
 
     private static void assertNullMarkerWarning(List<String> warnings) {
-        // Match on an escape-free slice of the message: HeaderWarning escapes backslashes and quotes in
-        // the header value, so a literal "\N" / "\"mode\"" substring would not match the drained value.
-        // Also assert the directed action and a location field are present.
+        // Match on a slice of the message and assert the directed action and a location field are present.
         assertTrue(
             "expected an undecoded null-marker response warning, got: " + warnings,
             warnings.stream()
@@ -559,6 +675,18 @@ public class CsvModeReadTests extends ESTestCase {
                 page.releaseBlocks();
             }
         }
+    }
+
+    /** Reads {@code object} to exhaustion with a capturing informational sink and returns what the read sent to it. */
+    private static List<String> readAllCollectingWarnings(CsvFormatReader reader, StorageObject object) throws IOException {
+        List<String> sink = new ArrayList<>();
+        FormatReadContext context = FormatReadContext.builder().batchSize(100).informationalWarningSink(sink::add).build();
+        try (CloseableIterator<Page> pages = reader.read(object, context)) {
+            while (pages.hasNext()) {
+                pages.next().releaseBlocks();
+            }
+        }
+        return sink;
     }
 
     /** Reads every page and renders each value as a string ({@code null} stays null). */

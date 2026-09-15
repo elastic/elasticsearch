@@ -51,7 +51,7 @@ public class ES93HnswBinaryQuantizedVectorsFormat extends AbstractHnswVectorsFor
     /** Constructs a format using default graph construction parameters */
     public ES93HnswBinaryQuantizedVectorsFormat() {
         super(NAME, DEFAULT_MAX_CONN, DEFAULT_BEAM_WIDTH, DEFAULT_NUM_MERGE_WORKER, null, BBQ_HNSW_GRAPH_THRESHOLD);
-        flatVectorsFormat = new ES93BinaryQuantizedVectorsFormat();
+        flatVectorsFormat = new ES93BinaryQuantizedVectorsFormat(DenseVectorFieldMapper.ElementType.FLOAT, false, true, hnswGraphThreshold);
     }
 
     /**
@@ -61,7 +61,7 @@ public class ES93HnswBinaryQuantizedVectorsFormat extends AbstractHnswVectorsFor
      */
     public ES93HnswBinaryQuantizedVectorsFormat(DenseVectorFieldMapper.ElementType elementType, boolean useDirectIO) {
         super(NAME, DEFAULT_MAX_CONN, DEFAULT_BEAM_WIDTH, DEFAULT_NUM_MERGE_WORKER, null, BBQ_HNSW_GRAPH_THRESHOLD);
-        flatVectorsFormat = new ES93BinaryQuantizedVectorsFormat(elementType, useDirectIO);
+        flatVectorsFormat = new ES93BinaryQuantizedVectorsFormat(elementType, useDirectIO, true, hnswGraphThreshold);
     }
 
     /**
@@ -78,7 +78,7 @@ public class ES93HnswBinaryQuantizedVectorsFormat extends AbstractHnswVectorsFor
         boolean useDirectIO
     ) {
         super(NAME, maxConn, beamWidth, DEFAULT_NUM_MERGE_WORKER, null, BBQ_HNSW_GRAPH_THRESHOLD);
-        flatVectorsFormat = new ES93BinaryQuantizedVectorsFormat(elementType, useDirectIO);
+        flatVectorsFormat = new ES93BinaryQuantizedVectorsFormat(elementType, useDirectIO, true, hnswGraphThreshold);
     }
 
     /**
@@ -101,7 +101,7 @@ public class ES93HnswBinaryQuantizedVectorsFormat extends AbstractHnswVectorsFor
         ExecutorService mergeExec
     ) {
         super(NAME, maxConn, beamWidth, numMergeWorkers, mergeExec, BBQ_HNSW_GRAPH_THRESHOLD);
-        flatVectorsFormat = new ES93BinaryQuantizedVectorsFormat(elementType, useDirectIO);
+        flatVectorsFormat = new ES93BinaryQuantizedVectorsFormat(elementType, useDirectIO, true, hnswGraphThreshold);
     }
 
     /**
@@ -126,7 +126,9 @@ public class ES93HnswBinaryQuantizedVectorsFormat extends AbstractHnswVectorsFor
         int hnswGraphThreshold
     ) {
         super(NAME, maxConn, beamWidth, numMergeWorkers, mergeExec, resolveThreshold(hnswGraphThreshold, BBQ_HNSW_GRAPH_THRESHOLD));
-        flatVectorsFormat = new ES93BinaryQuantizedVectorsFormat(elementType, useDirectIO);
+        // Pass the resolved threshold (the field), not the parameter: a negative parameter means "use the
+        // default", and the writer must mirror the graph build's decision with the same number.
+        flatVectorsFormat = new ES93BinaryQuantizedVectorsFormat(elementType, useDirectIO, true, this.hnswGraphThreshold);
     }
 
     @Override

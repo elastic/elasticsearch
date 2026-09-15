@@ -18,7 +18,9 @@ import java.io.IOException;
 import java.util.concurrent.ExecutorService;
 
 public class ES818HnswBinaryQuantizedRWVectorsFormat extends ES818HnswBinaryQuantizedVectorsFormat {
-    private static final FlatVectorsFormat flatVectorsFormat = new ES818BinaryQuantizedRWVectorsFormat();
+    // graph threshold 0, matching the writer below: every merge builds a graph and so writes the
+    // query-side records the graph build's merge scorer reads
+    private static final FlatVectorsFormat flatVectorsFormat = new ES818BinaryQuantizedRWVectorsFormat(true, 0);
 
     public ES818HnswBinaryQuantizedRWVectorsFormat() {}
 

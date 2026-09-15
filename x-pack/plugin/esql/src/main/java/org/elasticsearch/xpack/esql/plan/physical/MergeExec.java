@@ -19,11 +19,38 @@ import java.util.Objects;
 
 public class MergeExec extends PhysicalPlan {
 
-    private final List<Attribute> output;
+    /**
+     * Distinguishes a merge of distinct sources ({@link #UNION}) from a merge of branches that
+     * re-read the same source ({@link #FORK}). Placement treats only UNION children as source
+     * siblings: a one-split UNION leaf with siblings is worth hopping, while a FORK branch over
+     * one dataset stays local even though its siblings still rotate.
+     */
+    public enum Kind {
+        FORK,
+        UNION
+    }
 
-    public MergeExec(Source source, List<PhysicalPlan> children, List<Attribute> output) {
+    private final List<Attribute> output;
+    private final Kind kind;
+
+    /**
+     * Full constructor. {@code kind} must be preserved across plan copies so a FORK merge
+     * cannot become a UNION after a rewrite.
+     */
+    public MergeExec(Source source, List<PhysicalPlan> children, List<Attribute> output, Kind kind) {
         super(source, children);
+        if (kind == null) {
+            throw new IllegalArgumentException("kind must not be null");
+        }
         this.output = output;
+        this.kind = kind;
+    }
+
+    /**
+     * Defaults {@code kind} to {@link Kind#UNION}.
+     */
+    public MergeExec(Source source, List<PhysicalPlan> children, List<Attribute> output) {
+        this(source, children, output, Kind.UNION);
     }
 
     /**
@@ -31,6 +58,10 @@ public class MergeExec extends PhysicalPlan {
      */
     public List<LocalSupplier> suppliers() {
         return children().stream().map(LocalSourceExec.class::cast).map(LocalSourceExec::supplier).toList();
+    }
+
+    public Kind kind() {
+        return kind;
     }
 
     @Override
@@ -45,12 +76,12 @@ public class MergeExec extends PhysicalPlan {
 
     @Override
     public PhysicalPlan replaceChildren(List<PhysicalPlan> newChildren) {
-        return new MergeExec(source(), newChildren, output());
+        return new MergeExec(source(), newChildren, output(), kind);
     }
 
     @Override
     protected NodeInfo<MergeExec> info() {
-        return NodeInfo.create(this, MergeExec::new, children(), output);
+        return NodeInfo.create(this, MergeExec::new, children(), output, kind);
     }
 
     @Override
@@ -60,7 +91,7 @@ public class MergeExec extends PhysicalPlan {
 
     @Override
     public int hashCode() {
-        return Objects.hash(children());
+        return Objects.hash(children(), kind);
     }
 
     @Override
@@ -68,6 +99,6 @@ public class MergeExec extends PhysicalPlan {
         if (this == o) return true;
         if (o == null || getClass() != o.getClass()) return false;
         MergeExec other = (MergeExec) o;
-        return Objects.equals(this.children(), other.children());
+        return Objects.equals(this.children(), other.children()) && this.kind == other.kind;
     }
 }

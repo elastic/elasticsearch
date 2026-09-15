@@ -203,6 +203,19 @@ public class ExternalDistributionTests extends ESTestCase {
         expectThrows(IllegalArgumentException.class, () -> new ExternalDistributionContext(null, List.of(), null, QueryPragmas.EMPTY));
     }
 
+    public void testContextRejectsNullPlacement() {
+        expectThrows(
+            IllegalArgumentException.class,
+            () -> new ExternalDistributionContext(
+                createExternalSourceExec(),
+                List.of(),
+                DiscoveryNodes.builder().build(),
+                QueryPragmas.EMPTY,
+                null
+            )
+        );
+    }
+
     // --- Strategy resolution tests ---
 
     public void testResolveStrategyAdaptiveDefault() {

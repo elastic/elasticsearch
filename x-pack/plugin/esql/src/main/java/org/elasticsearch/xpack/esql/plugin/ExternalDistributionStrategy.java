@@ -7,7 +7,12 @@
 
 package org.elasticsearch.xpack.esql.plugin;
 
+import org.elasticsearch.xpack.esql.plan.logical.Aggregate;
+import org.elasticsearch.xpack.esql.plan.logical.LimitBy;
+import org.elasticsearch.xpack.esql.plan.logical.TopN;
+import org.elasticsearch.xpack.esql.plan.logical.TopNBy;
 import org.elasticsearch.xpack.esql.plan.physical.AggregateExec;
+import org.elasticsearch.xpack.esql.plan.physical.FragmentExec;
 import org.elasticsearch.xpack.esql.plan.physical.PhysicalPlan;
 import org.elasticsearch.xpack.esql.plan.physical.TopNExec;
 
@@ -31,11 +36,31 @@ public interface ExternalDistributionStrategy {
      * {@code Limiter} and hands that same instance to every driver it creates, so a limit is already enforced
      * across all of them and stays correct without a gather.
      *
-     * <p>Single home for the rule, shared by {@link AdaptiveStrategy} (deciding whether the scan is worth
-     * distributing) and {@link ComputeService} (deciding whether a scan staying local must still keep its exchange).
-     * If the two diverged, a plan could be collapsed onto parallel drivers by one and assumed gathered by the other.
+     * <p>Single home for the gather-correctness rule used by {@link ComputeService} (whether a scan staying
+     * local must still keep its exchange). Whether a hop is worth it is a separate question and lives on
+     * {@link #hasReducingOperator(PhysicalPlan)}.
      */
     static boolean needsGatherBoundary(PhysicalPlan plan) {
         return plan.anyMatch(n -> n instanceof AggregateExec || n instanceof TopNExec);
+    }
+
+    /**
+     * Whether distributing this read would have a data node reduce rows before shipping them back.
+     * Broader than {@link #needsGatherBoundary}: that rule is a correctness check for a local read's
+     * operators, this one only decides whether a hop pays. A UNION child still holds its pushed-down
+     * aggregation as a logical {@link Aggregate} inside {@link FragmentExec}, so the physical tree
+     * alone would report no reduction.
+     *
+     * <p>A plain {@code Limit} is absent on purpose: it does reduce rows, but a limit-only read is
+     * cheapest where the limit is applied once.
+     */
+    static boolean hasReducingOperator(PhysicalPlan plan) {
+        return needsGatherBoundary(plan)
+            || plan.anyMatch(node -> node instanceof FragmentExec fragment && fragmentHoldsReducingLogical(fragment));
+    }
+
+    private static boolean fragmentHoldsReducingLogical(FragmentExec fragment) {
+        return fragment.fragment()
+            .anyMatch(n -> n instanceof Aggregate || n instanceof TopN || n instanceof TopNBy || n instanceof LimitBy);
     }
 }

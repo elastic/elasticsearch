@@ -3913,7 +3913,7 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
      * LimitExec[1000[INTEGER],8]
      * \_AggregateExec[[],[COUNT(*[KEYWORD],true[BOOLEAN],PT0S[TIME_DURATION]) AS count()#3],SINGLE,[$$count()$count{r}#4, $$count()$
      * seen{r}#5],8]
-     *   \_MergeExec[[]]
+     *   \_MergeExec[[],UNION]
      *     |_ExchangeExec[[],false]
      *     | \_ProjectExec[[]]
      *     |   \_EsQueryExec[no_fields_index], ...]
@@ -10789,7 +10789,7 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
      * {@snippet lang="text":
      * ProjectExec[[]]
      * \_LimitExec[1000[INTEGER],1]
-     *   \_MergeExec[[]]
+     *   \_MergeExec[[],UNION]
      *     \_ProjectExec[[]]
      *       \_LimitExec[1000[INTEGER],1]
      *         \_ExchangeExec[[],false]
@@ -10828,7 +10828,7 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
      * {@snippet lang="text":
      * LimitExec[10000[INTEGER],8]
      * \_AggregateExec[[],[COUNT(*[KEYWORD],true[BOOLEAN],PT0S[TIME_DURATION]) AS y#10],SINGLE,[$$y$count{r}#46, $$y$seen{r}#47],8]
-     *   \_MergeExec[[]]
+     *   \_MergeExec[[],UNION]
      *     \_ProjectExec[[]]
      *       \_TopNExec[[Order[x{r}#4,ASC,LAST]],10[INTEGER],4]
      *         \_ExchangeExec[[x{r}#4],false]
@@ -10875,7 +10875,7 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
      * {@snippet lang="text":
      * LimitExec[10000[INTEGER],8]
      * \_AggregateExec[[],[COUNT(*[KEYWORD],true[BOOLEAN],PT0S[TIME_DURATION]) AS y#14],SINGLE,[$$y$count{r}#87, $$y$seen{r}#88],8]
-     *   \_MergeExec[[]]
+     *   \_MergeExec[[],UNION]
      *     |_AggregateExec[[first_name{f}#16],[],FINAL,[first_name{f}#16],1]
      *     | \_ExchangeExec[[first_name{f}#16],true]
      *     |   \_AggregateExec[[first_name{f}#16],[first_name{f}#16],INITIAL,[first_name{f}#16],50]

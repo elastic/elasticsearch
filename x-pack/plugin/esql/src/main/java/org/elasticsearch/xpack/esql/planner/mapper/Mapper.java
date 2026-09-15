@@ -25,6 +25,7 @@ import org.elasticsearch.xpack.esql.plan.logical.EsRelation;
 import org.elasticsearch.xpack.esql.plan.logical.ExecutesOn.ExecuteLocation;
 import org.elasticsearch.xpack.esql.plan.logical.ExternalRelation;
 import org.elasticsearch.xpack.esql.plan.logical.Filter;
+import org.elasticsearch.xpack.esql.plan.logical.Fork;
 import org.elasticsearch.xpack.esql.plan.logical.LeafPlan;
 import org.elasticsearch.xpack.esql.plan.logical.Limit;
 import org.elasticsearch.xpack.esql.plan.logical.LimitBy;
@@ -341,7 +342,8 @@ public class Mapper {
             newChildren.add(child);
         }
 
-        return new MergeExec(merge.source(), newChildren, merge.output());
+        MergeExec.Kind kind = merge instanceof Fork ? MergeExec.Kind.FORK : MergeExec.Kind.UNION;
+        return new MergeExec(merge.source(), newChildren, merge.output(), kind);
     }
 
     /**

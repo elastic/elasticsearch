@@ -7,10 +7,12 @@
 
 package org.elasticsearch.xpack.esql.plugin;
 
+import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodeUtils;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.compute.aggregation.AggregatorMode;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.xpack.esql.EsqlTestUtils;
 import org.elasticsearch.xpack.esql.core.expression.Literal;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
@@ -18,13 +20,19 @@ import org.elasticsearch.xpack.esql.datasources.FileSplit;
 import org.elasticsearch.xpack.esql.datasources.spi.ExternalSplit;
 import org.elasticsearch.xpack.esql.datasources.spi.StoragePath;
 import org.elasticsearch.xpack.esql.expression.Order;
+import org.elasticsearch.xpack.esql.plan.logical.Aggregate;
+import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.esql.plan.physical.AggregateExec;
 import org.elasticsearch.xpack.esql.plan.physical.ExternalSourceExec;
+import org.elasticsearch.xpack.esql.plan.physical.FragmentExec;
 import org.elasticsearch.xpack.esql.plan.physical.LimitExec;
+import org.elasticsearch.xpack.esql.plan.physical.MergeExec;
 import org.elasticsearch.xpack.esql.plan.physical.PhysicalPlan;
 import org.elasticsearch.xpack.esql.plan.physical.TopNExec;
 
 import java.util.ArrayList;
+import java.util.Comparator;
+import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -176,6 +184,177 @@ public class AdaptiveStrategyTests extends ESTestCase {
         for (List<ExternalSplit> assigned : plan.nodeAssignments().values()) {
             assertEquals(2, assigned.size());
         }
+    }
+
+    public void testSingleSplitAsOnlyProducerStaysLocal() {
+        ExternalDistributionContext context = context(
+            createPlanWithAggregation(),
+            createSplits(1),
+            createNodes(3),
+            SiblingPlacement.SINGLE
+        );
+
+        assertFalse(strategy.planDistribution(context).distributed());
+    }
+
+    public void testSingleSplitForkBranchStaysLocal() {
+        ExternalDistributionContext context = context(
+            createPlanWithAggregation(),
+            createSplits(1),
+            createNodes(3),
+            new SiblingPlacement(0, 2, false)
+        );
+
+        assertFalse(strategy.planDistribution(context).distributed());
+    }
+
+    public void testSingleSplitWithSourceSiblingsDistributes() {
+        DiscoveryNodes nodes = createNodes(3);
+        ExternalDistributionContext context = context(
+            createPlanWithAggregation(),
+            createSplits(1),
+            nodes,
+            new SiblingPlacement(1, 4, true)
+        );
+
+        ExternalDistributionPlan plan = orderedStrategy().planDistribution(context);
+
+        assertTrue(plan.distributed());
+        assertEquals(1, totalAssigned(plan));
+        assertEquals(1, plan.nodeAssignments().get("node-1").size());
+    }
+
+    public void testSingleSplitWithSourceSiblingsStaysLocalForLimitOnly() {
+        Literal limitExpr = new Literal(Source.EMPTY, 10, DataType.INTEGER);
+        PhysicalPlan planWithLimit = new LimitExec(Source.EMPTY, createExternalSourceExec(), limitExpr, null);
+
+        ExternalDistributionContext context = context(planWithLimit, createSplits(1), createNodes(3), new SiblingPlacement(0, 8, true));
+
+        assertFalse(strategy.planDistribution(context).distributed());
+    }
+
+    public void testManySplitsLimitOnlyWithSourceSiblingsStaysLocal() {
+        Literal limitExpr = new Literal(Source.EMPTY, 10, DataType.INTEGER);
+        PhysicalPlan planWithLimit = new LimitExec(Source.EMPTY, createExternalSourceExec(), limitExpr, null);
+
+        ExternalDistributionContext context = context(planWithLimit, createSplits(5), createNodes(3), new SiblingPlacement(0, 4, true));
+
+        assertFalse(strategy.planDistribution(context).distributed());
+    }
+
+    public void testSingleSplitWithSourceSiblingsDistributesWhenAggregateIsInsideFragment() {
+        LogicalPlan aggregateInFragment = new Aggregate(Source.EMPTY, EsqlTestUtils.emptySource(), List.of(), List.of());
+
+        ExternalDistributionContext context = context(
+            new FragmentExec(aggregateInFragment),
+            createSplits(1),
+            createNodes(3),
+            new SiblingPlacement(0, 6, true)
+        );
+
+        assertTrue(strategy.planDistribution(context).distributed());
+    }
+
+    public void testSingleSplitScanOnlyFragmentWithSourceSiblingsDistributes() {
+        ExternalDistributionContext context = context(
+            new FragmentExec(EsqlTestUtils.emptySource()),
+            createSplits(1),
+            createNodes(3),
+            new SiblingPlacement(0, 6, true)
+        );
+
+        assertTrue(strategy.planDistribution(context).distributed());
+    }
+
+    public void testSingleSplitScanOnlyPhysicalWithSourceSiblingsDistributes() {
+        ExternalDistributionContext context = context(
+            createExternalSourceExec(),
+            createSplits(1),
+            createNodes(3),
+            new SiblingPlacement(0, 8, true)
+        );
+
+        assertTrue(strategy.planDistribution(context).distributed());
+    }
+
+    public void testSingleSplitScanOnlyWithoutSourceSiblingsStaysLocal() {
+        ExternalDistributionContext context = context(
+            createExternalSourceExec(),
+            createSplits(1),
+            createNodes(3),
+            new SiblingPlacement(0, 1, true)
+        );
+
+        assertFalse(strategy.planDistribution(context).distributed());
+    }
+
+    public void testEmptySplitsWithSourceSiblingsStayLocal() {
+        ExternalDistributionContext context = context(
+            createPlanWithAggregation(),
+            List.of(),
+            createNodes(3),
+            new SiblingPlacement(0, 4, true)
+        );
+
+        assertFalse(strategy.planDistribution(context).distributed());
+    }
+
+    public void testForkBranchWithManySplitsRotates() {
+        ExternalDistributionContext context = context(
+            createPlanWithAggregation(),
+            createSplits(3),
+            createNodes(10),
+            new SiblingPlacement(1, 2, false)
+        );
+
+        ExternalDistributionPlan plan = orderedStrategy().planDistribution(context);
+
+        assertTrue(plan.distributed());
+        assertEquals(Set.of("node-3", "node-4", "node-5"), assignedNodeIds(plan));
+    }
+
+    private static AdaptiveStrategy orderedStrategy() {
+        return new AdaptiveStrategy(allNodes -> {
+            List<DiscoveryNode> list = NodeEligibilityStrategy.EXTERNAL_WORKER_NODES.eligibleNodes(allNodes);
+            list.sort(Comparator.comparing(DiscoveryNode::getId));
+            return list;
+        });
+    }
+
+    public void testForMergeDrivesAdaptiveOnlyThroughTheRecord() {
+        assertEquals(new SiblingPlacement(1, 3, false), SiblingPlacement.forMerge(MergeExec.Kind.FORK, 1, 3));
+        assertEquals(new SiblingPlacement(1, 3, true), SiblingPlacement.forMerge(MergeExec.Kind.UNION, 1, 3));
+    }
+
+    private static ExternalDistributionContext context(
+        PhysicalPlan plan,
+        List<ExternalSplit> splits,
+        DiscoveryNodes nodes,
+        SiblingPlacement placement
+    ) {
+        return new ExternalDistributionContext(plan, splits, nodes, QueryPragmas.EMPTY, placement);
+    }
+
+    private static int totalAssigned(ExternalDistributionPlan plan) {
+        int total = 0;
+        for (List<ExternalSplit> assigned : plan.nodeAssignments().values()) {
+            total += assigned.size();
+        }
+        return total;
+    }
+
+    private static Set<String> assignedNodeIds(ExternalDistributionPlan plan) {
+        Set<String> ids = new LinkedHashSet<>();
+        for (var entry : plan.nodeAssignments().entrySet()) {
+            if (entry.getValue().isEmpty() == false) {
+                ids.add(entry.getKey());
+            }
+        }
+        return ids;
+    }
+
+    private static PhysicalPlan createPlanWithAggregation() {
+        return new AggregateExec(Source.EMPTY, createExternalSourceExec(), List.of(), List.of(), AggregatorMode.SINGLE, List.of(), null);
     }
 
     public void testIndexCoordinatorAssignsDistributableScanToSearchWorker() {

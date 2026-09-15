@@ -133,7 +133,7 @@ public final class ChunkedBytesWriter implements Closeable {
         final MonotonicWriter.Table startsTable;
         final MonotonicWriter.Table offsetsTable;
         try (
-            IndexInput staged = directory.openInput(chunkTempName, context);
+            IndexInput staged = directory.openInput(chunkTempName, IOContext.READONCE);
             MonotonicWriter startsOut = new MonotonicWriter(directory, context, prefix, numChunks + 1L);
             MonotonicWriter offsetsOut = new MonotonicWriter(directory, context, prefix, numChunks + 1L)
         ) {

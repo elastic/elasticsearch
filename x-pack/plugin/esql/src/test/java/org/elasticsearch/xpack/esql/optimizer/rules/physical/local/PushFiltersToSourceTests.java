@@ -18,7 +18,6 @@ import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.core.type.EsField;
 import org.elasticsearch.xpack.esql.datasources.DeclaredReadSpec;
-import org.elasticsearch.xpack.esql.datasources.FormatNameResolver;
 import org.elasticsearch.xpack.esql.datasources.FormatReaderRegistry;
 import org.elasticsearch.xpack.esql.datasources.spi.ErrorPolicy;
 import org.elasticsearch.xpack.esql.datasources.spi.FilterPushdownSupport;
@@ -44,21 +43,23 @@ import java.util.Set;
 import static org.hamcrest.Matchers.instanceOf;
 
 /**
- * Verifies that {@link PushFiltersToSource#resolveFormatName} delegates to
- * {@link FormatNameResolver#resolve}. Comprehensive resolution tests live in
+ * Filter pushdown onto an {@link ExternalSourceExec} keys the reader on {@code sourceType}, not a last-dot
+ * of {@code sourcePath()}. Comprehensive format-name resolution tests live in
  * {@link org.elasticsearch.xpack.esql.datasources.FormatNameResolverTests}.
  */
 public class PushFiltersToSourceTests extends ESTestCase {
 
-    public void testResolveFormatNameDelegatesToFormatNameResolver() {
-        assertEquals(
-            FormatNameResolver.resolve(Map.of("reader", "java"), "file.parquet"),
-            PushFiltersToSource.resolveFormatName(Map.of("reader", "java"), "file.parquet")
-        );
-    }
+    /**
+     * A compressed CSV path last-dots to {@code gz}. The plan's {@code sourceType} is still {@code csv}, so
+     * pushdown must look up the csv reader — the same origin as {@code InsertExternalFieldExtraction}.
+     */
+    public void testPushesCompressedCsvUsingSourceTypeNotPathSuffix() {
+        FilterExec filterExec = filterOverExternalSource("file:///hits.csv.gz", "csv", "null_field", Set.of());
 
-    public void testResolveFormatNameFromExtension() {
-        assertEquals("orc", PushFiltersToSource.resolveFormatName(null, "s3://bucket/data/file.orc"));
+        PhysicalPlan result = applyRule(filterExec, registry(true));
+
+        assertThat(result, instanceOf(ExternalSourceExec.class));
+        assertNotNull(((ExternalSourceExec) result).pushedFilter());
     }
 
     // -- referencesAnyColumn: partition/data conjunct split --
@@ -165,11 +166,20 @@ public class PushFiltersToSourceTests extends ESTestCase {
     }
 
     private static FilterExec filterOverExternalSource(String errorMode, Set<String> declaredTypeColumns) {
+        return filterOverExternalSource("file:///test.parquet", "parquet", errorMode, declaredTypeColumns);
+    }
+
+    private static FilterExec filterOverExternalSource(
+        String sourcePath,
+        String sourceType,
+        String errorMode,
+        Set<String> declaredTypeColumns
+    ) {
         FieldAttribute salary = fieldAttr("salary");
         ExternalSourceExec source = new ExternalSourceExec(
             SRC,
-            "file:///test.parquet",
-            "parquet",
+            sourcePath,
+            sourceType,
             List.of(salary),
             Map.of(ErrorPolicy.CONFIG_ERROR_MODE, errorMode),
             Map.of(),
@@ -193,8 +203,10 @@ public class PushFiltersToSourceTests extends ESTestCase {
 
     private static FormatReaderRegistry registry(boolean dropsRowsUnderPushedFilter) {
         FormatReaderRegistry registry = new FormatReaderRegistry(null);
-        FormatReader reader = dropsRowsUnderPushedFilter ? new DroppingStubReader() : new StubReader();
-        registry.registerLazy("parquet", (settings, blockFactory) -> reader, null, null);
+        FormatReader parquet = dropsRowsUnderPushedFilter ? new DroppingStubReader() : new StubReader();
+        registry.registerLazy("parquet", (settings, blockFactory) -> parquet, null, null);
+        // csv is registered so a compressed csv sourceType still finds a pushdown-capable reader.
+        registry.registerLazy("csv", (settings, blockFactory) -> new DroppingStubReader(), null, null);
         return registry;
     }
 

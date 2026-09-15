@@ -188,6 +188,10 @@ gradlePlugin {
       id = 'elasticsearch.esql-csv-spec-tests'
       implementationClass = 'org.elasticsearch.gradle.internal.esql.EsqlCsvSpecTestsPlugin'
     }
+    esqlDataSourceBwc {
+      id = 'elasticsearch.esql-datasource-bwc'
+      implementationClass = 'org.elasticsearch.gradle.internal.esql.EsqlDataSourceBwcPlugin'
+    }
     releaseTools {
       id = 'elasticsearch.release-tools'
       implementationClass = 'org.elasticsearch.gradle.internal.release.ReleaseToolsPlugin'

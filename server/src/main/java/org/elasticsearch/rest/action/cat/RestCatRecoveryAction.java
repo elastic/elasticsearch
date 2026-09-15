@@ -33,6 +33,7 @@ import java.time.Instant;
 import java.util.Comparator;
 import java.util.List;
 import java.util.Locale;
+import java.util.Map;
 
 import static org.elasticsearch.rest.RestRequest.Method.GET;
 
@@ -125,10 +126,11 @@ public class RestCatRecoveryAction extends AbstractCatAction {
 
         Table t = getTableWithHeader(request);
 
-        for (String index : response.shardRecoveryStates().keySet()) {
-
-            List<RecoveryState> shardRecoveryStates = response.shardRecoveryStates().get(index);
-            if (shardRecoveryStates.size() == 0) {
+        final Map<String, List<RecoveryState>> recoveryStatesByIndex = response.shardRecoveryStates();
+        for (var entry : recoveryStatesByIndex.entrySet()) {
+            String index = entry.getKey();
+            List<RecoveryState> shardRecoveryStates = entry.getValue();
+            if (shardRecoveryStates.isEmpty()) {
                 continue;
             }
 

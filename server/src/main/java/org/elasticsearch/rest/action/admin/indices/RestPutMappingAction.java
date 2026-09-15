@@ -19,6 +19,7 @@ import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.Scope;
 import org.elasticsearch.rest.ServerlessScope;
 import org.elasticsearch.rest.action.RestToXContentListener;
+import org.elasticsearch.xcontent.XContentType;
 
 import java.io.IOException;
 import java.util.List;
@@ -56,12 +57,7 @@ public class RestPutMappingAction extends BaseRestHandler {
     public RestChannelConsumer prepareRequest(final RestRequest request, final NodeClient client) throws IOException {
         String[] indices = Strings.splitStringByCommaToArray(request.param("index"));
         PutMappingRequest putMappingRequest = new PutMappingRequest(indices);
-
-        Map<String, Object> sourceAsMap = XContentHelper.convertToMap(request.requiredContent(), false, request.getXContentType()).v2();
-        if (isMappingSourceTyped(SINGLE_MAPPING_NAME, sourceAsMap)) {
-            throw new IllegalArgumentException("Types cannot be provided in put mapping requests");
-        }
-        putMappingRequest.source(sourceAsMap);
+        putMappingRequest.source(request.requiredContent(), request.getXContentType());
         putMappingRequest.ackTimeout(getAckTimeout(request));
         putMappingRequest.masterNodeTimeout(getMasterNodeTimeout(request));
         putMappingRequest.indicesOptions(IndicesOptions.fromRequest(request, putMappingRequest.indicesOptions()));
@@ -72,19 +68,6 @@ public class RestPutMappingAction extends BaseRestHandler {
     @Override
     public Set<String> supportedCapabilities() {
         return Set.of(REJECT_RUNTIME_FIELD_SHADOWING_SORT_FIELD);
-    }
-
-    private static Map<String, Object> prepareV7Mappings(boolean includeTypeName, Map<String, Object> mappings) {
-        if (includeTypeName && mappings != null && mappings.size() == 1) {
-            String typeName = mappings.keySet().iterator().next();
-            if (Strings.hasText(typeName) == false) {
-                throw new IllegalArgumentException("name cannot be empty string");
-            }
-            @SuppressWarnings("unchecked")
-            Map<String, Object> typelessMappings = (Map<String, Object>) mappings.get(typeName);
-            return typelessMappings;
-        }
-        return mappings;
     }
 
 }

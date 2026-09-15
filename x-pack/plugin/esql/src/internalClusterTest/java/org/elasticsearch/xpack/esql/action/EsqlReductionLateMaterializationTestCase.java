@@ -178,8 +178,10 @@ public abstract class EsqlReductionLateMaterializationTestCase extends AbstractE
      * A {@code FORK} branch never has a narrowing {@code KEEP} - {@code ProjectAwayColumns} keeps everything {@code MergeExec} needs -
      * which is exactly the shape that used to defeat the pruning and made every branch load all fields in every data driver.
      *
-     * <p>Both branches' data drivers report the same unqualified {@code "data"} description, so the assertion is the aggregate over
-     * the branches. That is the right metric anyway: the cost this fixes is the per-slice fan-out summed over branches.
+     * <p>Both branches' drivers report the same unqualified {@code "data"} / {@code "node_reduce"} descriptions, so each assertion is
+     * the aggregate over the branches. That is the right metric anyway: the cost this fixes is the per-slice fan-out summed over
+     * branches. The {@code node_reduce} half matters as much as the {@code data} half - without it the test would also pass if the
+     * branches stopped loading the deferred fields altogether rather than deferring them.
      */
     public void testForkBranchesLateMaterialize() throws Exception {
         assumeTrue("requires FORK", EsqlCapabilities.Cap.FORK_V9.isEnabled());
@@ -194,6 +196,7 @@ public abstract class EsqlReductionLateMaterializationTestCase extends AbstractE
             assertThat(result.isRunning(), equalTo(false));
             assertThat(result.isPartial(), equalTo(false));
             assertSingleKeyFieldExtracted(result, "data", Set.of("sorted"));
+            assertSingleKeyFieldExtracted(result, "node_reduce", Set.of("read", "filtered", "more", "some_more"));
         }
     }
 

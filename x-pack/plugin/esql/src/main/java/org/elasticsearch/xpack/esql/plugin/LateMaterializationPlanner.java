@@ -108,6 +108,18 @@ class LateMaterializationPlanner {
         "esql_node_late_materialization_limit_by"
     );
 
+    /**
+     * Metadata attributes with a verified block loader, so the node-reduce driver can re-read them from {@code _doc}. This is an
+     * allow-list rather than an {@code instanceof MetadataAttribute} test on purpose: {@code _score} has no block loader at all, and
+     * the loaders of the remaining metadata attributes ({@code _version}, {@code _tsid}, {@code _tier}, {@code _slice}, ...) have not
+     * been verified in this context.
+     */
+    private static final Set<String> RELOADABLE_METADATA_ATTRIBUTES = Set.of(
+        MetadataAttribute.INDEX,
+        IdFieldMapper.NAME,
+        SourceFieldMapper.NAME
+    );
+
     public static Optional<ReductionPlan> planReduceDriverTopN(
         Function<SearchStats, LocalPhysicalOptimizerContext> contextFactory,
         ExchangeSinkExec originalPlan
@@ -333,27 +345,25 @@ class LateMaterializationPlanner {
      */
     private static List<Attribute> expectedDataOutput(SetupContext ctx, AttributeSet mustCrossExchange) {
         AttributeSet reloadable = attributesReloadableFromDoc(ctx.pipelineBreaker);
+        // The result becomes the projection of a Project over ctx.withAddedDocToRelation, so it may only name attributes that
+        // logical plan can produce. physicalPlanOutput is wider than that: for a TSDB index ReplaceSourceAttributes synthesizes a
+        // fresh FieldAttribute per EsQueryExec.TIME_SERIES_SOURCE_FIELDS (_ts_slice_index, _ts_future_max_timestamp) that exists only
+        // below the physical leaf. Those are not the output of any EsRelation, so attributesReloadableFromDoc never sees them and the
+        // "not reloadable => must cross" default below would wrongly keep them; the data node mints its own pair with different name
+        // ids when it maps the fragment, leaving the Project referencing attributes nothing produces.
+        AttributeSet producibleByFragment = ctx.withAddedDocToRelation.outputSet();
         // Preserve the iteration order of physicalPlanOutput: it is the exchange layout on both sides.
         List<Attribute> expectedDataOutput = new ArrayList<>(ctx.physicalPlanOutput.size());
         for (Attribute a : ctx.physicalPlanOutput) {
+            if (producibleByFragment.contains(a) == false) {
+                continue;
+            }
             if (EsQueryExec.isDocAttribute(a) || mustCrossExchange.contains(a) || reloadable.contains(a) == false) {
                 expectedDataOutput.add(a);
             }
         }
         return expectedDataOutput;
     }
-
-    /**
-     * Metadata attributes with a verified block loader, so the node-reduce driver can re-read them from {@code _doc}. This is an
-     * allow-list rather than an {@code instanceof MetadataAttribute} test on purpose: {@code _score} has no block loader at all, and
-     * the loaders of the remaining metadata attributes ({@code _version}, {@code _tsid}, {@code _tier}, {@code _slice}, ...) have not
-     * been verified in this context.
-     */
-    private static final Set<String> RELOADABLE_METADATA_ATTRIBUTES = Set.of(
-        MetadataAttribute.INDEX,
-        IdFieldMapper.NAME,
-        SourceFieldMapper.NAME
-    );
 
     /**
      * The attributes that the node-reduce driver can load from the index itself, given only the {@code _doc} of a surviving row.
@@ -384,7 +394,10 @@ class LateMaterializationPlanner {
     private static boolean isReloadableFromDoc(Attribute a) {
         boolean reloadable;
         if (EsQueryExec.isDocAttribute(a)) {
-            // _doc itself is what everything else is reloaded from; it always crosses the exchange.
+            // _doc is what everything else is reloaded from, so it can never itself be dropped. Belt and braces rather than
+            // load-bearing: expectedDataOutput short-circuits on _doc, and the relations below the pipeline breaker carry none yet
+            // (withAddedDocToRelation prepends it only after this has run). It stays because _doc is a plain FieldAttribute, so
+            // without it the branch below would call it reloadable.
             reloadable = false;
         } else if (a.getClass() == FieldAttribute.class) {
             // An exact class check, not instanceof: the FieldAttribute subclasses (TimeSeriesMetadataAttribute, UnsupportedAttribute)

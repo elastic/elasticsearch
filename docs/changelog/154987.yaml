@@ -1,6 +1,6 @@
 pr: 154987
-summary: Resolve a `FROM` wildcard to indices only unless `dataset_wildcards` is set
+summary: Make wildcard discovery of datasets opt-in with `dataset_wildcards`
 area: ES|QL
-type: bug
+type: feature
 issues:
   - 158472

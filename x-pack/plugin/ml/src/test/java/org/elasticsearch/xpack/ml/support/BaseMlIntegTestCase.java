@@ -36,7 +36,6 @@ import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.datastreams.DataStreamsPlugin;
 import org.elasticsearch.health.node.selection.HealthNode;
 import org.elasticsearch.index.mapper.extras.MapperExtrasPlugin;
-import org.elasticsearch.indices.recovery.RecoveryState;
 import org.elasticsearch.ingest.common.IngestCommonPlugin;
 import org.elasticsearch.license.LicenseSettings;
 import org.elasticsearch.persistent.PersistentTasksClusterService;
@@ -282,7 +281,7 @@ public abstract class BaseMlIntegTestCase extends ESIntegTestCase {
         waitForPendingTasks(client());
         assertBusy(() -> {
             RecoveryResponse recoveryResponse = client().admin().indices().prepareRecoveries().setActiveOnly(true).get();
-            for (List<RecoveryState> recoveryStates : recoveryResponse.shardRecoveryStates().values()) {
+            for (var recoveryStates : recoveryResponse.shardRecoveryInfos().values()) {
                 assertThat(recoveryStates.size(), equalTo(0));
             }
         });

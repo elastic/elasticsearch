@@ -20,6 +20,7 @@ import org.elasticsearch.action.admin.cluster.reroute.TransportClusterRerouteAct
 import org.elasticsearch.action.admin.cluster.snapshots.create.CreateSnapshotResponse;
 import org.elasticsearch.action.admin.cluster.snapshots.restore.RestoreSnapshotResponse;
 import org.elasticsearch.action.admin.indices.recovery.RecoveryRequest;
+import org.elasticsearch.action.admin.indices.recovery.ShardRecoveryInfo;
 import org.elasticsearch.action.admin.indices.refresh.RefreshRequest;
 import org.elasticsearch.action.admin.indices.settings.get.GetSettingsRequest;
 import org.elasticsearch.action.admin.indices.template.put.TransportPutComposableIndexTemplateAction;
@@ -1875,9 +1876,10 @@ public class StatelessHollowIndexShardsIT extends AbstractStatelessPluginIntegTe
         ensureGreen(indexName);
         long translogRecoveredOps = indicesAdmin().prepareRecoveries(indexName)
             .get()
-            .shardRecoveryStates()
+            .shardRecoveryInfos()
             .get(indexName)
             .stream()
+            .map(ShardRecoveryInfo::recoveryState)
             .mapToLong(e -> e.getTranslog().recoveredOperations())
             .sum();
         assertThat(translogRecoveredOps, equalTo((long) numDocs * 3));
@@ -2318,9 +2320,10 @@ public class StatelessHollowIndexShardsIT extends AbstractStatelessPluginIntegTe
         );
         long translogRecoveredOps = indicesAdmin().prepareRecoveries(indexName)
             .get()
-            .shardRecoveryStates()
+            .shardRecoveryInfos()
             .get(indexName)
             .stream()
+            .map(ShardRecoveryInfo::recoveryState)
             .mapToLong(e -> e.getTranslog().recoveredOperations())
             .sum();
         assertThat(translogRecoveredOps, equalTo((long) docs3 + docs4));
@@ -3473,7 +3476,7 @@ public class StatelessHollowIndexShardsIT extends AbstractStatelessPluginIntegTe
                             .indices()
                             .recoveries(new RecoveryRequest(index))
                             .get()
-                            .shardRecoveryStates()
+                            .shardRecoveryInfos()
                             .entrySet()
                             .stream()
                             .map(
@@ -3481,6 +3484,7 @@ public class StatelessHollowIndexShardsIT extends AbstractStatelessPluginIntegTe
                                     + ":"
                                     + e.getValue()
                                         .stream()
+                                        .map(ShardRecoveryInfo::recoveryState)
                                         .map(rs -> rs.getShardId() + " - " + rs.getTimer().time())
                                         .collect(Collectors.joining(","))
                             )

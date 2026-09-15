@@ -7,7 +7,7 @@
 package org.elasticsearch.xpack.monitoring.collector.indices;
 
 import org.elasticsearch.action.admin.indices.recovery.RecoveryResponse;
-import org.elasticsearch.indices.recovery.RecoveryState;
+import org.elasticsearch.action.admin.indices.recovery.ShardRecoveryInfo;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xpack.core.monitoring.MonitoredSystem;
 import org.elasticsearch.xpack.core.monitoring.exporter.MonitoringDoc;
@@ -49,16 +49,16 @@ public class IndexRecoveryMonitoringDoc extends MonitoringDoc {
             if (recoveryResponse != null) {
                 builder.startArray("shards");
                 {
-                    Map<String, List<RecoveryState>> shards = recoveryResponse.shardRecoveryStates();
+                    Map<String, List<ShardRecoveryInfo>> shards = recoveryResponse.shardRecoveryInfos();
                     if (shards != null) {
-                        for (Map.Entry<String, List<RecoveryState>> shard : shards.entrySet()) {
-                            List<RecoveryState> indexShards = shard.getValue();
+                        for (Map.Entry<String, List<ShardRecoveryInfo>> shard : shards.entrySet()) {
+                            List<ShardRecoveryInfo> indexShards = shard.getValue();
                             if (indexShards != null) {
-                                for (RecoveryState indexShard : indexShards) {
+                                for (ShardRecoveryInfo indexShard : indexShards) {
                                     builder.startObject();
                                     {
                                         builder.field("index_name", shard.getKey());
-                                        indexShard.toXContent(builder, params);
+                                        indexShard.recoveryState().toXContent(builder, params);
                                     }
                                     builder.endObject();
                                 }

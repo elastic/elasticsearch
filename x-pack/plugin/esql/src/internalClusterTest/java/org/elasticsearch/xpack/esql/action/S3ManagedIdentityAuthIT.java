@@ -57,7 +57,9 @@ import java.util.concurrent.atomic.AtomicReference;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.getValuesList;
 import static org.elasticsearch.xpack.esql.action.EsqlQueryRequest.syncEsqlQueryRequest;
+import static org.hamcrest.Matchers.anyOf;
 import static org.hamcrest.Matchers.containsString;
+import static org.hamcrest.Matchers.containsStringIgnoringCase;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasItem;
 import static org.hamcrest.Matchers.hasSize;
@@ -82,10 +84,12 @@ import static org.hamcrest.Matchers.hasSize;
  * fixtures bind to {@code 127.0.0.1} and the advertised URLs use that same address (not
  * {@code localhost}): {@code localhost} is dual-stack, so the AWS SDK can connect to {@code ::1} and
  * miss an IPv4-only IMDS bind — credential resolution then fails before any S3 request is signed.
- * The wrong-credential sub-test sets a different IMDS key and a different {@code region} so both
- * {@code StorageProviderRegistry} (scheme + config map) and {@code SchemaCacheKey} (endpoint + region)
- * miss the happy-path client and cached {@code COUNT(*)} result; a fresh provider's first IMDS fetch
- * picks up the updated key.
+ * The wrong-credential sub-test sets a different IMDS key and puts {@code region=us-east-2} on the
+ * <em>dataset</em> (not the data source: {@code DatasetRewriter} strips data-source {@code region})
+ * so both {@code StorageProviderCache} (scheme + config map) and {@code SchemaCacheKey} (endpoint +
+ * region) miss the happy-path client; a fresh provider's first IMDS fetch picks up the updated key.
+ * The S3 fixture accepts any SigV4 region so HTTP 403 is from the wrong access key, not a region
+ * mismatch.
  */
 @ESIntegTestCase.ClusterScope(scope = ESIntegTestCase.Scope.SUITE, numDataNodes = 1, numClientNodes = 0, supportsDedicatedMasters = false)
 @SuppressForbidden(reason = "uses HttpServer for local S3 fixture and System.setProperty for workload identity credential seeding")
@@ -121,8 +125,10 @@ public class S3ManagedIdentityAuthIT extends AbstractEsqlIntegTestCase {
         s3Handler.blobs().put("/" + BUCKET + "/" + OBJECT_KEY, new BlobEntry(new BytesArray(ndjson), "STANDARD"));
 
         // Validate SigV4 signatures: only requests signed with WORKLOAD_IDENTITY_ACCESS_KEY are accepted.
-        // checkAuthorization sends the 403 response itself when auth fails, so we just return.
-        var authPredicate = AwsCredentialsUtils.fixedAccessKey(WORKLOAD_IDENTITY_ACCESS_KEY, () -> "us-east-1", "s3");
+        // Region is not checked so the wrong-credential test can set dataset region=us-east-2 to miss
+        // the provider cache without turning a 403 into a region mismatch. checkAuthorization sends
+        // the 403 response itself when auth fails, so we just return.
+        var authPredicate = AwsCredentialsUtils.fixedAccessKey(WORKLOAD_IDENTITY_ACCESS_KEY, AwsCredentialsUtils.ANY_REGION, "s3");
         s3Server = HttpServer.create(new InetSocketAddress(InetAddress.getByName("127.0.0.1"), 0), 0);
         s3Server.createContext("/", exchange -> {
             // Record every signed request. Unsigned probes are ignored; later signed leftovers are
@@ -301,26 +307,16 @@ public class S3ManagedIdentityAuthIT extends AbstractEsqlIntegTestCase {
      * {@link #WORKLOAD_IDENTITY_ACCESS_KEY}, proving the auth gate is actually enforced.
      *
      * <p>Sets a wrong key in {@link #imdsAccessKey} <em>before</em> registering the datasource
-     * and uses {@code region=us-east-2} so both the provider cache and the schema {@code COUNT(*)}
-     * cache miss the happy-path client. The fresh provider's first IMDS fetch returns the wrong
-     * key, the S3 request is signed with it, and the fixture rejects with HTTP 403.
+     * and puts {@code region=us-east-2} on the dataset so both the provider cache and
+     * {@code SchemaCacheKey} miss the happy-path client. Data-source {@code region} is ignored
+     * at query time, so it cannot bust those caches. The fresh provider's first IMDS fetch
+     * returns the wrong key, the S3 request is signed with it, and the fixture rejects with
+     * HTTP 403 because the access key does not match (the fixture accepts any region).
      */
     public void testQueryFailsWhenWrongCredentialIsUsed() throws Exception {
         imdsAccessKey.set("wrong-key-that-fixture-rejects");
-        assertAcked(
-            client().execute(
-                PutDataSourceAction.INSTANCE,
-                new PutDataSourceAction.Request(
-                    TIMEOUT,
-                    TIMEOUT,
-                    DATASOURCE_NAME,
-                    "s3",
-                    null,
-                    new HashMap<>(Map.of("auth", "managed_identity", "region", "us-east-2", "endpoint", "http://127.0.0.1:" + s3Port))
-                )
-            )
-        );
-        registerDataset();
+        registerManagedIdentityDatasource();
+        registerDataset(Map.of("region", "us-east-2"));
 
         authorizationHeaders.clear();
         Exception thrown = expectThrows(Exception.class, () -> {
@@ -331,7 +327,7 @@ public class S3ManagedIdentityAuthIT extends AbstractEsqlIntegTestCase {
         assertThat(
             "query must fail because the fixture rejected the signed request, not because IMDS was unreachable",
             ExceptionsHelper.stackTrace(thrown),
-            containsString("Access denied")
+            anyOf(containsString("AccessDenied"), containsStringIgnoringCase("access denied"))
         );
         assertThat(
             "S3 request must have reached the fixture with the wrong key injected via mock IMDS",
@@ -412,6 +408,10 @@ public class S3ManagedIdentityAuthIT extends AbstractEsqlIntegTestCase {
     }
 
     private void registerDataset() throws Exception {
+        registerDataset(Map.of());
+    }
+
+    private void registerDataset(Map<String, Object> settings) throws Exception {
         assertAcked(
             client().execute(
                 PutDatasetAction.INSTANCE,
@@ -422,7 +422,7 @@ public class S3ManagedIdentityAuthIT extends AbstractEsqlIntegTestCase {
                     DATASOURCE_NAME,
                     "s3://" + BUCKET + "/" + OBJECT_KEY,
                     null,
-                    new HashMap<>()
+                    new HashMap<>(settings)
                 )
             )
         );

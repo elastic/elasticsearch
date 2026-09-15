@@ -168,7 +168,7 @@ public final class StringColumnWriter {
         // written under no dictionary policy was told not to weigh what it repeats, and the page decides.
         final boolean valuesWorthNaming;
         final ValueStream.Metadata written;
-        final MonotonicWriter.Table valueAddresses;
+        final SlotAddressing addressing;
         final MonotonicWriter.Table nullSlotTable;
         try (
             ValueStream.Writer stream = new ValueStream.Writer(
@@ -222,7 +222,7 @@ public final class StringColumnWriter {
             }
             written = stream.finish();
             valuesWorthNaming = policy.enabled() == false || stream.runs() * StringColumnReader.MIN_PAGE_REPEAT <= numValues;
-            valueAddresses = slots.finish(valueAddress, data);
+            addressing = slots.finish(valueAddress, data);
             nullSlotTable = nullSlots.finish(data);
         }
         return withSummary(
@@ -231,7 +231,7 @@ public final class StringColumnWriter {
                 numDocsWithField,
                 numValues,
                 numNullSlots,
-                valueAddresses,
+                addressing,
                 nullSlotTable,
                 written,
                 sorted,
@@ -367,7 +367,7 @@ public final class StringColumnWriter {
             long index = 0;
             final ValueStream.Metadata escapeStream;
             final MonotonicWriter.Table escapeRanks;
-            final MonotonicWriter.Table valueAddresses;
+            final SlotAddressing addressing;
             try (
                 MonotonicWriter ranks = new MonotonicWriter(directory, context, data.getName(), escapeRankEntries(numValues));
                 // Nulls are named by a reserved ordinal below, so this layout keeps no null-slot table.
@@ -456,7 +456,7 @@ public final class StringColumnWriter {
                         ranks.add(escapes);
                     }
                 }
-                valueAddresses = slots.finish(index, data);
+                addressing = slots.finish(index, data);
                 escapeStream = replayEscapes(
                     directory,
                     context,
@@ -484,7 +484,7 @@ public final class StringColumnWriter {
             },
                 compressOrdinals
                     ? NumericPipeline.compressedOrdinalPipeline(ordinalBlockSize)
-                    : NumericPipeline.ordinalPipeline(ordinalBlockSize),
+                    : NumericPipeline.runsAndOutliersPipeline(ordinalBlockSize),
                 BlockBytesCodec.forId(compressOrdinals ? BlockBytesCodec.ZSTD_ID : BlockBytesCodec.IDENTITY_ID),
                 // The ordinals build no skip index, so nothing is ever written to one.
                 null,
@@ -499,7 +499,7 @@ public final class StringColumnWriter {
                 numValues,
                 numNullSlots,
                 valueBytes,
-                valueAddresses,
+                addressing,
                 dictionary,
                 ordinals,
                 escapeStream,
@@ -596,7 +596,7 @@ public final class StringColumnWriter {
     /** What {@code sample} occupies under the pipeline and block a packed column is written with. */
     private static long packedOrdinalBytes(long[] sample) throws IOException {
         final NumericBlockEncoder encoder = new NumericBlockEncoder(
-            NumericPipeline.ordinalPipeline(ORDINAL_BLOCK_SIZE),
+            NumericPipeline.runsAndOutliersPipeline(ORDINAL_BLOCK_SIZE),
             ORDINAL_BLOCK_SIZE
         );
         final long[] block = new long[ORDINAL_BLOCK_SIZE];

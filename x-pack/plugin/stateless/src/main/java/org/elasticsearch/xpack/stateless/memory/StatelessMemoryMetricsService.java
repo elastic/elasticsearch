@@ -315,6 +315,8 @@ public class StatelessMemoryMetricsService implements ClusterStateListener {
      * Expected to be lower than {@link #INDEX_MEMORY_OVERHEAD} times the index count for typical metadata;
      * callers that previously used the fixed overhead should treat this as a reduction, not a drop-in for
      * absolute heap accounting.
+     *
+     * @return estimated heap used by index metadata objects in the current cluster state, or -1 if the cluster state is not available
      */
     public long getIndexMetadataEstimatedHeapBytes() {
         if (clusterService.lifecycleState() == Lifecycle.State.STARTED) {

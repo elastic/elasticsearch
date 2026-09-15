@@ -235,7 +235,6 @@ public class ScanningBinaryDocValuesAutomatonQueryTests extends ESTestCase {
 
                     Query baselineQuery = new WildcardQuery(
                         new Term("baseline_field", randomWildcard),
-                        Operations.DEFAULT_DETERMINIZE_WORK_LIMIT,
                         MultiTermQuery.DOC_VALUES_REWRITE
                     );
                     TopDocs baselineResults = searcher.search(baselineQuery, 32);

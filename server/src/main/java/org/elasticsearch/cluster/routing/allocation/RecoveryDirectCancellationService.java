@@ -149,8 +149,8 @@ public class RecoveryDirectCancellationService extends AbstractLifecycleComponen
             if (enabled == false || lifecycle.started() == false) {
                 return;
             }
-            boolean isMaster = clusterService.state().nodes().isLocalNodeElectedMaster();
-            if (isMaster && clusterService.state().clusterRecovered() && enableDirectCancellationsForSnapshots) {
+            final ClusterState state = clusterService.state();
+            if (state.nodes().isLocalNodeElectedMaster() && state.clusterRecovered() && enableDirectCancellationsForSnapshots) {
                 cancelRecoveriesBlockingSnapshots();
             }
         });
@@ -159,8 +159,8 @@ public class RecoveryDirectCancellationService extends AbstractLifecycleComponen
             if (enabled == false || lifecycle.started() == false) {
                 return;
             }
-            boolean isMaster = clusterService.state().nodes().isLocalNodeElectedMaster();
-            if (isMaster && clusterService.state().clusterRecovered() && enableDirectRecoveryCancellations) {
+            final ClusterState state = clusterService.state();
+            if (state.nodes().isLocalNodeElectedMaster() && state.clusterRecovered() && enableDirectRecoveryCancellations) {
                 cancelRecoveriesBlockingSnapshots();
             }
         });

@@ -10,13 +10,17 @@ package org.elasticsearch.xpack.esql.analysis.rules;
 import org.elasticsearch.xpack.esql.analysis.AnalyzerRules.AnalyzerRule;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
+import org.elasticsearch.xpack.esql.core.expression.Literal;
+import org.elasticsearch.xpack.esql.core.expression.MapExpression;
 import org.elasticsearch.xpack.esql.core.expression.NamedExpression;
 import org.elasticsearch.xpack.esql.core.expression.UnresolvedAttribute;
 import org.elasticsearch.xpack.esql.core.expression.UnresolvedStar;
+import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.plan.logical.Highlight;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.esql.plan.logical.highlight.HighlightSupport;
 
+import java.util.ArrayList;
 import java.util.List;
 
 /**
@@ -88,9 +92,35 @@ public class ResolveHighlight extends AnalyzerRule<Highlight> {
             }
         }
 
-        if (query == highlight.query() && fields == highlight.fields()) {
+        // Copy the query's uniform leaf analyzer into WITH so the runtime context registers it and the query
+        // translates against the same analyzer as the document side. Disagreement is left for verification to report,
+        // so the user sees "must be the same" instead of a downstream "analyzer not found".
+        MapExpression newOptions = highlight.options();
+        if (query != null && query.resolved()) {
+            Expression existingAnalyzer = newOptions == null ? null : newOptions.get(Highlight.ANALYZER);
+            if (existingAnalyzer == null) {
+                String uniform = HighlightSupport.uniformAnalyzerOf(query);
+                if (uniform != null) {
+                    newOptions = withDerivedAnalyzer(newOptions, uniform, highlight.source());
+                }
+            }
+        }
+
+        if (query == highlight.query() && fields == highlight.fields() && newOptions == highlight.options()) {
             return highlight;
         }
-        return highlight.withResolved(query, implicit, fields, generated);
+        Highlight updated = highlight.withResolved(query, implicit, fields, generated);
+        return newOptions == highlight.options() ? updated : updated.withOptions(newOptions);
+    }
+
+    /** Appends an {@code analyzer} entry to {@code existing} (or creates a fresh {@link MapExpression}). */
+    private static MapExpression withDerivedAnalyzer(MapExpression existing, String analyzerName, Source source) {
+        List<Expression> entries = new ArrayList<>();
+        if (existing != null) {
+            entries.addAll(existing.children());
+        }
+        entries.add(Literal.keyword(source, Highlight.ANALYZER));
+        entries.add(Literal.keyword(source, analyzerName));
+        return new MapExpression(existing != null ? existing.source() : source, entries);
     }
 }

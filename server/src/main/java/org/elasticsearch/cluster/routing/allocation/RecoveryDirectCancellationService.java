@@ -213,11 +213,11 @@ public class RecoveryDirectCancellationService extends AbstractLifecycleComponen
     /// which shards are currently initializing on an undesired node
     public void cancelUndesiredRecoveries(DesiredBalance desiredBalance, RoutingAllocation routingAllocation) {
         if (lifecycle.started() == false) {
-            logger.info("service stopped or not yet fully started, will not cancel undesired recoveries");
+            logger.debug("service stopped or not yet fully started, will not cancel undesired recoveries");
             return;
         }
         if (clusterService.state().clusterRecovered() == false) {
-            logger.info("cluster state has not yet recovered, will not cancel undesired recoveries");
+            logger.debug("cluster state has not yet recovered, will not cancel undesired recoveries");
             return;
         }
         genericExecutor.execute(new CancelUndesiredRecoveriesRunnable(desiredBalance, routingAllocation));

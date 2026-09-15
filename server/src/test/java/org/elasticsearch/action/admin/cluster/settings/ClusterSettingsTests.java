@@ -19,7 +19,6 @@ import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
 
 import static org.hamcrest.Matchers.equalTo;
-import static org.junit.Assert.assertThrows;
 
 public class ClusterSettingsTests extends ESTestCase {
 
@@ -126,5 +125,4 @@ public class ClusterSettingsTests extends ESTestCase {
         clusterSettings.initializeAndWatchIfRegistered(clusterSetting, settingValue::set);
         assertThat(settingValue.get(), equalTo("default_value"));
     }
-
 }

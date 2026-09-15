@@ -9,6 +9,7 @@ package org.elasticsearch.xpack.esql.expression.function.scalar.date;
 
 import org.elasticsearch.common.lucene.BytesRefs;
 import org.elasticsearch.xpack.esql.EsqlTestUtils;
+import org.elasticsearch.xpack.esql.common.Failures;
 import org.elasticsearch.xpack.esql.core.InvalidArgumentException;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.FieldAttribute;
@@ -31,6 +32,7 @@ import java.util.Locale;
 import java.util.Set;
 
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.hasItem;
 
 public class TRangeErrorTests extends ErrorsForCasesWithoutExamplesTestCase {
 
@@ -132,6 +134,39 @@ public class TRangeErrorTests extends ErrorsForCasesWithoutExamplesTestCase {
             );
             trange.surrogate();
         });
+    }
+
+    public void testNullStartFailsVerification() {
+        // A typed null (non-NULL data type) passes resolveType's isNotNull but folds to null.
+        // postAnalysisPlanVerification must reject the query rather than let it NPE later in getRange.
+
+        // Two parameter mode: null start
+        assertNullStartFailure(
+            new TRange(
+                Source.EMPTY,
+                new Literal(Source.EMPTY, null, DataType.DATETIME),
+                Literal.dateTime(Source.EMPTY, Instant.now()),
+                Literal.dateTime(Source.EMPTY, Instant.now()),
+                EsqlTestUtils.configuration(StringUtils.EMPTY)
+            )
+        );
+
+        // Single parameter mode: null offset
+        assertNullStartFailure(
+            new TRange(
+                Source.EMPTY,
+                new Literal(Source.EMPTY, null, DataType.TIME_DURATION),
+                null,
+                Literal.dateTime(Source.EMPTY, Instant.now()),
+                EsqlTestUtils.configuration(StringUtils.EMPTY)
+            )
+        );
+    }
+
+    private static void assertNullStartFailure(TRange trange) {
+        Failures failures = new Failures();
+        trange.postAnalysisPlanVerification().accept(null, failures);
+        assertThat(failures.failures().stream().map(f -> f.message()).toList(), hasItem("start_time_or_offset cannot be null"));
     }
 
     @Override

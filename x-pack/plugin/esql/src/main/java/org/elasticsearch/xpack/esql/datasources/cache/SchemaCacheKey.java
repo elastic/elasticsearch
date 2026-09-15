@@ -47,6 +47,9 @@ public record SchemaCacheKey(
     // widen/narrow the inferred type for borderline columns.
     // - column_prefix: only changes column NAMES (when header_row=false), but names are part
     // of the schema.
+    // - skip_rows: drops leading content records on the first split, so the inferred header and
+    // sampled rows change (and a leftover preamble would leak into later splits if the cap were
+    // raised past the first-split window).
     // - error_mode / max_errors / max_error_ratio: change which rows survive and which cells are
     // null-filled, so captured row and column null counts must not be shared across policies.
     // - schema_resolution: changes multi-file schema merge (FFW vs UNION_BY_NAME) and therefore

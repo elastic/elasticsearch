@@ -60,6 +60,7 @@ import org.elasticsearch.xpack.esql.datasources.spi.NoConfigFormatReader;
 import org.elasticsearch.xpack.esql.datasources.spi.PassThroughRowPositionStrategy;
 import org.elasticsearch.xpack.esql.datasources.spi.RowPositionStrategy;
 import org.elasticsearch.xpack.esql.datasources.spi.SimpleSourceMetadata;
+import org.elasticsearch.xpack.esql.datasources.spi.SkipWarnings;
 import org.elasticsearch.xpack.esql.datasources.spi.SourceMetadata;
 import org.elasticsearch.xpack.esql.datasources.spi.SourceStatistics;
 import org.elasticsearch.xpack.esql.datasources.spi.StorageObject;
@@ -98,6 +99,7 @@ import java.util.function.Supplier;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.hasItem;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.lessThan;
 import static org.hamcrest.Matchers.not;
@@ -305,6 +307,122 @@ public class ExternalSourceResolverTests extends ESTestCase {
             future
         );
         return future.actionGet();
+    }
+
+    /**
+     * Configure-time notices belong to the dataset's options, not to a file, and the strict declared-schema rail reads
+     * no file at all; they are raised once per path in {@code resolveNextPath} so every rail delivers them, and the
+     * inferred rail, which reads metadata per file, delivers them exactly once too.
+     */
+    public void testConfigWarningsDeliveredOncePerPathOnEveryRail() throws Exception {
+        String file = "s3://bucket/data/file1.parquet";
+        Map<String, List<Attribute>> schemasByPath = Map.of(file, List.of(attr("id", DataType.INTEGER)));
+        CountingStorageProvider provider = new CountingStorageProvider(
+            Map.of("s3://bucket/data/", List.of(entry(file, 100))),
+            schemasByPath
+        );
+        String notice = "option [x] is undone by option [y]";
+        FormatReader reader = new StubFormatReader(schemasByPath) {
+            @Override
+            public List<String> configWarnings() {
+                return List.of(notice);
+            }
+        };
+        ExternalSourceResolver resolver = createResolverWithReader(provider, reader, null);
+
+        Map<String, DatasetFieldMapping> props = new LinkedHashMap<>();
+        props.put("id", new DatasetFieldMapping("integer", null));
+        DatasetMapping strict = new DatasetMapping(new DatasetMapping.Mappings(DatasetMapping.Dynamic.FALSE, props));
+        PlainActionFuture<ExternalSourceResolution> strictFuture = new PlainActionFuture<>();
+        resolver.resolve(
+            List.of(DECLARED_GLOB),
+            Map.of(DECLARED_GLOB, new HashMap<>()),
+            null,
+            Map.of(DECLARED_GLOB, strict),
+            null,
+            strictFuture
+        );
+        assertEquals("strict reads no file, the notice must still arrive", List.of(notice), strictFuture.actionGet().warnings());
+
+        PlainActionFuture<ExternalSourceResolution> inferredFuture = new PlainActionFuture<>();
+        resolver.resolve(List.of(DECLARED_GLOB), Map.of(DECLARED_GLOB, new HashMap<>()), inferredFuture);
+        assertEquals(
+            "inferred reads metadata per file, the notice must arrive once",
+            List.of(notice),
+            inferredFuture.actionGet().warnings()
+        );
+    }
+
+    /**
+     * Listing notices and schema notices are separate channels: a comma list with more segments than the cap raises one
+     * exclusion notice per segment, and the notice that the user's numbers came back as strings must still be delivered.
+     * Each segment is a prefix glob ({@code pN/*}) with no implied format, so the dataset must declare parquet
+     * — the same requirement a prefix glob has at PUT.
+     */
+    public void testListingNoticesDoNotStarveSchemaNotices() throws Exception {
+        Map<String, List<Attribute>> schemasByPath = new HashMap<>();
+        Map<String, List<StorageEntry>> listingsByPrefix = new HashMap<>();
+        List<String> segments = new ArrayList<>();
+        for (int i = 0; i < SkipWarnings.MAX_ADDED_WARNINGS + 5; i++) {
+            String prefix = "s3://bucket/p" + i + "/";
+            schemasByPath.put(prefix + "a.parquet", List.of(attr("id", DataType.INTEGER)));
+            listingsByPrefix.put(prefix, List.of(entry(prefix + "a.parquet", 100), entry(prefix + "_SUCCESS", 0)));
+            segments.add(prefix + "*");
+        }
+        // One segment disagrees on the type, so reconciliation widens [id] to keyword.
+        schemasByPath.put("s3://bucket/p0/b.parquet", List.of(attr("id", DataType.KEYWORD)));
+        listingsByPrefix.put(
+            "s3://bucket/p0/",
+            List.of(entry("s3://bucket/p0/a.parquet", 100), entry("s3://bucket/p0/b.parquet", 100), entry("s3://bucket/p0/_SUCCESS", 0))
+        );
+
+        Map<String, Object> config = new HashMap<>(configFor(FormatReader.SchemaResolution.UNION_BY_NAME));
+        config.put("format", "parquet");
+        ExternalSourceResolution resolution = resolveResourceWithConfig(
+            String.join(",", segments),
+            schemasByPath,
+            listingsByPrefix,
+            config
+        );
+
+        List<String> warnings = resolution.warnings();
+        assertThat(warnings, hasItem(containsString("widened columns to keyword")));
+        assertEquals(
+            "the listing channel is still capped on its own",
+            SkipWarnings.MAX_ADDED_WARNINGS,
+            warnings.stream().filter(w -> w.contains("was excluded by the [file_exclusions] dataset setting")).count()
+        );
+        assertEquals(SkipWarnings.overflowMessage(), warnings.get(warnings.size() - 1));
+    }
+
+    /**
+     * A brace group holds a comma the glob grammar owns, so the anchor for the once-per-path config notice must come
+     * from the shared comma decomposition; splitting on the first comma would leave no extension to resolve the format
+     * from and the notice would be dropped for a query that otherwise works.
+     */
+    public void testConfigWarningsDeliveredForBraceGroupGlob() throws Exception {
+        String glob = "s3://bucket/data/{a,b}/*.parquet";
+        String file = "s3://bucket/data/a/file1.parquet";
+        Map<String, List<Attribute>> schemasByPath = Map.of(file, List.of(attr("id", DataType.INTEGER)));
+        CountingStorageProvider provider = new CountingStorageProvider(
+            Map.of("s3://bucket/data/", List.of(entry(file, 100))),
+            schemasByPath
+        );
+        String notice = "option [x] is undone by option [y]";
+        FormatReader reader = new StubFormatReader(schemasByPath) {
+            @Override
+            public List<String> configWarnings() {
+                return List.of(notice);
+            }
+        };
+        ExternalSourceResolver resolver = createResolverWithReader(provider, reader, null);
+
+        PlainActionFuture<ExternalSourceResolution> future = new PlainActionFuture<>();
+        resolver.resolve(List.of(glob), Map.of(glob, new HashMap<>()), future);
+        ExternalSourceResolution resolution = future.actionGet();
+
+        assertEquals(1, resolution.resolvedSource(glob).fileList().fileCount());
+        assertEquals(List.of(notice), resolution.warnings());
     }
 
     // ===== FIRST_FILE_WINS tests (current behavior) =====
@@ -1486,9 +1604,13 @@ public class ExternalSourceResolverTests extends ESTestCase {
                     resolution.resolvedSource(glob).metadata().sourceMetadata().get(SourceStatisticsSerializer.STATS_PARTIAL)
                 );
 
-                SchemaCacheKey key = resolver.datasetAggregateKey(GlobExpander.fileListOf(listing, glob), config);
+                // Resolve stamps the inferred format onto config so unrecognized listed objects still use
+                // the dataset reader. Lookup keys must use that same map.
+                Map<String, Object> effectiveConfig = new HashMap<>(config);
+                effectiveConfig.put(FormatNameResolver.CONFIG_FORMAT, "ndjson");
+                SchemaCacheKey key = resolver.datasetAggregateKey(GlobExpander.fileListOf(listing, glob), effectiveConfig);
                 assertNotNull("[" + strategy + "] the resolve must have minted a dataset key", key);
-                String fingerprint = SchemaCacheKey.buildFormatConfig(config);
+                String fingerprint = SchemaCacheKey.buildFormatConfig(effectiveConfig);
 
                 // Counts harvested under a different resolved read configuration measured a different set of rows;
                 // summing them for this dataset would be a wrong COUNT(*). Mtime and config fingerprint both match
@@ -2751,10 +2873,9 @@ public class ExternalSourceResolverTests extends ESTestCase {
     }
 
     /**
-     * Without a format to go on, an unreadable extension must say so — and must say it as a client error. The failure
-     * previously blamed a missing plugin (the scheme is already validated by the time we get here, so a plugin is
-     * never the cause) and threw {@code UnsupportedOperationException}, which {@code ExceptionsHelper#status} does not
-     * map and therefore rendered a plain user-input mistake as a 500.
+     * Without a format, a glob whose object name implies no registered format ({@code vpcflow/*}) is refused
+     * from the resource pattern alone — detection does not walk the listing. The message tells the caller
+     * to set {@code format} or split datasets.
      */
     public void testMultiFileGlobWithoutFormatReportsUnreadableExtension() {
         Map<String, List<Attribute>> schemasByPath = Map.of("s3://bucket/vpcflow/a.log.gz", List.of(attr("a", DataType.KEYWORD)));
@@ -2766,19 +2887,14 @@ public class ExternalSourceResolverTests extends ESTestCase {
         );
 
         assertEquals("an unreadable extension is a client error, not a server fault", RestStatus.BAD_REQUEST, ExceptionsHelper.status(e));
-        assertThat(e.getMessage(), containsString("s3://bucket/vpcflow/a.log.gz"));
-        // The compound tail, not the bare ".gz": the outer codec IS supported, so naming it alone contradicts itself.
-        assertThat(e.getMessage(), containsString("[.log.gz]"));
-        assertThat(e.getMessage(), containsString("[format]"));
-        // The remedy is a dataset setting, never a query surface syntax the resolver has no business prescribing.
+        assertThat(e.getMessage(), containsString(FormatNameResolver.ambiguousDatasetFormatMessage("s3://bucket/vpcflow/*")));
         assertThat(e.getMessage(), not(containsString("WITH")));
         assertThat(e.getMessage(), not(containsString("plugin is installed")));
     }
 
     /**
-     * The extensionless branch of the same failure — the listing produced by a non-hidden file that carries no extension
-     * at all (e.g. a bare prefix file). Hidden litter like {@code _SUCCESS} is now filtered before reaching schema
-     * resolution, so this test uses a non-hidden extensionless name to exercise the same error path.
+     * The extensionless branch of the same failure — a glob that names no format, with a listing of a
+     * non-hidden extensionless object. Fail-closed from the pattern; listing is not consulted to vote.
      */
     public void testMultiFileGlobWithoutFormatReportsMissingExtension() {
         Map<String, List<Attribute>> schemasByPath = Map.of("s3://bucket/vpcflow/bare_prefix", List.of(attr("a", DataType.KEYWORD)));
@@ -2790,14 +2906,13 @@ public class ExternalSourceResolverTests extends ESTestCase {
         );
 
         assertEquals(RestStatus.BAD_REQUEST, ExceptionsHelper.status(e));
-        assertThat(e.getMessage(), containsString("s3://bucket/vpcflow/bare_prefix"));
-        assertThat(e.getMessage(), containsString("no file extension"));
-        assertThat(e.getMessage(), containsString("[format]"));
+        assertThat(e.getMessage(), containsString(FormatNameResolver.ambiguousDatasetFormatMessage("s3://bucket/vpcflow/*")));
     }
 
     /**
      * When the listing contains only non-data objects (e.g. {@code _SUCCESS} markers), the glob expansion filter
      * removes them all and the resolver reports that no files matched rather than failing on an unreadable extension.
+     * The glob itself implies no format, so an explicit format is required to reach listing.
      */
     public void testMultiFileGlobWithOnlyLitterReportsNoFiles() {
         Map<String, List<Attribute>> schemasByPath = Map.of("s3://bucket/vpcflow/_SUCCESS", List.of(attr("a", DataType.KEYWORD)));
@@ -2805,18 +2920,46 @@ public class ExternalSourceResolverTests extends ESTestCase {
 
         Exception e = expectThrows(
             Exception.class,
-            () -> resolveMultiFileWithConfig("s3://bucket/vpcflow/*", schemasByPath, listing, Map.of())
+            () -> resolveMultiFileWithConfig("s3://bucket/vpcflow/*", schemasByPath, listing, Map.of("format", "csv"))
         );
 
         assertThat(e.getMessage(), containsString("Glob pattern matched no files"));
         assertThat(e.getMessage(), containsString("s3://bucket/vpcflow/*"));
-        // "matched no files" on a prefix that visibly holds a file is the least actionable error this path can
-        // produce. The exclusion warning is what turns it into something the user can act on: the object was found
-        // and then dropped, and here is the rule that dropped it.
-        assertWarnings(
-            "1 of 1 objects matching the resource under [s3://bucket/vpcflow/] was excluded by the "
-                + "[file_exclusions] dataset setting, for example [_SUCCESS] which matched entry [**/_*]"
+        // A failed resolve delivers no notices, so the one that explains the empty listing rides the message.
+        assertThat(e.getMessage(), containsString("[_SUCCESS] which matched entry [**/_*]"));
+    }
+
+    /**
+     * A comma list raises one exclusion notice per segment, each naming its own prefix, so exact-text deduplication
+     * alone would deliver one header per segment. The listing channel is capped like the metadata channel, with a
+     * single overflow marker after everything else. Prefix globs imply no format, so parquet is declared the same
+     * way a PUT of {@code pN/*} would have to.
+     */
+    public void testListingNoticesAreCapped() throws Exception {
+        List<Attribute> schema = List.of(attr("id", DataType.INTEGER));
+        Map<String, List<Attribute>> schemasByPath = new HashMap<>();
+        Map<String, List<StorageEntry>> listingsByPrefix = new HashMap<>();
+        List<String> segments = new ArrayList<>();
+        for (int i = 0; i < SkipWarnings.MAX_ADDED_WARNINGS + 5; i++) {
+            String prefix = "s3://bucket/p" + i + "/";
+            schemasByPath.put(prefix + "a.parquet", schema);
+            listingsByPrefix.put(prefix, List.of(entry(prefix + "a.parquet", 100), entry(prefix + "_SUCCESS", 0)));
+            segments.add(prefix + "*");
+        }
+
+        ExternalSourceResolution resolution = resolveResourceWithConfig(
+            String.join(",", segments),
+            schemasByPath,
+            listingsByPrefix,
+            Map.of("format", "parquet")
         );
+
+        List<String> warnings = resolution.warnings();
+        assertEquals(SkipWarnings.MAX_ADDED_WARNINGS + 1, warnings.size());
+        for (String warning : warnings.subList(0, SkipWarnings.MAX_ADDED_WARNINGS)) {
+            assertThat(warning, containsString("was excluded by the [file_exclusions] dataset setting"));
+        }
+        assertEquals(SkipWarnings.overflowMessage(), warnings.get(SkipWarnings.MAX_ADDED_WARNINGS));
     }
 
     /**
@@ -2930,8 +3073,8 @@ public class ExternalSourceResolverTests extends ESTestCase {
     }
 
     /**
-     * A bare compression suffix is its own diagnosis: {@code .gz} IS a registered codec, so reporting it as an
-     * unmatched format would contradict itself. What is missing is an inner format extension.
+     * A bare compression suffix implies no data format. Query-time {@code datasetFormat} refuses before
+     * the registry's codec diagnosis; set {@code format} or use an inner extension such as {@code .csv.gz}.
      */
     public void testBareCompressionSuffixIsDiagnosedAsCodecNotFormat() {
         Map<String, List<Attribute>> schemasByPath = Map.of("s3://bucket/dump/archive.gz", List.of(attr("a", DataType.KEYWORD)));
@@ -2939,25 +3082,22 @@ public class ExternalSourceResolverTests extends ESTestCase {
         Exception e = expectThrows(Exception.class, () -> resolveSingleFile("s3://bucket/dump/archive.gz", schemasByPath));
 
         assertEquals(RestStatus.BAD_REQUEST, ExceptionsHelper.status(e));
-        assertThat(e.getMessage(), containsString("names a compression codec, not a data format"));
-        // It must suggest the layout that WOULD work, built from the codec actually seen.
-        assertThat(e.getMessage(), containsString(".csv.gz"));
-        assertThat(e.getMessage(), not(containsString("does not match any registered format")));
+        assertThat(e.getMessage(), containsString(FormatNameResolver.ambiguousDatasetFormatMessage("s3://bucket/dump/archive.gz")));
     }
 
     /**
-     * A dotted stem must not be dragged into the reported extension: the two-segment form is for a real codec
-     * pair only, so {@code 2026.07.26.data.xyz} reports {@code .xyz}, not {@code .data.xyz}.
+     * An unrecognized trailing extension implies no dataset format. The two-segment codec diagnosis is
+     * preserved on {@link FormatNameResolver#resolveReader}; this rail fails closed at {@code datasetFormat}.
      */
     public void testDottedStemReportsOnlyTheTrailingExtension() {
         Map<String, List<Attribute>> schemasByPath = Map.of("s3://bucket/dump/2026.07.26.data.xyz", List.of(attr("a", DataType.KEYWORD)));
 
         Exception e = expectThrows(Exception.class, () -> resolveSingleFile("s3://bucket/dump/2026.07.26.data.xyz", schemasByPath));
 
-        assertThat(e.getMessage(), containsString("extension [.xyz]"));
-        // Scoped to the REPORTED extension: the message also quotes the full path back, which legitimately
-        // contains ".data.xyz".
-        assertThat(e.getMessage(), not(containsString("extension [.data.xyz]")));
+        assertThat(
+            e.getMessage(),
+            containsString(FormatNameResolver.ambiguousDatasetFormatMessage("s3://bucket/dump/2026.07.26.data.xyz"))
+        );
     }
 
     /**
@@ -2997,7 +3137,7 @@ public class ExternalSourceResolverTests extends ESTestCase {
         );
 
         assertEquals(RestStatus.BAD_REQUEST, ExceptionsHelper.status(e));
-        assertThat(e.getMessage(), containsString("[.log.gz]"));
+        assertThat(e.getMessage(), containsString(FormatNameResolver.ambiguousDatasetFormatMessage("s3://bucket/vpcflow/*")));
     }
 
     /**
@@ -3026,8 +3166,7 @@ public class ExternalSourceResolverTests extends ESTestCase {
         Exception e = expectThrows(Exception.class, () -> resolveSingleFile("s3://bucket/vpcflow/a.log.gz", schemasByPath));
 
         assertEquals(RestStatus.BAD_REQUEST, ExceptionsHelper.status(e));
-        assertThat(e.getMessage(), containsString("Cannot determine how to read"));
-        assertThat(e.getMessage(), containsString("[.log.gz]"));
+        assertThat(e.getMessage(), containsString(FormatNameResolver.ambiguousDatasetFormatMessage("s3://bucket/vpcflow/a.log.gz")));
         assertThat(e.getMessage(), not(containsString("plugin is installed")));
     }
 
@@ -3040,7 +3179,53 @@ public class ExternalSourceResolverTests extends ESTestCase {
 
         Exception e = expectThrows(Exception.class, () -> resolveSingleFile("s3://bucket/data/events.avro", schemasByPath));
 
-        assertThat(e.getMessage(), containsString("[.avro]"));
+        assertThat(e.getMessage(), containsString(FormatNameResolver.ambiguousDatasetFormatMessage("s3://bucket/data/events.avro")));
+    }
+
+    /**
+     * A listed object whose inferred format exists and differs from the dataset format fails closed,
+     * naming that object. Unrecognized names stay allowed under the declared format.
+     */
+    public void testListedRegisteredFormatConflictNamesTheParquetObject() {
+        Map<String, List<Attribute>> schemasByPath = Map.of(
+            "s3://bucket/a.csv",
+            List.of(attr("id", DataType.INTEGER)),
+            "s3://bucket/b.parquet",
+            List.of(attr("id", DataType.INTEGER))
+        );
+        List<StorageEntry> listing = List.of(entry("s3://bucket/a.csv", 10), entry("s3://bucket/b.parquet", 20));
+
+        Exception e = expectThrows(
+            Exception.class,
+            () -> resolveMultiFileWithConfig("s3://bucket/*", schemasByPath, listing, Map.of("format", "csv"))
+        );
+
+        assertEquals(RestStatus.BAD_REQUEST, ExceptionsHelper.status(e));
+        assertEquals(FormatNameResolver.listedFormatConflictMessage("s3://bucket/b.parquet", "parquet", "csv"), e.getMessage());
+    }
+
+    /**
+     * Mixed registered extensions in the resource pattern itself are refused before listing. Detection
+     * never votes from listed files.
+     */
+    public void testMixedCommaListWithoutFormatFailsFromPattern() {
+        Map<String, List<Attribute>> schemasByPath = Map.of(
+            "s3://bucket/a.parquet",
+            List.of(attr("id", DataType.INTEGER)),
+            "s3://bucket/b.csv",
+            List.of(attr("id", DataType.INTEGER))
+        );
+        String resource = "s3://bucket/a.parquet,s3://bucket/b.csv";
+        Exception e = expectThrows(Exception.class, () -> {
+            ExternalSourceResolver resolver = createCsvAndParquetResolver(schemasByPath, Map.of());
+            PlainActionFuture<ExternalSourceResolution> future = new PlainActionFuture<>();
+            resolver.resolve(List.of(resource), Map.of(), future);
+            future.actionGet();
+        });
+        assertEquals(RestStatus.BAD_REQUEST, ExceptionsHelper.status(e));
+        assertThat(e.getMessage(), containsString("implied formats"));
+        assertThat(e.getMessage(), containsString("csv"));
+        assertThat(e.getMessage(), containsString("parquet"));
     }
 
     // ===== Resolver + Cache integration =====
@@ -3460,7 +3645,9 @@ public class ExternalSourceResolverTests extends ESTestCase {
         List<StorageEntry> listing = List.of(entry("s3://bucket/data/a.parquet", 100), entry("s3://bucket/data/_SUCCESS", 0));
         CountingStorageProvider countingProvider = new CountingStorageProvider(Map.of("s3://bucket/data/", listing), schemasByPath);
         String glob = "s3://bucket/data/*";
-        Map<String, Map<String, Object>> pathConfigs = Map.of(glob, new HashMap<>(configFor(FormatReader.SchemaResolution.UNION_BY_NAME)));
+        Map<String, Object> config = new HashMap<>(configFor(FormatReader.SchemaResolution.UNION_BY_NAME));
+        config.put("format", "parquet");
+        Map<String, Map<String, Object>> pathConfigs = Map.of(glob, config);
 
         try (ExternalSourceCacheService cacheService = new ExternalSourceCacheService(cacheEnabledSettings())) {
             ExternalSourceResolver resolver = createResolverWithCache(countingProvider, schemasByPath, cacheService);
@@ -3469,8 +3656,8 @@ public class ExternalSourceResolverTests extends ESTestCase {
             resolver.resolve(List.of(glob), pathConfigs, first);
             ExternalSourceResolution res1 = first.actionGet();
             assertEquals(1, res1.resolvedSource(glob).fileList().fileCount());
-            assertEquals(List.of(warning), res1.resolvedSource(glob).fileList().exclusionWarnings());
-            assertWarnings(warning);
+            assertEquals(List.of(warning), res1.resolvedSource(glob).fileList().listingWarnings());
+            assertEquals("the exclusion notice rides the resolution object", List.of(warning), res1.warnings());
             int listCallsAfterFirst = countingProvider.listCallCount.get();
             assertTrue("first resolve must list", listCallsAfterFirst > 0);
 
@@ -3478,9 +3665,9 @@ public class ExternalSourceResolverTests extends ESTestCase {
             resolver.resolve(List.of(glob), pathConfigs, second);
             ExternalSourceResolution res2 = second.actionGet();
             assertEquals(1, res2.resolvedSource(glob).fileList().fileCount());
-            assertEquals(List.of(warning), res2.resolvedSource(glob).fileList().exclusionWarnings());
+            assertEquals(List.of(warning), res2.resolvedSource(glob).fileList().listingWarnings());
             assertEquals("second resolve must be a listing cache hit", listCallsAfterFirst, countingProvider.listCallCount.get());
-            assertWarnings(warning);
+            assertEquals("a cached listing must replay the notice onto the resolution object", List.of(warning), res2.warnings());
         }
     }
 
@@ -4242,6 +4429,82 @@ public class ExternalSourceResolverTests extends ESTestCase {
             () -> false
         );
 
+        return new ExternalSourceResolver(EsExecutors.DIRECT_EXECUTOR_SERVICE, module);
+    }
+
+    /**
+     * Like {@link #createResolver} but registers both csv and parquet so a mixed comma list implies two
+     * formats rather than treating {@code .csv} as unreadable.
+     */
+    private ExternalSourceResolver createCsvAndParquetResolver(
+        Map<String, List<Attribute>> schemasByPath,
+        Map<String, List<StorageEntry>> listingsByPrefix
+    ) {
+        StubFormatReader parquetReader = new StubFormatReader(schemasByPath) {
+            @Override
+            public String formatName() {
+                return "parquet";
+            }
+
+            @Override
+            public List<String> fileExtensions() {
+                return List.of(".parquet");
+            }
+
+            @Override
+            public boolean supportsWholeFileCompression() {
+                return false;
+            }
+        };
+        StubFormatReader csvReader = new StubFormatReader(schemasByPath) {
+            @Override
+            public String formatName() {
+                return "csv";
+            }
+
+            @Override
+            public List<String> fileExtensions() {
+                return List.of(".csv");
+            }
+
+            @Override
+            public boolean supportsWholeFileCompression() {
+                return true;
+            }
+        };
+        StubStorageProvider storageProvider = new StubStorageProvider(listingsByPrefix, schemasByPath);
+        DataSourcePlugin plugin = new DataSourcePlugin() {
+            @Override
+            public Set<String> supportedSchemes() {
+                return Set.of("s3");
+            }
+
+            @Override
+            public Set<FormatSpec> formatSpecs() {
+                return Set.of(FormatSpec.of("parquet", ".parquet"), FormatSpec.of("csv", ".csv"));
+            }
+
+            @Override
+            public Map<String, StorageProviderFactory> storageProviders(Settings settings) {
+                return Map.of("s3", stubStorageProviderFactory(storageProvider));
+            }
+
+            @Override
+            public Map<String, FormatReaderFactory> formatReaders(Settings settings) {
+                return Map.of("parquet", (s, bf) -> parquetReader, "csv", (s, bf) -> csvReader);
+            }
+        };
+        List<DataSourcePlugin> plugins = List.of(plugin);
+        DataSourceCapabilities capabilities = DataSourceCapabilities.build(plugins);
+        DataSourceModule module = new DataSourceModule(
+            plugins,
+            capabilities,
+            Settings.EMPTY,
+            blockFactory,
+            EsExecutors.DIRECT_EXECUTOR_SERVICE,
+            new DataSourceCredentials(ENCRYPTION_SERVICE),
+            () -> false
+        );
         return new ExternalSourceResolver(EsExecutors.DIRECT_EXECUTOR_SERVICE, module);
     }
 

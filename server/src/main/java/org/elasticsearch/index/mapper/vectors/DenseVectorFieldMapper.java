@@ -598,7 +598,7 @@ public class DenseVectorFieldMapper extends FieldMapper {
                     similarity.getValue(),
                     indexOptions.getValue(),
                     meta.getValue(),
-                    context.isSourceSynthetic() || isExcludeSourceVectorsFinal,
+                    context.isSourceSynthetic(),
                     postFilterSelectivityThreshold
                 ),
                 builderParams(this, context),
@@ -3278,7 +3278,7 @@ public class DenseVectorFieldMapper extends FieldMapper {
         private final VectorSimilarity similarity;
         private final IndexVersion indexVersionCreated;
         private final DenseVectorIndexOptions indexOptions;
-        private final boolean sourceExcludesVectors; // If _source does not supply the vector
+        private final boolean isSyntheticSource;
         // The post-filter selectivity threshold is an index-scoped setting, so it is captured here at mapping
         // time rather than threaded in per query. If it is ever promoted to a Search API parameter it should
         // instead be passed through createKnnQuery so it can vary per request.
@@ -3293,7 +3293,7 @@ public class DenseVectorFieldMapper extends FieldMapper {
             VectorSimilarity similarity,
             DenseVectorIndexOptions indexOptions,
             Map<String, String> meta,
-            boolean sourceExcludesVectors
+            boolean isSyntheticSource
         ) {
             this(
                 name,
@@ -3304,7 +3304,7 @@ public class DenseVectorFieldMapper extends FieldMapper {
                 similarity,
                 indexOptions,
                 meta,
-                sourceExcludesVectors,
+                isSyntheticSource,
                 PostFilterKnnQuery.DEFAULT_POST_FILTERING_THRESHOLD
             );
         }
@@ -3318,7 +3318,7 @@ public class DenseVectorFieldMapper extends FieldMapper {
             VectorSimilarity similarity,
             DenseVectorIndexOptions indexOptions,
             Map<String, String> meta,
-            boolean sourceExcludesVectors,
+            boolean isSyntheticSource,
             float postFilterSelectivityThreshold
         ) {
             super(name, indexed ? IndexType.vectors() : IndexType.docValuesOnly(), false, meta);
@@ -3328,7 +3328,7 @@ public class DenseVectorFieldMapper extends FieldMapper {
             this.similarity = similarity;
             this.indexVersionCreated = indexVersionCreated;
             this.indexOptions = indexOptions;
-            this.sourceExcludesVectors = sourceExcludesVectors;
+            this.isSyntheticSource = isSyntheticSource;
             this.postFilterSelectivityThreshold = postFilterSelectivityThreshold;
         }
 
@@ -4053,7 +4053,8 @@ public class DenseVectorFieldMapper extends FieldMapper {
                 );
             }
 
-            if (hasDocValues() && (blContext.fieldExtractPreference() != FieldExtractPreference.STORED || sourceExcludesVectors)) {
+            if (hasDocValues() && (blContext.fieldExtractPreference() != FieldExtractPreference.STORED || isSyntheticSource)) {
+                // TODO: Get from doc values when excludeSourceVectors == true
                 return new DenseVectorFromBinaryBlockLoader(name(), dims, indexVersionCreated, element.elementType());
             }
             return new BlockSourceReader.DenseVectorBlockLoader(

@@ -403,7 +403,7 @@ configure(subprojects.findAll { ['archives', 'packages'].contains(it.name) }) {
     /** module trees for the packaging tasks: source directory plus the task producing it */
     packagingDefaultModulesDir = files(defaultModulesDirectory).builtBy(processDefaultOutputsTaskProvider)
     packagingSystemdModulesDir = files(systemdModulesDirectory).builtBy(processSystemdOutputsTaskProvider)
-    packagingExternalTestModulesDir = files(externalTestModulesDirectory).builtBy(processExternalTestOutputsTaskProvider)
+    packagingExternalTestModulesDir = files(externalTestModulesDirectory).builtBy(buildExternalTestModulesTaskProvider)
     packagingNoticeFile = buildDefaultNoticeTaskProvider
 
     /*****************************************************************************

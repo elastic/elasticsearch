@@ -1,0 +1,5 @@
+area: ES|QL
+issues: []
+pr: 158745
+summary: When reversing strings, treat carriage return line feed (CRLF) as a single control character, in line with UTF guidelines
+type: bug

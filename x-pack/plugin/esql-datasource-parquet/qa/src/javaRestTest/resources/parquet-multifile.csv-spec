@@ -183,6 +183,7 @@ count:long
 parquetUbnCountByCity
 required_capability: dataset_in_from_command
 required_capability: external_source_read_schema
+required_capability: external_union_by_name_preserves_null_only_files
 dataset: employees_multifile_ubn_union: "{{employees_multifile_ubn}}" WITH {"schema_resolution": "union_by_name"}
 
 FROM employees_multifile_ubn_union
@@ -201,6 +202,7 @@ c:long | city:keyword
 parquetUbnProjectCityOnly
 required_capability: dataset_in_from_command
 required_capability: external_source_read_schema
+required_capability: external_union_by_name_preserves_null_only_files
 dataset: employees_multifile_ubn_union: "{{employees_multifile_ubn}}" WITH {"schema_resolution": "union_by_name"}
 
 FROM employees_multifile_ubn_union
@@ -218,6 +220,7 @@ null
 parquetUbnProjectPruning
 required_capability: dataset_in_from_command
 required_capability: external_source_read_schema
+required_capability: external_union_by_name_preserves_null_only_files
 dataset: employees_multifile_ubn_union: "{{employees_multifile_ubn}}" WITH {"schema_resolution": "union_by_name"}
 
 FROM employees_multifile_ubn_union
@@ -259,6 +262,7 @@ charlie      | paris
 parquetUbnFilterCityIsNull
 required_capability: dataset_in_from_command
 required_capability: external_source_read_schema
+required_capability: external_union_by_name_preserves_null_only_files
 dataset: employees_multifile_ubn_union: "{{employees_multifile_ubn}}" WITH {"schema_resolution": "union_by_name"}
 
 FROM employees_multifile_ubn_union
@@ -292,6 +296,7 @@ bob          | 92.0
 parquetFfwAllRows
 required_capability: dataset_in_from_command
 required_capability: external_source_read_schema
+required_capability: external_source_file_order_options
 dataset: employees_multifile_ubn_ffw: "{{employees_multifile_ubn}}" WITH {"schema_resolution": "first_file_wins", "file_sort_by": "name"}
 
 FROM employees_multifile_ubn_ffw
@@ -310,6 +315,7 @@ dave         | null        | null
 parquetFfwCount
 required_capability: dataset_in_from_command
 required_capability: external_source_read_schema
+required_capability: external_source_file_order_options
 dataset: employees_multifile_ubn_ffw: "{{employees_multifile_ubn}}" WITH {"schema_resolution": "first_file_wins", "file_sort_by": "name"}
 
 FROM employees_multifile_ubn_ffw
@@ -324,6 +330,7 @@ count:long
 parquetFfwFilterAnchorOnly
 required_capability: dataset_in_from_command
 required_capability: external_source_read_schema
+required_capability: external_source_file_order_options
 dataset: employees_multifile_ubn_ffw: "{{employees_multifile_ubn}}" WITH {"schema_resolution": "first_file_wins", "file_sort_by": "name"}
 
 FROM employees_multifile_ubn_ffw

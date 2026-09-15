@@ -11,6 +11,7 @@ import org.elasticsearch.xpack.esql.datasources.spi.DataSourceTelemetryVocabular
 
 import java.util.List;
 import java.util.Objects;
+import java.util.Set;
 import java.util.concurrent.atomic.LongAdder;
 
 /**
@@ -38,6 +39,29 @@ public final class DataSourceUsageAccumulator {
     public static final int OUTCOME_CANCELLED = 2;
     public static final int OUTCOME_COUNT = 3;
     public static final List<String> OUTCOME_NAMES = List.of("success", "failure", "cancelled");
+
+    // ---- format vocabulary (closed set for parse.rows.by_format phone-home keys) ----
+
+    public static final int FORMAT_PARQUET = 0;
+    public static final int FORMAT_CSV = 1;
+    public static final int FORMAT_TSV = 2;
+    public static final int FORMAT_NDJSON = 3;
+    public static final int FORMAT_ORC = 4;
+    public static final int FORMAT_OTHER = 5;
+    public static final int FORMAT_UNRESOLVED = 6;
+    public static final int FORMAT_COUNT = 7;
+    public static final String FORMAT_OTHER_NAME = "other";
+    public static final String FORMAT_UNRESOLVED_NAME = "unresolved";
+    public static final List<String> FORMAT_NAMES = List.of(
+        "parquet",
+        "csv",
+        "tsv",
+        "ndjson",
+        "orc",
+        FORMAT_OTHER_NAME,
+        FORMAT_UNRESOLVED_NAME
+    );
+    public static final Set<String> FORMAT_NAMES_SET = Set.copyOf(FORMAT_NAMES);
 
     // ---- config-change vocabulary (kind × op) ----
 
@@ -92,6 +116,10 @@ public final class DataSourceUsageAccumulator {
         assert TIME_SUFFIXES.size() == BUCKET_COUNT : "TIME_SUFFIXES size mismatch";
         assert COUNT_THRESHOLDS.length == BUCKET_COUNT - 1 : "COUNT_THRESHOLDS length mismatch";
         assert COUNT_SUFFIXES.size() == BUCKET_COUNT : "COUNT_SUFFIXES size mismatch";
+        assert FORMAT_NAMES.size() == FORMAT_COUNT : "FORMAT_NAMES size mismatch";
+        for (int i = 0; i < FORMAT_COUNT; i++) {
+            assert formatIndex(FORMAT_NAMES.get(i)) == i : "FORMAT_NAMES[" + i + "]=" + FORMAT_NAMES.get(i) + " does not map to index " + i;
+        }
     }
 
     // ---- per-type counters (indexed by {@link Type#ordinal()}) ----
@@ -108,6 +136,7 @@ public final class DataSourceUsageAccumulator {
     private final LongAdder queriesPartial = new LongAdder();
     private final LongAdder discoveryFailures = new LongAdder();
     private final LongAdder parseRows = new LongAdder();
+    private final LongAdder[] parseRowsByFormat = adders(FORMAT_COUNT);
     private final LongAdder readerPoolRejected = new LongAdder();
     private final LongAdder breakerTripped = new LongAdder();
 
@@ -187,9 +216,14 @@ public final class DataSourceUsageAccumulator {
         discoveryFailures.increment();
     }
 
-    public void recordParse(long rows, long parseDurationMillis) {
+    /**
+     * @param canonicalFormat one of {@link #FORMAT_NAMES}; anything else throws {@link IllegalArgumentException}
+     */
+    public void recordParse(long rows, long parseDurationMillis, String canonicalFormat) {
+        int idx = formatIndex(canonicalFormat);
         if (rows > 0) {
             parseRows.add(rows);
+            parseRowsByFormat[idx].add(rows);
         }
         bucketTime(parseDuration, Math.max(0L, parseDurationMillis));
     }
@@ -256,6 +290,12 @@ public final class DataSourceUsageAccumulator {
 
     public long parseRows() {
         return parseRows.sum();
+    }
+
+    /** @param formatIndex one of the {@code FORMAT_*} constants */
+    public long parseRowsByFormat(int formatIndex) {
+        checkFormatIndex(formatIndex);
+        return parseRowsByFormat[formatIndex].sum();
     }
 
     public long readerPoolRejected() {
@@ -351,6 +391,19 @@ public final class DataSourceUsageAccumulator {
         };
     }
 
+    static int formatIndex(String canonicalFormat) {
+        return switch (canonicalFormat) {
+            case "parquet" -> FORMAT_PARQUET;
+            case "csv" -> FORMAT_CSV;
+            case "tsv" -> FORMAT_TSV;
+            case "ndjson" -> FORMAT_NDJSON;
+            case "orc" -> FORMAT_ORC;
+            case FORMAT_OTHER_NAME -> FORMAT_OTHER;
+            case FORMAT_UNRESOLVED_NAME -> FORMAT_UNRESOLVED;
+            default -> throw new IllegalArgumentException("unexpected canonical format: " + canonicalFormat);
+        };
+    }
+
     private static void bucketTime(LongAdder[] buckets, long value) {
         bucket(buckets, TIME_THRESHOLDS, value);
     }
@@ -397,6 +450,14 @@ public final class DataSourceUsageAccumulator {
         if (outcomeIndex < 0 || outcomeIndex >= OUTCOME_COUNT) {
             throw new IllegalArgumentException(
                 "outcomeIndex out of range: " + outcomeIndex + "; use OUTCOME_* constants (0.." + (OUTCOME_COUNT - 1) + ")"
+            );
+        }
+    }
+
+    private static void checkFormatIndex(int formatIndex) {
+        if (formatIndex < 0 || formatIndex >= FORMAT_COUNT) {
+            throw new IllegalArgumentException(
+                "formatIndex out of range: " + formatIndex + "; use FORMAT_* constants (0.." + (FORMAT_COUNT - 1) + ")"
             );
         }
     }

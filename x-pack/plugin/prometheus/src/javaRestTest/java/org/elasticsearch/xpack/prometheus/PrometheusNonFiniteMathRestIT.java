@@ -11,6 +11,7 @@ import org.apache.http.message.BasicNameValuePair;
 import org.elasticsearch.client.Request;
 import org.elasticsearch.client.Response;
 import org.elasticsearch.test.rest.ObjectPath;
+import org.elasticsearch.xpack.prometheus.proto.RemoteWrite;
 
 import java.util.List;
 
@@ -141,6 +142,96 @@ public class PrometheusNonFiniteMathRestIT extends AbstractPrometheusRestIT {
         ingestTestData("test_gauge_nf");
         ObjectPath response = executeInstantQuery("clamp(" + METRIC + ", 100, 0)");
         assertThat(response.evaluate("data.result"), empty());
+    }
+
+    // ---------------------------------------------------------------------------------------------------------------
+    // Across-series aggregations honor Prometheus/IEEE-754 non-finite semantics via the PromQL-only lenient aggregator
+    // path (max, min). See the matching csv-spec blocks (nonfinite_max_all_negative_infinity, etc.).
+    // ---------------------------------------------------------------------------------------------------------------
+
+    /** Prometheus {@code max} treats {@code -Inf} as an ordinary (smallest) value, so all-{@code -Inf} is {@code -Inf}. */
+    public void testMaxOfAllNegativeInfinityIsNegativeInfinity() throws Exception {
+        ingestTwoSeries("agg_max_neg", 5.0, 7.0);
+        assertSingleValue("max(agg_max_neg * -Inf)", "-Inf");
+    }
+
+    /** Prometheus {@code max} treats {@code +Inf} as an ordinary (largest) value, so all-{@code +Inf} is {@code +Inf}. */
+    public void testMaxOfAllPositiveInfinityIsPositiveInfinity() throws Exception {
+        ingestTwoSeries("agg_max_pos", 5.0, 7.0);
+        assertSingleValue("max(agg_max_pos * Inf)", "+Inf");
+    }
+
+    /**
+     * Prometheus {@code max} skips {@code NaN} when a non-{@code NaN} value is present. {@code sqrt} of {4, -9, 16} is
+     * {2, NaN, 4}, so the max is the finite {@code 4}, not {@code NaN}.
+     */
+    public void testMaxSkipsNaNWhenFinitePresent() throws Exception {
+        ingestSeries("agg_max_skipnan", 4.0, -9.0, 16.0);
+        assertSingleValue("max(sqrt(agg_max_skipnan))", "4.0");
+    }
+
+    /** Prometheus {@code max} is {@code NaN} only when every input is {@code NaN} ({@code sqrt} of two negatives). */
+    public void testMaxOfAllNaNIsNaN() throws Exception {
+        ingestTwoSeries("agg_max_allnan", -1.0, -4.0);
+        assertSingleValue("max(sqrt(agg_max_allnan))", "NaN");
+    }
+
+    /** Prometheus {@code min} over an all-{@code -Inf} set is {@code -Inf} (mirrors the max case). */
+    public void testMinOfAllNegativeInfinityIsNegativeInfinity() throws Exception {
+        ingestTwoSeries("agg_min_neg", 5.0, 7.0);
+        assertSingleValue("min(agg_min_neg * -Inf)", "-Inf");
+    }
+
+    /**
+     * Prometheus {@code min} treats {@code +Inf} as an ordinary (largest) value: {@code min{+Inf, x} = x}. Here
+     * {@code 8 / {0, 4}} is {@code {+Inf, 2}}, so the minimum is the finite {@code 2}.
+     */
+    public void testMinWithPositiveInfinityReturnsFinite() throws Exception {
+        ingestTwoSeries("agg_min_posinf", 0.0, 4.0);
+        assertSingleValue("min(8 / agg_min_posinf)", "2.0");
+    }
+
+    /**
+     * Prometheus {@code min} skips {@code NaN} when a non-{@code NaN} value is present. {@code sqrt} of {4, -9, 16} is
+     * {2, NaN, 4}, so the min is the finite {@code 2}, not {@code NaN}.
+     */
+    public void testMinSkipsNaNWhenFinitePresent() throws Exception {
+        ingestSeries("agg_min_skipnan", 4.0, -9.0, 16.0);
+        assertSingleValue("min(sqrt(agg_min_skipnan))", "2.0");
+    }
+
+    /** Prometheus {@code min} is {@code NaN} only when every input is {@code NaN} ({@code sqrt} of two negatives). */
+    public void testMinOfAllNaNIsNaN() throws Exception {
+        ingestTwoSeries("agg_min_allnan", -1.0, -4.0);
+        assertSingleValue("min(sqrt(agg_min_allnan))", "NaN");
+    }
+
+    /**
+     * Writes two single-sample series ({@code instance=a} and {@code instance=b}) for {@code metricName}, both sampled
+     * at the evaluation time so they fall inside the default 5m lookback window and are live for an aggregation query.
+     */
+    private void ingestTwoSeries(String metricName, double first, double second) throws Exception {
+        ingestSeries(metricName, first, second);
+    }
+
+    /**
+     * Writes one single-sample series per value (labelled {@code instance=series_<i>}) for {@code metricName}, all
+     * sampled at the evaluation time so they fall inside the default 5m lookback window and are live for an aggregation
+     * query. Used to build across-series aggregation inputs, including mixed finite / non-finite sets.
+     */
+    private void ingestSeries(String metricName, double... values) throws Exception {
+        long timestampMillis = 1767226080000L; // 2026-01-01T00:08:00Z == EVAL_TIME
+        RemoteWrite.WriteRequest.Builder writeRequestBuilder = RemoteWrite.WriteRequest.newBuilder();
+        for (int i = 0; i < values.length; i++) {
+            writeRequestBuilder.addTimeseries(
+                RemoteWrite.TimeSeries.newBuilder()
+                    .addLabels(label("__name__", metricName))
+                    .addLabels(label("instance", "series_" + i))
+                    .addSamples(sample(values[i], timestampMillis))
+                    .build()
+            );
+        }
+        ingestTestData(writeRequestBuilder.build());
     }
 
     private void assertSingleValue(String query, String expectedValue) throws Exception {

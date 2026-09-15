@@ -25,6 +25,7 @@ import com.carrotsearch.randomizedtesting.annotations.ThreadLeakFilters;
 
 import org.elasticsearch.common.settings.MockSecureSettings;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.telemetry.apm.internal.metrics.spi.SdkMeterProviderCustomizer;
 import org.elasticsearch.test.ESTestCase;
 
 import java.util.concurrent.atomic.AtomicBoolean;
@@ -39,12 +40,18 @@ import static org.hamcrest.Matchers.nullValue;
 public class OtelSdkExportMeterSupplierTests extends ESTestCase {
 
     public void testMissingEndpointReturnsNoopInsteadOfThrowing() {
-        assertThat(new OtelSdkExportMeterSupplier(Settings.EMPTY, null).getMeterProvider(), is(MeterProvider.noop()));
+        assertThat(
+            new OtelSdkExportMeterSupplier(Settings.EMPTY, null, (SdkMeterProviderCustomizer) null).getMeterProvider(),
+            is(MeterProvider.noop())
+        );
     }
 
     public void testEmptyEndpointReturnsNoopInsteadOfThrowing() {
         Settings settings = Settings.builder().put(OtelSdkSettings.TELEMETRY_EXPORT_ENDPOINT.getKey(), "").build();
-        assertThat(new OtelSdkExportMeterSupplier(settings, null).getMeterProvider(), is(MeterProvider.noop()));
+        assertThat(
+            new OtelSdkExportMeterSupplier(settings, null, (SdkMeterProviderCustomizer) null).getMeterProvider(),
+            is(MeterProvider.noop())
+        );
     }
 
     public void testBuildOtlpAuthorizationHeaderWithNeitherCredential() {
@@ -76,7 +83,7 @@ public class OtelSdkExportMeterSupplierTests extends ESTestCase {
     public void testGetMeterProviderAfterGetReturnsSdkProvider() {
         String bogusUrl = "http://127.0.0.1:9";
         Settings settings = Settings.builder().put(OtelSdkSettings.TELEMETRY_EXPORT_ENDPOINT.getKey(), bogusUrl).build();
-        OtelSdkExportMeterSupplier supplier = new OtelSdkExportMeterSupplier(settings, createTempDir());
+        OtelSdkExportMeterSupplier supplier = new OtelSdkExportMeterSupplier(settings, createTempDir(), (SdkMeterProviderCustomizer) null);
         supplier.get();
         assertThat(supplier.getMeterProvider(), org.hamcrest.Matchers.instanceOf(io.opentelemetry.sdk.metrics.SdkMeterProvider.class));
         supplier.close();
@@ -89,19 +96,19 @@ public class OtelSdkExportMeterSupplierTests extends ESTestCase {
     public void testGetHealthMeterProviderInitializesEagerlyBeforeGet() {
         String bogusUrl = "http://127.0.0.1:9";
         Settings settings = Settings.builder().put(OtelSdkSettings.TELEMETRY_EXPORT_ENDPOINT.getKey(), bogusUrl).build();
-        OtelSdkExportMeterSupplier supplier = new OtelSdkExportMeterSupplier(settings, createTempDir());
+        OtelSdkExportMeterSupplier supplier = new OtelSdkExportMeterSupplier(settings, createTempDir(), (SdkMeterProviderCustomizer) null);
         assertThat(supplier.getMeterProvider(), org.hamcrest.Matchers.instanceOf(io.opentelemetry.sdk.metrics.SdkMeterProvider.class));
         supplier.close();
     }
 
     public void testCloseWithoutGetDoesNotThrow() {
-        new OtelSdkExportMeterSupplier(Settings.EMPTY, null).close();
+        new OtelSdkExportMeterSupplier(Settings.EMPTY, null, (SdkMeterProviderCustomizer) null).close();
     }
 
     public void testDoubleCloseAfterGetDoesNotThrow() {
         String bogusUrl = "http://127.0.0.1:9";
         Settings settings = Settings.builder().put(OtelSdkSettings.TELEMETRY_EXPORT_ENDPOINT.getKey(), bogusUrl).build();
-        OtelSdkExportMeterSupplier supplier = new OtelSdkExportMeterSupplier(settings, createTempDir());
+        OtelSdkExportMeterSupplier supplier = new OtelSdkExportMeterSupplier(settings, createTempDir(), (SdkMeterProviderCustomizer) null);
         supplier.get();
         supplier.close();
         supplier.close();
@@ -160,7 +167,7 @@ public class OtelSdkExportMeterSupplierTests extends ESTestCase {
         InMemoryMetricReader inMemoryReader = InMemoryMetricReader.create();
         SdkMeterProvider meterProvider = SdkMeterProvider.builder().registerMetricReader(inMemoryReader).build();
         Settings settings = Settings.builder().put(OtelSdkSettings.TELEMETRY_EXPORT_INTERVAL.getKey(), "90s").build();
-        OtelSdkExportMeterSupplier supplier = new OtelSdkExportMeterSupplier(settings, null);
+        OtelSdkExportMeterSupplier supplier = new OtelSdkExportMeterSupplier(settings, null, (SdkMeterProviderCustomizer) null);
 
         try (var gauge = supplier.registerReaderMetrics(meterProvider)) {
             MetricData metric = inMemoryReader.collectAllMetrics()
@@ -175,11 +182,28 @@ public class OtelSdkExportMeterSupplierTests extends ESTestCase {
         meterProvider.close();
     }
 
+    public void testConfigurerIsInvokedWhenBuildingMeterProvider() {
+        String bogusUrl = "http://127.0.0.1:9";
+        Settings settings = Settings.builder().put(OtelSdkSettings.TELEMETRY_EXPORT_ENDPOINT.getKey(), bogusUrl).build();
+
+        AtomicBoolean configurerInvoked = new AtomicBoolean(false);
+        SdkMeterProviderCustomizer customizer = builder -> {
+            configurerInvoked.set(true);
+            return builder;
+        };
+
+        try (OtelSdkExportMeterSupplier supplier = new OtelSdkExportMeterSupplier(settings, createTempDir(), customizer)) {
+            supplier.getMeterProvider();
+
+            assertTrue("customizer must be invoked during provider build", configurerInvoked.get());
+        }
+    }
+
     /** attemptFlushMetrics() after close() must return a successful no-op result. */
     public void testAttemptFlushMetricsAfterCloseIsNoop() {
         String bogusUrl = "http://127.0.0.1:9";
         Settings settings = Settings.builder().put(OtelSdkSettings.TELEMETRY_EXPORT_ENDPOINT.getKey(), bogusUrl).build();
-        OtelSdkExportMeterSupplier supplier = new OtelSdkExportMeterSupplier(settings, createTempDir());
+        OtelSdkExportMeterSupplier supplier = new OtelSdkExportMeterSupplier(settings, createTempDir(), (SdkMeterProviderCustomizer) null);
         supplier.get();
         supplier.close();
         CompletableResultCode result = supplier.attemptFlushMetrics();

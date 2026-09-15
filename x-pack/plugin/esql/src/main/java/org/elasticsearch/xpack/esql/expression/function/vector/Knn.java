@@ -402,13 +402,13 @@ public class Knn extends SingleFieldFullTextFunction
                 )
             );
         }
-        if (similarityMetric() == VectorSimilarityMetric.DOT_PRODUCT && Math.abs(squaredMagnitude - 1.0f) > 1e-4f) {
+        if (similarityMetric() == VectorSimilarityMetric.DOT_PRODUCT && VectorUtil.isUnitVector(vector) == false) {
             failures.add(
                 Failure.fail(
                     query(),
-                    "[KNN] dot_product requires unit-length vectors; query vector [{}] has squared magnitude [{}]",
+                    "[KNN] dot_product requires unit-length vectors; query vector [{}] has magnitude [{}]",
                     query().sourceText(),
-                    squaredMagnitude
+                    Math.sqrt(squaredMagnitude)
                 )
             );
         }
@@ -665,11 +665,11 @@ public class Knn extends SingleFieldFullTextFunction
         return Objects.hash(field(), query(), queryBuilder(), implicitK(), filterExpressions(), options());
     }
 
-    private static void requireUnitLength(float[] vector, int dimensions) {
-        float squaredMagnitude = VectorUtil.dotProduct(vector, vector);
-        if (Math.abs(squaredMagnitude - 1.0f) > 1e-4f) {
+    private static void requireUnitLength(float[] vector) {
+        if (false == VectorUtil.isUnitVector(vector)) {
             throw new IllegalArgumentException(
-                format(null, "dot_product requires unit-length vectors but encountered squared magnitude [{}]", squaredMagnitude)
+                format(null, "dot_product requires unit-length vectors but encountered magnitude [{}]",
+                    Math.sqrt(VectorUtil.dotProduct(vector, vector)))
             );
         }
     }
@@ -710,7 +710,7 @@ public class Knn extends SingleFieldFullTextFunction
             scratchVector[i] = fieldBlock.getFloat(first + i);
         }
         if (similarityMetric == VectorSimilarityMetric.DOT_PRODUCT) {
-            requireUnitLength(scratchVector, dimensions);
+            requireUnitLength(scratchVector);
         }
         if (similarityThreshold == null) {
             return true;
@@ -745,7 +745,7 @@ public class Knn extends SingleFieldFullTextFunction
             scratchVector[i] = fieldBlock.getFloat(first + i);
         }
         if (similarityMetric == VectorSimilarityMetric.DOT_PRODUCT) {
-            requireUnitLength(scratchVector, dimensions);
+            requireUnitLength(scratchVector);
         }
         return similarityMetric.score(similarityMetric.calculateSimilarity(scratchVector, queryVector), dimensions) * boost;
     }

@@ -264,7 +264,7 @@ ROW dv = to_dense_vector([2.0, 0.0, 0.0])
 | LIMIT 10
 ;
 warning:Line 2:9: evaluation of [knn(dv, [1.0, 0.0, 0.0], {\"vector_similarity\": \"dot_product\"})] failed, treating result as null. Only first 20 failures recorded.
-warning:Line 2:9: java.lang.IllegalArgumentException: dot_product requires unit-length vectors but encountered squared magnitude [4.0]
+warning:Line 2:9: java.lang.IllegalArgumentException: dot_product requires unit-length vectors but encountered magnitude [2.0]
 
 dv:dense_vector
 ;

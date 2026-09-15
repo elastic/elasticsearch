@@ -7,9 +7,14 @@
 
 package org.elasticsearch.compute.data;
 
+import org.apache.lucene.util.ArrayUtil;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.breaker.CircuitBreakingException;
+import org.elasticsearch.common.bytes.BytesReference;
+import org.elasticsearch.common.io.stream.ByteBufferStreamInput;
+import org.elasticsearch.common.io.stream.BytesStreamOutput;
+import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.MockBigArrays;
@@ -20,11 +25,13 @@ import org.elasticsearch.compute.operator.DriverContext;
 import org.elasticsearch.compute.test.RandomBlock;
 import org.elasticsearch.compute.test.TestBlockFactory;
 import org.elasticsearch.compute.test.TestWarningsSource;
+import org.elasticsearch.core.Releasable;
 import org.elasticsearch.core.Releasables;
 import org.elasticsearch.indices.breaker.NoneCircuitBreakerService;
 import org.elasticsearch.test.EqualsHashCodeTestUtils;
 import org.elasticsearch.test.TransportVersionUtils;
 
+import java.io.EOFException;
 import java.io.IOException;
 import java.util.Arrays;
 import java.util.List;
@@ -223,6 +230,100 @@ public class BlockSerializationTests extends SerializationTestCase {
 
     static BytesRef randomBytesRef() {
         return new BytesRef(randomAlphaOfLengthBetween(0, 10));
+    }
+
+    private static final ByteSizeValue LIMIT = ByteSizeValue.ofMb(1);
+    /**
+     * A value twice {@link #LIMIT}, with its bytes actually present on the wire, as in a legitimately large page. The breaker
+     * must refuse it before a single byte of the value is read; reading first allocated the whole value unaccounted, which is
+     * how the coordinator died in elastic/elasticsearch-serverless#7314.
+     */
+    private static final BytesRef TOO_BIG = new BytesRef(new byte[2 * 1024 * 1024]);
+
+    public void testTooBigConstantBytesRefIsRefusedBeforeItIsRead() throws IOException {
+        try (BytesStreamOutput out = new BytesStreamOutput()) {
+            out.writeVInt(3);
+            out.writeByte(Vector.SERIALIZE_VECTOR_CONSTANT);
+            out.writeBytesRef(TOO_BIG);
+            assertRefusedBeforeRead(out, (in, limited) -> BytesRefVector.readFrom(limited, in));
+        }
+    }
+
+    public void testTooBigBytesRefVectorValueIsRefusedBeforeItIsRead() throws IOException {
+        try (BytesStreamOutput out = new BytesStreamOutput()) {
+            out.writeVInt(1);
+            out.writeByte(Vector.SERIALIZE_VECTOR_VALUES);
+            out.writeBytesRef(TOO_BIG);
+            assertRefusedBeforeRead(out, (in, limited) -> BytesRefVector.readFrom(limited, in));
+        }
+    }
+
+    public void testTooBigBytesRefBlockValueIsRefusedBeforeItIsRead() throws IOException {
+        try (BytesStreamOutput out = new BytesStreamOutput()) {
+            out.writeByte(Block.SERIALIZE_BLOCK_VALUES);
+            out.writeVInt(1);
+            out.writeBoolean(false);
+            out.writeVInt(1);
+            out.writeBytesRef(TOO_BIG);
+            assertRefusedBeforeRead(out, (in, limited) -> BytesRefBlock.readFrom(new BlockStreamInput(in, limited)));
+        }
+    }
+
+    /** A corrupt length past the JVM array limit is rejected before it reaches the breaker or the allocator. */
+    public void testBytesRefLengthPastArrayLimitIsRejected() throws IOException {
+        BlockFactory limited = BlockFactoryTests.blockFactory(ByteSizeValue.ofGb(4));
+        try (BytesStreamOutput out = new BytesStreamOutput()) {
+            out.writeVInt(1);
+            out.writeByte(Vector.SERIALIZE_VECTOR_CONSTANT);
+            out.writeVInt(ArrayUtil.MAX_ARRAY_LENGTH + 1);
+            expectThrows(IllegalStateException.class, () -> BytesRefVector.readFrom(limited, streamInput(out)));
+        }
+        assertThat(limited.breaker().getUsed(), equalTo(0L));
+    }
+
+    /** A corrupt length larger than the rest of the message is rejected before anything is charged or allocated. */
+    public void testBytesRefLengthPastEndOfStreamIsRejected() throws IOException {
+        BlockFactory limited = BlockFactoryTests.blockFactory(ByteSizeValue.ofGb(4));
+        try (BytesStreamOutput out = new BytesStreamOutput()) {
+            out.writeVInt(1);
+            out.writeByte(Vector.SERIALIZE_VECTOR_CONSTANT);
+            out.writeVInt(TOO_BIG.length);
+            out.writeBytes(TOO_BIG.bytes, 0, TOO_BIG.length / 2);
+            expectThrows(EOFException.class, () -> BytesRefVector.readFrom(limited, streamInput(out)));
+        }
+        assertThat(limited.breaker().getUsed(), equalTo(0L));
+    }
+
+    private interface Reader {
+        Releasable read(StreamInput in, BlockFactory blockFactory) throws IOException;
+    }
+
+    private static void assertRefusedBeforeRead(BytesStreamOutput out, Reader reader) throws IOException {
+        BlockFactory limited = BlockFactoryTests.blockFactory(LIMIT);
+        StreamInput in = streamInput(out);
+        expectThrows(CircuitBreakingException.class, () -> reader.read(in, limited));
+        assertThat("value bytes were read before the breaker refused them", in.available(), equalTo(TOO_BIG.length));
+        assertThat(limited.breaker().getUsed(), equalTo(0L));
+    }
+
+    public void testConstantBytesRefRoundTripIsAccounted() throws IOException {
+        // Either side of the overestimate threshold, so the pre-charge is checked against the multiplied estimate too.
+        BytesRef value = new BytesRef(randomAlphaOfLength(randomBoolean() ? between(1, 10_000) : between(1_048_577, 2_097_152)));
+        try (BytesRefVector original = blockFactory.newConstantBytesRefVector(value, between(1, 10))) {
+            long before = blockFactory.breaker().getUsed();
+            try (BytesStreamOutput out = new BytesStreamOutput()) {
+                original.writeTo(out);
+                try (BytesRefVector copy = BytesRefVector.readFrom(blockFactory, streamInput(out))) {
+                    assertThat(copy, equalTo(original));
+                    assertThat(blockFactory.breaker().getUsed(), equalTo(before + copy.ramBytesUsed()));
+                }
+            }
+            assertThat(blockFactory.breaker().getUsed(), equalTo(before));
+        }
+    }
+
+    private static StreamInput streamInput(BytesStreamOutput out) {
+        return ByteBufferStreamInput.wrap(BytesReference.toBytes(out.bytes()));
     }
 
     /**

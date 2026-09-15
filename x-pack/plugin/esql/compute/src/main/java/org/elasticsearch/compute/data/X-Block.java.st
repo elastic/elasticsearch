@@ -266,7 +266,17 @@ $endif$
                     final int valueCount = in.readVInt();
                     builder.beginPositionEntry();
                     for (int valueIndex = 0; valueIndex < valueCount; valueIndex++) {
+$if(BytesRef)$
+                        int length = in.readArraySize();
+                        in.blockFactory().adjustBreaker(length);
+                        try {
+                            builder.appendBytesRef(in.readBytesRef(length));
+                        } finally {
+                            in.blockFactory().adjustBreaker(-length);
+                        }
+$else$
                         builder.append$Type$(in.read$Type$());
+$endif$
                     }
                     builder.endPositionEntry();
                 }

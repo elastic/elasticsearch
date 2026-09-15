@@ -233,7 +233,11 @@ $endif$
         final byte serializationType = in.readByte();
         return switch (serializationType) {
             case SERIALIZE_VECTOR_VALUES -> readValues(positions, in, blockFactory);
+$if(BytesRef)$
+            case SERIALIZE_VECTOR_CONSTANT -> readConstant(positions, in, blockFactory);
+$else$
             case SERIALIZE_VECTOR_CONSTANT -> blockFactory.newConstant$Type$Vector(in.read$Type$(), positions);
+$endif$
             case SERIALIZE_VECTOR_ARRAY -> $Type$ArrayVector.readArrayVector(positions, in, blockFactory);
 $if(BytesRef)$
             case SERIALIZE_VECTOR_ORDINAL -> OrdinalBytesRefVector.readOrdinalVector(blockFactory, in);
@@ -277,15 +281,52 @@ $endif$
         }
     }
 
-    private static $Type$Vector readValues(int positions, StreamInput in, BlockFactory blockFactory) throws IOException {
-        try (var builder = blockFactory.new$Type$Vector$if(BytesRef)$$else$Fixed$endif$Builder(positions)) {
+$if(BytesRef)$
+    /**
+     * The length is read and charged to the breaker before the value is allocated; reading the value first puts it on
+     * the heap before anyone can refuse it.
+     */
+    private static BytesRefVector readConstant(int positions, StreamInput in, BlockFactory blockFactory) throws IOException {
+        int length = in.readArraySize();
+        long preAdjustedBytes = blockFactory.preAdjustBreakerForConstantBytesRef(length);
+        boolean success = false;
+        try {
+            var vector = blockFactory.newConstantBytesRefVector(in.readBytesRef(length), positions, preAdjustedBytes);
+            success = true;
+            return vector;
+        } finally {
+            if (success == false) {
+                blockFactory.adjustBreaker(-preAdjustedBytes);
+            }
+        }
+    }
+
+    private static BytesRefVector readValues(int positions, StreamInput in, BlockFactory blockFactory) throws IOException {
+        try (var builder = blockFactory.newBytesRefVectorBuilder(positions)) {
             for (int i = 0; i < positions; i++) {
-                builder.append$Type$($if(BytesRef)$$else$i, $endif$in.read$Type$());
+                int length = in.readArraySize();
+                blockFactory.adjustBreaker(length);
+                try {
+                    builder.appendBytesRef(in.readBytesRef(length));
+                } finally {
+                    blockFactory.adjustBreaker(-length);
+                }
             }
             return builder.build();
         }
     }
 
+$else$
+    private static $Type$Vector readValues(int positions, StreamInput in, BlockFactory blockFactory) throws IOException {
+        try (var builder = blockFactory.new$Type$VectorFixedBuilder(positions)) {
+            for (int i = 0; i < positions; i++) {
+                builder.append$Type$(i, in.read$Type$());
+            }
+            return builder.build();
+        }
+    }
+
+$endif$
     private static void writeValues($Type$Vector v, int positions, StreamOutput out) throws IOException {
 $if(BytesRef)$
         var scratch = new BytesRef();

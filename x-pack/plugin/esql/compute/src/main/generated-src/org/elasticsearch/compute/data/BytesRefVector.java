@@ -155,7 +155,7 @@ public sealed interface BytesRefVector extends Vector permits ConstantBytesRefVe
         final byte serializationType = in.readByte();
         return switch (serializationType) {
             case SERIALIZE_VECTOR_VALUES -> readValues(positions, in, blockFactory);
-            case SERIALIZE_VECTOR_CONSTANT -> blockFactory.newConstantBytesRefVector(in.readBytesRef(), positions);
+            case SERIALIZE_VECTOR_CONSTANT -> readConstant(positions, in, blockFactory);
             case SERIALIZE_VECTOR_ARRAY -> BytesRefArrayVector.readArrayVector(positions, in, blockFactory);
             case SERIALIZE_VECTOR_ORDINAL -> OrdinalBytesRefVector.readOrdinalVector(blockFactory, in);
             default -> {
@@ -185,10 +185,35 @@ public sealed interface BytesRefVector extends Vector permits ConstantBytesRefVe
         }
     }
 
+    /**
+     * The length is read and charged to the breaker before the value is allocated; reading the value first puts it on
+     * the heap before anyone can refuse it.
+     */
+    private static BytesRefVector readConstant(int positions, StreamInput in, BlockFactory blockFactory) throws IOException {
+        int length = in.readArraySize();
+        long preAdjustedBytes = blockFactory.preAdjustBreakerForConstantBytesRef(length);
+        boolean success = false;
+        try {
+            var vector = blockFactory.newConstantBytesRefVector(in.readBytesRef(length), positions, preAdjustedBytes);
+            success = true;
+            return vector;
+        } finally {
+            if (success == false) {
+                blockFactory.adjustBreaker(-preAdjustedBytes);
+            }
+        }
+    }
+
     private static BytesRefVector readValues(int positions, StreamInput in, BlockFactory blockFactory) throws IOException {
         try (var builder = blockFactory.newBytesRefVectorBuilder(positions)) {
             for (int i = 0; i < positions; i++) {
-                builder.appendBytesRef(in.readBytesRef());
+                int length = in.readArraySize();
+                blockFactory.adjustBreaker(length);
+                try {
+                    builder.appendBytesRef(in.readBytesRef(length));
+                } finally {
+                    blockFactory.adjustBreaker(-length);
+                }
             }
             return builder.build();
         }

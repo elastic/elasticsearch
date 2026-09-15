@@ -331,7 +331,9 @@ public class RepositoryIntegrityHealthIndicatorServiceTests extends ESTestCase {
                     NAME,
                     YELLOW,
                     "Detected [" + corrupted + "] corrupted snapshot " + (corrupted == 1 ? "repository" : "repositories") + ".",
-                    verbose ? createDetails(repos.size() * projectIds.size(), corrupted, corruptedNames, 0, 0) : HealthIndicatorDetails.EMPTY,
+                    verbose
+                        ? createDetails(repos.size() * projectIds.size(), corrupted, corruptedNames, 0, 0)
+                        : HealthIndicatorDetails.EMPTY,
                     RepositoryIntegrityHealthIndicatorService.IMPACTS,
                     verbose
                         ? List.of(
@@ -614,13 +616,7 @@ public class RepositoryIntegrityHealthIndicatorServiceTests extends ESTestCase {
                         + "] invalid snapshot "
                         + (invalid == 1 ? "repository" : "repositories")
                         + ".",
-                    createDetails(
-                        corruptedRepos.size() + repos.size() + repos.size(),
-                        corrupted,
-                        corruptedNames,
-                        unknown,
-                        invalid
-                    ),
+                    createDetails(corruptedRepos.size() + repos.size() + repos.size(), corrupted, corruptedNames, unknown, invalid),
                     RepositoryIntegrityHealthIndicatorService.IMPACTS,
                     List.of(
                         new Diagnosis(CORRUPTED_DEFINITION, List.of(new Diagnosis.Resource(Type.SNAPSHOT_REPOSITORY, corruptedNames))),

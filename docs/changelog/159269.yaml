@@ -1,5 +1,6 @@
 area: ES|QL
-issues: []
+issues:
+  - 159265
 pr: 159269
-summary: Fix incorrect TO_TEXT pushdown
+summary: Fix `TO_TEXT` being ignored in `MATCH/MATCH_PHRASE` on indexed fields
 type: bug

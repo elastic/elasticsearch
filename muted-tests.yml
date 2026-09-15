@@ -196,6 +196,10 @@ tests:
 - class: org.elasticsearch.xpack.security.authc.ldap.LdapSessionFactoryTests
   method: testBindWithReadTimeout
   issue: https://github.com/elastic/elasticsearch/issues/159268
+- class: org.elasticsearch.repositories.s3.RepositoryS3MinioBasicCredentialsRestIT
+  issue: https://github.com/elastic/elasticsearch/issues/159305
+- class: org.elasticsearch.xpack.searchablesnapshots.minio.MinioSearchableSnapshotsIT
+  issue: https://github.com/elastic/elasticsearch/issues/159308
 
 # Examples:
 #

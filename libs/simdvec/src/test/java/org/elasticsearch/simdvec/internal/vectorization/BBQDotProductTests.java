@@ -18,7 +18,7 @@ import org.apache.lucene.store.IndexInput;
 import org.apache.lucene.store.IndexOutput;
 import org.apache.lucene.store.MMapDirectory;
 import org.apache.lucene.store.NIOFSDirectory;
-import org.elasticsearch.common.util.ArrayUtils;
+import org.elasticsearch.simdvec.BBQEncoding;
 import org.elasticsearch.simdvec.BaseVectorizationTests;
 import org.elasticsearch.xpack.searchablesnapshots.store.SearchableSnapshotDirectoryFactory;
 
@@ -28,9 +28,7 @@ import java.util.List;
 
 import static org.hamcrest.Matchers.either;
 import static org.hamcrest.Matchers.equalTo;
-import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.is;
-import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.notANumber;
 
 public class BBQDotProductTests extends BaseVectorizationTests {
@@ -50,38 +48,35 @@ public class BBQDotProductTests extends BaseVectorizationTests {
     }
 
     private final DirectoryType directoryType;
-    private final int docBits;
-    private final int queryBits;
+    private final BBQEncoding encoding;
 
-    public BBQDotProductTests(DirectoryType directoryType, int docBits, int queryBits) {
+    public BBQDotProductTests(DirectoryType directoryType, BBQEncoding encoding) {
         this.directoryType = directoryType;
-        this.docBits = docBits;
-        this.queryBits = queryBits;
+        this.encoding = encoding;
     }
 
     @ParametersFactory
     public static Iterable<Object[]> parametersFactory() {
-        List<Object[]> bitCombinations = List.of(
-            new Object[] { 1, 1 },
-            new Object[] { 1, 4 },
-            new Object[] { 2, 1 },
-            new Object[] { 2, 2 },
-            new Object[] { 2, 4 },
-            new Object[] { 3, 4 },
-            new Object[] { 4, 4 },
-            new Object[] { 8, 4 },
-            new Object[] { 8, 8 }
+        List<BBQEncoding> bitCombinations = List.of(
+            new BBQEncoding(1, 1),
+            new BBQEncoding(1, 4),
+            new BBQEncoding(2, 2),
+            new BBQEncoding(2, 4),
+            new BBQEncoding(3, 4),
+            new BBQEncoding(4, 4),
+            new BBQEncoding(4, 8),
+            new BBQEncoding(8, 8)
         );
         return () -> bitCombinations.stream()
-            .flatMap(bits -> Arrays.stream(DirectoryType.values()).map(d -> ArrayUtils.prepend(d, bits)))
+            .flatMap(e -> Arrays.stream(DirectoryType.values()).map(d -> new Object[] { d, e }))
             .iterator();
     }
 
     private BBQDotProduct getImpl(Implementation impl, IndexInput input, int nDims) {
         return switch (impl) {
-            case SCALAR -> BBQDotProduct.create(input, nDims, docBits, queryBits);
-            case PANAMA -> PanamaBBQDotProduct.create(input, nDims, docBits, queryBits);
-            case NATIVE -> NativeBBQDotProduct.create(input, nDims, docBits, queryBits);
+            case SCALAR -> BBQDotProduct.create(input, nDims, encoding);
+            case PANAMA -> PanamaBBQDotProduct.create(input, nDims, encoding);
+            case NATIVE -> NativeBBQDotProduct.create(input, nDims, encoding);
         };
     }
 
@@ -90,10 +85,10 @@ public class BBQDotProductTests extends BaseVectorizationTests {
         int planeBytes = BBQDotProduct.planeBytes(nDims);
         int count = BULK_SIZE * randomIntBetween(1, 4) - randomIntBetween(0, BULK_SIZE - 1);
 
-        byte[] query = randomPackedVector(queryBits, planeBytes, nDims);
+        byte[] query = randomPackedVector(encoding.queryBits(), planeBytes, nDims);
         byte[][] vectors = new byte[count][];
         for (int i = 0; i < count; i++) {
-            vectors[i] = randomPackedVector(docBits, planeBytes, nDims);
+            vectors[i] = randomPackedVector(encoding.dataBits(), planeBytes, nDims);
         }
 
         try (Directory dir = newParametrizedDirectory()) {
@@ -129,8 +124,8 @@ public class BBQDotProductTests extends BaseVectorizationTests {
         int nDims = randomDims();
         int planeBytes = BBQDotProduct.planeBytes(nDims);
 
-        byte[] query = randomPackedVector(queryBits, planeBytes, nDims);
-        byte[][] vectors = new byte[][] { randomPackedVector(docBits, planeBytes, nDims) };
+        byte[] query = randomPackedVector(encoding.queryBits(), planeBytes, nDims);
+        byte[][] vectors = new byte[][] { randomPackedVector(encoding.dataBits(), planeBytes, nDims) };
 
         try (Directory dir = newParametrizedDirectory()) {
             write(dir, vectors);
@@ -155,10 +150,10 @@ public class BBQDotProductTests extends BaseVectorizationTests {
         int planeBytes = BBQDotProduct.planeBytes(nDims);
         int count = randomIntBetween(1, BULK_SIZE);
 
-        byte[] query = randomPackedVector(queryBits, planeBytes, nDims);
+        byte[] query = randomPackedVector(encoding.queryBits(), planeBytes, nDims);
         byte[][] vectors = new byte[count][];
         for (int i = 0; i < count; i++) {
-            vectors[i] = randomPackedVector(docBits, planeBytes, nDims);
+            vectors[i] = randomPackedVector(encoding.dataBits(), planeBytes, nDims);
         }
         int[] offsets = new int[BULK_SIZE];
         int offsetsCount = 0;
@@ -196,45 +191,19 @@ public class BBQDotProductTests extends BaseVectorizationTests {
                     }
 
                     // should have read all the data regardless
-                    long consumed = (long) count * docBits * planeBytes;
+                    long consumed = (long) count * encoding.dataBits() * planeBytes;
                     assertThat(describe(impl.toString()), read.getFilePointer(), equalTo(consumed));
                 }
             }
         }
     }
 
-    public void testTierSelectionFollowsSupport() throws Exception {
-        int nDims = randomDims();
-        int planeBytes = BBQDotProduct.planeBytes(nDims);
-
-        try (Directory dir = newParametrizedDirectory()) {
-            write(dir, new byte[][] { randomPackedVector(docBits, planeBytes, nDims) });
-            try (IndexInput in = dir.openInput("vecs.bin", IOContext.DEFAULT)) {
-                IndexInput panamaIn = in.clone();
-                BBQDotProduct panama = PanamaBBQDotProduct.create(panamaIn, nDims, docBits, queryBits);
-                if (PanamaBBQDotProduct.supports(panamaIn, docBits, queryBits, planeBytes)) {
-                    assertThat(describe("Panama"), panama, instanceOf(PanamaBBQDotProduct.class));
-                } else {
-                    assertThat(describe("Panama"), panama, not(instanceOf(PanamaBBQDotProduct.class)));
-                }
-
-                IndexInput nativeIn = in.clone();
-                BBQDotProduct nativ = NativeBBQDotProduct.create(nativeIn, nDims, docBits, queryBits);
-                if (NativeBBQDotProduct.supports(nativeIn, docBits, queryBits)) {
-                    assertThat(describe("native"), nativ, instanceOf(NativeBBQDotProduct.class));
-                } else {
-                    assertThat(describe("native"), nativ, not(instanceOf(NativeBBQDotProduct.class)));
-                }
-            }
-        }
-    }
-
     public void testRejectsOutOfRangeConfiguration() {
-        expectThrows(IllegalArgumentException.class, () -> BBQDotProduct.create(null, 128, 0, queryBits));
-        expectThrows(IllegalArgumentException.class, () -> BBQDotProduct.create(null, 128, BBQDotProduct.MAX_BITS + 1, queryBits));
-        expectThrows(IllegalArgumentException.class, () -> BBQDotProduct.create(null, 128, docBits, 0));
-        expectThrows(IllegalArgumentException.class, () -> BBQDotProduct.create(null, 128, docBits, BBQDotProduct.MAX_BITS + 1));
-        expectThrows(IllegalArgumentException.class, () -> BBQDotProduct.create(null, 0, docBits, queryBits));
+        expectThrows(IllegalArgumentException.class, () -> new BBQEncoding(0, encoding.queryBits()));
+        expectThrows(IllegalArgumentException.class, () -> new BBQEncoding(Byte.SIZE + 1, encoding.queryBits()));
+        expectThrows(IllegalArgumentException.class, () -> new BBQEncoding(encoding.dataBits(), 0));
+        expectThrows(IllegalArgumentException.class, () -> new BBQEncoding(encoding.dataBits(), Byte.SIZE + 1));
+        expectThrows(IllegalArgumentException.class, () -> BBQDotProduct.create(null, 0, encoding));
     }
 
     private long basicBitImplementation(byte[] query, byte[] data, int planeBytes, int nDims) {
@@ -244,11 +213,11 @@ public class BBQDotProductTests extends BaseVectorizationTests {
             int byteIndex = i >>> 3;
             int bitIndex = 7 - (i & 7);
             int queryLevel = 0;
-            for (int p = 0; p < queryBits; p++) {
+            for (int p = 0; p < encoding.queryBits(); p++) {
                 queryLevel |= ((query[p * planeBytes + byteIndex] >> bitIndex) & 1) << p;
             }
             int docLevel = 0;
-            for (int p = 0; p < docBits; p++) {
+            for (int p = 0; p < encoding.dataBits(); p++) {
                 docLevel |= ((data[p * planeBytes + byteIndex] >> bitIndex) & 1) << p;
             }
             dot += (long) queryLevel * docLevel;
@@ -285,7 +254,7 @@ public class BBQDotProductTests extends BaseVectorizationTests {
     }
 
     private String describe(String what) {
-        return what + " (directoryType=" + directoryType + ", D" + docBits + "Q" + queryBits + ")";
+        return what + " (directoryType=" + directoryType + ", " + encoding + ")";
     }
 
     private Directory newParametrizedDirectory() throws IOException {

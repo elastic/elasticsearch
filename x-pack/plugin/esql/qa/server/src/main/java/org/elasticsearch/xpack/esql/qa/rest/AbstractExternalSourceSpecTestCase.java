@@ -1549,8 +1549,8 @@ public abstract class AbstractExternalSourceSpecTestCase extends EsqlSpecTestCas
             + "_"
             + guardKey.replaceAll("[^a-zA-Z0-9]+", "_").toLowerCase(Locale.ROOT);
         String settings = switch (readerFormat) {
-            case "csv", "tsv" -> "{\"trim_spaces\":true,\"multi_value_syntax\":\"brackets\"}";
-            case "ndjson", "parquet", "orc" -> null;
+            case "csv", "tsv" -> "{\"trim_spaces\":true,\"multi_value_syntax\":\"brackets\"}"; // dimension-copy-ok: a switch arm, enumerated per the repo's switch rule
+            case "ndjson", "parquet", "orc" -> null; // dimension-copy-ok: the complementary switch arm
             default -> throw new IllegalArgumentException("Unknown format-reader profile guard [" + readerFormat + "]");
         };
         DatasetRegistry.ensureDataset(client(), dataset, dataSource, resolveTemplatePath("employees_multifile_split"), settings);
@@ -1643,7 +1643,7 @@ public abstract class AbstractExternalSourceSpecTestCase extends EsqlSpecTestCas
         }
 
         String statusName = switch (readerFormat) {
-            case "csv", "tsv" -> "CsvReaderStatus";
+            case "csv", "tsv" -> "CsvReaderStatus"; // dimension-copy-ok: a switch arm naming the readers that exist
             case "ndjson" -> "NdJsonReaderStatus";
             case "parquet" -> "ParquetReaderStatus";
             case "orc" -> "OrcReaderStatus";

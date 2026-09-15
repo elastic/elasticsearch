@@ -545,7 +545,7 @@ public class FixtureDimensionsTests extends ESTestCase {
      */
     public void testTheNightlyTierVectorCountIsPinnedPerFormat() {
         FixtureDimensions d = FixtureDimensions.get();
-        Map<String, Integer> expected = Map.of("csv", 3582, "tsv", 3385, "ndjson", 1082, "orc", 452, "parquet", 877); // dimension-copy-ok:
+        Map<String, Integer> expected = Map.of("csv", 3608, "tsv", 3410, "ndjson", 1100, "orc", 452, "parquet", 877); // dimension-copy-ok:
         // a pinned per-format expectation has to name its formats, and a new format arriving SHOULD break
         // this line rather than be counted silently into a battery nobody sized.
         Map<String, Integer> actual = new LinkedHashMap<>();
@@ -554,7 +554,7 @@ public class FixtureDimensionsTests extends ESTestCase {
             actual.put(format, d.expressibleVectors(format, seams, FixtureDimensions.Tier.NIGHTLY).size());
         }
         assertThat(actual, equalTo(expected));
-        assertThat(actual.values().stream().mapToInt(Integer::intValue).sum(), equalTo(9378));
+        assertThat(actual.values().stream().mapToInt(Integer::intValue).sum(), equalTo(9447));
     }
 
     /**
@@ -754,7 +754,7 @@ public class FixtureDimensionsTests extends ESTestCase {
     public void testTheVectorUniverseSizeIsPinned() {
         int[] seen = { 0 };
         FixtureDimensions.get().forEachVector(v -> seen[0]++);
-        assertThat(seen[0], equalTo(33932));
+        assertThat(seen[0], equalTo(34001));
     }
 
     private static Properties realDeclaration() {

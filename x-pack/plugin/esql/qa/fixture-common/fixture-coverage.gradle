@@ -114,18 +114,27 @@ tasks.register('checkFixtureCoverage') {
       // Glob to regex: split on '*' and quote the literal parts, so a '*' in the declared pattern is the
       // only metacharacter. Quoting the whole pattern first and then trying to unquote the star does not
       // work -- Pattern.quote wraps the string in \Q...\E, so the star never appears as itself.
-      def regexes = patterns.split(',').collect { it.trim() }.findAll { it.isEmpty() == false }.collect { pat ->
+      // A declared pattern may carry a directory -- the shared specs moved under datasources/ -- so each is
+      // resolved inside its OWN directory and matched on the file name, exactly as the classpath loads it.
+      // Matching a file name against a pattern that still held the directory matched nothing, and the gate
+      // reported every layout those specs read as unread.
+      def routes = patterns.split(',').collect { it.trim() }.findAll { it.isEmpty() == false }.collect { pat ->
         def name = pat.replaceFirst('^/', '')
-        def body = name.split('\\*', -1).collect { java.util.regex.Pattern.quote(it) }.join('.*')
-        java.util.regex.Pattern.compile('^' + body + '$')
+        def slash = name.lastIndexOf('/')
+        def glob = name.substring(slash + 1)
+        def body = glob.split('\\*', -1).collect { java.util.regex.Pattern.quote(it) }.join('.*')
+        [slash < 0 ? '' : name.substring(0, slash), java.util.regex.Pattern.compile('^' + body + '$')]
       }
       def found = [] as Set
       coverageSpecDirs.each { dir ->
-        if (dir.directory) {
-          dir.listFiles({ f -> f.name.endsWith('.csv-spec') } as FileFilter).each { specFile ->
-            if (regexes.any { it.matcher(specFile.name).matches() }) {
-              def body = specFile.readLines().findAll { it.trim().startsWith('//') == false }.join('\n')
-              (body =~ /\{\{([a-z0-9_]+)\}\}/).each { m -> found.add(m[1]) }
+        routes.each { route ->
+          def where = route[0].isEmpty() ? dir : new File(dir, route[0])
+          if (where.directory) {
+            where.listFiles({ f -> f.name.endsWith('.csv-spec') } as FileFilter).each { specFile ->
+              if (route[1].matcher(specFile.name).matches()) {
+                def body = specFile.readLines().findAll { it.trim().startsWith('//') == false }.join('\n')
+                (body =~ /\{\{([a-z0-9_]+)\}\}/).each { m -> found.add(m[1]) }
+              }
             }
           }
         }
@@ -379,30 +388,42 @@ tasks.register('checkFixtureExclusions') {
     def exclusions = new Properties()
     exclusions.load(new StringReader(exclusionsFile.text.replaceAll(/\\\r?\n[ \t]*/, ' ')))
 
-    // (spec -> case names) for every spec file this module can see.
-    def casesBySpec = [:].withDefault { [] as Set }
-    coverageSpecDirs.each { dir ->
-      if (dir.directory) {
-        dir.listFiles({ f -> f.name.endsWith('.csv-spec') } as FileFilter).each { f ->
-          def spec = f.name - '.csv-spec'
-          f.readLines().each { line ->
-            def t = line.trim()
-            if (t && t.startsWith('//') == false && t.endsWith(';') == false && t ==~ /[A-Za-z][A-Za-z0-9_]*/) {
-              casesBySpec[spec] << t
-            }
-          }
+    // Cases per spec, read from the files a token actually routes. A routed pattern may carry a directory
+    // -- the shared specs moved under datasources/ -- so it is resolved inside that directory and the spec is
+    // named by its file, exactly as the classpath loads it and as the harness names it. Keeping the directory
+    // in the routed name matched no file name, so every exclusion on a moved spec read as stale.
+    def casesIn = { File f ->
+      def cases = [] as Set
+      f.readLines().each { line ->
+        def t = line.trim()
+        if (t && t.startsWith('//') == false && t.endsWith(';') == false && t ==~ /[A-Za-z][A-Za-z0-9_]*/) {
+          cases << t
         }
       }
+      cases
     }
 
     def problems = []
     coverageFormats.each { token ->
       def patterns = matrix.getProperty("suite.${token}.specs")
-      def routed = patterns.split(',').collect { it.trim().replaceFirst('^/', '') - '.csv-spec' }
-          .findAll { it.isEmpty() == false }
-      def routedSpecs = casesBySpec.keySet().findAll { spec ->
-        routed.any { pat -> spec ==~ ('^' + pat.split('\\*', -1).collect { java.util.regex.Pattern.quote(it) }.join('.*') + '$') }
+      def casesBySpec = [:].withDefault { [] as Set }
+      patterns.split(',').collect { it.trim().replaceFirst('^/', '') }.findAll { it.isEmpty() == false }.each { name ->
+        def slash = name.lastIndexOf('/')
+        def sub = slash < 0 ? '' : name.substring(0, slash)
+        def glob = name.substring(slash + 1)
+        def regex = java.util.regex.Pattern.compile('^' + glob.split('\\*', -1).collect { java.util.regex.Pattern.quote(it) }.join('.*') + '$')
+        coverageSpecDirs.each { dir ->
+          def where = sub.isEmpty() ? dir : new File(dir, sub)
+          if (where.directory) {
+            where.listFiles({ f -> f.name.endsWith('.csv-spec') } as FileFilter).each { f ->
+              if (regex.matcher(f.name).matches()) {
+                casesBySpec[f.name - '.csv-spec'].addAll(casesIn(f))
+              }
+            }
+          }
+        }
       }
+      def routedSpecs = new HashSet(casesBySpec.keySet())
       exclusions.stringPropertyNames().findAll { it.startsWith("exclude.${token}.") }.each { key ->
         def rest = key - "exclude.${token}."
         def dot = rest.indexOf('.')

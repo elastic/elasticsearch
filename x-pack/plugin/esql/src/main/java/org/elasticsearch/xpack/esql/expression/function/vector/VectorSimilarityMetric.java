@@ -43,12 +43,10 @@ public enum VectorSimilarityMetric {
     V_DOT_PRODUCT(DotProduct.SIMILARITY_FUNCTION) {
         @Override
         public double score(float similarity, int dimensions) {
-            // Same mapping as DenseVectorFieldMapper.VectorSimilarity#DOT_PRODUCT for float vectors. It carries
-            // that metric's precondition with it: the raw dot product only lands in [-1, 1], and so the score only
-            // lands in [0, 1], for unit-length vectors. Nothing normalizes a runtime expression's vectors on our
-            // behalf, so feeding this metric vectors of another length yields scores outside the interval. The
-            // alternative - clamping - would collapse every such row onto the same score and destroy the ranking,
-            // which is the worse failure of the two.
+            // Same mapping as DenseVectorFieldMapper.VectorSimilarity#DOT_PRODUCT for float vectors. The raw dot
+            // product only lands in [-1, 1], and so the score only lands in [0, 1], for unit-length vectors.
+            // Both the query and field vectors are required to be unit-length: the query vector is rejected at
+            // plan time, and each field vector is rejected per-row as a warning at runtime.
             return VectorUtil.normalizeToUnitInterval(similarity);
         }
     },

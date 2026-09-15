@@ -402,6 +402,16 @@ public class Knn extends SingleFieldFullTextFunction
                 )
             );
         }
+        if (similarityMetric() == VectorSimilarityMetric.V_DOT_PRODUCT && Math.abs(squaredMagnitude - 1.0f) > 1e-4f) {
+            failures.add(
+                Failure.fail(
+                    query(),
+                    "[KNN] v_dot_product requires unit-length vectors; query vector [{}] has squared magnitude [{}]",
+                    query().sourceText(),
+                    squaredMagnitude
+                )
+            );
+        }
     }
 
     @Override
@@ -420,13 +430,16 @@ public class Knn extends SingleFieldFullTextFunction
     private ExpressionEvaluator.Factory evaluatorForRuntimeSearch(ToEvaluator toEvaluator) {
         float[] queryVector = queryAsFloats();
         Float similarityThreshold = similarityThresholdOption();
+        VectorSimilarityMetric metric = similarityMetric();
         return new KnnRuntimeFilterEvaluator.Factory(
             source(),
             toEvaluator.apply(field()),
             queryVector,
-            similarityMetric(),
+            metric,
             similarityThreshold,
-            context -> similarityThreshold == null ? null : new float[queryVector.length]
+            // Allocate a scratch buffer whenever we will actually read the field vector: either to compare against
+            // the threshold or to validate unit length for V_DOT_PRODUCT.
+            context -> (similarityThreshold == null && metric != VectorSimilarityMetric.V_DOT_PRODUCT) ? null : new float[queryVector.length]
         );
     }
 
@@ -652,6 +665,15 @@ public class Knn extends SingleFieldFullTextFunction
         return Objects.hash(field(), query(), queryBuilder(), implicitK(), filterExpressions(), options());
     }
 
+    private static void requireUnitLength(float[] vector, int dimensions) {
+        float squaredMagnitude = VectorUtil.dotProduct(vector, vector);
+        if (Math.abs(squaredMagnitude - 1.0f) > 1e-4f) {
+            throw new IllegalArgumentException(
+                format(null, "v_dot_product requires unit-length vectors but encountered squared magnitude [{}]", squaredMagnitude)
+            );
+        }
+    }
+
     /**
      * Evaluator factory for runtime KNN filter (boolean result): returns true for rows whose field vector is at
      * least as similar to the query vector as the threshold (or always true when no threshold is set), false for
@@ -679,12 +701,19 @@ public class Knn extends SingleFieldFullTextFunction
         if (dimensions != queryVector.length) {
             throw new IllegalArgumentException("dense_vector dimensions do not match");
         }
-        if (similarityThreshold == null) {
+        // scratchVector is null when no threshold is set and no per-row validation is required.
+        if (scratchVector == null) {
             return true;
         }
         int first = fieldBlock.getFirstValueIndex(position);
         for (int i = 0; i < dimensions; i++) {
             scratchVector[i] = fieldBlock.getFloat(first + i);
+        }
+        if (similarityMetric == VectorSimilarityMetric.V_DOT_PRODUCT) {
+            requireUnitLength(scratchVector, dimensions);
+        }
+        if (similarityThreshold == null) {
+            return true;
         }
         float similarity = similarityMetric.calculateSimilarity(scratchVector, queryVector);
         return similarityMetric.score(similarity, dimensions) >= similarityMetric.score(similarityThreshold, dimensions);
@@ -714,6 +743,9 @@ public class Knn extends SingleFieldFullTextFunction
         int first = fieldBlock.getFirstValueIndex(position);
         for (int i = 0; i < dimensions; i++) {
             scratchVector[i] = fieldBlock.getFloat(first + i);
+        }
+        if (similarityMetric == VectorSimilarityMetric.V_DOT_PRODUCT) {
+            requireUnitLength(scratchVector, dimensions);
         }
         return similarityMetric.score(similarityMetric.calculateSimilarity(scratchVector, queryVector), dimensions) * boost;
     }

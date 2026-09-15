@@ -131,11 +131,18 @@ public class FieldNameHashTests extends ESTestCase {
 
     // -- scanFieldName ------------------------------------------------------
 
+    /** Convenience wrapper: scanFieldName writes into a caller-supplied out-param to avoid
+     *  allocating on its hot path, but tests read more naturally with a return value. */
+    private static FieldNameHash.FieldNameScan scan(byte[] buf) {
+        FieldNameHash.FieldNameScan out = new FieldNameHash.FieldNameScan();
+        return FieldNameHash.scanFieldName(buf, 0, out) ? out : null;
+    }
+
     public void testScanFieldNameMatchesHashNameForLongNames() {
         String[] names = { "ResolutionWidth", "DOMInteractiveTiming", "OpenstatServiceName", "UserAgentMajor" };
         for (String name : names) {
             byte[] buf = makeScanBuffer(name);
-            FieldNameHash.FieldNameScan scan = FieldNameHash.scanFieldName(buf, 0);
+            FieldNameHash.FieldNameScan scan = scan(buf);
             assertNotNull(name, scan);
             assertEquals(name.length(), scan.len());
             assertEquals(FieldNameHash.hashName(buf, 0, name.length()), scan.hash());
@@ -157,17 +164,17 @@ public class FieldNameHashTests extends ESTestCase {
             long sharedPrefix8 = FieldNameHash.readPrefix8(group[0].getBytes(UTF_8), 0, len);
             for (String name : group) {
                 byte[] buf = makeScanBuffer(name);
-                FieldNameHash.FieldNameScan scan = FieldNameHash.scanFieldName(buf, 0);
+                FieldNameHash.FieldNameScan scan = scan(buf);
                 assertNotNull(name, scan);
                 assertEquals(len, scan.len());
                 assertEquals(sharedPrefix8, scan.prefix8());
             }
             for (int i = 0; i < group.length; i++) {
                 byte[] buf = makeScanBuffer(group[i]);
-                int hashI = FieldNameHash.scanFieldName(buf, 0).hash();
+                int hashI = scan(buf).hash();
                 for (int j = i + 1; j < group.length; j++) {
                     byte[] bufJ = makeScanBuffer(group[j]);
-                    int hashJ = FieldNameHash.scanFieldName(bufJ, 0).hash();
+                    int hashJ = scan(bufJ).hash();
                     assertNotEquals(group[i] + " vs " + group[j], hashI, hashJ);
                 }
             }
@@ -176,7 +183,7 @@ public class FieldNameHashTests extends ESTestCase {
 
     public void testScanFieldNameReturnsNullForBackslash() {
         byte[] buf = makeScanBufferRaw("hel\\lo\"");
-        assertNull(FieldNameHash.scanFieldName(buf, 0));
+        assertNull(scan(buf));
     }
 
     // -- scanAndHash --------------------------------------------------------

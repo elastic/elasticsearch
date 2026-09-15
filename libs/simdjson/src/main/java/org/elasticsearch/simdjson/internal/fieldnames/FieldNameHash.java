@@ -142,24 +142,49 @@ public final class FieldNameHash {
 
     /**
      * Result of a fused SWAR scan + wyhash over a JSON field name (bytes after the opening quote).
-     *
-     * @param hash    wyhash of the field name, guaranteed non-zero
-     * @param len     length of the field name in bytes
-     * @param prefix8 first {@code min(len, 8)} bytes as a little-endian long
+     * Mutable and reused across calls (see {@link #scanFieldName(byte[], int, FieldNameScan)}) so
+     * that resolving a field name on the hot document-walking path does not allocate.
      */
-    public record FieldNameScan(int hash, int len, long prefix8) {}
+    public static final class FieldNameScan {
+        private int hash;
+        private int len;
+        private long prefix8;
+
+        /** wyhash of the field name, guaranteed non-zero. */
+        public int hash() {
+            return hash;
+        }
+
+        /** Length of the field name in bytes. */
+        public int len() {
+            return len;
+        }
+
+        /** First {@code min(len, 8)} bytes as a little-endian long. */
+        public long prefix8() {
+            return prefix8;
+        }
+
+        private void set(int hash, int len, long prefix8) {
+            this.hash = hash;
+            this.len = len;
+            this.prefix8 = prefix8;
+        }
+    }
 
     /**
      * Scans for the closing quote and computes hash + prefix8 without re-reading the name bytes
-     * for the common len &lt;= 16 case. Returns {@code null} if a backslash escape is found.
+     * for the common len &lt;= 16 case, writing the result into {@code out} to avoid allocating.
+     * Returns {@code false} if a backslash escape is found, in which case {@code out} is
+     * unmodified.
      */
-    public static FieldNameScan scanFieldName(byte[] buf, int startIdx) {
+    public static boolean scanFieldName(byte[] buf, int startIdx, FieldNameScan out) {
         int start = startIdx;
         int pos = start;
         int loopBound = buf.length - 8;
 
         if (pos > loopBound) {
-            return scanFieldNameScalar(buf, start, pos);
+            return scanFieldNameScalar(buf, start, pos, out);
         }
 
         long firstWord = readLE8(buf, pos);
@@ -171,10 +196,11 @@ public final class FieldNameHash {
 
         if ((qh | bh) != 0) {
             if (bh != 0 && (qh == 0 || (Long.numberOfTrailingZeros(bh) <= Long.numberOfTrailingZeros(qh)))) {
-                return null;
+                return false;
             }
             int len = Long.numberOfTrailingZeros(qh) >>> 3;
-            return new FieldNameScan(hashWord(firstWord, len), len, maskWord(firstWord, len));
+            out.set(hashWord(firstWord, len), len, maskWord(firstWord, len));
+            return true;
         }
 
         long seed = WY_SECRET0;
@@ -188,18 +214,19 @@ public final class FieldNameHash {
 
             if ((qh | bh) != 0) {
                 if (bh != 0 && (qh == 0 || (Long.numberOfTrailingZeros(bh) <= Long.numberOfTrailingZeros(qh)))) {
-                    return null;
+                    return false;
                 }
                 int len = (pos - start) + (Long.numberOfTrailingZeros(qh) >>> 3);
                 int h = hashScanned(buf, start, len, seed, firstWord);
-                return new FieldNameScan(h, len, prefix8);
+                out.set(h, len, prefix8);
+                return true;
             }
             if (pos >= start + 16) {
                 seed = wymix(readLE8(buf, pos - 8) ^ WY_SECRET1, readLE8(buf, pos) ^ seed);
             }
             pos += 8;
         }
-        return scanFieldNameScalar(buf, start, pos);
+        return scanFieldNameScalar(buf, start, pos, out);
     }
 
     /** Computes wyhash for a field name whose bytes were already scanned up to {@code len}. */
@@ -215,16 +242,17 @@ public final class FieldNameHash {
         return hashName(buf, off, len);
     }
 
-    private static FieldNameScan scanFieldNameScalar(byte[] buf, int start, int pos) {
+    private static boolean scanFieldNameScalar(byte[] buf, int start, int pos, FieldNameScan out) {
         while (true) {
             byte b = buf[pos];
             if (b == '"') {
                 int len = pos - start;
                 long prefix8 = len >= 8 ? readLE8(buf, start) : readPrefix8Small(buf, start, len);
-                return new FieldNameScan(hashName(buf, start, len), len, prefix8);
+                out.set(hashName(buf, start, len), len, prefix8);
+                return true;
             }
             if (b == '\\') {
-                return null;
+                return false;
             }
             pos++;
         }

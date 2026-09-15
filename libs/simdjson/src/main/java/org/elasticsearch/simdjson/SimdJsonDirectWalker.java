@@ -67,6 +67,9 @@ public final class SimdJsonDirectWalker {
     private final int maxDepth;
     private byte[] stringBuf = new byte[4096];
     private int currentDepth;
+    // Reused across every field-name resolution on this (single-threaded) walker instance so the
+    // hot path doesn't allocate a scan result per field; see FieldNameHash.scanFieldName.
+    private final FieldNameHash.FieldNameScan fieldNameScan = new FieldNameHash.FieldNameScan();
 
     public SimdJsonDirectWalker(FieldNameLookup nameCache) {
         this(nameCache, DEFAULT_MAX_DEPTH);
@@ -552,12 +555,13 @@ public final class SimdJsonDirectWalker {
 
     private ResolvedFieldName resolveFieldName(byte[] buffer, int quoteIdx) {
         int start = quoteIdx + 1;
-        FieldNameHash.FieldNameScan scan = FieldNameHash.scanFieldName(buffer, start);
-        if (scan == null) {
+        if (FieldNameHash.scanFieldName(buffer, start, fieldNameScan) == false) {
             return resolveEscapedFieldName(buffer, quoteIdx, start);
         }
-        ResolvedFieldName resolved = nameCache.lookupField(buffer, start, scan.len(), scan.hash(), scan.prefix8());
-        return resolved != null ? resolved : nameCache.insertField(buffer, start, scan.len(), scan.hash());
+        int len = fieldNameScan.len();
+        int hash = fieldNameScan.hash();
+        ResolvedFieldName resolved = nameCache.lookupField(buffer, start, len, hash, fieldNameScan.prefix8());
+        return resolved != null ? resolved : nameCache.insertField(buffer, start, len, hash);
     }
 
     /** Handles field names containing backslash escapes. */

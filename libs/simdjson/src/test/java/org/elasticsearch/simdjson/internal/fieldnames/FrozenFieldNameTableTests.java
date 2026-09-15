@@ -609,8 +609,8 @@ public class FrozenFieldNameTableTests extends ESTestCase {
         byte[] nameBytes = toBytes(name);
         byte[] buf = Arrays.copyOf(nameBytes, nameBytes.length + 1);
         buf[nameBytes.length] = '"';
-        FieldNameHash.FieldNameScan scan = FieldNameHash.scanFieldName(buf, 0);
-        assertNotNull(name, scan);
+        FieldNameHash.FieldNameScan scan = new FieldNameHash.FieldNameScan();
+        assertTrue(name, FieldNameHash.scanFieldName(buf, 0, scan));
         assertEquals(name.length(), scan.len());
         assertEquals(FieldNameHash.hashName(nameBytes, 0, name.length()), scan.hash());
         ResolvedFieldName resolved = child.lookupField(buf, 0, scan.len(), scan.hash(), scan.prefix8());

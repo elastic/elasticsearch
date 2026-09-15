@@ -1976,8 +1976,6 @@ public class RecoveryDirectCancellationServiceTests extends ESAllocationTestCase
         when(clusterService.getClusterSettings()).thenReturn(clusterSettings);
         when(clusterService.getSettings()).thenReturn(nodeSettings);
         when(clusterService.state()).thenReturn(clusterState);
-        // Mock states return false for clusterRecovered() by default; stub to true so guards in the service don't short-circuit.
-        // Real ClusterState instances (built without STATE_NOT_RECOVERED_BLOCK) already return true naturally.
         if (mockingDetails(clusterState).isMock()) {
             when(clusterState.clusterRecovered()).thenReturn(true);
         }

@@ -20,6 +20,7 @@ import org.elasticsearch.xpack.ql.expression.Order;
 import org.elasticsearch.xpack.ql.expression.Order.OrderDirection;
 import org.elasticsearch.xpack.ql.expression.function.Function;
 import org.elasticsearch.xpack.ql.expression.function.aggregate.AggregateFunction;
+import org.elasticsearch.xpack.ql.expression.function.aggregate.Count;
 import org.elasticsearch.xpack.ql.expression.function.aggregate.InnerAggregate;
 import org.elasticsearch.xpack.ql.expression.predicate.Range;
 import org.elasticsearch.xpack.ql.expression.predicate.fulltext.FullTextPredicate;
@@ -64,6 +65,8 @@ import org.elasticsearch.xpack.sql.expression.function.aggregate.First;
 import org.elasticsearch.xpack.sql.expression.function.aggregate.Last;
 import org.elasticsearch.xpack.sql.expression.function.aggregate.Max;
 import org.elasticsearch.xpack.sql.expression.function.aggregate.Min;
+import org.elasticsearch.xpack.sql.expression.function.aggregate.Percentile;
+import org.elasticsearch.xpack.sql.expression.function.aggregate.PercentileRank;
 import org.elasticsearch.xpack.sql.expression.function.aggregate.Stats;
 import org.elasticsearch.xpack.sql.expression.function.aggregate.StddevPop;
 import org.elasticsearch.xpack.sql.expression.function.aggregate.Sum;
@@ -1122,12 +1125,10 @@ public class OptimizerTests extends ESTestCase {
         assertEquals(sum, ((InnerAggregate) alias.child()).inner());
     }
 
-    // A written/alias-inlined SUM(SUM(field)) whose inner SUM(field) is also promoted to an InnerAggregate by the
-    // preceding ReplaceAggsWithStats rule (because it shares its field with another stats-compatible aggregate, here
-    // AVG(field)) must collapse onto that InnerAggregate rather than wrap it in another, bogus Stats(...).
-    // https://github.com/elastic/elasticsearch/issues/45251 is the underlying workaround; this reproduces the
-    // ClassCastException seen at query translation time before the fix (a lookup-first rewrite would instead have
-    // built Stats(InnerAggregate)).
+    // A SUM(SUM(field)) whose inner SUM(field) shares its field with another stats-compatible aggregate (here
+    // AVG(field)) has to end up on the single Stats compound aggregation the two share, rather than on a second
+    // Stats of its own: CollapseAggregateOverAggregate drops the redundant outer SUM before ReplaceAggsWithStats
+    // gets to promote the inner one.
     public void testSumOfSumSharingStatsPromotionCollapsesToInnerAggregate() {
         FieldAttribute fa = getFieldAttribute();
         Sum innerSum = new Sum(EMPTY, fa);
@@ -1161,11 +1162,10 @@ public class OptimizerTests extends ESTestCase {
         assertSame(sumOfSum.outer(), avgInner.outer());
     }
 
-    // Defensive coverage: a written nested aggregate that isn't of the InnerAggregate(SUM) shape handled above -
-    // here the inner SUM is wrapped by a scalar function, e.g. a written SUM(ABS(SUM(field))) that wasn't rejected
-    // upstream by the Verifier - must not be turned into a bogus Stats(...) built over an aggregate expression;
-    // ReplaceSumWithStats should leave it untouched (aside from promoting the innermost SUM(field) itself) rather
-    // than crash or mistranslate.
+    // Defensive: a SUM whose field holds an aggregate behind a scalar function - SUM(ABS(SUM(field))) - is rejected
+    // by the Verifier and is not the shape CollapseAggregateOverAggregate handles either, so should anything ever
+    // get this far, ReplaceSumWithStats has to leave it alone instead of building a Stats(...) over an aggregate
+    // expression that query translation cannot make sense of.
     public void testSumOverAggregateExpressionIsLeftUnchanged() {
         FieldAttribute fa = getFieldAttribute();
         Sum innerSum = new Sum(EMPTY, fa);
@@ -1188,6 +1188,121 @@ public class OptimizerTests extends ESTestCase {
         Abs resultAbs = (Abs) ((Sum) child).field();
         assertTrue(resultAbs.field() instanceof InnerAggregate);
         assertEquals(innerSum, ((InnerAggregate) resultAbs.field()).inner());
+    }
+
+    //
+    // CollapseAggregateOverAggregate: every SingleValueIdentityAgg wrapping another aggregate reduces to that
+    // aggregate, whatever the two are.
+    //
+    public void testCollapseAvgOverAvgCollapsesToInner() {
+        FieldAttribute fa = getFieldAttribute();
+        Avg innerAvg = new Avg(EMPTY, fa);
+        Avg outerAvg = new Avg(EMPTY, innerAvg);
+
+        LogicalPlan result = new Optimizer.CollapseAggregateOverAggregate().apply(
+            new Aggregate(EMPTY, FROM(), emptyList(), singletonList(new Alias(EMPTY, "avg_of_avg", outerAvg)))
+        );
+
+        NamedExpression aggregate = ((Aggregate) result).aggregates().get(0);
+        // the outer AVG is dropped entirely in favor of the inner AVG(field) it wrapped
+        assertEquals(innerAvg, ((Alias) aggregate).child());
+    }
+
+    public void testCollapseMinOverSumCollapsesToInner() {
+        FieldAttribute fa = getFieldAttribute();
+        Sum innerSum = new Sum(EMPTY, fa);
+        Min outerMin = new Min(EMPTY, innerSum);
+
+        LogicalPlan result = new Optimizer.CollapseAggregateOverAggregate().apply(
+            new Aggregate(EMPTY, FROM(), emptyList(), singletonList(new Alias(EMPTY, "min_of_sum", outerMin)))
+        );
+
+        NamedExpression aggregate = ((Aggregate) result).aggregates().get(0);
+        assertEquals(innerSum, ((Alias) aggregate).child());
+    }
+
+    // PERCENTILE(MAX(field), N) collapses to MAX(field) for any N, there being only one value to take a percentile
+    // of - so the percent, method and method parameter arguments are all irrelevant and simply dropped.
+    public void testCollapsePercentileOverMaxCollapsesToInner() {
+        FieldAttribute fa = getFieldAttribute();
+        Max innerMax = new Max(EMPTY, fa);
+        Percentile outerPercentile = new Percentile(EMPTY, innerMax, literal(50), null, null);
+
+        LogicalPlan result = new Optimizer.CollapseAggregateOverAggregate().apply(
+            new Aggregate(EMPTY, FROM(), emptyList(), singletonList(new Alias(EMPTY, "percentile_of_max", outerPercentile)))
+        );
+
+        NamedExpression aggregate = ((Aggregate) result).aggregates().get(0);
+        assertEquals(innerMax, ((Alias) aggregate).child());
+    }
+
+    // Only the outer aggregate has to be an identity over a single value - the inner one is merely what produces
+    // that single value, so it can be any aggregate at all, including COUNT or PERCENTILE_RANK.
+    public void testCollapseAppliesToAnyInnerAggregate() {
+        FieldAttribute fa = getFieldAttribute();
+        Count count = new Count(EMPTY, fa, false);
+        PercentileRank percentileRank = new PercentileRank(EMPTY, fa, literal(10), null, null);
+
+        LogicalPlan result = new Optimizer.CollapseAggregateOverAggregate().apply(
+            new Aggregate(
+                EMPTY,
+                FROM(),
+                emptyList(),
+                asList(
+                    new Alias(EMPTY, "sum_of_count", new Sum(EMPTY, count)),
+                    new Alias(EMPTY, "max_of_percentile_rank", new Max(EMPTY, percentileRank))
+                )
+            )
+        );
+
+        List<? extends NamedExpression> aggregates = ((Aggregate) result).aggregates();
+        assertEquals(count, ((Alias) aggregates.get(0)).child());
+        assertEquals(percentileRank, ((Alias) aggregates.get(1)).child());
+    }
+
+    // The converse: COUNT and PERCENTILE_RANK are not identities over a single value (COUNT(x) is 1, not x;
+    // PERCENTILE_RANK compares its own `value` argument against the one-row distribution), so as outer aggregates
+    // they have nothing to collapse to and the rule must leave them be. The Verifier rejects them in that position.
+    public void testCollapseDoesNotApplyToCountOrPercentileRankAsOuter() {
+        FieldAttribute fa = getFieldAttribute();
+        Avg innerAvg = new Avg(EMPTY, fa);
+        Count count = new Count(EMPTY, innerAvg, false);
+        PercentileRank percentileRank = new PercentileRank(EMPTY, innerAvg, literal(10), null, null);
+
+        LogicalPlan result = new Optimizer.CollapseAggregateOverAggregate().apply(
+            new Aggregate(
+                EMPTY,
+                FROM(),
+                emptyList(),
+                asList(new Alias(EMPTY, "count_of_avg", count), new Alias(EMPTY, "percentile_rank_of_avg", percentileRank))
+            )
+        );
+
+        List<? extends NamedExpression> aggregates = ((Aggregate) result).aggregates();
+        assertEquals(count, ((Alias) aggregates.get(0)).child());
+        assertEquals(percentileRank, ((Alias) aggregates.get(1)).child());
+    }
+
+    // Defensive counterpart to testSumOverAggregateExpressionIsLeftUnchanged, for the PERCENTILE promotion path:
+    // ReplaceAggsWithPercentiles keys its rewrite on the field collected in an earlier pass, so a field that still
+    // holds an aggregate makes that key go stale once the inner aggregate is promoted first. The lookup then has to
+    // leave the PERCENTILE alone rather than wrap it around a null Percentiles.
+    public void testPercentileOverAggregateExpressionIsLeftUnchanged() {
+        FieldAttribute fa = getFieldAttribute();
+        Percentile innerPercentile = new Percentile(EMPTY, fa, literal(50), null, null);
+        Percentile outerPercentile = new Percentile(EMPTY, new Abs(EMPTY, innerPercentile), literal(50), null, null);
+
+        LogicalPlan result = new Optimizer.ReplaceAggsWithPercentiles().apply(
+            new Aggregate(EMPTY, FROM(), emptyList(), singletonList(new Alias(EMPTY, "percentile_of_abs_percentile", outerPercentile)))
+        );
+
+        Expression child = ((Alias) ((Aggregate) result).aggregates().get(0)).child();
+        assertThat(child, instanceOf(Percentile.class));
+        Expression field = ((Percentile) child).field();
+        assertThat(field, instanceOf(Abs.class));
+        // only the innermost PERCENTILE(field) is promoted, exactly as it would be on its own
+        assertThat(((Abs) field).field(), instanceOf(InnerAggregate.class));
+        assertEquals(innerPercentile, ((InnerAggregate) ((Abs) field).field()).inner());
     }
 
     public void testReplaceCast() {

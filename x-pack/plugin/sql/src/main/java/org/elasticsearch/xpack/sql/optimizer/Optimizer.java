@@ -68,6 +68,7 @@ import org.elasticsearch.xpack.sql.expression.function.aggregate.Percentile;
 import org.elasticsearch.xpack.sql.expression.function.aggregate.PercentileRank;
 import org.elasticsearch.xpack.sql.expression.function.aggregate.PercentileRanks;
 import org.elasticsearch.xpack.sql.expression.function.aggregate.Percentiles;
+import org.elasticsearch.xpack.sql.expression.function.aggregate.SingleValueIdentityAgg;
 import org.elasticsearch.xpack.sql.expression.function.aggregate.Stats;
 import org.elasticsearch.xpack.sql.expression.function.aggregate.Sum;
 import org.elasticsearch.xpack.sql.expression.function.aggregate.TopHits;
@@ -166,6 +167,7 @@ public class Optimizer extends RuleExecutor<LogicalPlan> {
 
         var aggregate = new Batch<>(
             "Aggregation Rewrite",
+            new CollapseAggregateOverAggregate(),
             new ReplaceMinMaxWithTopHits(),
             new ReplaceAggsWithMatrixStats(),
             new ReplaceAggsWithExtendedStats(),
@@ -844,6 +846,42 @@ public class Optimizer extends RuleExecutor<LogicalPlan> {
 
     }
 
+    // An aggregate function directly wrapping ANOTHER aggregate function - e.g. AVG(AVG(x)), MIN(SUM(x)),
+    // PERCENTILE(MAX(x), 50) - is what a HAVING/ORDER BY expression over an aggregate alias turns into once
+    // ReplaceReferenceAttributeWithSource has inlined that alias: `SELECT AVG(x) AS a ... HAVING AVG(a) > 10`
+    // becomes HAVING AVG(AVG(x)) > 10.
+    //
+    // A group is already reduced to a single row by the time HAVING/ORDER BY is evaluated, so the outer aggregate
+    // sees exactly one value - and for the SingleValueIdentityAgg family that means it returns that value
+    // unchanged. It can therefore be dropped in favor of the aggregate it wraps, which lets whichever rule would
+    // otherwise promote that inner aggregate (ReplaceAggsWithStats, ReplaceSumWithStats, ReplaceAggsWithPercentiles,
+    // ...) handle it exactly as if it had been written on its own - no need to teach each of them about this
+    // nesting shape. Anything else, including an aggregate reached through a scalar function, is rejected upfront by
+    // Verifier.checkNestedAggregateFunctions.
+    //
+    // Note the collapse keeps the value but not necessarily the declared type: AVG and PERCENTILE are always DOUBLE
+    // whereas MIN/MAX take their field's type, so AVG(MIN(<integer>)) collapses to an INTEGER expression. That is
+    // invisible in the only two places this shape can occur - HAVING is evaluated as a bucket_selector script and
+    // ORDER BY as a bucket sort, both over the numbers the aggregation response carries, and the type-sensitive
+    // rules (ConstantFolding, SimplifyComparisonsArithmetics) have all run by then in the "Operator Optimization"
+    // batch. A nested aggregate cannot reach the output schema, since SQL does not resolve SELECT-list aliases
+    // within the SELECT list itself.
+    //
+    // NOTE: must run before ReplaceAggsWithStats/ReplaceSumWithStats/ReplaceAggsWithPercentiles, so those rules
+    // only ever see the (now collapsed) inner aggregate, never the redundant outer wrapper.
+    static class CollapseAggregateOverAggregate extends OptimizerBasicRule {
+
+        @Override
+        public LogicalPlan apply(LogicalPlan plan) {
+            return plan.transformExpressionsUp(AggregateFunction.class, f -> {
+                if (f instanceof SingleValueIdentityAgg && f.field() instanceof AggregateFunction inner) {
+                    return inner;
+                }
+                return f;
+            });
+        }
+    }
+
     static class ReplaceAggsWithMatrixStats extends OptimizerBasicRule {
 
         @Override
@@ -973,7 +1011,8 @@ public class Optimizer extends RuleExecutor<LogicalPlan> {
     // This class is a workaround for the SUM(all zeros) = NULL issue raised in https://github.com/elastic/elasticsearch/issues/45251 and
     // should be removed as soon as root cause is fixed and the sum aggregation results can differentiate between SUM(all zeroes)
     // and SUM(all nulls) (https://github.com/elastic/elasticsearch/issues/71582)
-    // NOTE: this rule should always be applied AFTER the ReplaceAggsWithStats rule
+    // NOTE: this rule should always be applied AFTER the ReplaceAggsWithStats rule, and AFTER
+    // CollapseAggregateOverAggregate, which has already dropped any redundant SUM(<aggregate>) wrapper
     static class ReplaceSumWithStats extends OptimizerBasicRule {
 
         @Override
@@ -983,18 +1022,10 @@ public class Optimizer extends RuleExecutor<LogicalPlan> {
             return plan.transformExpressionsUp(Sum.class, sum -> {
                 Expression field = sum.field();
 
-                // an earlier rule (ReplaceAggsWithStats) may have already promoted this SUM's field into an
-                // InnerAggregate wrapping the same kind of SUM - e.g. a written or alias-inlined SUM(SUM(x))
-                // where SUM(x) is shared with another stats-compatible aggregate (HAVING SUM(s), ORDER BY SUM(s));
-                // collapse onto that InnerAggregate instead of wrapping it in another, bogus Stats
-                if (field instanceof InnerAggregate innerAggregate && innerAggregate.inner() instanceof Sum) {
-                    return innerAggregate;
-                }
-
-                // the field is itself (or contains) an aggregate expression, e.g. a SUM(SUM(x)) that wasn't
-                // promoted above, or SUM(ABS(SUM(x))). This should be rejected earlier by the Verifier, so
-                // defensively leave the SUM untouched rather than building a bogus Stats(...) over an
-                // aggregate expression, which would later break query translation.
+                // defensive: the field still holds an aggregate, e.g. a SUM(ABS(SUM(x))) that escaped both the
+                // Verifier and CollapseAggregateOverAggregate (whose pattern wants the field to be *directly* an
+                // aggregate, not one behind a scalar function). Leave the SUM be rather than build a Stats(...) over
+                // an aggregate expression, which breaks query translation further down.
                 if (field.anyMatch(AggregateFunction.class::isInstance)) {
                     return sum;
                 }
@@ -1070,9 +1101,11 @@ public class Optimizer extends RuleExecutor<LogicalPlan> {
             );
 
             return p.transformExpressionsUp(Percentile.class, per -> {
-                PercentileKey a = new PercentileKey(per);
-                Percentiles percentiles = percentilesPerAggKey.get(a);
-                return new InnerAggregate(per, percentiles);
+                Percentiles percentiles = percentilesPerAggKey.get(new PercentileKey(per));
+                // the key can only miss if this PERCENTILE's field was rewritten between the collecting pass above
+                // and this one, i.e. if it holds a nested aggregate that got promoted first. The Verifier rejects
+                // those, so defensively leave the PERCENTILE alone rather than build an InnerAggregate over null.
+                return percentiles == null ? per : new InnerAggregate(per, percentiles);
             });
         }
     }

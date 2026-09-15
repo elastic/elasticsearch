@@ -49,6 +49,7 @@ import org.elasticsearch.xpack.sql.expression.function.aggregate.Kurtosis;
 import org.elasticsearch.xpack.sql.expression.function.aggregate.Max;
 import org.elasticsearch.xpack.sql.expression.function.aggregate.Min;
 import org.elasticsearch.xpack.sql.expression.function.aggregate.NumericAggregate;
+import org.elasticsearch.xpack.sql.expression.function.aggregate.SingleValueIdentityAgg;
 import org.elasticsearch.xpack.sql.expression.function.aggregate.Skewness;
 import org.elasticsearch.xpack.sql.expression.function.aggregate.TopHits;
 import org.elasticsearch.xpack.sql.expression.function.scalar.Cast;
@@ -218,7 +219,7 @@ public final class Verifier {
                 checkFilterOnGrouping(p, localFailures, attributeRefs);
 
                 checkNestedAggregation(p, localFailures, attributeRefs);
-                checkNestedAggregateFunctions(p, localFailures);
+                checkNestedAggregateFunctions(p, localFailures, attributeRefs);
 
                 if (groupingFailures.contains(p) == false) {
                     checkGroupBy(p, localFailures, attributeRefs, groupingFailures);
@@ -282,31 +283,38 @@ public final class Verifier {
         }
     }
 
-    // An aggregate function's own arguments must not themselves contain another aggregate function, e.g. a written
-    // SUM(SUM(x)) or SUM(ABS(SUM(x))). This is expression-level nesting, distinct from checkNestedAggregation above
-    // (which rejects an Aggregate plan inside a sub-select).
+    // An aggregate function's own arguments must not themselves contain another aggregate function, e.g. SUM(SUM(x))
+    // or SUM(ABS(SUM(x))). This is expression-level nesting, distinct from checkNestedAggregation above (which rejects
+    // an Aggregate plan inside a sub-select). References are resolved first, so a nesting the user only spelled out
+    // through an alias - `SELECT AVG(x) AS a ... HAVING COUNT(a)` - is caught here as well, rather than making it to
+    // the optimizer or the query translator, neither of which has anything sensible to do with it.
     //
-    // References are intentionally NOT resolved here: `... AS s ... HAVING SUM(s)` only becomes SUM(SUM(x)) once the
-    // optimizer inlines the alias `s` (see Optimizer.ReplaceReferenceAttributeWithSource), and that shape is handled
-    // by Optimizer.ReplaceSumWithStats, not rejected.
-    private static void checkNestedAggregateFunctions(LogicalPlan p, Set<Failure> localFailures) {
-        p.forEachExpressionUp(
-            AggregateFunction.class,
-            af -> af.children()
-                .forEach(
-                    child -> child.forEachDown(
+    // The single admitted exception is a single-value identity aggregate applied directly to an aggregate alias, e.g.
+    // `SELECT SUM(x) AS s ... HAVING SUM(s)`: a group is already reduced to one row at that point, so the outer
+    // aggregate is a no-op that Optimizer.CollapseAggregateOverAggregate drops once the alias is inlined. Note this
+    // requires an actual alias - a literally written SUM(SUM(x)) stays rejected, as it is in every other SQL dialect.
+    private static void checkNestedAggregateFunctions(LogicalPlan p, Set<Failure> localFailures, AttributeMap<Expression> attributeRefs) {
+        p.forEachExpressionUp(AggregateFunction.class, af -> {
+            if (af instanceof SingleValueIdentityAgg
+                && af.field() instanceof ReferenceAttribute ref
+                && attributeRefs.resolve(ref, ref) instanceof AggregateFunction) {
+                return;
+            }
+            for (Expression child : af.children()) {
+                child.transformUp(ReferenceAttribute.class, r -> attributeRefs.resolve(r, r))
+                    .forEachDown(
                         AggregateFunction.class,
                         nested -> localFailures.add(
                             fail(
-                                nested,
+                                af,
                                 "Cannot embed aggregate functions within each other, found [{}] in [{}]",
                                 Expressions.name(nested),
                                 Expressions.name(af)
                             )
                         )
-                    )
-                )
-        );
+                    );
+            }
+        });
     }
 
     private static void checkFullTextSearchInSelect(LogicalPlan plan, Set<Failure> localFailures) {

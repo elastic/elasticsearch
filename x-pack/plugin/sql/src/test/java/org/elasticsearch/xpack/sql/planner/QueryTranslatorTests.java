@@ -15,6 +15,7 @@ import org.elasticsearch.search.aggregations.bucket.filter.FilterAggregationBuil
 import org.elasticsearch.search.aggregations.metrics.AbstractPercentilesAggregationBuilder;
 import org.elasticsearch.search.aggregations.metrics.AvgAggregationBuilder;
 import org.elasticsearch.search.aggregations.metrics.CardinalityAggregationBuilder;
+import org.elasticsearch.search.aggregations.metrics.MinAggregationBuilder;
 import org.elasticsearch.search.aggregations.metrics.PercentileRanksAggregationBuilder;
 import org.elasticsearch.search.aggregations.metrics.PercentilesAggregationBuilder;
 import org.elasticsearch.search.aggregations.metrics.PercentilesConfig;
@@ -39,6 +40,7 @@ import org.elasticsearch.xpack.ql.plan.logical.Aggregate;
 import org.elasticsearch.xpack.ql.plan.logical.Filter;
 import org.elasticsearch.xpack.ql.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.ql.plan.logical.Project;
+import org.elasticsearch.xpack.ql.querydsl.container.Sort;
 import org.elasticsearch.xpack.ql.querydsl.query.BoolQuery;
 import org.elasticsearch.xpack.ql.querydsl.query.NotQuery;
 import org.elasticsearch.xpack.ql.querydsl.query.PrefixQuery;
@@ -53,6 +55,7 @@ import org.elasticsearch.xpack.sql.analysis.analyzer.Analyzer;
 import org.elasticsearch.xpack.sql.expression.function.SqlFunctionRegistry;
 import org.elasticsearch.xpack.sql.expression.function.aggregate.ExtendedStatsEnclosed;
 import org.elasticsearch.xpack.sql.expression.function.aggregate.MatrixStatsEnclosed;
+import org.elasticsearch.xpack.sql.expression.function.aggregate.Min;
 import org.elasticsearch.xpack.sql.expression.function.aggregate.Percentile;
 import org.elasticsearch.xpack.sql.expression.function.aggregate.PercentileRank;
 import org.elasticsearch.xpack.sql.expression.function.aggregate.TopHits;
@@ -75,6 +78,7 @@ import org.elasticsearch.xpack.sql.plugin.SqlPlugin;
 import org.elasticsearch.xpack.sql.proto.SqlTypedParamValue;
 import org.elasticsearch.xpack.sql.querydsl.agg.AggFilter;
 import org.elasticsearch.xpack.sql.querydsl.agg.GroupByDateHistogram;
+import org.elasticsearch.xpack.sql.querydsl.container.AggregateSort;
 import org.elasticsearch.xpack.sql.querydsl.container.MetricAggRef;
 import org.elasticsearch.xpack.sql.session.SingletonExecutable;
 import org.elasticsearch.xpack.sql.types.SqlTypesTests;
@@ -1316,10 +1320,9 @@ public class QueryTranslatorTests extends ESTestCase {
         }
     }
 
-    // End-to-end coverage for the NPE/CCE fixed in ReplaceSumWithStats: `s` is inlined by the optimizer to SUM(int)
-    // in the HAVING clause, producing SUM(SUM(int)); since SUM(int) and AVG(int) share the field `int`, they are
-    // first promoted (by ReplaceAggsWithStats) to a single, shared `stats` compound aggregation, and the written
-    // SUM(s) in HAVING must collapse onto that same InnerAggregate rather than wrap it in a bogus second `Stats`.
+    // SUM over an aggregate alias in HAVING has to land on the same aggregation the SELECT list already uses. Here
+    // `s` is inlined to SUM(int), and since SUM(int) and AVG(int) share the field `int` they are promoted to a
+    // single, shared `stats` compound aggregation - which HAVING SUM(s) must then reference too.
     public void testReplaceSumWithStatsThroughAliasedHaving() {
         PhysicalPlan p = optimizeAndPlan("SELECT SUM(int) AS s, AVG(int) FROM test HAVING SUM(s) > 10");
         assertEquals(EsQueryExec.class, p.getClass());
@@ -1342,6 +1345,81 @@ public class QueryTranslatorTests extends ESTestCase {
         assertThat(
             eqe.queryContainer().toString().replaceAll("\\s+", ""),
             containsString(Strings.format("\"buckets_path\":{\"a0\":\"%s.sum\"}", statsAgg.getName()))
+        );
+    }
+
+    // The same for AVG, which needs no compound aggregation: `a` is inlined to AVG(int) inside the HAVING
+    // condition, giving AVG(AVG(int)), and the whole query must still come out as one plain `avg` aggregation.
+    public void testAvgOfAvgAliasInHavingCollapsesToSingleAvgAgg() {
+        PhysicalPlan p = optimizeAndPlan("SELECT AVG(int) AS a FROM test HAVING AVG(a) > 10");
+        assertEquals(EsQueryExec.class, p.getClass());
+        EsQueryExec eqe = (EsQueryExec) p;
+
+        Collection<AggregationBuilder> subAggs = eqe.queryContainer().aggs().asAggBuilder().getSubAggregations();
+        assertEquals(1, subAggs.size());
+        AggregationBuilder avgAgg = subAggs.iterator().next();
+        assertEquals(AvgAggregationBuilder.class, avgAgg.getClass());
+        assertEquals("int", ((AvgAggregationBuilder) avgAgg).field());
+
+        // HAVING AVG(a) > 10 references that very same `avg` aggregation, not a second, bogus one
+        assertThat(
+            eqe.queryContainer().toString().replaceAll("\\s+", ""),
+            containsString(Strings.format("\"buckets_path\":{\"a0\":\"%s\"}", avgAgg.getName()))
+        );
+    }
+
+    // ORDER BY is the other position an aggregate alias can be wrapped in, and behaves the same: the sort has to be
+    // on the query's single `min` aggregation.
+    public void testMinOfMinAliasInOrderByCollapsesToSingleMinAgg() {
+        PhysicalPlan p = optimizeAndPlan("SELECT MIN(int) AS m FROM test GROUP BY keyword ORDER BY MIN(m)");
+        assertEquals(EsQueryExec.class, p.getClass());
+        EsQueryExec eqe = (EsQueryExec) p;
+
+        Collection<AggregationBuilder> subAggs = eqe.queryContainer().aggs().asAggBuilder().getSubAggregations();
+        assertEquals(1, subAggs.size());
+        AggregationBuilder minAgg = subAggs.iterator().next();
+        assertEquals(MinAggregationBuilder.class, minAgg.getClass());
+        assertEquals("int", ((MinAggregationBuilder) minAgg).field());
+
+        // ORDER BY MIN(m) sorts on that very same `min` aggregation, not a second, bogus one
+        Sort sort = eqe.queryContainer().sort().values().iterator().next();
+        assertThat(sort, instanceOf(AggregateSort.class));
+        assertThat(((AggregateSort) sort).agg(), instanceOf(Min.class));
+        Expression sortedField = ((Min) ((AggregateSort) sort).agg()).field();
+        assertThat(sortedField, instanceOf(FieldAttribute.class));
+        assertEquals("int", ((FieldAttribute) sortedField).name());
+    }
+
+    // PERCENTILE goes through its own promotion rule (ReplaceAggsWithPercentiles) rather than the stats one, so it
+    // gets its own end-to-end case: a single `percentiles` aggregation for one percent value.
+    public void testPercentileOfPercentileAliasInHavingCollapsesToSinglePercentilesAgg() {
+        PhysicalPlan p = optimizeAndPlan("SELECT PERCENTILE(int, 50) AS p FROM test HAVING PERCENTILE(p, 50) > 10");
+        assertEquals(EsQueryExec.class, p.getClass());
+        EsQueryExec eqe = (EsQueryExec) p;
+
+        Collection<AggregationBuilder> subAggs = eqe.queryContainer().aggs().asAggBuilder().getSubAggregations();
+        assertEquals(1, subAggs.size());
+        AggregationBuilder percentilesAgg = subAggs.iterator().next();
+        assertEquals(PercentilesAggregationBuilder.class, percentilesAgg.getClass());
+        assertEquals("int", ((PercentilesAggregationBuilder) percentilesAgg).field());
+        assertArrayEquals(new double[] { 50 }, ((PercentilesAggregationBuilder) percentilesAgg).percentiles(), 0d);
+    }
+
+    // Only the outer aggregate needs to be an identity over a single value, so a COUNT alias wrapped in SUM works
+    // just as well and translates to the plain `filter`-based count the SELECT list already asks for.
+    public void testSumOfCountAliasInHavingCollapsesToSingleCountAgg() {
+        PhysicalPlan p = optimizeAndPlan("SELECT COUNT(int) AS c FROM test GROUP BY keyword HAVING SUM(c) > 10");
+        assertEquals(EsQueryExec.class, p.getClass());
+        EsQueryExec eqe = (EsQueryExec) p;
+
+        Collection<AggregationBuilder> subAggs = eqe.queryContainer().aggs().asAggBuilder().getSubAggregations();
+        assertEquals(1, subAggs.size());
+        AggregationBuilder countAgg = subAggs.iterator().next();
+        assertEquals(FilterAggregationBuilder.class, countAgg.getClass());
+
+        assertThat(
+            eqe.queryContainer().toString().replaceAll("\\s+", ""),
+            containsString(Strings.format("\"buckets_path\":{\"a0\":\"%s._count\"}", countAgg.getName()))
         );
     }
 

@@ -826,6 +826,46 @@ public class RestEsqlIT extends RestEsqlTestCase {
         );
     }
 
+    public void testSuggestedCastForMultipleNumericTypes() throws IOException {
+        List<String> types = List.of("byte", "integer", "long");
+        for (String type : types) {
+            createIndex("multi-numeric-" + type, null, String.format(Locale.ROOT, """
+                 "properties": {
+                   "my_field": {
+                     "type": "%s"
+                   }
+                 }
+                """, type));
+        }
+
+        Request request = new Request("POST", "/_query");
+        request.setJsonEntity("""
+            {
+                "query": "FROM multi-numeric-* | LIMIT 100 | KEEP my_field"
+            }
+            """);
+        Response response = client().performRequest(request);
+        Map<String, Object> results = entityAsMap(response);
+        List<?> columns = (List<?>) results.get("columns");
+        assertThat(
+            columns,
+            equalTo(
+                List.of(
+                    Map.ofEntries(
+                        Map.entry("name", "my_field"),
+                        Map.entry("type", "unsupported"),
+                        Map.entry("original_types", types),
+                        Map.entry("suggested_cast", "long")
+                    )
+                )
+            )
+        );
+
+        for (String type : types) {
+            deleteIndex("multi-numeric-" + type);
+        }
+    }
+
     /**
      * Shared implementation for suggested-cast tests. Creates one index per data type, iterates over
      * all type pairs using the given query format strings, and asserts the response contains the

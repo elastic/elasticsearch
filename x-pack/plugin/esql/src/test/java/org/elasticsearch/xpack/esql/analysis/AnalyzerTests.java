@@ -65,6 +65,7 @@ import org.elasticsearch.xpack.esql.expression.function.grouping.TBucket;
 import org.elasticsearch.xpack.esql.expression.function.inference.CompletionFunction;
 import org.elasticsearch.xpack.esql.expression.function.inference.TextEmbedding;
 import org.elasticsearch.xpack.esql.expression.function.scalar.approximate.Random;
+import org.elasticsearch.xpack.esql.expression.function.scalar.convert.AbstractConvertFunction;
 import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToDateNanos;
 import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToDatetime;
 import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToDenseVector;
@@ -5893,6 +5894,39 @@ public class AnalyzerTests extends ESTestCase {
         assertEquals(UNSUPPORTED, ua.dataType());
         assertThat(ua.originalTypes(), is(List.of(IP.esType(), INTEGER.esType())));
         assertEquals("client_ip", ua.name());
+    }
+
+    /**
+     * The same conversion applied twice to the same union output attribute (e.g. twice in one WHERE) must analyze:
+     * {@code ResolveUnionTypesInUnionAll} dedupes the equal converts into a single pushed-down alias and must replace
+     * <em>every</em> equal occurrence in the plan with the union output's new attribute. Matching occurrences by identity
+     * instead used to leave the second one behind, re-pushing a fresh alias on every Resolution pass until the rule
+     * execution limit — see elasticsearch-serverless#7693.
+     */
+    public void testSameConversionTwiceOverSubqueryUnion() {
+        assumeTrue("Requires subquery in FROM command support", EsqlCapabilities.Cap.SUBQUERY_IN_FROM_COMMAND.isEnabled());
+
+        LogicalPlan plan = sampleData().query("""
+            FROM (FROM sample_data), (FROM sample_data)
+            | WHERE TO_STRING(client_ip) IS NOT NULL AND NOT TO_STRING(client_ip) == "L2"
+            | LIMIT 5
+            """);
+
+        List<Filter> filters = new ArrayList<>();
+        plan.forEachDown(Filter.class, filters::add);
+        assertThat(filters, hasSize(1));
+        Filter filter = filters.getFirst();
+        // Both conversions have been pushed below the union and replaced with one shared synthetic attribute.
+        filter.condition()
+            .forEachDown(AbstractConvertFunction.class, convert -> fail("conversion left unreplaced above the subquery union: " + convert));
+        List<Attribute> converted = new ArrayList<>();
+        filter.condition().forEachDown(Attribute.class, attribute -> {
+            if (attribute.name().contains("converted_to")) {
+                converted.add(attribute);
+            }
+        });
+        assertThat(converted, hasSize(2));
+        assertEquals(converted.get(0).id(), converted.get(1).id());
     }
 
     public void testUnionAllWithConflictingNumericTypesFromSubqueries() {

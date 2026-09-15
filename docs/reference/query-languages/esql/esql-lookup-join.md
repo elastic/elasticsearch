@@ -91,8 +91,8 @@ If the lookup index is missing from one or more linked projects, use [coordinato
 ### Run `LOOKUP JOIN` on coordinating node [coordinator-mode]
 
 ```{applies_to}
-stack: preview 9.6+
-serverless: preview
+stack: ga 9.6+
+serverless: ga
 ```
 
 In cross-cluster or cross-project queries, you can prefix the index name with `_coordinator:` to run the lookup on the local cluster or origin project instead of on each remote cluster or linked project.

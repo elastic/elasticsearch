@@ -180,20 +180,16 @@ public class RecoveryDirectCancellationService extends AbstractLifecycleComponen
         if (event.localNodeMaster() == false) {
             return;
         }
-        if (event.state().clusterRecovered() == false) {
-            return;
-        }
+
         // ClusterApplierService.runTask() calls clusterSettings.applySettings() before callClusterStateListeners(), so
         // those fields are always up to date with the current cluster state when clusterChanged() is called.
         if (enableDirectRecoveryCancellations == false || enableDirectCancellationsForSnapshots == false) {
             return;
         }
+
         final SnapshotsInProgress snapshotsInProgress = SnapshotsInProgress.get(event.state());
         final boolean newMaster = event.previousState().nodes().isLocalNodeElectedMaster() == false;
-        final boolean snapshotsOrRoutingChanged = snapshotsInProgress != SnapshotsInProgress.get(event.previousState())
-            || event.routingTableChanged();
-
-        if (event.clusterJustRecovered() || newMaster || snapshotsOrRoutingChanged) {
+        if (newMaster || snapshotsInProgress != SnapshotsInProgress.get(event.previousState()) || event.routingTableChanged()) {
             if (snapshotsInProgress.asStream().anyMatch(SnapshotsInProgress.Entry::hasShardsInWaitingState)) {
                 cancelRecoveriesBlockingSnapshots();
             }

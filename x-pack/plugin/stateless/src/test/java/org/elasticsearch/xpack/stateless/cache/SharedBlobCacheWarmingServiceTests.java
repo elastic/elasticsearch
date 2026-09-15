@@ -2872,6 +2872,7 @@ public class SharedBlobCacheWarmingServiceTests extends ESTestCase {
                     .build();
             }
         }) {
+
             var warmingService = fakeNode.warmingService;
 
             // We want to force the warming tasks that we assert on to go into the queue of the task runner.
@@ -3091,6 +3092,70 @@ public class SharedBlobCacheWarmingServiceTests extends ESTestCase {
             safeGet(mergeWarmFuture);
 
             threadPoolBlocker.countDown();
+        }
+    }
+
+    public void testMergeWarmingSchedulesOneTaskPerRegion() throws IOException {
+        var primaryTerm = 1;
+        var warmingTasks = new ArrayList<AbstractWarmingTask>();
+        try (var fakeNode = new FakeStatelessNode(this::newEnvironment, this::newNodeEnvironment, xContentRegistry(), primaryTerm) {
+            @Override
+            protected SharedBlobCacheWarmingService createSharedBlobCacheWarmingService(
+                StatelessSharedBlobCacheService cacheService,
+                ThreadPool threadPool,
+                TelemetryProvider telemetryProvider,
+                ClusterSettings clusterSettings,
+                WarmingRatioProvider warmingRatioProvider
+            ) {
+                return new SharedBlobCacheWarmingService(
+                    cacheService,
+                    threadPool,
+                    telemetryProvider,
+                    clusterSettings,
+                    warmingRatioProvider
+                ) {
+                    @Override
+                    protected void scheduleWarmingTask(AbstractWarmingTask task) {
+                        warmingTasks.add(task);
+                        super.scheduleWarmingTask(task);
+                    }
+                };
+            }
+        }) {
+            var fileName = "_segment1.si";
+            var segmentInfo = new SegmentInfo(
+                fakeNode.indexingDirectory,
+                Version.LATEST,
+                Version.LATEST,
+                "_segment1",
+                Integer.MAX_VALUE,
+                false,
+                false,
+                null,
+                Map.of(),
+                new byte[16],
+                Map.of(),
+                null
+            );
+            segmentInfo.setFiles(List.of(fileName));
+            var segmentCommitInfo = new SegmentCommitInfo(segmentInfo, 0, 0, -1L, -1L, -1L, new byte[16]);
+
+            int regionCount = randomIntBetween(2, 5);
+            var blobName = StatelessCompoundCommit.blobNameFromGeneration(1);
+            var blobFile = new BlobFile(blobName, new PrimaryTermAndGeneration(primaryTerm, 1));
+            var blobLocation = new BlobLocation(blobFile, 0, (long) regionCount * fakeNode.sharedCacheService.getRegionSize());
+            var mergeWarmFuture = new PlainActionFuture<Void>();
+            fakeNode.warmingService.warmCacheMerge(
+                "test-merge",
+                fakeNode.shardId,
+                fakeNode.indexingStore,
+                List.of(segmentCommitInfo),
+                ignored -> blobLocation,
+                () -> false,
+                mergeWarmFuture
+            );
+            assertThat(warmingTasks, hasSize(regionCount));
+            safeGet(mergeWarmFuture);
         }
     }
 

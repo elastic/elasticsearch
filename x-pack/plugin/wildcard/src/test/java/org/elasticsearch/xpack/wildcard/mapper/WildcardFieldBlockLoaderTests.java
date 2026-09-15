@@ -31,8 +31,6 @@ public class WildcardFieldBlockLoaderTests extends BlockLoaderTestCase {
     protected Object expected(Map<String, Object> fieldMapping, Object value, TestContext testContext) {
         var nullValue = (String) fieldMapping.get("null_value");
 
-        // ignore_above is a no-op in strictly columnar index modes for current-version indices: values
-        // exceeding the configured limit are indexed normally rather than dropped.
         var ignoreAbove = (fieldMapping.get("ignore_above") == null || params.indexMode().isStrictColumnar())
             ? Integer.MAX_VALUE
             : ((Number) fieldMapping.get("ignore_above")).intValue();

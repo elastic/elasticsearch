@@ -145,7 +145,6 @@ public class KeywordFieldSyntheticSourceSupport implements MapperTestCase.Synthe
 
         List<String> validValues = new ArrayList<>();
         List<String> ignoredValues = new ArrayList<>();
-        // ignore_above is a no-op in strictly columnar mode: all values are kept, none are "ignored".
         boolean ignoreAboveIsNoOp = isColumnar;
         values.stream().map(Tuple::v2).forEach(v -> {
             if (ignoreAboveIsNoOp == false && ignoreAbove != null && v.length() > ignoreAbove) {
@@ -183,7 +182,6 @@ public class KeywordFieldSyntheticSourceSupport implements MapperTestCase.Synthe
             return Tuple.tuple(null, nullValue);
         }
         int length = 5;
-        // In columnar mode ignore_above is a no-op, so over-limit values land in validValues.
         if (ignoreAbove != null && (allIgnored || ESTestCase.randomBoolean())) {
             length = ignoreAbove + 5;
         }

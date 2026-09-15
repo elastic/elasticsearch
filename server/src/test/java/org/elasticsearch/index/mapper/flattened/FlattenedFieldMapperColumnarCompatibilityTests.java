@@ -277,7 +277,6 @@ public class FlattenedFieldMapperColumnarCompatibilityTests extends AbstractColu
      * retained for pre-gate columnar indices where the {@code _keyed._ignored} channel may already contain data.
      */
     public void testIgnoreAboveIsNoOpInColumnar() throws IOException {
-        // "too long" (7 chars) exceeds ignore_above: 4, but the limit is inert in columnar mode.
         assertColumnarMatchesXContent(
             mapping(b -> b.startObject(FIELD).field("type", "flattened").field("ignore_above", 4).endObject()),
             columnarSettings(),

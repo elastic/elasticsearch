@@ -1349,7 +1349,6 @@ public class WildcardFieldMapperTests extends MapperTestCase {
             List<String> in = values.stream().map(Tuple::v1).toList();
             List<String> docValuesValues = new ArrayList<>();
             List<String> ignoredValues = new ArrayList<>();
-            // ignore_above is a no-op in strictly columnar index modes: all values are kept.
             boolean ignoreAboveIsNoOp = isColumnar;
             values.stream().map(Tuple::v2).forEach(v -> {
                 if (ignoreAboveIsNoOp == false && ignoreAbove != null && v.length() > ignoreAbove) {
@@ -1389,9 +1388,6 @@ public class WildcardFieldMapperTests extends MapperTestCase {
                 return Tuple.tuple(null, nullValue);
             }
             int length = 5;
-            // Generate over-limit values in all modes. In columnar mode (post-gate) ignore_above is a
-            // no-op, so these values are kept rather than ignored — the classification guard routes
-            // them to validValues and the synthetic-source expectation is correct.
             if (ignoreAbove != null && (allIgnored || randomBoolean())) {
                 length = ignoreAbove + 5;
             }

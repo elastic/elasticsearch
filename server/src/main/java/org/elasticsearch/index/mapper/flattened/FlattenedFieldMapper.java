@@ -1968,7 +1968,6 @@ public final class FlattenedFieldMapper extends FieldMapper implements PassThrou
                             value = nullValueBytes;
                         }
                         if (value != null) {
-                            // Unreachable for strictly columnar indices >= IGNORE_ABOVE_NO_OP_IN_COLUMNAR; retained for older indices.
                             if (checkIgnoreAbove && fieldType().ignoreAbove().isIgnored(value)) {
                                 throw new UnsupportedOperationException(
                                     "mapColumnGroupBatch: value for key ["

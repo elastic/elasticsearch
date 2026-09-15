@@ -102,7 +102,6 @@ public class FlattenedFieldKeyedBlockLoaderTests extends BinaryDVBlockLoaderTest
                 || params.syntheticSource()
                 || params.isColumnarStored());
 
-        // ignore_above is a no-op in strictly columnar index modes for current-version indices.
         int ignoreAbove = fieldMapping.get("ignore_above") != null && useDocValues && params.indexMode().isStrictColumnar() == false
             ? ((Number) fieldMapping.get("ignore_above")).intValue()
             : Integer.MAX_VALUE;

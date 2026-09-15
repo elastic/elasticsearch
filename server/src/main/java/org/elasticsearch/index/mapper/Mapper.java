@@ -189,8 +189,6 @@ public abstract class Mapper implements ToXContentFragment, Iterable<Mapper> {
 
         public IgnoreAbove(Integer value, IndexMode indexMode) {
             this(value, indexMode, IndexVersion.current());
-            // Callers that cannot supply the created index version must not use strictly columnar modes,
-            // because the version determines whether ignore_above is inert for those modes.
             assert indexMode == null || indexMode.isStrictColumnar() == false;
         }
 

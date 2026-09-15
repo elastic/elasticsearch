@@ -148,7 +148,6 @@ public final class TextFieldFamilySyntheticSourceTestSetup {
                 return docValuesFieldExample(maxValues);
             }
 
-            // In strictly columnar mode ignore_above is a no-op, so the keyword multi-field remains usable.
             boolean loadingFromSource = ignoreAbove != null && isColumnar == false;
             MapperTestCase.SyntheticSourceExample delegate = keywordMultiFieldSyntheticSourceSupport.example(
                 maxValues,

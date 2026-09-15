@@ -1540,7 +1540,6 @@ public final class KeywordFieldMapper extends FieldMapper {
     private final String offsetsFieldName;
 
     private final IndexVersion indexCreatedVersion;
-    // True when the value targets an inverted-index term or SORTED_SET doc values (MAX_TERM_LENGTH applies).
     private final boolean writesIndexableField;
 
     private KeywordFieldMapper(
@@ -1687,8 +1686,6 @@ public final class KeywordFieldMapper extends FieldMapper {
     @Override
     protected void doMapColumnBatch(BatchMappingContext ctx, EscfColumn source) {
         final boolean emitTerms = fieldType.indexOptions() != IndexOptions.NONE || fieldType.stored();
-        // emitTerms omits docValuesType != NONE deliberately: supportsColumnarParse requires usesBinaryDocValues(),
-        // so a SORTED_SET keyword (which Lucene does enforce MAX_TERM_LENGTH on) can never reach mapColumnBatch.
         final boolean checkIgnoreAbove = fieldType().ignoreAbove().valuesPotentiallyIgnored();
         final boolean emitFallback = storeIgnoredValuesForSyntheticSource() && checkIgnoreAbove;
         final boolean emitDvs = fieldType().hasDocValues();
@@ -1808,7 +1805,6 @@ public final class KeywordFieldMapper extends FieldMapper {
                     }
                 }
 
-                // Unreachable for strictly columnar indices >= IGNORE_ABOVE_NO_OP_IN_COLUMNAR; retained for older indices.
                 if (checkIgnoreAbove && fieldType().ignoreAbove().isIgnored(binaryValue)) {
                     if (ignoredThisDoc == false) {
                         ctx.addIgnoredFieldColumnar(currentDoc, fullPath());
@@ -1924,17 +1920,13 @@ public final class KeywordFieldMapper extends FieldMapper {
                     }
                 }
 
-                // TODO: Can move this validation earlier based on array type
                 if (valueSeenThisDoc) {
-                    // multi_value=false violation: bail so ShardBatchMapper falls back to the row path,
-                    // which raises the correct per-doc error (on_failure=FAIL).
                     throw new UnsupportedOperationException(
                         "mapColumnBatch: multi_value=false field [" + fullPath() + "] has more than one value for doc [" + currentDoc + "]"
                     );
                 }
                 valueSeenThisDoc = true;
 
-                // Unreachable for strictly columnar indices >= IGNORE_ABOVE_NO_OP_IN_COLUMNAR; retained for older indices.
                 if (checkIgnoreAbove && fieldType().ignoreAbove().isIgnored(binaryValue)) {
                     ctx.addIgnoredFieldColumnar(currentDoc, fullPath());
                     // Deoptimize: we were planning to zero-copy the source column, but now we must

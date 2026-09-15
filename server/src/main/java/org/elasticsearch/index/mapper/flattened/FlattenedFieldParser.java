@@ -56,8 +56,6 @@ class FlattenedFieldParser {
     private final FlattenedFieldMapper.PreserveLeafArrays preserveLeafArrays;
 
     private final boolean writeDimensionRouting;
-    // True when the output includes an inverted-index term or SORTED_SET doc values (MAX_TERM_LENGTH applies);
-    // always false in strictly columnar mode, where only binary doc values are written.
     private final boolean checkTermLength;
 
     FlattenedFieldParser(
@@ -204,7 +202,6 @@ class FlattenedFieldParser {
             return;
         }
 
-        // Skipped when only binary DV is written (no MAX_TERM_LENGTH limit applies there).
         if (checkTermLength && bytesKeyedValue.length > IndexWriter.MAX_TERM_LENGTH) {
             String msg = "Flattened field ["
                 + rootFieldFullPath

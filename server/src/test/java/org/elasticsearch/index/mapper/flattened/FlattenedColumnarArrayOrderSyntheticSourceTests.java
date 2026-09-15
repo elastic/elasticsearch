@@ -167,8 +167,6 @@ public class FlattenedColumnarArrayOrderSyntheticSourceTests extends MapperServi
     // --- ignore_above ---
 
     public void testIgnoreAboveIsNoOpValuesStayInDocumentOrder() throws IOException {
-        // ignore_above is a no-op in strictly columnar index modes for current-version indices.
-        // All values are stored in their original document order, regardless of length.
         Settings settings = Settings.builder().put(IndexSettings.MODE.getKey(), IndexMode.COLUMNAR.getName()).build();
         DocumentMapper mapper = createMapperService(
             settings,
@@ -185,7 +183,6 @@ public class FlattenedColumnarArrayOrderSyntheticSourceTests extends MapperServi
                 {"field":{"k":["cc","aaaa","bb"]}}""",
             syntheticSource(
                 mapper,
-                // ignore_above: 3 is a no-op; "aaaa" (4 chars) is indexed in its original document position.
                 b -> b.startObject("field").startArray("k").value("cc").value("aaaa").value("bb").endArray().endObject()
             )
         );

@@ -4054,7 +4054,6 @@ public class DenseVectorFieldMapper extends FieldMapper {
             }
 
             if (hasDocValues() && (blContext.fieldExtractPreference() != FieldExtractPreference.STORED || isSyntheticSource)) {
-                // TODO: Get from doc values when excludeSourceVectors == true
                 return new DenseVectorFromBinaryBlockLoader(name(), dims, indexVersionCreated, element.elementType());
             }
             return new BlockSourceReader.DenseVectorBlockLoader(

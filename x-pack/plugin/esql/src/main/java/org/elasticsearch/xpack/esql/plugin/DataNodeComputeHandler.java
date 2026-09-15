@@ -13,13 +13,14 @@ import org.elasticsearch.action.ActionListenerResponseHandler;
 import org.elasticsearch.action.ActionRunnable;
 import org.elasticsearch.action.OriginalIndices;
 import org.elasticsearch.action.support.ChannelActionListener;
-import org.elasticsearch.action.support.ContextPreservingActionListener;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.action.support.RefCountingRunnable;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.project.ProjectResolver;
 import org.elasticsearch.cluster.routing.SplitShardCountSummary;
 import org.elasticsearch.cluster.service.ClusterService;
+import org.elasticsearch.common.logging.HeaderWarning;
+import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.compute.lucene.EmptyIndexedByShardId;
 import org.elasticsearch.compute.lucene.IndexedByShardId;
 import org.elasticsearch.compute.operator.DriverCompletionInfo;
@@ -190,9 +191,7 @@ final class DataNodeComputeHandler implements TransportRequestHandler<DataNodeRe
                             onGroupFailure = runOnTaskFailure;
                         }
                         final AtomicReference<DataNodeComputeResponse> nodeResponseRef = new AtomicReference<>();
-                        try (
-                            var computeListener = new ComputeListener(threadPool, onGroupFailure, l.map(ignored -> nodeResponseRef.get()))
-                        ) {
+                        try (var computeListener = new ComputeListener(onGroupFailure, l.map(ignored -> nodeResponseRef.get()))) {
                             final boolean sameNodeAsCoordinator = transportService.getLocalNode()
                                 .getId()
                                 .equals(connection.getNode().getId());
@@ -213,6 +212,7 @@ final class DataNodeComputeHandler implements TransportRequestHandler<DataNodeRe
                                 queryPragmas.nodeLevelReduction() && sameNodeAsCoordinator == false,
                                 queryPragmas.nodeLevelReduction() && enableReduceNodeLateMaterialization
                             );
+                            ThreadContext threadContext = transportService.getThreadPool().getThreadContext();
                             transportService.sendChildRequest(
                                 connection,
                                 ComputeService.DATA_ACTION_NAME,
@@ -222,7 +222,7 @@ final class DataNodeComputeHandler implements TransportRequestHandler<DataNodeRe
                                 new ActionListenerResponseHandler<>(computeListener.acquireCompute().map(r -> {
                                     nodeResponseRef.set(r);
                                     return r.completionInfo();
-                                }), DataNodeComputeResponse::new, searchExecutor)
+                                }), in -> new DataNodeComputeResponse(in, threadContext), searchExecutor)
                             );
                             final var remoteSink = exchangeService.newRemoteSink(groupTask, childSessionId, transportService, connection);
                             exchangeSource.addRemoteSink(
@@ -350,7 +350,7 @@ final class DataNodeComputeHandler implements TransportRequestHandler<DataNodeRe
                         groupTask = parentTask;
                         onGroupFailure = runOnTaskFailure;
                     }
-                    try (var computeListener = new ComputeListener(threadPool, onGroupFailure, l.map(ignored -> null))) {
+                    try (var computeListener = new ComputeListener(onGroupFailure, l.map(ignored -> null))) {
                         var dataNodeRequest = new DataNodeRequest(
                             childSessionId,
                             configuration,
@@ -364,6 +364,7 @@ final class DataNodeComputeHandler implements TransportRequestHandler<DataNodeRe
                             false,
                             nodeSplits
                         );
+                        ThreadContext threadContext = transportService.getThreadPool().getThreadContext();
                         transportService.sendChildRequest(
                             connection,
                             ComputeService.DATA_ACTION_NAME,
@@ -371,8 +372,8 @@ final class DataNodeComputeHandler implements TransportRequestHandler<DataNodeRe
                             groupTask,
                             TransportRequestOptions.EMPTY,
                             new ActionListenerResponseHandler<>(
-                                computeListener.acquireCompute().map(r -> r.completionInfo()),
-                                DataNodeComputeResponse::new,
+                                computeListener.acquireCompute().map(DataNodeComputeResponse::completionInfo),
+                                in -> new DataNodeComputeResponse(in, threadContext),
                                 searchExecutor
                             )
                         );
@@ -689,7 +690,6 @@ final class DataNodeComputeHandler implements TransportRequestHandler<DataNodeRe
         final Map<ShardId, Exception> shardLevelFailures = new HashMap<>();
         try (
             ComputeListener computeListener = new ComputeListener(
-                transportService.getThreadPool(),
                 computeService.cancelQueryOnFailure(task),
                 listener.map(profiles -> new DataNodeComputeResponse(profiles, shardLevelFailures))
             )
@@ -741,15 +741,11 @@ final class DataNodeComputeHandler implements TransportRequestHandler<DataNodeRe
                     LocalPhysicalOptimization.DISABLED,
                     planTimeProfile,
                     ActionListener.wrap(resp -> {
-                        // don't return until all pages are fetched; preserve the current thread context (which holds the
-                        // reduction driver's warnings) because the completion listener may fire on a different thread
-                        // (the transport thread that processes the coordinator's fetchPageAsync call)
-                        externalSink.addCompletionListener(
-                            ContextPreservingActionListener.wrapPreservingContext(ActionListener.running(() -> {
-                                exchangeService.finishSinkHandler(externalId, null);
-                                reductionListener.onResponse(resp);
-                            }), threadPool.getThreadContext())
-                        );
+                        // don't return until all pages are fetched
+                        externalSink.addCompletionListener(ActionListener.running(() -> {
+                            exchangeService.finishSinkHandler(externalId, null);
+                            reductionListener.onResponse(resp);
+                        }));
                     }, e -> {
                         LOGGER.debug("Error in node-level reduction", e);
                         exchangeService.finishSinkHandler(externalId, e);
@@ -767,7 +763,15 @@ final class DataNodeComputeHandler implements TransportRequestHandler<DataNodeRe
 
     @Override
     public void messageReceived(DataNodeRequest request, TransportChannel channel, Task task) {
-        ActionListener<DataNodeComputeResponse> listener = new ChannelActionListener<>(channel);
+        ActionListener<DataNodeComputeResponse> channelListener = new ChannelActionListener<>(channel);
+        // Old coordinators receive warnings as transport response headers rather than the ESQL_DRIVER_WARNINGS
+        // wire field. Emit them here — before the channel serialises its ThreadContext — so they are included.
+        final ActionListener<DataNodeComputeResponse> listener = channel.getVersion().supports(DriverCompletionInfo.ESQL_DRIVER_WARNINGS)
+            ? channelListener
+            : channelListener.map(resp -> {
+                resp.completionInfo().warnings().forEach(HeaderWarning::addWarning);
+                return resp;
+            });
         Configuration configuration = request.configuration();
         PlanTimeProfile planTimeProfile = null;
         if (configuration.profile()) {
@@ -861,7 +865,6 @@ final class DataNodeComputeHandler implements TransportRequestHandler<DataNodeRe
 
         try (
             ComputeListener computeListener = new ComputeListener(
-                threadPool,
                 computeService.cancelQueryOnFailure(task),
                 listener.map(profiles -> new DataNodeComputeResponse(profiles, Map.of()))
             )
@@ -896,6 +899,7 @@ final class DataNodeComputeHandler implements TransportRequestHandler<DataNodeRe
                     LocalPhysicalOptimization.DISABLED,
                     planTimeProfile,
                     ActionListener.wrap(resp -> {
+                        // don't return until all pages are fetched
                         externalSink.addCompletionListener(ActionListener.running(() -> {
                             exchangeService.finishSinkHandler(sessionId, null);
                             driverCompletionListener.onResponse(resp);

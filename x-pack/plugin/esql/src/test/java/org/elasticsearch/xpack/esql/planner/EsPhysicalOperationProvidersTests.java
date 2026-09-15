@@ -10,10 +10,13 @@ package org.elasticsearch.xpack.esql.planner;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeValue;
+import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.compute.lucene.IndexedByShardIdFromSingleton;
 import org.elasticsearch.compute.lucene.read.ValuesSourceReaderOperator;
 import org.elasticsearch.compute.operator.DriverContext;
+import org.elasticsearch.compute.querydsl.query.QueryWarnings;
 import org.elasticsearch.compute.test.NoOpReleasable;
+import org.elasticsearch.compute.test.TestBlockFactory;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.index.IndexSettings;
@@ -65,6 +68,7 @@ import java.util.Set;
 import java.util.function.BiFunction;
 
 import static java.util.Collections.emptyMap;
+import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.instanceOf;
 
@@ -100,7 +104,8 @@ public class EsPhysicalOperationProvidersTests extends MapperServiceTestCase {
                 new EsPhysicalOperationProviders.DefaultShardContext(0, () -> {}, createMockContext(), AliasFilter.EMPTY)
             ),
             null,
-            PlannerSettings.DEFAULTS
+            PlannerSettings.DEFAULTS,
+            QueryWarnings.EMIT
         );
         for (TestCase testCase : testCases) {
             EsQueryExec queryExec = new EsQueryExec(
@@ -220,7 +225,8 @@ public class EsPhysicalOperationProvidersTests extends MapperServiceTestCase {
             FoldContext.small(),
             new IndexedByShardIdFromSingleton<>(shardContext),
             null,
-            PlannerSettings.DEFAULTS
+            PlannerSettings.DEFAULTS,
+            QueryWarnings.EMIT
         );
         ValuesSourceReaderOperator.LoaderAndConverter loaderAndConverter = temporalityLoader(provider);
         assertThat(loaderAndConverter.loader(), equalTo(ConstantNull.INSTANCE));
@@ -252,7 +258,8 @@ public class EsPhysicalOperationProvidersTests extends MapperServiceTestCase {
             FoldContext.small(),
             new IndexedByShardIdFromSingleton<>(shardContext),
             null,
-            PlannerSettings.DEFAULTS
+            PlannerSettings.DEFAULTS,
+            QueryWarnings.EMIT
         );
         ValuesSourceReaderOperator.LoaderAndConverter loaderAndConverter = temporalityLoader(provider);
         assertThat(loaderAndConverter.loader(), instanceOf(AbstractBytesRefsFromOrdsBlockLoader.class));
@@ -285,7 +292,8 @@ public class EsPhysicalOperationProvidersTests extends MapperServiceTestCase {
             FoldContext.small(),
             new IndexedByShardIdFromSingleton<>(shardContext),
             null,
-            PlannerSettings.DEFAULTS
+            PlannerSettings.DEFAULTS,
+            QueryWarnings.EMIT
         );
         assertThat(temporalityLoader(provider).loader(), equalTo(ConstantNull.INSTANCE));
         ensureNoWarnings();
@@ -317,13 +325,19 @@ public class EsPhysicalOperationProvidersTests extends MapperServiceTestCase {
             FoldContext.small(),
             new IndexedByShardIdFromSingleton<>(shardContext),
             null,
-            PlannerSettings.DEFAULTS
+            PlannerSettings.DEFAULTS,
+            QueryWarnings.EMIT
         );
-        assertThat(temporalityLoader(provider).loader(), equalTo(ConstantNull.INSTANCE));
-        assertWarnings(
-            "Line -1:-1: warnings during evaluation of []. Only first 20 failures recorded.",
-            "Line -1:-1: java.lang.IllegalArgumentException: configured temporality field [metric_temporality] has type [long], expected "
-                + "[keyword]; assuming default temporality for all values"
+        DriverContext ctx = new DriverContext(BigArrays.NON_RECYCLING_INSTANCE, TestBlockFactory.getNonBreakingInstance(), null);
+        assertThat(temporalityLoader(provider, ctx).loader(), equalTo(ConstantNull.INSTANCE));
+        ctx.finish();
+        assertThat(
+            ctx.warnings(),
+            containsInAnyOrder(
+                "Line -1:-1: warnings during evaluation of []. Only first 20 failures recorded.",
+                "Line -1:-1: java.lang.IllegalArgumentException: configured temporality field [metric_temporality] has type [long]"
+                    + ", expected [keyword]; assuming default temporality for all values"
+            )
         );
     }
 
@@ -352,13 +366,19 @@ public class EsPhysicalOperationProvidersTests extends MapperServiceTestCase {
             FoldContext.small(),
             new IndexedByShardIdFromSingleton<>(shardContext),
             null,
-            PlannerSettings.DEFAULTS
+            PlannerSettings.DEFAULTS,
+            QueryWarnings.EMIT
         );
-        assertThat(temporalityLoader(provider).loader(), equalTo(ConstantNull.INSTANCE));
-        assertWarnings(
-            "Line -1:-1: warnings during evaluation of []. Only first 20 failures recorded.",
-            "Line -1:-1: java.lang.IllegalArgumentException: configured temporality field [metric_temporality] must be a time-series "
-                + "dimension; assuming default temporality for all values"
+        DriverContext ctx = new DriverContext(BigArrays.NON_RECYCLING_INSTANCE, TestBlockFactory.getNonBreakingInstance(), null);
+        assertThat(temporalityLoader(provider, ctx).loader(), equalTo(ConstantNull.INSTANCE));
+        ctx.finish();
+        assertThat(
+            ctx.warnings(),
+            containsInAnyOrder(
+                "Line -1:-1: warnings during evaluation of []. Only first 20 failures recorded.",
+                "Line -1:-1: java.lang.IllegalArgumentException: configured temporality field [metric_temporality] must be a time-series "
+                    + "dimension; assuming default temporality for all values"
+            )
         );
     }
 
@@ -400,6 +420,16 @@ public class EsPhysicalOperationProvidersTests extends MapperServiceTestCase {
     }
 
     private ValuesSourceReaderOperator.LoaderAndConverter temporalityLoader(EsPhysicalOperationProviders provider) {
+        return temporalityLoader(
+            provider,
+            new DriverContext(BigArrays.NON_RECYCLING_INSTANCE, TestBlockFactory.getNonBreakingInstance(), null)
+        );
+    }
+
+    private ValuesSourceReaderOperator.LoaderAndConverter temporalityLoader(
+        EsPhysicalOperationProviders provider,
+        DriverContext driverContext
+    ) {
         EsQueryExec queryExec = new EsQueryExec(
             Source.EMPTY,
             "test",
@@ -417,7 +447,7 @@ public class EsPhysicalOperationProvidersTests extends MapperServiceTestCase {
             MappedFieldType.FieldExtractPreference.NONE
         );
         var fieldInfo = provider.extractFields(fieldExtractExec).getFirst();
-        return fieldInfo.buildLoader().build(DriverContext.WarningsMode.COLLECT, 0);
+        return fieldInfo.buildLoader().build(driverContext, 0);
     }
 
     private static Settings tsdbSettings(String temporalityFieldName) {

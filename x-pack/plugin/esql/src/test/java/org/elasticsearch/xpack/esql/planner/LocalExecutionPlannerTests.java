@@ -297,7 +297,17 @@ public class LocalExecutionPlannerTests extends MapperServiceTestCase {
         assertThat(supplier.nodeName(), equalTo("node-1"));
     }
 
+    /**
+     * Skips the tests below that plan an {@link ExternalSourceExec} expecting success. {@link #planner} can only set
+     * {@link Federation#FEDERATION_ENABLED}, which is one half of {@link Federation#isAvailable}; where the feature
+     * is unregistered no setting can make it available, so external-source planning mechanics are not exercisable.
+     */
+    private static void assumeFederationRegistered() {
+        assumeTrue("planning an ExternalSourceExec requires the federation feature to be registered", Federation.isRegistered());
+    }
+
     public void testExternalSourceUsesSliceQueueWhenGenericFileListIsUnresolved() throws IOException {
+        assumeFederationRegistered();
         AtomicReference<SourceOperatorContext> captured = new AtomicReference<>();
         SourceOperatorFactoryProvider provider = capturingProvider(captured);
         OperatorFactoryRegistry operatorFactoryRegistry = new OperatorFactoryRegistry(Map.of(), Map.of("file", provider), Runnable::run);
@@ -359,6 +369,7 @@ public class LocalExecutionPlannerTests extends MapperServiceTestCase {
      * FileList, so {@code sliceQueue} was null here and the operator took the whole-glob path.
      */
     public void testExternalSourceUsesSliceQueueWhenResolvedFileListHasAssignedSplits() throws IOException {
+        assumeFederationRegistered();
         AtomicReference<SourceOperatorContext> captured = new AtomicReference<>();
         SourceOperatorFactoryProvider provider = capturingProvider(captured);
         OperatorFactoryRegistry operatorFactoryRegistry = new OperatorFactoryRegistry(Map.of(), Map.of("file", provider), Runnable::run);
@@ -414,6 +425,11 @@ public class LocalExecutionPlannerTests extends MapperServiceTestCase {
      * The data-node backstop: building the operator for an external source is refused on a node that does not have
      * federation, whoever planned the query. An already-rewritten {@link ExternalSourceExec} can arrive from an
      * enabled coordinator, from a remote cluster, or from a rolling restart that has not reached this node yet.
+     *
+     * <p>Either lever produces this, so the test also passes on a node where the feature is unregistered rather than
+     * merely disabled; it pins the refusal and its message, not which lever caused it. The message stays the generic
+     * {@link Federation#notAvailableException()} wording on every platform — only the parser's {@code EXTERNAL} guard
+     * uses {@link Federation#externalNotSupportedMessage()}, so do not route this path through that helper.
      */
     public void testExternalSourceRefusedWhenFederationIsNotAvailable() throws IOException {
         SourceOperatorFactoryProvider provider = capturingProvider(new AtomicReference<>());
@@ -456,6 +472,7 @@ public class LocalExecutionPlannerTests extends MapperServiceTestCase {
      * {@link org.elasticsearch.xpack.esql.plugin.TransportEsqlQueryAction}.
      */
     public void testPlanExternalSourcePassesDistinctExecutorsToSourceOperatorContext() throws IOException {
+        assumeFederationRegistered();
         AtomicReference<SourceOperatorContext> captured = new AtomicReference<>();
         SourceOperatorFactoryProvider provider = capturingProvider(captured);
         Executor mainExecutor = r -> r.run();
@@ -522,6 +539,7 @@ public class LocalExecutionPlannerTests extends MapperServiceTestCase {
      * handing it to the format reader, so the reader can take its row-count-only fast path.
      */
     public void testExternalSourceCountStarYieldsEmptyProjection() throws IOException {
+        assumeFederationRegistered();
         AtomicReference<SourceOperatorContext> captured = new AtomicReference<>();
         SourceOperatorFactoryProvider provider = capturingProvider(captured);
         OperatorFactoryRegistry operatorFactoryRegistry = new OperatorFactoryRegistry(Map.of(), Map.of("file", provider), Runnable::run);
@@ -571,6 +589,7 @@ public class LocalExecutionPlannerTests extends MapperServiceTestCase {
      * {@code ExternalHivePartitionDistributedValueIT}.
      */
     public void testExternalSourceReadsPartitionColumnNamesFromSourceMetadataStamp() throws IOException {
+        assumeFederationRegistered();
         AtomicReference<SourceOperatorContext> captured = new AtomicReference<>();
         SourceOperatorFactoryProvider provider = capturingProvider(captured);
         OperatorFactoryRegistry operatorFactoryRegistry = new OperatorFactoryRegistry(Map.of(), Map.of("file", provider), Runnable::run);

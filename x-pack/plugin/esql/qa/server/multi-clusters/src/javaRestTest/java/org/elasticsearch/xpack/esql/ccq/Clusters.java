@@ -13,7 +13,7 @@ import org.elasticsearch.test.cluster.local.distribution.DistributionType;
 import org.elasticsearch.test.cluster.util.Version;
 import org.elasticsearch.test.cluster.util.resource.Resource;
 import org.elasticsearch.xpack.esql.CsvTestUtils;
-import org.elasticsearch.xpack.esql.datasources.Federation;
+import org.elasticsearch.xpack.esql.datasources.FederationClusters;
 import org.elasticsearch.xpack.esql.qa.rest.EsqlDataSourceMixedClusterTestSupport;
 
 import java.nio.file.Path;
@@ -55,7 +55,7 @@ public class Clusters {
         // before the flag existed (9.5.0).
         cluster.feature(FeatureFlag.ESQL_EXTERNAL_DATASOURCES_LOCAL);
         if (knowsFederationSetting(remoteClusterVersion())) {
-            cluster.setting(Federation.FEDERATION_ENABLED.getKey(), "true");
+            FederationClusters.enable(cluster);
         }
         if (remoteClusterSupportsInferenceTestService()) {
             cluster.plugin("inference-service-test");
@@ -141,7 +141,7 @@ public class Clusters {
         // unconditionally is also safe for older BWC nodes.
         cluster.feature(FeatureFlag.ESQL_EXTERNAL_DATASOURCES_LOCAL);
         if (knowsFederationSetting(localClusterVersion())) {
-            cluster.setting(Federation.FEDERATION_ENABLED.getKey(), "true");
+            FederationClusters.enable(cluster);
         }
         if (localClusterSupportsInferenceTestService()) {
             cluster.plugin("inference-service-test");

@@ -22,6 +22,7 @@ import org.elasticsearch.xpack.esql.core.expression.NamedExpression;
 import org.elasticsearch.xpack.esql.core.expression.ReferenceAttribute;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
+import org.elasticsearch.xpack.esql.datasources.Federation;
 import org.elasticsearch.xpack.esql.expression.Order;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.Count;
 import org.elasticsearch.xpack.esql.optimizer.LocalPhysicalOptimizerContext;
@@ -214,6 +215,9 @@ public class PushTopNIntoExternalSourceTests extends ESTestCase {
      */
     public void testFullPipelineMultiKeySortPushesTopNAnnotation() {
         assumeTrue("requires EXTERNAL command capability", EsqlCapabilities.Cap.EXTERNAL_COMMAND.isEnabled());
+        // This is the only test here that goes through the parser; the rest build the plan directly, so they are
+        // unaffected by the parser's refusal of EXTERNAL on an unregistered node.
+        assumeTrue("requires the federation feature to be registered", Federation.isRegistered());
 
         String path = "file:///test.parquet";
         List<Attribute> schema = List.of(referenceAttribute("user_id", DataType.KEYWORD), referenceAttribute("region", DataType.KEYWORD));

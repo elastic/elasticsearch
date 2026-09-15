@@ -156,7 +156,10 @@ public final class EsqlDataSourceMixedClusterTestSupport {
      * knows the setting gets it; a build that predates it registers federation unconditionally and has it on without one.
      */
     private static void configureNode(LocalNodeSpecBuilder node, Version version, boolean detached, Supplier<String> localAllowedPath) {
-        if (detached == false && version.onOrAfter(Version.V_9_5_0)) {
+        // Only where the platform can run federation: elsewhere the node registers none of the feature's settings
+        // and would reject this key at startup. Registration itself is a JVM property and so cannot be set per node;
+        // where it defaults off, these suites skip on Federation.SUPPORTED rather than running unfederated.
+        if (detached == false && version.onOrAfter(Version.V_9_5_0) && Federation.SUPPORTED) {
             node.setting(FEDERATION_ENABLED_SETTING, "true");
         }
         if (detached == false && localAllowedPath != null && version.onOrAfter(Version.V_9_5_0)) {

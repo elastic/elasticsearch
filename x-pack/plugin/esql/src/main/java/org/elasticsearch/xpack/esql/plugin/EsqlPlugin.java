@@ -394,16 +394,22 @@ public class EsqlPlugin extends Plugin implements ActionPlugin, ExtensiblePlugin
         // initialized, which getSettings() has already triggered by reading FEDERATION_ENABLED off the class.
         Federation.logEffectiveState(services.clusterService().getSettings());
 
+        boolean federationRegistered = Federation.isRegistered();
+
         // Discover DataSourcePlugin implementations via SPI (META-INF/services)
-        // This discovers built-in plugins from this plugin's classloader
+        // This discovers built-in plugins from this plugin's classloader.
+        // Skipped entirely while the feature is unregistered: nothing can reach a data source plugin then, so
+        // loading them would only instantiate dead code. DataSourceCapabilities then declares no formats at all.
         List<DataSourcePlugin> allDataSourcePlugins = new ArrayList<>(dataSourcePlugins);
-        SPIClassIterator<DataSourcePlugin> spiIterator = SPIClassIterator.get(DataSourcePlugin.class, getClass().getClassLoader());
-        while (spiIterator.hasNext()) {
-            Class<? extends DataSourcePlugin> pluginClass = spiIterator.next();
-            try {
-                allDataSourcePlugins.add(pluginClass.getConstructor().newInstance());
-            } catch (Exception e) {
-                throw new IllegalStateException("Failed to instantiate DataSourcePlugin: " + pluginClass.getName(), e);
+        if (federationRegistered) {
+            SPIClassIterator<DataSourcePlugin> spiIterator = SPIClassIterator.get(DataSourcePlugin.class, getClass().getClassLoader());
+            while (spiIterator.hasNext()) {
+                Class<? extends DataSourcePlugin> pluginClass = spiIterator.next();
+                try {
+                    allDataSourcePlugins.add(pluginClass.getConstructor().newInstance());
+                } catch (Exception e) {
+                    throw new IllegalStateException("Failed to instantiate DataSourcePlugin: " + pluginClass.getName(), e);
+                }
             }
         }
 
@@ -418,8 +424,8 @@ public class EsqlPlugin extends Plugin implements ActionPlugin, ExtensiblePlugin
         // Federation#settings), so an unregistered node has neither a configured value to start from nor an update
         // consumer to attach: ClusterSettings rejects a consumer for a setting it does not know. The credential gates
         // below are therefore off outright rather than resolved from settings, which states the invariant here instead
-        // of resting on startup validation having already rejected the keys.
-        boolean federationRegistered = Federation.isRegistered();
+        // of resting on startup validation having already rejected the keys. (federationRegistered is read above,
+        // where it also gates data source plugin discovery.)
 
         // Read through MANAGED_IDENTITY_ENABLED, which falls back to the deprecated workload_identity key, so a
         // pre-rename operator config is still honored. Its update consumer fires on changes to either key because the
@@ -864,7 +870,11 @@ public class EsqlPlugin extends Plugin implements ActionPlugin, ExtensiblePlugin
     @Override
     public void loadExtensions(ExtensionLoader loader) {
         extraCheckerProviders.addAll(loader.loadExtensions(PlanCheckerProvider.class));
-        dataSourcePlugins.addAll(loader.loadExtensions(DataSourcePlugin.class));
+        // Same reasoning as the SPI discovery in createComponents: an unregistered feature has no reachable
+        // data source plugins, so loading the extensions would only instantiate dead code.
+        if (Federation.isRegistered()) {
+            dataSourcePlugins.addAll(loader.loadExtensions(DataSourcePlugin.class));
+        }
         loadMetricsCollectors(loader);
     }
 

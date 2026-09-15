@@ -14,6 +14,7 @@ import org.elasticsearch.xpack.esql.VerificationException;
 import org.elasticsearch.xpack.esql.action.EsqlCapabilities;
 import org.elasticsearch.xpack.esql.core.expression.Literal;
 import org.elasticsearch.xpack.esql.core.type.DataType;
+import org.elasticsearch.xpack.esql.datasources.Federation;
 import org.elasticsearch.xpack.esql.expression.function.scalar.string.StartsWith;
 import org.elasticsearch.xpack.esql.expression.function.scalar.string.regex.RLike;
 import org.elasticsearch.xpack.esql.expression.predicate.logical.Not;
@@ -626,6 +627,9 @@ public class OptimizerVerificationTests extends AbstractLogicalPlanOptimizerTest
 
     public void testEnrichRemoteRejected() {
         assumeTrue("requires EXTERNAL command capability", EsqlCapabilities.Cap.EXTERNAL_COMMAND.isEnabled());
+        // The parser refuses EXTERNAL outright while the feature is unregistered, so the query never reaches the
+        // verifier rule under test.
+        assumeTrue("requires the federation feature to be registered", Federation.isRegistered());
 
         var testAnalyzer = external().addEnrichPolicy(
             Enrich.Mode.REMOTE,

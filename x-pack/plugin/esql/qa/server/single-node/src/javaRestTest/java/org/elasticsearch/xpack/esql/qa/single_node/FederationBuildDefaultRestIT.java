@@ -17,6 +17,7 @@ import org.elasticsearch.client.WarningsHandler;
 import org.elasticsearch.test.TestClustersThreadFilter;
 import org.elasticsearch.test.cluster.ElasticsearchCluster;
 import org.elasticsearch.test.rest.ESRestTestCase;
+import org.elasticsearch.xpack.esql.datasources.Federation;
 import org.junit.ClassRule;
 
 import java.io.IOException;
@@ -33,6 +34,11 @@ import static org.hamcrest.Matchers.equalTo;
  * <p>The single test sends one request, the same one in either build, and only the outcome differs. Creating a data
  * source is that request: it needs the whole feature to be available, and unlike creating a dataset it stands alone,
  * with no parent to create first that would make the two builds do different amounts of work.
+ *
+ * <p>Skipped where registration does not default on — on Windows the feature defaults off whatever the build says,
+ * so the {@code esql.federation.enabled} default this suite exists to observe is never reached.
+ * {@link FederationDisabledOnWindowsRestIT} covers that cluster there instead: it takes the same
+ * {@link Clusters#clusterWithoutFederationSettings()} and asserts the unavailable surface.
  */
 @ThreadLeakFilters(filters = TestClustersThreadFilter.class)
 public class FederationBuildDefaultRestIT extends ESRestTestCase {
@@ -48,6 +54,9 @@ public class FederationBuildDefaultRestIT extends ESRestTestCase {
     }
 
     public void testCreatingADataSourceFollowsTheBuildDefault() throws IOException {
+        // This cluster sets no property, so the node takes the platform default; where that is off, the build
+        // default under test is never consulted.
+        assumeTrue("registration must default on for the build default to matter", Federation.DEFAULT_REGISTERED);
         Request putDataSource = new Request("PUT", "/_query/data_source/" + DATA_SOURCE);
         putDataSource.setJsonEntity("""
             {"type": "s3", "settings": {"region": "us-east-1", "auth": "anonymous"}}""");

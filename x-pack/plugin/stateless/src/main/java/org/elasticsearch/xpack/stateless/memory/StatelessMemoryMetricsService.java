@@ -57,6 +57,7 @@ import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.BiConsumer;
 import java.util.function.LongSupplier;
+import java.util.stream.Collectors;
 
 import static org.elasticsearch.indices.ShardLimitValidator.SETTING_CLUSTER_MAX_SHARDS_PER_NODE;
 import static org.elasticsearch.xpack.stateless.memory.ShardMappingSize.UNDEFINED_SHARD_MEMORY_OVERHEAD_BYTES;
@@ -987,21 +988,14 @@ public class StatelessMemoryMetricsService implements ClusterStateListener {
      * {@link org.elasticsearch.cluster.ClusterInfoSimulator}.
      */
     public ShardHeapUsageEstimates getShardHeapUsageEstimates() {
-        return getShardHeapUsageEstimates(snapshotShardMemoryMetrics(createShardHeapEstimator()));
-    }
-
-    private ShardHeapUsageEstimates getShardHeapUsageEstimates(Map<ShardId, ShardAndIndexHeapUsage> shardMemoryMetricsSnapshot) {
-        final var shardHeapEstimator = createShardHeapEstimator();
-        final var defaultForShardsWithoutMetrics = shardHeapEstimator.computeShardHeapUsage(
+        final var estimator = createShardHeapEstimator();
+        final var snapshot = shardMemoryMetrics.entrySet()
+            .stream()
+            .collect(Collectors.toUnmodifiableMap(Map.Entry::getKey, entry -> entry.getValue().snapshot(estimator)));
+        final var defaultForShardsWithoutMetrics = estimator.computeShardHeapUsage(
             newUninitialisedShardMemoryMetrics(relativeTimeInNanos())
         );
-        return new ShardHeapUsageEstimates(shardMemoryMetricsSnapshot, defaultForShardsWithoutMetrics);
-    }
-
-    private Map<ShardId, ShardAndIndexHeapUsage> snapshotShardMemoryMetrics(ShardHeapEstimator estimator) {
-        Map<ShardId, ShardAndIndexHeapUsage> snapshot = new HashMap<>();
-        shardMemoryMetrics.forEach((shardId, shardMemoryMetric) -> snapshot.put(shardId, shardMemoryMetric.snapshot(estimator)));
-        return snapshot;
+        return new ShardHeapUsageEstimates(snapshot, defaultForShardsWithoutMetrics);
     }
 
     public record ShardMergeMemoryEstimate(String mergeId, long estimateInBytes) implements Writeable {

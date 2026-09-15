@@ -2,7 +2,7 @@
 navigation_title: "Query datasets"
 description: "Query external data with ES|QL Data Federation. Learn how the engine reduces storage reads, query external and indexed data together, and troubleshoot common issues."
 applies_to:
-  stack: experimental =9.5
+  stack: experimental 9.5+
   serverless: unavailable
 products:
   - id: elasticsearch
@@ -87,7 +87,7 @@ When sources have different schemas, columns that do not exist in a given source
 | `_score` | null |
 | `_ignored` | null |
 | `_index_mode`, `_tsid`, `_size` | null |
-| `_id`, `_version`, `_source` | null |
+| `_id`, `_version`, `_source` {applies_to}`stack: experimental 9.6+` | null |
 
 `_id`, `_version` and `_source` return `null` on a dataset. A file carries no document identity, no
 document version and no stored source, so the columns bind and every row is `null` rather than carrying

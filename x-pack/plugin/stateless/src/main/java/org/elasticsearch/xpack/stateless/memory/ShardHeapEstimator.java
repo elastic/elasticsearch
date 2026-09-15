@@ -104,19 +104,6 @@ public class ShardHeapEstimator {
 
     public ShardMetricsAggregation aggregateShardMetrics(
         Map<ShardId, StatelessMemoryMetricsService.ShardMemoryMetrics> shardMemoryMetrics,
-        BiConsumer<ShardId, StatelessMemoryMetricsService.ShardMemoryMetrics> metricVisitor
-    ) {
-        return aggregateShardMetrics(shardMemoryMetrics, StatelessMemoryMetricsService.PostingsInEstimate.INCLUDE, metricVisitor);
-    }
-
-    public ShardMetricsAggregation aggregateShardMetrics(
-        Map<ShardId, StatelessMemoryMetricsService.ShardMemoryMetrics> shardMemoryMetrics
-    ) {
-        return aggregateShardMetrics(shardMemoryMetrics, StatelessMemoryMetricsService.PostingsInEstimate.INCLUDE);
-    }
-
-    public ShardMetricsAggregation aggregateShardMetrics(
-        Map<ShardId, StatelessMemoryMetricsService.ShardMemoryMetrics> shardMemoryMetrics,
         StatelessMemoryMetricsService.PostingsInEstimate postingsInEstimate
     ) {
         return aggregateShardMetrics(shardMemoryMetrics, postingsInEstimate, (shardId, metrics) -> {});

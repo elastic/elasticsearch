@@ -28,13 +28,7 @@ import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 
 public class ShardHeapEstimatorTests extends ESTestCase {
 
-    /// Whether we include postings or not,
-    /// [ShardHeapEstimator#computeIndexHeapUsage(StatelessMemoryMetricsService.ShardMemoryMetrics)] plus
-    /// [ShardHeapEstimator#getEffectiveShardPostingsInBytes(StatelessMemoryMetricsService.ShardMemoryMetrics)]
-    ///
-    /// Should sum to the adaptive estimate plus the postings, unless self-reported overheads are enabled and the shard
-    /// includes a self-reported overhead, in which case they should sum to the reported overhead
-    public void testComputeShardHeapUsagePlusEffectivePostingsSumsToTotalExceptWhenSelfReportedOverheadEffective() {
+    public void testComputeShardHeapUsageEqualsAdaptiveOverheadIncludingPostingsOrSelfReportedOverhead() {
         final long mappingSize = randomLongBetween(0, 10_000_000);
         final int numSegments = randomIntBetween(1, 100);
         final int totalFields = randomIntBetween(1, 100);
@@ -53,45 +47,45 @@ public class ShardHeapEstimatorTests extends ESTestCase {
         ) + postingsInMemoryBytes;
 
         for (boolean selfReportedOverheadEnabled : List.of(true, false)) {
-            for (boolean includePostingsInEstimate : List.of(true, false)) {
-                for (boolean selfReportedOverheadPresent : List.of(true, false)) {
-                    final var estimator = new ShardHeapEstimator(
-                        ByteSizeValue.MINUS_ONE,
-                        adaptiveExtraOverheadRatio,
-                        0L,
-                        selfReportedOverheadEnabled
-                    );
+            for (boolean selfReportedOverheadPresent : List.of(true, false)) {
+                final var estimator = new ShardHeapEstimator(
+                    ByteSizeValue.MINUS_ONE,
+                    adaptiveExtraOverheadRatio,
+                    0L,
+                    selfReportedOverheadEnabled
+                );
 
-                    final long selfReportedOverhead = selfReportedOverheadPresent
-                        ? randomValueOtherThan(adaptiveEstimateIncludingPostings, () -> randomLongBetween(1, 100_000_000L))
-                        : UNDEFINED_SHARD_MEMORY_OVERHEAD_BYTES;
+                final long selfReportedOverhead = selfReportedOverheadPresent
+                    ? randomValueOtherThan(adaptiveEstimateIncludingPostings, () -> randomLongBetween(1, 100_000_000L))
+                    : UNDEFINED_SHARD_MEMORY_OVERHEAD_BYTES;
 
-                    final var shardMemoryMetrics = metrics(
-                        mappingSize,
-                        numSegments,
-                        totalFields,
-                        postingsInMemoryBytes,
-                        liveDocsBytes,
-                        pointsInMemoryBytes,
-                        selfReportedOverhead,
-                        metricQuality
-                    );
+                final var shardMemoryMetrics = metrics(
+                    mappingSize,
+                    numSegments,
+                    totalFields,
+                    postingsInMemoryBytes,
+                    liveDocsBytes,
+                    pointsInMemoryBytes,
+                    selfReportedOverhead,
+                    metricQuality
+                );
 
-                    final long expectedValue = selfReportedOverheadEnabled && selfReportedOverheadPresent
-                        ? selfReportedOverhead
-                        : adaptiveEstimateIncludingPostings;
-                    String errorMessage = Strings.format(
-                        """
-                            Unexpected: selfReportedOverheadEnabled=%s, includePostingsInEstimate=%s,\
-                             selfReportedOverheadPresent=%s, selfReportedOverhead=%s""",
-                        selfReportedOverheadEnabled,
-                        includePostingsInEstimate,
-                        selfReportedOverheadPresent,
-                        selfReportedOverhead
-                    );
-                    final var shardAndIndexHeapUsage = estimator.computeShardHeapUsage(shardMemoryMetrics);
-                    assertEquals(errorMessage, expectedValue, shardAndIndexHeapUsage.shardHeapUsageBytes());
-                }
+                final long expectedValue = selfReportedOverheadEnabled && selfReportedOverheadPresent
+                    ? selfReportedOverhead
+                    : adaptiveEstimateIncludingPostings;
+                final var errorMessage = Strings.format(
+                    "Unexpected: selfReportedOverheadEnabled=%s,selfReportedOverheadPresent=%s, selfReportedOverhead=%s",
+                    selfReportedOverheadEnabled,
+                    selfReportedOverheadPresent,
+                    selfReportedOverhead
+                );
+                final var shardAndIndexHeapUsage = estimator.computeShardHeapUsage(shardMemoryMetrics);
+                assertEquals(errorMessage, expectedValue, shardAndIndexHeapUsage.shardHeapUsageBytes());
+                assertEquals(
+                    errorMessage,
+                    shardAndIndexHeapUsage.shardHeapUsageBytesExcludingPostings(),
+                    shardAndIndexHeapUsage.shardHeapUsageBytes() - shardAndIndexHeapUsage.postingsHeapUsageBytes()
+                );
             }
         }
     }
@@ -224,7 +218,7 @@ public class ShardHeapEstimatorTests extends ESTestCase {
 
     public void testAggregateShardMetricsEmpty() {
         ShardHeapEstimator estimator = adaptiveEstimator(0.0, 0L);
-        var result = estimator.aggregateShardMetrics(Map.of());
+        var result = estimator.aggregateShardMetrics(Map.of(), randomFrom(StatelessMemoryMetricsService.PostingsInEstimate.values()));
         assertThat(result.totalShardHeapInBytes(), equalTo(0L));
         assertThat(result.maxShardHeapInBytes(), equalTo(0L));
         assertThat(result.mappingSizeInBytes(), equalTo(0L));
@@ -232,31 +226,52 @@ public class ShardHeapEstimatorTests extends ESTestCase {
     }
 
     public void testAggregateShardMetricsSumsTotals() {
-        final long fixedShardSizeBytes = randomLongBetween(1_000, 10_000_000);
-        ShardHeapEstimator estimator = fixedEstimator(ByteSizeValue.ofBytes(fixedShardSizeBytes));
-        long mapping1 = randomLongBetween(1_000, 2_000), mapping2 = randomLongBetween(1_000, 2_000);
-        var m1 = metrics(mapping1, 0, 0, 0, 0, 0, UNDEFINED_SHARD_MEMORY_OVERHEAD_BYTES, MetricQuality.EXACT);
-        var m2 = metrics(mapping2, 0, 0, 0, 0, 0, UNDEFINED_SHARD_MEMORY_OVERHEAD_BYTES, MetricQuality.EXACT);
-        ShardId id1 = new ShardId(new Index("idx1", "uuid1"), 0);
-        ShardId id2 = new ShardId(new Index("idx2", "uuid2"), 0);
+        for (final var postingsInEstimate : StatelessMemoryMetricsService.PostingsInEstimate.values()) {
+            final long fixedShardSizeBytes = randomLongBetween(1_000, 10_000_000);
+            final long postingsBytes = randomLongBetween(1, 5);
+            final var estimator = fixedEstimator(ByteSizeValue.ofBytes(fixedShardSizeBytes));
+            final long mapping1 = randomLongBetween(1_000, 2_000), mapping2 = randomLongBetween(1_000, 2_000);
+            final var m1 = metrics(mapping1, 0, 0, postingsBytes, 0, 0, UNDEFINED_SHARD_MEMORY_OVERHEAD_BYTES, MetricQuality.EXACT);
+            final var m2 = metrics(mapping2, 0, 0, postingsBytes, 0, 0, UNDEFINED_SHARD_MEMORY_OVERHEAD_BYTES, MetricQuality.EXACT);
+            final var id1 = new ShardId(new Index("idx1", "uuid1"), 0);
+            final var id2 = new ShardId(new Index("idx2", "uuid2"), 0);
 
-        var result = estimator.aggregateShardMetrics(Map.of(id1, m1, id2, m2));
-        assertThat(result.totalShardHeapInBytes(), equalTo(2 * fixedShardSizeBytes));
-        assertThat(result.maxShardHeapInBytes(), equalTo(fixedShardSizeBytes));
-        assertThat(result.mappingSizeInBytes(), equalTo(mapping1 + mapping2));
-        assertThat(result.metricQuality(), equalTo(MetricQuality.EXACT));
+            final var result = estimator.aggregateShardMetrics(Map.of(id1, m1, id2, m2), postingsInEstimate);
+            final var usageOfOneShard = postingsInEstimate == StatelessMemoryMetricsService.PostingsInEstimate.INCLUDE
+                ? fixedShardSizeBytes + postingsBytes
+                : fixedShardSizeBytes;
+            assertThat(result.totalShardHeapInBytes(), equalTo(2 * usageOfOneShard));
+            assertThat(result.maxShardHeapInBytes(), equalTo(usageOfOneShard));
+            assertThat(result.mappingSizeInBytes(), equalTo(mapping1 + mapping2));
+            assertThat(result.metricQuality(), equalTo(MetricQuality.EXACT));
+        }
     }
 
     public void testAggregateShardMetricsMaxShardHeap() {
-        // use adaptive so shard heap varies with segment count
-        ShardHeapEstimator estimator = adaptiveEstimator(0.0, 0L);
-        var small = metrics(0, 1, 0, 0, 0, 0, UNDEFINED_SHARD_MEMORY_OVERHEAD_BYTES, MetricQuality.EXACT);
-        var large = metrics(0, 100, 0, 0, 0, 0, UNDEFINED_SHARD_MEMORY_OVERHEAD_BYTES, MetricQuality.EXACT);
-        ShardId id1 = new ShardId(new Index("idx", "uuid"), 0);
-        ShardId id2 = new ShardId(new Index("idx", "uuid"), 1);
+        for (final var postingsInEstimate : StatelessMemoryMetricsService.PostingsInEstimate.values()) {
+            // use adaptive so shard heap varies with segment count
+            final var estimator = adaptiveEstimator(0.0, 0L);
+            final var small = metrics(0, 1, 0, randomLongBetween(1, 5), 0, 0, UNDEFINED_SHARD_MEMORY_OVERHEAD_BYTES, MetricQuality.EXACT);
+            final var large = metrics(
+                0,
+                100,
+                0,
+                randomLongBetween(10, 15),
+                0,
+                0,
+                UNDEFINED_SHARD_MEMORY_OVERHEAD_BYTES,
+                MetricQuality.EXACT
+            );
+            final var id1 = new ShardId(new Index("idx", "uuid"), 0);
+            final var id2 = new ShardId(new Index("idx", "uuid"), 1);
 
-        var result = estimator.aggregateShardMetrics(Map.of(id1, small, id2, large));
-        assertThat(result.maxShardHeapInBytes(), equalTo(estimator.computeShardHeapUsage(large).shardHeapUsageBytes()));
+            final var result = estimator.aggregateShardMetrics(Map.of(id1, small, id2, large), postingsInEstimate);
+            final var largeUsage = estimator.computeShardHeapUsage(large);
+            var expected = postingsInEstimate == StatelessMemoryMetricsService.PostingsInEstimate.INCLUDE
+                ? largeUsage.shardHeapUsageBytes()
+                : largeUsage.shardHeapUsageBytesExcludingPostings();
+            assertThat(result.maxShardHeapInBytes(), equalTo(expected));
+        }
     }
 
     public void testAggregateShardMetricsPropagatesNonExactQuality_AllValues() {
@@ -278,7 +293,10 @@ public class ShardHeapEstimatorTests extends ESTestCase {
             final var shardMetrics = metrics(0, 0, 0, 0, 0, 0, UNDEFINED_SHARD_MEMORY_OVERHEAD_BYTES, metricsValues.get(i));
             shardMemoryMetrics.put(new ShardId(new Index("idx" + i, "uuid" + i), 0), shardMetrics);
         }
-        var result = estimator.aggregateShardMetrics(shardMemoryMetrics);
+        var result = estimator.aggregateShardMetrics(
+            shardMemoryMetrics,
+            randomFrom(StatelessMemoryMetricsService.PostingsInEstimate.values())
+        );
         assertThat(result.metricQuality(), equalTo(expectedQuality));
     }
 
@@ -291,7 +309,11 @@ public class ShardHeapEstimatorTests extends ESTestCase {
         Map<ShardId, StatelessMemoryMetricsService.ShardMemoryMetrics> input = Map.of(id1, m1, id2, m2);
 
         Set<ShardId> visited = new HashSet<>();
-        estimator.aggregateShardMetrics(input, (id, m) -> visited.add(id));
+        estimator.aggregateShardMetrics(
+            input,
+            randomFrom(StatelessMemoryMetricsService.PostingsInEstimate.values()),
+            (id, m) -> visited.add(id)
+        );
         assertThat(visited, equalTo(input.keySet()));
     }
 
@@ -304,14 +326,17 @@ public class ShardHeapEstimatorTests extends ESTestCase {
         ShardId id1 = new ShardId(new Index("idx1", "uuid1"), 0);
         ShardId id2 = new ShardId(new Index("idx2", "uuid2"), 0);
 
-        var result = estimator.aggregateShardMetrics(Map.of(id1, m1, id2, m2));
+        var result = estimator.aggregateShardMetrics(
+            Map.of(id1, m1, id2, m2),
+            randomFrom(StatelessMemoryMetricsService.PostingsInEstimate.values())
+        );
         assertThat(result.mappingSizeInBytes(), equalTo(mapping1 + mapping2));
     }
 
-    // --- getEffectiveShardPostingsInBytes ---
+    // --- ShardAndIndexHeapUsage#postingsHeapUsageBytes() ---
 
     public void testEffectivePostingsReturnedWhenSelfReportedDisabled() {
-        // includePostingsInEstimate=false, selfReported=false: postings tracked separately, adaptive estimate used for shard
+        // selfReported=false: postings tracked separately, adaptive estimate used for shard
         long postings = randomLongBetween(1, 1_000_000);
         long selfReportedOverhead = randomLongBetween(1, 10_000_000); // defined, but self-reported is disabled
         ShardHeapEstimator estimator = new ShardHeapEstimator(ByteSizeValue.ZERO, 0.0, 0L, false);
@@ -320,7 +345,7 @@ public class ShardHeapEstimatorTests extends ESTestCase {
     }
 
     public void testEffectivePostingsReturnedWhenSelfReportedEnabledButUndefined() {
-        // includePostingsInEstimate=false, selfReported=true but no value reported: adaptive estimate used, postings tracked separately
+        // selfReported=true but no value reported: adaptive estimate used, postings tracked separately
         long postings = randomLongBetween(1, 1_000_000);
         ShardHeapEstimator estimator = new ShardHeapEstimator(ByteSizeValue.ZERO, 0.0, 0L, true);
         var m = metrics(0, 0, 0, postings, 0, 0, UNDEFINED_SHARD_MEMORY_OVERHEAD_BYTES, MetricQuality.EXACT);
@@ -328,7 +353,7 @@ public class ShardHeapEstimatorTests extends ESTestCase {
     }
 
     public void testEffectivePostingsZeroWhenSelfReportedAvailable() {
-        // includePostingsInEstimate=false, selfReported=true and defined: self-reported overhead already covers postings, return 0
+        // selfReported=true and defined: self-reported overhead already covers postings, return 0
         long postings = randomLongBetween(1, 1_000_000);
         long selfReportedOverhead = randomLongBetween(1, 10_000_000);
         ShardHeapEstimator estimator = new ShardHeapEstimator(ByteSizeValue.ZERO, 0.0, 0L, true);

@@ -21,6 +21,7 @@ import org.elasticsearch.inference.UnifiedCompletionRequestBody;
 import org.elasticsearch.xpack.core.inference.results.CompletionResults;
 import org.elasticsearch.xpack.core.inference.results.DenseEmbeddingByteResults;
 import org.elasticsearch.xpack.core.inference.results.DenseEmbeddingFloatResults;
+import org.elasticsearch.xpack.core.inference.results.DocumentExtractionResults;
 import org.elasticsearch.xpack.core.inference.results.GenericDenseEmbeddingByteResults;
 import org.elasticsearch.xpack.core.inference.results.GenericDenseEmbeddingFloatResults;
 import org.elasticsearch.xpack.core.inference.results.RankedDocsResults;
@@ -800,6 +801,9 @@ public class InferenceNamedWriteablesProvider {
         );
         namedWriteables.add(
             new NamedWriteableRegistry.Entry(InferenceServiceResults.class, RankedDocsResults.NAME, RankedDocsResults::new)
+        );
+        namedWriteables.add(
+            new NamedWriteableRegistry.Entry(InferenceServiceResults.class, DocumentExtractionResults.NAME, DocumentExtractionResults::new)
         );
         namedWriteables.add(
             new NamedWriteableRegistry.Entry(

@@ -1044,6 +1044,8 @@ public class ExternalSourceResolver {
             ColumnMapping mapping = dataOnlySchema.size() == physicalSchema.size()
                 ? new ColumnMapping(identityMapping(physicalSchema.size()), null)
                 : SchemaReconciliation.computeMapping(dataOnlySchema, physicalSchema);
+            StoragePath anchorPath = listing.path(0);
+            Map<String, DataType> anchorNativeTypes = attributesToTypeMap(physicalSchema);
             for (int i = 0; i < listing.fileCount(); i++) {
                 // The dataset-level aggregate on extMetadata is a fold and cannot be assigned to an
                 // individual file. Each file's own harvest lives on its schema-cache entry (and, for a
@@ -1054,6 +1056,9 @@ public class ExternalSourceResolver {
                 Map<String, DataType> inferred = inferredTypesByPath.get(path);
                 if (inferred == null) {
                     inferred = inferredTypesFromCache(cached);
+                }
+                if (inferred == null && path.equals(anchorPath)) {
+                    inferred = anchorNativeTypes;
                 }
                 perFileInfo.put(
                     path,
@@ -2160,19 +2165,88 @@ public class ExternalSourceResolver {
     }
 
     /**
+     * Whether this source is an inferred multi-file FIRST_FILE_WINS read, so every file is parsed
+     * at the anchor schema. Explicit single-file paths use their own schema; strict declared datasets
+     * use the declaration. A glob that matches one file still follows the multi-file resolver, so the
+     * source path (not {@code fileCount}) is the discriminator. Compute once per source, since parsing
+     * a comma-separated resource traverses the whole file list.
+     */
+    public static boolean isAnchorPinnedFirstFileWins(
+        @Nullable String sourcePath,
+        @Nullable Map<String, Object> config,
+        @Nullable DeclaredReadSpec declaredReadSpec
+    ) {
+        if (GlobExpander.isMultiFile(sourcePath) == false) {
+            return false;
+        }
+        if (parseSchemaResolution(config) != FormatReader.SchemaResolution.FIRST_FILE_WINS) {
+            return false;
+        }
+        SchemaProvenance provenance = declaredReadSpec == null ? SchemaProvenance.INFERRED : declaredReadSpec.provenance();
+        return provenance == SchemaProvenance.INFERRED;
+    }
+
+    /**
+     * True when an anchor-pinned FIRST_FILE_WINS read has no native-type snapshot for this file.
+     * Unknown is not incompatible: column statistics must not be interpreted until the file's
+     * own types are known.
+     */
+    static boolean nativeTypesUnknown(@Nullable SchemaReconciliation.FileSchemaInfo info, boolean anchorPinnedFirstFileWins) {
+        return anchorPinnedFirstFileWins && (info == null || info.inferredTypes() == null);
+    }
+
+    /**
+     * Physical names of the file-backed read columns. A declared {@code path} rename is applied so
+     * cache publication and footer-stat maps, which are physical-keyed, address the same columns
+     * as the logical read schema.
+     */
+    static Set<String> fileBackedPhysicalColumns(@Nullable List<Attribute> readSchema, @Nullable DeclaredReadSpec declaredReadSpec) {
+        if (readSchema == null || readSchema.isEmpty()) {
+            return Set.of();
+        }
+        Map<String, String> renames = declaredReadSpec == null ? Map.of() : declaredReadSpec.renames();
+        Set<String> physical = new HashSet<>(readSchema.size());
+        for (Attribute a : readSchema) {
+            physical.add(PhysicalNames.translate(a.name(), renames));
+        }
+        return physical;
+    }
+
+    /**
      * Columns this file is read at a different type than its harvest: a {@code UNION_BY_NAME} pin or a
      * FIRST_FILE_WINS file whose footer type differs from the anchor. The cache identity is
-     * read-schema-blind, so those columns must be stripped at commit.
+     * read-schema-blind, so those columns must be stripped at commit. Names are physical.
      */
     public static Set<String> pinnedColumnsOf(SchemaReconciliation.FileSchemaInfo info) {
+        return pinnedColumnsOf(info, false, DeclaredReadSpec.NONE);
+    }
+
+    /**
+     * {@link #pinnedColumnsOf(SchemaReconciliation.FileSchemaInfo)} with the source-level decision from
+     * {@link #isAnchorPinnedFirstFileWins}. Inferred FIRST_FILE_WINS reads without a native-type snapshot
+     * conservatively protect every file-backed read column.
+     */
+    public static Set<String> pinnedColumnsOf(
+        SchemaReconciliation.FileSchemaInfo info,
+        boolean anchorPinnedFirstFileWins,
+        @Nullable DeclaredReadSpec declaredReadSpec
+    ) {
+        if (info == null) {
+            return Set.of();
+        }
+        if (nativeTypesUnknown(info, anchorPinnedFirstFileWins)) {
+            return fileBackedPhysicalColumns(info.fileSchema().attributes(), declaredReadSpec);
+        }
         Map<String, DataType> inferred = info.inferredTypes();
         if (inferred == null) {
             return Set.of();
         }
         Map<String, DataType> fileTypes = attributesToTypeMap(info.fileSchema().attributes());
+        Map<String, String> physicalToLogical = PhysicalNames.inverse(declaredReadSpec == null ? Map.of() : declaredReadSpec.renames());
         Set<String> pinned = new HashSet<>();
         for (Map.Entry<String, DataType> e : inferred.entrySet()) {
-            DataType fileType = fileTypes.get(e.getKey());
+            String logical = physicalToLogical.getOrDefault(e.getKey(), e.getKey());
+            DataType fileType = fileTypes.get(logical);
             if (fileType != null && fileType != e.getValue()) {
                 pinned.add(e.getKey());
             }
@@ -3429,6 +3503,11 @@ public class ExternalSourceResolver {
         // in the loop that already builds that schema per file.
         String expectedReadConfig = null;
         boolean perFileReadConfigsDisagree = false;
+        boolean anchorPinnedFirstFileWins = isAnchorPinnedFirstFileWins(
+            resolved.fileList() == null ? null : resolved.fileList().originalPattern(),
+            inferred.config(),
+            DeclaredReadSpec.NONE
+        );
         for (Map.Entry<StoragePath, SchemaReconciliation.FileSchemaInfo> e : resolved.schemaMap().entrySet()) {
             SchemaReconciliation.FileSchemaInfo info = e.getValue();
             if (fileTyped) {
@@ -3458,9 +3537,16 @@ public class ExternalSourceResolver {
             // inferred types onto info.inferredTypes(); preserve that snapshot so a widened+pinned column stays
             // identifiable after the overlay. Only when nothing upstream retyped the file (inferredTypes null) does
             // info.fileSchema() still carry the inferred types, so fall back to it for the declared-overlay-only path.
-            Map<String, DataType> preRetypeInferredTypes = info.inferredTypes() != null
-                ? info.inferredTypes()
-                : attributesToTypeMap(info.fileSchema().attributes());
+            // An inferred FIRST_FILE_WINS glob is the exception: a missing snapshot means the native types were
+            // never obtained, and filling from the pinned fileSchema would treat the pin as the found type.
+            Map<String, DataType> preRetypeInferredTypes;
+            if (info.inferredTypes() != null) {
+                preRetypeInferredTypes = info.inferredTypes();
+            } else if (anchorPinnedFirstFileWins) {
+                preRetypeInferredTypes = null;
+            } else {
+                preRetypeInferredTypes = attributesToTypeMap(info.fileSchema().attributes());
+            }
             overlaidSchemaMap.put(
                 e.getKey(),
                 new SchemaReconciliation.FileSchemaInfo(

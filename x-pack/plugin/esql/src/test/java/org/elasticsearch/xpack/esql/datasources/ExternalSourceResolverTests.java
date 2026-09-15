@@ -1516,6 +1516,200 @@ public class ExternalSourceResolverTests extends ESTestCase {
     }
 
     /**
+     * Cold defer has no per-file cache entry. The anchor's native schema is already known from the
+     * footer that built the pin; other files keep a missing snapshot so split publication cannot
+     * treat the pin as the found type.
+     */
+    public void testFirstFileWinsDeferLeavesNonAnchorNativeTypesUnknown() throws Exception {
+        String anchorPath = "s3://bucket/data/a.parquet";
+        String driftPath = "s3://bucket/data/b.parquet";
+        Map<String, List<Attribute>> schemas = new HashMap<>();
+        schemas.put(anchorPath, List.of(attr("x", DataType.INTEGER)));
+        schemas.put(driftPath, List.of(attr("x", DataType.LONG)));
+        ThreeFileStats stats = new ThreeFileStats(schemas, Map.of(anchorPath, 2L, driftPath, 2L));
+        List<StorageEntry> listing = List.of(entry(anchorPath, 100), entry(driftPath, 200));
+
+        CountingStorageProvider provider = new CountingStorageProvider(Map.of(PREFIX, listing), schemas);
+        ExternalSourceResolver resolver = buildStatsResolver(provider, stats, null, null);
+
+        ExternalSourceResolution.ResolvedSource deferred = resolveFfw(resolver, Set.of()).resolvedSource(GLOB);
+        SchemaReconciliation.FileSchemaInfo anchorInfo = deferred.schemaMap().get(StoragePath.of(anchorPath));
+        SchemaReconciliation.FileSchemaInfo driftInfo = deferred.schemaMap().get(StoragePath.of(driftPath));
+        assertNotNull(anchorInfo);
+        assertNotNull(driftInfo);
+        assertEquals(Map.of("x", DataType.INTEGER), anchorInfo.inferredTypes());
+        assertNull(driftInfo.inferredTypes());
+        assertEquals(Set.of(), ExternalSourceResolver.pinnedColumnsOf(anchorInfo, true, DeclaredReadSpec.NONE));
+        assertEquals(Set.of("x"), ExternalSourceResolver.pinnedColumnsOf(driftInfo, true, DeclaredReadSpec.NONE));
+    }
+
+    public void testFirstFileWinsOneFileGlobStampsAnchorNativeTypes() throws Exception {
+        String anchorPath = "s3://bucket/data/a.parquet";
+        Map<String, List<Attribute>> schemas = Map.of(anchorPath, List.of(attr("x", DataType.INTEGER)));
+        ThreeFileStats stats = new ThreeFileStats(schemas, Map.of(anchorPath, 2L));
+        List<StorageEntry> listing = List.of(entry(anchorPath, 100));
+
+        CountingStorageProvider provider = new CountingStorageProvider(Map.of(PREFIX, listing), schemas);
+        ExternalSourceResolver resolver = buildStatsResolver(provider, stats, null, null);
+
+        ExternalSourceResolution.ResolvedSource resolved = resolveFfw(resolver, Set.of()).resolvedSource(GLOB);
+        SchemaReconciliation.FileSchemaInfo info = resolved.schemaMap().get(StoragePath.of(anchorPath));
+        assertNotNull(info);
+        assertEquals(Map.of("x", DataType.INTEGER), info.inferredTypes());
+        assertEquals(Set.of(), ExternalSourceResolver.pinnedColumnsOf(info, true, DeclaredReadSpec.NONE));
+    }
+
+    public void testFirstFileWinsRepeatedAnchorPathKeepsNativeTypes() throws Exception {
+        String anchorPath = "s3://bucket/data/a.parquet";
+        Map<String, List<Attribute>> schemas = Map.of(anchorPath, List.of(attr("x", DataType.INTEGER)));
+        ThreeFileStats stats = new ThreeFileStats(schemas, Map.of(anchorPath, 2L));
+        List<StorageEntry> listing = List.of(entry(anchorPath, 100), entry(anchorPath, 100));
+
+        CountingStorageProvider provider = new CountingStorageProvider(Map.of(PREFIX, listing), schemas);
+        ExternalSourceResolver resolver = buildStatsResolver(provider, stats, null, null);
+
+        ExternalSourceResolution.ResolvedSource resolved = resolveFfw(resolver, Set.of()).resolvedSource(GLOB);
+        SchemaReconciliation.FileSchemaInfo info = resolved.schemaMap().get(StoragePath.of(anchorPath));
+        assertNotNull(info);
+        assertEquals(Map.of("x", DataType.INTEGER), info.inferredTypes());
+    }
+
+    public void testAnchorPinnedFirstFileWinsRequiresMultiFileInferredRead() {
+        Map<String, Object> ffw = configFor(FormatReader.SchemaResolution.FIRST_FILE_WINS);
+        Map<String, Object> ubn = configFor(FormatReader.SchemaResolution.UNION_BY_NAME);
+
+        assertTrue(ExternalSourceResolver.isAnchorPinnedFirstFileWins(GLOB, ffw, DeclaredReadSpec.NONE));
+        assertTrue(
+            ExternalSourceResolver.isAnchorPinnedFirstFileWins(
+                "s3://bucket/data/a.parquet,s3://bucket/data/b.parquet",
+                ffw,
+                DeclaredReadSpec.NONE
+            )
+        );
+        assertFalse(ExternalSourceResolver.isAnchorPinnedFirstFileWins("s3://bucket/data/a.parquet", ffw, DeclaredReadSpec.NONE));
+        assertFalse(ExternalSourceResolver.isAnchorPinnedFirstFileWins(null, ffw, DeclaredReadSpec.NONE));
+        assertFalse(ExternalSourceResolver.isAnchorPinnedFirstFileWins(GLOB, ubn, DeclaredReadSpec.NONE));
+        assertFalse(
+            ExternalSourceResolver.isAnchorPinnedFirstFileWins(
+                GLOB,
+                ffw,
+                DeclaredReadSpec.of(Map.of(), null, Map.of(), Set.of(), SchemaProvenance.DECLARED)
+            )
+        );
+    }
+
+    public void testNativeTypesUnknownRequiresAnchorPinAndMissingSnapshot() {
+        ExternalSchema pin = new ExternalSchema(List.of(attr("x", DataType.INTEGER)));
+        SchemaReconciliation.FileSchemaInfo unknown = new SchemaReconciliation.FileSchemaInfo(pin, null, null);
+        assertTrue(ExternalSourceResolver.nativeTypesUnknown(unknown, true));
+        assertTrue(ExternalSourceResolver.nativeTypesUnknown(null, true));
+        assertFalse(ExternalSourceResolver.nativeTypesUnknown(unknown, false));
+        assertFalse(ExternalSourceResolver.nativeTypesUnknown(null, false));
+        assertFalse(
+            ExternalSourceResolver.nativeTypesUnknown(
+                new SchemaReconciliation.FileSchemaInfo(pin, null, null, Map.of("x", DataType.LONG)),
+                true
+            )
+        );
+    }
+
+    public void testPinnedColumnsOfUnknownFirstFileWinsUsesPhysicalNamesAfterRename() {
+        ExternalSchema overlaid = new ExternalSchema(List.of(attr("y", DataType.INTEGER)));
+        SchemaReconciliation.FileSchemaInfo unknown = new SchemaReconciliation.FileSchemaInfo(overlaid, null, null);
+        DeclaredReadSpec renamed = DeclaredReadSpec.of(Map.of("y", "x"), null, Map.of(), Set.of(), SchemaProvenance.INFERRED);
+        assertEquals(Set.of("x"), ExternalSourceResolver.pinnedColumnsOf(unknown, true, renamed));
+    }
+
+    public void testPinnedColumnsOfKnownTypesUsesPhysicalNamesAfterRename() {
+        ExternalSchema overlaid = new ExternalSchema(List.of(attr("y", DataType.INTEGER)));
+        DeclaredReadSpec renamed = DeclaredReadSpec.of(Map.of("y", "x"), null, Map.of(), Set.of("y"));
+        SchemaReconciliation.FileSchemaInfo pinned = new SchemaReconciliation.FileSchemaInfo(
+            overlaid,
+            null,
+            null,
+            Map.of("x", DataType.LONG)
+        );
+        SchemaReconciliation.FileSchemaInfo sameType = new SchemaReconciliation.FileSchemaInfo(
+            overlaid,
+            null,
+            null,
+            Map.of("x", DataType.INTEGER)
+        );
+        for (boolean anchorPinnedFirstFileWins : List.of(false, true)) {
+            assertEquals(Set.of("x"), ExternalSourceResolver.pinnedColumnsOf(pinned, anchorPinnedFirstFileWins, renamed));
+            assertEquals(Set.of(), ExternalSourceResolver.pinnedColumnsOf(sameType, anchorPinnedFirstFileWins, renamed));
+        }
+    }
+
+    public void testNonStrictOverlayPreservesMissingFirstFileWinsNativeTypes() throws Exception {
+        String anchorPath = "s3://bucket/data/a.parquet";
+        String driftPath = "s3://bucket/data/b.parquet";
+        Map<String, List<Attribute>> schemas = new HashMap<>();
+        schemas.put(anchorPath, List.of(attr("x", DataType.INTEGER)));
+        schemas.put(driftPath, List.of(attr("x", DataType.LONG)));
+        ThreeFileStats stats = new ThreeFileStats(schemas, Map.of(anchorPath, 2L, driftPath, 2L));
+        List<StorageEntry> listing = List.of(entry(anchorPath, 100), entry(driftPath, 200));
+
+        CountingStorageProvider provider = new CountingStorageProvider(Map.of(PREFIX, listing), schemas);
+        ExternalSourceResolver resolver = buildStatsResolver(provider, stats, null, null);
+        DatasetMapping mapping = new DatasetMapping(
+            new DatasetMapping.Mappings(DatasetMapping.Dynamic.TRUE, Map.of("x", new DatasetFieldMapping("integer", null)))
+        );
+
+        PlainActionFuture<ExternalSourceResolution> future = new PlainActionFuture<>();
+        resolver.resolve(
+            List.of(GLOB),
+            Map.of(GLOB, new HashMap<>(configFor(FormatReader.SchemaResolution.FIRST_FILE_WINS))),
+            null,
+            Map.of(GLOB, mapping),
+            Set.of(),
+            future
+        );
+        SchemaReconciliation.FileSchemaInfo driftInfo = future.actionGet().resolvedSource(GLOB).schemaMap().get(StoragePath.of(driftPath));
+        assertNotNull(driftInfo);
+        assertNull(driftInfo.inferredTypes());
+    }
+
+    public void testPartitionedNonStrictRenamePreservesMissingFirstFileWinsNativeTypes() throws Exception {
+        String glob = PREFIX + "year=*/month=*/*.parquet";
+        String anchorPath = PREFIX + "year=2024/month=01/a.parquet";
+        String driftPath = PREFIX + "year=2024/month=01/b.parquet";
+        Map<String, List<Attribute>> schemas = Map.of(
+            anchorPath,
+            List.of(attr("year", DataType.KEYWORD), attr("x", DataType.INTEGER)),
+            driftPath,
+            List.of(attr("year", DataType.KEYWORD), attr("x", DataType.LONG))
+        );
+        ThreeFileStats stats = new ThreeFileStats(schemas, Map.of(anchorPath, 2L, driftPath, 2L));
+        List<StorageEntry> listing = List.of(entry(anchorPath, 100), entry(driftPath, 200));
+        CountingStorageProvider provider = new CountingStorageProvider(Map.of(PREFIX, listing), schemas);
+        AtomicInteger metadataReads = new AtomicInteger();
+        ExternalSourceResolver resolver = buildStatsResolver(provider, stats, metadataReads, null);
+        DatasetMapping mapping = new DatasetMapping(
+            new DatasetMapping.Mappings(DatasetMapping.Dynamic.TRUE, Map.of("y", new DatasetFieldMapping("integer", "x")))
+        );
+        Map<String, Object> config = new HashMap<>(configFor(FormatReader.SchemaResolution.FIRST_FILE_WINS));
+        config.put("partition_detection", "hive");
+
+        PlainActionFuture<ExternalSourceResolution> future = new PlainActionFuture<>();
+        resolver.resolve(List.of(glob), Map.of(glob, config), null, Map.of(glob, mapping), Set.of(), future);
+        ExternalSourceResolution.ResolvedSource resolved = future.actionGet().resolvedSource(glob);
+        SchemaReconciliation.FileSchemaInfo anchorInfo = resolved.schemaMap().get(StoragePath.of(anchorPath));
+        SchemaReconciliation.FileSchemaInfo driftInfo = resolved.schemaMap().get(StoragePath.of(driftPath));
+
+        assertEquals(1, metadataReads.get());
+        assertEquals(Map.of("year", DataType.KEYWORD, "x", DataType.INTEGER), anchorInfo.inferredTypes());
+        assertNull(driftInfo.inferredTypes());
+        assertEquals(Map.of("y", "x"), resolved.declaredReadSpec().renames());
+        assertEquals(Set.of("year", "month"), resolved.fileList().partitionMetadata().partitionColumns().keySet());
+        assertEquals(Set.of("year", "y"), driftInfo.fileSchema().names());
+        assertEquals(1, driftInfo.mapping().width());
+        assertEquals(1, driftInfo.mapping().localIndex(0));
+        assertEquals(Set.of(), ExternalSourceResolver.pinnedColumnsOf(anchorInfo, true, resolved.declaredReadSpec()));
+        assertEquals(Set.of("year", "x"), ExternalSourceResolver.pinnedColumnsOf(driftInfo, true, resolved.declaredReadSpec()));
+    }
+
+    /**
      * Eager path (cacheable, cold): the anchor schema plus every other file is loaded once
      * (N cold loads, anchor reused from cache in the stats loop). Aggregated stats are complete.
      */

@@ -944,7 +944,7 @@ public class EsqlSession {
      * rows. See {@link SourceStatisticsSerializer#removeColumnStatFamilies} and
      * {@link ExternalSourceResolver#pinnedColumnsOf}.
      */
-    private record PinnedColumns(Set<String> columns, boolean dropRowCount) {
+    record PinnedColumns(Set<String> columns, boolean dropRowCount) {
         PinnedColumns mergedWith(PinnedColumns other) {
             Set<String> union = new HashSet<>(columns);
             union.addAll(other.columns);
@@ -964,14 +964,27 @@ public class EsqlSession {
                 return;
             }
             boolean dropRowCount = externalSourceResolver.resolvesToSkipRow(relation.sourceType(), relation.metadata().config());
-            for (var entry : schemaMap.entrySet()) {
-                Set<String> pinned = ExternalSourceResolver.pinnedColumnsOf(entry.getValue());
-                if (pinned.isEmpty()) {
-                    continue;
-                }
-                into.merge(entry.getKey().toString(), new PinnedColumns(pinned, dropRowCount), PinnedColumns::mergedWith);
-            }
+            collectPinnedReads(relation, dropRowCount, into);
         });
+    }
+
+    static void collectPinnedReads(ExternalRelation relation, boolean dropRowCount, Map<String, PinnedColumns> into) {
+        boolean anchorPinnedFirstFileWins = ExternalSourceResolver.isAnchorPinnedFirstFileWins(
+            relation.sourcePath(),
+            relation.metadata().config(),
+            relation.declaredReadSpec()
+        );
+        for (var entry : relation.schemaMap().entrySet()) {
+            Set<String> pinned = ExternalSourceResolver.pinnedColumnsOf(
+                entry.getValue(),
+                anchorPinnedFirstFileWins,
+                relation.declaredReadSpec()
+            );
+            if (pinned.isEmpty()) {
+                continue;
+            }
+            into.merge(entry.getKey().toString(), new PinnedColumns(pinned, dropRowCount), PinnedColumns::mergedWith);
+        }
     }
 
     /**
@@ -1005,7 +1018,7 @@ public class EsqlSession {
      * Returns {@code captured} with each pinned file's per-contribution pinned-column stat families removed. Files not
      * read at a pinned type pass through untouched; when nothing is pinned the input map is returned unchanged.
      */
-    private static Map<String, List<Map<String, Object>>> stripPinnedContributions(
+    static Map<String, List<Map<String, Object>>> stripPinnedContributions(
         Map<String, List<Map<String, Object>>> captured,
         Map<String, PinnedColumns> pinnedReads
     ) {

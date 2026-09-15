@@ -130,12 +130,13 @@ public final class SchemaReconciliation {
         ExternalSchema fileSchema,
         @Nullable ColumnMapping mapping,
         @Nullable SourceStatistics statistics,
-        // PRE-retype file types, physical-keyed; null means fileSchema IS the inferred schema.
+        // PRE-retype file types, physical-keyed; null means fileSchema IS the inferred schema,
+        // except on an inferred FIRST_FILE_WINS glob where a missing snapshot means the native
+        // types were never obtained and must not be filled from the pinned read schema.
         // Populated by the UNION_BY_NAME pin, the declared overlay, and FIRST_FILE_WINS (which
-        // snapshots every file's own footer types, including files that agree with the anchor
-        // and therefore contribute no pinned columns). Lets stats boundaries normalize footer
-        // stats with the real inferred types and identify pinned columns to safe-miss on the
-        // read-schema-blind cache.
+        // snapshots every file's own footer types when known, including files that agree with
+        // the anchor). Lets stats boundaries normalize footer stats with the real inferred types
+        // and identify pinned columns to safe-miss on the read-schema-blind cache.
         @Nullable Map<String, DataType> inferredTypes
     ) {
         public FileSchemaInfo(ExternalSchema fileSchema, @Nullable ColumnMapping mapping, @Nullable SourceStatistics statistics) {

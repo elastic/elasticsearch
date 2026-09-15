@@ -13,7 +13,9 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.health.Diagnosis;
 import org.elasticsearch.health.Diagnosis.Resource.Type;
 import org.elasticsearch.health.GetHealthAction;
+import org.elasticsearch.health.HealthIndicatorImpact;
 import org.elasticsearch.health.HealthIndicatorResult;
+import org.elasticsearch.health.ImpactArea;
 import org.elasticsearch.health.SimpleHealthIndicatorDetails;
 import org.elasticsearch.repositories.RepositoryData;
 import org.elasticsearch.repositories.RepositoryException;
@@ -28,10 +30,6 @@ import java.util.Map;
 import static org.elasticsearch.health.HealthStatus.GREEN;
 import static org.elasticsearch.health.HealthStatus.YELLOW;
 import static org.elasticsearch.repositories.blobstore.BlobStoreRepository.getRepositoryDataBlobName;
-import static org.elasticsearch.snapshots.RepositoryIntegrityHealthIndicatorService.ALL_REPOS_HEALTHY;
-import static org.elasticsearch.snapshots.RepositoryIntegrityHealthIndicatorService.CORRUPTED_DEFINITION;
-import static org.elasticsearch.snapshots.RepositoryIntegrityHealthIndicatorService.IMPACTS;
-import static org.elasticsearch.snapshots.RepositoryIntegrityHealthIndicatorService.NAME;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 
@@ -73,7 +71,7 @@ public class RepositoryIntegrityHealthIndicatorServiceIT extends AbstractSnapsho
         assertSnapshotRepositoryHealth(
             "Indicator should be yellow after file is deleted from the repository",
             new HealthIndicatorResult(
-                NAME,
+                "repository_integrity",
                 YELLOW,
                 "Detected [1] corrupted snapshot repository.",
                 new SimpleHealthIndicatorDetails(
@@ -90,8 +88,28 @@ public class RepositoryIntegrityHealthIndicatorServiceIT extends AbstractSnapsho
                         0
                     )
                 ),
-                IMPACTS,
-                List.of(new Diagnosis(CORRUPTED_DEFINITION, List.of(new Diagnosis.Resource(Type.SNAPSHOT_REPOSITORY, List.of(repository)))))
+                List.of(
+                    new HealthIndicatorImpact(
+                        "repository_integrity",
+                        "backups_at_risk",
+                        2,
+                        "Data in the affected snapshot repositories may be lost and cannot be restored.",
+                        List.of(ImpactArea.BACKUP)
+                    )
+                ),
+                List.of(
+                    new Diagnosis(
+                        new Diagnosis.Definition(
+                            "repository_integrity",
+                            "corrupt_repo_integrity",
+                            "Multiple clusters are writing to the same repository.",
+                            "Remove the repository from the other cluster(s), or mark it as read-only in the other cluster(s), "
+                                + "and then re-add the repository to this cluster.",
+                            "https://ela.st/fix-repository-integrity"
+                        ),
+                        List.of(new Diagnosis.Resource(Type.SNAPSHOT_REPOSITORY, List.of(repository)))
+                    )
+                )
             )
         );
 
@@ -99,15 +117,16 @@ public class RepositoryIntegrityHealthIndicatorServiceIT extends AbstractSnapsho
     }
 
     private void assertSnapshotRepositoryHealth(String message, HealthIndicatorResult expected) {
-        var response = client().execute(GetHealthAction.INSTANCE, new GetHealthAction.Request(NAME, true, 1000)).actionGet();
-        assertThat(message, response.findIndicator(NAME), equalTo(expected));
+        var response = client().execute(GetHealthAction.INSTANCE, new GetHealthAction.Request("repository_integrity", true, 1000))
+            .actionGet();
+        assertThat(message, response.findIndicator("repository_integrity"), equalTo(expected));
     }
 
     private static HealthIndicatorResult greenResult(int totalRepositories) {
         return new HealthIndicatorResult(
-            NAME,
+            "repository_integrity",
             GREEN,
-            ALL_REPOS_HEALTHY,
+            "All repositories are healthy.",
             new SimpleHealthIndicatorDetails(Map.of("total_repositories", totalRepositories)),
             List.of(),
             List.of()

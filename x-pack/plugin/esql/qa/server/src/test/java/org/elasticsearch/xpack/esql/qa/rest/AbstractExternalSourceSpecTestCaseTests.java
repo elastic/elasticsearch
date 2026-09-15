@@ -21,6 +21,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.stream.Collectors;
+
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.hasKey;
 import static org.hamcrest.Matchers.not;
@@ -172,7 +173,8 @@ public class AbstractExternalSourceSpecTestCaseTests extends ESTestCase {
         List<AbstractExternalSourceSpecTestCase.StorageBackend> availableBackends = List.of(
             AbstractExternalSourceSpecTestCase.StorageBackend.values()
         );
-        List<String> eligibleCodecs = List.of("gzip", "zstd", "bzip2"); // dimension-copy-ok: a fixed input to the guard-cell formula, not the served codec set
+        List<String> eligibleCodecs = List.of("gzip", "zstd", "bzip2"); // dimension-copy-ok: a fixed input to the guard-cell formula, not
+                                                                        // the served codec set
         Set<String> actual = availableBackends.stream()
             .flatMap(backend -> eligibleCodecs.stream().map(codec -> new Object[] { backend, codec }))
             .filter(cell -> policy.isGuardCell((AbstractExternalSourceSpecTestCase.StorageBackend) cell[0], (String) cell[1]))
@@ -257,14 +259,16 @@ public class AbstractExternalSourceSpecTestCaseTests extends ESTestCase {
 
         assertEquals("snappy", AbstractExternalSourceSpecTestCase.matrixCodecIdentity("snappy"));
         assertEquals("snappy", EsqlDataSourceCodecEligibility.normalizeCodecToken("snappy"));
-        assertEquals("none", EsqlDataSourceCodecEligibility.textCodecIdentity("snappy")); // dimension-copy-ok: asserts this one token's identity, not the value list
+        assertEquals("none", EsqlDataSourceCodecEligibility.textCodecIdentity("snappy")); // dimension-copy-ok: asserts this one token's
+                                                                                          // identity, not the value list
 
         assertEquals("none", AbstractExternalSourceSpecTestCase.matrixCodecIdentity(null));
         assertEquals("none", EsqlDataSourceCodecEligibility.textCodecIdentity("parquet"));
     }
 
     public void testCodecIdentitiesAndStableAliasTieBreak() {
-        for (String format : List.of("csv", "tsv", "ndjson", "parquet", "orc")) { // dimension-copy-ok: asserts every format spells its own codec identity, so it must name them
+        for (String format : List.of("csv", "tsv", "ndjson", "parquet", "orc")) { // dimension-copy-ok: asserts every format spells its own
+                                                                                  // codec identity, so it must name them
             assertEquals("none", EsqlDataSourceCodecEligibility.textCodecIdentity(format));
             assertEquals("none", EsqlDataSourceCodecEligibility.normalizeCodecToken(format));
         }
@@ -385,7 +389,8 @@ public class AbstractExternalSourceSpecTestCaseTests extends ESTestCase {
         System.setProperty("tests.old_cluster_version", "9.5.4");
         assertEquals(
             List.of("snappy", "gzip", "zstd", "lz4raw"), // dimension-copy-ok: a fixed request list, chosen to exercise the version registry
-            EsqlDataSourceCodecEligibility.parquetCodecs("snappy", "gzip", "zstd", "lz4raw") // dimension-copy-ok: same fixed request list as the expectation above
+            EsqlDataSourceCodecEligibility.parquetCodecs("snappy", "gzip", "zstd", "lz4raw") // dimension-copy-ok: same fixed request list
+                                                                                             // as the expectation above
         );
     }
 
@@ -398,7 +403,8 @@ public class AbstractExternalSourceSpecTestCaseTests extends ESTestCase {
         System.setProperty("tests.old_cluster_version", "9.4.9");
         IllegalStateException e = expectThrows(
             IllegalStateException.class,
-            () -> EsqlDataSourceCodecEligibility.parquetCodecs("snappy", "gzip", "zstd", "lz4raw") // dimension-copy-ok: a fixed request list, here to be rejected wholesale
+            () -> EsqlDataSourceCodecEligibility.parquetCodecs("snappy", "gzip", "zstd", "lz4raw") // dimension-copy-ok: a fixed request
+                                                                                                   // list, here to be rejected wholesale
         );
         assertThat(e.getMessage(), containsString("is supported on 9.4.9"));
     }

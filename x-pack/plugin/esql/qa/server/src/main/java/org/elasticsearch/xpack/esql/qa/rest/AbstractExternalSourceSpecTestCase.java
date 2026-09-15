@@ -304,11 +304,8 @@ public abstract class AbstractExternalSourceSpecTestCase extends EsqlSpecTestCas
     }
 
     /** Policy-aware counterpart of {@link #readExternalSpecTestsWithCodecsForSuite}. */
-    protected static List<Object[]> readExternalSpecTestsWithCodecsForSuite(
-        BwcMatrixPolicy policy,
-        List<String> codecs,
-        String suiteToken
-    ) throws Exception {
+    protected static List<Object[]> readExternalSpecTestsWithCodecsForSuite(BwcMatrixPolicy policy, List<String> codecs, String suiteToken)
+        throws Exception {
         return withoutExcludedSpecs(readExternalSpecTestsWithExtraParam(policy, codecs, specPatternsFor(suiteToken)), suiteToken);
     }
 
@@ -1549,7 +1546,8 @@ public abstract class AbstractExternalSourceSpecTestCase extends EsqlSpecTestCas
             + "_"
             + guardKey.replaceAll("[^a-zA-Z0-9]+", "_").toLowerCase(Locale.ROOT);
         String settings = switch (readerFormat) {
-            case "csv", "tsv" -> "{\"trim_spaces\":true,\"multi_value_syntax\":\"brackets\"}"; // dimension-copy-ok: a switch arm, enumerated per the repo's switch rule
+            case "csv", "tsv" -> "{\"trim_spaces\":true,\"multi_value_syntax\":\"brackets\"}"; // dimension-copy-ok: a switch arm,
+                                                                                               // enumerated per the repo's switch rule
             case "ndjson", "parquet", "orc" -> null; // dimension-copy-ok: the complementary switch arm
             default -> throw new IllegalArgumentException("Unknown format-reader profile guard [" + readerFormat + "]");
         };

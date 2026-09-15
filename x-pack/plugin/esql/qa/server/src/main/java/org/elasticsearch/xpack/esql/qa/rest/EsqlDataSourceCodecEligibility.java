@@ -68,7 +68,8 @@ public final class EsqlDataSourceCodecEligibility {
             normalized = normalized.substring(lastDot + 1);
         }
         return switch (normalized) {
-            case "csv", "tsv", "ndjson", "parquet", "orc", "none" -> "none"; // dimension-copy-ok: a switch arm collapsing every format's own extension to 'none'
+            case "csv", "tsv", "ndjson", "parquet", "orc", "none" -> "none"; // dimension-copy-ok: a switch arm collapsing every format's
+                                                                             // own extension to 'none'
             case "gz", "gzip" -> "gzip";
             case "zst", "zstd" -> "zstd";
             case "bz", "bz2", "bzip2" -> "bzip2";

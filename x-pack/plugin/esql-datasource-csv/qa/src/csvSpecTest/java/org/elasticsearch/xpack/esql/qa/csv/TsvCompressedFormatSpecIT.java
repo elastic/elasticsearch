@@ -29,7 +29,8 @@ public class TsvCompressedFormatSpecIT extends AbstractDelimitedTextSpecTestCase
     private static final BwcMatrixPolicy BWC_MATRIX_POLICY = COMPRESSED_BWC_MATRIX_POLICY;
     // Codecs come from the declaration, which also records that bzip2 is outside the GA text-format
     // codec surface and is therefore snapshot-only. See elastic/esql-planning#938.
-    private static final List<String> COMPRESSED_FORMATS = FixtureMatrix.get().textCodecFormats("tsv", EsqlDataSourceCodecEligibility.experimentalCodecsEligible());
+    private static final List<String> COMPRESSED_FORMATS = FixtureMatrix.get()
+        .textCodecFormats("tsv", EsqlDataSourceCodecEligibility.experimentalCodecsEligible());
 
     public TsvCompressedFormatSpecIT(
         String fileName,

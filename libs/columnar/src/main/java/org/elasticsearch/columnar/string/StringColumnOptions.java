@@ -26,9 +26,8 @@ import org.elasticsearch.columnar.substrate.ChunkCodec;
  *                                than {@code targetChunkBytes} because plain-path columns are scanned
  *                                sequentially and never bisected, so a larger chunk compresses better
  *                                at no extra read cost
- * @param compressedOrdinalBlockSize ordinals a block holds when a column's ordinals are stored compressed,
- *                                which trades what the compressor can reach against what reaching one
- *                                ordinal has to decode
+ * @param compressedOrdinalBlockSize ordinals a block holds when a column's ordinals are stored
+ *                                compressed, which bounds what reading one ordinal has to decompress
  */
 public record StringColumnOptions(
     DictionaryPolicy dictionary,
@@ -50,14 +49,12 @@ public record StringColumnOptions(
     /**
      * How much a chunk holds before it is closed on the dictionary path, when a field names nothing of its own.
      *
-     * <p>Smaller than the 512kb {@code ES819Version3TSDBDocValuesFormat} writes a binary field in, and
-     * deliberately: a chunk is decoded whole, and this column is read at addresses a scan did not choose.
-     * Bisecting a column in term order lands each probe in a chunk of its own, so what a probe costs is the
-     * size of a chunk however few bytes of it the value needs, and there are a couple of dozen probes in a
-     * term. A larger chunk compresses better and is the right trade where the values are read in order; here
-     * it would be paid for by the reads this column exists to make cheap.
+     * <p>What this sizes is the values that escaped the dictionary, which are reached by escape rank rather
+     * than in the order they were written. A larger chunk barely compresses better, since what escapes a
+     * dictionary is the part of a column that repeats least, and costs a read that wants one value the whole
+     * of it. Smaller and a scan starts paying the per-chunk work instead.
      */
-    public static final int DEFAULT_TARGET_CHUNK_BYTES = 64 * 1024;
+    public static final int DEFAULT_TARGET_CHUNK_BYTES = 32 * 1024;
 
     /**
      * How much a chunk holds before it is closed on the plain path.
@@ -71,10 +68,8 @@ public record StringColumnOptions(
     /**
      * Ordinals a block holds when they are stored compressed.
      *
-     * <p>A block has to be large enough to hold repetition a compressor can find, and a block of
-     * {@link #DEFAULT_TARGET_CHUNK_BYTES} worth of packed ordinals is not. It is also what a point read
-     * decodes to answer for one ordinal, so the size is a trade rather than a maximum: past this the
-     * compressor gains little and a read that did not choose its address pays for all of it.
+     * <p>Large enough to hold repetition a compressor can find, and no larger: past this the compressor
+     * gains little, and the block is what a read decodes to answer for one ordinal.
      */
     public static final int DEFAULT_COMPRESSED_ORDINAL_BLOCK_SIZE = 2048;
 

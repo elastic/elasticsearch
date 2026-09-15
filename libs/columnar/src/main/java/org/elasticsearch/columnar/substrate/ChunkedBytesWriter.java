@@ -21,8 +21,8 @@ import java.io.IOException;
 
 /**
  * Writes a column's byte stream as chunks: values are appended in order, and a chunk is emitted once it
- * reaches {@link #targetChunkBytes}. Chunks end on a value boundary, so a value never spans two of them and
- * reading one never needs more than one chunk.
+ * reaches either of its {@link ChunkBounds}. Chunks end on a value boundary, so a value never spans two of
+ * them and reading one never needs more than one chunk.
  *
  * <p>Two tables locate a value. Callers record each value's offset in the <em>uncompressed</em> stream
  * themselves, which is what {@link #uncompressedLength()} returns after each append; this class records
@@ -46,7 +46,7 @@ public final class ChunkedBytesWriter implements Closeable {
 
     private final ChunkCodec codec;
     private final ChunkCompressor compressor;
-    private final int targetChunkBytes;
+    private final ChunkBounds bounds;
     private final IndexOutput data;
     private final long dataOffset;
     private final Directory directory;
@@ -59,31 +59,23 @@ public final class ChunkedBytesWriter implements Closeable {
 
     private byte[] pending;
     private int pendingLength = 0;
+    private int pendingValues = 0;
     private long uncompressedLength = 0;
     private int numChunks = 0;
     private boolean finished = false;
     private boolean tempClosed = false;
 
-    public ChunkedBytesWriter(
-        ChunkCodec codec,
-        int targetChunkBytes,
-        Directory directory,
-        IOContext context,
-        String prefix,
-        IndexOutput data
-    ) throws IOException {
-        if (targetChunkBytes <= 0) {
-            throw new IllegalArgumentException("targetChunkBytes must be positive, got " + targetChunkBytes);
-        }
+    public ChunkedBytesWriter(ChunkCodec codec, ChunkBounds bounds, Directory directory, IOContext context, String prefix, IndexOutput data)
+        throws IOException {
         this.codec = codec;
         this.compressor = codec.newCompressor();
-        this.targetChunkBytes = targetChunkBytes;
+        this.bounds = bounds;
         this.directory = directory;
         this.context = context;
         this.prefix = prefix;
         this.data = data;
         this.dataOffset = data.getFilePointer();
-        this.pending = new byte[Math.min(targetChunkBytes, 64 * 1024)];
+        this.pending = new byte[Math.min(bounds.targetBytes(), 64 * 1024)];
         this.chunkTemp = directory.createTempOutput(prefix, "columnar-chunk-index", context);
         this.chunkTempName = chunkTemp.getName();
     }
@@ -94,14 +86,16 @@ public final class ChunkedBytesWriter implements Closeable {
     }
 
     /**
-     * Closes the pending chunk if it has reached its target size. Callers invoke this only where a chunk may
-     * end, so that whatever they address — a value, a run of values — never straddles two chunks and a read
-     * of it never spans more than one.
+     * Closes the pending chunk if it has reached either bound, and counts the {@code values} the caller is
+     * about to append towards the chunk they land in. Callers invoke this only where a chunk may end, so that
+     * whatever they address — a value, a run of values — never straddles two chunks and a read of it never
+     * spans more than one.
      */
-    public void boundary() throws IOException {
-        if (pendingLength >= targetChunkBytes) {
+    public void boundary(int values) throws IOException {
+        if (pendingLength >= bounds.targetBytes() || pendingValues >= bounds.maxValues()) {
             flushChunk();
         }
+        pendingValues += values;
     }
 
     /** Appends bytes to the pending chunk. */
@@ -152,6 +146,7 @@ public final class ChunkedBytesWriter implements Closeable {
         record(uncompressedLength - pendingLength, data.getFilePointer() - dataOffset);
         compressor.write(pending, pendingLength, data);
         pendingLength = 0;
+        pendingValues = 0;
         numChunks++;
     }
 

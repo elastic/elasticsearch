@@ -14,6 +14,7 @@ import org.apache.lucene.store.IOContext;
 import org.apache.lucene.store.IndexInput;
 import org.apache.lucene.store.IndexOutput;
 import org.apache.lucene.util.BytesRef;
+import org.elasticsearch.columnar.substrate.ChunkBounds;
 import org.elasticsearch.columnar.substrate.ChunkCodec;
 import org.elasticsearch.columnar.substrate.internal.ByteArrayInts;
 import org.elasticsearch.test.ESTestCase;
@@ -114,7 +115,7 @@ public class ValueStreamTests extends ESTestCase {
                 try (
                     ValueStream.Writer writer = new ValueStream.Writer(
                         codec,
-                        targetChunkBytes,
+                        ChunkBounds.ofBytes(targetChunkBytes),
                         valuesPerBlock,
                         values.size(),
                         dir,

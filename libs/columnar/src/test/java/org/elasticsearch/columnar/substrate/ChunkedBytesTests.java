@@ -119,15 +119,11 @@ public class ChunkedBytesTests extends ESTestCase {
         }
     }
 
-    /** A chunk target of zero or less has no valid meaning and must be rejected rather than loop forever. */
-    public void testInvalidChunkTargetRejected() throws IOException {
-        try (Directory dir = newDirectory(); IndexOutput out = dir.createOutput("chunks.bin", IOContext.DEFAULT)) {
-            final int target = randomFrom(0, -1, Integer.MIN_VALUE);
-            expectThrows(
-                IllegalArgumentException.class,
-                () -> new ChunkedBytesWriter(ChunkCodec.IDENTITY, target, dir, IOContext.DEFAULT, "chunks", out)
-            );
-        }
+    /** A bound of zero or less has no valid meaning and must be rejected rather than loop forever. */
+    public void testInvalidChunkBoundsRejected() {
+        final int invalid = randomFrom(0, -1, Integer.MIN_VALUE);
+        expectThrows(IllegalArgumentException.class, () -> new ChunkBounds(invalid, 1024));
+        expectThrows(IllegalArgumentException.class, () -> new ChunkBounds(1024, invalid));
     }
 
     /** Ids are persisted in column metadata, so they are frozen; an unknown one must fail loudly. */
@@ -312,7 +308,16 @@ public class ChunkedBytesTests extends ESTestCase {
     public void testTemporaryFilesAreRemovedWhenUnfinished() throws IOException {
         try (Directory dir = newDirectory()) {
             try (IndexOutput out = dir.createOutput("chunks.bin", IOContext.DEFAULT)) {
-                try (ChunkedBytesWriter writer = new ChunkedBytesWriter(ChunkCodec.ZSTD, 1024, dir, IOContext.DEFAULT, "chunks", out)) {
+                try (
+                    ChunkedBytesWriter writer = new ChunkedBytesWriter(
+                        ChunkCodec.ZSTD,
+                        ChunkBounds.ofBytes(1024),
+                        dir,
+                        IOContext.DEFAULT,
+                        "chunks",
+                        out
+                    )
+                ) {
                     writer.append(bytes("written but never finished"), 0, 26);
                 }
             }
@@ -386,11 +391,30 @@ public class ChunkedBytesTests extends ESTestCase {
      */
     private ChunkIndexMetadata writeStream(Directory dir, ChunkCodec codec, int target, List<byte[]> values, long[] offsets)
         throws IOException {
+        return writeStream(dir, codec, ChunkBounds.ofBytes(target), values, offsets);
+    }
+
+    private ChunkIndexMetadata writeStream(Directory dir, ChunkCodec codec, ChunkBounds bounds, List<byte[]> values, long[] offsets)
+        throws IOException {
+        return writeStream(dir, codec, bounds, values, offsets, 1);
+    }
+
+    /** As above, offering a boundary every {@code perGroup} values rather than between every two of them. */
+    private ChunkIndexMetadata writeStream(
+        Directory dir,
+        ChunkCodec codec,
+        ChunkBounds bounds,
+        List<byte[]> values,
+        long[] offsets,
+        int perGroup
+    ) throws IOException {
         try (IndexOutput out = dir.createOutput("chunks.bin", IOContext.DEFAULT)) {
-            try (ChunkedBytesWriter writer = new ChunkedBytesWriter(codec, target, dir, IOContext.DEFAULT, "chunks", out)) {
+            try (ChunkedBytesWriter writer = new ChunkedBytesWriter(codec, bounds, dir, IOContext.DEFAULT, "chunks", out)) {
                 for (int i = 0; i < values.size(); i++) {
-                    // A value is what this stream addresses, so a chunk may only end between two of them.
-                    writer.boundary();
+                    if (i % perGroup == 0) {
+                        // A group is what this stream addresses, so a chunk may only end between two of them.
+                        writer.boundary(Math.min(perGroup, values.size() - i));
+                    }
                     offsets[i] = writer.uncompressedLength();
                     writer.append(values.get(i), 0, values.get(i).length);
                 }
@@ -485,6 +509,84 @@ public class ChunkedBytesTests extends ESTestCase {
                         );
                     }
                 }
+            }
+        }
+    }
+
+    /**
+     * Values short enough that the byte target is never reached, so the value bound is the only thing that
+     * closes a chunk and the stream is cut where it says.
+     */
+    public void testTheValueBoundClosesChunksTheByteTargetNeverWould() throws IOException {
+        final List<byte[]> values = new ArrayList<>();
+        for (int i = 0; i < 1000; i++) {
+            values.add(bytes("v" + i));
+        }
+        for (int maxValues : new int[] { 1, 2, 7, 128, 999, 1000, 1001 }) {
+            final ChunkBounds bounds = new ChunkBounds(1 << 20, maxValues);
+            for (ChunkCodec codec : codecs()) {
+                try (Directory dir = newDirectory()) {
+                    final long[] offsets = new long[values.size() + 1];
+                    final ChunkIndexMetadata index = writeStream(dir, codec, bounds, values, offsets);
+                    final int expected = (values.size() + maxValues - 1) / maxValues;
+                    assertEquals("chunks at maxValues=" + maxValues + " codec=" + codec, expected, index.numChunks());
+                    assertReads(dir, index, values, offsets, "codec=" + codec + " maxValues=" + maxValues);
+                }
+            }
+        }
+    }
+
+    /** Whichever bound a chunk reaches first closes it, so a stream that reaches both is cut by the nearer one. */
+    public void testWhicheverBoundComesFirstCloses() throws IOException {
+        final List<byte[]> values = new ArrayList<>();
+        for (int i = 0; i < 400; i++) {
+            values.add(bytes(randomAlphaOfLength(100)));
+        }
+        // 100 bytes a value: the byte target lands every 10, well before the value bound.
+        final ChunkBounds bytesFirst = new ChunkBounds(1000, 1000);
+        // The same values under a value bound that lands every 4, well before the byte target.
+        final ChunkBounds valuesFirst = new ChunkBounds(1 << 20, 4);
+        try (Directory dir = newDirectory()) {
+            final long[] offsets = new long[values.size() + 1];
+            final ChunkIndexMetadata byBytes = writeStream(dir, ChunkCodec.IDENTITY, bytesFirst, values, offsets);
+            assertEquals("cut by bytes", 40, byBytes.numChunks());
+            assertReads(dir, byBytes, values, offsets, "cut by bytes");
+        }
+        try (Directory dir = newDirectory()) {
+            final long[] offsets = new long[values.size() + 1];
+            final ChunkIndexMetadata byValues = writeStream(dir, ChunkCodec.IDENTITY, valuesFirst, values, offsets);
+            assertEquals("cut by values", 100, byValues.numChunks());
+            assertReads(dir, byValues, values, offsets, "cut by values");
+        }
+    }
+
+    /**
+     * A caller that appends several values between boundaries — a block of them — is counted for all of
+     * them, and the chunk closes at the first boundary at or past the bound rather than exactly on it.
+     */
+    public void testAChunkClosesAtTheFirstBoundaryPastTheValueBound() throws IOException {
+        final int perGroup = 8;
+        final int groups = 50;
+        final List<byte[]> values = new ArrayList<>();
+        for (int i = 0; i < perGroup * groups; i++) {
+            values.add(bytes("v" + i));
+        }
+        // Not a multiple of the group, so every bound but the first falls inside one.
+        for (int maxValues : new int[] { 1, 5, 8, 12, 16 }) {
+            try (Directory dir = newDirectory()) {
+                final long[] offsets = new long[values.size() + 1];
+                final ChunkIndexMetadata index = writeStream(
+                    dir,
+                    ChunkCodec.IDENTITY,
+                    new ChunkBounds(1 << 20, maxValues),
+                    values,
+                    offsets,
+                    perGroup
+                );
+                // A chunk takes whole groups until it holds at least maxValues, so it holds that many rounded up.
+                final int perChunk = ((maxValues + perGroup - 1) / perGroup) * perGroup;
+                assertEquals("chunks at maxValues=" + maxValues, (values.size() + perChunk - 1) / perChunk, index.numChunks());
+                assertReads(dir, index, values, offsets, "grouped maxValues=" + maxValues);
             }
         }
     }

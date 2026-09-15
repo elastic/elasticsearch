@@ -26,6 +26,7 @@ import org.elasticsearch.columnar.numeric.NumericColumnValues;
 import org.elasticsearch.columnar.numeric.NumericColumnWriter;
 import org.elasticsearch.columnar.numeric.NumericPipeline;
 import org.elasticsearch.columnar.substrate.BlockBytesCodec;
+import org.elasticsearch.columnar.substrate.ChunkBounds;
 import org.elasticsearch.columnar.substrate.ChunkCodec;
 import org.elasticsearch.columnar.substrate.ColumnIteratorMetadata;
 import org.elasticsearch.columnar.substrate.ColumnIteratorWriter;
@@ -172,7 +173,7 @@ public final class StringColumnWriter {
         try (
             ValueStream.Writer stream = new ValueStream.Writer(
                 chunkCodec,
-                plainPathTargetChunkBytes,
+                ChunkBounds.ofBytes(plainPathTargetChunkBytes),
                 valuesPerBlock,
                 numValues,
                 directory,
@@ -284,7 +285,7 @@ public final class StringColumnWriter {
             try (
                 ValueStream.Writer writer = new ValueStream.Writer(
                     chunkCodec,
-                    targetChunkBytes,
+                    ChunkBounds.ofBytes(targetChunkBytes),
                     valuesPerBlock,
                     size,
                     directory,
@@ -349,7 +350,7 @@ public final class StringColumnWriter {
             // it lies. The offsets are a monotonic table, read off the mapped file.
             ValueStream.Writer writer = new ValueStream.Writer(
                 ChunkCodec.IDENTITY,
-                targetChunkBytes,
+                ChunkBounds.ofBytes(targetChunkBytes),
                 TERMS_PER_BLOCK,
                 dictionarySize,
                 directory,
@@ -550,7 +551,7 @@ public final class StringColumnWriter {
             IndexInput staged = directory.openInput(name, IOContext.READONCE);
             ValueStream.Writer writer = new ValueStream.Writer(
                 chunkCodec,
-                targetChunkBytes,
+                ChunkBounds.ofBytes(targetChunkBytes),
                 valuesPerBlock,
                 count,
                 directory,

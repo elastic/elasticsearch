@@ -20,6 +20,7 @@ import org.apache.lucene.util.ArrayUtil;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.IOUtils;
 import org.apache.lucene.util.LongValues;
+import org.elasticsearch.columnar.substrate.ChunkBounds;
 import org.elasticsearch.columnar.substrate.ChunkCodec;
 import org.elasticsearch.columnar.substrate.ChunkIndexMetadata;
 import org.elasticsearch.columnar.substrate.ChunkedBytesReader;
@@ -33,8 +34,8 @@ import java.io.IOException;
 import java.util.Arrays;
 
 /**
- * An indexed sequence of byte values, addressed in blocks of {@link #VALUES_PER_BLOCK} values and compressed
- * in chunks of a fixed number of bytes. One offset is recorded per block rather than per value, so reading
+ * An indexed sequence of byte values, addressed in blocks of a fixed number of values and compressed in
+ * chunks bounded by both bytes and values. One offset is recorded per block rather than per value, so reading
  * value {@code i} reads its block and walks the lengths within it — which keeps the offset table a fraction
  * of the size a per-value table would be.
  *
@@ -156,7 +157,7 @@ public final class ValueStream {
 
         public Writer(
             ChunkCodec codec,
-            int targetChunkBytes,
+            ChunkBounds chunkBounds,
             int valuesPerBlock,
             long numValues,
             Directory dir,
@@ -173,7 +174,7 @@ public final class ValueStream {
             MonotonicWriter offsets = null;
             boolean success = false;
             try {
-                chunks = new ChunkedBytesWriter(codec, targetChunkBytes, dir, ctx, prefix, data);
+                chunks = new ChunkedBytesWriter(codec, chunkBounds, dir, ctx, prefix, data);
                 final long blocks = (numValues + valuesPerBlock - 1) / valuesPerBlock;
                 offsets = new MonotonicWriter(dir, ctx, prefix, blocks + 1L);
                 success = true;
@@ -212,7 +213,7 @@ public final class ValueStream {
          * splitting them apart costs more than the walk saves.
          */
         private void flushBlock() throws IOException {
-            chunks.boundary();
+            chunks.boundary(pendingCount);
             offsets.add(chunks.uncompressedLength());
             int max = 0;
             for (int i = 0; i < pendingCount; i++) {

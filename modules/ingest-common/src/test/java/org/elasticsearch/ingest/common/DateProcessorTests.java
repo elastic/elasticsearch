@@ -10,8 +10,10 @@
 package org.elasticsearch.ingest.common;
 
 import org.elasticsearch.core.Strings;
+import org.elasticsearch.ingest.CompoundProcessor;
 import org.elasticsearch.ingest.IngestDocument;
 import org.elasticsearch.ingest.RandomDocumentPicks;
+import org.elasticsearch.ingest.TestProcessor;
 import org.elasticsearch.ingest.TestTemplateService;
 import org.elasticsearch.script.TemplateScript;
 import org.elasticsearch.test.ESTestCase;
@@ -347,6 +349,47 @@ public class DateProcessorTests extends ESTestCase {
         assertThat(e.getCause().getMessage(), equalTo("Unknown language: invalid"));
     }
 
+    public void testParseFailureCauseMessage() {
+        DateProcessor dateProcessor = new DateProcessor(
+            randomAlphaOfLength(10),
+            null,
+            templatize(ZoneOffset.UTC),
+            templatize(Locale.ENGLISH),
+            "date_as_string",
+            List.of("ISO8601"),
+            "date_as_date"
+        );
+        Map<String, Object> document = new HashMap<>();
+        document.put("date_as_string", "not-a-date");
+        IllegalArgumentException e = expectThrows(
+            IllegalArgumentException.class,
+            () -> dateProcessor.execute(RandomDocumentPicks.randomIngestDocument(random(), document))
+        );
+        assertThat(e.getMessage(), equalTo("unable to parse date [not-a-date]"));
+        assertThat(e.getCause().getMessage(), equalTo("failed to parse date field [not-a-date] with format [iso8601]"));
+    }
+
+    public void testParseFailureOnFailureMessage() throws Exception {
+        DateProcessor dateProcessor = new DateProcessor(
+            randomAlphaOfLength(10),
+            null,
+            templatize(ZoneOffset.UTC),
+            templatize(Locale.ENGLISH),
+            "date_as_string",
+            List.of("ISO8601"),
+            "date_as_date"
+        );
+        String[] capturedMessage = new String[1];
+        TestProcessor onFailureProcessor = new TestProcessor(ingestDocument -> {
+            capturedMessage[0] = (String) ingestDocument.getIngestMetadata().get(CompoundProcessor.ON_FAILURE_MESSAGE_FIELD);
+        });
+        Map<String, Object> document = new HashMap<>();
+        document.put("date_as_string", "not-a-date");
+        IngestDocument ingestDocument = RandomDocumentPicks.randomIngestDocument(random(), document);
+        new CompoundProcessor(false, List.of(dateProcessor), List.of(onFailureProcessor)).execute(ingestDocument);
+        assertThat(capturedMessage[0], equalTo("Could not fully parse datetime"));
+    }
+
     public void testOutputFormat() {
         long nanosAfterEpoch = randomLongBetween(1, 999999);
         DateProcessor processor = new DateProcessor(
@@ -393,6 +436,47 @@ public class DateProcessorTests extends ESTestCase {
 
         verify(supplier1, times(3)).get();
         verify(supplier2, times(2)).get();
+    }
+
+    public void testParseFailureCauseMessageWithJavaFormat() {
+        DateProcessor dateProcessor = new DateProcessor(
+            randomAlphaOfLength(10),
+            null,
+            templatize(ZoneOffset.UTC),
+            templatize(Locale.ENGLISH),
+            "date_as_string",
+            List.of("uuuu-MM-dd"),
+            "date_as_date"
+        );
+        Map<String, Object> document = new HashMap<>();
+        document.put("date_as_string", "not-a-date");
+        IllegalArgumentException e = expectThrows(
+            IllegalArgumentException.class,
+            () -> dateProcessor.execute(RandomDocumentPicks.randomIngestDocument(random(), document))
+        );
+        assertThat(e.getMessage(), equalTo("unable to parse date [not-a-date]"));
+        assertThat(e.getCause().getMessage(), equalTo("failed to parse date field [not-a-date] with format [uuuu-MM-dd]"));
+    }
+
+    public void testParseFailureOnFailureMessageWithJavaFormat() throws Exception {
+        DateProcessor dateProcessor = new DateProcessor(
+            randomAlphaOfLength(10),
+            null,
+            templatize(ZoneOffset.UTC),
+            templatize(Locale.ENGLISH),
+            "date_as_string",
+            List.of("uuuu-MM-dd"),
+            "date_as_date"
+        );
+        String[] capturedMessage = new String[1];
+        TestProcessor onFailureProcessor = new TestProcessor(ingestDocument -> {
+            capturedMessage[0] = (String) ingestDocument.getIngestMetadata().get(CompoundProcessor.ON_FAILURE_MESSAGE_FIELD);
+        });
+        Map<String, Object> document = new HashMap<>();
+        document.put("date_as_string", "not-a-date");
+        IngestDocument ingestDocument = RandomDocumentPicks.randomIngestDocument(random(), document);
+        new CompoundProcessor(false, List.of(dateProcessor), List.of(onFailureProcessor)).execute(ingestDocument);
+        assertThat(capturedMessage[0], equalTo("Text 'not-a-date' could not be parsed at index 0"));
     }
 
     public void testMustacheTemplateExecutesAtMostTwiceWithMultipleFormats() {

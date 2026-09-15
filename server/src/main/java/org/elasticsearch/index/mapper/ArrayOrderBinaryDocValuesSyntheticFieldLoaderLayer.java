@@ -86,43 +86,6 @@ public final class ArrayOrderBinaryDocValuesSyntheticFieldLoaderLayer implements
 
         slotCount = Math.toIntExact(counts.longValue());
         binaryPresent = values.advanceExact(docId);
-
-        if (binaryPresent == false) {
-            // all-null array or empty array, so still a value and the presence of counts signifies this
-            return true;
-        }
-
-        BytesRef bytes = values.binaryValue();
-        blobBytes = bytes.bytes;
-        ensureCapacity(slotCount);
-
-        if (slotCount == 1) {
-            // single non-null value stored raw (a lone null writes no binary blob)
-            offsets[0] = bytes.offset;
-            lengths[0] = bytes.length;
-        } else {
-            // point the stream reader at the blob, then walk the slotCount [len+1][bytes] slots (len+1 == 0 marks a null)
-            scratchInput.reset(bytes.bytes, bytes.offset, bytes.length);
-
-            for (int i = 0; i < slotCount; i++) {
-                int encodedLength = scratchInput.readVInt();
-                if (encodedLength == 0) {
-                    lengths[i] = -1; // null slot
-                } else {
-                    // lengths are always encoded as len+1 to distinguish between empty strings and nulls, so here we must subtract 1
-                    // to get back the actual length of the value
-                    int length = encodedLength - 1;
-                    int offset = scratchInput.getPosition();
-
-                    // skip over the value bytes so the next readVInt lands on the following slot's length prefix
-                    scratchInput.setPosition(offset + length);
-
-                    offsets[i] = offset;
-                    lengths[i] = length;
-                }
-            }
-        }
-
         return true;
     }
 
@@ -132,7 +95,7 @@ public final class ArrayOrderBinaryDocValuesSyntheticFieldLoaderLayer implements
     }
 
     @Override
-    public long valueCount() {
+    public long valueCount() throws IOException {
         if (hasField == false) {
             return 0;
         }
@@ -151,6 +114,32 @@ public final class ArrayOrderBinaryDocValuesSyntheticFieldLoaderLayer implements
             return;
         }
         if (binaryPresent) {
+            BytesRef bytes = values.binaryValue();
+            blobBytes = bytes.bytes;
+            ensureCapacity(slotCount);
+
+            if (slotCount == 1) {
+                // single non-null value stored raw (a lone null writes no binary blob)
+                offsets[0] = bytes.offset;
+                lengths[0] = bytes.length;
+            } else {
+                // walk the slotCount [len+1][bytes] slots; len+1 == 0 marks a null
+                scratchInput.reset(bytes.bytes, bytes.offset, bytes.length);
+                for (int i = 0; i < slotCount; i++) {
+                    int encodedLength = scratchInput.readVInt();
+                    if (encodedLength == 0) {
+                        lengths[i] = -1; // null slot
+                    } else {
+                        // lengths are encoded as len+1 to distinguish empty strings from nulls
+                        int length = encodedLength - 1;
+                        int offset = scratchInput.getPosition();
+                        scratchInput.setPosition(offset + length);
+                        offsets[i] = offset;
+                        lengths[i] = length;
+                    }
+                }
+            }
+
             for (int i = 0; i < slotCount; i++) {
                 if (lengths[i] < 0) {
                     b.nullValue();

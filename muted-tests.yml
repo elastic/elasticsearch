@@ -769,3 +769,6 @@ tests:
 - class: org.elasticsearch.xpack.esql.qa.csv.CsvCompressedFormatSpecIT
   method: test {csv-spec:csv-multifile-resolution.ffwSalaryStats [csv.zstd/S3]}
   issue: https://github.com/elastic/elasticsearch/issues/159270
+- class: org.elasticsearch.xpack.esql.qa.csv.CsvCompressedFormatSpecIT
+  method: test {csv-spec:csv-declared-schema-multifile.strictDeclaredSchemaColumnPresentInOnlyOneFileReadsNull [csv.bz/S3]}
+  issue: https://github.com/elastic/elasticsearch/issues/159271

@@ -341,7 +341,6 @@ public class StatelessMemoryMetricsService implements ClusterStateListener {
         Map<ShardId, ShardMappingSize> shardMappingSizes
     ) {
         assert localNode.getRoles().contains(DiscoveryNodeRole.INDEX_ROLE) : "This should only ever be called for indexing nodes";
-        final ShardHeapEstimator estimator = createShardHeapEstimator(SelfReportedShardOverhead.DEFAULT);
         final EstimatedHeapUsageBuilder builder = new EstimatedHeapUsageBuilder(
             getNodeBaseHeapEstimateInBytes(totalIndices),
             largeIndexingOpsHeapBytes,
@@ -349,6 +348,7 @@ public class StatelessMemoryMetricsService implements ClusterStateListener {
             true
         );
         final long nowNanos = relativeTimeInNanos();
+        final ShardHeapEstimator estimator = createShardHeapEstimator();
         shardMappingSizes.forEach(
             (shardId, size) -> builder.add(
                 shardId,

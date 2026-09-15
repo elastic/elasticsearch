@@ -10,6 +10,7 @@ package org.elasticsearch.xpack.esql.plugin;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionListenerResponseHandler;
 import org.elasticsearch.action.ActionResponse;
+import org.elasticsearch.action.CompositeIndicesRequest;
 import org.elasticsearch.action.support.ChannelActionListener;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.service.ClusterService;
@@ -853,7 +854,10 @@ public final class RemoteFetchService {
         }
     }
 
-    static final class ReleaseRequest extends AbstractTransportRequest {
+    /**
+     * Releases contexts whose index access was authorized by the originating ES|QL request.
+     */
+    static final class ReleaseRequest extends AbstractTransportRequest implements CompositeIndicesRequest {
         private final String retainedSessionId;
 
         ReleaseRequest(String retainedSessionId) {
@@ -876,7 +880,10 @@ public final class RemoteFetchService {
         }
     }
 
-    static final class ExchangeSetupRequest extends AbstractTransportRequest {
+    /**
+     * Opens an exchange over retained contexts whose index access was authorized by the originating ES|QL request.
+     */
+    static final class ExchangeSetupRequest extends AbstractTransportRequest implements CompositeIndicesRequest {
         private final String retainedSessionId;
         private final List<FetchField> fields;
         private final PhysicalPlan pushdownPlan;

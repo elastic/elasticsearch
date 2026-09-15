@@ -429,7 +429,8 @@ public final class SplitDiscoveryPhase {
             maxRecordBytes,
             isCancelled,
             exec.declaredReadSpec(),
-            exec.datasetName()
+            exec.datasetName(),
+            ExternalMetadataColumns.metadataNames(exec.output())
         );
 
         SplitDiscoveryResult result;
@@ -478,7 +479,8 @@ public final class SplitDiscoveryPhase {
             maxRecordBytes,
             isCancelled,
             exec.declaredReadSpec(),
-            exec.datasetName()
+            exec.datasetName(),
+            ExternalMetadataColumns.metadataNames(exec.output())
         );
 
         splitProvider.discoverSplitsAsync(context, executor, ActionListener.wrap(result -> {

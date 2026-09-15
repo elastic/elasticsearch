@@ -16,6 +16,7 @@ import org.elasticsearch.xpack.esql.datasources.SchemaReconciliation;
 
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.function.BooleanSupplier;
 
 /**
@@ -37,6 +38,9 @@ import java.util.function.BooleanSupplier;
  *        discovery filter evaluation. {@code FileSplitProvider} overlays it onto a discovery-only
  *        value map; other {@link SplitProvider}s ignore it. {@code null} when the query has no
  *        dataset identity (bare-glob {@code FROM}, {@code EXTERNAL}).
+ * @param metadataColumnNames names bound to engine-generated metadata in the resolved output,
+ *        not data columns that happen to share a metadata name. This binding is relation-wide
+ *        and must not be reinterpreted based on each file's physical schema.
  */
 public record SplitDiscoveryContext(
     SourceMetadata metadata,
@@ -53,7 +57,8 @@ public record SplitDiscoveryContext(
     // declared overlay a stats boundary — rekey physical->logical + poison retyped columns' footer stats. NONE when the
     // dataset carries no declared mapping (every current SplitProvider but FileSplitProvider ignores it).
     DeclaredReadSpec declaredReadSpec,
-    @Nullable String datasetName
+    @Nullable String datasetName,
+    Set<String> metadataColumnNames
 ) {
     public SplitDiscoveryContext(
         SourceMetadata metadata,
@@ -112,6 +117,23 @@ public record SplitDiscoveryContext(
         ExternalSchema querySchema,
         @Nullable String datasetName
     ) {
+        this(metadata, fileList, schemaMap, config, partitionInfo, filterHints, querySchema, datasetName, Set.of());
+    }
+
+    /**
+     * Carries resolved metadata bindings without requiring file-splitting or schema-reconciliation options.
+     */
+    public SplitDiscoveryContext(
+        SourceMetadata metadata,
+        FileList fileList,
+        Map<StoragePath, SchemaReconciliation.FileSchemaInfo> schemaMap,
+        Map<String, Object> config,
+        PartitionMetadata partitionInfo,
+        List<Expression> filterHints,
+        ExternalSchema querySchema,
+        @Nullable String datasetName,
+        Set<String> metadataColumnNames
+    ) {
         this(
             metadata,
             fileList,
@@ -124,7 +146,42 @@ public record SplitDiscoveryContext(
             SegmentableFormatReader.DEFAULT_MAX_RECORD_BYTES,
             () -> false,
             DeclaredReadSpec.NONE,
-            datasetName
+            datasetName,
+            metadataColumnNames
+        );
+    }
+
+    /**
+     * Builds a context for a relation with no engine-generated metadata columns.
+     */
+    public SplitDiscoveryContext(
+        SourceMetadata metadata,
+        FileList fileList,
+        Map<StoragePath, SchemaReconciliation.FileSchemaInfo> schemaMap,
+        Map<String, Object> config,
+        PartitionMetadata partitionInfo,
+        List<Expression> filterHints,
+        ExternalSchema querySchema,
+        @Nullable ExternalSchema unifiedSchema,
+        int maxRecordBytes,
+        BooleanSupplier isCancelled,
+        DeclaredReadSpec declaredReadSpec,
+        @Nullable String datasetName
+    ) {
+        this(
+            metadata,
+            fileList,
+            schemaMap,
+            config,
+            partitionInfo,
+            filterHints,
+            querySchema,
+            unifiedSchema,
+            maxRecordBytes,
+            isCancelled,
+            declaredReadSpec,
+            datasetName,
+            Set.of()
         );
     }
 
@@ -141,5 +198,6 @@ public record SplitDiscoveryContext(
         }
         isCancelled = isCancelled != null ? isCancelled : () -> false;
         declaredReadSpec = declaredReadSpec != null ? declaredReadSpec : DeclaredReadSpec.NONE;
+        metadataColumnNames = Set.copyOf(metadataColumnNames);
     }
 }

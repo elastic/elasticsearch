@@ -553,13 +553,15 @@ public class FileSplitProvider implements SplitProvider {
         Map<StoragePath, SchemaReconciliation.FileSchemaInfo> schemaInfo = context.schemaMap();
         Map<ColumnMapping, ColumnMapping> mappingCache = new ConcurrentHashMap<>();
         ExternalSchema unifiedSchema = context.unifiedSchema();
+        Set<String> metadataColumnNames = context.metadataColumnNames();
 
         int certifiedSkips = 0;
         long probedFileBytes = 0;
         List<FileTask> tasks = new ArrayList<>(fileList.fileCount());
         // Hive / _file.* listing values already live in partitionValues. Overlay the engine
         // per-file constants only when a hint names one of them.
-        boolean overlayPerFileConstants = filterHints.isEmpty() == false && hintsReferencePerFileConstants(filterHints);
+        boolean overlayPerFileConstants = filterHints.isEmpty() == false
+            && hintsReferencePerFileConstants(filterHints, metadataColumnNames);
         for (int i = 0; i < fileList.fileCount(); i++) {
             StoragePath filePath = fileList.path(i);
 
@@ -575,7 +577,7 @@ public class FileSplitProvider implements SplitProvider {
 
             if (filterHints.isEmpty() == false) {
                 Map<String, Object> filterValues = overlayPerFileConstants
-                    ? discoveryFilterValues(partitionValues, context.datasetName(), fileList, i, unifiedSchema)
+                    ? discoveryFilterValues(partitionValues, context.datasetName(), fileList, i, metadataColumnNames)
                     : partitionValues;
                 if (filterValues.isEmpty() == false && matchesPartitionFilters(filterValues, filterHints) == false) {
                     certifiedSkips++;
@@ -584,6 +586,7 @@ public class FileSplitProvider implements SplitProvider {
                 if (fileSchemaInfo != null) {
                     Set<String> fileColumnNames = new LinkedHashSet<>(fileSchemaInfo.fileSchema().names());
                     fileColumnNames.addAll(filterValues.keySet());
+                    fileColumnNames.addAll(metadataColumnNames);
                     addPerRowComposedColumnNames(fileColumnNames);
                     if (skipIfFilterOnMissingColumns(filterHints, fileColumnNames)) {
                         certifiedSkips++;
@@ -2801,31 +2804,34 @@ public class FileSplitProvider implements SplitProvider {
      * Hive partitions and {@code _file.*} listing values plus the engine-materialised per-file
      * constants ({@code _index}, {@code _version}, and the all-null standard names). Used only for
      * discovery filter evaluation; the {@link FileTask} carries hive + {@code _file.*} only.
-     * A name already in {@code unifiedSchema} is a relation-level data column, so the engine
-     * constant is omitted and the reader filters the physical values.
+     * Only names bound as metadata in the relation's output receive constants, matching the
+     * reader. Data columns retain their physical values or missing-column null-fill.
      */
     private static Map<String, Object> discoveryFilterValues(
         Map<String, Object> partitionValues,
         @Nullable String datasetName,
         FileList fileList,
         int index,
-        @Nullable ExternalSchema unifiedSchema
+        Set<String> metadataColumnNames
     ) {
         Map<String, Object> filterValues = new HashMap<>(partitionValues.size() + ExternalMetadataColumns.PER_FILE_CONSTANT_NAMES.size());
         filterValues.putAll(partitionValues);
-        Set<String> unifiedDataNames = unifiedSchema != null ? unifiedSchema.names() : Set.of();
         for (Map.Entry<String, Object> constant : ExternalMetadataColumns.extractPerFileConstants(datasetName, fileList, index)
             .entrySet()) {
-            if (unifiedDataNames.contains(constant.getKey()) == false) {
+            if (metadataColumnNames.contains(constant.getKey())) {
                 filterValues.put(constant.getKey(), constant.getValue());
             }
         }
         return filterValues;
     }
 
-    private static boolean hintsReferencePerFileConstants(List<Expression> filterHints) {
+    private static boolean hintsReferencePerFileConstants(List<Expression> filterHints, Set<String> metadataColumnNames) {
         for (Expression hint : filterHints) {
-            if (hint.references().stream().anyMatch(a -> ExternalMetadataColumns.PER_FILE_CONSTANT_NAMES.contains(a.name()))) {
+            if (hint.references()
+                .stream()
+                .anyMatch(
+                    a -> metadataColumnNames.contains(a.name()) && ExternalMetadataColumns.PER_FILE_CONSTANT_NAMES.contains(a.name())
+                )) {
                 return true;
             }
         }
@@ -2833,9 +2839,9 @@ public class FileSplitProvider implements SplitProvider {
     }
 
     /**
-     * Per-row engine-composed names. They have no file-level value for
-     * {@link #matchesPartitionFilters} but are never absent from a file, so
-     * {@link #skipIfFilterOnMissingColumns} must not treat them as missing.
+     * Per-row names have no constant for {@link #matchesPartitionFilters}. Conservatively leave
+     * their predicates to the reader: {@code _file.record_ref} can be materialized by name even
+     * when its output attribute is data-bound, so physical absence alone cannot certify a skip.
      */
     private static void addPerRowComposedColumnNames(Set<String> fileColumnNames) {
         fileColumnNames.add(FileMetadataColumns.RECORD_REF);

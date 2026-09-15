@@ -429,21 +429,11 @@ public class AsyncExternalSourceOperatorFactory implements SourceOperator.Source
         // VirtualColumnIterator's materialization paths by unioning them into the partition-column
         // set. Per-file constants take the constant-block path; _id takes the iterator's per-row
         // composition path; _source is handled by a separate operator wrapper.
-        Set<String> stdMetaNames = new LinkedHashSet<>();
-        boolean idRequested = false;
-        boolean sourceRequested = false;
-        for (Attribute attr : attributes) {
-            if (attr instanceof ExternalMetadataAttribute) {
-                String n = attr.name();
-                if (ExternalMetadataColumns.PER_FILE_CONSTANT_NAMES.contains(n)) {
-                    stdMetaNames.add(n);
-                } else if (ExternalMetadataColumns.ID.equals(n)) {
-                    idRequested = true;
-                } else if (ExternalMetadataColumns.SOURCE.equals(n)) {
-                    sourceRequested = true;
-                }
-            }
-        }
+        Set<String> metadataNames = ExternalMetadataColumns.metadataNames(attributes);
+        Set<String> stdMetaNames = new LinkedHashSet<>(metadataNames);
+        stdMetaNames.retainAll(ExternalMetadataColumns.PER_FILE_CONSTANT_NAMES);
+        boolean idRequested = metadataNames.contains(ExternalMetadataColumns.ID);
+        boolean sourceRequested = metadataNames.contains(ExternalMetadataColumns.SOURCE);
         this.idColumnRequested = idRequested;
         this.standardMetadataPerFileNames = stdMetaNames.isEmpty() ? Set.of() : Set.copyOf(stdMetaNames);
         if (stdMetaNames.isEmpty() && idRequested == false && sourceRequested == false) {

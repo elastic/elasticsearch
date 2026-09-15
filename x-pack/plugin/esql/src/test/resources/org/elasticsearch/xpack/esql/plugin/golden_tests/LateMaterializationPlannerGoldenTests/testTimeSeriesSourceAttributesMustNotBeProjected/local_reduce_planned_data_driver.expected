@@ -1,0 +1,5 @@
+ExchangeSinkExec[[_doc{f}#0, @timestamp{f}#1],false]
+\_FragmentExec[filter=null, estimatedRowSize=0, reducer=[], fragment=[<>
+Project[[_doc{f}#0, @timestamp{f}#1]]
+\_TopN[[Order[@timestamp{f}#1,DESC,LAST]],1000[INTEGER],false]
+  \_EsRelation[k8s][TIME_SERIES][_doc{f}#0, @timestamp{f}#1, client.ip{f}#2, cluster{f}#3, event{f}#4, event_city{f}#5, event_city_boundary{f}#6, event_location{f}#7, event_log{f}#8, event_shape{f}#9, events_received{f}#10, network.bytes_in{f}#11, network.cost{f}#12, network.eth0.currently_connected_clients{f}#13, network.eth0.firmware_version{f}#14, network.eth0.last_up{f}#15, network.eth0.rx{f}#16, network.eth0.tx{f}#17, network.eth0.up{f}#18, network.total_bytes_in{f}#19, network.total_bytes_out{f}#20, network.total_cost{f}#21, pod{f}#22, region{f}#23, _tsid{m}#24]<>]]

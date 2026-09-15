@@ -7,7 +7,6 @@
 
 package org.elasticsearch.xpack.esql.plugin;
 
-import org.elasticsearch.common.util.FeatureFlag;
 import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.index.mapper.IdFieldMapper;
 import org.elasticsearch.index.mapper.SourceFieldMapper;
@@ -99,15 +98,6 @@ import java.util.function.Function;
 *  {@code FORK} branch - that {@link Project} is the whole relation and prunes nothing.
 */
 class LateMaterializationPlanner {
-    /**
-     * Gates late materialization on the node-reduce driver for {@link TopNBy} and {@link LimitBy} queries.
-     * Enabled automatically in snapshot builds; override in release with
-     * {@code -Des.esql_node_late_materialization_limit_by_feature_flag_enabled=true}.
-     */
-    public static final FeatureFlag ESQL_LATE_MATERIALIZATION_LIMIT_BY_FEATURE_FLAG = new FeatureFlag(
-        "esql_node_late_materialization_limit_by"
-    );
-
     /**
      * Metadata attributes with a verified block loader, so the node-reduce driver can re-read them from {@code _doc}. This is an
      * allow-list rather than an {@code instanceof MetadataAttribute} test on purpose: {@code _score} has no block loader at all, and

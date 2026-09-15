@@ -1,0 +1,5 @@
+ExchangeSinkExec[[_doc{f}#0, @timestamp{f}#1],false]
+\_ProjectExec[[_doc{f}#0, @timestamp{f}#1]]
+  \_TopNExec[[Order[@timestamp{f}#1,DESC,LAST]],1000[INTEGER],40]
+    \_FieldExtractExec[[@timestamp{f}#1]<[],[],[]>,_doc{f}#0]
+      \_EsQueryExec[k8s], indexMode[time_series], [_doc{f}#0, _ts_slice_index{f}#2, _ts_future_max_timestamp{f}#3], limit[], sort[] estimatedRowSize[12] queryBuilderAndTags [[QueryBuilderAndTags[query=null, tags=[]]]]

@@ -60,7 +60,7 @@ public class XContentElasticsearchExtension implements XContentBuilderExtension 
         writers.put(ZonedDateTime.class, XContentBuilder::timestampValue);
         writers.put(OffsetDateTime.class, XContentBuilder::timestampValue);
         writers.put(OffsetTime.class, XContentBuilder::timestampValue);
-        writers.put(java.time.Instant.class, XContentBuilder::timestampValue);
+        writers.put(Instant.class, XContentBuilder::timestampValue);
         writers.put(LocalDateTime.class, XContentBuilder::timestampValue);
         writers.put(LocalDate.class, XContentBuilder::timestampValue);
         writers.put(LocalTime.class, XContentBuilder::timestampValue);
@@ -109,10 +109,7 @@ public class XContentElasticsearchExtension implements XContentBuilderExtension 
         transformers.put(OffsetDateTime.class, d -> DEFAULT_FORMATTER.format((OffsetDateTime) d));
         transformers.put(OffsetTime.class, d -> OFFSET_TIME_FORMATTER.format((OffsetTime) d));
         transformers.put(LocalDateTime.class, d -> DEFAULT_FORMATTER.format((LocalDateTime) d));
-        transformers.put(
-            java.time.Instant.class,
-            d -> DEFAULT_FORMATTER.format(ZonedDateTime.ofInstant((java.time.Instant) d, ZoneOffset.UTC))
-        );
+        transformers.put(Instant.class, d -> DEFAULT_FORMATTER.format(ZonedDateTime.ofInstant((java.time.Instant) d, ZoneOffset.UTC)));
         transformers.put(LocalDate.class, d -> ((LocalDate) d).toString());
         transformers.put(LocalTime.class, d -> LOCAL_TIME_FORMATTER.format((LocalTime) d));
         return transformers;

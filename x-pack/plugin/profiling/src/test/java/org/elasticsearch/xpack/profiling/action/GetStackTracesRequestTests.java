@@ -531,7 +531,7 @@ public class GetStackTracesRequestTests extends ESTestCase {
         //end::noformat
         )) {
             GetStackTracesRequest request = new GetStackTracesRequest();
-            expectThrows(org.elasticsearch.common.ParsingException.class, () -> request.parseXContent(content));
+            expectThrows(ParsingException.class, () -> request.parseXContent(content));
         }
     }
 

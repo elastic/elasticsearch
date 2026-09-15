@@ -12,6 +12,7 @@ import org.elasticsearch.core.Nullable;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.datasources.cache.ExternalStats;
 import org.elasticsearch.xpack.esql.datasources.cache.ReadConfigFingerprint;
+import org.elasticsearch.xpack.esql.datasources.spi.SourceMetadata;
 import org.elasticsearch.xpack.esql.datasources.spi.SourceStatistics;
 
 import java.util.ArrayList;
@@ -39,6 +40,11 @@ public final class SourceStatisticsSerializer {
     public static final String STATS_KEY_PREFIX = "_stats.";
     public static final String STATS_ROW_COUNT = "_stats.row_count";
     public static final String STATS_SIZE_BYTES = "_stats.size_bytes";
+    /**
+     * Per-file count of independently readable units (Parquet row groups, ORC stripes). Physical
+     * file shape, not a dataset total: {@link #mergeStatistics} does not fold it.
+     */
+    public static final String STATS_READABLE_UNIT_COUNT = "_stats.readable_unit_count";
     /**
      * When set to {@code true} in sourceMetadata, indicates that the statistics are derived
      * from a single anchor file in a multi-file glob query ({@code FIRST_FILE_WINS} schema
@@ -121,6 +127,7 @@ public final class SourceStatisticsSerializer {
         Map<String, Object> result = new HashMap<>(sourceMetadata);
         statistics.rowCount().ifPresent(rc -> result.put(STATS_ROW_COUNT, rc));
         statistics.sizeInBytes().ifPresent(sb -> result.put(STATS_SIZE_BYTES, sb));
+        statistics.readableUnitCount().ifPresent(uc -> result.put(STATS_READABLE_UNIT_COUNT, uc));
         statistics.columnStatistics().ifPresent(cols -> {
             for (Map.Entry<String, SourceStatistics.ColumnStatistics> entry : cols.entrySet()) {
                 String prefix = STATS_COL_PREFIX + entry.getKey();
@@ -133,6 +140,19 @@ public final class SourceStatisticsSerializer {
             }
         });
         return result;
+    }
+
+    /**
+     * Typed statistics from {@code meta.statistics()}, or the same harvest reconstructed from the
+     * flat {@code _stats.*} keys on {@code sourceMetadata()} when the typed view was not forwarded
+     * (a schema-cache hit). Null when neither channel carries a row count.
+     */
+    @Nullable
+    public static SourceStatistics fromSource(@Nullable SourceMetadata meta) {
+        if (meta == null) {
+            return null;
+        }
+        return meta.statistics().orElseGet(() -> extractStatistics(meta.sourceMetadata()).orElse(null));
     }
 
     /**
@@ -152,6 +172,11 @@ public final class SourceStatisticsSerializer {
             @Override
             public OptionalLong sizeInBytes() {
                 return toOptionalLong(asBoxedLong(sourceMetadata.get(STATS_SIZE_BYTES)));
+            }
+
+            @Override
+            public OptionalLong readableUnitCount() {
+                return toOptionalLong(asBoxedLong(sourceMetadata.get(STATS_READABLE_UNIT_COUNT)));
             }
 
             @Override

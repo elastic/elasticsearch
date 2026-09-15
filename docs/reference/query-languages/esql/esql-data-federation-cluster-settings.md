@@ -58,7 +58,7 @@ These settings control which authentication modes data sources can use.
 
 ## Caching
 
-These settings control the external-source cache, which stores inferred schemas and file listings.
+These settings control the external-source cache, which stores inferred schemas, file listings, and the footers of columnar files.
 
 | Setting | Default | Description |
 |---|---|---|
@@ -66,6 +66,9 @@ These settings control the external-source cache, which stores inferred schemas 
 | `esql.external.cache.size` {applies_to}`stack: experimental 9.6+`<br>`esql.source.cache.size` {applies_to}`stack: experimental 9.5, deprecated 9.6` | 0.4% of heap | Memory budget for the cache. Applied at node startup only. |
 | `esql.source.cache.schema.ttl` | — | Deprecated and ignored. Inferred schemas are invalidated by file identity and bounded by the cache memory budget, not by a TTL. |
 | `esql.external.cache.listing.ttl` {applies_to}`stack: experimental 9.6+`<br>`esql.source.cache.listing.ttl` {applies_to}`stack: experimental 9.5, deprecated 9.6` | 30s | How long a file-listing result is cached. Applied at node startup only. |
+| `esql.external.cache.footer.size` {applies_to}`stack: experimental 9.6+` | 0.5% of heap | Memory budget for cached raw footer bytes (for example, Parquet footers), which are reused across the resolution, split discovery, and execution phases of a query and across back-to-back queries. The budget applies per columnar format reader. Accepts a percentage of heap or an absolute size, and must be greater than zero. Applied at node startup only. |
+| `esql.external.cache.footer.parsed.size` {applies_to}`stack: experimental 9.6+` | 1% of heap | Memory budget for cached deserialized footers, which avoid re-parsing a footer in every query phase. A parsed footer costs several times its serialized form and grows with column count rather than file size, so raise this when querying wide schemas across large file sets. Applies per columnar format reader, like `esql.external.cache.footer.size`. Applied at node startup only. |
+| `esql.external.cache.footer.ttl` {applies_to}`stack: experimental 9.6+` | 5m | How long a cached footer survives without being accessed. Shared by the raw and parsed footer caches. Footer entries are keyed by path and file length rather than modification time, so a file overwritten in place at the same length can be served from the cache until its entry expires. Lower this if your data files are mutated in place. Applied at node startup only. |
 
 :::{note}
 :applies_to: stack: experimental 9.6+

@@ -120,6 +120,14 @@ gradlePlugin {
       id = 'elasticsearch.internal-test-rerun'
       implementationClass = 'org.elasticsearch.gradle.internal.test.rerun.InternalTestRerunPlugin'
     }
+    nativeLibraryBuild {
+      id = 'elasticsearch.native-library-build'
+      implementationClass = 'org.elasticsearch.gradle.internal.nativelibs.NativeLibraryBuildPlugin'
+    }
+    nativeLibraries {
+      id = 'elasticsearch.native-libraries'
+      implementationClass = 'org.elasticsearch.gradle.internal.nativelibs.NativeLibrariesPlugin'
+    }
     javaToolChainPlugin {
       id = 'elasticsearch.java-toolchain'
       implementationClass = 'org.elasticsearch.gradle.internal.toolchain.JavaToolChainResolverPlugin'

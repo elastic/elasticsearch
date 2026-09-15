@@ -15,6 +15,7 @@ import org.elasticsearch.xpack.esql.datasources.FileSplitProvider;
 import org.elasticsearch.xpack.esql.datasources.FormatNameResolver;
 import org.elasticsearch.xpack.esql.datasources.PartitionConfig;
 import org.elasticsearch.xpack.esql.datasources.glob.ExclusionConfig;
+import org.elasticsearch.xpack.esql.datasources.glob.FileOrderConfig;
 import org.elasticsearch.xpack.esql.datasources.metadata.DataSourceSetting;
 
 import java.util.HashMap;
@@ -91,6 +92,7 @@ public class FileDataSourceValidator implements DataSourceValidator {
         fields.addAll(ErrorPolicy.CONFIG_KEYS);
         fields.addAll(PartitionConfig.CONFIG_KEYS);
         fields.addAll(ExclusionConfig.CONFIG_KEYS);
+        fields.addAll(FileOrderConfig.CONFIG_KEYS);
         fields.addAll(FileSplitProvider.CONFIG_KEYS);
         COORDINATOR_DATASET_KEYS = Set.copyOf(fields);
     }
@@ -297,6 +299,9 @@ public class FileDataSourceValidator implements DataSourceValidator {
         if (schemaResolution != null) {
             validate(() -> FormatReader.SchemaResolution.parse(schemaResolution.toString()), errors);
         }
+        // file_sort_by + file_order: FFW-only, unknown values named. Same parser the query path uses so PUT and WITH
+        // cannot diverge. Either key alone is legal under FFW (the other defaults).
+        validate(() -> FileOrderConfig.validate(settings), errors);
         Object targetSplitSize = settings.get(FileSplitProvider.CONFIG_TARGET_SPLIT_SIZE);
         if (targetSplitSize != null) {
             String trimmedSplitSize = targetSplitSize.toString().trim();
@@ -573,7 +578,7 @@ public class FileDataSourceValidator implements DataSourceValidator {
         if (schemeMatch == false) {
             StringBuilder sb = new StringBuilder("[");
             boolean first = true;
-            for (String s : supportedSchemes) {
+            for (String s : new TreeSet<>(supportedSchemes)) {
                 if (first == false) {
                     sb.append(", ");
                 }

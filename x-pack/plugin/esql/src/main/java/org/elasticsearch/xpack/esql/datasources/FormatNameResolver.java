@@ -9,6 +9,7 @@ package org.elasticsearch.xpack.esql.datasources;
 
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.xpack.esql.datasources.spi.FormatReader;
+import org.elasticsearch.xpack.esql.datasources.spi.StoragePath;
 
 import java.util.Locale;
 import java.util.Map;
@@ -178,11 +179,22 @@ public final class FormatNameResolver {
         if (sourcePath == null) {
             return null;
         }
-        int lastDot = sourcePath.lastIndexOf('.');
-        if (lastDot < 0 || lastDot >= sourcePath.length() - 1) {
+        // StoragePath.of() strips ?/# from the path for http/https (presigned URLs); for object-store
+        // schemes ? and # are literal key characters and objectName() preserves them.
+        String nameToScan;
+        try {
+            nameToScan = StoragePath.of(sourcePath).objectName();
+        } catch (IllegalArgumentException e) {
+            nameToScan = sourcePath;
+        }
+        if (nameToScan.isEmpty()) {
             return null;
         }
-        String ext = sourcePath.substring(lastDot + 1);
+        int lastDot = nameToScan.lastIndexOf('.');
+        if (lastDot < 0 || lastDot >= nameToScan.length() - 1) {
+            return null;
+        }
+        String ext = nameToScan.substring(lastDot + 1);
         int queryStart = ext.indexOf('?');
         if (queryStart >= 0) {
             ext = ext.substring(0, queryStart);

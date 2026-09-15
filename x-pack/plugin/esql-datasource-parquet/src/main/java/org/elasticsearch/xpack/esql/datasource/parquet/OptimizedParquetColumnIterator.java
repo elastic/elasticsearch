@@ -1182,23 +1182,6 @@ final class OptimizedParquetColumnIterator implements CloseableIterator<Page>, C
             releaseHeldIo();
             return false;
         }
-        // Under two-phase, drain leading fully-filtered batches before deciding: the source-row
-        // counter would otherwise claim there is data when every remaining batch is empty.
-        if (twoPhase != null) {
-            long startNanos = System.nanoTime();
-            long startCpuNanos = ThreadCpuTimer.currentNanos();
-            try {
-                drainEmptyTwoPhaseBatches();
-            } finally {
-                if (startCpuNanos >= 0) {
-                    counters.addTotalReadCpuNanos(ThreadCpuTimer.elapsedNanos(startCpuNanos));
-                }
-                counters.addTotalReadNanos(System.nanoTime() - startNanos);
-            }
-            if (twoPhase != null && twoPhase.hasMoreBatches() == false) {
-                rowsRemainingInGroup = 0;
-            }
-        }
         // Serve rows already materialized for the current row group before consulting the
         // early-termination side channel. dynamicThreshold.noFurtherCandidates() is a volatile flag
         // that a concurrent TopN worker can flip at any moment (e.g. once a NULLS FIRST top-K
@@ -1208,7 +1191,7 @@ final class OptimizedParquetColumnIterator implements CloseableIterator<Page>, C
         // Early termination still takes effect below, where it stops us from advancing to (and
         // prefetching) any further row groups; the only extra work is draining the already-decoded,
         // in-memory current group, which the TopN simply discards.
-        if (rowsRemainingInGroup > 0) {
+        if (hasBufferedRows()) {
             return true;
         }
         if (dynamicThreshold != null && dynamicThreshold.noFurtherCandidates()) {
@@ -1224,6 +1207,36 @@ final class OptimizedParquetColumnIterator implements CloseableIterator<Page>, C
                 "Failed to read Parquet row group [" + (rowGroupOrdinal + 1) + "] in file [" + fileLocation + "]"
             );
         }
+    }
+
+    /**
+     * Whether the current row group already has an emit-ready batch. Drains leading fully-filtered
+     * two-phase batches and zeros {@link #rowsRemainingInGroup} when no batches remain, so a leftover
+     * source-row count (LIMIT-truncated two-phase) cannot look like data. Mutates the two-phase
+     * cursor. Must not read {@link DynamicThreshold#noFurtherCandidates()}: that volatile flag can
+     * flip between a caller's {@link #hasNext()} and {@link #next()}, and buffered rows must still
+     * be served.
+     */
+    private boolean hasBufferedRows() {
+        if (exhausted) {
+            return false;
+        }
+        if (twoPhase != null) {
+            long startNanos = System.nanoTime();
+            long startCpuNanos = ThreadCpuTimer.currentNanos();
+            try {
+                drainEmptyTwoPhaseBatches();
+            } finally {
+                if (startCpuNanos >= 0) {
+                    counters.addTotalReadCpuNanos(ThreadCpuTimer.elapsedNanos(startCpuNanos));
+                }
+                counters.addTotalReadNanos(System.nanoTime() - startNanos);
+            }
+            if (twoPhase != null && twoPhase.hasMoreBatches() == false) {
+                rowsRemainingInGroup = 0;
+            }
+        }
+        return rowsRemainingInGroup > 0;
     }
 
     /**
@@ -1603,7 +1616,7 @@ final class OptimizedParquetColumnIterator implements CloseableIterator<Page>, C
                     // LIMIT can stop Phase-1 without decoding the tail. sourceRowsPerBatch then
                     // sums to less than rowGroupRowCount; rowsRemainingInGroup is still set to the
                     // full group below so per-batch bookkeeping stays in source-row units.
-                    // hasNext() zeroes it when hasMoreBatches() is false after the last emitted batch.
+                    // hasBufferedRows() zeroes it when hasMoreBatches() is false after the last emitted batch.
                     break;
                 }
                 int rowsToRead = (int) Math.min(batchSize, rowGroupRowCount - rowsConsumed);
@@ -2446,8 +2459,13 @@ final class OptimizedParquetColumnIterator implements CloseableIterator<Page>, C
 
     @Override
     public Page next() {
-        if (hasNext() == false) {
-            throw new NoSuchElementException();
+        // Drain any already-decoded batch without re-reading noFurtherCandidates. After
+        // advanceRowGroup() a new two-phase group may still have leading empty batches, so a true
+        // hasNext() is not enough to emit: loop until hasBufferedRows() or the iterator is done.
+        while (hasBufferedRows() == false) {
+            if (hasNext() == false) {
+                throw new NoSuchElementException("Parquet iterator exhausted");
+            }
         }
         long startNanos = System.nanoTime();
         long startCpuNanos = ThreadCpuTimer.currentNanos();
@@ -2519,11 +2537,11 @@ final class OptimizedParquetColumnIterator implements CloseableIterator<Page>, C
      */
     private Page nextTwoPhaseBatch(int firstRowOfBatchInRG) {
         TwoPhaseRowGroup state = twoPhase;
-        // hasNext() drains any leading fully-filtered batches before returning true, so the
+        // hasBufferedRows() drains any leading fully-filtered batches before next() emits, so the
         // current cursor must point at a batch with at least one survivor by the time we get
-        // here. An assertion guards against an unexpected entry from a buggy hasNext path.
+        // here. An assertion guards against an unexpected entry from a buggy next/hasNext path.
         assert state.hasMoreBatches() && state.currentSurvivorCount() > 0
-            : "nextTwoPhaseBatch invoked on empty/missing batch (hasNext should have advanced or returned false)";
+            : "nextTwoPhaseBatch invoked on empty/missing batch (hasBufferedRows should have advanced or next returned false)";
         int sourceRows = state.currentSourceRows();
         int survivorCount = state.currentSurvivorCount();
         int[] survivorPositions = state.currentSurvivorPositions();

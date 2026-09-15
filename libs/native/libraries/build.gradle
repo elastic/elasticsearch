@@ -10,6 +10,7 @@
 import org.elasticsearch.gradle.transform.UnzipTransform
 
 apply plugin: 'base'
+apply plugin: 'elasticsearch.native-libraries'
 
 configurations {
   // Internal configuration: declares + resolves the per-platform binary distributions pulled from
@@ -38,7 +39,17 @@ configurations.consumable('nativeLibs') {
 }
 
 var zstdVersion = "1.5.7-1"
-var vecVersion = "1.0.139"
+var vecVersion = "1.0.140"
+
+// vec comes either from its published artifact or from a build of the sources in :libs:simdvec.
+// The plugin choose which one based on "modes" (See libs/simdvec/build.gradle)
+nativeLibraries {
+  vec {
+    modeEnvironmentVariable = 'VEC_NATIVE_BUILD'
+    publishedModule = "org.elasticsearch:vec:${vecVersion}@zip"
+    builtBy = ':libs:simdvec'
+  }
+}
 
 repositories {
   exclusiveContent {
@@ -76,16 +87,12 @@ dependencies {
     libs "org.elasticsearch:zstd:${zstdVersion}:linux-x86-64"
     libs "org.elasticsearch:zstd:${zstdVersion}:windows-x86-64"
   }
-  // if testing locally, its assumed that the custom compiled binaries are copied to the correct directory
-  // See `simdvec/native/Makefile` for details on how to compile locally
-  if (System.getenv("LOCAL_VEC_BINARY_OS") == null){
-    libs "org.elasticsearch:vec:${vecVersion}@zip"
-  }
 }
 
 def extractLibs = tasks.register('extractLibs', Copy) {
   into layout.buildDirectory.dir('platform')
   from configurations.libs
+  from configurations.resolvedNativeLibraries
   // TODO: fix architecture in uploaded libs
   filesMatching("*-x86-64/*") {
     it.path = it.path.replace("x86-64", "x64")

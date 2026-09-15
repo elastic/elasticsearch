@@ -15,7 +15,9 @@ import jdk.incubator.vector.VectorSpecies;
 
 import org.apache.lucene.store.IndexInput;
 import org.elasticsearch.lucene.store.IndexInputUtils;
+import org.elasticsearch.simdvec.AshScorer;
 import org.elasticsearch.simdvec.ESVectorUtil;
+import org.elasticsearch.simdvec.internal.BufferScratch;
 
 import java.io.IOException;
 import java.lang.foreign.MemorySegment;
@@ -29,9 +31,7 @@ import java.nio.ByteOrder;
  * Produces raw dot products (weighted sum over bit planes minus centering offset)
  * without applying per-vector corrections.
  */
-final class MSAshD1QFScorer extends MemorySegmentESNextAshVectorsScorer.AshMemorySegmentScorerBase
-    implements
-        MemorySegmentESNextAshVectorsScorer.AshMemorySegmentScorer<float[]> {
+final class MSAshD1QFScorer implements AshScorer<float[]> {
 
     private static final VectorSpecies<Float> FLOAT_SPECIES_256 = FloatVector.SPECIES_256;
     private static final VectorSpecies<Float> FLOAT_SPECIES_128 = FloatVector.SPECIES_128;
@@ -39,54 +39,54 @@ final class MSAshD1QFScorer extends MemorySegmentESNextAshVectorsScorer.AshMemor
     private static final ValueLayout.OfInt LAYOUT_BE_INT = ValueLayout.JAVA_INT_UNALIGNED.withOrder(ByteOrder.BIG_ENDIAN);
     private static final ValueLayout.OfShort LAYOUT_BE_SHORT = ValueLayout.JAVA_SHORT_UNALIGNED.withOrder(ByteOrder.BIG_ENDIAN);
 
-    MSAshD1QFScorer(IndexInput in, int nDims, int planeBytes, int packedCodeBytes) {
-        super(in, nDims, planeBytes, packedCodeBytes);
+    private final IndexInput in;
+    private final int nDims;
+    private final int planeBytes;
+    private final BufferScratch scratch = new BufferScratch();
+
+    MSAshD1QFScorer(IndexInput in, int nDims, int planeBytes) {
+        this.in = in;
+        this.nDims = nDims;
+        this.planeBytes = planeBytes;
     }
 
     @Override
     public float score(float[] queryTransformed) throws IOException {
-        if (planeBytes >= 2 && PanamaESVectorUtilSupport.HAS_FAST_INTEGER_VECTORS) {
-            float querySum = ESVectorUtil.sum(queryTransformed, nDims);
-            float centerOffset = 0.5f; // (2-1)/2 for 1-bit
-            float rawDot;
-            if (PanamaESVectorUtilSupport.VECTOR_BITSIZE >= 256) {
-                rawDot = IndexInputUtils.withSlice(in, planeBytes, scratch, seg -> ipFloatBitSegment256(queryTransformed, seg, 0, nDims));
-            } else {
-                rawDot = IndexInputUtils.withSlice(in, planeBytes, scratch, seg -> ipFloatBitSegment128(queryTransformed, seg, 0, nDims));
-            }
-            return rawDot - centerOffset * querySum;
+        float querySum = ESVectorUtil.sum(queryTransformed, nDims);
+        float centerOffset = 0.5f; // (2-1)/2 for 1-bit
+        float rawDot;
+        if (PanamaESVectorUtilSupport.VECTOR_BITSIZE >= 256) {
+            rawDot = IndexInputUtils.withSlice(in, planeBytes, scratch, seg -> ipFloatBitSegment256(queryTransformed, seg, 0, nDims));
+        } else {
+            rawDot = IndexInputUtils.withSlice(in, planeBytes, scratch, seg -> ipFloatBitSegment128(queryTransformed, seg, 0, nDims));
         }
-        return Float.NEGATIVE_INFINITY;
+        return rawDot - centerOffset * querySum;
     }
 
     @Override
-    public boolean scoreBulk(float[] queryTransformed, float[] scores, int scoresOffset, int blockSize) throws IOException {
-        if (planeBytes >= 2 && PanamaESVectorUtilSupport.HAS_FAST_INTEGER_VECTORS) {
-            float querySum = ESVectorUtil.sum(queryTransformed, nDims);
-            float centerOffset = 0.5f;
-            long totalBytes = (long) planeBytes * blockSize;
-            if (PanamaESVectorUtilSupport.VECTOR_BITSIZE >= 256) {
-                IndexInputUtils.withSlice(in, totalBytes, scratch, seg -> {
-                    for (int j = 0; j < blockSize; j++) {
-                        long offset = (long) j * planeBytes;
-                        float ipfb = ipFloatBitSegment256(queryTransformed, seg, offset, nDims);
-                        scores[scoresOffset + j] = ipfb - centerOffset * querySum;
-                    }
-                    return null;
-                });
-            } else {
-                IndexInputUtils.withSlice(in, totalBytes, scratch, seg -> {
-                    for (int j = 0; j < blockSize; j++) {
-                        long offset = (long) j * planeBytes;
-                        float ipfb = ipFloatBitSegment128(queryTransformed, seg, offset, nDims);
-                        scores[scoresOffset + j] = ipfb - centerOffset * querySum;
-                    }
-                    return null;
-                });
-            }
-            return true;
+    public void scoreBulk(float[] queryTransformed, int blockSize, float[] scores) throws IOException {
+        float querySum = ESVectorUtil.sum(queryTransformed, nDims);
+        float centerOffset = 0.5f;
+        long totalBytes = (long) planeBytes * blockSize;
+        if (PanamaESVectorUtilSupport.VECTOR_BITSIZE >= 256) {
+            IndexInputUtils.withSlice(in, totalBytes, scratch, seg -> {
+                for (int j = 0; j < blockSize; j++) {
+                    long offset = (long) j * planeBytes;
+                    float ipfb = ipFloatBitSegment256(queryTransformed, seg, offset, nDims);
+                    scores[j] = ipfb - centerOffset * querySum;
+                }
+                return null;
+            });
+        } else {
+            IndexInputUtils.withSlice(in, totalBytes, scratch, seg -> {
+                for (int j = 0; j < blockSize; j++) {
+                    long offset = (long) j * planeBytes;
+                    float ipfb = ipFloatBitSegment128(queryTransformed, seg, offset, nDims);
+                    scores[j] = ipfb - centerOffset * querySum;
+                }
+                return null;
+            });
         }
-        return false;
     }
 
     /**

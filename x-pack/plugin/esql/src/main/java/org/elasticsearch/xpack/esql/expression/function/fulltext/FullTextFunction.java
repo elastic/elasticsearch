@@ -56,6 +56,7 @@ import org.elasticsearch.xpack.esql.plan.logical.ExternalRelation;
 import org.elasticsearch.xpack.esql.plan.logical.Filter;
 import org.elasticsearch.xpack.esql.plan.logical.Fork;
 import org.elasticsearch.xpack.esql.plan.logical.Highlight;
+import org.elasticsearch.xpack.esql.plan.logical.InlineStats;
 import org.elasticsearch.xpack.esql.plan.logical.Limit;
 import org.elasticsearch.xpack.esql.plan.logical.LimitBy;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
@@ -75,9 +76,12 @@ import org.elasticsearch.xpack.esql.querydsl.query.TranslationAwareExpressionQue
 import org.elasticsearch.xpack.esql.score.ExpressionScoreMapper;
 
 import java.util.ArrayList;
+import java.util.Collections;
+import java.util.IdentityHashMap;
 import java.util.List;
 import java.util.Locale;
 import java.util.Objects;
+import java.util.Set;
 import java.util.function.BiConsumer;
 import java.util.function.Predicate;
 
@@ -308,12 +312,27 @@ public abstract class FullTextFunction extends Function
                 });
             }
 
+            // Collect the Aggregate nodes that belong to an INLINE STATS. Unlike a plain STATS, INLINE STATS keeps every input
+            // row (it is the sub-query side of a left join), so it does not block pushing the full-text function down to Lucene.
+            //
+            // The two walks below cover the two shapes INLINE STATS takes: this verifier runs once on the
+            // analyzed plan, which always contains InlineStats, and again on the optimized plan, where SubstituteSurrogatePlans
+            // has replaced every InlineStats with an InlineJoin.
+            //
+            // On the InlineJoin side, look anywhere in the right-hand subtree rather than just at its root: an aggregate
+            // expression (e.g. MAX(id) + 1) leaves the Aggregate wrapped in a Project/Eval once ReplaceAggregateAggExpressionWithEval
+            // has run. Restricting the walk to right() keeps unrelated aggregates on the left branch (a preceding STATS) failing,
+            // and nothing else can appear there because stubSource() cuts the aggregate's input down to a StubRelation.
+            Set<Aggregate> inlineStatsAggregates = Collections.newSetFromMap(new IdentityHashMap<>());
+            plan.forEachDown(InlineStats.class, is -> inlineStatsAggregates.add(is.aggregate()));
+            plan.forEachDown(InlineJoin.class, ij -> ij.right().forEachDown(Aggregate.class, inlineStatsAggregates::add));
+
             checkCommandsBeforeExpression(
                 plan,
                 condition,
                 FullTextFunction.class,
                 lp -> (lp instanceof Limit == false)
-                    && (lp instanceof Aggregate == false)
+                    && (lp instanceof Aggregate == false || inlineStatsAggregates.contains(lp))
                     && (lp instanceof MvExpand == false)
                     && (lp instanceof Fork == false)
                     && (lp instanceof LimitBy == false)

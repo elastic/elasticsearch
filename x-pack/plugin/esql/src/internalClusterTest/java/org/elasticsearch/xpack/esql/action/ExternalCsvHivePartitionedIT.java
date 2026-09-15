@@ -24,6 +24,7 @@ import java.util.Map;
 import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicReference;
 import java.util.stream.Collectors;
 
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.getValuesList;
@@ -245,10 +246,11 @@ public class ExternalCsvHivePartitionedIT extends AbstractExternalDataSourceIT {
         DiscoveryNode coordinator = randomFrom(clusterService().state().nodes().stream().toList());
         List<String> shadowWarnings = new CopyOnWriteArrayList<>();
         CountDownLatch latch = new CountDownLatch(1);
-        // ActionListener.running mirrors WarningsIT: the transport client owns the response ref-count
-        // (closing it here would double-decRef), so we only read the coordinator's accumulated
-        // response headers from the thread handling completion.
-        client(coordinator.getName()).execute(EsqlQueryAction.INSTANCE, syncEsqlQueryRequest(query), ActionListener.running(() -> {
+        AtomicReference<Exception> failure = new AtomicReference<>();
+        // ActionListener.wrap (not running): a failed query would otherwise look like a missing
+        // Warning header. The transport client owns the response ref-count (closing it here would
+        // double-decRef), so we only read the coordinator's accumulated response headers.
+        client(coordinator.getName()).execute(EsqlQueryAction.INSTANCE, syncEsqlQueryRequest(query), ActionListener.wrap(response -> {
             try {
                 ThreadContext threadContext = internalCluster().getInstance(TransportService.class, coordinator.getName())
                     .getThreadPool()
@@ -261,8 +263,14 @@ public class ExternalCsvHivePartitionedIT extends AbstractExternalDataSourceIT {
             } finally {
                 latch.countDown();
             }
+        }, e -> {
+            failure.set(e);
+            latch.countDown();
         }));
         assertTrue("query did not complete within timeout", latch.await(30, TimeUnit.SECONDS));
+        if (failure.get() != null) {
+            throw new AssertionError("query must succeed so the shadow warning can reach the client", failure.get());
+        }
         assertThat(
             "the shadow warning must reach the client via the response Warning header",
             shadowWarnings.size(),
@@ -323,8 +331,9 @@ public class ExternalCsvHivePartitionedIT extends AbstractExternalDataSourceIT {
      * A comma-separated resource has no glob metacharacter, so its pattern prefix is the whole comma string
      * and no listed key starts with it. A compact encoding that prepends that base to each key reads objects
      * that do not exist; the round-trip guard discards such an encoding and keeps the raw listing, so the
-     * reads succeed. {@code first_file_wins} routes through the compactor (the default
-     * {@code union_by_name} never compacts).
+     * reads succeed. This method pins {@code first_file_wins} on the inferred compact path (shared with
+     * default {@code union_by_name}); comma lists fall back to the raw listing when the encoding does
+     * not round-trip.
      */
     public void testCommaSeparatedResourceFirstFileWinsRoundTrips() throws Exception {
         Path root = createTempDir().resolve("comma_ffw_csv");
@@ -336,6 +345,54 @@ public class ExternalCsvHivePartitionedIT extends AbstractExternalDataSourceIT {
 
         try (var response = run(syncEsqlQueryRequest("FROM " + dataset + " | KEEP id, val"))) {
             assertThat(getValuesList(response).size(), is(2));
+        }
+    }
+
+    /**
+     * Dedicated schema file first, then a recursive glob. FFW omitted knobs keep declaration order so
+     * {@code my_schema.csv} is the donor; the glob files still contribute rows.
+     */
+    public void testSchemaFileThenGlobFirstFileWins() throws Exception {
+        Path root = createTempDir().resolve("schema_then_glob_csv");
+        writeCsv(root.resolve("my_schema.csv"), "id,extra\n");
+        writeCsv(root.resolve("events").resolve("2024").resolve("a.csv"), "id,extra\n1,alpha\n");
+        writeCsv(root.resolve("events").resolve("2024").resolve("z.csv"), "id,extra\n2,zeta\n");
+
+        @SuppressWarnings("checkstyle:EmptyJavadoc") // the glob's '/**/' is misread as Javadoc
+        String uri = StoragePath.fileUri(root) + "/my_schema.csv," + StoragePath.fileUri(root) + "/events/**/*.csv";
+        String dataset = registerDataset("schema_then_glob_csv", uri, Map.of("schema_resolution", "first_file_wins"));
+
+        try (var response = run(syncEsqlQueryRequest("FROM " + dataset + " | KEEP extra | WHERE extra IS NOT NULL | SORT extra"))) {
+            List<List<Object>> rows = getValuesList(response);
+            assertThat(rows.size(), is(2));
+            assertThat(rows.get(0).get(0), is("alpha"));
+            assertThat(rows.get(1).get(0), is("zeta"));
+        }
+    }
+
+    /**
+     * Recursive glob first, schema file last, {@code list}+{@code desc}: the last named file is the FFW
+     * donor and the glob files still contribute rows.
+     */
+    public void testGlobThenSchemaFileListDescFirstFileWins() throws Exception {
+        Path root = createTempDir().resolve("glob_then_schema_csv");
+        writeCsv(root.resolve("my_schema.csv"), "id,extra\n");
+        writeCsv(root.resolve("events").resolve("2024").resolve("a.csv"), "id,extra\n1,alpha\n");
+        writeCsv(root.resolve("events").resolve("2024").resolve("z.csv"), "id,extra\n2,zeta\n");
+
+        @SuppressWarnings("checkstyle:EmptyJavadoc") // the glob's '/**/' is misread as Javadoc
+        String uri = StoragePath.fileUri(root) + "/events/**/*.csv," + StoragePath.fileUri(root) + "/my_schema.csv";
+        String dataset = registerDataset(
+            "glob_then_schema_csv",
+            uri,
+            Map.of("schema_resolution", "first_file_wins", "file_sort_by", "list", "file_order", "desc")
+        );
+
+        try (var response = run(syncEsqlQueryRequest("FROM " + dataset + " | KEEP extra | WHERE extra IS NOT NULL | SORT extra"))) {
+            List<List<Object>> rows = getValuesList(response);
+            assertThat(rows.size(), is(2));
+            assertThat(rows.get(0).get(0), is("alpha"));
+            assertThat(rows.get(1).get(0), is("zeta"));
         }
     }
 

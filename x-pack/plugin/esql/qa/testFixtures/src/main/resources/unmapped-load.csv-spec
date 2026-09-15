@@ -4174,6 +4174,41 @@ FROM synthetic_source_partial_mapping
 2024-10-23T13:33:34.937Z | 43
 ;
 
+syntheticSourceObjectUnmappedFieldLoadsAsNull
+required_capability: optional_fields_v5
+required_capability: optional_fields_fix_unmapped_object_value
+
+SET unmapped_fields="load"\;
+FROM synthetic_source_partial_mapping
+| KEEP @timestamp, unmapped, unmapped.nested
+| SORT @timestamp
+| LIMIT 3
+;
+
+@timestamp:datetime      | unmapped:keyword | unmapped.nested:keyword
+2024-10-23T12:15:03.360Z | null             | g
+2024-10-23T12:27:28.948Z | null             | f
+2024-10-23T13:33:34.937Z | null             | e
+;
+
+multiIndexWhereMatchesEitherLegOfPartialField
+required_capability: optional_fields_v5
+required_capability: optional_fields_load_all_v2
+
+SET unmapped_fields="load"\;
+FROM unmapped_multi_*, -unmapped_multi_mapped_mixed
+| WHERE unmapped.foo == "mfoo8" OR unmapped.foo == "foo1"
+| KEEP id, unmapped.foo
+| SORT id
+;
+warningRegex:evaluation of \[unmapped.foo\] failed, treating result as null. Only first 20 failures recorded.
+warningRegex:java.lang.IllegalArgumentException: single-value function encountered multi-value
+
+id:keyword | unmapped.foo:keyword
+1          | foo1
+8          | mfoo8
+;
+
 loadPartiallyMappedNormalizedKeyword
 required_capability: optional_fields_v5
 required_capability: optional_fields_fix_load_partially_mapped

@@ -59,11 +59,13 @@ public class S3StorageObjectAsyncTests extends ESTestCase {
     public void testSupportsNativeAsyncWithAsyncClient() {
         S3StorageObject obj = new S3StorageObject(mockSyncClient, mockAsyncClient, BUCKET, KEY, PATH);
         assertTrue(obj.supportsNativeAsync());
+        assertTrue(obj.readBytesAsyncReleasesExecutor());
     }
 
     public void testSupportsNativeAsyncWithoutAsyncClient() {
         S3StorageObject obj = new S3StorageObject(mockSyncClient, BUCKET, KEY, PATH);
         assertFalse(obj.supportsNativeAsync());
+        assertFalse(obj.readBytesAsyncReleasesExecutor());
     }
 
     /**

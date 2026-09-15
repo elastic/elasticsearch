@@ -10,26 +10,39 @@
 package org.elasticsearch.script.mustache;
 
 import org.elasticsearch.TransportVersion;
+import org.elasticsearch.action.ActionFuture;
+import org.elasticsearch.action.admin.cluster.node.tasks.list.ListTasksResponse;
 import org.elasticsearch.action.index.IndexRequestBuilder;
 import org.elasticsearch.action.search.SearchRequest;
+import org.elasticsearch.client.Request;
+import org.elasticsearch.client.Response;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.breaker.CircuitBreakingException;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.IndexNotFoundException;
+import org.elasticsearch.index.store.Store;
+import org.elasticsearch.indices.breaker.HierarchyCircuitBreakerService;
 import org.elasticsearch.plugins.Plugin;
+import org.elasticsearch.plugins.PluginsService;
+import org.elasticsearch.rest.action.RestActions;
 import org.elasticsearch.script.ScriptType;
 import org.elasticsearch.script.mustache.MultiSearchTemplateResponse.Item;
 import org.elasticsearch.search.DummyQueryParserPlugin;
 import org.elasticsearch.search.FailBeforeCurrentVersionQueryBuilder;
 import org.elasticsearch.search.SearchService;
+import org.elasticsearch.tasks.TaskInfo;
+import org.elasticsearch.test.AbstractSearchCancellationTestCase;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.xcontent.XContentParseException;
 import org.elasticsearch.xcontent.json.JsonXContent;
 
+import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.concurrent.TimeUnit;
 
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertHitCount;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertResponse;
@@ -38,6 +51,7 @@ import static org.hamcrest.Matchers.arrayWithSize;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
+import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.core.Is.is;
 
@@ -45,7 +59,12 @@ public class MultiSearchTemplateIT extends ESIntegTestCase {
 
     @Override
     protected Collection<Class<? extends Plugin>> nodePlugins() {
-        return List.of(MustachePlugin.class, DummyQueryParserPlugin.class);
+        return List.of(MustachePlugin.class, DummyQueryParserPlugin.class, AbstractSearchCancellationTestCase.ScriptedBlockPlugin.class);
+    }
+
+    @Override
+    protected boolean addMockHttpTransport() {
+        return false; // enable real HTTP for REST-level header and channel-close tests
     }
 
     @Override
@@ -180,6 +199,160 @@ public class MultiSearchTemplateIT extends ESIntegTestCase {
             assertNull(response5.getResponse());
             assertThat(response5.getFailure(), instanceOf(XContentParseException.class));
         });
+    }
+
+    /**
+     * Regression test: a large msearch/template request must not cause OOM on the coordinator.
+     * <p>
+     * The action charges the REQUEST circuit breaker for each rendered template source held in
+     * memory before the inner searches execute. With a tight breaker, the first large render
+     * trips it and all remaining slots receive {@link CircuitBreakingException} item failures
+     * rather than silently accumulating until the node runs out of heap.
+     * <p>
+     * Render estimate = {@code 512 + source.length() + 2 × serialised(SearchSourceBuilder)}.
+     * The ~16 KB template body produces a serialised builder of comparable size, so the total
+     * estimate is well above the 10 KB breaker limit. The first render therefore trips; every
+     * subsequent slot is filled via the {@code renderCbe} fast-path without issuing any searches.
+     */
+    public void testLargeMsearchTemplateDoesNotOom() throws Exception {
+        createIndex("large-msearch");
+
+        // Build a ~16 KB rendered source (2 000 stored_fields entries, no template variables).
+        // stored_fields is a plain string array that SearchSourceBuilder accepts without any
+        // named-XContent extensions, so it round-trips cleanly through render → parse → execute.
+        StringBuilder sb = new StringBuilder("{\"size\":0,\"stored_fields\":[");
+        for (int j = 0; j < 2_000; j++) {
+            if (j > 0) sb.append(",");
+            sb.append("\"f").append(j).append("\"");
+        }
+        sb.append("]}");
+        String largeTemplate = sb.toString();
+
+        // Tighten the REQUEST breaker to 1 byte so that any positive charge trips it immediately,
+        // regardless of any pre-existing state in the breaker. The render estimate for the first
+        // item alone is 512 B (RENDER_BASE_OVERHEAD), which already exceeds this limit. Using
+        // "1b" instead of a KB-range value avoids races where the breaker's accumulated bytes
+        // from concurrent or preceding operations happen to leave just enough room under a larger
+        // limit for the charge to succeed.
+        updateClusterSettings(Settings.builder().put(HierarchyCircuitBreakerService.REQUEST_CIRCUIT_BREAKER_LIMIT_SETTING.getKey(), "1b"));
+        try {
+            int numRequests = 20;
+            MultiSearchTemplateRequest multiRequest = new MultiSearchTemplateRequest();
+            for (int i = 0; i < numRequests; i++) {
+                SearchTemplateRequest req = new SearchTemplateRequest();
+                req.setRequest(new SearchRequest("large-msearch"));
+                req.setScriptType(ScriptType.INLINE);
+                req.setScript(largeTemplate);
+                multiRequest.add(req);
+            }
+
+            assertResponse(client().execute(MustachePlugin.MULTI_SEARCH_TEMPLATE_ACTION, multiRequest), response -> {
+                assertThat(response.getResponses().length, equalTo(numRequests));
+                // Once the first render trips the breaker, fillRemainingWithCbe fills every
+                // subsequent slot via the renderCbe fast-path. All slots must be CBE failures —
+                // a weaker "cbeCount > 0" check would miss a regression where only the first
+                // slot is a CBE and the rest execute as real searches.
+                for (Item item : response.getResponses()) {
+                    assertNotNull("every slot must be populated", item);
+                    assertTrue("every slot must be a CBE failure", item.isFailure());
+                    assertThat(item.getFailure(), instanceOf(CircuitBreakingException.class));
+                }
+            });
+        } finally {
+            updateClusterSettings(
+                Settings.builder().putNull(HierarchyCircuitBreakerService.REQUEST_CIRCUIT_BREAKER_LIMIT_SETTING.getKey())
+            );
+        }
+    }
+
+    /**
+     * Verifies end-to-end wiring of {@link MultiSearchTemplateResponse#mergeDirectoryMetrics()} through
+     * {@code wrapWithSearchMetricsHeader} in the REST action: when directory metrics are enabled (via
+     * {@link Store#DIRECTORY_METRICS_FEATURE_FLAG}), a real {@code _msearch/template} search emits exactly
+     * one {@code X-Elasticsearch-Search-Metrics} response header.
+     */
+    public void testSearchMetricsResponseHeader() throws Exception {
+        assumeTrue("directory metrics feature flag must be enabled", Store.DIRECTORY_METRICS_FEATURE_FLAG.isEnabled());
+
+        createIndex("hdr-test");
+        prepareIndex("hdr-test").setId("1").setSource("field", "value").get();
+        refresh("hdr-test");
+
+        Request req = new Request("POST", "/_msearch/template");
+        req.setJsonEntity("{\"index\":\"hdr-test\"}\n" + "{\"source\":\"{\\\"query\\\":{\\\"match_all\\\":{}}}\",\"params\":{}}\n");
+        Response resp = getRestClient().performRequest(req);
+        long headerCount = Arrays.stream(resp.getHeaders())
+            .filter(h -> h.getName().equalsIgnoreCase(RestActions.SEARCH_METRICS_RESPONSE_HEADER))
+            .count();
+        assertThat("msearch/template must emit exactly one consolidated search-metrics header", headerCount, equalTo(1L));
+    }
+
+    /**
+     * Verifies that cancelling the outer {@code _msearch/template} task does not leave the outer
+     * listener hanging indefinitely. The outer response must be delivered (no deadlock) after
+     * cancellation regardless of whether the shard-level scripts complete before or after the
+     * cancel is processed.
+     *
+     * <p>Note: whether individual items come back as failures or successes depends on the race
+     * between task-cancellation propagation and the shard completing its script. The
+     * parent-task linkage itself is verified by {@code testParentTaskSetOnInnerMultiSearch}.
+     */
+    public void testCancellationPropagatesFromParentToInnerSearches() throws Exception {
+        createIndex("cancel-test");
+        for (int i = 0; i < 5; i++) {
+            prepareIndex("cancel-test").setId(Integer.toString(i)).setSource("field", "value").get();
+        }
+        refresh("cancel-test");
+
+        List<AbstractSearchCancellationTestCase.ScriptedBlockPlugin> plugins = new ArrayList<>();
+        for (PluginsService ps : internalCluster().getInstances(PluginsService.class)) {
+            ps.filterPlugins(AbstractSearchCancellationTestCase.ScriptedBlockPlugin.class).forEach(p -> {
+                p.reset();
+                p.enableBlock();
+                plugins.add(p);
+            });
+        }
+
+        // Arm the latch before submitting so there is no race on setBeforeExecution.
+        java.util.concurrent.CountDownLatch hitLatch = new java.util.concurrent.CountDownLatch(1);
+        for (AbstractSearchCancellationTestCase.ScriptedBlockPlugin plugin : plugins) {
+            plugin.setBeforeExecution(hitLatch::countDown);
+        }
+
+        String blockingTemplate = "{\"query\":{\"script\":{\"script\":{\"source\":\""
+            + AbstractSearchCancellationTestCase.ScriptedBlockPlugin.SEARCH_BLOCK_SCRIPT_NAME
+            + "\",\"lang\":\"mockscript\"}}}}";
+
+        MultiSearchTemplateRequest request = new MultiSearchTemplateRequest();
+        SearchTemplateRequest str = new SearchTemplateRequest();
+        str.setRequest(new SearchRequest("cancel-test"));
+        str.setScriptType(ScriptType.INLINE);
+        str.setScript(blockingTemplate);
+        request.add(str);
+
+        ActionFuture<MultiSearchTemplateResponse> future = client().execute(MustachePlugin.MULTI_SEARCH_TEMPLATE_ACTION, request);
+
+        // Wait until at least one shard has entered the blocking script.
+        assertTrue("timed out waiting for shard to be blocked", hitLatch.await(10, TimeUnit.SECONDS));
+
+        // Cancel the outer _msearch/template task — propagates to inner searches via parent-task linkage.
+        ListTasksResponse listResp = clusterAdmin().prepareListTasks().setActions(MustachePlugin.MULTI_SEARCH_TEMPLATE_ACTION.name()).get();
+        assertThat("outer msearch/template task must be present", listResp.getTasks(), hasSize(1));
+        TaskInfo outerTask = listResp.getTasks().get(0);
+        clusterAdmin().prepareCancelTasks().setTargetTaskId(outerTask.taskId()).get();
+
+        // Unblock the shard-level scripts so the search threads can complete.
+        for (AbstractSearchCancellationTestCase.ScriptedBlockPlugin plugin : plugins) {
+            plugin.disableBlock();
+        }
+
+        // The outer response must be delivered — cancellation must not leave the listener unreachable.
+        MultiSearchTemplateResponse response = future.actionGet(30, TimeUnit.SECONDS);
+        try {
+            assertThat(response.getResponses().length, equalTo(1));
+        } finally {
+            response.decRef();
+        }
     }
 
     /**

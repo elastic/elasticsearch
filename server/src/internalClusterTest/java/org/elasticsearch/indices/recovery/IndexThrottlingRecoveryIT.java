@@ -9,9 +9,11 @@
 
 package org.elasticsearch.indices.recovery;
 
+import org.apache.http.util.EntityUtils;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.admin.indices.stats.CommonStatsFlags;
 import org.elasticsearch.action.support.ActiveShardCount;
+import org.elasticsearch.client.Request;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.routing.UnassignedInfo;
 import org.elasticsearch.cluster.routing.allocation.decider.EnableAllocationDecider;
@@ -29,20 +31,25 @@ import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.test.ESIntegTestCase.ClusterScope;
 import org.elasticsearch.test.ESIntegTestCase.Scope;
 import org.elasticsearch.test.MockIndexEventListener;
+import org.elasticsearch.test.rest.ObjectPath;
 import org.elasticsearch.test.transport.MockTransportService;
 
+import java.io.IOException;
 import java.util.Collection;
 import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.CyclicBarrier;
+import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.lessThan;
+import static org.hamcrest.Matchers.notNullValue;
 
 /// Integration tests for source-side (see [PeerRecoverySourceService]) and target-side recovery queues (see [ThrottlingRecoveryService])
 @ClusterScope(scope = Scope.TEST, numDataNodes = 0)
@@ -51,6 +58,11 @@ public class IndexThrottlingRecoveryIT extends AbstractIndexRecoveryIntegTestCas
     @Override
     protected Collection<Class<? extends Plugin>> nodePlugins() {
         return CollectionUtils.appendToCopyNoNullElements(super.nodePlugins(), MockIndexEventListener.TestPlugin.class);
+    }
+
+    @Override
+    protected boolean addMockHttpTransport() {
+        return false; // enable HTTP so that testRecoveryApisReportsBothActiveAndQueuedRecoveries can query the REST endpoints
     }
 
     /// Verifies that the source node queues peer recovery requests that exceed
@@ -511,6 +523,117 @@ public class IndexThrottlingRecoveryIT extends AbstractIndexRecoveryIntegTestCas
 
         releaseRecoveries.countDown();
         ensureGreen(indexNames.toArray(String[]::new));
+    }
+
+    public void testRecoveryApisReportsBothActiveAndQueuedRecoveries() throws Exception {
+        final var node = internalCluster().startNode(
+            Settings.builder().put(ThrottlingRecoveryService.INDICES_RECOVERY_MAX_CONCURRENT_RECOVERIES_SETTING.getKey(), 1).build()
+        );
+        final var indexOne = randomIndexName();
+        final var indexTwo = randomIndexName();
+
+        final var recoveryStarted = new CountDownLatch(1);
+        final var proceedWithRecovery = new CountDownLatch(1);
+
+        final IndexEventListener indexEventListener = new IndexEventListener() {
+            @Override
+            public void beforeIndexShardRecovery(IndexShard indexShard, IndexSettings indexSettings, ActionListener<Void> listener) {
+                if (indexShard.shardId().getIndexName().equals(indexOne)) {
+                    recoveryStarted.countDown();
+                    safeAwait(proceedWithRecovery);
+                }
+                listener.onResponse(null);
+            }
+        };
+        internalCluster().getInstance(MockIndexEventListener.TestEventListener.class, node).setNewDelegate(indexEventListener);
+
+        try {
+            // Block the first index recovery to occupy the single recovery slot
+            assertAcked(prepareCreate(indexOne).setSettings(indexSettings(1, 0).build()).setWaitForActiveShards(ActiveShardCount.NONE));
+            safeAwait(recoveryStarted);
+
+            // Second index's recovery is queued
+            assertAcked(prepareCreate(indexTwo).setSettings(indexSettings(1, 0).build()).setWaitForActiveShards(ActiveShardCount.NONE));
+            awaitRecoveryCountStats(Map.of(node, stats -> stats.currentFromStore() == 1 && stats.currentFromStoreQueued() == 1));
+
+            final var recoveryResponse = ObjectPath.createFromResponse(getRestClient().performRequest(new Request("GET", "/_recovery")));
+            assertThat("expected active recovery to be reported by /_recovery", recoveryResponse.evaluate(indexOne), notNullValue());
+            assertThat("expected queued recovery to be reported by /_recovery", recoveryResponse.evaluate(indexTwo), notNullValue());
+            assertThat(recoveryResponse.evaluate(indexOne + ".shards.0.stage"), equalTo("INIT"));
+            assertThat(recoveryResponse.evaluate(indexTwo + ".shards.0.stage"), equalTo("CREATED"));
+
+            assertThat(
+                "an active recovery reports a start time",
+                evaluateLong(recoveryResponse, indexOne + ".shards.0.start_time_in_millis"),
+                greaterThan(0L)
+            );
+            // The queued recovery has not started its timer
+            assertThat(
+                "a queued recovery must not report a start time",
+                evaluateLong(recoveryResponse, indexTwo + ".shards.0.start_time_in_millis"),
+                equalTo(0L)
+            );
+            assertThat(
+                "a queued recovery must not accrue recovery time",
+                evaluateLong(recoveryResponse, indexTwo + ".shards.0.total_time_in_millis"),
+                equalTo(0L)
+            );
+
+            Map<String, String> catStageByIndex = catRecoveryStageByIndex(false, Set.of(indexOne, indexTwo));
+            assertThat("expected active recovery to be reported by /_cat/recovery", catStageByIndex.get(indexOne), equalTo("init"));
+            assertThat("expected queued recovery to be reported by /_cat/recovery", catStageByIndex.get(indexTwo), equalTo("created"));
+
+            final var activeOnlyRequest = new Request("GET", "/_recovery");
+            activeOnlyRequest.addParameter("active_only", "true");
+            final var activeOnlyResponse = ObjectPath.createFromResponse(getRestClient().performRequest(activeOnlyRequest));
+            assertThat(
+                "expected active recovery to be reported by /_recovery?active_only=true",
+                activeOnlyResponse.evaluate(indexOne + ".shards.0.stage"),
+                equalTo("INIT")
+            );
+            assertThat(
+                "expected queued recovery to be included in /_recovery?active_only=true",
+                activeOnlyResponse.evaluate(indexTwo + ".shards.0.stage"),
+                equalTo("CREATED")
+            );
+
+            catStageByIndex = catRecoveryStageByIndex(true, Set.of(indexOne, indexTwo));
+            assertThat(
+                "expected active recovery to be reported by /_cat/recovery?active_only=true",
+                catStageByIndex.get(indexOne),
+                equalTo("init")
+            );
+            assertThat(
+                "expected queued recovery to be included in /_cat/recovery?active_only=true",
+                catStageByIndex.get(indexTwo),
+                equalTo("created")
+            );
+        } finally {
+            proceedWithRecovery.countDown();
+        }
+        ensureGreen(indexOne, indexTwo);
+    }
+
+    private static long evaluateLong(ObjectPath response, String path) throws IOException {
+        final Number value = response.evaluate(path);
+        assertThat(path + " must be present in the response", value, notNullValue());
+        return value.longValue();
+    }
+
+    private static Map<String, String> catRecoveryStageByIndex(boolean activeOnly, Set<String> indices) throws IOException {
+        if (indices.isEmpty()) {
+            return Map.of();
+        }
+        final var request = new Request("GET", "/_cat/recovery");
+        request.addParameter("h", "index,stage");
+        if (activeOnly) {
+            request.addParameter("active_only", "true");
+        }
+        return EntityUtils.toString(getRestClient().performRequest(request).getEntity())
+            .lines()
+            .map(line -> line.trim().split("\\s+"))
+            .filter(cells -> cells.length == 2 && indices.contains(cells[0]))
+            .collect(Collectors.toMap(cells -> cells[0], cells -> cells[1]));
     }
 
     private static RecoveryStats getRecoveryStats(String node) {

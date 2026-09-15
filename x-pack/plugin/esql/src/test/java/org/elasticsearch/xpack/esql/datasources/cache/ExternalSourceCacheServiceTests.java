@@ -587,6 +587,32 @@ public class ExternalSourceCacheServiceTests extends ESTestCase {
         assertTrue(unionByName.formatConfig().contains("schema_resolution=union_by_name"));
     }
 
+    public void testSchemaCacheKeySeparatesFileSortByAndFileOrder() {
+        SchemaCacheKey ffw = SchemaCacheKey.build(
+            "s3://b/f.csv",
+            1000L,
+            ".csv",
+            Map.of("format", "csv", "schema_resolution", "first_file_wins")
+        );
+        SchemaCacheKey mtimeDesc = SchemaCacheKey.build(
+            "s3://b/f.csv",
+            1000L,
+            ".csv",
+            Map.of("format", "csv", "schema_resolution", "first_file_wins", "file_sort_by", "mtime", "file_order", "desc")
+        );
+        SchemaCacheKey nameAsc = SchemaCacheKey.build(
+            "s3://b/f.csv",
+            1000L,
+            ".csv",
+            Map.of("format", "csv", "schema_resolution", "first_file_wins", "file_sort_by", "name")
+        );
+        assertNotEquals(ffw.formatConfig(), mtimeDesc.formatConfig());
+        assertNotEquals(mtimeDesc.formatConfig(), nameAsc.formatConfig());
+        assertTrue(mtimeDesc.formatConfig().contains("file_sort_by=mtime"));
+        assertTrue(mtimeDesc.formatConfig().contains("file_order=desc"));
+        assertTrue(nameAsc.formatConfig().contains("file_sort_by=name"));
+    }
+
     /**
      * The mode changes record boundaries, null-ness ({@code \N}) and values on the same bytes,
      * so queries differing only in mode must never share a schema-cache entry or a stats

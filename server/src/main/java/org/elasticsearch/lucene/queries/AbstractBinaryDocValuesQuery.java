@@ -29,6 +29,7 @@ import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.index.mapper.BinaryDocValuesFormat;
 import org.elasticsearch.index.mapper.blockloader.docvalues.MultiValueArrayOrderInlineNullBinaryDocValuesReader;
+import org.elasticsearch.index.mapper.blockloader.docvalues.MultiValueColumnarPayloadBinaryDocValuesReader;
 import org.elasticsearch.index.mapper.blockloader.docvalues.MultiValueSeparateCountBinaryDocValuesReader;
 import org.elasticsearch.search.internal.ContextIndexSearcher;
 
@@ -96,17 +97,23 @@ abstract class AbstractBinaryDocValuesQuery extends Query {
         if (values == null) {
             return null;
         }
-        final NumericDocValues counts = context.reader().getNumericDocValues(fieldName + COUNT_FIELD_SUFFIX);
         return switch (binaryFormat) {
+            // The payload carries its own count and writes no .counts companion, so the binary column drives iteration on its own and
+            // there is nothing to look up.
+            case COLUMNAR_PAYLOAD -> columnarPayloadIterator(values, matcher, matchCost);
             case ARRAY_ORDER_INLINE_NULL -> {
                 // ArrayOrderInlineNull always writes the .counts field (even for an all-null or empty array, which writes no blob), so
                 // the counts column drives iteration and count==1 is handled inside the inline-null reader as the raw case.
+                final NumericDocValues counts = context.reader().getNumericDocValues(fieldName + COUNT_FIELD_SUFFIX);
                 assert counts != null : "ArrayOrderInlineNull field [" + fieldName + "] must have a " + COUNT_FIELD_SUFFIX + " companion";
                 yield arrayOrderInlineNullIterator(values, counts, matcher, matchCost);
             }
-            case SEPARATE_COUNT -> counts != null
-                ? multiValuedIterator(values, counts, matcher, matchCost)
-                : singleValuedIterator(values, matcher, matchCost);
+            case SEPARATE_COUNT -> {
+                final NumericDocValues counts = context.reader().getNumericDocValues(fieldName + COUNT_FIELD_SUFFIX);
+                yield counts != null
+                    ? multiValuedIterator(values, counts, matcher, matchCost)
+                    : singleValuedIterator(values, matcher, matchCost);
+            }
         };
     }
 
@@ -117,6 +124,26 @@ abstract class AbstractBinaryDocValuesQuery extends Query {
         if (visitor.acceptField(fieldName)) {
             visitor.visitLeaf(this);
         }
+    }
+
+    /**
+     * Iterator for the columnar codec's payload. The blob is written for every present document and carries its own slot count, so it is
+     * both the approximation and the source of the values; a document whose slots are all null simply matches nothing.
+     */
+    static DocIdSetIterator columnarPayloadIterator(BinaryDocValues values, Predicate<BytesRef> predicate, float cost) {
+        return TwoPhaseIterator.asDocIdSetIterator(new TwoPhaseIterator(values) {
+            final MultiValueColumnarPayloadBinaryDocValuesReader reader = new MultiValueColumnarPayloadBinaryDocValuesReader();
+
+            @Override
+            public boolean matches() throws IOException {
+                return reader.match(values.binaryValue(), predicate);
+            }
+
+            @Override
+            public float matchCost() {
+                return cost;
+            }
+        });
     }
 
     static DocIdSetIterator multiValuedIterator(

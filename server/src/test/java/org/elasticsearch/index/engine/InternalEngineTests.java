@@ -8164,6 +8164,71 @@ public class InternalEngineTests extends EngineTestCase {
         assertThat(results.getFirst().getFailure(), instanceOf(VersionConflictEngineException.class));
     }
 
+    public void testIndexBatchAllPreflightErrorsWritesNoLuceneDocs() throws IOException {
+        // A batch where every doc is a preflight error (all version conflicts) must not write any
+        // Lucene documents. Without the all-zero filter guard, addBatch would create ghost documents
+        // with no fields (no _id, no seqNo) in the segment.
+        ParsedDocument doc1 = createParsedDoc("1", null);
+        ParsedDocument doc2 = createParsedDoc("2", null);
+
+        Engine.IndexResult r1 = indexDoc(engine, indexForDoc(doc1));
+        Engine.IndexResult r2 = indexDoc(engine, indexForDoc(doc2));
+        assertThat(r1.getResultType(), equalTo(Engine.Result.Type.SUCCESS));
+        assertThat(r2.getResultType(), equalTo(Engine.Result.Type.SUCCESS));
+        engine.refresh("test");
+
+        try (Engine.Searcher searcher = engine.acquireSearcher("test", Engine.SearcherScope.INTERNAL)) {
+            assertThat(searcher.getIndexReader().numDocs(), equalTo(2));
+        }
+
+        // Both ops conflict — every doc in the batch is a preflight error.
+        Engine.Index conflict1 = new Engine.Index(
+            newUid(doc1),
+            doc1,
+            UNASSIGNED_SEQ_NO,
+            primaryTerm.get(),
+            Versions.MATCH_ANY,
+            VersionType.INTERNAL,
+            Engine.Operation.Origin.PRIMARY,
+            System.nanoTime(),
+            IndexRequest.UNSET_AUTO_GENERATED_TIMESTAMP,
+            false,
+            r1.getSeqNo() + 100,
+            r1.getTerm()
+        );
+        Engine.Index conflict2 = new Engine.Index(
+            newUid(doc2),
+            doc2,
+            UNASSIGNED_SEQ_NO,
+            primaryTerm.get(),
+            Versions.MATCH_ANY,
+            VersionType.INTERNAL,
+            Engine.Operation.Origin.PRIMARY,
+            System.nanoTime(),
+            IndexRequest.UNSET_AUTO_GENERATED_TIMESTAMP,
+            false,
+            r2.getSeqNo() + 100,
+            r2.getTerm()
+        );
+
+        List<Engine.Index> ops = List.of(conflict1, conflict2);
+        List<Engine.IndexResult> results = engine.indexBatch(engineBatch(ops, encodeAsEscfBatch(ops)));
+
+        assertThat(results, hasSize(2));
+        assertThat(results.get(0).getResultType(), equalTo(Engine.Result.Type.FAILURE));
+        assertThat(results.get(1).getResultType(), equalTo(Engine.Result.Type.FAILURE));
+
+        // Refresh and confirm no ghost documents were written by addBatch.
+        engine.refresh("test");
+        try (Engine.Searcher searcher = engine.acquireSearcher("test", Engine.SearcherScope.INTERNAL)) {
+            assertThat(
+                "no ghost documents should be written when all batch docs are preflight errors",
+                searcher.getIndexReader().numDocs(),
+                equalTo(2)
+            );
+        }
+    }
+
     public void testIndexBatchMixedNewAndExisting() throws IOException {
         // Pre-index doc "0"
         indexDoc(engine, indexForDoc(createParsedDoc("0", null)));

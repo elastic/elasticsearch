@@ -104,11 +104,22 @@ class NdJsonUtils {
 
     /**
      * Given a parser and the stream it reads from, restart parsing at the next line.
+     * <p>
+     * A bare number (e.g. {@code 42\n}) causes Jackson to consume the line terminator as a
+     * lookahead byte while scanning the number's end, leaving the parser's current location already
+     * at the start of the following record. This is detected by comparing line numbers: when
+     * {@code getCurrentLocation().getLineNr() > getTokenLocation().getLineNr()}, the terminator
+     * was already consumed and {@link JsonParser#releaseBuffered} positions the reconstructed
+     * stream at the following record — running the scan loop would consume that record through its
+     * own terminator, silently dropping it. Jackson increments its line counter on {@code '\n'} and
+     * bare {@code '\r'}, so the comparison is accurate for LF, CR, and CRLF line endings.
+     *
      * @param parser the JSON parser
-     * @param input the stream the parser reads from
+     * @param input  the stream the parser reads from
      * @return a new stream to read from
      */
     static InputStream moveToNextLine(JsonParser parser, InputStream input) throws IOException {
+        boolean alreadyCrossedLine = parser.getCurrentLocation().getLineNr() > parser.getTokenLocation().getLineNr();
         ByteArrayOutputStream baos = new ByteArrayOutputStream();
         parser.releaseBuffered(baos);
         parser.close();
@@ -121,10 +132,12 @@ class NdJsonUtils {
             }
         }
 
-        int c;
-        while ((c = input.read()) != -1) {
-            if (c == '\n' || c == '\r') {
-                break;
+        if (alreadyCrossedLine == false) {
+            int c;
+            while ((c = input.read()) != -1) {
+                if (c == '\n' || c == '\r') {
+                    break;
+                }
             }
         }
 

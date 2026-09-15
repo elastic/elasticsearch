@@ -2248,6 +2248,31 @@ public class LoggingAuditTrailTests extends ESTestCase {
         );
     }
 
+    public void testCustomizerDoesNotSeeFailedRealm() throws Exception {
+        // realm_authentication_failed is the realm that rejected the token, not the authenticating realm.
+        // A customizer that suppresses on that realm must not drop the event; the realm still appears on the log line.
+        final String realm = randomAlphaOfLengthBetween(1, 6);
+        final AuthenticationToken authToken = mockToken();
+        final TransportRequest request = randomBoolean() ? new MockRequest(threadContext) : new MockIndicesRequest(threadContext);
+        final String requestId = randomRequestId();
+        final LoggingAuditTrail auditTrail = new LoggingAuditTrail(
+            Settings.builder().put(settings).put("xpack.security.audit.logfile.events.include", "realm_authentication_failed").build(),
+            clusterService,
+            logger,
+            threadContext,
+            new AuditLogCustomizer() {
+                @Override
+                public boolean suppress(AuditEventContext ctx) {
+                    return realm.equals(ctx.realm());
+                }
+            }
+        );
+
+        auditTrail.authenticationFailed(requestId, realm, authToken, "_action", request);
+
+        assertThat(singleLogLine(logger), containsString("\"" + LoggingAuditTrail.REALM_FIELD_NAME + "\":\"" + realm + "\""));
+    }
+
     public void testSecurityConfigChangedEventSelection() {
         final String requestId = randomRequestId();
         final String[] expectedRoles = randomArray(0, 4, String[]::new, () -> randomBoolean() ? null : randomAlphaOfLengthBetween(1, 4));

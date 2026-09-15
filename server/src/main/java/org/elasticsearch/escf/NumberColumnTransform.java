@@ -19,6 +19,7 @@ import org.elasticsearch.common.recycler.Recycler;
 import org.elasticsearch.index.mapper.NumberFieldMapper;
 import org.elasticsearch.xcontent.support.AbstractXContentParser;
 
+import java.util.function.Consumer;
 import java.util.function.DoubleToLongFunction;
 import java.util.function.LongUnaryOperator;
 
@@ -43,14 +44,23 @@ public final class NumberColumnTransform {
     public static EscfColumnData toHalfFloatPointBinaryColumn(EscfColumn source, Recycler<BytesRef> recycler) {
         assert source.kind() == EscfColumnKind.LONG : "expected LONG, got " + EscfColumnKind.name(source.kind());
         EscfColumnBuilder builder = newBytesBuilder(recycler);
-        final byte[] buf = new byte[Short.BYTES];
-        final BytesRef ref = new BytesRef(buf);
-        LongTupleCursor cursor = source.longCursor();
-        for (int doc = cursor.nextDoc(); doc != DocIdSetIterator.NO_MORE_DOCS; doc = cursor.nextDoc()) {
-            HalfFloatPoint.encodeDimension(HalfFloatPoint.sortableShortToHalfFloat((short) cursor.longValue()), buf, 0);
-            builder.setBinary(doc, ref);
+        boolean success = false;
+        try {
+            final byte[] buf = new byte[Short.BYTES];
+            final BytesRef ref = new BytesRef(buf);
+            LongTupleCursor cursor = source.longCursor();
+            for (int doc = cursor.nextDoc(); doc != DocIdSetIterator.NO_MORE_DOCS; doc = cursor.nextDoc()) {
+                HalfFloatPoint.encodeDimension(HalfFloatPoint.sortableShortToHalfFloat((short) cursor.longValue()), buf, 0);
+                builder.setBinary(doc, ref);
+            }
+            EscfColumnData result = builder.finish(source.docCount());
+            success = true;
+            return result;
+        } finally {
+            if (success == false) {
+                builder.discard();
+            }
         }
-        return builder.finish(source.docCount());
     }
 
     /**
@@ -64,12 +74,21 @@ public final class NumberColumnTransform {
     public static EscfColumnData toHalfFloatStoredLongColumn(EscfColumn source, Recycler<BytesRef> recycler) {
         assert source.kind() == EscfColumnKind.LONG : "expected LONG, got " + EscfColumnKind.name(source.kind());
         EscfColumnBuilder builder = newLongBuilder(recycler);
-        LongTupleCursor cursor = source.longCursor();
-        for (int doc = cursor.nextDoc(); doc != DocIdSetIterator.NO_MORE_DOCS; doc = cursor.nextDoc()) {
-            float f = HalfFloatPoint.sortableShortToHalfFloat((short) cursor.longValue());
-            builder.setLong(doc, NumericUtils.floatToSortableInt(f));
+        boolean success = false;
+        try {
+            LongTupleCursor cursor = source.longCursor();
+            for (int doc = cursor.nextDoc(); doc != DocIdSetIterator.NO_MORE_DOCS; doc = cursor.nextDoc()) {
+                float f = HalfFloatPoint.sortableShortToHalfFloat((short) cursor.longValue());
+                builder.setLong(doc, NumericUtils.floatToSortableInt(f));
+            }
+            EscfColumnData result = builder.finish(source.docCount());
+            success = true;
+            return result;
+        } finally {
+            if (success == false) {
+                builder.discard();
+            }
         }
-        return builder.finish(source.docCount());
     }
 
     public static EscfColumnData toSortableLongColumn(
@@ -88,11 +107,30 @@ public final class NumberColumnTransform {
         Recycler<BytesRef> recycler,
         Long nullReplacement
     ) {
+        return toSortableLongColumn(source, type, coerce, recycler, nullReplacement, data -> {});
+    }
+
+    public static EscfColumnData toSortableLongColumn(
+        EscfColumn source,
+        NumberFieldMapper.NumberType type,
+        boolean coerce,
+        Recycler<BytesRef> recycler,
+        Long nullReplacement,
+        Consumer<EscfColumnData> ownedSink
+    ) {
         return switch (source.kind()) {
-            case EscfColumnKind.LONG -> fromLong(source, type, recycler);
-            case EscfColumnKind.DOUBLE -> fromDouble(source, type, coerce, recycler);
-            case EscfColumnKind.STRING -> fromString(source, type, coerce, recycler, nullReplacement);
-            case EscfColumnKind.ARRAY -> fromArray(source, type, coerce, recycler, nullReplacement);
+            case EscfColumnKind.LONG -> fromLong(source, type, recycler, ownedSink);
+            case EscfColumnKind.DOUBLE -> {
+                EscfColumnData result = fromDouble(source, type, coerce, recycler);
+                ownedSink.accept(result);
+                yield result;
+            }
+            case EscfColumnKind.STRING -> {
+                EscfColumnData result = fromString(source, type, coerce, recycler, nullReplacement);
+                ownedSink.accept(result);
+                yield result;
+            }
+            case EscfColumnKind.ARRAY -> fromArray(source, type, coerce, recycler, nullReplacement, ownedSink);
             default -> throw new UnsupportedOperationException(
                 "toSortableLongColumn: unsupported ESCF column kind ["
                     + EscfColumnKind.name(source.kind())
@@ -106,7 +144,8 @@ public final class NumberColumnTransform {
         NumberFieldMapper.NumberType type,
         boolean coerce,
         Recycler<BytesRef> recycler,
-        Long nullReplacement
+        Long nullReplacement,
+        Consumer<EscfColumnData> ownedSink
     ) {
         // Materialize the array structure: offsets + child data. The child is always dense (all
         // elements present — absent rows are represented by an empty offset range, not a child gap).
@@ -114,19 +153,23 @@ public final class NumberColumnTransform {
         EscfColumnData childData = sourceData.child();
         EscfColumn child = EscfColumn.from(childData);
         return switch (child.kind()) {
-            case EscfColumnKind.STRING -> fromString(source, type, coerce, recycler, nullReplacement);
-            case EscfColumnKind.LONG -> EscfColumnData.ofArray(
-                sourceData.docCount(),
-                sourceData.validity(),
-                sourceData.offsets(),
-                fromLong(child, type, recycler)
-            );
-            case EscfColumnKind.DOUBLE -> EscfColumnData.ofArray(
-                sourceData.docCount(),
-                sourceData.validity(),
-                sourceData.offsets(),
-                fromDouble(child, type, coerce, recycler)
-            );
+            case EscfColumnKind.STRING -> {
+                EscfColumnData result = fromString(source, type, coerce, recycler, nullReplacement);
+                ownedSink.accept(result);
+                yield result;
+            }
+            case EscfColumnKind.LONG -> {
+                // Register the child's allocation (not the ARRAY wrapper): EscfColumnData.close()
+                // recurses into child, so registering the ARRAY wrapper when the child is zero-copy
+                // would incorrectly decRef source-batch buffers.
+                EscfColumnData childResult = fromLong(child, type, recycler, ownedSink);
+                yield EscfColumnData.ofArray(sourceData.docCount(), sourceData.validity(), sourceData.offsets(), childResult);
+            }
+            case EscfColumnKind.DOUBLE -> {
+                EscfColumnData childResult = fromDouble(child, type, coerce, recycler);
+                ownedSink.accept(childResult);
+                yield EscfColumnData.ofArray(sourceData.docCount(), sourceData.validity(), sourceData.offsets(), childResult);
+            }
             default -> throw new UnsupportedOperationException(
                 "toSortableLongColumn: ARRAY child kind ["
                     + EscfColumnKind.name(child.kind())
@@ -144,22 +187,31 @@ public final class NumberColumnTransform {
     ) {
         AbstractXContentParser.checkCoerceString(coerce, classForType(type));
         EscfColumnBuilder builder = newLongBuilder(recycler);
-        // retainValues=false: each value is parsed inside the loop body, before the cursor advances.
-        ObjectTupleCursor<BytesRef> cursor = source.bytesRefCursor(false);
-        final long min = integerMinForType(type);
-        final long max = integerMaxForType(type);
-        final long[] scratch = new long[1];
-        for (int doc = cursor.nextDoc(); doc != DocIdSetIterator.NO_MORE_DOCS; doc = cursor.nextDoc()) {
-            BytesRef value = cursor.value();
-            if (coerce && value.length == 0) {
-                if (nullReplacement != null) {
-                    builder.setLong(doc, nullReplacement);
+        boolean success = false;
+        try {
+            // retainValues=false: each value is parsed inside the loop body, before the cursor advances.
+            ObjectTupleCursor<BytesRef> cursor = source.bytesRefCursor(false);
+            final long min = integerMinForType(type);
+            final long max = integerMaxForType(type);
+            final long[] scratch = new long[1];
+            for (int doc = cursor.nextDoc(); doc != DocIdSetIterator.NO_MORE_DOCS; doc = cursor.nextDoc()) {
+                BytesRef value = cursor.value();
+                if (coerce && value.length == 0) {
+                    if (nullReplacement != null) {
+                        builder.setLong(doc, nullReplacement);
+                    }
+                    continue;
                 }
-                continue;
+                builder.setLong(doc, stringToSortableLong(value, type, min, max, scratch));
             }
-            builder.setLong(doc, stringToSortableLong(value, type, min, max, scratch));
+            EscfColumnData result = builder.finish(source.docCount());
+            success = true;
+            return result;
+        } finally {
+            if (success == false) {
+                builder.discard();
+            }
         }
-        return builder.finish(source.docCount());
     }
 
     /**
@@ -290,9 +342,15 @@ public final class NumberColumnTransform {
         };
     }
 
-    private static EscfColumnData fromLong(EscfColumn source, NumberFieldMapper.NumberType type, Recycler<BytesRef> recycler) {
+    private static EscfColumnData fromLong(
+        EscfColumn source,
+        NumberFieldMapper.NumberType type,
+        Recycler<BytesRef> recycler,
+        Consumer<EscfColumnData> ownedSink
+    ) {
         return switch (type) {
             // Two's-complement longs are already the sortable encoding: zero-copy no-op.
+            // These alias the source column — do NOT register with ownedSink.
             case LONG -> source.toColumnData();
             case BYTE -> {
                 validateLongRange(source, Byte.MIN_VALUE, Byte.MAX_VALUE, "a byte");
@@ -306,10 +364,23 @@ public final class NumberColumnTransform {
                 validateLongRange(source, Integer.MIN_VALUE, Integer.MAX_VALUE, "an integer");
                 yield source.toColumnData();
             }
+            // These allocate recycler-backed buffers — register with ownedSink.
             // (float) l and (double) l match the row path: Jackson uses l2f/l2d directly.
-            case FLOAT -> copyLong(source, l -> (long) NumericUtils.floatToSortableInt((float) l), recycler);
-            case DOUBLE -> copyLong(source, l -> NumericUtils.doubleToSortableLong((double) l), recycler);
-            case HALF_FLOAT -> copyLong(source, l -> toValidatedHalfFloat((float) l), recycler);
+            case FLOAT -> {
+                EscfColumnData result = copyLong(source, l -> (long) NumericUtils.floatToSortableInt((float) l), recycler);
+                ownedSink.accept(result);
+                yield result;
+            }
+            case DOUBLE -> {
+                EscfColumnData result = copyLong(source, l -> NumericUtils.doubleToSortableLong((double) l), recycler);
+                ownedSink.accept(result);
+                yield result;
+            }
+            case HALF_FLOAT -> {
+                EscfColumnData result = copyLong(source, l -> toValidatedHalfFloat((float) l), recycler);
+                ownedSink.accept(result);
+                yield result;
+            }
         };
     }
 
@@ -325,11 +396,20 @@ public final class NumberColumnTransform {
 
     private static EscfColumnData copyLong(EscfColumn source, LongUnaryOperator convert, Recycler<BytesRef> recycler) {
         EscfColumnBuilder builder = newLongBuilder(recycler);
-        LongTupleCursor cursor = source.longCursor();
-        for (int doc = cursor.nextDoc(); doc != DocIdSetIterator.NO_MORE_DOCS; doc = cursor.nextDoc()) {
-            builder.setLong(doc, convert.applyAsLong(cursor.longValue()));
+        boolean success = false;
+        try {
+            LongTupleCursor cursor = source.longCursor();
+            for (int doc = cursor.nextDoc(); doc != DocIdSetIterator.NO_MORE_DOCS; doc = cursor.nextDoc()) {
+                builder.setLong(doc, convert.applyAsLong(cursor.longValue()));
+            }
+            EscfColumnData result = builder.finish(source.docCount());
+            success = true;
+            return result;
+        } finally {
+            if (success == false) {
+                builder.discard();
+            }
         }
-        return builder.finish(source.docCount());
     }
 
     private static EscfColumnData fromDouble(
@@ -351,21 +431,39 @@ public final class NumberColumnTransform {
 
     private static EscfColumnData copyDoubleBits(EscfColumn source, Recycler<BytesRef> recycler) {
         EscfColumnBuilder builder = newLongBuilder(recycler);
-        LongTupleCursor cursor = source.longCursor();
-        for (int doc = cursor.nextDoc(); doc != DocIdSetIterator.NO_MORE_DOCS; doc = cursor.nextDoc()) {
-            builder.setLong(doc, NumericUtils.sortableDoubleBits(cursor.longValue()));
+        boolean success = false;
+        try {
+            LongTupleCursor cursor = source.longCursor();
+            for (int doc = cursor.nextDoc(); doc != DocIdSetIterator.NO_MORE_DOCS; doc = cursor.nextDoc()) {
+                builder.setLong(doc, NumericUtils.sortableDoubleBits(cursor.longValue()));
+            }
+            EscfColumnData result = builder.finish(source.docCount());
+            success = true;
+            return result;
+        } finally {
+            if (success == false) {
+                builder.discard();
+            }
         }
-        return builder.finish(source.docCount());
     }
 
     private static EscfColumnData copyDouble(EscfColumn source, DoubleToLongFunction convert, Recycler<BytesRef> recycler) {
         EscfColumnBuilder builder = newLongBuilder(recycler);
-        LongTupleCursor cursor = source.longCursor();
-        for (int doc = cursor.nextDoc(); doc != DocIdSetIterator.NO_MORE_DOCS; doc = cursor.nextDoc()) {
-            double d = Double.longBitsToDouble(cursor.longValue());
-            builder.setLong(doc, convert.applyAsLong(d));
+        boolean success = false;
+        try {
+            LongTupleCursor cursor = source.longCursor();
+            for (int doc = cursor.nextDoc(); doc != DocIdSetIterator.NO_MORE_DOCS; doc = cursor.nextDoc()) {
+                double d = Double.longBitsToDouble(cursor.longValue());
+                builder.setLong(doc, convert.applyAsLong(d));
+            }
+            EscfColumnData result = builder.finish(source.docCount());
+            success = true;
+            return result;
+        } finally {
+            if (success == false) {
+                builder.discard();
+            }
         }
-        return builder.finish(source.docCount());
     }
 
     private static long doubleToFloatSortable(double d) {
@@ -389,18 +487,27 @@ public final class NumberColumnTransform {
         Recycler<BytesRef> recycler
     ) {
         EscfColumnBuilder builder = newLongBuilder(recycler);
-        LongTupleCursor cursor = source.longCursor();
-        for (int doc = cursor.nextDoc(); doc != DocIdSetIterator.NO_MORE_DOCS; doc = cursor.nextDoc()) {
-            double d = Double.longBitsToDouble(cursor.longValue());
-            if (d < min || d > max) {
-                throw new IllegalArgumentException("Value [" + d + "] is out of range for " + typeName);
+        boolean success = false;
+        try {
+            LongTupleCursor cursor = source.longCursor();
+            for (int doc = cursor.nextDoc(); doc != DocIdSetIterator.NO_MORE_DOCS; doc = cursor.nextDoc()) {
+                double d = Double.longBitsToDouble(cursor.longValue());
+                if (d < min || d > max) {
+                    throw new IllegalArgumentException("Value [" + d + "] is out of range for " + typeName);
+                }
+                if (coerce == false && d % 1 != 0) {
+                    throw new IllegalArgumentException("Value [" + d + "] has a decimal part");
+                }
+                builder.setLong(doc, (long) d);
             }
-            if (coerce == false && d % 1 != 0) {
-                throw new IllegalArgumentException("Value [" + d + "] has a decimal part");
+            EscfColumnData result = builder.finish(source.docCount());
+            success = true;
+            return result;
+        } finally {
+            if (success == false) {
+                builder.discard();
             }
-            builder.setLong(doc, (long) d);
         }
-        return builder.finish(source.docCount());
     }
 
     private static short toValidatedHalfFloat(float f) {

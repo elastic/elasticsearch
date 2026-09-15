@@ -9,6 +9,7 @@
 
 package org.elasticsearch.columnar.string;
 
+import org.apache.lucene.index.CorruptIndexException;
 import org.apache.lucene.store.DataInput;
 import org.apache.lucene.store.DataOutput;
 import org.apache.lucene.store.Directory;
@@ -29,6 +30,7 @@ import org.elasticsearch.columnar.substrate.internal.ByteArrayInts;
 
 import java.io.Closeable;
 import java.io.IOException;
+import java.util.Arrays;
 
 /**
  * An indexed sequence of byte values, addressed in blocks of {@link #VALUES_PER_BLOCK} values and compressed
@@ -50,12 +52,27 @@ public final class ValueStream {
     public static final int VALUES_PER_BLOCK = 128;
 
     /** Marks a block whose lengths sit in front of their own values rather than together at its head. */
-    private static final byte INLINE = 0;
+    static final byte INLINE = 0;
+
+    /**
+     * A block whose values repeat in runs: each distinct value once, with how many documents in a row hold
+     * it. Three, because one, two and four are the widths a packed block records its lengths at.
+     */
+    static final byte RUNS = 3;
+
+    /**
+     * Every value a block's first byte may take. A packed block marks itself with the width its lengths are
+     * written at, so those widths and the layouts share one byte and a layout added later has to take a
+     * value none of them use. {@link #knownMarker} is what says which those are, and the reader turns away
+     * anything else rather than reading it as the layout that happens to share its number.
+     */
+    static boolean knownMarker(byte marker) {
+        return marker == INLINE || marker == RUNS || marker == 1 || marker == 2 || marker == 4;
+    }
 
     /** Mean value length below which a block keeps its lengths inline. */
     private static final int INLINE_MEAN_LENGTH = 32;
 
-    /** Where a stream's bytes and offsets landed. */
     /**
      * What a written stream records about itself.
      *
@@ -128,6 +145,10 @@ public final class ValueStream {
         private byte[] pendingBytes = new byte[1024];
         // Holds a block's length header, or one value's length as a vint, so neither is allocated per block.
         private byte[] scratch = new byte[0];
+        // What stageRuns found, read by the sizing and the write that follow it.
+        private int[] runStarts = new int[0];
+        private int[] runLens = new int[0];
+        private int[] runReps = new int[0];
         private int pendingCount = 0;
         private int pendingLength = 0;
 
@@ -196,6 +217,18 @@ public final class ValueStream {
                 max = Math.max(max, pending[i]);
             }
             final int width = ByteArrayInts.widthFor(max);
+            // A run of equal values is stored once with a repeat, which is what a column sorted on this
+            // field is made of. Worth it only where the runs are long enough to pay for the repeats, so the
+            // two forms are sized against each other rather than guessed at.
+            // Finding the runs is the part that compares bytes, so it is done once and what it found is what
+            // the sizing and the write both read.
+            final int runCount = stageRuns();
+            if (runsAreSmaller(runCount)) {
+                writeRuns(runCount);
+                pendingCount = 0;
+                pendingLength = 0;
+                return;
+            }
             // Which layout is smaller is decided after compression, so an uncompressed byte count cannot
             // choose between them. What separates them is how long the values are: short ones repeat
             // together with their length as a single pattern, and splitting the two apart costs more than
@@ -220,6 +253,67 @@ public final class ValueStream {
             }
             chunks.append(scratch, 0, length);
             chunks.append(pendingBytes, 0, pendingLength);
+        }
+
+        /** How many runs of equal values the staged block holds, counted over the values already in hand. */
+        /**
+         * Finds the runs the staged values hold, recording where each one's bytes start, how long they are
+         * and how many values carry them. This is the only walk that compares bytes; sizing the two forms
+         * against each other and writing the runs both read what it left.
+         */
+        private int stageRuns() {
+            if (runStarts.length < pendingCount) {
+                runStarts = new int[pendingCount];
+                runLens = new int[pendingCount];
+                runReps = new int[pendingCount];
+            }
+            int runs = 0;
+            int at = 0;
+            for (int i = 0; i < pendingCount; i++) {
+                final boolean sameAsPrevious = i > 0
+                    && pending[i] == pending[i - 1]
+                    && Arrays.equals(pendingBytes, at - pending[i - 1], at, pendingBytes, at, at + pending[i]);
+                if (sameAsPrevious) {
+                    runReps[runs - 1]++;
+                } else {
+                    runStarts[runs] = at;
+                    runLens[runs] = pending[i];
+                    runReps[runs] = 1;
+                    runs++;
+                }
+                at += pending[i];
+            }
+            return runs;
+        }
+
+        private boolean runsAreSmaller(int runCount) {
+            if (runCount == pendingCount) {
+                return false;
+            }
+            long runBytes = 0;
+            for (int r = 0; r < runCount; r++) {
+                runBytes += runLens[r];
+            }
+            // Two vints a run against one a value, plus the bytes each form actually stores.
+            return runBytes + 2L * runCount < pendingLength + pendingCount;
+        }
+
+        /** Each distinct value once, preceded by its length and how many documents in a row hold it. */
+        private void writeRuns(int runCount) throws IOException {
+            scratch = ArrayUtil.growNoCopy(scratch, 1 + 2 * runCount * ByteArrayInts.MAX_VINT_BYTES + pendingLength);
+            scratch[0] = RUNS;
+            int header = 1;
+            header += ByteArrayInts.writeVInt(runCount, scratch, header);
+            for (int r = 0; r < runCount; r++) {
+                header += ByteArrayInts.writeVInt(runLens[r], scratch, header);
+                header += ByteArrayInts.writeVInt(runReps[r], scratch, header);
+            }
+            // The header is sized before the bytes are known, so the values are laid down after it.
+            for (int r = 0; r < runCount; r++) {
+                System.arraycopy(pendingBytes, runStarts[r], scratch, header, runLens[r]);
+                header += runLens[r];
+            }
+            chunks.append(scratch, 0, header);
         }
 
         private void writeInline() throws IOException {
@@ -280,6 +374,10 @@ public final class ValueStream {
 
         private final BytesRef block = new BytesRef();
         private long cachedBlock = -1;
+        private int[] runLengths = new int[0];
+        private int[] runRepeats = new int[0];
+        private final int blockShift;
+        private final int blockMask;
         private int[] starts;
         private int[] lengths;
         // Cursor for the readVInt(byte[], int[]) overload, reused across block decodes to avoid allocation.
@@ -290,6 +388,12 @@ public final class ValueStream {
             this.offsets = offsets;
             this.numValues = numValues;
             this.valuesPerBlock = valuesPerBlock;
+            // A block holds a power of two values, so the block a value is in and where it sits inside it are
+            // a shift and a mask rather than a division and a multiplication, on a path taken once a value.
+            assert valuesPerBlock > 0 && (valuesPerBlock & (valuesPerBlock - 1)) == 0
+                : "values per block must be a power of two, got " + valuesPerBlock;
+            this.blockShift = Integer.numberOfTrailingZeros(valuesPerBlock);
+            this.blockMask = valuesPerBlock - 1;
             this.starts = new int[valuesPerBlock];
             this.lengths = new int[valuesPerBlock];
         }
@@ -300,13 +404,28 @@ public final class ValueStream {
 
         /** Points {@code dst} at the value at {@code valueAddress}; the bytes are valid until the next call. */
         public void get(long valueAddress, BytesRef dst) throws IOException {
+            read(valueAddress, dst);
+        }
+
+        /**
+         * Places the value's bytes in {@code dst} and returns where they begin, as a token comparable only
+         * within one reader. Two addresses hold the same stored bytes when this and {@code dst.length} both
+         * match: a run is stored once and every value of it points at that one copy, so a caller tells a
+         * repeat from a new value without comparing any bytes. The length is part of it because a value of
+         * no bytes begins where the value stored after it does.
+         *
+         * <p>Two equal values stored apart - in different blocks, or in a block that did not take the run
+         * form - answer differently, so a caller comparing them treats a repeat as new: correct, slower.
+         */
+        public long read(long valueAddress, BytesRef dst) throws IOException {
             assert valueAddress >= 0 && valueAddress < numValues : valueAddress + " out of [0, " + numValues + ")";
-            final long blockIndex = valueAddress / valuesPerBlock;
+            final long blockIndex = valueAddress >>> blockShift;
             ensureBlock(blockIndex);
-            final int within = (int) (valueAddress - blockIndex * valuesPerBlock);
+            final int within = (int) (valueAddress & blockMask);
             dst.bytes = block.bytes;
             dst.offset = starts[within];
             dst.length = lengths[within];
+            return (blockIndex << 32) | Integer.toUnsignedLong(starts[within]);
         }
 
         private void ensureBlock(long blockIndex) throws IOException {
@@ -323,9 +442,38 @@ public final class ValueStream {
             final int span = (int) (offsets.get(blockIndex + 1) - start);
             chunks.span(start, span, block);
             final byte[] bytes = block.bytes;
-            final int width = bytes[block.offset];
-            final long first = blockIndex * valuesPerBlock;
+            final byte width = bytes[block.offset];
+            if (knownMarker(width) == false) {
+                throw new CorruptIndexException("unknown block layout marker [" + width + "]", chunks.toString());
+            }
+            final long first = blockIndex << blockShift;
             final int count = (int) Math.min(valuesPerBlock, numValues - first);
+            if (width == RUNS) {
+                cursor[0] = block.offset + 1;
+                final int runCount = ByteArrayInts.readVInt(bytes, cursor);
+                if (runLengths.length < runCount) {
+                    runLengths = new int[runCount];
+                    runRepeats = new int[runCount];
+                }
+                for (int r = 0; r < runCount; r++) {
+                    runLengths[r] = ByteArrayInts.readVInt(bytes, cursor);
+                    runRepeats[r] = ByteArrayInts.readVInt(bytes, cursor);
+                }
+                int at = cursor[0];
+                // Every value of a run points at the one copy of its bytes, so the run is expanded without
+                // the bytes being duplicated.
+                int position = at;
+                int value = 0;
+                for (int r = 0; r < runCount; r++) {
+                    for (int k = 0; k < runRepeats[r]; k++) {
+                        starts[value] = position;
+                        lengths[value] = runLengths[r];
+                        value++;
+                    }
+                    position += runLengths[r];
+                }
+                return count;
+            }
             if (width == INLINE) {
                 cursor[0] = block.offset + 1;
                 for (int i = 0; i < count; i++) {

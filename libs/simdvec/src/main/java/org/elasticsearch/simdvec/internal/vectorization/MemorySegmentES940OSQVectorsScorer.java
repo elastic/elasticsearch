@@ -8,17 +8,14 @@
  */
 package org.elasticsearch.simdvec.internal.vectorization;
 
-import jdk.incubator.vector.ByteVector;
 import jdk.incubator.vector.FloatVector;
 import jdk.incubator.vector.IntVector;
-import jdk.incubator.vector.LongVector;
 import jdk.incubator.vector.VectorOperators;
 import jdk.incubator.vector.VectorSpecies;
 
 import org.apache.lucene.index.VectorSimilarityFunction;
 import org.apache.lucene.store.IndexInput;
 import org.apache.lucene.store.MemorySegmentAccessInput;
-import org.apache.lucene.util.BitUtil;
 import org.apache.lucene.util.VectorUtil;
 import org.elasticsearch.core.DirectAccessInput;
 import org.elasticsearch.core.Nullable;
@@ -94,11 +91,14 @@ public final class MemorySegmentES940OSQVectorsScorer extends ES940OSQVectorsSco
 
     private static MemorySegmentScorer createNativeScorer(QuantEncoding enc, IndexInput in, int dimensions, int dataLength, int bulkSize) {
         return switch (enc) {
-            case D1Q1 -> new NativeD1Q1Scorer(in, dimensions, dataLength, bulkSize);
-            case D1Q4 -> new NativeD1Q4Scorer(in, dimensions, dataLength, bulkSize);
-            case D2Q4_STRIPED -> new NativeD2Q4Scorer(in, dimensions, dataLength, bulkSize);
+            case D1Q1, D1Q4, D2Q4_STRIPED, D4Q4_STRIPED -> StripedES940OSQVectorsScorer.usingNative(
+                in,
+                enc,
+                dimensions,
+                dataLength,
+                bulkSize
+            );
             case D2Q4_PACKED -> new NativeD2Q4PackedScorer(in, dimensions, dataLength, bulkSize);
-            case D4Q4_STRIPED -> new NativeD4Q4Scorer(in, dimensions, dataLength, bulkSize);
             case D4Q4_PACKED -> new NativeD4Q4PackedScorer(in, dimensions, dataLength, bulkSize);
             case D7Q7 -> new NativeD7Q7Scorer(in, dimensions, dataLength, bulkSize);
         };
@@ -106,11 +106,14 @@ public final class MemorySegmentES940OSQVectorsScorer extends ES940OSQVectorsSco
 
     private static MemorySegmentScorer createPanamaScorer(QuantEncoding enc, IndexInput in, int dimensions, int dataLength, int bulkSize) {
         return switch (enc) {
-            case D1Q1 -> new MSBitToBitES940OSQVectorsScorer(in, dimensions, dataLength, bulkSize);
-            case D1Q4 -> new MSBitToInt4ES940OSQVectorsScorer(in, dimensions, dataLength, bulkSize);
-            case D2Q4_STRIPED -> new MSDibitToInt4ES940OSQVectorsScorer(in, dimensions, dataLength, bulkSize);
+            case D1Q1, D1Q4, D2Q4_STRIPED, D4Q4_STRIPED -> StripedES940OSQVectorsScorer.usingPanama(
+                in,
+                enc,
+                dimensions,
+                dataLength,
+                bulkSize
+            );
             case D2Q4_PACKED -> new MemorySegmentScorer(in, dimensions, dataLength, bulkSize);  // no special implementation yet
-            case D4Q4_STRIPED -> new MSInt4SymmetricES940OSQVectorsScorer(in, dimensions, dataLength, bulkSize);
             case D4Q4_PACKED -> new MemorySegmentScorer(in, dimensions, dataLength, bulkSize);  // no special implementation yet
             case D7Q7 -> new MSD7Q7ES940OSQVectorsScorer(in, dimensions, dataLength, bulkSize);
         };
@@ -261,32 +264,22 @@ public final class MemorySegmentES940OSQVectorsScorer extends ES940OSQVectorsSco
         );
     }
 
-    static sealed class MemorySegmentScorer permits NativeMemorySegmentScorer, MSBitToBitES940OSQVectorsScorer,
-        MSBitToInt4ES940OSQVectorsScorer, MSDibitToInt4ES940OSQVectorsScorer, MSInt4SymmetricES940OSQVectorsScorer,
-        MSD7Q7ES940OSQVectorsScorer {
+    static sealed class MemorySegmentScorer permits NativeMemorySegmentScorer, StripedES940OSQVectorsScorer, MSD7Q7ES940OSQVectorsScorer {
 
-        static final float ONE_BIT_SCALE = ES940OSQVectorsScorer.BIT_SCALES[0];
         static final float TWO_BIT_SCALE = ES940OSQVectorsScorer.BIT_SCALES[1];
         static final float FOUR_BIT_SCALE = ES940OSQVectorsScorer.BIT_SCALES[3];
         static final float SEVEN_BIT_SCALE = ES940OSQVectorsScorer.BIT_SCALES[6];
 
         static final VectorSpecies<Integer> INT_SPECIES = IntVector.SPECIES_PREFERRED;
-        static final VectorSpecies<Integer> INT_SPECIES_128 = IntVector.SPECIES_128;
-        static final VectorSpecies<Integer> INT_SPECIES_256 = IntVector.SPECIES_256;
-
-        static final VectorSpecies<Long> LONG_SPECIES_128 = LongVector.SPECIES_128;
-        static final VectorSpecies<Long> LONG_SPECIES_256 = LongVector.SPECIES_256;
-
-        static final VectorSpecies<Byte> BYTE_SPECIES_128 = ByteVector.SPECIES_128;
-        static final VectorSpecies<Byte> BYTE_SPECIES_256 = ByteVector.SPECIES_256;
-
         static final VectorSpecies<Float> FLOAT_SPECIES = FloatVector.SPECIES_PREFERRED;
-        static final VectorSpecies<Float> FLOAT_SPECIES_128 = FloatVector.SPECIES_128;
-        static final VectorSpecies<Float> FLOAT_SPECIES_256 = FloatVector.SPECIES_256;
 
-        static final ValueLayout.OfLong LAYOUT_LE_LONG = ValueLayout.JAVA_LONG_UNALIGNED.withOrder(ByteOrder.LITTLE_ENDIAN);
         static final ValueLayout.OfInt LAYOUT_LE_INT = ValueLayout.JAVA_INT_UNALIGNED.withOrder(ByteOrder.LITTLE_ENDIAN);
         static final ValueLayout.OfFloat LAYOUT_LE_FLOAT = ValueLayout.JAVA_FLOAT_UNALIGNED.withOrder(ByteOrder.LITTLE_ENDIAN);
+
+        /** Scale for a quantization of the given bit width, for scorers that are not fixed to one encoding */
+        static float bitScale(int bits) {
+            return ES940OSQVectorsScorer.BIT_SCALES[bits - 1];
+        }
 
         protected final IndexInput in;
         protected final int length;
@@ -598,137 +591,6 @@ public final class MemorySegmentES940OSQVectorsScorer extends ES940OSQVectorsSco
             return maxScore;
         }
 
-        /**
-         * 4-bit striped dot product against a 1-bit data vector of byte length {@code size} at offset {@code baseOffset} in {@code segment}
-         */
-        static long fourStripeBitDotProduct256(byte[] q, MemorySegment segment, long baseOffset, int size) {
-            long subRet0 = 0;
-            long subRet1 = 0;
-            long subRet2 = 0;
-            long subRet3 = 0;
-            int i = 0;
-            if (size >= ByteVector.SPECIES_256.vectorByteSize() * 2) {
-                int limit = ByteVector.SPECIES_256.loopBound(size);
-                var sum0 = LongVector.zero(LONG_SPECIES_256);
-                var sum1 = LongVector.zero(LONG_SPECIES_256);
-                var sum2 = LongVector.zero(LONG_SPECIES_256);
-                var sum3 = LongVector.zero(LONG_SPECIES_256);
-                for (; i < limit; i += ByteVector.SPECIES_256.length()) {
-                    var vq0 = ByteVector.fromArray(BYTE_SPECIES_256, q, i).reinterpretAsLongs();
-                    var vq1 = ByteVector.fromArray(BYTE_SPECIES_256, q, i + size).reinterpretAsLongs();
-                    var vq2 = ByteVector.fromArray(BYTE_SPECIES_256, q, i + size * 2).reinterpretAsLongs();
-                    var vq3 = ByteVector.fromArray(BYTE_SPECIES_256, q, i + size * 3).reinterpretAsLongs();
-                    var vd = LongVector.fromMemorySegment(LONG_SPECIES_256, segment, baseOffset + i, ByteOrder.LITTLE_ENDIAN);
-                    sum0 = sum0.add(vq0.and(vd).lanewise(VectorOperators.BIT_COUNT));
-                    sum1 = sum1.add(vq1.and(vd).lanewise(VectorOperators.BIT_COUNT));
-                    sum2 = sum2.add(vq2.and(vd).lanewise(VectorOperators.BIT_COUNT));
-                    sum3 = sum3.add(vq3.and(vd).lanewise(VectorOperators.BIT_COUNT));
-                }
-                subRet0 += sum0.reduceLanes(VectorOperators.ADD);
-                subRet1 += sum1.reduceLanes(VectorOperators.ADD);
-                subRet2 += sum2.reduceLanes(VectorOperators.ADD);
-                subRet3 += sum3.reduceLanes(VectorOperators.ADD);
-            }
-            if (size - i >= ByteVector.SPECIES_128.vectorByteSize()) {
-                var sum0 = LongVector.zero(LONG_SPECIES_128);
-                var sum1 = LongVector.zero(LONG_SPECIES_128);
-                var sum2 = LongVector.zero(LONG_SPECIES_128);
-                var sum3 = LongVector.zero(LONG_SPECIES_128);
-                int limit = ByteVector.SPECIES_128.loopBound(size);
-                for (; i < limit; i += ByteVector.SPECIES_128.length()) {
-                    var vq0 = ByteVector.fromArray(BYTE_SPECIES_128, q, i).reinterpretAsLongs();
-                    var vq1 = ByteVector.fromArray(BYTE_SPECIES_128, q, i + size).reinterpretAsLongs();
-                    var vq2 = ByteVector.fromArray(BYTE_SPECIES_128, q, i + size * 2).reinterpretAsLongs();
-                    var vq3 = ByteVector.fromArray(BYTE_SPECIES_128, q, i + size * 3).reinterpretAsLongs();
-                    var vd = LongVector.fromMemorySegment(LONG_SPECIES_128, segment, baseOffset + i, ByteOrder.LITTLE_ENDIAN);
-                    sum0 = sum0.add(vq0.and(vd).lanewise(VectorOperators.BIT_COUNT));
-                    sum1 = sum1.add(vq1.and(vd).lanewise(VectorOperators.BIT_COUNT));
-                    sum2 = sum2.add(vq2.and(vd).lanewise(VectorOperators.BIT_COUNT));
-                    sum3 = sum3.add(vq3.and(vd).lanewise(VectorOperators.BIT_COUNT));
-                }
-                subRet0 += sum0.reduceLanes(VectorOperators.ADD);
-                subRet1 += sum1.reduceLanes(VectorOperators.ADD);
-                subRet2 += sum2.reduceLanes(VectorOperators.ADD);
-                subRet3 += sum3.reduceLanes(VectorOperators.ADD);
-            }
-            // scalar tail
-            for (final int upperBound = size & -Long.BYTES; i < upperBound; i += Long.BYTES) {
-                final long value = segment.get(LAYOUT_LE_LONG, baseOffset + i);
-                subRet0 += Long.bitCount((long) BitUtil.VH_LE_LONG.get(q, i) & value);
-                subRet1 += Long.bitCount((long) BitUtil.VH_LE_LONG.get(q, i + size) & value);
-                subRet2 += Long.bitCount((long) BitUtil.VH_LE_LONG.get(q, i + 2 * size) & value);
-                subRet3 += Long.bitCount((long) BitUtil.VH_LE_LONG.get(q, i + 3 * size) & value);
-            }
-            for (final int upperBound = size & -Integer.BYTES; i < upperBound; i += Integer.BYTES) {
-                final int value = segment.get(LAYOUT_LE_INT, baseOffset + i);
-                subRet0 += Integer.bitCount((int) BitUtil.VH_LE_INT.get(q, i) & value);
-                subRet1 += Integer.bitCount((int) BitUtil.VH_LE_INT.get(q, i + size) & value);
-                subRet2 += Integer.bitCount((int) BitUtil.VH_LE_INT.get(q, i + 2 * size) & value);
-                subRet3 += Integer.bitCount((int) BitUtil.VH_LE_INT.get(q, i + 3 * size) & value);
-            }
-            for (; i < size; i++) {
-                final int dValue = segment.get(ValueLayout.JAVA_BYTE, baseOffset + i) & 0xFF;
-                subRet0 += Integer.bitCount((q[i] & dValue) & 0xFF);
-                subRet1 += Integer.bitCount((q[i + size] & dValue) & 0xFF);
-                subRet2 += Integer.bitCount((q[i + 2 * size] & dValue) & 0xFF);
-                subRet3 += Integer.bitCount((q[i + 3 * size] & dValue) & 0xFF);
-            }
-            return subRet0 + (subRet1 << 1) + (subRet2 << 2) + (subRet3 << 3);
-        }
-
-        /**
-         * 4-bit striped dot product against a 1-bit data vector of byte length {@code size} at offset {@code baseOffset} in {@code segment}
-         */
-        static long fourStripeBitDotProduct128(byte[] q, MemorySegment segment, long baseOffset, int size) {
-            long subRet0 = 0;
-            long subRet1 = 0;
-            long subRet2 = 0;
-            long subRet3 = 0;
-            int i = 0;
-            var sum0 = IntVector.zero(INT_SPECIES_128);
-            var sum1 = IntVector.zero(INT_SPECIES_128);
-            var sum2 = IntVector.zero(INT_SPECIES_128);
-            var sum3 = IntVector.zero(INT_SPECIES_128);
-            int limit = ByteVector.SPECIES_128.loopBound(size);
-            for (; i < limit; i += ByteVector.SPECIES_128.length()) {
-                var vd = IntVector.fromMemorySegment(INT_SPECIES_128, segment, baseOffset + i, ByteOrder.LITTLE_ENDIAN);
-                var vq0 = ByteVector.fromArray(BYTE_SPECIES_128, q, i).reinterpretAsInts();
-                var vq1 = ByteVector.fromArray(BYTE_SPECIES_128, q, i + size).reinterpretAsInts();
-                var vq2 = ByteVector.fromArray(BYTE_SPECIES_128, q, i + size * 2).reinterpretAsInts();
-                var vq3 = ByteVector.fromArray(BYTE_SPECIES_128, q, i + size * 3).reinterpretAsInts();
-                sum0 = sum0.add(vd.and(vq0).lanewise(VectorOperators.BIT_COUNT));
-                sum1 = sum1.add(vd.and(vq1).lanewise(VectorOperators.BIT_COUNT));
-                sum2 = sum2.add(vd.and(vq2).lanewise(VectorOperators.BIT_COUNT));
-                sum3 = sum3.add(vd.and(vq3).lanewise(VectorOperators.BIT_COUNT));
-            }
-            subRet0 += sum0.reduceLanes(VectorOperators.ADD);
-            subRet1 += sum1.reduceLanes(VectorOperators.ADD);
-            subRet2 += sum2.reduceLanes(VectorOperators.ADD);
-            subRet3 += sum3.reduceLanes(VectorOperators.ADD);
-            // scalar tail
-            for (final int upperBound = size & -Long.BYTES; i < upperBound; i += Long.BYTES) {
-                final long value = segment.get(LAYOUT_LE_LONG, baseOffset + i);
-                subRet0 += Long.bitCount((long) BitUtil.VH_LE_LONG.get(q, i) & value);
-                subRet1 += Long.bitCount((long) BitUtil.VH_LE_LONG.get(q, i + size) & value);
-                subRet2 += Long.bitCount((long) BitUtil.VH_LE_LONG.get(q, i + 2 * size) & value);
-                subRet3 += Long.bitCount((long) BitUtil.VH_LE_LONG.get(q, i + 3 * size) & value);
-            }
-            for (final int upperBound = size & -Integer.BYTES; i < upperBound; i += Integer.BYTES) {
-                final int value = segment.get(LAYOUT_LE_INT, baseOffset + i);
-                subRet0 += Integer.bitCount((int) BitUtil.VH_LE_INT.get(q, i) & value);
-                subRet1 += Integer.bitCount((int) BitUtil.VH_LE_INT.get(q, i + size) & value);
-                subRet2 += Integer.bitCount((int) BitUtil.VH_LE_INT.get(q, i + 2 * size) & value);
-                subRet3 += Integer.bitCount((int) BitUtil.VH_LE_INT.get(q, i + 3 * size) & value);
-            }
-            for (; i < size; i++) {
-                final int dValue = segment.get(ValueLayout.JAVA_BYTE, baseOffset + i) & 0xFF;
-                subRet0 += Integer.bitCount((q[i] & dValue) & 0xFF);
-                subRet1 += Integer.bitCount((q[i + size] & dValue) & 0xFF);
-                subRet2 += Integer.bitCount((q[i + 2 * size] & dValue) & 0xFF);
-                subRet3 += Integer.bitCount((q[i + 3 * size] & dValue) & 0xFF);
-            }
-            return subRet0 + (subRet1 << 1) + (subRet2 << 2) + (subRet3 << 3);
-        }
     }
 
 }

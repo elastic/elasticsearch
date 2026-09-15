@@ -136,10 +136,10 @@ public class MlConfigMetricsTests extends ESTestCase {
         metrics.pollIfMaster();
 
         assertThat(internalCredentialsObserver.get().value(), equalTo(1L));
-        assertThat(findObservation(authTypeObserver.get(), "auth_type", "uiam"), equalTo(1L));
-        assertThat(findObservation(authTypeObserver.get(), "auth_type", "legacy"), equalTo(1L));
-        assertThat(findObservation(projectRoutingObserver.get(), "routing_bucket", "local_only"), equalTo(1L));
-        assertThat(findObservation(projectRoutingObserver.get(), "routing_bucket", "unqualified"), equalTo(1L));
+        assertThat(findObservation(authTypeObserver.get(), "es_auth_type", "uiam"), equalTo(1L));
+        assertThat(findObservation(authTypeObserver.get(), "es_auth_type", "legacy"), equalTo(1L));
+        assertThat(findObservation(projectRoutingObserver.get(), "es_routing_bucket", "local_only"), equalTo(1L));
+        assertThat(findObservation(projectRoutingObserver.get(), "es_routing_bucket", "unqualified"), equalTo(1L));
         assertThat(internalCredentialsObserver.get().attributes().get("es.ml.is_master"), equalTo(Boolean.FALSE));
 
         metrics.clusterChanged(masterClusterChangedEvent());

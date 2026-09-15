@@ -94,7 +94,7 @@ public abstract class ColumnarStringTestCase extends ESTestCase {
         try (Directory dir = newDirectory()) {
             final StringColumnMetadata metadata = writeColumn(dir, segmentId, docValues, blockSize, chunkCodec, targetChunkBytes, policy);
             try (IndexInput data = openData(dir, segmentId)) {
-                check.check(metadata, new StringColumnReader(metadata, data));
+                check.check(metadata, StringColumnReader.open(metadata, data));
             }
         }
     }

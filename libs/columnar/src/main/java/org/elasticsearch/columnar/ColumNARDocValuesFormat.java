@@ -17,6 +17,8 @@ import org.apache.lucene.index.SegmentWriteState;
 import org.elasticsearch.columnar.numeric.NumericPipeline;
 import org.elasticsearch.columnar.numeric.NumericPipelineSelector;
 import org.elasticsearch.columnar.string.DictionaryPolicy;
+import org.elasticsearch.columnar.string.StringColumnOptions;
+import org.elasticsearch.columnar.string.StringColumnOptionsSelector;
 
 import java.io.IOException;
 
@@ -59,16 +61,10 @@ public class ColumNARDocValuesFormat extends DocValuesFormat {
     private final NumericPipelineSelector pipelineSelector;
     private final ColumnarFieldTypeSelector typeSelector;
     private final int blockSize;
-    private final DictionaryPolicy dictionaryPolicy;
+    private final StringColumnOptionsSelector stringSelector;
 
-    /**
-     * The bounds a string column's dictionary is chosen under when none is given.
-     *
-     * <p>Half a megabyte holds the whole vocabulary of a column like host names. Beyond it the bound starts
-     * admitting the tails of larger ones, where terms seen once cover almost nothing and widen the ordinal
-     * every value pays for.
-     */
-    public static final DictionaryPolicy DEFAULT_DICTIONARY_POLICY = new DictionaryPolicy(512 * 1024, 0.5, 0.2);
+    /** The bounds a string column's dictionary is chosen under when a field names none of its own. */
+    public static final DictionaryPolicy DEFAULT_DICTIONARY_POLICY = StringColumnOptions.DEFAULT_DICTIONARY;
 
     /** SPI constructor. Uses the default pipeline for every field and reads each field's type from its attribute. */
     public ColumNARDocValuesFormat() {
@@ -116,6 +112,21 @@ public class ColumNARDocValuesFormat extends DocValuesFormat {
         int blockSize,
         final DictionaryPolicy dictionaryPolicy
     ) {
+        this(
+            pipelineSelector,
+            typeSelector,
+            blockSize,
+            StringColumnOptionsSelector.always(StringColumnOptions.DEFAULT.withDictionary(dictionaryPolicy))
+        );
+    }
+
+    /** Every column is written as the selector for its kind says that field should be. */
+    public ColumNARDocValuesFormat(
+        final NumericPipelineSelector pipelineSelector,
+        final ColumnarFieldTypeSelector typeSelector,
+        int blockSize,
+        final StringColumnOptionsSelector stringSelector
+    ) {
         super(ColumnarFormat.NAME);
         if (blockSize < MIN_BLOCK_SIZE || blockSize > MAX_BLOCK_SIZE || (blockSize & (blockSize - 1)) != 0) {
             throw new IllegalArgumentException(
@@ -125,12 +136,12 @@ public class ColumNARDocValuesFormat extends DocValuesFormat {
         this.pipelineSelector = pipelineSelector;
         this.typeSelector = typeSelector;
         this.blockSize = blockSize;
-        this.dictionaryPolicy = dictionaryPolicy;
+        this.stringSelector = stringSelector;
     }
 
     @Override
     public DocValuesConsumer fieldsConsumer(SegmentWriteState state) throws IOException {
-        return new ColumNARDocValuesConsumer(state, pipelineSelector, typeSelector, blockSize, dictionaryPolicy);
+        return new ColumNARDocValuesConsumer(state, pipelineSelector, typeSelector, blockSize, stringSelector);
     }
 
     @Override

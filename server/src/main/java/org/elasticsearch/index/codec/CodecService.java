@@ -48,7 +48,12 @@ public class CodecService implements CodecProvider {
 
         boolean useSyntheticId = mapperService != null && mapperService.getIndexSettings().useTimeSeriesSyntheticId();
 
-        var bestSpeedCodec = new LegacyPerFieldMapperCodec(Lucene104Codec.Mode.BEST_SPEED, mapperService, bigArrays, threadPool);
+        var bestSpeedCodec = new DefaultCompressionPerFieldMapperCodec(
+            Lucene104Codec.Mode.BEST_SPEED,
+            mapperService,
+            bigArrays,
+            threadPool
+        );
         if (useSyntheticId) {
             // Use the default Lucene compression when the synthetic id is used even if the ZSTD feature flag is enabled
             codecs.put(DEFAULT_CODEC, new ES93TSDBDefaultCompressionLucene103Codec(bestSpeedCodec));
@@ -69,7 +74,7 @@ public class CodecService implements CodecProvider {
         } else {
             codecs.put(BEST_COMPRESSION_CODEC, bestCompressionCodec);
         }
-        Codec legacyBestCompressionCodec = new LegacyPerFieldMapperCodec(
+        Codec legacyBestCompressionCodec = new DefaultCompressionPerFieldMapperCodec(
             Lucene104Codec.Mode.BEST_COMPRESSION,
             mapperService,
             bigArrays,
@@ -83,13 +88,10 @@ public class CodecService implements CodecProvider {
         }
 
         this.codecs = codecs.entrySet().stream().collect(Collectors.toUnmodifiableMap(Map.Entry::getKey, e -> {
-            Codec codec;
-            if (e.getValue() instanceof DeduplicateFieldInfosCodec dedupCodec) {
-                codec = dedupCodec;
-            } else {
-                codec = new DeduplicateFieldInfosCodec(e.getValue().getName(), e.getValue());
-            }
-            return codec;
+            // Codecs that already expose a deduplicating format (directly, or via a delegate they wrap) must not be wrapped
+            // again: each extra layer re-interns instances that are canonical already, once per segment open.
+            Codec codec = e.getValue();
+            return isDeduplicating(codec.fieldInfosFormat()) ? codec : new DeduplicateFieldInfosCodec(codec.getName(), codec);
         }));
     }
 
@@ -109,6 +111,28 @@ public class CodecService implements CodecProvider {
         return codecs.keySet().toArray(new String[0]);
     }
 
+    /**
+     * Wraps {@code delegate} so that field infos are shared rather than re-created per segment: whole {@code FieldInfo} instances
+     * against the per-directory cache when the feature flag is on, otherwise just their names and attribute maps. Codecs that declare
+     * their own {@code fieldInfosFormat()} must route it through here, or their segments get no sharing on the read path.
+     */
+    public static FieldInfosFormat deduplicating(FieldInfosFormat delegate) {
+        if (isDeduplicating(delegate)) {
+            return delegate;
+        }
+        return org.elasticsearch.index.store.FieldInfoCachingDirectory.FEATURE_FLAG.isEnabled()
+            ? new CachingFieldInfosFormat(delegate)
+            : new DeduplicatingFieldInfosFormat(delegate);
+    }
+
+    /**
+     * Whether {@code format} already shares field infos, so wrapping it again would only re-intern instances that are
+     * canonical already, once per segment open.
+     */
+    static boolean isDeduplicating(FieldInfosFormat format) {
+        return format instanceof CachingFieldInfosFormat || format instanceof DeduplicatingFieldInfosFormat;
+    }
+
     public static class DeduplicateFieldInfosCodec extends FilterCodec {
 
         private final FieldInfosFormat fieldInfosFormat;
@@ -116,12 +140,7 @@ public class CodecService implements CodecProvider {
         @SuppressWarnings("this-escape")
         protected DeduplicateFieldInfosCodec(String name, Codec delegate) {
             super(name, delegate);
-            // When the per-Directory FieldInfo cache is enabled, use the variant that interns whole FieldInfo instances
-            // against the FieldInfoCachingDirectory wrapping the shard's Store. Otherwise, keep the legacy behavior that
-            // only interns names and attribute maps via static caches.
-            this.fieldInfosFormat = org.elasticsearch.index.store.FieldInfoCachingDirectory.FEATURE_FLAG.isEnabled()
-                ? new CachingFieldInfosFormat(super.fieldInfosFormat())
-                : new DeduplicatingFieldInfosFormat(super.fieldInfosFormat());
+            this.fieldInfosFormat = deduplicating(super.fieldInfosFormat());
         }
 
         @Override

@@ -8,6 +8,7 @@
 package org.elasticsearch.xpack.esql.ccq;
 
 import org.elasticsearch.test.cluster.ElasticsearchCluster;
+import org.elasticsearch.test.cluster.FeatureFlag;
 import org.elasticsearch.test.cluster.local.distribution.DistributionType;
 import org.elasticsearch.test.cluster.util.Version;
 import org.elasticsearch.test.cluster.util.resource.Resource;
@@ -63,6 +64,10 @@ public class Clusters {
         if (remoteClusterVersion().onOrAfter(org.elasticsearch.Version.V_9_5_0)) {
             cluster.setting(localAllowedPathsSetting(remoteClusterVersion()), csvDataPath.toString());
         }
+        // The local data-source type is snapshot-on / release-off. A release BWC remote therefore rejects
+        // PUT type=local unless the flag is forced on; .feature() is a no-op on snapshots and on versions
+        // before the flag existed (9.5.0).
+        cluster.feature(FeatureFlag.ESQL_EXTERNAL_DATASOURCES_LOCAL);
         if (knowsFederationSetting(remoteClusterVersion())) {
             cluster.setting(Federation.FEDERATION_ENABLED.getKey(), federationEnabled == null ? () -> "true" : federationEnabled);
         }

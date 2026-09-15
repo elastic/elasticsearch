@@ -53,7 +53,7 @@ public class RestSubmitAsyncSearchActionTests extends RestActionTestCase {
     @SuppressWarnings("unchecked")
     public void testRequestParameterDefaults() throws IOException {
         SetOnce<Boolean> executeCalled = new SetOnce<>();
-        verifyingClient.setExecuteLocallyVerifier((actionType, request) -> {
+        verifyingClient.setExecuteAndReturnTaskVerifier((actionType, request) -> {
             assertThat(request, instanceOf(SubmitAsyncSearchRequest.class));
             SubmitAsyncSearchRequest submitRequest = (SubmitAsyncSearchRequest) request;
             assertThat(submitRequest.getWaitForCompletionTimeout(), equalTo(TimeValue.timeValueSeconds(1)));
@@ -153,7 +153,7 @@ public class RestSubmitAsyncSearchActionTests extends RestActionTestCase {
         Function<SubmitAsyncSearchRequest, T> valueAccessor
     ) throws Exception {
         SetOnce<Boolean> executeCalled = new SetOnce<>();
-        verifyingClient.setExecuteLocallyVerifier((actionType, request) -> {
+        verifyingClient.setExecuteAndReturnTaskVerifier((actionType, request) -> {
             assertThat(request, instanceOf(SubmitAsyncSearchRequest.class));
             assertThat(valueAccessor.apply((SubmitAsyncSearchRequest) request), equalTo(expectedValue));
             executeCalled.set(true);

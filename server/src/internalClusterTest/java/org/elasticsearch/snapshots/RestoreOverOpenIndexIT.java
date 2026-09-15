@@ -257,10 +257,13 @@ public class RestoreOverOpenIndexIT extends AbstractSnapshotIntegTestCase {
                 historyUuidAfterFirstTransition,
                 notNullValue()
             );
+            // The recovery is blocked on the repository, so the first restore cannot have completed: its shard has not STARTED. We do
+            // not assert the exact routing state, because a blocked recovery may show up as INITIALIZING or, briefly, as UNASSIGNED
+            // between allocation attempts (both are valid mid-flight states); asserting INITIALIZING specifically is racy (see #157793).
             assertThat(
-                "the first restore's shard must still be initializing (blocked on the repository) when the second transition publishes",
+                "the first restore must still be in flight (its shard not yet started) when the second transition publishes",
                 primaryShardRouting().state(),
-                equalTo(ShardRoutingState.INITIALIZING)
+                not(equalTo(ShardRoutingState.STARTED))
             );
 
             // publish a second transition over the same, still-recovering shard

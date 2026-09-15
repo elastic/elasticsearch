@@ -35,7 +35,7 @@ import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
 import org.elasticsearch.telemetry.apm.internal.APMAgentSettings;
 import org.elasticsearch.telemetry.apm.internal.export.MeterSupplier;
-import org.elasticsearch.telemetry.apm.internal.metrics.spi.SdkMeterProviderConfigurer;
+import org.elasticsearch.telemetry.apm.internal.metrics.spi.SdkMeterProviderCustomizer;
 
 import java.nio.file.Path;
 import java.security.GeneralSecurityException;
@@ -70,21 +70,21 @@ public class OtelSdkExportMeterSupplier implements MeterSupplier {
 
     private final Settings settings;
     private final Path diskBufferPath;
-    private final List<SdkMeterProviderConfigurer> meterProviderConfigurers;
+    private final List<SdkMeterProviderCustomizer> meterProviderCustomizers;
     private volatile OTelMetricsResources resources;
     private final Object mutex = new Object();
 
-    public OtelSdkExportMeterSupplier(Settings settings, Path diskBufferPath, List<SdkMeterProviderConfigurer> meterProviderConfigurers) {
+    public OtelSdkExportMeterSupplier(Settings settings, Path diskBufferPath, List<SdkMeterProviderCustomizer> meterProviderCustomizers) {
         this.settings = settings;
         this.diskBufferPath = diskBufferPath;
-        this.meterProviderConfigurers = List.copyOf(meterProviderConfigurers);
+        this.meterProviderCustomizers = List.copyOf(meterProviderCustomizers);
     }
 
     /** For testing: pre-initializes resources so tests can inject readable providers. */
     OtelSdkExportMeterSupplier(Settings settings, Path diskBufferPath, OTelMetricsResources testResources) {
         this.settings = settings;
         this.diskBufferPath = diskBufferPath;
-        this.meterProviderConfigurers = List.of();
+        this.meterProviderCustomizers = List.of();
         this.resources = testResources;
     }
 
@@ -152,8 +152,8 @@ public class OtelSdkExportMeterSupplier implements MeterSupplier {
             .registerMetricReader(reader, instrumentType -> METRIC_CARDINALITY_LIMIT);
         registerDisabledMetricViews(builder, settings);
 
-        for (SdkMeterProviderConfigurer configurer : meterProviderConfigurers) {
-            builder = configurer.configure(builder);
+        for (SdkMeterProviderCustomizer customizer : meterProviderCustomizers) {
+            builder = customizer.customize(builder);
         }
 
         return builder.build();

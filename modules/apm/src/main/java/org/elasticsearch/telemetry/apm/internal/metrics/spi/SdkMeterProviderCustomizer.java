@@ -16,8 +16,8 @@ import io.opentelemetry.sdk.metrics.SdkMeterProviderBuilder;
  * SPI that allows other Elasticsearch plugins to extend the OTel metrics pipeline by customizing the
  * {@link SdkMeterProviderBuilder} before it is built into an {@link SdkMeterProvider}.
  */
-public interface SdkMeterProviderConfigurer {
+public interface SdkMeterProviderCustomizer {
 
     /** Applies custom configuration to {@code builder} and returns it. */
-    SdkMeterProviderBuilder configure(SdkMeterProviderBuilder builder);
+    SdkMeterProviderBuilder customize(SdkMeterProviderBuilder builder);
 }

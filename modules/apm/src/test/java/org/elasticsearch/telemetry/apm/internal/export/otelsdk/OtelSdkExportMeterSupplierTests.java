@@ -25,7 +25,7 @@ import com.carrotsearch.randomizedtesting.annotations.ThreadLeakFilters;
 
 import org.elasticsearch.common.settings.MockSecureSettings;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.telemetry.apm.internal.metrics.spi.SdkMeterProviderConfigurer;
+import org.elasticsearch.telemetry.apm.internal.metrics.spi.SdkMeterProviderCustomizer;
 import org.elasticsearch.test.ESTestCase;
 
 import java.util.List;
@@ -182,7 +182,7 @@ public class OtelSdkExportMeterSupplierTests extends ESTestCase {
         Settings settings = Settings.builder().put(OtelSdkSettings.TELEMETRY_EXPORT_ENDPOINT.getKey(), bogusUrl).build();
 
         AtomicBoolean configurerInvoked = new AtomicBoolean(false);
-        SdkMeterProviderConfigurer configurer = builder -> {
+        SdkMeterProviderCustomizer configurer = builder -> {
             configurerInvoked.set(true);
             return builder;
         };

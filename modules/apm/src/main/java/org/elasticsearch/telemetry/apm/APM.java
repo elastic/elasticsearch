@@ -27,7 +27,7 @@ import org.elasticsearch.telemetry.apm.internal.APMLoggingService;
 import org.elasticsearch.telemetry.apm.internal.APMMeterService;
 import org.elasticsearch.telemetry.apm.internal.APMTelemetryProvider;
 import org.elasticsearch.telemetry.apm.internal.export.otelsdk.OtelSdkSettings;
-import org.elasticsearch.telemetry.apm.internal.metrics.spi.SdkMeterProviderConfigurer;
+import org.elasticsearch.telemetry.apm.internal.metrics.spi.SdkMeterProviderCustomizer;
 import org.elasticsearch.telemetry.apm.internal.tracing.APMTracer;
 
 import java.nio.file.Path;
@@ -59,7 +59,7 @@ public class APM extends Plugin implements NetworkPlugin, TelemetryPlugin, Exten
 
     private final SetOnce<APMTelemetryProvider> telemetryProvider = new SetOnce<>();
     private final Settings settings;
-    private final SetOnce<List<SdkMeterProviderConfigurer>> meterProviderConfigurers = new SetOnce<>();
+    private final SetOnce<List<SdkMeterProviderCustomizer>> meterProviderCustomizers = new SetOnce<>();
 
     public APM(Settings settings) {
         this.settings = settings;
@@ -67,7 +67,7 @@ public class APM extends Plugin implements NetworkPlugin, TelemetryPlugin, Exten
 
     @Override
     public void loadExtensions(ExtensionLoader loader) {
-        meterProviderConfigurers.set(loader.loadExtensions(SdkMeterProviderConfigurer.class));
+        meterProviderCustomizers.set(loader.loadExtensions(SdkMeterProviderCustomizer.class));
     }
 
     @Override
@@ -83,7 +83,7 @@ public class APM extends Plugin implements NetworkPlugin, TelemetryPlugin, Exten
             environment.configDir(),
             filterProviders,
             logResourceProvider,
-            meterProviderConfigurers.get()
+            meterProviderCustomizers.get()
         );
         telemetryProvider.set(apmTelemetryProvider);
         return apmTelemetryProvider;

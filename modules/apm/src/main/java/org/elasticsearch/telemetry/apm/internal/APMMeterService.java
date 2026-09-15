@@ -25,7 +25,7 @@ import org.elasticsearch.telemetry.apm.internal.export.agent.AgentExportMeterSup
 import org.elasticsearch.telemetry.apm.internal.export.otelsdk.OtelSdkExportMeterSupplier;
 import org.elasticsearch.telemetry.apm.internal.export.otelsdk.OtelSdkSettings;
 import org.elasticsearch.telemetry.apm.internal.metrics.APMMeterRegistry;
-import org.elasticsearch.telemetry.apm.internal.metrics.spi.SdkMeterProviderConfigurer;
+import org.elasticsearch.telemetry.apm.internal.metrics.spi.SdkMeterProviderCustomizer;
 
 import java.nio.file.Path;
 import java.util.List;
@@ -44,7 +44,7 @@ public class APMMeterService extends AbstractLifecycleComponent {
 
     protected volatile boolean enabled;
 
-    public APMMeterService(Settings settings, Path diskBufferPath, List<SdkMeterProviderConfigurer> meterProviderConfigurers) {
+    public APMMeterService(Settings settings, Path diskBufferPath, List<SdkMeterProviderCustomizer> meterProviderConfigurers) {
         this(settings, createOtelMeterSupplier(settings, diskBufferPath, meterProviderConfigurers), new NoOpMeterSupplier());
     }
 
@@ -60,11 +60,11 @@ public class APMMeterService extends AbstractLifecycleComponent {
     private static MeterSupplier createOtelMeterSupplier(
         Settings settings,
         Path diskBufferPath,
-        List<SdkMeterProviderConfigurer> meterProviderConfigurers
+        List<SdkMeterProviderCustomizer> meterProviderCustomizers
     ) {
         boolean otelMetricsEnabled = Booleans.parseBoolean(System.getProperty(OTEL_METRICS_ENABLED_SYSTEM_PROPERTY, "false"));
         if (otelMetricsEnabled) {
-            return new OtelSdkExportMeterSupplier(settings, diskBufferPath, meterProviderConfigurers);
+            return new OtelSdkExportMeterSupplier(settings, diskBufferPath, meterProviderCustomizers);
         } else {
             return new AgentExportMeterSupplier(settings);
         }

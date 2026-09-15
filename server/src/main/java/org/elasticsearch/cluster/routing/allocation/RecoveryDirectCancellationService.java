@@ -212,10 +212,6 @@ public class RecoveryDirectCancellationService extends AbstractLifecycleComponen
             logger.debug("service stopped or not yet fully started, will not cancel undesired recoveries");
             return;
         }
-        if (clusterService.state().clusterRecovered() == false) {
-            logger.debug("cluster state has not yet recovered, will not cancel undesired recoveries");
-            return;
-        }
         genericExecutor.execute(new CancelUndesiredRecoveriesRunnable(desiredBalance, routingAllocation));
     }
 

@@ -712,13 +712,25 @@ public abstract class FullTextFunction extends Function
 
         // we do an explicit to_text conversion and not all underlying fields already have the TEXT type
         // which means we cannot effectively push down a single lexical match query to the shards
-        if (field.dataType() == TEXT
-            && fieldAttribute.field() instanceof CompactMultiTypeEsField compactMultiTypeEsField
-            && compactMultiTypeEsField.getTypeToConversionExpressions().keySet().stream().anyMatch(dataType -> dataType != TEXT)) {
+        if (field.dataType() == TEXT && isUnsafeTextConversion(fieldAttribute)) {
             return null;
         }
 
         return fieldAttribute;
+    }
+
+    /**
+     * Whether wrapping {@code fieldAttribute} in a conversion to TEXT (typically {@code TO_TEXT}) changes its
+     * matching semantics from what a Lucene pushdown on the raw field would do. Safe (a no-op) only when the field
+     * is already TEXT everywhere it's mapped; unsafe for an ordinary non-TEXT field (e.g. keyword) or a union-typed
+     * field whose per-index conversions aren't uniformly a TEXT no-op.
+     */
+    private static boolean isUnsafeTextConversion(FieldAttribute fieldAttribute) {
+        if (fieldAttribute.dataType() != TEXT) {
+            return true;
+        }
+        return fieldAttribute.field() instanceof CompactMultiTypeEsField compactMultiTypeEsField
+            && compactMultiTypeEsField.getTypeToConversionExpressions().keySet().stream().anyMatch(dataType -> dataType != TEXT);
     }
 
     @Override

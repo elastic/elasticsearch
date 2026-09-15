@@ -1502,6 +1502,11 @@ public class EsqlCapabilities {
         SUBQUERY_IN_FROM_COMMAND_INLINE_STATS_PRUNING,
 
         /**
+         * Support nested non-correlated subqueries in the FROM command.
+         */
+        NESTED_SUBQUERY_IN_FROM_COMMAND(Build.current().isSnapshot()),
+
+        /**
          * Support IN non-correlated subqueries in WHERE command.
          */
         WHERE_IN_SUBQUERY,

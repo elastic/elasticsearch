@@ -51,10 +51,7 @@ public class RepositoryIntegrityHealthIndicatorServiceIT extends AbstractSnapsho
                 .put(BlobStoreRepository.CACHE_REPOSITORY_DATA.getKey(), false)
         );
 
-        assertSnapshotRepositoryHealth(
-            "Indicator should be green after empty repository is created",
-            greenResult(1)
-        );
+        assertSnapshotRepositoryHealth("Indicator should be green after empty repository is created", greenResult(1));
 
         createIndex("test-index-1");
         indexRandomDocs("test-index-1", randomIntBetween(1, 10));

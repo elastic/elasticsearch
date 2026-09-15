@@ -88,9 +88,7 @@ enum DateFormat {
                 format = format.substring(1);
             }
 
-            DateFormatter dateFormatter = DateFormatter.forPattern(format).withLocale(locale);
-
-            final DateFormatter formatter = dateFormatter;
+            final DateFormatter formatter = DateFormatter.forPattern(format).withLocale(locale);
             return text -> {
                 TemporalAccessor accessor = formatter.parse(text);
                 // if there is no year nor year-of-era, we fall back to the current one and

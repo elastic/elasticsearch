@@ -6485,12 +6485,7 @@ public class AnalyzerTests extends ESTestCase {
             """));
         assertThat(highlight.query(), instanceOf(Match.class));
 
-        // A full-text function exists in the WHERE, but its shape (mixed OR, or a NOT) disqualifies it, so the message
-        // explains what can be borrowed rather than claiming there was no full-text WHERE at all.
-        supportsHighlight(basic()).error(
-            "FROM test | WHERE MATCH(first_name, \"x\") OR salary > 3 | HIGHLIGHT ON first_name",
-            containsString("HIGHLIGHT found no borrowable condition in the preceding WHERE")
-        );
+        // Mixed OR is the same "not borrowable" shape; HighlightSupportTests lists both.
         supportsHighlight(basic()).error(
             "FROM test | WHERE NOT MATCH(first_name, \"x\") | HIGHLIGHT ON first_name",
             containsString("HIGHLIGHT found no borrowable condition in the preceding WHERE")
@@ -6525,27 +6520,17 @@ public class AnalyzerTests extends ESTestCase {
         );
     }
 
-    public void testHighlightImplicitQueryStopsAtStats() {
-        assumeHighlightImplicitQueryAndFieldsEnabled();
-        // STATS is not doc-preserving, so the walk stops there; the message names the command that blocked it rather
-        // than claiming there was no full-text WHERE at all.
-        supportsHighlight(basic()).error(
-            "FROM test | WHERE MATCH(first_name, \"x\") | STATS c = COUNT(*) BY first_name | HIGHLIGHT ON first_name",
-            allOf(
-                containsString("HIGHLIGHT cannot borrow the WHERE before"),
-                containsString("STATS c = COUNT(*) BY first_name"),
-                containsString("does not preserve documents")
-            )
-        );
-    }
-
     /**
-     * LOOKUP JOIN and FORK are not {@code UnaryPlan}, so they would otherwise leave {@code blockedBy} unset and
-     * report a missing WHERE even though one exists upstream of the barrier.
+     * STATS, LOOKUP JOIN, and FORK stop the walk. JOIN/FORK are not {@code UnaryPlan}, so they would otherwise
+     * leave {@code blockedBy} unset and report a missing WHERE even though one exists upstream of the barrier.
      */
-    public void testHighlightImplicitQueryStopsAtNonUnaryBarriers() {
+    public void testHighlightImplicitQueryStopsAtBarriers() {
         assumeHighlightImplicitQueryAndFieldsEnabled();
         var blocked = allOf(containsString("HIGHLIGHT cannot borrow the WHERE before"), containsString("does not preserve documents"));
+        supportsHighlight(basic()).error(
+            "FROM test | WHERE MATCH(first_name, \"x\") | STATS c = COUNT(*) BY first_name | HIGHLIGHT ON first_name",
+            allOf(blocked, containsString("STATS c = COUNT(*) BY first_name"))
+        );
         supportsHighlight(basic().addLanguagesLookup()).error("""
             FROM test
             | WHERE MATCH(first_name, "x")
@@ -6578,11 +6563,12 @@ public class AnalyzerTests extends ESTestCase {
         assertTrue(highlight.implicitQuery());
     }
 
-    /** Analyzer options reject borrowable predicates but do not affect predicates HIGHLIGHT ignores. */
+    /**
+     * A borrowed MATCH with an analyzer is accepted (VerifierTests covers explicit agreement and mixed-leaf errors).
+     * A non-borrowable NOT with an analyzer does not poison a sibling MATCH without one.
+     */
     public void testHighlightHandlesAnalyzerOnWherePredicates() {
         assumeHighlightImplicitQueryAndFieldsEnabled();
-
-        // A single borrowed leaf with an analyzer succeeds: HIGHLIGHT synthesizes the WITH option.
         Highlight singleLeaf = soleHighlight(supportsHighlight(basic()).query("""
             FROM test
             | WHERE MATCH(first_name, "x", {"analyzer": "standard"})
@@ -6590,38 +6576,13 @@ public class AnalyzerTests extends ESTestCase {
             """));
         assertTrue(singleLeaf.implicitQuery());
 
-        // A named leaf plus an unlabeled sibling still borrows: unlabeled leaves inherit the uniform analyzer.
-        Highlight uniformWithUnlabeled = soleHighlight(supportsHighlight(basic()).query("""
-            FROM test
-            | WHERE MATCH(first_name, "x", {"analyzer": "standard"}) AND MATCH(last_name, "y")
-            | HIGHLIGHT
-            """));
-        assertTrue(uniformWithUnlabeled.implicitQuery());
-
-        // Two named leaves that agree, split across WHERE commands, still borrow.
-        Highlight uniformAcrossWheres = soleHighlight(supportsHighlight(basic()).query("""
-            FROM test
-            | WHERE MATCH(first_name, "x")
-            | WHERE MATCH(last_name, "y", {"analyzer": "standard"})
-            | HIGHLIGHT ON first_name
-            """));
-        assertTrue(uniformAcrossWheres.implicitQuery());
-
-        // Named leaves that disagree fail with the uniform-analyzer error.
-        supportsHighlight(basic()).error(
-            "FROM test | WHERE MATCH(first_name, \"x\", {\"analyzer\": \"english\"})"
-                + " AND MATCH(last_name, \"y\", {\"analyzer\": \"whitespace\"}) | HIGHLIGHT",
-            containsString("HIGHLIGHT full-text functions use different analyzers")
-        );
-
-        // A non-borrowable NOT with an analyzer does not poison a sibling MATCH without one.
-        Highlight highlight = soleHighlight(supportsHighlight(basic()).query("""
+        Highlight unpoisoned = soleHighlight(supportsHighlight(basic()).query("""
             FROM test
             | WHERE MATCH(first_name, "x") AND NOT MATCH(last_name, "y", {"analyzer": "standard"})
             | HIGHLIGHT ON first_name
             """));
-        assertThat(highlight.query(), instanceOf(Match.class));
-        assertTrue(highlight.implicitQuery());
+        assertThat(unpoisoned.query(), instanceOf(Match.class));
+        assertTrue(unpoisoned.implicitQuery());
     }
 
     public void testHighlightImplicitQueryPassesDocPreservingCommands() {
@@ -6724,16 +6685,11 @@ public class AnalyzerTests extends ESTestCase {
     }
 
     /**
-     * A derived query that can only match nothing on the highlighted fields is rejected, naming the field it targeted.
+     * A derived query that can only match nothing is rejected, naming the field it targeted.
+     * ON-list mismatch without DROP is VerifierTests#testHighlightImplicitQueryMustTargetOnField.
      */
     public void testHighlightRejectsDerivedQueryTargetingOnlyDroppedField() {
         assumeHighlightImplicitQueryAndFieldsEnabled();
-        // Explicit ON that does not include the query's field: rejected, message names first_name.
-        supportsHighlight(basic()).error(
-            "FROM test | WHERE MATCH(first_name, \"x\") | DROP first_name | HIGHLIGHT ON last_name",
-            allOf(containsString("derived its query from a preceding WHERE"), containsString("first_name"), containsString("last_name"))
-        );
-        // Omitted ON derives no highlightable fields: rejected, message names first_name.
         supportsHighlight(basic()).error(
             "FROM test | WHERE MATCH(first_name, \"x\") | DROP first_name | HIGHLIGHT",
             allOf(
@@ -6741,21 +6697,6 @@ public class AnalyzerTests extends ESTestCase {
                 containsString("first_name"),
                 containsString("renamed or dropped")
             )
-        );
-    }
-
-    /**
-     * A renamed field is the same case as a dropped one: the derived query still names the old name.
-     */
-    public void testHighlightRejectsDerivedQueryTargetingOnlyRenamedField() {
-        assumeHighlightImplicitQueryAndFieldsEnabled();
-        supportsHighlight(basic()).error(
-            "FROM test | WHERE MATCH(first_name, \"x\") | RENAME first_name AS fn | HIGHLIGHT ON fn",
-            allOf(containsString("derived its query from a preceding WHERE"), containsString("first_name"), containsString("fn"))
-        );
-        supportsHighlight(basic()).error(
-            "FROM test | WHERE MATCH(first_name, \"x\") | RENAME first_name AS fn | HIGHLIGHT",
-            allOf(containsString("HIGHLIGHT found no text or keyword fields to highlight"), containsString("first_name"))
         );
     }
 

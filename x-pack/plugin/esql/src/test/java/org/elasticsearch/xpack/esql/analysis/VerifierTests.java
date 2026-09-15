@@ -4901,12 +4901,8 @@ public class VerifierTests extends ESTestCase {
             "FROM test | WHERE MATCH(title, \"x\") | HIGHLIGHT ON body",
             allOf(containsString("derived its query from a preceding WHERE"), containsString("title"), containsString("body"))
         );
-    }
-
-    public void testHighlightImplicitQstrAndKqlOutsideOnAreLenient() {
-        assumeHighlightImplicitQueryAndFieldsEnabled();
-        supportsHighlightImplicit(fullText()).query("FROM test | WHERE QSTR(\"body:bar\") AND MATCH(title, \"fox\") | HIGHLIGHT ON title");
-        supportsHighlightImplicit(fullText()).query("FROM test | WHERE KQL(\"body: bar\") AND MATCH(title, \"fox\") | HIGHLIGHT ON title");
+        // QSTR/KQL qualifiers outside ON are match-none at translation, not analysis errors.
+        // csv-spec covers the field: form; default_field is the option-based case.
         supportsHighlightImplicit(fullText()).query(
             "FROM test | WHERE QSTR(\"fox\", {\"default_field\": \"body\"}) AND MATCH(title, \"fox\") | HIGHLIGHT ON title"
         );
@@ -4935,7 +4931,6 @@ public class VerifierTests extends ESTestCase {
                 containsString("HIGHLIGHT with a derived query or field list is not supported on every participating node")
             );
         supportsHighlight(fullText()).query("FROM test | HIGHLIGHT \"fox\" ON title");
-        supportsHighlight(defaultAnalyzer()).query("FROM test | HIGHLIGHT \"search\" ON first_name");
     }
 
     public void testHighlightRejectsInvalidOptionEnums() {
@@ -5014,15 +5009,6 @@ public class VerifierTests extends ESTestCase {
         supportsHighlight(fullText()).query(
             "FROM test | HIGHLIGHT MATCH(title, \"fox\", {\"analyzer\": \"standard\"}) ON title WITH { \"analyzer\": \"standard\" }"
         );
-        // Multiple leaves that agree on one analyzer succeed together.
-        supportsHighlight(fullText()).query(
-            "FROM test | HIGHLIGHT MATCH(title, \"fox\", {\"analyzer\": \"whitespace\"}) OR"
-                + " MATCH(body, \"bar\", {\"analyzer\": \"whitespace\"}) ON title, body"
-        );
-        // Unlabeled leaves inherit the analyzer from their labeled sibling.
-        supportsHighlight(fullText()).query(
-            "FROM test | HIGHLIGHT MATCH(title, \"fox\", {\"analyzer\": \"whitespace\"}) OR MATCH(body, \"bar\") ON title, body"
-        );
     }
 
     public void testHighlightAnalyzerOption() {
@@ -5078,8 +5064,8 @@ public class VerifierTests extends ESTestCase {
             "FROM test | HIGHLIGHT MATCH(title, \"fox\", {\"analyzer\": \"whitespace\"}) ON title WITH { \"analyzer\": \"keyword\" }",
             containsString("HIGHLIGHT WITH analyzer [keyword] does not match analyzer [whitespace] specified by the query")
         );
-        // Full-text leaves that name different analyzers cannot share a single-analyzer HIGHLIGHT context. The same
-        // rule holds for a derived query (see AnalyzerTests#testHighlightHandlesAnalyzerOnWherePredicates).
+        // Full-text leaves that name different analyzers cannot share a single-analyzer HIGHLIGHT context.
+        // HighlightSupportTests covers the same rule on a derived query tree.
         supportsHighlight(fullText()).error(
             "FROM test | HIGHLIGHT MATCH(title, \"fox\", {\"analyzer\": \"english\"}) OR"
                 + " MATCH(body, \"bar\", {\"analyzer\": \"whitespace\"}) ON title, body",

@@ -49,7 +49,7 @@ public class PromqlParser {
     /**
      * Maximum number of binary operators allowed in a single PromQL expression. A chained binary expression
      * (e.g. {@code metric + metric + ...}) is fatal without this bound: every nested binary node retains a
-     * full-span copy of its source text, so retained heap grows as ~7 bytes × n² — ~7MB at n=1000, versus
+     * full-span copy of its source text, so retained heap grows as 7*n^2 bytes - about 7MB at n=1000, versus
      * ~11GB at n=40000 if it ever completed. In practice the node dies partway down: a ~560KB / 40k-operator
      * chain peaks at ~950MB on a 1GB heap. The bound caps the worst case at ~7MB.
      * See <a href="https://github.com/elastic/security/issues/12593">security#12593</a>.
@@ -103,7 +103,7 @@ public class PromqlParser {
             if (pe.getMessage() != null && pe.getMessage().contains("exceeded the maximum")) {
                 throw pe;
             }
-            // Lexer error during fill() — rebuild the token stream from scratch so the
+            // Lexer error during fill() - rebuild the token stream from scratch so the
             // parser runs lazily and reports the same error as without this pre-scan.
             tokenStream = createTokenStream(query);
         }

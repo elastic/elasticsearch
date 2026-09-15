@@ -10,6 +10,7 @@
 package org.elasticsearch.columnar.string;
 
 import org.apache.lucene.util.BytesRef;
+import org.elasticsearch.columnar.substrate.ChunkCodec;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -20,107 +21,148 @@ import java.util.List;
  * Where a document's slots begin, over a column of more blocks of counts than one. The addresses inside a
  * block are summed from its base rather than stored, so what matters is that a rank answers the same
  * wherever the read arrives from and whichever block it was last in.
+ *
+ * <p>The block is fixed small here so a column of a few hundred documents still crosses several of them,
+ * and so a test can put its last document exactly on a boundary, one short of one, and one past one.
  */
 public class SlotAddressingTests extends ColumnarStringTestCase {
 
-    /** Enough documents for several blocks of counts, and a boundary that is not the last one. */
-    private static final int DOCS = 5 * AddressingWriter.COUNTS_BLOCK_SIZE + 37;
+    private static final int COUNTS_BLOCK = 128;
 
-    /**
-     * Slot counts that vary the way a real column's do: documents holding nothing, documents holding one,
-     * and a few holding many, so no block packs to the same width and none is a single run.
-     */
-    private static BytesRef[][] varyingSlots() {
-        final BytesRef[][] docs = new BytesRef[DOCS][];
-        for (int d = 0; d < DOCS; d++) {
-            final int slots = switch (d % 7) {
-                case 0 -> 0;
-                case 1, 2, 3 -> 1;
-                case 4 -> 2;
-                case 5 -> 9;
-                default -> 3;
-            };
-            docs[d] = new BytesRef[slots];
-            for (int s = 0; s < slots; s++) {
-                docs[d][s] = new BytesRef("d" + d + "s" + s);
-            }
-        }
-        return docs;
+    /** Slot counts that vary, with documents holding nothing, one, and many, so no block is a single run. */
+    private static int slotsFor(int doc) {
+        return switch (doc % 7) {
+            case 0 -> 0;
+            case 1, 2, 3 -> 1;
+            case 4 -> 2;
+            case 5 -> 9;
+            default -> 3;
+        };
     }
 
-    /** The address each document's slots begin at, which is every count before it. */
-    private static long[] expectedAddresses(BytesRef[][] docs) {
-        final long[] addresses = new long[docs.length];
+    /** Every document carries the field, so a rank is its position. */
+    private static BytesRef[][] dense(int docs) {
+        final BytesRef[][] column = new BytesRef[docs][];
+        for (int d = 0; d < docs; d++) {
+            column[d] = values(d, slotsFor(d));
+        }
+        return column;
+    }
+
+    /** Only some documents carry the field, so a rank counts the carriers rather than the documents. */
+    private static BytesRef[][] sparse(int docs) {
+        final BytesRef[][] column = new BytesRef[docs][];
+        for (int d = 0; d < docs; d++) {
+            if (d % 3 != 0) {
+                column[d] = values(d, slotsFor(d));
+            }
+        }
+        return column;
+    }
+
+    private static BytesRef[] values(int doc, int slots) {
+        final BytesRef[] v = new BytesRef[slots];
+        for (int s = 0; s < slots; s++) {
+            // A vocabulary narrow enough that the column keeps a dictionary when it is offered one.
+            v[s] = new BytesRef("term-" + ((doc + s) % 50));
+        }
+        return v;
+    }
+
+    /** The address each carrier's slots begin at, and the rank order they are addressed by. */
+    private static long[] expectedAddresses(BytesRef[][] column, List<Integer> carriers) {
+        final long[] addresses = new long[carriers.size()];
         long address = 0;
-        for (int d = 0; d < docs.length; d++) {
-            addresses[d] = address;
-            address += docs[d].length;
+        for (int i = 0; i < carriers.size(); i++) {
+            addresses[i] = address;
+            address += column[carriers.get(i)].length;
         }
         return addresses;
     }
 
-    public void testRanksAnswerTheSameInAnyOrder() throws IOException {
-        final BytesRef[][] docs = varyingSlots();
-        final long[] expected = expectedAddresses(docs);
-        withColumn(docs, 128, (meta, reader) -> {
-            assertTrue("the slots are not in step with the documents", meta.hasValueAddresses());
-
-            // Ascending, which is how a scan arrives and the order the block cache is built for.
-            for (int rank = 0; rank < docs.length; rank++) {
-                assertEquals("address at rank " + rank, expected[rank], reader.firstValueAddress(rank));
-                assertEquals("count at rank " + rank, docs[rank].length, reader.valueCount(rank));
+    private static List<Integer> carriersOf(BytesRef[][] column) {
+        final List<Integer> carriers = new ArrayList<>();
+        for (int d = 0; d < column.length; d++) {
+            if (column[d] != null) {
+                carriers.add(d);
             }
-            // Descending, so every block is entered from its far end.
-            for (int rank = docs.length - 1; rank >= 0; rank--) {
-                assertEquals("descending address at rank " + rank, expected[rank], reader.firstValueAddress(rank));
-            }
-            // Shuffled, so a read lands in a block the one before it was not in.
-            final List<Integer> ranks = new ArrayList<>();
-            for (int rank = 0; rank < docs.length; rank++) {
-                ranks.add(rank);
-            }
-            Collections.shuffle(ranks, random());
-            for (int rank : ranks) {
-                assertEquals("shuffled address at rank " + rank, expected[rank], reader.firstValueAddress(rank));
-                assertEquals("shuffled count at rank " + rank, docs[rank].length, reader.valueCount(rank));
-            }
-        });
+        }
+        return carriers;
     }
 
     /**
-     * A document whose slots are the last of its block, and the one that starts the next. Their addresses
-     * come from different bases, and the first of them is the only count a block's final entry closes.
+     * Reads every rank forwards, backwards and shuffled, under both layouts. A dictionary column drives the
+     * addressing from its own write loop, so it has to be covered as well as the one that stores its values.
      */
-    public void testDocumentsEitherSideOfABlockBoundary() throws IOException {
-        final BytesRef[][] docs = varyingSlots();
-        final long[] expected = expectedAddresses(docs);
-        withColumn(docs, 128, (meta, reader) -> {
-            for (int boundary = AddressingWriter.COUNTS_BLOCK_SIZE; boundary < docs.length; boundary +=
-                AddressingWriter.COUNTS_BLOCK_SIZE) {
-                assertEquals("last of a block", expected[boundary - 1], reader.firstValueAddress(boundary - 1));
-                assertEquals("count of the last of a block", docs[boundary - 1].length, reader.valueCount(boundary - 1));
-                assertEquals("first of the next", expected[boundary], reader.firstValueAddress(boundary));
-                assertEquals("count of the first of the next", docs[boundary].length, reader.valueCount(boundary));
-            }
-        });
+    private void assertAddresses(String shape, BytesRef[][] column) throws IOException {
+        final List<Integer> carriers = carriersOf(column);
+        final long[] expected = expectedAddresses(column, carriers);
+        for (DictionaryPolicy policy : new DictionaryPolicy[] { DictionaryPolicy.NONE, StringColumnOptions.DEFAULT_DICTIONARY }) {
+            final String where = shape + " under " + (policy == DictionaryPolicy.NONE ? "plain" : "dictionary");
+            withColumn(column, 128, ChunkCodec.ZSTD, 64 * 1024, policy, 2048, COUNTS_BLOCK, (meta, reader) -> {
+                assertEquals(where + ": carriers", carriers.size(), reader.numDocsWithField());
+                for (int rank = 0; rank < carriers.size(); rank++) {
+                    assertRank(where + " ascending", column, carriers, expected, reader, rank);
+                }
+                for (int rank = carriers.size() - 1; rank >= 0; rank--) {
+                    assertRank(where + " descending", column, carriers, expected, reader, rank);
+                }
+                final List<Integer> ranks = new ArrayList<>();
+                for (int rank = 0; rank < carriers.size(); rank++) {
+                    ranks.add(rank);
+                }
+                Collections.shuffle(ranks, random());
+                for (int rank : ranks) {
+                    assertRank(where + " shuffled", column, carriers, expected, reader, rank);
+                }
+            });
+        }
+    }
+
+    private static void assertRank(
+        String where,
+        BytesRef[][] column,
+        List<Integer> carriers,
+        long[] expected,
+        StringColumnReader reader,
+        int rank
+    ) throws IOException {
+        final BytesRef[] slots = column[carriers.get(rank)];
+        assertEquals(where + ": address at rank " + rank, expected[rank], reader.firstValueAddress(rank));
+        assertEquals(where + ": count at rank " + rank, slots.length, reader.valueCount(rank));
+        for (int slot = 0; slot < slots.length; slot++) {
+            assertEquals(where + ": value at rank " + rank + " slot " + slot, slots[slot], reader.valueAt(expected[rank] + slot));
+        }
+    }
+
+    /** A column whose carriers land one short of a block, exactly on one, and one past one. */
+    public void testDenseColumnAcrossBlockBoundaries() throws IOException {
+        for (int carriers : new int[] { COUNTS_BLOCK - 1, COUNTS_BLOCK, COUNTS_BLOCK + 1, 3 * COUNTS_BLOCK, 3 * COUNTS_BLOCK + 1 }) {
+            assertAddresses("dense " + carriers, dense(carriers));
+        }
+    }
+
+    /**
+     * The same boundaries on a column only some documents carry, where a rank is no longer a document id.
+     * The document count is chosen so the carriers land on the boundary rather than the documents.
+     */
+    public void testSparseColumnAcrossBlockBoundaries() throws IOException {
+        for (int carriers : new int[] { COUNTS_BLOCK - 1, COUNTS_BLOCK, COUNTS_BLOCK + 1, 3 * COUNTS_BLOCK + 1 }) {
+            // Two of every three documents carry the field, so this many documents yield that many carriers.
+            final int docs = (int) Math.ceil(carriers * 3.0 / 2.0) + 3;
+            final BytesRef[][] column = sparse(docs);
+            assertAddresses("sparse " + carriersOf(column).size(), column);
+        }
     }
 
     /** Every document holds the same number of slots, which is one run a block and the shape {@code tags} takes. */
     public void testConstantCountsReadBack() throws IOException {
-        final BytesRef[][] docs = new BytesRef[DOCS][];
-        for (int d = 0; d < DOCS; d++) {
-            docs[d] = new BytesRef[] { new BytesRef("a" + d), new BytesRef("b" + d), new BytesRef("c" + d) };
+        final int docs = 3 * COUNTS_BLOCK + 37;
+        final BytesRef[][] column = new BytesRef[docs][];
+        for (int d = 0; d < docs; d++) {
+            column[d] = values(d, 3);
         }
-        final long[] expected = expectedAddresses(docs);
-        withColumn(docs, 128, (meta, reader) -> {
-            for (int rank = 0; rank < docs.length; rank++) {
-                assertEquals("address at rank " + rank, expected[rank], reader.firstValueAddress(rank));
-                assertEquals(3, reader.valueCount(rank));
-                for (int slot = 0; slot < 3; slot++) {
-                    assertEquals(docs[rank][slot], reader.valueAt(expected[rank] + slot));
-                }
-            }
-        });
+        assertAddresses("constant counts", column);
     }
 
     /**
@@ -128,14 +170,15 @@ public class SlotAddressingTests extends ColumnarStringTestCase {
      * at all and a rank is its own value address.
      */
     public void testColumnInStepTablesNothing() throws IOException {
-        final BytesRef[][] docs = new BytesRef[DOCS][];
-        for (int d = 0; d < DOCS; d++) {
-            docs[d] = new BytesRef[] { new BytesRef("only" + d) };
+        final int docs = 2 * COUNTS_BLOCK + 5;
+        final BytesRef[][] column = new BytesRef[docs][];
+        for (int d = 0; d < docs; d++) {
+            column[d] = values(d, 1);
         }
-        withColumn(docs, 128, (meta, reader) -> {
+        withColumn(column, 128, ChunkCodec.ZSTD, 64 * 1024, DictionaryPolicy.NONE, 2048, COUNTS_BLOCK, (meta, reader) -> {
             assertFalse("the slots are in step with the documents", meta.hasValueAddresses());
             assertSame("nothing to address", SlotAddressing.NONE, meta.addressing());
-            for (int rank = 0; rank < docs.length; rank++) {
+            for (int rank = 0; rank < docs; rank++) {
                 assertEquals(rank, reader.firstValueAddress(rank));
                 assertEquals(1, reader.valueCount(rank));
             }

@@ -52,6 +52,7 @@ import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.BigArrays;
+import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.core.CheckedFunction;
 import org.elasticsearch.core.IOUtils;
@@ -104,6 +105,7 @@ import org.elasticsearch.xpack.stateless.cluster.coordination.StatelessClusterCo
 import org.elasticsearch.xpack.stateless.cluster.coordination.StatelessElectionStrategy;
 import org.elasticsearch.xpack.stateless.commits.StatelessCommitCleaner;
 import org.elasticsearch.xpack.stateless.commits.StatelessCommitService;
+import org.elasticsearch.xpack.stateless.commits.VirtualBatchedCompoundCommit;
 import org.elasticsearch.xpack.stateless.lucene.IndexBlobStoreCacheDirectory;
 import org.elasticsearch.xpack.stateless.lucene.IndexDirectory;
 import org.elasticsearch.xpack.stateless.lucene.SearchDirectory;
@@ -744,12 +746,29 @@ public class FakeStatelessNode implements Closeable {
         return primaryTerm;
     }
 
+    /**
+     * Intercept blob containers created by this node's FS object store. Override
+     * {@link BlobContainer#writeBlob} / {@link BlobContainer#writeBlobAtomic} provider methods (not the
+     * InputStream overloads) when injecting failures around uploads.
+     */
     public BlobContainer wrapBlobContainer(BlobPath path, BlobContainer innerContainer) {
         return innerContainer;
     }
 
     public BlobContainer getShardContainer() {
         return objectStoreService.getProjectBlobContainer(shardId, primaryTerm);
+    }
+
+    public static void uploadVbcc(BlobContainer container, VirtualBatchedCompoundCommit vbcc, boolean failIfAlreadyExists)
+        throws IOException {
+        container.writeBlobAtomic(
+            OperationPurpose.INDICES,
+            vbcc.getBlobName(),
+            vbcc.getTotalSizeInBytes(),
+            (offset, length) -> vbcc.getFrozenInputStreamForUpload(offset, length),
+            failIfAlreadyExists,
+            EsExecutors.DIRECT_EXECUTOR_SERVICE
+        );
     }
 
     @Override

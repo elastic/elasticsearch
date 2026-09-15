@@ -191,15 +191,7 @@ public class CacheBlobReaderTests extends ESTestCase {
 
                 // Upload vBCC to blob store
                 var indexBlobContainer = indexingDirectory.getBlobStoreCacheDirectory().getBlobContainer(getPrimaryTerm());
-                try (var vbccInputStream = virtualBatchedCompoundCommit.getFrozenInputStreamForUpload()) {
-                    indexBlobContainer.writeBlobAtomic(
-                        OperationPurpose.INDICES,
-                        virtualBatchedCompoundCommit.getBlobName(),
-                        vbccInputStream,
-                        virtualBatchedCompoundCommit.getTotalSizeInBytes(),
-                        false
-                    );
-                }
+                FakeStatelessNode.uploadVbcc(indexBlobContainer, virtualBatchedCompoundCommit, false);
                 BatchedCompoundCommit bcc = virtualBatchedCompoundCommit.getFrozenBatchedCompoundCommit();
                 virtualBatchedCompoundCommit.decRef();
                 return Objects.requireNonNull(bcc);

@@ -539,15 +539,7 @@ public class ObjectStoreServiceTests extends ESTestCase {
                         assertTrue(virtualBatchedCompoundCommit.appendCommit(statelessCommitRef, randomBoolean(), null));
                     }
                     virtualBatchedCompoundCommit.freeze();
-                    try (var vbccInputStream = virtualBatchedCompoundCommit.getFrozenInputStreamForUpload()) {
-                        shardBlobContainer.writeBlobAtomic(
-                            OperationPurpose.INDICES,
-                            virtualBatchedCompoundCommit.getBlobName(),
-                            vbccInputStream,
-                            virtualBatchedCompoundCommit.getTotalSizeInBytes(),
-                            true
-                        );
-                    }
+                    FakeStatelessNode.uploadVbcc(shardBlobContainer, virtualBatchedCompoundCommit, true);
                     final BatchedCompoundCommit batchedCompoundCommit = virtualBatchedCompoundCommit.getFrozenBatchedCompoundCommit();
                     for (var compoundCommit : batchedCompoundCommit.compoundCommits()) {
                         uploadedBlobLocations.putAll(compoundCommit.commitFiles());
@@ -650,16 +642,8 @@ public class ObjectStoreServiceTests extends ESTestCase {
                     }
                     virtualBatchedCompoundCommit.freeze();
 
-                    try (var stream = virtualBatchedCompoundCommit.getFrozenInputStreamForUpload()) {
-                        var shardContainer = testHarness.objectStoreService.getProjectBlobContainer(testHarness.shardId, primaryTerm);
-                        shardContainer.writeBlobAtomic(
-                            OperationPurpose.INDICES,
-                            virtualBatchedCompoundCommit.getBlobName(),
-                            stream,
-                            virtualBatchedCompoundCommit.getTotalSizeInBytes(),
-                            true
-                        );
-                    }
+                    var shardContainer = testHarness.objectStoreService.getProjectBlobContainer(testHarness.shardId, primaryTerm);
+                    FakeStatelessNode.uploadVbcc(shardContainer, virtualBatchedCompoundCommit, true);
                     latestBcc = virtualBatchedCompoundCommit.getFrozenBatchedCompoundCommit();
                     latestBcc.compoundCommits().forEach(compoundCommit -> uploadedBlobs.putAll(compoundCommit.commitFiles()));
                     latestBccLength = virtualBatchedCompoundCommit.getTotalSizeInBytes();

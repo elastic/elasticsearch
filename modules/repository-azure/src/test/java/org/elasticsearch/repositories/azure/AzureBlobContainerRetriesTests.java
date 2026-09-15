@@ -55,6 +55,7 @@ import org.elasticsearch.threadpool.ThreadPool;
 import org.junit.After;
 import org.junit.Before;
 
+import java.io.ByteArrayInputStream;
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.io.InputStream;
@@ -347,6 +348,50 @@ public class AzureBlobContainerRetriesTests extends AbstractBlobContainerRetries
             blobContainer.writeBlob(randomPurpose(), "write_blob_max_retries", stream, bytes.length, false);
         }
         assertThat(countDown.isCountedDown(), is(true));
+    }
+
+    public void testWriteBlobFromProviderRetries() throws Exception {
+        final int maxRetries = randomIntBetween(1, 5);
+        final CountDown countDown = new CountDown(maxRetries);
+
+        final BlobContainer blobContainer = createBlobContainer(maxRetries);
+        final byte[] bytes = randomBlobContent();
+        httpServer.createContext(downloadStorageEndpoint(blobContainer, "write_blob_provider_retries"), exchange -> {
+            if ("PUT".equals(exchange.getRequestMethod())) {
+                if (countDown.countDown()) {
+                    final BytesReference body = Streams.readFully(exchange.getRequestBody());
+                    if (Objects.deepEquals(bytes, BytesReference.toBytes(body))) {
+                        exchange.getResponseHeaders().add("x-ms-request-server-encrypted", "false");
+                        exchange.sendResponseHeaders(RestStatus.CREATED.getStatus(), -1);
+                    } else {
+                        AzureHttpHandler.sendError(exchange, RestStatus.BAD_REQUEST);
+                    }
+                    exchange.close();
+                    return;
+                }
+
+                if (randomBoolean()) {
+                    if (randomBoolean()) {
+                        org.elasticsearch.core.Streams.readFully(
+                            exchange.getRequestBody(),
+                            new byte[randomIntBetween(1, Math.max(1, bytes.length - 1))]
+                        );
+                    } else {
+                        Streams.readFully(exchange.getRequestBody());
+                        AzureHttpHandler.sendError(exchange, randomFrom(RestStatus.INTERNAL_SERVER_ERROR, RestStatus.SERVICE_UNAVAILABLE));
+                    }
+                }
+                exchange.close();
+            }
+        });
+
+        final AtomicInteger applyCount = new AtomicInteger();
+        blobContainer.writeBlob(randomPurpose(), "write_blob_provider_retries", bytes.length, (offset, length) -> {
+            applyCount.incrementAndGet();
+            return new ByteArrayInputStream(bytes, Math.toIntExact(offset), Math.toIntExact(length));
+        }, false);
+        assertThat(countDown.isCountedDown(), is(true));
+        assertThat(applyCount.get(), greaterThanOrEqualTo(maxRetries));
     }
 
     public void testWriteLargeBlob() throws Exception {

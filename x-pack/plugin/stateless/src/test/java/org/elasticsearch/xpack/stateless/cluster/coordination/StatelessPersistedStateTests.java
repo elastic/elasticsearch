@@ -218,6 +218,20 @@ public class StatelessPersistedStateTests extends ESTestCase {
             }
 
             @Override
+            public void writeBlob(
+                OperationPurpose purpose,
+                String blobName,
+                long blobSize,
+                BlobMultiPartInputStreamProvider provider,
+                boolean failIfAlreadyExists
+            ) throws IOException {
+                if (failWritingRegularFiles) {
+                    throw new IOException("Failed writing blob " + blobName);
+                }
+                super.writeBlob(purpose, blobName, blobSize, provider, failIfAlreadyExists);
+            }
+
+            @Override
             public void writeMetadataBlob(
                 OperationPurpose purpose,
                 String blobName,

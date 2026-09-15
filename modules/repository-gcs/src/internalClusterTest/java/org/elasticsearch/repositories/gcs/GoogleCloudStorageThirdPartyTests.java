@@ -281,7 +281,13 @@ public class GoogleCloudStorageThirdPartyTests extends AbstractThirdPartyReposit
                     final String resumableName = randomIdentifier();
                     final int resumableSize = GoogleCloudStorageBlobStore.LARGE_BLOB_THRESHOLD_BYTE_SIZE + between(1, 1024);
                     final byte[] resumableBytes = randomByteArrayOfLength(resumableSize);
-                    blobContainer.writeBlob(purpose, resumableName, new ByteArrayInputStream(resumableBytes), resumableSize, true);
+                    blobContainer.writeBlob(
+                        purpose,
+                        resumableName,
+                        resumableSize,
+                        (offset, length) -> new ByteArrayInputStream(resumableBytes, Math.toIntExact(offset), Math.toIntExact(length)),
+                        true
+                    );
                     assertStorageClass(blobStore, bucket, keyPrefix + resumableName, expectedStorageClass, "resumable upload", purpose);
 
                     // server-side copy (source is the small single-part blob written above)

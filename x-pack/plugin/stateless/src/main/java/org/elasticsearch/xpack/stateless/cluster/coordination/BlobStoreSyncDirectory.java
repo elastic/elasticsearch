@@ -21,14 +21,15 @@ import org.elasticsearch.common.blobstore.OperationPurpose;
 import org.elasticsearch.common.lucene.store.InputStreamIndexInput;
 import org.elasticsearch.common.util.concurrent.FutureUtils;
 import org.elasticsearch.common.util.concurrent.ThrottledTaskRunner;
+import org.elasticsearch.core.IOUtils;
 import org.elasticsearch.core.Releasable;
 import org.elasticsearch.core.Streams;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
 
+import java.io.FilterInputStream;
 import java.io.IOException;
-import java.io.InputStream;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.Comparator;
@@ -164,17 +165,24 @@ class BlobStoreSyncDirectory extends FilterDirectory {
         uploadedFiles.add(fileName);
         try (var input = openInput(fileName, IOContext.READONCE)) {
             final long length = input.length();
-            final InputStream inputStream = new InputStreamIndexInput(input, length);
             if (atomic) {
-                blobContainer.writeMetadataBlob(
-                    OperationPurpose.CLUSTER_STATE,
-                    fileName,
-                    false,
-                    true,
-                    out -> Streams.copy(inputStream, out, false)
-                );
+                blobContainer.writeMetadataBlob(OperationPurpose.CLUSTER_STATE, fileName, false, true, out -> {
+                    try (var in = new InputStreamIndexInput(input.clone(), length)) {
+                        Streams.copy(in, out, false);
+                    }
+                });
             } else {
-                blobContainer.writeBlob(OperationPurpose.CLUSTER_STATE, fileName, inputStream, length, false);
+                blobContainer.writeBlob(OperationPurpose.CLUSTER_STATE, fileName, length, (offset, len) -> {
+                    var clone = input.clone();
+                    clone.seek(offset);
+                    return new FilterInputStream(new InputStreamIndexInput(clone, len)) {
+                        @Override
+                        public void close() throws IOException {
+                            super.close();
+                            IOUtils.close(clone);
+                        }
+                    };
+                }, false);
             }
         }
     }

@@ -106,6 +106,9 @@ public interface BlobContainer {
      * @throws FileAlreadyExistsException if failIfAlreadyExists is true and a blob by the same name already exists
      * @throws IOException                if the input stream could not be read, or the target blob could not be written to.
      */
+    // TODO: snapshot follow-up: remove these InputStream write overloads, migrate snapshotFile / IndexInputFileReader
+    // (IndexInput.clone()), route writeBlob(BytesReference) defaults through the provider, and convert remaining
+    // snapshot tests to a counting provider.
     void writeBlob(OperationPurpose purpose, String blobName, InputStream inputStream, long blobSize, boolean failIfAlreadyExists)
         throws IOException;
 
@@ -123,6 +126,29 @@ public interface BlobContainer {
         throws IOException {
         assert assertPurposeConsistency(purpose, blobName);
         writeBlob(purpose, blobName, bytes.streamInput(), bytes.length(), failIfAlreadyExists);
+    }
+
+    /**
+     * Writes a blob by opening a fresh {@link InputStream} from {@code provider} for each attempt or part.
+     * The default implementation consumes the blob once via {@link #writeBlob(OperationPurpose, String, InputStream, long, boolean)}.
+     * Cloud blob stores override this to retry without {@link InputStream#mark}/{@link InputStream#reset} on a shared stream.
+     *
+     * @param purpose             The purpose of the operation
+     * @param blobName            The name of the blob to write
+     * @param blobSize            The size of the blob to be written, in bytes
+     * @param provider            Supplies an independent stream for a byte range of the blob
+     * @param failIfAlreadyExists whether to throw a FileAlreadyExistsException if the given blob already exists
+     */
+    default void writeBlob(
+        OperationPurpose purpose,
+        String blobName,
+        long blobSize,
+        BlobMultiPartInputStreamProvider provider,
+        boolean failIfAlreadyExists
+    ) throws IOException {
+        try (InputStream in = provider.apply(0L, blobSize)) {
+            writeBlob(purpose, blobName, in, blobSize, failIfAlreadyExists);
+        }
     }
 
     /**
@@ -154,11 +180,15 @@ public interface BlobContainer {
     }
 
     /**
-     * Provides an {@link InputStream} to read a part of the blob content.
+     * Provides an independent {@link InputStream} for a byte range of the blob content.
+     * Each {@link #apply(long, long)} call returns a new stream that the caller must close.
+     * Streams are not required to support {@link InputStream#mark} or {@link InputStream#reset};
+     * retries and part uploads must call {@link #apply} again rather than resetting a previous stream.
      */
     interface BlobMultiPartInputStreamProvider {
         /**
-         * Provides an {@link InputStream} to read a part of the blob content.
+         * Opens an independent {@link InputStream} for {@code length} bytes starting at {@code offset}.
+         * The returned stream must be closed by the caller and is not required to support mark/reset.
          *
          * @param offset        the offset in the blob content to start reading bytes from
          * @param length        the number of bytes to read
@@ -173,7 +203,8 @@ public interface BlobContainer {
      * parts that can be written to the container concurrently before being assembled into the final blob, using an atomic write operation
      * if the implementation supports it. The number and the size of the parts depends of the implementation.
      *
-     * Note: the method {link {@link #supportsConcurrentMultipartUploads()}} must be checked before calling this method.
+     * Implementations that support concurrent multipart uploads override this method. The default implementation
+     * consumes the blob once via {@link #writeBlobAtomic(OperationPurpose, String, InputStream, long, boolean)}.
      *
      * @param purpose             The purpose of the operation
      * @param blobName            The name of the blob to write the contents of the input stream to.
@@ -193,7 +224,9 @@ public interface BlobContainer {
         boolean failIfAlreadyExists,
         Executor executor
     ) throws IOException {
-        throw new UnsupportedOperationException();
+        try (InputStream in = provider.apply(0L, blobSize)) {
+            writeBlobAtomic(purpose, blobName, in, blobSize, failIfAlreadyExists);
+        }
     }
 
     /**

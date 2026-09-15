@@ -60,6 +60,7 @@ import org.elasticsearch.repositories.RepositoriesMetrics;
 import org.elasticsearch.rest.RestStatus;
 
 import java.io.ByteArrayInputStream;
+import java.io.FilterInputStream;
 import java.io.FilterOutputStream;
 import java.io.IOException;
 import java.io.InputStream;
@@ -397,8 +398,8 @@ class GoogleCloudStorageBlobStore implements BlobStore {
             writeBlobResumable(
                 purpose,
                 applyStorageClass(BlobInfo.newBuilder(bucketName, blobName).setMd5(md5), purpose).build(),
-                bytes.streamInput(),
                 bytes.length(),
+                (offset, length) -> bytes.slice(Math.toIntExact(offset), Math.toIntExact(length)).streamInput(),
                 failIfAlreadyExists
             );
         } else {
@@ -429,10 +430,29 @@ class GoogleCloudStorageBlobStore implements BlobStore {
         );
     }
 
+    void writeBlob(
+        OperationPurpose purpose,
+        String blobName,
+        long blobSize,
+        BlobContainer.BlobMultiPartInputStreamProvider provider,
+        boolean failIfAlreadyExists
+    ) throws IOException {
+        final BlobInfo blobInfo = applyStorageClass(BlobInfo.newBuilder(bucketName, blobName), purpose).build();
+        if (blobSize > getLargeBlobThresholdInBytes()) {
+            writeBlobResumable(purpose, blobInfo, blobSize, provider, failIfAlreadyExists);
+        } else {
+            try (var stream = provider.apply(0L, blobSize)) {
+                final byte[] buffer = new byte[Math.toIntExact(blobSize)];
+                Streams.readFully(stream, buffer);
+                writeBlobMultipart(purpose, blobInfo, buffer, 0, Math.toIntExact(blobSize), failIfAlreadyExists);
+            }
+        }
+    }
+
     private void writeBlob(OperationPurpose purpose, InputStream inputStream, long blobSize, boolean failIfAlreadyExists, BlobInfo blobInfo)
         throws IOException {
         if (blobSize > getLargeBlobThresholdInBytes()) {
-            writeBlobResumable(purpose, blobInfo, inputStream, blobSize, failIfAlreadyExists);
+            writeBlobResumable(purpose, blobInfo, blobSize, markResetProvider(inputStream), failIfAlreadyExists);
         } else {
             final byte[] buffer = new byte[Math.toIntExact(blobSize)];
             Streams.readFully(inputStream, buffer);
@@ -553,21 +573,19 @@ class GoogleCloudStorageBlobStore implements BlobStore {
      * https://cloud.google.com/storage/docs/json_api/v1/how-tos/resumable-upload
      * @param purpose the operation purpose
      * @param blobInfo the info for the blob to be uploaded
-     * @param inputStream the stream containing the blob data
      * @param size expected size of the blob to be written
+     * @param provider supplies a fresh stream for each attempt
      * @param failIfAlreadyExists whether to throw a FileAlreadyExistsException if the given blob already exists
      */
     private void writeBlobResumable(
         OperationPurpose purpose,
         BlobInfo blobInfo,
-        InputStream inputStream,
         long size,
+        BlobContainer.BlobMultiPartInputStreamProvider provider,
         boolean failIfAlreadyExists
     ) throws IOException {
         // We retry 410 GONE errors to cover the unlikely but possible scenario where a resumable upload session becomes broken and
         // needs to be restarted from scratch. Given how unlikely a 410 error should be according to SLAs we retry only twice.
-        assert inputStream.markSupported();
-        inputStream.mark(Integer.MAX_VALUE);
         final byte[] buffer = new byte[size < bufferSize ? Math.toIntExact(size) : bufferSize];
         StorageException storageException = null;
         final Storage.BlobWriteOption[] writeOptions;
@@ -579,7 +597,7 @@ class GoogleCloudStorageBlobStore implements BlobStore {
             writeOptions = failIfAlreadyExists ? NO_OVERWRITE_CHECK_MD5 : OVERWRITE_CHECK_MD5;
         }
         for (int retry = 0; retry < 3; ++retry) {
-            try {
+            try (InputStream inputStream = provider.apply(0L, size)) {
                 final WriteChannel writeChannel = client().meteredWriter(purpose, blobInfo, getResumableWriteBufferSize(), writeOptions);
                 /*
                  * It is not enough to wrap the call to Streams#copy, we have to wrap the privileged calls too; this is because Streams#copy
@@ -593,7 +611,6 @@ class GoogleCloudStorageBlobStore implements BlobStore {
                 if (errorCode == HTTP_GONE) {
                     logger.warn(() -> format("Retrying broken resumable upload session for blob %s", blobInfo), se);
                     storageException = ExceptionsHelper.useOrSuppress(storageException, se);
-                    inputStream.reset();
                     continue;
                 } else if (failIfAlreadyExists && errorCode == HTTP_PRECON_FAILED) {
                     throw new FileAlreadyExistsException(blobInfo.getBlobId().getName(), null, se.getMessage());
@@ -606,6 +623,24 @@ class GoogleCloudStorageBlobStore implements BlobStore {
         }
         assert storageException != null;
         throw storageException;
+    }
+
+    /**
+     * Adapts a mark/reset {@link InputStream} to a provider so {@link #writeBlobResumable} can retry 410s without closing the
+     * caller's stream.
+     */
+    private static BlobContainer.BlobMultiPartInputStreamProvider markResetProvider(InputStream inputStream) {
+        assert inputStream.markSupported();
+        inputStream.mark(Integer.MAX_VALUE);
+        return (offset, length) -> {
+            inputStream.reset();
+            return new FilterInputStream(inputStream) {
+                @Override
+                public void close() {
+                    // the caller owns the original stream; retries must not close it
+                }
+            };
+        };
     }
 
     /**
@@ -660,9 +695,7 @@ class GoogleCloudStorageBlobStore implements BlobStore {
         Executor executor
     ) throws IOException {
         if (blobSize <= multipartUploadChunkSize) {
-            try (var stream = provider.apply(0L, blobSize)) {
-                writeBlob(purpose, blobName, stream, blobSize, failIfAlreadyExists);
-            }
+            writeBlob(purpose, blobName, blobSize, provider, failIfAlreadyExists);
             return;
         }
         if (failIfAlreadyExists) {

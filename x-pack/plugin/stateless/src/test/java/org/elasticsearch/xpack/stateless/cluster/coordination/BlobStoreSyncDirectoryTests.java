@@ -75,6 +75,18 @@ public class BlobStoreSyncDirectoryTests extends ESTestCase {
                         uploadedFiles.add(blobName);
                         super.writeBlob(purpose, blobName, inputStream, blobSize, failIfAlreadyExists);
                     }
+
+                    @Override
+                    public void writeBlob(
+                        OperationPurpose purpose,
+                        String blobName,
+                        long blobSize,
+                        BlobMultiPartInputStreamProvider provider,
+                        boolean failIfAlreadyExists
+                    ) throws IOException {
+                        uploadedFiles.add(blobName);
+                        super.writeBlob(purpose, blobName, blobSize, provider, failIfAlreadyExists);
+                    }
                 };
             }
         };
@@ -139,6 +151,18 @@ public class BlobStoreSyncDirectoryTests extends ESTestCase {
                     }
 
                     @Override
+                    public void writeBlob(
+                        OperationPurpose purpose,
+                        String blobName,
+                        long blobSize,
+                        BlobMultiPartInputStreamProvider provider,
+                        boolean failIfAlreadyExists
+                    ) throws IOException {
+                        trackUpload(blobName);
+                        super.writeBlob(purpose, blobName, blobSize, provider, failIfAlreadyExists);
+                    }
+
+                    @Override
                     public void writeMetadataBlob(
                         OperationPurpose purpose,
                         String blobName,
@@ -196,6 +220,18 @@ public class BlobStoreSyncDirectoryTests extends ESTestCase {
                     ) throws IOException {
                         trackUpload(blobName);
                         super.writeBlob(purpose, blobName, inputStream, blobSize, failIfAlreadyExists);
+                    }
+
+                    @Override
+                    public void writeBlob(
+                        OperationPurpose purpose,
+                        String blobName,
+                        long blobSize,
+                        BlobMultiPartInputStreamProvider provider,
+                        boolean failIfAlreadyExists
+                    ) throws IOException {
+                        trackUpload(blobName);
+                        super.writeBlob(purpose, blobName, blobSize, provider, failIfAlreadyExists);
                     }
 
                     @Override
@@ -280,6 +316,18 @@ public class BlobStoreSyncDirectoryTests extends ESTestCase {
                     ) throws IOException {
                         uploadedFiles.add(blobName);
                         super.writeBlob(purpose, blobName, inputStream, blobSize, failIfAlreadyExists);
+                    }
+
+                    @Override
+                    public void writeBlob(
+                        OperationPurpose purpose,
+                        String blobName,
+                        long blobSize,
+                        BlobMultiPartInputStreamProvider provider,
+                        boolean failIfAlreadyExists
+                    ) throws IOException {
+                        uploadedFiles.add(blobName);
+                        super.writeBlob(purpose, blobName, blobSize, provider, failIfAlreadyExists);
                     }
                 };
             }

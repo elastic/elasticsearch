@@ -50,6 +50,7 @@ import org.mockito.ArgumentCaptor;
 
 import java.io.ByteArrayInputStream;
 import java.io.IOException;
+import java.io.InputStream;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.EnumSet;
@@ -86,7 +87,7 @@ public class S3BlobStoreContainerTests extends ESTestCase {
                 randomPurpose(),
                 blobStore,
                 randomAlphaOfLengthBetween(1, 10),
-                null,
+                (InputStream) null,
                 blobSize,
                 randomCondition()
             )
@@ -207,7 +208,7 @@ public class S3BlobStoreContainerTests extends ESTestCase {
                 randomPurpose(),
                 blobStore,
                 randomAlphaOfLengthBetween(1, 10),
-                null,
+                (InputStream) null,
                 blobSize,
                 randomCondition()
             )
@@ -226,7 +227,7 @@ public class S3BlobStoreContainerTests extends ESTestCase {
                 randomPurpose(),
                 blobStore,
                 randomAlphaOfLengthBetween(1, 10),
-                null,
+                (InputStream) null,
                 blobSize,
                 randomCondition()
             )

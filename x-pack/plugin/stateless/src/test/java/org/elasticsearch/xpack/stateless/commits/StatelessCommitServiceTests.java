@@ -3040,6 +3040,21 @@ public class StatelessCommitServiceTests extends ESTestCase {
                         safeAwait(commitUploadBlocked);
                         super.writeBlobAtomic(purpose, blobName, inputStream, blobSize, failIfAlreadyExists);
                     }
+
+                    @Override
+                    public void writeBlobAtomic(
+                        OperationPurpose purpose,
+                        String blobName,
+                        long blobSize,
+                        BlobMultiPartInputStreamProvider provider,
+                        boolean failIfAlreadyExists,
+                        Executor executor
+                    ) throws IOException {
+                        assertTrue(blobName, StatelessCompoundCommit.startsWithBlobPrefix(blobName));
+                        safeAwait(commitUploadStarted);
+                        safeAwait(commitUploadBlocked);
+                        super.writeBlobAtomic(purpose, blobName, blobSize, provider, failIfAlreadyExists, executor);
+                    }
                 }
 
                 return new WrappedBlobContainer(innerContainer);
@@ -3398,6 +3413,21 @@ public class StatelessCommitServiceTests extends ESTestCase {
                     }
 
                     @Override
+                    public void writeBlob(
+                        OperationPurpose purpose,
+                        String blobName,
+                        long blobSize,
+                        BlobMultiPartInputStreamProvider provider,
+                        boolean failIfAlreadyExists
+                    ) throws IOException {
+                        assertFalse(blobName, blobName.startsWith(IndexFileNames.SEGMENTS));
+                        commitFileConsumer.accept(
+                            blobName,
+                            () -> super.writeBlob(purpose, blobName, blobSize, provider, failIfAlreadyExists)
+                        );
+                    }
+
+                    @Override
                     public void writeMetadataBlob(
                         OperationPurpose purpose,
                         String blobName,
@@ -3420,6 +3450,22 @@ public class StatelessCommitServiceTests extends ESTestCase {
                         compoundCommitFileConsumer.accept(
                             blobName,
                             () -> super.writeBlobAtomic(purpose, blobName, inputStream, blobSize, failIfAlreadyExists)
+                        );
+                    }
+
+                    @Override
+                    public void writeBlobAtomic(
+                        OperationPurpose purpose,
+                        String blobName,
+                        long blobSize,
+                        BlobMultiPartInputStreamProvider provider,
+                        boolean failIfAlreadyExists,
+                        Executor executor
+                    ) throws IOException {
+                        assertTrue(blobName, StatelessCompoundCommit.startsWithBlobPrefix(blobName));
+                        compoundCommitFileConsumer.accept(
+                            blobName,
+                            () -> super.writeBlobAtomic(purpose, blobName, blobSize, provider, failIfAlreadyExists, executor)
                         );
                     }
 
@@ -3596,6 +3642,21 @@ public class StatelessCommitServiceTests extends ESTestCase {
                     boolean failIfAlreadyExists
                 ) throws IOException {
                     super.writeBlobAtomic(purpose, blobName, inputStream, blobSize, failIfAlreadyExists);
+                    if (blobName.equals(bccWrittenRef.get())) {
+                        bccWrittenLatch.countDown();
+                    }
+                }
+
+                @Override
+                public void writeBlobAtomic(
+                    OperationPurpose purpose,
+                    String blobName,
+                    long blobSize,
+                    BlobMultiPartInputStreamProvider provider,
+                    boolean failIfAlreadyExists,
+                    Executor executor
+                ) throws IOException {
+                    super.writeBlobAtomic(purpose, blobName, blobSize, provider, failIfAlreadyExists, executor);
                     if (blobName.equals(bccWrittenRef.get())) {
                         bccWrittenLatch.countDown();
                     }

@@ -25,8 +25,6 @@ import org.apache.lucene.index.SegmentWriteState;
 import org.apache.lucene.index.SortedDocValues;
 import org.apache.lucene.index.VectorEncoding;
 import org.apache.lucene.search.DocIdSetIterator;
-import org.apache.lucene.search.Sort;
-import org.apache.lucene.search.SortField;
 import org.apache.lucene.search.TaskExecutor;
 import org.apache.lucene.store.IndexInput;
 import org.apache.lucene.store.IndexOutput;
@@ -123,19 +121,6 @@ public class ESNextDiskASHVectorsWriter extends IVFVectorsWriter<FlatCentroidInd
         this.flushConfigSource = flushConfigSource != null ? flushConfigSource : IvfFlushConfigSource.empty();
         this.mergeConfigResolver = mergeConfigResolver != null ? mergeConfigResolver : IvfMergeConfigResolver.useCodecDefault();
         this.ashConfig = ashConfig;
-        if (sliceField != null) {
-            Sort sort = state.segmentInfo.getIndexSort();
-            if (sort == null || sort.getSort().length == 0) {
-                throw new IllegalStateException("sliceField requires index sort");
-            }
-            SortField primary = sort.getSort()[0];
-            if (sliceField.equals(primary.getField()) == false) {
-                throw new IllegalStateException("sliceField must be primary index sort");
-            }
-            if (primary.getType() != SortField.Type.STRING) {
-                throw new IllegalStateException("sliceField requires primary index sort");
-            }
-        }
     }
 
     @Override

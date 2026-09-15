@@ -69,6 +69,13 @@ public abstract class AbstractIVFKnnSlicedVectorQueryTestCase extends LuceneTest
         format = new ESNextDiskBBQVectorsFormat(128, 4, SLICE_FIELD);
     }
 
+    /** The index sort every sliced index must use: slice field first, STRING, ascending, missing values last. */
+    protected static Sort sliceIndexSort() {
+        SortField sliceSort = new SortField(SLICE_FIELD, SortField.Type.STRING);
+        sliceSort.setMissingValue(SortField.STRING_LAST);
+        return new Sort(sliceSort);
+    }
+
     /** Creates a vector field with a random vector of the given dimensions. */
     protected abstract Field createVectorField(String name, int dimensions);
 
@@ -233,7 +240,7 @@ public abstract class AbstractIVFKnnSlicedVectorQueryTestCase extends LuceneTest
         int numSlices = random().nextInt(3, 8);
         int[] docsPerSlice = new int[numSlices];
         IndexWriterConfig iwc = newIndexWriterConfig();
-        iwc.setIndexSort(new Sort(new SortField(SLICE_FIELD, SortField.Type.STRING)));
+        iwc.setIndexSort(sliceIndexSort());
         iwc.setCodec(TestUtil.alwaysKnnVectorsFormat(format));
 
         try (Directory dir = newDirectory(); IndexWriter w = new IndexWriter(dir, iwc)) {
@@ -279,7 +286,7 @@ public abstract class AbstractIVFKnnSlicedVectorQueryTestCase extends LuceneTest
         int numSlices = random().nextInt(3, 8);
         int totalWithVector = 0;
         IndexWriterConfig iwc = newIndexWriterConfig();
-        iwc.setIndexSort(new Sort(new SortField(SLICE_FIELD, SortField.Type.STRING)));
+        iwc.setIndexSort(sliceIndexSort());
         iwc.setCodec(TestUtil.alwaysKnnVectorsFormat(format));
 
         try (Directory dir = newDirectory(); IndexWriter w = new IndexWriter(dir, iwc)) {
@@ -306,7 +313,7 @@ public abstract class AbstractIVFKnnSlicedVectorQueryTestCase extends LuceneTest
 
     public void testToString() throws IOException {
         IndexWriterConfig iwc = newIndexWriterConfig();
-        iwc.setIndexSort(new Sort(new SortField(SLICE_FIELD, SortField.Type.STRING)));
+        iwc.setIndexSort(sliceIndexSort());
         iwc.setCodec(TestUtil.alwaysKnnVectorsFormat(format));
         try (Directory dir = newDirectory(); IndexWriter w = new IndexWriter(dir, iwc)) {
             Document doc = new Document();
@@ -348,7 +355,7 @@ public abstract class AbstractIVFKnnSlicedVectorQueryTestCase extends LuceneTest
         String filterMiss = "miss";
         String docIdField = "_doc_id";
         IndexWriterConfig iwc = newIndexWriterConfig();
-        iwc.setIndexSort(new Sort(new SortField(SLICE_FIELD, SortField.Type.STRING)));
+        iwc.setIndexSort(sliceIndexSort());
         iwc.setCodec(TestUtil.alwaysKnnVectorsFormat(format));
 
         try (Directory dir = newDirectory(); IndexWriter w = new IndexWriter(dir, iwc)) {

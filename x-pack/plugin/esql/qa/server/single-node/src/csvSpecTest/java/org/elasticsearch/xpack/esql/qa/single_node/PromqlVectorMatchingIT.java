@@ -70,7 +70,7 @@ public class PromqlVectorMatchingIT extends RestEsqlTestCase {
     public void requirePromqlVectorMatching() {
         assumeTrue(
             "PromQL vector matching capability is required",
-            hasCapabilities(adminClient(), List.of(EsqlCapabilities.Cap.PROMQL_VECTOR_MATCHING_V0.capabilityName()))
+            hasCapabilities(adminClient(), List.of(EsqlCapabilities.Cap.PROMQL_VECTOR_MATCHING_V1.capabilityName()))
         );
     }
 

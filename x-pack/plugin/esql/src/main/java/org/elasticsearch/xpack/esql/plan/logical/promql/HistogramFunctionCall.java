@@ -55,6 +55,12 @@ public abstract sealed class HistogramFunctionCall extends PromqlFunctionCall pe
     }
 
     @Override
+    public boolean dropsMetricName() {
+        // Classic histograms collapse buckets like `without (le)`: the metric name goes with `le`.
+        return true;
+    }
+
+    @Override
     public boolean isIdentityTransparent() {
         // Reshapes labels (drops `le`) but is not a grouping boundary for relabel placement: a relabel below it still
         // feeds the enclosing aggregation.

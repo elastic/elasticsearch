@@ -1,5 +1,4 @@
 /*
- * @notice
  * Licensed to the Apache Software Foundation (ASF) under one or more
  * contributor license agreements.  See the NOTICE file distributed with
  * this work for additional information regarding copyright ownership.
@@ -15,7 +14,7 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  *
- * Modifications copyright (C) 2021 Elasticsearch B.V.
+ * Modifications copyright (C) 2026 Elasticsearch B.V.
  */
 package org.elasticsearch.xpack.lucene.bwc.codecs.lucene50;
 

@@ -36,7 +36,7 @@ import java.util.HashMap;
 import java.util.Map;
 
 /**
- * This is a fork of {@link org.apache.lucene.backward_codecs.lucene60.Lucene60PointsReader}
+ * This is a fork of {@code org.apache.lucene.backward_codecs.lucene60.Lucene60PointsReader}
  * Reads the metadata of point values previously written with Lucene60PointsWriter
  */
 public final class Lucene60MetadataOnlyPointsReader extends PointsReader {

@@ -1,5 +1,4 @@
 /*
- * @notice
  * Licensed to the Apache Software Foundation (ASF) under one or more
  * contributor license agreements.  See the NOTICE file distributed with
  * this work for additional information regarding copyright ownership.
@@ -15,7 +14,7 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  *
- * Modifications copyright (C) 2021 Elasticsearch B.V.
+ * Modifications copyright (C) 2026 Elasticsearch B.V.
  */
 package org.elasticsearch.xpack.lucene.bwc.codecs.lucene50;
 
@@ -30,7 +29,7 @@ import org.apache.lucene.util.packed.PackedInts.FormatAndBits;
 import java.io.IOException;
 import java.util.Arrays;
 
-import static org.apache.lucene.backward_codecs.lucene50.Lucene50PostingsFormat.BLOCK_SIZE;
+import static org.elasticsearch.xpack.lucene.bwc.codecs.lucene50.BWCLucene50PostingsFormat.BLOCK_SIZE;
 
 /**
  * Encode all values in normal area with fixed bit width, which is determined by the max value in
@@ -60,10 +59,10 @@ final class ForUtil {
         for (int version = PackedInts.VERSION_START; version <= PackedInts.VERSION_CURRENT; version++) {
             for (PackedInts.Format format : PackedInts.Format.values()) {
                 for (int bpv = 1; bpv <= 32; ++bpv) {
-                    if (format.isSupported(bpv) == false) {
+                    if (!format.isSupported(bpv)) {
                         continue;
                     }
-                    final Decoder decoder = PackedInts.getDecoder(format, version, bpv);
+                    final PackedInts.Decoder decoder = PackedInts.getDecoder(format, version, bpv);
                     final int iterations = computeIterations(decoder);
                     maxDataSize = Math.max(maxDataSize, iterations * decoder.byteValueCount());
                 }
@@ -76,7 +75,7 @@ final class ForUtil {
      * Compute the number of iterations required to decode <code>BLOCK_SIZE</code> values with the
      * provided {@link Decoder}.
      */
-    private static int computeIterations(Decoder decoder) {
+    private static int computeIterations(PackedInts.Decoder decoder) {
         return (int) Math.ceil((float) BLOCK_SIZE / decoder.byteValueCount());
     }
 
@@ -92,7 +91,7 @@ final class ForUtil {
 
     private final int[] encodedSizes;
     private final PackedInts.Encoder[] encoders;
-    private final Decoder[] decoders;
+    private final PackedInts.Decoder[] decoders;
     private final int[] iterations;
 
     /** Create a new {@link ForUtil} instance and save state into <code>out</code>. */
@@ -100,7 +99,7 @@ final class ForUtil {
         out.writeVInt(PackedInts.VERSION_CURRENT);
         encodedSizes = new int[33];
         encoders = new PackedInts.Encoder[33];
-        decoders = new Decoder[33];
+        decoders = new PackedInts.Decoder[33];
         iterations = new int[33];
 
         for (int bpv = 1; bpv <= 32; ++bpv) {
@@ -122,7 +121,7 @@ final class ForUtil {
         PackedInts.checkVersion(packedIntsVersion);
         encodedSizes = new int[33];
         encoders = new PackedInts.Encoder[33];
-        decoders = new Decoder[33];
+        decoders = new PackedInts.Decoder[33];
         iterations = new int[33];
 
         for (int bpv = 1; bpv <= 32; ++bpv) {
@@ -189,7 +188,7 @@ final class ForUtil {
         final int encodedSize = encodedSizes[numBits];
         in.readBytes(encoded, 0, encodedSize);
 
-        final Decoder decoder = decoders[numBits];
+        final PackedInts.Decoder decoder = decoders[numBits];
         final int iters = iterations[numBits];
         assert iters * decoder.byteValueCount() >= BLOCK_SIZE;
 

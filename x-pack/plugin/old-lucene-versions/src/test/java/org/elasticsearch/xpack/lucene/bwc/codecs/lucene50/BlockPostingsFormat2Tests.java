@@ -19,7 +19,6 @@
  */
 package org.elasticsearch.xpack.lucene.bwc.codecs.lucene50;
 
-import org.apache.lucene.backward_codecs.lucene50.Lucene50PostingsFormat;
 import org.apache.lucene.document.Document;
 import org.apache.lucene.document.Field;
 import org.apache.lucene.document.FieldType;
@@ -85,7 +84,7 @@ public class BlockPostingsFormat2Tests extends ESTestCase {
     /** tests terms with df = blocksize */
     public void testDFBlockSize() throws Exception {
         Document doc = newDocument();
-        for (int i = 0; i < Lucene50PostingsFormat.BLOCK_SIZE; i++) {
+        for (int i = 0; i < BWCLucene50PostingsFormat.BLOCK_SIZE; i++) {
             for (IndexableField f : doc.getFields()) {
                 ((Field) f).setStringValue(f.name() + " " + f.name() + "_2");
             }
@@ -96,7 +95,7 @@ public class BlockPostingsFormat2Tests extends ESTestCase {
     /** tests terms with df % blocksize = 0 */
     public void testDFBlockSizeMultiple() throws Exception {
         Document doc = newDocument();
-        for (int i = 0; i < Lucene50PostingsFormat.BLOCK_SIZE * 16; i++) {
+        for (int i = 0; i < BWCLucene50PostingsFormat.BLOCK_SIZE * 16; i++) {
             for (IndexableField f : doc.getFields()) {
                 ((Field) f).setStringValue(f.name() + " " + f.name() + "_2");
             }
@@ -107,7 +106,7 @@ public class BlockPostingsFormat2Tests extends ESTestCase {
     /** tests terms with ttf = blocksize */
     public void testTTFBlockSize() throws Exception {
         Document doc = newDocument();
-        for (int i = 0; i < Lucene50PostingsFormat.BLOCK_SIZE / 2; i++) {
+        for (int i = 0; i < BWCLucene50PostingsFormat.BLOCK_SIZE / 2; i++) {
             for (IndexableField f : doc.getFields()) {
                 ((Field) f).setStringValue(f.name() + " " + f.name() + " " + f.name() + "_2 " + f.name() + "_2");
             }
@@ -118,7 +117,7 @@ public class BlockPostingsFormat2Tests extends ESTestCase {
     /** tests terms with ttf % blocksize = 0 */
     public void testTTFBlockSizeMultiple() throws Exception {
         Document doc = newDocument();
-        for (int i = 0; i < Lucene50PostingsFormat.BLOCK_SIZE / 2; i++) {
+        for (int i = 0; i < BWCLucene50PostingsFormat.BLOCK_SIZE / 2; i++) {
             for (IndexableField f : doc.getFields()) {
                 String proto = (f.name()
                     + " "

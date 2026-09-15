@@ -1,5 +1,4 @@
 /*
- * @notice
  * Licensed to the Apache Software Foundation (ASF) under one or more
  * contributor license agreements.  See the NOTICE file distributed with
  * this work for additional information regarding copyright ownership.
@@ -15,7 +14,7 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  *
- * Modifications copyright (C) 2021 Elasticsearch B.V.
+ * Modifications copyright (C) 2026 Elasticsearch B.V.
  */
 package org.elasticsearch.xpack.lucene.bwc.codecs.lucene50;
 
@@ -25,7 +24,7 @@ import org.apache.lucene.store.IndexInput;
 import java.io.IOException;
 import java.util.Arrays;
 
-import static org.apache.lucene.backward_codecs.lucene50.Lucene50PostingsFormat.BLOCK_SIZE;
+import static org.elasticsearch.xpack.lucene.bwc.codecs.lucene50.BWCLucene50PostingsFormat.BLOCK_SIZE;
 
 /**
  * Implements the skip list reader for block postings format that stores positions and payloads.
@@ -68,7 +67,14 @@ class Lucene50SkipReader extends MultiLevelSkipListReader {
     private long lastDocPointer;
     private int lastPosBufferUpto;
 
-    Lucene50SkipReader(int version, IndexInput skipStream, int maxSkipLevels, boolean hasPos, boolean hasOffsets, boolean hasPayloads) {
+    Lucene50SkipReader(
+        int version,
+        IndexInput skipStream,
+        int maxSkipLevels,
+        boolean hasPos,
+        boolean hasOffsets,
+        boolean hasPayloads
+    ) {
         super(skipStream, maxSkipLevels, BLOCK_SIZE, 8);
         this.version = version;
         docPointer = new long[maxSkipLevels];

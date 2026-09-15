@@ -19,13 +19,14 @@
  */
 package org.elasticsearch.xpack.lucene.bwc.codecs.lucene50;
 
-import org.apache.lucene.backward_codecs.lucene50.Lucene50PostingsReader;
+import org.apache.lucene.codecs.BlockTermState;
 import org.apache.lucene.codecs.FieldsConsumer;
 import org.apache.lucene.codecs.FieldsProducer;
 import org.apache.lucene.codecs.PostingsFormat;
 import org.apache.lucene.codecs.PostingsReaderBase;
 import org.apache.lucene.index.SegmentReadState;
 import org.apache.lucene.index.SegmentWriteState;
+import org.apache.lucene.index.TermState;
 import org.elasticsearch.core.IOUtils;
 import org.elasticsearch.xpack.lucene.bwc.codecs.lucene40.blocktree.Lucene40BlockTreeTermsReader;
 
@@ -34,7 +35,7 @@ import java.io.IOException;
 /**
  * Lucene 5.0 postings format, which encodes postings in packed integer blocks for fast decode.
  *
- *  This is a fork of {@link org.apache.lucene.backward_codecs.lucene50.Lucene50PostingsFormat} that allows to read from indices
+ *  This is a fork of {@code org.apache.lucene.backward_codecs.lucene50.Lucene50PostingsFormat} that allows to read from indices
  *  written by versions older than Lucene 7.0.
  */
 public class BWCLucene50PostingsFormat extends PostingsFormat {
@@ -107,6 +108,80 @@ public class BWCLucene50PostingsFormat extends PostingsFormat {
             if (success == false) {
                 IOUtils.closeWhileHandlingException(postingsReader);
             }
+        }
+    }
+
+    /**
+     * Holds all state required for {@link Lucene50PostingsReader} to produce a
+     * {@link org.apache.lucene.index.PostingsEnum} without re-seeking the terms dict.
+     */
+    public static final class IntBlockTermState extends BlockTermState {
+        /** file pointer to the start of the doc ids enumeration, in {@link #DOC_EXTENSION} file */
+        public long docStartFP;
+
+        /** file pointer to the start of the positions enumeration, in {@link #POS_EXTENSION} file */
+        public long posStartFP;
+
+        /** file pointer to the start of the payloads enumeration, in {@link #PAY_EXTENSION} file */
+        public long payStartFP;
+
+        /**
+         * file offset for the start of the skip list, relative to docStartFP, if there are more than
+         * {@link #BLOCK_SIZE} docs; otherwise -1
+         */
+        public long skipOffset;
+
+        /**
+         * file offset for the last position in the last block, if there are more than {@link
+         * #BLOCK_SIZE} positions; otherwise -1
+         */
+        public long lastPosBlockOffset;
+
+        /**
+         * docid when there is a single pulsed posting, otherwise -1. freq is always implicitly
+         * totalTermFreq in this case.
+         */
+        public int singletonDocID;
+
+        /** Sole constructor. */
+        public IntBlockTermState() {
+            skipOffset = -1;
+            lastPosBlockOffset = -1;
+            singletonDocID = -1;
+        }
+
+        @Override
+        public IntBlockTermState clone() {
+            IntBlockTermState other = new IntBlockTermState();
+            other.copyFrom(this);
+            return other;
+        }
+
+        @Override
+        public void copyFrom(TermState _other) {
+            super.copyFrom(_other);
+            IntBlockTermState other = (IntBlockTermState) _other;
+            docStartFP = other.docStartFP;
+            posStartFP = other.posStartFP;
+            payStartFP = other.payStartFP;
+            lastPosBlockOffset = other.lastPosBlockOffset;
+            skipOffset = other.skipOffset;
+            singletonDocID = other.singletonDocID;
+        }
+
+        @Override
+        public String toString() {
+            return super.toString()
+                + " docStartFP="
+                + docStartFP
+                + " posStartFP="
+                + posStartFP
+                + " payStartFP="
+                + payStartFP
+                + " lastPosBlockOffset="
+                + lastPosBlockOffset
+                + " singletonDocID="
+                + singletonDocID;
         }
     }
 }

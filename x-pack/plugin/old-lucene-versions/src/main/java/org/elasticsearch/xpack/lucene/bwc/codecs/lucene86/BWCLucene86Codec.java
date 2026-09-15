@@ -7,12 +7,7 @@
 
 package org.elasticsearch.xpack.lucene.bwc.codecs.lucene86;
 
-import org.apache.lucene.backward_codecs.lucene50.Lucene50CompoundFormat;
-import org.apache.lucene.backward_codecs.lucene50.Lucene50LiveDocsFormat;
-import org.apache.lucene.backward_codecs.lucene50.Lucene50StoredFieldsFormat;
-import org.apache.lucene.backward_codecs.lucene60.Lucene60FieldInfosFormat;
 import org.apache.lucene.backward_codecs.lucene80.Lucene80DocValuesFormat;
-import org.apache.lucene.backward_codecs.lucene86.Lucene86SegmentInfoFormat;
 import org.apache.lucene.codecs.CompoundFormat;
 import org.apache.lucene.codecs.DocValuesFormat;
 import org.apache.lucene.codecs.FieldInfosFormat;
@@ -22,9 +17,13 @@ import org.apache.lucene.codecs.SegmentInfoFormat;
 import org.apache.lucene.codecs.StoredFieldsFormat;
 import org.apache.lucene.codecs.perfield.PerFieldDocValuesFormat;
 import org.elasticsearch.xpack.lucene.bwc.codecs.BWCCodec;
+import org.elasticsearch.xpack.lucene.bwc.codecs.lucene50.Lucene50CompoundFormat;
+import org.elasticsearch.xpack.lucene.bwc.codecs.lucene50.Lucene50LiveDocsFormat;
+import org.elasticsearch.xpack.lucene.bwc.codecs.lucene50.Lucene50StoredFieldsFormat;
+import org.elasticsearch.xpack.lucene.bwc.codecs.lucene60.Lucene60FieldInfosFormat;
 
 /**
- * This is a fork of {@link org.apache.lucene.backward_codecs.lucene86.Lucene86Codec}
+ * This is a fork of {@code org.apache.lucene.backward_codecs.lucene86.Lucene86Codec}
  * Implements the Lucene 8.6 index format. Loaded via SPI for indices created/written with Lucene 8.6.0-8.6.2
  * (Elasticsearch [7.9.0-7.9.3]), mounted as archive indices in Elasticsearch 8.x / 9.x.
  */

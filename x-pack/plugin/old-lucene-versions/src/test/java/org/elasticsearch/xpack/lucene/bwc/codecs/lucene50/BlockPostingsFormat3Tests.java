@@ -22,7 +22,6 @@ package org.elasticsearch.xpack.lucene.bwc.codecs.lucene50;
 import org.apache.lucene.analysis.Analyzer;
 import org.apache.lucene.analysis.TokenFilter;
 import org.apache.lucene.analysis.Tokenizer;
-import org.apache.lucene.backward_codecs.lucene50.Lucene50PostingsFormat;
 import org.apache.lucene.document.Document;
 import org.apache.lucene.document.Field;
 import org.apache.lucene.document.FieldType;
@@ -61,7 +60,7 @@ import java.util.Random;
 
 /** Tests partial enumeration (only pulling a subset of the indexed data) */
 public class BlockPostingsFormat3Tests extends ESTestCase {
-    private final int MAXDOC = TEST_NIGHTLY ? Lucene50PostingsFormat.BLOCK_SIZE * 20 : Lucene50PostingsFormat.BLOCK_SIZE * 3;
+    private final int MAXDOC = TEST_NIGHTLY ? BWCLucene50PostingsFormat.BLOCK_SIZE * 20 : BWCLucene50PostingsFormat.BLOCK_SIZE * 3;
 
     // creates 8 fields with different options and does "duels" of fields against each other
     public void test() throws Exception {

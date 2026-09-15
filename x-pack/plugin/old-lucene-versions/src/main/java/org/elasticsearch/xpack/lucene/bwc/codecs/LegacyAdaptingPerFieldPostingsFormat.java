@@ -44,7 +44,7 @@ import java.util.TreeMap;
 /**
  * Modified version of {@link PerFieldPostingsFormat} that allows swapping in
  * {@link org.elasticsearch.xpack.lucene.bwc.codecs.lucene50.BWCLucene50PostingsFormat} instead of
- * {@link org.apache.lucene.backward_codecs.lucene50.Lucene50PostingsFormat} when reading from older
+ * {@code org.apache.lucene.backward_codecs.lucene50.Lucene50PostingsFormat} when reading from older
  * codecs. The former has full support for older Lucene versions (going back to Lucene 5) while the
  * latter only supports Lucene 7 and above (as it was shipped with backwards-codecs of Lucene 9 that
  * only has support for N-2).
@@ -52,6 +52,7 @@ import java.util.TreeMap;
  * This class can be removed once Elasticsearch gets upgraded to Lucene 11 and Lucene50PostingsFormat is no longer
  * shipped as part of bwc jars.
  */
+// TODO: LUCENE11 remove this class; Lucene50PostingsFormat is no longer in Lucene BWC jars
 @UpdateForV10(owner = UpdateForV10.Owner.SEARCH_FOUNDATIONS)
 public final class LegacyAdaptingPerFieldPostingsFormat extends PostingsFormat {
     /** Name of this {@link PostingsFormat}. */

@@ -1,0 +1,5 @@
+area: ES|QL
+issues: []
+pr: 159034
+summary: "Prevent valid dataset and data source PUT requests from failing on lagging nodes"
+type: bug

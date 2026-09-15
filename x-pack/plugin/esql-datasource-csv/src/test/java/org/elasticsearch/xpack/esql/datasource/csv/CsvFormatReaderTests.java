@@ -5566,6 +5566,275 @@ public class CsvFormatReaderTests extends ESTestCase {
         assertThat(ex.getMessage(), Matchers.containsString("header_row"));
     }
 
+    // --- skip_rows ---
+
+    private static final String SKIP_ROWS_SESSIONS = """
+        This is a dump of user sessions
+        Generated 2026-04-01
+        state:keyword,ip:keyword,user_agent:keyword
+        CA,10.0.0.1,Mozilla
+        NY,10.0.0.2,Safari
+        """;
+
+    public void testSkipRowsDropsProseThenReadsHeader() throws IOException {
+        StorageObject object = createStorageObject(SKIP_ROWS_SESSIONS);
+        CsvFormatReader reader = (CsvFormatReader) new CsvFormatReader(blockFactory).withConfig(Map.of("skip_rows", 2, "header_row", true));
+
+        List<Attribute> schema = reader.schema(object);
+        assertEquals(List.of("state", "ip", "user_agent"), schema.stream().map(Attribute::name).toList());
+        assertEquals(DataType.KEYWORD, schema.get(0).dataType());
+
+        try (CloseableIterator<Page> iterator = reader.read(object, null, 10)) {
+            assertTrue(iterator.hasNext());
+            Page page = iterator.next();
+            assertEquals(2, page.getPositionCount());
+            BytesRefBlock state = (BytesRefBlock) page.getBlock(0);
+            assertEquals(new BytesRef("CA"), state.getBytesRef(0, new BytesRef()));
+            assertEquals(new BytesRef("NY"), state.getBytesRef(1, new BytesRef()));
+            page.releaseBlocks();
+        }
+    }
+
+    public void testSkipRowsCommentsDoNotCountTowardN() throws IOException {
+        String csv = """
+            This is a dump of user sessions
+            // internal note
+            Generated 2026-04-01
+            // another
+            state:keyword,ip:keyword,user_agent:keyword
+            CA,10.0.0.1,Mozilla
+            """;
+        StorageObject object = createStorageObject(csv);
+        CsvFormatReader reader = (CsvFormatReader) new CsvFormatReader(blockFactory).withConfig(Map.of("skip_rows", 2, "header_row", true));
+
+        List<Attribute> schema = reader.schema(object);
+        assertEquals("state", schema.get(0).name());
+        try (CloseableIterator<Page> iterator = reader.read(object, null, 10)) {
+            assertTrue(iterator.hasNext());
+            Page page = iterator.next();
+            assertEquals(1, page.getPositionCount());
+            assertEquals(new BytesRef("CA"), ((BytesRefBlock) page.getBlock(0)).getBytesRef(0, new BytesRef()));
+            page.releaseBlocks();
+        }
+    }
+
+    public void testSkipRowsZeroStillSkipsCommentPrefix() throws IOException {
+        String csv = """
+            // Generated 2026-04-01
+            state:keyword,ip:keyword
+            CA,10.0.0.1
+            """;
+        StorageObject object = createStorageObject(csv);
+        CsvFormatReader omitted = new CsvFormatReader(blockFactory);
+        CsvFormatReader explicitZero = (CsvFormatReader) new CsvFormatReader(blockFactory).withConfig(Map.of("skip_rows", 0));
+
+        assertEquals("state", omitted.schema(object).get(0).name());
+        assertEquals("state", explicitZero.schema(object).get(0).name());
+        try (CloseableIterator<Page> iterator = omitted.read(object, null, 10)) {
+            assertTrue(iterator.hasNext());
+            Page page = iterator.next();
+            assertEquals(1, page.getPositionCount());
+            assertEquals(new BytesRef("CA"), ((BytesRefBlock) page.getBlock(0)).getBytesRef(0, new BytesRef()));
+            page.releaseBlocks();
+        }
+    }
+
+    public void testSkipRowsBlanksDoNotCountTowardN() throws IOException {
+        String csv = """
+            This is a dump of user sessions
+
+            Generated 2026-04-01
+            state:keyword,ip:keyword
+            CA,10.0.0.1
+            """;
+        StorageObject object = createStorageObject(csv);
+        CsvFormatReader reader = (CsvFormatReader) new CsvFormatReader(blockFactory).withConfig(Map.of("skip_rows", 2, "header_row", true));
+
+        assertEquals("state", reader.schema(object).get(0).name());
+        try (CloseableIterator<Page> iterator = reader.read(object, null, 10)) {
+            assertTrue(iterator.hasNext());
+            Page page = iterator.next();
+            assertEquals(1, page.getPositionCount());
+            assertEquals(new BytesRef("CA"), ((BytesRefBlock) page.getBlock(0)).getBytesRef(0, new BytesRef()));
+            page.releaseBlocks();
+        }
+    }
+
+    public void testSkipRowsHeaderlessUsesSyntheticNames() throws IOException {
+        String csv = """
+            ignore me
+            also ignore
+            CA,10.0.0.1,Mozilla
+            NY,10.0.0.2,Safari
+            """;
+        StorageObject object = createStorageObject(csv);
+        CsvFormatReader reader = (CsvFormatReader) new CsvFormatReader(blockFactory).withConfig(
+            Map.of("skip_rows", 2, "header_row", false)
+        );
+
+        List<Attribute> schema = reader.schema(object);
+        assertEquals(List.of("col0", "col1", "col2"), schema.stream().map(Attribute::name).toList());
+        try (CloseableIterator<Page> iterator = reader.read(object, null, 10)) {
+            assertTrue(iterator.hasNext());
+            Page page = iterator.next();
+            assertEquals(2, page.getPositionCount());
+            assertEquals(new BytesRef("CA"), ((BytesRefBlock) page.getBlock(0)).getBytesRef(0, new BytesRef()));
+            assertEquals(new BytesRef("NY"), ((BytesRefBlock) page.getBlock(0)).getBytesRef(1, new BytesRef()));
+            page.releaseBlocks();
+        }
+    }
+
+    public void testSkipRowsTsvProsePreambleThenHeader() throws IOException {
+        String tsv = """
+            This is a dump of user sessions
+            Generated 2026-04-01
+            state:keyword\tip:keyword
+            CA\t10.0.0.1
+            NY\t10.0.0.2
+            """;
+        StorageObject object = createStorageObject(tsv);
+        CsvFormatReader reader = (CsvFormatReader) new CsvFormatReader(blockFactory, CsvFormatOptions.TSV, "tsv", List.of(".tsv"))
+            .withConfig(Map.of("skip_rows", 2, "header_row", true));
+
+        assertEquals("state", reader.schema(object).get(0).name());
+        try (CloseableIterator<Page> iterator = reader.read(object, null, 10)) {
+            assertTrue(iterator.hasNext());
+            Page page = iterator.next();
+            assertEquals(2, page.getPositionCount());
+            assertEquals(new BytesRef("CA"), ((BytesRefBlock) page.getBlock(0)).getBytesRef(0, new BytesRef()));
+            assertEquals(new BytesRef("NY"), ((BytesRefBlock) page.getBlock(0)).getBytesRef(1, new BytesRef()));
+            page.releaseBlocks();
+        }
+    }
+
+    public void testSkipRowsOmittedEqualsToday() throws IOException {
+        String csv = "id:long,name:keyword\n1,Alice\n";
+        StorageObject object = createStorageObject(csv);
+        CsvFormatReader baseline = new CsvFormatReader(blockFactory);
+        CsvFormatReader explicitZero = (CsvFormatReader) new CsvFormatReader(blockFactory).withConfig(Map.of("skip_rows", 0));
+
+        assertEquals("id", baseline.schema(object).get(0).name());
+        assertEquals("id", explicitZero.schema(object).get(0).name());
+        try (CloseableIterator<Page> iterator = explicitZero.read(object, null, 10)) {
+            assertTrue(iterator.hasNext());
+            Page page = iterator.next();
+            assertEquals(1, page.getPositionCount());
+            assertEquals(1L, ((LongBlock) page.getBlock(0)).getLong(0));
+            page.releaseBlocks();
+        }
+    }
+
+    public void testSkipRowsNegativeRejected() {
+        IllegalArgumentException ex = expectThrows(
+            IllegalArgumentException.class,
+            () -> new CsvFormatReader(blockFactory).withConfig(Map.of("skip_rows", -1))
+        );
+        assertThat(ex.getMessage(), Matchers.containsString("skip_rows"));
+        assertThat(ex.getMessage(), Matchers.containsString("non-negative"));
+    }
+
+    public void testSkipRowsNonIntegerRejected() {
+        IllegalArgumentException ex = expectThrows(
+            IllegalArgumentException.class,
+            () -> new CsvFormatReader(blockFactory).withConfig(Map.of("skip_rows", "two"))
+        );
+        assertThat(ex.getMessage(), Matchers.containsString("Invalid integer value"));
+    }
+
+    public void testSkipRowsAboveCapRejected() {
+        IllegalArgumentException ex = expectThrows(
+            IllegalArgumentException.class,
+            () -> new CsvFormatReader(blockFactory).withConfig(Map.of("skip_rows", CsvFormatReader.SKIP_ROWS_MAX + 1))
+        );
+        assertThat(ex.getMessage(), Matchers.containsString("skip_rows"));
+        assertThat(ex.getMessage(), Matchers.containsString("at most"));
+    }
+
+    public void testSkipRowsAtCapAccepted() {
+        CsvFormatReader reader = (CsvFormatReader) new CsvFormatReader(blockFactory).withConfig(
+            Map.of("skip_rows", CsvFormatReader.SKIP_ROWS_MAX)
+        );
+        // Cap is accepted at parse time; applying it to a short file exhausts the file before a header.
+        IOException ex = expectThrows(IOException.class, () -> reader.schema(createStorageObject("id:long\n1\n")));
+        assertThat(ex.getMessage(), Matchers.containsString("no schema line"));
+    }
+
+    public void testSkipRowsEofBeforeNIsNoOpThenNoSchemaLine() {
+        String csv = "only one content line\n";
+        StorageObject object = createStorageObject(csv);
+        CsvFormatReader reader = (CsvFormatReader) new CsvFormatReader(blockFactory).withConfig(Map.of("skip_rows", 2, "header_row", true));
+        IOException ex = expectThrows(IOException.class, () -> reader.schema(object));
+        assertThat(ex.getMessage(), Matchers.containsString("no schema line"));
+    }
+
+    public void testSkipRowsNonFirstSplitDoesNotSkipAgain() throws IOException {
+        // Later splits already start in data. skip_rows must not run again or it would eat data rows.
+        String csv = "CA,10.0.0.1,Mozilla\nNY,10.0.0.2,Safari\n";
+        StorageObject object = createStorageObject(csv);
+        List<Attribute> schema = List.of(
+            new ReferenceAttribute(Source.EMPTY, null, "state", DataType.KEYWORD),
+            new ReferenceAttribute(Source.EMPTY, null, "ip", DataType.KEYWORD),
+            new ReferenceAttribute(Source.EMPTY, null, "user_agent", DataType.KEYWORD)
+        );
+        CsvFormatReader reader = ((CsvFormatReader) new CsvFormatReader(blockFactory).withConfig(
+            Map.of("skip_rows", 2, "header_row", false)
+        )).withSchema(schema);
+
+        FormatReadContext ctx = FormatReadContext.builder().firstSplit(false).recordAligned(true).batchSize(10).readSchema(schema).build();
+        try (CloseableIterator<Page> iterator = reader.read(object, ctx)) {
+            assertTrue(iterator.hasNext());
+            Page page = iterator.next();
+            assertEquals(2, page.getPositionCount());
+            assertEquals(new BytesRef("CA"), ((BytesRefBlock) page.getBlock(0)).getBytesRef(0, new BytesRef()));
+            assertEquals(new BytesRef("NY"), ((BytesRefBlock) page.getBlock(0)).getBytesRef(1, new BytesRef()));
+            page.releaseBlocks();
+        }
+    }
+
+    public void testSkipRowsDeclaredProvenanceBindsByHeaderName() throws Exception {
+        // Bind path is skip then consumeHeaderLine then by-name bind. Reordered declaration locks that
+        // skip ran: prose-as-header would not match id/name.
+        StorageObject object = createStorageObject("""
+            This is a dump of user sessions
+            Generated 2026-04-01
+            id:long,name:keyword
+            1,Alice
+            2,Bob
+            """);
+        List<Attribute> readSchema = List.of(
+            new ReferenceAttribute(Source.EMPTY, null, "name", DataType.KEYWORD),
+            new ReferenceAttribute(Source.EMPTY, null, "id", DataType.LONG)
+        );
+        CsvFormatReader reader = (CsvFormatReader) new CsvFormatReader(blockFactory).withConfig(Map.of("skip_rows", 2, "header_row", true))
+            .withDeclaredProvenanceBinding(true);
+        try (
+            CloseableIterator<Page> it = reader.read(
+                object,
+                FormatReadContext.builder().firstSplit(true).recordAligned(true).batchSize(10).readSchema(readSchema).build()
+            )
+        ) {
+            Page page = it.next();
+            assertEquals(2, page.getPositionCount());
+            assertEquals("Alice", ((BytesRefBlock) page.getBlock(0)).getBytesRef(0, new BytesRef()).utf8ToString());
+            assertEquals("Bob", ((BytesRefBlock) page.getBlock(0)).getBytesRef(1, new BytesRef()).utf8ToString());
+            assertEquals(1L, ((LongBlock) page.getBlock(1)).getLong(0));
+            assertEquals(2L, ((LongBlock) page.getBlock(1)).getLong(1));
+            page.releaseBlocks();
+        }
+    }
+
+    public void testLeadingBlankOrCommentRecordMatchesHeaderHunt() {
+        assertTrue(CsvFormatReader.isLeadingBlankOrCommentRecord("", "//"));
+        assertTrue(CsvFormatReader.isLeadingBlankOrCommentRecord("   ", "//"));
+        assertTrue(CsvFormatReader.isLeadingBlankOrCommentRecord("\t\t", "//"));
+        assertTrue(CsvFormatReader.isLeadingBlankOrCommentRecord("// comment", "//"));
+        assertTrue(CsvFormatReader.isLeadingBlankOrCommentRecord("  // indented", "//"));
+        assertFalse(CsvFormatReader.isLeadingBlankOrCommentRecord("state,ip", "//"));
+        assertFalse(CsvFormatReader.isLeadingBlankOrCommentRecord("\"//cdn.example.com\"", "//"));
+        assertFalse(CsvFormatReader.isLeadingBlankOrCommentRecord("// comment", ""));
+        assertFalse(CsvFormatReader.isLeadingBlankOrCommentRecord("keep", null));
+    }
+
     public void testHeaderlessTreatsTypedSchemaLineAsData() throws IOException {
         // With header_row=false, a row that LOOKS like a typed header (name:type) is data, not schema.
         String csv = "id:long,age:int\n1,30\n2,25\n";

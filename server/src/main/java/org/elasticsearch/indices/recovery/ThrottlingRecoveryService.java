@@ -24,6 +24,7 @@ import org.elasticsearch.common.component.AbstractLifecycleComponent;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.util.concurrent.AbstractRunnable;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.gateway.PriorityComparator;
 import org.elasticsearch.index.recovery.RecoveryStats;
@@ -45,6 +46,7 @@ import java.util.concurrent.Executor;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Consumer;
 import java.util.function.Supplier;
+import java.util.stream.Collectors;
 
 import static org.elasticsearch.indices.recovery.FailureStrategy.FAIL_SEND;
 import static org.elasticsearch.indices.recovery.FailureStrategy.FAIL_SILENT;
@@ -315,6 +317,16 @@ public final class ThrottlingRecoveryService extends AbstractLifecycleComponent 
         return pendingRecoveries.size();
     }
 
+    /// Returns the allocation IDs of recoveries currently waiting in this node's queue.
+    public synchronized Set<String> queuedAllocationIds() {
+        return pendingRecoveries.stream().map(PendingRecovery::allocationId).collect(Collectors.toUnmodifiableSet());
+    }
+
+    /// Returns the current blocked state, or `null` if recovery dispatch is not blocked.
+    public @Nullable BlockedState blockedState() {
+        return blockedState.get();
+    }
+
     @Override
     protected void doStop() {
         assert isClosed(); // state change happens-before this line: all recoveries are discarded here or rejected during enqueue, no leaks
@@ -443,7 +455,7 @@ public final class ThrottlingRecoveryService extends AbstractLifecycleComponent 
         final BlockedState state = blockedState.get();
         assert state != null : "resume callback fired without a recorded block";
         try {
-            final long blockedTimeMillis = threadPool.relativeTimeInMillis() - state.sinceMillis();
+            final long blockedTimeMillis = threadPool.relativeTimeInMillis() - state.sinceRelativeMillis();
             logger.info(
                 "resuming recoveries held for [{}] (initially blocked by gate [{}])",
                 TimeValue.timeValueMillis(blockedTimeMillis),
@@ -603,5 +615,9 @@ public final class ThrottlingRecoveryService extends AbstractLifecycleComponent 
         }
     }
 
-    private record BlockedState(String gateName, long sinceMillis) {}
+    /// The recovery gate blocking dispatch
+    ///
+    /// @param gateName the name of the blocking gate
+    /// @param sinceRelativeMillis the value of [ThreadPool#relativeTimeInMillis()] when blocking started
+    public record BlockedState(String gateName, long sinceRelativeMillis) {}
 }

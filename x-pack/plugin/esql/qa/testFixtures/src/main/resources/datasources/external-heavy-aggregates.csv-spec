@@ -5,9 +5,9 @@
 // Each test selects two datasets (emp_a, emp_b) that both point at the same {{employees_no_mv}} fixture, so the
 // union is the employees data duplicated. That makes the merge math easy to assert exactly: COUNT(*) doubles,
 // SUM doubles, AVG is unchanged, and COUNT_DISTINCT de-duplicates back to the single-dataset distinct count
-// (proving the per-branch HLL sketches are unioned, not summed). These specs declare two dataset: sources, so they
-// run on dataset-capable backends (FROM <dataset>) and are skipped on the EXTERNAL-rebuild backends (EXTERNAL is
-// single-source).
+// (proving the per-branch HLL sketches are unioned, not summed). These specs declare two dataset: sources, which
+// run as FROM <dataset> on every storage backend. A two-source FROM has no single-EXTERNAL equivalent, which is
+// why AbstractExternalSourceSpecTestCase#doTest still guards that shape for a future raw-EXTERNAL holdout suite.
 
 heavyAggregatesMergedAcrossDatasets
 required_capability: external_command

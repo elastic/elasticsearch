@@ -180,7 +180,6 @@ public class HighlightQueryBuildersTests extends ESTestCase {
         HighlightQueryBuilders.verify(query, TITLE, Lucene.STANDARD_ANALYZER, false, false);
     }
 
-    // An implicit query verifies against a lenient context, so a QSTR or KQL naming a field outside ON becomes match-none.
     public void testVerifyImplicitQueryFieldOutsideOnIsLenient() {
         HighlightQueryBuilders.verify(queryString("body:fox", null), TITLE, Lucene.STANDARD_ANALYZER, false, true);
         HighlightQueryBuilders.verify(queryString("fox", options("default_field", "body")), TITLE, Lucene.STANDARD_ANALYZER, false, true);

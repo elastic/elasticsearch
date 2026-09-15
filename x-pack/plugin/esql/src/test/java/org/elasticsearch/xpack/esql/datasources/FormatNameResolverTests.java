@@ -120,6 +120,31 @@ public class FormatNameResolverTests extends ESTestCase {
         assertEquals("gz", FormatNameResolver.resolve(null, "hits.csv.gz"));
     }
 
+    /**
+     * Production parquet registers {@code .parq} as an alias. Registry-routed resolution must yield
+     * {@code parquet}; {@link FormatNameResolver#resolve} still last-dots to {@code parq}, which is why
+     * planning must not use it.
+     */
+    public void testParqAliasIsParquetInRegistryAndLastDotInResolve() {
+        FormatReaderRegistry registry = csvAndParquetRegistry();
+        assertEquals("parquet", FormatNameResolver.resolveFormatName(null, "f.parq", registry));
+        assertEquals("parquet", FormatNameResolver.datasetFormat(null, "s3://b/*.parq", registry));
+        assertEquals("parquet", FormatNameResolver.datasetFormat(null, "s3://b/*.{parquet,parq}", registry));
+        assertEquals("parq", FormatNameResolver.resolve(null, "f.parq"));
+    }
+
+    /**
+     * {@link FormatNameResolver#resolveFormatName} wraps and vetoes parquet+gzip.
+     * Identity lookup strips the codec and still answers {@code parquet}.
+     */
+    public void testResolveFormatNameForIdentitySkipsCompressionVeto() {
+        FormatReaderRegistry registry = csvAndParquetRegistry();
+        assertEquals("parquet", FormatNameResolver.resolveFormatNameForIdentity(null, "f.parquet.gz", registry));
+        expectThrows(IllegalArgumentException.class, () -> FormatNameResolver.resolveFormatName(null, "f.parquet.gz", registry));
+        assertEquals("csv", FormatNameResolver.resolveFormatNameForIdentity(null, "hits.csv.gz", registry));
+        assertEquals("csv", FormatNameResolver.resolveFormatNameForIdentity(Map.of("format", "csv"), "file.log", registry));
+    }
+
     /** An explicit {@code format} override wins over the extension entirely (no registry extension lookup). */
     public void testResolveFormatNameConfigOverrideBeatsExtension() {
         FormatReaderRegistry registry = csvRegistry();
@@ -408,7 +433,7 @@ public class FormatNameResolverTests extends ESTestCase {
         when(csv.supportsWholeFileCompression()).thenReturn(true);
         FormatReader parquet = mock(FormatReader.class);
         when(parquet.formatName()).thenReturn("parquet");
-        when(parquet.fileExtensions()).thenReturn(List.of(".parquet"));
+        when(parquet.fileExtensions()).thenReturn(List.of(".parquet", ".parq"));
         when(parquet.supportsWholeFileCompression()).thenReturn(false);
         DecompressionCodecRegistry codecs = new DecompressionCodecRegistry();
         codecs.register(new DecompressionCodec() {
@@ -432,6 +457,7 @@ public class FormatNameResolverTests extends ESTestCase {
         registry.registerExtension(".csv", "csv");
         registry.registerLazy("parquet", (s, bf) -> parquet, Settings.EMPTY, null);
         registry.registerExtension(".parquet", "parquet");
+        registry.registerExtension(".parq", "parquet");
         return registry;
     }
 }

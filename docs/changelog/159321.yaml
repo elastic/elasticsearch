@@ -1,0 +1,5 @@
+area: Infra/REST API
+issues: []
+pr: 159321
+summary: Support for multiple `RestInterceptor` instances
+type: feature

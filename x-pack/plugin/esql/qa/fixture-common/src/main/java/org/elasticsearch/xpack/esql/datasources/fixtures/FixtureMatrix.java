@@ -408,16 +408,21 @@ public final class FixtureMatrix {
      * and it crosses that corpus with vectors, which a spec over a verbatim dataset cannot honestly carry.
      */
     public Set<String> excludedSpecs(String suiteToken) {
-        Set<String> excluded = new LinkedHashSet<>(declaredSpecExclusions(suiteToken));
-        String inherited = exclusionSource(suiteToken);
+        return excludedSpecs(declaration, suiteToken);
+    }
+
+    /** {@link #excludedSpecs(String)} over an explicit declaration. */
+    static Set<String> excludedSpecs(Properties declaration, String suiteToken) {
+        Set<String> excluded = new LinkedHashSet<>(declaredSpecExclusions(declaration, suiteToken));
+        String inherited = exclusionSource(declaration, suiteToken);
         if (inherited.equals(suiteToken) == false) {
-            excluded.addAll(declaredSpecExclusions(inherited));
+            excluded.addAll(declaredSpecExclusions(declaration, inherited));
         }
         return Set.copyOf(excluded);
     }
 
     /** The spec files one token itself declares excluded. Each token's list must carry its own reason. */
-    private Set<String> declaredSpecExclusions(String token) {
+    private static Set<String> declaredSpecExclusions(Properties declaration, String token) {
         String value = declaration.getProperty("suite." + token + ".specs.exclude");
         if (value == null || value.isBlank()) {
             return Set.of();
@@ -441,6 +446,11 @@ public final class FixtureMatrix {
      * each one twice when it is fixed, and the second copy is the one that gets forgotten.
      */
     public String exclusionSource(String suiteToken) {
+        return exclusionSource(declaration, suiteToken);
+    }
+
+    /** {@link #exclusionSource(String)} over an explicit declaration, so the two lookups share one spelling. */
+    static String exclusionSource(Properties declaration, String suiteToken) {
         return declaration.getProperty("suite." + suiteToken + ".inherits", suiteToken);
     }
 

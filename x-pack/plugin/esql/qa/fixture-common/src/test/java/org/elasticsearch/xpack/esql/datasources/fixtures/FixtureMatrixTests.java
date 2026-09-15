@@ -10,8 +10,10 @@ package org.elasticsearch.xpack.esql.datasources.fixtures;
 import org.elasticsearch.test.ESTestCase;
 
 import java.util.List;
+import java.util.Properties;
 
 import static org.hamcrest.Matchers.contains;
+import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
@@ -124,30 +126,33 @@ public class FixtureMatrixTests extends ESTestCase {
     /**
      * A vector suite honours whole-spec exclusions declared on its OWN token as well as the ones it inherits.
      *
-     * <p>The lookup used to read only the inherited token, so {@code suite.csv-vector.specs.exclude} was parsed,
-     * accepted, and never consulted: {@code csv-skip-rows} kept registering in the csv vector suite and failed
-     * 88 cases with a 400, because its only dataset is verbatim and has no per-vector rendering. Pinned against
-     * the real declaration, and in both directions -- the plain {@code csv} suite must keep running that spec,
-     * because its fixture does exist there, so moving the exclusion onto the inherited token would have been the
-     * wrong fix.
+     * <p>The lookup used to read only the inherited token, so an exclusion declared on a vector suite itself was
+     * parsed, accepted and never consulted -- a declaration that did nothing, the one kind a reader cannot see.
+     * Built from its own declaration rather than the real one, so it does not depend on the corpus happening to
+     * carry such an exclusion today.
      */
     public void testAVectorSuiteHonoursItsOwnAndItsInheritedSpecExclusions() {
-        FixtureMatrix matrix = FixtureMatrix.get();
-        assertThat(
-            "csv-vector must exclude what it declares itself, which the inherited-only lookup silently dropped",
-            matrix.excludedSpecs("csv-vector"),
-            hasItem("csv-skip-rows")
-        );
-        assertThat(
-            "and still exclude what it inherits from csv",
-            matrix.excludedSpecs("csv-vector"),
-            hasItem("external-clickbench")
-        );
-        assertThat(
-            "the plain csv suite has the fixture, so it must keep running the spec",
-            matrix.excludedSpecs("csv"),
-            not(hasItem("csv-skip-rows"))
-        );
+        Properties declaration = new Properties();
+        declaration.setProperty("suite.plain.specs.exclude", "inherited-spec");
+        declaration.setProperty("suite.plain.specs.exclude.reason", "rule: the plain suite's reason");
+        declaration.setProperty("suite.plain-vector.inherits", "plain");
+        declaration.setProperty("suite.plain-vector.specs.exclude", "own-spec");
+        declaration.setProperty("suite.plain-vector.specs.exclude.reason", "rule: the vector suite's reason");
+
+        assertThat(FixtureMatrix.excludedSpecs(declaration, "plain-vector"), containsInAnyOrder("own-spec", "inherited-spec"));
+        assertThat("inheritance runs one way", FixtureMatrix.excludedSpecs(declaration, "plain"), contains("inherited-spec"));
+    }
+
+    /** Each token's list needs its own reason; the reason on the list it inherits does not cover it. */
+    public void testAVectorSuiteOwnExclusionStillNeedsItsOwnReason() {
+        Properties declaration = new Properties();
+        declaration.setProperty("suite.plain.specs.exclude", "inherited-spec");
+        declaration.setProperty("suite.plain.specs.exclude.reason", "rule: the plain suite's reason");
+        declaration.setProperty("suite.plain-vector.inherits", "plain");
+        declaration.setProperty("suite.plain-vector.specs.exclude", "own-spec");
+
+        IllegalStateException e = expectThrows(IllegalStateException.class, () -> FixtureMatrix.excludedSpecs(declaration, "plain-vector"));
+        assertThat(e.getMessage(), containsString("plain-vector"));
     }
 
 }

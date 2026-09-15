@@ -183,7 +183,7 @@ public final class ThrottlingRecoveryService extends AbstractLifecycleComponent 
         }
         if (pendingRecovery == null) {
             if (serviceClosed) {
-                logger.debug("service is closed, aborting recovery: " + recoveryState);
+                logger.debug("service is closed, aborting recovery: {}", recoveryState);
                 RecoveryListener.wrapPreservingContext(recoveryListener, context)
                     .onRecoveryFailure(new RecoveryFailedException(recoveryState, "service is closed", null), ABORT);
             } else {
@@ -330,7 +330,7 @@ public final class ThrottlingRecoveryService extends AbstractLifecycleComponent 
             }
         }
         for (PendingRecovery pending : recoveriesToAbort) {
-            logger.trace("service closing, aborting recovery: " + pending.recoveryState());
+            logger.trace("service closing, aborting recovery: {}", pending.recoveryState());
             RecoveryListener.wrapPreservingContext(pending.listener, pending.context)
                 .onRecoveryFailure(new RecoveryFailedException(pending.recoveryState(), "service closing", null), ABORT);
             schedulingListener.onQueuedRecoveryDiscardedOnTarget(

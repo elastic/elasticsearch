@@ -77,7 +77,7 @@ public final class StoreRecovery {
     /**
      * Recovers a shard from its local file system store. This method required pre-knowledge about if the shard should
      * exist on disk ie. has been previously allocated or if the shard is a brand-new allocation without pre-existing index
-     * files / transaction logs. This
+     * files / transaction logs.
      * @param indexShard the index shard instance to recovery the shard into
      * @param listener resolves if the shard has been recovered successfully, otherwise receives an exception
      *                 e.g. IndexShardClosedException if a concurrent modification has closed the shard.

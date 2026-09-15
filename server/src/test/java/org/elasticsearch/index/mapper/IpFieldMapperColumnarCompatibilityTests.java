@@ -560,4 +560,20 @@ public class IpFieldMapperColumnarCompatibilityTests extends AbstractColumnarMap
         }));
         expectThrows(UnsupportedOperationException.class, () -> mapColumnarLeaf(mapperService, FIELD, "{\"f\":[\"192.168.0.1\",null]}"));
     }
+
+    public void testNullValueMultiValueFalseNullFirstRejectsTwoValues() throws IOException {
+        // Regression: [null, "192.168.0.1"] on a multi_value=false field with null_value must also
+        // be rejected. The null element is substituted (first write), so the subsequent real IP is a
+        // second value and must trigger the multi_value=false violation.
+        final MapperService mapperService = createMapperService(columnarSettings(), mapping(b -> {
+            b.startObject(FIELD)
+                .field("type", "ip")
+                .startObject("doc_values")
+                .field("multi_value", false)
+                .endObject()
+                .field("null_value", "0.0.0.0")
+                .endObject();
+        }));
+        expectThrows(UnsupportedOperationException.class, () -> mapColumnarLeaf(mapperService, FIELD, "{\"f\":[null,\"192.168.0.1\"]}"));
+    }
 }

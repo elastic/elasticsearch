@@ -1050,8 +1050,9 @@ public class IpFieldMapper extends FieldMapper {
                 BytesRef utf8Value = cursor.value();
                 if (utf8Value == null) {
                     if (nullValueEncoded != null) {
-                        // substitute, fall through to normal processing
+                        // substitute null with null_value; counts as a value for multi_value=false tracking
                         values.setString(currentDoc, nullValueEncoded);
+                        valueSeenThisDoc = true;
                     }
                     // else null without null_value -> absent (row-path parity)
                     continue;

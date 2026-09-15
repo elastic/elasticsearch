@@ -51,16 +51,20 @@ public final class EscfColumnTransforms {
         }
         // We could always reach down and copy offsets and data directly. We don't need to use cursors.
         final ObjectTupleCursor<BytesRef> replayCursor = utf8Cursor(source, false);
-        for (int d = replayCursor.nextDoc(); d < beforeDoc; d = replayCursor.nextDoc()) {
+        // Copy all elements of docs strictly before beforeDoc. After the loop, the cursor is already
+        // positioned at the first element of beforeDoc (the exit-condition call consumed it without writing).
+        int d;
+        while ((d = replayCursor.nextDoc()) < beforeDoc) {
             dest.setString(d, replayCursor.value());
         }
-        // Replay any already-accepted elements of beforeDoc itself.
-        int replayed = 0;
-        while (replayed < elementsOfBeforeDoc) {
-            int d = replayCursor.nextDoc();
+        // Replay elementsOfBeforeDoc elements of beforeDoc using the current cursor position — do NOT
+        // call nextDoc() first; the while loop above already advanced to beforeDoc.
+        for (int i = 0; i < elementsOfBeforeDoc; i++) {
             assert d == beforeDoc : "expected doc " + beforeDoc + " but got " + d;
             dest.setString(d, replayCursor.value());
-            replayed++;
+            if (i + 1 < elementsOfBeforeDoc) {
+                d = replayCursor.nextDoc();
+            }
         }
     }
 

@@ -141,8 +141,7 @@ public abstract class AbstractIVFKnnSlicedVectorQueryTestCase extends LuceneTest
         final int routedDocs = numSlices * docsPerSlice;
         final int tombstones = random().nextInt(1, Math.max(2, numSlices));
         final IndexWriterConfig iwc = newIndexWriterConfig();
-        final SortField sliceSort = new SortField(SLICE_FIELD, SortField.Type.STRING);
-        sliceSort.setMissingValue(SortField.STRING_LAST);
+        final SortField sliceSort = new SortField(SLICE_FIELD, SortField.Type.STRING, false, SortField.STRING_LAST);
         iwc.setIndexSort(new Sort(sliceSort));
         iwc.setSoftDeletesField(Lucene.SOFT_DELETES_FIELD);
         // Retain soft-deleted tombstones through merges, as Elasticsearch does. Otherwise a randomized merge policy

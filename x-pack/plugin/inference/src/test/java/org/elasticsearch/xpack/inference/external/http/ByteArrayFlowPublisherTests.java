@@ -26,6 +26,7 @@ import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.Flow;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicLong;
+import java.util.concurrent.atomic.AtomicReference;
 
 import static org.elasticsearch.xpack.inference.Utils.inferenceUtilityExecutors;
 import static org.hamcrest.Matchers.contains;
@@ -33,6 +34,7 @@ import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.hasSize;
+import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.sameInstance;
 
@@ -179,6 +181,43 @@ public class ByteArrayFlowPublisherTests extends ESTestCase {
     }
 
     /**
+     * Given a publisher that already has a subscriber
+     * When a second subscriber subscribes
+     * Then it is rejected with onError and the upstream is never subscribed twice — httpcore5-reactive's ReactiveDataConsumer
+     * has no second-subscriber guard and would silently displace the first subscriber, leaving it hanging.
+     */
+    public void testSecondSubscriberIsRejected() {
+        var upstream = new TestUpstreamPublisher();
+        var publisher = publisher(upstream);
+        publisher.subscribe(new TestSubscriber(0));
+
+        var rejected = new AtomicReference<Throwable>();
+        // a plain subscriber: the rejection path deliberately delivers onError without demand, per Reactive Streams §2.9
+        publisher.subscribe(new Flow.Subscriber<>() {
+            @Override
+            public void onSubscribe(Flow.Subscription subscription) {}
+
+            @Override
+            public void onNext(byte[] item) {
+                fail("rejected subscriber must not receive data");
+            }
+
+            @Override
+            public void onError(Throwable throwable) {
+                rejected.set(throwable);
+            }
+
+            @Override
+            public void onComplete() {
+                fail("rejected subscriber must not receive onComplete");
+            }
+        });
+
+        assertThat(rejected.get(), instanceOf(IllegalStateException.class));
+        assertThat("the first subscriber must keep the upstream", upstream.subscribeCalls(), equalTo(1));
+    }
+
+    /**
      * When the downstream cancels its subscription
      * Then the cancellation propagates to the upstream subscription
      * And the exchange is aborted
@@ -205,10 +244,16 @@ public class ByteArrayFlowPublisherTests extends ESTestCase {
     private static class TestUpstreamPublisher implements Publisher<ByteBuffer> {
         private final AtomicLong requested = new AtomicLong();
         private final AtomicBoolean cancelled = new AtomicBoolean();
+        private final AtomicLong subscribeCalls = new AtomicLong();
         private volatile Subscriber<? super ByteBuffer> subscriber;
+
+        private int subscribeCalls() {
+            return Math.toIntExact(subscribeCalls.get());
+        }
 
         @Override
         public void subscribe(Subscriber<? super ByteBuffer> subscriber) {
+            subscribeCalls.incrementAndGet();
             this.subscriber = subscriber;
             subscriber.onSubscribe(new Subscription() {
                 @Override

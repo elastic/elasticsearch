@@ -9,10 +9,6 @@ package org.elasticsearch.xpack.inference.external.http;
 
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.common.breaker.CircuitBreaker;
-import org.elasticsearch.core.TimeValue;
-import org.elasticsearch.logging.LogManager;
-import org.elasticsearch.logging.Logger;
-import org.elasticsearch.threadpool.Scheduler;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.reactivestreams.FlowAdapters;
 import org.reactivestreams.Publisher;
@@ -36,36 +32,31 @@ import static org.elasticsearch.xpack.inference.InferencePlugin.UTILITY_THREAD_P
  * <p>The reactive consumer emits chunks on the http client's IO reactor threads. Response parsing must not run there, as it would
  * stall the IO reactor, so each signal is handed off to the {@code utility} thread pool. A queue plus {@link RequestBasedTaskRunner}
  * guarantees the signals are delivered serially, as required by the reactive spec, even though the thread pool has multiple threads.
- * Demand and cancellation are forwarded to the upstream subscription, which the http client translates into channel-level
- * backpressure and connection release.</p>
+ * Demand is forwarded to the upstream subscription, which the http client translates into channel-level backpressure.</p>
  *
  * <p>Every buffered chunk is accounted against the inference circuit breaker until it is delivered downstream, so many concurrent
  * streams with slow consumers trip the breaker instead of accumulating unaccounted heap.</p>
  *
- * <p>A watchdog aborts the exchange when the stream makes no progress (no subscription, demand, or chunk) for
- * {@link #STALE_STREAM_TIMEOUT}. Without it, a stream whose consumer disappeared (e.g. the per-request timeout fired before the
- * response head arrived, so nobody drives demand) would stall on channel backpressure and hold its pooled connection leased
- * forever, eventually exhausting the pool.</p>
+ * <p>Stalled exchanges are bounded by {@code xpack.inference.http.socket_timeout}, enforced by the IO reactor at the connection
+ * level; a downstream cancellation additionally runs {@code abortExchange}, which cancels the exchange future so the leased pool
+ * connection is released promptly instead of waiting for that timeout (the reactive {@code Subscription#cancel()} alone is a flag
+ * only observed when the next chunk arrives).</p>
+ *
+ * <p>One deliberate Reactive Streams spec deviation: terminal signals consume a unit of demand. §2.9 says a subscriber must be
+ * prepared to receive {@code onComplete} without a preceding {@code request(n)}, but {@code ServerSentEventsRestActionListener}
+ * asserts a body-part listener is present ({@code nextBodyPartListener()}), so {@code onComplete}/{@code onError} are withheld
+ * until the downstream requests. This matches the 4.x {@code DataPublisher} this class replaces.</p>
  */
 class ByteArrayFlowPublisher implements Flow.Publisher<byte[]> {
-    private static final Logger logger = LogManager.getLogger(ByteArrayFlowPublisher.class);
-
-    // Package private for testing. Providers can pause between SSE chunks, so this must comfortably exceed legitimate
-    // mid-stream gaps; it only needs to be short enough to reclaim leaked pool connections in a bounded amount of time.
-    static final TimeValue STALE_STREAM_TIMEOUT = TimeValue.timeValueMinutes(5);
-    private static final TimeValue WATCHDOG_INTERVAL = TimeValue.timeValueMinutes(1);
 
     private final Flow.Publisher<ByteBuffer> upstream;
     private final ThreadPool threadPool;
     private final CircuitBreaker circuitBreaker;
     private final String inferenceEntityId;
     private final Runnable abortExchange;
-    private final AtomicLong lastActivityMillis;
     private final AtomicReference<RelaySubscriber> relay = new AtomicReference<>();
-    private final AtomicBoolean abortedBeforeSubscribe = new AtomicBoolean(false);
     // set once the stream reached a terminal state; late chunks are dropped without breaker accounting
     private volatile boolean closed = false;
-    private final Scheduler.Cancellable watchdog;
 
     ByteArrayFlowPublisher(
         Publisher<ByteBuffer> upstream,
@@ -79,19 +70,12 @@ class ByteArrayFlowPublisher implements Flow.Publisher<byte[]> {
         this.circuitBreaker = Objects.requireNonNull(circuitBreaker);
         this.inferenceEntityId = Objects.requireNonNull(inferenceEntityId);
         this.abortExchange = Objects.requireNonNull(abortExchange);
-        this.lastActivityMillis = new AtomicLong(threadPool.relativeTimeInMillis());
-        this.watchdog = threadPool.scheduleWithFixedDelay(
-            this::checkProgress,
-            WATCHDOG_INTERVAL,
-            threadPool.executor(UTILITY_THREAD_POOL_NAME)
-        );
     }
 
     @Override
     public void subscribe(Flow.Subscriber<? super byte[]> subscriber) {
-        touch();
         var relaySubscriber = new RelaySubscriber(subscriber);
-        if (abortedBeforeSubscribe.get() || relay.compareAndSet(null, relaySubscriber) == false) {
+        if (relay.compareAndSet(null, relaySubscriber) == false) {
             subscriber.onSubscribe(new Flow.Subscription() {
                 @Override
                 public void request(long n) {}
@@ -103,60 +87,6 @@ class ByteArrayFlowPublisher implements Flow.Publisher<byte[]> {
             return;
         }
         upstream.subscribe(relaySubscriber);
-    }
-
-    private void touch() {
-        lastActivityMillis.set(threadPool.relativeTimeInMillis());
-    }
-
-    private void cancelWatchdog() {
-        var scheduled = watchdog;
-        if (scheduled != null) {
-            scheduled.cancel();
-        }
-    }
-
-    private void checkProgress() {
-        if (closed) {
-            cancelWatchdog();
-            return;
-        }
-        if (threadPool.relativeTimeInMillis() - lastActivityMillis.get() < STALE_STREAM_TIMEOUT.millis()) {
-            return;
-        }
-
-        var relaySubscriber = relay.get();
-        if (relaySubscriber != null) {
-            relaySubscriber.abort(
-                new IllegalStateException(
-                    format("Aborting stream for inference id [%s] after [%s] without progress", inferenceEntityId, STALE_STREAM_TIMEOUT)
-                )
-            );
-        } else if (abortedBeforeSubscribe.compareAndSet(false, true)) {
-            closed = true;
-            cancelWatchdog();
-            logger.warn(
-                "Cancelling stream for inference id [{}]: no consumer subscribed within [{}]",
-                inferenceEntityId,
-                STALE_STREAM_TIMEOUT
-            );
-            // subscribe only to cancel, which fails the exchange and releases the leased pool connection
-            upstream.subscribe(new Flow.Subscriber<>() {
-                @Override
-                public void onSubscribe(Flow.Subscription subscription) {
-                    subscription.cancel();
-                }
-
-                @Override
-                public void onNext(ByteBuffer item) {}
-
-                @Override
-                public void onError(Throwable throwable) {}
-
-                @Override
-                public void onComplete() {}
-            });
-        }
     }
 
     private static byte[] toBytes(ByteBuffer buffer) {
@@ -188,7 +118,6 @@ class ByteArrayFlowPublisher implements Flow.Publisher<byte[]> {
             downstream.onSubscribe(new Flow.Subscription() {
                 @Override
                 public void request(long n) {
-                    touch();
                     if (n <= 0) {
                         abort(new IllegalArgumentException("Subscriber requested a non-positive number " + n));
                         return;
@@ -210,7 +139,6 @@ class ByteArrayFlowPublisher implements Flow.Publisher<byte[]> {
 
         @Override
         public void onNext(ByteBuffer item) {
-            touch();
             var bytes = toBytes(item);
             if (closed) {
                 return;
@@ -233,7 +161,6 @@ class ByteArrayFlowPublisher implements Flow.Publisher<byte[]> {
 
         @Override
         public void onError(Throwable throwable) {
-            touch();
             if (throwable instanceof Exception e) {
                 error = e;
             } else {
@@ -245,7 +172,6 @@ class ByteArrayFlowPublisher implements Flow.Publisher<byte[]> {
 
         @Override
         public void onComplete() {
-            touch();
             completed = true;
             taskRunner.requestNextRun();
         }
@@ -277,7 +203,7 @@ class ByteArrayFlowPublisher implements Flow.Publisher<byte[]> {
 
         /**
          * Cancels the upstream exchange (releasing the leased pool connection) and fails the downstream subscriber. Used when the
-         * circuit breaker trips or the stream stalls without progress.
+         * circuit breaker trips or the downstream violates the subscription contract.
          */
         void abort(Exception e) {
             error = e;
@@ -290,7 +216,6 @@ class ByteArrayFlowPublisher implements Flow.Publisher<byte[]> {
 
         private void close() {
             closed = true;
-            cancelWatchdog();
             releaseBreakerBytes(unreleasedBytes.get());
         }
 

@@ -13,9 +13,16 @@ import org.elasticsearch.xpack.esql.core.expression.FoldContext;
 import org.elasticsearch.xpack.esql.core.expression.Literal;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
+import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToDegrees;
 import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToDouble;
+import org.elasticsearch.xpack.esql.expression.function.scalar.math.Acos;
+import org.elasticsearch.xpack.esql.expression.function.scalar.math.Acosh;
+import org.elasticsearch.xpack.esql.expression.function.scalar.math.Asin;
+import org.elasticsearch.xpack.esql.expression.function.scalar.math.Atanh;
+import org.elasticsearch.xpack.esql.expression.function.scalar.math.Cosh;
 import org.elasticsearch.xpack.esql.expression.function.scalar.math.Log;
 import org.elasticsearch.xpack.esql.expression.function.scalar.math.Log10;
+import org.elasticsearch.xpack.esql.expression.function.scalar.math.Sinh;
 import org.elasticsearch.xpack.esql.expression.function.scalar.math.Sqrt;
 
 import static org.hamcrest.Matchers.instanceOf;
@@ -31,7 +38,7 @@ import static org.hamcrest.Matchers.instanceOf;
  * For functions with type-specific evaluators (e.g. {@link Sqrt}, {@link Log10}) the input is wrapped in {@link ToDouble};
  * these tests mirror that by wrapping non-double inputs in {@link ToDouble}, the same shape produced by
  * {@code unaryNonFiniteValueTransformation}. Functions that already cast their operands to {@code double} internally
- * ({@link Log}) need no wrap, and the tests construct them directly with the flag set.
+ * (the trigonometric functions and {@link Log}) need no wrap, and the tests construct them directly with the flag set.
  */
 public class PromqlNonFiniteMathTests extends ESTestCase {
 
@@ -88,6 +95,41 @@ public class PromqlNonFiniteMathTests extends ESTestCase {
     public void testLnOfNegativeLongYieldsNaN() {
         Expression negativeLong = new Literal(Source.EMPTY, -5L, DataType.LONG);
         assertFoldsToNaN(new Log(Source.EMPTY, new ToDouble(Source.EMPTY, negativeLong), null, true));
+    }
+
+    /** {@code asin}/{@code acos} of an out-of-range input ({@code |x|>1}) yields {@code NaN}. */
+    public void testAsinAcosOutOfRangeYieldsNaN() {
+        assertFoldsToNaN(new Asin(Source.EMPTY, Literal.fromDouble(Source.EMPTY, 2.0), true));
+        assertFoldsToNaN(new Acos(Source.EMPTY, Literal.fromDouble(Source.EMPTY, 2.0), true));
+    }
+
+    /** {@code acosh} of an input below 1 yields {@code NaN}. */
+    public void testAcoshBelowOneYieldsNaN() {
+        assertFoldsToNaN(new Acosh(Source.EMPTY, Literal.fromDouble(Source.EMPTY, 0.5), true));
+    }
+
+    /** {@code atanh(±1)} yields {@code ±Inf} and {@code atanh(|x|>1)} yields {@code NaN} (IEEE-754). */
+    public void testAtanhBoundaryYieldsNonFinite() {
+        assertFoldsTo(new Atanh(Source.EMPTY, Literal.fromDouble(Source.EMPTY, 1.0), true), Double.POSITIVE_INFINITY);
+        assertFoldsTo(new Atanh(Source.EMPTY, Literal.fromDouble(Source.EMPTY, -1.0), true), Double.NEGATIVE_INFINITY);
+        assertFoldsToNaN(new Atanh(Source.EMPTY, Literal.fromDouble(Source.EMPTY, 2.0), true));
+    }
+
+    /** {@code sinh}/{@code cosh} overflow to {@code ±Inf}/{@code +Inf} instead of being dropped. */
+    public void testSinhCoshOverflowYieldsInf() {
+        assertFoldsTo(new Sinh(Source.EMPTY, Literal.fromDouble(Source.EMPTY, 1000.0), true), Double.POSITIVE_INFINITY);
+        assertFoldsTo(new Sinh(Source.EMPTY, Literal.fromDouble(Source.EMPTY, -1000.0), true), Double.NEGATIVE_INFINITY);
+        assertFoldsTo(new Cosh(Source.EMPTY, Literal.fromDouble(Source.EMPTY, 1000.0), true), Double.POSITIVE_INFINITY);
+    }
+
+    /** {@code deg} (to_degrees) preserves non-finite inputs and an overflowing result ({@code +Inf}). */
+    public void testToDegreesNonFiniteIsPreserved() {
+        assertFoldsTo(new ToDegrees(Source.EMPTY, Literal.fromDouble(Source.EMPTY, Double.MAX_VALUE), true), Double.POSITIVE_INFINITY);
+        assertFoldsTo(
+            new ToDegrees(Source.EMPTY, Literal.fromDouble(Source.EMPTY, Double.POSITIVE_INFINITY), true),
+            Double.POSITIVE_INFINITY
+        );
+        assertFoldsToNaN(new ToDegrees(Source.EMPTY, Literal.fromDouble(Source.EMPTY, Double.NaN), true));
     }
 
     private static Log log2(Expression value) {

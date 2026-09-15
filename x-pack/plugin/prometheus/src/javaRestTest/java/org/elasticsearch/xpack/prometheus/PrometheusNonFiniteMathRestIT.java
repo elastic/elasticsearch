@@ -50,6 +50,55 @@ public class PrometheusNonFiniteMathRestIT extends AbstractPrometheusRestIT {
         assertSingleValue("log2(" + METRIC + " * -1)", "NaN");
     }
 
+    /** {@code asin}/{@code acos} of an out-of-range input ({@code |x|>1}; the metric evaluates to 40) yields {@code NaN}. */
+    public void testAsinOutOfRangeIsNaN() throws Exception {
+        ingestTestData("test_gauge_nf");
+        assertSingleValue("asin(" + METRIC + ")", "NaN");
+    }
+
+    public void testAcosOutOfRangeIsNaN() throws Exception {
+        ingestTestData("test_gauge_nf");
+        assertSingleValue("acos(" + METRIC + ")", "NaN");
+    }
+
+    /** {@code acosh} of an input below 1 ({@code metric * 0 == 0}) yields {@code NaN}. */
+    public void testAcoshBelowOneIsNaN() throws Exception {
+        ingestTestData("test_gauge_nf");
+        assertSingleValue("acosh(" + METRIC + " * 0)", "NaN");
+    }
+
+    /** {@code atanh(±1)} yields {@code ±Inf} and {@code atanh(|x|>1)} yields {@code NaN} (IEEE-754). */
+    public void testAtanhOfOneIsPositiveInfinity() throws Exception {
+        ingestTestData("test_gauge_nf");
+        assertSingleValue("atanh(" + METRIC + " / " + METRIC + ")", "+Inf");
+    }
+
+    public void testAtanhOfNegativeOneIsNegativeInfinity() throws Exception {
+        ingestTestData("test_gauge_nf");
+        assertSingleValue("atanh(" + METRIC + " / " + METRIC + " * -1)", "-Inf");
+    }
+
+    public void testAtanhOutOfRangeIsNaN() throws Exception {
+        ingestTestData("test_gauge_nf");
+        assertSingleValue("atanh(" + METRIC + ")", "NaN");
+    }
+
+    /** {@code sinh}/{@code cosh} overflow to {@code ±Inf}/{@code +Inf} instead of being dropped (metric evaluates to 40). */
+    public void testSinhOverflowIsPositiveInfinity() throws Exception {
+        ingestTestData("test_gauge_nf");
+        assertSingleValue("sinh(" + METRIC + " * 20)", "+Inf");
+    }
+
+    public void testSinhOverflowNegativeIsNegativeInfinity() throws Exception {
+        ingestTestData("test_gauge_nf");
+        assertSingleValue("sinh(" + METRIC + " * -20)", "-Inf");
+    }
+
+    public void testCoshOverflowIsPositiveInfinity() throws Exception {
+        ingestTestData("test_gauge_nf");
+        assertSingleValue("cosh(" + METRIC + " * 20)", "+Inf");
+    }
+
     private void assertSingleValue(String query, String expectedValue) throws Exception {
         ObjectPath response = executeInstantQuery(query);
         assertThat(response.evaluate("data.result"), hasSize(1));

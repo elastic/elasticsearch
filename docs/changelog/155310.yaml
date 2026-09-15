@@ -1,5 +1,5 @@
 area: Machine Learning
 issues: []
 pr: 155310
-summary: Treat machine learning node exhaustion as 4xx
+summary: Return HTTP 4xx status codes when machine learning nodes are exhausted
 type: bug

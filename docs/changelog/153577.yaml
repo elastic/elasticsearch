@@ -1,5 +1,5 @@
 area: Vector Search
 issues: []
 pr: 153577
-summary: Unified and faster calibration path
+summary: Improve vector search calibration performance
 type: enhancement

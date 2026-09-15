@@ -1,5 +1,5 @@
 area: Mapping
 issues: []
 pr: 158187
-summary: "Handle missing counts in contains query"
+summary: "Fix missing counts in `contains` mapper query"
 type: bug

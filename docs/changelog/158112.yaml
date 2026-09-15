@@ -2,5 +2,5 @@ area: Task Management
 issues:
  - 158019
 pr: 158112
-summary: Fix leaking bulk task on shard dispatch failure
+summary: Fix leaked bulk task when shard dispatch fails
 type: bug

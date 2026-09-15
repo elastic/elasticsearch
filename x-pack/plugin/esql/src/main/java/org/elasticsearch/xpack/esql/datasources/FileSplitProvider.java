@@ -553,10 +553,15 @@ public class FileSplitProvider implements SplitProvider {
         Map<StoragePath, SchemaReconciliation.FileSchemaInfo> schemaInfo = context.schemaMap();
         Map<ColumnMapping, ColumnMapping> mappingCache = new ConcurrentHashMap<>();
         ExternalSchema unifiedSchema = context.unifiedSchema();
+        Set<String> metadataColumnNames = context.metadataColumnNames();
 
         int certifiedSkips = 0;
         long probedFileBytes = 0;
         List<FileTask> tasks = new ArrayList<>(fileList.fileCount());
+        // Hive / _file.* listing values already live in partitionValues. Overlay the engine
+        // per-file constants only when a hint names one of them.
+        boolean overlayPerFileConstants = filterHints.isEmpty() == false
+            && hintsReferencePerFileConstants(filterHints, metadataColumnNames);
         for (int i = 0; i < fileList.fileCount(); i++) {
             StoragePath filePath = fileList.path(i);
 
@@ -568,22 +573,28 @@ public class FileSplitProvider implements SplitProvider {
                 }
             }
             partitionValues.putAll(FileMetadataColumns.extractValues(fileList, i));
+            SchemaReconciliation.FileSchemaInfo fileSchemaInfo = schemaInfo.get(filePath);
 
-            if (partitionValues.isEmpty() == false && filterHints.isEmpty() == false) {
-                if (matchesPartitionFilters(partitionValues, filterHints) == false) {
+            if (filterHints.isEmpty() == false) {
+                Map<String, Object> filterValues = overlayPerFileConstants
+                    ? discoveryFilterValues(partitionValues, context.datasetName(), metadataColumnNames)
+                    : partitionValues;
+                if (filterValues.isEmpty() == false && matchesPartitionFilters(filterValues, filterHints) == false) {
                     certifiedSkips++;
                     continue;
                 }
-            }
-
-            SchemaReconciliation.FileSchemaInfo fileSchemaInfo = schemaInfo.get(filePath);
-
-            if (filterHints.isEmpty() == false && fileSchemaInfo != null) {
-                Set<String> fileColumnNames = new LinkedHashSet<>(fileSchemaInfo.fileSchema().names());
-                fileColumnNames.addAll(partitionValues.keySet());
-                if (skipIfFilterOnMissingColumns(filterHints, fileColumnNames)) {
-                    certifiedSkips++;
-                    continue;
+                if (fileSchemaInfo != null) {
+                    Set<String> fileColumnNames = new LinkedHashSet<>(fileSchemaInfo.fileSchema().names());
+                    fileColumnNames.addAll(filterValues.keySet());
+                    fileColumnNames.addAll(metadataColumnNames);
+                    // _file.record_ref is composed per row, so it is present on every file whatever the
+                    // file schema lists. The standard names are per-file constants and reach
+                    // fileColumnNames through filterValues above, when bound as metadata.
+                    fileColumnNames.add(FileMetadataColumns.RECORD_REF);
+                    if (skipIfFilterOnMissingColumns(filterHints, fileColumnNames)) {
+                        certifiedSkips++;
+                        continue;
+                    }
                 }
             }
 
@@ -2796,6 +2807,41 @@ public class FileSplitProvider implements SplitProvider {
             return querySchema;
         }
         return new ExternalSchema(filtered);
+    }
+
+    /**
+     * Hive partitions and {@code _file.*} listing values plus the engine-materialised per-file
+     * constants ({@code _index} and the all-null standard names). Used only for discovery filter
+     * evaluation; the {@link FileTask} carries hive + {@code _file.*} only.
+     * Only names bound as metadata in the relation's output receive constants, matching the
+     * reader. Data columns retain their physical values or missing-column null-fill.
+     */
+    private static Map<String, Object> discoveryFilterValues(
+        Map<String, Object> partitionValues,
+        @Nullable String datasetName,
+        Set<String> metadataColumnNames
+    ) {
+        Map<String, Object> filterValues = new HashMap<>(partitionValues.size() + ExternalMetadataColumns.PER_FILE_CONSTANT_NAMES.size());
+        filterValues.putAll(partitionValues);
+        for (Map.Entry<String, Object> constant : ExternalMetadataColumns.extractPerFileConstants(datasetName).entrySet()) {
+            if (metadataColumnNames.contains(constant.getKey())) {
+                filterValues.put(constant.getKey(), constant.getValue());
+            }
+        }
+        return filterValues;
+    }
+
+    private static boolean hintsReferencePerFileConstants(List<Expression> filterHints, Set<String> metadataColumnNames) {
+        for (Expression hint : filterHints) {
+            if (hint.references()
+                .stream()
+                .anyMatch(
+                    a -> metadataColumnNames.contains(a.name()) && ExternalMetadataColumns.PER_FILE_CONSTANT_NAMES.contains(a.name())
+                )) {
+                return true;
+            }
+        }
+        return false;
     }
 
     /**

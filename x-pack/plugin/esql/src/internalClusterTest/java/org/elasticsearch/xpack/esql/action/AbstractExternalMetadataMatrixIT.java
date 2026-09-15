@@ -278,6 +278,158 @@ public abstract class AbstractExternalMetadataMatrixIT extends AbstractExternalD
         }
     }
 
+    public void testMetadataFilterSelectsRowsAndCountsThem() throws Exception {
+        try (
+            var response = run(
+                syncEsqlQueryRequest("FROM employees METADATA _index | WHERE _index == \"employees\" | SORT emp_no"),
+                TIMEOUT
+            )
+        ) {
+            assertThat(getValuesList(response), hasSize(3));
+        }
+        try (
+            var response = run(
+                syncEsqlQueryRequest("FROM employees METADATA _index | WHERE _index == \"employees\" | STATS c = COUNT(*)"),
+                TIMEOUT
+            )
+        ) {
+            assertThat(((Number) getValuesList(response).get(0).get(0)).longValue(), equalTo(3L));
+        }
+        try (
+            var response = run(syncEsqlQueryRequest("FROM employees METADATA _index | WHERE _index IS NULL | STATS c = COUNT(*)"), TIMEOUT)
+        ) {
+            assertThat(((Number) getValuesList(response).get(0).get(0)).longValue(), equalTo(0L));
+        }
+        try (
+            var response = run(
+                syncEsqlQueryRequest("FROM employees METADATA _file.name | WHERE _file.name IS NOT NULL | STATS c = COUNT(*)"),
+                TIMEOUT
+            )
+        ) {
+            assertThat(((Number) getValuesList(response).get(0).get(0)).longValue(), equalTo(3L));
+        }
+        try (
+            var response = run(
+                syncEsqlQueryRequest("FROM employees METADATA _file.record_ref | WHERE _file.record_ref IS NOT NULL | SORT emp_no"),
+                TIMEOUT
+            )
+        ) {
+            assertThat(getValuesList(response), hasSize(3));
+        }
+        try (
+            var response = run(
+                syncEsqlQueryRequest("FROM employees METADATA _file.record_ref | WHERE _file.record_ref IS NOT NULL | STATS c = COUNT(*)"),
+                TIMEOUT
+            )
+        ) {
+            assertThat(((Number) getValuesList(response).get(0).get(0)).longValue(), equalTo(3L));
+        }
+        try (
+            var response = run(
+                syncEsqlQueryRequest("FROM employees METADATA _version | WHERE _version IS NULL | STATS c = COUNT(*)"),
+                TIMEOUT
+            )
+        ) {
+            assertThat(((Number) getValuesList(response).get(0).get(0)).longValue(), equalTo(3L));
+        }
+        try (
+            var response = run(syncEsqlQueryRequest("FROM employees METADATA _score | WHERE _score IS NULL | STATS c = COUNT(*)"), TIMEOUT)
+        ) {
+            assertThat(((Number) getValuesList(response).get(0).get(0)).longValue(), equalTo(3L));
+        }
+        try (
+            var response = run(
+                syncEsqlQueryRequest("FROM employees METADATA _score | WHERE _score IS NOT NULL | STATS c = COUNT(*)"),
+                TIMEOUT
+            )
+        ) {
+            assertThat(((Number) getValuesList(response).get(0).get(0)).longValue(), equalTo(0L));
+        }
+        try (
+            var response = run(
+                syncEsqlQueryRequest("FROM employees METADATA _index | WHERE _index == \"nosuchdataset\" | SORT emp_no"),
+                TIMEOUT
+            )
+        ) {
+            assertThat(getValuesList(response), hasSize(0));
+        }
+        try (
+            var response = run(
+                syncEsqlQueryRequest("FROM employees METADATA _index | WHERE NOT (_index IS NULL) | STATS c = COUNT(*)"),
+                TIMEOUT
+            )
+        ) {
+            assertThat(((Number) getValuesList(response).get(0).get(0)).longValue(), equalTo(3L));
+        }
+        try (
+            var response = run(
+                syncEsqlQueryRequest("FROM employees METADATA _index | EVAL idx = _index | WHERE idx IS NOT NULL | STATS c = COUNT(*)"),
+                TIMEOUT
+            )
+        ) {
+            assertThat(((Number) getValuesList(response).get(0).get(0)).longValue(), equalTo(3L));
+        }
+        try (var response = run(syncEsqlQueryRequest("FROM employees METADATA _id | WHERE _id IS NULL | STATS c = COUNT(*)"), TIMEOUT)) {
+            assertThat(((Number) getValuesList(response).get(0).get(0)).longValue(), equalTo(3L));
+        }
+        try (
+            var response = run(
+                syncEsqlQueryRequest("FROM employees METADATA _source | WHERE _source IS NULL | STATS c = COUNT(*)"),
+                TIMEOUT
+            )
+        ) {
+            assertThat(((Number) getValuesList(response).get(0).get(0)).longValue(), equalTo(3L));
+        }
+    }
+
+    public void testComputedMetadataFilterCounts() throws Exception {
+        try (
+            var response = run(
+                syncEsqlQueryRequest(
+                    "FROM employees METADATA _index | EVAL idx = TO_LOWER(_index) | WHERE idx IS NOT NULL | STATS c = COUNT(*)"
+                ),
+                TIMEOUT
+            )
+        ) {
+            assertThat(((Number) getValuesList(response).get(0).get(0)).longValue(), equalTo(3L));
+        }
+    }
+
+    public void testComputedMetadataIsNullFilterCounts() throws Exception {
+        try (
+            var response = run(
+                syncEsqlQueryRequest(
+                    "FROM employees METADATA _index | EVAL idx = TO_LOWER(_index) | WHERE idx IS NULL | STATS c = COUNT(*)"
+                ),
+                TIMEOUT
+            )
+        ) {
+            assertThat(((Number) getValuesList(response).get(0).get(0)).longValue(), equalTo(0L));
+        }
+    }
+
+    public void testComputedMetadataShadowingIndexFiltersRowsAndCounts() throws Exception {
+        String source = "FROM employees METADATA _index | EVAL _index = CONCAT(_index, \"mytext\")";
+        for (var testCase : List.of(
+            Map.entry("_index == \"employeesmytext\"", 3L),
+            Map.entry("_index == \"employees\"", 0L),
+            Map.entry("_index IS NULL", 0L),
+            Map.entry("_index IS NOT NULL", 3L)
+        )) {
+            String filteredQuery = source + " | WHERE " + testCase.getKey();
+            try (var response = run(syncEsqlQueryRequest(filteredQuery + " | KEEP _index"), TIMEOUT)) {
+                List<List<Object>> rows = getValuesList(response);
+                assertThat(filteredQuery, rows, hasSize(testCase.getValue().intValue()));
+                for (List<Object> row : rows) {
+                    assertThat(row.get(0).toString(), equalTo("employeesmytext"));
+                }
+            }
+            try (var response = run(syncEsqlQueryRequest(filteredQuery + " | STATS c = COUNT(*)"), TIMEOUT)) {
+                assertThat(filteredQuery, ((Number) getValuesList(response).get(0).get(0)).longValue(), equalTo(testCase.getValue()));
+            }
+        }
+    }
+
     /** Keyword values may surface as String or BytesRef depending on block plumbing; normalize to String. */
     private static String objToString(Object value) {
         return value == null ? null : value.toString();

@@ -401,16 +401,13 @@ public class AsyncExternalSourceOperatorFactory implements SourceOperator.Source
         // unioning them into the partition-column set. Analyzer.bindMetadataFields builds every
         // ExternalMetadataAttribute from exactly two registries, so a third kind would fall through both
         // arms below and silently become an all-null column — fail loud instead.
-        Set<String> stdMetaNames = new LinkedHashSet<>();
-        for (Attribute attr : attributes) {
-            if (attr instanceof ExternalMetadataAttribute == false) {
-                continue;
-            }
-            if (ExternalMetadataColumns.PER_FILE_CONSTANT_NAMES.contains(attr.name())) {
-                stdMetaNames.add(attr.name());
-            } else if (FileMetadataColumns.isFileMetadataColumn(attr.name()) == false) {
+        Set<String> metadataNames = ExternalMetadataColumns.metadataNames(attributes);
+        Set<String> stdMetaNames = new LinkedHashSet<>(metadataNames);
+        stdMetaNames.retainAll(ExternalMetadataColumns.PER_FILE_CONSTANT_NAMES);
+        for (String name : metadataNames) {
+            if (stdMetaNames.contains(name) == false && FileMetadataColumns.isFileMetadataColumn(name) == false) {
                 throw new IllegalStateException(
-                    "metadata column [" + attr.name() + "] is neither a per-file constant nor a _file.* column and cannot be materialised"
+                    "metadata column [" + name + "] is neither a per-file constant nor a _file.* column and cannot be materialised"
                 );
             }
         }

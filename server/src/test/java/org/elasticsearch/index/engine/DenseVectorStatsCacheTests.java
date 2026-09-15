@@ -215,9 +215,9 @@ public class DenseVectorStatsCacheTests extends ESTestCase {
         }
 
         @Override
-        public void prefetch(long offset, long length) throws IOException {
+        public boolean prefetch(long offset, long length) throws IOException {
             prefetches.incrementAndGet();
-            in.prefetch(offset, length);
+            return in.prefetch(offset, length);
         }
 
         @Override

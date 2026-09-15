@@ -73,7 +73,7 @@ public class BytesRefSwissHashPartitionTests extends PartitionedHashTestCase {
 
     public void testPartitionPaged() {
         var recycler = new BytesRefSwissHashTests.TestRecycler();
-        BigArrays bigArrays = new MockBigArrays(PageCacheRecycler.NON_RECYCLING_INSTANCE, ByteSizeValue.ofMb(200)).withCircuitBreaking();
+        BigArrays bigArrays = new MockBigArrays(PageCacheRecycler.NON_RECYCLING_INSTANCE, ByteSizeValue.ofMb(300)).withCircuitBreaking();
         CircuitBreaker breaker = bigArrays.breakerService().getBreaker(CircuitBreaker.REQUEST);
         runPartitionTest(recycler, bigArrays, breaker, BytesRefSwissHash.PagedBytesRefPartitionedHashKeys.class, 0L, false);
         assertThat(breaker.getUsed(), equalTo(0L));

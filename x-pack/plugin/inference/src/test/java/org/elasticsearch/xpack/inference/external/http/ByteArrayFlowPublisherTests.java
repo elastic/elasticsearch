@@ -48,10 +48,16 @@ import static org.hamcrest.Matchers.sameInstance;
  * onError), so a terminal signal must never be delivered without outstanding demand. Delivering one anyway trips an
  * assertion in the real subscriber ({@code ServerSentEventsRestActionListener}) and terminates the node, so
  * {@link TestSubscriber} enforces the same invariant here.
+ *
+ * <p>Circuit-breaker accounting is asserted through {@link TrackingCircuitBreaker}: every reservation taken for a buffered
+ * chunk must be released once the stream reaches a terminal state, whichever way it ends.</p>
  */
 public class ByteArrayFlowPublisherTests extends ESTestCase {
 
+    private static final String INFERENCE_ID = "inference-id";
+
     private ThreadPool threadPool;
+    private final AtomicLong aborts = new AtomicLong();
 
     @Before
     public void init() {
@@ -63,14 +69,12 @@ public class ByteArrayFlowPublisherTests extends ESTestCase {
         terminate(threadPool);
     }
 
-    private final AtomicBoolean exchangeAborted = new AtomicBoolean();
-
     private ByteArrayFlowPublisher publisher(Publisher<ByteBuffer> upstream) {
         return publisher(upstream, new TestCircuitBreaker());
     }
 
     private ByteArrayFlowPublisher publisher(Publisher<ByteBuffer> upstream, CircuitBreaker circuitBreaker) {
-        return new ByteArrayFlowPublisher(upstream, threadPool, circuitBreaker, "inference-id", () -> exchangeAborted.set(true));
+        return new ByteArrayFlowPublisher(upstream, threadPool, circuitBreaker, INFERENCE_ID, aborts::incrementAndGet);
     }
 
     /**
@@ -103,6 +107,126 @@ public class ByteArrayFlowPublisherTests extends ESTestCase {
         assertArrayEquals(expectedFirstChunk, subscriber.items.get(0));
         assertArrayEquals(expectedSecondChunk, subscriber.items.get(1));
         assertThat(subscriber.events, contains("onNext", "onNext", "onComplete"));
+    }
+
+    /**
+     * Given chunks flowing through the relay to a consuming downstream
+     * When the stream completes normally
+     * Then every breaker reservation taken for a buffered chunk has been released
+     */
+    public void testDeliveredChunks_ReleaseBreakerBytes() {
+        var upstream = new TestUpstreamPublisher();
+        var breaker = new TrackingCircuitBreaker();
+        var subscriber = new TestSubscriber(3);
+        publisher(upstream, breaker).subscribe(subscriber);
+
+        upstream.emit(randomByteArrayOfLength(5));
+        upstream.emit(randomByteArrayOfLength(7));
+        upstream.complete();
+
+        subscriber.awaitTerminalSignal();
+
+        assertThat(subscriber.events, contains("onNext", "onNext", "onComplete"));
+        assertThat("breaker balance must return to zero after normal completion", breaker.tracked(), equalTo(0L));
+    }
+
+    /**
+     * Given queued (accounted) chunks and a downstream that cancels
+     * When cancel() runs
+     * Then the breaker reservation is released, the upstream is cancelled, and the exchange is aborted — the reactive
+     * Subscription#cancel alone is lazy (a flag read on the next inbound chunk) and cannot tear down an idle exchange
+     */
+    public void testCancel_ReleasesBreakerBytesAndAbortsExchange() {
+        var upstream = new TestUpstreamPublisher();
+        var breaker = new TrackingCircuitBreaker();
+        var subscriber = new TestSubscriber(0); // zero demand, so emitted chunks stay queued and accounted
+        publisher(upstream, breaker).subscribe(subscriber);
+
+        upstream.emit(randomByteArrayOfLength(5));
+        upstream.emit(randomByteArrayOfLength(7));
+        assertThat("queued chunks must be accounted against the breaker", breaker.tracked(), equalTo(12L));
+
+        subscriber.subscription.cancel();
+
+        assertThat("cancel must release the breaker reservation", breaker.tracked(), equalTo(0L));
+        assertTrue("cancel must propagate to the upstream subscription", upstream.isCancelled());
+        assertThat("cancel must abort the exchange to release the leased connection promptly", aborts.get(), equalTo(1L));
+    }
+
+    /**
+     * Given a circuit breaker that trips on the next accounted chunk
+     * When the upstream emits
+     * Then the exchange is aborted (upstream cancelled AND exchange future cancelled) and the downstream is failed with the
+     * breaker's exception once demand is available
+     */
+    public void testCircuitBreakerTrip_AbortsExchangeAndFailsDownstream() {
+        var upstream = new TestUpstreamPublisher();
+        var breaker = new TestCircuitBreaker();
+        var subscriber = new TestSubscriber(0);
+        publisher(upstream, breaker).subscribe(subscriber);
+
+        breaker.startBreaking();
+        upstream.emit(randomByteArrayOfLength(5));
+
+        assertTrue("breaker trip must cancel the upstream subscription", upstream.isCancelled());
+        assertThat("breaker trip must abort the exchange to release the leased connection", aborts.get(), equalTo(1L));
+
+        subscriber.request(1);
+        subscriber.awaitTerminalSignal();
+        assertThat(subscriber.events, contains("onError"));
+        assertThat(subscriber.error, instanceOf(CircuitBreakingException.class));
+    }
+
+    /**
+     * Given queued (accounted) chunks and a downstream with zero outstanding demand
+     * When the upstream fails
+     * Then the breaker reservation is released immediately — the terminal onError still needs demand that may never arrive
+     * (e.g. a socket timeout on a stream whose client stalled), so the release must not wait for it
+     */
+    public void testAbortWithoutDemand_ReleasesBreakerBytes() {
+        var upstream = new TestUpstreamPublisher();
+        var breaker = new TrackingCircuitBreaker();
+        var subscriber = new TestSubscriber(0); // zero demand for the whole test until the end
+        publisher(upstream, breaker).subscribe(subscriber);
+
+        upstream.emit(randomByteArrayOfLength(5));
+        upstream.emit(randomByteArrayOfLength(7));
+        assertThat("queued chunks must be accounted against the breaker", breaker.tracked(), equalTo(12L));
+
+        var exception = new IllegalStateException("socket timed out");
+        upstream.error(exception);
+
+        // released synchronously by onError's eager close(), even though no terminal signal could be delivered yet
+        assertThat(breaker.tracked(), equalTo(0L));
+        assertThat(subscriber.events, is(empty()));
+
+        subscriber.request(1); // a late request still gets the terminal signal
+        subscriber.awaitTerminalSignal();
+        assertThat(subscriber.events, contains("onError"));
+        assertThat(subscriber.error, sameInstance(exception));
+        assertThat("no double release", breaker.tracked(), equalTo(0L));
+    }
+
+    /**
+     * Given an upstream failure that already recorded the stream's real cause
+     * When a later abort races it (here: a subscription-contract violation triggering abort())
+     * Then the first cause wins and the downstream receives the original exception
+     */
+    public void testUpstreamErrorIsNotOverwrittenByALaterAbort() {
+        var upstream = new TestUpstreamPublisher();
+        var subscriber = new TestSubscriber(0);
+        publisher(upstream).subscribe(subscriber);
+
+        var realCause = new IllegalStateException("socket timed out");
+        upstream.error(realCause);
+
+        // triggers abort(new IllegalArgumentException(...)) after the error is already recorded
+        subscriber.subscription.request(-1);
+
+        subscriber.request(1);
+        subscriber.awaitTerminalSignal();
+        assertThat(subscriber.events, contains("onError"));
+        assertThat("the first recorded cause must win", subscriber.error, sameInstance(realCause));
     }
 
     /**
@@ -188,76 +312,19 @@ public class ByteArrayFlowPublisherTests extends ESTestCase {
     }
 
     /**
-     * Given queued (accounted) chunks and a downstream with zero outstanding demand
-     * When the upstream fails
-     * Then the breaker reservation is released immediately — the terminal onError still needs demand that may never arrive
-     * (e.g. a socket timeout on a stream whose client stalled), so the release must not wait for it
-     */
-    public void testErrorWithoutDemandReleasesBreakerReservationImmediately() {
-        var upstream = new TestUpstreamPublisher();
-        var breaker = new BytesTrackingCircuitBreaker();
-        var subscriber = new TestSubscriber(0); // zero demand for the whole test until the end
-        publisher(upstream, breaker).subscribe(subscriber);
-
-        upstream.emit(randomByteArrayOfLength(5));
-        upstream.emit(randomByteArrayOfLength(7));
-        assertThat("queued chunks must be accounted against the breaker", breaker.used(), equalTo(12L));
-
-        var exception = new IllegalStateException("socket timed out");
-        upstream.error(exception);
-
-        // released synchronously by onError's eager close(), even though no terminal signal could be delivered yet
-        assertThat(breaker.used(), equalTo(0L));
-        assertThat(subscriber.events, is(empty()));
-
-        subscriber.request(1); // a late request still gets the terminal signal
-        subscriber.awaitTerminalSignal();
-        assertThat(subscriber.events, contains("onError"));
-        assertThat(subscriber.error, sameInstance(exception));
-        assertThat("no double release", breaker.used(), equalTo(0L));
-    }
-
-    /**
-     * Given a circuit breaker that trips on the next accounted chunk
-     * When the upstream emits
-     * Then the exchange is aborted (upstream cancelled AND exchange future cancelled) and the downstream is failed with the
-     * breaker's exception once demand is available
-     */
-    public void testBreakerTripAbortsExchange() {
-        var upstream = new TestUpstreamPublisher();
-        var breaker = new TestCircuitBreaker();
-        var subscriber = new TestSubscriber(0);
-        publisher(upstream, breaker).subscribe(subscriber);
-
-        breaker.startBreaking();
-        upstream.emit(randomByteArrayOfLength(5));
-
-        assertTrue("breaker trip must cancel the upstream subscription", upstream.isCancelled());
-        assertTrue("breaker trip must abort the exchange to release the leased connection", exchangeAborted.get());
-
-        subscriber.request(1);
-        subscriber.awaitTerminalSignal();
-        assertThat(subscriber.events, contains("onError"));
-        assertThat(subscriber.error, instanceOf(CircuitBreakingException.class));
-    }
-
-    /**
      * Given accumulated demand that would overflow a long
      * When more demand is requested
      * Then demand saturates at Long.MAX_VALUE (Reactive Streams treats it as unbounded) instead of going negative,
      * which would silently stall delivery forever
      */
-    public void testDemandSaturatesInsteadOfOverflowing() {
+    public void testRequestLongMaxValue_DoesNotOverflowDemand() {
         var upstream = new TestUpstreamPublisher();
         var events = Collections.synchronizedList(new ArrayList<String>());
         var terminal = new CountDownLatch(1);
         // a plain subscriber without the demand-tracking guard: unbounded demand deliberately exceeds what it consumes
         var subscriber = new Flow.Subscriber<byte[]>() {
-            private Flow.Subscription subscription;
-
             @Override
             public void onSubscribe(Flow.Subscription subscription) {
-                this.subscription = subscription;
                 subscription.request(Long.MAX_VALUE);
                 subscription.request(Long.MAX_VALUE); // would overflow negative without saturation
             }
@@ -292,19 +359,22 @@ public class ByteArrayFlowPublisherTests extends ESTestCase {
     /**
      * Given a publisher that already has a subscriber
      * When a second subscriber subscribes
-     * Then it is rejected with onError and the upstream is never subscribed twice — httpcore5-reactive's ReactiveDataConsumer
-     * has no second-subscriber guard and would silently displace the first subscriber, leaving it hanging.
+     * Then it receives onSubscribe followed by onError and the upstream is never subscribed twice — httpcore5-reactive's
+     * ReactiveDataConsumer has no second-subscriber guard and would silently displace the first subscriber, leaving it hanging.
      */
-    public void testSecondSubscriberIsRejected() {
+    public void testSecondSubscriber_ReceivesOnSubscribeThenOnError() {
         var upstream = new TestUpstreamPublisher();
         var publisher = publisher(upstream);
         publisher.subscribe(new TestSubscriber(0));
 
+        var events = Collections.synchronizedList(new ArrayList<String>());
         var rejected = new AtomicReference<Throwable>();
         // a plain subscriber: the rejection path deliberately delivers onError without demand, per Reactive Streams §2.9
         publisher.subscribe(new Flow.Subscriber<>() {
             @Override
-            public void onSubscribe(Flow.Subscription subscription) {}
+            public void onSubscribe(Flow.Subscription subscription) {
+                events.add("onSubscribe");
+            }
 
             @Override
             public void onNext(byte[] item) {
@@ -313,6 +383,7 @@ public class ByteArrayFlowPublisherTests extends ESTestCase {
 
             @Override
             public void onError(Throwable throwable) {
+                events.add("onError");
                 rejected.set(throwable);
             }
 
@@ -322,27 +393,9 @@ public class ByteArrayFlowPublisherTests extends ESTestCase {
             }
         });
 
+        assertThat("onSubscribe must precede onError, per the reactive spec", events, contains("onSubscribe", "onError"));
         assertThat(rejected.get(), instanceOf(IllegalStateException.class));
         assertThat("the first subscriber must keep the upstream", upstream.subscribeCalls(), equalTo(1));
-    }
-
-    /**
-     * When the downstream cancels its subscription
-     * Then the cancellation propagates to the upstream subscription
-     * And the exchange is aborted
-     */
-    public void testCancelPropagatesToUpstreamSubscriptionAndAbortsExchange() {
-        var upstream = new TestUpstreamPublisher();
-        var subscriber = new TestSubscriber(0);
-        publisher(upstream).subscribe(subscriber);
-
-        assertFalse(upstream.isCancelled());
-        assertFalse(exchangeAborted.get());
-
-        subscriber.subscription.cancel();
-
-        assertTrue(upstream.isCancelled());
-        assertTrue("cancel must also abort the exchange to release the leased connection promptly", exchangeAborted.get());
     }
 
     /**
@@ -467,29 +520,26 @@ public class ByteArrayFlowPublisherTests extends ESTestCase {
     }
 
     /**
-     * Tracks the net bytes currently claimed via addEstimateBytesAndMaybeBreak/addWithoutBreaking. A stub is required because
-     * {@link TestCircuitBreaker} does not record accounting, and the real breakers need a parent breaker service — this test only
-     * needs to observe that every reservation is eventually released.
+     * The inference breaker is a {@link NoopCircuitBreaker} in tests, so it cannot show whether reserved bytes were
+     * released. This tracks the running balance instead; it must return to zero once a stream reaches a terminal state.
+     * Thread-safe because the publisher touches the breaker from the IO reactor and the utility pool.
      */
-    private static class BytesTrackingCircuitBreaker extends NoopCircuitBreaker {
-        private final AtomicLong used = new AtomicLong();
-
-        BytesTrackingCircuitBreaker() {
-            super("test");
-        }
+    private static class TrackingCircuitBreaker extends TestCircuitBreaker {
+        private final AtomicLong tracked = new AtomicLong();
 
         @Override
         public void addEstimateBytesAndMaybeBreak(long bytes, String label) throws CircuitBreakingException {
-            used.addAndGet(bytes);
+            super.addEstimateBytesAndMaybeBreak(bytes, label);
+            tracked.addAndGet(bytes);
         }
 
         @Override
         public void addWithoutBreaking(long bytes) {
-            used.addAndGet(bytes);
+            tracked.addAndGet(bytes);
         }
 
-        private long used() {
-            return used.get();
+        long tracked() {
+            return tracked.get();
         }
     }
 }

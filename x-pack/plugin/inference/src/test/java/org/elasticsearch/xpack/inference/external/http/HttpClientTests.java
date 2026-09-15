@@ -8,6 +8,7 @@
 package org.elasticsearch.xpack.inference.external.http;
 
 import org.apache.hc.client5.http.async.methods.SimpleRequestBuilder;
+import org.apache.hc.client5.http.config.ConnectionConfig;
 import org.apache.hc.client5.http.impl.async.CloseableHttpAsyncClient;
 import org.apache.hc.client5.http.impl.nio.PoolingAsyncClientConnectionManager;
 import org.apache.hc.client5.http.impl.nio.PoolingAsyncClientConnectionManagerBuilder;
@@ -25,6 +26,7 @@ import org.apache.hc.core5.http.protocol.HttpContext;
 import org.apache.hc.core5.io.CloseMode;
 import org.apache.hc.core5.net.URIBuilder;
 import org.apache.hc.core5.reactor.IOReactorStatus;
+import org.apache.hc.core5.util.Timeout;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.action.support.TestPlainActionFuture;
@@ -238,44 +240,25 @@ public class HttpClientTests extends ESTestCase {
      * ServerSocket that keeps the socket open until the test signals completion.
      */
     public void testStream_CancelAfterPauseReleasesConnection() throws Exception {
-        var serverDone = new CountDownLatch(1);
         var chunkSent = new CountDownLatch(1);
         var subscriberReady = new CountDownLatch(1);
-        long serverThreadJoinTimeoutMillis = TimeUnit.SECONDS.toMillis(5);
-        var serverSocket = new ServerSocket(0, 1, InetAddress.getLoopbackAddress());
-        var serverThread = new Thread(() -> {
-            try (Socket socket = serverSocket.accept()) {
-                drainHttpRequestHeaders(socket.getInputStream());
+        try (var server = new RawHttpServer((socket, serverDone) -> {
+            drainHttpRequestHeaders(socket.getInputStream());
+            OutputStream out = socket.getOutputStream();
+            writeChunkedResponseHead(out);
 
-                OutputStream out = socket.getOutputStream();
-                out.write("""
-                    HTTP/1.1 200 OK\r
-                    Content-Type: application/octet-stream\r
-                    Transfer-Encoding: chunked\r
-                    \r
-                    """.getBytes(StandardCharsets.US_ASCII));
-                // Flush headers so subcriber can subscribe before body is sent
-                out.flush();
+            // Wait until the subscriber has subscribed
+            subscriberReady.await(TEST_REQUEST_TIMEOUT.seconds(), TimeUnit.SECONDS);
 
-                // Wait until the subscriber has subscribed
-                subscriberReady.await(TEST_REQUEST_TIMEOUT.seconds(), TimeUnit.SECONDS);
+            byte[] chunk = randomAlphaOfLength(8192).getBytes(StandardCharsets.UTF_8);
+            out.write((Integer.toHexString(chunk.length) + "\r\n").getBytes(StandardCharsets.US_ASCII));
+            out.write(chunk);
+            out.write("\r\n".getBytes(StandardCharsets.US_ASCII));
+            out.flush();
+            chunkSent.countDown();
 
-                byte[] chunk = randomAlphaOfLength(8192).getBytes(StandardCharsets.UTF_8);
-                out.write((Integer.toHexString(chunk.length) + "\r\n").getBytes(StandardCharsets.US_ASCII));
-                out.write(chunk);
-                out.write("\r\n".getBytes(StandardCharsets.US_ASCII));
-                out.flush();
-                chunkSent.countDown();
-
-                serverDone.await(TEST_REQUEST_TIMEOUT.seconds(), TimeUnit.SECONDS);
-            } catch (IOException | InterruptedException e) {
-                // Expected when the test closes the server socket or the client tears down the connection.
-            }
-        }, "test-stream-server");
-        serverThread.setDaemon(true);
-        serverThread.start();
-
-        try {
+            serverDone.await(TEST_REQUEST_TIMEOUT.seconds(), TimeUnit.SECONDS);
+        })) {
             var connectionManager = createConnectionManager();
             try (
                 var httpClient = HttpClient.create(
@@ -288,19 +271,8 @@ public class HttpClientTests extends ESTestCase {
             ) {
                 httpClient.start();
 
-                URI uri = new URIBuilder().setScheme("http")
-                    .setHost("localhost")
-                    .setPort(serverSocket.getLocalPort())
-                    .setPath("/" + randomAlphaOfLength(5))
-                    .build();
-                var httpPost = SimpleRequestBuilder.post(uri)
-                    .setBody(randomAlphaOfLength(5).getBytes(StandardCharsets.UTF_8), ContentType.APPLICATION_JSON)
-                    .setHeader(HttpHeaders.CONTENT_TYPE, XContentType.JSON.mediaType())
-                    .build();
-                var request = new HttpRequest(httpPost, "inferenceEntityId");
-
                 var listener = new TestPlainActionFuture<StreamingHttpResult>();
-                httpClient.stream(request, HttpClientContext.create(), listener);
+                httpClient.stream(createStreamRequest(server.port()), HttpClientContext.create(), listener);
 
                 var streamingResult = listener.actionGet(TEST_REQUEST_TIMEOUT);
 
@@ -347,14 +319,192 @@ public class HttpClientTests extends ESTestCase {
                     TimeUnit.SECONDS
                 );
             }
-        } finally {
-            serverDone.countDown();
-            serverSocket.close();
-            serverThread.join(serverThreadJoinTimeoutMillis);
         }
     }
 
-    private static void drainHttpRequestHeaders(InputStream in) throws IOException {
+    /**
+     * Given a streaming response where the server sends the head and then nothing at all
+     * When the subscriber cancels without ever calling request()
+     * Then the lease must be released.
+     *
+     * Subscription#cancel() on httpcore5-reactive's ReactiveDataConsumer only sets a flag that throwIfCancelled() reads from
+     * consume()/updateCapacity(). With no body byte ever sent neither is reached again, so this asserts the exchange is torn
+     * down through the execute() future. Unlike testStream_CancelAfterPauseReleasesConnection, no data is in flight that could
+     * mask the result.
+     */
+    public void testStream_CancelWhileProviderIsIdleReleasesConnection() throws Exception {
+        try (var server = new RawHttpServer((socket, serverDone) -> {
+            drainHttpRequestHeaders(socket.getInputStream());
+            writeChunkedResponseHead(socket.getOutputStream());
+            // send nothing at all afterwards; hold the socket open until the test finishes
+            serverDone.await(TEST_REQUEST_TIMEOUT.seconds(), TimeUnit.SECONDS);
+        })) {
+            var connectionManager = createConnectionManager();
+            try (
+                var httpClient = HttpClient.create(
+                    emptyHttpSettings(),
+                    threadPool,
+                    connectionManager,
+                    mockThrottlerManager(),
+                    new TestCircuitBreaker()
+                )
+            ) {
+                httpClient.start();
+
+                var listener = new TestPlainActionFuture<StreamingHttpResult>();
+                httpClient.stream(createStreamRequest(server.port()), HttpClientContext.create(), listener);
+
+                // the listener completes from the reactive consumer's callback after the head is parsed; at that instant
+                // consume() has never run and the capacity window is untouched, so nothing can later trip throwIfCancelled()
+                // and turn this test green for the wrong reason
+                var streamingResult = listener.actionGet(TEST_REQUEST_TIMEOUT);
+
+                assertBusy(
+                    () -> assertThat(connectionManager.getTotalStats().getLeased(), equalTo(1)),
+                    TEST_REQUEST_TIMEOUT.seconds(),
+                    TimeUnit.SECONDS
+                );
+
+                var subscriptionRef = new AtomicReference<Flow.Subscription>();
+                var subscribed = new CountDownLatch(1);
+                streamingResult.body().subscribe(new Flow.Subscriber<>() {
+                    @Override
+                    public void onSubscribe(Flow.Subscription subscription) {
+                        subscriptionRef.set(subscription);
+                        subscribed.countDown();
+                        // never request: the exchange must be torn down through the execute() future, not the cancel flag
+                    }
+
+                    @Override
+                    public void onNext(byte[] item) {}
+
+                    @Override
+                    public void onError(Throwable throwable) {}
+
+                    @Override
+                    public void onComplete() {}
+                });
+                assertTrue("subscriber must be onSubscribe'd", subscribed.await(TEST_REQUEST_TIMEOUT.seconds(), TimeUnit.SECONDS));
+
+                subscriptionRef.get().cancel();
+
+                assertBusy(
+                    () -> assertThat(connectionManager.getTotalStats().getLeased(), equalTo(0)),
+                    TEST_REQUEST_TIMEOUT.seconds(),
+                    TimeUnit.SECONDS
+                );
+            }
+        }
+    }
+
+    /**
+     * Given a streaming response where the server goes silent and nobody ever subscribes to the body
+     * When the connection socket timeout elapses
+     * Then the exchange is aborted and the leased connection is released.
+     */
+    public void testStream_SocketTimeoutReleasesAbandonedStream() throws Exception {
+        try (var server = new RawHttpServer((socket, serverDone) -> {
+            drainHttpRequestHeaders(socket.getInputStream());
+            writeChunkedResponseHead(socket.getOutputStream());
+            // go silent; hold the socket open until the test finishes
+            serverDone.await(TEST_REQUEST_TIMEOUT.seconds(), TimeUnit.SECONDS);
+        })) {
+            // the one deliberate exception to createConnectionManager()'s no-socket-timeout rule: this test verifies the
+            // timeout itself, so it builds its own manager
+            var connectionManager = PoolingAsyncClientConnectionManagerBuilder.create()
+                .setDefaultConnectionConfig(ConnectionConfig.custom().setSocketTimeout(Timeout.ofMilliseconds(500)).build())
+                .build();
+            try (
+                var httpClient = HttpClient.create(
+                    emptyHttpSettings(),
+                    threadPool,
+                    connectionManager,
+                    mockThrottlerManager(),
+                    new TestCircuitBreaker()
+                )
+            ) {
+                httpClient.start();
+
+                var listener = new TestPlainActionFuture<StreamingHttpResult>();
+                httpClient.stream(createStreamRequest(server.port()), HttpClientContext.create(), listener);
+
+                // head arrived, so the connection is leased right now; nobody ever subscribes to the body
+                listener.actionGet(TEST_REQUEST_TIMEOUT);
+                assertThat(connectionManager.getTotalStats().getLeased(), equalTo(1));
+
+                // the socket timeout is the only mechanism that can reclaim this lease
+                assertBusy(
+                    () -> assertThat(connectionManager.getTotalStats().getLeased(), equalTo(0)),
+                    TEST_REQUEST_TIMEOUT.seconds(),
+                    TimeUnit.SECONDS
+                );
+            }
+        }
+    }
+
+    private static HttpRequest createStreamRequest(int port) throws URISyntaxException {
+        URI uri = new URIBuilder().setScheme("http").setHost("localhost").setPort(port).setPath("/" + randomAlphaOfLength(5)).build();
+        var httpPost = SimpleRequestBuilder.post(uri)
+            .setBody(randomAlphaOfLength(5).getBytes(StandardCharsets.UTF_8), ContentType.APPLICATION_JSON)
+            .setHeader(HttpHeaders.CONTENT_TYPE, XContentType.JSON.mediaType())
+            .build();
+        return new HttpRequest(httpPost, "inferenceEntityId");
+    }
+
+    static void writeChunkedResponseHead(OutputStream out) throws IOException {
+        out.write("""
+            HTTP/1.1 200 OK\r
+            Content-Type: application/octet-stream\r
+            Transfer-Encoding: chunked\r
+            \r
+            """.getBytes(StandardCharsets.US_ASCII));
+        // Flush headers so the subscriber can subscribe before any body is sent
+        out.flush();
+    }
+
+    /**
+     * A raw single-connection server for connection-lease tests. The standard {@link MockWebServer} closes the socket after
+     * each response, which releases the connection regardless of what cancel or a timeout does and would mask a leaked lease,
+     * so these tests need a socket that stays open until the test signals completion: {@link #close()} releases the handler's
+     * {@code serverDone} latch first and only then closes the socket, so assertions always run against a live connection.
+     */
+    static class RawHttpServer implements AutoCloseable {
+        interface ConnectionHandler {
+            void handle(Socket socket, CountDownLatch serverDone) throws Exception;
+        }
+
+        private static final long SERVER_THREAD_JOIN_TIMEOUT_MILLIS = TimeUnit.SECONDS.toMillis(5);
+
+        private final ServerSocket serverSocket;
+        private final Thread serverThread;
+        private final CountDownLatch serverDone = new CountDownLatch(1);
+
+        RawHttpServer(ConnectionHandler handler) throws IOException {
+            serverSocket = new ServerSocket(0, 1, InetAddress.getLoopbackAddress());
+            serverThread = new Thread(() -> {
+                try (Socket socket = serverSocket.accept()) {
+                    handler.handle(socket, serverDone);
+                } catch (Exception e) {
+                    // Expected when the test closes the server socket or the client tears down the connection.
+                }
+            }, "test-stream-server");
+            serverThread.setDaemon(true);
+            serverThread.start();
+        }
+
+        int port() {
+            return serverSocket.getLocalPort();
+        }
+
+        @Override
+        public void close() throws Exception {
+            serverDone.countDown();
+            serverSocket.close();
+            serverThread.join(SERVER_THREAD_JOIN_TIMEOUT_MILLIS);
+        }
+    }
+
+    static void drainHttpRequestHeaders(InputStream in) throws IOException {
         // Read through the end of the headers (\r\n\r\n) so the server does not need to parse the request.
         byte[] terminator = { '\r', '\n', '\r', '\n' };
         int matched = 0;
@@ -418,6 +568,13 @@ public class HttpClientTests extends ESTestCase {
         return new HttpRequest(httpPost, "inferenceEntityId");
     }
 
+    /**
+     * Deliberately configures NO socket timeout, unlike production ({@code HttpClientManager.createConnectionManager}).
+     * {@code testStream_CancelWhileProviderIsIdleReleasesConnection} relies on that: with a socket timeout the reactor would
+     * eventually reclaim the lease on its own and silently turn the test green even if cancel() stopped tearing down the
+     * exchange. Do not "align" this helper with production; {@code testStream_SocketTimeoutReleasesAbandonedStream} is the one
+     * deliberate exception and builds its own manager.
+     */
     public static PoolingAsyncClientConnectionManager createConnectionManager() {
         return PoolingAsyncClientConnectionManagerBuilder.create().build();
     }

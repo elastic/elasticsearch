@@ -360,6 +360,7 @@ public class DeepSeekServiceTests extends InferenceServiceTestCase {
         }
     }
 
+    @SuppressWarnings("checkstyle:LineLength")
     public void testGetConfiguration() throws Exception {
         try (var service = createInferenceService()) {
             var content = XContentHelper.stripWhitespace(

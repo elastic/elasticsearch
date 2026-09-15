@@ -166,12 +166,12 @@ public class EqlSecurityIT extends ESRestTestCase {
         var searchRequest = new Request("POST", "eql-constant-*/_eql/search");
         setRunAsHeader(searchRequest, "eql_constant_user");
         searchRequest.setJsonEntity("""
-            {
-                "event_category_field": "event_type",
-                "query": "my_event where true",
-                "fields": ["marker", "constant_value"]
-            }
-        """);
+                {
+                    "event_category_field": "event_type",
+                    "query": "my_event where true",
+                    "fields": ["marker", "constant_value"]
+                }
+            """);
 
         var response = assertOK(client().performRequest(searchRequest));
         var responseMap = responseAsMap(response);

@@ -386,10 +386,7 @@ public class RestSqlSecurityIT extends SqlSecurityTestCase {
 
         var response = RestActions.runSql("constant_reader", mode, sql, false);
 
-        assertThat(
-            response.get("rows"),
-            equalTo(List.of(Arrays.asList("hidden-index", null), List.of("visible-index", "visible-value")))
-        );
+        assertThat(response.get("rows"), equalTo(List.of(Arrays.asList("hidden-index", null), List.of("visible-index", "visible-value"))));
     }
 
     protected class RestAuditLogAsserter extends AuditLogAsserter {

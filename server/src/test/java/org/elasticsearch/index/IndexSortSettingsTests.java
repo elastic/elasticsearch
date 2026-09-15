@@ -544,7 +544,15 @@ public class IndexSortSettingsTests extends ESTestCase {
             lookup::get,
             (ft, s) -> indexFieldDataService.getForField(
                 ft,
-                new FieldDataContext("test", indexSettings, s, Set::of, () -> false, MappedFieldType.FielddataOperation.SEARCH, Predicates.always())
+                new FieldDataContext(
+                    "test",
+                    indexSettings,
+                    s,
+                    Set::of,
+                    () -> false,
+                    MappedFieldType.FielddataOperation.SEARCH,
+                    Predicates.always()
+                )
             )
         );
     }

@@ -34,7 +34,6 @@ import org.elasticsearch.index.mapper.MapperServiceTestCase;
 import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.esql.core.expression.FieldAttribute;
-import org.hamcrest.Matchers;
 import org.junit.After;
 import org.junit.Before;
 
@@ -762,16 +761,16 @@ public class SearchContextStatsTests extends MapperServiceTestCase {
         try {
             // The visible index exposes "metric" as a date.
             MapperService visibleMapper = mapperHelper.createMapperService("""
-            {
-              "doc": {
-                "properties": {
-                  "metric": {
-                    "type": "date"
+                {
+                  "doc": {
+                    "properties": {
+                      "metric": {
+                        "type": "date"
+                      }
+                    }
                   }
                 }
-              }
-            }
-            """);
+                """);
             Directory visibleDirectory = newDirectory();
             IndexReader visibleReader;
             try (RandomIndexWriter writer = new RandomIndexWriter(random(), visibleDirectory)) {
@@ -785,10 +784,7 @@ public class SearchContextStatsTests extends MapperServiceTestCase {
             toClose.add(visibleMapper);
             toClose.add(visibleDirectory);
 
-            SearchExecutionContext visibleContext = mapperHelper.createSearchExecutionContext(
-                visibleMapper,
-                newSearcher(visibleReader)
-            );
+            SearchExecutionContext visibleContext = mapperHelper.createSearchExecutionContext(visibleMapper, newSearcher(visibleReader));
             visibleContext.setFieldVisibilityPredicate(field -> true);
 
             /*
@@ -796,16 +792,16 @@ public class SearchContextStatsTests extends MapperServiceTestCase {
              * and values outside the visible range.
              */
             MapperService hiddenMapper = mapperHelper.createMapperService("""
-            {
-              "doc": {
-                "properties": {
-                  "metric": {
-                    "type": "long"
+                {
+                  "doc": {
+                    "properties": {
+                      "metric": {
+                        "type": "long"
+                      }
+                    }
                   }
                 }
-              }
-            }
-            """);
+                """);
             Directory hiddenDirectory = newDirectory();
             IndexReader hiddenReader;
             try (RandomIndexWriter writer = new RandomIndexWriter(random(), hiddenDirectory)) {
@@ -819,10 +815,7 @@ public class SearchContextStatsTests extends MapperServiceTestCase {
             toClose.add(hiddenMapper);
             toClose.add(hiddenDirectory);
 
-            SearchExecutionContext hiddenContext = mapperHelper.createSearchExecutionContext(
-                hiddenMapper,
-                newSearcher(hiddenReader)
-            );
+            SearchExecutionContext hiddenContext = mapperHelper.createSearchExecutionContext(hiddenMapper, newSearcher(hiddenReader));
             hiddenContext.setFieldVisibilityPredicate(field -> field.equals("metric") == false);
 
             var metric = new FieldAttribute.FieldName("metric");
@@ -853,16 +846,16 @@ public class SearchContextStatsTests extends MapperServiceTestCase {
 
     public void testCountMinMaxForHiddenField() throws IOException {
         MapperService mapperService = createMapperService("""
-        {
-          "doc": {
-            "properties": {
-              "metric": {
-                "type": "date"
+            {
+              "doc": {
+                "properties": {
+                  "metric": {
+                    "type": "date"
+                  }
+                }
               }
             }
-          }
-        }
-        """);
+            """);
 
         Directory dir = newDirectory();
         IndexReader reader;
@@ -874,10 +867,7 @@ public class SearchContextStatsTests extends MapperServiceTestCase {
         }
 
         try {
-            SearchExecutionContext context = createSearchExecutionContext(
-                mapperService,
-                newSearcher(reader)
-            );
+            SearchExecutionContext context = createSearchExecutionContext(mapperService, newSearcher(reader));
             context.setFieldVisibilityPredicate(field -> field.equals("metric") == false);
 
             SearchStats stats = SearchContextStats.from(List.of(context));
@@ -899,16 +889,16 @@ public class SearchContextStatsTests extends MapperServiceTestCase {
 
         try {
             MapperService visibleMapper = mapperHelper.createMapperService("""
-            {
-              "doc": {
-                "properties": {
-                  "hidden": {
-                    "type": "keyword"
+                {
+                  "doc": {
+                    "properties": {
+                      "hidden": {
+                        "type": "keyword"
+                      }
+                    }
                   }
                 }
-              }
-            }
-            """);
+                """);
             Directory visibleDirectory = newDirectory();
             IndexReader visibleReader;
             try (RandomIndexWriter writer = new RandomIndexWriter(random(), visibleDirectory)) {
@@ -922,23 +912,20 @@ public class SearchContextStatsTests extends MapperServiceTestCase {
             toClose.add(visibleMapper);
             toClose.add(visibleDirectory);
 
-            SearchExecutionContext visibleContext = mapperHelper.createSearchExecutionContext(
-                visibleMapper,
-                newSearcher(visibleReader)
-            );
+            SearchExecutionContext visibleContext = mapperHelper.createSearchExecutionContext(visibleMapper, newSearcher(visibleReader));
             visibleContext.setFieldVisibilityPredicate(field -> true);
 
             MapperService hiddenMapper = mapperHelper.createMapperService("""
-            {
-              "doc": {
-                "properties": {
-                  "hidden": {
-                    "type": "keyword"
+                {
+                  "doc": {
+                    "properties": {
+                      "hidden": {
+                        "type": "keyword"
+                      }
+                    }
                   }
                 }
-              }
-            }
-            """);
+                """);
             Directory hiddenDirectory = newDirectory();
             IndexReader hiddenReader;
             try (RandomIndexWriter writer = new RandomIndexWriter(random(), hiddenDirectory)) {
@@ -952,10 +939,7 @@ public class SearchContextStatsTests extends MapperServiceTestCase {
             toClose.add(hiddenMapper);
             toClose.add(hiddenDirectory);
 
-            SearchExecutionContext hiddenContext = mapperHelper.createSearchExecutionContext(
-                hiddenMapper,
-                newSearcher(hiddenReader)
-            );
+            SearchExecutionContext hiddenContext = mapperHelper.createSearchExecutionContext(hiddenMapper, newSearcher(hiddenReader));
             hiddenContext.setFieldVisibilityPredicate(field -> field.equals("hidden") == false);
 
             var hidden = new FieldAttribute.FieldName("hidden");

@@ -247,11 +247,7 @@ public class QueryBuilderStoreTests extends ESTestCase {
 
     public void testPercolateSearchContextPreservesFieldVisibilityPredicate() throws IOException {
         try (Directory directory = newDirectory()) {
-            PercolatorTestSetup setup = setupPercolatorTest(
-                directory,
-                "mapped_field",
-                new QueryBuilder[0]
-            );
+            PercolatorTestSetup setup = setupPercolatorTest(directory, "mapped_field", new QueryBuilder[0]);
 
             SearchExecutionContext source = setup.baseContext();
             source.setFieldVisibilityPredicate(field -> field.equals("visible"));
@@ -271,13 +267,9 @@ public class QueryBuilderStoreTests extends ESTestCase {
                 }
             };
 
-            SearchExecutionContext percolateContext =
-                PercolateQueryBuilder.newPercolateSearchContext(source, false);
+            SearchExecutionContext percolateContext = PercolateQueryBuilder.newPercolateSearchContext(source, false);
 
-            percolateContext.getForField(
-                fieldType,
-                MappedFieldType.FielddataOperation.SEARCH
-            );
+            percolateContext.getForField(fieldType, MappedFieldType.FielddataOperation.SEARCH);
 
             assertNotNull(capturedContext.get());
             assertFalse(capturedContext.get().isFieldVisible("hidden"));

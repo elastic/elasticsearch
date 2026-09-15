@@ -336,8 +336,9 @@ public abstract class AbstractScriptFieldTypeTestCase extends MapperServiceTestC
         when(context.getForField(any(), any())).then(args -> {
             MappedFieldType ft = args.getArgument(0);
             MappedFieldType.FielddataOperation fdo = args.getArgument(1);
-            return ft.fielddataBuilder(new FieldDataContext("test", null, context::lookup, context::sourcePath, () -> false, fdo, Predicates.always()))
-                .build(new IndexFieldDataCache.None(), new NoneCircuitBreakerService());
+            return ft.fielddataBuilder(
+                new FieldDataContext("test", null, context::lookup, context::sourcePath, () -> false, fdo, Predicates.always())
+            ).build(new IndexFieldDataCache.None(), new NoneCircuitBreakerService());
         });
         when(context.getMatchingFieldNames(any())).thenReturn(Set.of("dummy_field"));
         return context;

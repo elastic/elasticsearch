@@ -69,7 +69,6 @@ import org.elasticsearch.xpack.security.LocalStateSecurity;
 import org.elasticsearch.xpack.spatial.SpatialPlugin;
 import org.elasticsearch.xpack.spatial.index.query.ShapeQueryBuilder;
 import org.elasticsearch.xpack.wildcard.Wildcard;
-import org.hamcrest.Matchers;
 
 import java.io.IOException;
 import java.util.Arrays;

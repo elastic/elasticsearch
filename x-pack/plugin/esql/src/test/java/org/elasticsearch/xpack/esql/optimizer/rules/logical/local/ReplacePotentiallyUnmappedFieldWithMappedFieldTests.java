@@ -128,10 +128,10 @@ public class ReplacePotentiallyUnmappedFieldWithMappedFieldTests extends Abstrac
 
     public void testFieldMissingFromFieldCapsNotReplacedWhenMappedOnDataNode() {
         var plan = planWithLoad("""
-          FROM test
-        | WHERE does_not_exist == "x"
-        | KEEP does_not_exist
-        """);
+              FROM test
+            | WHERE does_not_exist == "x"
+            | KEEP does_not_exist
+            """);
 
         var coordinatorFields = fieldAttributes(plan, "does_not_exist");
         assertThat(coordinatorFields, not(empty()));

@@ -49,8 +49,8 @@ public class PromqlParser {
     /**
      * Maximum number of binary operators allowed in a single PromQL expression. A chained binary expression
      * (e.g. {@code metric + metric + ...}) builds a linear parse tree whose heap footprint grows ~1.7KB per
-     * operator — 40k operators alone exhaust a 1GB heap before the post-parse depth check in
-     * {@link PromqlAstBuilder} runs. Legitimate queries stay orders of magnitude below this (and chains
+     * input byte — a ~560KB / 40k-operator chain peaks at ~950MB, exhausting a 1GB heap before the post-parse
+     * depth check in {@link PromqlAstBuilder} runs. Legitimate queries stay orders of magnitude below this (and chains
      * deeper than {@link PromqlAstBuilder#MAX_EXPRESSION_DEPTH} are rejected post-parse anyway).
      * See <a href="https://github.com/elastic/security/issues/12593">security#12593</a>.
      */

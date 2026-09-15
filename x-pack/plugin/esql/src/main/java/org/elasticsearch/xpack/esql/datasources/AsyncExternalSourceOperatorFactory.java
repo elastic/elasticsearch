@@ -135,6 +135,8 @@ public class AsyncExternalSourceOperatorFactory implements SourceOperator.Source
 
     private final StorageProvider storageProvider;
     private final FormatReader formatReader;
+    @Nullable
+    private final FormatReaderRegistry formatReaderRegistry;
     private final StoragePath path;
     private final List<Attribute> attributes;
     // Node telemetry sink, attached to each storage object as it is opened (see attachStorageMetrics).
@@ -356,6 +358,7 @@ public class AsyncExternalSourceOperatorFactory implements SourceOperator.Source
     private AsyncExternalSourceOperatorFactory(
         StorageProvider storageProvider,
         FormatReader formatReader,
+        @Nullable FormatReaderRegistry formatReaderRegistry,
         StoragePath path,
         List<Attribute> attributes,
         int batchSize,
@@ -413,6 +416,7 @@ public class AsyncExternalSourceOperatorFactory implements SourceOperator.Source
 
         this.storageProvider = storageProvider;
         this.formatReader = formatReader;
+        this.formatReaderRegistry = formatReaderRegistry;
         this.path = path;
         this.attributes = attributes;
         this.readerResolvedAttributes = stripRowPosition(attributes);
@@ -547,6 +551,8 @@ public class AsyncExternalSourceOperatorFactory implements SourceOperator.Source
     public static final class Builder {
         private final StorageProvider storageProvider;
         private final FormatReader formatReader;
+        @Nullable
+        private FormatReaderRegistry formatReaderRegistry;
         private final StoragePath path;
         private final List<Attribute> attributes;
         private final int batchSize;
@@ -829,10 +835,20 @@ public class AsyncExternalSourceOperatorFactory implements SourceOperator.Source
             return this;
         }
 
+        /**
+         * Registry used to wrap the configured reader with this file's compression codec. Null in tests
+         * that omit it: {@code wrapForObject} is then a no-op and the factory's reader is used as-is.
+         */
+        public Builder formatReaderRegistry(@Nullable FormatReaderRegistry formatReaderRegistry) {
+            this.formatReaderRegistry = formatReaderRegistry;
+            return this;
+        }
+
         public AsyncExternalSourceOperatorFactory build() {
             return new AsyncExternalSourceOperatorFactory(
                 storageProvider,
                 formatReader,
+                formatReaderRegistry,
                 path,
                 attributes,
                 batchSize,
@@ -1539,7 +1555,30 @@ public class AsyncExternalSourceOperatorFactory implements SourceOperator.Source
         // Stamp how THIS file is read, from the split's own coordinator-minted schema. Deliberately not from the
         // schema handed to the reader below: that one is physicalized and narrowed to the per-file projection, so a
         // value derived from it would not match the coordinator's.
-        return readerForMapping(fileSplit.columnMapping()).withReadConfig(readConfigFingerprinter.apply(fileSplit.readSchema()));
+        FormatReader reader = readerForMapping(fileSplit.columnMapping()).withReadConfig(
+            readConfigFingerprinter.apply(fileSplit.readSchema())
+        );
+        return wrapForObject(reader, fileSplit.path().objectName());
+    }
+
+    /**
+     * Wraps the already-configured reader with this object's compression codec. Does not allocate a fresh
+     * inner via {@link FormatReaderRegistry#byNameForObject}. No-op when the builder was given no registry.
+     */
+    private FormatReader wrapForObject(FormatReader reader, String objectName) {
+        if (formatReaderRegistry == null || objectName == null || objectName.isEmpty()) {
+            return reader;
+        }
+        return formatReaderRegistry.wrapForObject(reader, objectName);
+    }
+
+    @Nullable
+    private static String objectNameOf(@Nullable StorageObject storageObject) {
+        if (storageObject == null) {
+            return null;
+        }
+        StoragePath objectPath = storageObject.path();
+        return objectPath == null ? null : objectPath.objectName();
     }
 
     @Nullable
@@ -2319,9 +2358,14 @@ public class AsyncExternalSourceOperatorFactory implements SourceOperator.Source
 
         // Batch-read path is gated on partitionColumnNames.isEmpty() in {@link #batchReadCapable},
         // so dataProjectedColumns() returns the full attribute list and no virtual-column wrapping
-        // is needed.
+        // is needed. Wrap the unwrapped factory reader with the first claimed object's codec so a
+        // future homogeneous gzip batch decompresses. Mixed gzip+plain in one batch still cannot
+        // share one RangeAwareFormatReader — keep batchReadCapable false until readAll is per-split.
         List<String> cols = dataProjectedColumns();
-        RangeAwareFormatReader rangeReader = (RangeAwareFormatReader) readerWithDynamicThreshold(formatReader);
+        String firstObjectName = objectNameOf(splitRefs.get(0).object());
+        RangeAwareFormatReader rangeReader = (RangeAwareFormatReader) readerWithDynamicThreshold(
+            wrapForObject(formatReader, firstObjectName)
+        );
         CloseableIterator<Page> pages = null;
         try {
             pages = rangeReader.readAll(splitRefs, cols, batchSize);
@@ -2393,8 +2437,11 @@ public class AsyncExternalSourceOperatorFactory implements SourceOperator.Source
             // Filter adaptation uses the query-width mapping. An empty queryDataSchema (COUNT(*),
             // KEEP-partition-only) skips adaptSchema and must not hand mapFilters a unified-width
             // mapping; pass null so pushedExpressions reach the reader unchanged, as before.
-            FormatReader fileReader = readerForMapping(queryDataSchema.isEmpty() ? null : mapping).withReadConfig(
-                readConfigFingerprinter.apply(perFileReadSchema)
+            FormatReader fileReader = wrapForObject(
+                readerForMapping(queryDataSchema.isEmpty() ? null : mapping).withReadConfig(
+                    readConfigFingerprinter.apply(perFileReadSchema)
+                ),
+                filePath.objectName()
             );
             SharedErrorBudget fileBudget = SharedErrorBudget.forPolicy(errorPolicy, filePath.toString());
             pages = openWithParallelism(
@@ -2521,7 +2568,10 @@ public class AsyncExternalSourceOperatorFactory implements SourceOperator.Source
             .informationalWarningSink(bufferedInformationalWarningSink(buffer))
             .build();
         // No split here — this rail reads one whole file, so the pre-prune unified schema IS that file's schema.
-        FormatReader reader = readerWithDynamicThreshold(formatReader).withReadConfig(readConfigFingerprinter.apply(unifiedReadSchema));
+        FormatReader reader = wrapForObject(
+            readerWithDynamicThreshold(formatReader).withReadConfig(readConfigFingerprinter.apply(unifiedReadSchema)),
+            objectNameOf(storageObject)
+        );
         long wallStart = System.nanoTime();
         reader.readAsync(storageObject, ctx, executor, buffer.readCounters(), ActionListener.wrap(iterator -> {
             // record wall time async took
@@ -2552,7 +2602,10 @@ public class AsyncExternalSourceOperatorFactory implements SourceOperator.Source
         ActionListener<Void> failureListener = failureListener(buffer, driverContext);
         executor.execute(ActionRunnable.run(failureListener, () -> {
             // Split-less whole-file read, as in the native-async branch above: the unified schema is this file's.
-            FormatReader reader = readerWithDynamicThreshold(formatReader).withReadConfig(readConfigFingerprinter.apply(unifiedReadSchema));
+            FormatReader reader = wrapForObject(
+                readerWithDynamicThreshold(formatReader).withReadConfig(readConfigFingerprinter.apply(unifiedReadSchema)),
+                objectNameOf(storageObject)
+            );
             // Install the hard-cancel signal as the ambient StorageRetryCancellation scope for the blocking open,
             // so a parked storage retry/throttle backoff aborts on cancel rather than sleeping out its budget.
             CloseableIterator<Page> pages = StorageRetryCancellation.callWithCancellation(buffer::readCancelled, () -> {

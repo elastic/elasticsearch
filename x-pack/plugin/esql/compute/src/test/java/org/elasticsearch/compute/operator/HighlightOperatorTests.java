@@ -615,8 +615,6 @@ public class HighlightOperatorTests extends OperatorTestCase {
         assertKeepSetDiscriminates(TermRangeQuery.newStringRange(CONTENT_FIELD, "fo", "fp", true, false), "fox", "zebra");
     }
 
-    // A match-none SHOULD clause (from a derived query naming a field HIGHLIGHT does not target) must not
-    // switch off the keep-set optimisation.
     public void testMatchNoneClauseDoesNotDisableKeepSet() {
         Query query = new BooleanQuery.Builder().add(contentTerm("fox"), BooleanClause.Occur.SHOULD)
             .add(new MatchNoDocsQuery("unmapped fields [year]"), BooleanClause.Occur.SHOULD)

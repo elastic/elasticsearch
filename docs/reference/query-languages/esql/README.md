@@ -168,6 +168,9 @@ This metadata accepts a lifecycle and an optional version. The version supports 
 - `X.x-Y.y` applies to a version range, for example `9.4-9.6`
 - `X.x+` applies to that version and later, for example `9.5+`
 
+> [!IMPORTANT]
+> Unsure which version tag to use? Ask your coding agent to use the [`applies_to` tagging skill](https://github.com/elastic/elastic-docs-skills/blob/main/skills/authoring/applies-to-tagging/SKILL.md). Use the [Elastic docs skills repository](https://github.com/elastic/elastic-docs-skills) for more tools that can help with documentation contributions.
+
 ### Annotate functions and operators
 
 Use the `@FunctionAppliesTo` annotation within the `@FunctionInfo` annotation on function and operator classes to specify the lifecycle and version for functions and operators.
@@ -474,3 +477,4 @@ Locally this writes the generated files straight into the directories above (`ge
 - [How to contribute to Elastic docs](https://www.elastic.co/docs/contribute-docs)
 - [Elastic markdown syntax reference](https://www.elastic.co/docs/contribute-docs/syntax-quick-reference)
 - [Docs tools](https://www.elastic.co/docs/contribute-docs/tools)
+- [Elastic docs skills for coding agents](https://github.com/elastic/elastic-docs-skills)

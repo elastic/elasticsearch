@@ -1,0 +1,7 @@
+FROM languages,
+     (FROM languages,
+           (FROM languages,
+                 (FROM employees | WHERE salary > 0)
+           )
+     )
+| WHERE emp_no > 10000

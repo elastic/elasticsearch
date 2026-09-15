@@ -1,0 +1,772 @@
+//
+// CSV spec for nested branch (nested subquery) tests
+//
+
+nestedSubqueryWithFilterInMainQuery
+required_capability: subquery_in_from_command
+required_capability: nested_subquery_in_from_command
+
+FROM employees,
+     (FROM employees,
+           (FROM sample_data))
+| WHERE (emp_no >= 10091 AND emp_no < 10094) OR emp_no IS NULL
+| SORT emp_no, client_ip
+| KEEP emp_no, languages, client_ip
+;
+
+emp_no:integer | languages:integer | client_ip:ip
+10091          | 3                 | null
+10091          | 3                 | null
+10092          | 1                 | null
+10092          | 1                 | null
+10093          | 3                 | null
+10093          | 3                 | null
+null           | null              | 172.21.0.5
+null           | null              | 172.21.2.113
+null           | null              | 172.21.2.162
+null           | null              | 172.21.3.15
+null           | null              | 172.21.3.15
+null           | null              | 172.21.3.15
+null           | null              | 172.21.3.15
+;
+
+nestedSubqueryWithStatsInMainQuery
+required_capability: subquery_in_from_command
+required_capability: nested_subquery_in_from_command
+
+FROM employees,
+     (FROM employees,
+           (FROM sample_data))
+| STATS c = COUNT(*)
+;
+
+c:long
+207
+;
+
+nestedSubqueryThreeLevelsWithStatsInMainQuery
+required_capability: subquery_in_from_command
+required_capability: nested_subquery_in_from_command
+
+FROM employees,
+     (FROM employees,
+           (FROM employees,
+                 (FROM sample_data)))
+| STATS c = COUNT(*)
+;
+
+c:long
+307
+;
+
+nestedSubqueryWithStatsByGroupInMainQuery
+required_capability: subquery_in_from_command
+required_capability: nested_subquery_in_from_command
+
+FROM employees,
+     (FROM employees,
+           (FROM sample_data))
+| STATS c = COUNT(*) BY missing_emp_no = emp_no IS NULL
+| SORT missing_emp_no
+;
+
+c:long | missing_emp_no:boolean
+200    | false
+7      | true
+;
+
+nestedSubqueryWithFilterStatsInMainQuery
+required_capability: subquery_in_from_command
+required_capability: nested_subquery_in_from_command
+
+FROM employees,
+     (FROM employees,
+           (FROM sample_data))
+| WHERE emp_no IS NULL OR emp_no < 10005
+| STATS c = COUNT(*)
+;
+
+c:long
+15
+;
+
+nestedSubqueryWithWhereAndInlineStatsInMainQuery
+required_capability: subquery_in_from_command
+required_capability: nested_subquery_in_from_command
+required_capability: inline_stats
+
+FROM employees,
+     (FROM (FROM employees | WHERE emp_no <= 10003),
+           (FROM employees | WHERE emp_no >= 10098))
+| INLINE STATS c = COUNT(*)
+| STATS rows = COUNT(*), c = MAX(c)
+;
+
+rows:long | c:long
+106       | 106
+;
+
+nestedSubqueryThreeLevelsWithWhereAndStatsAndInlineStatsInMainQuery
+required_capability: subquery_in_from_command
+required_capability: nested_subquery_in_from_command
+required_capability: inline_stats
+
+FROM (FROM employees | WHERE emp_no <= 10005),
+     (FROM (FROM employees | WHERE emp_no <= 10003),
+           (FROM employees | WHERE emp_no >= 10098 | STATS mx = MAX(salary)))
+| INLINE STATS c = COUNT(*), max_mx = MAX(mx)
+| STATS rows = COUNT(*), c = MAX(c), max_mx = MAX(max_mx)
+;
+
+rows:long | c:long | max_mx:integer
+9         | 9      | 73578
+;
+
+nestedSubqueryWithWhereAndInlineStatsByGroupInMainQuery
+required_capability: subquery_in_from_command
+required_capability: nested_subquery_in_from_command
+required_capability: inline_stats
+
+FROM employees,
+     (FROM (FROM employees | WHERE emp_no <= 10005),
+           (FROM sample_data | WHERE event_duration > 1000000))
+| INLINE STATS c = COUNT(*) BY missing_emp_no = emp_no IS NULL
+| STATS rows = COUNT(*), c = MAX(c) BY missing_emp_no
+| SORT missing_emp_no
+;
+
+rows:long | c:long | missing_emp_no:boolean
+105       | 105    | false
+6         | 6      | true
+;
+
+nestedSubqueryWithFilterWhereAndInlineStatsInMainQuery
+required_capability: subquery_in_from_command
+required_capability: nested_subquery_in_from_command
+required_capability: inline_stats
+
+FROM employees,
+     (FROM (FROM employees | WHERE emp_no < 10005),
+           (FROM sample_data | WHERE event_duration == 1232382))
+| WHERE emp_no IS NULL OR emp_no < 10005
+| INLINE STATS c = COUNT(*)
+| STATS rows = COUNT(*), c = MAX(c)
+;
+
+rows:long | c:long
+9         | 9
+;
+
+nestedSubqueryWithLookupJoinAndInlineStatsInMainQuery
+required_capability: subquery_in_from_command
+required_capability: nested_subquery_in_from_command
+required_capability: inline_stats
+required_capability: join_lookup_v12
+
+FROM
+  (FROM
+     (FROM employees
+      | WHERE emp_no == 10001
+      | EVAL language_code = languages
+      | LOOKUP JOIN languages_lookup ON language_code
+      | KEEP emp_no, language_name),
+     (FROM employees | WHERE emp_no == 10002)
+  ),
+  (FROM
+     (FROM employees | WHERE emp_no == 10003),
+     (FROM employees | WHERE emp_no == 10004)
+  )
+| INLINE STATS c = COUNT(*) BY language_name
+| KEEP emp_no, language_name, c
+| SORT emp_no
+;
+
+emp_no:integer | language_name:keyword | c:long
+10001          | French                | 1
+10002          | null                  | 3
+10003          | null                  | 3
+10004          | null                  | 3
+;
+
+nestedSubqueryWithInlineStatsInsideAndInlineStatsInMainQuery
+required_capability: subquery_in_from_command
+required_capability: nested_subquery_in_from_command
+required_capability: inline_stats
+
+FROM
+  (FROM
+     (FROM employees | WHERE emp_no <= 10005 | INLINE STATS branch_max = MAX(salary) | KEEP emp_no, salary, branch_max),
+     (FROM employees | WHERE emp_no == 10001 | KEEP emp_no, salary)
+  ),
+  (FROM employees | WHERE emp_no == 10002 | KEEP emp_no, salary)
+| INLINE STATS c = COUNT(*)
+| KEEP emp_no, salary, branch_max, c
+| SORT emp_no, branch_max NULLS FIRST
+;
+
+emp_no:integer | salary:integer | branch_max:integer | c:long
+10001          | 57305          | null               | 7
+10001          | 57305          | 63528              | 7
+10002          | 56371          | null               | 7
+10002          | 56371          | 63528              | 7
+10003          | 61805          | 63528              | 7
+10004          | 36174          | 63528              | 7
+10005          | 63528          | 63528              | 7
+;
+
+nestedSubqueryWithStatsInsideAndInlineStatsPruning
+required_capability: subquery_in_from_command
+required_capability: nested_subquery_in_from_command
+required_capability: inline_stats
+required_capability: subquery_in_from_command_inline_stats_pruning
+
+FROM employees,
+     (FROM (FROM employees | WHERE emp_no <= 10010 | STATS c1 = COUNT(*)),
+           (FROM employees | WHERE emp_no > 10090 | STATS c2 = COUNT(*)))
+| EVAL x = emp_no
+| INLINE STATS d = MAX(x)
+| STATS d2 = COUNT(*)
+;
+
+d2:long
+102
+;
+
+nestedSubqueryWithStatsInsideAndInlineStatsOutputUsed
+required_capability: subquery_in_from_command
+required_capability: nested_subquery_in_from_command
+required_capability: inline_stats
+required_capability: subquery_in_from_command_inline_stats_pruning
+
+FROM
+  (FROM
+     (FROM employees | WHERE emp_no <= 10005 | STATS mx = MAX(emp_no)),
+     (FROM employees | WHERE emp_no > 10095 | STATS mx = MAX(emp_no))
+  ),
+  (FROM employees | WHERE emp_no == 10001)
+| INLINE STATS d = MAX(mx)
+| STATS cnt = COUNT(d), max_d = MAX(d)
+;
+
+cnt:long | max_d:integer
+3        | 10100
+;
+
+nestedSubqueryWithFilterInsideSubquery
+required_capability: subquery_in_from_command
+required_capability: nested_subquery_in_from_command
+
+FROM employees,
+     (FROM employees,
+           (FROM sample_data)
+     | WHERE emp_no > 10000)
+| STATS c = COUNT(*)
+;
+
+c:long
+200
+;
+
+nestedSubqueryWithImplicitDateNanosCast
+required_capability: subquery_in_from_command
+required_capability: subquery_in_from_command_union_types_conflict_resolution
+required_capability: nested_subquery_in_from_command
+
+FROM sample_data,
+     (FROM sample_data_ts_nanos,
+           (FROM sample_data))
+| WHERE event_duration == 1232382
+| KEEP @timestamp, event_duration, message
+| SORT @timestamp
+;
+
+@timestamp:date_nanos          | event_duration:long | message:keyword
+2023-10-23T13:33:34.937Z       | 1232382             | Disconnected
+2023-10-23T13:33:34.937Z       | 1232382             | Disconnected
+2023-10-23T13:33:34.937123456Z | 1232382             | Disconnected
+;
+
+nestedSubqueryWithFromAndRowSources
+required_capability: subquery_in_from_command
+required_capability: nested_subquery_in_from_command
+required_capability: subquery_with_row
+
+FROM employees,
+     (FROM (ROW emp_no=1, first_name="row"),
+           employees)
+| STATS c = COUNT(*)
+;
+
+c:long
+201
+;
+
+nestedSubqueryWithMultipleRowsFromSources
+required_capability: subquery_in_from_command
+required_capability: nested_subquery_in_from_command
+required_capability: subquery_with_row
+
+FROM (ROW emp_no=1, first_name="row1"),
+     (FROM (ROW emp_no=2, first_name="row2"),
+           (FROM employees | WHERE emp_no == 10001))
+| STATS c = COUNT(*)
+;
+
+c:long
+3
+;
+
+nestedSubqueryThreeBranchesWithFilterStatsInMainQuery
+required_capability: subquery_in_from_command
+required_capability: nested_subquery_in_from_command
+
+FROM
+  (FROM
+     (FROM employees | WHERE emp_no == 10001),
+     (FROM employees | WHERE emp_no == 10002),
+     employees
+  ),
+  (FROM
+     (FROM employees | WHERE emp_no == 10004),
+     (FROM employees | WHERE emp_no == 10005),
+     employees
+  ),
+  employees 
+| WHERE emp_no < 10006
+| STATS c = COUNT(*)
+;
+
+c:long
+19
+;
+
+nestedSubqueryWithLookupJoinInSubquery
+required_capability: subquery_in_from_command
+required_capability: nested_subquery_in_from_command
+required_capability: join_lookup_v12
+
+FROM
+  (FROM
+     (FROM employees
+      | WHERE emp_no == 10001
+      | EVAL language_code = languages
+      | LOOKUP JOIN languages_lookup ON language_code
+      | KEEP emp_no, language_name),
+     (FROM employees | WHERE emp_no == 10002)
+  ),
+  (FROM
+     (FROM employees | WHERE emp_no == 10003),
+     (FROM employees | WHERE emp_no == 10004)
+  )
+| KEEP emp_no, language_name
+| SORT emp_no, language_name
+;
+
+emp_no:integer | language_name:keyword
+10001          | French
+10002          | null
+10003          | null
+10004          | null
+;
+
+nestedSubqueryWithLookupJoinBetweenSubqueries
+required_capability: subquery_in_from_command
+required_capability: nested_subquery_in_from_command
+required_capability: join_lookup_v12
+
+FROM
+  (FROM
+     (FROM employees | WHERE emp_no == 10001),
+     (FROM employees | WHERE emp_no == 10002)
+   | EVAL language_code = languages
+   | LOOKUP JOIN _coordinator:languages_lookup ON language_code
+   | KEEP emp_no, language_name
+  ),
+  (FROM
+     (FROM employees | WHERE emp_no == 10003),
+     (FROM employees | WHERE emp_no == 10004)
+  )
+| KEEP emp_no, language_name
+| SORT emp_no, language_name
+;
+
+emp_no:integer | language_name:keyword
+10001          | French
+10002          | null
+10003          | null
+10004          | null
+;
+
+nestedSubqueryWithAggregatesInSubqueries
+required_capability: subquery_in_from_command
+required_capability: nested_subquery_in_from_command
+
+FROM
+  (FROM
+     (FROM employees | WHERE emp_no <= 10002 | STATS c1 = COUNT(*)),
+     (FROM employees | WHERE emp_no <= 10004 | STATS c2 = COUNT(*))
+  ),
+  (FROM
+     (FROM employees | WHERE emp_no <= 10006),
+     (FROM employees | WHERE emp_no <= 10008)
+   | STATS c3 = COUNT(*)
+  )
+| KEEP c1, c2, c3
+| SORT c1, c2, c3
+;
+
+c1:long | c2:long | c3:long
+2       | null    | null
+null    | 4       | null
+null    | null    | 14
+;
+
+nestedSubqueryWithInSubqueryInsideSubquery
+required_capability: subquery_in_from_command
+required_capability: nested_subquery_in_from_command
+required_capability: where_in_subquery_without_view
+
+FROM
+  (FROM employees
+   | WHERE emp_no IN (FROM employees
+                      | WHERE emp_no <= 10002
+                      | KEEP emp_no)),
+  (FROM employees
+   | WHERE emp_no == 10003)
+| STATS c = COUNT(*)
+;
+
+c:long
+3
+;
+
+nestedSubqueryWithConjunctiveNotInSubqueryInsideSubquery
+required_capability: subquery_in_from_command
+required_capability: nested_subquery_in_from_command
+required_capability: where_in_subquery_without_view
+
+FROM
+  (FROM
+     (FROM employees
+      | WHERE emp_no <= 10005 
+          AND emp_no NOT IN (FROM employees
+                                  | WHERE emp_no <= 10003
+                                  | KEEP emp_no)),
+     (FROM employees | WHERE emp_no == 10001)
+  ),
+  (FROM employees | WHERE emp_no == 10006)
+| STATS c = COUNT(*)
+;
+
+c:long
+4
+;
+
+nestedSubqueryWithDisjunctiveInSubqueryInsideSubquery
+required_capability: subquery_in_from_command
+required_capability: nested_subquery_in_from_command
+required_capability: where_in_subquery_without_view
+
+FROM
+  (FROM
+     (FROM employees
+      | WHERE emp_no == 10001
+          OR emp_no IN (FROM employees
+                        | WHERE emp_no == 10002
+                        | KEEP emp_no)),
+     (FROM employees | WHERE emp_no == 10003)
+  )
+| STATS c = COUNT(*)
+;
+
+c:long
+3
+;
+
+nestedSubqueryWithInSubqueryInsideMultipleSubqueries
+required_capability: subquery_in_from_command
+required_capability: nested_subquery_in_from_command
+required_capability: where_in_subquery_without_view
+
+FROM
+  (FROM
+     (FROM
+        (FROM employees | WHERE emp_no IN (FROM employees | WHERE emp_no == 10001 | KEEP emp_no)),
+        (FROM employees | WHERE emp_no == 10002)
+     ),
+     (FROM employees | WHERE emp_no == 10003)
+  ),
+  (FROM
+     (FROM employees | WHERE emp_no <= 10005 AND emp_no NOT IN (FROM employees | WHERE emp_no <= 10004 | KEEP emp_no))
+  )
+| STATS c = COUNT(*)
+;
+
+c:long
+4
+;
+
+nestedSubqueryWithMetadata
+required_capability: subquery_in_from_command
+required_capability: nested_subquery_in_from_command
+required_capability: metadata_fields
+
+FROM 
+  (FROM employees METADATA _index | WHERE emp_no == 10001 | KEEP emp_no, _index),
+  (FROM sample_data METADATA _index | SORT @timestamp | LIMIT 1 | KEEP @timestamp, _index),
+  (FROM employees,
+        (FROM sample_data METADATA _index | SORT @timestamp DESC | LIMIT 1 | KEEP @timestamp, _index)
+        METADATA _index 
+   | WHERE emp_no == 10002 OR emp_no IS NULL | KEEP emp_no, _index, @timestamp)
+  METADATA _index
+| EVAL _index = MV_LAST(SPLIT(_index, ":"))
+| KEEP _index, emp_no, @timestamp
+| SORT _index, emp_no, @timestamp
+;
+
+_index:keyword | emp_no:integer | @timestamp:date
+employees      | 10001          | null
+employees      | 10002          | null
+sample_data    | null           | 2023-10-23T12:15:03.360Z
+sample_data    | null           | 2023-10-23T13:55:01.543Z
+;
+
+nestedSubqueryNullifyUnmappedFieldWithStats
+required_capability: subquery_in_from_command
+required_capability: nested_subquery_in_from_command
+required_capability: optional_fields_nullify_tech_preview
+
+SET unmapped_fields="nullify"\;
+FROM employees,
+     (FROM employees,
+           (FROM sample_data))
+| STATS c = COUNT(*), null_count = COUNT(does_not_exist_field) BY is_null = does_not_exist_field IS NULL
+;
+
+c:long | null_count:long | is_null:boolean
+207    | 0               | true
+;
+
+nestedSubqueryNullifyUnmappedFieldInWhereInInnerSubquery
+required_capability: subquery_in_from_command
+required_capability: nested_subquery_in_from_command
+required_capability: optional_fields_nullify_tech_preview
+
+SET unmapped_fields="nullify"\;
+FROM (FROM employees | WHERE emp_no == 10001),
+     (FROM (FROM employees | WHERE emp_no == 10002 AND does_not_exist_field IS NULL),
+           (FROM employees | WHERE emp_no == 10003))
+| KEEP emp_no
+| SORT emp_no
+;
+
+emp_no:integer
+10001
+10002
+10003
+;
+
+nestedSubqueryNullifyUnmappedFieldInSortInMainQuery
+required_capability: subquery_in_from_command
+required_capability: nested_subquery_in_from_command
+required_capability: optional_fields_nullify_tech_preview
+
+SET unmapped_fields="nullify"\;
+FROM (FROM employees | WHERE emp_no == 10003),
+     (FROM (FROM employees | WHERE emp_no == 10001),
+           (FROM employees | WHERE emp_no == 10002))
+| SORT does_not_exist_field, emp_no
+| KEEP emp_no
+;
+
+emp_no:integer
+10001
+10002
+10003
+;
+
+nestedSubqueryNullifyUnmappedFieldInStatsInInnerSubquery
+required_capability: subquery_in_from_command
+required_capability: nested_subquery_in_from_command
+required_capability: optional_fields_nullify_tech_preview
+
+SET unmapped_fields="nullify"\;
+FROM employees,
+     (FROM (FROM employees | WHERE emp_no <= 10005 | STATS c = COUNT(*) BY does_not_exist_field),
+           (FROM employees | WHERE emp_no > 10095))
+| KEEP c
+| WHERE c IS NOT NULL
+;
+
+c:long
+5
+;
+
+nestedSubqueryNullifyUnmappedFieldInLookupJoinBranch
+required_capability: subquery_in_from_command
+required_capability: nested_subquery_in_from_command
+required_capability: optional_fields_nullify_tech_preview
+required_capability: join_lookup_v12
+
+SET unmapped_fields="nullify"\;
+FROM (FROM employees
+      | WHERE emp_no == 10001
+      | EVAL language_code = languages
+      | LOOKUP JOIN languages_lookup ON language_code),
+     (FROM (FROM employees | WHERE emp_no == 10002),
+           (FROM employees | WHERE emp_no == 10003))
+| KEEP emp_no, language_name, does_not_exist_field
+| SORT emp_no
+;
+
+emp_no:integer | language_name:keyword | does_not_exist_field:null
+10001          | French                | null
+10002          | null                  | null
+10003          | null                  | null
+;
+
+nestedSubqueryLoadUnmappedFieldInWhereInMainQuery
+required_capability: subquery_in_from_command
+required_capability: nested_subquery_in_from_command
+required_capability: optional_fields_load_with_fork_subqueries_and_views
+
+SET unmapped_fields="load"\;
+FROM (FROM employees | WHERE emp_no == 10001),
+     (FROM (FROM employees | WHERE emp_no == 10002),
+           (FROM employees | WHERE emp_no == 10003))
+| WHERE does_not_exist_field IS NULL
+| KEEP emp_no, does_not_exist_field
+| SORT emp_no
+;
+
+emp_no:integer | does_not_exist_field:keyword
+10001          | null
+10002          | null
+10003          | null
+;
+
+nestedSubqueryLoadUnmappedFieldInSortInInnerSubquery
+required_capability: subquery_in_from_command
+required_capability: nested_subquery_in_from_command
+required_capability: optional_fields_load_with_fork_subqueries_and_views
+
+SET unmapped_fields="load"\;
+FROM (FROM employees | WHERE emp_no <= 10003 | SORT does_not_exist_field, emp_no | LIMIT 2),
+     (FROM employees | WHERE emp_no > 10098)
+| KEEP emp_no, does_not_exist_field
+| SORT emp_no
+;
+
+emp_no:integer | does_not_exist_field:keyword
+10001          | null
+10002          | null
+10099          | null
+10100          | null
+;
+
+// Tests using partial_mapping_sample_data: fields present in _source but not in the mapping (unmapped_message, etc.)
+// These complement the tests above which use employees with a fully-absent field.
+
+nestedSubqueryNullifyUnmappedFieldInSourceAsNullColumn
+required_capability: subquery_in_from_command
+required_capability: nested_subquery_in_from_command
+required_capability: optional_fields_nullify_tech_preview
+
+// Under nullify mode, unmapped_message is in _source but not in the mapping → appears as type :null with all-null values.
+SET unmapped_fields="nullify"\;
+FROM partial_mapping_sample_data,
+     (FROM (FROM sample_data),
+           (FROM employees))
+| KEEP @timestamp, unmapped_message
+| SORT @timestamp DESC NULLS LAST
+| LIMIT 3
+;
+
+@timestamp:date          | unmapped_message:null
+2024-10-23T13:55:01.543Z | null
+2024-10-23T13:53:55.832Z | null
+2024-10-23T13:52:55.015Z | null
+;
+
+nestedSubqueryLoadUnmappedFieldFromSourceKeep
+required_capability: subquery_in_from_command
+required_capability: nested_subquery_in_from_command
+required_capability: optional_fields_load_with_fork_subqueries_and_views
+
+// Under load mode, unmapped_message is loaded from _source with actual values for partial_mapping_sample_data rows
+// and null for sample_data rows (which have no unmapped_message in _source).
+SET unmapped_fields="load"\;
+FROM partial_mapping_sample_data,
+     (FROM (FROM sample_data), (FROM employees))
+| KEEP @timestamp, message, unmapped_message
+| SORT @timestamp DESC NULLS LAST
+| LIMIT 3
+;
+
+@timestamp:date          | message:keyword        | unmapped_message:keyword
+2024-10-23T13:55:01.543Z | Connected to 10.1.0.1! | Disconnected from 10.1.0.1
+2024-10-23T13:53:55.832Z | Connection error?      | Disconnection error
+2024-10-23T13:52:55.015Z | Connection error?      | Disconnection error
+;
+
+nestedSubqueryLoadUnmappedFieldFromInnerBranchSource
+required_capability: subquery_in_from_command
+required_capability: nested_subquery_in_from_command
+required_capability: optional_fields_load_with_fork_subqueries_and_views
+
+// Mirror of nestedSubqueryLoadUnmappedFieldFromSourceKeep with partial_mapping_sample_data moved into the INNER union.
+// The loaded values have to survive being surfaced through both union levels; which level the source sits at must not
+// change the result.
+SET unmapped_fields="load"\;
+FROM sample_data,
+     (FROM (FROM partial_mapping_sample_data), (FROM employees))
+| KEEP @timestamp, message, unmapped_message
+| SORT @timestamp DESC NULLS LAST
+| LIMIT 3
+;
+
+@timestamp:date          | message:keyword        | unmapped_message:keyword
+2024-10-23T13:55:01.543Z | Connected to 10.1.0.1! | Disconnected from 10.1.0.1
+2024-10-23T13:53:55.832Z | Connection error?      | Disconnection error
+2024-10-23T13:52:55.015Z | Connection error?      | Disconnection error
+;
+
+nestedSubqueryLoadFilterByUnmappedFieldValueInInnerSubquery
+required_capability: subquery_in_from_command
+required_capability: nested_subquery_in_from_command
+required_capability: optional_fields_load_with_fork_subqueries_and_views
+
+// Under load mode, a WHERE filter on a loaded unmapped field value inside an inner subquery prunes rows correctly.
+// partial_mapping_sample_data has 3 rows with unmapped_message == "Disconnection error"; sample_data contributes 7 rows.
+SET unmapped_fields="load"\;
+FROM (FROM partial_mapping_sample_data | WHERE unmapped_message == "Disconnection error"),
+     (FROM (FROM sample_data), (FROM employees))
+| STATS c = COUNT(*)
+;
+
+c:long
+110
+;
+
+nestedSubqueryLoadUnmappedFieldStatsByGroupInMainQuery
+required_capability: subquery_in_from_command
+required_capability: nested_subquery_in_from_command
+required_capability: optional_fields_load_with_fork_subqueries_and_views
+
+// Under load mode, STATS BY a loaded unmapped field groups partial_mapping_sample_data rows by their _source values
+// and treats sample_data rows (no unmapped_message in _source) as a single null group.
+SET unmapped_fields="load"\;
+FROM partial_mapping_sample_data,
+     (FROM (FROM sample_data), (FROM employees))
+| STATS c = COUNT(*) BY unmapped_message
+| SORT unmapped_message
+;
+
+c:long | unmapped_message:keyword
+1      | 43
+1      | Disconnected from 10.1.0.1
+1      | Disconnected from 10.1.0.2
+1      | Disconnected from 10.1.0.3
+3      | Disconnection error
+107    | null
+;

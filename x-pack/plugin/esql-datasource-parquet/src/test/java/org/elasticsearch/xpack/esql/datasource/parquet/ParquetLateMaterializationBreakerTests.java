@@ -206,7 +206,10 @@ public class ParquetLateMaterializationBreakerTests extends ESTestCase {
         int urlOnlyCharges = countCharges(urlOnlyFile());
         assertTrue(
             "tags column must add breaker charges beyond the url-only baseline ("
-                + listCharges + " vs " + urlOnlyCharges + "); Phase-3 else-arm may not have been exercised",
+                + listCharges
+                + " vs "
+                + urlOnlyCharges
+                + "); Phase-3 else-arm may not have been exercised",
             listCharges > urlOnlyCharges
         );
     }

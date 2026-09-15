@@ -574,6 +574,12 @@ public abstract class AbstractExternalSourceSpecTestCase extends EsqlSpecTestCas
                 // No dataset, so no header, so no declaration can be injected for this source.
                 return true;
             }
+            if (MATRIX.isVerbatim(dataset)) {
+                // Nor for a verbatim one: DeclaredSchemas.headerSchema reads the FIRST line as the header,
+                // and a verbatim file's first line is whatever it was authored with -- skip_rows_sessions
+                // opens with prose, so a closed declaration named one column and left every real one unknown.
+                return true;
+            }
             if ("declared_closed".equals(mode) == false) {
                 continue;
             }
@@ -638,6 +644,13 @@ public abstract class AbstractExternalSourceSpecTestCase extends EsqlSpecTestCas
             // dialect axis has this: a codec or a delimiter can render any dataset, while a bracket cell
             // holds commas that PLAIN and ESCAPED cannot disambiguate.
             String dataset = MATRIX.datasetForTemplate(template);
+            if (dataset != null && MATRIX.isVerbatim(dataset)) {
+                // A verbatim dataset's authored bytes ARE the fixture, so no generator writes it into any
+                // per-vector tree: a pinned byte-changing slot points the case at a file that does not exist.
+                // Excluding the whole spec instead also threw away every case whose vector changes nothing
+                // on disk -- a cache or error-mode crossing reads the standalone bytes and passes.
+                return true;
+            }
             if (dataset != null
                 && textMode != null
                 && MATRIX.unrepresentableDialects(

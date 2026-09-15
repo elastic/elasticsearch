@@ -44,6 +44,8 @@ public final class NumericColumnWriter {
      * @param maxDoc           documents in the segment
      * @param numDocsWithField documents that have at least one value
      * @param numValues        total number of values across all documents
+     * @param valueAddressed   whether to table where each document's values begin, which a caller reading
+     *                         the column by value address rather than by document does not need
      * @param cursors          supplies fresh forward cursors over the documents that have a value;
      *                         called once for iterator and once for the values
      * @param pipeline         the encoding pipeline; obtain via {@link NumericPipelineSelector} or
@@ -61,6 +63,7 @@ public final class NumericColumnWriter {
         int maxDoc,
         int numDocsWithField,
         long numValues,
+        boolean valueAddressed,
         IOSupplier<NumericColumnValues> cursors,
         NumericPipeline pipeline,
         BlockBytesCodec blockBytesCodec,
@@ -76,14 +79,14 @@ public final class NumericColumnWriter {
         }
 
         int blockSize = pipeline.blockSize();
-        boolean multiValued = numValues > numDocsWithField;
+        boolean tableAddresses = valueAddressed && numValues > numDocsWithField;
         long numBlocks = (numValues + blockSize - 1) / blockSize;
         long valuesOffset = data.getFilePointer();
 
         MonotonicWriter blockOffsets = new MonotonicWriter(directory, context, data.getName(), numBlocks + 1L);
         MonotonicWriter valueAddresses = null;
         try {
-            if (multiValued) {
+            if (tableAddresses) {
                 valueAddresses = new MonotonicWriter(directory, context, data.getName(), numDocsWithField + 1L);
             }
 
@@ -98,7 +101,7 @@ public final class NumericColumnWriter {
             SkipIndexCodec.Writer skip = skipCodec == null ? null : skipCodec.writer();
             NumericColumnValues values = cursors.get();
             for (int doc = values.nextDoc(); doc != DocIdSetIterator.NO_MORE_DOCS; doc = values.nextDoc()) {
-                if (multiValued) {
+                if (tableAddresses) {
                     valueAddresses.add(valueAddress);
                 }
                 int count = values.valueCount();
@@ -128,13 +131,13 @@ public final class NumericColumnWriter {
                 blockValueCount[0] = inBlock;
                 blockBytesCodec.write(blockEncoder, data);
             }
-            if (multiValued) {
+            if (tableAddresses) {
                 valueAddresses.add(valueAddress);
             }
             blockOffsets.add(data.getFilePointer() - valuesOffset);
 
             MonotonicWriter.Table blocks = blockOffsets.finish(data);
-            MonotonicWriter.Table addresses = multiValued ? valueAddresses.finish(data) : MonotonicWriter.Table.NONE;
+            MonotonicWriter.Table addresses = tableAddresses ? valueAddresses.finish(data) : MonotonicWriter.Table.NONE;
 
             // The writer buffered the skip bytes while being fed inline; they are flushed here, so the
             // recorded offset is the skip-index file's pointer.

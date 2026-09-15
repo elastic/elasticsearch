@@ -218,7 +218,11 @@ public class ShardHeapEstimatorTests extends ESTestCase {
 
     public void testAggregateShardMetricsEmpty() {
         ShardHeapEstimator estimator = adaptiveEstimator(0.0, 0L);
-        var result = estimator.aggregateShardMetrics(Map.of(), randomFrom(StatelessMemoryMetricsService.PostingsInEstimate.values()));
+        var result = estimator.aggregateShardMetrics(
+            Map.of(),
+            randomFrom(StatelessMemoryMetricsService.PostingsInEstimate.values()),
+            (shardId, metrics) -> {}
+        );
         assertThat(result.totalShardHeapInBytes(), equalTo(0L));
         assertThat(result.maxShardHeapInBytes(), equalTo(0L));
         assertThat(result.mappingSizeInBytes(), equalTo(0L));
@@ -236,7 +240,7 @@ public class ShardHeapEstimatorTests extends ESTestCase {
             final var id1 = new ShardId(new Index("idx1", "uuid1"), 0);
             final var id2 = new ShardId(new Index("idx2", "uuid2"), 0);
 
-            final var result = estimator.aggregateShardMetrics(Map.of(id1, m1, id2, m2), postingsInEstimate);
+            final var result = estimator.aggregateShardMetrics(Map.of(id1, m1, id2, m2), postingsInEstimate, (shardId, metrics) -> {});
             final var usageOfOneShard = postingsInEstimate == StatelessMemoryMetricsService.PostingsInEstimate.INCLUDE
                 ? fixedShardSizeBytes + postingsBytes
                 : fixedShardSizeBytes;
@@ -265,7 +269,11 @@ public class ShardHeapEstimatorTests extends ESTestCase {
             final var id1 = new ShardId(new Index("idx", "uuid"), 0);
             final var id2 = new ShardId(new Index("idx", "uuid"), 1);
 
-            final var result = estimator.aggregateShardMetrics(Map.of(id1, small, id2, large), postingsInEstimate);
+            final var result = estimator.aggregateShardMetrics(
+                Map.of(id1, small, id2, large),
+                postingsInEstimate,
+                (shardId, metrics) -> {}
+            );
             final var largeUsage = estimator.computeShardHeapUsage(large);
             var expected = postingsInEstimate == StatelessMemoryMetricsService.PostingsInEstimate.INCLUDE
                 ? largeUsage.shardHeapUsageBytes()
@@ -295,7 +303,8 @@ public class ShardHeapEstimatorTests extends ESTestCase {
         }
         var result = estimator.aggregateShardMetrics(
             shardMemoryMetrics,
-            randomFrom(StatelessMemoryMetricsService.PostingsInEstimate.values())
+            randomFrom(StatelessMemoryMetricsService.PostingsInEstimate.values()),
+            (shardId, metrics) -> {}
         );
         assertThat(result.metricQuality(), equalTo(expectedQuality));
     }
@@ -328,7 +337,8 @@ public class ShardHeapEstimatorTests extends ESTestCase {
 
         var result = estimator.aggregateShardMetrics(
             Map.of(id1, m1, id2, m2),
-            randomFrom(StatelessMemoryMetricsService.PostingsInEstimate.values())
+            randomFrom(StatelessMemoryMetricsService.PostingsInEstimate.values()),
+            (shardId, metrics) -> {}
         );
         assertThat(result.mappingSizeInBytes(), equalTo(mapping1 + mapping2));
     }

@@ -18,6 +18,7 @@ import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ClusterStateUpdateTask;
 import org.elasticsearch.cluster.TestShardRoutingRoleStrategies;
+import org.elasticsearch.cluster.block.ClusterBlocks;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.metadata.NodesShutdownMetadata;
@@ -28,6 +29,7 @@ import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodeRole;
 import org.elasticsearch.cluster.node.DiscoveryNodeUtils;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
+import org.elasticsearch.cluster.project.TestProjectResolvers;
 import org.elasticsearch.cluster.routing.RoutingTable;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.TriFunction;
@@ -38,6 +40,7 @@ import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.persistent.PersistentTasksCustomMetadata.Assignment;
 import org.elasticsearch.persistent.PersistentTasksCustomMetadata.PersistentTask;
+import org.elasticsearch.persistent.TestPersistentTasksPlugin.TestClusterParams;
 import org.elasticsearch.persistent.TestPersistentTasksPlugin.TestParams;
 import org.elasticsearch.persistent.TestPersistentTasksPlugin.TestPersistentTasksExecutor;
 import org.elasticsearch.persistent.decider.EnableAssignmentDecider;
@@ -61,16 +64,20 @@ import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicReference;
+import java.util.function.Consumer;
 import java.util.stream.Collectors;
 
 import static java.util.Collections.singleton;
 import static java.util.stream.Collectors.toMap;
 import static org.elasticsearch.cluster.metadata.SingleNodeShutdownMetadata.Type.SIGTERM;
+import static org.elasticsearch.persistent.PersistentTasks.INITIAL_ASSIGNMENT;
+import static org.elasticsearch.persistent.PersistentTasksClusterService.checkMetadataWriteBlock;
 import static org.elasticsearch.persistent.PersistentTasksClusterService.persistentTasksChanged;
 import static org.elasticsearch.persistent.PersistentTasksExecutor.NO_NODE_FOUND;
 import static org.elasticsearch.test.ClusterServiceUtils.createClusterService;
 import static org.elasticsearch.test.ClusterServiceUtils.setState;
 import static org.hamcrest.Matchers.anyOf;
+import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.lessThanOrEqualTo;
@@ -394,6 +401,36 @@ public class PersistentTasksClusterServiceTests extends ESTestCase {
         assertTrue("persistent tasks changed (task assigned)", persistentTasksChanged(new ClusterChangedEvent("test", current, previous)));
     }
 
+    public void testPersistentTasksChangedProjectRemoved() {
+        final var nodes = DiscoveryNodes.builder().add(DiscoveryNodeUtils.create("_node_1")).build();
+        final var removedProject = randomUniqueProjectId();
+        final var otherProject = randomUniqueProjectId();
+        final var removedProjectHadTasks = randomBoolean();
+
+        final var removedProjectBuilder = ProjectMetadata.builder(removedProject);
+        if (removedProjectHadTasks) {
+            removedProjectBuilder.putCustom(
+                PersistentTasksCustomMetadata.TYPE,
+                PersistentTasksCustomMetadata.builder().addTask("_task_1", "test", null, new Assignment("_node_1", "_reason")).build()
+            );
+        }
+        final ClusterState previous = ClusterState.builder(new ClusterName("_name"))
+            .nodes(nodes)
+            .putProjectMetadata(ProjectMetadata.builder(otherProject))
+            .putProjectMetadata(removedProjectBuilder)
+            .build();
+        final ClusterState current = ClusterState.builder(new ClusterName("_name"))
+            .nodes(nodes)
+            .putProjectMetadata(ProjectMetadata.builder(otherProject))
+            .build();
+
+        assertEquals(
+            "persistent tasks changed iff the removed project had tasks",
+            removedProjectHadTasks,
+            persistentTasksChanged(new ClusterChangedEvent("test", current, previous))
+        );
+    }
+
     public void testPeriodicRecheck() throws Exception {
         ClusterState initialState = initialState();
         ClusterState.Builder builder = ClusterState.builder(initialState);
@@ -559,6 +596,71 @@ public class PersistentTasksClusterServiceTests extends ESTestCase {
         );
 
         assertTrue(countDownLatch.await(10, TimeUnit.SECONDS));
+    }
+
+    public void testTaskUpdatesForRemovedProjectFailWithResourceNotFound() {
+        final var removedProject = randomUniqueProjectId();
+        setState(
+            clusterService,
+            ClusterState.builder(initialState())
+                .nodes(DiscoveryNodes.builder().add(DiscoveryNodeUtils.create("_node_1")).localNodeId("_node_1").masterNodeId("_node_1"))
+                .build()
+        );
+        final PersistentTasksClusterService service = createService((params, candidateNodes, currentState) -> NO_NODE_FOUND);
+
+        final var taskId = randomIdentifier();
+        final long allocationId = randomNonNegativeLong();
+        final List<Consumer<ActionListener<PersistentTask<?>>>> updates = List.of(
+            l -> service.completePersistentTask(removedProject, taskId, allocationId, null, l),
+            l -> service.updatePersistentTaskState(removedProject, taskId, allocationId, null, l),
+            l -> service.removePersistentTask(removedProject, taskId, l),
+            l -> service.unassignPersistentTask(removedProject, taskId, allocationId, "test", l)
+        );
+        for (var update : updates) {
+            final var e = safeAwaitFailure(update);
+            assertThat(e, instanceOf(ResourceNotFoundException.class));
+            assertThat(e.getMessage(), containsString(removedProject.id()));
+        }
+    }
+
+    public void testCheckMetadataWriteBlockForExistingTask() {
+        final var projectId = randomUniqueProjectId();
+        final var projectTaskId = "project-task";
+        final var clusterTaskId = "cluster-task";
+        final Metadata metadata = Metadata.builder()
+            .putCustom(
+                ClusterPersistentTasksCustomMetadata.TYPE,
+                ClusterPersistentTasksCustomMetadata.builder()
+                    .addTask(clusterTaskId, TestPersistentTasksExecutor.CLUSTER_NAME, new TestClusterParams("c"), INITIAL_ASSIGNMENT)
+                    .build()
+            )
+            .put(
+                ProjectMetadata.builder(projectId)
+                    .putCustom(
+                        PersistentTasksCustomMetadata.TYPE,
+                        PersistentTasksCustomMetadata.builder()
+                            .addTask(projectTaskId, TestPersistentTasksExecutor.NAME, new TestParams("p"), INITIAL_ASSIGNMENT)
+                            .build()
+                    )
+            )
+            .build();
+        final var projectResolver = TestProjectResolvers.singleProject(projectId);
+        final var clusterResolver = TestProjectResolvers.DEFAULT_PROJECT_ONLY;
+
+        // The project-global block applies to the project's task only; the task is identified by looking up its id in the state
+        final ClusterState underDeletion = ClusterState.builder(new ClusterName("test"))
+            .metadata(metadata)
+            .blocks(ClusterBlocks.builder().addProjectGlobalBlock(projectId, ProjectMetadata.PROJECT_UNDER_DELETION_BLOCK))
+            .build();
+        assertThat(checkMetadataWriteBlock(underDeletion, projectResolver, projectTaskId), notNullValue());
+        assertThat(checkMetadataWriteBlock(underDeletion, clusterResolver, clusterTaskId), nullValue());
+
+        final ClusterState readOnly = ClusterState.builder(new ClusterName("test"))
+            .metadata(metadata)
+            .blocks(ClusterBlocks.builder().addGlobalBlock(Metadata.CLUSTER_READ_ONLY_BLOCK))
+            .build();
+        assertThat(checkMetadataWriteBlock(readOnly, projectResolver, projectTaskId), notNullValue());
+        assertThat(checkMetadataWriteBlock(readOnly, clusterResolver, clusterTaskId), notNullValue());
     }
 
     public void testTasksNotAssignedToShuttingDownNodes() {

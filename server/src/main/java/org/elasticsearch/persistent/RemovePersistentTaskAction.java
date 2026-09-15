@@ -16,7 +16,6 @@ import org.elasticsearch.action.support.master.MasterNodeRequest;
 import org.elasticsearch.action.support.master.TransportMasterNodeAction;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.block.ClusterBlockException;
-import org.elasticsearch.cluster.block.ClusterBlockLevel;
 import org.elasticsearch.cluster.metadata.ProjectId;
 import org.elasticsearch.cluster.project.ProjectResolver;
 import org.elasticsearch.cluster.service.ClusterService;
@@ -108,9 +107,7 @@ public class RemovePersistentTaskAction {
 
         @Override
         protected ClusterBlockException checkBlock(Request request, ClusterState state) {
-            // Intentionally only checks cluster-wide blocks, unlike StartPersistentTaskAction: existing tasks must remain
-            // removable while a project-global block (e.g. project under deletion) is in place.
-            return state.blocks().globalBlockedException(ClusterBlockLevel.METADATA_WRITE);
+            return PersistentTasksClusterService.checkMetadataWriteBlock(state, projectResolver, request.taskId);
         }
 
         @Override

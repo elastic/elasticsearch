@@ -23,8 +23,6 @@ import org.apache.lucene.index.VectorSimilarityFunction;
 import org.apache.lucene.search.AcceptDocs;
 import org.apache.lucene.search.TopDocs;
 import org.apache.lucene.store.Directory;
-import org.apache.lucene.tests.index.BaseKnnVectorsFormatTestCase;
-import org.elasticsearch.common.logging.LogConfigurator;
 import org.junit.AssumptionViolatedException;
 
 import java.io.IOException;
@@ -39,11 +37,7 @@ import static org.hamcrest.Matchers.equalTo;
  * Subclasses must implement {@link #getCodec()} and may override {@link #setUp()} to
  * configure the specific format under test.
  */
-public abstract class BaseByteKnnVectorsFormatTestCase extends BaseKnnVectorsFormatTestCase {
-
-    static {
-        LogConfigurator.configureESLogging();
-    }
+public abstract class BaseByteKnnVectorsFormatTestCase extends ESBaseKnnVectorsFormatTestCase {
 
     @Override
     protected boolean supportsFloatVectorFallback() {

@@ -27,7 +27,6 @@ import org.apache.lucene.search.AcceptDocs;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.store.MMapDirectory;
 import org.apache.lucene.tests.util.TestUtil;
-import org.elasticsearch.common.logging.LogConfigurator;
 
 import java.io.IOException;
 import java.nio.file.Path;
@@ -41,10 +40,6 @@ import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.hasEntry;
 
 public class ES814HnswScalarQuantizedVectorsFormatTests extends BaseQuantizedKnnVectorsFormatTestCase {
-
-    static {
-        LogConfigurator.configureESLogging(); // native access requires logging to be initialized
-    }
 
     @Override
     protected boolean supportsFloatVectorFallback() {

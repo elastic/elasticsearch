@@ -21,7 +21,6 @@ import org.apache.lucene.index.IndexWriter;
 import org.apache.lucene.index.LeafReader;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.tests.util.TestUtil;
-import org.elasticsearch.common.logging.LogConfigurator;
 import org.elasticsearch.index.codec.vectors.BaseQuantizedKnnVectorsFormatTestCase;
 import org.elasticsearch.index.codec.vectors.es93.ES93GenericFlatVectorsFormat;
 import org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapper;
@@ -38,10 +37,6 @@ import static org.hamcrest.Matchers.hasEntry;
 import static org.hamcrest.Matchers.is;
 
 public class ES94ScalarQuantizedVectorsFormatTests extends BaseQuantizedKnnVectorsFormatTestCase {
-
-    static {
-        LogConfigurator.configureESLogging(); // native access requires logging to be initialized
-    }
 
     @Override
     protected boolean supportsFloatVectorFallback() {

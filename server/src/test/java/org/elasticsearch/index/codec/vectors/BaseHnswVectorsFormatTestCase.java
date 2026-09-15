@@ -26,11 +26,9 @@ import org.apache.lucene.index.VectorSimilarityFunction;
 import org.apache.lucene.search.AcceptDocs;
 import org.apache.lucene.search.TopDocs;
 import org.apache.lucene.store.Directory;
-import org.apache.lucene.tests.index.BaseKnnVectorsFormatTestCase;
 import org.apache.lucene.tests.util.TestUtil;
 import org.apache.lucene.util.SameThreadExecutorService;
 import org.apache.lucene.util.VectorUtil;
-import org.elasticsearch.common.logging.LogConfigurator;
 import org.hamcrest.Matcher;
 
 import java.io.IOException;
@@ -42,11 +40,7 @@ import static org.apache.lucene.search.DocIdSetIterator.NO_MORE_DOCS;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 
-public abstract class BaseHnswVectorsFormatTestCase extends BaseKnnVectorsFormatTestCase {
-
-    static {
-        LogConfigurator.configureESLogging(); // native access requires logging to be initialized
-    }
+public abstract class BaseHnswVectorsFormatTestCase extends ESBaseKnnVectorsFormatTestCase {
 
     @Override
     protected boolean supportsFloatVectorFallback() {

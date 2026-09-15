@@ -16,7 +16,6 @@ import org.apache.lucene.index.CodecReader;
 import org.apache.lucene.index.LeafReader;
 import org.apache.lucene.index.VectorSimilarityFunction;
 import org.apache.lucene.tests.util.TestUtil;
-import org.elasticsearch.common.logging.LogConfigurator;
 import org.elasticsearch.index.codec.vectors.BaseBFloat16KnnVectorsFormatTestCase;
 import org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapper;
 import org.junit.After;
@@ -33,10 +32,6 @@ import static org.hamcrest.Matchers.aMapWithSize;
 import static org.hamcrest.Matchers.equalTo;
 
 public class ES920DiskBBQBFloat16VectorsFormatTests extends BaseBFloat16KnnVectorsFormatTestCase {
-
-    static {
-        LogConfigurator.configureESLogging(); // native access requires logging to be initialized
-    }
 
     private KnnVectorsFormat format;
     private ExecutorService executorService;

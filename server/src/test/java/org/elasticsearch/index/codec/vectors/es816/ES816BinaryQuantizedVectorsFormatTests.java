@@ -47,7 +47,6 @@ import org.apache.lucene.search.join.DiversifyingChildrenFloatKnnVectorQuery;
 import org.apache.lucene.search.join.QueryBitSetProducer;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.tests.util.TestUtil;
-import org.elasticsearch.common.logging.LogConfigurator;
 import org.elasticsearch.common.lucene.search.Queries;
 import org.elasticsearch.index.codec.vectors.BQVectorUtils;
 import org.elasticsearch.index.codec.vectors.BaseFlatQuantizedKnnVectorsFormatTestCase;
@@ -65,10 +64,6 @@ import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.oneOf;
 
 public class ES816BinaryQuantizedVectorsFormatTests extends BaseFlatQuantizedKnnVectorsFormatTestCase {
-
-    static {
-        LogConfigurator.configureESLogging(); // native access requires logging to be initialized
-    }
 
     @Override
     protected boolean supportsFloatVectorFallback() {

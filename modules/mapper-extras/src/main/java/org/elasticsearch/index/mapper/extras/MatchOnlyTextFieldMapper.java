@@ -1201,12 +1201,13 @@ public class MatchOnlyTextFieldMapper extends FieldMapper {
     }
 
     @Override
-    public boolean doSupportsColumnarParse(IndexSettings indexSettings) {
+    protected boolean doSupportsColumnarParse(IndexSettings indexSettings) {
         // usesBinaryDocValues() requires doc_values to be enabled which means synthetic-source stored-fallback is unreachable.
         // Additionally, this excludes the low-cardinality SORTED_SET encoding.
-        // copy_to has no equivalent in mapColumnBatch (no per-value dispatch to other fields), so fields using it fall back.
+        // copy_to, script, mode gate, and legacy-version gate are handled by the base class.
         // match_only_text has no ignore_above/null_value/normalizer; multi-fields are handled by the base class.
-        return fieldType().usesBinaryDocValues() && copyTo().copyToFields().isEmpty();
+        return fieldType().usesBinaryDocValues()
+            && (fieldType().usesArrayOrderBinaryDocValues() || docValuesParameters.multiValue() == false);
     }
 
     // TODO: make the batch supply a recycler to wire up recycling instead of NON_RECYCLING_INSTANCE.
@@ -1223,7 +1224,12 @@ public class MatchOnlyTextFieldMapper extends FieldMapper {
     }
 
     @Override
-    public void doMapColumnBatch(BatchMappingContext ctx, EscfColumn source) {
+    protected boolean shouldEnforceSingleValueBatch() {
+        return docValuesParameters.multiValue() == false;
+    }
+
+    @Override
+    protected void doMapColumnBatch(BatchMappingContext ctx, EscfColumn source) {
         final boolean emitTerms = indexed;
         final boolean emitDvs = docValuesParameters.enabled();
         if (emitTerms == false && emitDvs == false) {
@@ -1323,6 +1329,8 @@ public class MatchOnlyTextFieldMapper extends FieldMapper {
 
     private void mapColumnBatchSingleValue(BatchMappingContext ctx, EscfColumn source, boolean emitTerms, boolean emitDvs) {
         final int docCount = ctx.docCount();
+        assert docValuesParameters.multiValue() == false
+            : "mapColumnBatchSingleValue called on multi_value=true field [" + fullPath() + "]; this would corrupt doc-values";
         boolean valuesProduced = false;
 
         // retainValues=false: every value is consumed within one loop iteration, before the cursor advances.
@@ -1333,7 +1341,6 @@ public class MatchOnlyTextFieldMapper extends FieldMapper {
                 : null
         ) {
             int currentDoc = -1;
-            boolean valueSeenThisDoc = false;
             while (true) {
                 final int nextDoc = cursor.nextDoc();
                 if (nextDoc == DocIdSetIterator.NO_MORE_DOCS) {
@@ -1341,7 +1348,6 @@ public class MatchOnlyTextFieldMapper extends FieldMapper {
                 }
                 if (nextDoc != currentDoc) {
                     currentDoc = nextDoc;
-                    valueSeenThisDoc = false;
                 }
                 final BytesRef value = cursor.value();
                 if (value == null) {
@@ -1350,14 +1356,6 @@ public class MatchOnlyTextFieldMapper extends FieldMapper {
                     continue;
                 }
 
-                if (valueSeenThisDoc) {
-                    // multi_value=false violation: bail so ShardBatchMapper falls back to the row path,
-                    // which raises the correct per-doc error (on_failure=FAIL).
-                    throw new UnsupportedOperationException(
-                        "mapColumnBatch: multi_value=false field [" + fullPath() + "] has more than one value for doc [" + currentDoc + "]"
-                    );
-                }
-                valueSeenThisDoc = true;
                 valuesProduced = true;
 
                 if (values != null) {

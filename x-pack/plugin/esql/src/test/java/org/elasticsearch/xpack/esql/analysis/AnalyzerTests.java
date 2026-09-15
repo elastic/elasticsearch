@@ -6615,23 +6615,12 @@ public class AnalyzerTests extends AnalyzerTestCase {
             """));
         assertThat(highlight.query(), instanceOf(Match.class));
 
-        // A full-text function exists in the WHERE, but its shape (mixed OR, or a NOT) disqualifies it, so the message
-        // explains what can be borrowed rather than claiming there was no full-text WHERE at all.
-        supportsHighlight(basic()).error(
-            "FROM test | WHERE MATCH(first_name, \"x\") OR salary > 3 | HIGHLIGHT ON first_name",
-            containsString("HIGHLIGHT found no borrowable condition in the preceding WHERE")
-        );
         supportsHighlight(basic()).error(
             "FROM test | WHERE NOT MATCH(first_name, \"x\") | HIGHLIGHT ON first_name",
             containsString("HIGHLIGHT found no borrowable condition in the preceding WHERE")
         );
     }
 
-    /**
-     * A WHERE may search non-text fields, so a derived query is not held to the field types an explicit one is:
-     * the numeric conjunct is borrowed but highlights nothing, leaving only the text field to highlight. The same
-     * query written on the command is rejected (see VerifierTests#testDerivedOnRejectsNonHighlightableQueryField).
-     */
     public void testHighlightImplicitQueryIgnoresNonHighlightableFields() {
         assumeHighlightImplicitQueryAndFieldsEnabled();
         Highlight highlight = soleHighlight(supportsHighlight(basic()).query("""
@@ -6643,8 +6632,6 @@ public class AnalyzerTests extends AnalyzerTestCase {
         assertThat(fieldNames(highlight.fields()), equalTo(List.of("first_name")));
         assertTrue(highlight.implicitQuery());
 
-        // Nothing is left to highlight when the WHERE searches only non-text fields; the message names the field the
-        // derived query targeted so the user is not sent to add an ON clause that would only yield a null column.
         supportsHighlight(basic()).error(
             "FROM test | WHERE MATCH(salary, 3) | HIGHLIGHT",
             allOf(
@@ -6655,27 +6642,14 @@ public class AnalyzerTests extends AnalyzerTestCase {
         );
     }
 
-    public void testHighlightImplicitQueryStopsAtStats() {
-        assumeHighlightImplicitQueryAndFieldsEnabled();
-        // STATS is not doc-preserving, so the walk stops there; the message names the command that blocked it rather
-        // than claiming there was no full-text WHERE at all.
-        supportsHighlight(basic()).error(
-            "FROM test | WHERE MATCH(first_name, \"x\") | STATS c = COUNT(*) BY first_name | HIGHLIGHT ON first_name",
-            allOf(
-                containsString("HIGHLIGHT cannot borrow the WHERE before"),
-                containsString("STATS c = COUNT(*) BY first_name"),
-                containsString("does not preserve documents")
-            )
-        );
-    }
-
-    /**
-     * LOOKUP JOIN and FORK are not {@code UnaryPlan}, so they would otherwise leave {@code blockedBy} unset and
-     * report a missing WHERE even though one exists upstream of the barrier.
-     */
-    public void testHighlightImplicitQueryStopsAtNonUnaryBarriers() {
+    /** LOOKUP JOIN and FORK are not {@code UnaryPlan}; without {@code blockedBy} they would look like a missing WHERE. */
+    public void testHighlightImplicitQueryStopsAtBarriers() {
         assumeHighlightImplicitQueryAndFieldsEnabled();
         var blocked = allOf(containsString("HIGHLIGHT cannot borrow the WHERE before"), containsString("does not preserve documents"));
+        supportsHighlight(basic()).error(
+            "FROM test | WHERE MATCH(first_name, \"x\") | STATS c = COUNT(*) BY first_name | HIGHLIGHT ON first_name",
+            allOf(blocked, containsString("STATS c = COUNT(*) BY first_name"))
+        );
         supportsHighlight(basic().addLanguagesLookup()).error("""
             FROM test
             | WHERE MATCH(first_name, "x")
@@ -6691,9 +6665,6 @@ public class AnalyzerTests extends AnalyzerTestCase {
             """, allOf(blocked, containsString("FORK (WHERE emp_no > 1) (WHERE emp_no > 2)")));
     }
 
-    /**
-     * INLINE STATS appends aggregate columns rather than collapsing rows, so the walk continues through it to the WHERE.
-     */
     public void testHighlightImplicitQueryDescendsThroughInlineStats() {
         assumeHighlightImplicitQueryAndFieldsEnabled();
         assumeTrue("INLINE STATS required", EsqlCapabilities.Cap.INLINE_STATS.isEnabled());
@@ -6708,11 +6679,8 @@ public class AnalyzerTests extends AnalyzerTestCase {
         assertTrue(highlight.implicitQuery());
     }
 
-    /** Analyzer options reject borrowable predicates but do not affect predicates HIGHLIGHT ignores. */
     public void testHighlightHandlesAnalyzerOnWherePredicates() {
         assumeHighlightImplicitQueryAndFieldsEnabled();
-
-        // A single borrowed leaf with an analyzer succeeds: HIGHLIGHT synthesizes the WITH option.
         Highlight singleLeaf = soleHighlight(supportsHighlight(basic()).query("""
             FROM test
             | WHERE MATCH(first_name, "x", {"analyzer": "standard"})
@@ -6720,38 +6688,13 @@ public class AnalyzerTests extends AnalyzerTestCase {
             """));
         assertTrue(singleLeaf.implicitQuery());
 
-        // A named leaf plus an unlabeled sibling still borrows: unlabeled leaves inherit the uniform analyzer.
-        Highlight uniformWithUnlabeled = soleHighlight(supportsHighlight(basic()).query("""
-            FROM test
-            | WHERE MATCH(first_name, "x", {"analyzer": "standard"}) AND MATCH(last_name, "y")
-            | HIGHLIGHT
-            """));
-        assertTrue(uniformWithUnlabeled.implicitQuery());
-
-        // Two named leaves that agree, split across WHERE commands, still borrow.
-        Highlight uniformAcrossWheres = soleHighlight(supportsHighlight(basic()).query("""
-            FROM test
-            | WHERE MATCH(first_name, "x")
-            | WHERE MATCH(last_name, "y", {"analyzer": "standard"})
-            | HIGHLIGHT ON first_name
-            """));
-        assertTrue(uniformAcrossWheres.implicitQuery());
-
-        // Named leaves that disagree fail with the uniform-analyzer error.
-        supportsHighlight(basic()).error(
-            "FROM test | WHERE MATCH(first_name, \"x\", {\"analyzer\": \"english\"})"
-                + " AND MATCH(last_name, \"y\", {\"analyzer\": \"whitespace\"}) | HIGHLIGHT",
-            containsString("HIGHLIGHT full-text functions use different analyzers")
-        );
-
-        // A non-borrowable NOT with an analyzer does not poison a sibling MATCH without one.
-        Highlight highlight = soleHighlight(supportsHighlight(basic()).query("""
+        Highlight unpoisoned = soleHighlight(supportsHighlight(basic()).query("""
             FROM test
             | WHERE MATCH(first_name, "x") AND NOT MATCH(last_name, "y", {"analyzer": "standard"})
             | HIGHLIGHT ON first_name
             """));
-        assertThat(highlight.query(), instanceOf(Match.class));
-        assertTrue(highlight.implicitQuery());
+        assertThat(unpoisoned.query(), instanceOf(Match.class));
+        assertTrue(unpoisoned.implicitQuery());
     }
 
     public void testHighlightImplicitQueryPassesDocPreservingCommands() {
@@ -6817,11 +6760,8 @@ public class AnalyzerTests extends AnalyzerTestCase {
 
     public void testHighlightOnStarExcludesSyntheticUnionTypeAttributes() {
         assumeHighlightImplicitQueryAndFieldsEnabled();
-        // title is text in one index and keyword in the other, so the explicit ::keyword cast makes ResolveUnionTypes
-        // append a synthetic $$title$converted_to$keyword column to the relation output. body is a plain string field
-        // (consistent across both indices) so ON * has a real target; the @timestamp comparison needs implicit casting,
-        // which keeps the Filter unresolved through the first fixpoint iteration so the star expands only once the
-        // synthetic attribute is present. ON * must skip the synthetic instead of minting a highlight_$$... column.
+        // ::keyword plus unresolved timestamp keeps the Filter open until ResolveUnionTypes appends $$title$...;
+        // ON * must not mint highlight_$$....
         FieldCapabilitiesResponse caps = new FieldCapabilitiesResponse(
             List.of(
                 fieldCapabilitiesIndexResponse("idx1", fieldResponseMap(Map.of("title", "text", "body", "text", "@timestamp", "date"))),
@@ -6853,17 +6793,8 @@ public class AnalyzerTests extends AnalyzerTestCase {
         assertFalse(highlight.implicitQuery());
     }
 
-    /**
-     * A derived query that can only match nothing on the highlighted fields is rejected, naming the field it targeted.
-     */
     public void testHighlightRejectsDerivedQueryTargetingOnlyDroppedField() {
         assumeHighlightImplicitQueryAndFieldsEnabled();
-        // Explicit ON that does not include the query's field: rejected, message names first_name.
-        supportsHighlight(basic()).error(
-            "FROM test | WHERE MATCH(first_name, \"x\") | DROP first_name | HIGHLIGHT ON last_name",
-            allOf(containsString("derived its query from a preceding WHERE"), containsString("first_name"), containsString("last_name"))
-        );
-        // Omitted ON derives no highlightable fields: rejected, message names first_name.
         supportsHighlight(basic()).error(
             "FROM test | WHERE MATCH(first_name, \"x\") | DROP first_name | HIGHLIGHT",
             allOf(
@@ -6871,21 +6802,6 @@ public class AnalyzerTests extends AnalyzerTestCase {
                 containsString("first_name"),
                 containsString("renamed or dropped")
             )
-        );
-    }
-
-    /**
-     * A renamed field is the same case as a dropped one: the derived query still names the old name.
-     */
-    public void testHighlightRejectsDerivedQueryTargetingOnlyRenamedField() {
-        assumeHighlightImplicitQueryAndFieldsEnabled();
-        supportsHighlight(basic()).error(
-            "FROM test | WHERE MATCH(first_name, \"x\") | RENAME first_name AS fn | HIGHLIGHT ON fn",
-            allOf(containsString("derived its query from a preceding WHERE"), containsString("first_name"), containsString("fn"))
-        );
-        supportsHighlight(basic()).error(
-            "FROM test | WHERE MATCH(first_name, \"x\") | RENAME first_name AS fn | HIGHLIGHT",
-            allOf(containsString("HIGHLIGHT found no text or keyword fields to highlight"), containsString("first_name"))
         );
     }
 

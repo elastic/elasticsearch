@@ -24,13 +24,8 @@ import java.util.ArrayList;
 import java.util.List;
 
 /**
- * Fills implicit HIGHLIGHT query and ON fields during analysis so generated columns exist for later KEEP. This has to
- * settle during analysis because those columns are part of {@link Highlight#output()}, so a downstream
- * {@code KEEP highlight_title} can only resolve once they exist. Deriving nothing leaves the node untouched and lets
- * {@code Highlight#postAnalysisVerification} report the failure the user can act on.
- * <p>
- * {@link #skipResolved()} is false because {@code WHERE <full-text> | HIGHLIGHT ON <fields>} is already resolved and
- * would otherwise be skipped.
+ * Derives implicit HIGHLIGHT query and ON fields so generated columns exist for KEEP.
+ * {@link #skipResolved()} is false: {@code WHERE ... | HIGHLIGHT ON ...} is already resolved.
  */
 public class ResolveHighlight extends AnalyzerRule<Highlight> {
 
@@ -57,17 +52,9 @@ public class ResolveHighlight extends AnalyzerRule<Highlight> {
         boolean star = fields.size() == 1 && fields.getFirst() instanceof UnresolvedStar;
         if (star || (fields.isEmpty() && query != null && query.resolved())) {
             List<Attribute> childOutput = highlight.child().output();
-            // A derived query is not held to the field types an explicit one is: it was borrowed from an upstream WHERE
-            // that may legitimately search non-text fields, and deriveFields already drops those names. Highlighting the
-            // text fields that remain beats rejecting a query the user never wrote on this command. Same explicit-strict,
-            // implicit-lenient split as the ON-membership check in Highlight#verifyQuery.
             String unhighlightable = star || implicit ? null : HighlightSupport.unhighlightableQueryField(query, childOutput);
             if (unhighlightable != null) {
-                // The query names a concrete field that is not text/keyword (a missing one would have failed query
-                // resolution). Report it through the unresolved-attribute channel so Verifier#checkUnresolvedAttributes
-                // points at that field, instead of the generic "found no fields to highlight". Same idiom as the
-                // Analyzer's Enrich/Lookup failures: maybeResolveAttribute leaves a custom-message UnresolvedAttribute
-                // untouched, so it survives to the Verifier and is not rewritten to "Unknown column".
+                // UnresolvedAttribute so Verifier names this field instead of rewriting to "Unknown column".
                 fields = List.of(
                     new UnresolvedAttribute(
                         highlight.source(),
@@ -101,10 +88,7 @@ public class ResolveHighlight extends AnalyzerRule<Highlight> {
     }
 
     /**
-     * Copies the query's uniform leaf analyzer into WITH so the runtime context registers it and the query translates
-     * against the same analyzer as the document side. Returns {@code options} unchanged when WITH already sets an
-     * analyzer, the query is absent/unresolved or names no analyzer, or its leaves disagree - the last is left for
-     * verification to report as "must be the same" rather than a downstream "analyzer not found".
+     * Copies a uniform leaf analyzer into WITH when unset. Disagreement is left for verification.
      */
     private static MapExpression withUniformAnalyzer(MapExpression options, Expression query, Source source) {
         if (query == null || query.resolved() == false || (options != null && options.get(Highlight.ANALYZER) != null)) {

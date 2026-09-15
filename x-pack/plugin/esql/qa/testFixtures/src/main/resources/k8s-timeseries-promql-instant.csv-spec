@@ -332,3 +332,69 @@ PROMQL index=k8s time="2024-05-10T00:20:00.000Z" result=(sum(avg_over_time(netwo
 result:double | step:datetime
 98.39583333333334 | 2024-05-10T00:20:00.000Z
 ;
+
+instant_sort_same_rows_as_bare
+required_capability: promql_command_v0
+required_capability: promql_instant_query
+required_capability: promql_sort
+
+PROMQL index=k8s time="2024-05-10T00:03:00.000Z" bytes=(sort(avg by (cluster) (last_over_time(network.bytes_in[1m]))))
+| SORT cluster;
+
+bytes:double | step:datetime            | cluster:keyword
+612.0        | 2024-05-10T00:03:00.000Z | prod
+749.0        | 2024-05-10T00:03:00.000Z | qa
+382.5        | 2024-05-10T00:03:00.000Z | staging
+;
+
+instant_sort_desc_same_rows_as_bare
+required_capability: promql_command_v0
+required_capability: promql_instant_query
+required_capability: promql_sort
+
+PROMQL index=k8s time="2024-05-10T00:03:00.000Z" bytes=(sort_desc(avg by (cluster) (last_over_time(network.bytes_in[1m]))))
+| SORT cluster;
+
+bytes:double | step:datetime            | cluster:keyword
+612.0        | 2024-05-10T00:03:00.000Z | prod
+749.0        | 2024-05-10T00:03:00.000Z | qa
+382.5        | 2024-05-10T00:03:00.000Z | staging
+;
+
+instant_sort_ascending_by_value
+required_capability: promql_command_v0
+required_capability: promql_instant_query
+required_capability: promql_sort
+
+PROMQL index=k8s time="2024-05-10T00:03:00.000Z" bytes=(sort(avg by (cluster) (last_over_time(network.bytes_in[1m]))));
+
+bytes:double | step:datetime            | cluster:keyword
+382.5        | 2024-05-10T00:03:00.000Z | staging
+612.0        | 2024-05-10T00:03:00.000Z | prod
+749.0        | 2024-05-10T00:03:00.000Z | qa
+;
+
+instant_sort_desc_by_value
+required_capability: promql_command_v0
+required_capability: promql_instant_query
+required_capability: promql_sort
+
+PROMQL index=k8s time="2024-05-10T00:03:00.000Z" bytes=(sort_desc(avg by (cluster) (last_over_time(network.bytes_in[1m]))));
+
+bytes:double | step:datetime            | cluster:keyword
+749.0        | 2024-05-10T00:03:00.000Z | qa
+612.0        | 2024-05-10T00:03:00.000Z | prod
+382.5        | 2024-05-10T00:03:00.000Z | staging
+;
+
+instant_sort_desc_nan_last
+required_capability: promql_command_v0
+required_capability: promql_instant_query
+required_capability: promql_sort
+// NaN is not null, so the missing-sample filter keeps it. The result has no extra
+// column: the synthetic key used to sort NaN last is not projected.
+PROMQL index=k8s time="2024-05-10T00:03:00.000Z" bytes=(sort_desc(vector(NaN)));
+
+bytes:double | step:datetime
+NaN          | 2024-05-10T00:03:00.000Z
+;

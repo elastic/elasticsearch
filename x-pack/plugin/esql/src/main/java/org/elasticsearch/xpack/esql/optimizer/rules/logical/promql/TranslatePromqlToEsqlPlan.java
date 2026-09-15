@@ -90,6 +90,7 @@ import org.elasticsearch.xpack.esql.plan.logical.promql.PromqlCommand;
 import org.elasticsearch.xpack.esql.plan.logical.promql.PromqlFunctionCall;
 import org.elasticsearch.xpack.esql.plan.logical.promql.ScalarConversionFunction;
 import org.elasticsearch.xpack.esql.plan.logical.promql.ScalarFunction;
+import org.elasticsearch.xpack.esql.plan.logical.promql.SortFunction;
 import org.elasticsearch.xpack.esql.plan.logical.promql.ValueTransformationFunction;
 import org.elasticsearch.xpack.esql.plan.logical.promql.operator.VectorBinaryComparison;
 import org.elasticsearch.xpack.esql.plan.logical.promql.operator.VectorBinaryOperator;
@@ -366,6 +367,7 @@ public final class TranslatePromqlToEsqlPlan extends AnalyzerRules.Parameterized
                 case HistogramFunctionCall histogramFunction -> doTranslateHistogramFunction(histogramFunction);
                 case ScalarConversionFunction scalar -> doTranslateScalarConvertion(scalar);
                 case MetadataManipulationFunction relabel -> doTranslateMetadataManipulation(relabel);
+                case SortFunction sort -> doTranslateSort(sort);
                 case PromqlFunctionCall functionCall -> doTranslateFunc(functionCall);
                 case ScalarFunction scalarFunction -> doTranslateScalarFunc(scalarFunction);
                 case VectorBinaryOperator binaryOp -> doTranslateBinaryOp(binaryOp);
@@ -711,6 +713,24 @@ public final class TranslatePromqlToEsqlPlan extends AnalyzerRules.Parameterized
             return child.kind().afterInitialAggregation
                 ? regroup(child, Header.EMPTY, false, scalarExpr)
                 : collapse(child, Header.EMPTY, scalarExpr);
+        }
+
+        /**
+         * Identity translation: {@code sort}/{@code sort_desc} preserve the child's header and grain, except native-histogram
+         * samples are dropped (Prometheus {@code filterFloats}). Ordering is injected later.
+         */
+        private IntermediateResult doTranslateSort(SortFunction sort) {
+            IntermediateResult result = doTranslateNode(sort.child());
+            if (result.value().resolved() && result.value().dataType().isHistogram()) {
+                Source source = sort.source();
+                var skipAllFilter = new Filter(source, result.plan(), Literal.FALSE);
+                var nullGrouping = new Values(source, new Literal(source, null, DataType.DOUBLE));
+                IntermediateResult skipped = result.with(skipAllFilter, result.header(), result.value());
+                return skipped.kind().afterInitialAggregation
+                    ? regroup(skipped, result.header(), false, nullGrouping)
+                    : collapse(skipped, result.header(), nullGrouping);
+            }
+            return result;
         }
 
         /** Translates a generic PromQL function call (rate, ceil, abs, etc.) into an expression over the child's value. */

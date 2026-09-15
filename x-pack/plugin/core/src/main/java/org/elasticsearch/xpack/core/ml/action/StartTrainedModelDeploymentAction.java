@@ -33,6 +33,7 @@ import org.elasticsearch.xpack.core.ml.inference.assignment.Priority;
 import org.elasticsearch.xpack.core.ml.inference.assignment.TrainedModelAssignment;
 import org.elasticsearch.xpack.core.ml.job.messages.Messages;
 import org.elasticsearch.xpack.core.ml.utils.ExceptionsHelper;
+import org.elasticsearch.xpack.core.ml.utils.MlStrings;
 import org.elasticsearch.xpack.core.ml.utils.MlTaskParams;
 
 import java.io.IOException;
@@ -312,6 +313,20 @@ public class StartTrainedModelDeploymentAction extends ActionType<CreateTrainedM
         @Override
         public ActionRequestValidationException validate() {
             ActionRequestValidationException validationException = new ActionRequestValidationException();
+            // deployment_id is not exclusively user/REST-supplied: BaseElasticsearchInternalService builds this
+            // request internally using the inference endpoint's own id verbatim as deployment_id, and inference
+            // endpoint ids are not restricted to MlStrings.isValidId's lowercase-alphanumeric charset (e.g.
+            // "My-ELSER"). validate() runs on every client.execute call, not only REST requests, so enforcing the
+            // full isValidId charset here would break starting/re-deploying existing production inference
+            // endpoints. deployment_id only needs to be safe as a single filesystem path component - it shapes
+            // the isolated IPC directory path ($TMPDIR/ml-child-ipc/<deploymentId>/) - so only that narrower
+            // path-safety property is enforced here, via MlStrings#isValidPathSafeId. That method is a
+            // platform-independent superset of the node-local check applied as defense-in-depth where the path
+            // is actually constructed (NamedPipeHelper#validateChildId in the ml plugin) - see its javadoc for
+            // why the two are not byte-identical.
+            if (MlStrings.isValidPathSafeId(deploymentId) == false) {
+                validationException.addValidationError(Messages.getMessage(Messages.INVALID_PATH_SAFE_ID, DEPLOYMENT_ID, deploymentId));
+            }
             if (waitForState.isAnyOf(VALID_WAIT_STATES) == false) {
                 validationException.addValidationError(
                     "invalid [wait_for] state ["

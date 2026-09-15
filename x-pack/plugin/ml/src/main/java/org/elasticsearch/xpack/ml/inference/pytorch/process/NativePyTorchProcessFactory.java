@@ -40,6 +40,7 @@ public class NativePyTorchProcessFactory implements PyTorchProcessFactory {
     private final String nodeName;
     private volatile Duration processConnectTimeout;
     private volatile boolean modelGraphValidationEnabled;
+    private volatile boolean sandboxEnabled;
 
     public NativePyTorchProcessFactory(Environment env, NativeController nativeController, ClusterService clusterService) {
         this.env = Objects.requireNonNull(env);
@@ -51,6 +52,8 @@ public class NativePyTorchProcessFactory implements PyTorchProcessFactory {
             .addSettingsUpdateConsumer(MachineLearning.PROCESS_CONNECT_TIMEOUT, this::setProcessConnectTimeout);
         clusterService.getClusterSettings()
             .addSettingsUpdateConsumer(MachineLearningField.MODEL_GRAPH_VALIDATION_ENABLED, this::setModelGraphValidationEnabled);
+        this.sandboxEnabled = MachineLearningField.SANDBOX_ENABLED.get(env.settings());
+        clusterService.getClusterSettings().addSettingsUpdateConsumer(MachineLearningField.SANDBOX_ENABLED, this::setSandboxEnabled);
     }
 
     void setProcessConnectTimeout(TimeValue processConnectTimeout) {
@@ -61,6 +64,10 @@ public class NativePyTorchProcessFactory implements PyTorchProcessFactory {
         this.modelGraphValidationEnabled = modelGraphValidationEnabled;
     }
 
+    void setSandboxEnabled(boolean sandboxEnabled) {
+        this.sandboxEnabled = sandboxEnabled;
+    }
+
     @Override
     public NativePyTorchProcess createProcess(
         TrainedModelDeploymentTask task,
@@ -68,21 +75,13 @@ public class NativePyTorchProcessFactory implements PyTorchProcessFactory {
         TimeoutRunnable afterInStreamClose,
         Consumer<String> onProcessCrash
     ) {
-        ProcessPipes processPipes = new ProcessPipes(
-            env,
-            NAMED_PIPE_HELPER,
-            processConnectTimeout,
-            PyTorchBuilder.PROCESS_NAME,
-            task.getDeploymentId(),
-            null,
-            false,
-            true,
-            true,
-            true,
-            false // We do not need a persist pipe. This is also why we use 3 threads per model assignment in the pytorch thread pool.
-        );
+        // Snapshot the volatile field once so the isolated-pipe-layout decision below and the
+        // --disableSandbox decision in executeProcess() agree, even if a dynamic cluster-settings
+        // update flips sandboxEnabled between the two reads.
+        boolean sandboxEnabledSnapshot = sandboxEnabled;
+        ProcessPipes processPipes = createProcessPipes(task, sandboxEnabledSnapshot);
 
-        executeProcess(processPipes, task);
+        executeProcess(processPipes, task, sandboxEnabledSnapshot);
 
         NativePyTorchProcess process = new NativePyTorchProcess(
             task.getDeploymentId(),
@@ -109,8 +108,38 @@ public class NativePyTorchProcessFactory implements PyTorchProcessFactory {
         return process;
     }
 
-    private void executeProcess(ProcessPipes processPipes, TrainedModelDeploymentTask task) {
-        PyTorchBuilder pyTorchBuilder = new PyTorchBuilder(nativeController, processPipes, task.getParams(), modelGraphValidationEnabled);
+    // Package-private (rather than private) so NativePyTorchProcessFactoryTests can override this and executeProcess()
+    // to capture the sandboxEnabledSnapshot value each call site actually received, pinning that both call sites in
+    // createProcess() are fed from the same local snapshot.
+    ProcessPipes createProcessPipes(TrainedModelDeploymentTask task, boolean sandboxEnabledSnapshot) {
+        return new ProcessPipes(
+            env,
+            NAMED_PIPE_HELPER,
+            processConnectTimeout,
+            PyTorchBuilder.PROCESS_NAME,
+            task.getDeploymentId(),
+            null,
+            false,
+            true,
+            true,
+            true,
+            false, // We do not need a persist pipe. This is also why we use 3 threads per model assignment in the pytorch thread pool.
+            // Only isolate this process's IPC pipes in a per-deployment directory when sandboxing is enabled. Today's bundled
+            // ml-cpp controller does not create that directory at all when sandboxing is off, so requesting isolation
+            // unconditionally would break every PyTorch launch under the (currently default) disabled setting.
+            sandboxEnabledSnapshot
+        );
+    }
+
+    // Package-private (see createProcessPipes) so tests can override and capture sandboxEnabledSnapshot.
+    void executeProcess(ProcessPipes processPipes, TrainedModelDeploymentTask task, boolean sandboxEnabledSnapshot) {
+        PyTorchBuilder pyTorchBuilder = new PyTorchBuilder(
+            nativeController,
+            processPipes,
+            task.getParams(),
+            modelGraphValidationEnabled,
+            sandboxEnabledSnapshot
+        );
         try {
             pyTorchBuilder.build();
         } catch (InterruptedException e) {

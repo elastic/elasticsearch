@@ -47,11 +47,9 @@ public class PromqlParser {
     public static final int MAX_LENGTH = EsqlParser.MAX_LENGTH;
 
     /**
-     * Maximum number of binary operators allowed in a single PromQL expression. A chained binary expression
-     * (e.g. {@code metric + metric + ...}) is fatal without this bound: every nested binary node retains a
-     * full-span copy of its source text, so retained heap grows as 7*n^2 bytes - about 7MB at n=1000, versus
-     * ~11GB at n=40000 if it ever completed. In practice the node dies partway down: a ~560KB / 40k-operator
-     * chain peaks at ~950MB on a 1GB heap. The bound caps the worst case at ~7MB.
+     * Maximum number of binary operators allowed in a single PromQL expression. Retained heap grows as
+     * 7*n^2 bytes with chain length n (each nested binary node keeps a full-span copy of its source text),
+     * so the cap bounds the worst case at about 7MB.
      * See <a href="https://github.com/elastic/security/issues/12593">security#12593</a>.
      */
     public static final int MAX_BINARY_OPERATORS = 1000;

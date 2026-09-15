@@ -13,6 +13,7 @@ import org.apache.http.util.EntityUtils;
 import org.elasticsearch.Build;
 import org.elasticsearch.client.Request;
 import org.elasticsearch.client.ResponseException;
+import org.elasticsearch.client.WarningsHandler;
 import org.elasticsearch.test.TestClustersThreadFilter;
 import org.elasticsearch.test.cluster.ElasticsearchCluster;
 import org.elasticsearch.test.rest.ESRestTestCase;
@@ -50,6 +51,7 @@ public class FederationBuildDefaultRestIT extends ESRestTestCase {
         Request putDataSource = new Request("PUT", "/_query/data_source/" + DATA_SOURCE);
         putDataSource.setJsonEntity("""
             {"type": "s3", "settings": {"region": "us-east-1", "auth": "anonymous"}}""");
+        putDataSource.setOptions(putDataSource.getOptions().toBuilder().setWarningsHandler(WarningsHandler.PERMISSIVE).build());
 
         if (Build.current().isSnapshot()) {
             // Federation is on, so the data source is created.

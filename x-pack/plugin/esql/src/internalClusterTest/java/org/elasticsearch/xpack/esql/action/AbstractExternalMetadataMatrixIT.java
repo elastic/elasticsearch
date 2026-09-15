@@ -10,14 +10,19 @@ package org.elasticsearch.xpack.esql.action;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.xpack.core.esql.action.ColumnInfo;
 import org.elasticsearch.xpack.esql.core.expression.MetadataAttribute;
+import org.elasticsearch.xpack.esql.datasources.FileMetadataColumns;
 import org.elasticsearch.xpack.esql.plugin.QueryPragmas;
 import org.junit.Before;
 
 import java.nio.file.Path;
+import java.util.ArrayList;
+import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.getValuesList;
+import static org.elasticsearch.xpack.esql.action.EsqlCapabilities.Cap.INLINE_STATS;
 import static org.elasticsearch.xpack.esql.action.EsqlQueryRequest.syncEsqlQueryRequest;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
@@ -171,6 +176,84 @@ public abstract class AbstractExternalMetadataMatrixIT extends AbstractExternalD
                 assertThat("_size is null on external rows", row.get(sizeI), nullValue());
                 assertThat("_score is null on external rows", row.get(scoreI), nullValue());
             }
+        }
+    }
+
+    public void testMetadataColumnGroupsInStats() throws Exception {
+        try (var response = run(syncEsqlQueryRequest("FROM employees METADATA _index | STATS c = COUNT(*) BY _index"), TIMEOUT)) {
+            int idx = columnIndex(response.columns(), "_index");
+            int countIdx = columnIndex(response.columns(), "c");
+            List<List<Object>> rows = getValuesList(response);
+            assertThat(rows, hasSize(1));
+            assertThat(rows.get(0).get(idx).toString(), equalTo("employees"));
+            assertThat(((Number) rows.get(0).get(countIdx)).longValue(), equalTo(3L));
+        }
+
+        try (var response = run(syncEsqlQueryRequest("FROM employees METADATA _file.name | STATS c = COUNT(*) BY _file.name"), TIMEOUT)) {
+            List<List<Object>> rows = getValuesList(response);
+            assertThat(rows, hasSize(1));
+            int nameIdx = columnIndex(response.columns(), "_file.name");
+            int countIdx = columnIndex(response.columns(), "c");
+            assertThat(rows.get(0).get(nameIdx), notNullValue());
+            assertThat(((Number) rows.get(0).get(countIdx)).longValue(), equalTo(3L));
+        }
+    }
+
+    /**
+     * Iterates the live metadata registries so a name added later is grouped without extending this
+     * test. Snapshot-only and feature-flagged names ({@code _tier}, {@code _slice}) appear only when
+     * the corresponding map entry is present.
+     */
+    public void testEveryMetadataColumnGroupsInStats() throws Exception {
+        Set<String> names = new LinkedHashSet<>();
+        names.addAll(MetadataAttribute.ATTRIBUTES_MAP.keySet());
+        names.addAll(FileMetadataColumns.COLUMNS.keySet());
+        List<String> failures = new ArrayList<>();
+        for (String name : names) {
+            String query = "FROM employees METADATA " + name + " | STATS c = COUNT(*) BY " + name;
+            try (var response = run(syncEsqlQueryRequest(query), TIMEOUT)) {
+                List<List<Object>> rows = getValuesList(response);
+                List<String> columns = response.columns().stream().map(ColumnInfo::name).toList();
+                if (rows.isEmpty()) {
+                    failures.add(name + ": empty result");
+                }
+                if (columns.contains("c") == false) {
+                    failures.add(name + ": missing c, columns=" + columns);
+                }
+                if (columns.contains(name) == false) {
+                    failures.add(name + ": missing grouping column, columns=" + columns);
+                }
+            } catch (Exception e) {
+                failures.add(name + ": " + e.getClass().getSimpleName() + ": " + e.getMessage());
+            }
+        }
+        if (failures.isEmpty() == false) {
+            fail("grouping by " + names.size() + " metadata columns failed:\n" + String.join("\n", failures));
+        }
+    }
+
+    public void testMetadataColumnGroupsInInlineStats() throws Exception {
+        assumeTrue("INLINE STATS requires the capability to be enabled", INLINE_STATS.isEnabled());
+        try (var response = run(syncEsqlQueryRequest("FROM employees METADATA _index | INLINE STATS c = COUNT(*) BY _index"), TIMEOUT)) {
+            int idx = columnIndex(response.columns(), "_index");
+            int countIdx = columnIndex(response.columns(), "c");
+            List<List<Object>> rows = getValuesList(response);
+            assertThat(rows, hasSize(3));
+            for (List<Object> row : rows) {
+                assertThat(row.get(idx).toString(), equalTo("employees"));
+                assertThat(((Number) row.get(countIdx)).longValue(), equalTo(3L));
+            }
+        }
+    }
+
+    public void testMetadataColumnGroupsInStatsWithAlias() throws Exception {
+        try (var response = run(syncEsqlQueryRequest("FROM employees METADATA _index | STATS c = COUNT(*) BY i = _index"), TIMEOUT)) {
+            int idx = columnIndex(response.columns(), "i");
+            int countIdx = columnIndex(response.columns(), "c");
+            List<List<Object>> rows = getValuesList(response);
+            assertThat(rows, hasSize(1));
+            assertThat(rows.get(0).get(idx).toString(), equalTo("employees"));
+            assertThat(((Number) rows.get(0).get(countIdx)).longValue(), equalTo(3L));
         }
     }
 

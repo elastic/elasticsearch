@@ -7,7 +7,7 @@
 
 package org.elasticsearch.xpack.inference.services.tencentcloud.request;
 
-import org.elasticsearch.inference.UnifiedCompletionRequest;
+import org.elasticsearch.inference.UnifiedCompletionRequestBody;
 import org.elasticsearch.xcontent.ToXContentObject;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xpack.inference.external.http.sender.UnifiedChatInput;
@@ -37,7 +37,7 @@ public record TencentCloudChatCompletionRequestEntity(UnifiedChatInput input, Te
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         var modelId = Objects.requireNonNullElseGet(input.getRequest().model(), model::model);
         builder.startObject();
-        new UnifiedChatCompletionRequestEntity(input).toXContent(builder, UnifiedCompletionRequest.withMaxTokens(modelId, params));
+        new UnifiedChatCompletionRequestEntity(input).toXContent(builder, UnifiedCompletionRequestBody.withMaxTokens(modelId, params));
         builder.endObject();
         return builder;
     }

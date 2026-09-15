@@ -314,20 +314,20 @@ max_rate:double | cluster:keyword
 
 notEnoughSamples
 required_capability: ts_command_v0
-required_capability: rate_with_interpolation
+required_capability: rate_with_interpolation_v4
 
 TS k8s | WHERE @timestamp <= "2024-05-10T00:06:14.000Z" | STATS max_rate=max(rate(network.total_bytes_in)) BY pod, time_bucket = bucket(@timestamp,1minute) | EVAL max_rate=ROUND(max_rate, 6) | KEEP max_rate, pod, time_bucket | SORT pod, time_bucket DESC | LIMIT 10;
 
 max_rate:double | pod:keyword | time_bucket:datetime    
 4.25            | one         | 2024-05-10T00:06:00.000Z
 8.760294        | one         | 2024-05-10T00:05:00.000Z
-49.352941       | one         | 2024-05-10T00:04:00.000Z
+7.088725        | one         | 2024-05-10T00:04:00.000Z
 16.45           | one         | 2024-05-10T00:03:00.000Z
-null            | one         | 2024-05-10T00:01:00.000Z
+8.584071        | one         | 2024-05-10T00:01:00.000Z
 10.685714       | three       | 2024-05-10T00:06:00.000Z
-10.685714       | three       | 2024-05-10T00:05:00.000Z
-3.633842        | three       | 2024-05-10T00:03:00.000Z
-10.25           | three       | 2024-05-10T00:02:00.000Z
+3.996296        | three       | 2024-05-10T00:05:00.000Z
+2.383878        | three       | 2024-05-10T00:03:00.000Z
+5.431373        | three       | 2024-05-10T00:02:00.000Z
 18.934896       | three       | 2024-05-10T00:01:00.000Z
 ;
 

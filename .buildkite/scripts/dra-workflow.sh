@@ -72,7 +72,7 @@ echo --- Building release artifacts
   $BUILD_SNAPSHOT_ARG \
   buildReleaseArtifacts \
   exportCompressedDockerImages \
-  :zipAggregation \
+  :nmcpZipAggregation \
   :prepareDraSnapshotMavenAggregation \
   :distribution:generateDependenciesReport
 

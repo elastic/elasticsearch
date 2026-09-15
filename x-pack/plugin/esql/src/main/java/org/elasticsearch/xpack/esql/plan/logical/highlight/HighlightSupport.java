@@ -24,6 +24,7 @@ import org.elasticsearch.xpack.esql.expression.function.fulltext.Kql;
 import org.elasticsearch.xpack.esql.expression.function.fulltext.Match;
 import org.elasticsearch.xpack.esql.expression.function.fulltext.MatchPhrase;
 import org.elasticsearch.xpack.esql.expression.function.fulltext.QueryString;
+import org.elasticsearch.xpack.esql.expression.function.fulltext.SingleFieldFullTextFunction;
 import org.elasticsearch.xpack.esql.expression.predicate.Predicates;
 import org.elasticsearch.xpack.esql.expression.predicate.logical.BinaryLogic;
 import org.elasticsearch.xpack.esql.expression.predicate.logical.Not;
@@ -67,14 +68,18 @@ public final class HighlightSupport {
     /** The leaf's {@code analyzer} option, or {@code null} if absent, not foldable, or unsupported on that leaf type. */
     private static String analyzerNameOf(Expression fullTextLeaf) {
         Expression options = switch (fullTextLeaf) {
-            case Match match -> match.options();
-            case MatchPhrase matchPhrase -> matchPhrase.options();
+            case SingleFieldFullTextFunction single -> single.options();
             case QueryString queryString -> queryString.options();
             case Kql kql -> kql.options();
             default -> null;
         };
+        return foldedOption(options, ANALYZER_FIELD.getPreferredName());
+    }
+
+    /** The folded string value of option {@code name} in {@code options}, or {@code null} if absent or not a foldable constant. */
+    private static String foldedOption(Expression options, String name) {
         if (options instanceof MapExpression map) {
-            Expression value = map.get(ANALYZER_FIELD.getPreferredName());
+            Expression value = map.get(name);
             if (value != null && value.foldable()) {
                 return BytesRefs.toString(value.fold(FoldContext.small()));
             }
@@ -392,12 +397,6 @@ public final class HighlightSupport {
      * constant. The value may be a wildcard pattern; callers decide whether that still identifies a single field.
      */
     public static String queryStringDefaultField(QueryString queryString) {
-        if (queryString.options() instanceof MapExpression map) {
-            Expression value = map.get("default_field");
-            if (value != null && value.foldable()) {
-                return BytesRefs.toString(value.fold(FoldContext.small()));
-            }
-        }
-        return null;
+        return foldedOption(queryString.options(), "default_field");
     }
 }

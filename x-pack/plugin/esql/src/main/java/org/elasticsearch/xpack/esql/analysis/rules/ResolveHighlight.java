@@ -92,35 +92,34 @@ public class ResolveHighlight extends AnalyzerRule<Highlight> {
             }
         }
 
-        // Copy the query's uniform leaf analyzer into WITH so the runtime context registers it and the query
-        // translates against the same analyzer as the document side. Disagreement is left for verification to report,
-        // so the user sees "must be the same" instead of a downstream "analyzer not found".
-        MapExpression newOptions = highlight.options();
-        if (query != null && query.resolved()) {
-            Expression existingAnalyzer = newOptions == null ? null : newOptions.get(Highlight.ANALYZER);
-            if (existingAnalyzer == null) {
-                String uniform = HighlightSupport.uniformAnalyzerOf(query);
-                if (uniform != null) {
-                    newOptions = withDerivedAnalyzer(newOptions, uniform, highlight.source());
-                }
-            }
-        }
-
-        if (query == highlight.query() && fields == highlight.fields() && newOptions == highlight.options()) {
+        MapExpression options = withUniformAnalyzer(highlight.options(), query, highlight.source());
+        if (query == highlight.query() && fields == highlight.fields() && options == highlight.options()) {
             return highlight;
         }
         Highlight updated = highlight.withResolved(query, implicit, fields, generated);
-        return newOptions == highlight.options() ? updated : updated.withOptions(newOptions);
+        return options == highlight.options() ? updated : updated.withOptions(options);
     }
 
-    /** Appends an {@code analyzer} entry to {@code existing} (or creates a fresh {@link MapExpression}). */
-    private static MapExpression withDerivedAnalyzer(MapExpression existing, String analyzerName, Source source) {
+    /**
+     * Copies the query's uniform leaf analyzer into WITH so the runtime context registers it and the query translates
+     * against the same analyzer as the document side. Returns {@code options} unchanged when WITH already sets an
+     * analyzer, the query is absent/unresolved or names no analyzer, or its leaves disagree - the last is left for
+     * verification to report as "must be the same" rather than a downstream "analyzer not found".
+     */
+    private static MapExpression withUniformAnalyzer(MapExpression options, Expression query, Source source) {
+        if (query == null || query.resolved() == false || (options != null && options.get(Highlight.ANALYZER) != null)) {
+            return options;
+        }
+        String uniform = HighlightSupport.uniformAnalyzerOf(query);
+        if (uniform == null) {
+            return options;
+        }
         List<Expression> entries = new ArrayList<>();
-        if (existing != null) {
-            entries.addAll(existing.children());
+        if (options != null) {
+            entries.addAll(options.children());
         }
         entries.add(Literal.keyword(source, Highlight.ANALYZER));
-        entries.add(Literal.keyword(source, analyzerName));
-        return new MapExpression(existing != null ? existing.source() : source, entries);
+        entries.add(Literal.keyword(source, uniform));
+        return new MapExpression(options != null ? options.source() : source, entries);
     }
 }

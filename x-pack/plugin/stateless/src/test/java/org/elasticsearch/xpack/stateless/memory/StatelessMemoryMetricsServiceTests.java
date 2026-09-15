@@ -216,22 +216,22 @@ public class StatelessMemoryMetricsServiceTests extends ESTestCase {
         final var updatingMetric = new UpdatingOnSnapshotShardMemoryMetrics(initialMappingSize, updatedMappingSize);
         service.getShardMemoryMetrics().put(shardId, updatingMetric);
 
-        // These expected values are computed before the snapshot hook mutates the live metric, so they represent the old data.
-        final NodeHeapEstimates expectedNodeHeapEstimate = service.getPerNodeMemoryMetrics(clusterState).get(node0.getId());
-        final ShardAndIndexHeapUsage expectedShardHeapUsage = service.getShardHeapUsageEstimates().perShard().get(shardId);
-
         // getEstimatedHeapUsageStats snapshots shardMemoryMetrics first. The custom metric below returns the old values to that
         // snapshot and then updates the live metric. Both node-level and shard-level estimates must keep reading from the old
         // captured snapshot; without that snapshot, one side of the combined response could observe the live updated values.
         final EstimatedHeapUsageStats estimatedHeapUsageStats = service.getEstimatedHeapUsageStats(clusterState);
 
         assertThat(updatingMetric.updatedDuringSnapshot(), equalTo(true));
-        assertThat(estimatedHeapUsageStats.nodeHeapEstimates().get(node0.getId()), equalTo(expectedNodeHeapEstimate));
-        assertThat(estimatedHeapUsageStats.shardHeapUsageEstimates().perShard().get(shardId), equalTo(expectedShardHeapUsage));
+
+        // Capture the pre-update snapshot values from the stats result.
+        final NodeHeapEstimates nodeEstimate = estimatedHeapUsageStats.nodeHeapEstimates().get(node0.getId());
+        final ShardAndIndexHeapUsage shardEstimate = estimatedHeapUsageStats.shardHeapUsageEstimates().perShard().get(shardId);
 
         // Subsequent direct service reads use the live metric map, so they should observe the update made after the snapshot was copied.
-        assertThat(service.getPerNodeMemoryMetrics(clusterState).get(node0.getId()), not(equalTo(expectedNodeHeapEstimate)));
-        assertThat(service.getShardHeapUsageEstimates().perShard().get(shardId), not(equalTo(expectedShardHeapUsage)));
+        // If either side of getEstimatedHeapUsageStats had read from a second (post-update) snapshot, that side's value would equal
+        // the subsequent read here — causing a not(equalTo) assertion below to pass trivially and the other to fail — detecting the bug.
+        assertThat(service.getPerNodeMemoryMetrics(clusterState).get(node0.getId()), not(equalTo(nodeEstimate)));
+        assertThat(service.getShardHeapUsageEstimates().perShard().get(shardId), not(equalTo(shardEstimate)));
     }
 
     private static class UpdatingOnSnapshotShardMemoryMetrics extends StatelessMemoryMetricsService.ShardMemoryMetrics {

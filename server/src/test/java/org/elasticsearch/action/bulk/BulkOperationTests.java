@@ -55,7 +55,10 @@ import org.elasticsearch.common.util.concurrent.AtomicArray;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.common.util.concurrent.EsRejectedExecutionException;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
+import org.elasticsearch.index.IndexMode;
+import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.IndexVersion;
+import org.elasticsearch.index.mapper.DateFieldMapper;
 import org.elasticsearch.index.mapper.MapperException;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.indices.TestIndexNameExpressionResolver;
@@ -72,6 +75,7 @@ import org.junit.After;
 import org.junit.Before;
 
 import java.io.IOException;
+import java.time.Instant;
 import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
@@ -235,6 +239,149 @@ public class BulkOperationTests extends ESTestCase {
     @After
     public void tearDownThreadpool() {
         terminate(threadPool);
+    }
+
+    /**
+     * A document whose {@code @timestamp} falls outside all backing index time ranges of a TSDB data stream with a failure store enabled
+     * should be redirected to the failure store during pre-routing, exercising the {@code catch (DataStream.TimestampError)} path in
+     * {@code groupRequestsByShards}.
+     */
+    public void testTsdbTimestampErrorDuringRoutingRedirectsToFailureStore() throws Exception {
+        Instant start = Instant.parse("2020-01-01T00:00:00Z");
+        Instant end = Instant.parse("2021-01-01T00:00:00Z");
+        String tsdbStreamName = "my_tsdb_stream";
+
+        IndexMetadata tsdbBackingIndex = DataStreamTestHelper.createIndexMetadata(
+            DataStream.getDefaultBackingIndexName(tsdbStreamName, 1, start.toEpochMilli()),
+            true,
+            Settings.builder()
+                .put(IndexSettings.MODE.getKey(), IndexMode.TIME_SERIES)
+                .put("index.routing_path", "uid")
+                .put(IndexSettings.TIME_SERIES_START_TIME.getKey(), DateFieldMapper.DEFAULT_DATE_TIME_FORMATTER.format(start))
+                .put(IndexSettings.TIME_SERIES_END_TIME.getKey(), DateFieldMapper.DEFAULT_DATE_TIME_FORMATTER.format(end))
+                .build(),
+            0
+        );
+        IndexMetadata tsdbFailureStore = DataStreamTestHelper.createFailureStore(tsdbStreamName, 1, millis).numberOfShards(1).build();
+
+        DataStream tsdbDataStream = DataStream.builder(tsdbStreamName, List.of(tsdbBackingIndex.getIndex()))
+            .setGeneration(1)
+            .setIndexMode(IndexMode.TIME_SERIES)
+            .setDataStreamOptions(DataStreamOptions.FAILURE_STORE_ENABLED)
+            .setFailureIndices(DataStream.DataStreamIndices.failureIndicesBuilder(List.of(tsdbFailureStore.getIndex())).build())
+            .build();
+
+        ClusterState tsdbState = ClusterState.builder(ClusterName.DEFAULT)
+            .putProjectMetadata(
+                ProjectMetadata.builder(projectId)
+                    .indices(
+                        Map.of(
+                            tsdbBackingIndex.getIndex().getName(),
+                            tsdbBackingIndex,
+                            tsdbFailureStore.getIndex().getName(),
+                            tsdbFailureStore
+                        )
+                    )
+                    .dataStreams(Map.of(tsdbStreamName, tsdbDataStream), Map.of())
+                    .build()
+            )
+            .build();
+
+        // The @timestamp value is outside the backing index time range [2020, 2021), so getConcreteWriteIndex
+        // throws DataStream.TimestampError, which should be caught and redirect the document to the failure store.
+        BulkRequest bulkRequest = new BulkRequest();
+        bulkRequest.add(
+            new IndexRequest(tsdbStreamName).opType(DocWriteRequest.OpType.CREATE).source(Map.of("@timestamp", "2025-01-01T00:00:00Z"))
+        );
+
+        NodeClient client = getNodeClient(acceptAllShardWrites());
+        BulkResponse response = safeAwait(l -> newBulkOperation(client, bulkRequest, tsdbState, mockObserver(tsdbState), l).run());
+
+        assertThat(response.hasFailures(), is(false));
+        BulkItemResponse redirectedItem = Arrays.stream(response.getItems())
+            .filter(item -> item.getIndex().equals(tsdbFailureStore.getIndex().getName()))
+            .findFirst()
+            .orElseThrow(() -> new AssertionError("Could not find item redirected to the failure store"));
+        assertThat(redirectedItem.getFailureStoreStatus(), equalTo(IndexDocFailureStoreStatus.USED));
+    }
+
+    /**
+     * Same scenario as {@link #testTsdbTimestampErrorDuringRoutingRedirectsToFailureStore}, but with the x-content batch path active.
+     * The {@code TimestampError} is thrown from {@code getConcreteWriteIndex} before {@code BatchModeRouter.route} is reached, so both
+     * paths exercise the same {@code catch (DataStream.TimestampError)} block and produce identical behavior.
+     */
+    public void testTsdbTimestampErrorDuringRoutingRedirectsToFailureStoreBatchMode() throws Exception {
+        assumeTrue("batch indexing requires the batch_indexing feature flag", BatchIndexingEnabled.FEATURE_FLAG.isEnabled());
+        Instant start = Instant.parse("2020-01-01T00:00:00Z");
+        Instant end = Instant.parse("2021-01-01T00:00:00Z");
+        String tsdbStreamName = "my_tsdb_stream_batch";
+
+        IndexMetadata tsdbBackingIndex = DataStreamTestHelper.createIndexMetadata(
+            DataStream.getDefaultBackingIndexName(tsdbStreamName, 1, start.toEpochMilli()),
+            true,
+            Settings.builder()
+                .put(IndexSettings.MODE.getKey(), IndexMode.TIME_SERIES)
+                .put("index.routing_path", "uid")
+                .put(IndexSettings.TIME_SERIES_START_TIME.getKey(), DateFieldMapper.DEFAULT_DATE_TIME_FORMATTER.format(start))
+                .put(IndexSettings.TIME_SERIES_END_TIME.getKey(), DateFieldMapper.DEFAULT_DATE_TIME_FORMATTER.format(end))
+                .build(),
+            0
+        );
+        IndexMetadata tsdbFailureStore = DataStreamTestHelper.createFailureStore(tsdbStreamName, 1, millis).numberOfShards(1).build();
+
+        DataStream tsdbDataStream = DataStream.builder(tsdbStreamName, List.of(tsdbBackingIndex.getIndex()))
+            .setGeneration(1)
+            .setIndexMode(IndexMode.TIME_SERIES)
+            .setDataStreamOptions(DataStreamOptions.FAILURE_STORE_ENABLED)
+            .setFailureIndices(DataStream.DataStreamIndices.failureIndicesBuilder(List.of(tsdbFailureStore.getIndex())).build())
+            .build();
+
+        ClusterState tsdbState = ClusterState.builder(ClusterName.DEFAULT)
+            .putProjectMetadata(
+                ProjectMetadata.builder(projectId)
+                    .indices(
+                        Map.of(
+                            tsdbBackingIndex.getIndex().getName(),
+                            tsdbBackingIndex,
+                            tsdbFailureStore.getIndex().getName(),
+                            tsdbFailureStore
+                        )
+                    )
+                    .dataStreams(Map.of(tsdbStreamName, tsdbDataStream), Map.of())
+                    .build()
+            )
+            .build();
+
+        BulkRequest bulkRequest = new BulkRequest();
+        bulkRequest.add(
+            new IndexRequest(tsdbStreamName).opType(DocWriteRequest.OpType.CREATE).source(Map.of("@timestamp", "2025-01-01T00:00:00Z"))
+        );
+
+        BatchIndexingEnabled batchEnabled = new BatchIndexingEnabled(
+            ClusterSettings.createBuiltInClusterSettings(Settings.builder().put(BatchIndexingEnabled.BATCH_INDEXING.getKey(), true).build())
+        );
+        NodeClient client = getNodeClient(acceptAllShardWrites());
+        BulkResponse response = safeAwait(
+            l -> newBulkOperation(
+                tsdbState,
+                client,
+                bulkRequest,
+                new AtomicArray<>(bulkRequest.numberOfActions()),
+                mockObserver(tsdbState),
+                l,
+                new FailureStoreDocumentConverter(),
+                DataStreamFailureStoreSettings.create(ClusterSettings.createBuiltInClusterSettings()),
+                true,
+                batchEnabled
+            ).run()
+        );
+
+        assertThat(response.hasFailures(), is(false));
+        BulkItemResponse redirectedItem = Arrays.stream(response.getItems())
+            .filter(item -> item.getIndex().equals(tsdbFailureStore.getIndex().getName()))
+            .findFirst()
+            .orElseThrow(() -> new AssertionError("Could not find item redirected to the failure store"));
+        assertThat(redirectedItem.getFailureStoreStatus(), equalTo(IndexDocFailureStoreStatus.USED));
     }
 
     /**
@@ -1339,6 +1486,32 @@ public class BulkOperationTests extends ESTestCase {
         DataStreamFailureStoreSettings dataStreamFailureStoreSettings,
         boolean failureStoreNodeFeatureEnabled
     ) {
+        return newBulkOperation(
+            state,
+            client,
+            request,
+            existingResponses,
+            observer,
+            listener,
+            failureStoreDocumentConverter,
+            dataStreamFailureStoreSettings,
+            failureStoreNodeFeatureEnabled,
+            new BatchIndexingEnabled(ClusterSettings.createBuiltInClusterSettings())
+        );
+    }
+
+    private BulkOperation newBulkOperation(
+        ClusterState state,
+        NodeClient client,
+        BulkRequest request,
+        AtomicArray<BulkItemResponse> existingResponses,
+        ClusterStateObserver observer,
+        ActionListener<BulkResponse> listener,
+        FailureStoreDocumentConverter failureStoreDocumentConverter,
+        DataStreamFailureStoreSettings dataStreamFailureStoreSettings,
+        boolean failureStoreNodeFeatureEnabled,
+        BatchIndexingEnabled batchIndexingEnabled
+    ) {
         // Time provision
         long timeZero = TimeUnit.MILLISECONDS.toNanos(randomMillisUpToYear9999() - TimeUnit.DAYS.toMillis(1));
         long duration = TimeUnit.SECONDS.toNanos(randomLongBetween(1, 60));
@@ -1374,7 +1547,7 @@ public class BulkOperationTests extends ESTestCase {
             FailureStoreMetrics.NOOP,
             dataStreamFailureStoreSettings,
             failureStoreNodeFeatureEnabled,
-            new BatchIndexingEnabled(ClusterSettings.createBuiltInClusterSettings())
+            batchIndexingEnabled
         );
     }
 

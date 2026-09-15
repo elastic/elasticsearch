@@ -107,6 +107,7 @@ import java.util.Map;
 import java.util.Set;
 import java.util.TreeMap;
 import java.util.TreeSet;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 
@@ -2236,6 +2237,159 @@ public class ValuesSourceReaderOperatorTests extends OperatorTestCase {
 
     private static int value(int segment, int doc) {
         return segment * 10 + doc;
+    }
+
+    public void testManyReaderReadsASegmentBeforeClosingItsReader() throws IOException {
+        // Two segments so one page crosses a segment boundary.
+        try (
+            IndexWriter writer = new IndexWriter(
+                directory,
+                newIndexWriterConfig().setMergePolicy(NoMergePolicy.INSTANCE).setMaxBufferedDocs(IndexWriterConfig.DISABLE_AUTO_FLUSH)
+            )
+        ) {
+            writer.addDocument(new Document());
+            writer.commit();
+            writer.addDocument(new Document());
+            writer.commit();
+        }
+        reader = DirectoryReader.open(directory);
+        assertThat(reader.leaves(), hasSize(2));
+
+        DriverContext driverContext = driverContext();
+        DocVector docVector;
+        try (DocVector.FixedBuilder builder = DocVector.newFixedBuilder(driverContext.blockFactory(), 2)) {
+            builder.append(0, 0, 0);
+            builder.append(0, 1, 0);
+            docVector = builder.build(DocVector.config());
+        }
+        assertFalse("multi-segment page", docVector.singleSegment());
+
+        AtomicBoolean readAfterClose = new AtomicBoolean();
+        ValuesSourceReaderOperator.Factory readerFactory = new ValuesSourceReaderOperator.Factory(
+            ByteSizeValue.ofGb(1),
+            List.of(
+                new ValuesSourceReaderOperator.FieldInfo(
+                    "closed_reader_check",
+                    ElementType.INT,
+                    false,
+                    (warningsMode, shardIdx) -> ValuesSourceReaderOperator.load(new ClosingBlockLoader(readAfterClose))
+                )
+            ),
+            new IndexedByShardIdFromSingleton<>(
+                new ValuesSourceReaderOperator.ShardContext(
+                    reader,
+                    (sourcePaths) -> SourceLoader.FROM_STORED_SOURCE,
+                    STORED_FIELDS_SEQUENTIAL_PROPORTIONS
+                )
+            ),
+            randomBoolean(),
+            0,
+            randomDoubleBetween(0.1, 10.0, true),
+            docSequenceBytesRefFieldThreshold(),
+            () -> 0L
+        );
+
+        Page inputPage = new Page(docVector.asBlock());
+        var runner = new TestDriverRunner().builder(driverContext);
+        List<Page> results = runner.input(List.of(inputPage)).run(readerFactory);
+        try {
+            assertFalse("a segment was read through a reader that had already been closed", readAfterClose.get());
+            assertThat(results, hasSize(1));
+            IntVector loaded = results.get(0).<IntBlock>getBlock(1).asVector();
+            assertThat(loaded.getPositionCount(), equalTo(2));
+            assertThat(loaded.getInt(0), equalTo(value(0, 0)));
+            assertThat(loaded.getInt(1), equalTo(value(1, 0)));
+        } finally {
+            results.forEach(Page::releaseBlocks);
+        }
+        assertDriverContext(driverContext);
+    }
+
+    /**
+     * Loads column-at-a-time only, through readers that record being read after they were closed. A reader that
+     * has been closed has handed back whatever it reserved, so asking it for another page is a use after free.
+     */
+    private record ClosingBlockLoader(AtomicBoolean readAfterClose) implements BlockLoader {
+        @Override
+        public BlockLoader.Builder builder(BlockLoader.BlockFactory factory, int expectedCount) {
+            return factory.ints(expectedCount);
+        }
+
+        @Override
+        public IOFunction<CircuitBreaker, BlockLoader.ColumnAtATimeReader> columnAtATimeReader(LeafReaderContext context) {
+            return breaker -> new ClosingColumnAtATimeReader(context.ord, readAfterClose);
+        }
+
+        @Override
+        public BlockLoader.RowStrideReader rowStrideReader(CircuitBreaker breaker, LeafReaderContext context) {
+            return null;
+        }
+
+        @Override
+        public StoredFieldsSpec rowStrideStoredFieldSpec() {
+            return StoredFieldsSpec.NO_REQUIREMENTS;
+        }
+
+        @Override
+        public boolean supportsOrdinals() {
+            return false;
+        }
+
+        @Override
+        public SortedSetDocValues ordinals(LeafReaderContext context) {
+            throw new UnsupportedOperationException();
+        }
+
+        @Override
+        public String toString() {
+            return "closing_loader";
+        }
+    }
+
+    private static class ClosingColumnAtATimeReader implements BlockLoader.ColumnAtATimeReader {
+        private final int segment;
+        private final AtomicBoolean readAfterClose;
+        private boolean closed;
+
+        ClosingColumnAtATimeReader(int segment, AtomicBoolean readAfterClose) {
+            this.segment = segment;
+            this.readAfterClose = readAfterClose;
+        }
+
+        @Override
+        public BlockLoader.Block read(BlockLoader.BlockFactory factory, BlockLoader.Docs docs, int offset, boolean nullsFiltered) {
+            if (closed) {
+                readAfterClose.set(true);
+            }
+            BlockLoader.IntBuilder builder = factory.ints(docs.count() - offset);
+            boolean success = false;
+            try {
+                for (int p = offset; p < docs.count(); p++) {
+                    builder.appendInt(value(segment, docs.get(p)));
+                }
+                success = true;
+                return builder.build();
+            } finally {
+                if (success == false) {
+                    builder.close();
+                }
+            }
+        }
+
+        @Override
+        public boolean canReuse(int startingDocID) {
+            return true;
+        }
+
+        @Override
+        public void close() {
+            closed = true;
+        }
+
+        @Override
+        public String toString() {
+            return "closing_column_at_a_time";
+        }
     }
 
     public void testManyShards() throws IOException {

@@ -68,6 +68,11 @@ import static org.elasticsearch.xpack.esql.CsvTestsDataLoader.availableDatasetsF
  *       differences). Only checked while the per-iteration <em>determinism gate</em> is open.</li>
  * </ol>
  *
+ * <p>When both sides throw, the shared failure is not treated as a test failure: this suite's job
+ * is to find index-mode divergences. Bugs that reproduce on both modes belong in other suites
+ * (e.g. {@code GenerativeIT} or unit tests). The pipeline step still stops so later commands are
+ * not built on a failed query.
+ *
  * <p>The determinism gate closes when a row-truncating or non-deterministic command appears in
  * the pipeline, or when either side returns exactly 1 000 rows (the implicit {@code LIMIT 1000}
  * may have kicked in). After the gate closes, failure parity and schema are still checked for
@@ -142,31 +147,14 @@ public abstract class CrossIndexModeGenerativeRestRunner extends GenerativeRestT
         // Long-running queries on very large synthetic result sets may time out on the cand side
         // while completing on the ref side. Known performance difference, not a correctness bug.
         "milliseconds timeout on connection",
-        // Columnar mode can throw a query_shard_exception when a WHERE clause tries to match a
-        // string literal against a numeric field (Lucene NumberFormatException: "For input string:
-        // \"hello\""). Standard mode silently returns no rows; query-execution path difference.
-        "For input string:",
         // semantic_text fields reject full-text match queries (qstr/MATCH) in columnar mode with
         // "does not support match queries", while standard mode handles them. Known mode difference.
         "does not support match queries",
-        // Columnar mode has no inverted index for date fields, so a qstr/MATCH query that searches
-        // a date field with a non-date string fails with a date-parse error surfaced as unexpected
-        // partial results. Standard mode handles this gracefully. Known mode-level difference.
-        "failed to parse date field",
-        // Columnar mode throws when a qstr/MATCH query is applied to an IP-range field and the
-        // search string is not a valid IP literal (e.g. "ring"). Standard mode silently returns
-        // no results. Same root cause as "For input string:" for numeric fields.
-        "is not an IP string literal",
         // DateExtract.resolveType incorrectly handles null field types (server-side bug). Produces
         // a 500 error on any shard that encounters a null-typed unmapped field in a date_extract()
         // expression. Affects both modes equally but can surface as partial results on one side
         // only due to shard-level execution order differences.
-        "Unsupported field type [NULL]",
-        // USER_AGENT / REPLACE can produce a NullPointerException ("Cannot invoke
-        // String.isEmpty() because this.pattern is null") when applied to certain field
-        // combinations. Server-side bug; both modes are equally affected but shard-level execution
-        // order means partial results may be reported on one side only.
-        "this.pattern\" is null"
+        "Unsupported field type [NULL]"
     );
 
     /**
@@ -199,6 +187,13 @@ public abstract class CrossIndexModeGenerativeRestRunner extends GenerativeRestT
     // Per-iteration candidate state. Reset in runCommand when prevRef == null (the source command).
     private QueryExecuted candidatePreviousResult;
     private boolean determinismGateOpen;
+
+    /**
+     * Set by {@link #compareSides} when both reference and candidate threw. The base-class
+     * {@code checkPipelineException} would otherwise fail the suite on the shared error; we
+     * suppress that because matching failures are not a mode divergence.
+     */
+    private boolean bothSidesThrew;
 
     /** Number of pipeline steps where the determinism gate was open and value comparison was attempted. */
     private int valueComparedSteps;
@@ -392,6 +387,23 @@ public abstract class CrossIndexModeGenerativeRestRunner extends GenerativeRestT
         return errors;
     }
 
+    /**
+     * Shared failures (both modes threw) are out of scope for this differential suite — see class
+     * javadoc. One-sided throws still go through the usual allowed-error checks (including
+     * {@link #ALLOWED_MODE_DIFFERENCE_SUBSTRINGS}).
+     */
+    @Override
+    protected void checkPipelineException(
+        QueryExecuted query,
+        List<CommandGenerator.CommandDescription> previousCommands,
+        List<Column> currentSchema
+    ) {
+        if (bothSidesThrew) {
+            return;
+        }
+        super.checkPipelineException(query, previousCommands, currentSchema);
+    }
+
     // -----------------------------------------------------------------------------------------
     // Generator hooks
     // -----------------------------------------------------------------------------------------
@@ -417,6 +429,7 @@ public abstract class CrossIndexModeGenerativeRestRunner extends GenerativeRestT
             candidatePreviousResult = null;
             determinismGateOpen = true;
         }
+        bothSidesThrew = false;
 
         // Determine the reference and candidate command strings.
         Object mirror = current.context().get(DualModeFromGenerator.MIRROR_COMMAND);
@@ -578,6 +591,7 @@ public abstract class CrossIndexModeGenerativeRestRunner extends GenerativeRestT
     private void compareSides(CommandGenerator.CommandDescription current, QueryExecuted ref, QueryExecuted cand, boolean deterministic) {
         boolean refThrew = ref.exception() != null;
         boolean candThrew = cand.exception() != null;
+        bothSidesThrew = refThrew && candThrew;
 
         // 1. Failure parity
         if (refThrew != candThrew) {

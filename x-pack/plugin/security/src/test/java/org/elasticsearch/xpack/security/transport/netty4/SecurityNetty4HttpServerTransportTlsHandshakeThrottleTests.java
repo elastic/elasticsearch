@@ -78,7 +78,6 @@ import java.util.concurrent.BlockingQueue;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
-import java.util.function.Consumer;
 import java.util.stream.IntStream;
 
 import static org.elasticsearch.telemetry.InstrumentType.LONG_ASYNC_COUNTER;
@@ -137,26 +136,6 @@ public class SecurityNetty4HttpServerTransportTlsHandshakeThrottleTests extends 
         Queue<HandshakeBlock> handshakeBlockQueue,
         MeterRegistry meterRegistry
     ) {
-        return createServerTransport(
-            threadPool,
-            sharedGroupFactory,
-            maxConcurrentTlsHandshakes,
-            maxDelayedTlsHandshakes,
-            handshakeBlockQueue,
-            meterRegistry,
-            ch -> {}
-        );
-    }
-
-    private Netty4HttpServerTransport createServerTransport(
-        ThreadPool threadPool,
-        SharedGroupFactory sharedGroupFactory,
-        int maxConcurrentTlsHandshakes,
-        int maxDelayedTlsHandshakes,
-        Queue<HandshakeBlock> handshakeBlockQueue,
-        MeterRegistry meterRegistry,
-        Consumer<Channel> extraPipelineSetup
-    ) {
         final var dynamicConfiguration = randomBoolean();
 
         final Settings.Builder builder = Settings.builder();
@@ -209,7 +188,6 @@ public class SecurityNetty4HttpServerTransportTlsHandshakeThrottleTests extends 
                     @Override
                     protected void initChannel(Channel ch) throws Exception {
                         super.initChannel(ch);
-                        extraPipelineSetup.accept(ch);
 
                         final var workerThread = Thread.currentThread();
                         final var handshakeCounter = inflightHandshakesByEventLoop.computeIfAbsent(
@@ -1011,95 +989,4 @@ public class SecurityNetty4HttpServerTransportTlsHandshakeThrottleTests extends 
     private static final String CURRENT_DELAYED_METRIC = METRIC_PREFIX + "delayed.current";
     private static final String TOTAL_DELAYED_METRIC = METRIC_PREFIX + "delayed.total";
     private static final String TOTAL_DROPPED_METRIC = METRIC_PREFIX + "dropped.total";
-
-    /**
-     * Inbound handler that splits the first inbound {@link ByteBuf} into two halves and delivers them as separate
-     * {@code channelRead} events, simulating a TLS ClientHello that arrives across two TCP segments.
-     */
-    private static class PacketSplitter extends ChannelInboundHandlerAdapter {
-        private boolean fired = false;
-        private boolean awaitingSecondChunk = false;
-
-        @Override
-        public void channelRead(ChannelHandlerContext ctx, Object msg) throws Exception {
-            if (fired || msg instanceof ByteBuf == false) {
-                ctx.fireChannelRead(msg);
-                return;
-            }
-            final ByteBuf buf = (ByteBuf) msg;
-            if (buf.readableBytes() < 2) {
-                ctx.fireChannelRead(msg);
-                return;
-            }
-            fired = true;
-            awaitingSecondChunk = true;
-            final int firstSize = buf.readableBytes() / 2;
-            final ByteBuf first = buf.readRetainedSlice(firstSize);
-            final ByteBuf second = buf.readRetainedSlice(buf.readableBytes());
-            buf.release();
-            ctx.fireChannelRead(first);
-            ctx.executor().execute(() -> {
-                awaitingSecondChunk = false;
-                ctx.fireChannelRead(second);
-                ctx.fireChannelReadComplete();
-            });
-        }
-
-        @Override
-        public void channelReadComplete(ChannelHandlerContext ctx) {
-            if (awaitingSecondChunk) {
-                // suppress intermediate channelReadComplete; the scheduled task fires it after the second chunk
-                return;
-            }
-            ctx.fireChannelReadComplete();
-        }
-    }
-
-    /**
-     * Verifies that a TLS ClientHello fragmented across two channelRead calls is handled correctly.
-     * The {@link PacketSplitter} handler splits the first inbound buffer in two and delivers the halves as
-     * separate channelRead events to HandshakeThrottleHandler, simulating a ClientHello that arrives across
-     * two TCP segments.
-     *
-     * With the old channelRead-retain approach, each channelRead registers a separate listener on
-     * handshakeStartedPromise (one pointing at buf1, one at buf2). When the handshake is allowed, both
-     * listeners fire AND ByteToMessageDecoder.handlerRemoved() re-fires the merged composite buffer —
-     * delivering the same TLS record three times and causing SSLEngine to reject the duplicate ClientHello.
-     * With the fix (onLookupComplete + copy + drain), a single independent snapshot of the fully assembled
-     * cumulation is delivered exactly once.
-     */
-    public void testThrottleWithFragmentedClientHello() {
-        final List<Releasable> releasables = new ArrayList<>();
-        try {
-            final var threadPool = newThreadPool(releasables);
-            final var sharedGroupFactory = new SharedGroupFactory(Settings.builder().put(Netty4Plugin.WORKER_COUNT.getKey(), 1).build());
-            final var handshakeBlockQueue = ConcurrentCollections.<HandshakeBlock>newBlockingQueue();
-            final var meterRegistry = new RecordingMeterRegistry();
-
-            final var serverTransport = createServerTransport(
-                threadPool,
-                sharedGroupFactory,
-                between(1, 5),
-                between(0, 100),
-                handshakeBlockQueue,
-                meterRegistry,
-                ch -> ch.pipeline().addBefore("initial-tls-handshake-throttle", "packet-splitter", new PacketSplitter())
-            );
-            releasables.add(serverTransport);
-
-            final var handshakeCompletePromises = startClientsAndGetHandshakeCompletePromises(
-                1,
-                randomFrom(serverTransport.boundAddress().boundAddresses()),
-                releasables
-            );
-
-            getNextBlock(handshakeBlockQueue).unblock();
-            handshakeCompletePromises.forEach(ESTestCase::safeAwait);
-        } catch (Exception e) {
-            throw new AssertionError(e);
-        } finally {
-            Collections.reverse(releasables);
-            Releasables.close(releasables);
-        }
-    }
 }

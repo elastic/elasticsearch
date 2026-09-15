@@ -197,10 +197,19 @@ public class PlannerUtils {
      * This deliberately skips general local optimization while retaining the passes that make field extraction explicit.
      */
     public static PhysicalPlan toPhysicalPlanForReductionSchema(LogicalPlan plan, LocalPhysicalOptimizerContext context) {
+        return new InsertFieldExtraction().apply(toMappedPlanForReductionSchema(plan, context), context);
+    }
+
+    /**
+     * Everything {@link #toPhysicalPlanForReductionSchema} does except inserting the field extractions, for callers that have to
+     * rewrite the plan's leaves first and only then decide what has to be extracted. Such a caller is responsible for applying
+     * {@link InsertFieldExtraction} itself - see {@code LateMaterializationPlanner#assembleReductionPlan}.
+     */
+    public static PhysicalPlan toMappedPlanForReductionSchema(LogicalPlan plan, LocalPhysicalOptimizerContext context) {
         var logicalContext = new LocalLogicalOptimizerContext(context.configuration(), context.foldCtx(), context.searchStats());
         // Replace NULL-typed fields from UNMAPPED_FIELDS="NULLIFY" before field extraction tries to load them from an index.
         LogicalPlan optimized = new ReplaceFieldWithConstantOrNull().apply(plan, logicalContext);
-        return new InsertFieldExtraction().apply(new ReplaceSourceAttributes().apply(LocalMapper.INSTANCE.map(optimized)), context);
+        return new ReplaceSourceAttributes().apply(LocalMapper.INSTANCE.map(optimized));
     }
 
     public sealed interface PlanReduction {}

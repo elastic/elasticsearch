@@ -159,6 +159,47 @@ public abstract class EsqlReductionLateMaterializationTestCase extends AbstractE
         );
     }
 
+    /**
+     * No narrowing {@code KEEP}, so the top-level {@code Project} that {@code ProjectAwayColumns} inserts covers the whole relation
+     * and cannot say what has to cross the exchange. {@code filtered} is only read by the {@code WHERE}, so the data drivers must
+     * not ship it: they only need to emit the sort key.
+     */
+    public void testNoKeepFilterOnProjected() throws Exception {
+        setupIndex();
+        try (var result = sendQuery("from test | where filtered > 0 | sort sorted desc | limit 3")) {
+            assertThat(result.isRunning(), equalTo(false));
+            assertThat(result.isPartial(), equalTo(false));
+            assertSingleKeyFieldExtracted(result, "data", Set.of("sorted"));
+            assertSingleKeyFieldExtracted(result, "node_reduce", Set.of("read", "filtered", "more", "some_more"));
+        }
+    }
+
+    /**
+     * A {@code FORK} branch never has a narrowing {@code KEEP} - {@code ProjectAwayColumns} keeps everything {@code MergeExec} needs -
+     * which is exactly the shape that used to defeat the pruning and made every branch load all fields in every data driver.
+     *
+     * <p>Both branches' drivers report the same unqualified {@code "data"} / {@code "node_reduce"} descriptions, so each assertion is
+     * the aggregate over the branches. That is the right metric anyway: the cost this fixes is the per-slice fan-out summed over
+     * branches. The {@code node_reduce} half matters as much as the {@code data} half - without it the test would also pass if the
+     * branches stopped loading the deferred fields altogether rather than deferring them.
+     */
+    public void testForkBranchesLateMaterialize() throws Exception {
+        assumeTrue("requires FORK", EsqlCapabilities.Cap.FORK_V9.isEnabled());
+        setupIndex();
+        String query = """
+            from test
+            | fork ( where filtered > 0 | sort sorted desc | limit 3 )
+                   ( where more > 0     | sort sorted desc | limit 3 )
+            | sort _fork, sorted desc
+            """;
+        try (var result = sendQuery(query)) {
+            assertThat(result.isRunning(), equalTo(false));
+            assertThat(result.isPartial(), equalTo(false));
+            assertSingleKeyFieldExtracted(result, "data", Set.of("sorted"));
+            assertSingleKeyFieldExtracted(result, "node_reduce", Set.of("read", "filtered", "more", "some_more"));
+        }
+    }
+
     private void testLateMaterializationAfterReduceTopN(
         String query,
         Set<String> expectedDataLoadedFields,

@@ -778,3 +778,6 @@ tests:
 - class: org.elasticsearch.backwards.MixedClusterClientYamlTestSuiteIT
   method: test {p0=search/400_columnar_default_field/field-less query over a numeric and a keyword field in columnar mode}
   issue: https://github.com/elastic/elasticsearch/issues/159306
+- class: org.elasticsearch.backwards.MixedClusterClientYamlTestSuiteIT
+  method: test {p0=search/400_columnar_default_field/query_string is lenient about unparseable literals in columnar mode}
+  issue: https://github.com/elastic/elasticsearch/issues/159307

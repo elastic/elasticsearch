@@ -1704,16 +1704,12 @@ public class SharedBlobCacheWarmingService {
 
             }
 
-            locations.forEach(
-                (blobFile, length) -> {
-                    int endingRegion = cacheService.getEndingRegion(length);
-                    for (int i = 0; i <= endingRegion; i++) {
-                        scheduleWarmingTask(
-                            new WarmBlobRegionTask(warmingRun.type, blobFile, i, listeners.acquire())
-                        );
-                    }
+            locations.forEach((blobFile, length) -> {
+                int endingRegion = cacheService.getEndingRegion(length);
+                for (int i = 0; i <= endingRegion; i++) {
+                    scheduleWarmingTask(new WarmBlobRegionTask(warmingRun.type, blobFile, i, listeners.acquire()));
                 }
-            );
+            });
         }
 
         @Override
@@ -1813,9 +1809,7 @@ public class SharedBlobCacheWarmingService {
 
         void run() {
             for (var blobFile : blobFiles) {
-                scheduleWarmingTask(
-                    new WarmBlobRegionTask(warmingRun.type, blobFile, 0, listeners.acquire())
-                );
+                scheduleWarmingTask(new WarmBlobRegionTask(warmingRun.type, blobFile, 0, listeners.acquire()));
             }
         }
 

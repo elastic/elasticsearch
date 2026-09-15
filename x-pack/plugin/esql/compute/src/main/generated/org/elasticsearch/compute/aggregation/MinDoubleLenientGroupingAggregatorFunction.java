@@ -38,7 +38,7 @@ public final class MinDoubleLenientGroupingAggregatorFunction implements Groupin
 
   MinDoubleLenientGroupingAggregatorFunction(List<Integer> channels, DriverContext driverContext) {
     this.channels = channels;
-    this.state = new DoubleArrayState(driverContext.bigArrays(), MinDoubleLenientAggregator.init());
+    this.state = new DoubleArrayState(driverContext.bigArrays(), driverContext.breaker(), MinDoubleLenientAggregator.init());
     this.driverContext = driverContext;
   }
 

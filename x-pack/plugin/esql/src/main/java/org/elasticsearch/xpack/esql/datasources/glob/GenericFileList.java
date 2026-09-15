@@ -28,7 +28,7 @@ final class GenericFileList implements FileList {
     private final PartitionMetadata partitionMetadata;
     @Nullable
     private final FileSetFingerprint fileSetFingerprint;
-    private final List<String> exclusionWarnings;
+    private final List<String> listingWarnings;
 
     GenericFileList(List<StorageEntry> files, String originalPattern) {
         this(files, originalPattern, null);
@@ -42,7 +42,7 @@ final class GenericFileList implements FileList {
         List<StorageEntry> files,
         String originalPattern,
         @Nullable PartitionMetadata partitionMetadata,
-        List<String> exclusionWarnings
+        List<String> listingWarnings
     ) {
         if (files == null) {
             throw new IllegalArgumentException("files cannot be null");
@@ -56,7 +56,7 @@ final class GenericFileList implements FileList {
         // Computed eagerly (once per listing build) rather than lazily: consumers need it O(1) at resolve
         // time, and construction is the one place the entry walk is already paid.
         this.fileSetFingerprint = files.size() >= 2 ? FileSetFingerprints.compute(files) : null;
-        this.exclusionWarnings = exclusionWarnings == null || exclusionWarnings.isEmpty() ? List.of() : List.copyOf(exclusionWarnings);
+        this.listingWarnings = listingWarnings == null || listingWarnings.isEmpty() ? List.of() : List.copyOf(listingWarnings);
     }
 
     List<StorageEntry> files() {
@@ -101,12 +101,12 @@ final class GenericFileList implements FileList {
     @Override
     public long estimatedBytes() {
         // 64B object header + ~700B per StorageEntry (path String + Instant + long)
-        return 64 + files.size() * 700L + exclusionWarningBytes();
+        return 64 + files.size() * 700L + listingWarningBytes();
     }
 
     @Override
-    public List<String> exclusionWarnings() {
-        return exclusionWarnings;
+    public List<String> listingWarnings() {
+        return listingWarnings;
     }
 
     @Override
@@ -137,12 +137,12 @@ final class GenericFileList implements FileList {
         return Objects.equals(files, other.files)
             && Objects.equals(originalPattern, other.originalPattern)
             && Objects.equals(partitionMetadata, other.partitionMetadata)
-            && Objects.equals(exclusionWarnings, other.exclusionWarnings);
+            && Objects.equals(listingWarnings, other.listingWarnings);
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(files, originalPattern, partitionMetadata, exclusionWarnings);
+        return Objects.hash(files, originalPattern, partitionMetadata, listingWarnings);
     }
 
     @Override

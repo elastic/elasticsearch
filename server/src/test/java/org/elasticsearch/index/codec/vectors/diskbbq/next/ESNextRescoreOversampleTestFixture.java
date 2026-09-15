@@ -370,7 +370,6 @@ public final class ESNextRescoreOversampleTestFixture {
 
         TieredMergePolicy mergePolicy = new TieredMergePolicy();
         mergePolicy.setSegmentsPerTier(2);
-        mergePolicy.setMaxMergeAtOnce(10);
         IndexWriterConfig iwcMerge = new IndexWriterConfig(new StandardAnalyzer()).setCodec(codec).setMergePolicy(mergePolicy);
         try (IndexWriter mergeWriter = new IndexWriter(dir, iwcMerge)) {
             for (int i = 0; i < vectorsPerSegment; i++) {

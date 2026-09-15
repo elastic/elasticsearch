@@ -157,10 +157,7 @@ public class MergePolicyConfigTests extends ESTestCase {
             0.001
         );
 
-        assertEquals(
-            ((TieredMergePolicy) indexSettings.getMergePolicy(false)).getMaxMergeAtOnce(),
-            MergePolicyConfig.DEFAULT_MAX_MERGE_AT_ONCE
-        );
+        // TODO: LUCENE11 max_merge_at_once is a no-op; drop this update when the setting is removed
         indexSettings.updateIndexMetadata(
             newIndexMeta(
                 "index",
@@ -172,10 +169,7 @@ public class MergePolicyConfigTests extends ESTestCase {
                     .build()
             )
         );
-        assertEquals(
-            ((TieredMergePolicy) indexSettings.getMergePolicy(false)).getMaxMergeAtOnce(),
-            MergePolicyConfig.DEFAULT_MAX_MERGE_AT_ONCE - 1
-        );
+        MergePolicyConfig.INDEX_MERGE_POLICY_MAX_MERGE_AT_ONCE_SETTING.get(indexSettings.getSettings());
 
         assertEquals(
             ((TieredMergePolicy) indexSettings.getMergePolicy(false)).getMaxMergedSegmentMB(),
@@ -287,10 +281,6 @@ public class MergePolicyConfigTests extends ESTestCase {
             ((LogByteSizeMergePolicy) indexSettings.getMergePolicy(true)).getMinMergeMB(),
             ByteSizeValue.of(MergePolicyConfig.DEFAULT_FLOOR_SEGMENT.getMb(), ByteSizeUnit.MB).getMbFrac(),
             0.00
-        );
-        assertEquals(
-            ((TieredMergePolicy) indexSettings.getMergePolicy(false)).getMaxMergeAtOnce(),
-            MergePolicyConfig.DEFAULT_MAX_MERGE_AT_ONCE
         );
         assertEquals(
             ((TieredMergePolicy) indexSettings.getMergePolicy(false)).getMaxMergedSegmentMB(),

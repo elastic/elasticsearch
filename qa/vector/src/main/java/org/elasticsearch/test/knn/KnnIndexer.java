@@ -474,25 +474,20 @@ public class KnnIndexer {
                 int idx;
                 while ((idx = numDocsIndexed.getAndIncrement()) < numDocsToIndex) {
 
-                    final IndexableField field;
-                    final int ordinal;
-                    switch (vectorEncoding) {
+                    record Indexed(IndexableField field, int ordinal) {}
+                    Indexed indexed = switch (vectorEncoding) {
                         case BYTE -> {
                             var ov = vectorReader.nextByteVector();
-                            ordinal = ov.ordinal();
-                            field = new KnnByteVectorField(VECTOR_FIELD, ov.vector(), fieldType);
+                            yield new Indexed(new KnnByteVectorField(VECTOR_FIELD, ov.vector(), fieldType), ov.ordinal());
                         }
                         case FLOAT32 -> {
                             var ov = vectorReader.nextFloatVector();
-                            ordinal = ov.ordinal();
-                            field = new KnnFloatVectorField(VECTOR_FIELD, ov.vector(), fieldType);
+                            yield new Indexed(new KnnFloatVectorField(VECTOR_FIELD, ov.vector(), fieldType), ov.ordinal());
                         }
-                        case FLOAT16 -> {
-                            throw new IllegalStateException("IEEE FLOAT16 is not supported");
-                        }
-                    }
+                        case FLOAT16 -> throw new IllegalStateException("IEEE FLOAT16 is not supported");
+                    };
 
-                    Document doc = documentFactory.createDocument(field, ordinal);
+                    Document doc = documentFactory.createDocument(indexed.field(), indexed.ordinal());
                     iw.addDocument(doc);
 
                     if ((idx + 1) % 25000 == 0) {

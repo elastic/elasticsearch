@@ -12,6 +12,7 @@ package org.elasticsearch.simdjson.internal.fieldnames;
 import org.elasticsearch.test.ESTestCase;
 
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
@@ -293,6 +294,22 @@ public class FrozenFieldNameTableTests extends ESTestCase {
         }
     }
 
+    public void testLookupFieldReturnsOrdinalAfterFreeze() {
+        FrozenFieldNameTable table = new FrozenFieldNameTable();
+        FrozenFieldNameTable.Child child = table.makeChild();
+
+        byte[] buf = toBytes("timestamp");
+        int len = "timestamp".length();
+        int hash = FieldNameHash.hashName(buf, 0, len);
+        child.insert(buf, 0, len, hash);
+        child.freeze();
+
+        ResolvedFieldName resolved = child.lookupField(buf, 0, len, hash, FieldNameHash.readPrefix8(buf, 0, len));
+        assertNotNull(resolved);
+        assertEquals("timestamp", resolved.name());
+        assertEquals(0, resolved.ordinal());
+    }
+
     // Multi-doc pattern: child1 learns and releases; child2 starts frozen with parent cache.
     public void testFieldNameCachingAcrossDocs() {
         FrozenFieldNameTable table = new FrozenFieldNameTable();
@@ -365,5 +382,270 @@ public class FrozenFieldNameTableTests extends ESTestCase {
         byte[] buf = toBytes(name);
         int hash = FieldNameHash.hashName(buf, 0, buf.length);
         return child.lookup(buf, 0, buf.length, hash);
+    }
+
+    public void testDeferredFreezeWaitsForStableSchema() {
+        FrozenFieldNameTable.Child child = new FrozenFieldNameTable().makeChild();
+
+        String[] variantA = { "type", "id", "ts", "val", "label", "active", "count" };
+        String[] variantB = { "type", "uid", "score", "tags", "region", "retries" };
+
+        child.beginDocument();
+        learnFields(child, variantA);
+        child.maybeFreezeAfterDocument();
+        assertFalse(child.isFrozen());
+
+        child.beginDocument();
+        learnFields(child, variantB);
+        child.maybeFreezeAfterDocument();
+        assertFalse(child.isFrozen());
+
+        child.beginDocument();
+        lookupOnly(child, variantA);
+        child.maybeFreezeAfterDocument();
+        assertTrue(child.isFrozen());
+
+        for (String name : variantA) {
+            byte[] buf = toBytes(name);
+            int len = name.length();
+            int hash = FieldNameHash.hashName(buf, 0, len);
+            ResolvedFieldName resolved = child.lookupField(buf, 0, len, hash, FieldNameHash.readPrefix8(buf, 0, len));
+            assertNotNull(resolved);
+            assertEquals(name, resolved.name());
+            assertTrue(resolved.ordinal() >= 0);
+        }
+        for (String name : variantB) {
+            byte[] buf = toBytes(name);
+            int len = name.length();
+            int hash = FieldNameHash.hashName(buf, 0, len);
+            ResolvedFieldName resolved = child.lookupField(buf, 0, len, hash, FieldNameHash.readPrefix8(buf, 0, len));
+            assertNotNull(resolved);
+            assertEquals(name, resolved.name());
+            assertTrue(resolved.ordinal() >= 0);
+        }
+    }
+
+    public void testSmallTableUsesOrdinalsWithoutDirectMap() {
+        FrozenFieldNameTable.Child child = new FrozenFieldNameTable().makeChild();
+        String[] names = { "alpha", "beta", "gamma", "delta", "epsilon" };
+        for (String name : names) {
+            byte[] buf = toBytes(name);
+            int len = name.length();
+            int hash = FieldNameHash.hashName(buf, 0, len);
+            child.insert(buf, 0, len, hash);
+        }
+        child.freeze();
+        assertNull(child.frozenDirectOrdinals());
+
+        for (int i = 0; i < names.length; i++) {
+            byte[] buf = toBytes(names[i]);
+            int len = names[i].length();
+            int hash = FieldNameHash.hashName(buf, 0, len);
+            ResolvedFieldName resolved = child.lookupField(buf, 0, len, hash, FieldNameHash.readPrefix8(buf, 0, len));
+            assertEquals(i, resolved.ordinal());
+        }
+    }
+
+    public void testLargeTableBuildsDirectMap() {
+        FrozenFieldNameTable.Child child = new FrozenFieldNameTable().makeChild();
+        for (int i = 0; i < FrozenFieldNameTable.DIRECT_MAP_MIN_FIELDS; i++) {
+            String name = "field_" + i;
+            byte[] buf = toBytes(name);
+            int len = name.length();
+            int hash = FieldNameHash.hashName(buf, 0, len);
+            child.insert(buf, 0, len, hash);
+        }
+        child.freeze();
+        assertNotNull(child.frozenDirectOrdinals());
+    }
+
+    /**
+     * ClickBench has three {@code (prefix8, len)} collision groups where full byte comparison
+     * is still required after hash + prefix match. All groups must resolve to distinct names.
+     */
+    public void testClickBenchPrefixLenCollisionGroups() {
+        FrozenFieldNameTable.Child child = new FrozenFieldNameTable().makeChild();
+
+        String[][] groups = {
+            { "ResolutionWidth", "ResolutionDepth" },
+            { "UserAgentMajor", "UserAgentMinor" },
+            { "SilverlightVersion1", "SilverlightVersion2", "SilverlightVersion3", "SilverlightVersion4" } };
+
+        for (String[] group : groups) {
+            assertSamePrefixAndLength(group);
+            for (String name : group) {
+                byte[] buf = toBytes(name);
+                int len = name.length();
+                int hash = FieldNameHash.hashName(buf, 0, len);
+                child.insert(buf, 0, len, hash);
+            }
+        }
+
+        child.freeze();
+
+        for (String[] group : groups) {
+            for (String name : group) {
+                byte[] buf = toBytes(name);
+                int len = name.length();
+                int hash = FieldNameHash.hashName(buf, 0, len);
+                long pfx = FieldNameHash.readPrefix8(buf, 0, len);
+                ResolvedFieldName resolved = child.lookupField(buf, 0, len, hash, pfx);
+                assertNotNull(name, resolved);
+                assertEquals(name, resolved.name());
+                assertTrue(name, resolved.ordinal() >= 0);
+            }
+        }
+    }
+
+    /**
+     * Fused {@link FieldNameHash#scanFieldName} + {@link FieldNameLookup#lookupField} must agree
+     * with {@link FieldNameHash#hashName} for ClickBench collision pairs.
+     */
+    public void testScanFieldNameLookupFieldForCollisionPairs() {
+        FrozenFieldNameTable.Child child = new FrozenFieldNameTable().makeChild();
+
+        String[] collisionNames = {
+            "ResolutionWidth",
+            "ResolutionDepth",
+            "UserAgentMajor",
+            "UserAgentMinor",
+            "SilverlightVersion1",
+            "SilverlightVersion4" };
+
+        for (String name : collisionNames) {
+            byte[] buf = toBytes(name);
+            int len = name.length();
+            child.insert(buf, 0, len, FieldNameHash.hashName(buf, 0, len));
+        }
+        child.freeze();
+
+        for (String name : collisionNames) {
+            ResolvedFieldName resolved = lookupViaScan(child, name);
+            assertEquals(name, resolved.name());
+            assertTrue(resolved.ordinal() >= 0);
+        }
+    }
+
+    /**
+     * When two names share {@code (prefix8, len)}, the direct-mapped bucket is marked colliding
+     * and both names still resolve correctly through the probe loop.
+     */
+    public void testDirectMapMarksCollidingPrefixLenBucket() {
+        FrozenFieldNameTable.Child child = new FrozenFieldNameTable().makeChild();
+
+        String width = "ResolutionWidth";
+        String depth = "ResolutionDepth";
+        for (int i = 0; i < FrozenFieldNameTable.DIRECT_MAP_MIN_FIELDS - 2; i++) {
+            insertName(child, "field_" + i);
+        }
+        insertName(child, width);
+        insertName(child, depth);
+        child.freeze();
+
+        int[] directOrdinals = child.frozenDirectOrdinals();
+        assertNotNull(directOrdinals);
+
+        byte[] widthBuf = toBytes(width);
+        int widthLen = width.length();
+        long widthPfx = FieldNameHash.readPrefix8(widthBuf, 0, widthLen);
+        int directIdx = FrozenFieldNameTable.directIndex(widthPfx, widthLen, directOrdinals.length);
+        assertEquals(-2, directOrdinals[directIdx]);
+
+        ResolvedFieldName resolvedWidth = lookupViaScan(child, width);
+        ResolvedFieldName resolvedDepth = lookupViaScan(child, depth);
+        assertEquals(width, resolvedWidth.name());
+        assertEquals(depth, resolvedDepth.name());
+        assertNotEquals(resolvedWidth.ordinal(), resolvedDepth.ordinal());
+    }
+
+    /**
+     * Repeating the same document shape before all variants are seen freezes early. Unknown
+     * names after freeze still parse correctly but carry {@code ordinal = -1}.
+     */
+    public void testPrematureDeferredFreezeStillCorrect() {
+        FrozenFieldNameTable.Child child = new FrozenFieldNameTable().makeChild();
+
+        String[] variantA = { "type", "id", "ts" };
+        String[] variantB = { "type", "uid", "score" };
+
+        child.beginDocument();
+        learnFields(child, variantA);
+        child.maybeFreezeAfterDocument();
+        assertFalse(child.isFrozen());
+
+        child.beginDocument();
+        lookupOnly(child, variantA);
+        child.maybeFreezeAfterDocument();
+        assertTrue(child.isFrozen());
+        assertNull(child.frozenDirectOrdinals());
+
+        lookupViaScan(child, "type");
+        lookupViaScan(child, "id");
+
+        byte[] uidBuf = toBytes("uid");
+        int uidLen = "uid".length();
+        int uidHash = FieldNameHash.hashName(uidBuf, 0, uidLen);
+        assertNull(child.lookup(uidBuf, 0, uidLen, uidHash));
+
+        ResolvedFieldName inserted = child.insertField(uidBuf, 0, uidLen, uidHash);
+        assertEquals("uid", inserted.name());
+        assertEquals(-1, inserted.ordinal());
+
+        child.beginDocument();
+        learnFields(child, variantB);
+        child.maybeFreezeAfterDocument();
+        assertTrue(child.isFrozen());
+
+        byte[] scoreBuf = toBytes("score");
+        int scoreLen = "score".length();
+        int scoreHash = FieldNameHash.hashName(scoreBuf, 0, scoreLen);
+        assertNull(child.lookup(scoreBuf, 0, scoreLen, scoreHash));
+        ResolvedFieldName scoreInserted = child.insertField(scoreBuf, 0, scoreLen, scoreHash);
+        assertEquals("score", scoreInserted.name());
+        assertEquals(-1, scoreInserted.ordinal());
+    }
+
+    private static ResolvedFieldName lookupViaScan(FrozenFieldNameTable.Child child, String name) {
+        byte[] nameBytes = toBytes(name);
+        byte[] buf = Arrays.copyOf(nameBytes, nameBytes.length + 1);
+        buf[nameBytes.length] = '"';
+        FieldNameHash.FieldNameScan scan = FieldNameHash.scanFieldName(buf, 0);
+        assertNotNull(name, scan);
+        assertEquals(name.length(), scan.len());
+        assertEquals(FieldNameHash.hashName(nameBytes, 0, name.length()), scan.hash());
+        ResolvedFieldName resolved = child.lookupField(buf, 0, scan.len(), scan.hash(), scan.prefix8());
+        assertNotNull(name, resolved);
+        return resolved;
+    }
+
+    private static void assertSamePrefixAndLength(String[] names) {
+        byte[] first = toBytes(names[0]);
+        int len = names[0].length();
+        long prefix8 = FieldNameHash.readPrefix8(first, 0, len);
+        for (int i = 1; i < names.length; i++) {
+            byte[] buf = toBytes(names[i]);
+            assertEquals(len, names[i].length());
+            assertEquals(prefix8, FieldNameHash.readPrefix8(buf, 0, len));
+        }
+    }
+
+    private static void learnFields(FrozenFieldNameTable.Child child, String[] names) {
+        for (String name : names) {
+            byte[] buf = toBytes(name);
+            int len = name.length();
+            int hash = FieldNameHash.hashName(buf, 0, len);
+            if (child.lookup(buf, 0, len, hash) == null) {
+                child.insert(buf, 0, len, hash);
+            }
+        }
+    }
+
+    private static void lookupOnly(FrozenFieldNameTable.Child child, String[] names) {
+        for (String name : names) {
+            byte[] buf = toBytes(name);
+            int len = name.length();
+            int hash = FieldNameHash.hashName(buf, 0, len);
+            assertNotNull(child.lookup(buf, 0, len, hash));
+        }
     }
 }

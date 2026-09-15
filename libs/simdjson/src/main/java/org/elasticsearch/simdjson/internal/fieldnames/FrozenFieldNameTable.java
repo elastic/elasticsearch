@@ -9,24 +9,24 @@
 
 package org.elasticsearch.simdjson.internal.fieldnames;
 
-import java.lang.invoke.MethodHandles;
-import java.lang.invoke.VarHandle;
 import java.nio.charset.StandardCharsets;
 import java.util.Arrays;
+import java.util.HashMap;
 import java.util.concurrent.atomic.AtomicReference;
 
-import static java.nio.ByteOrder.LITTLE_ENDIAN;
-
 /**
- * Optimized field name table that freezes after the first document into a compact
- * power-of-two hash table sized to ~2x the field count. Uses:
+ * Optimized field name table that freezes once the field-name set stabilizes into a
+ * compact power-of-two hash table sized to ~2x the field count. Uses:
  * <ul>
  *   <li>Same wyhash as {@link FieldNameHash} for compatibility with
- *       {@link FieldNameHash#scanAndHash}.</li>
+ *       {@link FieldNameHash#scanFieldName}.</li>
  *   <li>Inline first-8-bytes prefix for fast rejection (avoids full comparison
  *       for hash collisions when prefixes differ).</li>
  *   <li>Power-of-two table — for 90 fields this gives a 256-slot table
  *       improving cache locality.</li>
+ *   <li>Direct-mapped ordinal cache keyed by {@code (prefix8, len)} for O(1) hits
+ *       when the schema has at least {@link #DIRECT_MAP_MIN_FIELDS} names.</li>
+ *   <li>Dense ordinals ({@code 0..count-1}) for fast ESCF column indexing after freeze.</li>
  * </ul>
  *
  * <p>Thread-safety follows a parent/child model: a single root instance is shared
@@ -34,7 +34,14 @@ import static java.nio.ByteOrder.LITTLE_ENDIAN;
  */
 public final class FrozenFieldNameTable {
 
-    private static final VarHandle LONG_LE = MethodHandles.byteArrayViewVarHandle(long[].class, LITTLE_ENDIAN);
+    /**
+     * Schemas with fewer unique names use open-addressing probe only; the direct map
+     * and its verification arrays cost more than they save on tiny tables.
+     */
+    static final int DIRECT_MAP_MIN_FIELDS = 32;
+
+    /** Sentinel in {@link Frozen#directOrdinals} marking a colliding direct-map bucket. */
+    private static final int DIRECT_COLLISION = -2;
 
     private final AtomicReference<Frozen> shared = new AtomicReference<>();
 
@@ -56,10 +63,25 @@ public final class FrozenFieldNameTable {
     /**
      * Immutable frozen hash table state.
      */
-    record Frozen(int mask, int[] hashes, int[] lens, long[] prefix8, byte[][] keys, String[] names, int count) {
+    record Frozen(
+        int mask,
+        int[] hashes,
+        int[] lens,
+        long[] prefix8,
+        byte[][] keys,
+        String[] names,
+        int count,
+        String[] namesByOrdinal,
+        int[] ordinalHashes,
+        int[] ordinalLens,
+        long[] ordinalPrefix8,
+        int[] slotOrdinals,
+        int[] directOrdinals,
+        boolean[] prefixLenUnique
+    ) {
 
         String lookup(byte[] buf, int off, int len, int h) {
-            return lookup(buf, off, len, h, readPrefix8(buf, off, len));
+            return lookup(buf, off, len, h, FieldNameHash.readPrefix8(buf, off, len));
         }
 
         /**
@@ -67,12 +89,27 @@ public final class FrozenFieldNameTable {
          * of the field name bytes for the prefix comparison.
          */
         String lookup(byte[] buf, int off, int len, int h, long pfx) {
+            ResolvedFieldName resolved = lookupField(buf, off, len, h, pfx);
+            return resolved == null ? null : resolved.name();
+        }
+
+        ResolvedFieldName lookupField(byte[] buf, int off, int len, int h, long pfx) {
+            if (directOrdinals != null) {
+                int directIdx = directIndex(pfx, len, directOrdinals.length);
+                int ordinal = directOrdinals[directIdx];
+                if (ordinal >= 0 && ordinalHashes[ordinal] == h && ordinalLens[ordinal] == len && ordinalPrefix8[ordinal] == pfx) {
+                    return new ResolvedFieldName(namesByOrdinal[ordinal], ordinal);
+                }
+            }
+
             for (int i = h & mask;; i = (i + 1) & mask) {
                 int sh = hashes[i];
-                if (sh == 0) return null;
+                if (sh == 0) {
+                    return null;
+                }
                 if (sh == h && lens[i] == len && prefix8[i] == pfx) {
-                    if (len <= 8 || Arrays.equals(keys[i], 0, len, buf, off, off + len)) {
-                        return names[i];
+                    if (len <= 8 || prefixLenUnique[i] || Arrays.equals(keys[i], 0, len, buf, off, off + len)) {
+                        return new ResolvedFieldName(names[i], slotOrdinals[i]);
                     }
                 }
             }
@@ -92,6 +129,7 @@ public final class FrozenFieldNameTable {
         private int[] learnLens;
         private int learnCount;
         private boolean dirty;
+        private boolean documentLearnedNew;
 
         Child(FrozenFieldNameTable parent, Frozen frozen) {
             this.parent = parent;
@@ -106,25 +144,24 @@ public final class FrozenFieldNameTable {
 
         @Override
         public String lookup(byte[] buf, int off, int len, int hash) {
-            if (frozen != null) {
-                return frozen.lookup(buf, off, len, hash);
-            }
-            for (int i = 0; i < learnCount; i++) {
-                if (learnLens[i] == len && Arrays.equals(learnKeys[i], 0, len, buf, off, off + len)) {
-                    return learnNames[i];
-                }
-            }
-            return null;
+            ResolvedFieldName resolved = lookupField(buf, off, len, hash, FieldNameHash.readPrefix8(buf, off, len));
+            return resolved == null ? null : resolved.name();
         }
 
         @Override
         public String lookup(byte[] buf, int off, int len, int hash, long prefix8) {
+            ResolvedFieldName resolved = lookupField(buf, off, len, hash, prefix8);
+            return resolved == null ? null : resolved.name();
+        }
+
+        @Override
+        public ResolvedFieldName lookupField(byte[] buf, int off, int len, int hash, long prefix8) {
             if (frozen != null) {
-                return frozen.lookup(buf, off, len, hash, prefix8);
+                return frozen.lookupField(buf, off, len, hash, prefix8);
             }
             for (int i = 0; i < learnCount; i++) {
                 if (learnLens[i] == len && Arrays.equals(learnKeys[i], 0, len, buf, off, off + len)) {
-                    return learnNames[i];
+                    return new ResolvedFieldName(learnNames[i], -1);
                 }
             }
             return null;
@@ -132,10 +169,28 @@ public final class FrozenFieldNameTable {
 
         @Override
         public String insert(byte[] buf, int off, int len, int hash) {
+            return insertField(buf, off, len, hash).name();
+        }
+
+        @Override
+        public void beginDocument() {
+            documentLearnedNew = false;
+        }
+
+        @Override
+        public void maybeFreezeAfterDocument() {
+            if (frozen == null && learnCount > 0 && documentLearnedNew == false) {
+                freeze();
+            }
+        }
+
+        @Override
+        public ResolvedFieldName insertField(byte[] buf, int off, int len, int hash) {
             String s = new String(buf, off, len, StandardCharsets.UTF_8);
             if (frozen != null) {
-                return s;
+                return new ResolvedFieldName(s, -1);
             }
+            documentLearnedNew = true;
             if (learnCount >= learnNames.length) {
                 int nc = learnNames.length * 2;
                 learnNames = Arrays.copyOf(learnNames, nc);
@@ -148,12 +203,14 @@ public final class FrozenFieldNameTable {
             learnLens[learnCount] = len;
             learnCount++;
             dirty = true;
-            return s;
+            return new ResolvedFieldName(s, -1);
         }
 
         @Override
         public void freeze() {
-            if (frozen != null || learnCount == 0) return;
+            if (frozen != null || learnCount == 0) {
+                return;
+            }
 
             int tableSize = Integer.highestOneBit(Math.max(16, learnCount * 2 - 1)) << 1;
             int mask = tableSize - 1;
@@ -163,10 +220,30 @@ public final class FrozenFieldNameTable {
             long[] prefix8 = new long[tableSize];
             byte[][] keys = new byte[tableSize][];
             String[] names = new String[tableSize];
+            int[] slotOrdinals = new int[tableSize];
+            boolean[] prefixLenUnique = new boolean[tableSize];
+            String[] namesByOrdinal = Arrays.copyOf(learnNames, learnCount);
+            int[] ordinalHashes = new int[learnCount];
+            int[] ordinalLens = new int[learnCount];
+            long[] ordinalPrefix8 = new long[learnCount];
+
+            HashMap<Long, Integer> prefixLenCounts = new HashMap<>();
+            for (int i = 0; i < learnCount; i++) {
+                long pfx = FieldNameHash.readPrefix8(learnKeys[i], 0, learnLens[i]);
+                long key = prefixLenKey(pfx, learnLens[i]);
+                prefixLenCounts.merge(key, 1, Integer::sum);
+            }
+
+            int[] directOrdinals = null;
+            if (learnCount >= DIRECT_MAP_MIN_FIELDS) {
+                int directSize = Integer.highestOneBit(Math.max(16, learnCount * 2 - 1)) << 1;
+                directOrdinals = new int[directSize];
+                Arrays.fill(directOrdinals, -1);
+            }
 
             for (int i = 0; i < learnCount; i++) {
                 int h = FieldNameHash.hashName(learnKeys[i], 0, learnLens[i]);
-                long pfx = readPrefix8(learnKeys[i], 0, learnLens[i]);
+                long pfx = FieldNameHash.readPrefix8(learnKeys[i], 0, learnLens[i]);
                 int slot = h & mask;
                 while (hashes[slot] != 0) {
                     slot = (slot + 1) & mask;
@@ -176,9 +253,38 @@ public final class FrozenFieldNameTable {
                 prefix8[slot] = pfx;
                 keys[slot] = learnKeys[i];
                 names[slot] = learnNames[i];
+                slotOrdinals[slot] = i;
+                ordinalHashes[i] = h;
+                ordinalLens[i] = learnLens[i];
+                ordinalPrefix8[i] = pfx;
+                prefixLenUnique[slot] = prefixLenCounts.get(prefixLenKey(pfx, learnLens[i])) == 1;
+
+                if (directOrdinals != null) {
+                    int directIdx = directIndex(pfx, learnLens[i], directOrdinals.length);
+                    if (directOrdinals[directIdx] == -1) {
+                        directOrdinals[directIdx] = i;
+                    } else {
+                        directOrdinals[directIdx] = DIRECT_COLLISION;
+                    }
+                }
             }
 
-            frozen = new Frozen(mask, hashes, lens, prefix8, keys, names, learnCount);
+            frozen = new Frozen(
+                mask,
+                hashes,
+                lens,
+                prefix8,
+                keys,
+                names,
+                learnCount,
+                namesByOrdinal,
+                ordinalHashes,
+                ordinalLens,
+                ordinalPrefix8,
+                slotOrdinals,
+                directOrdinals,
+                prefixLenUnique
+            );
             parent.mergeChild(frozen);
 
             learnNames = null;
@@ -206,14 +312,18 @@ public final class FrozenFieldNameTable {
         public boolean isFrozen() {
             return frozen != null;
         }
+
+        /** Returns the direct-map array when frozen, or {@code null} for small schemas. Primarily for testing. */
+        int[] frozenDirectOrdinals() {
+            return frozen == null ? null : frozen.directOrdinals();
+        }
     }
 
-    static long readPrefix8(byte[] buf, int off, int len) {
-        if (len >= 8) return (long) LONG_LE.get(buf, off);
-        long v = 0;
-        for (int i = 0; i < len; i++) {
-            v |= (long) (buf[off + i] & 0xFF) << (i * 8);
-        }
-        return v;
+    static int directIndex(long pfx, int len, int directSize) {
+        return ((int) (pfx ^ (pfx >>> 32) ^ len)) & (directSize - 1);
+    }
+
+    private static long prefixLenKey(long prefix8, int len) {
+        return prefix8 ^ ((long) len << 56);
     }
 }

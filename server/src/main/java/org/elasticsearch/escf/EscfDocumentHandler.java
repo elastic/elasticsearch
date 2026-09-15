@@ -47,6 +47,7 @@ final class EscfDocumentHandler implements JsonDocumentHandler {
     private int elemCount;
     private boolean forceUnion;
     private String arrayFieldName;
+    private int arrayFieldOrdinal = -1;
 
     // Stack for nested arrays within arrays
     private byte[][] nestedElemTypes;
@@ -198,6 +199,118 @@ final class EscfDocumentHandler implements JsonDocumentHandler {
         row.nullField(fieldName);
     }
 
+    @Override
+    public void longField(int fieldOrdinal, String fieldName, long value, boolean fitsInt, byte[] srcBuf, int srcOff, int srcLen) {
+        if (fieldOrdinal >= 0 && kvDepth == 0) {
+            byte type = fitsInt ? SourceValueType.INT : SourceValueType.LONG;
+            int colIdx = row.longField(fieldOrdinal, fieldName, value);
+            if (rawTextMode) {
+                sink.onTextPrimitive(colIdx, backend.columnPath(colIdx), type, new XContentString.UTF8Bytes(srcBuf, srcOff, srcLen));
+            } else if (firePathSink) {
+                sink.onLongPrimitive(colIdx, backend.columnPath(colIdx), type, value);
+            }
+            return;
+        }
+        longField(fieldName, value, fitsInt, srcBuf, srcOff, srcLen);
+    }
+
+    @Override
+    public void bigIntegerField(int fieldOrdinal, String fieldName, BigInteger value, byte[] srcBuf, int srcOff, int srcLen) {
+        if (fieldOrdinal >= 0 && kvDepth == 0) {
+            int colIdx = row.stringField(fieldOrdinal, fieldName, srcBuf, srcOff, srcLen);
+            if (firePathSink) {
+                sink.onTextPrimitive(
+                    colIdx,
+                    backend.columnPath(colIdx),
+                    SourceValueType.STRING,
+                    new XContentString.UTF8Bytes(srcBuf, srcOff, srcLen)
+                );
+            }
+            return;
+        }
+        bigIntegerField(fieldName, value, srcBuf, srcOff, srcLen);
+    }
+
+    @Override
+    public void doubleField(int fieldOrdinal, String fieldName, double value, boolean fitsFloat, byte[] srcBuf, int srcOff, int srcLen) {
+        if (fieldOrdinal >= 0 && kvDepth == 0) {
+            byte type = fitsFloat ? SourceValueType.FLOAT : SourceValueType.DOUBLE;
+            int colIdx = row.doubleField(fieldOrdinal, fieldName, value);
+            if (rawTextMode) {
+                sink.onTextPrimitive(colIdx, backend.columnPath(colIdx), type, new XContentString.UTF8Bytes(srcBuf, srcOff, srcLen));
+            } else if (firePathSink) {
+                sink.onDoublePrimitive(colIdx, backend.columnPath(colIdx), type, value);
+            }
+            return;
+        }
+        doubleField(fieldName, value, fitsFloat, srcBuf, srcOff, srcLen);
+    }
+
+    @Override
+    public void booleanField(int fieldOrdinal, String fieldName, boolean value, byte[] srcBuf, int srcOff, int srcLen) {
+        if (fieldOrdinal >= 0 && kvDepth == 0) {
+            int colIdx = row.booleanField(fieldOrdinal, fieldName, value);
+            if (rawTextMode) {
+                byte type = value ? SourceValueType.TRUE : SourceValueType.FALSE;
+                sink.onTextPrimitive(colIdx, backend.columnPath(colIdx), type, new XContentString.UTF8Bytes(srcBuf, srcOff, srcLen));
+            } else if (firePathSink) {
+                sink.onBooleanPrimitive(colIdx, backend.columnPath(colIdx), value);
+            }
+            return;
+        }
+        booleanField(fieldName, value, srcBuf, srcOff, srcLen);
+    }
+
+    @Override
+    public void nullField(int fieldOrdinal, String fieldName) {
+        if (fieldOrdinal >= 0 && kvDepth == 0) {
+            row.nullField(fieldOrdinal, fieldName);
+            return;
+        }
+        nullField(fieldName);
+    }
+
+    @Override
+    public void stringField(int fieldOrdinal, String fieldName, byte[] buf, int off, int len) {
+        if (fieldOrdinal >= 0 && kvDepth == 0) {
+            int colIdx = row.stringField(fieldOrdinal, fieldName, buf, off, len);
+            if (firePathSink) {
+                sink.onTextPrimitive(
+                    colIdx,
+                    backend.columnPath(colIdx),
+                    SourceValueType.STRING,
+                    new XContentString.UTF8Bytes(buf, off, len)
+                );
+            }
+            return;
+        }
+        stringField(fieldName, buf, off, len);
+    }
+
+    @Override
+    public void emptyObject(int fieldOrdinal, String fieldName) {
+        if (fieldOrdinal >= 0 && kvDepth == 0) {
+            row.emptyObject(fieldOrdinal, fieldName);
+            return;
+        }
+        emptyObject(fieldName);
+    }
+
+    @Override
+    public void startArray(int fieldOrdinal, String fieldName) {
+        if (fieldOrdinal >= 0 && kvDepth == 0) {
+            if (arrayDepth > 0) {
+                pushArrayState();
+            }
+            arrayFieldName = fieldName;
+            arrayFieldOrdinal = fieldOrdinal;
+            initArrayAccumulators();
+            arrayDepth++;
+            return;
+        }
+        startArray(fieldName);
+    }
+
     // ---- Array events ----
 
     @Override
@@ -210,6 +323,7 @@ final class EscfDocumentHandler implements JsonDocumentHandler {
             pushArrayState();
         }
         arrayFieldName = fieldName;
+        arrayFieldOrdinal = -1;
         initArrayAccumulators();
         arrayDepth++;
     }
@@ -393,7 +507,13 @@ final class EscfDocumentHandler implements JsonDocumentHandler {
             forceUnion = true;
             elemCount++;
         } else {
-            int colIdx = row.arrayField(arrayFieldName, packed.arrayType(), packed.packed());
+            int colIdx;
+            if (arrayFieldOrdinal >= 0) {
+                colIdx = row.arrayField(arrayFieldOrdinal, arrayFieldName, packed.arrayType(), packed.packed());
+                arrayFieldOrdinal = -1;
+            } else {
+                colIdx = row.arrayField(arrayFieldName, packed.arrayType(), packed.packed());
+            }
             if (firePathSink) {
                 sink.onArrayLeaf(colIdx, backend.columnPath(colIdx));
             }

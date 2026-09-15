@@ -161,7 +161,8 @@ To add a new function called `<my_func>` to the `<group>` group (e.g. `string-fu
 Because we now publish just one docs set off of the `main` branch, we use the [`applies_to` metadata](https://elastic.github.io/docs-builder/syntax/applies/) to differentiate features and their availability across different versions. This is a [cumulative approach](https://elastic.github.io/docs-builder/contribute/#cumulative-docs): instead of creating separate pages for each product and release, we update a **single page** with product- and version-specific details over time.
 
 `applies_to` allows us to clearly communicate when features are introduced, when they transition from preview to GA, and which versions support specific functionality.
-
+> [!TIP]
+> **Simple rule:** If you're documenting new or changed functionality, you almost always need an `applies_to` version tag.
 This metadata accepts a lifecycle and an optional version. The version supports three operators:
 
 - `=X.x` applies to that version only, for example `=9.4`

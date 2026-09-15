@@ -2333,6 +2333,15 @@ public class GlobExpanderTests extends ESTestCase {
         assertEquals(List.of(warning), compacted.listingWarnings());
     }
 
+    public void testExpandBracesKeepingWildcards() {
+        assertEquals(List.of("*.parquet"), GlobExpander.expandBracesKeepingWildcards("*.parquet"));
+        assertEquals(List.of("*.parquet", "*.csv"), GlobExpander.expandBracesKeepingWildcards("*.{parquet,csv}"));
+        assertEquals(List.of("a.csv", "b.csv"), GlobExpander.expandBracesKeepingWildcards("{a,b}.csv"));
+        assertEquals(List.of("hits.csv.gz"), GlobExpander.expandBracesKeepingWildcards("hits.csv.gz"));
+        assertEquals(List.of("*"), GlobExpander.expandBracesKeepingWildcards("*"));
+        assertEquals(List.of("file{a,b"), GlobExpander.expandBracesKeepingWildcards("file{a,b"));
+    }
+
     /** A partition column renamed off a reserved name is a listing notice too, so it rides the listing like an exclusion. */
     public void testPartitionRenameNoticeRidesTheListing() throws IOException {
         StubProvider provider = new StubProvider(List.of(entry("s3://bucket/data/_index=alpha/file1.parquet", 100)));
@@ -2348,5 +2357,4 @@ public class GlobExpanderTests extends ESTestCase {
             result.listingWarnings()
         );
     }
-
 }

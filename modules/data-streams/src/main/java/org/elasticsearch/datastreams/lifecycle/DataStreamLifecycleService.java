@@ -154,7 +154,7 @@ public class DataStreamLifecycleService implements ClusterStateListener, Closeab
     );
 
     public static final Setting<Integer> DATA_STREAM_MERGE_POLICY_TSDB_TARGET_FACTOR_SETTING = Setting.intSetting(
-        "data_streams.lifecycle.time_series_target.merge.policy.merge_factor",
+        "data_streams.lifecycle.target.merge.policy.time_series_merge_factor",
         TSDB_TARGET_MERGE_FACTOR_VALUE,
         2,
         Setting.Property.Dynamic,
@@ -162,7 +162,7 @@ public class DataStreamLifecycleService implements ClusterStateListener, Closeab
     );
 
     public static final Setting<ByteSizeValue> DATA_STREAM_MERGE_POLICY_TSDB_TARGET_FLOOR_SEGMENT_SETTING = Setting.byteSizeSetting(
-        "data_streams.lifecycle.time_series_target.merge.policy.floor_segment",
+        "data_streams.lifecycle.target.merge.policy.time_series_floor_segment",
         FIVE_HUNDRED_TWELVE_MB,
         Setting.Property.Dynamic,
         Setting.Property.NodeScope

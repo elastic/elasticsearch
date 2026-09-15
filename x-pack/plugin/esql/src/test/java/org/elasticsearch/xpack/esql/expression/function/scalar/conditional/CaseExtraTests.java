@@ -26,6 +26,8 @@ import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.evaluator.mapper.EvaluatorMapper;
 import org.elasticsearch.xpack.esql.expression.function.AbstractFunctionTestCase;
+import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.Equals;
+import org.elasticsearch.xpack.esql.parser.ExpressionBuilder;
 import org.junit.After;
 
 import java.time.Duration;
@@ -376,6 +378,91 @@ public class CaseExtraTests extends ESTestCase {
         );
         assertTrue(caseExprMultiElse.foldable());
         assertEquals(tenDays, caseExprMultiElse.fold(FoldContext.small()));
+    }
+
+    /**
+     * Nested temporal {@code CASE} used to recurse in {@link Case#fold(FoldContext)}
+     * until the JVM threw {@link StackOverflowError}. Non-temporal {@code CASE} still folds
+     * through evaluators so it can emit multivalue-condition warnings.
+     */
+    public void testDeeplyNestedTemporalFoldDoesNotStackOverflow() {
+        boolean nestInTrueBranch = randomBoolean();
+        FoldedCaseValues values = randomFoldedCaseValues(false);
+        Literal condition = new Literal(Source.EMPTY, nestInTrueBranch, DataType.BOOLEAN);
+        Expression nested = nestCases(10_000, values.expected, values.unused, condition, nestInTrueBranch);
+        assertTrue(nested.foldable());
+        assertThat(nested.fold(FoldContext.small()), equalTo(values.expected.value()));
+    }
+
+    /**
+     * Parser-depth nested {@code CASE} with mixed true/false branches and foldable
+     * non-literal conditions such as {@code 123 == 123}.
+     */
+    public void testNestedFoldAtMaxExpressionDepthWithMixedConditions() {
+        FoldedCaseValues values = randomFoldedCaseValues(true);
+        Expression nested = values.expected;
+        for (int i = 0; i < ExpressionBuilder.MAX_EXPRESSION_DEPTH; i++) {
+            boolean nestInTrueBranch = randomBoolean();
+            Expression condition = randomBoolean()
+                ? new Literal(Source.EMPTY, nestInTrueBranch, DataType.BOOLEAN)
+                : randomEquals(nestInTrueBranch);
+            Case c = nestInTrueBranch
+                ? new Case(Source.EMPTY, condition, List.of(nested, values.unused))
+                : new Case(Source.EMPTY, condition, List.of(values.unused, nested));
+            c.dataType();
+            nested = c;
+        }
+        assertTrue(nested.foldable());
+        assertThat(nested.fold(FoldContext.small()), equalTo(values.expected.value()));
+    }
+
+    private record FoldedCaseValues(Literal expected, Literal unused) {}
+
+    private static FoldedCaseValues randomFoldedCaseValues(boolean includeInteger) {
+        DataType type = includeInteger
+            ? randomFrom(DataType.INTEGER, DataType.DATE_PERIOD, DataType.TIME_DURATION)
+            : randomFrom(DataType.DATE_PERIOD, DataType.TIME_DURATION);
+        return switch (type) {
+            case INTEGER -> {
+                int expected = randomInt();
+                int unused = randomValueOtherThan(expected, ESTestCase::randomInt);
+                yield new FoldedCaseValues(new Literal(Source.EMPTY, expected, type), new Literal(Source.EMPTY, unused, type));
+            }
+            case DATE_PERIOD -> {
+                Period expected = Period.ofDays(randomIntBetween(1, 20));
+                Period unused = randomValueOtherThan(expected, () -> Period.ofDays(randomIntBetween(1, 20)));
+                yield new FoldedCaseValues(new Literal(Source.EMPTY, expected, type), new Literal(Source.EMPTY, unused, type));
+            }
+            case TIME_DURATION -> {
+                Duration expected = Duration.ofHours(randomIntBetween(1, 20));
+                Duration unused = randomValueOtherThan(expected, () -> Duration.ofHours(randomIntBetween(1, 20)));
+                yield new FoldedCaseValues(new Literal(Source.EMPTY, expected, type), new Literal(Source.EMPTY, unused, type));
+            }
+            default -> throw new AssertionError("unexpected type " + type);
+        };
+    }
+
+    private static Equals randomEquals(boolean shouldMatch) {
+        int left = randomInt();
+        int right = shouldMatch ? left : randomValueOtherThan(left, ESTestCase::randomInt);
+        return new Equals(
+            Source.EMPTY,
+            new Literal(Source.EMPTY, left, DataType.INTEGER),
+            new Literal(Source.EMPTY, right, DataType.INTEGER)
+        );
+    }
+
+    private static Expression nestCases(int depth, Expression leaf, Expression unused, Expression condition, boolean nestInTrueBranch) {
+        Expression nested = leaf;
+        for (int i = 0; i < depth; i++) {
+            Case c = nestInTrueBranch
+                ? new Case(Source.EMPTY, condition, List.of(nested, unused))
+                : new Case(Source.EMPTY, condition, List.of(unused, nested));
+            // Resolve types one level at a time so this test targets fold recursion, not type resolution.
+            c.dataType();
+            nested = c;
+        }
+        return nested;
     }
 
     private static Case caseExprWithTemporalAmount(boolean condition, Object trueValue, Object elseValue, DataType dataType) {

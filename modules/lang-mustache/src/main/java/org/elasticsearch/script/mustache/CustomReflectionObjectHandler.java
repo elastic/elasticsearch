@@ -11,19 +11,15 @@ package org.elasticsearch.script.mustache;
 
 import com.github.mustachejava.Binding;
 import com.github.mustachejava.Code;
-import com.github.mustachejava.ObjectHandler;
 import com.github.mustachejava.TemplateContext;
 import com.github.mustachejava.codes.ValueCode;
-import com.github.mustachejava.reflect.GuardedBinding;
-import com.github.mustachejava.reflect.MissingWrapper;
-import com.github.mustachejava.reflect.ReflectionObjectHandler;
+import com.github.mustachejava.reflect.AbstractObjectHandler;
 import com.github.mustachejava.util.Wrapper;
 
 import org.elasticsearch.common.util.CollectionUtils;
 import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.common.util.iterable.Iterables;
 
-import java.lang.reflect.AccessibleObject;
 import java.lang.reflect.Array;
 import java.util.AbstractMap;
 import java.util.Collection;
@@ -32,7 +28,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 
-final class CustomReflectionObjectHandler extends ReflectionObjectHandler {
+final class CustomReflectionObjectHandler extends AbstractObjectHandler {
 
     private final boolean detectMissingParams;
 
@@ -58,18 +54,27 @@ final class CustomReflectionObjectHandler extends ReflectionObjectHandler {
     @Override
     public Binding createBinding(String name, TemplateContext tc, Code code) {
         if (detectMissingParams) {
-            return new DetectMissingParamsGuardedBinding(this, name, tc, code);
+            return new DetectMissingParamsDirectBinding(name, code);
         }
         return new DirectMapBinding(name);
     }
 
     /**
+     * Never called — both binding implementations resolve values directly without going through
+     * {@code find()}, so this method is unreachable in normal operation.
+     */
+    @Override
+    public Wrapper find(String name, List<Object> scopes) {
+        throw new UnsupportedOperationException("find() is not used by this object handler");
+    }
+
+    /**
      * A {@link Binding} that bypasses mustache.java's guard/reflection machinery entirely.
      * <p>
-     * The standard {@link GuardedBinding} caches a {@link com.github.mustachejava.reflect.ReflectionWrapper}
-     * per scope-type signature and re-checks a set of type guards on every call to confirm the scope types
-     * haven't changed before dispatching via reflection. For ingest templates the model is always a
-     * {@code Map<String, Object>}, so the guards always pass and reflection always resolves to
+     * The standard {@code GuardedBinding} caches a {@code ReflectionWrapper} per scope-type
+     * signature and re-checks a set of type guards on every call to confirm the scope types
+     * haven't changed before dispatching via reflection. For ingest templates the model is always
+     * a {@code Map<String, Object>}, so the guards always pass and reflection always resolves to
      * {@code Map.get} — the guard loop and reflective dispatch are pure overhead.
      * <p>
      * This binding skips all of that: it searches the scope stack right-to-left and resolves
@@ -112,38 +117,61 @@ final class CustomReflectionObjectHandler extends ReflectionObjectHandler {
         }
     }
 
-    @Override
-    @SuppressWarnings("rawtypes")
-    protected AccessibleObject findMember(Class sClass, String name) {
-        /*
-         * overriding findMember from BaseObjectHandler (our superclass's superclass) to always return null.
-         *
-         * if you trace findMember there, you'll see that it always either returns null or invokes the getMethod
-         * or getField methods of that class. the last thing that getMethod and getField do is call 'setAccessible'
-         * but we don't have java.lang.reflect.ReflectPermission/suppressAccessChecks so that will always throw an
-         * exception.
-         *
-         * that is, with the permissions we're running with, it would always return null ('not found!') or throw
-         * an exception ('found, but you cannot do this!') -- so by overriding to null we're effectively saying
-         * "you will never find success going down this path, so don't bother trying"
-         */
-        return null;
-    }
+    /**
+     * A {@link Binding} that behaves like {@link DirectMapBinding} but additionally throws
+     * {@link MustacheInvalidParameterException} when a {@code {{variable}}} substitution's
+     * first path component is not found in any scope.
+     * <p>
+     * Silently returns {@code null} for section codes (non-{@code ValueCode}) so that missing
+     * section variables are treated as falsey rather than as errors.
+     */
+    private final class DetectMissingParamsDirectBinding implements Binding {
+        private final String name;
+        private final boolean throwOnMissing;
 
-    private static final class DetectMissingParamsGuardedBinding extends GuardedBinding {
-        private final Code code;
-
-        DetectMissingParamsGuardedBinding(ObjectHandler oh, String name, TemplateContext tc, Code code) {
-            super(oh, name, tc, code);
-            this.code = code;
+        DetectMissingParamsDirectBinding(String name, Code code) {
+            this.name = name;
+            this.throwOnMissing = code instanceof ValueCode;
         }
 
-        protected synchronized Wrapper getWrapper(String name, List<Object> scopes) {
-            Wrapper wrapper = super.getWrapper(name, scopes);
-            if (wrapper instanceof MissingWrapper && code instanceof ValueCode) {
-                throw new MustacheInvalidParameterException("Parameter [" + name + "] is missing");
+        @Override
+        public Object get(List<Object> scopes) {
+            int dot = name.indexOf('.');
+            String first = dot == -1 ? name : name.substring(0, dot);
+            // Search scope stack right-to-left (innermost scope first) for the first component,
+            // using containsKey to distinguish a present-but-null value from an absent key.
+            Object value = null;
+            boolean found = false;
+            for (int i = scopes.size() - 1; i >= 0; i--) {
+                Object scope = coerce(scopes.get(i));
+                if (scope instanceof Map<?, ?> map && map.containsKey(first)) {
+                    value = map.get(first);
+                    found = true;
+                    break;
+                }
             }
-            return wrapper;
+            if (found == false) {
+                if (throwOnMissing) {
+                    throw new MustacheInvalidParameterException("Parameter [" + name + "] is missing");
+                }
+                return null;
+            }
+            if (dot == -1) {
+                return coerce(value);
+            }
+            // Resolve remaining dot-separated components, throwing on any missing component
+            for (String part : name.substring(dot + 1).split("\\.")) {
+                Object coerced = coerce(value);
+                if (coerced instanceof Map<?, ?> map && map.containsKey(part)) {
+                    value = map.get(part);
+                } else {
+                    if (throwOnMissing) {
+                        throw new MustacheInvalidParameterException("Parameter [" + name + "] is missing");
+                    }
+                    return null;
+                }
+            }
+            return coerce(value);
         }
     }
 

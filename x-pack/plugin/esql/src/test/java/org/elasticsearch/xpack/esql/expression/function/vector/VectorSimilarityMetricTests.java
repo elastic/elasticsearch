@@ -22,10 +22,7 @@ import static org.hamcrest.Matchers.nullValue;
 public class VectorSimilarityMetricTests extends ESTestCase {
 
     public void testOptionValuesMatchTheSimilarityFunctionNames() {
-        assertThat(
-            VectorSimilarityMetric.optionValues(),
-            equalTo(List.of("cosine", "dot_product", "l2_norm", "max_inner_product"))
-        );
+        assertThat(VectorSimilarityMetric.optionValues(), equalTo(List.of("cosine", "dot_product", "l2_norm", "max_inner_product")));
     }
 
     public void testFromOptionValueIgnoresCase() {
@@ -144,10 +141,7 @@ public class VectorSimilarityMetricTests extends ESTestCase {
         float[] b = new float[] { 10.0f, 0.0f };
         // dot product = 100, score = 101
         assertThat(
-            VectorSimilarityMetric.MAX_INNER_PRODUCT.score(
-                VectorSimilarityMetric.MAX_INNER_PRODUCT.calculateSimilarity(a, b),
-                2
-            ),
+            VectorSimilarityMetric.MAX_INNER_PRODUCT.score(VectorSimilarityMetric.MAX_INNER_PRODUCT.calculateSimilarity(a, b), 2),
             closeTo(101.0, 1e-4)
         );
     }

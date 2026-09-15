@@ -767,3 +767,5 @@ tests:
 - class: org.elasticsearch.xpack.application.EndpointMetadataClusterStateUpgradeIT
   method: testClusterStateContainsOnlyMetadataSubsetAfterUpgrade {upgradedNodes=3}
   issue: https://github.com/elastic/elasticsearch/issues/159402
+- class: org.elasticsearch.xpack.esql.qa.parquet.ParquetFormatSpecIT
+  issue: https://github.com/elastic/elasticsearch/issues/159407

@@ -3959,7 +3959,6 @@ public class FileSplitProviderTests extends ESTestCase {
         );
         DeclaredReadSpec spec = DeclaredReadSpec.of(
             Map.of("emp_id", "id", "price", "amount"), // logical -> physical
-            null,
             Map.of(),
             Set.of("emp_id", "price")
         );
@@ -4310,7 +4309,7 @@ public class FileSplitProviderTests extends ESTestCase {
             entry.path(),
             new SchemaReconciliation.FileSchemaInfo(new ExternalSchema(overlaid), null, harvested, inferredTypes)
         );
-        DeclaredReadSpec spec = DeclaredReadSpec.of(Map.of("emp_id", "id", "price", "amount"), null, Map.of(), Set.of("emp_id", "price"));
+        DeclaredReadSpec spec = DeclaredReadSpec.of(Map.of("emp_id", "id", "price", "amount"), Map.of(), Set.of("emp_id", "price"));
         ExternalSchema schema = new ExternalSchema(overlaid);
         SplitDiscoveryContext ctx = new SplitDiscoveryContext(
             null,
@@ -5535,7 +5534,7 @@ public class FileSplitProviderTests extends ESTestCase {
         }
     }
 
-    public void testPerRowNamesAreKeptForReaderRegardlessOfBinding() {
+    public void testRecordRefIsKeptForReaderRegardlessOfBinding() {
         StoragePath path = StoragePath.of("s3://b/a.parquet");
         FileList fileList = GlobExpander.fileListOf(List.of(new StorageEntry(path, 100, Instant.EPOCH)), path.toString());
         Attribute value = refAttr("value");
@@ -5544,8 +5543,11 @@ public class FileSplitProviderTests extends ESTestCase {
             path,
             new SchemaReconciliation.FileSchemaInfo(fileSchema, null, null)
         );
-        for (String name : List.of(FileMetadataColumns.RECORD_REF, ExternalMetadataColumns.ID, ExternalMetadataColumns.SOURCE)) {
-            DataType type = FileMetadataColumns.RECORD_REF.equals(name) ? DataType.LONG : MetadataAttribute.dataType(name);
+        // _file.record_ref is composed per row, so it is materializable on every file whichever way its
+        // output attribute is bound. The standard names are per-file constants and are covered separately.
+        String name = FileMetadataColumns.RECORD_REF;
+        {
+            DataType type = DataType.LONG;
             for (boolean metadata : List.of(false, true)) {
                 Attribute column = metadata ? new ExternalMetadataAttribute(SRC, name, type) : new ReferenceAttribute(SRC, name, type);
                 List<Attribute> output = List.of(value, column);
@@ -5590,7 +5592,7 @@ public class FileSplitProviderTests extends ESTestCase {
         assertEquals("_file.record_ref is composed per record, not missing from the file", 1, provider.discoverSplits(ctx).splits().size());
     }
 
-    public void testIdNotTreatedAsMissing() {
+    public void testIdIsNullConstantSoIsNotNullSkipsFile() {
         StoragePath pathA = StoragePath.of("s3://b/a.parquet");
         FileList fileList = GlobExpander.fileListOf(List.of(new StorageEntry(pathA, 100, Instant.EPOCH)), "s3://b/*.parquet");
         Map<StoragePath, SchemaReconciliation.FileSchemaInfo> schemaInfo = new HashMap<>();
@@ -5607,10 +5609,14 @@ public class FileSplitProviderTests extends ESTestCase {
             null,
             ExternalMetadataColumns.metadataNames(idFilter.references())
         );
-        assertEquals("_id is composed per record, not missing from the file", 1, provider.discoverSplits(ctx).splits().size());
+        assertEquals(
+            "_id is a null per-file constant, so IS NOT NULL eliminates the file",
+            0,
+            provider.discoverSplits(ctx).splits().size()
+        );
     }
 
-    public void testSourceNotTreatedAsMissing() {
+    public void testSourceIsNullConstantSoIsNotNullSkipsFile() {
         StoragePath pathA = StoragePath.of("s3://b/a.parquet");
         FileList fileList = GlobExpander.fileListOf(List.of(new StorageEntry(pathA, 100, Instant.EPOCH)), "s3://b/*.parquet");
         Map<StoragePath, SchemaReconciliation.FileSchemaInfo> schemaInfo = new HashMap<>();
@@ -5627,7 +5633,11 @@ public class FileSplitProviderTests extends ESTestCase {
             null,
             ExternalMetadataColumns.metadataNames(sourceFilter.references())
         );
-        assertEquals("_source is composed per record, not missing from the file", 1, provider.discoverSplits(ctx).splits().size());
+        assertEquals(
+            "_source is a null per-file constant, so IS NOT NULL eliminates the file",
+            0,
+            provider.discoverSplits(ctx).splits().size()
+        );
     }
 
     public void testIdEqualsDoesNotSkipFile() {
@@ -5679,7 +5689,7 @@ public class FileSplitProviderTests extends ESTestCase {
         assertEquals("_version equality to the file mtime keeps the file", 1, provider.discoverSplits(ctx).splits().size());
     }
 
-    public void testVersionEqualsOtherMtimeEliminatesFile() {
+    public void testVersionEqualsKeepsFileBecauseVersionIsNull() {
         Instant mtime = Instant.ofEpochMilli(1_700_000_000_000L);
         StoragePath pathA = StoragePath.of("s3://b/a.parquet");
         FileList fileList = GlobExpander.fileListOf(List.of(new StorageEntry(pathA, 100, mtime)), "s3://b/*.parquet");
@@ -5697,7 +5707,7 @@ public class FileSplitProviderTests extends ESTestCase {
             null,
             ExternalMetadataColumns.metadataNames(versionEquals.references())
         );
-        assertEquals("_version equality to a different mtime eliminates the file", 0, provider.discoverSplits(ctx).splits().size());
+        assertEquals("_version is null, so equality is UNKNOWN and cannot certify a skip", 1, provider.discoverSplits(ctx).splits().size());
     }
 
     public void testSkipIfFilterOnMissingColumn_inExpression() {

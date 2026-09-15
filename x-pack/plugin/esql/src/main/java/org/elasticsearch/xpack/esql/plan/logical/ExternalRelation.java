@@ -86,8 +86,8 @@ public class ExternalRelation extends LeafPlan implements ExecutesOn.Coordinator
     /**
      * METADATA-clause expressions threaded through from the parser for the verifier to discover
      * if any remain unresolvable after analysis. Mirrors the indexed {@code EsRelation} pattern:
-     * resolved standard / {@code _file.*} names are bound into {@link #output}; any name absent
-     * from {@code MetadataAttribute.ATTRIBUTES_MAP} and {@code FileMetadataColumns} stays here
+     * resolved standard / {@code _file.*} names are bound into {@link #output}; any name absent from
+     * both {@code ExternalMetadataColumns.STANDARD_NAMES} and {@code FileMetadataColumns} stays here
      * as an {@code UnresolvedMetadataAttributeExpression} so the verifier's
      * {@code checkUnresolvedAttributes} walk fires its native {@code "Unresolved metadata pattern
      * [...]"} error — same diagnostic users see on indexed {@code FROM x METADATA _typo}.
@@ -98,9 +98,10 @@ public class ExternalRelation extends LeafPlan implements ExecutesOn.Coordinator
      */
     private final List<? extends NamedExpression> metadataFields;
     /**
-     * The declared mapping's read-instructions (logical&rarr;physical renames, {@code _id.path}), or
+     * The declared mapping's read-instructions (logical&rarr;physical renames, per-column date formats), or
      * {@link DeclaredReadSpec#NONE}. Threaded to {@link ExternalSourceExec} via {@link #toPhysicalExec} and consumed on
-     * the data node (physicalization + {@code _id} stamping); rides the wire gated on {@code dataset_declared_schema}.
+     * the data node (physicalization of declared column names and date formats); rides the wire gated on
+     * {@code dataset_declared_schema}.
      */
     private final DeclaredReadSpec declaredReadSpec;
 
@@ -213,7 +214,7 @@ public class ExternalRelation extends LeafPlan implements ExecutesOn.Coordinator
             declaredReadSpec.writeTo(out);
         } else if (declaredReadSpec.isEmpty() == false) {
             // Silently dropping a non-empty spec toward an older data node would return wrong rows (physical names,
-            // synthetic _id, unparsed dates). Reject loudly instead — mirrors PutDatasetAction's older-master reject.
+            // unparsed dates). Reject loudly instead — mirrors PutDatasetAction's older-master reject.
             throw new IllegalArgumentException(
                 "declared dataset read-instructions are not supported on all nodes in the cluster; retry after the upgrade"
             );
@@ -267,7 +268,7 @@ public class ExternalRelation extends LeafPlan implements ExecutesOn.Coordinator
     }
 
     /**
-     * The declared mapping's read-instructions (renames, {@code _id.path}, per-column date formats), or {@link DeclaredReadSpec#NONE}.
+     * The declared mapping's read-instructions (renames, per-column date formats), or {@link DeclaredReadSpec#NONE}.
      * Carried to {@link ExternalSourceExec} via {@link #toPhysicalExec}.
      */
     public DeclaredReadSpec declaredReadSpec() {

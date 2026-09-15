@@ -240,6 +240,21 @@ public abstract class FieldMapper extends Mapper {
      *                       support depends on index-level configuration
      */
     public final boolean supportsColumnarParse(IndexSettings indexSettings) {
+        // Cross-cutting pre-conditions that apply to every mapper, mirroring how parse() handles script
+        // enforcement and copyTo before delegating to parseCreateField().
+        if (hasScript() || copyTo().copyToFields().isEmpty() == false) {
+            return false;
+        }
+        // The mode and legacy-version gates are data-field concerns only: metadata mappers (_id, _seq_no,
+        // _routing, etc.) must support the columnar path in any index mode that the shard batch mapper runs.
+        if (isMetadataFieldMapper() == false) {
+            if (indexSettings.getMode().isStrictColumnar() == false && indexSettings.getMode().isTsdb() == false) {
+                return false;
+            }
+            if (indexSettings.getIndexVersionCreated().isLegacyIndexVersion()) {
+                return false;
+            }
+        }
         if (doSupportsColumnarParse(indexSettings) == false) {
             return false;
         }
@@ -263,6 +278,15 @@ public abstract class FieldMapper extends Mapper {
     }
 
     /**
+     * Returns {@code true} for metadata field mappers ({@link MetadataFieldMapper} subclasses),
+     * {@code false} for all user-defined data field mappers. Used by {@link #supportsColumnarParse}
+     * to skip the index-mode and legacy-version gates, which are data-field concerns only.
+     */
+    protected boolean isMetadataFieldMapper() {
+        return false;
+    }
+
+    /**
      * Returns {@code true} when the field's dimension status does not block the columnar parse path. A dimension
      * field that writes routing ({@code writeDimensionRouting=true}) must fall back to the row path because the
      * routing hash is computed incrementally during row-level parse and is not available in the batch path.
@@ -281,16 +305,22 @@ public abstract class FieldMapper extends Mapper {
      * @param source the Escf column holding the field's source values for the batch
      */
     public final void mapColumnBatch(BatchMappingContext ctx, EscfColumn source) {
+        if (shouldEnforceSingleValueBatch() && source.hasMultiValueDoc()) {
+            throw new UnsupportedOperationException(
+                "mapColumnBatch: multi_value=false field [" + fullPath() + "] has more than one value per document"
+            );
+        }
+        if (isNullable() == false && source.hasNullOrAbsentDoc()) {
+            throw new UnsupportedOperationException(
+                "mapColumnBatch: nullability=false field [" + fullPath() + "] has a null or absent value"
+            );
+        }
         doMapColumnBatch(ctx, source);
         for (FieldMapper subMapper : builderParams.multiFields) {
-            subMapper.doMapColumnBatch(ctx, source);
+            subMapper.mapColumnBatch(ctx, source);
         }
     }
 
-    // TODO: See FieldMapper#parse. We need to migrate over multi-value and nullability restricts.
-    // This should be straightforward. We would reject array columns for multi-value and force
-    // dense columns or null replacement for no nullability. We might need to do a check if multi-value
-    // is false and there is an array column scan down the array counts because size 0 or 1 is still valid
     protected void doMapColumnBatch(BatchMappingContext ctx, EscfColumn source) {
         throw new UnsupportedOperationException(
             "mapColumnBatch not implemented for mapper [" + typeName() + "] on field [" + fullPath() + "]"
@@ -449,6 +479,17 @@ public abstract class FieldMapper extends Mapper {
      * {@code [value]}. Mappers without {@code null_value} support (eg. text) should exempt {@code VALUE_NULL} unconditionally.
      */
     protected boolean shouldEnforceSingleValue(XContentParser.Token token) {
+        return false;
+    }
+
+    /**
+     * Whether this mapper enforces single-value semantics on the columnar batch path, analogous to
+     * {@link #shouldEnforceSingleValue(XContentParser.Token)} for the row path. When {@code true},
+     * {@link #mapColumnBatch} scans the source column upfront and throws {@link UnsupportedOperationException}
+     * if any document carries more than one value, causing {@code ShardBatchMapper} to fall back the whole
+     * batch to the row path.
+     */
+    protected boolean shouldEnforceSingleValueBatch() {
         return false;
     }
 

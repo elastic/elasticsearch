@@ -26,6 +26,7 @@ import org.elasticsearch.core.Releasables;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.type.DataType;
+import org.elasticsearch.xpack.esql.datasources.spi.ColumnarRowDropHelper;
 import org.elasticsearch.xpack.esql.datasources.spi.DeclaredTypeCoercions;
 import org.elasticsearch.xpack.esql.datasources.spi.SkipWarnings;
 
@@ -345,21 +346,6 @@ public final class ColumnMapping implements Writeable {
      * cell and hands a warning naming the column to the sink, which ends in the driver's warning
      * channel and reaches the client from there — identical to the declared-type coercion the
      * readers run; with a {@code null} sink the failure propagates and fails the page.
-     * <p>
-     * <b>Known gap — this cast always nulls, never drops.</b> The reconciliation cast is the one coercion site that
-     * does <em>not</em> honour {@code error_mode: skip_row}: a value that fails here nulls its cell and the row
-     * survives, which is {@code null_field} behaviour, and the row is not counted against {@code max_errors}. Two
-     * reasons it is not simply wired to a {@code ColumnarRowDropHelper} like the columnar readers are:
-     * <ul>
-     *   <li>No {@code ErrorPolicy} reaches this layer at all — {@code SchemaAdaptingIterator}'s warning sink is
-     *       unconditionally live, so even {@code fail_fast} warn+nulls here.</li>
-     *   <li>The reader already owns the read's one budget. A second helper in the adapter would give a single read
-     *       two independent {@code max_errors} budgets; making it correct means hoisting the budget to an object
-     *       both layers share, which is a wider change than the drop itself.</li>
-     * </ul>
-     * Reachable only when cross-file unification actually widens a column (a multi-file glob whose files drift), so
-     * it does not affect the single-declared-type reads {@code skip_row} is normally used with. Tracked as
-     * elastic/esql-planning#1824; until then this is the documented behaviour rather than an oversight.
      */
     Page mapPage(
         Page filePage,
@@ -367,6 +353,25 @@ public final class ColumnMapping implements Writeable {
         @Nullable DataType[] fileColumnTypes,
         @Nullable String[] outputColumnNames,
         @Nullable SkipWarnings warnings
+    ) {
+        return mapPage(filePage, blockFactory, fileColumnTypes, outputColumnNames, warnings, null);
+    }
+
+    /**
+     * Like {@link #mapPage(Page, BlockFactory, DataType[], String[], SkipWarnings)} but additionally
+     * accepts a {@link ColumnarRowDropHelper}. When non-null, each cast-failed position is marked in
+     * the helper (via {@link org.elasticsearch.xpack.esql.datasources.spi.DeclaredTypeCoercions#castBlock}'s
+     * {@code failedPositionSink}) so the caller ({@link SchemaAdaptingIterator}) can filter whole rows
+     * before returning the page to the driver. The helper's {@link ColumnarRowDropHelper#beginBatch}
+     * must already have been called by the time this method is invoked.
+     */
+    Page mapPage(
+        Page filePage,
+        BlockFactory blockFactory,
+        @Nullable DataType[] fileColumnTypes,
+        @Nullable String[] outputColumnNames,
+        @Nullable SkipWarnings warnings,
+        @Nullable ColumnarRowDropHelper dropHelper
     ) {
         int positions = filePage.getPositionCount();
         Block[] blocks = new Block[index.length];
@@ -381,7 +386,7 @@ public final class ColumnMapping implements Writeable {
                     if (castTo != null) {
                         DataType sourceType = fileColumnTypes != null ? fileColumnTypes[localIndex] : null;
                         String columnName = outputColumnNames != null ? outputColumnNames[i] : null;
-                        blocks[i] = castBlock(source, sourceType, castTo, blockFactory, columnName, warnings);
+                        blocks[i] = castBlock(source, sourceType, castTo, blockFactory, columnName, warnings, dropHelper);
                     } else {
                         source.incRef();
                         blocks[i] = source;
@@ -535,7 +540,8 @@ public final class ColumnMapping implements Writeable {
         DataType targetType,
         BlockFactory bf,
         @Nullable String columnName,
-        @Nullable SkipWarnings warnings
+        @Nullable SkipWarnings warnings,
+        @Nullable ColumnarRowDropHelper dropHelper
     ) {
         if (sourceType == null && source.areAllValuesNull()) {
             if (source instanceof ConstantNullBlock) {
@@ -550,7 +556,16 @@ public final class ColumnMapping implements Writeable {
                 "Unsupported block cast: " + source.getClass().getSimpleName() + " → " + targetType.typeName()
             );
         }
-        return DeclaredTypeCoercions.castBlock(source, from, targetType, null, bf, columnName, warnings);
+        return DeclaredTypeCoercions.castBlock(
+            source,
+            from,
+            targetType,
+            null,
+            bf,
+            columnName,
+            warnings,
+            dropHelper != null ? dropHelper::markFailed : null
+        );
     }
 
     /**

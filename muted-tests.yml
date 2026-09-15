@@ -766,3 +766,18 @@ tests:
 - class: org.elasticsearch.gradle.internal.test.rest.LegacyYamlRestTestPluginFuncTest
   method: yamlRestTest executes and copies api and tests to correct source set
   issue: https://github.com/elastic/elasticsearch/issues/159230
+- class: org.elasticsearch.xpack.esql.qa.csv.CsvCompressedFormatSpecIT
+  method: test {csv-spec:csv-multifile-resolution.ffwSalaryStats [csv.zstd/S3]}
+  issue: https://github.com/elastic/elasticsearch/issues/159270
+- class: org.elasticsearch.xpack.esql.qa.csv.CsvCompressedFormatSpecIT
+  method: test {csv-spec:csv-declared-schema-multifile.strictDeclaredSchemaColumnPresentInOnlyOneFileReadsNull [csv.bz/S3]}
+  issue: https://github.com/elastic/elasticsearch/issues/159271
+- class: org.elasticsearch.swisshash.BytesRefSwissHashPartitionTests
+  method: testPartitionPaged
+  issue: https://github.com/elastic/elasticsearch/issues/159303
+- class: org.elasticsearch.backwards.MixedClusterClientYamlTestSuiteIT
+  method: test {p0=search/400_columnar_default_field/field-less query over a numeric and a keyword field in columnar mode}
+  issue: https://github.com/elastic/elasticsearch/issues/159306
+- class: org.elasticsearch.backwards.MixedClusterClientYamlTestSuiteIT
+  method: test {p0=search/400_columnar_default_field/query_string is lenient about unparseable literals in columnar mode}
+  issue: https://github.com/elastic/elasticsearch/issues/159307

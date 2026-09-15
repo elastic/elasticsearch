@@ -46,6 +46,7 @@ import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.instanceOf;
+import static org.hamcrest.Matchers.nullValue;
 
 public class DatasetRewriterTests extends ESTestCase {
 
@@ -84,7 +85,7 @@ public class DatasetRewriterTests extends ESTestCase {
         assertThat(rewritten, instanceOf(UnresolvedExternalRelation.class));
         UnresolvedExternalRelation out = (UnresolvedExternalRelation) rewritten;
         assertThat(tablePathString(out), equalTo("s3://logs/*.parquet"));
-        assertThat(datasourceParamValue(out, "region"), equalTo("us-east-1"));
+        assertThat(datasourceParamValue(out, "region"), nullValue());
         assertThat(paramValue(out, "format"), equalTo("parquet"));
     }
 
@@ -105,7 +106,7 @@ public class DatasetRewriterTests extends ESTestCase {
         assertThat(rewritten, instanceOf(UnresolvedExternalRelation.class));
         UnresolvedExternalRelation out = (UnresolvedExternalRelation) rewritten;
         assertThat(tablePathString(out), equalTo("s3://logs/*.parquet"));
-        assertThat(datasourceParamValue(out, "region"), equalTo("us-east-1"));
+        assertThat(datasourceParamValue(out, "region"), nullValue());
         assertThat(paramValue(out, "format"), equalTo("parquet"));
         for (String key : RemovedParquetDatasetSettings.KEYS) {
             assertFalse(out.config().containsKey(key));
@@ -253,12 +254,23 @@ public class DatasetRewriterTests extends ESTestCase {
     public void testNonSecretSettingsArriveAsTheirOriginalValue() {
         // Non-secret settings are placed in the carrier as their underlying Object (String, Integer,
         // Boolean...). Asserts that mergeSettings does not transform them.
+        DataSource parent = dataSource("s3_parent", Map.of("endpoint", new DataSourceSetting("https://s3.example.com", false)));
+        Dataset dataset = new Dataset("logs", new DataSourceReference("s3_parent"), "s3://logs/", null, Map.of());
+        ProjectMetadata project = projectWith(Map.of("s3_parent", parent), Map.of("logs", dataset));
+
+        LogicalPlan rewritten = rewrite(relationOf("logs"), project);
+        assertThat(datasourceParamValue((UnresolvedExternalRelation) rewritten, "endpoint"), equalTo("https://s3.example.com"));
+    }
+
+    public void testParentRegionIsNotContributedToMergedConfig() {
+        // region is a dataset-level key; a value set on the parent data source must not appear
+        // under _datasource after rewriting, so the storage provider cannot accidentally read it.
         DataSource parent = dataSource("s3_parent", Map.of("region", new DataSourceSetting("us-east-1", false)));
         Dataset dataset = new Dataset("logs", new DataSourceReference("s3_parent"), "s3://logs/", null, Map.of());
         ProjectMetadata project = projectWith(Map.of("s3_parent", parent), Map.of("logs", dataset));
 
         LogicalPlan rewritten = rewrite(relationOf("logs"), project);
-        assertThat(datasourceParamValue((UnresolvedExternalRelation) rewritten, "region"), equalTo("us-east-1"));
+        assertThat(datasourceParamValue((UnresolvedExternalRelation) rewritten, "region"), nullValue());
     }
 
     // ---- Pattern expansion (parity with FROM <index> patterns via IndexNameExpressionResolver) ----

@@ -596,10 +596,7 @@ public class ESNextDiskBBQVectorsFormatTests extends ESBaseKnnVectorsFormatTestC
                 // newIndexWriterConfig() randomizes the flush policy, so there may be several flushed segments
                 for (LeafReaderContext context : reader.leaves()) {
                     LeafReader leafReader = context.reader();
-                    KnnVectorsReader vectorReader = ((CodecReader) leafReader).getVectorReader();
-                    if (vectorReader instanceof PerFieldKnnVectorsFormat.FieldsReader fieldsReader) {
-                        vectorReader = fieldsReader.getFieldReader(vectorField);
-                    }
+                    KnnVectorsReader vectorReader = ((CodecReader) leafReader).getVectorReader().unwrapReaderForField(vectorField);
                     assertThat(vectorReader, instanceOf(ESNextDiskBBQVectorsReader.class));
                     // a flushed sliced segment is written as a single flat posting list, i.e. without per-slice centroids
                     try (

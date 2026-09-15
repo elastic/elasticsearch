@@ -11,7 +11,6 @@ package org.elasticsearch.index.codec.vectors.diskbbq.next;
 
 import org.apache.lucene.codecs.Codec;
 import org.apache.lucene.codecs.KnnVectorsReader;
-import org.apache.lucene.codecs.perfield.PerFieldKnnVectorsFormat;
 import org.apache.lucene.document.Document;
 import org.apache.lucene.document.Field;
 import org.apache.lucene.document.KnnFloatVectorField;
@@ -180,10 +179,7 @@ public class ESNextDiskASHVectorsFormatTests extends ESTestCase {
             try (IndexReader reader = DirectoryReader.open(w)) {
                 for (LeafReaderContext context : reader.leaves()) {
                     LeafReader leafReader = context.reader();
-                    KnnVectorsReader vectorReader = ((CodecReader) leafReader).getVectorReader();
-                    if (vectorReader instanceof PerFieldKnnVectorsFormat.FieldsReader fieldsReader) {
-                        vectorReader = fieldsReader.getFieldReader(vectorField);
-                    }
+                    KnnVectorsReader vectorReader = ((CodecReader) leafReader).getVectorReader().unwrapReaderForField(vectorField);
                     assertThat(vectorReader, instanceOf(ESNextDiskASHVectorsReader.class));
                     // a flushed sliced segment is written as a single flat posting list
                     try (
@@ -237,10 +233,7 @@ public class ESNextDiskASHVectorsFormatTests extends ESTestCase {
             try (IndexReader reader = DirectoryReader.open(w)) {
                 assertEquals(1, reader.leaves().size());
                 LeafReader leafReader = reader.leaves().get(0).reader();
-                KnnVectorsReader vectorReader = ((CodecReader) leafReader).getVectorReader();
-                if (vectorReader instanceof PerFieldKnnVectorsFormat.FieldsReader fieldsReader) {
-                    vectorReader = fieldsReader.getFieldReader(vectorField);
-                }
+                KnnVectorsReader vectorReader = ((CodecReader) leafReader).getVectorReader().unwrapReaderForField(vectorField);
                 assertThat(vectorReader, instanceOf(ESNextDiskASHVectorsReader.class));
                 try (
                     IVFVectorsReader.CentroidData<?> centroidData = ((ESNextDiskASHVectorsReader) vectorReader).readCentroidData(

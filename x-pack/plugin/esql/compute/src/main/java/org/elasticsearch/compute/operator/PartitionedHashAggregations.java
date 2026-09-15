@@ -12,6 +12,7 @@ import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.util.PartitionedHashTable;
 import org.elasticsearch.compute.aggregation.GroupingAggregator;
 import org.elasticsearch.compute.aggregation.GroupingAggregatorFunction;
+import org.elasticsearch.compute.aggregation.SeenGroupIds;
 import org.elasticsearch.compute.aggregation.blockhash.PartitionedBlockHash;
 import org.elasticsearch.core.AbstractRefCounted;
 import org.elasticsearch.core.Releasable;
@@ -140,6 +141,13 @@ final class PartitionedHashAggregations extends AbstractRefCounted implements Re
             List<GroupingAggregator> aggregators = op.aggregators;
             for (int i = 0; i < aggregators.size(); i++) {
                 final var aggregator = aggregators.get(i).aggregatorFunction();
+                // If some group in any generation is missing a value we need to track groupIds
+                for (int g = 0; g < numGens; g++) {
+                    if (generations.get(g).aggs.states[i].hasAllValues(p) == false) {
+                        aggregator.selectedMayContainUnseenGroups(new SeenGroupIds.Empty());
+                        break;
+                    }
+                }
                 aggregator.maybeEnsureCapacity(blockHash.numKeys() + 1);
                 for (int g = 0; g < numGens; g++) {
                     PartitionedKeyAndAggs keysAndAggs = generations.get(g);

@@ -9495,6 +9495,9 @@ public class CsvFormatReaderTests extends ESTestCase {
      * shared authority prescribes. CsvFormatReader used to re-derive that mapping locally and silently omitted
      * unsigned_long; deriving it from DeclaredTypeCoercions.elementTypeFor is what makes this assertion hold, and
      * this test is what stops the next declarable type from repeating the bug.
+     * <p>
+     * The fixture is a superset: it carries {@code TEXT}, which is not declarable but is still a type this reader
+     * builds. The sweep indexes by declarable type, so the extra entry is inert.
      */
     public void testEveryDeclarableTypeBuildsTheAuthorityShape() throws IOException {
         Map<DataType, String> token = Map.of(

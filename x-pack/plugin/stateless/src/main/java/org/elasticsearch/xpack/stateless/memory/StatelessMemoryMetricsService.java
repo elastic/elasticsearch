@@ -177,7 +177,6 @@ public class StatelessMemoryMetricsService implements ClusterStateListener {
      */
     private final Map<ShardId, ShardMemoryMetrics> shardMemoryMetrics = new ConcurrentHashMap<>();
     private volatile int totalIndices;
-    private volatile long indexMetadataEstimatedHeapBytes;
     private final AtomicReference<IndexingOperationsMemoryRequirements> indexingOperationsHeapMemoryRequirementsRef =
         new AtomicReference<>();
 
@@ -542,7 +541,6 @@ public class StatelessMemoryMetricsService implements ClusterStateListener {
             return;
         }
         this.totalIndices = event.state().metadata().getTotalNumberOfIndices();
-        this.indexMetadataEstimatedHeapBytes = estimateIndexMetadataHeapBytes(event.state().metadata());
 
         // new master use case: no indices exist in internal map
         if (event.nodesDelta().masterNodeChanged() || initialized == false) {

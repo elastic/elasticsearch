@@ -34,10 +34,10 @@ public class PromqlPlanSortByLabelTests extends AbstractPromqlPlanOptimizerTests
         assumeTrue("Requires PROMQL_SORT_BY_LABEL capability", EsqlCapabilities.Cap.PROMQL_SORT_BY_LABEL.isEnabled());
     }
 
-    public void testOpenHeaderAddsSortLabelToOutputAndDimensions() {
+    public void testOpenHeaderGroupsBySortLabelWithoutExposingIt() {
         LogicalPlan plan = planPromql("PROMQL index=k8s step=1h result=(sort_by_label(network.bytes_in, \"pod\"))", false);
 
-        assertThat(outputColumns(plan), hasItem("pod"));
+        assertThat(outputColumns(plan), not(hasItem("pod")));
         assertThat(outputColumns(plan), hasItem(MetadataAttribute.TIMESERIES));
 
         List<Attribute> collapseDimensions = plan.collect(TimeSeriesCollapse.class)
@@ -69,6 +69,15 @@ public class PromqlPlanSortByLabelTests extends AbstractPromqlPlanOptimizerTests
         assertWarnings("sort_by_label: ordering is discarded for range queries");
     }
 
+    public void testOpenHeaderSortDoesNotChangeOutputSchema() {
+        LogicalPlan withSort = planPromql(
+            "PROMQL index=k8s time=\"2024-05-10T00:03:00.000Z\" result=(sort_by_label(network.bytes_in, \"pod\"))",
+            false
+        );
+        LogicalPlan without = planPromql("PROMQL index=k8s time=\"2024-05-10T00:03:00.000Z\" result=(network.bytes_in)", false);
+        assertEquals(outputColumns(without), outputColumns(withSort));
+    }
+
     public void testRangeQueryDoesNotInjectOrderBy() {
         LogicalPlan plan = planPromql("PROMQL index=k8s step=1h result=(sort_by_label(network.bytes_in, \"pod\"))", false);
         assertTrue(plan.collect(OrderBy.class).isEmpty());
@@ -80,7 +89,7 @@ public class PromqlPlanSortByLabelTests extends AbstractPromqlPlanOptimizerTests
             "PROMQL index=k8s time=\"2024-05-10T00:03:00.000Z\" result=(sort_by_label(network.bytes_in, \"pod\"))",
             false
         );
-        assertThat(outputColumns(plan), hasItem("pod"));
+        assertThat(outputColumns(plan), not(hasItem("pod")));
         assertThat(outputColumns(plan), hasItem(MetadataAttribute.TIMESERIES));
         OrderBy orderBy = as(plan.collect(OrderBy.class).getFirst(), OrderBy.class);
         Eval eval = as(orderBy.child(), Eval.class);

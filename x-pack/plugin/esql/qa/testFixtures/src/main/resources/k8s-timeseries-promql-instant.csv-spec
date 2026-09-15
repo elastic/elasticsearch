@@ -413,16 +413,16 @@ bytes:double | step:datetime            | cluster:keyword
 382.5        | 2024-05-10T00:03:00.000Z | staging
 ;
 
-instant_sort_by_label_open_header_adds_pod
+instant_sort_by_label_open_header_keeps_schema
 required_capability: promql_command_v0
 required_capability: promql_instant_query
 required_capability: promql_sort_by_label
-
+// "pod" is materialized internally to sort by, then projected away, so it is not a column of the result.
 PROMQL index=k8s time="2024-05-10T00:03:00.000Z" bytes=(sort_by_label(last_over_time(network.bytes_in[1m]), "pod"))
-| STATS c = COUNT(), pods = MV_SORT(VALUES(pod));
+| STATS c = COUNT();
 
-c:long | pods:keyword
-6      | [three, two]
+c:long
+6
 ;
 
 instant_sort_by_label_open_header_same_series_count
@@ -487,40 +487,6 @@ bytes:double | step:datetime            | cluster:keyword
 612.0        | 2024-05-10T00:03:00.000Z | prod
 749.0        | 2024-05-10T00:03:00.000Z | qa
 382.5        | 2024-05-10T00:03:00.000Z | staging
-;
-
-instant_sort_by_label_open_header_by_pod
-required_capability: promql_command_v0
-required_capability: promql_instant_query
-required_capability: promql_sort_by_label
-
-PROMQL index=k8s time="2024-05-10T00:03:00.000Z" bytes=(sort_by_label(last_over_time(network.bytes_in[1m]), "pod"))
-| KEEP pod;
-
-pod:keyword
-three
-three
-three
-two
-two
-two
-;
-
-instant_sort_by_label_desc_open_header_by_pod
-required_capability: promql_command_v0
-required_capability: promql_instant_query
-required_capability: promql_sort_by_label
-
-PROMQL index=k8s time="2024-05-10T00:03:00.000Z" bytes=(sort_by_label_desc(last_over_time(network.bytes_in[1m]), "pod"))
-| KEEP pod;
-
-pod:keyword
-two
-two
-two
-three
-three
-three
 ;
 
 instant_sort_by_label_natural_order

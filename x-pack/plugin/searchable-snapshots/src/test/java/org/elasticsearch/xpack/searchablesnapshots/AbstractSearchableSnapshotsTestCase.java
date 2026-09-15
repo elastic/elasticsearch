@@ -17,6 +17,7 @@ import org.apache.lucene.store.IndexOutput;
 import org.elasticsearch.blobcache.BlobCacheMetrics;
 import org.elasticsearch.blobcache.common.ByteRange;
 import org.elasticsearch.blobcache.shared.SharedBlobCacheService;
+import org.elasticsearch.blobcache.shared.SharedBlobCacheServiceTestUtils;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodeUtils;
 import org.elasticsearch.cluster.routing.RecoverySource;
@@ -43,6 +44,7 @@ import org.elasticsearch.indices.recovery.RecoveryState;
 import org.elasticsearch.repositories.IndexId;
 import org.elasticsearch.snapshots.Snapshot;
 import org.elasticsearch.snapshots.SnapshotId;
+import org.elasticsearch.telemetry.TelemetryProvider;
 import org.elasticsearch.test.ClusterServiceUtils;
 import org.elasticsearch.threadpool.TestThreadPool;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -76,6 +78,11 @@ import static org.elasticsearch.xpack.searchablesnapshots.cache.common.TestUtils
 import static org.elasticsearch.xpack.searchablesnapshots.cache.common.TestUtils.randomPopulateAndReads;
 
 public abstract class AbstractSearchableSnapshotsTestCase extends ESIndexInputTestCase {
+
+    public static final BlobCacheMetrics NOOP_BLOB_CACHE_METRICS = new BlobCacheMetrics(
+        TelemetryProvider.NOOP.getMeterRegistry(),
+        SharedBlobCacheServiceTestUtils.NOOP_TIME_PROVIDER
+    );
 
     private static final ClusterSettings CLUSTER_SETTINGS = new ClusterSettings(
         Settings.EMPTY,
@@ -145,7 +152,7 @@ public abstract class AbstractSearchableSnapshotsTestCase extends ESIndexInputTe
             Settings.EMPTY,
             threadPool,
             threadPool.executor(SearchableSnapshots.CACHE_FETCH_ASYNC_THREAD_POOL_NAME),
-            BlobCacheMetrics.NOOP
+            NOOP_BLOB_CACHE_METRICS
         );
     }
 
@@ -168,7 +175,7 @@ public abstract class AbstractSearchableSnapshotsTestCase extends ESIndexInputTe
             cacheSettings.build(),
             threadPool,
             threadPool.executor(SearchableSnapshots.CACHE_FETCH_ASYNC_THREAD_POOL_NAME),
-            BlobCacheMetrics.NOOP
+            NOOP_BLOB_CACHE_METRICS
         );
     }
 
@@ -193,7 +200,7 @@ public abstract class AbstractSearchableSnapshotsTestCase extends ESIndexInputTe
                 .build(),
             threadPool,
             threadPool.executor(SearchableSnapshots.CACHE_FETCH_ASYNC_THREAD_POOL_NAME),
-            BlobCacheMetrics.NOOP
+            NOOP_BLOB_CACHE_METRICS
         );
     }
 

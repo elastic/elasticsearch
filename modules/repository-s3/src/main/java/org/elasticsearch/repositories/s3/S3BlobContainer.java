@@ -12,6 +12,7 @@ package org.elasticsearch.repositories.s3;
 import software.amazon.awssdk.awscore.exception.AwsServiceException;
 import software.amazon.awssdk.core.exception.SdkException;
 import software.amazon.awssdk.core.exception.SdkServiceException;
+import software.amazon.awssdk.core.internal.util.Mimetype;
 import software.amazon.awssdk.core.sync.RequestBody;
 import software.amazon.awssdk.services.s3.S3Client;
 import software.amazon.awssdk.services.s3.model.AbortMultipartUploadRequest;
@@ -78,6 +79,7 @@ import java.io.ByteArrayInputStream;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.OutputStream;
+import java.io.UncheckedIOException;
 import java.nio.file.NoSuchFileException;
 import java.time.Instant;
 import java.util.HashMap;
@@ -145,14 +147,62 @@ class S3BlobContainer extends AbstractBlobContainer {
     @Override
     public void writeBlob(OperationPurpose purpose, String blobName, InputStream inputStream, long blobSize, boolean failIfAlreadyExists)
         throws IOException {
-        assert BlobContainer.assertPurposeConsistency(purpose, blobName);
         assert inputStream.markSupported() : "No mark support on inputStream breaks the S3 SDK's ability to retry requests";
+        writeBlob(
+            purpose,
+            blobName,
+            blobSize,
+            failIfAlreadyExists,
+            () -> RequestBody.fromInputStream(inputStream, blobSize),
+            (offset, length) -> RequestBody.fromInputStream(inputStream, length)
+        );
+    }
+
+    @Override
+    public void writeBlob(
+        OperationPurpose purpose,
+        String blobName,
+        long blobSize,
+        BlobMultiPartInputStreamProvider provider,
+        boolean failIfAlreadyExists
+    ) throws IOException {
+        writeBlob(
+            purpose,
+            blobName,
+            blobSize,
+            failIfAlreadyExists,
+            () -> requestBodyFromProvider(provider, 0L, blobSize),
+            (offset, length) -> requestBodyFromProvider(provider, offset, length)
+        );
+    }
+
+    private void writeBlob(
+        OperationPurpose purpose,
+        String blobName,
+        long blobSize,
+        boolean failIfAlreadyExists,
+        Supplier<RequestBody> singleUploadBody,
+        PartRequestBody multipartBody
+    ) throws IOException {
+        assert BlobContainer.assertPurposeConsistency(purpose, blobName);
         final var condition = failIfAlreadyExists ? ConditionalOperation.IF_NONE_MATCH : ConditionalOperation.NONE;
+        final String blobKey = buildKey(blobName);
         if (blobSize <= getLargeBlobThresholdInBytes()) {
-            executeSingleUpload(purpose, blobStore, buildKey(blobName), inputStream, blobSize, condition);
+            executeSingleUpload(purpose, blobStore, blobKey, blobSize, singleUploadBody, condition);
         } else {
-            executeMultipartUpload(purpose, blobStore, buildKey(blobName), inputStream, blobSize, condition);
+            executeMultipartUpload(purpose, blobStore, blobKey, blobSize, condition, multipartBody, null);
         }
+    }
+
+    @Override
+    public void writeBlob(OperationPurpose purpose, String blobName, BytesReference bytes, boolean failIfAlreadyExists) throws IOException {
+        writeBlob(
+            purpose,
+            blobName,
+            bytes.length(),
+            (offset, length) -> bytes.slice(Math.toIntExact(offset), Math.toIntExact(length)).streamInput(),
+            failIfAlreadyExists
+        );
     }
 
     @Override
@@ -375,71 +425,19 @@ class S3BlobContainer extends AbstractBlobContainer {
         Executor executor
     ) throws IOException {
         assert BlobContainer.assertPurposeConsistency(purpose, blobName);
-        final String absoluteBlobKey = buildKey(blobName);
-        final ConditionalOperation condition = failIfAlreadyExists ? ConditionalOperation.IF_NONE_MATCH : ConditionalOperation.NONE;
         if (blobSize <= getLargeBlobThresholdInBytes()) {
-            try (var stream = provider.apply(0L, blobSize)) {
-                writeBlob(purpose, blobName, stream, blobSize, failIfAlreadyExists);
-            }
+            writeBlob(purpose, blobName, blobSize, provider, failIfAlreadyExists);
             return;
         }
-        ensureMultiPartUploadSize(blobSize);
-        final long chunkSize = blobStore.bufferSizeInBytes();
-        final int nbParts = ConcurrentMultipartHelper.numberOfParts(blobSize, chunkSize);
-        boolean succeeded = false;
-        final String uploadId;
-        try (var clientReference = blobStore.clientReference()) {
-            uploadId = clientReference.client()
-                .createMultipartUpload(createMultipartUpload(purpose, Operation.PUT_MULTIPART_OBJECT, absoluteBlobKey))
-                .uploadId();
-        }
-        if (Strings.isEmpty(uploadId)) {
-            throw new IOException("Failed to initialize multipart upload for " + absoluteBlobKey);
-        }
-        try {
-            final CompletedPart[] completedParts = new CompletedPart[nbParts];
-            ConcurrentMultipartHelper.runConcurrentParts(blobSize, chunkSize, executor, (partNum, offset, partSize, lastPart) -> {
-                final UploadPartRequest uploadRequest = createPartUploadRequest(
-                    purpose,
-                    uploadId,
-                    partNum + 1,
-                    absoluteBlobKey,
-                    partSize,
-                    lastPart
-                );
-                final InputStream stream = provider.apply(offset, partSize);
-                try (stream; var clientReference = blobStore.clientReference()) {
-                    final UploadPartResponse uploadResponse = clientReference.client()
-                        .uploadPart(uploadRequest, RequestBody.fromInputStream(stream, partSize));
-                    completedParts[partNum] = CompletedPart.builder().partNumber(partNum + 1).eTag(uploadResponse.eTag()).build();
-                }
-            });
-
-            final var completeRequestBuilder = CompleteMultipartUploadRequest.builder()
-                .bucket(blobStore.bucket())
-                .key(absoluteBlobKey)
-                .uploadId(uploadId)
-                .multipartUpload(b -> b.parts(List.of(completedParts)));
-            if (blobStore.supportsConditionalWrites()) {
-                switch (condition) {
-                    case ConditionalOperation.IfMatch ifMatch -> completeRequestBuilder.ifMatch(ifMatch.etag);
-                    case ConditionalOperation.IfNoneMatch ignored -> completeRequestBuilder.ifNoneMatch("*");
-                    case ConditionalOperation.None ignored -> {
-                    }
-                }
-            }
-            S3BlobStore.configureRequestForMetrics(completeRequestBuilder, blobStore, Operation.PUT_MULTIPART_OBJECT, purpose);
-            try (var clientReference = blobStore.clientReference()) {
-                clientReference.client().completeMultipartUpload(completeRequestBuilder.build());
-            }
-            succeeded = true;
-        } catch (SdkException e) {
-            throw new IOException("Unable to upload object [" + blobName + "] using multipart upload", e);
-        } finally {
-            if (succeeded == false) {
-                abortMultiPartUploadOnFailure(purpose, uploadId, absoluteBlobKey);
-            }
-        }
+        executeMultipartUpload(
+            purpose,
+            blobStore,
+            buildKey(blobName),
+            blobSize,
+            failIfAlreadyExists ? ConditionalOperation.IF_NONE_MATCH : ConditionalOperation.NONE,
+            (offset, length) -> requestBodyFromProvider(provider, offset, length),
+            executor
+        );
     }
 
     /**
@@ -701,6 +699,16 @@ class S3BlobContainer extends AbstractBlobContainer {
         }
     }
 
+    private static RequestBody requestBodyFromProvider(BlobMultiPartInputStreamProvider provider, long offset, long length) {
+        return RequestBody.fromContentProvider(() -> {
+            try {
+                return provider.apply(offset, length);
+            } catch (IOException e) {
+                throw new UncheckedIOException(e);
+            }
+        }, length, Mimetype.MIMETYPE_OCTET_STREAM);
+    }
+
     /**
      * Uploads a blob using a single upload request
      */
@@ -712,6 +720,17 @@ class S3BlobContainer extends AbstractBlobContainer {
         final long blobSize,
         final ConditionalOperation condition
     ) throws IOException {
+        executeSingleUpload(purpose, s3BlobStore, blobName, blobSize, () -> RequestBody.fromInputStream(input, blobSize), condition);
+    }
+
+    private void executeSingleUpload(
+        OperationPurpose purpose,
+        final S3BlobStore s3BlobStore,
+        final String blobName,
+        final long blobSize,
+        final Supplier<RequestBody> body,
+        final ConditionalOperation condition
+    ) throws IOException {
         try {
             // Extra safety checks
             if (blobSize > MAX_FILE_SIZE.getBytes()) {
@@ -720,10 +739,15 @@ class S3BlobContainer extends AbstractBlobContainer {
             if (blobSize > s3BlobStore.bufferSizeInBytes()) {
                 throw new IllegalArgumentException("Upload request size [" + blobSize + "] can't be larger than buffer size");
             }
-            putObject(purpose, s3BlobStore, blobName, blobSize, () -> RequestBody.fromInputStream(input, blobSize), condition);
+            putObject(purpose, s3BlobStore, blobName, blobSize, body, condition);
         } catch (final SdkException e) {
             throw new IOException("Unable to upload object [" + blobName + "] using a single upload", e);
         }
+    }
+
+    @FunctionalInterface
+    private interface PartRequestBody {
+        RequestBody get(long offset, long length);
     }
 
     private interface PartOperation {
@@ -810,25 +834,64 @@ class S3BlobContainer extends AbstractBlobContainer {
         final long blobSize,
         final ConditionalOperation condition
     ) throws IOException {
+        executeMultipartUpload(
+            purpose,
+            s3BlobStore,
+            blobName,
+            blobSize,
+            condition,
+            (offset, length) -> RequestBody.fromInputStream(input, length),
+            null
+        );
+    }
+
+    private void executeMultipartUpload(
+        OperationPurpose purpose,
+        final S3BlobStore s3BlobStore,
+        final String blobName,
+        final long blobSize,
+        final ConditionalOperation condition,
+        final PartRequestBody requestBody,
+        @Nullable final Executor executor
+    ) throws IOException {
+        final long partSizeBytes = s3BlobStore.bufferSizeInBytes();
         executeMultipart(
             purpose,
             Operation.PUT_MULTIPART_OBJECT,
             s3BlobStore,
             blobName,
-            s3BlobStore.bufferSizeInBytes(),
+            partSizeBytes,
             blobSize,
-            (uploadId, partNum, partSize, lastPart) -> {
-                final UploadPartRequest uploadRequest = createPartUploadRequest(purpose, uploadId, partNum, blobName, partSize, lastPart);
-
-                try (var clientReference = s3BlobStore.clientReference()) {
-                    final UploadPartResponse uploadResponse = clientReference.client()
-                        .uploadPart(uploadRequest, RequestBody.fromInputStream(input, partSize));
-                    return CompletedPart.builder().partNumber(partNum).eTag(uploadResponse.eTag()).build();
-                }
-            },
+            (uploadId, partNum, partSize, lastPart) -> uploadPart(
+                purpose,
+                s3BlobStore,
+                blobName,
+                uploadId,
+                partNum,
+                partSize,
+                lastPart,
+                requestBody.get((long) (partNum - 1) * partSizeBytes, partSize)
+            ),
             condition,
-            null
+            executor
         );
+    }
+
+    private CompletedPart uploadPart(
+        OperationPurpose purpose,
+        S3BlobStore s3BlobStore,
+        String blobName,
+        String uploadId,
+        int partNum,
+        long partSize,
+        boolean lastPart,
+        RequestBody body
+    ) {
+        final UploadPartRequest uploadRequest = createPartUploadRequest(purpose, uploadId, partNum, blobName, partSize, lastPart);
+        try (var clientReference = s3BlobStore.clientReference()) {
+            final UploadPartResponse uploadResponse = clientReference.client().uploadPart(uploadRequest, body);
+            return CompletedPart.builder().partNumber(partNum).eTag(uploadResponse.eTag()).build();
+        }
     }
 
     /**

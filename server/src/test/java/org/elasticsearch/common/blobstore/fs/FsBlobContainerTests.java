@@ -441,6 +441,27 @@ public class FsBlobContainerTests extends ESTestCase {
         }
     }
 
+    public void testWriteBlobFromProvider() throws Exception {
+        final Path path = PathUtils.get(createTempDir().toString());
+        final FsBlobContainer container = new FsBlobContainer(
+            new FsBlobStore(randomIntBetween(1, 8) * 1024, path, false),
+            BlobPath.EMPTY,
+            path
+        );
+        final byte[] bytes = randomByteArrayOfLength(randomIntBetween(1, 512));
+        container.writeBlob(randomPurpose(), "provider-blob", bytes.length, (offset, length) -> {
+            assertThat(offset, equalTo(0L));
+            assertThat(length, equalTo((long) bytes.length));
+            return new java.io.ByteArrayInputStream(bytes, Math.toIntExact(offset), Math.toIntExact(length));
+        }, false);
+        assertArrayEquals(bytes, Files.readAllBytes(path.resolve("provider-blob")));
+
+        container.writeBlobAtomic(randomNonDataPurpose(), "atomic-provider-blob", bytes.length, (offset, length) -> {
+            return new java.io.ByteArrayInputStream(bytes, Math.toIntExact(offset), Math.toIntExact(length));
+        }, true, command -> command.run());
+        assertArrayEquals(bytes, Files.readAllBytes(path.resolve("atomic-provider-blob")));
+    }
+
     public void testCopy() throws Exception {
         // without this, on CI the test sometimes fails with
         // java.nio.file.ProviderMismatchException: mismatch, expected: class org.elasticsearch.common.blobstore.fs.FsBlobContainerTests$1,

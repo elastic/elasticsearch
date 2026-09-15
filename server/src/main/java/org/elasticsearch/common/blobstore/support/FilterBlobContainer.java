@@ -80,6 +80,22 @@ public abstract class FilterBlobContainer implements BlobContainer {
     }
 
     @Override
+    public void writeBlob(OperationPurpose purpose, String blobName, BytesReference bytes, boolean failIfAlreadyExists) throws IOException {
+        delegate.writeBlob(purpose, blobName, bytes, failIfAlreadyExists);
+    }
+
+    @Override
+    public void writeBlob(
+        OperationPurpose purpose,
+        String blobName,
+        long blobSize,
+        BlobMultiPartInputStreamProvider provider,
+        boolean failIfAlreadyExists
+    ) throws IOException {
+        delegate.writeBlob(purpose, blobName, blobSize, provider, failIfAlreadyExists);
+    }
+
+    @Override
     public void writeMetadataBlob(
         OperationPurpose purpose,
         String blobName,

@@ -123,6 +123,21 @@ public class StatelessMockRepositoryStrategy {
     }
 
     /**
+     * Called in {@link BlobContainer#writeBlob(OperationPurpose, String, long,
+     * BlobContainer.BlobMultiPartInputStreamProvider, boolean)}.
+     */
+    public void blobContainerWriteBlob(
+        CheckedRunnable<IOException> originalRunnable,
+        OperationPurpose purpose,
+        String blobName,
+        long blobSize,
+        BlobContainer.BlobMultiPartInputStreamProvider provider,
+        boolean failIfAlreadyExists
+    ) throws IOException {
+        originalRunnable.run();
+    }
+
+    /**
      * Called in {@link BlobContainer#supportsConcurrentMultipartUploads()} .
      */
     public boolean supportsConcurrentMultipartUploads(BooleanSupplier originalRunnable) {

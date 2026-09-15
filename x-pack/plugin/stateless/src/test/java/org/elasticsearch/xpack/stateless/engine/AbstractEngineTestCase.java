@@ -23,7 +23,6 @@ import org.elasticsearch.common.CheckedBiConsumer;
 import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.blobstore.BlobContainer;
 import org.elasticsearch.common.blobstore.BlobPath;
-import org.elasticsearch.common.blobstore.OperationPurpose;
 import org.elasticsearch.common.blobstore.fs.FsBlobContainer;
 import org.elasticsearch.common.blobstore.fs.FsBlobStore;
 import org.elasticsearch.common.breaker.CircuitBreaker;
@@ -106,6 +105,7 @@ import org.elasticsearch.xpack.stateless.objectstore.ObjectStoreService;
 import org.elasticsearch.xpack.stateless.reshard.ReshardIndexService;
 import org.elasticsearch.xpack.stateless.reshard.ReshardSearchFilters;
 import org.elasticsearch.xpack.stateless.reshard.ReshardUnownedBitsetCache;
+import org.elasticsearch.xpack.stateless.test.FakeStatelessNode;
 import org.junit.After;
 import org.junit.Before;
 import org.mockito.Mockito;
@@ -870,15 +870,7 @@ public abstract class AbstractEngineTestCase extends ESTestCase {
 
                 vbcc.freeze();
 
-                try (var vbccInputStream = vbcc.getFrozenInputStreamForUpload()) {
-                    blobContainer.writeBlobAtomic(
-                        OperationPurpose.INDICES,
-                        vbcc.getBlobName(),
-                        vbccInputStream,
-                        vbcc.getTotalSizeInBytes(),
-                        false
-                    );
-                }
+                FakeStatelessNode.uploadVbcc(blobContainer, vbcc, false);
 
                 var scc = vbcc.lastCompoundCommit();
 

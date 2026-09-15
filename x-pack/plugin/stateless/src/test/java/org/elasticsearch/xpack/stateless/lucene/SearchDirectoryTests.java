@@ -297,9 +297,13 @@ public class SearchDirectoryTests extends ESTestCase {
                 files.add(file);
 
                 logger.debug("--> now overwrite blob with [{}] files in object store", files.size());
-                var stream = new ChecksummedFilesInputStream(node.indexingShardPath.resolveIndex(), List.copyOf(files));
-                blobContainer.writeBlob(OperationPurpose.INDICES, blobName, stream, blobLength, false);
-                assertThat(stream.bytesRead, equalTo(blobLength));
+                final var streamRef = new java.util.concurrent.atomic.AtomicReference<ChecksummedFilesInputStream>();
+                blobContainer.writeBlob(OperationPurpose.INDICES, blobName, blobLength, (offset, length) -> {
+                    var stream = new ChecksummedFilesInputStream(node.indexingShardPath.resolveIndex(), List.copyOf(files));
+                    streamRef.set(stream);
+                    return stream;
+                }, false);
+                assertThat(streamRef.get().bytesRead, equalTo(blobLength));
 
                 logger.debug("--> update commit with file [{}]", fileName);
                 // bypass index directory so that files remain on disk and can be read again by ChecksumedFilesInputStream

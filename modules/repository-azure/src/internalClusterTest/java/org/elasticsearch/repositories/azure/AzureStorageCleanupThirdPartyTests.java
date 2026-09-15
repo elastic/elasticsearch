@@ -382,7 +382,13 @@ public class AzureStorageCleanupThirdPartyTests extends AbstractThirdPartyReposi
                     final String multiPartName = randomIdentifier();
                     final int multiPartSize = Math.toIntExact(blobStore.getLargeBlobThresholdInBytes()) + between(1, 1024);
                     final byte[] multiPartBytes = randomByteArrayOfLength(multiPartSize);
-                    blobContainer.writeBlob(purpose, multiPartName, new ByteArrayInputStream(multiPartBytes), multiPartSize, true);
+                    blobContainer.writeBlob(
+                        purpose,
+                        multiPartName,
+                        multiPartSize,
+                        (offset, length) -> new ByteArrayInputStream(multiPartBytes, Math.toIntExact(offset), Math.toIntExact(length)),
+                        true
+                    );
                     assertAccessTier(blobStore, keyPrefix + multiPartName, expectedTier, "multi-part upload", purpose);
 
                     // server-side copy (source is the small single-part blob written above)

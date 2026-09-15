@@ -367,6 +367,58 @@ public class S3BlobContainerRetriesTests extends AbstractBlobContainerRetriesTes
         assertThat(countDown.isCountedDown(), is(true));
     }
 
+    public void testWriteBlobFromProviderRetries() throws Exception {
+        final int maxRetries = randomInt(5);
+        final CountDown countDown = new CountDown(maxRetries + 1);
+
+        final BlobContainer blobContainer = blobContainerBuilder().maxRetries(maxRetries).disableChunkedEncoding(true).build();
+
+        final byte[] bytes = randomBlobContent();
+        httpServer.createContext(downloadStorageEndpoint(blobContainer, "write_blob_provider_retries"), exchange -> {
+            final S3HttpHandler.S3Request s3Request = parseRequest(exchange);
+            if (s3Request.isPutObjectRequest()) {
+                if (countDown.countDown()) {
+                    final BytesReference body = Streams.readFully(exchange.getRequestBody());
+                    if (Objects.deepEquals(bytes, BytesReference.toBytes(body))) {
+                        exchange.sendResponseHeaders(HttpStatus.SC_OK, -1);
+                    } else {
+                        exchange.sendResponseHeaders(HttpStatus.SC_BAD_REQUEST, -1);
+                    }
+                    exchange.close();
+                    return;
+                }
+
+                if (randomBoolean()) {
+                    if (randomBoolean()) {
+                        org.elasticsearch.core.Streams.readFully(
+                            exchange.getRequestBody(),
+                            new byte[randomIntBetween(1, Math.max(1, bytes.length - 1))]
+                        );
+                    } else {
+                        Streams.readFully(exchange.getRequestBody());
+                        exchange.sendResponseHeaders(
+                            randomFrom(
+                                HttpStatus.SC_INTERNAL_SERVER_ERROR,
+                                HttpStatus.SC_BAD_GATEWAY,
+                                HttpStatus.SC_SERVICE_UNAVAILABLE,
+                                HttpStatus.SC_GATEWAY_TIMEOUT
+                            ),
+                            -1
+                        );
+                    }
+                }
+                exchange.close();
+            }
+        });
+        final AtomicInteger applyCount = new AtomicInteger();
+        blobContainer.writeBlob(randomPurpose(), "write_blob_provider_retries", bytes.length, (offset, length) -> {
+            applyCount.incrementAndGet();
+            return new ByteArrayInputStream(bytes, Math.toIntExact(offset), Math.toIntExact(length));
+        }, false);
+        assertThat(countDown.isCountedDown(), is(true));
+        assertThat(applyCount.get(), greaterThanOrEqualTo(maxRetries + 1));
+    }
+
     public void testWriteBlobWithReadTimeouts() {
         final byte[] bytes = randomByteArrayOfLength(randomIntBetween(10, 128));
         final TimeValue readTimeout = TimeValue.timeValueMillis(randomIntBetween(100, 500));

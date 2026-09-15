@@ -16,7 +16,6 @@ import org.elasticsearch.blobcache.shared.SharedBlobCacheService;
 import org.elasticsearch.blobcache.shared.SharedBytes;
 import org.elasticsearch.common.blobstore.BlobContainer;
 import org.elasticsearch.common.blobstore.BlobPath;
-import org.elasticsearch.common.blobstore.OperationPurpose;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
@@ -94,15 +93,7 @@ public class StatelessOnlinePrewarmingServiceTests extends ESTestCase {
             vbcc.freeze();
             // upload vbcc
             var blobContainer = fakeNode.getShardContainer();
-            try (var vbccInputStream = vbcc.getFrozenInputStreamForUpload()) {
-                blobContainer.writeBlobAtomic(
-                    OperationPurpose.INDICES,
-                    vbcc.getBlobName(),
-                    vbccInputStream,
-                    vbcc.getTotalSizeInBytes(),
-                    false
-                );
-            }
+            FakeStatelessNode.uploadVbcc(blobContainer, vbcc, false);
             var frozenBcc = vbcc.getFrozenBatchedCompoundCommit();
 
             // update search directory with latest commit
@@ -221,15 +212,7 @@ public class StatelessOnlinePrewarmingServiceTests extends ESTestCase {
             vbcc.freeze();
             // upload vbcc
             var blobContainer = fakeNode.getShardContainer();
-            try (var vbccInputStream = vbcc.getFrozenInputStreamForUpload()) {
-                blobContainer.writeBlobAtomic(
-                    OperationPurpose.INDICES,
-                    vbcc.getBlobName(),
-                    vbccInputStream,
-                    vbcc.getTotalSizeInBytes(),
-                    false
-                );
-            }
+            FakeStatelessNode.uploadVbcc(blobContainer, vbcc, false);
             var frozenBcc = vbcc.getFrozenBatchedCompoundCommit();
 
             // update search directory with latest commit

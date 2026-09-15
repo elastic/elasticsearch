@@ -370,6 +370,56 @@ public class GoogleCloudStorageBlobContainerRetriesTests extends AbstractBlobCon
         assertThat(countDown.isCountedDown(), is(true));
     }
 
+    public void testWriteBlobFromProviderRetries() throws Exception {
+        final int maxRetries = randomIntBetween(2, 10);
+        final CountDown countDown = new CountDown(maxRetries);
+
+        final BlobContainer blobContainer = blobContainerBuilder().maxRetries(maxRetries).build();
+        final byte[] bytes = randomBlobContent(0);
+        httpServer.createContext("/upload/storage/v1/b/bucket/o", safeHandler(exchange -> {
+            assertThat(exchange.getRequestURI().getQuery(), containsString("uploadType=multipart"));
+            if (countDown.countDown()) {
+                MultipartUpload multipartUpload = MultipartUpload.parseBody(exchange, exchange.getRequestBody());
+                assertEquals(multipartUpload.name(), blobContainer.path().buildAsString() + "write_blob_provider_retries");
+                if (multipartUpload.content().equals(new BytesArray(bytes))) {
+                    byte[] response = Strings.format("""
+                        {"bucket":"bucket","name":"%s"}
+                        """, multipartUpload.name()).getBytes(UTF_8);
+                    exchange.getResponseHeaders().add("Content-Type", "application/json");
+                    exchange.sendResponseHeaders(RestStatus.OK.getStatus(), response.length);
+                    exchange.getResponseBody().write(response);
+                } else {
+                    exchange.sendResponseHeaders(HttpStatus.SC_BAD_REQUEST, -1);
+                }
+                return;
+            }
+            if (randomBoolean()) {
+                if (randomBoolean()) {
+                    org.elasticsearch.core.Streams.readFully(
+                        exchange.getRequestBody(),
+                        new byte[randomIntBetween(1, Math.max(1, bytes.length - 1))]
+                    );
+                } else {
+                    Streams.readFully(exchange.getRequestBody());
+                    exchange.sendResponseHeaders(HttpStatus.SC_INTERNAL_SERVER_ERROR, -1);
+                }
+            }
+        }));
+
+        final AtomicInteger applyCount = new AtomicInteger();
+        blobContainer.writeBlob(randomPurpose(), "write_blob_provider_retries", bytes.length, (offset, length) -> {
+            applyCount.incrementAndGet();
+            return new ByteArrayInputStream(bytes, Math.toIntExact(offset), Math.toIntExact(length));
+        }, false);
+        assertThat(countDown.isCountedDown(), is(true));
+        // Multipart provider writes copy the blob into a byte[] once; the GCS client then retries that
+        // buffer, so apply() cannot track HTTP retries (countDown above already proves those). We do not
+        // assert applyCount >= maxRetries: that would need Elasticsearch to re-open the provider per
+        // attempt, or this test to use resumable 410 restarts (hard-capped at 3, overlapping
+        // testWriteLargeBlob).
+        assertThat(applyCount.get(), greaterThanOrEqualTo(1));
+    }
+
     public void testWriteBlobWithReadTimeouts() {
         final byte[] bytes = randomByteArrayOfLength(randomIntBetween(10, 128));
         final TimeValue readTimeout = TimeValue.timeValueMillis(randomIntBetween(100, 500));
@@ -529,7 +579,14 @@ public class GoogleCloudStorageBlobContainerRetriesTests extends AbstractBlobCon
             }
         }));
 
+        final AtomicInteger applyCount = new AtomicInteger();
         if (randomBoolean()) {
+            blobContainer.writeBlob(randomPurpose(), "write_large_blob", data.length, (offset, length) -> {
+                applyCount.incrementAndGet();
+                return new ByteArrayInputStream(data, Math.toIntExact(offset), Math.toIntExact(length));
+            }, false);
+            assertThat(applyCount.get(), greaterThanOrEqualTo(1));
+        } else if (randomBoolean()) {
             try (InputStream stream = new InputStreamIndexInput(new ByteArrayIndexInput("desc", data), data.length)) {
                 blobContainer.writeBlob(randomPurpose(), "write_large_blob", stream, data.length, false);
             }

@@ -30,6 +30,7 @@ import org.elasticsearch.common.blobstore.BlobContainer;
 import org.elasticsearch.common.blobstore.BlobPath;
 import org.elasticsearch.common.blobstore.OperationPurpose;
 import org.elasticsearch.common.blobstore.support.FilterBlobContainer;
+import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.bytes.ReleasableBytesReference;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
@@ -87,7 +88,6 @@ import org.elasticsearch.xpack.stateless.objectstore.ObjectStoreService;
 import org.elasticsearch.xpack.stateless.test.FakeStatelessNode;
 import org.mockito.Mockito;
 
-import java.io.ByteArrayInputStream;
 import java.io.FilterInputStream;
 import java.io.IOException;
 import java.io.InputStream;
@@ -485,15 +485,7 @@ public class SharedBlobCacheWarmingServiceTests extends ESTestCase {
                 vbcc.freeze();
                 // upload vbcc
                 var indexBlobContainer = fakeNode.getShardContainer();
-                try (var vbccInputStream = vbcc.getFrozenInputStreamForUpload()) {
-                    indexBlobContainer.writeBlobAtomic(
-                        OperationPurpose.INDICES,
-                        vbcc.getBlobName(),
-                        vbccInputStream,
-                        vbcc.getTotalSizeInBytes(),
-                        true
-                    );
-                }
+                FakeStatelessNode.uploadVbcc(indexBlobContainer, vbcc, true);
                 uploadedBlobLocations.putAll(vbcc.lastCompoundCommit().commitFiles());
             }
             var lastCommit = vbcc.getFrozenBatchedCompoundCommit().lastCompoundCommit();
@@ -602,15 +594,7 @@ public class SharedBlobCacheWarmingServiceTests extends ESTestCase {
                     }
                     vbcc.freeze();
                     var indexBlobContainer = fakeNode.getShardContainer();
-                    try (var vbccInputStream = vbcc.getFrozenInputStreamForUpload()) {
-                        indexBlobContainer.writeBlobAtomic(
-                            OperationPurpose.INDICES,
-                            vbcc.getBlobName(),
-                            vbccInputStream,
-                            vbcc.getTotalSizeInBytes(),
-                            true
-                        );
-                    }
+                    FakeStatelessNode.uploadVbcc(indexBlobContainer, vbcc, true);
                     uploadedBlobLocations.putAll(vbcc.lastCompoundCommit().commitFiles());
                     latestBcc = vbcc.getFrozenBatchedCompoundCommit();
                 }
@@ -771,15 +755,7 @@ public class SharedBlobCacheWarmingServiceTests extends ESTestCase {
                 // upload the first vbcc only
                 if (i == 0) {
                     var indexBlobContainer = fakeNode.getShardContainer();
-                    try (var vbccInputStream = vbcc.getFrozenInputStreamForUpload()) {
-                        indexBlobContainer.writeBlobAtomic(
-                            OperationPurpose.INDICES,
-                            vbcc.getBlobName(),
-                            vbccInputStream,
-                            vbcc.getTotalSizeInBytes(),
-                            true
-                        );
-                    }
+                    FakeStatelessNode.uploadVbcc(indexBlobContainer, vbcc, true);
                     BlobStoreCacheDirectoryTestUtils.updateLatestUploadedBcc(fakeNode.searchDirectory, vbcc.primaryTermAndGeneration());
                     BlobStoreCacheDirectoryTestUtils.updateLatestCommitInfo(
                         fakeNode.searchDirectory,
@@ -966,15 +942,7 @@ public class SharedBlobCacheWarmingServiceTests extends ESTestCase {
 
             // upload the vbcc to the blob store so warming reads from it
             var indexBlobContainer = fakeNode.getShardContainer();
-            try (var vbccInputStream = vbcc.getFrozenInputStreamForUpload()) {
-                indexBlobContainer.writeBlobAtomic(
-                    OperationPurpose.INDICES,
-                    vbcc.getBlobName(),
-                    vbccInputStream,
-                    vbcc.getTotalSizeInBytes(),
-                    true
-                );
-            }
+            FakeStatelessNode.uploadVbcc(indexBlobContainer, vbcc, true);
             BlobStoreCacheDirectoryTestUtils.updateLatestUploadedBcc(fakeNode.searchDirectory, vbcc.primaryTermAndGeneration());
             BlobStoreCacheDirectoryTestUtils.updateLatestCommitInfo(
                 fakeNode.searchDirectory,
@@ -1123,8 +1091,8 @@ public class SharedBlobCacheWarmingServiceTests extends ESTestCase {
             random().nextBytes(data);
 
             var shardContainer = fakeNode.getShardContainer();
-            shardContainer.writeBlobAtomic(OperationPurpose.INDICES, blobNameA, new ByteArrayInputStream(data), blobSize, true);
-            shardContainer.writeBlobAtomic(OperationPurpose.INDICES, blobNameB, new ByteArrayInputStream(data), blobSize, true);
+            shardContainer.writeBlobAtomic(OperationPurpose.INDICES, blobNameA, new BytesArray(data), true);
+            shardContainer.writeBlobAtomic(OperationPurpose.INDICES, blobNameB, new BytesArray(data), true);
 
             // Mark both blobs as uploaded so the cache-blob-reader routes reads through the object store.
             var latestTermAndGen = new PrimaryTermAndGeneration(primaryTerm, generationB);
@@ -1366,15 +1334,7 @@ public class SharedBlobCacheWarmingServiceTests extends ESTestCase {
 
             // upload vbcc
             var indexBlobContainer = fakeNode.getShardContainer();
-            try (var vbccInputStream = vbcc.getFrozenInputStreamForUpload()) {
-                indexBlobContainer.writeBlobAtomic(
-                    OperationPurpose.INDICES,
-                    vbcc.getBlobName(),
-                    vbccInputStream,
-                    vbcc.getTotalSizeInBytes(),
-                    false
-                );
-            }
+            FakeStatelessNode.uploadVbcc(indexBlobContainer, vbcc, false);
 
             var frozenBcc = vbcc.getFrozenBatchedCompoundCommit();
 
@@ -1912,15 +1872,7 @@ public class SharedBlobCacheWarmingServiceTests extends ESTestCase {
             }
             vbcc.freeze();
             var indexBlobContainer = fakeNode.getShardContainer();
-            try (var vbccInputStream = vbcc.getFrozenInputStreamForUpload()) {
-                indexBlobContainer.writeBlobAtomic(
-                    OperationPurpose.INDICES,
-                    vbcc.getBlobName(),
-                    vbccInputStream,
-                    vbcc.getTotalSizeInBytes(),
-                    true
-                );
-            }
+            FakeStatelessNode.uploadVbcc(indexBlobContainer, vbcc, true);
             uploadedBlobLocations.putAll(vbcc.lastCompoundCommit().commitFiles());
             // sanity: data must span enough regions that the budget is actually contended
             assertThat(vbcc.getTotalSizeInBytes(), greaterThan(fillLimitBytes * 2));
@@ -2042,10 +1994,7 @@ public class SharedBlobCacheWarmingServiceTests extends ESTestCase {
             } while (true);
             vbcc.freeze();
 
-            try (var vbccInputStream = vbcc.getFrozenInputStreamForUpload()) {
-                fakeNode.getShardContainer()
-                    .writeBlobAtomic(OperationPurpose.INDICES, vbcc.getBlobName(), vbccInputStream, vbcc.getTotalSizeInBytes(), true);
-            }
+            FakeStatelessNode.uploadVbcc(fakeNode.getShardContainer(), vbcc, true);
             BlobStoreCacheDirectoryTestUtils.updateLatestUploadedBcc(fakeNode.searchDirectory, vbcc.primaryTermAndGeneration());
             BlobStoreCacheDirectoryTestUtils.updateLatestCommitInfo(
                 fakeNode.searchDirectory,
@@ -2927,15 +2876,7 @@ public class SharedBlobCacheWarmingServiceTests extends ESTestCase {
             vbcc.freeze();
 
             var indexBlobContainer = fakeNode.getShardContainer();
-            try (var vbccInputStream = vbcc.getFrozenInputStreamForUpload()) {
-                indexBlobContainer.writeBlobAtomic(
-                    OperationPurpose.INDICES,
-                    vbcc.getBlobName(),
-                    vbccInputStream,
-                    vbcc.getTotalSizeInBytes(),
-                    true
-                );
-            }
+            FakeStatelessNode.uploadVbcc(indexBlobContainer, vbcc, true);
 
             StatelessCompoundCommit lastCommit = vbcc.getFrozenBatchedCompoundCommit().lastCompoundCommit();
             Map.Entry<String, BlobLocation> someFile = lastCommit.commitFiles().entrySet().stream().findFirst().get();
@@ -3043,15 +2984,7 @@ public class SharedBlobCacheWarmingServiceTests extends ESTestCase {
             vbcc.freeze();
 
             var indexBlobContainer = fakeNode.getShardContainer();
-            try (var vbccInputStream = vbcc.getFrozenInputStreamForUpload()) {
-                indexBlobContainer.writeBlobAtomic(
-                    OperationPurpose.INDICES,
-                    vbcc.getBlobName(),
-                    vbccInputStream,
-                    vbcc.getTotalSizeInBytes(),
-                    true
-                );
-            }
+            FakeStatelessNode.uploadVbcc(indexBlobContainer, vbcc, true);
 
             StatelessCompoundCommit lastCommit = vbcc.getFrozenBatchedCompoundCommit().lastCompoundCommit();
             Map.Entry<String, BlobLocation> someFile = lastCommit.commitFiles().entrySet().stream().findFirst().get();

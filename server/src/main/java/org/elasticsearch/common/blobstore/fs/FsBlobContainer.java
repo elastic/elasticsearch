@@ -38,6 +38,7 @@ import org.elasticsearch.repositories.blobstore.RequestedRangeNotSatisfiedExcept
 
 import java.io.Closeable;
 import java.io.FileNotFoundException;
+import java.io.FilterInputStream;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.OutputStream;
@@ -228,18 +229,7 @@ public class FsBlobContainer extends AbstractBlobContainer {
     @Override
     public void writeBlob(OperationPurpose purpose, String blobName, InputStream inputStream, long blobSize, boolean failIfAlreadyExists)
         throws IOException {
-        assert BlobContainer.assertPurposeConsistency(purpose, blobName);
-        final Path file = path.resolve(blobName);
-        try {
-            writeToPath(inputStream, file, blobSize);
-        } catch (FileAlreadyExistsException faee) {
-            if (failIfAlreadyExists) {
-                throw faee;
-            }
-            deleteBlobsIgnoringIfNotExists(purpose, Iterators.single(blobName));
-            writeToPath(inputStream, file, blobSize);
-        }
-        IOUtils.fsync(path, true);
+        writeBlob(purpose, blobName, blobSize, unclosedProvider(inputStream), failIfAlreadyExists);
     }
 
     @Override
@@ -254,6 +244,28 @@ public class FsBlobContainer extends AbstractBlobContainer {
             }
             deleteBlobsIgnoringIfNotExists(purpose, Iterators.single(blobName));
             writeToPath(bytes, file);
+        }
+        IOUtils.fsync(path, true);
+    }
+
+    @Override
+    public void writeBlob(
+        OperationPurpose purpose,
+        String blobName,
+        long blobSize,
+        BlobMultiPartInputStreamProvider provider,
+        boolean failIfAlreadyExists
+    ) throws IOException {
+        assert BlobContainer.assertPurposeConsistency(purpose, blobName);
+        final Path file = path.resolve(blobName);
+        try {
+            writeToPath(provider, blobSize, file);
+        } catch (FileAlreadyExistsException faee) {
+            if (failIfAlreadyExists) {
+                throw faee;
+            }
+            deleteBlobsIgnoringIfNotExists(purpose, Iterators.single(blobName));
+            writeToPath(provider, blobSize, file);
         }
         IOUtils.fsync(path, true);
     }
@@ -317,32 +329,39 @@ public class FsBlobContainer extends AbstractBlobContainer {
         long blobSize,
         boolean failIfAlreadyExists
     ) throws IOException {
-        assert purpose != OperationPurpose.SNAPSHOT_DATA && BlobContainer.assertPurposeConsistency(purpose, blobName) : purpose;
-        final String tempBlob = tempBlobName(blobName);
-        final Path tempBlobPath = path.resolve(tempBlob);
-        try {
-            writeToPath(inputStream, tempBlobPath, blobSize);
-            moveBlobAtomic(purpose, tempBlob, blobName, failIfAlreadyExists);
-        } catch (IOException ex) {
-            try {
-                deleteBlobsIgnoringIfNotExists(purpose, Iterators.single(tempBlob));
-            } catch (IOException e) {
-                ex.addSuppressed(e);
-            }
-            throw ex;
-        } finally {
-            IOUtils.fsync(path, true);
-        }
+        writeBlobAtomic(purpose, blobName, blobSize, unclosedProvider(inputStream), failIfAlreadyExists, null);
     }
 
     @Override
     public void writeBlobAtomic(OperationPurpose purpose, final String blobName, BytesReference bytes, boolean failIfAlreadyExists)
         throws IOException {
         assert purpose != OperationPurpose.SNAPSHOT_DATA && BlobContainer.assertPurposeConsistency(purpose, blobName) : purpose;
+        writeBlobAtomic(purpose, blobName, failIfAlreadyExists, tempBlobPath -> writeToPath(bytes, tempBlobPath));
+    }
+
+    @Override
+    public void writeBlobAtomic(
+        OperationPurpose purpose,
+        String blobName,
+        long blobSize,
+        BlobMultiPartInputStreamProvider provider,
+        boolean failIfAlreadyExists,
+        Executor executor
+    ) throws IOException {
+        assert purpose != OperationPurpose.SNAPSHOT_DATA && BlobContainer.assertPurposeConsistency(purpose, blobName) : purpose;
+        writeBlobAtomic(purpose, blobName, failIfAlreadyExists, tempBlobPath -> writeToPath(provider, blobSize, tempBlobPath));
+    }
+
+    private void writeBlobAtomic(
+        OperationPurpose purpose,
+        String blobName,
+        boolean failIfAlreadyExists,
+        CheckedConsumer<Path, IOException> writer
+    ) throws IOException {
         final String tempBlob = tempBlobName(blobName);
         final Path tempBlobPath = path.resolve(tempBlob);
         try {
-            writeToPath(bytes, tempBlobPath);
+            writer.accept(tempBlobPath);
             moveBlobAtomic(purpose, tempBlob, blobName, failIfAlreadyExists);
         } catch (IOException ex) {
             try {
@@ -392,17 +411,27 @@ public class FsBlobContainer extends AbstractBlobContainer {
         IOUtils.fsync(tempBlobPath, false);
     }
 
-    private void writeToPath(InputStream inputStream, Path tempBlobPath, long blobSize) throws IOException {
-        try (OutputStream outputStream = Files.newOutputStream(tempBlobPath, StandardOpenOption.CREATE_NEW)) {
-            final int bufferSize = blobStore.bufferSizeInBytes();
-            long bytesWritten = org.elasticsearch.core.Streams.copy(
-                inputStream,
-                outputStream,
-                new byte[blobSize < bufferSize ? Math.toIntExact(blobSize) : bufferSize]
-            );
-            assert bytesWritten == blobSize : "expected [" + blobSize + "] bytes but wrote [" + bytesWritten + "]";
+    private void writeToPath(BlobMultiPartInputStreamProvider provider, long blobSize, Path file) throws IOException {
+        try (OutputStream outputStream = Files.newOutputStream(file, StandardOpenOption.CREATE_NEW)) {
+            try (InputStream inputStream = provider.apply(0L, blobSize)) {
+                final int bufferSize = blobStore.bufferSizeInBytes();
+                long bytesWritten = org.elasticsearch.core.Streams.copy(
+                    inputStream,
+                    outputStream,
+                    new byte[blobSize < bufferSize ? Math.toIntExact(blobSize) : bufferSize]
+                );
+                assert bytesWritten == blobSize : "expected [" + blobSize + "] bytes but wrote [" + bytesWritten + "]";
+            }
         }
-        IOUtils.fsync(tempBlobPath, false);
+        IOUtils.fsync(file, false);
+    }
+
+    // TODO: remove with the InputStream write overloads. close() is a no-op so the provider path does not close the caller's stream.
+    private static BlobMultiPartInputStreamProvider unclosedProvider(InputStream inputStream) {
+        return (offset, length) -> new FilterInputStream(inputStream) {
+            @Override
+            public void close() {}
+        };
     }
 
     public void moveBlobAtomic(

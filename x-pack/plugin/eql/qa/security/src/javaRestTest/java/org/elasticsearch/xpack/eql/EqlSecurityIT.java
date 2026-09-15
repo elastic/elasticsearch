@@ -23,6 +23,10 @@ import org.junit.Before;
 import org.junit.ClassRule;
 
 import java.io.IOException;
+import java.util.List;
+import java.util.Map;
+import java.util.function.Function;
+import java.util.stream.Collectors;
 
 import static org.elasticsearch.xcontent.XContentFactory.jsonBuilder;
 import static org.elasticsearch.xpack.eql.SecurityUtils.secureClientSettings;
@@ -30,7 +34,7 @@ import static org.elasticsearch.xpack.eql.SecurityUtils.setRunAsHeader;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 
-public class AsyncEqlSecurityIT extends ESRestTestCase {
+public class EqlSecurityIT extends ESRestTestCase {
 
     @ClassRule
     public static final ElasticsearchCluster cluster = EqlSecurityTestCluster.getCluster();
@@ -100,6 +104,92 @@ public class AsyncEqlSecurityIT extends ESRestTestCase {
             () -> submitAsyncEqlSearch("index-" + other, "*", TimeValue.timeValueSeconds(10), user)
         );
         assertThat(exc.getResponse().getStatusLine().getStatusCode(), equalTo(400));
+    }
+
+    public void testFlsWithConstantKeywordVisibleOnOneIndex() throws Exception {
+        var visibleIndex = new Request("PUT", "eql-constant-visible");
+        visibleIndex.setJsonEntity("""
+            {
+              "mappings": {
+                "properties": {
+                  "marker": { "type": "keyword" },
+                  "constant_value": {
+                    "type": "constant_keyword",
+                    "value": "visible-value"
+                  },
+                  "event_type": { "type": "keyword" },
+                  "@timestamp": { "type": "date" }
+                }
+              }
+            }""");
+        assertOK(client().performRequest(visibleIndex));
+
+        var hiddenIndex = new Request("PUT", "eql-constant-hidden");
+        hiddenIndex.setJsonEntity("""
+            {
+              "mappings": {
+                "properties": {
+                  "marker": { "type": "keyword" },
+                  "constant_value": {
+                    "type": "constant_keyword",
+                    "value": "hidden-value"
+                  },
+                  "event_type": { "type": "keyword" },
+                  "@timestamp": { "type": "date" }
+                }
+              }
+            }""");
+        assertOK(client().performRequest(hiddenIndex));
+
+        var docVisible = new Request("POST", "eql-constant-visible/_doc");
+        docVisible.addParameter("refresh", "true");
+        docVisible.setJsonEntity("""
+            {
+                "@timestamp": "2026-09-15T10:46:31Z",
+                "event_type": "my_event",
+                "marker": "visible-index"
+            }
+            """);
+        assertOK(client().performRequest(docVisible));
+
+        var docHidden = new Request("POST", "eql-constant-hidden/_doc");
+        docHidden.addParameter("refresh", "true");
+        docHidden.setJsonEntity("""
+            {
+                "@timestamp": "2026-09-15T10:47:31Z",
+                "event_type": "my_event",
+                "marker": "hidden-index"
+            }
+            """);
+        assertOK(client().performRequest(docHidden));
+
+        var searchRequest = new Request("POST", "eql-constant-*/_eql/search");
+        setRunAsHeader(searchRequest, "eql_constant_user");
+        searchRequest.setJsonEntity("""
+            {
+                "event_category_field": "event_type",
+                "query": "my_event where true",
+                "fields": ["marker", "constant_value"]
+            }
+        """);
+
+        var response = assertOK(client().performRequest(searchRequest));
+        var responseMap = responseAsMap(response);
+        @SuppressWarnings("unchecked")
+        var hits = (Map<String, Object>) responseMap.get("hits");
+        @SuppressWarnings("unchecked")
+        var events = (List<Map<String, Object>>) hits.get("events");
+
+        var eventsByIndex = events.stream().collect(Collectors.toMap(e -> (String) e.get("_index"), Function.identity()));
+        @SuppressWarnings("unchecked")
+        var hiddenFields = (Map<String, Object>) eventsByIndex.get("eql-constant-hidden").get("fields");
+        assertThat(hiddenFields.get("marker"), equalTo(List.of("hidden-index")));
+        assertFalse(hiddenFields.containsKey("constant_value"));
+
+        @SuppressWarnings("unchecked")
+        var visibleFields = (Map<String, Object>) eventsByIndex.get("eql-constant-visible").get("fields");
+        assertThat(visibleFields.get("marker"), equalTo(List.of("visible-index")));
+        assertThat(visibleFields.get("constant_value"), equalTo(List.of("visible-value")));
     }
 
     static String extractResponseId(Response response) throws IOException {

@@ -1360,19 +1360,25 @@ public class FileSplitProvider implements SplitProvider {
     }
 
     /**
-     * Planning {@link #gatherAsync} concurrency: when every file is Parquet and
+     * Planning {@link #gatherAsync} concurrency: when every file is Parquet
+     * ({@link FormatNameResolver#resolveFormatName} equals {@link FormatNameResolver#FORMAT_PARQUET},
+     * so {@code .parq} counts) and
      * {@link StorageObject#readBytesAsyncReleasesExecutor()} on one peeked
      * {@link StorageProvider#newObject} per distinct scheme,
      * {@link ExternalSourceSettings#externalIoThreads} (never 0). Otherwise
-     * {@link #splitDiscoveryConcurrency()}. Any {@code newObject} failure is conservative (16).
+     * {@link #splitDiscoveryConcurrency()}. A null {@code formatRegistry} or any
+     * {@code newObject} / resolve failure is conservative (16).
      * Probes and sync {@link BoundedParallelGather} keep {@link #splitDiscoveryConcurrency()}.
      */
     private int planningDiscoveryConcurrency(List<FileTask> tasks, @Nullable StorageProvider hoistedProvider) {
+        if (formatRegistry == null) {
+            return splitDiscoveryConcurrency();
+        }
         try {
             Set<String> seenSchemes = new HashSet<>();
             for (FileTask task : tasks) {
                 if (FormatNameResolver.FORMAT_PARQUET.equals(
-                    FormatNameResolver.resolve(task.config(), task.filePath().objectName())
+                    FormatNameResolver.resolveFormatName(task.config(), task.filePath().objectName(), formatRegistry)
                 ) == false) {
                     return splitDiscoveryConcurrency();
                 }

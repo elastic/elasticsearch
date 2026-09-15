@@ -1115,6 +1115,10 @@ public class FileSplitProviderTests extends ESTestCase {
         assertPlanningPeak("s3://b/data-", "s3://b/*", 24, 0, true, true, 24, true);
     }
 
+    public void testDiscoverSplitsAsyncUncapsNativeParqOnS3() throws Exception {
+        assertPlanningPeak("s3://b/data-", "s3://b/*", 24, 0, true, true, 24, true, ".parq");
+    }
+
     public void testDiscoverSplitsAsyncKeepsGsNativeParquetCapped() throws Exception {
         assertPlanningPeak("gs://b/data-", "gs://b/*", 24, 0, true, false, 16, false);
     }
@@ -1141,6 +1145,30 @@ public class FileSplitProviderTests extends ESTestCase {
         int awaitStarted,
         boolean expectAbovePinningCap
     ) throws Exception {
+        assertPlanningPeak(
+            pathPrefix,
+            glob,
+            parquetFiles,
+            csvFiles,
+            nativeAsync,
+            releasesExecutor,
+            awaitStarted,
+            expectAbovePinningCap,
+            ".parquet"
+        );
+    }
+
+    private void assertPlanningPeak(
+        String pathPrefix,
+        String glob,
+        int parquetFiles,
+        int csvFiles,
+        boolean nativeAsync,
+        boolean releasesExecutor,
+        int awaitStarted,
+        boolean expectAbovePinningCap,
+        String parquetSuffix
+    ) throws Exception {
         Settings settings = Settings.builder().put("esql.external.max_concurrent_requests", 32).build();
         int concurrency = ExternalSourceSettings.blobStoreConcurrency(settings);
         if (expectAbovePinningCap) {
@@ -1162,7 +1190,15 @@ public class FileSplitProviderTests extends ESTestCase {
         try {
             FormatReaderRegistry formatRegistry = new FormatReaderRegistry(new DecompressionCodecRegistry());
             formatRegistry.registerLazy("parquet", (s, bf) -> delayedReader, Settings.EMPTY, null);
+            formatRegistry.registerExtension(parquetSuffix, "parquet");
             formatRegistry.byName("parquet");
+            // Non-range-aware csv: mixed parquet+csv must cap because csv != parquet, not because
+            // an unregistered .csv throws. Mockito is enough — planning only reads formatName().
+            FormatReader csv = mock(FormatReader.class);
+            when(csv.formatName()).thenReturn("csv");
+            when(csv.fileExtensions()).thenReturn(List.of(".csv"));
+            formatRegistry.registerLazy("csv", (s, bf) -> csv, Settings.EMPTY, null);
+            formatRegistry.registerExtension(".csv", "csv");
             FileSplitProvider provider = new FileSplitProvider(
                 FileSplitProvider.DEFAULT_TARGET_SPLIT_SIZE,
                 new DecompressionCodecRegistry(),
@@ -1173,7 +1209,7 @@ public class FileSplitProviderTests extends ESTestCase {
             );
             List<StorageEntry> entries = new ArrayList<>(parquetFiles + csvFiles);
             for (int i = 0; i < parquetFiles; i++) {
-                entries.add(new StorageEntry(StoragePath.of(pathPrefix + i + ".parquet"), 2000, Instant.EPOCH));
+                entries.add(new StorageEntry(StoragePath.of(pathPrefix + i + parquetSuffix), 2000, Instant.EPOCH));
             }
             for (int i = 0; i < csvFiles; i++) {
                 entries.add(new StorageEntry(StoragePath.of(pathPrefix + (parquetFiles + i) + ".csv"), 2000, Instant.EPOCH));

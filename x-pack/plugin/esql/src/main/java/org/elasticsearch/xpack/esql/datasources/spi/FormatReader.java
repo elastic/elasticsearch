@@ -215,6 +215,17 @@ public interface FormatReader extends Closeable {
     Configured<FormatReader> withConfigTrackingConsumedKeys(Map<String, Object> config);
 
     /**
+     * Notices about the configuration itself, decided while {@link #withConfigTrackingConsumedKeys(Map)} parsed it (a
+     * CSV {@code mode} that a {@code quote} override silently undoes). They describe the dataset's options, not any
+     * file, so the resolver raises them once per path rather than per file; a file's own notices ride
+     * {@link SourceMetadata#warnings()} instead. Empty on the unconfigured prototype and for readers with nothing to
+     * say.
+     */
+    default List<String> configWarnings() {
+        return List.of();
+    }
+
+    /**
      * Returns a format reader configured with the given pushed filter from the optimizer.
      * <p>
      * The pushed filter is an opaque object produced by {@code FilterPushdownSupport} during

@@ -1331,7 +1331,7 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
                 }
             }
 
-            return p.withResolvedFields(resolvedFields, DenseVector.generatedAttributesFor(p.source(), resolvedFields));
+            return p.withResolvedFields(resolvedFields, DenseVector.generatedAttributesFor(p.source(), resolvedFields, p.naming()));
         }
 
         private LogicalPlan resolveMvExpand(MvExpand p, List<Attribute> childrenOutput) {
@@ -4588,7 +4588,10 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
                     for (Map.Entry<AbstractConvertFunction, Attribute> entry : convertFunctionsToAttributes.entrySet()) {
                         AbstractConvertFunction candidate = entry.getKey();
                         Attribute replacement = entry.getValue();
-                        if (candidate == convertFunction
+                        // Match by equality, not identity: the same conversion can occur several times in the plan (e.g. twice in
+                        // one WHERE), while collectConvertFunctions dedupes them into a single pushed-down entry. An occurrence
+                        // that's left unreplaced is re-pushed-down on every pass, preventing the Resolution batch from converging.
+                        if (candidate.equals(convertFunction)
                             && candidate.field() instanceof Attribute candidateAttr
                             && candidateAttr.id() == attr.id()) {
                             // Make sure to match by attribute id, as ReferenceAttribute with the same name

@@ -22,12 +22,12 @@ Federated data sources can read the following file formats:
 :::{include} _snippets/data-federation/supported-file-formats.md
 :::
 
-Datasets should be scoped to a single file format. The format is detected from each file's extension, or you can set it explicitly with the [`format`](#common-settings) setting. If your bucket contains a mix of file types, use the [resource pattern](esql-data-federation-patterns.md) to narrow the dataset to one, for example `**/*.parquet`.
+Datasets should be scoped to a single file format. The format is inferred from the resource **pattern** when that pattern implies exactly one registered format — for example `**/*.parquet`, `_schema.parquet,events/**/*.parquet`, or `a.csv,b.csv.gz` (compression is not a second type). Extensionless prefixes (`hits/*`, `s3://dir1/,s3://dir2/`) and mixed patterns (`a.parquet,b.csv`, `*.{parquet,csv}`) require the [`format`](#common-settings) setting, or split the files into separate datasets. If your bucket contains a mix of file types, use the [resource pattern](esql-data-federation-patterns.md) to narrow the dataset to one format, for example `**/*.parquet`.
 
 If you need to query files of different formats from the same bucket, create a separate dataset for each. Ideally, all files in a dataset also share the same schema. When they differ, the [`schema_resolution`](#schema-merge-strategies) setting controls how differences are reconciled.
 
 :::{important}
-When set, the `format` setting forces every file the resource pattern matches through the same reader, regardless of file extension. If the pattern matches files of a different format, this can lead to errors or, worse, returning garbled data without error.
+When set, the `format` setting selects the reader for every file the resource pattern matches. Unrecognized extensions (for example `.log.gz`) are still read with that reader. An object whose name maps to a **different registered** format than the dataset is rejected; the query does not skip the file or return garbled rows.
 :::
 
 ### Text formats
@@ -80,7 +80,7 @@ Click **Add dataset** to open a flyout where you define the dataset:
 - **Name**: a unique name for use in queries. Names must be lowercase and cannot begin with `-`, `_`, or `+`. A dataset cannot share a name with any existing index, data stream, alias, or view.
 - **Description**: an optional description.
 - **Resource**: the URI and glob pattern that selects the files to read. Refer to [resource patterns](esql-data-federation-patterns.md) for the pattern language.
-- **Format**: the file format. This selection is required in the {{kib}} UI. The API can omit `settings.format` to auto-detect it from the file extension. Refer to [supported file formats](#supported-file-formats).
+- **Format**: the file format. This selection is required in the {{kib}} UI. The API can omit `settings.format` when the resource pattern implies exactly one format. Extensionless or mixed patterns require `format`. Refer to [supported file formats](#supported-file-formats).
 
 To configure how the format is read, expand **Advanced settings**. Refer to [dataset settings](#dataset-settings).
 
@@ -141,6 +141,16 @@ curl -X PUT "${ELASTICSEARCH_URL}/_query/dataset/access_logs" \
 :::
 
 ::::
+
+:::{note}
+{applies_to}`stack: experimental 9.6+` Setting values are checked when the dataset is registered, not only when it
+is first queried. A malformed value, such as a multi-character `delimiter`, an unknown `encoding`, or a
+`segment_size` below the minimum, is rejected with a `400` error that identifies the setting.
+
+Datasets registered before this validation was introduced are not validated, so they keep
+working even if they contain invalid values. Replacing one of these datasets triggers validation, and you must correct
+any invalid values in the replacement request.
+:::
 
 :::{tip}
 After creating a dataset, you can check the field mappings that {{es}} inferred from your files. Refer to [check field mappings](esql-data-federation-quickstart.md#check-field-mappings) in the quickstart for a hands-on example.
@@ -268,7 +278,8 @@ The following settings apply to all file-based data sources:
 
 | Setting | Default | Description |
 |---|---|---|
-| `format` | Auto-detect from extension | Override format detection. Valid values: `"parquet"`, `"csv"`, `"tsv"`, `"ndjson"`. |
+| `format` | Inferred from the resource pattern when that pattern implies exactly one format; otherwise required | Override or supply format detection. Valid values: `"parquet"`, `"csv"`, `"tsv"`, `"ndjson"`. Required for extensionless prefixes and mixed patterns. Forces unrecognized extensions through this reader, but rejects objects that map to a different registered format. |
+| `region` (S3 only) | Auto-detected | The AWS region of the bucket, for example `eu-central-1`. Omit it for standard AWS S3 — the SDK redirects automatically. Set it explicitly when using a custom `endpoint` override (such as MinIO or Scaleway) to skip the `HeadBucket` probe that discovers the region on the first request; once discovered the region is cached for the lifetime of the data source, so setting it is an optimization, not a requirement. |
 | `partition_detection` | `auto` | Partition detection mode. Valid values: `"auto"`, `"hive"`, `"template"`, `"none"`. `auto` (default) tries Hive `key=value` directory names first; if a `partition_path` is also set, falls back to the template for paths that do not use `key=value`. `hive` reads `key=value` directory names only and rejects `partition_path`. `template` uses `partition_path` to name partition columns and is rejected without it. `none` disables partition detection entirely. Refer to [brace groups and partition placeholders](esql-data-federation-patterns.md#brace-groups-and-partition-placeholders). |
 | `partition_path` | (none) | Template naming partition columns for paths that do not use `key=value` directories. Use `{column}` placeholders to label each partition path segment: for example, `{year}/{month}` extracts `year` and `month` columns from a two-level path. Setting `partition_path` without an explicit `partition_detection` leaves detection on `auto`, which tries Hive first and falls back to the template — a valid and common configuration. `partition_path` is rejected with `partition_detection: hive` or `none`. Refer to [brace groups and partition placeholders](esql-data-federation-patterns.md#brace-groups-and-partition-placeholders). |
 | `schema_resolution` | `union_by_name` | How schemas are reconciled across multiple files. Valid values: `"first_file_wins"`, `"strict"`, `"union_by_name"`. Refer to [schema merge strategies](#schema-merge-strategies). |
@@ -375,19 +386,22 @@ setting can bring them back.
 
 | Setting | Default (CSV / TSV) | Description |
 |---|---|---|
-| `delimiter` | `,` / `\t` | The field separator. |
-| `mode` | `quoted` / `plain` | A preset bundling quoting and escaping into one choice. Valid values: `"quoted"`, `"escaped"`, `"plain"`. |
-| `header_row` | `true` | Whether the first row names the columns. |
+| `delimiter` | `,` / `\t` | The field separator. <br> Must be a single character (or one of `\t`, `\n`, `\r`, `\\`). {applies_to}`stack: experimental 9.6+` |
+| `mode` | `quoted` / `plain` | A preset bundling quoting and escaping into one choice. Valid values: `"quoted"`, `"escaped"`, `"plain"`. <br> Using `mode: escaped` with an explicit `quote` setting is rejected at registration time, because it silently turns quoting on and disables the escaped-mode decode. {applies_to}`stack: experimental 9.6+` |
+| `header_row` | `true` | Whether the first non-comment, non-blank record names the columns. Applied after `skip_rows`. |
+| `skip_rows` | `0` | Number of leading content records to discard per file, after gzip unwrap, on the first split only. Blank and comment lines are not counted. Applied before `header_row`. Maximum `1000`. |
 | `null_value` | `""` (empty) | The token read as null (for example `NULL`, `NA`, `\N`). |
 | `encoding` | `UTF-8` | The file's character encoding. |
+
+A file that starts with two prose lines then `state,ip,user_agent` is read with `"skip_rows": 2` and `"header_row": true`. Blank lines and lines that begin with the `comment` prefix (default `//`) are skipped without counting toward `skip_rows`. A `//` preamble with `"skip_rows": 0` is still skipped via `comment`.
 
 **Advanced:**
 
 | Setting | Default (CSV / TSV) | Description |
 |---|---|---|
 | `schema_sample_size` {applies_to}`stack: experimental 9.6+` | `20000` | Rows sampled to infer the schema. Determines whether sparse or late-appearing fields get a column. |
-| `quote` | `"` / none | The quote character, or `"none"` to turn quoting off. An explicit value overrides the `mode` preset. |
-| `escape` | `\` / none | The escape character, or `"none"` to turn escaping off. An explicit value overrides the `mode` preset. |
+| `quote` | `"` / none | The quote character, or `"none"` to turn quoting off. An explicit value overrides the `mode` preset. <br> Must be a single character (or one of `\t`, `\n`, `\r`, `\\`). {applies_to}`stack: experimental 9.6+` |
+| `escape` | `\` / none | The escape character, or `"none"` to turn escaping off. An explicit value overrides the `mode` preset. <br> Must be a single character (or one of `\t`, `\n`, `\r`, `\\`). {applies_to}`stack: experimental 9.6+` |
 | `comment` | `//` | Lines beginning with this prefix are skipped. |
 | `column_prefix` | `col` | Prefix for generated column names when `header_row` is `false`. |
 | `datetime_format` | ISO-8601 | The pattern used to parse date and time values. |

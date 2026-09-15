@@ -8,6 +8,7 @@ package org.elasticsearch.xpack.esql.expression.function.aggregate;
 
 import org.elasticsearch.TransportVersion;
 import org.elasticsearch.common.io.stream.StreamInput;
+import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.xpack.esql.capabilities.PostAnalysisPlanVerificationAware;
 import org.elasticsearch.xpack.esql.common.Failures;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
@@ -92,8 +93,9 @@ public abstract class AggregateFunction extends Function implements PostAnalysis
     }
 
     /**
-     * The order of the children: fields, filter, window, parameters. Note this differs from the wire layout (see {@link #writeTo}),
-     * which for backwards compatibility leads with a single field, followed by the parameters and the remaining fields.
+     * The order of the children: fields, filter, window, parameters.
+     * This matches the (new) wire layout, however many aggregate functions use a different
+     * legacy wire layout for backwards compatibility.
      */
     private static List<Expression> buildChildren(
         List<? extends Expression> fields,
@@ -102,6 +104,16 @@ public abstract class AggregateFunction extends Function implements PostAnalysis
         List<? extends Expression> parameters
     ) {
         return CollectionUtils.combine(CollectionUtils.combine(fields, asList(filter, window)), parameters);
+    }
+
+    @Override
+    public void writeTo(StreamOutput out) throws IOException {
+        out.writeNamedWriteableCollection(fields);
+        out.writeNamedWriteable(filter);
+        if (out.getTransportVersion().supports(WINDOW_INTERVAL)) {
+            out.writeNamedWriteable(window);
+        }
+        out.writeNamedWriteableCollection(parameters);
     }
 
     protected static Expression readWindow(StreamInput in) throws IOException {

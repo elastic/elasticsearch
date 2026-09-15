@@ -65,7 +65,7 @@ public abstract class UnaryAggregateFunction extends AggregateFunction {
         if (out.getTransportVersion().supports(WINDOW_INTERVAL)) {
             out.writeNamedWriteable(window());
         }
-        out.writeNamedWriteableCollection(CollectionUtils.combine(parameters()));
+        out.writeNamedWriteableCollection(parameters());
     }
 
     public final Expression field() {
@@ -81,6 +81,6 @@ public abstract class UnaryAggregateFunction extends AggregateFunction {
         if (newField == field()) {
             return this;
         }
-        return (UnaryAggregateFunction) replaceChildren(CollectionUtils.combine(asList(newField, filter(), window()), parameters()));
+        return (UnaryAggregateFunction) withFields(List.of(newField));
     }
 }

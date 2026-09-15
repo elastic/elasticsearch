@@ -36,6 +36,7 @@ import org.elasticsearch.xpack.esql.datasources.cache.SchemaCacheEntry;
 import org.elasticsearch.xpack.esql.datasources.cache.SchemaCacheKey;
 import org.elasticsearch.xpack.esql.datasources.cache.StorageProviderCache;
 import org.elasticsearch.xpack.esql.datasources.glob.GlobExpander;
+import org.elasticsearch.xpack.esql.datasources.spi.ConnectorFactory;
 import org.elasticsearch.xpack.esql.datasources.spi.DeclaredTypeCoercions;
 import org.elasticsearch.xpack.esql.datasources.spi.ErrorPolicy;
 import org.elasticsearch.xpack.esql.datasources.spi.ExternalClientException;
@@ -69,7 +70,6 @@ import java.util.Locale;
 import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
-import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.Executor;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.concurrent.atomic.AtomicReferenceArray;
@@ -203,21 +203,92 @@ public class ExternalSourceResolver {
     private final Supplier<ThreadContext.StoredContext> restorableContext;
 
     /**
-     * Resolve-time warning messages collected during one {@link #resolve} call: Hive-partition
-     * shadow-column notices (see {@link #warnOnShadowedColumns}), {@code UNION_BY_NAME}
-     * schema-reconciliation notices (keyword fallback and long/double precision loss), and
-     * the factories' config-validation warnings
-     * (see {@code ExternalSourceFactory#validateConfig(String, Map, Consumer)}). That chain
-     * runs on {@link #metadataReadExecutor}, a real thread pool in production, so a direct
-     * {@code HeaderWarning.addWarning} call from inside it would land on that executor thread's
-     * {@link ThreadContext} rather than the originating request's, and never reach the client.
-     * Messages are instead buffered here and attached to the {@link ExternalSourceResolution} completed by
-     * {@link #resolveNextPath}, so {@code EsqlSession} can merge them into {@code DriverCompletionInfo} for
-     * {@code TransportEsqlQueryAction#toResponse} to emit on the thread that builds the client response.
-     * Cleared at the start of each {@link #resolve} call; safe for concurrent per-file callbacks (see
-     * {@link #metadataReadConcurrency}) since it is append-only until the single attach at completion.
+     * Notices about the resolved schema, raised during one {@link #resolve} call: Hive-partition shadowing and
+     * reconciliation widening (keyword fallback, long/double precision loss). The resolution chain runs on
+     * {@link #metadataReadExecutor}, whose threads have no path to the response, so a direct
+     * {@code HeaderWarning.addWarning} from inside it would land on the wrong {@link ThreadContext} and never reach the
+     * client. Every channel below is buffered instead and attached to the {@link ExternalSourceResolution} completed by
+     * {@link #resolveNextPath} (see {@link #bufferedWarnings}), so {@code EsqlSession} can merge them into
+     * {@code DriverCompletionInfo} for {@code TransportEsqlQueryAction#toResponse} to emit on the thread that builds the
+     * client response. Cleared at the start of each {@link #resolve} call; append-only in between.
+     * <p>
+     * These notices tell the user their values changed type. They get a channel of their own, capped like the others at
+     * {@link SkipWarnings#MAX_ADDED_WARNINGS}, so the listing channel below can never crowd them out. The factories'
+     * config-validation warnings ({@code ExternalSourceFactory#validateConfig(String, Map, Consumer)}) are about the
+     * dataset's options, not its schema, and go to {@link #pendingMetadataWarnings} with the other per-path notices.
      */
-    private final List<String> pendingShadowWarnings = new CopyOnWriteArrayList<>();
+    private final NoticeBuffer pendingSchemaWarnings = new NoticeBuffer();
+
+    /**
+     * Notices raised while listing, carried on {@link FileList#listingWarnings()}: {@code file_exclusions} drops and
+     * reserved partition-name renames. A comma list raises one exclusion notice per segment, each naming its own
+     * prefix, so this channel is capped rather than trusting the listing to stay short.
+     */
+    private final NoticeBuffer pendingListingWarnings = new NoticeBuffer();
+
+    /**
+     * A resolved source's {@link SourceMetadata#warnings()}, and the once-per-path {@link FormatReader#configWarnings()},
+     * counted separately: a wide glob resolves one metadata per file, and a per-file notice must not multiply into
+     * hundreds of headers, nor spend the other channels' room. Filled on both the cold and the cache-hit path so the same
+     * query warns identically on every run.
+     */
+    private final NoticeBuffer pendingMetadataWarnings = new NoticeBuffer();
+
+    /**
+     * One resolve-time notice channel: deduplicated by exact text and capped at {@link SkipWarnings#MAX_ADDED_WARNINGS},
+     * remembering that it overflowed so {@link ExternalSourceResolver#bufferedWarnings} can append a single overflow
+     * marker after everything else. Synchronized because per-file callbacks run concurrently (see
+     * {@link ExternalSourceResolver#metadataReadConcurrency}).
+     */
+    private static final class NoticeBuffer {
+        private final Set<String> notices = new LinkedHashSet<>();
+        private boolean overflowed;
+
+        synchronized void add(String notice) {
+            if (notices.contains(notice)) {
+                return;
+            }
+            if (notices.size() >= SkipWarnings.MAX_ADDED_WARNINGS) {
+                overflowed = true;
+                return;
+            }
+            notices.add(notice);
+        }
+
+        synchronized void addAll(List<String> all) {
+            for (String notice : all) {
+                add(notice);
+            }
+        }
+
+        synchronized void clear() {
+            notices.clear();
+            overflowed = false;
+        }
+
+        /** Appends this channel's notices to {@code out}; returns whether the cap dropped any. */
+        synchronized boolean drainTo(List<String> out) {
+            out.addAll(notices);
+            return overflowed;
+        }
+    }
+
+    /**
+     * Every notice buffered during the current {@link #resolve} call, in emission order, for the
+     * {@link ExternalSourceResolution} completed by {@link #resolveNextPath}. Not written to {@code HeaderWarning}
+     * here: a resolve-time write is discarded when {@code ContextPreservingActionListener} closes
+     * (elastic/elasticsearch#153780).
+     */
+    private List<String> bufferedWarnings() {
+        List<String> warnings = new ArrayList<>();
+        boolean overflowed = pendingSchemaWarnings.drainTo(warnings);
+        overflowed |= pendingListingWarnings.drainTo(warnings);
+        overflowed |= pendingMetadataWarnings.drainTo(warnings);
+        if (overflowed) {
+            warnings.add(SkipWarnings.overflowMessage());
+        }
+        return warnings;
+    }
 
     /**
      * The {@link #executor} decorated so that every task it runs has the query cancellation signal installed as the
@@ -435,11 +506,13 @@ public class ExternalSourceResolver {
         // Fresh per-call: resolve() is the single entry point for one query's external-source resolution, so
         // clearing here (rather than after the previous call's attach) also covers a resolver instance reused
         // across resolve() calls in tests.
-        pendingShadowWarnings.clear();
+        pendingSchemaWarnings.clear();
+        pendingListingWarnings.clear();
+        pendingMetadataWarnings.clear();
 
         // Once per query, before the per-path recursion: one warning per column however many paths and files the
         // resource expands to, and on the strict rail, which never reaches the non-strict overlay.
-        warnOnSubstitutedDeclaredTypes(declaredMappings, pendingShadowWarnings::add);
+        warnOnSubstitutedDeclaredTypes(declaredMappings, pendingSchemaWarnings::add);
 
         // Resolution runs on the caller-supplied executor (esql_worker in production, isolated from SEARCH so a wide
         // wildcard cannot starve regular ES searches). The initial dispatch performs the cheap synchronous prep (glob
@@ -453,7 +526,7 @@ public class ExternalSourceResolver {
         // aborts its glob-expansion and anchor/single-file read backoff promptly, matching the per-read wrapping the
         // async fan-out already gets.
         //
-        // Hive-partition shadow-column warnings stay on the ExternalSourceResolution (see pendingShadowWarnings)
+        // Hive-partition shadow-column warnings stay on the ExternalSourceResolution (see pendingSchemaWarnings)
         // rather than being flushed to HeaderWarning here: ContextPreservingActionListener restores a copy of the
         // request context that close() then discards, so a resolve-time HeaderWarning write is racy
         // (elastic/elasticsearch#153780).
@@ -486,7 +559,7 @@ public class ExternalSourceResolver {
         ActionListener<ExternalSourceResolution> listener
     ) {
         if (index == paths.size()) {
-            listener.onResponse(new ExternalSourceResolution(resolved, List.copyOf(pendingShadowWarnings)));
+            listener.onResponse(new ExternalSourceResolution(resolved, bufferedWarnings()));
             return;
         }
         String path = paths.get(index);
@@ -513,6 +586,42 @@ public class ExternalSourceResolver {
             resolveNextPath(paths, index + 1, pathConfigs, filterHints, declaredMappings, pathsRequiringStats, resolved, listener);
         }, e -> listener.onFailure(mapResolveFailure(path, e))));
     }
+
+    /**
+     * Configure-time notices ({@link FormatReader#configWarnings()}) describe the dataset's options, not a file, so they
+     * are raised once per path here, where every rail passes. Per-file metadata cannot carry them: the strict
+     * declared-schema rail reads no file. The lookup is a registry lookup plus option parsing, no I/O. A path no
+     * format claims yet (a bare glob without {@code format}) is skipped; the rail that resolves it from a listed file
+     * fails with its own message if it cannot. A config the reader rejects is skipped too: this is a notice channel,
+     * not a validation gate, and a query the optimizer never sends to a data node ({@code LIMIT 0}) must keep
+     * succeeding on a stored dataset with a bad setting, as it did before these notices existed. Rejection stays
+     * where it was: the PUT-time validator and the data-node operator factory.
+     */
+    private void bufferConfigWarnings(String path, Map<String, Object> config) {
+        currentPathConfigWarnings = List.of();
+        // The one comma decomposition every rail shares: splitting on the first comma would tear a brace group.
+        List<String> segments = GlobExpander.commaSegments(path);
+        String anchor = segments.isEmpty() ? path : segments.get(0);
+        try {
+            FormatReader reader = FormatNameResolver.resolveReader(
+                config,
+                StoragePath.of(anchor).objectName(),
+                dataSourceModule.formatReaderRegistry()
+            );
+            currentPathConfigWarnings = reader.withConfig(config).configWarnings();
+        } catch (IllegalArgumentException e) {
+            LOGGER.trace(() -> "no configure-time notices for [" + anchor + "]: no format claims it or the reader rejects the config", e);
+            return;
+        }
+        pendingMetadataWarnings.addAll(currentPathConfigWarnings);
+    }
+
+    /**
+     * The current path's {@link FormatReader#configWarnings()}, kept so a failure can carry them: a failed resolve delivers
+     * no buffered notices, and the option conflict this notice describes is often the cause of the very error that would
+     * otherwise hide it. Paths resolve one at a time (see {@link #resolveNextPath}), so one field suffices.
+     */
+    private List<String> currentPathConfigWarnings = List.of();
 
     /**
      * Maps a resolution failure to the exception the caller should propagate. Applies the same policy as
@@ -636,6 +745,7 @@ public class ExternalSourceResolver {
     ) {
         LOGGER.debug("Resolving external source: path=[{}]", path);
         try {
+            bufferConfigWarnings(path, config);
             resolveSourceInner(path, config, hints, declaredMapping, requiresStats, listener);
         } catch (Exception e) {
             listener.onFailure(e);
@@ -680,10 +790,17 @@ public class ExternalSourceResolver {
         StoragePath storagePath = StoragePath.of(path);
         StorageProvider provider = resolveProvider(storagePath, config);
         try {
-            // Strict declaration is the entire schema: build directly from the declaration (one bounded anchor footer read
-            // for columnar coercibility), no inference. The non-strict overlay is applied by the caller after this returns.
-            if (isDeclaredSchema(declaredMapping)) {
-                listener.onResponse(resolveStrictSingleFile(path, storagePath, provider, config, declaredMapping));
+            String datasetFormat = appliesFileDatasetFormat(path, config) ? fileDatasetFormat(path, config) : null;
+            final Map<String, Object> fileConfig = datasetFormat != null ? withImpliedFormat(config, datasetFormat) : config;
+            if (datasetFormat != null) {
+                FormatNameResolver.rejectConflictingObjectFormat(storagePath, datasetFormat, dataSourceModule.formatReaderRegistry());
+            }
+            // Strict declaration is the entire schema: build directly from the declaration (one bounded
+            // anchor footer read for columnar coercibility), no inference. The non-strict overlay is
+            // applied by the caller after this returns. Connector/catalog sources skip the file-format
+            // stamp and keep the factory's sourceType (e.g. flight).
+            if (isDeclaredSchema(declaredMapping) && datasetFormat != null) {
+                listener.onResponse(resolveStrictSingleFile(path, storagePath, provider, fileConfig, declaredMapping, datasetFormat));
                 return;
             }
 
@@ -694,33 +811,36 @@ public class ExternalSourceResolver {
                 // Warm path is zero-I/O: the file-metadata cache holds {length, mtime} within the schema TTL, so a warm
                 // single-file resolve never touches a live object (fileMetadataOf). mtime is the cache key's version token;
                 // length + mtime rebuild the singleton FileList.
-                FileMetadata meta = fileMetadataOf(storagePath, provider, config);
-                String formatType = detectFormatType(storagePath);
+                FileMetadata meta = fileMetadataOf(storagePath, provider, fileConfig);
+                String formatType = detectFormatType(storagePath, fileConfig);
                 SchemaCacheKey schemaKey = SchemaCacheKey.build(
                     storagePath.toString(),
                     meta.mtimeMillis(),
                     formatType,
-                    storageConfig(config)
+                    storageConfig(fileConfig)
                 );
                 SourceStatistics[] computedStatistics = new SourceStatistics[1];
                 SchemaCacheEntry schemaEntry = cacheService.getOrComputeSchema(schemaKey, k -> {
-                    SourceMetadata metadata = resolveSingleSource(path, config);
+                    SourceMetadata metadata = resolveSingleSource(path, fileConfig);
                     computedStatistics[0] = metadata.statistics().orElse(null);
                     return stampInferredReadConfig(SchemaCacheEntry.from(metadata));
                 });
+                pendingMetadataWarnings.addAll(schemaEntry.warnings());
                 harvestedStatistics = computedStatistics[0];
                 List<Attribute> schema = schemaEntry.toAttributes();
-                extMetadata = buildMetadataFromCache(schemaEntry, schema, config, harvestedStatistics);
+                extMetadata = buildMetadataFromCache(schemaEntry, schema, fileConfig, harvestedStatistics);
                 storageEntry = new StorageEntry(storagePath, meta.length(), Instant.ofEpochMilli(meta.mtimeMillis()));
             } else {
-                SourceMetadata metadata = resolveSingleSource(path, config);
+                SourceMetadata metadata = resolveSingleSource(path, fileConfig);
+                pendingMetadataWarnings.addAll(metadata.warnings());
                 // Read the statistics off the reader's metadata before wrapping: wrapAsExternalSourceMetadata folds
                 // them into sourceMetadata() but does not override statistics(), so they are unreachable afterwards.
                 harvestedStatistics = metadata.statistics().orElse(null);
-                extMetadata = wrapAsExternalSourceMetadata(metadata, config, declaredReadSpecOf(declaredMapping));
+                extMetadata = wrapAsExternalSourceMetadata(metadata, fileConfig, declaredReadSpecOf(declaredMapping));
                 StorageObject object = provider.newObject(storagePath);
                 storageEntry = new StorageEntry(storagePath, object.length(), object.lastModified());
             }
+            extMetadata = withSourceType(extMetadata, datasetFormat);
 
             // Capture the raw file schema: schemaMap describes the physical schema each reader actually
             // sees, not the user-facing projection. _file.* columns are no longer glued onto the schema
@@ -767,23 +887,26 @@ public class ExternalSourceResolver {
         // returns it when the anchor read is issued; cachedResolveSingleSourceAsync /
         // resolveSingleSourceAsync re-borrow and must not capture this provider.
         try {
-            // Strict declaration is the whole schema for every file, so inference (FIRST_FILE_WINS / reconciliation) is
-            // skipped entirely — only the glob listing plus, for columnar formats, one anchor footer read to validate
-            // declared-type coercibility. The non-strict overlay is applied by the caller after this returns.
-            if (isDeclaredSchema(declaredMapping)) {
-                listener.onResponse(resolveStrictMultiFile(path, storagePath, provider, hints, config, declaredMapping));
-                return;
-            }
-
             FormatReader.SchemaResolution schemaResolution = parseSchemaResolution(config);
             boolean cacheable = isCacheable(provider);
 
-            FileList listing = listAndRecord(path, storagePath, provider, hints, config, cacheable);
+            String datasetFormat = appliesFileDatasetFormat(path, config) ? fileDatasetFormat(path, config) : null;
+            final Map<String, Object> fileConfig = datasetFormat != null ? withImpliedFormat(config, datasetFormat) : config;
+            // Strict declaration is the whole schema for every file, so inference is skipped — listing plus,
+            // for columnar formats, one anchor footer read. The non-strict overlay is applied by the caller.
+            if (isDeclaredSchema(declaredMapping) && datasetFormat != null) {
+                listener.onResponse(resolveStrictMultiFile(path, storagePath, provider, hints, fileConfig, declaredMapping));
+                return;
+            }
+            FileList listing = listAndRecord(path, storagePath, provider, hints, fileConfig, cacheable);
             if (listing.fileCount() == 0) {
-                throw new IllegalArgumentException("Glob pattern matched no files: " + path);
+                throw noFilesMatched(path, listing);
+            }
+            if (datasetFormat != null) {
+                FormatNameResolver.rejectConflictingListedFormats(listing, datasetFormat, dataSourceModule.formatReaderRegistry());
             }
             if (schemaResolution != FormatReader.SchemaResolution.FIRST_FILE_WINS) {
-                resolveMultiFileWithReconciliation(listing, config, schemaResolution, cacheable, listener);
+                resolveMultiFileWithReconciliation(listing, fileConfig, schemaResolution, cacheable, datasetFormat, listener);
                 return;
             }
 
@@ -802,19 +925,32 @@ public class ExternalSourceResolver {
             ListingHint anchorHint = new ListingHint(listing.size(0), anchorMtime);
             final FileList finalListing = listing;
             ActionListener<ExternalSourceMetadata> anchorListener = ActionListener.wrap(
-                anchorMetadata -> completeFirstFileWins(anchorMetadata, finalListing, config, requiresStats, cacheable, listener),
+                anchorMetadata -> completeFirstFileWins(
+                    anchorMetadata,
+                    finalListing,
+                    fileConfig,
+                    requiresStats,
+                    cacheable,
+                    datasetFormat,
+                    listener
+                ),
                 listener::onFailure
             );
             if (cacheable) {
                 // cachedResolveSingleSourceAsync always completes with the ExternalSourceMetadata built by
                 // buildMetadataFromCache, so the cast is safe.
-                cachedResolveSingleSourceAsync(anchorPath, anchorHint, config, anchorListener.map(meta -> (ExternalSourceMetadata) meta));
+                cachedResolveSingleSourceAsync(
+                    anchorPath,
+                    anchorHint,
+                    fileConfig,
+                    anchorListener.map(meta -> (ExternalSourceMetadata) meta)
+                );
             } else {
                 resolveSingleSourceAsync(
                     anchorPath.toString(),
                     anchorHint,
-                    config,
-                    anchorListener.map(meta -> wrapAsExternalSourceMetadata(meta, config, declaredReadSpecOf(declaredMapping)))
+                    fileConfig,
+                    anchorListener.map(meta -> wrapAsExternalSourceMetadata(meta, fileConfig, declaredReadSpecOf(declaredMapping)))
                 );
             }
         } finally {
@@ -833,10 +969,11 @@ public class ExternalSourceResolver {
         Map<String, Object> config,
         boolean requiresStats,
         boolean cacheable,
+        @Nullable String datasetFormat,
         ActionListener<ExternalSourceResolution.ResolvedSource> listener
     ) {
         try {
-            final ExternalSourceMetadata base = enrichWithFileCount(anchorMetadata, listing.fileCount());
+            final ExternalSourceMetadata base = withSourceType(enrichWithFileCount(anchorMetadata, listing.fileCount()), datasetFormat);
             if (listing.fileCount() > 1 && requiresStats) {
                 // For multi-file FIRST_FILE_WINS, read all files' metadata during Phase 1 to aggregate statistics
                 // across all files. This allows aggregate pushdown (COUNT/MIN/MAX) to use accurate global stats and
@@ -998,7 +1135,7 @@ public class ExternalSourceResolver {
             // data-only unified schema at ColumnMapping#pruneToPerFileQuery and with queryDataSchema at the
             // SchemaAdaptingIterator guard. enrichSchemaWithPartitionColumns appends the partition column and warns.
             dataOnlySchema = ExternalSchema.dataAttributesOf(physicalSchema, partitionMetadata.partitionColumns().keySet()).attributes();
-            extMetadata = enrichSchemaWithPartitionColumns(extMetadata, partitionMetadata, pendingShadowWarnings::add);
+            extMetadata = enrichSchemaWithPartitionColumns(extMetadata, partitionMetadata, pendingSchemaWarnings::add);
         }
 
         // _file.* columns are request-driven now; no auto-attach to the schema. See
@@ -1068,7 +1205,7 @@ public class ExternalSourceResolver {
         if (cacheService == null || cacheService.isEnabled() == false) {
             return null;
         }
-        SchemaCacheKey key = SchemaCacheKey.build(path.toString(), mtimeMillis, detectFormatType(path), storageConfig(config));
+        SchemaCacheKey key = SchemaCacheKey.build(path.toString(), mtimeMillis, detectFormatType(path, config), storageConfig(config));
         SchemaCacheEntry entry = cacheService.getSchemaIfPresent(key);
         if (entry == null) {
             return null;
@@ -1101,9 +1238,25 @@ public class ExternalSourceResolver {
         FileList listing = cacheable
             ? cachedListing(path, storagePath, provider, hints, config)
             : expandAndCompact(path, provider, hints, config, storagePath);
-        GlobExpander.replayExclusionWarnings(listing);
+        pendingListingWarnings.addAll(listing.listingWarnings());
         recordDiscovery(listing, discoveryStartNanos, storagePath.scheme());
         return listing;
+    }
+
+    /**
+     * A failed resolve delivers no notices, and "matched no files" over a prefix that visibly holds objects is the
+     * least actionable error this path produces; the exclusion notice is what makes it actionable, so it goes into
+     * the message, along with the path's configure-time notices (see {@link #currentPathConfigWarnings}).
+     */
+    private IllegalArgumentException noFilesMatched(String path, FileList listing) {
+        StringBuilder message = new StringBuilder("Glob pattern matched no files: ").append(path);
+        for (String notice : listing.listingWarnings()) {
+            message.append(". ").append(notice);
+        }
+        for (String notice : currentPathConfigWarnings) {
+            message.append(". ").append(notice);
+        }
+        return new IllegalArgumentException(message.toString());
     }
 
     private FileList expandAndCompact(
@@ -1189,13 +1342,28 @@ public class ExternalSourceResolver {
         return registry.provider(storagePath);
     }
 
-    private static String detectFormatType(StoragePath path) {
+    /**
+     * Registry format name for a per-file schema-cache key ({@code parquet}, {@code csv}), not a
+     * last-dot suffix. Uses {@link FormatNameResolver#resolveFormatNameForIdentity} so a whole-file
+     * compression veto cannot throw. Cache-key minting must not throw: a null registry, empty object
+     * name, or any resolve failure falls back to {@link FormatNameResolver#extractCleanExtension}
+     * (or {@code ""}). Package-private for testing.
+     */
+    String detectFormatType(StoragePath path, @Nullable Map<String, Object> config) {
         String name = path.objectName();
-        if (name == null) {
-            return "";
+        FormatReaderRegistry registry = dataSourceModule.formatReaderRegistry();
+        if (name.isEmpty() == false && registry != null) {
+            try {
+                String resolved = FormatNameResolver.resolveFormatNameForIdentity(config, name, registry);
+                if (resolved != null) {
+                    return resolved;
+                }
+            } catch (Exception e) {
+                // Fall through to extractCleanExtension.
+            }
         }
-        int dot = name.lastIndexOf('.');
-        return dot >= 0 ? name.substring(dot) : "";
+        String ext = FormatNameResolver.extractCleanExtension(name);
+        return ext != null ? ext : "";
     }
 
     /**
@@ -1347,61 +1515,67 @@ public class ExternalSourceResolver {
      * <p>
      * Keyed on the listing's file-set fingerprint (see {@link SchemaCacheKey#forDatasetAggregate}), so it
      * needs no invalidation: any add/remove/mtime/size change in the set derives a different key. The
-     * {@code formatType} slot uses the same extension-based detection the per-file keys use — a stable
-     * identity input; the logical source type may only diverge from it via config keys that are already
-     * part of the key's config fingerprint, with one benign exception: the {@code reader} override is
-     * absent from the fingerprint but can only select footer-format (Parquet-family) readers, which the
-     * format gate above refuses — so no dataset key is ever minted for a reader-overridden resolve.
-     * Package-private for testing.
+     * {@code formatType} slot is the registry format name from {@link FormatNameResolver#datasetFormat}
+     * ({@code csv}, {@code ndjson}), not a last-dot of {@code listing.path(0)}. Listing order and
+     * compression/alias suffixes ({@code a.csv}+{@code b.csv.gz}) therefore cannot mint two identities
+     * for one file set. Parquet aliases ({@code *.{parquet,parq}}) still refuse under either listing
+     * order. The logical source type may only diverge from it via
+     * config keys that are already part of the key's config fingerprint, with one benign exception: the
+     * {@code reader} override is absent from the fingerprint but can only select footer-format
+     * (Parquet-family) readers, which the format gate above refuses — so no dataset key is ever minted
+     * for a reader-overridden resolve. Package-private for testing.
      */
     @Nullable
     SchemaCacheKey datasetAggregateKey(FileList listing, Map<String, Object> config) {
         if (listing == null || listing.fileSetFingerprint() == null || listing.fileCount() < 2) {
             return null;
         }
-        if (datasetAggregateSafeForFormat(listing, config) == false) {
+        String format = datasetAggregateFormat(listing, config);
+        if (format == null) {
             return null;
         }
-        return SchemaCacheKey.forDatasetAggregate(
-            listing.originalPattern(),
-            listing.fileSetFingerprint(),
-            detectFormatType(listing.path(0)),
-            storageConfig(config)
-        );
+        return SchemaCacheKey.forDatasetAggregate(listing.originalPattern(), listing.fileSetFingerprint(), format, storageConfig(config));
     }
 
     /**
-     * Whether the listing's format treats an ABSENT per-column stat as "not harvested" (safe-miss to a
-     * re-scan) rather than "all null" — the text-format contract that makes a row-count-only aggregate
-     * safe to serve. The format is resolved exactly the way the READ path resolves it
-     * ({@link FormatNameResolver#resolveFormatName}: config {@code format}/{@code reader} override
-     * first, then the compound-extension-aware registry lookup), so this gate can never disagree with
-     * the reader that actually scans — a footer file under a {@code .ndjson} name with
+     * The listing's format name when a row-count-only dataset aggregate is safe to serve, or
+     * {@code null} to refuse. Text formats treat an ABSENT per-column stat as "not harvested"
+     * (safe-miss to a re-scan) rather than "all null"; footer formats (Parquet/ORC) fold absent as
+     * implicit nulls, so serving the aggregate to {@code COUNT(col)} would fold
+     * {@code rowCount - rowCount = 0}. The format is resolved exactly the way the READ path resolves
+     * it ({@link FormatNameResolver#datasetFormat}: config {@code format}/{@code reader} override
+     * first, then the unique format implied by the resource pattern), so this gate can never disagree
+     * with the reader that actually scans — a footer file under a {@code .ndjson} name with
      * {@code format=parquet} is gated as parquet, and compressed text ({@code .ndjson.gz}) resolves to
-     * {@code ndjson} and qualifies. The {@code formatName() -> findByName} round-trip deliberately
-     * unwraps {@code CompressionDelegatingFormatReader} to the inner reader, whose
+     * {@code ndjson} and qualifies. The {@code formatName() -> findByName} round-trip in
+     * {@link #foldsAbsentColumnAsImplicitNull} deliberately unwraps
+     * {@code CompressionDelegatingFormatReader} to the inner reader, whose
      * {@code aggregatePushdownSupport} is the authoritative one (the wrapper does not forward it).
-     * Any resolution failure refuses rather than throws: the registry rejects an unregistered extension
-     * with an {@link IllegalArgumentException}, and the aggregate is an optimization that must never turn
-     * a resolvable read into a throw — hence the broad catch. The catch is deliberately broad and must
-     * stay so: it is the refusal that matters here, not the exception type, and narrowing it to the type
-     * the registry happens to throw today would re-couple this gate to that choice.
+     * Any resolution failure refuses rather than throws: the registry rejects an unregistered
+     * extension with an {@link IllegalArgumentException}, and the aggregate is an optimization that
+     * must never turn a resolvable read into a throw — hence the broad catch. The catch is
+     * deliberately broad and must stay so: it is the refusal that matters here, not the exception
+     * type, and narrowing it to the type the registry happens to throw today would re-couple this
+     * gate to that choice.
      */
-    private boolean datasetAggregateSafeForFormat(FileList listing, Map<String, Object> config) {
+    @Nullable
+    private String datasetAggregateFormat(FileList listing, Map<String, Object> config) {
         try {
-            String formatName = FormatNameResolver.resolveFormatName(
+            String formatName = FormatNameResolver.datasetFormat(
                 config,
-                listing.path(0).objectName(),
+                listing.originalPattern(),
                 dataSourceModule.formatReaderRegistry()
             );
-            // Same predicate as foldsAbsentColumnAsImplicitNull, negated: an absent-column stat is only
-            // safe to fold as an implicit null (and thus a dataset COUNT aggregate only correct) for a
-            // KNOWN format that does NOT treat an absent column as implicit null. Delegate so the two
-            // callers can't drift. This rail re-resolves the format from config because it prefetches
-            // before any SourceMetadata (and thus sourceType) exists.
-            return foldsAbsentColumnAsImplicitNull(formatName) == false;
+            // Refuse when the format folds an absent column as implicit nulls (Parquet/ORC): serving
+            // the row-count-only aggregate to COUNT(col) would fold rowCount - rowCount = 0. Admit
+            // only a known text format that safe-misses an unharvested column. Delegate so this gate
+            // cannot drift from foldsAbsentColumnAsImplicitNull.
+            if (foldsAbsentColumnAsImplicitNull(formatName)) {
+                return null;
+            }
+            return formatName;
         } catch (Exception e) {
-            return false;
+            return null;
         }
     }
 
@@ -1525,6 +1699,7 @@ public class ExternalSourceResolver {
         Map<String, Object> config,
         FormatReader.SchemaResolution schemaResolution,
         boolean cacheable,
+        @Nullable String datasetFormat,
         ActionListener<ExternalSourceResolution.ResolvedSource> listener
     ) {
         long startNanos = System.nanoTime();
@@ -1539,7 +1714,7 @@ public class ExternalSourceResolver {
                 if (schemaResolution == FormatReader.SchemaResolution.STRICT) {
                     result = SchemaReconciliation.reconcileStrict(firstFile, allMetadata);
                 } else {
-                    result = SchemaReconciliation.reconcileUnionByName(allMetadata, pendingShadowWarnings::add);
+                    result = SchemaReconciliation.reconcileUnionByName(allMetadata, pendingSchemaWarnings::add);
                 }
 
                 // Shadow physical columns that collide with Hive partition keys: the partition (path-derived)
@@ -1555,10 +1730,11 @@ public class ExternalSourceResolver {
                 // does not warn again (the no-double-warning invariant, asserted at that call). Do not reorder.
                 PartitionMetadata partitionMetadata = fileList.partitionMetadata();
                 Set<String> partitionNames = partitionMetadata != null ? partitionMetadata.partitionColumns().keySet() : Set.of();
-                result = shadowPartitionCollisions(result, partitionNames, pendingShadowWarnings::add);
+                result = shadowPartitionCollisions(result, partitionNames, pendingSchemaWarnings::add);
 
                 List<Attribute> unifiedSchema = result.unifiedSchema().attributes();
                 SourceMetadata firstMeta = allMetadata.get(firstFile);
+                String formatForStats = datasetFormat != null ? datasetFormat : firstMeta.sourceType();
                 // Aggregate from the per-file metadata already fetched by readAllFileMetadata —
                 // no second cache or storage hit per file. Each file's stats are in its OWN unit/representation;
                 // normalize every file's min/max to the reconciled unified type (temporal rescale, or safe-miss
@@ -1578,7 +1754,7 @@ public class ExternalSourceResolver {
                 // Under SKIP_ROW a narrow-read parse failure on a pinned column drops the whole row, so a pinned
                 // file's cached row count is untrustworthy too; NULL_FIELD keeps the row (only the cell nulls) and
                 // FAIL_FAST aborts the read cold before it can cache, so both keep the row count.
-                boolean dropPinnedRowCount = resolvesToSkipRow(firstMeta.sourceType(), config);
+                boolean dropPinnedRowCount = resolvesToSkipRow(formatForStats, config);
                 Map<String, Object> aggregatedStats = aggregateFileStatistics(
                     fileList,
                     allMetadata,
@@ -1586,7 +1762,7 @@ public class ExternalSourceResolver {
                     reconciledTypes,
                     perFilePinnedColumns,
                     dropPinnedRowCount,
-                    foldsAbsentColumnAsImplicitNull(firstMeta.sourceType())
+                    foldsAbsentColumnAsImplicitNull(formatForStats)
                 );
                 Map<String, String> pathToReadConfig = new HashMap<>(allMetadata.size());
                 for (Map.Entry<StoragePath, SourceMetadata> e : allMetadata.entrySet()) {
@@ -1597,7 +1773,10 @@ public class ExternalSourceResolver {
                     }
                 }
                 aggregatedStats = applyDatasetAggregate(pathToReadConfig, datasetPrefetch, aggregatedStats, fileList, firstMeta, config);
-                ExternalSourceMetadata extMetadata = buildUnifiedMetadata(firstMeta, unifiedSchema, config, aggregatedStats);
+                ExternalSourceMetadata extMetadata = withSourceType(
+                    buildUnifiedMetadata(firstMeta, unifiedSchema, config, aggregatedStats),
+                    datasetFormat
+                );
 
                 // Mirror the FFW invariants: file count enables canSkipSplitDiscovery; partial-stats
                 // marking is gated on fileCount > 1 (single-file globs have no "other file" missing stats).
@@ -1614,7 +1793,7 @@ public class ExternalSourceResolver {
                     assert metaForAssert.schema().stream().noneMatch(a -> partitionNames.contains(a.name()))
                         : "shadowPartitionCollisions must run before enrichSchemaWithPartitionColumns: a physical "
                             + "column still collides with a partition key, which would warn twice";
-                    extMetadata = enrichSchemaWithPartitionColumns(extMetadata, partitionMetadata, pendingShadowWarnings::add);
+                    extMetadata = enrichSchemaWithPartitionColumns(extMetadata, partitionMetadata, pendingSchemaWarnings::add);
                 }
 
                 // _file.* columns are request-driven now; no auto-attach to the schema. See
@@ -1781,10 +1960,11 @@ public class ExternalSourceResolver {
         Map<String, Object> config,
         ActionListener<SourceMetadata> listener
     ) {
-        String formatType = detectFormatType(filePath);
+        String formatType = detectFormatType(filePath, config);
         SchemaCacheKey schemaKey = SchemaCacheKey.build(filePath.toString(), hint.lastModifiedMillis(), formatType, storageConfig(config));
         SchemaCacheEntry cached = cacheService.getSchemaIfPresent(schemaKey);
         if (cached != null) {
+            pendingMetadataWarnings.addAll(cached.warnings());
             listener.onResponse(buildMetadataFromCache(cached, cached.toAttributes(), config));
             return;
         }
@@ -2214,7 +2394,7 @@ public class ExternalSourceResolver {
                 // immediately rather than being swallowed as a factory failure and retried against
                 // the next factory in the registry. Warnings are buffered, not emitted here: this
                 // runs on the metadata-read executor, whose ThreadContext never reaches the client.
-                factory.validateConfig(path, config, pendingShadowWarnings::add);
+                factory.validateConfig(path, config, pendingMetadataWarnings::add);
                 try {
                     return factory.resolveMetadata(path, config);
                 } catch (Exception e) {
@@ -2295,7 +2475,12 @@ public class ExternalSourceResolver {
                 candidates.add(factory);
             }
         }
-        resolveWithFactory(path, hint, config, candidates, 0, null, listener);
+        // Buffer the metadata's notices here, where every fresh async resolve passes, so a non-cacheable source (or a
+        // node with the cache disabled) delivers them exactly like a cacheable one.
+        resolveWithFactory(path, hint, config, candidates, 0, null, listener.map(meta -> {
+            pendingMetadataWarnings.addAll(meta.warnings());
+            return meta;
+        }));
     }
 
     /**
@@ -2327,12 +2512,106 @@ public class ExternalSourceResolver {
             resolveWithFactory(path, hint, config, candidates, index + 1, e, listener);
         });
         try {
-            factory.resolveMetadataAsync(path, hint, config, metadataReadExecutor, pendingShadowWarnings::add, next);
+            factory.resolveMetadataAsync(path, hint, config, metadataReadExecutor, pendingMetadataWarnings::add, next);
         } catch (Exception e) {
             // A factory that throws synchronously from dispatch (before invoking the listener) must not abort the
             // whole resolve: fall through to the next candidate exactly as the async onFailure path does.
             next.onFailure(e);
         }
+    }
+
+    /**
+     * File-format inference applies when the first claiming factory is {@link FileSourceFactory},
+     * or when nothing claimed (mixed/unrecognized patterns must still fail closed). Connector and
+     * catalog factories (Flight, Iceberg, …) keep their own {@code sourceType}.
+     */
+    private boolean appliesFileDatasetFormat(String path, Map<String, Object> config) {
+        for (ExternalSourceFactory factory : dataSourceModule.sourceFactories().values()) {
+            if (factory.canHandle(path, config) == false) {
+                continue;
+            }
+            if (factory instanceof FileSourceFactory) {
+                return true;
+            }
+            // Catalog factories (Iceberg) claim extensionless object-store prefixes, including globs
+            // and comma lists. Those still list files — keep fail-closed format inference. Connectors
+            // (Flight) keep their own sourceType even if the URI looks like a pattern.
+            if (GlobExpander.isMultiFile(path) && (factory instanceof ConnectorFactory) == false) {
+                return true;
+            }
+            return false;
+        }
+        try {
+            ExternalSourceFactory byScheme = dataSourceModule.sourceFactories().get(StoragePath.of(path).scheme());
+            if (byScheme != null && (byScheme instanceof FileSourceFactory) == false) {
+                if (GlobExpander.isMultiFile(path) && (byScheme instanceof ConnectorFactory) == false) {
+                    return true;
+                }
+                return false;
+            }
+        } catch (IllegalArgumentException ignored) {
+            // Not a parseable URI — still a file-pattern problem.
+        }
+        return true;
+    }
+
+    private String fileDatasetFormat(String path, Map<String, Object> config) {
+        return FormatNameResolver.datasetFormat(config, path, dataSourceModule.formatReaderRegistry());
+    }
+
+    private static Map<String, Object> withImpliedFormat(Map<String, Object> config, String datasetFormat) {
+        if (FormatNameResolver.parseExplicitFormat(config == null ? null : config.get(FormatNameResolver.CONFIG_FORMAT)) != null) {
+            return config;
+        }
+        Map<String, Object> copy = config == null || config.isEmpty() ? new HashMap<>() : new HashMap<>(config);
+        copy.put(FormatNameResolver.CONFIG_FORMAT, datasetFormat);
+        return copy;
+    }
+
+    /**
+     * Stamps exec {@code sourceType} from the dataset format already computed from the resource
+     * pattern, so pushdown and operator-factory dispatch cannot drift to an anchor reader's type.
+     */
+    private static ExternalSourceMetadata withSourceType(ExternalSourceMetadata metadata, @Nullable String sourceType) {
+        if (metadata == null || sourceType == null || sourceType.equals(metadata.sourceType())) {
+            return metadata;
+        }
+        return new ExternalSourceMetadata() {
+            @Override
+            public String location() {
+                return metadata.location();
+            }
+
+            @Override
+            public List<Attribute> schema() {
+                return metadata.schema();
+            }
+
+            @Override
+            public String sourceType() {
+                return sourceType;
+            }
+
+            @Override
+            public Map<String, Object> sourceMetadata() {
+                return metadata.sourceMetadata();
+            }
+
+            @Override
+            public Map<String, Object> config() {
+                return metadata.config();
+            }
+
+            @Override
+            public Optional<SourceStatistics> statistics() {
+                return metadata.statistics();
+            }
+
+            @Override
+            public Optional<List<String>> partitionColumns() {
+                return metadata.partitionColumns();
+            }
+        };
     }
 
     /**
@@ -2490,7 +2769,7 @@ public class ExternalSourceResolver {
      * scoring one reorders results in silence and the options one needs the query edited, so all three are named.
      * <p>
      * {@code warningSink} rather than {@code HeaderWarning}: buffered onto {@link ExternalSourceResolution} (see
-     * {@link #pendingShadowWarnings}) the message reaches the client through
+     * {@link #pendingSchemaWarnings}) the message reaches the client through
      * {@code TransportEsqlQueryAction#toResponse} whatever thread {@code resolve} ran on, which is the one route
      * every warning here takes. This one runs synchronously above the {@link #metadataReadExecutor} dispatch, so
      * the racy-context constraint on {@link #warnOnShadowedColumns} does not bind it.
@@ -2549,8 +2828,8 @@ public class ExternalSourceResolver {
      * Delegates to {@link SkipWarnings}, which emits the summary once on the first detail. Every
      * caller reachable from {@link #resolve}'s async schema-resolution chain (which runs on
      * {@link #metadataReadExecutor}, not the originating request thread) MUST pass a non-null
-     * {@code warningSink} — e.g. {@code pendingShadowWarnings::add} — so the message is buffered
-     * onto {@link ExternalSourceResolution} at resolve completion (see {@link #pendingShadowWarnings})
+     * {@code warningSink} — e.g. {@code pendingSchemaWarnings::add} — so the message is buffered
+     * onto {@link ExternalSourceResolution} at resolve completion (see {@link #pendingSchemaWarnings})
      * and later emitted by {@code TransportEsqlQueryAction#toResponse}. Do not re-add a
      * resolve-time {@code HeaderWarning} flush: that write is discarded when
      * {@code ContextPreservingActionListener} closes (elastic/elasticsearch#153780). A
@@ -2647,7 +2926,8 @@ public class ExternalSourceResolver {
         StoragePath storagePath,
         StorageProvider provider,
         Map<String, Object> config,
-        DatasetMapping declaredMapping
+        DatasetMapping declaredMapping,
+        String sourceType
     ) throws Exception {
         // Same warm-probe amortization as the inferred single-file rail (resolveSingleFileSource): a cacheable
         // provider serves {length, mtime} from the file-metadata cache within the schema TTL, so a warm strict
@@ -2657,12 +2937,7 @@ public class ExternalSourceResolver {
         // Declared mapping is the whole schema, in LOGICAL names; a `path` rename is applied at the reader, so the
         // operator (and file schema) work purely in logical names.
         List<Attribute> logicalSchema = DeclaredSchemaResolver.declaredAttributes(declaredMapping);
-        // sourceType drives operator-factory dispatch (OperatorFactoryRegistry keys on it), so it must equal the
-        // reader's formatName() the inferred path would have produced — derive it without reading the file via
-        // FormatNameResolver.resolveFormatName, which routes through the registry (reader-then-format-then-extension
-        // precedence, and compound-extension aware, so hits.csv.gz -> "csv" not the "gz" codec suffix). A hand-rolled
-        // `format` check or the last-dot FormatNameResolver.resolve here would mis-key the dispatch on compressed text.
-        String sourceType = FormatNameResolver.resolveFormatName(config, storagePath.objectName(), dataSourceModule.formatReaderRegistry());
+        FormatNameResolver.rejectConflictingObjectFormat(storagePath, sourceType, dataSourceModule.formatReaderRegistry());
         // Cheap no-I/O guard first (no partitions on a single file), then the columnar coercibility check which reads
         // this file's footer (cached when the provider is).
         rejectDeclaredMappingViolations(null, declaredMapping);
@@ -2770,7 +3045,7 @@ public class ExternalSourceResolver {
         long mtimeMillis
     ) throws Exception {
         if (isCacheable(provider) && FILE_TYPED_FORMATS.contains(sourceType) == false && warmsRowCountSafely(sourceType, config)) {
-            String formatType = detectFormatType(storagePath) + STRICT_DECLARED_SCHEMA_MARKER;
+            String formatType = detectFormatType(storagePath, config) + STRICT_DECLARED_SCHEMA_MARKER;
             SchemaCacheKey schemaKey = SchemaCacheKey.build(storagePath.toString(), mtimeMillis, formatType, storageConfig(config));
             // Seed the identity — mtime, config fingerprint, read configuration; the row-count is absent until the
             // first query's data node harvests
@@ -2864,6 +3139,8 @@ public class ExternalSourceResolver {
         Map<String, Object> config,
         DatasetMapping declaredMapping
     ) throws Exception {
+        // Fail closed on an ambiguous pattern before listing. Same helper as the inferred rail.
+        String sourceType = FormatNameResolver.datasetFormat(config, path, dataSourceModule.formatReaderRegistry());
         FileList listing;
         // Strict multi-file still does the same glob listing as the inferred path — record it as discovery too, so
         // strict resolutions are not invisible in the discovery telemetry (mirrors resolveMultiFileSource).
@@ -2874,30 +3151,19 @@ public class ExternalSourceResolver {
             listing = GlobExpander.expand(path, provider, hints, config, maxDiscoveredFiles, maxGlobExpansion);
         } else if (isCacheable(provider)) {
             listing = cachedListing(path, storagePath, provider, hints, config);
-            GlobExpander.replayExclusionWarnings(listing);
         } else {
             listing = expandAndCompact(path, provider, hints, config, storagePath);
-            GlobExpander.replayExclusionWarnings(listing);
         }
+        pendingListingWarnings.addAll(listing.listingWarnings());
         recordDiscovery(listing, discoveryStartNanos, storagePath.scheme());
         if (listing.fileCount() == 0) {
-            throw new IllegalArgumentException("Glob pattern matched no files: " + path);
+            throw noFilesMatched(path, listing);
         }
 
         // Declared mapping is the whole schema, in LOGICAL names; a `path` rename is applied at the reader, so the
         // operator (and file schema) work purely in logical names.
         List<Attribute> logicalSchema = DeclaredSchemaResolver.declaredAttributes(declaredMapping);
-        // Same compound-extension-aware dispatch as the single-file strict path above. Derive from a CONCRETE listed
-        // object name (listing.path(0)), not the raw glob string: a pattern like `*.csv.gz` and a comma-separated path
-        // list both make the raw path unreliable for extension parsing, whereas a listed entry is a real file name.
-        // Like the inferred FIRST_FILE_WINS path, the anchor's format governs every file with no cross-listing format
-        // check — so a heterogeneous, extension-less glob (e.g. `logs/*` matching mixed formats) reads through the
-        // first file's reader rather than failing; consistent with the pre-existing multi-file design, not validated here.
-        String sourceType = FormatNameResolver.resolveFormatName(
-            config,
-            listing.path(0).objectName(),
-            dataSourceModule.formatReaderRegistry()
-        );
+        FormatNameResolver.rejectConflictingListedFormats(listing, sourceType, dataSourceModule.formatReaderRegistry());
 
         // Partition columns are path-derived (no file I/O), so strict mode surfaces them exactly like the inferred
         // path does. One divergence: the inferred path SHADOWS a physical column that collides with a partition key
@@ -2920,7 +3186,7 @@ public class ExternalSourceResolver {
         );
         extMetadata = enrichWithFileCount(extMetadata, listing.fileCount());
         if (partitionMetadata != null && partitionMetadata.isEmpty() == false) {
-            extMetadata = enrichSchemaWithPartitionColumns(extMetadata, partitionMetadata, pendingShadowWarnings::add);
+            extMetadata = enrichSchemaWithPartitionColumns(extMetadata, partitionMetadata, pendingSchemaWarnings::add);
         }
 
         Map<StoragePath, SchemaReconciliation.FileSchemaInfo> schemaMap = new HashMap<>();
@@ -3018,7 +3284,7 @@ public class ExternalSourceResolver {
         Map<String, Object> config,
         DatasetMapping declaredMapping
     ) throws Exception {
-        // The strict callers now derive sourceType via FormatNameResolver.resolveFormatName, which returns non-null or
+        // The strict callers now derive sourceType via FormatNameResolver.datasetFormat, which returns non-null or
         // throws, so the null branch is defensive-only today; it is kept so a future null-returning resolution path
         // cannot silently NPE on Set.contains(null) and resurrect the earlier NPE-wrapped-500.
         if (sourceType == null || FILE_TYPED_FORMATS.contains(sourceType) == false || declaredMapping.mappings() == null) {
@@ -3290,7 +3556,7 @@ public class ExternalSourceResolver {
     }
 
     private SourceMetadata cachedResolveSingleSource(StoragePath filePath, long mtime, Map<String, Object> config) throws Exception {
-        String formatType = detectFormatType(filePath);
+        String formatType = detectFormatType(filePath, config);
         SchemaCacheKey schemaKey = SchemaCacheKey.build(filePath.toString(), mtime, formatType, storageConfig(config));
         SchemaCacheEntry entry = cacheService.getOrComputeSchema(
             schemaKey,

@@ -22,7 +22,6 @@ import org.elasticsearch.xpack.esql.datasources.ExternalSourceResolution;
 import org.elasticsearch.xpack.esql.datasources.metadata.DataSource;
 import org.elasticsearch.xpack.esql.datasources.metadata.DataSourceMetadata;
 import org.elasticsearch.xpack.esql.datasources.spi.FileList;
-import org.junit.Before;
 
 import java.util.EnumSet;
 import java.util.List;
@@ -31,7 +30,8 @@ import java.util.Map;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.referenceAttribute;
 
 /**
- * Captures the analyzed and logically-optimized plans for nested subquery scenarios.
+ * Captures the analyzed and logically-optimized plans for subquery-in-{@code FROM} scenarios.
+ * Negative tests live in {@code LogicalPlanOptimizerSubqueryTests}.
  */
 public class LogicalPlanOptimizerSubqueryGoldenTests extends GoldenTestCase {
 
@@ -46,12 +46,29 @@ public class LogicalPlanOptimizerSubqueryGoldenTests extends GoldenTestCase {
 
     private static final EnumSet<Stage> STAGES = EnumSet.of(Stage.ANALYSIS, Stage.LOGICAL_OPTIMIZATION);
 
-    @Before
-    public void assumeNestedSubqueryCapability() {
-        assumeTrue("requires nested subquery support", EsqlCapabilities.Cap.NESTED_SUBQUERY_IN_FROM_COMMAND.isEnabled());
+    public void testMatchAfterSubquerySortWithoutLimit() {
+        runGoldenTest("""
+            FROM (FROM employees | SORT first_name), (FROM employees | WHERE emp_no > 0)
+            | WHERE match(first_name, "Meditation")
+            """, STAGES);
+    }
+
+    public void testMatchOperatorAfterSubquerySortWithoutLimit() {
+        runGoldenTest("""
+            FROM (FROM employees | SORT first_name), (FROM employees | WHERE emp_no > 0)
+            | WHERE first_name:"Meditation"
+            """, STAGES);
+    }
+
+    public void testMatchPhraseAfterSubquerySortWithoutLimit() {
+        runGoldenTest("""
+            FROM (FROM employees | SORT first_name), (FROM employees | WHERE emp_no > 0)
+            | WHERE match_phrase(first_name, "Meditation")
+            """, STAGES);
     }
 
     public void testNestedSubqueries() {
+        assumeTrue("requires nested subquery support", EsqlCapabilities.Cap.NESTED_SUBQUERY_IN_FROM_COMMAND.isEnabled());
         runGoldenTest("""
             FROM employees,
                  (FROM employees,
@@ -61,6 +78,7 @@ public class LogicalPlanOptimizerSubqueryGoldenTests extends GoldenTestCase {
     }
 
     public void testNestedSubqueriesWithUnionAllOnTopOfMultipleUnionAlls() {
+        assumeTrue("requires nested subquery support", EsqlCapabilities.Cap.NESTED_SUBQUERY_IN_FROM_COMMAND.isEnabled());
         runGoldenTest("""
             FROM employees,
                  (FROM employees,
@@ -71,6 +89,7 @@ public class LogicalPlanOptimizerSubqueryGoldenTests extends GoldenTestCase {
     }
 
     public void testUnboundedSortInNestedBranchIsBranchOrderIndependent() {
+        assumeTrue("requires nested subquery support", EsqlCapabilities.Cap.NESTED_SUBQUERY_IN_FROM_COMMAND.isEnabled());
         runGoldenTest("""
             FROM (FROM (FROM employees | LIMIT 10),
                        (FROM employees | SORT emp_no)
@@ -81,6 +100,7 @@ public class LogicalPlanOptimizerSubqueryGoldenTests extends GoldenTestCase {
     }
 
     public void testBoundedSortInsideInSubqueryInUnionAllBranch() {
+        assumeTrue("requires nested subquery support", EsqlCapabilities.Cap.NESTED_SUBQUERY_IN_FROM_COMMAND.isEnabled());
         runGoldenTest("""
             FROM (FROM employees
                   | WHERE emp_no IN (FROM employees | SORT emp_no | LIMIT 5 | KEEP emp_no)
@@ -91,6 +111,7 @@ public class LogicalPlanOptimizerSubqueryGoldenTests extends GoldenTestCase {
     }
 
     public void testSiblingUnionAllsUnderInSubqueryJoin() {
+        assumeTrue("requires nested subquery support", EsqlCapabilities.Cap.NESTED_SUBQUERY_IN_FROM_COMMAND.isEnabled());
         runGoldenTest("""
             FROM employees,
                  (FROM employees | WHERE salary > 0)
@@ -101,6 +122,7 @@ public class LogicalPlanOptimizerSubqueryGoldenTests extends GoldenTestCase {
     }
 
     public void testNoKnnLimitAppendedWhenNestedBranchAlreadyBounded() {
+        assumeTrue("requires nested subquery support", EsqlCapabilities.Cap.NESTED_SUBQUERY_IN_FROM_COMMAND.isEnabled());
         runGoldenTest("""
             FROM (FROM (FROM colors | LIMIT 5),
                        (FROM colors METADATA _score | WHERE knn(rgb_vector, "007800") | LIMIT 7) METADATA _score),
@@ -110,6 +132,7 @@ public class LogicalPlanOptimizerSubqueryGoldenTests extends GoldenTestCase {
     }
 
     public void testKnnOnUnionBranchLeftOfInSubqueryStillGetsLimit() {
+        assumeTrue("requires nested subquery support", EsqlCapabilities.Cap.NESTED_SUBQUERY_IN_FROM_COMMAND.isEnabled());
         runGoldenTest("""
             FROM colors,
                  (FROM colors METADATA _score
@@ -120,6 +143,7 @@ public class LogicalPlanOptimizerSubqueryGoldenTests extends GoldenTestCase {
     }
 
     public void testBoundedKnnInsideInSubqueryKeepsLimitOnJoinRight() {
+        assumeTrue("requires nested subquery support", EsqlCapabilities.Cap.NESTED_SUBQUERY_IN_FROM_COMMAND.isEnabled());
         runGoldenTest("""
             FROM colors,
                  (FROM colors
@@ -135,6 +159,7 @@ public class LogicalPlanOptimizerSubqueryGoldenTests extends GoldenTestCase {
     // -- nested UnionAll + INLINE STATS in the main query --
 
     public void testNestedSubqueriesWithWhereAndInlineStats() {
+        assumeTrue("requires nested subquery support", EsqlCapabilities.Cap.NESTED_SUBQUERY_IN_FROM_COMMAND.isEnabled());
         runGoldenTest("""
             FROM employees,
                  (FROM (FROM employees | WHERE salary > 50000),
@@ -144,6 +169,7 @@ public class LogicalPlanOptimizerSubqueryGoldenTests extends GoldenTestCase {
     }
 
     public void testNestedSubqueriesWithStatsInsideAndInlineStats() {
+        assumeTrue("requires nested subquery support", EsqlCapabilities.Cap.NESTED_SUBQUERY_IN_FROM_COMMAND.isEnabled());
         runGoldenTest("""
             FROM employees,
                  (FROM (FROM employees | WHERE emp_no <= 10010 | STATS c1 = COUNT(*)),
@@ -153,6 +179,7 @@ public class LogicalPlanOptimizerSubqueryGoldenTests extends GoldenTestCase {
     }
 
     public void testNestedSubqueriesWithLookupJoinAndInlineStats() {
+        assumeTrue("requires nested subquery support", EsqlCapabilities.Cap.NESTED_SUBQUERY_IN_FROM_COMMAND.isEnabled());
         runGoldenTest("""
             FROM (FROM (FROM employees
                         | WHERE emp_no <= 10005
@@ -165,6 +192,7 @@ public class LogicalPlanOptimizerSubqueryGoldenTests extends GoldenTestCase {
     }
 
     public void testNestedSubqueriesWithInlineStatsInsideAndInlineStats() {
+        assumeTrue("requires nested subquery support", EsqlCapabilities.Cap.NESTED_SUBQUERY_IN_FROM_COMMAND.isEnabled());
         runGoldenTest("""
             FROM employees,
                  (FROM (FROM employees | WHERE emp_no <= 10005 | INLINE STATS max_sal = MAX(salary)),
@@ -176,6 +204,7 @@ public class LogicalPlanOptimizerSubqueryGoldenTests extends GoldenTestCase {
     // -- nested UnionAll + external dataset + aggregation pushdown --
 
     public void testNestedSubqueriesWithExternalDatasetWithAggPushdown() {
+        assumeTrue("requires nested subquery support", EsqlCapabilities.Cap.NESTED_SUBQUERY_IN_FROM_COMMAND.isEnabled());
         runNestedHeavyGoldenTest("""
             FROM employees,
                  (FROM heavy_a, heavy_b)
@@ -184,6 +213,7 @@ public class LogicalPlanOptimizerSubqueryGoldenTests extends GoldenTestCase {
     }
 
     public void testNestedSubqueriesWithExternalDatasetWithAggPushdownWithGrouping() {
+        assumeTrue("requires nested subquery support", EsqlCapabilities.Cap.NESTED_SUBQUERY_IN_FROM_COMMAND.isEnabled());
         runNestedHeavyGoldenTest("""
             FROM employees,
                  (FROM heavy_a, heavy_b)
@@ -192,6 +222,7 @@ public class LogicalPlanOptimizerSubqueryGoldenTests extends GoldenTestCase {
     }
 
     public void testThreeLevelNestedSubqueriesWithExternalDatasetWithAggPushdown() {
+        assumeTrue("requires nested subquery support", EsqlCapabilities.Cap.NESTED_SUBQUERY_IN_FROM_COMMAND.isEnabled());
         runNestedHeavyGoldenTest("""
             FROM employees,
                  (FROM languages,
@@ -207,6 +238,7 @@ public class LogicalPlanOptimizerSubqueryGoldenTests extends GoldenTestCase {
      * subsequent outer STATS aggregation, and that the optimizer correctly handles the plan.
      */
     public void testNestedSubqueryLoadWithUnmappedFieldReferencedInMainQueryStats() {
+        assumeTrue("requires nested subquery support", EsqlCapabilities.Cap.NESTED_SUBQUERY_IN_FROM_COMMAND.isEnabled());
         runGoldenTest("""
             SET unmapped_fields="load";
             FROM employees, (FROM languages, (FROM sample_data))
@@ -220,6 +252,7 @@ public class LogicalPlanOptimizerSubqueryGoldenTests extends GoldenTestCase {
      * the analyzer through the nested UnionAll and LOOKUP JOIN node.
      */
     public void testNestedSubqueryLoadWithUnmappedFieldReferencedInSubqueryLookupJoinAndMainQuery() {
+        assumeTrue("requires nested subquery support", EsqlCapabilities.Cap.NESTED_SUBQUERY_IN_FROM_COMMAND.isEnabled());
         runGoldenTest("""
             SET unmapped_fields="load";
             FROM employees,
@@ -233,6 +266,7 @@ public class LogicalPlanOptimizerSubqueryGoldenTests extends GoldenTestCase {
     }
 
     public void testNineUnionAllSubqueriesInFromCommand() {
+        assumeTrue("requires nested subquery support", EsqlCapabilities.Cap.NESTED_SUBQUERY_IN_FROM_COMMAND.isEnabled());
         runGoldenTest("""
             FROM employees,
                  (FROM languages),

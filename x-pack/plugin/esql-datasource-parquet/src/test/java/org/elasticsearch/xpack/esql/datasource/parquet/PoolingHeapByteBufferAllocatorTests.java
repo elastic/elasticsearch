@@ -9,6 +9,7 @@ package org.elasticsearch.xpack.esql.datasource.parquet;
 
 import org.elasticsearch.test.ESTestCase;
 
+import java.lang.ref.WeakReference;
 import java.nio.ByteBuffer;
 import java.nio.ByteOrder;
 import java.util.ArrayList;
@@ -210,6 +211,88 @@ public class PoolingHeapByteBufferAllocatorTests extends ESTestCase {
         assertEquals(0, capViolations.get());
         assertEquals(0, identityCollisions.get());
         assertTrue(pool.pooledBytes() <= pool.cap());
+    }
+
+    /**
+     * A checkout that parquet-mr never releases must not stay pinned by the node-wide pool: once
+     * the buffer is unreachable, its tracking entry is purged, the leak is counted, and the backing
+     * array becomes plain garbage — it must never re-enter the free list.
+     */
+    public void testMissedReleaseIsCollectedNotPinned() throws Exception {
+        PoolingHeapByteBufferAllocator pool = new PoolingHeapByteBufferAllocator(1 << 20);
+        WeakReference<byte[]> leakedArray = allocateAndLeak(pool);
+        assertEquals(1, pool.checkedOutCount());
+        assertBusy(() -> {
+            System.gc();
+            assertEquals("an unreleased checkout must be purged once collected", 0, pool.checkedOutCount());
+            assertEquals(1, pool.leakedCheckouts());
+            assertNull("the leaked backing array must be GC-reclaimable, not pinned", leakedArray.get());
+        });
+        assertEquals("a leaked array must not re-enter the pool", 0, pool.pooledCount());
+        ByteBuffer next = pool.allocate(64);
+        pool.release(next);
+        assertEquals("the pool must keep working after a purged leak", 1, pool.pooledCount());
+    }
+
+    /**
+     * Extracted so the checkout goes unreachable when this frame returns; keeping the allocation in
+     * the test body would leave a stack reference that defeats the GC assertion.
+     */
+    private static WeakReference<byte[]> allocateAndLeak(PoolingHeapByteBufferAllocator pool) {
+        ByteBuffer leaked = pool.allocate(64);
+        return new WeakReference<>(leaked.array());
+    }
+
+    /**
+     * Each size class may keep at most a quarter of the cap idle, so a burst of footer-sized
+     * arrays cannot evict every smaller class from the pool.
+     */
+    public void testPerClassLimitPreventsLargeClassMonopoly() {
+        long cap = 4L * PoolingHeapByteBufferAllocator.MAX_POOLED;
+        PoolingHeapByteBufferAllocator pool = new PoolingHeapByteBufferAllocator(cap);
+        assertEquals(1, pool.classEntryLimit(PoolingHeapByteBufferAllocator.MAX_POOLED));
+
+        ByteBuffer first = pool.allocate(PoolingHeapByteBufferAllocator.MAX_POOLED);
+        ByteBuffer second = pool.allocate(PoolingHeapByteBufferAllocator.MAX_POOLED);
+        pool.release(first);
+        pool.release(second);
+        assertEquals("the class limit must drop the second large array despite global cap headroom", 1, pool.pooledCount());
+        assertEquals(PoolingHeapByteBufferAllocator.MAX_POOLED, pool.pooledBytes());
+        assertEquals(1, pool.droppedReleases());
+
+        ByteBuffer small = pool.allocate(64);
+        pool.release(small);
+        assertEquals("smaller classes must still pool", 2, pool.pooledCount());
+    }
+
+    public void testStatsTrackHitsMissesAndBypass() {
+        PoolingHeapByteBufferAllocator pool = new PoolingHeapByteBufferAllocator(1 << 20);
+        ByteBuffer first = pool.allocate(300);
+        pool.release(first);
+        ByteBuffer second = pool.allocate(400); // same 512-byte class: must reuse
+        pool.release(second);
+        assertEquals(1, pool.poolHits());
+        assertEquals(1, pool.poolMisses());
+        assertEquals(0, pool.bypassedAllocations());
+
+        int tooBig = PoolingHeapByteBufferAllocator.MAX_POOLED + 1;
+        ByteBuffer big = pool.allocate(tooBig);
+        pool.release(big);
+        assertEquals(1, pool.bypassedAllocations());
+        assertEquals(tooBig, pool.bypassedBytes());
+        assertEquals(tooBig, pool.maxRequested());
+        assertEquals(0, pool.leakedCheckouts());
+    }
+
+    /**
+     * The two large allocation classes parquet-mr routes through the read-options allocator — the
+     * 8 MiB {@code maxAllocationSize} chunk slabs of {@code PlainParquetReadOptions} and footer
+     * buffers of up to {@link ParquetFormatReader#MAX_FOOTER_READ_BYTES} — are exactly the
+     * allocations that scale with file count; they must be poolable or the pool misses its point.
+     */
+    public void testPoolCoversParquetLargeAllocationClasses() {
+        assertTrue(PoolingHeapByteBufferAllocator.targetShift(8 * 1024 * 1024) >= 0);
+        assertTrue(PoolingHeapByteBufferAllocator.targetShift(ParquetFormatReader.MAX_FOOTER_READ_BYTES) >= 0);
     }
 
     public void testForHeapCapIsHeapOverDivisor() {

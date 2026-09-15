@@ -29,7 +29,12 @@ public class CircuitBreakerByteBufferAllocator implements ByteBufferAllocator {
     private final CircuitBreaker breaker;
     /**
      * Charged capacity per buffer identity handed out by {@link #allocate}. Reference identity
-     * because {@link ByteBuffer#equals} compares contents.
+     * because {@link ByteBuffer#equals} compares contents. The keys are held strongly, but unlike
+     * the node-wide {@link PoolingHeapByteBufferAllocator} (which tracks its checkouts weakly for
+     * this reason), this allocator is created per read-options build — see
+     * {@code ParquetFormatReader#readOptionsBuilder} — so a checkout parquet-mr never releases is
+     * pinned at most for that file open's lifetime, along with its breaker charge (which a missed
+     * release leaked before this map existed too).
      */
     private final ConcurrentHashMap<Identity, Integer> outstanding = new ConcurrentHashMap<>();
 

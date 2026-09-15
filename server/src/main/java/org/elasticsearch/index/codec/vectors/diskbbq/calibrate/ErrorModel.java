@@ -537,6 +537,7 @@ public final class ErrorModel {
         private final HierarchicalKMeans<float[]> kmeans;
         private final int nDocs;
         private QuantizedErrorComputeResult shared;
+        private boolean sharedPreconditioned; // whether {@link #shared} was computed with {@code usePreconditioned=true}
 
         private RealResidualState(CalibrationSource source) {
             this.nDocs = Math.min(REAL_RESIDUAL_SAMPLE, source.corpusOrdinals().length);
@@ -578,8 +579,13 @@ public final class ErrorModel {
         int nDocsPerCluster,
         RealResidualState state
     ) throws IOException {
-        float[][] warmDoc = state.shared == null ? null : state.shared.docCentroids();
-        float[][] warmQuery = state.shared == null ? null : state.shared.queryCentroids();
+        // doc warm start: reuse only when shared.docCentroids() is in original space (sharedPreconditioned=false).
+        float[][] warmDoc = (state.shared != null && !state.sharedPreconditioned) ? state.shared.docCentroids() : null;
+
+        // query warm start: reuse only when the space of shared.queryCentroids() matches the current call.
+        float[][] warmQuery = (state.shared != null && state.sharedPreconditioned == usePreconditionedQueries)
+            ? state.shared.queryCentroids()
+            : null;
         QuantizedErrorComputeResult r = quantizedRepErrorStdWithCentroids(
             source,
             usePreconditionedQueries,
@@ -594,6 +600,7 @@ public final class ErrorModel {
         );
         if (state.shared == null) {
             state.shared = r;
+            state.sharedPreconditioned = usePreconditionedQueries;
         }
         // 1/d is negative for similarities like cosine, so use -invDim
         double invDimEffective = ManifoldModel.isDotLike(source.similarityFunction()) ? -invDim : invDim;

@@ -2,6 +2,6 @@ area: Machine Learning
 issues:
  - 153260
 pr: 154925
-summary: Prevent AD job reopen from exhausting search scroll contexts during mass
+summary: Prevent anomaly detection job reopen from exhausting search scroll contexts during mass
   reassignment
 type: bug

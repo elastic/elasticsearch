@@ -1,5 +1,5 @@
 area: Search
 issues: []
 pr: 157642
-summary: "Msearch/template parity with msearch: memory bounds, cancellation, metrics"
+summary: "Apply `_msearch` memory bounds, cancellation, and metrics to `_msearch/template` API"
 type: enhancement

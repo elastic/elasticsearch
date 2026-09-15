@@ -334,11 +334,11 @@ public abstract class SystemPackagingTask extends DefaultTask {
     }
 
     /**
-     * The maintainer script methods record the script twice: as a file (used verbatim by the deb
-     * packaging) and as script <em>content</em> read lazily via a
-     * {@link ProviderFactory#fileContents} provider (used by the rpm packaging with the standard
-     * defines prepended), so the file is read at execution time and participates correctly in
-     * configuration cache invalidation.
+     * The maintainer script methods record the script both as a file input and as script
+     * <em>content</em> read lazily via a {@link ProviderFactory#fileContents} provider. The deb
+     * packaging materializes main-equivalent maintainer scripts from that content, while the rpm
+     * packaging prepends the standard defines. Reading at execution time keeps configuration cache
+     * invalidation correct.
      */
     public void preInstall(File script) {
         getPreInstallFile().fileValue(script);

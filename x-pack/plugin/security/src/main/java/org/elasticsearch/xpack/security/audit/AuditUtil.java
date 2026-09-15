@@ -11,10 +11,10 @@ import org.elasticsearch.action.IndicesRequest;
 import org.elasticsearch.common.Randomness;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.UUIDs;
+import org.elasticsearch.common.breaker.CircuitBreakingException;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
-import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
 import org.elasticsearch.rest.RestRequest;
@@ -37,37 +37,29 @@ public class AuditUtil {
     private static final String PROTOBUF_MEDIA_TYPE = "application/x-protobuf";
 
     /**
-     * Renders the body of {@code request} as a JSON string for inclusion in audit log events.
-     * <p>
-     * If {@code maxBytes > 0} and the rendered JSON length exceeds that limit, an
-     * {@link ElasticsearchStatusException} with status 413 is thrown so the caller can reject
-     * the request before it is written to the audit log. If the request has no XContent type
-     * (e.g. a protobuf endpoint), a short diagnostic string is returned rather than throwing.
-     *
-     * @param maxBytes   maximum allowed length of the rendered JSON string, in characters; {@code 0} = unlimited
-     * @param settingKey the cluster setting key to include in the error message; may be {@code null}
-     *                   when {@code maxBytes} is {@code 0}
+     * Converts the REST request body to JSON for audit logging using a caller-supplied {@link RequestBodyRenderer}.
+     * The renderer accumulates CB charges during rendering; the caller is responsible for closing it after consuming the result.
      */
-    public static String restRequestContent(RestRequest request, int maxBytes, String settingKey) {
+    public static String restRequestContent(RestRequest request, String settingKey, RequestBodyRenderer renderer) {
         if (request.hasContent()) {
             var content = request.content();
+            final XContentType xContentType = request.getXContentType();
+            if (xContentType == null) {
+                final var parsedContentType = request.getParsedContentType();
+                final String mediaType = parsedContentType != null ? parsedContentType.mediaTypeWithoutParameters() : "unknown";
+                return "Unrecognized content type [" + mediaType + "]";
+            }
             try {
-                final XContentType xContentType = request.getXContentType();
-                if (xContentType == null) {
-                    final var parsedContentType = request.getParsedContentType();
-                    final String mediaType = parsedContentType != null ? parsedContentType.mediaTypeWithoutParameters() : "unknown";
-                    return "Unrecognized content type [" + mediaType + "]";
-                }
-                String json = XContentHelper.convertToJson(content, false, false, xContentType);
-                if (maxBytes > 0 && json.length() > maxBytes) {
-                    throw bodyExceedsLimit(json.length(), maxBytes, settingKey);
-                }
-                return json;
-            } catch (ElasticsearchStatusException e) {
+                return renderer.render(content, xContentType);
+            } catch (RequestBodyRenderer.TooLargeBodyException e) {
+                throw bodyExceedsLimit(e.actualBytes(), renderer.maxBytes(), settingKey);
+            } catch (CircuitBreakingException | ElasticsearchStatusException e) {
                 throw e;
             } catch (Exception e) {
                 logger.warn(() -> Strings.format("failed to read body of REST request [%s] for auditing", request.uri()), e);
-                return "Invalid Format: " + content.utf8ToString();
+                long maxBytes = renderer.maxBytes();
+                BytesReference capped = maxBytes > 0 && content.length() > maxBytes ? content.slice(0, (int) maxBytes) : content;
+                return "Invalid Format: " + capped.utf8ToString();
             }
         }
         return "";
@@ -107,14 +99,14 @@ public class AuditUtil {
      * Returns the length, in characters, of the padded RFC 4648 base64 encoding of {@code sourceLength} bytes: every 3 input bytes are
      * encoded as 4 output characters, with the last group padded to a multiple of 4.
      */
-    static long base64EncodedLength(int sourceLength) {
+    public static long base64EncodedLength(int sourceLength) {
         return 4L * ((sourceLength + 2L) / 3L);
     }
 
-    private static ElasticsearchStatusException bodyExceedsLimit(long size, int maxBytes, String settingKey) {
+    private static ElasticsearchStatusException bodyExceedsLimit(long size, long maxBytes, String settingKey) {
         return new ElasticsearchStatusException(
-            "Request body size [{}] exceeds the audit body size limit [{}]; "
-                + "adjust the [{}] setting to increase the limit or set it to 0 to disable",
+            "Request body of [{}] would exceed the audit size limit of [{}]; "
+                + "adjust [{}] to increase the limit or set it to 0 to disable",
             RestStatus.REQUEST_ENTITY_TOO_LARGE,
             ByteSizeValue.ofBytes(size),
             ByteSizeValue.ofBytes(maxBytes),

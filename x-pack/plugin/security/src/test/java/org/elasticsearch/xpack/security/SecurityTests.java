@@ -56,6 +56,7 @@ import org.elasticsearch.index.shard.IndexingStatsSettings;
 import org.elasticsearch.index.store.StoreMetrics;
 import org.elasticsearch.indices.SystemIndices;
 import org.elasticsearch.indices.TestIndexNameExpressionResolver;
+import org.elasticsearch.indices.breaker.NoneCircuitBreakerService;
 import org.elasticsearch.license.ClusterStateLicenseService;
 import org.elasticsearch.license.License;
 import org.elasticsearch.license.LicenseService;
@@ -287,7 +288,8 @@ public class SecurityTests extends ESTestCase {
             CrossProjectModeDecider.NOOP,
             ProjectRoutingResolver.NOOP,
             new SystemIndices(List.of()),
-            new UsageService()
+            new UsageService(),
+            new NoneCircuitBreakerService()
         );
     }
 

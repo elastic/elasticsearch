@@ -837,3 +837,66 @@ teardown:
 
   - match: { status: 400 }
   - match: { error.type: action_request_validation_exception }
+
+---
+"Test MMR diversification with hex vectors stored in source":
+  - requires:
+      cluster_features: [ "retriever.mmr_encoded_source_vector_fix" ]
+      reason: "Diversify retriever decodes hex/base64 vectors fetched from _source"
+
+  - do:
+      indices.create:
+        index: test-byte-vec-source-index
+        body:
+          settings:
+            number_of_shards: 1
+            index.mapping.exclude_source_vectors: false
+          mappings:
+            properties:
+              textvector:
+                type: dense_vector
+                dims: 16
+                element_type: bit
+              id:
+                type: integer
+
+  - do:
+      headers:
+        Content-Type: application/json
+      bulk:
+        index: test-byte-vec-source-index
+        refresh: true
+        body: |
+          {"index":{}}
+          {"id": 1, "textvector": "0BB8"}
+          {"index":{}}
+          {"id": 2, "textvector": "94A2"}
+          {"index":{}}
+          {"id": 3, "textvector": "0560"}
+          {"index":{}}
+          {"id": 4, "textvector": "2112"}
+          {"index":{}}
+          {"id": 5, "textvector": "5051"}
+
+  - do:
+      search:
+        index: test-byte-vec-source-index
+        body:
+          retriever:
+            diversify:
+              type: "mmr"
+              field: "textvector"
+              size: 3
+              lambda: 0.7
+              retriever:
+                standard:
+                  query:
+                    match_all: {}
+
+  - match: { hits.total.value: 5 }
+  - length: { hits.hits: 3 }
+
+  - do:
+      indices.delete:
+        index: test-byte-vec-source-index
+        ignore: 404

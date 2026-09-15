@@ -169,6 +169,7 @@ public class NestedObjectMapper extends ObjectMapper {
             NestedMapperBuilderContext nestedContext = new NestedMapperBuilderContext(
                 context.buildFullName(leafName()),
                 context.isSourceSynthetic(),
+                context.isSourceColumnarStored(),
                 context.isDataStream(),
                 context.parentObjectContainsDimensions(),
                 nestedTypeFilter,
@@ -237,6 +238,7 @@ public class NestedObjectMapper extends ObjectMapper {
         NestedMapperBuilderContext(
             String path,
             boolean isSourceSynthetic,
+            boolean isSourceColumnarStored,
             boolean isDataStream,
             boolean parentObjectContainsDimensions,
             Query nestedTypeFilter,
@@ -244,7 +246,17 @@ public class NestedObjectMapper extends ObjectMapper {
             Dynamic dynamic,
             MapperService.MergeReason mergeReason
         ) {
-            super(path, isSourceSynthetic, isDataStream, parentObjectContainsDimensions, dynamic, mergeReason, true);
+            super(
+                path,
+                isSourceSynthetic,
+                isDataStream,
+                parentObjectContainsDimensions,
+                dynamic,
+                mergeReason,
+                true,
+                false,
+                isSourceColumnarStored
+            );
             this.parentIncludedInRoot = parentIncludedInRoot;
             this.nestedTypeFilter = nestedTypeFilter;
         }
@@ -254,6 +266,7 @@ public class NestedObjectMapper extends ObjectMapper {
             return new NestedMapperBuilderContext(
                 buildFullName(name),
                 isSourceSynthetic(),
+                isSourceColumnarStored(),
                 isDataStream(),
                 parentObjectContainsDimensions(),
                 nestedTypeFilter,

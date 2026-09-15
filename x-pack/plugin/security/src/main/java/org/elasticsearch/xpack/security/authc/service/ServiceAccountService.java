@@ -23,6 +23,7 @@ import org.elasticsearch.xpack.core.security.action.service.GetServiceAccountCre
 import org.elasticsearch.xpack.core.security.action.service.GetServiceAccountCredentialsRequest;
 import org.elasticsearch.xpack.core.security.action.service.GetServiceAccountCredentialsResponse;
 import org.elasticsearch.xpack.core.security.action.service.GetServiceAccountNodesCredentialsAction;
+import org.elasticsearch.xpack.core.security.action.service.ServiceAccountInfo;
 import org.elasticsearch.xpack.core.security.action.service.TokenInfo;
 import org.elasticsearch.xpack.core.security.action.service.TokenInfo.TokenSource;
 import org.elasticsearch.xpack.core.security.authc.Authentication;
@@ -206,7 +207,9 @@ public class ServiceAccountService {
     }
 
     /**
-     * Creates the account, or replaces an existing one of the same name wholesale.
+     * Creates the account, or replaces an existing one of the same name wholesale. Creating an account of a name that
+     * still has leftover tokens is refused: those tokens would otherwise start authenticating again. Replacing an
+     * account that is already present is allowed even when tokens exist, because those tokens already belong to it.
      */
     public void putUserManagedAccount(
         ServiceAccountId accountId,
@@ -219,13 +222,56 @@ public class ServiceAccountService {
             listener.onFailure(new IllegalStateException(USER_MANAGED_ACCOUNTS_UNAVAILABLE_MESSAGE));
             return;
         }
-        userManagedServiceAccountStore.putAccount(accountId, roles, enabled, refreshPolicy, listener);
+        userManagedServiceAccountStore.getByPrincipal(accountId.asPrincipal(), listener.delegateFailureAndWrap((delegate, account) -> {
+            if (account != null) {
+                userManagedServiceAccountStore.putAccount(accountId, roles, enabled, refreshPolicy, delegate);
+                return;
+            }
+            indexServiceAccountTokenStore.hasTokensFor(accountId, delegate.delegateFailureAndWrap((inner, hasTokens) -> {
+                if (hasTokens) {
+                    inner.onFailure(
+                        new IllegalArgumentException(
+                            "cannot create service account ["
+                                + accountId
+                                + "] because it has leftover service tokens; delete the tokens first"
+                        )
+                    );
+                } else {
+                    userManagedServiceAccountStore.putAccount(accountId, roles, enabled, refreshPolicy, inner);
+                }
+            }));
+        }));
     }
 
     /**
-     * A surviving token cannot authenticate once its account is gone, but recreating an account of the same name would
-     * bring it back to life, which is what the token check refuses rather than any live credential. It is not atomic
-     * with the delete: a token created in between survives, leaving the state {@code force} produces deliberately.
+     * Reports the stored accounts, narrowed to a namespace and a service name when they are given. A node that cannot
+     * hold user-managed accounts has none to report, so it answers with an empty list rather than failing: this feeds
+     * a read that also covers built-in accounts, and that read must keep working.
+     */
+    public void getUserManagedAccountInfos(
+        @Nullable String namespace,
+        @Nullable String serviceName,
+        ActionListener<List<ServiceAccountInfo>> listener
+    ) {
+        if (userManagedServiceAccountStore == null) {
+            listener.onResponse(List.of());
+            return;
+        }
+        userManagedServiceAccountStore.listAccounts(
+            namespace,
+            serviceName,
+            listener.map(accounts -> accounts.stream().map(ServiceAccountService::toServiceAccountInfo).toList())
+        );
+    }
+
+    private static ServiceAccountInfo toServiceAccountInfo(UserManagedServiceAccount account) {
+        return new ServiceAccountInfo.UserManaged(account.id().asPrincipal(), account.roles(), account.enabled());
+    }
+
+    /**
+     * A surviving token cannot authenticate once its account is gone, and creating an account of the same name is
+     * refused while those leftovers remain. It is not atomic with the delete: a token created in between survives,
+     * leaving the state {@code force} produces deliberately.
      */
     public void deleteUserManagedAccount(
         ServiceAccountId accountId,
@@ -257,16 +303,33 @@ public class ServiceAccountService {
         }));
     }
 
-    public void createIndexToken(
+    /**
+     * Creates a token for the built-in service account the request names, failing if no built-in account carries that
+     * principal. The namespace is not consulted: this operates on built-in accounts whatever it is handed.
+     */
+    public void createBuiltInToken(
         Authentication authentication,
         CreateServiceAccountTokenRequest request,
         ActionListener<CreateServiceAccountTokenResponse> listener
     ) {
         if (indexServiceAccountTokenStore == null) {
-            throw new IllegalStateException("Can't create token because index service account token store not configured");
+            listener.onFailure(new IllegalStateException("Can't create token because index service account token store not configured"));
+            return;
         }
-        if (isBuiltInNamespace(request.getNamespace())) {
-            indexServiceAccountTokenStore.createBuiltInToken(authentication, request, listener);
+        indexServiceAccountTokenStore.createBuiltInToken(authentication, request, listener);
+    }
+
+    /**
+     * Creates a token for the user-managed service account the request names. The account is resolved first and must
+     * exist, though it need not be enabled; a principal in the reserved namespace is refused.
+     */
+    public void createUserManagedToken(
+        Authentication authentication,
+        CreateServiceAccountTokenRequest request,
+        ActionListener<CreateServiceAccountTokenResponse> listener
+    ) {
+        if (indexServiceAccountTokenStore == null) {
+            listener.onFailure(new IllegalStateException("Can't create token because index service account token store not configured"));
             return;
         }
         final ServiceAccountId accountId = new ServiceAccountId(request.getNamespace(), request.getServiceName());
@@ -279,24 +342,33 @@ public class ServiceAccountService {
     }
 
     /**
-     * Deletes a service account token. Unlike creating one, this does not resolve the account first: a token can
-     * outlive a force-deleted account, and those leftovers must remain removable — the credentials API lists them, so
-     * refusing to delete them would leave an operator able to see a token they cannot clean up.
+     * Deletes a token belonging to a built-in service account, answering {@code false} when no built-in account
+     * carries the requested principal, since no such token can exist.
      */
-    public void deleteIndexToken(DeleteServiceAccountTokenRequest request, ActionListener<Boolean> listener) {
+    public void deleteBuiltInToken(DeleteServiceAccountTokenRequest request, ActionListener<Boolean> listener) {
         if (indexServiceAccountTokenStore == null) {
-            throw new IllegalStateException("Can't delete token because index service account token store not configured");
+            listener.onFailure(new IllegalStateException("Can't delete token because index service account token store not configured"));
+            return;
         }
-        if (isBuiltInNamespace(request.getNamespace())) {
-            indexServiceAccountTokenStore.deleteBuiltInToken(request, listener);
-        } else {
-            indexServiceAccountTokenStore.deleteUserManagedToken(request, listener);
+        indexServiceAccountTokenStore.deleteBuiltInToken(request, listener);
+    }
+
+    /**
+     * Deletes a token belonging to a user-managed service account. The account is not resolved and need not exist,
+     * since a token can outlive a force-deleted account and those leftovers must stay removable.
+     */
+    public void deleteUserManagedToken(DeleteServiceAccountTokenRequest request, ActionListener<Boolean> listener) {
+        if (indexServiceAccountTokenStore == null) {
+            listener.onFailure(new IllegalStateException("Can't delete token because index service account token store not configured"));
+            return;
         }
+        indexServiceAccountTokenStore.deleteUserManagedToken(request, listener);
     }
 
     public void findTokensFor(GetServiceAccountCredentialsRequest request, ActionListener<GetServiceAccountCredentialsResponse> listener) {
         if (indexServiceAccountTokenStore == null) {
-            throw new IllegalStateException("Can't find tokens because index service account token store not configured");
+            listener.onFailure(new IllegalStateException("Can't find tokens because index service account token store not configured"));
+            return;
         }
         final ServiceAccountId accountId = new ServiceAccountId(request.getNamespace(), request.getServiceName());
         findIndexTokens(accountId, listener);

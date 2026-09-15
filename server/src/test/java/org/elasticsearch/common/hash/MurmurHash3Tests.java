@@ -57,8 +57,6 @@ public class MurmurHash3Tests extends ESTestCase {
         assertEquals(pair[MurmurHash3.STATE_H2], fused[MurmurHash3.STATE_H2]);
     }
 
-    // Todo: This is essentially implementing the columnar hashing for a test. When we commit the actual columnar implementation we should
-    // test at that level and remove this.
     public void testLongStreamWithOptionalTailMatchesBufferedHasher() {
         for (int n = 1; n <= 9; n++) {
             long[] values = new long[n];
@@ -89,7 +87,9 @@ public class MurmurHash3Tests extends ESTestCase {
 
     /**
      * Four longs per element folded via {@code mixTwoBlocks} must equal
-     * {@link BufferedMurmur3Hasher#addLongs(long, long, long, long)}.
+     * {@link BufferedMurmur3Hasher#addLongs(long, long, long, long)}. This is the tsid full-hash
+     * stream shape used by {@link org.elasticsearch.cluster.routing.ColumnarTsidCalculator}: 32 bytes
+     * per element is exactly two blocks, so the stream is always block-aligned and never has a tail.
      */
     public void testFourLongsPerElementMatchesBufferedHasher() {
         int elements = randomIntBetween(1, 16);

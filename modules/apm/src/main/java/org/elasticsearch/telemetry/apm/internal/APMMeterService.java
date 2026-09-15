@@ -25,8 +25,10 @@ import org.elasticsearch.telemetry.apm.internal.export.agent.AgentExportMeterSup
 import org.elasticsearch.telemetry.apm.internal.export.otelsdk.OtelSdkExportMeterSupplier;
 import org.elasticsearch.telemetry.apm.internal.export.otelsdk.OtelSdkSettings;
 import org.elasticsearch.telemetry.apm.internal.metrics.APMMeterRegistry;
+import org.elasticsearch.telemetry.apm.internal.metrics.spi.SdkMeterProviderConfigurer;
 
 import java.nio.file.Path;
+import java.util.List;
 import java.util.concurrent.TimeUnit;
 
 import static org.elasticsearch.telemetry.TelemetryProvider.OTEL_METRICS_ENABLED_SYSTEM_PROPERTY;
@@ -42,8 +44,8 @@ public class APMMeterService extends AbstractLifecycleComponent {
 
     protected volatile boolean enabled;
 
-    public APMMeterService(Settings settings, Path diskBufferPath) {
-        this(settings, createOtelMeterSupplier(settings, diskBufferPath), new NoOpMeterSupplier());
+    public APMMeterService(Settings settings, Path diskBufferPath, List<SdkMeterProviderConfigurer> meterProviderConfigurers) {
+        this(settings, createOtelMeterSupplier(settings, diskBufferPath, meterProviderConfigurers), new NoOpMeterSupplier());
     }
 
     public APMMeterService(Settings settings, MeterSupplier otelMeterSupplier, MeterSupplier noopMeterSupplier) {
@@ -55,10 +57,14 @@ public class APMMeterService extends AbstractLifecycleComponent {
         this.systemMetrics = new SystemMetrics(meterRegistry, OtelSdkSettings.NODE_METRICS_OTEL_SEMCONV_ENABLED_SETTING.get(settings));
     }
 
-    private static MeterSupplier createOtelMeterSupplier(Settings settings, Path diskBufferPath) {
+    private static MeterSupplier createOtelMeterSupplier(
+        Settings settings,
+        Path diskBufferPath,
+        List<SdkMeterProviderConfigurer> meterProviderConfigurers
+    ) {
         boolean otelMetricsEnabled = Booleans.parseBoolean(System.getProperty(OTEL_METRICS_ENABLED_SYSTEM_PROPERTY, "false"));
         if (otelMetricsEnabled) {
-            return new OtelSdkExportMeterSupplier(settings, diskBufferPath);
+            return new OtelSdkExportMeterSupplier(settings, diskBufferPath, meterProviderConfigurers);
         } else {
             return new AgentExportMeterSupplier(settings);
         }

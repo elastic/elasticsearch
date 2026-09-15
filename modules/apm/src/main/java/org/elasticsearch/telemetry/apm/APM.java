@@ -15,6 +15,7 @@ import org.apache.lucene.util.SetOnce;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.env.Environment;
+import org.elasticsearch.plugins.ExtensiblePlugin;
 import org.elasticsearch.plugins.NetworkPlugin;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.plugins.TelemetryPlugin;
@@ -26,6 +27,7 @@ import org.elasticsearch.telemetry.apm.internal.APMLoggingService;
 import org.elasticsearch.telemetry.apm.internal.APMMeterService;
 import org.elasticsearch.telemetry.apm.internal.APMTelemetryProvider;
 import org.elasticsearch.telemetry.apm.internal.export.otelsdk.OtelSdkSettings;
+import org.elasticsearch.telemetry.apm.internal.metrics.spi.SdkMeterProviderConfigurer;
 import org.elasticsearch.telemetry.apm.internal.tracing.APMTracer;
 
 import java.nio.file.Path;
@@ -52,13 +54,20 @@ import java.util.List;
  * be passed via system properties to the Java agent, which periodically checks for changes
  * and applies the new settings values, provided those settings can be dynamically updated.
  */
-public class APM extends Plugin implements NetworkPlugin, TelemetryPlugin {
+public class APM extends Plugin implements NetworkPlugin, TelemetryPlugin, ExtensiblePlugin {
     private static final Logger logger = LogManager.getLogger(APM.class);
+
     private final SetOnce<APMTelemetryProvider> telemetryProvider = new SetOnce<>();
     private final Settings settings;
+    private final SetOnce<List<SdkMeterProviderConfigurer>> meterProviderConfigurers = new SetOnce<>();
 
     public APM(Settings settings) {
         this.settings = settings;
+    }
+
+    @Override
+    public void loadExtensions(ExtensionLoader loader) {
+        meterProviderConfigurers.set(loader.loadExtensions(SdkMeterProviderConfigurer.class));
     }
 
     @Override
@@ -73,7 +82,8 @@ public class APM extends Plugin implements NetworkPlugin, TelemetryPlugin {
             diskBufferPath,
             environment.configDir(),
             filterProviders,
-            logResourceProvider
+            logResourceProvider,
+            meterProviderConfigurers.get()
         );
         telemetryProvider.set(apmTelemetryProvider);
         return apmTelemetryProvider;

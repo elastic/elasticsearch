@@ -668,8 +668,11 @@ public class Knn extends SingleFieldFullTextFunction
     private static void requireUnitLength(float[] vector) {
         if (false == VectorUtil.isUnitVector(vector)) {
             throw new IllegalArgumentException(
-                format(null, "dot_product requires unit-length vectors but encountered magnitude [{}]",
-                    Math.sqrt(VectorUtil.dotProduct(vector, vector)))
+                format(
+                    null,
+                    "dot_product requires unit-length vectors but encountered magnitude [{}]",
+                    Math.sqrt(VectorUtil.dotProduct(vector, vector))
+                )
             );
         }
     }
@@ -714,7 +717,7 @@ public class Knn extends SingleFieldFullTextFunction
             return true;
         }
         float similarity = similarityMetric.calculateSimilarity(scratchVector, queryVector);
-        return similarityMetric.score(similarity, dimensions) >= similarityMetric.score(similarityThreshold, dimensions);
+        return similarityMetric.normalizeToRelevanceScore(similarity) >= similarityMetric.normalizeToRelevanceScore(similarityThreshold);
     }
 
     /**
@@ -745,6 +748,6 @@ public class Knn extends SingleFieldFullTextFunction
         if (similarityMetric == VectorSimilarityMetric.DOT_PRODUCT) {
             requireUnitLength(scratchVector);
         }
-        return similarityMetric.score(similarityMetric.calculateSimilarity(scratchVector, queryVector), dimensions) * boost;
+        return similarityMetric.normalizeToRelevanceScore(similarityMetric.calculateSimilarity(scratchVector, queryVector)) * boost;
     }
 }

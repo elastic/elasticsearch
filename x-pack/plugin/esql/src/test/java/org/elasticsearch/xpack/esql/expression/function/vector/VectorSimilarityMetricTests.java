@@ -45,31 +45,31 @@ public class VectorSimilarityMetricTests extends ESTestCase {
 
     public void testCosineScore() {
         // Identical, orthogonal and opposite vectors map to the ends and the middle of the interval
-        assertThat(VectorSimilarityMetric.COSINE.score(1.0f, 3), equalTo(1.0));
-        assertThat(VectorSimilarityMetric.COSINE.score(0.0f, 3), equalTo(0.5));
-        assertThat(VectorSimilarityMetric.COSINE.score(-1.0f, 3), equalTo(0.0));
+        assertThat(VectorSimilarityMetric.COSINE.normalizeToRelevanceScore(1.0f), equalTo(1.0));
+        assertThat(VectorSimilarityMetric.COSINE.normalizeToRelevanceScore(0.0f), equalTo(0.5));
+        assertThat(VectorSimilarityMetric.COSINE.normalizeToRelevanceScore(-1.0f), equalTo(0.0));
     }
 
     public void testDotProductScoreOnUnitLengthVectors() {
-        assertThat(VectorSimilarityMetric.DOT_PRODUCT.score(1.0f, 3), equalTo(1.0));
-        assertThat(VectorSimilarityMetric.DOT_PRODUCT.score(0.0f, 3), equalTo(0.5));
-        assertThat(VectorSimilarityMetric.DOT_PRODUCT.score(-1.0f, 3), equalTo(0.0));
+        assertThat(VectorSimilarityMetric.DOT_PRODUCT.normalizeToRelevanceScore(1.0f), equalTo(1.0));
+        assertThat(VectorSimilarityMetric.DOT_PRODUCT.normalizeToRelevanceScore(0.0f), equalTo(0.5));
+        assertThat(VectorSimilarityMetric.DOT_PRODUCT.normalizeToRelevanceScore(-1.0f), equalTo(0.0));
     }
 
     public void testL2NormScoreDecreaseWithDistance() {
-        assertThat(VectorSimilarityMetric.L2_NORM.score(0.0f, 3), equalTo(1.0));
-        assertThat(VectorSimilarityMetric.L2_NORM.score(1.0f, 3), equalTo(0.5));
-        assertThat(VectorSimilarityMetric.L2_NORM.score(2.0f, 3), equalTo(0.2));
+        assertThat(VectorSimilarityMetric.L2_NORM.normalizeToRelevanceScore(0.0f), equalTo(1.0));
+        assertThat(VectorSimilarityMetric.L2_NORM.normalizeToRelevanceScore(1.0f), equalTo(0.5));
+        assertThat(VectorSimilarityMetric.L2_NORM.normalizeToRelevanceScore(2.0f), equalTo(0.2));
     }
 
     public void testMaxInnerProductScore() {
         // Positive inner products: similarity + 1
-        assertThat(VectorSimilarityMetric.MAX_INNER_PRODUCT.score(0.0f, 3), equalTo(1.0));
-        assertThat(VectorSimilarityMetric.MAX_INNER_PRODUCT.score(1.0f, 3), equalTo(2.0));
-        assertThat(VectorSimilarityMetric.MAX_INNER_PRODUCT.score(3.0f, 3), equalTo(4.0));
+        assertThat(VectorSimilarityMetric.MAX_INNER_PRODUCT.normalizeToRelevanceScore(0.0f), equalTo(1.0));
+        assertThat(VectorSimilarityMetric.MAX_INNER_PRODUCT.normalizeToRelevanceScore(1.0f), equalTo(2.0));
+        assertThat(VectorSimilarityMetric.MAX_INNER_PRODUCT.normalizeToRelevanceScore(3.0f), equalTo(4.0));
         // Negative inner products: 1 / (1 - similarity)
-        assertThat(VectorSimilarityMetric.MAX_INNER_PRODUCT.score(-1.0f, 3), equalTo(0.5));
-        assertThat(VectorSimilarityMetric.MAX_INNER_PRODUCT.score(-3.0f, 3), equalTo(0.25));
+        assertThat(VectorSimilarityMetric.MAX_INNER_PRODUCT.normalizeToRelevanceScore(-1.0f), equalTo(0.5));
+        assertThat(VectorSimilarityMetric.MAX_INNER_PRODUCT.normalizeToRelevanceScore(-3.0f), equalTo(0.25));
     }
 
     /**
@@ -78,21 +78,20 @@ public class VectorSimilarityMetricTests extends ESTestCase {
      * apart, so the normalization has to invert the last group.
      */
     public void testScoreOrdersByRelevanceWhicheverWayTheRawValueRuns() {
-        int dimensions = randomIntBetween(1, 16);
-        assertScoreIncreasesWithRawValue(VectorSimilarityMetric.COSINE, dimensions);
-        assertScoreIncreasesWithRawValue(VectorSimilarityMetric.DOT_PRODUCT, dimensions);
-        assertScoreIncreasesWithRawValue(VectorSimilarityMetric.MAX_INNER_PRODUCT, dimensions);
-        assertScoreDecreasesWithRawValue(VectorSimilarityMetric.L2_NORM, dimensions);
+        assertScoreIncreasesWithRawValue(VectorSimilarityMetric.COSINE);
+        assertScoreIncreasesWithRawValue(VectorSimilarityMetric.DOT_PRODUCT);
+        assertScoreIncreasesWithRawValue(VectorSimilarityMetric.MAX_INNER_PRODUCT);
+        assertScoreDecreasesWithRawValue(VectorSimilarityMetric.L2_NORM);
     }
 
-    private static void assertScoreIncreasesWithRawValue(VectorSimilarityMetric metric, int dimensions) {
-        assertThat(metric.toString(), metric.score(0.75f, dimensions), greaterThan(metric.score(0.25f, dimensions)));
-        assertThat(metric.toString(), metric.score(0.25f, dimensions), greaterThan(metric.score(-0.5f, dimensions)));
+    private static void assertScoreIncreasesWithRawValue(VectorSimilarityMetric metric) {
+        assertThat(metric.toString(), metric.normalizeToRelevanceScore(0.75f), greaterThan(metric.normalizeToRelevanceScore(0.25f)));
+        assertThat(metric.toString(), metric.normalizeToRelevanceScore(0.25f), greaterThan(metric.normalizeToRelevanceScore(-0.5f)));
     }
 
-    private static void assertScoreDecreasesWithRawValue(VectorSimilarityMetric metric, int dimensions) {
-        assertThat(metric.toString(), metric.score(0.0f, dimensions), greaterThan(metric.score(1.0f, dimensions)));
-        assertThat(metric.toString(), metric.score(1.0f, dimensions), greaterThan(metric.score(2.0f, dimensions)));
+    private static void assertScoreDecreasesWithRawValue(VectorSimilarityMetric metric) {
+        assertThat(metric.toString(), metric.normalizeToRelevanceScore(0.0f), greaterThan(metric.normalizeToRelevanceScore(1.0f)));
+        assertThat(metric.toString(), metric.normalizeToRelevanceScore(1.0f), greaterThan(metric.normalizeToRelevanceScore(2.0f)));
     }
 
     /**
@@ -103,7 +102,7 @@ public class VectorSimilarityMetricTests extends ESTestCase {
         int dimensions = randomIntBetween(1, 16);
         for (VectorSimilarityMetric metric : List.of(VectorSimilarityMetric.COSINE, VectorSimilarityMetric.L2_NORM)) {
             for (int i = 0; i < 100; i++) {
-                double score = score(metric, randomPositiveVector(dimensions), randomPositiveVector(dimensions), dimensions);
+                double score = score(metric, randomPositiveVector(dimensions), randomPositiveVector(dimensions));
                 assertThat(metric.toString(), score, greaterThanOrEqualTo(0.0));
                 assertThat(metric.toString(), score, lessThanOrEqualTo(1.0));
             }
@@ -115,9 +114,8 @@ public class VectorSimilarityMetricTests extends ESTestCase {
         for (int i = 0; i < 100; i++) {
             float[] left = unitVector(dimensions);
             float[] right = unitVector(dimensions);
-            double score = VectorSimilarityMetric.DOT_PRODUCT.score(
-                VectorSimilarityMetric.DOT_PRODUCT.calculateSimilarity(left, right),
-                dimensions
+            double score = VectorSimilarityMetric.DOT_PRODUCT.normalizeToRelevanceScore(
+                VectorSimilarityMetric.DOT_PRODUCT.calculateSimilarity(left, right)
             );
             // A tolerance is needed because the dot product of two unit vectors only lands in [-1, 1] up to the
             // rounding of the float arithmetic that produced them
@@ -131,7 +129,7 @@ public class VectorSimilarityMetricTests extends ESTestCase {
         float[] right = new float[] { 3.0f, 0.0f, 0.0f };
         // cos = 3 / 5 = 0.6, so the score is (1 + 0.6) / 2 = 0.8
         assertThat(
-            VectorSimilarityMetric.COSINE.score(VectorSimilarityMetric.COSINE.calculateSimilarity(left, right), 3),
+            VectorSimilarityMetric.COSINE.normalizeToRelevanceScore(VectorSimilarityMetric.COSINE.calculateSimilarity(left, right)),
             closeTo(0.8, 1e-6)
         );
     }
@@ -141,13 +139,15 @@ public class VectorSimilarityMetricTests extends ESTestCase {
         float[] b = new float[] { 10.0f, 0.0f };
         // dot product = 100, score = 101
         assertThat(
-            VectorSimilarityMetric.MAX_INNER_PRODUCT.score(VectorSimilarityMetric.MAX_INNER_PRODUCT.calculateSimilarity(a, b), 2),
+            VectorSimilarityMetric.MAX_INNER_PRODUCT.normalizeToRelevanceScore(
+                VectorSimilarityMetric.MAX_INNER_PRODUCT.calculateSimilarity(a, b)
+            ),
             closeTo(101.0, 1e-4)
         );
     }
 
-    private static double score(VectorSimilarityMetric metric, float[] left, float[] right, int dimensions) {
-        return metric.score(metric.calculateSimilarity(left, right), dimensions);
+    private static double score(VectorSimilarityMetric metric, float[] left, float[] right) {
+        return metric.normalizeToRelevanceScore(metric.calculateSimilarity(left, right));
     }
 
     private static float[] randomPositiveVector(int dimensions) {

@@ -59,6 +59,7 @@ class ByteArrayFlowPublisher implements Flow.Publisher<byte[]> {
     private final ThreadPool threadPool;
     private final CircuitBreaker circuitBreaker;
     private final String inferenceEntityId;
+    private final Runnable abortExchange;
     private final AtomicLong lastActivityMillis;
     private final AtomicReference<RelaySubscriber> relay = new AtomicReference<>();
     private final AtomicBoolean abortedBeforeSubscribe = new AtomicBoolean(false);
@@ -66,11 +67,18 @@ class ByteArrayFlowPublisher implements Flow.Publisher<byte[]> {
     private volatile boolean closed = false;
     private final Scheduler.Cancellable watchdog;
 
-    ByteArrayFlowPublisher(Publisher<ByteBuffer> upstream, ThreadPool threadPool, CircuitBreaker circuitBreaker, String inferenceEntityId) {
+    ByteArrayFlowPublisher(
+        Publisher<ByteBuffer> upstream,
+        ThreadPool threadPool,
+        CircuitBreaker circuitBreaker,
+        String inferenceEntityId,
+        Runnable abortExchange
+    ) {
         this.upstream = FlowAdapters.toFlowPublisher(Objects.requireNonNull(upstream));
         this.threadPool = Objects.requireNonNull(threadPool);
         this.circuitBreaker = Objects.requireNonNull(circuitBreaker);
         this.inferenceEntityId = Objects.requireNonNull(inferenceEntityId);
+        this.abortExchange = Objects.requireNonNull(abortExchange);
         this.lastActivityMillis = new AtomicLong(threadPool.relativeTimeInMillis());
         this.watchdog = threadPool.scheduleWithFixedDelay(
             this::checkProgress,
@@ -194,6 +202,7 @@ class ByteArrayFlowPublisher implements Flow.Publisher<byte[]> {
                 public void cancel() {
                     close();
                     subscription.cancel();
+                    abortExchange.run();
                     taskRunner.cancel();
                 }
             });

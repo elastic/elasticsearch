@@ -36,6 +36,9 @@ import java.io.IOException;
 import java.nio.ByteBuffer;
 import java.util.Objects;
 import java.util.concurrent.CancellationException;
+import java.util.concurrent.Future;
+import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.concurrent.atomic.AtomicReference;
 
 import static org.elasticsearch.core.Strings.format;
 import static org.elasticsearch.xpack.inference.InferencePlugin.INFERENCE_RESPONSE_THREAD_POOL_NAME;
@@ -148,7 +151,16 @@ public class HttpClient implements Closeable {
     }
 
     private void failRequestUsingResponseThread(HttpRequest request, Exception ex, ActionListener<?> listener) {
-        throttlerManager.warn(logger, format("Request from inference entity id [%s] failed", request.inferenceEntityId()), ex);
+        failRequestUsingResponseThread(request, ex, listener, false);
+    }
+
+    private void failRequestUsingResponseThread(HttpRequest request, Exception ex, ActionListener<?> listener, boolean selfAborted) {
+        if (selfAborted) {
+            // this is our own abort coming back; the consumer already knows the stream ended
+            logger.debug(() -> format("Stream for inference entity id [%s] ended after cancellation", request.inferenceEntityId()), ex);
+        } else {
+            throttlerManager.warn(logger, format("Request from inference entity id [%s] failed", request.inferenceEntityId()), ex);
+        }
         failUsingResponseThread(getException(ex), listener);
     }
 
@@ -196,6 +208,20 @@ public class HttpClient implements Closeable {
     public void stream(HttpRequest request, HttpClientContext context, ActionListener<StreamingHttpResult> listener) {
         var notifyOnceListener = ActionListener.notifyOnce(listener);
 
+        /*
+          Subscription#cancel() would only actually cancel when the next chunk arrives.
+          Cancelling the execute() future does cancel it directly (important for idle connections)
+         */
+        var exchange = new AtomicReference<Future<Void>>();
+        var aborted = new AtomicBoolean(false);
+        Runnable abortExchange = () -> {
+            aborted.set(true);
+            var future = exchange.get();
+            if (future != null) {
+                future.cancel(true);
+            }
+        };
+
         // The callback fires as soon as the response head arrives; the body is streamed through the message's publisher afterwards,
         // with backpressure and cancellation handled by the reactive consumer at the channel level. The publisher accounts buffered
         // chunks against the inference circuit breaker and aborts the exchange if the stream is abandoned.
@@ -207,7 +233,13 @@ public class HttpClient implements Closeable {
                         () -> notifyOnceListener.onResponse(
                             new StreamingHttpResult(
                                 message.getHead(),
-                                new ByteArrayFlowPublisher(message.getBody(), threadPool, circuitBreaker, request.inferenceEntityId())
+                                new ByteArrayFlowPublisher(
+                                    message.getBody(),
+                                    threadPool,
+                                    circuitBreaker,
+                                    request.inferenceEntityId(),
+                                    abortExchange
+                                )
                             )
                         )
                     );
@@ -215,7 +247,7 @@ public class HttpClient implements Closeable {
 
             @Override
             public void failed(Exception ex) {
-                failRequestUsingResponseThread(request, ex, notifyOnceListener);
+                failRequestUsingResponseThread(request, ex, notifyOnceListener, aborted.get());
             }
 
             @Override
@@ -224,7 +256,7 @@ public class HttpClient implements Closeable {
             }
         });
 
-        client.execute(SimpleRequestProducer.create(request.httpRequest()), reactiveConsumer, context, new FutureCallback<>() {
+        exchange.set(client.execute(SimpleRequestProducer.create(request.httpRequest()), reactiveConsumer, context, new FutureCallback<>() {
             @Override
             public void completed(Void response) {
                 // the body publisher delivers the terminal signal to the subscriber
@@ -243,7 +275,7 @@ public class HttpClient implements Closeable {
             public void cancelled() {
                 cancelRequestUsingResponseThread(request, notifyOnceListener);
             }
-        });
+        }));
     }
 
     @Override

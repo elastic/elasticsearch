@@ -58,8 +58,10 @@ public class ByteArrayFlowPublisherTests extends ESTestCase {
         terminate(threadPool);
     }
 
+    private final AtomicBoolean exchangeAborted = new AtomicBoolean();
+
     private ByteArrayFlowPublisher publisher(Publisher<ByteBuffer> upstream) {
-        return new ByteArrayFlowPublisher(upstream, threadPool, new TestCircuitBreaker(), "inference-id");
+        return new ByteArrayFlowPublisher(upstream, threadPool, new TestCircuitBreaker(), "inference-id", () -> exchangeAborted.set(true));
     }
 
     /**
@@ -179,17 +181,20 @@ public class ByteArrayFlowPublisherTests extends ESTestCase {
     /**
      * When the downstream cancels its subscription
      * Then the cancellation propagates to the upstream subscription
+     * And the exchange is aborted
      */
-    public void testCancelPropagatesToUpstreamSubscription() {
+    public void testCancelPropagatesToUpstreamSubscriptionAndAbortsExchange() {
         var upstream = new TestUpstreamPublisher();
         var subscriber = new TestSubscriber(0);
         publisher(upstream).subscribe(subscriber);
 
         assertFalse(upstream.isCancelled());
+        assertFalse(exchangeAborted.get());
 
         subscriber.subscription.cancel();
 
         assertTrue(upstream.isCancelled());
+        assertTrue("cancel must also abort the exchange to release the leased connection promptly", exchangeAborted.get());
     }
 
     /**

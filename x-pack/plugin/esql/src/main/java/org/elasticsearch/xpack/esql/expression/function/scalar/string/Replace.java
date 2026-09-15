@@ -161,12 +161,7 @@ public class Replace extends EsqlScalarFunction implements AnyNullIsNull {
         if (regex == null || newStr == null) {
             return str;
         }
-        String pattern = regex.utf8ToString();
-        try {
-            return safeReplace(str, Pattern.compile(pattern), newStr);
-        } catch (StackOverflowError e) {
-            throw new IllegalArgumentException("Pattern nesting is too deep to evaluate", e);
-        }
+        return safeReplace(str, Pattern.compile(regex.utf8ToString()), newStr);
     }
 
     /**

@@ -111,22 +111,11 @@ public final class FixtureCapabilities {
      * comma_list} is not, and its rule says why: one element is indistinguishable from exact.
      */
     private static final Set<String> RESOLVER_SERVED = Set.of(
-        // Every format is served. elastic/esql-planning#1841 still blocks the individual PAIRS where a
-        // format-specific setting is present -- the CRUD validator truncates the object key at the `?`, so
-        // format inference finds no extension -- but that is a per-case question now, answered at the
-        // crossing by globCannotCarryAFormatKey, not a property of the format.
-        //
-        // csv and tsv were listed as blocked here, and that was true only because the harness injected
-        // trim_spaces into every text dataset, so a format-specific key was always present. Injection is
-        // data-driven now: of the ten routed datasets three pad and four write brackets, overlapping in two,
-        // so five carry no format-specific key at all and register under a glob perfectly well. The counts
-        // are declared in fixture-matrix.properties and checkFixturePadding gates the padded half of them
-        // against the bytes. Keeping them out of this
-        // set would have discarded that coverage on the strength of a defect that no longer reaches them.
-        //
-        // parquet registers no format-specific keys at all since elastic/elasticsearch#157868, and ORC is
-        // in the same position structurally -- OrcDataSourcePlugin declares FormatSpec.of("orc", ".orc"),
-        // whose config-key set is empty -- so #1841 has nothing to truncate on either.
+        // Every format is served. csv and tsv were once listed as blocked, on the strength of a registration
+        // defect that a `?` glob hit whenever the dataset carried a format-specific setting -- which was
+        // always, because the harness injected trim_spaces into every text dataset. Injection became
+        // data-driven and then the defect itself was fixed, so the blanket no longer has either leg to
+        // stand on.
         "path_shape=glob@csv",
         "path_shape=glob@tsv",
         "path_shape=glob@ndjson",

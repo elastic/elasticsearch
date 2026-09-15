@@ -20,11 +20,10 @@ import static org.hamcrest.Matchers.empty;
  * The fixture crossing carries a MIRROR of this plugin's format config keys, and asserting they agree
  * has to happen here because only this module can see both.
  *
- * <p>The crossing needs the set to decide whether a dataset may be registered under a {@code ?} glob:
- * elastic/esql-planning#1841 truncates the object key at the {@code ?}, so a dataset carrying a
- * format-specific key fails registration. {@code fixture-common} cannot import the plugin -- it is
- * dependency-free by design so it stays off the ORC and Parquet generator classpaths, which isolate
- * their Hadoop jars -- so the list is declared as {@code format_specific_keys} and copied by hand.
+ * <p>The crossing needs the set because a dataset carrying a format-specific key must resolve a format
+ * before it can be registered. {@code fixture-common} cannot import the plugin -- it is dependency-free by
+ * design so it stays off the ORC and Parquet generator classpaths, which isolate their Hadoop jars -- so
+ * the list is declared as {@code format_specific_keys} and copied by hand.
  *
  * <p>A hand-copied list drifts, and it already did: {@code column_prefix} was missing while two routed
  * specs declared it, and they escaped a 400 only because those directives happen to also declare

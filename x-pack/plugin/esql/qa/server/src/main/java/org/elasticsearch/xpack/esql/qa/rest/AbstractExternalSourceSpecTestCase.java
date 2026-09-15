@@ -393,10 +393,6 @@ public abstract class AbstractExternalSourceSpecTestCase extends EsqlSpecTestCas
                     pinned++;
                     continue;
                 }
-                if (globCannotCarryAFormatKey(dimensions, baseTest, vector, vectorInjectedSettings(dimensions, vector))) {
-                    unrepresentable++;
-                    continue;
-                }
                 if (pathShapeCannotCarry(dimensions, baseTest, vector)) {
                     unrepresentable++;
                     continue;
@@ -677,6 +673,12 @@ public abstract class AbstractExternalSourceSpecTestCase extends EsqlSpecTestCas
         if (shape == null || shape.equals(dimensions.defaultValue("path_shape", vector.get("format")))) {
             return false;
         }
+        if (pathShapeIsApplied(shape) == false) {
+            // Off the default, but pathShaped rewrites nothing for it -- so the case would read the
+            // byte-identical exact resource under a name announcing this shape, on EVERY layout. The
+            // standalone scan below is about where a glob reaches; it does not apply here.
+            return true;
+        }
         CsvTestCase testCase = (CsvTestCase) baseTest[4];
         for (DatasetSource source : testCase.datasetSources) {
             String template = templateNameIn(source.resource());
@@ -685,68 +687,6 @@ public abstract class AbstractExternalSourceSpecTestCase extends EsqlSpecTestCas
             }
         }
         return true;
-    }
-
-    /**
-     * Whether a glob vector would ask for a dataset the CRUD validator will refuse to register.
-     *
-     * <p>elastic/esql-planning#1841: {@code FileDataSourceValidator.extractObjectName} truncates an object
-     * key at the first {@code ?}, applying URL query-string semantics to a storage key, which deletes the
-     * extension before format inference runs. The refusal only fires when a FORMAT-SPECIFIC setting is
-     * present -- with none, no format has to be resolved and the same glob registers fine.
-     *
-     * <p>So this asks per case, rather than blocking the cell per format. A dataset picks up a
-     * format-specific key three ways: its own directive declares one, the vector injects one, or the
-     * harness adds one because the authored rows are padded ({@code trim_spaces}) or carry bracket
-     * multi-values ({@code multi_value_syntax}). Ask all three.
-     *
-     * <p>This replaced a blanket {@code bug:} absence on csv and tsv, which was true only because the
-     * harness used to inject {@code trim_spaces} into every text dataset. Once that became data-driven,
-     * five of the ten routed datasets carry no format-specific key at all and their glob cell is real
-     * coverage; blocking the whole cell would now discard it. Deleting this filter is the verification
-     * when #1841 is fixed.
-     */
-    static boolean globCannotCarryAFormatKey(
-        FixtureDimensions dimensions,
-        Object[] baseTest,
-        Map<String, String> vector,
-        Map<String, String> injected
-    ) {
-        if ("glob".equals(vector.get("path_shape")) == false) {
-            return false;
-        }
-        Set<String> formatKeys = dimensions.formatSpecificKeys();
-        for (String key : injected.keySet()) {
-            if (formatKeys.contains(key)) {
-                return true;
-            }
-        }
-        CsvTestCase testCase = (CsvTestCase) baseTest[4];
-        String format = vector.get("format");
-        // Only the text formats get anything injected per source, so only they can pick up a key that way.
-        // Asking the others is not merely pointless -- injectMultiValueSyntax reaches
-        // writeDialectForTemplate, which throws for a dataset that declares no dialect, and the columnar
-        // datasets legitimately do not: bracket multi-values are a delimited-text notion. Measured, this
-        // filter reaching clickbench on parquet failed the whole suite at initialization. Scoped with the
-        // same question withJsonForSource asks before it injects anything.
-        boolean injects = dimensions.appliesTo("text_mode").contains(FixtureMatrix.baseFormat(format));
-        for (DatasetSource source : testCase.datasetSources) {
-            // Ask the injectors rather than re-deriving what they decide. They were re-derived here once --
-            // padded-or-brackets, keyed off the template name -- and the copy disagreed with the original on
-            // a resource that names no template: injectTrimSpaces falls through and injects, while the copy
-            // read the missing template as "nothing injected" and let the pair register. Every routed text
-            // resource names a template today, so that was latent rather than live, which is exactly how the
-            // directive-seam silent pass survived undetected. One rule cannot disagree with itself.
-            String effective = injects
-                ? injectMultiValueSyntax(injectTrimSpaces(source.withJson(), source.resource(), format), source.resource())
-                : source.withJson();
-            for (String key : formatKeys) {
-                if (DatasetRegistry.declaresSetting(effective, key)) {
-                    return true;
-                }
-            }
-        }
-        return false;
     }
 
     /**
@@ -1678,6 +1618,18 @@ public abstract class AbstractExternalSourceSpecTestCase extends EsqlSpecTestCas
     }
 
     /**
+     * The one {@code path_shape} value {@link #pathShaped} rewrites a name for.
+     *
+     * <p>Shared with {@link #pathShapeCannotCarry} because the two must agree on what "shaped" means and
+     * they did not: the filter keyed on off-default-ness, which is a different question and answers
+     * differently for every value but this one. One producer is the only arrangement where they cannot
+     * drift -- the same rule the injector and the glob filter already learned.
+     */
+    private static boolean pathShapeIsApplied(String shape) {
+        return "glob".equals(shape);
+    }
+
+    /**
      * The filename a standalone template resolves to, shaped by the vector's {@code path_shape}.
      *
      * <p>{@code exact} names the file. {@code glob} asks for it by pattern instead -- the same single
@@ -1690,7 +1642,7 @@ public abstract class AbstractExternalSourceSpecTestCase extends EsqlSpecTestCas
      * names several files, which is the multifile layouts' territory rather than this branch.
      */
     private String pathShaped(String templateName, String extension) {
-        if ("glob".equals(vector().get("path_shape")) == false) {
+        if (pathShapeIsApplied(vector().get("path_shape")) == false) {
             return templateName + "." + extension;
         }
         // A single-character wildcard INSIDE the name, with the extension kept literal. The two obvious
@@ -1725,11 +1677,10 @@ public abstract class AbstractExternalSourceSpecTestCase extends EsqlSpecTestCas
         if (DatasetRegistry.declaresSetting(withJson, "trim_spaces")) {
             return withJson;
         }
-        // Per SOURCE, from the declaration -- not blanket. trim_spaces is a FORMAT-SPECIFIC key, and a
-        // dataset carrying one cannot be registered under a `?` glob (elastic/esql-planning#1841), so
-        // injecting it into datasets whose rows are not padded was buying nothing and costing the whole
-        // path_shape=glob cell on csv and tsv. Measured: seven of the ten routed datasets pad nothing.
-        // This mirrors injectMultiValueSyntax, which has always been per-source for the same reason.
+        // Per SOURCE, from the declaration -- not blanket. The declaration states whether the BYTES carry
+        // edge whitespace, and checkFixturePadding gates it against the authored csv, so injecting into a
+        // dataset that pads nothing would assert something the fixture contradicts. Measured: seven of the
+        // ten routed datasets pad nothing. This mirrors injectMultiValueSyntax, which is per-source too.
         String template = templateNameIn(resource);
         if (template != null && MATRIX.paddedForTemplate(template, format) == false) {
             return withJson;

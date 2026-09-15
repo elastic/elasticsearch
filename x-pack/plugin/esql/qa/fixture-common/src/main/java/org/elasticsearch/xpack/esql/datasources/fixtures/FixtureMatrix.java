@@ -295,10 +295,9 @@ public final class FixtureMatrix {
      * tsv or ndjson copy of a padded dataset is not padded -- measured: {@code employees.tsv} has zero
      * padded fields where {@code employees.csv} has 303.
      *
-     * <p>Getting this format-blind was worse than leaving it blanket. It made
-     * {@code globCannotCarryAFormatKey} answer true for every tsv {@code employees_no_mv} glob pair --
-     * the most-used template in the corpus -- discarding the exact coverage opening the cell was meant to
-     * add, and silently, because a filtered pair logs a count and not a name.
+     * <p>Getting this format-blind declares padding on bytes that carry none, which is a false statement
+     * about the fixture wherever it is read -- and it was once worse than that, discarding every tsv
+     * {@code employees_no_mv} glob pair silently, because a filtered pair logs a count and not a name.
      *
      * <p>Declared rather than sniffed, and verified against the bytes by the {@code checkFixturePadding}
      * gradle task, which reads every canonical CSV on precommit and fails when a declaration disagrees

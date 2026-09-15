@@ -1,0 +1,29 @@
+# Runs the ES|QL generative suites off the pull-request path.
+#
+# A generated query is chosen by a seed, not by the change under test, so a failure here cannot be
+# attributed to any one pull request. Running on a schedule instead lets every GenerativeFeature
+# variant run unmuted (-Ptests.mutes.enabled=false) without gating anyone's merge.
+#
+# One run is one sample. To confirm a failure, re-run the class through the FLAKINESS_ITERS harness
+# in .buildkite/pipelines/flakiness-detection-manual.yml rather than adding retries here: a retry
+# runs a *different* query, so "failed then passed" says nothing about flakiness for this suite.
+steps:
+  - label: esql-generative-single-node
+    command: .ci/scripts/run-gradle.sh -Ptests.mutes.enabled=false :x-pack:plugin:esql:qa:server:single-node:generativeTests
+    timeout_in_minutes: 120
+    agents:
+      provider: gcp
+      image: family/elasticsearch-ubuntu-2404
+      machineType: n4-standard-16
+      diskType: hyperdisk-balanced
+      buildDirectory: /dev/shm/bk
+
+  - label: esql-generative-multi-node
+    command: .ci/scripts/run-gradle.sh -Ptests.mutes.enabled=false :x-pack:plugin:esql:qa:server:multi-node:generativeTests
+    timeout_in_minutes: 120
+    agents:
+      provider: gcp
+      image: family/elasticsearch-ubuntu-2404
+      machineType: n4-standard-16
+      diskType: hyperdisk-balanced
+      buildDirectory: /dev/shm/bk

@@ -145,6 +145,21 @@ tasks.named('javaRestTest') {
   jvmArgs('--add-opens=java.base/java.nio=ALL-UNNAMED')
 }
 
+// GenerativeIT picks its query from a seed rather than from the change under test, so a failure cannot be
+// attributed to the pull request that hit it. This task exists so the suite can run on a schedule instead,
+// with all GenerativeFeature variants unmuted (-Ptests.mutes.enabled=false).
+// Deliberately not wired into 'check': the scheduled pipeline invokes it by name.
+// See .buildkite/pipelines/periodic-esql-generative.yml.
+tasks.register('generativeTests', StandaloneRestIntegTestTask) {
+  usesDefaultDistribution("to be triaged")
+  jvmArgs('--add-opens=java.base/java.nio=ALL-UNNAMED')
+  testClassesDirs = sourceSets.javaRestTest.output.classesDirs
+  classpath = sourceSets.javaRestTest.runtimeClasspath
+  filter {
+    includeTestsMatching 'org.elasticsearch.xpack.esql.qa.single_node.GenerativeIT'
+  }
+}
+
 def csvSpecTests = tasks.register('csvSpecTests', StandaloneRestIntegTestTask) {
   usesDefaultDistribution("to be triaged")
   // AbstractEsqlSpecIT declares its cluster with shared(true), which is incompatible with parallel forks

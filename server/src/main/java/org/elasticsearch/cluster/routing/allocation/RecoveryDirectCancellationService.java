@@ -155,7 +155,7 @@ public class RecoveryDirectCancellationService extends AbstractLifecycleComponen
             }
         });
         clusterSettings.initializeAndWatchIfRegistered(ENABLE_DIRECT_CANCELLATIONS_FOR_SNAPSHOTS_SETTING, enabled -> {
-            enableDirectCancellationsForSnapshots = enabled;
+            this.enableDirectCancellationsForSnapshots = enabled;
             if (enabled == false || lifecycle.started() == false) {
                 return;
             }

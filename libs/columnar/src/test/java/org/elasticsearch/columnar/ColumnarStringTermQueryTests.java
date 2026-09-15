@@ -43,6 +43,7 @@ import java.util.function.IntFunction;
 
 import static org.elasticsearch.columnar.ColumnarTestUtils.columnarBinaryFieldType;
 import static org.elasticsearch.columnar.ColumnarTestUtils.columnarCodec;
+import static org.elasticsearch.columnar.ColumnarTestUtils.stringPayload;
 
 /**
  * The term and prefix queries driven through a real {@link IndexSearcher} over a ColumNAR-coded index, so
@@ -95,8 +96,9 @@ public class ColumnarStringTermQueryTests extends ESTestCase {
         final List<String> ordered = new ArrayList<>(values(between(600, 2000), d -> TERMS[d % TERMS.length]));
         java.util.Collections.sort(ordered);
         try (Directory dir = newDirectory()) {
-            final IndexWriterConfig iwc = new IndexWriterConfig().setCodec(columnarCodec()).setMergePolicy(new LogDocMergePolicy());
-            final FieldType type = columnarBinaryFieldType(ColumnarFieldType.STRING);
+            final IndexWriterConfig iwc = new IndexWriterConfig().setCodec(columnarCodec(ColumnarFieldType.STRING))
+                .setMergePolicy(new LogDocMergePolicy());
+            final FieldType type = columnarBinaryFieldType();
             try (IndexWriter writer = new IndexWriter(dir, iwc)) {
                 int written = 0;
                 for (String value : ordered) {
@@ -105,7 +107,7 @@ public class ColumnarStringTermQueryTests extends ESTestCase {
                         writer.flush();
                     }
                     final Document doc = new Document();
-                    doc.add(new Field(FIELD, new BytesRef(value), type));
+                    doc.add(new Field(FIELD, stringPayload(value), type));
                     writer.addDocument(doc);
                 }
                 writer.forceMerge(1);
@@ -121,7 +123,7 @@ public class ColumnarStringTermQueryTests extends ESTestCase {
                     assertEquals(
                         "term [" + probe + "]",
                         expected(ordered, probe, true),
-                        found(searcher, ColumnarStringTermQuery.term(FIELD, new BytesRef(probe)))
+                        found(searcher, ColumnarStringTermQuery.term(FIELD, new BytesRef(probe), ScanBudget.UNLIMITED))
                     );
                 }
             }
@@ -136,9 +138,10 @@ public class ColumnarStringTermQueryTests extends ESTestCase {
     public void testMergeWithSegmentsMissingTheField() throws IOException {
         final List<String> values = new ArrayList<>();
         try (Directory dir = newDirectory()) {
-            final IndexWriterConfig iwc = new IndexWriterConfig().setCodec(ColumnarTestUtils.columnarCodecForField(FIELD))
-                .setMergePolicy(new LogDocMergePolicy());
-            final FieldType type = columnarBinaryFieldType(ColumnarFieldType.STRING);
+            final IndexWriterConfig iwc = new IndexWriterConfig().setCodec(
+                ColumnarTestUtils.columnarCodecForField(FIELD, ColumnarFieldType.STRING)
+            ).setMergePolicy(new LogDocMergePolicy());
+            final FieldType type = columnarBinaryFieldType();
             try (IndexWriter writer = new IndexWriter(dir, iwc)) {
                 for (int segment = 0; segment < 6; segment++) {
                     // Every other segment holds the field; the rest hold only the companion.
@@ -148,7 +151,7 @@ public class ColumnarStringTermQueryTests extends ESTestCase {
                         doc.add(new NumericDocValuesField("other", d));
                         if (holdsTheField) {
                             final String value = TERMS[(segment + d) % TERMS.length];
-                            doc.add(new Field(FIELD, new BytesRef(value), type));
+                            doc.add(new Field(FIELD, stringPayload(value), type));
                             values.add(value);
                         } else {
                             values.add(null);
@@ -188,7 +191,7 @@ public class ColumnarStringTermQueryTests extends ESTestCase {
                     assertEquals(
                         "term [" + probe + "] after merging past segments without the field",
                         expected(values, probe, true),
-                        found(searcher, ColumnarStringTermQuery.term(FIELD, new BytesRef(probe)))
+                        found(searcher, ColumnarStringTermQuery.term(FIELD, new BytesRef(probe), ScanBudget.UNLIMITED))
                     );
                 }
             }
@@ -218,13 +221,13 @@ public class ColumnarStringTermQueryTests extends ESTestCase {
                     columnarCodec(
                         new ColumNARDocValuesFormat(
                             (fieldName, type) -> NumericPipeline::defaultPipeline,
-                            ColumnarFieldType::fromField,
+                            field -> ColumnarFieldType.STRING,
                             ColumNARDocValuesFormat.DEFAULT_BLOCK_SIZE,
                             shape.policy()
                         )
                     )
                 ).setMergePolicy(new LogDocMergePolicy());
-                final FieldType type = columnarBinaryFieldType(ColumnarFieldType.STRING);
+                final FieldType type = columnarBinaryFieldType();
                 try (IndexWriter writer = new IndexWriter(dir, iwc)) {
                     int written = 0;
                     for (String value : values) {
@@ -232,7 +235,7 @@ public class ColumnarStringTermQueryTests extends ESTestCase {
                             writer.flush();
                         }
                         final Document doc = new Document();
-                        doc.add(new Field(FIELD, new BytesRef(value), type));
+                        doc.add(new Field(FIELD, stringPayload(value), type));
                         writer.addDocument(doc);
                     }
                     writer.forceMerge(1);
@@ -253,7 +256,7 @@ public class ColumnarStringTermQueryTests extends ESTestCase {
                         assertEquals(
                             shape.name() + " term [" + probe + "]",
                             expected(values, probe, true),
-                            found(searcher, ColumnarStringTermQuery.term(FIELD, new BytesRef(probe)))
+                            found(searcher, ColumnarStringTermQuery.term(FIELD, new BytesRef(probe), ScanBudget.UNLIMITED))
                         );
                     }
                 }
@@ -277,10 +280,10 @@ public class ColumnarStringTermQueryTests extends ESTestCase {
         final List<String> terms = Arrays.asList(TERMS);
         final List<String> values = values(between(600, 2000), d -> TERMS[(d * 7 + 3) % TERMS.length]);
         try (Directory dir = newDirectory()) {
-            final IndexWriterConfig iwc = new IndexWriterConfig().setCodec(ColumnarTestUtils.columnarCodecForField(FIELD))
-                .setMergePolicy(new LogDocMergePolicy())
-                .setIndexSort(new Sort(new SortField("order", SortField.Type.LONG)));
-            final FieldType type = columnarBinaryFieldType(ColumnarFieldType.STRING);
+            final IndexWriterConfig iwc = new IndexWriterConfig().setCodec(
+                ColumnarTestUtils.columnarCodecForField(FIELD, ColumnarFieldType.STRING)
+            ).setMergePolicy(new LogDocMergePolicy()).setIndexSort(new Sort(new SortField("order", SortField.Type.LONG)));
+            final FieldType type = columnarBinaryFieldType();
             try (IndexWriter writer = new IndexWriter(dir, iwc)) {
                 int written = 0;
                 for (String value : values) {
@@ -288,7 +291,7 @@ public class ColumnarStringTermQueryTests extends ESTestCase {
                         writer.flush();
                     }
                     final Document doc = new Document();
-                    doc.add(new Field(FIELD, new BytesRef(value), type));
+                    doc.add(new Field(FIELD, stringPayload(value), type));
                     doc.add(new NumericDocValuesField("order", terms.indexOf(value)));
                     writer.addDocument(doc);
                 }
@@ -309,14 +312,14 @@ public class ColumnarStringTermQueryTests extends ESTestCase {
                     assertEquals(
                         "term [" + probe + "] on an index-sorted column",
                         expected(inDocOrder, probe, true),
-                        found(searcher, ColumnarStringTermQuery.term(FIELD, new BytesRef(probe)))
+                        found(searcher, ColumnarStringTermQuery.term(FIELD, new BytesRef(probe), ScanBudget.UNLIMITED))
                     );
                 }
                 for (String probe : Arrays.asList("al", "alp", "b", "d", "az", "zzz", "")) {
                     assertEquals(
                         "prefix [" + probe + "] on an index-sorted column",
                         expected(inDocOrder, probe, false),
-                        found(searcher, ColumnarStringTermQuery.prefix(FIELD, new BytesRef(probe)))
+                        found(searcher, ColumnarStringTermQuery.prefix(FIELD, new BytesRef(probe), ScanBudget.UNLIMITED))
                     );
                 }
             }
@@ -330,12 +333,13 @@ public class ColumnarStringTermQueryTests extends ESTestCase {
     public void testMatchesThroughAnOverlaidColumn() throws IOException {
         final List<String> values = values(between(600, 2000), d -> TERMS[d % TERMS.length]);
         try (Directory dir = newDirectory()) {
-            final IndexWriterConfig iwc = new IndexWriterConfig().setCodec(columnarCodec()).setMergePolicy(new LogDocMergePolicy());
-            final FieldType type = columnarBinaryFieldType(ColumnarFieldType.STRING);
+            final IndexWriterConfig iwc = new IndexWriterConfig().setCodec(columnarCodec(ColumnarFieldType.STRING))
+                .setMergePolicy(new LogDocMergePolicy());
+            final FieldType type = columnarBinaryFieldType();
             try (IndexWriter writer = new IndexWriter(dir, iwc)) {
                 for (String value : values) {
                     final Document doc = new Document();
-                    doc.add(new Field(FIELD, new BytesRef(value), type));
+                    doc.add(new Field(FIELD, stringPayload(value), type));
                     writer.addDocument(doc);
                 }
                 writer.forceMerge(1);
@@ -346,19 +350,19 @@ public class ColumnarStringTermQueryTests extends ESTestCase {
                     assertEquals(
                         "term [" + probe + "] through an overlay",
                         expected(values, probe, true),
-                        found(searcher, ColumnarStringTermQuery.term(FIELD, new BytesRef(probe)))
+                        found(searcher, ColumnarStringTermQuery.term(FIELD, new BytesRef(probe), ScanBudget.UNLIMITED))
                     );
                     assertEquals(
                         "prefix [" + probe + "] through an overlay",
                         expected(values, probe, false),
-                        found(searcher, ColumnarStringTermQuery.prefix(FIELD, new BytesRef(probe)))
+                        found(searcher, ColumnarStringTermQuery.prefix(FIELD, new BytesRef(probe), ScanBudget.UNLIMITED))
                     );
                 }
                 for (String probe : Arrays.asList("lph", "alpha", "a", "", "zzz")) {
                     assertEquals(
                         "contains [" + probe + "] through an overlay",
                         containing(values, probe),
-                        found(searcher, ColumnarStringTermQuery.contains(FIELD, new BytesRef(probe)))
+                        found(searcher, ColumnarStringTermQuery.contains(FIELD, new BytesRef(probe), ScanBudget.UNLIMITED))
                     );
                 }
             }
@@ -368,20 +372,21 @@ public class ColumnarStringTermQueryTests extends ESTestCase {
     /** A field this segment holds no value for matches nothing, which is not the same as having no column. */
     public void testFieldAbsentFromTheSegment() throws IOException {
         try (Directory dir = newDirectory()) {
-            final IndexWriterConfig iwc = new IndexWriterConfig().setCodec(columnarCodec()).setMergePolicy(new LogDocMergePolicy());
-            final FieldType type = columnarBinaryFieldType(ColumnarFieldType.STRING);
+            final IndexWriterConfig iwc = new IndexWriterConfig().setCodec(columnarCodec(ColumnarFieldType.STRING))
+                .setMergePolicy(new LogDocMergePolicy());
+            final FieldType type = columnarBinaryFieldType();
             try (IndexWriter writer = new IndexWriter(dir, iwc)) {
                 for (int d = 0; d < 200; d++) {
                     final Document doc = new Document();
-                    doc.add(new Field("other", new BytesRef("v" + d), type));
+                    doc.add(new Field("other", stringPayload("v" + d), type));
                     writer.addDocument(doc);
                 }
                 writer.forceMerge(1);
             }
             try (DirectoryReader reader = DirectoryReader.open(dir)) {
                 final IndexSearcher searcher = new IndexSearcher(reader);
-                assertEquals(List.of(), found(searcher, ColumnarStringTermQuery.term(FIELD, new BytesRef("alpha"))));
-                assertEquals(List.of(), found(searcher, ColumnarStringAutomatonQuery.forWildcard(FIELD, "al*a")));
+                assertEquals(List.of(), found(searcher, ColumnarStringTermQuery.term(FIELD, new BytesRef("alpha"), ScanBudget.UNLIMITED)));
+                assertEquals(List.of(), found(searcher, ColumnarStringAutomatonQuery.forWildcard(FIELD, "al*a", ScanBudget.UNLIMITED)));
             }
         }
     }
@@ -404,8 +409,9 @@ public class ColumnarStringTermQueryTests extends ESTestCase {
 
     private void assertQueries(List<String> values, boolean severalSegments) throws IOException {
         try (Directory dir = newDirectory()) {
-            final IndexWriterConfig iwc = new IndexWriterConfig().setCodec(columnarCodec()).setMergePolicy(new LogDocMergePolicy());
-            final FieldType type = columnarBinaryFieldType(ColumnarFieldType.STRING);
+            final IndexWriterConfig iwc = new IndexWriterConfig().setCodec(columnarCodec(ColumnarFieldType.STRING))
+                .setMergePolicy(new LogDocMergePolicy());
+            final FieldType type = columnarBinaryFieldType();
             try (IndexWriter writer = new IndexWriter(dir, iwc)) {
                 int written = 0;
                 for (String value : values) {
@@ -414,7 +420,7 @@ public class ColumnarStringTermQueryTests extends ESTestCase {
                     }
                     final Document doc = new Document();
                     if (value != null) {
-                        doc.add(new Field(FIELD, new BytesRef(value), type));
+                        doc.add(new Field(FIELD, stringPayload(value), type));
                     }
                     writer.addDocument(doc);
                 }
@@ -437,14 +443,14 @@ public class ColumnarStringTermQueryTests extends ESTestCase {
                     assertEquals(
                         "term [" + probe + "]",
                         expected(values, probe, true),
-                        found(searcher, ColumnarStringTermQuery.term(FIELD, new BytesRef(probe)))
+                        found(searcher, ColumnarStringTermQuery.term(FIELD, new BytesRef(probe), ScanBudget.UNLIMITED))
                     );
                 }
                 for (String probe : Arrays.asList("al", "alp", "b", "id-", "zzz")) {
                     assertEquals(
                         "prefix [" + probe + "]",
                         expected(values, probe, false),
-                        found(searcher, ColumnarStringTermQuery.prefix(FIELD, new BytesRef(probe)))
+                        found(searcher, ColumnarStringTermQuery.prefix(FIELD, new BytesRef(probe), ScanBudget.UNLIMITED))
                     );
                 }
             }

@@ -37,14 +37,18 @@ public class StringColumnTempFileTests extends ColumnarStringTestCase {
         random().nextBytes(segmentId);
         try (IndexOutput out = dir.createOutput(DATA_FILE, IOContext.DEFAULT)) {
             ColumnarCodecUtil.writeHeader(out, "ColumNARStringData", FormatVersion.CURRENT, segmentId, "");
+            final BytesRef[][] docSlots = singleValued(docValues);
             StringColumnWriter.write(
-                docValues.length,
-                numDocsWithField(docValues),
-                numDocsWithField(docValues),
-                () -> cursor(docValues),
+                docSlots.length,
+                numDocsWithField(docSlots),
+                numValues(docSlots),
+                numNullSlots(docSlots),
+                () -> cursor(docSlots),
                 randomValidBlockSize(),
                 randomChunkCodec(),
                 randomTargetChunkBytes(),
+                randomTargetChunkBytes(),
+                StringColumnOptions.DEFAULT_COMPRESSED_ORDINAL_BLOCK_SIZE,
                 ROOMY,
                 null,
                 dir,

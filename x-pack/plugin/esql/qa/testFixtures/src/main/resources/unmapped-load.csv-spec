@@ -24,6 +24,7 @@ partiallyUnmappedSmallNumericFieldIsWidenedAndLoaded
 required_capability: optional_fields_v5
 required_capability: optional_fields_fix_partially_unmapped_small_numeric
 required_capability: optional_fields_fix_implicit_cast_on_small_numeric_punk
+skip_columnar: dynamic:false unmapped fields are dropped at ingest in columnar mode (no _ignored_source), so unmapped_fields=load has nothing to read - lossy by design
 
 SET unmapped_fields="load"\;
 FROM all_types, all_types_no_short METADATA _index
@@ -48,6 +49,7 @@ all_types_no_short | 50
 partiallyUnmappedSmallNumericFieldExplicitCast
 required_capability: optional_fields_v5
 required_capability: optional_fields_fix_partially_unmapped_small_numeric
+skip_columnar: dynamic:false unmapped fields are dropped at ingest in columnar mode (no _ignored_source), so unmapped_fields=load has nothing to read - lossy by design
 
 SET unmapped_fields="load"\;
 FROM all_types, all_types_no_short

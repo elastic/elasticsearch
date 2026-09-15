@@ -100,7 +100,7 @@ public class StatelessMemoryMetricsServiceTests extends ESTestCase {
         service = new StatelessMemoryMetricsService(System::nanoTime, clusterSettings);
     }
 
-    public void testGetShardHeapUsages() {
+    public void testGetShardHeapUsageEstimates() {
         // Set up shard memory metrics
         var shardMemoryMetrics1 = new StatelessMemoryMetricsService.ShardMemoryMetrics(
             // Limit the range of values for the metrics, so that adding and multiplying doesn't cause type overflow results.
@@ -138,7 +138,7 @@ public class StatelessMemoryMetricsServiceTests extends ESTestCase {
         service.getShardMemoryMetrics().put(shardId2, shardMemoryMetrics2);
 
         // Verify that the memory service correctly returns all the per shard memory metrics.
-        var shardHeapUsages = service.getShardHeapUsages();
+        var shardHeapUsages = service.getShardHeapUsageEstimates().perShard();
         {
             final var estimate = computeShardHeapEstimate(service, shardMemoryMetrics1);
             assertThat(shardHeapUsages.get(shardId1).shardHeapUsageBytes(), equalTo(estimate.shardHeapUsageBytes()));
@@ -323,7 +323,7 @@ public class StatelessMemoryMetricsServiceTests extends ESTestCase {
                     indexHeap = estimate.indexHeapUsageBytes();
                 }
 
-                var perShardUsages = service.getShardHeapUsages();
+                var perShardUsages = service.getShardHeapUsageEstimates().perShard();
                 if (perShardUsages.containsKey(shardId)) {
                     assertThat(perShardUsages.get(shardId).shardHeapUsageBytes(), equalTo(estimate.shardHeapUsageBytes()));
                     assertThat(perShardUsages.get(shardId).indexHeapUsageBytes(), equalTo(estimate.indexHeapUsageBytes()));

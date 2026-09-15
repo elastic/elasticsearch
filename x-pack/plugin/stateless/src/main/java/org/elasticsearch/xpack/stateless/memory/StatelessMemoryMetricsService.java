@@ -1004,15 +1004,6 @@ public class StatelessMemoryMetricsService implements ClusterStateListener {
         return snapshot;
     }
 
-    /**
-     * Goes through the shard memory metrics and returns a map of shards to their shard-level and index-level heap usage components.
-     * Only used by tests; production code should call {@link #getShardHeapUsageEstimates()} instead.
-     */
-    // visible for testing
-    public Map<ShardId, ShardAndIndexHeapUsage> getShardHeapUsages() {
-        return getShardHeapUsageEstimates().perShard();
-    }
-
     public record ShardMergeMemoryEstimate(String mergeId, long estimateInBytes) implements Writeable {
         public static final ShardMergeMemoryEstimate NO_MERGES = new ShardMergeMemoryEstimate("", 0);
 

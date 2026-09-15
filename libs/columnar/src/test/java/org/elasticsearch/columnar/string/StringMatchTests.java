@@ -236,14 +236,21 @@ public class StringMatchTests extends ColumnarStringTestCase {
                     final int at = from;
                     assertTrue("expected a page", reader.readBlock(docs, from, count, new StringBlockSink() {
                         @Override
-                        public void appendOrdinals(int[] ordinals, int n, BytesRef[] dictionary, int dictionarySize) {
+                        public void appendOrdinals(
+                            int[] ordinals,
+                            int n,
+                            int[] valueCounts,
+                            int docCount,
+                            BytesRef[] dictionary,
+                            int dictionarySize
+                        ) {
                             for (int i = 0; i < n; i++) {
                                 rebuilt.add(dictionary[ordinals[i]].utf8ToString());
                             }
                         }
 
                         @Override
-                        public void appendValues(BytesRef[] values, int n) {
+                        public void appendValues(BytesRef[] values, int n, int[] valueCounts, int docCount) {
                             for (int i = 0; i < n; i++) {
                                 rebuilt.add(values[i].utf8ToString());
                             }
@@ -574,6 +581,375 @@ public class StringMatchTests extends ColumnarStringTestCase {
         for (int d = 0; d < docValues.length; d++) {
             if (docValues[d] != null && docValues[d].utf8ToString().contains(probe)) {
                 docs.add(d);
+            }
+        }
+        return docs;
+    }
+
+    /**
+     * Documents holding several slots, some of them null, matched under both layouts. A document matches on
+     * any one of its slots, and a null on none of them — including the empty term, which it stores the same
+     * no bytes as. That is what the two layouts keep apart differently: a dictionary names a null with an
+     * ordinal below every term's, while a plain column has only its null-slot table to go on.
+     */
+    public void testMultiValuedWithNullSlots() throws IOException {
+        final BytesRef[][] docSlots = new BytesRef[between(600, 2000)][];
+        for (int d = 0; d < docSlots.length; d++) {
+            final List<BytesRef> slots = new ArrayList<>();
+            // At least one value, so the document is one the mapper would have written a field for.
+            slots.add(new BytesRef(TERMS[d % (TERMS.length - 1)]));
+            for (int extra = between(0, 2); extra > 0; extra--) {
+                slots.add(randomBoolean() ? null : new BytesRef(TERMS[randomInt(TERMS.length - 1)]));
+            }
+            java.util.Collections.shuffle(slots, random());
+            docSlots[d] = slots.toArray(new BytesRef[0]);
+        }
+        for (DictionaryPolicy policy : List.of(DictionaryPolicy.NONE, ROOMY)) {
+            withColumn(docSlots, randomValidBlockSize(), randomChunkCodec(), randomTargetChunkBytes(), policy, (metadata, reader) -> {
+                assertTrue("expected a multi-valued column", metadata.multiValued());
+                assertTrue("expected null slots", metadata.hasNullSlots());
+                for (String probe : TERMS) {
+                    assertEquals(
+                        "term [" + probe + "]",
+                        expectedOfSlots(docSlots, probe, true),
+                        matched(reader.matchTerm(new BytesRef(probe)))
+                    );
+                }
+                for (String probe : new String[] { "al", "b", "zzz", "" }) {
+                    assertEquals(
+                        "prefix [" + probe + "]",
+                        expectedOfSlots(docSlots, probe, false),
+                        matched(reader.matchPrefix(new BytesRef(probe)))
+                    );
+                }
+            });
+        }
+    }
+
+    /**
+     * A window collected from a multi-valued column has to agree with asking one document at a time, as it
+     * does on a single-valued one. A dictionary column with nothing escaped confirms a whole block of
+     * ordinals in one pass without resolving a value, and a document there matches on any one of its slots,
+     * so that pass has to walk the slots rather than take a document's rank for the address of its value.
+     */
+    public void testWindowedCollectionOnAMultiValuedDictionary() throws IOException {
+        final BytesRef[][] docSlots = new BytesRef[between(600, 2000)][];
+        for (int d = 0; d < docSlots.length; d++) {
+            final BytesRef[] slots = new BytesRef[between(1, 3)];
+            for (int s = 0; s < slots.length; s++) {
+                // Sparse enough that the terms still cover the column well enough to be worth a dictionary.
+                slots[s] = random().nextDouble() < 0.15 ? null : new BytesRef(TERMS[randomInt(TERMS.length - 1)]);
+            }
+            docSlots[d] = slots;
+        }
+        for (DictionaryPolicy policy : List.of(ROOMY, DictionaryPolicy.NONE)) {
+            withColumn(docSlots, randomValidBlockSize(), randomChunkCodec(), randomTargetChunkBytes(), policy, (metadata, reader) -> {
+                assertTrue("expected a multi-valued column", metadata.multiValued());
+                assertTrue("expected null slots", metadata.hasNullSlots());
+                if (policy == ROOMY) {
+                    assertTrue("expected a dictionary", reader.hasDictionary());
+                    assertEquals("expected nothing to escape", 0, reader.escapeCount());
+                }
+                for (String probe : TERMS) {
+                    assertWindowedAgrees("term [" + probe + "]", docSlots.length, () -> reader.matchTerm(new BytesRef(probe)));
+                    assertWindowedAgrees("contains [" + probe + "]", docSlots.length, () -> reader.matchContains(new BytesRef(probe)));
+                }
+            });
+        }
+    }
+
+    /**
+     * A multi-valued dictionary that let values escape. An escape has no ordinal but the marker, so the
+     * window cannot be filled from the ordinals and every document is decided on its own — and finding an
+     * escaped value's bytes means counting the escapes before its address, which on a multi-valued column is
+     * not the same number as the escapes before its document.
+     */
+    public void testMultiValuedDictionaryWithEscapes() throws IOException {
+        final BytesRef[][] docSlots = new BytesRef[between(600, 2000)][];
+        for (int d = 0; d < docSlots.length; d++) {
+            final BytesRef[] slots = new BytesRef[between(1, 3)];
+            for (int s = 0; s < slots.length; s++) {
+                if (random().nextDouble() < 0.1) {
+                    slots[s] = null;
+                } else if ((d + s) % 37 == 5) {
+                    // Rare enough to escape a dictionary built from the terms the column repeats.
+                    slots[s] = new BytesRef("escaped-" + d + "-" + s);
+                } else {
+                    slots[s] = new BytesRef(TERMS[randomInt(TERMS.length - 1)]);
+                }
+            }
+            docSlots[d] = slots;
+        }
+        withColumn(docSlots, randomValidBlockSize(), randomChunkCodec(), randomTargetChunkBytes(), ROOMY, (metadata, reader) -> {
+            assertTrue("expected a dictionary", reader.hasDictionary());
+            assertTrue("expected a multi-valued column", metadata.multiValued());
+            assertTrue("expected values to have escaped it", reader.escapeCount() > 0);
+            final List<String> probes = new ArrayList<>(Arrays.asList(TERMS));
+            probes.add("escaped-5-0");
+            probes.add("escaped-42-1");
+            for (String probe : probes) {
+                assertEquals(
+                    "term [" + probe + "]",
+                    expectedOfSlots(docSlots, probe, true),
+                    matched(reader.matchTerm(new BytesRef(probe)))
+                );
+                assertWindowedAgrees("term [" + probe + "]", docSlots.length, () -> reader.matchTerm(new BytesRef(probe)));
+                assertWindowedAgrees("contains [" + probe + "]", docSlots.length, () -> reader.matchContains(new BytesRef(probe)));
+            }
+        });
+    }
+
+    /**
+     * A multi-valued column whose slots happen to arrive in term order. The writer decides sortedness over
+     * the flat run of slots, so this really can be sorted, but a rank is not a value address here and the
+     * bisection is over ranks — so the match has to fall through to comparing the slots instead. This pins
+     * that it does, and that the answer is the same either way.
+     */
+    public void testSortedMultiValuedFallsBackToScanning() throws IOException {
+        final List<BytesRef> flat = new ArrayList<>();
+        for (int i = 0; i < between(600, 2000); i++) {
+            flat.add(new BytesRef(TERMS[randomInt(TERMS.length - 1)]));
+        }
+        flat.sort(BytesRef::compareTo);
+        final List<BytesRef[]> rows = new ArrayList<>();
+        for (int at = 0; at < flat.size();) {
+            final int width = Math.min(between(1, 3), flat.size() - at);
+            rows.add(flat.subList(at, at + width).toArray(new BytesRef[0]));
+            at += width;
+        }
+        final BytesRef[][] docSlots = rows.toArray(new BytesRef[0][]);
+        for (DictionaryPolicy policy : List.of(DictionaryPolicy.NONE, ROOMY)) {
+            withColumn(docSlots, randomValidBlockSize(), randomChunkCodec(), randomTargetChunkBytes(), policy, (metadata, reader) -> {
+                assertTrue("expected a multi-valued column", metadata.multiValued());
+                assertTrue("expected the slots to be in term order", reader.valuesSorted());
+                for (String probe : TERMS) {
+                    assertEquals(
+                        "term [" + probe + "]",
+                        expectedOfSlots(docSlots, probe, true),
+                        matched(reader.matchTerm(new BytesRef(probe)))
+                    );
+                    assertEquals(
+                        "prefix [" + probe + "]",
+                        expectedOfSlots(docSlots, probe, false),
+                        matched(reader.matchPrefix(new BytesRef(probe)))
+                    );
+                }
+            });
+        }
+    }
+
+    /**
+     * A document whose only slot is null. The mapper writes a payload for an all-null array, so this is a
+     * shape the codec sees, and it leaves the slots and the documents in step — the column is not
+     * multi-valued and a document's rank is still its address. A null is stored as no bytes, so every path
+     * that decides a lone slot has to ask whether it is one before comparing it with the empty term.
+     */
+    public void testLoneNullSlots() throws IOException {
+        final BytesRef[][] docSlots = new BytesRef[between(600, 2000)][];
+        for (int d = 0; d < docSlots.length; d++) {
+            // A quarter of the column null, the rest one value each, so the slots stay in step with the
+            // documents and nothing widens the column into a multi-valued one.
+            docSlots[d] = new BytesRef[] { random().nextDouble() < 0.25 ? null : new BytesRef(TERMS[d % TERMS.length]) };
+        }
+        for (DictionaryPolicy policy : List.of(DictionaryPolicy.NONE, ROOMY)) {
+            withColumn(docSlots, randomValidBlockSize(), randomChunkCodec(), randomTargetChunkBytes(), policy, (metadata, reader) -> {
+                assertFalse("expected the slots to stay in step with the documents", metadata.multiValued());
+                assertTrue("expected null slots", metadata.hasNullSlots());
+                for (String probe : TERMS) {
+                    assertEquals(
+                        "term [" + probe + "]",
+                        expectedOfSlots(docSlots, probe, true),
+                        matched(reader.matchTerm(new BytesRef(probe)))
+                    );
+                    assertWindowedAgrees("term [" + probe + "]", docSlots.length, () -> reader.matchTerm(new BytesRef(probe)));
+                }
+                // The empty term is the one a null would answer for if its bytes were all that separated them.
+                assertEquals("empty term", expectedOfSlots(docSlots, "", true), matched(reader.matchTerm(new BytesRef(""))));
+                assertEquals("empty prefix", expectedOfSlots(docSlots, "", false), matched(reader.matchPrefix(new BytesRef(""))));
+                assertEquals(
+                    "matcher accepting no bytes",
+                    expectedOfSlots(docSlots, "", true),
+                    matched(reader.match(value -> value.length == 0))
+                );
+                // A page carries these: a document whose only slot is null simply holds no value in it.
+                final int[] docs = new int[Math.min(256, docSlots.length)];
+                for (int i = 0; i < docs.length; i++) {
+                    docs[i] = i;
+                }
+                assertEquals("page", expectedPage(docSlots, docs), pageOf(reader, docs));
+                // Column-wide ordinals are one a document and cannot say a document has none, so those still decline.
+                assertFalse("no column-wide ordinals", reader.readOrdinals(docs, 0, docs.length, new int[docs.length]));
+            });
+        }
+    }
+
+    /**
+     * A document holding no slot at all — an empty array — on a column whose values are in term order. Fewer
+     * slots than documents leaves the column not multi-valued while a rank has still stopped being its own
+     * value address, so a bisection over ranks would answer with ranks rather than with documents. This is
+     * the shape that tells the two questions apart.
+     */
+    public void testEmptyArrayOnASortedColumn() throws IOException {
+        final BytesRef[][] docSlots = new BytesRef[between(200, 1200)][];
+        for (int d = 0; d < docSlots.length; d++) {
+            docSlots[d] = d % 5 == 0 ? new BytesRef[0] : new BytesRef[] { new BytesRef(TERMS[(d * (TERMS.length - 1)) / docSlots.length]) };
+        }
+        for (DictionaryPolicy policy : List.of(DictionaryPolicy.NONE, ROOMY)) {
+            withColumn(docSlots, randomValidBlockSize(), randomChunkCodec(), randomTargetChunkBytes(), policy, (metadata, reader) -> {
+                assertFalse("fewer slots than documents is not multi-valued", metadata.multiValued());
+                assertTrue("but a rank is no longer its own address", metadata.hasValueAddresses());
+                assertTrue("expected the values to be in term order", reader.valuesSorted());
+                for (String probe : TERMS) {
+                    assertEquals(
+                        "term [" + probe + "]",
+                        expectedOfSlots(docSlots, probe, true),
+                        matched(reader.matchTerm(new BytesRef(probe)))
+                    );
+                    assertEquals(
+                        "prefix [" + probe + "]",
+                        expectedOfSlots(docSlots, probe, false),
+                        matched(reader.matchPrefix(new BytesRef(probe)))
+                    );
+                }
+                // A page carries these too: an empty array is a document holding no value.
+                final int[] docs = new int[Math.min(256, docSlots.length)];
+                for (int i = 0; i < docs.length; i++) {
+                    docs[i] = i;
+                }
+                assertEquals("page", expectedPage(docSlots, docs), pageOf(reader, docs));
+                assertFalse("no column-wide ordinals", reader.readOrdinals(docs, 0, docs.length, new int[docs.length]));
+            });
+        }
+    }
+
+    /**
+     * A page of documents holding several values, some of them null, under both layouts. A page is the shape grouping
+     * reads a column in, and a document's slots reach it as a run of values beside a count of how many it took.
+     */
+    public void testMultiValuedPages() throws IOException {
+        final BytesRef[][] docSlots = new BytesRef[between(600, 2000)][];
+        for (int d = 0; d < docSlots.length; d++) {
+            final BytesRef[] slots = new BytesRef[between(1, 4)];
+            for (int s = 0; s < slots.length; s++) {
+                // Some documents end up holding nothing but nulls, which a page has to report as holding nothing.
+                slots[s] = random().nextDouble() < 0.2 ? null : new BytesRef(TERMS[randomInt(TERMS.length - 1)]);
+            }
+            docSlots[d] = slots;
+        }
+        for (DictionaryPolicy policy : List.of(DictionaryPolicy.NONE, ROOMY)) {
+            withColumn(docSlots, randomValidBlockSize(), randomChunkCodec(), randomTargetChunkBytes(), policy, (metadata, reader) -> {
+                assertTrue("expected a multi-valued column", metadata.multiValued());
+                assertTrue("expected null slots", metadata.hasNullSlots());
+                // Read in several pages, so a page boundary falls inside the run of documents rather than only at its ends.
+                for (int page : new int[] { 1, 7, 64, 512, docSlots.length }) {
+                    for (int from = 0; from < docSlots.length; from += page) {
+                        final int count = Math.min(page, docSlots.length - from);
+                        final int[] docs = new int[count];
+                        for (int i = 0; i < count; i++) {
+                            docs[i] = from + i;
+                        }
+                        assertEquals("page of " + page + " from " + from, expectedPage(docSlots, docs), pageOf(reader, docs));
+                    }
+                }
+            });
+        }
+    }
+
+    /**
+     * A page of documents holding several values, none escaping the dictionary and none null, which is the shape the
+     * ordinals were designed for: every value of the page names a term, so the page is ordinals into its own distinct
+     * values and a consumer resolves each once.
+     */
+    public void testMultiValuedPagesWithEscapes() throws IOException {
+        final BytesRef[][] docSlots = new BytesRef[between(600, 2000)][];
+        for (int d = 0; d < docSlots.length; d++) {
+            final BytesRef[] slots = new BytesRef[between(1, 3)];
+            for (int s = 0; s < slots.length; s++) {
+                slots[s] = (d + s) % 41 == 3 ? new BytesRef("escaped-" + d + "-" + s) : new BytesRef(TERMS[randomInt(TERMS.length - 1)]);
+            }
+            docSlots[d] = slots;
+        }
+        withColumn(docSlots, randomValidBlockSize(), randomChunkCodec(), randomTargetChunkBytes(), ROOMY, (metadata, reader) -> {
+            assertTrue("expected a dictionary", reader.hasDictionary());
+            assertTrue("expected a multi-valued column", metadata.multiValued());
+            assertTrue("expected values to have escaped it", reader.escapeCount() > 0);
+            for (int page : new int[] { 7, 128, 512 }) {
+                for (int from = 0; from < docSlots.length; from += page) {
+                    final int count = Math.min(page, docSlots.length - from);
+                    final int[] docs = new int[count];
+                    for (int i = 0; i < count; i++) {
+                        docs[i] = from + i;
+                    }
+                    assertEquals("page of " + page + " from " + from, expectedPage(docSlots, docs), pageOf(reader, docs));
+                }
+            }
+        });
+    }
+
+    /**
+     * A page rebuilt into the values each document holds, whichever shape it arrived in. A document with no value
+     * comes back empty, which is what a page says with a count of zero.
+     */
+    private static List<List<String>> pageOf(StringColumnReader reader, int[] docs) throws IOException {
+        final List<List<String>> rebuilt = new ArrayList<>();
+        final boolean served = reader.readBlock(docs, 0, docs.length, new StringBlockSink() {
+            @Override
+            public void appendOrdinals(int[] ordinals, int count, int[] valueCounts, int docCount, BytesRef[] dictionary, int size) {
+                final BytesRef[] values = new BytesRef[count];
+                for (int i = 0; i < count; i++) {
+                    assertTrue("ordinal in range", ordinals[i] >= 0 && ordinals[i] < size);
+                    values[i] = dictionary[ordinals[i]];
+                }
+                appendValues(values, count, valueCounts, docCount);
+            }
+
+            @Override
+            public void appendValues(BytesRef[] values, int count, int[] valueCounts, int docCount) {
+                int at = 0;
+                for (int d = 0; d < docCount; d++) {
+                    final int held = valueCounts == null ? 1 : valueCounts[d];
+                    final List<String> doc = new ArrayList<>();
+                    for (int i = 0; i < held; i++) {
+                        doc.add(values[at++].utf8ToString());
+                    }
+                    rebuilt.add(doc);
+                }
+                assertEquals("values accounted for", count, at);
+            }
+        });
+        assertTrue("expected a page", served);
+        assertEquals("one entry a document", docs.length, rebuilt.size());
+        return rebuilt;
+    }
+
+    /** What a scan over the slots themselves would hand back, a null being no value a page can carry. */
+    private static List<List<String>> expectedPage(BytesRef[][] docSlots, int[] docs) {
+        final List<List<String>> expected = new ArrayList<>();
+        for (int doc : docs) {
+            final List<String> values = new ArrayList<>();
+            for (BytesRef slot : docSlots[doc]) {
+                if (slot != null) {
+                    values.add(slot.utf8ToString());
+                }
+            }
+            expected.add(values);
+        }
+        return expected;
+    }
+
+    /** The documents a scan over the slots themselves would find, a null being no value to compare. */
+    private static List<Integer> expectedOfSlots(BytesRef[][] docSlots, String probe, boolean exact) {
+        final List<Integer> docs = new ArrayList<>();
+        for (int d = 0; d < docSlots.length; d++) {
+            for (BytesRef slot : docSlots[d]) {
+                if (slot == null) {
+                    continue;
+                }
+                final String value = slot.utf8ToString();
+                if (exact ? value.equals(probe) : value.startsWith(probe)) {
+                    docs.add(d);
+                    break;
+                }
             }
         }
         return docs;

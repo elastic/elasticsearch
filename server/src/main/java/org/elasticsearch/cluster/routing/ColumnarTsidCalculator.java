@@ -15,6 +15,7 @@ import org.apache.lucene.search.DocIdSetIterator;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.hash.BufferedMurmur3Hasher;
 import org.elasticsearch.common.hash.MurmurHash3;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.escf.EscfBatch;
 import org.elasticsearch.escf.EscfColumn;
 import org.elasticsearch.escf.EscfColumnKind;
@@ -60,6 +61,29 @@ public final class ColumnarTsidCalculator {
      *                                       has no dimension values
      */
     public static BytesRef[] computeTsids(SourceBatch batch, Predicate<String> isDimension, IndexVersion creationVersion) {
+        return computeTsids(batch, isDimension, creationVersion, null);
+    }
+
+    /**
+     * Variant of {@link #computeTsids(SourceBatch, Predicate, IndexVersion)} that computes tsids only
+     * for a subset of rows.
+     *
+     * <p>The full batch is still scanned column by column, but only the rows listed in {@code rows}
+     * contribute to the accumulator; rows outside the subset are silently skipped. The returned array
+     * has length {@code rows.length}, with {@code result[k]} being the tsid for {@code rows[k]}.
+     *
+     * <p>When {@code rows} is null the behaviour is identical to
+     * {@link #computeTsids(SourceBatch, Predicate, IndexVersion)}: every row contributes and the result
+     * has length {@code batch.docCount()}.
+     *
+     * @param rows batch row indices in the subset, or null for all rows
+     */
+    public static BytesRef[] computeTsids(
+        SourceBatch batch,
+        Predicate<String> isDimension,
+        IndexVersion creationVersion,
+        @Nullable int[] rows
+    ) {
         if (batch instanceof EscfBatch == false) {
             throw new UnsupportedOperationException(
                 "ColumnarTsidCalculator requires an EscfBatch; got " + batch.getClass().getSimpleName()
@@ -71,6 +95,7 @@ public final class ColumnarTsidCalculator {
         // Hoisted out of the scan: the layout is a property of the index, not of a row.
         ColumnarTsidAccumulator accumulator = ColumnarTsidAccumulator.create(
             batch.docCount(),
+            rows,
             TsidBuilder.useSingleBytePrefixLayout(creationVersion)
         );
 

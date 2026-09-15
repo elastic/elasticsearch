@@ -62,16 +62,19 @@ import java.util.function.Consumer;
  *       bucket, and per-bucket sorting on a handful of positions is essentially free. Row groups
  *       with no surviving position are never opened. The bucket structure is column-agnostic, so
  *       it is reused across every requested column.</li>
- *   <li><b>Per-row-group async prefetch, dispatched in parallel.</b> One
+ *   <li><b>Per-row-group async prefetch, admitted then dispatched in parallel.</b> One
  *       {@link ColumnChunkPrefetcher#prefetchAsync} call per visited row group, each carrying the
  *       full multi-column projection. {@link CoalescedRangeReader} merges adjacent column-chunk
  *       ranges <em>within</em> the row group (column chunks in one row group are written
  *       contiguously, so the multi-column projection coalesces naturally) and dispatches the
- *       merged ranges to {@link StorageObject#readBytesAsync}. All buckets fan out at once: the
- *       extractor never blocks on row group {@code k}'s bytes before issuing row group
- *       {@code k+1}'s GET. Per-request RTT/TTFB cost goes from {@code O(row groups × columns)}
- *       down to roughly {@code O(row groups)}, and the wall-clock cost of the slowest GET is no
- *       longer additive across row groups.</li>
+ *       merged ranges to {@link StorageObject#readBytesAsync}. Each bucket takes a
+ *       {@link ParquetIoWatermark} hold so TopN extraction competes with scan look-ahead for
+ *       {@code heap / 8}; later buckets are look-ahead and wait for a live group to decode when
+ *       the cap would be exceeded. Within that cap, buckets still fan out before decode: the
+ *       extractor does not wait on row group {@code k}'s bytes before issuing {@code k+1}'s GET.
+ *       Per-request RTT/TTFB cost goes from {@code O(row groups × columns)} down to roughly
+ *       {@code O(admitted row groups)}, and the wall-clock cost of the slowest in-flight GET is
+ *       no longer additive across those groups.</li>
  *   <li><b>Pipelined decode in arrival order.</b> A small bounded queue receives each
  *       per-bucket prefetch as it completes. The decode loop drains buckets in arrival order,
  *       running flat ({@link PageColumnReader#readBatchSparse}) or list (skip/read driven by a
@@ -279,19 +282,15 @@ final class ParquetColumnExtractor implements ColumnExtractor {
             projection.add(String.join(".", info.descriptor().getPath()));
         }
 
-        // Per-bucket async prefetch dispatch. We do NOT block on any one fetch before kicking
-        // off the next: every bucket's GET is in flight before we touch the first byte. This is
-        // the parallelism win — for N visited row groups end-to-end latency drops from
+        // Per-bucket async prefetch is admitted against the node watermark then dispatched.
+        // Within the cap we do NOT block on any one fetch before kicking off the next: every
+        // admitted bucket's GET is in flight before we touch the first byte. This is the
+        // parallelism win — for N admitted row groups end-to-end latency drops from
         // (slowest GET) + (sum of decodes) towards max(slowest GET, fastest GET + sum of decodes),
-        // bounded by the per-query concurrency budget which sits inside readBytesAsync.
-        List<BlockMetaData> blocks = ownedFooter.getBlocks();
+        // bounded by heap/8 and the per-query concurrency budget inside readBytesAsync.
         @SuppressWarnings("unchecked")
         CompletableFuture<ColumnChunkPrefetcher.PrefetchedChunks>[] futures = (CompletableFuture<
             ColumnChunkPrefetcher.PrefetchedChunks>[]) new CompletableFuture<?>[buckets.size()];
-        for (int i = 0; i < buckets.size(); i++) {
-            BlockMetaData block = blocks.get(buckets.get(i).rowGroupIndex);
-            futures[i] = ColumnChunkPrefetcher.prefetchAsync(storageObject, block, projection, blockFactory.breaker());
-        }
 
         // result[c][b] = block for column c in bucket b (bucket-visit order). We populate this
         // out of order as buckets' prefetches arrive; the per-column concat happens once every
@@ -337,10 +336,12 @@ final class ParquetColumnExtractor implements ColumnExtractor {
     }
 
     /**
-     * Drains the per-bucket prefetch futures in arrival order, decoding every requested column
-     * for each bucket as soon as its bytes land. Decode of bucket {@code i} therefore overlaps
-     * with the still in-flight S3 reads for the slower buckets — the wall-clock cost of the
-     * slowest GET is no longer additive with decode time.
+     * Admits and dispatches per-bucket prefetches against {@link ParquetIoWatermark}, then drains
+     * them in arrival order, decoding every requested column for each bucket as soon as its bytes
+     * land. Later buckets are look-ahead: if the cap would be exceeded, dispatch waits until a
+     * live group is decoded and its buffers released. Decode of bucket {@code i} still overlaps
+     * with slower in-flight GETs that already admitted — the wall-clock cost of those GETs is no
+     * longer additive with decode time.
      *
      * <p>If any prefetch fails, every other in-flight prefetch is cancelled (or its result
      * discarded once it lands) and the original failure is rethrown.
@@ -375,10 +376,26 @@ final class ParquetColumnExtractor implements ColumnExtractor {
 
         // Use CompletableFuture.anyOf in a draining loop so we always pick the next-completed
         // future. Track which slots are still pending via a mutable view over the futures array
-        // — completed slots get nulled out and skipped on subsequent iterations.
+        // — completed slots get nulled out and skipped on subsequent iterations. Dispatch is
+        // interleaved so a rejected look-ahead can retry after decode releases watermark bytes.
+        int dispatched = 0;
         int pending = futures.length;
         try {
             while (pending > 0) {
+                dispatched = dispatchAdmittedPrefetches(buckets, blocks, projection, blockFactory, futures, dispatched);
+                if (inFlightCount(futures) == 0) {
+                    if (dispatched >= buckets.size()) {
+                        throw new IllegalStateException("no in-flight prefetch but buckets remain");
+                    }
+                    futures[dispatched] = startBucketPrefetch(
+                        blocks.get(buckets.get(dispatched).rowGroupIndex),
+                        projection,
+                        blockFactory,
+                        false,
+                        false
+                    );
+                    dispatched++;
+                }
                 int bucketIdx = waitForNextCompleted(futures);
                 ColumnChunkPrefetcher.PrefetchedChunks prefetchedResult;
                 try {
@@ -461,6 +478,92 @@ final class ParquetColumnExtractor implements ColumnExtractor {
             }
             throw t;
         }
+    }
+
+    /**
+     * Dispatches later buckets as look-ahead until {@link ParquetIoWatermark#tryAdmit} refuses.
+     * The first in-flight group is current work and may take the node-wide overshoot.
+     */
+    private int dispatchAdmittedPrefetches(
+        List<Bucket> buckets,
+        List<BlockMetaData> blocks,
+        Set<String> projection,
+        BlockFactory blockFactory,
+        CompletableFuture<ColumnChunkPrefetcher.PrefetchedChunks>[] futures,
+        int dispatched
+    ) {
+        while (dispatched < buckets.size()) {
+            boolean lookahead = inFlightCount(futures) > 0;
+            CompletableFuture<ColumnChunkPrefetcher.PrefetchedChunks> future = startBucketPrefetch(
+                blocks.get(buckets.get(dispatched).rowGroupIndex),
+                projection,
+                blockFactory,
+                lookahead,
+                true
+            );
+            if (future == null) {
+                break;
+            }
+            futures[dispatched] = future;
+            dispatched++;
+        }
+        return dispatched;
+    }
+
+    /**
+     * Starts one bucket GET. When {@code requireHold} is true, a refused look-ahead returns
+     * {@code null} so the caller can decode and retry. When false, a refused admit still
+     * dispatches so extraction cannot stall if another query holds the overshoot slot.
+     */
+    @Nullable
+    private CompletableFuture<ColumnChunkPrefetcher.PrefetchedChunks> startBucketPrefetch(
+        BlockMetaData block,
+        Set<String> projection,
+        BlockFactory blockFactory,
+        boolean lookahead,
+        boolean requireHold
+    ) {
+        long prefetchBytes = ColumnChunkPrefetcher.computePrefetchBytes(block, projection);
+        ParquetIoWatermark watermark = reader.ioWatermark();
+        final ParquetIoWatermark.AdmitHold hold;
+        if (prefetchBytes > 0L) {
+            hold = watermark.tryAdmit(prefetchBytes, lookahead);
+            if (hold == null && requireHold) {
+                return null;
+            }
+        } else {
+            hold = null;
+        }
+        boolean reserved = hold != null;
+        try {
+            CompletableFuture<ColumnChunkPrefetcher.PrefetchedChunks> future = ColumnChunkPrefetcher.prefetchAsync(
+                storageObject,
+                block,
+                projection,
+                blockFactory.breaker(),
+                watermark,
+                hold
+            );
+            if (hold != null) {
+                future.whenComplete((ignored, error) -> hold.drop());
+                reserved = false;
+            }
+            return future;
+        } finally {
+            if (reserved) {
+                hold.drop();
+            }
+        }
+    }
+
+    private static int inFlightCount(CompletableFuture<?>[] futures) {
+        int count = 0;
+        for (CompletableFuture<?> future : futures) {
+            if (future != null) {
+                count++;
+            }
+        }
+        return count;
     }
 
     /**

@@ -16,6 +16,8 @@ import org.elasticsearch.xpack.esql.datasources.spi.DecompressionCodec;
 import org.elasticsearch.xpack.esql.datasources.spi.FormatReader;
 import org.elasticsearch.xpack.esql.datasources.spi.FormatReaderFactory;
 
+import java.util.ArrayList;
+import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
@@ -62,17 +64,31 @@ public class FormatReaderRegistry {
                 if (instance == null) {
                     synchronized (this) {
                         if (instance == null) {
-                            instance = factory.create(settings, blockFactory);
-                            // Register extension mappings now that the reader is created
-                            for (String ext : instance.fileExtensions()) {
-                                if (Strings.isNullOrEmpty(ext) == false) {
-                                    String normalizedExt = ext.toLowerCase(Locale.ROOT);
-                                    if (normalizedExt.startsWith(".") == false) {
-                                        normalizedExt = "." + normalizedExt;
+                            FormatReader created = factory.create(settings, blockFactory);
+                            // Claim extension mappings before publishing the instance, under the same
+                            // conflict rule as registerExtension: a reader-declared extension already
+                            // owned by another format fails loudly instead of silently stealing the
+                            // mapping. Claims are idempotent for this supplier (an extension the
+                            // FormatSpec registered eagerly maps to this same supplier), so a retry
+                            // after a conflict re-claims its own extensions harmlessly. On failure,
+                            // the claims this attempt newly made are rolled back — a conflict on a
+                            // later extension must not leave an earlier one owned by a reader that
+                            // never published. Eager spec-declared claims predate this attempt and
+                            // are left intact.
+                            List<String> newlyClaimed = new ArrayList<>();
+                            try {
+                                for (String ext : created.fileExtensions()) {
+                                    if (Strings.isNullOrEmpty(ext) == false && claimExtension(ext, this, formatName)) {
+                                        newlyClaimed.add(normalizeExtension(ext));
                                     }
-                                    byExtension.put(normalizedExt, this);
                                 }
+                            } catch (RuntimeException e) {
+                                for (String claimed : newlyClaimed) {
+                                    byExtension.remove(claimed, this);
+                                }
+                                throw e;
                             }
+                            instance = created;
                         }
                     }
                 }
@@ -126,13 +142,45 @@ public class FormatReaderRegistry {
     }
 
     public void registerExtension(String extension, String formatName) {
-        String normalizedExt = extension.toLowerCase(Locale.ROOT);
-        if (normalizedExt.startsWith(".") == false) {
-            normalizedExt = "." + normalizedExt;
-        }
         Supplier<FormatReader> supplier = byName.get(formatName.toLowerCase(Locale.ROOT));
         Check.notNull(supplier, "Cannot register extension [{}] -- format [{}] not registered", extension, formatName);
-        byExtension.put(normalizedExt, supplier);
+        claimExtension(extension, supplier, formatName);
+    }
+
+    /**
+     * Claims {@code extension} for {@code supplier}, throwing if a different supplier already owns it.
+     * The single write path to {@link #byExtension}: both the eager spec-declared registration
+     * ({@link #registerExtension}) and the lazy reader-declared one (inside {@link #registerLazy}'s
+     * supplier) go through it, so neither can silently overwrite the other's claim — an extension
+     * claimed by two formats would otherwise validate against one format at PUT and read as the other
+     * at query time. Re-claiming with the same supplier is a no-op.
+     *
+     * @return {@code true} when this call inserted the mapping, {@code false} for an idempotent
+     *         re-claim — so {@code registerLazy}'s supplier can roll back exactly the claims a
+     *         failed materialization attempt made, and no others.
+     */
+    private boolean claimExtension(String extension, Supplier<FormatReader> supplier, String formatName) {
+        String normalizedExt = normalizeExtension(extension);
+        Supplier<FormatReader> existing = byExtension.putIfAbsent(normalizedExt, supplier);
+        if (existing != null && existing != supplier) {
+            // Find the name of the format that already owns this extension for a clear error message.
+            String existingFormat = byName.entrySet()
+                .stream()
+                .filter(e -> e.getValue() == existing)
+                .map(Map.Entry::getKey)
+                .findFirst()
+                .orElse("unknown");
+            throw new IllegalStateException(
+                "conflicting formats for extension [" + normalizedExt + "]: [" + existingFormat + "] vs [" + formatName + "]"
+            );
+        }
+        return existing == null;
+    }
+
+    /** Lower-cases {@code extension} and ensures a leading dot — the canonical key form of {@link #byExtension}. */
+    private static String normalizeExtension(String extension) {
+        String normalized = extension.toLowerCase(Locale.ROOT);
+        return normalized.startsWith(".") ? normalized : "." + normalized;
     }
 
     public FormatReader byExtension(String objectName) {
@@ -193,8 +241,21 @@ public class FormatReaderRegistry {
      *                    path, the object name here
      * @param objectName  the object name to diagnose the extension from
      */
-    IllegalArgumentException unreadableObject(String displayPath, String objectName) {
-        return new IllegalArgumentException(
+    /**
+     * Raised when {@link #byExtension} cannot map an object name to a reader (no extension, or an
+     * extension the registry does not claim). Distinct from {@link #wrapWithCodec} vetoes, which are
+     * also {@link IllegalArgumentException} but name a real format/codec incompatibility rather than
+     * an unreadable name. Dataset CRUD swallows only this type so a veto surfaces as a validation
+     * error instead of the generic "cannot determine format; set format" hint.
+     */
+    public static final class UnreadableObjectException extends IllegalArgumentException {
+        UnreadableObjectException(String message) {
+            super(message);
+        }
+    }
+
+    UnreadableObjectException unreadableObject(String displayPath, String objectName) {
+        return new UnreadableObjectException(
             "Cannot determine how to read ["
                 + displayPath
                 + "]: "
@@ -265,16 +326,28 @@ public class FormatReaderRegistry {
 
     /**
      * Returns {@code objectName}'s trailing extension (e.g. {@code ".gz"}), lower-cased, or {@code null}
-     * if there is no dot or the dot is the last character. Shared by {@link #byExtension(String)} and
-     * {@link #byNameForObject(String, String)} so the two paths cannot diverge on how the compression
-     * suffix is detected; callers decide separately whether a missing extension is an error.
+     * if there is no dot or the dot is the last character. {@code ?} and {@code #} that follow the last
+     * dot (S3 versionId, a fragment after the extension) are stripped so the suffix still matches a
+     * registered format or codec; a {@code ?} or {@code #} before the last dot is left alone (glob
+     * metacharacter, or a literal object-store key character). Shared by {@link #byExtension(String)}
+     * and {@link #byNameForObject(String, String)} so the two paths cannot diverge on how the
+     * compression suffix is detected; callers decide separately whether a missing extension is an error.
      */
     private static String trailingExtension(String objectName) {
         int lastDot = objectName.lastIndexOf('.');
         if (lastDot < 0 || lastDot == objectName.length() - 1) {
             return null;
         }
-        return objectName.substring(lastDot).toLowerCase(Locale.ROOT);
+        String ext = objectName.substring(lastDot + 1);
+        int queryStart = ext.indexOf('?');
+        if (queryStart >= 0) {
+            ext = ext.substring(0, queryStart);
+        }
+        int fragmentStart = ext.indexOf('#');
+        if (fragmentStart >= 0) {
+            ext = ext.substring(0, fragmentStart);
+        }
+        return ext.isEmpty() ? null : "." + ext.toLowerCase(Locale.ROOT);
     }
 
     /**
@@ -346,10 +419,6 @@ public class FormatReaderRegistry {
         if (Strings.isNullOrEmpty(extension)) {
             return false;
         }
-        String normalizedExt = extension.toLowerCase(Locale.ROOT);
-        if (normalizedExt.startsWith(".") == false) {
-            normalizedExt = "." + normalizedExt;
-        }
-        return byExtension.containsKey(normalizedExt);
+        return byExtension.containsKey(normalizeExtension(extension));
     }
 }

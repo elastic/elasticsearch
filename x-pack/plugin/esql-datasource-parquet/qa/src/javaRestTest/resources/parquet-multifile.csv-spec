@@ -285,14 +285,14 @@ bob          | 92.0
 ;
 
 // ===== FIRST_FILE_WINS on divergent Parquet schemas =====
-// Anchor: parquet_ubn_a.parquet (lex-smallest) — schema [name, age:integer, score:double]
+// Anchor: parquet_ubn_a.parquet (lex-smallest; file_sort_by=name) — schema [name, age:integer, score:double]
 // File B is read through anchor's schema: name maps OK, age (int64 → int32) is incompatible
 // so the entire column is returned as null with a warning, score is missing → null.
 
 parquetFfwAllRows
 required_capability: dataset_in_from_command
 required_capability: external_source_read_schema
-dataset: employees_multifile_ubn_ffw: "{{employees_multifile_ubn}}" WITH {"schema_resolution": "first_file_wins"}
+dataset: employees_multifile_ubn_ffw: "{{employees_multifile_ubn}}" WITH {"schema_resolution": "first_file_wins", "file_sort_by": "name"}
 
 FROM employees_multifile_ubn_ffw
 | SORT name ASC;
@@ -310,7 +310,7 @@ dave         | null        | null
 parquetFfwCount
 required_capability: dataset_in_from_command
 required_capability: external_source_read_schema
-dataset: employees_multifile_ubn_ffw: "{{employees_multifile_ubn}}" WITH {"schema_resolution": "first_file_wins"}
+dataset: employees_multifile_ubn_ffw: "{{employees_multifile_ubn}}" WITH {"schema_resolution": "first_file_wins", "file_sort_by": "name"}
 
 FROM employees_multifile_ubn_ffw
 | STATS count = COUNT(*);
@@ -324,7 +324,7 @@ count:long
 parquetFfwFilterAnchorOnly
 required_capability: dataset_in_from_command
 required_capability: external_source_read_schema
-dataset: employees_multifile_ubn_ffw: "{{employees_multifile_ubn}}" WITH {"schema_resolution": "first_file_wins"}
+dataset: employees_multifile_ubn_ffw: "{{employees_multifile_ubn}}" WITH {"schema_resolution": "first_file_wins", "file_sort_by": "name"}
 
 FROM employees_multifile_ubn_ffw
 | WHERE score IS NOT NULL

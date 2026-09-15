@@ -1,0 +1,6 @@
+area: Search
+issues:
+ - 158991
+pr: 159248
+summary: Fix mixed-version CCS search PIT + batched query phase bug
+type: bug

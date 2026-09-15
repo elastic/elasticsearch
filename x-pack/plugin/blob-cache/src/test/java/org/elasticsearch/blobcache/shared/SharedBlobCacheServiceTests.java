@@ -84,6 +84,8 @@ import static org.elasticsearch.blobcache.BlobCacheMetrics.BLOB_CACHE_COUNT_OF_E
 import static org.elasticsearch.blobcache.BlobCacheMetrics.BLOB_CACHE_EVICTION_SCANNED_ENTRIES;
 import static org.elasticsearch.blobcache.BlobCacheMetrics.BLOB_CACHE_EVICTION_SCAN_TIME;
 import static org.elasticsearch.blobcache.BlobCacheMetrics.BLOB_CACHE_LOCK_ACQUIRE_TIME;
+import static org.elasticsearch.blobcache.BlobCacheMetrics.BLOB_CACHE_MISS_AGE;
+import static org.elasticsearch.blobcache.BlobCacheMetrics.BLOB_CACHE_READ_AGE;
 import static org.elasticsearch.blobcache.BlobCacheMetrics.EvictionScanMode.AllFrequencies;
 import static org.elasticsearch.blobcache.BlobCacheMetrics.EvictionScanMode.LowestFrequency;
 import static org.elasticsearch.blobcache.BlobCacheMetrics.EvictionScanOutcome.Evicted;
@@ -97,7 +99,6 @@ import static org.elasticsearch.blobcache.BlobCacheMetrics.LockAcquireSite.Force
 import static org.elasticsearch.blobcache.BlobCacheMetrics.LockAcquireSite.LowestFrequencyEviction;
 import static org.elasticsearch.blobcache.BlobCacheMetrics.LockAcquireSite.Promote;
 import static org.elasticsearch.blobcache.BlobCacheMetrics.LockAcquireSite.SlotAssignment;
-import static org.elasticsearch.blobcache.BlobCacheMetrics.REGION_TIMESTAMP_AGE_ATTRIBUTE_KEY;
 import static org.elasticsearch.blobcache.shared.SharedBlobCacheService.UNKNOWN_TIMESTAMP;
 import static org.elasticsearch.blobcache.shared.SharedBlobCacheServiceTestUtils.NOOP_TIME_PROVIDER;
 import static org.elasticsearch.node.Node.NODE_NAME_SETTING;
@@ -4784,13 +4785,12 @@ public class SharedBlobCacheServiceTests extends ESTestCase {
 
             recording.getRecorder().resetCalls();
             assertTrue(cacheFile.tryRead(ByteBuffer.wrap(new byte[1]), 0));
-            recording.getRecorder().collect();
 
-            // NOOP_TIME_PROVIDER reports now=0, so a positive backfilled timestamp is a future/negative age → 15_minutes.
-            // Using CacheFile.timestampMillis would incorrectly keep attributing the hit to "other".
-            List<Measurement> reads = recording.getRecorder().getMeasurements(InstrumentType.LONG_ASYNC_GAUGE, "es.blob_cache.read.total");
-            assertEquals(1L, sumTimestampAge(reads, "15_minutes"));
-            assertEquals(1L, sumTimestampAge(reads, "other"));
+            // NOOP_TIME_PROVIDER reports now=0, so a positive backfilled timestamp is a negative age.
+            // Using CacheFile.timestampMillis would skip the histogram (sentinel) instead of recording it.
+            List<Measurement> readAges = recording.getRecorder().getMeasurements(InstrumentType.LONG_HISTOGRAM, BLOB_CACHE_READ_AGE);
+            assertThat(readAges, hasSize(1));
+            assertEquals(0L - backfill, readAges.getFirst().getLong());
         }
     }
 
@@ -4848,20 +4848,11 @@ public class SharedBlobCacheServiceTests extends ESTestCase {
                 },
                 "test"
             );
-            recording.getRecorder().collect();
-
-            // NOOP_TIME_PROVIDER reports now=0, so a positive backfilled timestamp is a future/negative age → 15_minutes.
-            List<Measurement> misses = recording.getRecorder().getMeasurements(InstrumentType.LONG_ASYNC_GAUGE, "es.blob_cache.miss.total");
-            assertEquals(1L, sumTimestampAge(misses, "15_minutes"));
-            assertEquals(0L, sumTimestampAge(misses, "other"));
+            // NOOP_TIME_PROVIDER reports now=0, so a positive backfilled timestamp is a negative age.
+            List<Measurement> missAges = recording.getRecorder().getMeasurements(InstrumentType.LONG_HISTOGRAM, BLOB_CACHE_MISS_AGE);
+            assertThat(missAges, hasSize(1));
+            assertEquals(0L - backfill, missAges.getFirst().getLong());
         }
-    }
-
-    private static long sumTimestampAge(List<Measurement> measurements, String bucket) {
-        return measurements.stream()
-            .filter(m -> bucket.equals(m.attributes().get(REGION_TIMESTAMP_AGE_ATTRIBUTE_KEY)))
-            .mapToLong(Measurement::getLong)
-            .sum();
     }
 
     // Verify that madvise can be applied on the read path (cache hit) even when the region was

@@ -20,10 +20,6 @@ import org.elasticsearch.telemetry.metric.LongHistogram;
 import org.elasticsearch.telemetry.metric.LongWithAttributes;
 import org.elasticsearch.telemetry.metric.MeterRegistry;
 
-import java.util.ArrayList;
-import java.util.Collection;
-import java.util.LinkedHashMap;
-import java.util.List;
 import java.util.Map;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.LongAdder;
@@ -50,19 +46,20 @@ public class BlobCacheMetrics {
     public static final String EVICTION_SCAN_OUTCOME_ATTRIBUTE_KEY = "es_eviction_scan_outcome";
     public static final String BLOB_CACHE_LOCK_ACQUIRE_TIME = "es.blob_cache.lock_acquire_time.histogram";
     public static final String LOCK_ACQUIRE_SITE_ATTRIBUTE_KEY = "es_lock_acquire_site";
-
+    public static final String BLOB_CACHE_READ_TOTAL = "es.blob_cache.read.total";
+    public static final String BLOB_CACHE_MISS_TOTAL = "es.blob_cache.miss.total";
     /**
-     * Attribute key carrying the age-bucket of the cache region's data timestamp relative to now.
-     * Possible values are documented on {@link #resolveBucket}.
-     *
-     * <p><strong>Observability aggregation note:</strong> {@code es.blob_cache.read.total} and
-     * {@code es.blob_cache.miss.total} are cumulative async gauges. They emit one observation per
-     * {@code timestamp_age} bucket. When aggregating across time in APM/Kibana (e.g. to
-     * compute a rate or a total), the values for all buckets within the same collection interval must
-     * first be <em>summed</em> to obtain the node-level total, and <em>then</em> averaged/aggregated
-     * across nodes.
+     * Age of each cache read in milliseconds, bucketed with the {@link TimeRangeBucket} thresholds.
+     * Sentinel timestamps (negative) are omitted; unknown volume is {@code read.total} minus this
+     * histogram's count.
      */
-    public static final String REGION_TIMESTAMP_AGE_ATTRIBUTE_KEY = "timestamp_age";
+    public static final String BLOB_CACHE_READ_AGE = "es.blob_cache.read.age.histogram";
+    /**
+     * Age of each cache miss in milliseconds, bucketed with the {@link TimeRangeBucket} thresholds.
+     * Sentinel timestamps (negative) are omitted; unknown volume is {@code miss.total} minus this
+     * histogram's count.
+     */
+    public static final String BLOB_CACHE_MISS_AGE = "es.blob_cache.miss.age.histogram";
 
     private final LongCounter cacheMissCounter;
     private final LongCounter evictedCountNonZeroFrequency;
@@ -76,9 +73,11 @@ public class BlobCacheMetrics {
     private final DoubleHistogram evictionScanTime;
     private final LongHistogram evictionScannedEntries;
     private final DoubleHistogram lockAcquireTime;
+    private final LongHistogram readAgeHistogram;
+    private final LongHistogram missAgeHistogram;
 
-    private final Map<String, LongAdder> missCountByBucket;
-    private final Map<String, LongAdder> readCountByBucket;
+    private final LongAdder missCount = new LongAdder();
+    private final LongAdder readCount = new LongAdder();
     private final TimeProvider timeProvider;
     private final LongCounter epochChanges;
     private final LongHistogram searchOriginDownloadTime;
@@ -230,23 +229,35 @@ public class BlobCacheMetrics {
                     + "]",
                 "microseconds"
             ),
+            meterRegistry.registerLongHistogram(
+                BLOB_CACHE_READ_AGE,
+                "The age of data served by a cache read (warming not included), in milliseconds",
+                "milliseconds",
+                TimeRangeBucket.histogramBoundaries()
+            ),
+            meterRegistry.registerLongHistogram(
+                BLOB_CACHE_MISS_AGE,
+                "The age of data that missed the cache (warming not included), in milliseconds",
+                "milliseconds",
+                TimeRangeBucket.histogramBoundaries()
+            ),
             timeProvider
         );
 
         // notice that this is different from `miss_that_triggered_read` in that `miss_that_triggered_read` will count once per gap
         // filled for a single read. Whereas this one only counts whenever a read provoked populating data from the object store, though
         // once per region for multi-region reads. This allows reasoning about hit ratio too.
-        meterRegistry.registerLongsAsyncGauge(
-            "es.blob_cache.read.total",
-            "The number of cache reads (warming not included), broken down by " + REGION_TIMESTAMP_AGE_ATTRIBUTE_KEY + " attribute.",
+        meterRegistry.registerLongAsyncGauge(
+            BLOB_CACHE_READ_TOTAL,
+            "The number of cache reads (warming not included)",
             "count",
-            () -> observeBuckets(readCountByBucket)
+            () -> new LongWithAttributes(readCount.longValue())
         );
-        meterRegistry.registerLongsAsyncGauge(
-            "es.blob_cache.miss.total",
-            "The number of cache misses (warming not included), broken down by " + REGION_TIMESTAMP_AGE_ATTRIBUTE_KEY + " attribute.",
+        meterRegistry.registerLongAsyncGauge(
+            BLOB_CACHE_MISS_TOTAL,
+            "The number of cache misses (warming not included)",
             "count",
-            () -> observeBuckets(missCountByBucket)
+            () -> new LongWithAttributes(missCount.longValue())
         );
         // adding this helps search for high or low miss ratio. It will be since boot of the node though. More advanced queries can use
         // deltas of the totals to see miss ratio over time.
@@ -274,6 +285,8 @@ public class BlobCacheMetrics {
         DoubleHistogram evictionScanTime,
         LongHistogram evictionScannedEntries,
         DoubleHistogram lockAcquireTime,
+        LongHistogram readAgeHistogram,
+        LongHistogram missAgeHistogram,
         TimeProvider timeProvider
     ) {
         this.cacheMissCounter = cacheMissCounter;
@@ -290,9 +303,9 @@ public class BlobCacheMetrics {
         this.evictionScanTime = evictionScanTime;
         this.evictionScannedEntries = evictionScannedEntries;
         this.lockAcquireTime = lockAcquireTime;
+        this.readAgeHistogram = readAgeHistogram;
+        this.missAgeHistogram = missAgeHistogram;
         this.timeProvider = timeProvider;
-        this.readCountByBucket = initBucketMap();
-        this.missCountByBucket = initBucketMap();
     }
 
     public LongCounter getCacheMissCounter() {
@@ -365,11 +378,11 @@ public class BlobCacheMetrics {
      *
      * @param regionTimestampMillis the representative data timestamp of the region (epoch millis), or one of
      *                              the sentinel values defined in {@code SharedBlobCacheService} which
-     *                              are negative and map to the {@code "other"} bucket; non-negative values
-     *                              are bucketed by age.
+     *                              are negative and are omitted from the age histogram; non-negative values
+     *                              are recorded as {@code now - timestamp} milliseconds.
      */
     public void recordRead(long regionTimestampMillis) {
-        incrementBucket(readCountByBucket, regionTimestampMillis, timeProvider.absoluteTimeInMillis());
+        recordAccess(readCount, readAgeHistogram, regionTimestampMillis, timeProvider.absoluteTimeInMillis());
     }
 
     /**
@@ -378,7 +391,7 @@ public class BlobCacheMetrics {
      * @param regionTimestampMillis see {@link #recordRead(long)}
      */
     public void recordMiss(long regionTimestampMillis) {
-        incrementBucket(missCountByBucket, regionTimestampMillis, timeProvider.absoluteTimeInMillis());
+        recordAccess(missCount, missAgeHistogram, regionTimestampMillis, timeProvider.absoluteTimeInMillis());
     }
 
     /**
@@ -389,13 +402,16 @@ public class BlobCacheMetrics {
      */
     public void recordBypassRead(long regionTimestampMillis) {
         final long nowMillis = timeProvider.absoluteTimeInMillis();
-        incrementBucket(readCountByBucket, regionTimestampMillis, nowMillis);
-        incrementBucket(missCountByBucket, regionTimestampMillis, nowMillis);
+        recordAccess(readCount, readAgeHistogram, regionTimestampMillis, nowMillis);
+        recordAccess(missCount, missAgeHistogram, regionTimestampMillis, nowMillis);
         cacheBypassCounter.increment();
     }
 
-    private static void incrementBucket(Map<String, LongAdder> counts, long regionTimestampMillis, long nowMillis) {
-        counts.get(resolveBucket(regionTimestampMillis, nowMillis)).increment();
+    private static void recordAccess(LongAdder count, LongHistogram ageHistogram, long regionTimestampMillis, long nowMillis) {
+        count.increment();
+        if (regionTimestampMillis >= 0) {
+            ageHistogram.record(nowMillis - regionTimestampMillis);
+        }
     }
 
     /**
@@ -432,52 +448,11 @@ public class BlobCacheMetrics {
     }
 
     public long readCount() {
-        return readCountByBucket.values().stream().mapToLong(LongAdder::sum).sum();
+        return readCount.sum();
     }
 
     public long missCount() {
-        return missCountByBucket.values().stream().mapToLong(LongAdder::sum).sum();
-    }
-
-    /**
-     * Resolve the {@link #REGION_TIMESTAMP_AGE_ATTRIBUTE_KEY} bucket for the given region timestamp.
-     *
-     * <p>Negative sentinel values map to {@code "other"}.
-     * All non-negative timestamps are bucketed by age relative to {@code nowMillis}; epoch-zero and
-     * pre-field-rollout timestamps land in {@code "older_than_14_days"}.
-     */
-    static String resolveBucket(long regionTimestampMillis, long nowMillis) {
-        if (regionTimestampMillis < 0) {
-            return "other";
-        }
-        return TimeRangeBucket.resolve(nowMillis - regionTimestampMillis);
-    }
-
-    private static Map<String, LongAdder> initBucketMap() {
-        Map<String, LongAdder> map = new LinkedHashMap<>();
-        map.put("other", new LongAdder());
-        for (TimeRangeBucket bucket : TimeRangeBucket.values()) {
-            map.put(bucket.label(), new LongAdder());
-        }
-        return map;
-    }
-
-    private static Collection<LongWithAttributes> observeBuckets(Map<String, LongAdder> bucketMap) {
-        // Zero-count buckets are omitted: these counters are monotonically increasing, so a bucket that
-        // is zero has simply never been accessed yet and will enter the stream naturally once it does.
-        // Absent observations are treated as implicitly 0 in Observability aggregations, so summing
-        // across buckets to get a node-level total is unaffected.
-        // As a natural consequence, nodes that never write real timestamps into regions (indexing-tier,
-        // non-stateless) only emit the "other" bucket, since sentinel timestamps always route there and
-        // the time-range buckets remain perpetually zero.
-        List<LongWithAttributes> result = new ArrayList<>(bucketMap.size());
-        for (Map.Entry<String, LongAdder> entry : bucketMap.entrySet()) {
-            long count = entry.getValue().sum();
-            if (count != 0L) {
-                result.add(new LongWithAttributes(count, Map.of(REGION_TIMESTAMP_AGE_ATTRIBUTE_KEY, entry.getKey())));
-            }
-        }
-        return result;
+        return missCount.sum();
     }
 
     /**

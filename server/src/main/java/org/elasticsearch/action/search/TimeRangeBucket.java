@@ -11,6 +11,9 @@ package org.elasticsearch.action.search;
 
 import org.elasticsearch.core.TimeValue;
 
+import java.util.ArrayList;
+import java.util.List;
+
 /**
  * Classifies a data age (milliseconds between a timestamp and now) into a discrete named bucket
  * using the same thresholds as {@code TIME_RANGE_FILTER_FROM_ATTRIBUTE} for search requests.
@@ -29,6 +32,7 @@ public enum TimeRangeBucket {
     OlderThan14Days(Long.MAX_VALUE, "older_than_14_days");
 
     private static final TimeRangeBucket[] VALUES = values();
+    private static final List<Long> HISTOGRAM_BOUNDARIES = buildHistogramBoundaries();
 
     private final long millis;
     private final String label;
@@ -43,6 +47,19 @@ public enum TimeRangeBucket {
         return label;
     }
 
+    /** Upper-inclusive age threshold for this bucket, in milliseconds. */
+    public long millis() {
+        return millis;
+    }
+
+    /**
+     * Explicit upper-inclusive histogram bucket boundaries matching these thresholds.
+     * {@link #OlderThan14Days} is the implicit overflow bucket and is omitted.
+     */
+    public static List<Long> histogramBoundaries() {
+        return HISTOGRAM_BOUNDARIES;
+    }
+
     /**
      * Returns the bucket label for the given age in milliseconds.
      */
@@ -53,5 +70,13 @@ public enum TimeRangeBucket {
             }
         }
         throw new AssertionError("unreachable: OlderThan14Days has threshold Long.MAX_VALUE");
+    }
+
+    private static List<Long> buildHistogramBoundaries() {
+        List<Long> boundaries = new ArrayList<>(VALUES.length - 1);
+        for (int i = 0; i < VALUES.length - 1; i++) {
+            boundaries.add(VALUES[i].millis);
+        }
+        return List.copyOf(boundaries);
     }
 }

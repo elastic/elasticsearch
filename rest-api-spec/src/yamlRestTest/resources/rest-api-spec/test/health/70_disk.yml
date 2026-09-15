@@ -1,0 +1,64 @@
+---
+teardown:
+  - do:
+      indices.delete:
+        index: disk_readonly_index
+        ignore: 404
+
+---
+"Green disk health on a healthy cluster":
+  - requires:
+      cluster_features: "gte_v8.7.0"
+      reason: "the API path changed in 8.7"
+
+  - do:
+      health_report:
+        feature: disk
+
+  - is_true: cluster_name
+  - match: { indicators.disk.status: "green" }
+  - match: { indicators.disk.symptom: "The cluster has enough available disk space." }
+  - match: { indicators.disk.details.nodes_over_high_watermark: 0 }
+  - match: { indicators.disk.details.nodes_over_flood_stage_watermark: 0 }
+  - match: { indicators.disk.details.indices_with_readonly_block: 0 }
+  - gte: { indicators.disk.details.nodes_with_enough_disk_space: 1 }
+
+---
+# The disk indicator reports RED when any index has INDEX_READ_ONLY_ALLOW_DELETE, the same cluster
+# block DiskThresholdMonitor applies at flood stage. Setting that block directly avoids mutating
+# cluster-wide watermarks and waiting for the health-node poll.
+"Red disk health when an index has a read-only allow-delete block":
+  - requires:
+      cluster_features: "gte_v8.7.0"
+      reason: "the API path changed in 8.7"
+
+  - do:
+      indices.create:
+        index: disk_readonly_index
+        master_timeout: 1s
+        timeout: 1s
+        body:
+          settings:
+            number_of_shards: 1
+            number_of_replicas: 0
+            index.blocks.read_only_allow_delete: true
+
+  - do:
+      health_report:
+        feature: disk
+
+  - is_true: cluster_name
+  - match: { indicators.disk.status: "red" }
+  - match: { indicators.disk.symptom: "1 index is not allowed to be updated. The cluster is recovering and ingest capabilities should be restored within a few minutes." }
+  - match: { indicators.disk.details.indices_with_readonly_block: 1 }
+  - match: { indicators.disk.details.nodes_over_high_watermark: 0 }
+  - match: { indicators.disk.details.nodes_over_flood_stage_watermark: 0 }
+  - length: { indicators.disk.impacts: 1 }
+  - match: { indicators.disk.impacts.0.id: "elasticsearch:health:disk:impact:ingest_capability_unavailable" }
+  - match: { indicators.disk.impacts.0.severity: 1 }
+  - match: { indicators.disk.impacts.0.description: "Cannot insert or update documents in the affected indices [${_project_id_prefix_}disk_readonly_index]." }
+  - match: { indicators.disk.impacts.0.impact_areas.0: "ingest" }
+  - length: { indicators.disk.diagnosis: 1 }
+  - match: { indicators.disk.diagnosis.0.id: "elasticsearch:health:disk:diagnosis:add_disk_capacity_data_nodes" }
+  - match: { indicators.disk.diagnosis.0.cause: "1 index resides on nodes that have run or are likely to run out of disk space, this can temporarily disable writing on this index." }
+  - match: { indicators.disk.diagnosis.0.affected_resources.indices.0: "${_project_id_prefix_}disk_readonly_index" }

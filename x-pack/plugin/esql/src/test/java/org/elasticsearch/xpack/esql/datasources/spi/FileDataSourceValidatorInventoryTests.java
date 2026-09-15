@@ -49,6 +49,12 @@ public class FileDataSourceValidatorInventoryTests extends ESTestCase {
         DatasetShape shape = validator.datasetShape(Map.of(), "s3://bucket/data.csv.gz");
         assertThat(shape.format(), equalTo("csv"));
         assertThat(shape.compression(), equalTo("gzip"));
+
+        DatasetShape comma = validator.datasetShape(Map.of(), "s3://bucket/a.csv,s3://bucket/b.csv.gz");
+        assertThat(comma.format(), equalTo("csv"));
+
+        DatasetShape mixed = validator.datasetShape(Map.of(), "s3://bucket/hits/*");
+        assertThat(mixed.format(), nullValue());
     }
 
     public void testDatasetShapeAutoNeverReported() {

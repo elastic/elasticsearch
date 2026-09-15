@@ -1,0 +1,6 @@
+pr: 141463
+summary: "ESQL: Normalize count with constant arguments for deduplication"
+area: ES|QL
+type: bug
+issues:
+  - 141424

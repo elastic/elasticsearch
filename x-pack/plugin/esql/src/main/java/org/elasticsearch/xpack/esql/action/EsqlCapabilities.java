@@ -2926,6 +2926,12 @@ public class EsqlCapabilities {
         EXTERNAL_CSV_HEADER_ROW_OPTION,
 
         /**
+         * Support for the {@code skip_rows} CSV/TSV option, which discards a fixed number of
+         * leading content records on the first split of each file before {@code header_row}.
+         */
+        EXTERNAL_CSV_SKIP_ROWS_OPTION,
+
+        /**
          * The CSV/TSV file-level {@code datetime_format} option compiles to an Elasticsearch
          * {@code DateFormatter} rather than a raw JDK {@code DateTimeFormatter}: zone offsets are honored,
          * date-only patterns parse, and named formats and {@code a||b} composites are accepted.

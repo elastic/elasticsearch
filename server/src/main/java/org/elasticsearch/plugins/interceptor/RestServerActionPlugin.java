@@ -14,48 +14,53 @@ import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.indices.breaker.CircuitBreakerService;
 import org.elasticsearch.plugins.ActionPlugin;
+import org.elasticsearch.rest.RestContentTypePolicy;
 import org.elasticsearch.rest.RestController;
 import org.elasticsearch.rest.RestInterceptor;
 import org.elasticsearch.telemetry.TelemetryProvider;
 import org.elasticsearch.usage.UsageService;
 
-import java.util.function.UnaryOperator;
+import java.util.List;
 
 /**
- * An action plugin that intercepts incoming the REST requests.
+ * Extension point for Elastic-internal plugins that need to hook into the REST layer.
+ *
+ * <p><strong>This interface is restricted to internal plugins.</strong>
+ * At startup, {@code ActionModule} verifies that every plugin implementing this interface belongs to the {@code org.elasticsearch.xpack}
+ * or {@code co.elastic.elasticsearch} package hierarchy.
  */
 public interface RestServerActionPlugin extends ActionPlugin {
 
     /**
-     * Returns a function used to intercept each rest request before handling the request.
-     * The returned {@link UnaryOperator} is called for every incoming rest request and receives
-     * the original rest handler as it's input. This allows adding arbitrary functionality around
-     * rest request handlers to do for instance logging or authentication.
-     * A simple example of how to only allow GET request is here:
-     * <pre>
-     * {@code
-     *    UnaryOperator<RestHandler> getRestHandlerInterceptor(ThreadContext threadContext) {
-     *      return originalHandler -> (RestHandler) (request, channel, client) -> {
-     *        if (request.method() != Method.GET) {
-     *          throw new IllegalStateException("only GET requests are allowed");
-     *        }
-     *        originalHandler.handleRequest(request, channel, client);
-     *      };
-     *    }
-     * }
-     * </pre>
+     * Returns {@link RestInterceptor}s contributed by this plugin.
      *
-     * Note: Only one installed plugin may implement a rest interceptor.
+     * <p>Interceptors from all installed internal plugins are collected and sorted by {@link RestInterceptor#order()}. Multiple plugins may
+     * each contribute interceptors; the lists are merged and sorted globally.
      */
-    RestInterceptor getRestHandlerInterceptor(ThreadContext threadContext);
+    default List<RestInterceptor> getRestHandlerInterceptors(ThreadContext threadContext) {
+        return List.of();
+    }
 
     /**
-     * Returns a replacement {@link RestController} to be used in the server.
-     * Note: Only one installed plugin may override the rest controller.
+     * Returns a {@link RestContentTypePolicy} that decides whether a request may use browser-safelisted content types such as
+     * {@code application/x-www-form-urlencoded}.
+     *
+     * <p>At most one installed plugin may return a non-{@code null} value; a second non-null policy causes startup to fail.
+     */
+    @Nullable
+    default RestContentTypePolicy getRestContentTypePolicy(ThreadContext threadContext) {
+        return null;
+    }
+
+    /**
+     * Returns a replacement {@link RestController} to be used instead of the default one.
+     *
+     * <p>At most one installed plugin may return a non-{@code null} value; a second non-null controller causes startup to fail.
      */
     @Nullable
     default RestController getRestController(
-        @Nullable RestInterceptor interceptor,
+        List<RestInterceptor> interceptors,
+        RestContentTypePolicy contentTypePolicy,
         NodeClient client,
         CircuitBreakerService circuitBreakerService,
         UsageService usageService,

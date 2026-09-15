@@ -23,8 +23,10 @@ import org.elasticsearch.http.HttpChannel;
 import org.elasticsearch.http.HttpRequest;
 import org.elasticsearch.license.TestUtils;
 import org.elasticsearch.license.XPackLicenseState;
+import org.elasticsearch.rest.DefaultRestInterceptorChain;
 import org.elasticsearch.rest.RestChannel;
 import org.elasticsearch.rest.RestHandler;
+import org.elasticsearch.rest.RestInterceptor;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.RestRequestFilter;
 import org.elasticsearch.rest.RestStatus;
@@ -60,7 +62,7 @@ import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
-import java.util.concurrent.ExecutionException;
+import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicReference;
 
 import static org.elasticsearch.test.ActionListenerUtils.anyActionListener;
@@ -78,6 +80,8 @@ import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.verifyNoMoreInteractions;
 import static org.mockito.Mockito.when;
 
@@ -116,7 +120,6 @@ public class SecurityRestFilterTests extends ESTestCase {
     private SecurityRestFilter getFilter(OperatorPrivileges.OperatorPrivilegesService privilegesService) {
         return new SecurityRestFilter(
             true,
-            true,
             threadContext,
             secondaryAuthenticator,
             new AuditTrailService(mock(AuditTrail.class), TestUtils.newTestLicenseState(), clusterService),
@@ -136,9 +139,7 @@ public class SecurityRestFilterTests extends ESTestCase {
             callback.onResponse(authentication);
             return Void.TYPE;
         }).when(authcService).authenticate(eq(httpRequest), anyActionListener());
-        PlainActionFuture<Boolean> future = new PlainActionFuture<>();
-        filter.intercept(request, channel, restHandler, future);
-        assertThat(future.get(), is(Boolean.TRUE));
+        runChain(request, List.of(filter)).actionGet();
         verifyNoMoreInteractions(channel);
     }
 
@@ -176,12 +177,7 @@ public class SecurityRestFilterTests extends ESTestCase {
         );
 
         AtomicReference<SecondaryAuthentication> secondaryAuthRef = new AtomicReference<>();
-        ActionListener<Boolean> listener = ActionListener.wrap(proceed -> {
-            assertThat(proceed, is(Boolean.TRUE));
-            secondaryAuthRef.set(securityContext.getSecondaryAuthentication());
-        }, ex -> { throw new RuntimeException(ex); });
-
-        filter.intercept(request, channel, restHandler, listener);
+        runChain(request, List.of(filter), () -> secondaryAuthRef.set(securityContext.getSecondaryAuthentication())).actionGet();
 
         verifyNoMoreInteractions(channel);
 
@@ -190,54 +186,12 @@ public class SecurityRestFilterTests extends ESTestCase {
     }
 
     public void testProcessWithSecurityDisabled() throws Exception {
-        filter = new SecurityRestFilter(false, true, threadContext, secondaryAuthenticator, mock(AuditTrailService.class), null);
+        filter = new SecurityRestFilter(false, threadContext, secondaryAuthenticator, mock(AuditTrailService.class), null);
         assertEquals(NOOP_OPERATOR_PRIVILEGES_SERVICE, filter.getOperatorPrivilegesService());
         RestRequest request = mock(RestRequest.class);
 
-        PlainActionFuture<Boolean> future = new PlainActionFuture<>();
-        filter.intercept(request, channel, restHandler, future);
-        assertThat(future.get(), is(Boolean.TRUE));
+        runChain(request, List.of(filter)).actionGet();
         verifyNoMoreInteractions(channel, authcService);
-    }
-
-    public void testAllowsBrowserSafelistedContentTypeRequiresSecurityEnabled() throws Exception {
-        Authentication authentication = AuthenticationTestHelper.builder().realm().build(false);
-        authentication.writeToContext(threadContext);
-        RestRequest request = mock(RestRequest.class);
-
-        assertThat(filter.allowsBrowserSafelistedContentType(request), is(true));
-
-        filter = new SecurityRestFilter(false, true, threadContext, secondaryAuthenticator, mock(AuditTrailService.class), null);
-        assertThat(filter.allowsBrowserSafelistedContentType(request), is(false));
-    }
-
-    public void testAllowsBrowserSafelistedContentTypeRequiresHttpSslEnabled() throws Exception {
-        Authentication authentication = AuthenticationTestHelper.builder().realm().build(false);
-        authentication.writeToContext(threadContext);
-        RestRequest request = mock(RestRequest.class);
-
-        filter = new SecurityRestFilter(
-            true,
-            false,
-            threadContext,
-            secondaryAuthenticator,
-            mock(AuditTrailService.class),
-            NOOP_OPERATOR_PRIVILEGES_SERVICE
-        );
-        assertThat(filter.allowsBrowserSafelistedContentType(request), is(false));
-    }
-
-    public void testAllowsBrowserSafelistedContentTypeRequiresAuthenticatedUser() {
-        RestRequest request = mock(RestRequest.class);
-        assertThat(filter.allowsBrowserSafelistedContentType(request), is(false));
-    }
-
-    public void testAllowsBrowserSafelistedContentTypeRejectsAnonymousAuthentication() throws Exception {
-        Authentication authentication = AuthenticationTestHelper.builder().anonymous().build(false);
-        authentication.writeToContext(threadContext);
-        RestRequest request = mock(RestRequest.class);
-
-        assertThat(filter.allowsBrowserSafelistedContentType(request), is(false));
     }
 
     public void testProcessOptionsMethod() throws Exception {
@@ -245,9 +199,10 @@ public class SecurityRestFilterTests extends ESTestCase {
         when(channel.request()).thenReturn(request);
         when(channel.newErrorBuilder()).thenReturn(JsonXContent.contentBuilder());
 
-        PlainActionFuture<Boolean> future = new PlainActionFuture<>();
-        filter.intercept(request, channel, restHandler, future);
-        final ElasticsearchSecurityException ex = expectThrows(ElasticsearchSecurityException.class, future::actionGet);
+        final ElasticsearchSecurityException ex = expectThrows(
+            ElasticsearchSecurityException.class,
+            () -> runChain(request, List.of(filter)).actionGet()
+        );
         assertThat(ex, TestMatchers.throwableWithMessage(containsString("Cannot dispatch OPTIONS request, as they are not authenticated")));
 
         verifyNoMoreInteractions(restHandler);
@@ -278,16 +233,13 @@ public class SecurityRestFilterTests extends ESTestCase {
         }).when(auditTrail).authenticationSuccess(any(RestRequest.class));
         filter = new SecurityRestFilter(
             true,
-            true,
             threadContext,
             secondaryAuthenticator,
             new AuditTrailService(auditTrail, licenseState, clusterService),
             NOOP_OPERATOR_PRIVILEGES_SERVICE
         );
 
-        PlainActionFuture<Boolean> future = new PlainActionFuture<>();
-        filter.intercept(restRequest, channel, restHandler, future);
-        assertThat(future.get(), is(Boolean.TRUE));
+        runChain(restRequest, List.of(filter)).actionGet(10, TimeUnit.SECONDS);
 
         assertNotEquals(restRequest, auditTrailRequest.get());
         assertNotEquals(restRequest.content(), auditTrailRequest.get().content());
@@ -307,7 +259,7 @@ public class SecurityRestFilterTests extends ESTestCase {
         assertEquals("bar", map.get("foo"));
     }
 
-    public void testSanitizeHeaders() throws Exception {
+    public void testSanitizeHeaders() {
         for (boolean failRequest : List.of(true, false)) {
             threadContext.putHeader(UsernamePasswordToken.BASIC_AUTH_HEADER, randomAlphaOfLengthBetween(1, 10));
             RestRequest request = mock(RestRequest.class);
@@ -328,21 +280,18 @@ public class SecurityRestFilterTests extends ESTestCase {
             Set<String> foundKeys = threadContext.getHeaders().keySet();
             assertThat(foundKeys, hasItem(UsernamePasswordToken.BASIC_AUTH_HEADER));
 
-            PlainActionFuture<Boolean> future = new PlainActionFuture<>();
-            filter.intercept(request, channel, restHandler, future);
-            assertThat(future.get(), is(Boolean.TRUE));
+            runChain(request, List.of(filter)).actionGet(10, TimeUnit.SECONDS);
 
             foundKeys = threadContext.getHeaders().keySet();
             assertThat(foundKeys, not(hasItem(UsernamePasswordToken.BASIC_AUTH_HEADER)));
         }
     }
 
-    public void testProcessWithWorkflow() throws Exception {
+    public void testProcessWithWorkflow() {
         final Workflow workflow = randomFrom(WorkflowResolver.allWorkflows());
         restHandler = new TestBaseRestHandler(randomFrom(workflow.allowedRestHandlers()));
 
         filter = new SecurityRestFilter(
-            true,
             true,
             threadContext,
             secondaryAuthenticator,
@@ -350,10 +299,8 @@ public class SecurityRestFilterTests extends ESTestCase {
             null
         );
 
-        RestRequest request = mock(RestRequest.class);
-        PlainActionFuture<Boolean> future = new PlainActionFuture<>();
-        filter.intercept(request, channel, restHandler, future);
-        assertThat(future.get(), is(Boolean.TRUE));
+        RestRequest request = new FakeRestRequest();
+        runChain(request, List.of(filter)).actionGet(10, TimeUnit.SECONDS);
         assertThat(WorkflowService.readWorkflowFromThreadContext(threadContext), equalTo(workflow.name()));
     }
 
@@ -370,23 +317,21 @@ public class SecurityRestFilterTests extends ESTestCase {
 
         filter = new SecurityRestFilter(
             true,
-            true,
             threadContext,
             secondaryAuthenticator,
             new AuditTrailService(mock(AuditTrail.class), TestUtils.newTestLicenseState(), clusterService),
             null
         );
 
-        RestRequest request = mock(RestRequest.class);
-        PlainActionFuture<Boolean> future = new PlainActionFuture<>();
-        filter.intercept(request, channel, restHandler, future);
-        assertThat(future.get(), is(Boolean.TRUE));
+        RestRequest request = new FakeRestRequest();
+        runChain(request, List.of(filter)).actionGet(10, TimeUnit.SECONDS);
         assertThat(WorkflowService.readWorkflowFromThreadContext(threadContext), nullValue());
     }
 
     public void testCheckRest() throws Exception {
         for (Boolean isOperator : new Boolean[] { Boolean.TRUE, Boolean.FALSE }) {
             RestRequest request = mock(RestRequest.class);
+            RestHandler localHandler = mock(RestHandler.class);
             try (ThreadContext.StoredContext ignore = threadContext.stashContext()) {
                 SecurityRestFilter filter = getFilter(new OperatorPrivileges.OperatorPrivilegesService() {
                     @Override
@@ -416,13 +361,15 @@ public class SecurityRestFilterTests extends ESTestCase {
                     public void maybeInterceptRequest(ThreadContext threadContext, TransportRequest request) {}
                 });
 
-                PlainActionFuture<Boolean> future = new PlainActionFuture<>();
-                filter.intercept(request, channel, restHandler, future);
+                var chain = new DefaultRestInterceptorChain(request, channel, localHandler, mock(NodeClient.class), List.of(filter));
+                var future = new PlainActionFuture<Void>();
+                chain.proceed(future);
+                future.actionGet(10, TimeUnit.SECONDS);
 
                 if (isOperator) {
-                    assertThat(future.get(), is(Boolean.TRUE));
+                    verify(localHandler).handleRequest(any(), any(), any());
                 } else {
-                    assertThat(future.get(), is(Boolean.FALSE));
+                    verifyNoInteractions(localHandler);
                 }
             }
         }
@@ -447,19 +394,17 @@ public class SecurityRestFilterTests extends ESTestCase {
 
         SecurityRestFilter testFilter = new SecurityRestFilter(
             true,
-            true,
             threadContext,
             secondaryAuthenticator,
             auditTrailService,
             NOOP_OPERATOR_PRIVILEGES_SERVICE
         );
 
-        PlainActionFuture<Boolean> future = new PlainActionFuture<>();
-        testFilter.intercept(restRequest, channel, restHandler, future);
-
-        ExecutionException ex = expectThrows(ExecutionException.class, future::get);
-        assertTrue(ex.getCause() instanceof ElasticsearchStatusException);
-        assertThat(((ElasticsearchStatusException) ex.getCause()).status(), is(RestStatus.REQUEST_ENTITY_TOO_LARGE));
+        ElasticsearchStatusException ex = expectThrows(
+            ElasticsearchStatusException.class,
+            () -> runChain(restRequest, List.of(testFilter)).actionGet(10, TimeUnit.SECONDS)
+        );
+        assertThat(ex.status(), is(RestStatus.REQUEST_ENTITY_TOO_LARGE));
     }
 
     /** When {@code authenticationSuccess} does not throw, the request proceeds normally. */
@@ -476,16 +421,24 @@ public class SecurityRestFilterTests extends ESTestCase {
 
         SecurityRestFilter testFilter = new SecurityRestFilter(
             true,
-            true,
             threadContext,
             secondaryAuthenticator,
             auditTrailService,
             NOOP_OPERATOR_PRIVILEGES_SERVICE
         );
 
-        PlainActionFuture<Boolean> future = new PlainActionFuture<>();
-        testFilter.intercept(restRequest, channel, restHandler, future);
-        assertThat(future.get(), is(Boolean.TRUE));
+        runChain(restRequest, List.of(testFilter)).actionGet(10, TimeUnit.SECONDS);
+    }
+
+    private PlainActionFuture<Void> runChain(RestRequest request, List<RestInterceptor> interceptors) {
+        return runChain(request, interceptors, () -> {});
+    }
+
+    private PlainActionFuture<Void> runChain(RestRequest request, List<RestInterceptor> interceptors, Runnable runAfter) {
+        var chain = new DefaultRestInterceptorChain(request, channel, restHandler, mock(NodeClient.class), interceptors);
+        var future = new PlainActionFuture<Void>();
+        chain.proceed(ActionListener.runAfter(future, runAfter));
+        return future;
     }
 
     private interface FilteredRestHandler extends RestHandler, RestRequestFilter {}

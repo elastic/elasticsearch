@@ -14,7 +14,6 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.ElasticsearchException;
-import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.client.internal.node.NodeClient;
 import org.elasticsearch.common.Strings;
@@ -109,7 +108,8 @@ public class RestController implements HttpServerTransport.Dispatcher {
 
     private final PathTrie<MethodHandlers> handlers = new PathTrie<>(RestUtils.REST_DECODER);
 
-    private final RestInterceptor interceptor;
+    private final List<RestInterceptor> interceptors;
+    private final RestContentTypePolicy contentTypePolicy;
 
     private final NodeClient client;
 
@@ -124,7 +124,8 @@ public class RestController implements HttpServerTransport.Dispatcher {
     public static final String METRIC_REQUESTS_TOTAL = "es.rest.requests.total";
 
     public RestController(
-        RestInterceptor restInterceptor,
+        List<RestInterceptor> restInterceptors,
+        RestContentTypePolicy restContentTypePolicy,
         NodeClient client,
         CircuitBreakerService circuitBreakerService,
         UsageService usageService,
@@ -134,10 +135,8 @@ public class RestController implements HttpServerTransport.Dispatcher {
         this.instrumentation = telemetryProvider.getHttpServerInstrumentation();
         this.requestsCounter = telemetryProvider.getMeterRegistry()
             .registerLongCounter(METRIC_REQUESTS_TOTAL, "The total number of rest requests/responses processed", "unit");
-        if (restInterceptor == null) {
-            restInterceptor = (request, channel, targetHandler, listener) -> listener.onResponse(Boolean.TRUE);
-        }
-        this.interceptor = restInterceptor;
+        this.interceptors = List.copyOf(restInterceptors);
+        this.contentTypePolicy = restContentTypePolicy;
         this.client = client;
         this.circuitBreakerService = circuitBreakerService;
         registerHandlerNoWrap(RestRequest.Method.GET, "/favicon.ico", RestApiVersion.current(), new RestFavIconHandler());
@@ -542,7 +541,7 @@ public class RestController implements HttpServerTransport.Dispatcher {
                 && request.method() == RestRequest.Method.POST
                 && handler.supportsReadOnlyFormEncodedPostBody()
                 && isFormEncodedBody(request)
-                && interceptor.allowsBrowserSafelistedContentType(request);
+                && contentTypePolicy.allowsBrowserSafelistedContentType(request);
             if ((isBrowserSafelistedContentType && consumeFormEncodedBodyParameters == false)
                 || (consumeFormEncodedBodyParameters == false && handler.mediaTypesValid(request) == false)) {
                 sendContentTypeErrorMessage(request.getAllHeaderValues("Content-Type"), channel);
@@ -596,18 +595,11 @@ public class RestController implements HttpServerTransport.Dispatcher {
             }
 
             final var finalChannel = responseChannel;
-            this.interceptor.intercept(request, responseChannel, handler.getConcreteRestHandler(), new ActionListener<>() {
+
+            var chain = new DefaultRestInterceptorChain(request, finalChannel, handler, client, interceptors);
+            chain.proceed(new ActionListener<>() {
                 @Override
-                public void onResponse(Boolean processRequest) {
-                    if (processRequest) {
-                        try {
-                            validateRequest(request, handler, client);
-                            handler.handleRequest(request, finalChannel, client);
-                        } catch (Exception e) {
-                            onFailure(e);
-                        }
-                    }
-                }
+                public void onResponse(Void unused) {}
 
                 @Override
                 public void onFailure(Exception e) {
@@ -622,12 +614,6 @@ public class RestController implements HttpServerTransport.Dispatcher {
             sendFailure(responseChannel, e);
         }
     }
-
-    /**
-     * Validates that the request should be allowed. Throws an exception if the request should be rejected.
-     */
-    @SuppressWarnings("unused")
-    protected void validateRequest(RestRequest request, RestHandler handler, NodeClient client) throws ElasticsearchStatusException {}
 
     private void sendFailure(RestChannel responseChannel, Exception e) throws IOException {
         var restResponse = new RestResponse(responseChannel, e);

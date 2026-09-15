@@ -12,26 +12,37 @@ package org.elasticsearch.rest;
 import org.elasticsearch.action.ActionListener;
 
 /**
- * Wraps the execution of a {@link RestHandler}
+ * Intercepts the execution of a {@link RestHandler} as part of a {@link RestInterceptorChain}.
+ *
+ * <p>Interceptors are arranged in a chain and executed in ascending {@link #order()} before the target handler runs. Each interceptor
+ * receives the chain and a listener and must do exactly one of the following:
+ * <ul>
+ *   <li>Call {@link RestInterceptorChain#proceed(ActionListener)} (or the overload that allows substituting channel and/or handler) to pass
+ *       control to the next interceptor (or to the target handler if this is the last interceptor in the chain).
+ *   <li>Complete the listener directly: {@code listener.onResponse(null)} to indicate success, or {@code listener.onFailure(e)} to signal
+ *       an error, without calling {@code chain.proceed}, thereby short-circuiting the remainder of the chain.
+ * </ul>
  */
 @FunctionalInterface
 public interface RestInterceptor {
 
     /**
-     * @param listener The interceptor responds with {@code True} if the handler should be called,
-     *                 or {@code False} if the request has been entirely handled by the interceptor.
-     *                 In the case of {@link ActionListener#onFailure(Exception)}, the target handler
-     *                 will not be called, the request will be treated as unhandled, and the regular
-     *                 rest exception handling will be performed
+     * Intercepts a REST request.
+     *
+     * <p>Implementations must either call {@link RestInterceptorChain#proceed(ActionListener)} to continue the chain, or complete
+     * the {@code listener} directly to short-circuit it.
+     *
+     * @param chain    the current position in the interceptor chain, exposing the request, channel, and target handler at this point in
+     *                 execution
+     * @param listener must either be completed directly or passed to {@code chain.proceed()}
      */
-    void intercept(RestRequest request, RestChannel channel, RestHandler targetHandler, ActionListener<Boolean> listener) throws Exception;
+    void intercept(RestInterceptorChain chain, ActionListener<Void> listener);
 
     /**
-     * Whether this request may use browser-safelisted content types such as
-     * {@code application/x-www-form-urlencoded}. Form-encoded POST bodies still
-     * require an explicit handler opt-in via {@link RestHandler#supportsReadOnlyFormEncodedPostBody()}.
+     * The position of the interceptor in the chain. Execution proceeds from the lowest order to the highest. Interceptors with equal order
+     * are sorted in an unspecified but stable order.
      */
-    default boolean allowsBrowserSafelistedContentType(RestRequest request) {
-        return false;
+    default int order() {
+        return 0;
     }
 }

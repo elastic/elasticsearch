@@ -23,6 +23,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.index.SliceIndexing;
 import org.elasticsearch.indices.breaker.NoneCircuitBreakerService;
+import org.elasticsearch.rest.RestContentTypePolicy;
 import org.elasticsearch.rest.RestController;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.search.AbstractSearchTestCase;
@@ -41,6 +42,7 @@ import org.junit.Before;
 
 import java.util.Collections;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 import java.util.concurrent.atomic.AtomicReference;
 
@@ -56,7 +58,8 @@ public class RestValidateQueryActionTests extends AbstractSearchTestCase {
 
     private UsageService usageService = new UsageService();
     private RestController controller = new RestController(
-        null,
+        List.of(),
+        RestContentTypePolicy.getDefault(),
         client,
         new NoneCircuitBreakerService(),
         usageService,

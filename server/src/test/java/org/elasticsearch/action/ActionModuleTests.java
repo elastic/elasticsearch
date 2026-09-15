@@ -12,6 +12,7 @@ package org.elasticsearch.action;
 import org.elasticsearch.action.admin.cluster.node.info.TransportNodesInfoAction;
 import org.elasticsearch.action.bulk.IncrementalBulkService;
 import org.elasticsearch.action.support.ActionFilters;
+import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.action.support.TransportAction;
 import org.elasticsearch.client.internal.node.NodeClient;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
@@ -22,6 +23,7 @@ import org.elasticsearch.common.settings.SettingsFilter;
 import org.elasticsearch.common.settings.SettingsModule;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.env.TestEnvironment;
 import org.elasticsearch.features.NodeFeature;
@@ -31,10 +33,13 @@ import org.elasticsearch.plugins.ActionPlugin;
 import org.elasticsearch.plugins.ActionPlugin.ActionHandler;
 import org.elasticsearch.plugins.interceptor.RestServerActionPlugin;
 import org.elasticsearch.plugins.internal.RestExtension;
+import org.elasticsearch.rest.DefaultRestInterceptorChain;
 import org.elasticsearch.rest.RestChannel;
+import org.elasticsearch.rest.RestContentTypePolicy;
 import org.elasticsearch.rest.RestController;
 import org.elasticsearch.rest.RestHandler;
 import org.elasticsearch.rest.RestInterceptor;
+import org.elasticsearch.rest.RestInterceptorChain;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.action.admin.cluster.RestNodesInfoAction;
 import org.elasticsearch.search.crossproject.CrossProjectModeDecider;
@@ -43,15 +48,20 @@ import org.elasticsearch.tasks.TaskManager;
 import org.elasticsearch.telemetry.TelemetryProvider;
 import org.elasticsearch.telemetry.metric.MeterRegistry;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.test.rest.FakeRestRequest;
 import org.elasticsearch.threadpool.TestThreadPool;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.usage.UsageService;
+import org.elasticsearch.xcontent.NamedXContentRegistry;
 import org.hamcrest.Matchers;
 import org.junit.Before;
 
 import java.io.IOException;
+import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.Comparator;
 import java.util.List;
+import java.util.concurrent.TimeUnit;
 import java.util.function.Predicate;
 import java.util.function.Supplier;
 
@@ -118,29 +128,7 @@ public class ActionModuleTests extends ESTestCase {
     }
 
     public void testSetupRestHandlerContainsKnownBuiltin() {
-        SettingsModule settings = new SettingsModule(Settings.EMPTY);
-        UsageService usageService = new UsageService();
-        ActionModule actionModule = new ActionModule(
-            testEnv,
-            TestIndexNameExpressionResolver.newInstance(),
-            settings.getClusterSettings(),
-            settings.getSettingsFilter(),
-            null,
-            emptyList(),
-            null,
-            null,
-            usageService,
-            null,
-            TelemetryProvider.NOOP,
-            mock(ClusterService.class),
-            null,
-            List.of(),
-            List.of(),
-            RestExtension.allowAll(),
-            new IncrementalBulkService(null, null, MeterRegistry.NOOP, null, null),
-            CrossProjectModeDecider.NOOP,
-            TestProjectResolvers.alwaysThrow()
-        );
+        ActionModule actionModule = newActionModule(null, emptyList());
         actionModule.initRestHandlers(null, null);
         // At this point the easiest way to confirm that a handler is loaded is to try to register another one on top of it and to fail
         Exception e = expectThrows(
@@ -176,35 +164,10 @@ public class ActionModuleTests extends ESTestCase {
                 });
             }
         };
-        SettingsModule settings = new SettingsModule(Settings.EMPTY);
-        ThreadPool threadPool = new TestThreadPool(getTestName());
-        try {
-            UsageService usageService = new UsageService();
-            ActionModule actionModule = new ActionModule(
-                testEnv,
-                TestIndexNameExpressionResolver.newInstance(threadPool.getThreadContext()),
-                settings.getClusterSettings(),
-                settings.getSettingsFilter(),
-                threadPool,
-                singletonList(dupsMainAction),
-                null,
-                null,
-                usageService,
-                null,
-                TelemetryProvider.NOOP,
-                mock(ClusterService.class),
-                null,
-                List.of(),
-                List.of(),
-                RestExtension.allowAll(),
-                new IncrementalBulkService(null, null, MeterRegistry.NOOP, null, null),
-                CrossProjectModeDecider.NOOP,
-                TestProjectResolvers.alwaysThrow()
-            );
+        try (var threadPool = new TestThreadPool(getTestName())) {
+            ActionModule actionModule = newActionModule(threadPool, singletonList(dupsMainAction));
             Exception e = expectThrows(IllegalArgumentException.class, () -> actionModule.initRestHandlers(null, null));
             assertThat(e.getMessage(), startsWith("Cannot replace existing handler for [/_nodes] for method: GET"));
-        } finally {
-            threadPool.shutdown();
         }
     }
 
@@ -229,31 +192,8 @@ public class ActionModuleTests extends ESTestCase {
             }
         };
 
-        SettingsModule settings = new SettingsModule(Settings.EMPTY);
-        ThreadPool threadPool = new TestThreadPool(getTestName());
-        try {
-            UsageService usageService = new UsageService();
-            ActionModule actionModule = new ActionModule(
-                testEnv,
-                TestIndexNameExpressionResolver.newInstance(threadPool.getThreadContext()),
-                settings.getClusterSettings(),
-                settings.getSettingsFilter(),
-                threadPool,
-                singletonList(registersFakeHandler),
-                null,
-                null,
-                usageService,
-                null,
-                TelemetryProvider.NOOP,
-                mock(ClusterService.class),
-                null,
-                List.of(),
-                List.of(),
-                RestExtension.allowAll(),
-                new IncrementalBulkService(null, null, MeterRegistry.NOOP, null, null),
-                CrossProjectModeDecider.NOOP,
-                TestProjectResolvers.alwaysThrow()
-            );
+        try (var threadPool = new TestThreadPool(getTestName())) {
+            ActionModule actionModule = newActionModule(threadPool, singletonList(registersFakeHandler));
             actionModule.initRestHandlers(null, null);
             // At this point the easiest way to confirm that a handler is loaded is to try to register another one on top of it and to fail
             Exception e = expectThrows(
@@ -269,44 +209,55 @@ public class ActionModuleTests extends ESTestCase {
                 })
             );
             assertThat(e.getMessage(), startsWith("Cannot replace existing handler for [/_dummy] for method: GET"));
-        } finally {
-            threadPool.shutdown();
         }
     }
 
-    public void test3rdPartyHandlerIsNotInstalled() {
-        Settings settings = Settings.builder().put("xpack.security.enabled", false).put("path.home", createTempDir()).build();
+    public void testInterceptorsAreSortedByOrder() {
+        List<Integer> callOrder = new ArrayList<>();
 
-        SettingsModule settingsModule = new SettingsModule(Settings.EMPTY);
-        ThreadPool threadPool = new TestThreadPool(getTestName());
-        ActionPlugin secPlugin = new SecPlugin(true, false);
-        try {
-            UsageService usageService = new UsageService();
+        class OrderedInterceptor implements RestInterceptor {
+            private final int order;
 
-            Exception e = expectThrows(
-                IllegalArgumentException.class,
-                () -> new ActionModule(
-                    testEnv,
-                    TestIndexNameExpressionResolver.newInstance(threadPool.getThreadContext()),
-                    settingsModule.getClusterSettings(),
-                    settingsModule.getSettingsFilter(),
-                    threadPool,
-                    Arrays.asList(secPlugin),
-                    null,
-                    null,
-                    usageService,
-                    null,
-                    null,
-                    mock(ClusterService.class),
-                    null,
-                    List.of(),
-                    List.of(),
-                    RestExtension.allowAll(),
-                    new IncrementalBulkService(null, null, MeterRegistry.NOOP, null, null),
-                    CrossProjectModeDecider.NOOP,
-                    TestProjectResolvers.alwaysThrow()
-                )
-            );
+            OrderedInterceptor(int order) {
+                this.order = order;
+            }
+
+            @Override
+            public void intercept(RestInterceptorChain chain, ActionListener<Void> listener) {
+                callOrder.add(order);
+                chain.proceed(listener);
+            }
+
+            @Override
+            public int order() {
+                return order;
+            }
+        }
+
+        List<RestInterceptor> sorted = new ArrayList<>(
+            List.of(new OrderedInterceptor(42), new OrderedInterceptor(12), new OrderedInterceptor(123), new OrderedInterceptor(-111))
+        );
+        sorted.sort(Comparator.comparing(RestInterceptor::order));
+
+        var request = new FakeRestRequest.Builder(NamedXContentRegistry.EMPTY).build();
+        var chain = new DefaultRestInterceptorChain(
+            request,
+            mock(RestChannel.class),
+            mock(RestHandler.class),
+            mock(NodeClient.class),
+            sorted
+        );
+        var future = new PlainActionFuture<Void>();
+        chain.proceed(future);
+        future.actionGet(10, TimeUnit.SECONDS);
+
+        assertThat(callOrder, Matchers.equalTo(List.of(-111, 12, 42, 123)));
+    }
+
+    public void test3rdPartyRestInterceptorIsNotInstalled() {
+        ActionPlugin secPlugin = new SecPlugin(true, false, false);
+        try (var threadPool = new TestThreadPool(getTestName())) {
+            Exception e = expectThrows(IllegalArgumentException.class, () -> newActionModule(threadPool, Arrays.asList(secPlugin)));
             assertThat(
                 e.getMessage(),
                 Matchers.equalTo(
@@ -314,42 +265,27 @@ public class ActionModuleTests extends ESTestCase {
                         + "install a custom REST interceptor. This functionality is not available to external plugins."
                 )
             );
-        } finally {
-            threadPool.shutdown();
+        }
+    }
+
+    public void test3rdPartyRestContentTypePolicyIsNotInstalled() {
+        ActionPlugin secPlugin = new SecPlugin(false, true, false);
+        try (var threadPool = new TestThreadPool(getTestName())) {
+            Exception e = expectThrows(IllegalArgumentException.class, () -> newActionModule(threadPool, List.of(secPlugin)));
+            assertThat(
+                e.getMessage(),
+                Matchers.equalTo(
+                    "The org.elasticsearch.action.ActionModuleTests$SecPlugin plugin tried to install a custom REST content type policy."
+                        + " This functionality is not available to external plugins."
+                )
+            );
         }
     }
 
     public void test3rdPartyRestControllerIsNotInstalled() {
-        SettingsModule settingsModule = new SettingsModule(Settings.EMPTY);
-        ThreadPool threadPool = new TestThreadPool(getTestName());
-        ActionPlugin secPlugin = new SecPlugin(false, true);
-        try {
-            UsageService usageService = new UsageService();
-
-            Exception e = expectThrows(
-                IllegalArgumentException.class,
-                () -> new ActionModule(
-                    testEnv,
-                    TestIndexNameExpressionResolver.newInstance(threadPool.getThreadContext()),
-                    settingsModule.getClusterSettings(),
-                    settingsModule.getSettingsFilter(),
-                    threadPool,
-                    List.of(secPlugin),
-                    null,
-                    null,
-                    usageService,
-                    null,
-                    TelemetryProvider.NOOP,
-                    mock(ClusterService.class),
-                    null,
-                    List.of(),
-                    List.of(),
-                    RestExtension.allowAll(),
-                    new IncrementalBulkService(null, null, MeterRegistry.NOOP, null, null),
-                    CrossProjectModeDecider.NOOP,
-                    TestProjectResolvers.alwaysThrow()
-                )
-            );
+        ActionPlugin secPlugin = new SecPlugin(false, false, true);
+        try (var threadPool = new TestThreadPool(getTestName())) {
+            Exception e = expectThrows(IllegalArgumentException.class, () -> newActionModule(threadPool, List.of(secPlugin)));
             assertThat(
                 e.getMessage(),
                 Matchers.equalTo(
@@ -357,34 +293,61 @@ public class ActionModuleTests extends ESTestCase {
                         + " This functionality is not available to external plugins."
                 )
             );
-        } finally {
-            threadPool.shutdown();
         }
     }
 
-    class FakeHandler implements RestHandler {
-        @Override
-        public List<Route> routes() {
-            return singletonList(new Route(GET, "/_dummy"));
-        }
-
-        @Override
-        public void handleRequest(RestRequest request, RestChannel channel, NodeClient client) throws Exception {}
+    private ActionModule newActionModule(@Nullable ThreadPool threadPool, List<ActionPlugin> plugins) {
+        SettingsModule settings = new SettingsModule(Settings.EMPTY);
+        var resolver = threadPool == null
+            ? TestIndexNameExpressionResolver.newInstance()
+            : TestIndexNameExpressionResolver.newInstance(threadPool.getThreadContext());
+        return new ActionModule(
+            testEnv,
+            resolver,
+            settings.getClusterSettings(),
+            settings.getSettingsFilter(),
+            threadPool,
+            plugins,
+            null,
+            null,
+            new UsageService(),
+            null,
+            TelemetryProvider.NOOP,
+            mock(ClusterService.class),
+            null,
+            List.of(),
+            List.of(),
+            RestExtension.allowAll(),
+            new IncrementalBulkService(null, null, MeterRegistry.NOOP, null, null),
+            CrossProjectModeDecider.NOOP,
+            TestProjectResolvers.alwaysThrow()
+        );
     }
 
-    class SecPlugin implements ActionPlugin, RestServerActionPlugin {
+    static class SecPlugin implements ActionPlugin, RestServerActionPlugin {
         private final boolean installInterceptor;
+        private final boolean installContentTypePolicy;
         private final boolean installController;
 
-        SecPlugin(boolean installInterceptor, boolean installController) {
+        SecPlugin(boolean installInterceptor, boolean installContentTypePolicy, boolean installController) {
             this.installInterceptor = installInterceptor;
+            this.installContentTypePolicy = installContentTypePolicy;
             this.installController = installController;
         }
 
         @Override
-        public RestInterceptor getRestHandlerInterceptor(ThreadContext threadContext) {
+        public List<RestInterceptor> getRestHandlerInterceptors(ThreadContext threadContext) {
             if (installInterceptor) {
-                return (request, channel, targetHandler, listener) -> listener.onResponse(true);
+                return List.of(RestInterceptorChain::proceed);
+            } else {
+                return List.of();
+            }
+        }
+
+        @Override
+        public RestContentTypePolicy getRestContentTypePolicy(ThreadContext threadContext) {
+            if (installContentTypePolicy) {
+                return request -> true;
             } else {
                 return null;
             }
@@ -392,14 +355,15 @@ public class ActionModuleTests extends ESTestCase {
 
         @Override
         public RestController getRestController(
-            RestInterceptor interceptor,
+            List<RestInterceptor> interceptors,
+            RestContentTypePolicy contentTypePolicy,
             NodeClient client,
             CircuitBreakerService circuitBreakerService,
             UsageService usageService,
             TelemetryProvider telemetryProvider
         ) {
             if (installController) {
-                return new RestController(interceptor, client, circuitBreakerService, usageService, telemetryProvider);
+                return new RestController(interceptors, contentTypePolicy, client, circuitBreakerService, usageService, telemetryProvider);
             } else {
                 return null;
             }

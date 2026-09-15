@@ -18,12 +18,15 @@ import org.elasticsearch.logging.Logger;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.plugins.interceptor.RestServerActionPlugin;
 import org.elasticsearch.rest.RestChannel;
+import org.elasticsearch.rest.RestContentTypePolicy;
 import org.elasticsearch.rest.RestController;
-import org.elasticsearch.rest.RestHandler;
 import org.elasticsearch.rest.RestInterceptor;
+import org.elasticsearch.rest.RestInterceptorChain;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.telemetry.TelemetryProvider;
 import org.elasticsearch.usage.UsageService;
+
+import java.util.List;
 
 public class CustomRestPlugin extends Plugin implements RestServerActionPlugin {
 
@@ -45,24 +48,24 @@ public class CustomRestPlugin extends Plugin implements RestServerActionPlugin {
         }
 
         @Override
-        public void intercept(RestRequest request, RestChannel channel, RestHandler targetHandler, ActionListener<Boolean> listener)
-            throws Exception {
-            logger.info("intercept request {} {}", request.method(), request.uri());
-            echoHeader("x-test-interceptor", request, threadContext);
-            listener.onResponse(Boolean.TRUE);
+        public void intercept(RestInterceptorChain chain, ActionListener<Void> listener) {
+            logger.info("intercept request {} {}", chain.request().method(), chain.request().uri());
+            echoHeader("x-test-interceptor", chain.request(), threadContext);
+            chain.proceed(listener);
         }
 
     }
 
     public static class CustomController extends RestController {
         public CustomController(
-            RestInterceptor interceptor,
+            List<RestInterceptor> interceptors,
+            RestContentTypePolicy contentTypePolicy,
             NodeClient client,
             CircuitBreakerService circuitBreakerService,
             UsageService usageService,
             TelemetryProvider telemetryProvider
         ) {
-            super(interceptor, client, circuitBreakerService, usageService, telemetryProvider);
+            super(interceptors, contentTypePolicy, client, circuitBreakerService, usageService, telemetryProvider);
         }
 
         @Override
@@ -74,19 +77,19 @@ public class CustomRestPlugin extends Plugin implements RestServerActionPlugin {
     }
 
     @Override
-    public RestInterceptor getRestHandlerInterceptor(ThreadContext threadContext) {
-        return new CustomInterceptor(threadContext);
+    public List<RestInterceptor> getRestHandlerInterceptors(ThreadContext threadContext) {
+        return List.of(new CustomInterceptor(threadContext));
     }
 
     @Override
     public RestController getRestController(
-        RestInterceptor interceptor,
+        List<RestInterceptor> interceptors,
+        RestContentTypePolicy contentTypePolicy,
         NodeClient client,
         CircuitBreakerService circuitBreakerService,
         UsageService usageService,
         TelemetryProvider telemetryProvider
     ) {
-        return new CustomController(interceptor, client, circuitBreakerService, usageService, telemetryProvider);
+        return new CustomController(interceptors, contentTypePolicy, client, circuitBreakerService, usageService, telemetryProvider);
     }
-
 }

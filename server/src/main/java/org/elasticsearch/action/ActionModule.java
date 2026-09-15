@@ -224,6 +224,7 @@ import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.settings.SettingsFilter;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.features.NodeFeature;
 import org.elasticsearch.gateway.TransportNodesListGatewayStartedShards;
@@ -260,6 +261,7 @@ import org.elasticsearch.repositories.VerifyNodeRepositoryCoordinationAction;
 import org.elasticsearch.reservedstate.ReservedClusterStateHandler;
 import org.elasticsearch.reservedstate.ReservedProjectStateHandler;
 import org.elasticsearch.reservedstate.service.ReservedClusterStateService;
+import org.elasticsearch.rest.RestContentTypePolicy;
 import org.elasticsearch.rest.RestController;
 import org.elasticsearch.rest.RestHandler;
 import org.elasticsearch.rest.RestHeaderDefinition;
@@ -422,8 +424,10 @@ import org.elasticsearch.usage.UsageService;
 
 import java.time.Instant;
 import java.util.ArrayList;
+import java.util.Comparator;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 import java.util.Optional;
 import java.util.Set;
 import java.util.function.Consumer;
@@ -433,6 +437,7 @@ import java.util.function.Supplier;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
+import static java.util.Collections.unmodifiableList;
 import static java.util.Collections.unmodifiableMap;
 
 /**
@@ -509,10 +514,19 @@ public class ActionModule extends AbstractModule {
                 new RestHeaderDefinition(Task.X_ELASTIC_PRODUCT_ORIGIN_HTTP_HEADER, false)
             )
         ).collect(Collectors.toSet());
-        final RestInterceptor restInterceptor = getRestServerComponent(
+        final List<RestInterceptor> restInterceptors = getRestServerComponents(
             "REST interceptor",
             actionPlugins,
-            restPlugin -> restPlugin.getRestHandlerInterceptor(threadPool.getThreadContext())
+            restPlugin -> restPlugin.getRestHandlerInterceptors(threadPool.getThreadContext()),
+            Comparator.comparing(RestInterceptor::order)
+        );
+        final RestContentTypePolicy restContentTypePolicy = Objects.requireNonNullElseGet(
+            getRestServerComponent(
+                "REST content type policy",
+                actionPlugins,
+                restPlugin -> restPlugin.getRestContentTypePolicy(threadPool.getThreadContext())
+            ),
+            RestContentTypePolicy::getDefault
         );
         mappingRequestValidators = new RequestValidators<>(
             actionPlugins.stream().flatMap(p -> p.mappingRequestValidators().stream()).toList()
@@ -525,12 +539,26 @@ public class ActionModule extends AbstractModule {
         var customController = getRestServerComponent(
             "REST controller",
             actionPlugins,
-            restPlugin -> restPlugin.getRestController(restInterceptor, nodeClient, circuitBreakerService, usageService, telemetryProvider)
+            restPlugin -> restPlugin.getRestController(
+                restInterceptors,
+                restContentTypePolicy,
+                nodeClient,
+                circuitBreakerService,
+                usageService,
+                telemetryProvider
+            )
         );
         if (customController != null) {
             restController = customController;
         } else {
-            restController = new RestController(restInterceptor, nodeClient, circuitBreakerService, usageService, telemetryProvider);
+            restController = new RestController(
+                restInterceptors,
+                restContentTypePolicy,
+                nodeClient,
+                circuitBreakerService,
+                usageService,
+                telemetryProvider
+            );
         }
         reservedClusterStateService = new ReservedClusterStateService(
             clusterService,
@@ -542,6 +570,28 @@ public class ActionModule extends AbstractModule {
         this.clusterService = clusterService;
     }
 
+    private static <T> List<T> getRestServerComponents(
+        String type,
+        List<ActionPlugin> actionPlugins,
+        Function<RestServerActionPlugin, List<T>> componentsConstructor,
+        Comparator<T> comparator
+    ) {
+        List<T> result = new ArrayList<>();
+        for (ActionPlugin plugin : actionPlugins) {
+            if (plugin instanceof RestServerActionPlugin restPlugin) {
+                var instances = componentsConstructor.apply(restPlugin);
+                if (instances.isEmpty() == false) {
+                    logger.debug("Using custom {} from plugin {}", type, plugin.getClass().getName());
+                    checkIfInternalPlugin(plugin, type);
+                    result.addAll(instances);
+                }
+            }
+        }
+        result.sort(comparator);
+        return unmodifiableList(result);
+    }
+
+    @Nullable
     private static <T> T getRestServerComponent(
         String type,
         List<ActionPlugin> actionPlugins,
@@ -553,15 +603,7 @@ public class ActionModule extends AbstractModule {
                 var newInstance = function.apply(restPlugin);
                 if (newInstance != null) {
                     logger.debug("Using custom {} from plugin {}", type, plugin.getClass().getName());
-                    if (isInternalPlugin(plugin) == false) {
-                        throw new IllegalArgumentException(
-                            "The "
-                                + plugin.getClass().getName()
-                                + " plugin tried to install a custom "
-                                + type
-                                + ". This functionality is not available to external plugins."
-                        );
-                    }
+                    checkIfInternalPlugin(plugin, type);
                     if (result != null) {
                         throw new IllegalArgumentException("Cannot have more than one plugin implementing a " + type);
                     }
@@ -570,6 +612,18 @@ public class ActionModule extends AbstractModule {
             }
         }
         return result;
+    }
+
+    private static void checkIfInternalPlugin(ActionPlugin plugin, String type) {
+        if (isInternalPlugin(plugin) == false) {
+            throw new IllegalArgumentException(
+                "The "
+                    + plugin.getClass().getName()
+                    + " plugin tried to install a custom "
+                    + type
+                    + ". This functionality is not available to external plugins."
+            );
+        }
     }
 
     private static boolean isInternalPlugin(ActionPlugin plugin) {

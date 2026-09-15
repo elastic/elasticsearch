@@ -69,7 +69,8 @@ public abstract class PrimaryShardAllocator extends BaseGatewayShardAllocator {
     public AllocateUnassignedDecision makeAllocationDecision(
         final ShardRouting unassignedShard,
         final RoutingAllocation allocation,
-        final Logger logger
+        final Logger logger,
+        final boolean allocate
     ) {
         if (isResponsibleFor(unassignedShard) == false) {
             // this allocator is not responsible for allocating this shard
@@ -87,9 +88,11 @@ public abstract class PrimaryShardAllocator extends BaseGatewayShardAllocator {
             return AllocateUnassignedDecision.no(UnassignedInfo.AllocationStatus.FETCHING_SHARD_DATA, nodeDecisions);
         }
 
-        final FetchResult<NodeGatewayStartedShards> shardState = fetchData(unassignedShard, allocation);
+        final FetchResult<NodeGatewayStartedShards> shardState = fetchData(unassignedShard, allocation, allocate);
         if (shardState.hasData() == false) {
-            allocation.setHasPendingAsyncFetch();
+            if (allocate) {
+                allocation.setHasPendingAsyncFetch();
+            }
             List<NodeAllocationResult> nodeDecisions = null;
             if (explain) {
                 nodeDecisions = buildDecisionsForAllNodes(unassignedShard, allocation);
@@ -364,6 +367,14 @@ public abstract class PrimaryShardAllocator extends BaseGatewayShardAllocator {
     }
 
     protected abstract FetchResult<NodeGatewayStartedShards> fetchData(ShardRouting shard, RoutingAllocation allocation);
+
+    /**
+     * Fetch or observe shard data from nodes. When {@code allocate} is {@code false}, implementations
+     * must not start new fetches or create fetch state.
+     */
+    protected FetchResult<NodeGatewayStartedShards> fetchData(ShardRouting shard, RoutingAllocation allocation, boolean allocate) {
+        return fetchData(shard, allocation);
+    }
 
     private record NodeShardsResult(List<NodeGatewayStartedShards> orderedAllocationCandidates, int allocationsFound) {}
 

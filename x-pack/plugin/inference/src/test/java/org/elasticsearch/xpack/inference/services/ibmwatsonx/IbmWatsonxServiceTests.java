@@ -980,6 +980,9 @@ public class IbmWatsonxServiceTests extends InferenceServiceTestCase {
                        "service": "watsonxai",
                        "name": "IBM watsonx",
                        "task_types": ["text_embedding", "rerank", "completion", "chat_completion"],
+                       "features": {
+                           "supports_non_streaming_chat": true
+                       },
                        "configurations": {
                            "project_id": {
                                "description": "",

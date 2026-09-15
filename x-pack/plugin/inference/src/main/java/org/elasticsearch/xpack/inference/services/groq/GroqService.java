@@ -263,6 +263,7 @@ public class GroqService extends SenderService<GroqModel> {
                     .setName(SERVICE_NAME)
                     .setTaskTypes(SUPPORTED_TASK_TYPES)
                     .setConfigurations(configurationMap)
+                    .setFeatures(new InferenceServiceConfiguration.Features(true))
                     .build();
             }
         );

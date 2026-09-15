@@ -7,7 +7,6 @@
 
 package org.elasticsearch.xpack.inference.services.groq;
 
-import org.elasticsearch.inference.InferenceServiceConfiguration;
 import org.elasticsearch.inference.TaskType;
 import org.elasticsearch.test.ESTestCase;
 
@@ -20,10 +19,12 @@ import static org.hamcrest.Matchers.hasItems;
 public class GroqServiceConfigurationTests extends ESTestCase {
 
     public void testConfigurationMetadata() {
-        InferenceServiceConfiguration configuration = GroqService.Configuration.get();
+        var configuration = GroqService.Configuration.get();
         assertThat(configuration.getService(), equalTo(GroqService.NAME));
         assertThat(configuration.getName(), containsString("Groq"));
         assertThat(configuration.getTaskTypes(), equalTo(EnumSet.of(TaskType.CHAT_COMPLETION)));
         assertThat(configuration.getConfigurations().keySet(), hasItems("model_id", "url", "api_key"));
+        assertNotNull(configuration.getFeatures());
+        assertTrue(configuration.getFeatures().supportsNonStreamingChat());
     }
 }

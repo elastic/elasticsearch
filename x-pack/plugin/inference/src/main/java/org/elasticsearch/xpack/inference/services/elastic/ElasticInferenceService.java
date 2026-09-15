@@ -553,6 +553,7 @@ public class ElasticInferenceService extends SenderService<ElasticInferenceServi
             .setName(SERVICE_NAME)
             .setTaskTypes(enabledTaskTypes)
             .setConfigurations(configurationMap)
+            .setFeatures(new InferenceServiceConfiguration.Features(true))
             .build();
     }
 

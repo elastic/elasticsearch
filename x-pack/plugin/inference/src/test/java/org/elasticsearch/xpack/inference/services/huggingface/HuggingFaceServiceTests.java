@@ -1408,6 +1408,9 @@ public class HuggingFaceServiceTests extends InferenceServiceTestCase {
                        "service": "hugging_face",
                        "name": "Hugging Face",
                        "task_types": ["text_embedding", "sparse_embedding", "rerank", "completion", "chat_completion"],
+                       "features": {
+                           "supports_non_streaming_chat": true
+                       },
                        "configurations": {
                            "api_key": {
                                "description": "API Key for the provider you're connecting to.",

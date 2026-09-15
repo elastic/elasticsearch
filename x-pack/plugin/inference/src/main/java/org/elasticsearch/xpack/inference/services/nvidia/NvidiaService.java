@@ -326,6 +326,7 @@ public class NvidiaService extends SenderService<NvidiaModel> implements Reranki
                     .setName(SERVICE_NAME)
                     .setTaskTypes(SUPPORTED_TASK_TYPES)
                     .setConfigurations(configurationMap)
+                    .setFeatures(new InferenceServiceConfiguration.Features(true))
                     .build();
             }
         );

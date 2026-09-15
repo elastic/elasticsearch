@@ -1806,6 +1806,9 @@ public class ElasticInferenceServiceTests extends InferenceServiceTestCase {
                    "service": "elastic",
                    "name": "Elastic",
                    "task_types": ["sparse_embedding", "chat_completion", "text_embedding", "embedding"],
+                   "features": {
+                       "supports_non_streaming_chat": true
+                   },
                    "configurations": {
                        "model_id": {
                            "description": "The name of the model to use for the inference task.",
@@ -1855,6 +1858,9 @@ public class ElasticInferenceServiceTests extends InferenceServiceTestCase {
                    "service": "elastic",
                    "name": "Elastic",
                    "task_types": [],
+                   "features": {
+                       "supports_non_streaming_chat": true
+                   },
                    "configurations": {
                        "model_id": {
                            "description": "The name of the model to use for the inference task.",

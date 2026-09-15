@@ -77,7 +77,7 @@ final class AddressingWriter implements Closeable {
         try {
             // One count a document, through the chain that takes out the runs a column of like documents
             // makes and the occasional document holding far more than the rest.
-            counts = new LongBlocks.Writer(
+            counts = LongBlocks.Writer.staged(
                 NumericPipeline.runsAndOutliersPipeline(countsBlockSize),
                 BlockBytesCodec.forId(BlockBytesCodec.IDENTITY_ID),
                 numDocsWithField,

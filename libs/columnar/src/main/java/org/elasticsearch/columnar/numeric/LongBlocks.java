@@ -92,9 +92,9 @@ public final class LongBlocks {
     /**
      * Takes values one at a time and writes them as blocks.
      *
-     * <p>The blocks go to a temporary file and are copied into the column on {@link #finish}, so a caller
-     * that is still writing something else to the column can feed this at the same time. {@link #close}
-     * removes the temporary file.
+     * <p>A caller that owns the column output writes into it directly. One that is still writing something
+     * else to the column cannot, so it stages the blocks instead and they are copied in on {@link #finish}.
+     * Either way {@link #finish} answers where they ended up.
      */
     public static final class Writer implements Closeable {
 
@@ -102,7 +102,10 @@ public final class LongBlocks {
         private final BlockBytesCodec blockBytesCodec;
         private final int blockSize;
 
+        /** Null when the blocks go straight into the column, in which case nothing is staged. */
         private final StagedBytes staged;
+        private final IndexOutput out;
+        private final long directOffset;
         private final MonotonicWriter blockOffsets;
 
         private final NumericBlockEncoder encoder;
@@ -115,19 +118,54 @@ public final class LongBlocks {
         private boolean finished;
 
         /**
-         * @param numValuesHint how many values are expected, which sizes the block-offset table; it has to
-         *                      be the number that is actually written
-         * @param suffix        names the temporary file after what it holds, so one left behind says which
-         *                      caller left it
+         * Blocks written straight into {@code data}, for a caller that owns it until they are done. Nothing
+         * is copied and nothing is staged.
          */
-        public Writer(
+        public static Writer into(
+            NumericPipeline pipeline,
+            BlockBytesCodec codec,
+            long numValuesHint,
+            Directory directory,
+            IOContext context,
+            String prefix,
+            IndexOutput data
+        ) throws IOException {
+            return new Writer(pipeline, codec, numValuesHint, directory, context, prefix, null, data);
+        }
+
+        /**
+         * Blocks staged in a temporary file and copied into the column on {@link #finish}, for a caller
+         * that is writing something else to it meanwhile. {@code suffix} names the file after what it
+         * holds, so one left behind says which caller left it.
+         */
+        public static Writer staged(
+            NumericPipeline pipeline,
+            BlockBytesCodec codec,
+            long numValuesHint,
+            Directory directory,
+            IOContext context,
+            String prefix,
+            String suffix
+        ) throws IOException {
+            StagedBytes bytes = null;
+            try {
+                bytes = new StagedBytes(directory, context, prefix, suffix);
+                return new Writer(pipeline, codec, numValuesHint, directory, context, prefix, bytes, bytes.output());
+            } catch (Throwable t) {
+                IOUtils.closeWhileHandlingException(bytes);
+                throw t;
+            }
+        }
+
+        private Writer(
             NumericPipeline pipeline,
             BlockBytesCodec blockBytesCodec,
             long numValuesHint,
             Directory directory,
             IOContext context,
             String prefix,
-            String suffix
+            StagedBytes staged,
+            IndexOutput out
         ) throws IOException {
             this.pipeline = pipeline;
             this.blockBytesCodec = blockBytesCodec;
@@ -135,22 +173,18 @@ public final class LongBlocks {
             this.buffer = new long[blockSize];
             this.encoder = new NumericBlockEncoder(pipeline, blockSize);
             // One reusable closure over the buffer, so no lambda is allocated per block flush.
-            this.blockEncoder = out -> encoder.encode(buffer, blockValueCount[0], out);
-            StagedBytes blocks = null;
-            try {
-                blocks = new StagedBytes(directory, context, prefix, suffix);
-                this.staged = blocks;
-                this.blockOffsets = new MonotonicWriter(directory, context, prefix, (numValuesHint + blockSize - 1) / blockSize + 1L);
-            } catch (Throwable t) {
-                IOUtils.closeWhileHandlingException(blocks);
-                throw t;
-            }
+            this.blockEncoder = o -> encoder.encode(buffer, blockValueCount[0], o);
+            this.staged = staged;
+            this.out = out;
+            // A direct writer shares the column output, so a block offset counts from where it began.
+            this.directOffset = staged == null ? out.getFilePointer() : 0;
+            this.blockOffsets = new MonotonicWriter(directory, context, prefix, (numValuesHint + blockSize - 1) / blockSize + 1L);
         }
 
         /** Adds the next value of the sequence. */
         public void add(long value) throws IOException {
             if (inBlock == 0) {
-                blockOffsets.add(staged.length());
+                blockOffsets.add(written());
             }
             buffer[inBlock++] = value;
             numValues++;
@@ -166,9 +200,9 @@ public final class LongBlocks {
                 // never sees padding, so each stage fits only the real data.
                 flush(inBlock);
             }
-            blockOffsets.add(staged.length());
+            blockOffsets.add(written());
             finished = true;
-            final long valuesOffset = staged.copyInto(data);
+            final long valuesOffset = staged == null ? directOffset : staged.copyInto(data);
             final MonotonicWriter.Table offsets = blockOffsets.finish(data);
             return new Metadata(
                 numValues,
@@ -181,9 +215,14 @@ public final class LongBlocks {
             );
         }
 
+        /** Block bytes written so far, which is what a block offset is relative to. */
+        private long written() {
+            return out.getFilePointer() - directOffset;
+        }
+
         private void flush(int count) throws IOException {
             blockValueCount[0] = count;
-            blockBytesCodec.write(blockEncoder, staged.output());
+            blockBytesCodec.write(blockEncoder, out);
             inBlock = 0;
         }
 

@@ -72,7 +72,7 @@ Data sources are managed under the `/_query/data_source` endpoint. All data sour
 | [Get](#get-a-data-source) | `GET /_query/data_source/{name}` | [Get ES\|QL data sources](https://www.elastic.co/docs/api/doc/elasticsearch/v9/operation/operation-esql-get-data-source) |
 | [List all](#list-all-data-sources) | `GET /_query/data_source` | [Get ES\|QL data sources](https://www.elastic.co/docs/api/doc/elasticsearch/v9/operation/operation-esql-get-data-source) |
 | [Delete](#delete-a-data-source) | `DELETE /_query/data_source/{name}` | [Delete ES\|QL data sources](https://www.elastic.co/docs/api/doc/elasticsearch/v9/operation/operation-esql-delete-data-source) |
-| [Test connection](#test-a-connection) | `POST /_query/data_source/_test_connection` | [Test an ES\|QL data source connection](https://www.elastic.co/docs/api/doc/elasticsearch/operation/operation-esql-data-source-test-connection) |
+<!-- | [Test connection](#test-a-connection) | `POST /_query/data_source/_test_connection` | [Test an ES\|QL data source connection](https://www.elastic.co/docs/api/doc/elasticsearch/operation/operation-esql-data-source-test-connection) | -->
 
 ### Create or update a data source
 

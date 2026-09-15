@@ -137,8 +137,7 @@ public class CompletionPersistentTaskAction {
 
         @Override
         protected ClusterBlockException checkBlock(Request request, ClusterState state) {
-            // Intentionally only checks cluster-wide blocks, unlike StartPersistentTaskAction. Existing tasks must be able to
-            // complete while a project-global block (e.g. project under deletion) is in place.
+            // Cluster is not affected but we look up repositories in metadata
             return state.blocks().globalBlockedException(ClusterBlockLevel.METADATA_WRITE);
         }
 

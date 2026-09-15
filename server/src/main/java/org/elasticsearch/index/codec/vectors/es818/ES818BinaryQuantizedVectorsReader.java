@@ -296,6 +296,16 @@ public class ES818BinaryQuantizedVectorsReader extends FlatVectorsReader impleme
         return KnnVectorsReader.mergeOffHeapByteSizeMaps(raw, quant);
     }
 
+    @Override
+    public int getVectorCount(FieldInfo fieldInfo) throws IOException {
+        FieldEntry fe = fields.get(fieldInfo.name);
+        if (fe == null) {
+            assert fieldInfo.getVectorEncoding() == VectorEncoding.BYTE;
+            return rawVectorsReader.getVectorCount(fieldInfo);
+        }
+        return fe.size();
+    }
+
     public float[] getCentroid(String field) {
         FieldEntry fieldEntry = fields.get(field);
         if (fieldEntry != null) {

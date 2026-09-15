@@ -254,6 +254,11 @@ public class ES814ScalarQuantizedVectorsFormat extends FlatVectorsFormat {
         public Map<String, Long> getOffHeapByteSize(FieldInfo fieldInfo) {
             return delegate.getOffHeapByteSize(fieldInfo);
         }
+
+        @Override
+        public int getVectorCount(FieldInfo fieldInfo) throws IOException {
+            return delegate.getVectorCount(fieldInfo);
+        }
     }
 
     static final class ESFlatVectorsScorer implements FlatVectorsScorer {

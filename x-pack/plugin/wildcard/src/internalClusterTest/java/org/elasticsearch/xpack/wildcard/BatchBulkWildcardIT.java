@@ -25,7 +25,6 @@ import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.mapper.ShardBatchMapper;
 import org.elasticsearch.index.query.RegexpQueryBuilder;
 import org.elasticsearch.index.query.WildcardQueryBuilder;
-import org.elasticsearch.indices.recovery.RecoverySettings;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.MockLog;
@@ -98,7 +97,6 @@ public class BatchBulkWildcardIT extends ESIntegTestCase {
             prepareCreate(index).setSettings(
                 Settings.builder()
                     .put(IndexSettings.MODE.getKey(), IndexMode.COLUMNAR.getName())
-                    .put(RecoverySettings.INDICES_RECOVERY_SOURCE_ENABLED_SETTING.getKey(), false)
                     .put("index.number_of_shards", 1)
                     .put("index.number_of_replicas", 0)
             ).setMapping(mapping)

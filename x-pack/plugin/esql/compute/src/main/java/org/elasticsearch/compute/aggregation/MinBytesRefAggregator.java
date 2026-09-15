@@ -19,12 +19,14 @@ import org.elasticsearch.compute.operator.BreakingBytesRefBuilder;
 import org.elasticsearch.compute.operator.DriverContext;
 import org.elasticsearch.core.Releasables;
 
+import static org.elasticsearch.compute.aggregation.GroupingAggregatorFunction.PartitionSplitter;
+
 /**
  * Aggregator for `Min`, that works with BytesRef values.
  * Gets the smallest BytesRef value, based on its bytes natural order (Delegated to {@link BytesRef#compareTo}).
  */
 @Aggregator({ @IntermediateState(name = "min", type = "BYTES_REF"), @IntermediateState(name = "seen", type = "BOOLEAN") })
-@GroupingAggregator
+@GroupingAggregator(supportsPartitioning = true)
 class MinBytesRefAggregator {
     private static boolean isBetter(BytesRef value, BytesRef otherValue) {
         return value.compareTo(otherValue) < 0;
@@ -85,6 +87,26 @@ class MinBytesRefAggregator {
 
         Block toBlock(IntVector selected, DriverContext driverContext) {
             return internalState.toValuesBlock(selected, driverContext);
+        }
+
+        void ensureCapacity(int size) {
+            internalState.ensureCapacity(size);
+        }
+
+        PartitionSplitter createPartitioningSplitter(CircuitBreaker breaker) {
+            return internalState.createPartitioningSplitter(breaker);
+        }
+
+        BytesRef[] partitionValues(GroupingAggregatorFunction.PartitionedState source, int partition) {
+            return internalState.partitionValues(source, partition);
+        }
+
+        boolean[] partitionSeen(GroupingAggregatorFunction.PartitionedState source, int partition) {
+            return internalState.partitionSeen(source, partition);
+        }
+
+        void appendPartition(BytesRef[] src, int firstId, int length) {
+            internalState.appendPartition(src, firstId, length);
         }
 
         @Override

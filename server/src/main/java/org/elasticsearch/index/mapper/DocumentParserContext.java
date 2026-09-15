@@ -1243,7 +1243,9 @@ public abstract class DocumentParserContext {
             containsDimensions,
             dynamic,
             MergeReason.MAPPING_UPDATE,
-            false
+            false,
+            false,
+            mappingLookup.isSourceColumnarStored()
         );
     }
 

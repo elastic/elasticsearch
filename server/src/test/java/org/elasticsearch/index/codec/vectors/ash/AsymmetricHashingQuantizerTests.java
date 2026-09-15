@@ -12,7 +12,6 @@ package org.elasticsearch.index.codec.vectors.ash;
 import org.apache.lucene.store.ByteBuffersDataOutput;
 import org.apache.lucene.store.ByteBuffersIndexInput;
 import org.apache.lucene.store.ByteBuffersIndexOutput;
-import org.apache.lucene.util.BitUtil;
 import org.elasticsearch.common.CheckedIntFunction;
 import org.elasticsearch.simdvec.ESVectorUtil;
 import org.elasticsearch.test.ESTestCase;
@@ -229,22 +228,13 @@ public class AsymmetricHashingQuantizerTests extends ESTestCase {
         float[] query = SvdUtil.randomGaussians(random(), dim);
 
         // Project query: qt = wT @ query (raw, not centered)
-        float[] qt = SvdUtil.matrixVectorMultiply(wT, nDims, dim, query);
+        float[] qt = ESVectorUtil.matrixVectorMultiply(wT, nDims, dim, query);
         float queryDotCentroid = ESVectorUtil.dotProduct(query, centroids[0]);
 
         float[] scores = new float[nVectors];
         for (int i = 0; i < nVectors; i++) {
             byte[] packed = ESVectorUtil.ashPack(encodedVectors[i], bitsPerDim);
-            scores[i] = referenceScore(
-                qt,
-                new float[] { queryDotCentroid },
-                packed,
-                0,
-                nDims,
-                bitsPerDim,
-                packCorrections(scales[i], offsets[i], 0),
-                0
-            );
+            scores[i] = referenceScore(qt, new float[] { queryDotCentroid }, packed, 0, nDims, bitsPerDim, scales[i], offsets[i]);
         }
         assertEquals(nVectors, scores.length);
 
@@ -290,7 +280,7 @@ public class AsymmetricHashingQuantizerTests extends ESTestCase {
             float[] query = SvdUtil.randomGaussians(random(), dim);
 
             // Raw query projection: qt = wT @ query
-            float[] qt = SvdUtil.matrixVectorMultiply(wT, nDims, dim, query);
+            float[] qt = ESVectorUtil.matrixVectorMultiply(wT, nDims, dim, query);
             float queryDotCentroid = ESVectorUtil.dotProduct(query, centroid, dim);
             AsymmetricHashingQuantizer.VectorAndNorm precomputed = AsymmetricHashingQuantizer.precomputeCentroid(centroid, wT);
 
@@ -309,8 +299,8 @@ public class AsymmetricHashingQuantizerTests extends ESTestCase {
                     0,
                     nDims,
                     bitsPerDim,
-                    packCorrections(enc.scale(), enc.offset(), 0),
-                    0
+                    enc.scale(),
+                    enc.offset()
                 );
 
                 double err = reconstructed - trueDot;
@@ -334,16 +324,7 @@ public class AsymmetricHashingQuantizerTests extends ESTestCase {
         // dot = 1.0*0.5 + 0.5*(-0.5) = 0.25
         // result = 0.25 * 1.0 + 0.0 + 0.0 = 0.25
         byte[] packed = ESVectorUtil.ashPack(encodedVector, bitsPerDim);
-        float score = referenceScore(
-            new float[] { 1.0f, 0.5f },
-            new float[] { 0.0f },
-            packed,
-            0,
-            nDims,
-            bitsPerDim,
-            packCorrections(scale, offset, 0),
-            0
-        );
+        float score = referenceScore(new float[] { 1.0f, 0.5f }, new float[] { 0.0f }, packed, 0, nDims, bitsPerDim, scale, offset);
         assertEquals(0.25f, score, 1e-4f);
     }
 
@@ -390,7 +371,7 @@ public class AsymmetricHashingQuantizerTests extends ESTestCase {
         // Compute reference score via plain float dot product
         double dot = ESVectorUtil.dotProduct(qt, codes, nDims);
         float floatScore = (float) dot * scale + qdc + offset;
-        float multiBitScore = referenceScore(qt, new float[] { qdc }, packed, 0, nDims, bitsPerDim, packCorrections(scale, offset, 0), 0);
+        float multiBitScore = referenceScore(qt, new float[] { qdc }, packed, 0, nDims, bitsPerDim, scale, offset);
         assertEquals(floatScore, multiBitScore, 1e-4f);
     }
 
@@ -422,20 +403,21 @@ public class AsymmetricHashingQuantizerTests extends ESTestCase {
         // Known matrix: diagonal with descending values
         int m = 6;
         int n = 4;
+        int k = 2;
         float[] a = new float[m * n];
         a[0 * n + 0] = 4.0f;
         a[1 * n + 1] = 3.0f;
         a[2 * n + 2] = 2.0f;
         a[3 * n + 3] = 1.0f;
 
-        // Top-2 right singular vectors should be close to e0 and e1
-        float[] topK = SvdUtil.topKRightSingularVectors(a, m, n, 2, 42L);
-        assertEquals(2 * n, topK.length);
+        // Top-2 right singular vectors returned as columns (n x k)
+        float[] topK = SvdUtil.topKRightSingularVectors(a, m, n, k, 42L);
+        assertEquals(n * k, topK.length);
 
-        // First vector should be dominated by dim 0 (corresponding to singular value 4)
-        assertThat(Math.abs(topK[0 * n + 0]), greaterThan(0.9f));
-        // Second vector should be dominated by dim 1 (singular value 3)
-        assertThat(Math.abs(topK[1 * n + 1]), greaterThan(0.9f));
+        // First column should be dominated by row 0 (corresponding to singular value 4)
+        assertThat(Math.abs(topK[0 * k + 0]), greaterThan(0.9f));
+        // Second column should be dominated by row 1 (singular value 3)
+        assertThat(Math.abs(topK[1 * k + 1]), greaterThan(0.9f));
     }
 
     public void testScoreReconstructsDotProduct() throws IOException {
@@ -499,7 +481,7 @@ public class AsymmetricHashingQuantizerTests extends ESTestCase {
         // Pre-transform each query: qt = wT @ q
         float[][] qt = new float[nQueries][];
         for (int q = 0; q < nQueries; q++) {
-            qt[q] = SvdUtil.matrixVectorMultiply(wT, nDims, dim, queries[q]);
+            qt[q] = ESVectorUtil.matrixVectorMultiply(wT, nDims, dim, queries[q]);
         }
 
         // Score matrices: approx[q][i] = ASH-approximated dot(q, v_i), exact[q][i] = true dot
@@ -526,8 +508,8 @@ public class AsymmetricHashingQuantizerTests extends ESTestCase {
                     0,
                     nDims,
                     bitsPerDim,
-                    packCorrections(enc.scale(), enc.offset(), 0),
-                    0
+                    enc.scale(),
+                    enc.offset()
                 );
 
                 exact[q][i] = exactDot;
@@ -615,14 +597,6 @@ public class AsymmetricHashingQuantizerTests extends ESTestCase {
         return ranks;
     }
 
-    private static byte[] packCorrections(float scale, float offset, int docSum) {
-        byte[] corr = new byte[AshPostingsVisitor.CORRECTION_BYTES];
-        BitUtil.VH_LE_INT.set(corr, AshPostingsVisitor.CORR_SCALE, Float.floatToIntBits(scale));
-        BitUtil.VH_LE_INT.set(corr, AshPostingsVisitor.CORR_OFFSET, Float.floatToIntBits(offset));
-        BitUtil.VH_LE_INT.set(corr, AshPostingsVisitor.CORR_DOC_SUM, docSum);
-        return corr;
-    }
-
     /**
      * Reference scorer for test verification: computes the ASH approximate dot product
      * from packed bit-plane codes and corrections.
@@ -634,12 +608,9 @@ public class AsymmetricHashingQuantizerTests extends ESTestCase {
         int codeOffset,
         int nDims,
         int bitsPerDim,
-        byte[] corrections,
-        int correctionOffset
+        float scale,
+        float offset
     ) {
-        float scale = Float.intBitsToFloat((int) BitUtil.VH_LE_INT.get(corrections, correctionOffset + AshPostingsVisitor.CORR_SCALE));
-        float offset = Float.intBitsToFloat((int) BitUtil.VH_LE_INT.get(corrections, correctionOffset + AshPostingsVisitor.CORR_OFFSET));
-
         int planeBytes = (nDims + 7) >>> 3;
         int numLevels = 1 << bitsPerDim;
         float centerOffset = (numLevels - 1) / 2.0f;

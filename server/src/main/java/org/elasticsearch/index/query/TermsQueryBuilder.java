@@ -325,6 +325,8 @@ public class TermsQueryBuilder extends LeafQueryBuilder<TermsQueryBuilder> {
         if (termsLookup != null || supplier != null || values == null || values.isEmpty()) {
             throw new UnsupportedOperationException("query must be rewritten first");
         }
+        // Checked on the shard against this index's own max_terms_count. Inline terms values are only capped
+        // here; lookup values are also capped earlier, while the lookup is resolved.
         int maxTermsCount = context.getIndexSettings().getMaxTermsCount();
         if (values.size() > maxTermsCount) {
             throw tooManyTermsException(values.size(), maxTermsCount);
@@ -373,12 +375,11 @@ public class TermsQueryBuilder extends LeafQueryBuilder<TermsQueryBuilder> {
     }
 
     /**
-     * Resolves a {@code terms} lookup by fetching the referenced document and extracting the values at the lookup path.
+     * Resolves a {@code terms} lookup: fetches the referenced document and extracts the values at the lookup path.
      * <p>
-     * Registered through {@link QueryRewriteContext#registerUniqueAsyncAction}: two lookups that reference the same document
-     * (same index, id, path and routing) are equal, so the document is fetched once and the resulting {@link BinaryValues}
-     * instance is shared by every clause. Sharing one instance means the values are parsed out of the document source and
-     * later serialized to the data nodes a single time, no matter how many clauses reference the same lookup.
+     * Registered as a unique async action ({@link QueryRewriteContext#registerUniqueAsyncAction}) so that clauses pointing at
+     * the same document (same index, id, path and routing) share one fetch instead of fetching per clause. The
+     * {@code index.max_terms_count} limit is applied here, so an oversized lookup is rejected before the query is built.
      */
     private static final class TermsLookupFetch extends QueryRewriteAsyncAction<BinaryValues, TermsLookupFetch> {
         private final TermsLookup termsLookup;

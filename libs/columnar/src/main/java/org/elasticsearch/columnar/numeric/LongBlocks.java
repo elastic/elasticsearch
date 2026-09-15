@@ -95,6 +95,9 @@ public final class LongBlocks {
      * <p>A caller that owns the column output writes into it directly. One that is still writing something
      * else to the column cannot, so it stages the blocks instead and they are copied in on {@link #finish}.
      * Either way {@link #finish} answers where they ended up.
+     *
+     * <p>{@code numValues} is how many values the caller will add, exactly: the table of block offsets is
+     * sized from it and rejects a different count.
      */
     public static final class Writer implements Closeable {
 
@@ -114,7 +117,7 @@ public final class LongBlocks {
         private final BlockBytesCodec.BlockEncoder blockEncoder;
 
         private int inBlock;
-        private long numValues;
+        private long added;
         private boolean finished;
 
         /**
@@ -124,13 +127,13 @@ public final class LongBlocks {
         public static Writer into(
             NumericPipeline pipeline,
             BlockBytesCodec codec,
-            long numValuesHint,
+            long numValues,
             Directory directory,
             IOContext context,
             String prefix,
             IndexOutput data
         ) throws IOException {
-            return new Writer(pipeline, codec, numValuesHint, directory, context, prefix, null, data);
+            return new Writer(pipeline, codec, numValues, directory, context, prefix, null, data);
         }
 
         /**
@@ -141,7 +144,7 @@ public final class LongBlocks {
         public static Writer staged(
             NumericPipeline pipeline,
             BlockBytesCodec codec,
-            long numValuesHint,
+            long numValues,
             Directory directory,
             IOContext context,
             String prefix,
@@ -150,7 +153,7 @@ public final class LongBlocks {
             StagedBytes bytes = null;
             try {
                 bytes = new StagedBytes(directory, context, prefix, suffix);
-                return new Writer(pipeline, codec, numValuesHint, directory, context, prefix, bytes, bytes.output());
+                return new Writer(pipeline, codec, numValues, directory, context, prefix, bytes, bytes.output());
             } catch (Throwable t) {
                 IOUtils.closeWhileHandlingException(bytes);
                 throw t;
@@ -160,7 +163,7 @@ public final class LongBlocks {
         private Writer(
             NumericPipeline pipeline,
             BlockBytesCodec blockBytesCodec,
-            long numValuesHint,
+            long numValues,
             Directory directory,
             IOContext context,
             String prefix,
@@ -178,7 +181,7 @@ public final class LongBlocks {
             this.out = out;
             // A direct writer shares the column output, so a block offset counts from where it began.
             this.directOffset = staged == null ? out.getFilePointer() : 0;
-            this.blockOffsets = new MonotonicWriter(directory, context, prefix, (numValuesHint + blockSize - 1) / blockSize + 1L);
+            this.blockOffsets = new MonotonicWriter(directory, context, prefix, (numValues + blockSize - 1) / blockSize + 1L);
         }
 
         /** Adds the next value of the sequence. */
@@ -187,7 +190,7 @@ public final class LongBlocks {
                 blockOffsets.add(written());
             }
             buffer[inBlock++] = value;
-            numValues++;
+            added++;
             if (inBlock == blockSize) {
                 flush(blockSize);
             }
@@ -205,7 +208,7 @@ public final class LongBlocks {
             final long valuesOffset = staged == null ? directOffset : staged.copyInto(data);
             final MonotonicWriter.Table offsets = blockOffsets.finish(data);
             return new Metadata(
-                numValues,
+                added,
                 blockSize,
                 blockBytesCodec.id(),
                 pipeline.terminalId(),

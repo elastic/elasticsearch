@@ -101,17 +101,11 @@ public class Highlight extends UnaryPlan
     private final Expression query;
     /** True once analysis has borrowed the query from an upstream full-text WHERE. False at parse time. */
     private final boolean implicitQuery;
-    /**
-     * True when ON was omitted or is {@code *}. Set at parse time and kept after the field list is filled in.
-     */
+    /** True when ON was omitted or is {@code *}. Kept after the field list is filled in. */
     private final boolean derivedFields;
     private final List<NamedExpression> fields;
     private final MapExpression options;
-    /**
-     * The generated attributes for the highlighted fields.
-     * These are appended to the child's output in the same order as the ON fields,
-     * so the operator's appended blocks line up with these layout channels.
-     */
+    /** Generated {@code <prefix><field>} attributes, appended in ON-field order. */
     private final List<Attribute> generatedFields;
 
     public Highlight(
@@ -235,9 +229,8 @@ public class Highlight extends UnaryPlan
     }
 
     /**
-     * Keeps {@link #derivedFields} while replacing the rest: verification reads it to skip ON-membership enforcement
-     * for a field list the user never wrote. Pass {@code newGeneratedFields} through unchanged unless
-     * {@code newFields} changed, since {@code generatedAttributesFor} mints fresh {@link NameId}s on every call.
+     * Keeps {@link #derivedFields}. Pass {@code newGeneratedFields} unchanged unless {@code newFields} changed:
+     * {@code generatedAttributesFor} mints fresh {@link NameId}s on every call.
      */
     public Highlight withResolved(
         Expression newQuery,
@@ -249,11 +242,7 @@ public class Highlight extends UnaryPlan
     }
 
     /**
-     * Narrows this HIGHLIGHT to a subset of its ON fields and their aligned generated columns, keeping {@link #query},
-     * {@link #implicitQuery} and {@link #derivedFields}. Column pruning uses this to drop ON fields whose generated
-     * {@code <prefix><field>} column is never consumed downstream, except fields the query still translates against.
-     * This runs after verification, so ON-membership is unaffected; a literal query simply spans fewer fields, but a
-     * {@code QSTR} or {@code MATCH} that names a pruned field would fail at runtime.
+     * Subset of ON fields and aligned generated columns. After verification; do not prune a field the query still translates against.
      */
     public Highlight withPrunedFields(List<NamedExpression> prunedFields, List<Attribute> prunedGeneratedFields) {
         return copy(child(), query, prunedFields, options, prunedGeneratedFields);
@@ -310,9 +299,7 @@ public class Highlight extends UnaryPlan
 
     @Override
     public boolean expressionsResolved() {
-        // No ON list (bare HIGHLIGHT / HIGHLIGHT <query>): analysis still has to derive fields,
-        // and until then output() has no generated columns. ON * is [UnresolvedStar] and is
-        // rejected by the loop below, not by isEmpty().
+        // Empty ON: still deriving fields. ON * is UnresolvedStar and fails the loop below, not isEmpty().
         if (fields.isEmpty() || (query != null && query.resolved() == false)) {
             return false;
         }
@@ -399,8 +386,7 @@ public class Highlight extends UnaryPlan
         }
         List<String> fieldNames = fields.stream().map(NamedExpression::name).toList();
         try {
-            // ON membership is enforced only when the user wrote both the query and the field list. A borrowed
-            // query translates leniently so a predicate naming a non-ON field becomes match-none rather than failing.
+            // Enforce ON membership only when the user wrote both the query and the field list.
             HighlightQueryBuilders.verify(query, fieldNames, analyzer, implicitQuery == false && derivedFields == false, implicitQuery);
         } catch (IllegalArgumentException e) {
             // Attach to the query node, not this Highlight node: failures dedupe by node, so pinning it here would let a

@@ -1032,8 +1032,8 @@ public final class SearchSourceBuilder implements Writeable, ToXContentObject, R
      * Adds a field whose embeddings should be returned as part of the search response. If the field has already been added, the vector
      * type from this call replaces the previous one.
      * <p>
-     * Embeddings fields cannot overlap with fields fetched via {@link fetchFields}. Any overlaps will be reported as errors in
-     * {@link validate(ActionRequestValidationException, boolean, boolean)}.
+     * Embeddings fields cannot overlap with fields fetched via {@link fetchFields} or {@link docValueFields}. Any overlaps will be
+     * reported as errors in {@link validate(ActionRequestValidationException, boolean, boolean)}.
      * </p>
      * <p>
      * NOTE: This functionality is intended for internal usage only. It should not be exposed to users.
@@ -2400,26 +2400,8 @@ public final class SearchSourceBuilder implements Writeable, ToXContentObject, R
                 }
             }
         }
-        if (fetchFields() != null && fetchEmbeddingsFields().isEmpty() == false) {
-            // Both requests are resolved into the same FetchFieldsContext, which is keyed on field name. An overlap means one of them
-            // would silently overwrite the other at fetch time.
-            for (FieldAndFormat fetchField : fetchFields()) {
-                for (String embeddingsField : fetchEmbeddingsFields().keySet()) {
-                    if (Regex.simpleMatch(fetchField.field, embeddingsField)) {
-                        validationException = addValidationError(
-                            "["
-                                + FETCH_FIELDS_FIELD.getPreferredName()
-                                + "] entry ["
-                                + fetchField.field
-                                + "] cannot overlap with the requested embeddings field ["
-                                + embeddingsField
-                                + "]",
-                            validationException
-                        );
-                    }
-                }
-            }
-        }
+        validationException = validateNoEmbeddingsFieldsOverlap(validationException, fetchFields(), FETCH_FIELDS_FIELD);
+        validationException = validateNoEmbeddingsFieldsOverlap(validationException, docValueFields(), DOCVALUE_FIELDS_FIELD);
         if (subSearches().size() >= 2 && rankBuilder() == null) {
             validationException = addValidationError("[sub_searches] requires [rank]", validationException);
         }
@@ -2468,6 +2450,46 @@ public final class SearchSourceBuilder implements Writeable, ToXContentObject, R
                 validationException = rescorer.validate(this, validationException);
             }
         }
+        return validationException;
+    }
+
+    /**
+     * Validates that none of the given field patterns overlap with the requested embeddings fields. Values fetched via {@code fields},
+     * {@code docvalue_fields}, and the embeddings fields are all written to the {@code fields} section of a search hit, which is keyed on
+     * field name, so an overlap means one request would silently overwrite the other in the search response.
+     *
+     * @param validationException the validation exception to add errors to, may be {@code null}
+     * @param fields the requested field patterns, may be {@code null}
+     * @param option the search source option the field patterns were specified under, used to build the error message
+     * @return the validation exception, or {@code null} if there were no errors
+     */
+    private ActionRequestValidationException validateNoEmbeddingsFieldsOverlap(
+        ActionRequestValidationException validationException,
+        @Nullable List<FieldAndFormat> fields,
+        ParseField option
+    ) {
+        if (fields == null || fetchEmbeddingsFields.isEmpty()) {
+            return validationException;
+        }
+
+        for (FieldAndFormat field : fields) {
+            for (String embeddingsField : fetchEmbeddingsFields.keySet()) {
+                // The requested fields are patterns, so the overlap check must account for wildcards
+                if (Regex.simpleMatch(field.field, embeddingsField)) {
+                    validationException = addValidationError(
+                        "["
+                            + option.getPreferredName()
+                            + "] entry ["
+                            + field.field
+                            + "] cannot overlap with the requested embeddings field ["
+                            + embeddingsField
+                            + "]",
+                        validationException
+                    );
+                }
+            }
+        }
+
         return validationException;
     }
 }

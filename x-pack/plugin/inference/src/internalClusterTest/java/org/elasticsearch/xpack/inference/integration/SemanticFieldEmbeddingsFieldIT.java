@@ -29,7 +29,7 @@ public class SemanticFieldEmbeddingsFieldIT extends AbstractInferenceFieldEmbedd
     }
 
     @Override
-    XContentBuilder generateMapping(Map<String, String> fieldNameToInferenceIdMap) throws IOException {
-        return IntegrationTestUtils.generateSemanticMapping(fieldNameToInferenceIdMap);
+    void addInferenceFieldsToMapping(XContentBuilder builder, Map<String, String> fieldNameToInferenceIdMap) throws IOException {
+        IntegrationTestUtils.addSemanticFieldsToMapping(builder, fieldNameToInferenceIdMap);
     }
 }

@@ -236,16 +236,19 @@ abstract class AbstractSemanticMapperTestCase<T extends SemanticFieldMapper, U e
     }
 
     @Override
-    public void testEmbeddingsFieldAndFormat() throws IOException {
-        FieldAndFormat expected = new FieldAndFormat("field", SemanticFieldMapper.EMBEDDINGS_FORMAT);
+    public void testEmbeddingsField() throws IOException {
+        MappedFieldType.EmbeddingsField expected = new MappedFieldType.EmbeddingsField(
+            new FieldAndFormat("field", SemanticFieldMapper.EMBEDDINGS_FORMAT),
+            MappedFieldType.EmbeddingsFieldSource.FIELDS
+        );
 
         // Without model_settings, the field has never seen inference results and skips type validation — every requested vector type
         // is accepted.
         MapperService mapperService = createMapperService(fieldMapping(this::minimalMapping));
         MappedFieldType fieldType = mapperService.fieldType("field");
-        assertEquals(expected, fieldType.embeddingsFieldAndFormat(null));
+        assertEquals(expected, fieldType.embeddingsField(null));
         for (VectorType vectorType : VectorType.values()) {
-            assertEquals(expected, fieldType.embeddingsFieldAndFormat(vectorType));
+            assertEquals(expected, fieldType.embeddingsField(vectorType));
         }
 
         // With model_settings, only the matching vector type is accepted; a mismatch throws.
@@ -257,12 +260,12 @@ abstract class AbstractSemanticMapperTestCase<T extends SemanticFieldMapper, U e
             MappedFieldType ftWithSettings = msWithSettings.fieldType("field");
 
             VectorType producedType = VectorType.fromTaskType(taskType);
-            assertEquals(expected, ftWithSettings.embeddingsFieldAndFormat(null));
+            assertEquals(expected, ftWithSettings.embeddingsField(null));
             for (VectorType vectorType : VectorType.values()) {
                 if (vectorType != producedType) {
                     IllegalArgumentException e = expectThrows(
                         IllegalArgumentException.class,
-                        () -> ftWithSettings.embeddingsFieldAndFormat(vectorType)
+                        () -> ftWithSettings.embeddingsField(vectorType)
                     );
                     assertThat(
                         e.getMessage(),
@@ -277,7 +280,7 @@ abstract class AbstractSemanticMapperTestCase<T extends SemanticFieldMapper, U e
                         )
                     );
                 } else {
-                    assertEquals(expected, ftWithSettings.embeddingsFieldAndFormat(vectorType));
+                    assertEquals(expected, ftWithSettings.embeddingsField(vectorType));
                 }
             }
         }

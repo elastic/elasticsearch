@@ -33,6 +33,7 @@ import org.elasticsearch.transport.TransportService;
 
 import java.io.IOException;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 import java.util.concurrent.atomic.AtomicInteger;
 
@@ -62,6 +63,7 @@ public abstract class AbstractOTLPTransportAction extends HandledTransportAction
         try {
             BulkRequestBuilder bulkRequestBuilder = client.prepareBulk();
             ProcessingContext context = prepareBulkRequest(request, bulkRequestBuilder);
+
             if (bulkRequestBuilder.numberOfActions() == 0) {
                 if (context.getIgnoredItems() == 0) {
                     listener.onResponse(new OTLPActionResponse(BytesArray.EMPTY));
@@ -79,7 +81,7 @@ public abstract class AbstractOTLPTransportAction extends HandledTransportAction
             ProcessingContext finalContext = context;
             bulkRequestBuilder.execute(listener.delegateFailure((delegate, bulkResponse) -> {
                 if (bulkResponse.hasFailures() || finalContext.getIgnoredItems() > 0) {
-                    handlePartialSuccess(bulkResponse, finalContext, delegate);
+                    handlePartialSuccess(List.of(bulkResponse), finalContext, delegate);
                 } else {
                     delegate.onResponse(new OTLPActionResponse(BytesArray.EMPTY));
                 }
@@ -170,7 +172,7 @@ public abstract class AbstractOTLPTransportAction extends HandledTransportAction
     }
 
     private void handlePartialSuccess(
-        BulkResponse bulkItemResponses,
+        List<BulkResponse> bulkResponses,
         ProcessingContext context,
         ActionListener<OTLPActionResponse> listener
     ) {
@@ -182,25 +184,29 @@ public abstract class AbstractOTLPTransportAction extends HandledTransportAction
         // https://opentelemetry.io/docs/specs/otlp/#partial-success-1
         RestStatus status = RestStatus.OK;
         int failures = 0;
-        for (BulkItemResponse bulkItemResponse : bulkItemResponses.getItems()) {
-            BulkItemResponse.Failure failure = bulkItemResponse.getFailure();
-            if (failure != null) {
-                // we're counting each document as one item here
-                // which is an approximation since one document can represent multiple OTLP items
-                failures++;
-                if (failure.getStatus() == RestStatus.TOO_MANY_REQUESTS) {
-                    // If the server receives more requests than the client is allowed or the server is overloaded,
-                    // the server SHOULD respond with HTTP 429 Too Many Requests or HTTP 503 Service Unavailable
-                    // and MAY include "Retry-After" header with a recommended time interval in seconds to wait before retrying.
-                    // https://opentelemetry.io/docs/specs/otlp/#otlphttp-throttling
-                    status = RestStatus.TOO_MANY_REQUESTS;
+        int totalItems = 0;
+        for (BulkResponse bulkResponse : bulkResponses) {
+            totalItems += bulkResponse.getItems().length;
+            for (BulkItemResponse bulkItemResponse : bulkResponse.getItems()) {
+                BulkItemResponse.Failure failure = bulkItemResponse.getFailure();
+                if (failure != null) {
+                    // we're counting each document as one item here
+                    // which is an approximation since one document can represent multiple OTLP items
+                    failures++;
+                    if (failure.getStatus() == RestStatus.TOO_MANY_REQUESTS) {
+                        // If the server receives more requests than the client is allowed or the server is overloaded,
+                        // the server SHOULD respond with HTTP 429 Too Many Requests or HTTP 503 Service Unavailable
+                        // and MAY include "Retry-After" header with a recommended time interval in seconds to wait before retrying.
+                        // https://opentelemetry.io/docs/specs/otlp/#otlphttp-throttling
+                        status = RestStatus.TOO_MANY_REQUESTS;
+                    }
+                    FailureGroup failureGroup = failureGroups.computeIfAbsent(failure.getIndex(), k -> new HashMap<>())
+                        .computeIfAbsent(failure.getStatus(), k -> new FailureGroup(new AtomicInteger(0), failure.getMessage()));
+                    failureGroup.failureCount().incrementAndGet();
                 }
-                FailureGroup failureGroup = failureGroups.computeIfAbsent(failure.getIndex(), k -> new HashMap<>())
-                    .computeIfAbsent(failure.getStatus(), k -> new FailureGroup(new AtomicInteger(0), failure.getMessage()));
-                failureGroup.failureCount().incrementAndGet();
             }
         }
-        if (bulkItemResponses.getItems().length == failures) {
+        if (totalItems == failures) {
             // all items failed, so we report total items as failures
             failures = context.totalItems();
         }

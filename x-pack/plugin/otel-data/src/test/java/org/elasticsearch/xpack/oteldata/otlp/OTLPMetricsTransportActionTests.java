@@ -15,6 +15,7 @@ import com.google.protobuf.InvalidProtocolBufferException;
 
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.bulk.BatchIndexingEnabled;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
@@ -60,7 +61,10 @@ public class OTLPMetricsTransportActionTests extends AbstractOTLPTransportAction
 
     private OTLPMetricsTransportAction createMetricsAction(Settings settings) {
         ClusterService clusterService = mock(ClusterService.class);
-        clusterSettings = new ClusterSettings(Settings.EMPTY, Set.of(OTelPlugin.HISTOGRAM_FIELD_TYPE_SETTING));
+        clusterSettings = new ClusterSettings(
+            Settings.EMPTY,
+            Set.of(OTelPlugin.HISTOGRAM_FIELD_TYPE_SETTING, BatchIndexingEnabled.BATCH_INDEXING)
+        );
         when(clusterService.getClusterSettings()).thenReturn(clusterSettings);
         ProjectMetadata projectMetadata = ProjectMetadata.builder(ProjectId.DEFAULT).build();
         ClusterState clusterState = ClusterState.builder(new ClusterName("test"))

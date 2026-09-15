@@ -1282,6 +1282,58 @@ public class DataStreamTests extends AbstractXContentSerializingTestCase<DataStr
         assertThat(result.getName(), equalTo(DataStream.getDefaultBackingIndexName(dataStreamName, 1, start1.toEpochMilli())));
     }
 
+    public void testSelectTimeSeriesWriteIndices() {
+        Instant currentTime = Instant.now().truncatedTo(ChronoUnit.SECONDS);
+
+        Instant start1 = currentTime.minus(6, ChronoUnit.HOURS);
+        Instant end1 = currentTime.minus(2, ChronoUnit.HOURS);
+        Instant start2 = currentTime.minus(2, ChronoUnit.HOURS);
+        Instant end2 = currentTime.plus(2, ChronoUnit.HOURS);
+
+        String dataStreamName = "logs_my-app_prod";
+        ClusterState clusterState = DataStreamTestHelper.getClusterStateWithDataStream(
+            dataStreamName,
+            List.of(Tuple.tuple(start1, end1), Tuple.tuple(start2, end2))
+        );
+        ProjectMetadata project = clusterState.getMetadata().getProject();
+        DataStream dataStream = project.dataStreams().get(dataStreamName);
+        Index index1 = dataStream.getIndices().get(0);
+        Index index2 = dataStream.getIndices().get(1);
+
+        // empty array → empty set
+        assertThat(dataStream.selectTimeSeriesWriteIndices(new long[0], project), equalTo(Set.of()));
+
+        // all timestamps in the same index → singleton set (min==max index fast path)
+        long tsInIndex2 = currentTime.toEpochMilli() * 1_000_000L;
+        assertThat(dataStream.selectTimeSeriesWriteIndices(new long[] { tsInIndex2, tsInIndex2 }, project), equalTo(Set.of(index2)));
+
+        // single distinct timestamp
+        long tsInIndex1 = currentTime.minus(4, ChronoUnit.HOURS).toEpochMilli() * 1_000_000L;
+        assertThat(dataStream.selectTimeSeriesWriteIndices(new long[] { tsInIndex1 }, project), equalTo(Set.of(index1)));
+
+        // min==max (all timestamps identical) → one lookup, singleton
+        assertThat(
+            dataStream.selectTimeSeriesWriteIndices(new long[] { tsInIndex1, tsInIndex1, tsInIndex1 }, project),
+            equalTo(Set.of(index1))
+        );
+
+        // timestamps spanning both indices → both returned in encounter order
+        assertThat(
+            dataStream.selectTimeSeriesWriteIndices(new long[] { tsInIndex1, tsInIndex2 }, project),
+            equalTo(Set.of(index1, index2))
+        );
+
+        // reversed order still returns both
+        assertThat(
+            dataStream.selectTimeSeriesWriteIndices(new long[] { tsInIndex2, tsInIndex1 }, project),
+            equalTo(Set.of(index2, index1))
+        );
+
+        // out-of-range timestamp falls back to write index (index2)
+        long outOfRange = currentTime.plus(10, ChronoUnit.HOURS).toEpochMilli() * 1_000_000L;
+        assertThat(dataStream.selectTimeSeriesWriteIndices(new long[] { outOfRange }, project), equalTo(Set.of(index2)));
+    }
+
     public void testValidate() {
         {
             // Valid cases:

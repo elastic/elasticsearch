@@ -259,6 +259,7 @@ public class JinaAIService extends SenderService<JinaAIModel> implements Reranki
             inputs,
             EMBEDDING_MAX_BATCH_SIZE,
             batchChunksAcrossInputs,
+            getRegexReadLimitFactor(),
             jinaaiModel.getConfigurations().getChunkingSettings()
         ).batchRequestsWithListeners(listener);
 

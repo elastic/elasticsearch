@@ -1396,6 +1396,37 @@ public class ApiKeyServiceTests extends ESTestCase {
         assertThat(e, sameInstance(expectedException));
     }
 
+    public void testRestApiKeyUsageStatsAreEmptyWhenServiceNotEnabled() {
+        final Settings settings = Settings.builder().put(XPackSettings.API_KEY_SERVICE_ENABLED_SETTING.getKey(), false).build();
+        final ApiKeyService service = createApiKeyService(settings);
+        final PlainActionFuture<Map<String, Object>> future = new PlainActionFuture<>();
+        service.restApiKeyUsageStats(future);
+        assertThat(future.actionGet(), anEmptyMap());
+    }
+
+    public void testRestApiKeyUsageStatsAreZerosWhenIndexDoesNotExist() {
+        securityIndex = SecurityMocks.mockSecurityIndexManager(".security", false, false);
+        final ApiKeyService apiKeyService = createApiKeyService();
+
+        final PlainActionFuture<Map<String, Object>> future = new PlainActionFuture<>();
+        apiKeyService.restApiKeyUsageStats(future);
+        assertThat(future.actionGet(), equalTo(Map.of("total", 0L, "invalidated", 0L, "expired", 0L)));
+    }
+
+    public void testRestApiKeyUsageFailsWhenIndexNotAvailable() {
+        securityIndex = SecurityMocks.mockSecurityIndexManager(".security", true, false);
+        final ElasticsearchException expectedException = new ElasticsearchException("not available");
+        when(securityIndex.forCurrentProject().getUnavailableReason(SecurityIndexManager.Availability.SEARCH_SHARDS)).thenReturn(
+            expectedException
+        );
+        final ApiKeyService apiKeyService = createApiKeyService();
+
+        final PlainActionFuture<Map<String, Object>> future = new PlainActionFuture<>();
+        apiKeyService.restApiKeyUsageStats(future);
+        final ElasticsearchException e = expectThrows(ElasticsearchException.class, future::actionGet);
+        assertThat(e, sameInstance(expectedException));
+    }
+
     private Map<String, Object> mockKeyDocument(
         String id,
         String key,

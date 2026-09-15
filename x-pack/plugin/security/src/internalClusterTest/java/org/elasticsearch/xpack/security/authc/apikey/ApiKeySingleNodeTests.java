@@ -27,6 +27,7 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentHelper;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.index.query.QueryBuilders;
@@ -74,6 +75,7 @@ import org.elasticsearch.xpack.core.security.authc.support.Hasher;
 import org.elasticsearch.xpack.core.security.authc.support.UsernamePasswordToken;
 import org.elasticsearch.xpack.core.security.authz.RoleDescriptor;
 import org.elasticsearch.xpack.core.security.user.User;
+import org.elasticsearch.xpack.security.authc.ApiKeyService;
 import org.elasticsearch.xpack.security.authc.service.ServiceAccountService;
 
 import java.io.IOException;
@@ -546,6 +548,55 @@ public class ApiKeySingleNodeTests extends SecuritySingleNodeTestCase {
         // Invalidate it again won't change the timestamp
         client().execute(InvalidateApiKeyAction.INSTANCE, InvalidateApiKeyRequest.usingApiKeyId(apiKeyId, true)).actionGet();
         assertThat((long) getApiKeyDocument(apiKeyId).get("invalidation_time"), equalTo(invalidationTime));
+    }
+
+    /**
+     * Verifies that the REST API key counts behind {@code GET _xpack/usage} partition the keys held in the security index, and that
+     * cross-cluster API keys (reported separately under {@code remote_cluster_server}) are left out of them.
+     */
+    public void testRestApiKeyUsageStats() throws Exception {
+        final int activeKeys = randomIntBetween(1, 5);
+        for (int i = 0; i < activeKeys; i++) {
+            // cover both kinds of active key: those that never expire and those that expire in the future
+            createRestApiKey("active-" + i, randomBoolean() ? null : TimeValue.timeValueDays(1));
+        }
+        final int invalidatedKeys = randomIntBetween(1, 3);
+        for (int i = 0; i < invalidatedKeys; i++) {
+            final String apiKeyId = createRestApiKey("invalidated-" + i, null);
+            client().execute(InvalidateApiKeyAction.INSTANCE, InvalidateApiKeyRequest.usingApiKeyId(apiKeyId, false)).actionGet();
+        }
+        final int expiredKeys = randomIntBetween(1, 3);
+        for (int i = 0; i < expiredKeys; i++) {
+            createRestApiKey("expired-" + i, TimeValue.timeValueMillis(1));
+        }
+        final var crossClusterRequest = CreateCrossClusterApiKeyRequest.withNameAndAccess(randomAlphaOfLengthBetween(3, 8), """
+            {
+              "search": [ {"names": ["logs"]} ]
+            }""");
+        crossClusterRequest.setRefreshPolicy(IMMEDIATE);
+        client().execute(CreateCrossClusterApiKeyAction.INSTANCE, crossClusterRequest).actionGet();
+
+        final ApiKeyService apiKeyService = getInstanceFromNode(ApiKeyService.class);
+        // the short-lived keys only move from `total` to `expired` once their expiration time has actually passed
+        assertBusy(() -> {
+            final PlainActionFuture<Map<String, Object>> future = new PlainActionFuture<>();
+            apiKeyService.restApiKeyUsageStats(future);
+            assertThat(
+                future.actionGet(),
+                equalTo(Map.of("total", (long) activeKeys, "invalidated", (long) invalidatedKeys, "expired", (long) expiredKeys))
+            );
+        });
+
+        // the cross-cluster key is counted on its own, which is what keeps it out of the REST counts above
+        final PlainActionFuture<Map<String, Object>> crossClusterUsage = new PlainActionFuture<>();
+        apiKeyService.crossClusterApiKeyUsageStats(crossClusterUsage);
+        assertThat(crossClusterUsage.actionGet().get("total"), equalTo(1));
+    }
+
+    private String createRestApiKey(String name, @Nullable TimeValue expiration) {
+        final CreateApiKeyRequest request = new CreateApiKeyRequest(name, null, expiration, null);
+        request.setRefreshPolicy(IMMEDIATE);
+        return client().execute(CreateApiKeyAction.INSTANCE, request).actionGet().getId();
     }
 
     public void testCreateCrossClusterApiKey() throws IOException {

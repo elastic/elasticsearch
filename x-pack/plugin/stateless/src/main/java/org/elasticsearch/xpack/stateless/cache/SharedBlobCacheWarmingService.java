@@ -1705,9 +1705,14 @@ public class SharedBlobCacheWarmingService {
             }
 
             locations.forEach(
-                (blobFile, length) -> scheduleWarmingTask(
-                    new WarmBlobLocationTask(warmingRun.type, new BlobLocation(blobFile, 0, length), listeners.acquire())
-                )
+                (blobFile, length) -> {
+                    int endingRegion = cacheService.getEndingRegion(length);
+                    for (int i = 0; i <= endingRegion; i++) {
+                        scheduleWarmingTask(
+                            new WarmBlobRegionTask(warmingRun.type, blobFile, i, listeners.acquire())
+                        );
+                    }
+                }
             );
         }
 
@@ -1809,14 +1814,7 @@ public class SharedBlobCacheWarmingService {
         void run() {
             for (var blobFile : blobFiles) {
                 scheduleWarmingTask(
-                    new WarmBlobLocationTask(
-                        warmingRun.type,
-                        // We want to prewarm the entire region 0, and the blob location file length is used
-                        // just to compute the ending region. With this we avoid having to know the blob length
-                        // upfront and we can just let the cache to fetch the entire region 0.
-                        new BlobLocation(blobFile, 0, 1),
-                        listeners.acquire()
-                    )
+                    new WarmBlobRegionTask(warmingRun.type, blobFile, 0, listeners.acquire())
                 );
             }
         }
@@ -1979,55 +1977,6 @@ public class SharedBlobCacheWarmingService {
             @Override
             public String toString() {
                 return "WarmBlobRegionTask{blobFile=" + blobFile + ", region=" + region + "}";
-            }
-        }
-
-        /**
-         * Splits a blob into per-region {@link WarmBlobRegionTask}s enqueued at the same priority. Does no I/O itself, so it releases its
-         * {@link #warmingTaskRunner} slot immediately; completion is tracked separately via the {@link RefCountingListener}.
-         */
-        protected class WarmBlobLocationTask extends AbstractWarmingTask {
-
-            private final BlobLocation blobLocation;
-            private final BlobFile blobFile;
-            private final ActionListener<Void> listener;
-
-            WarmBlobLocationTask(Type type, BlobLocation blobLocation, ActionListener<Void> listener) {
-                super(type, warmingTaskNumber.getAndIncrement());
-                this.blobLocation = Objects.requireNonNull(blobLocation);
-                this.blobFile = blobLocation.blobFile();
-                this.listener = listener;
-                logger.trace("{} {}: scheduled {}", warmingRun.shardId(), warmingRun.type(), blobLocation);
-            }
-
-            @Override
-            public void onResponse(Releasable releasable) {
-                // Indexing-only warmer. Thus, can pass UNKNOWN cache-region timestamps in maybeFetchRegion later as timestamps are only
-                // used by search shards.
-                assert warmingRun.type == Type.INDEXING_MERGE || warmingRun.type == Type.INDEXING_BCC_HEADER_PREWARM : warmingRun.type;
-                int endingRegion = cacheService.getEndingRegion(blobLocation.fileLength());
-
-                // TODO: Evaluate reducing to fewer fetches in the future. For example, reading multiple fetches in a single read.
-                try (RefCountingListener ref = new RefCountingListener(listener)) {
-                    for (int i = 0; i <= endingRegion; i++) {
-                        if (isCancelled()) {
-                            // Haven't acquired a listener yet so nothing to release either.
-                            break;
-                        }
-                        warmingTaskRunner.enqueueTask(new WarmBlobRegionTask(type, blobFile, i, ref.acquire()));
-                    }
-                }
-                releasable.close();
-            }
-
-            @Override
-            public void onFailure(Exception e) {
-                logger.error(() -> format("%s %s failed to warm blob %s", warmingRun.shardId(), warmingRun.type(), blobLocation), e);
-            }
-
-            @Override
-            public String toString() {
-                return "WarmBlobLocationTask{blobLocation=" + blobLocation + "}";
             }
         }
 

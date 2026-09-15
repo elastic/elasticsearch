@@ -40,7 +40,7 @@ import static org.hamcrest.Matchers.hasSize;
  *
  * <p>Eight datasets plus one matching index is nine branches, one past the per-{@code FROM} cap, so the wildcard fails
  * outright when it may discover datasets. With the setting at its default the same wildcard means index-likes only and
- * the query returns the index rows. Run against a tree without the setting, {@link #testWildcardResolvesToIndicesOnly}
+ * the query returns the index rows. Run against a tree without the setting, {@link #testWildcardDoesNotMatchDatasetsByDefault}
  * fails with that branch-limit error.
  *
  * <p>This is the layer that can register a data source, so it sits beside {@link DataSourceCrudRestIT} rather than in
@@ -80,7 +80,7 @@ public class DatasetWildcardsRestIT extends ESRestTestCase {
         }
     }
 
-    public void testWildcardResolvesToIndicesOnly() throws IOException {
+    public void testWildcardDoesNotMatchDatasetsByDefault() throws IOException {
         // The default: the wildcard means index-likes, so the registered datasets neither contribute branches nor are
         // read. The query returns what FROM logs-000001 returns. KEEP pins the projection because the dynamic mapping
         // gives `message` a `.keyword` sub-field, and the explicit LIMIT keeps the default-limit warning off the wire.

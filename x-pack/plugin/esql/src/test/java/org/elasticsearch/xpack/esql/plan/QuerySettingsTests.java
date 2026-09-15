@@ -899,7 +899,7 @@ public class QuerySettingsTests extends ESTestCase {
     }
 
     public void testDatasetWildcardsDefaultsToFalse() {
-        // Nothing supplied it anywhere (no cluster setting, no body, no SET) — a wildcard matches indices only,
+        // Nothing supplied it anywhere (no cluster setting, no body, no SET) — a wildcard matches no dataset,
         // which is the behavior a FROM pattern had before datasets existed.
         ResolvedSettings resolved = QuerySettings.resolve(Map.of(), null, SNAPSHOT_CTX_WITH_CPS_ENABLED);
         assertThat(resolved.get(QuerySettings.DATASET_WILDCARDS), equalTo(Boolean.FALSE));

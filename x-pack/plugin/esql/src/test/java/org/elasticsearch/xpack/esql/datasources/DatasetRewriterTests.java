@@ -284,7 +284,7 @@ public class DatasetRewriterTests extends ESTestCase {
 
     public void testWildcardMatchingOnlyDatasetsExcludesThemWhenDatasetWildcardsOff() {
         // With wildcard-dataset matching off, FROM logs_* does not resolve any dataset: the relation is left untouched
-        // and flows to normal index resolution (which excludes datasets), so it means "matching indices only".
+        // and flows to normal index resolution, which excludes datasets but not the other abstractions.
         DataSource parent = dataSource("s3_parent", Map.of());
         Dataset a = new Dataset("logs_a", new DataSourceReference("s3_parent"), "s3://a/", null, Map.of());
         Dataset b = new Dataset("logs_b", new DataSourceReference("s3_parent"), "s3://b/", null, Map.of());
@@ -317,7 +317,7 @@ public class DatasetRewriterTests extends ESTestCase {
 
     public void testPrefixWildcardDoesNotResolveDatasetWhenDatasetWildcardsOff() {
         // A prefix wildcard is still a wildcard: it does not reach a dataset with dataset_wildcards off (datasets need an exact
-        // name), so the relation is untouched and resolves to indices only.
+        // name), so the relation is untouched and reaches no dataset.
         DataSource parent = dataSource("s3_parent", Map.of());
         Dataset dataset = new Dataset("logs_ds", new DataSourceReference("s3_parent"), "s3://logs/", null, Map.of());
         ProjectMetadata project = projectWith(Map.of("s3_parent", parent), Map.of("logs_ds", dataset));
@@ -392,7 +392,7 @@ public class DatasetRewriterTests extends ESTestCase {
     }
 
     public void testBareWildcardExcludesDatasetWhenDatasetWildcardsOff() {
-        // FROM * with dataset_wildcards off resolves to indices only — the registered dataset is not swept in.
+        // FROM * with dataset_wildcards off reaches no dataset — the registered one is not swept in.
         DataSource parent = dataSource("s3_parent", Map.of());
         Dataset dataset = new Dataset("logs_ds", new DataSourceReference("s3_parent"), "s3://logs/", null, Map.of());
         ProjectMetadata project = projectWithIndices(Map.of("s3_parent", parent), Map.of("logs_ds", dataset), Set.of("some_idx"));
@@ -448,7 +448,7 @@ public class DatasetRewriterTests extends ESTestCase {
 
         // Setting on: the wildcard resolves the dataset.
         assertThat(rewrite(relationOf("logs_*"), project), instanceOf(UnresolvedExternalRelation.class));
-        // Setting off: the wildcard is left untouched (indices only).
+        // Setting off: the wildcard is left untouched, so it reaches no dataset.
         UnresolvedRelation relation = relationOf("logs_*");
         assertSame(relation, rewriteWildcardsDisabled(relation, project));
     }

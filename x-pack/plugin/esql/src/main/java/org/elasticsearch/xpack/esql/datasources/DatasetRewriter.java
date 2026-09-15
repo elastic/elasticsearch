@@ -89,7 +89,7 @@ public final class DatasetRewriter {
      *
      * @param datasetWildcards the resolved {@code dataset_wildcards} query setting. When {@code false} (the default)
      *                         a dataset is kept only if it was named exactly; a wildcard that also matched it drops it,
-     *                         so the wildcard resolves to indices only.
+     *                         so a wildcard does not match a dataset; what else it matches is unaffected.
      */
     public static DatasetResolution resolve(
         String[] authorizedIndices,

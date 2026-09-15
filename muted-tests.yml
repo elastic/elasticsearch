@@ -740,12 +740,6 @@ tests:
 - class: org.elasticsearch.search.basic.SearchWithRandomDisconnectsIT
   method: testSearchWithRandomDisconnects
   issue: https://github.com/elastic/elasticsearch/issues/157466
-- class: org.elasticsearch.gradle.internal.test.rest.LegacyYamlRestTestPluginFuncTest
-  method: yamlRestTest does nothing when there are no tests
-  issue: https://github.com/elastic/elasticsearch/issues/159229
-- class: org.elasticsearch.gradle.internal.test.rest.LegacyYamlRestTestPluginFuncTest
-  method: yamlRestTest executes and copies api and tests to correct source set
-  issue: https://github.com/elastic/elasticsearch/issues/159230
 - class: org.elasticsearch.xpack.esql.qa.csv.CsvCompressedFormatSpecIT
   method: test {csv-spec:csv-multifile-resolution.ffwSalaryStats [csv.zstd/S3]}
   issue: https://github.com/elastic/elasticsearch/issues/159270

@@ -298,6 +298,8 @@ public class FromDatasetIT extends AbstractExternalDataSourceIT {
         "employees_parquet_absent_warn",
         "employees_ndjson_absent_warn",
         "drift_pq_type_ffw",
+        "drift_pq_cold_null_count_ffw",
+        "drift_pq_cold_inline_ffw",
         "widen_pq_type_ffw",
         "drift_csv_type_ffw",
         "ul_pq_type_ffw",
@@ -6349,6 +6351,55 @@ public class FromDatasetIT extends AbstractExternalDataSourceIT {
             equalTo(List.of(1, 2, 2L))
         );
         assertThat(documentsReadBy("FROM drift_pq_type_ffw | KEEP x | STATS c = COUNT(x)"), equalTo(0L));
+    }
+
+    public void testFirstFileWinsColdIsNullCountMatchesTheScanOnDivergentColumnTypes() throws Exception {
+        assertAcked(client().execute(PutDataSourceAction.INSTANCE, putDataSourceRequest("local_ds", Map.of())));
+        Map<String, List<Object>> actual = new LinkedHashMap<>();
+        Map<String, List<Object>> expected = new LinkedHashMap<>();
+        for (String aggregation : List.of("STATS c = COUNT(*)", "STATS c = COUNT(*) BY k = 1 | KEEP c")) {
+            Path dir = createTempDir();
+            writeParquet(dir.resolve("part-a.parquet"), "message m { required int32 x; }", 2, 1024, (g, i) -> g.add("x", i + 1));
+            writeParquet(
+                dir.resolve("part-b.parquet"),
+                "message m { required int64 x; }",
+                2,
+                1024,
+                (g, i) -> g.add("x", i == 0 ? -10L : 20L)
+            );
+            putFirstFileWinsGlob("drift_pq_cold_null_count_ffw", dir);
+
+            // Each query gets new file paths so neither schema nor footer caches can be warmed by another query.
+            actual.put(aggregation, columnValues("FROM drift_pq_cold_null_count_ffw | WHERE x IS NULL | " + aggregation));
+            List<Object> scan = columnValues("FROM drift_pq_cold_null_count_ffw | KEEP x | SORT x");
+            assertThat(scan, containsInAnyOrder(1, 2, null, null));
+            expected.put(aggregation, List.of(scan.stream().filter(Objects::isNull).count()));
+        }
+        assertThat(actual, equalTo(expected));
+    }
+
+    public void testFirstFileWinsColdInlineStatsMatchesTheScanOnDivergentColumnTypes() throws Exception {
+        assertAcked(client().execute(PutDataSourceAction.INSTANCE, putDataSourceRequest("local_ds", Map.of())));
+        Path dir = createTempDir();
+        writeParquet(dir.resolve("part-a.parquet"), "message m { required int32 x; }", 2, 1024, (g, i) -> g.add("x", i + 1));
+        writeParquet(dir.resolve("part-b.parquet"), "message m { required int64 x; }", 2, 1024, (g, i) -> g.add("x", i == 0 ? -10L : 20L));
+        putFirstFileWinsGlob("drift_pq_cold_inline_ffw", dir);
+
+        List<List<Object>> rows;
+        try (
+            var response = run(
+                syncEsqlQueryRequest(
+                    "FROM drift_pq_cold_inline_ffw | INLINE STATS c = COUNT(x), mn = MIN(x), mx = MAX(x) | KEEP x, c, mn, mx"
+                ),
+                TIMEOUT
+            )
+        ) {
+            rows = getValuesList(response);
+        }
+        assertThat(rows.stream().map(row -> row.getFirst()).toList(), containsInAnyOrder(1, 2, null, null));
+        for (List<Object> row : rows) {
+            assertThat("cold INLINE STATS rows: " + rows, row.subList(1, 4), equalTo(List.of(2L, 1, 2)));
+        }
     }
 
     public void testFirstFileWinsWarmAggregateKeepsWideningFileValues() throws Exception {

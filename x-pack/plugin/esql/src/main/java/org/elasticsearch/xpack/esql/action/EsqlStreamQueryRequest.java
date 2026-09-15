@@ -18,7 +18,7 @@ import static org.elasticsearch.action.ValidateActions.addValidationError;
 
 /**
  * A local-only wrapper around {@link EsqlQueryRequest} that carries a
- * {@link EsqlStreamQueryAction.StreamStart} listener for the streaming endpoint.
+ * {@link EsqlStreamQueryAction.ResultStream} listener for the streaming endpoint.
  *
  * The listener is called once analysis is complete and compute is about to start, delivering
  * the schema and publisher to the REST layer before the transport action's own response arrives.
@@ -27,33 +27,24 @@ import static org.elasticsearch.action.ValidateActions.addValidationError;
  */
 public class EsqlStreamQueryRequest extends EsqlQueryRequest {
 
-    private final ActionListener<EsqlStreamQueryAction.StreamStart> streamStartListener;
+    private final ActionListener<EsqlStreamQueryAction.ResultStream> resultStreamListener;
     private final boolean dropNullColumns;
     private final int batchSize;
 
-    private EsqlStreamQueryRequest(
+    EsqlStreamQueryRequest(
         EsqlQueryRequest source,
-        ActionListener<EsqlStreamQueryAction.StreamStart> streamStartListener,
+        ActionListener<EsqlStreamQueryAction.ResultStream> resultStreamListener,
         boolean dropNullColumns,
         int batchSize
     ) {
         super(source);
-        this.streamStartListener = streamStartListener;
+        this.resultStreamListener = resultStreamListener;
         this.dropNullColumns = dropNullColumns;
         this.batchSize = batchSize;
     }
 
-    public static EsqlStreamQueryRequest from(
-        EsqlQueryRequest source,
-        ActionListener<EsqlStreamQueryAction.StreamStart> streamStartListener,
-        boolean dropNullColumns,
-        int batchSize
-    ) {
-        return new EsqlStreamQueryRequest(source, streamStartListener, dropNullColumns, batchSize);
-    }
-
-    public ActionListener<EsqlStreamQueryAction.StreamStart> streamStartListener() {
-        return streamStartListener;
+    public ActionListener<EsqlStreamQueryAction.ResultStream> resultStreamListener() {
+        return resultStreamListener;
     }
 
     public boolean dropNullColumns() {

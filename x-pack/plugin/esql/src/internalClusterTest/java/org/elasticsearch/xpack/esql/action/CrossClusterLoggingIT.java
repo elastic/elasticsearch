@@ -140,9 +140,9 @@ public class CrossClusterLoggingIT extends AbstractCrossClusterTestCase {
         StreamQueryTestUtils.CountingStreamSubscriber subscriber = new StreamQueryTestUtils.CountingStreamSubscriber();
         ActionFuture<ActionResponse.Empty> future = client(LOCAL_CLUSTER).execute(
             EsqlStreamQueryAction.INSTANCE,
-            EsqlStreamQueryRequest.from(
+            new EsqlStreamQueryRequest(
                 source,
-                ActionListener.wrap(start -> start.publisher().subscribe(subscriber), startError::set),
+                ActionListener.wrap(resultStream -> resultStream.publisher().subscribe(subscriber), startError::set),
                 false,
                 between(1, 10)
             )

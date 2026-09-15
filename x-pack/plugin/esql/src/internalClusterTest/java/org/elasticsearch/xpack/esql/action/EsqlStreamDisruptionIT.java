@@ -742,9 +742,9 @@ public class EsqlStreamDisruptionIT extends AbstractEsqlIntegTestCase {
         EsqlQueryRequest source = EsqlQueryRequest.syncEsqlQueryRequest(query);
         ActionFuture<ActionResponse.Empty> future = client(coordinatingNode).execute(
             EsqlStreamQueryAction.INSTANCE,
-            EsqlStreamQueryRequest.from(source, ActionListener.wrap(start -> {
-                nullColumnsRef.set(start.nullColumns());
-                start.publisher().subscribe(subscriber);
+            new EsqlStreamQueryRequest(source, ActionListener.wrap(resultStream -> {
+                nullColumnsRef.set(resultStream.nullColumns());
+                resultStream.publisher().subscribe(subscriber);
             }, subscriber.failure::set), true, randomIntBetween(1, 10))
         );
         future.actionGet(TimeValue.timeValueSeconds(60));

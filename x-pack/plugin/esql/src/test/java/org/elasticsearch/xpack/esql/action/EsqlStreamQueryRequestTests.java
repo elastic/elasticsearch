@@ -16,7 +16,7 @@ import static org.hamcrest.Matchers.containsString;
 public class EsqlStreamQueryRequestTests extends ESTestCase {
 
     public void testValidateRejectsZeroBatchSize() {
-        EsqlStreamQueryRequest req = EsqlStreamQueryRequest.from(
+        EsqlStreamQueryRequest req = new EsqlStreamQueryRequest(
             EsqlQueryRequest.syncEsqlQueryRequest("FROM idx"),
             ActionListener.noop(),
             false,
@@ -28,7 +28,7 @@ public class EsqlStreamQueryRequestTests extends ESTestCase {
     }
 
     public void testValidateRejectsNegativeBatchSize() {
-        EsqlStreamQueryRequest req = EsqlStreamQueryRequest.from(
+        EsqlStreamQueryRequest req = new EsqlStreamQueryRequest(
             EsqlQueryRequest.syncEsqlQueryRequest("FROM idx"),
             ActionListener.noop(),
             false,
@@ -40,7 +40,7 @@ public class EsqlStreamQueryRequestTests extends ESTestCase {
     }
 
     public void testValidateAcceptsPositiveBatchSize() {
-        EsqlStreamQueryRequest req = EsqlStreamQueryRequest.from(
+        EsqlStreamQueryRequest req = new EsqlStreamQueryRequest(
             EsqlQueryRequest.syncEsqlQueryRequest("FROM idx"),
             ActionListener.noop(),
             false,
@@ -52,13 +52,13 @@ public class EsqlStreamQueryRequestTests extends ESTestCase {
 
     public void testDropNullColumnsStoredOnRequest() {
         EsqlQueryRequest base = EsqlQueryRequest.syncEsqlQueryRequest("FROM idx");
-        assertFalse(EsqlStreamQueryRequest.from(base, ActionListener.noop(), false, 100).dropNullColumns());
-        assertTrue(EsqlStreamQueryRequest.from(base, ActionListener.noop(), true, 100).dropNullColumns());
+        assertFalse(new EsqlStreamQueryRequest(base, ActionListener.noop(), false, 100).dropNullColumns());
+        assertTrue(new EsqlStreamQueryRequest(base, ActionListener.noop(), true, 100).dropNullColumns());
     }
 
     public void testBatchSizeStoredOnRequest() {
         EsqlQueryRequest base = EsqlQueryRequest.syncEsqlQueryRequest("FROM idx");
         int batchSize = randomIntBetween(1, 1000);
-        assertEquals(batchSize, EsqlStreamQueryRequest.from(base, ActionListener.noop(), false, batchSize).batchSize());
+        assertEquals(batchSize, new EsqlStreamQueryRequest(base, ActionListener.noop(), false, batchSize).batchSize());
     }
 }

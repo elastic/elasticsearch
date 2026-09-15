@@ -39,9 +39,9 @@ public class StreamingPageOperator extends SinkOperator {
     private int pagesEmitted;
     private long rowsEmitted;
 
-    public StreamingPageOperator(PageStreamPublisher stream, PageStreamPublisher.Producer producer, Function<Page, Page> alignment) {
+    public StreamingPageOperator(PageStreamPublisher stream, Function<Page, Page> alignment) {
         this.stream = stream;
-        this.producer = producer;
+        this.producer = stream.registerProducer();
         this.alignment = alignment;
     }
 
@@ -101,7 +101,7 @@ public class StreamingPageOperator extends SinkOperator {
 
         @Override
         public SinkOperator get(DriverContext driverContext) {
-            return new StreamingPageOperator(stream, stream.registerProducer(), alignment);
+            return new StreamingPageOperator(stream, alignment);
         }
 
         @Override

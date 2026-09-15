@@ -85,7 +85,7 @@ import static org.elasticsearch.xpack.esql.plugin.TransportEsqlQueryAction.getOr
 /**
  * Transport action for streaming ES|QL execution on {@code POST /_query?streaming=true}.
  * Mirrors {@link TransportEsqlQueryAction} but delivers the schema and publisher out-of-band
- * (via {@link EsqlStreamQueryRequest#streamStartListener()}) before compute finishes, so the
+ * (via {@link EsqlStreamQueryRequest#resultStreamListener()}) before compute finishes, so the
  * transport task stays registered for the full duration of the query. This keeps
  * {@link org.elasticsearch.rest.action.RestCancellableNodeClient} working correctly: the task
  * remains in its close set until compute is done, so a client disconnect issues a cancellation
@@ -432,7 +432,7 @@ public class TransportEsqlStreamQueryAction extends TransportAction<EsqlStreamQu
         boolean[] nullColumns,
         ZoneId zoneId
     ) {
-        request.streamStartListener().onResponse(new EsqlStreamQueryAction.StreamStart(columns, publisher, nullColumns, zoneId));
+        request.resultStreamListener().onResponse(new EsqlStreamQueryAction.ResultStream(columns, publisher, nullColumns, zoneId));
         Exception startFailure = publisher.failure();
         if (startFailure != null) {
             return startFailure;

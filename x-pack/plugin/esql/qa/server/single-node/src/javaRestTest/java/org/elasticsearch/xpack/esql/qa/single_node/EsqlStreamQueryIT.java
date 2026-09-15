@@ -13,6 +13,7 @@ import org.elasticsearch.Build;
 import org.elasticsearch.client.Request;
 import org.elasticsearch.client.Response;
 import org.elasticsearch.client.ResponseException;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.test.TestClustersThreadFilter;
 import org.elasticsearch.test.cluster.ElasticsearchCluster;
@@ -610,13 +611,16 @@ public class EsqlStreamQueryIT extends ESRestTestCase {
     }
 
     public void testUnavailableRemoteOnlyQueryReturnsEmptyStream() throws IOException {
+        // A hostname under the reserved .invalid TLD (RFC 2606) can never resolve, so the remote is
+        // unreachable by construction rather than by assuming nothing is listening on a given port.
+        String unavailableHost = randomIdentifier() + ".invalid";
         Request settingsRequest = new Request("PUT", "/_cluster/settings");
-        settingsRequest.setJsonEntity("""
+        settingsRequest.setJsonEntity(Strings.format("""
             {"persistent": {
-                "cluster.remote.unavailable_remote.seeds": ["127.0.0.1:9999"],
+                "cluster.remote.unavailable_remote.seeds": ["%s:9300"],
                 "cluster.remote.unavailable_remote.skip_unavailable": true
             }}
-            """);
+            """, unavailableHost));
         assertOK(client().performRequest(settingsRequest));
         try {
             List<Map<String, Object>> records = stream(streamBody("FROM unavailable_remote:logs-* | STATS sum(value)"));

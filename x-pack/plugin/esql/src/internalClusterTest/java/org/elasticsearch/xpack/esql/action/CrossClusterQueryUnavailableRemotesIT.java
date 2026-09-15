@@ -381,19 +381,19 @@ public class CrossClusterQueryUnavailableRemotesIT extends AbstractCrossClusterT
                 "FROM " + REMOTE_CLUSTER_1 + ":logs-* | " + randomStats() + " sum(v)"
             );
             StreamQueryTestUtils.CountingStreamSubscriber subscriber = new StreamQueryTestUtils.CountingStreamSubscriber();
-            EsqlStreamQueryAction.StreamStart streamStart = StreamQueryTestUtils.executeStreamRequest(
+            EsqlStreamQueryAction.ResultStream resultStream = StreamQueryTestUtils.executeStreamRequest(
                 client(LOCAL_CLUSTER),
                 source,
                 subscriber
             );
 
-            assertThat(streamStart.columns(), hasSize(1));
-            assertThat(streamStart.columns().get(0).name(), equalTo("<no-fields>"));
-            assertThat(streamStart.columns().get(0).type(), equalTo(DataType.NULL));
+            assertThat(resultStream.columns(), hasSize(1));
+            assertThat(resultStream.columns().get(0).name(), equalTo("<no-fields>"));
+            assertThat(resultStream.columns().get(0).type(), equalTo(DataType.NULL));
 
             assertThat("no rows expected for empty-result CCS stream", subscriber.rowCount.get(), equalTo(0));
 
-            PageStreamPublisher.StreamFooter footer = streamStart.publisher().footer();
+            PageStreamPublisher.StreamFooter footer = resultStream.publisher().footer();
             assertNotNull("publisher footer must be set after the stream completes", footer);
             assertThat(footer.status(), equalTo(200));
             assertThat("is_partial must be true because the remote was skipped", footer.isPartial(), is(true));

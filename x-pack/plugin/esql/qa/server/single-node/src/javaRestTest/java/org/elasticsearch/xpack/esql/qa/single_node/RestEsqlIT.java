@@ -147,7 +147,7 @@ public class RestEsqlIT extends RestEsqlTestCase {
     }
 
     public void testStreamingNotAllowed() throws IOException {
-        assumeFalse("streaming only disabled on release builds", Build.current().isSnapshot());
+        assumeFalse("streaming is disabled on release builds", Build.current().isSnapshot());
         Request request = new Request("POST", "/_query");
         request.addParameter("streaming", "true");
         request.addParameter("format", "ndjson");

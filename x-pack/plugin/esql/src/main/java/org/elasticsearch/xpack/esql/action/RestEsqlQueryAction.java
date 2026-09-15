@@ -148,9 +148,9 @@ public class RestEsqlQueryAction extends BaseRestHandler {
 
         return channel -> {
             EsqlStreamResponseListener restListener = new EsqlStreamResponseListener(channel);
-            EsqlStreamQueryRequest streamRequest = EsqlStreamQueryRequest.from(
+            EsqlStreamQueryRequest streamRequest = new EsqlStreamQueryRequest(
                 esqlRequest,
-                restListener.streamStartListener(),
+                restListener.resultStreamListener(),
                 request.paramAsBoolean(EsqlQueryResponse.DROP_NULL_COLUMNS_OPTION, false),
                 resolvedBatchSize
             );

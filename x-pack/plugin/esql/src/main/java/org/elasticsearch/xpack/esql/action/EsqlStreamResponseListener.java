@@ -80,7 +80,7 @@ public class EsqlStreamResponseListener implements ActionListener<ActionResponse
         this.channel = channel;
     }
 
-    public ActionListener<EsqlStreamQueryAction.StreamStart> streamStartListener() {
+    public ActionListener<EsqlStreamQueryAction.ResultStream> resultStreamListener() {
         return ActionListener.wrap(this::initializeStream, this::onFailure);
     }
 
@@ -90,14 +90,14 @@ public class EsqlStreamResponseListener implements ActionListener<ActionResponse
         assert streamStarted : "the transport action completed successfully without ever initializing the stream";
     }
 
-    private void initializeStream(EsqlStreamQueryAction.StreamStart streamStart) throws IOException {
-        this.publisher = streamStart.publisher();
-        this.columns = streamStart.columns();
-        this.nullColumns = streamStart.nullColumns();
-        this.zoneId = streamStart.zoneId();
-        assert zoneId != null : "StreamStart must carry the resolved query time zone";
-        NdjsonColumnsBodyPart columnsBodyPart = new NdjsonColumnsBodyPart(streamStart.columns(), streamStart.nullColumns());
-        streamStart.publisher().subscribe(subscriber);
+    private void initializeStream(EsqlStreamQueryAction.ResultStream resultStream) throws IOException {
+        this.publisher = resultStream.publisher();
+        this.columns = resultStream.columns();
+        this.nullColumns = resultStream.nullColumns();
+        this.zoneId = resultStream.zoneId();
+        assert zoneId != null : "ResultStream must carry the resolved query time zone";
+        NdjsonColumnsBodyPart columnsBodyPart = new NdjsonColumnsBodyPart(resultStream.columns(), resultStream.nullColumns());
+        resultStream.publisher().subscribe(subscriber);
         channel.sendResponse(RestResponse.chunked(RestStatus.OK, columnsBodyPart, this::release));
         streamStarted = true;
     }

@@ -43,11 +43,11 @@ import java.util.concurrent.Flow;
  * delivering thread rechecks before exiting. This means a subscriber may safely call
  * {@code request} or {@code cancel} re-entrantly from inside {@code onNext} or {@code onError}.
  *
- * The delivery loop only continues after a page has been handed to the subscriber, which strictly
- * decreases both the outstanding demand and the buffered row count. Every other outcome either
- * stops permanently (a terminal signal was sent, or the subscription was cancelled) or releases
- * the delivery slot after atomically re-checking {@link #deliveryPending}. New branches must
- * preserve this: {@link Step#CONTINUE} must only be returned when a page was actually delivered.
+ * The delivery loop only falls through to another iteration after {@link #sendPage} returns
+ * {@code true}, which strictly decreases both the outstanding demand and the buffered row count.
+ * Every other action either returns after terminal cleanup or returns after atomically
+ * re-checking {@link #deliveryPending}. New branches must preserve this: {@link Action#SEND_PAGE}
+ * must only be chosen when a page is actually ready to deliver.
  */
 public class PageStreamPublisher implements Flow.Publisher<Page> {
 
@@ -72,27 +72,6 @@ public class PageStreamPublisher implements Flow.Publisher<Page> {
         int lastPageRemainingRows() {
             return lastPage().getPositionCount() - lastPageNewOffset;
         }
-    }
-
-    /**
-     * What the delivering thread must do after executing one {@link Action}.
-     */
-    private enum Step {
-        /**
-         * Keep delivering without releasing the delivery slot. Only returned after a page was handed
-         * to the subscriber, which strictly decreases both {@code demand} and {@code bufferedRows} —
-         * this is what makes the delivery loop terminate.
-         */
-        CONTINUE,
-        /**
-         * No work available right now; release the delivery slot unless another thread has since set
-         * {@link #deliveryPending}.
-         */
-        RECHECK,
-        /**
-         * A terminal signal was sent, or the subscription was cancelled; never deliver again.
-         */
-        STOP
     }
 
     private final int pageSize;
@@ -303,30 +282,106 @@ public class PageStreamPublisher implements Flow.Publisher<Page> {
         try {
             deliverLoop();
         } catch (RuntimeException e) {
-            closedListener.onResponse(null);
-            synchronized (this) {
-                deliveryInProgress = false;
-            }
+            stopDelivering();
             throw e;
         }
     }
 
+    private enum Action {
+        /** The subscription was cancelled or a terminal signal was sent; never deliver again. */
+        STOP,
+        /** No work available right now; release the delivery slot unless another thread set {@link #deliveryPending}. */
+        RECHECK,
+        SEND_ERROR,
+        SEND_PAGE,
+        SEND_COMPLETE,
+        UNBLOCK
+    }
+
     private void deliverLoop() {
-        long deliveredAtLastStep = -1;
-        Step step = Step.CONTINUE;
-        while (step != Step.STOP) {
-            if (step == Step.RECHECK && releaseUnlessPending()) {
-                return;
+        while (true) {
+            final Action action;
+            PendingDelivery pending = null;
+            Exception err = null;
+            synchronized (this) {
+                deliveryPending = false;
+
+                if (cancelled || terminalSignalSent) {
+                    action = Action.STOP;
+                } else if (subscriber == null) {
+                    action = Action.RECHECK;
+                } else if (failure != null) {
+                    err = failure;
+                    terminalSignalSent = true;
+                    demand = 0;
+                    releaseBuffer();
+                    action = Action.SEND_ERROR;
+                } else if (demand > 0 && bufferedRows >= pageSize) {
+                    pending = takeRows(pageSize);
+                    demand--;
+                    action = Action.SEND_PAGE;
+                } else if (demand > 0 && pagesFinished && bufferedRows > 0) {
+                    pending = takeRows(bufferedRows);
+                    demand--;
+                    action = Action.SEND_PAGE;
+                } else if (demand > 0 && pagesFinished && bufferedRows == 0 && footer != null) {
+                    terminalSignalSent = true;
+                    action = Action.SEND_COMPLETE;
+                } else if (demand > 0) {
+                    // Demand is outstanding but no page is ready yet (producers still active or buffer
+                    // below page_size). Unblock all parked producers so they can add more pages.
+                    action = Action.UNBLOCK;
+                } else {
+                    action = Action.RECHECK;
+                }
             }
-            assert step != Step.CONTINUE || pagesDelivered > deliveredAtLastStep : "delivery loop continued without delivering a page";
-            deliveredAtLastStep = pagesDelivered;
-            step = deliverOnce();
+
+            switch (action) {
+                case STOP -> {
+                    stopDelivering();
+                    return;
+                }
+                case RECHECK -> {
+                    if (releaseUnlessPending()) {
+                        return;
+                    }
+                }
+                case SEND_ERROR -> {
+                    notifyWritable();
+                    subscriber.onError(err);
+                    stopDelivering();
+                    return;
+                }
+                case SEND_COMPLETE -> {
+                    subscriber.onComplete();
+                    stopDelivering();
+                    return;
+                }
+                case UNBLOCK -> {
+                    notifyWritable();
+                    if (releaseUnlessPending()) {
+                        return;
+                    }
+                }
+                case SEND_PAGE -> {
+                    final long deliveredBefore = pagesDelivered;
+                    if (sendPage(pending) == false) {
+                        stopDelivering();
+                        return;
+                    }
+                    assert pagesDelivered > deliveredBefore : "delivery loop continued without delivering a page";
+                }
+                default -> throw new AssertionError("unexpected action: " + action);
+            }
         }
+    }
+
+    private void stopDelivering() {
         closedListener.onResponse(null);
         synchronized (this) {
             // Terminal: the subscription is cancelled or a terminal signal was sent. Once we reach
-            // this point, the top-guard in deliverOnce() will return STOP for any future drain, so
-            // an orphaned deliveryPending is harmless.
+            // this point, the top guard in deliverLoop() will choose Action.STOP for any future
+            // drain, so an orphaned deliveryPending is harmless.
             deliveryInProgress = false;
         }
     }
@@ -339,125 +394,62 @@ public class PageStreamPublisher implements Flow.Publisher<Page> {
         return true;
     }
 
-    private Step deliverOnce() {
-        Action action;
-        PendingDelivery pending;
-        Exception err = null;
+    /**
+     * Builds and hands one page to the subscriber. Returns {@code false} if the subscription was
+     * cancelled while the page was being built, in which case the page is released and no further
+     * delivery may happen.
+     */
+    private boolean sendPage(PendingDelivery pending) {
+        Page page;
+        try {
+            page = buildPage(pending);
+        } catch (RuntimeException buildException) {
+            boolean shouldSendError = false;
+            synchronized (this) {
+                if (terminated() == false) {
+                    failure = buildException;
+                    terminalSignalSent = true;
+                    demand = 0;
+                    releaseBuffer();
+                    shouldSendError = true;
+                }
+            }
+            if (shouldSendError) {
+                notifyWritable();
+                subscriber.onError(buildException);
+            }
+            throw buildException;
+        }
+
+        boolean shouldSend;
         synchronized (this) {
-            deliveryPending = false;
-
-            if (cancelled || terminalSignalSent) {
-                return Step.STOP;
+            if (pending.hasPartialLastPage()) {
+                Page partialPage = pending.lastPage();
+                int newOffset = pending.lastPageNewOffset();
+                int remainingRows = pending.lastPageRemainingRows();
+                if (cancelled == false && terminated() == false) {
+                    buffer.addFirst(partialPage);
+                    frontOffset = newOffset;
+                    bufferedRows += remainingRows;
+                    assert assertBufferInvariant();
+                } else {
+                    partialPage.releaseBlocks();
+                }
             }
-
-            if (subscriber == null) {
-                return Step.RECHECK;
-            }
-
-            if (failure != null) {
-                err = failure;
-                terminalSignalSent = true;
-                demand = 0;
-                releaseBuffer();
-                action = Action.SEND_ERROR;
-                pending = null;
-            } else if (demand > 0 && bufferedRows >= pageSize) {
-                pending = takeRows(pageSize);
-                demand--;
-                action = Action.SEND_PAGE;
-            } else if (demand > 0 && pagesFinished && bufferedRows > 0) {
-                pending = takeRows(bufferedRows);
-                demand--;
-                action = Action.SEND_PAGE;
-            } else if (demand > 0 && pagesFinished && bufferedRows == 0 && footer != null) {
-                terminalSignalSent = true;
-                action = Action.SEND_COMPLETE;
-                pending = null;
-            } else if (demand > 0) {
-                // Demand is outstanding but no page is ready yet (producers still active or buffer
-                // below page_size). Unblock all parked producers so they can add more pages.
-                action = Action.UNBLOCK;
-                pending = null;
-            } else {
-                return Step.RECHECK;
+            shouldSend = (cancelled == false);
+            if (shouldSend) {
+                pagesDelivered++;
             }
         }
 
-        switch (action) {
-            case SEND_ERROR -> {
-                notifyWritable();
-                subscriber.onError(err);
-                return Step.STOP;
-            }
-            case SEND_PAGE -> {
-                Page page;
-                try {
-                    page = buildPage(pending);
-                } catch (RuntimeException buildException) {
-                    boolean shouldSendError = false;
-                    synchronized (this) {
-                        if (terminated() == false) {
-                            failure = buildException;
-                            terminalSignalSent = true;
-                            demand = 0;
-                            releaseBuffer();
-                            shouldSendError = true;
-                        }
-                    }
-                    if (shouldSendError) {
-                        notifyWritable();
-                        subscriber.onError(buildException);
-                    }
-                    throw buildException;
-                }
-
-                boolean shouldSend;
-                synchronized (this) {
-                    if (pending.hasPartialLastPage()) {
-                        Page partialPage = pending.lastPage();
-                        int newOffset = pending.lastPageNewOffset();
-                        int remainingRows = pending.lastPageRemainingRows();
-                        if (cancelled == false && terminated() == false) {
-                            buffer.addFirst(partialPage);
-                            frontOffset = newOffset;
-                            bufferedRows += remainingRows;
-                            assert assertBufferInvariant();
-                        } else {
-                            partialPage.releaseBlocks();
-                        }
-                    }
-                    shouldSend = (cancelled == false);
-                    if (shouldSend) {
-                        pagesDelivered++;
-                    }
-                }
-
-                if (shouldSend == false) {
-                    page.releaseBlocks();
-                    notifyWritable();
-                    return Step.STOP;
-                }
-                subscriber.onNext(page);
-                notifyWritable();
-                return Step.CONTINUE;
-            }
-            case SEND_COMPLETE -> {
-                subscriber.onComplete();
-                return Step.STOP;
-            }
-            case UNBLOCK -> {
-                notifyWritable();
-                return Step.RECHECK;
-            }
-            default -> throw new AssertionError("unexpected action: " + action);
+        if (shouldSend == false) {
+            page.releaseBlocks();
+            notifyWritable();
+            return false;
         }
-    }
-
-    private enum Action {
-        SEND_ERROR,
-        SEND_PAGE,
-        SEND_COMPLETE,
-        UNBLOCK
+        subscriber.onNext(page);
+        notifyWritable();
+        return true;
     }
 
     private void releaseBuffer() {

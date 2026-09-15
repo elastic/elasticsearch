@@ -343,7 +343,8 @@ public class EsqlStreamResponseListenerTests extends ESTestCase {
         EarlyGetNextPartChannel channel = new EarlyGetNextPartChannel();
         EsqlStreamResponseListener listener = new EsqlStreamResponseListener(channel);
 
-        listener.streamStartListener().onResponse(new EsqlStreamQueryAction.StreamStart(simpleColumns(), publisher, null, ZoneOffset.UTC));
+        listener.resultStreamListener()
+            .onResponse(new EsqlStreamQueryAction.ResultStream(simpleColumns(), publisher, null, ZoneOffset.UTC));
         assertThat(channel.okResponses, equalTo(1));
         assertThat(channel.errorResponses, equalTo(0));
         assertTrue("publisher should be unblocked after early demand", publisher.waitForWriting().listener().isDone());
@@ -361,7 +362,8 @@ public class EsqlStreamResponseListenerTests extends ESTestCase {
         ThrowingOkChannel channel = new ThrowingOkChannel();
         EsqlStreamResponseListener listener = new EsqlStreamResponseListener(channel);
 
-        listener.streamStartListener().onResponse(new EsqlStreamQueryAction.StreamStart(simpleColumns(), publisher, null, ZoneOffset.UTC));
+        listener.resultStreamListener()
+            .onResponse(new EsqlStreamQueryAction.ResultStream(simpleColumns(), publisher, null, ZoneOffset.UTC));
         assertTrue(
             "publisher gate must be open after a failed init so the driver is not stuck",
             publisher.waitForWriting().listener().isDone()
@@ -436,7 +438,7 @@ public class EsqlStreamResponseListenerTests extends ESTestCase {
         PageStreamPublisher.Producer producer = publisher.registerProducer();
         FakeRestChannel channel = new FakeRestChannel(new FakeRestRequest(), true);
         EsqlStreamResponseListener listener = new EsqlStreamResponseListener(channel);
-        listener.streamStartListener().onResponse(new EsqlStreamQueryAction.StreamStart(columns, publisher, nullColumns, zoneId));
+        listener.resultStreamListener().onResponse(new EsqlStreamQueryAction.ResultStream(columns, publisher, nullColumns, zoneId));
         return new Subscribed(publisher, producer, channel, channel.capturedResponse(), listener);
     }
 

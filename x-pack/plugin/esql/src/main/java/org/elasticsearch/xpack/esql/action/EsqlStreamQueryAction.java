@@ -21,7 +21,7 @@ import java.util.List;
  * the full duration of the query.
  *
  * <p>The schema and publisher are delivered out-of-band through
- * {@link EsqlStreamQueryRequest#streamStartListener()}, which the REST layer sets before dispatching.
+ * {@link EsqlStreamQueryRequest#resultStreamListener()}, which the REST layer sets before dispatching.
  * This keeps {@link org.elasticsearch.rest.action.RestCancellableNodeClient} working unmodified:
  * its close-set entry for the task survives until {@link ActionResponse.Empty} is returned, so a
  * client disconnect issues a task cancellation and {@code isCancelled()} flips correctly.
@@ -36,11 +36,13 @@ public class EsqlStreamQueryAction extends ActionType<ActionResponse.Empty> {
     }
 
     /**
-     * The out-of-band payload delivered to the REST layer once analysis is complete and compute
-     * is about to start. Carries the schema, the page publisher, the null-column mask, and the
-     * resolved query time zone — all post-analysis facts signalled through
-     * {@link EsqlStreamQueryRequest#streamStartListener()} rather than through the transport
-     * action's response path.
+     * Out-of-band handle delivered to the REST layer once analysis is complete and compute is about
+     * to start. Carries the schema, null-column mask, and time zone needed to render the first
+     * NDJSON line (the columns header), plus the {@link PageStreamPublisher} that carries every
+     * subsequent page and the terminal footer. The publisher's lifetime spans the entire query, so
+     * this record is a handle to the full result stream, not merely a start-moment signal. All four
+     * fields are signalled through {@link EsqlStreamQueryRequest#resultStreamListener()} rather than
+     * through the transport action's own response path.
      */
-    public record StreamStart(List<ColumnInfoImpl> columns, PageStreamPublisher publisher, boolean[] nullColumns, ZoneId zoneId) {}
+    public record ResultStream(List<ColumnInfoImpl> columns, PageStreamPublisher publisher, boolean[] nullColumns, ZoneId zoneId) {}
 }

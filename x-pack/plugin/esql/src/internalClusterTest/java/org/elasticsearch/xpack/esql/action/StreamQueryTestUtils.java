@@ -12,12 +12,10 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.compute.data.Page;
-import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.test.ESTestCase;
 
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.Flow;
-import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
 
@@ -29,32 +27,29 @@ public final class StreamQueryTestUtils {
 
     private StreamQueryTestUtils() {}
 
-    public static EsqlStreamQueryAction.StreamStart executeStreamRequest(
+    public static EsqlStreamQueryAction.ResultStream executeStreamRequest(
         Client client,
         EsqlQueryRequest source,
         CountingStreamSubscriber subscriber
     ) throws Exception {
         int batchSize = ESTestCase.randomIntBetween(1, 10);
-        AtomicReference<EsqlStreamQueryAction.StreamStart> startRef = new AtomicReference<>();
+        AtomicReference<EsqlStreamQueryAction.ResultStream> startRef = new AtomicReference<>();
         ActionFuture<ActionResponse.Empty> future = client.execute(
             EsqlStreamQueryAction.INSTANCE,
-            EsqlStreamQueryRequest.from(source, ActionListener.wrap(start -> {
-                startRef.set(start);
-                start.publisher().subscribe(subscriber);
+            new EsqlStreamQueryRequest(source, ActionListener.wrap(resultStream -> {
+                startRef.set(resultStream);
+                resultStream.publisher().subscribe(subscriber);
             }, subscriber.failure::set), false, batchSize)
         );
-        future.actionGet(TimeValue.timeValueSeconds(60));
-        EsqlStreamQueryAction.StreamStart streamStart = startRef.get();
+        future.actionGet(ESTestCase.TEST_REQUEST_TIMEOUT);
+        EsqlStreamQueryAction.ResultStream resultStream = startRef.get();
         ESTestCase.assertNotNull(
-            "streamStartListener was never called — no HTTP response would have been sent for this query",
-            streamStart
+            "resultStreamListener was never called — no HTTP response would have been sent for this query",
+            resultStream
         );
-        ESTestCase.assertTrue(
-            "subscriber terminal signal (onComplete or onError) never fired — the stream was never terminated",
-            subscriber.completed.await(60, TimeUnit.SECONDS)
-        );
+        ESTestCase.safeAwait(subscriber.completed);
         subscriber.rethrowIfFailed();
-        return streamStart;
+        return resultStream;
     }
 
     public static class CountingStreamSubscriber implements Flow.Subscriber<Page> {

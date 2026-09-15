@@ -99,9 +99,9 @@ public class EsqlListQueriesActionIT extends AbstractPausableIntegTestCase {
 
         EsqlQueryRequest source = syncEsqlQueryRequest(QUERY);
         DrainingSubscriber subscriber = new DrainingSubscriber();
-        EsqlStreamQueryRequest streamRequest = EsqlStreamQueryRequest.from(
+        EsqlStreamQueryRequest streamRequest = new EsqlStreamQueryRequest(
             source,
-            ActionListener.wrap(start -> start.publisher().subscribe(subscriber), e -> {
+            ActionListener.wrap(resultStream -> resultStream.publisher().subscribe(subscriber), e -> {
                 throw new AssertionError("stream-start failed", e);
             }),
             false,

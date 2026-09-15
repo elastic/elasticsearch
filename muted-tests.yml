@@ -331,9 +331,6 @@ tests:
 - class: org.elasticsearch.xpack.esql.action.ExternalParquetCoercionWarningFloodIT
   method: testDeclaredCoercionWarningsStayBoundedAcrossFanOut
   issue: https://github.com/elastic/elasticsearch/issues/154023
-- class: org.elasticsearch.xpack.stateless.snapshots.StatelessSnapshotResiliencyTests
-  method: testConcurrentSnapshotDeleteAndDeleteIndex
-  issue: https://github.com/elastic/elasticsearch/issues/154784
 - class: org.elasticsearch.compute.operator.topn.ParallelTopNOperatorTests
   method: testConcurrentReleaseOfSharedDictionaryThroughRealOperator
   issue: https://github.com/elastic/elasticsearch/issues/155014

@@ -21,6 +21,7 @@ import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.search.MockSearchService;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.json.JsonXContent;
+import org.elasticsearch.xpack.core.esql.action.ColumnInfo;
 import org.elasticsearch.xpack.esql.planner.PlannerSettings;
 import org.elasticsearch.xpack.esql.plugin.QueryPragmas;
 import org.elasticsearch.xpack.spatial.SpatialPlugin;
@@ -28,14 +29,17 @@ import org.junit.BeforeClass;
 
 import java.util.ArrayList;
 import java.util.Collection;
+import java.util.List;
 import java.util.Set;
 import java.util.concurrent.TimeUnit;
 import java.util.stream.IntStream;
 
+import static org.elasticsearch.xpack.esql.EsqlTestUtils.getValuesList;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.singleValue;
 import static org.elasticsearch.xpack.esql.action.EsqlQueryRequest.syncEsqlQueryRequest;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
+import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 
 /**
  * Verifies that the {@link org.elasticsearch.compute.lucene.read.ValuesSourceReaderOperator}} is optimized into the reduce driver instead
@@ -171,6 +175,11 @@ public abstract class EsqlReductionLateMaterializationTestCase extends AbstractE
             assertThat(result.isPartial(), equalTo(false));
             assertSingleKeyFieldExtracted(result, "data", Set.of("sorted"));
             assertSingleKeyFieldExtracted(result, "node_reduce", Set.of("read", "filtered", "more", "some_more"));
+            // The reduce driver re-reads these from _doc after its own TopN, so they have to line up with the sort key row for row.
+            // A reload that returned the right values against the wrong rows would satisfy the profile assertions above.
+            assertThat(column(result, "sorted"), equalTo(List.of(2046L, 2044L, 2042L)));
+            assertThat(column(result, "read"), equalTo(List.of(1023L, 1022L, 1021L)));
+            assertThat(column(result, "filtered"), equalTo(List.of(3069L, 3066L, 3063L)));
         }
     }
 
@@ -197,7 +206,21 @@ public abstract class EsqlReductionLateMaterializationTestCase extends AbstractE
             assertThat(result.isPartial(), equalTo(false));
             assertSingleKeyFieldExtracted(result, "data", Set.of("sorted"));
             assertSingleKeyFieldExtracted(result, "node_reduce", Set.of("read", "filtered", "more", "some_more"));
+            // Both branches keep the same three documents - only i=0 fails either predicate - and _fork orders the branches.
+            assertThat(column(result, "sorted"), equalTo(List.of(2046L, 2044L, 2042L, 2046L, 2044L, 2042L)));
+            assertThat(column(result, "read"), equalTo(List.of(1023L, 1022L, 1021L, 1023L, 1022L, 1021L)));
         }
+    }
+
+    /**
+     * The values of column {@code name}, in row order. Used to check that the columns the node-reduce driver reloads from
+     * {@code _doc} line up with the rows its pipeline breaker emitted.
+     */
+    private static List<Object> column(EsqlQueryResponse response, String name) {
+        List<String> names = response.columns().stream().map(ColumnInfo::name).toList();
+        int index = names.indexOf(name);
+        assertThat("no column [" + name + "] in " + names, index, greaterThanOrEqualTo(0));
+        return getValuesList(response).stream().map(row -> row.get(index)).toList();
     }
 
     private void testLateMaterializationAfterReduceTopN(

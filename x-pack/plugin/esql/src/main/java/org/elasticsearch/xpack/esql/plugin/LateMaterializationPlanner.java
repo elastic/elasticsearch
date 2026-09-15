@@ -294,7 +294,7 @@ class LateMaterializationPlanner {
             return null;
         }
 
-        return new SetupContext(fragmentExec, pipelineBreaker, context, physicalPlanOutput, withAddedDocToRelation);
+        return new SetupContext(fragmentExec, topLevelProject, pipelineBreaker, context, physicalPlanOutput, withAddedDocToRelation);
     }
 
     /**
@@ -342,13 +342,21 @@ class LateMaterializationPlanner {
         // "not reloadable => must cross" default below would wrongly keep them; the data node mints its own pair with different name
         // ids when it maps the fragment, leaving the Project referencing attributes nothing produces.
         AttributeSet producibleByFragment = ctx.withAddedDocToRelation.outputSet();
+        assert producibleByFragment.containsAll(mustCrossExchange)
+            : "pipeline breaker keys are not producible by the data-side fragment: " + mustCrossExchange.subtract(producibleByFragment);
         // Preserve the iteration order of physicalPlanOutput: it is the exchange layout on both sides.
         List<Attribute> expectedDataOutput = new ArrayList<>(ctx.physicalPlanOutput.size());
         for (Attribute a : ctx.physicalPlanOutput) {
             if (producibleByFragment.contains(a) == false) {
                 continue;
             }
-            if (EsQueryExec.isDocAttribute(a) || mustCrossExchange.contains(a) || reloadable.contains(a) == false) {
+            // Nothing sits between the pipeline breaker and the top-level Project, so an attribute that is neither the breaker's own
+            // input nor part of that Project has no consumer above the exchange at all - shipping it is pure waste. For the shapes
+            // this class exists to fix the Project covers the whole relation, so the term is vacuously true there and the
+            // reloadability test below is what does the pruning.
+            if (EsQueryExec.isDocAttribute(a)
+                || mustCrossExchange.contains(a)
+                || (ctx.topLevelProject.outputSet().contains(a) && reloadable.contains(a) == false)) {
                 expectedDataOutput.add(a);
             }
         }
@@ -407,6 +415,7 @@ class LateMaterializationPlanner {
 
     private record SetupContext(
         FragmentExec fragmentExec,
+        Project topLevelProject,
         LogicalPlan pipelineBreaker,
         LocalPhysicalOptimizerContext context,
         List<Attribute> physicalPlanOutput,

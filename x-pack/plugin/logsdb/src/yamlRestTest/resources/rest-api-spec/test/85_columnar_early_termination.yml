@@ -34,7 +34,6 @@ setup:
   - do:
       indices.create_data_stream:
         name: "logs-cl-sa-test"
-  - is_true: acknowledged
 
   - do:
       bulk:
@@ -76,6 +75,7 @@ teardown:
         index: "logs-cl-sa-test"
         body:
           size: 2
+          fields: [ "host.name" ]
           sort:
             - host.name: asc
 
@@ -89,6 +89,7 @@ teardown:
         index: "logs-cl-sa-test"
         body:
           size: 2
+          fields: [ "host.name" ]
           sort:
             - host.name: asc
           search_after: [ "$after_bravo" ]
@@ -103,6 +104,7 @@ teardown:
         index: "logs-cl-sa-test"
         body:
           size: 2
+          fields: [ "host.name" ]
           sort:
             - host.name: asc
           search_after: [ "$after_delta" ]
@@ -117,6 +119,7 @@ teardown:
         index: "logs-cl-sa-test"
         body:
           size: 3
+          fields: [ "host.name" ]
           sort:
             - host.name: asc
 

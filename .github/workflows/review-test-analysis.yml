@@ -1,0 +1,97 @@
+name: Review test analysis
+
+on:
+  issues:
+    types: [closed]
+
+permissions:
+  contents: read
+  issues: write
+
+jobs:
+  review-test-analysis:
+    name: Trigger Buildkite review-test-analysis pipeline
+    if: |
+      github.repository == 'elastic/elasticsearch' &&
+      contains(github.event.issue.labels.*.name, '>test-failure')
+    concurrency:
+      group: review-test-analysis-${{ github.event.issue.number }}
+      cancel-in-progress: true
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check the issue was analysed and not already reviewed
+        id: check
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const issue = context.payload.issue;
+
+            // Only review issues that actually received a test-analysis
+            // comment. The analysis comment body starts with the fixed header
+            // "## Test Failure Analysis" and is authored by a bot.
+            const comments = await github.paginate(
+              github.rest.issues.listComments,
+              {
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                issue_number: issue.number,
+              }
+            );
+
+            const isBot = (user) =>
+              user?.type === 'Bot' || user?.login === 'github-actions[bot]';
+
+            const hasAnalysis = comments.some(
+              (c) => isBot(c.user) && /^##\s*Test Failure Analysis\b/.test(c.body ?? '')
+            );
+
+            if (!hasAnalysis) {
+              core.info(`Issue #${issue.number} has no test-analysis comment; nothing to review`);
+              core.setOutput('shouldRun', 'false');
+              return;
+            }
+
+            // Guard against re-triggering: the accuracy-review comment starts
+            // with "## Test Analysis Accuracy Review". If one already exists, skip.
+            const alreadyReviewed = comments.some(
+              (c) => isBot(c.user) && /^##\s*Test Analysis Accuracy Review\b/.test(c.body ?? '')
+            );
+
+            if (alreadyReviewed) {
+              core.info(`Issue #${issue.number} already has an accuracy-review comment; skipping`);
+              core.setOutput('shouldRun', 'false');
+              return;
+            }
+
+            core.setOutput('shouldRun', 'true');
+
+      - name: Trigger Buildkite pipeline
+        if: steps.check.outputs.shouldRun == 'true'
+        env:
+          BUILDKITE_API_TOKEN: ${{ secrets.BUILDKITE_API_TOKEN }}
+          ISSUE_URL:    ${{ github.event.issue.html_url }}
+          ISSUE_TITLE:  ${{ github.event.issue.title }}
+          ISSUE_NUMBER: ${{ github.event.issue.number }}
+        run: |
+          set -euo pipefail
+
+          BODY=$(jq -n \
+            --arg url   "$ISSUE_URL" \
+            --arg title "$ISSUE_TITLE" \
+            --arg num   "$ISSUE_NUMBER" \
+            '{
+              branch:  "main",
+              commit:  "HEAD",
+              message: ("Review test analysis for #" + $num + ": " + $title),
+              env: {
+                ISSUE_URL: $url,
+                WORKFLOW: "review-test-analysis"
+              }
+            }')
+
+          curl --fail --silent --show-error \
+            --request POST \
+            --url "https://api.buildkite.com/v2/organizations/elastic/pipelines/elasticsearch-agentic-workflow/builds" \
+            --header "Authorization: Bearer ${BUILDKITE_API_TOKEN}" \
+            --header "Content-Type: application/json" \
+            --data "$BODY"

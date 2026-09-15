@@ -278,6 +278,37 @@ public class MatchFunctionIT extends AbstractEsqlIntegTestCase {
         }
     }
 
+    public void testWhereRuntimeMatchOnToTextOverIndexedKeywordField() {
+        var query = """
+            FROM test_keyword
+            | WHERE match(to_text(content), "FOX")
+            | KEEP id
+            | SORT id
+            """;
+
+        try (var resp = run(query)) {
+            assertColumnNames(resp.columns(), List.of("id"));
+            assertColumnTypes(resp.columns(), List.of("integer"));
+            assertValues(resp.values(), List.of(List.of(1), List.of(6)));
+        }
+    }
+
+    public void testWhereRuntimeMatchOnToTextOverIndexedKeywordFieldViaEvalAlias() {
+        var query = """
+            FROM test_keyword
+            | EVAL c = to_text(content)
+            | WHERE match(c, "FOX")
+            | KEEP id
+            | SORT id
+            """;
+
+        try (var resp = run(query)) {
+            assertColumnNames(resp.columns(), List.of("id"));
+            assertColumnTypes(resp.columns(), List.of("integer"));
+            assertValues(resp.values(), List.of(List.of(1), List.of(6)));
+        }
+    }
+
     public void testWhereRuntimeMatchWithOptionsAndScore() {
         var query = """
             FROM test METADATA _score

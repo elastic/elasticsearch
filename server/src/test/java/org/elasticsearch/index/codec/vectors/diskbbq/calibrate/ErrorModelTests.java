@@ -466,4 +466,51 @@ public class ErrorModelTests extends ESTestCase {
         }
         return rows;
     }
+
+    public void testWarmStartQueryCentroidsAreGatedOnSpaceConsistency() throws IOException {
+        int dim = 64;
+        float[][] rows = skewedClusteredRows(2500, dim, 8);
+        FloatVectorValues fvv = KMeansFloatVectorValues.build(List.of(rows), null, dim);
+        // Single-block rotation spreads the skewed variance across all dimensions.
+        Preconditioner preconditioner = Preconditioner.createPreconditioner(dim, dim);
+
+        int[] queryOrdinals = range(0, 64);
+        int[] corpusOrdinals = range(64, 2436);
+        CalibrationSource source = new CalibrationSource(
+            VectorSimilarityFunction.DOT_PRODUCT,
+            dim,
+            fvv,
+            queryOrdinals,
+            dim,
+            false,
+            false,
+            preconditioner,
+            corpusOrdinals,
+            10,
+            fvv.size()
+        );
+
+        double invDim = ManifoldModel.estimateManifoldParameters(source).invDim();
+        ErrorModel.RealResidualState state = ErrorModel.newRealResidualState(source);
+
+        // First sweep leg (false): primes state.shared with original-space doc/query centroids.
+        QuantizationErrorStdModel falseModel = ErrorModel.estimateMagnitudeFromRealResiduals(invDim, source, false, 4, 1, 128, state);
+        // Second sweep leg (true): the fix ensures original-space warmQuery is NOT forwarded to
+        // preconditioned-space query k-means. Without the fix the wrong-space warm start could
+        // corrupt query centroid assignment and inflate the preconditioned error estimate.
+        QuantizationErrorStdModel trueModel = ErrorModel.estimateMagnitudeFromRealResiduals(invDim, source, true, 4, 1, 128, state);
+
+        double falseStd = falseModel.errorStd(128, corpusOrdinals.length);
+        double trueStd = trueModel.errorStd(128, corpusOrdinals.length);
+        assertThat(
+            "preconditioned error std must be lower for skewed-residual data via shared-state sweep "
+                + "(false std="
+                + falseStd
+                + ", true std="
+                + trueStd
+                + ")",
+            trueStd,
+            lessThan(falseStd)
+        );
+    }
 }

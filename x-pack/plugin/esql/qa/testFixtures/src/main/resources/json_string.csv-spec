@@ -1,0 +1,148 @@
+For documentation
+required_capability: fn_json_string
+// tag::json_string[]
+ROW name = "Sydney", population = 5312163
+| EVAL doc = JSON_STRING("city", name, "population", population)
+// end::json_string[]
+| KEEP doc
+;
+
+// tag::json_string-result[]
+doc:keyword
+"{""city"":""Sydney"",""population"":5312163}"
+// end::json_string-result[]
+;
+
+
+With primitive types
+required_capability: fn_json_string
+ROW flag = true, count = 42, ratio = 1.5
+| EVAL doc = JSON_STRING("flag", flag, "count", count, "ratio", ratio)
+| KEEP doc
+;
+
+doc:keyword
+"{""flag"":true,""count"":42,""ratio"":1.5}"
+;
+
+
+With multivalued values
+required_capability: fn_json_string
+ROW k = "nums", v = [1, 2, 3]
+| EVAL doc = JSON_STRING(k, v)
+| KEEP doc
+;
+
+doc:keyword
+"{""nums"":[1,2,3]}"
+;
+
+
+With null value
+required_capability: fn_json_string
+ROW seed = 1
+| EVAL doc = JSON_STRING("maybe", null)
+| KEEP doc
+;
+
+doc:keyword
+"{""maybe"":null}"
+;
+
+
+With multivalued key
+required_capability: fn_json_string
+ROW k = ["key1","key2"]
+| EVAL doc = JSON_STRING(k, true)
+| KEEP doc
+;
+
+warning:Line 2:14: evaluation of [JSON_STRING(k, true)] failed, treating result as null. Only first 20 failures recorded.
+warning:Line 2:14: java.lang.IllegalArgumentException: json_string keys must be single-valued
+
+doc:keyword
+null
+;
+
+
+With null key
+required_capability: fn_json_string
+ROW v = 1
+| EVAL doc = JSON_STRING(null, v)
+| KEEP doc
+;
+
+doc:keyword
+null
+;
+
+
+Escaping special characters
+required_capability: fn_json_string
+ROW v = "C:\\tmp\\x"
+| EVAL doc = JSON_STRING("path", v)
+| KEEP doc
+;
+
+doc:keyword
+"{""path"":""C:\\tmp\\x""}"
+;
+
+
+With mixed arguments
+required_capability: fn_json_string
+ROW arr = [1, 2], n = 7, s = "ok"
+| EVAL doc = JSON_STRING("n", n, "s", s, "arr", arr, "nil", null)
+| KEEP doc
+;
+
+doc:keyword
+"{""n"":7,""s"":""ok"",""arr"":[1,2],""nil"":null}"
+;
+
+
+With nested JSON
+required_capability: fn_json_string
+ROW seed = 1
+| EVAL doc = JSON_STRING("outer", JSON_STRING("inner", 42))
+| KEEP doc
+;
+
+doc:keyword
+"{""outer"":""{\""inner\"":42}""}"
+;
+
+
+JSON string per row
+required_capability: fn_json_string
+FROM employees
+| WHERE emp_no <= 10003
+| EVAL doc = JSON_STRING("emp_no", emp_no, "first_name", first_name)
+| KEEP emp_no, doc
+| SORT emp_no
+;
+
+emp_no:integer | doc:keyword
+10001          | "{""emp_no"":10001,""first_name"":""Georgi""}"
+10002          | "{""emp_no"":10002,""first_name"":""Bezalel""}"
+10003          | "{""emp_no"":10003,""first_name"":""Parto""}"
+;
+
+
+JSON string per row with dynamic keys
+required_capability: fn_json_string
+FROM employees
+| WHERE emp_no >= 10095
+| EVAL doc = JSON_STRING(first_name, last_name)
+| KEEP emp_no, doc
+| SORT emp_no
+;
+
+emp_no:integer | doc:keyword
+10095          | "{""Hilari"":""Morton""}"
+10096          | "{""Jayson"":""Mandell""}"
+10097          | "{""Remzi"":""Waschkowski""}"
+10098          | "{""Sreekrishna"":""Servieres""}"
+10099          | "{""Valter"":""Sullins""}"
+10100          | "{""Hironobu"":""Haraldson""}"
+;

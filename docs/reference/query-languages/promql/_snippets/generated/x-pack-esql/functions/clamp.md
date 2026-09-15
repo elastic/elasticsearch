@@ -27,7 +27,3 @@
 ```
 clamp(http_requests_total, 0, 100)
 ```
-
-**Differences from Prometheus**
-
-Does not implement Prometheus's special case of returning an empty vector when `min` is greater than `max`; it always returns clamped values.

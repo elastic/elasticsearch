@@ -256,9 +256,10 @@ public abstract class CoreTestTranslater {
                 }
                 if (settings instanceof Map<?, ?> settingsMap) {
                     final Object indexMode = settingsMap.get("index.mode");
-                    if (indexMode instanceof String indexModeStr && (indexModeStr.equals("columnar")
-                        || indexModeStr.equals("logsdb_columnar")
-                        || indexModeStr.equals("vectordb_columnar"))) {
+                    if (indexMode instanceof String indexModeStr
+                        && (indexModeStr.equals("columnar")
+                            || indexModeStr.equals("logsdb_columnar")
+                            || indexModeStr.equals("vectordb_columnar"))) {
                         continue;
                     }
                 }

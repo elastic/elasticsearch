@@ -7,6 +7,25 @@ pluginManagement {
   repositories {
     mavenCentral()
     gradlePluginPortal()
+    // Resolve the nebula ospackage plugin from a JitPack build of our fork's main head; see resolutionStrategy below.
+    maven {
+      url = "https://jitpack.io"
+      content {
+        includeGroup "com.github.breskeby.gradle-ospackage-plugin"
+      }
+    }
+  }
+
+  // The ospackage plugin is consumed from a JitPack build of breskeby/gradle-ospackage-plugin (a fork of
+  // nebula-plugins/gradle-ospackage-plugin made buildable on JitPack) rather than a published release. We pin the
+  // fork's main head commit for a reproducible, checksum-verifiable artifact. JitPack publishes the plugin marker under
+  // its own group, so map the plugin id to the JitPack module coordinates explicitly.
+  resolutionStrategy {
+    eachPlugin {
+      if (requested.id.id.startsWith("com.netflix.nebula.ospackage")) {
+        useModule("com.github.breskeby.gradle-ospackage-plugin:gradle-ospackage-plugin:${requested.version}")
+      }
+    }
   }
 
   includeBuild "build-conventions"

@@ -39,7 +39,7 @@ import static java.util.Collections.emptyList;
  * Caution! {@link #semanticEquals(Expression)} and {@link #semanticHash()} rely solely on the id.
  * But this doesn't extend to expressions containing attributes as children.
  */
-public abstract class Attribute extends NamedExpression {
+public abstract class Attribute extends NamedExpression implements StableHashable {
     /**
      * A wrapper class where equality of the contained attribute ignores the {@link Attribute#id()}. Useful when we want to create new
      * attributes and want to avoid duplicates. Because we assign unique ids on creation, a normal equality check would always fail when
@@ -192,6 +192,11 @@ public abstract class Attribute extends NamedExpression {
     @Override
     public int semanticHash() {
         return id().hashCode();
+    }
+
+    @Override
+    public int stableHash() {
+        return Objects.hash(dataType(), name(), qualifier(), nullability, synthetic());
     }
 
     @Override

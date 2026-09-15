@@ -1905,6 +1905,7 @@ public final class KeywordFieldMapper extends FieldMapper {
             final EscfColumnBuilder fallback = emitFallback ? pending.add(mergeStringColumn()) : null;
 
             int currentDoc = -1;
+            boolean valueSeenThisDoc = false;
             while (true) {
                 final int nextDoc = cursor.nextDoc();
                 if (nextDoc == DocIdSetIterator.NO_MORE_DOCS) {
@@ -1912,6 +1913,7 @@ public final class KeywordFieldMapper extends FieldMapper {
                 }
                 if (nextDoc != currentDoc) {
                     currentDoc = nextDoc;
+                    valueSeenThisDoc = false;
                 }
                 BytesRef binaryValue = cursor.value();
                 if (binaryValue == null) {

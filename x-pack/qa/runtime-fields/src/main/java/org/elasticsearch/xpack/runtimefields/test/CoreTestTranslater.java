@@ -254,6 +254,14 @@ public abstract class CoreTestTranslater {
                      */
                     continue;
                 }
+                if (settings instanceof Map<?, ?> settingsMap) {
+                    final Object indexMode = settingsMap.get("index.mode");
+                    if (indexMode instanceof String indexModeStr && (indexModeStr.equals("columnar")
+                        || indexModeStr.equals("logsdb_columnar")
+                        || indexModeStr.equals("vectordb_columnar"))) {
+                        continue;
+                    }
+                }
                 @SuppressWarnings("unchecked")
                 Map<String, Object> mapping = (Map<String, Object>) body.get("mappings");
                 if (mapping == null) {

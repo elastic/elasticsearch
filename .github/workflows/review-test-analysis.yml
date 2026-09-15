@@ -39,7 +39,9 @@ jobs:
             );
 
             const isBot = (user) =>
-              user?.type === 'Bot' || user?.login === 'github-actions[bot]';
+              user?.type === 'Bot' ||
+              user?.login === 'github-actions[bot]' ||
+              user?.login === 'elasticsearchmachine';
 
             const hasAnalysis = comments.some(
               (c) => isBot(c.user) && /^##\s*Test Failure Analysis\b/.test(c.body ?? '')

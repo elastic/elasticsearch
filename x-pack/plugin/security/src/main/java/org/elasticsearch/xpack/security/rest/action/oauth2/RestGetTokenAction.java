@@ -53,7 +53,15 @@ public final class RestGetTokenAction extends TokenBaseRestHandler implements Re
 
     static final ConstructingObjectParser<CreateTokenRequest, Void> PARSER = new ConstructingObjectParser<>(
         "token_request",
-        a -> new CreateTokenRequest((String) a[0], (String) a[1], (SecureString) a[2], (SecureString) a[3], (String) a[4], (String) a[5])
+        a -> new CreateTokenRequest(
+            (String) a[0],
+            (String) a[1],
+            (SecureString) a[2],
+            (SecureString) a[3],
+            (String) a[4],
+            (String) a[5],
+            (SecureString) a[6]
+        )
     );
     static {
         PARSER.declareString(ConstructingObjectParser.optionalConstructorArg(), new ParseField("grant_type"));
@@ -76,6 +84,14 @@ public final class RestGetTokenAction extends TokenBaseRestHandler implements Re
         );
         PARSER.declareString(ConstructingObjectParser.optionalConstructorArg(), new ParseField("scope"));
         PARSER.declareString(ConstructingObjectParser.optionalConstructorArg(), new ParseField("refresh_token"));
+        PARSER.declareField(
+            ConstructingObjectParser.optionalConstructorArg(),
+            parser -> new SecureString(
+                Arrays.copyOfRange(parser.textCharacters(), parser.textOffset(), parser.textOffset() + parser.textLength())
+            ),
+            new ParseField("service_account_token"),
+            ValueType.STRING
+        );
     }
 
     public RestGetTokenAction(Settings settings, XPackLicenseState xPackLicenseState) {
@@ -262,7 +278,7 @@ public final class RestGetTokenAction extends TokenBaseRestHandler implements Re
         _UNAUTHORIZED,
     }
 
-    private static final Set<String> FILTERED_FIELDS = Set.of("password", "kerberos_ticket", "refresh_token");
+    private static final Set<String> FILTERED_FIELDS = Set.of("password", "kerberos_ticket", "refresh_token", "service_account_token");
 
     @Override
     public Set<String> getFilteredFields() {

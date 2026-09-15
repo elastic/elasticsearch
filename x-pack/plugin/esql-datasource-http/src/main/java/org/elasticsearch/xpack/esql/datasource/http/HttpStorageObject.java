@@ -9,6 +9,7 @@ package org.elasticsearch.xpack.esql.datasource.http;
 
 import org.apache.http.HttpHeaders;
 import org.apache.http.HttpStatus;
+import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.common.breaker.CircuitBreakingException;
 import org.elasticsearch.core.CheckedFunction;
@@ -34,6 +35,7 @@ import java.time.format.DateTimeParseException;
 import java.util.Map;
 import java.util.OptionalLong;
 import java.util.concurrent.CompletionException;
+import java.util.concurrent.ExecutionException;
 import java.util.concurrent.Executor;
 import java.util.concurrent.atomic.AtomicReference;
 
@@ -326,7 +328,7 @@ public final class HttpStorageObject extends AbstractMeteredStorageObject {
 
         long startNanos = System.nanoTime();
         onReadComplete(
-            client.sendAsync(request, DirectByteBufferBodyHandlers.ofRangeRead(position, (int) length, factory)),
+            client.sendAsync(request, DirectByteBufferBodyHandlers.ofRangeRead(position, (int) length, factory, path)),
             (response, throwable) -> {
                 if (throwable != null) {
                     counters.addRequest(System.nanoTime() - startNanos, 0L);
@@ -543,19 +545,26 @@ public final class HttpStorageObject extends AbstractMeteredStorageObject {
     }
 
     /**
-     * Types an async {@code sendAsync} failure. Unwraps {@link CompletionException} so the same
-     * closed-keep-alive {@link IOException} / {@link IllegalStateException} that {@link #sendChecked}
-     * sees is classified here too; other faults keep the path-prefixed {@link IOException} wrapper.
+     * Types an async {@code sendAsync} failure. A circuit-breaker trip anywhere in the chain is
+     * returned first. An already-typed {@link ExternalUnavailableException} anywhere in the chain is
+     * returned unchanged so its retry and status signal is preserved — including the JDK
+     * {@code CompletionException(IOException("HTTP body processing failed: …", eue))} wrap of a 206
+     * length mismatch. One-level unwrap of {@link CompletionException} and {@link ExecutionException}
+     * then types a closed-keep-alive {@link IOException} / {@link IllegalStateException} the same way
+     * {@link #sendChecked} does. Cause is not peeled unconditionally: that would drop an
+     * {@link ExternalUnavailableException} that already has a transport cause. Other faults keep the
+     * path-prefixed {@link IOException} wrapper.
      */
     private Exception mapAsyncSendFailure(Throwable throwable) {
         CircuitBreakingException breakerTrip = unwrapBreakerTrip(throwable, "HTTP read failed for", path);
         if (breakerTrip != null) {
             return breakerTrip;
         }
-        Throwable cause = throwable instanceof CompletionException && throwable.getCause() != null ? throwable.getCause() : throwable;
-        if (cause instanceof ExternalUnavailableException eue) {
+        if (ExceptionsHelper.unwrap(throwable, ExternalUnavailableException.class) instanceof ExternalUnavailableException eue) {
             return eue;
         }
+        Throwable cause = (throwable instanceof CompletionException || throwable instanceof ExecutionException)
+            && throwable.getCause() != null ? throwable.getCause() : throwable;
         if (cause instanceof IOException || cause instanceof IllegalStateException) {
             return typeTransportFailure((Exception) cause);
         }

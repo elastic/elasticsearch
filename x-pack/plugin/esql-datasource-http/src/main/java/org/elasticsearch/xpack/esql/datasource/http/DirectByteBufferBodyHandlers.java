@@ -11,6 +11,8 @@ import org.apache.http.HttpStatus;
 import org.elasticsearch.xpack.esql.datasources.DirectByteBufferCopies;
 import org.elasticsearch.xpack.esql.datasources.spi.DirectBufferFactory;
 import org.elasticsearch.xpack.esql.datasources.spi.DirectReadBuffer;
+import org.elasticsearch.xpack.esql.datasources.spi.ExternalUnavailableException;
+import org.elasticsearch.xpack.esql.datasources.spi.StoragePath;
 
 import java.io.IOException;
 import java.net.http.HttpResponse;
@@ -38,13 +40,20 @@ final class DirectByteBufferBodyHandlers {
      * {@code Range} header and responds with {@code 200 OK}, the first {@code skip} bytes are
      * discarded and the next {@code length} bytes are accumulated into a destination buffer.
      *
+     * <p>A {@code 206} body shorter or longer than {@code length} is a truncated or over-long range,
+     * raised as a non-throttling {@link ExternalUnavailableException} like S3
+     * {@code KnownLengthAsyncResponseTransformer}. A wrong {@code expectedLength} on our side still
+     * exhausts the retry budget. The {@code 200} skip-then-fill path is unchanged and still fails
+     * as {@link IOException}.
+     *
      * @param factory factory used to produce the destination buffer on the 200/206 paths
+     * @param path named in 206 length-mismatch messages so the typed exception identifies the object
      */
-    static HttpResponse.BodyHandler<DirectReadBuffer> ofRangeRead(long skip, int length, DirectBufferFactory factory) {
+    static HttpResponse.BodyHandler<DirectReadBuffer> ofRangeRead(long skip, int length, DirectBufferFactory factory, StoragePath path) {
         return responseInfo -> {
             int status = responseInfo.statusCode();
             if (status == HttpStatus.SC_PARTIAL_CONTENT) {
-                return new FixedLengthDirectSubscriber(length, factory);
+                return new FixedLengthDirectSubscriber(length, factory, path);
             } else if (status == HttpStatus.SC_OK) {
                 return new SkipThenFillDirectSubscriber(skip, length, factory);
             } else {
@@ -55,10 +64,18 @@ final class DirectByteBufferBodyHandlers {
 
     /**
      * Accumulates exactly {@code expectedLength} bytes into a destination buffer. Used for {@code 206} responses.
+     * <p>
+     * Both mismatches are raised as {@link ExternalUnavailableException} (503, retryable): a body that does not
+     * match the range we asked for is a truncated or over-long response from the store, which the next attempt
+     * can well return correctly — the same typing S3 {@code KnownLengthAsyncResponseTransformer} gives a length
+     * mismatch. The cost of that choice is that a wrong {@code expectedLength} on our side is reported as the
+     * store being unavailable, but it re-trips on every attempt and still fails once the bounded retry budget
+     * is spent.
      */
     static final class FixedLengthDirectSubscriber implements HttpResponse.BodySubscriber<DirectReadBuffer> {
         private final int expectedLength;
         private final DirectBufferFactory factory;
+        private final StoragePath path;
         private final CompletableFuture<DirectReadBuffer> body = new CompletableFuture<>();
         // Subscriber signals are serialized, but cancellation of body can arrive from another
         // thread and must not close the destination while onNext is copying into it.
@@ -68,12 +85,13 @@ final class DirectByteBufferBodyHandlers {
         private volatile Flow.Subscription subscription;
         private boolean failed;
 
-        FixedLengthDirectSubscriber(int expectedLength, DirectBufferFactory factory) {
+        FixedLengthDirectSubscriber(int expectedLength, DirectBufferFactory factory, StoragePath path) {
             if (expectedLength < 0) {
                 throw new IllegalArgumentException("expectedLength must be non-negative, got: " + expectedLength);
             }
             this.expectedLength = expectedLength;
             this.factory = factory;
+            this.path = path;
             body.whenComplete((ignored, error) -> {
                 if (body.isCancelled()) {
                     releaseOnFailure();
@@ -130,7 +148,7 @@ final class DirectByteBufferBodyHandlers {
 
         @Override
         public void onNext(List<ByteBuffer> items) {
-            IOException overflow = null;
+            ExternalUnavailableException overflow = null;
             synchronized (destinationLock) {
                 for (ByteBuffer chunk : items) {
                     DirectReadBuffer drb = destinationBuf;
@@ -139,11 +157,11 @@ final class DirectByteBufferBodyHandlers {
                     }
                     int remaining = chunk.remaining();
                     if (remaining > expectedLength - offset) {
-                        overflow = new IOException(
-                            "HTTP response body exceeded expected length: cumulative="
-                                + ((long) offset + remaining)
-                                + ", expected="
-                                + expectedLength
+                        overflow = new ExternalUnavailableException(
+                            "HTTP response body exceeded expected length reading [{}]: cumulative={}, expected={}",
+                            path,
+                            (long) offset + remaining,
+                            expectedLength
                         );
                         break;
                     }
@@ -164,15 +182,18 @@ final class DirectByteBufferBodyHandlers {
         @Override
         public void onComplete() {
             DirectReadBuffer transferred;
-            IOException shortRead;
+            ExternalUnavailableException shortRead;
             synchronized (destinationLock) {
                 if (failed) {
                     return;
                 }
                 if (offset != expectedLength) {
                     transferred = null;
-                    shortRead = new IOException(
-                        "HTTP response body shorter than expected: received=" + offset + ", expected=" + expectedLength
+                    shortRead = new ExternalUnavailableException(
+                        "HTTP response body shorter than expected reading [{}]: received={}, expected={}",
+                        path,
+                        offset,
+                        expectedLength
                     );
                 } else {
                     transferred = destinationBuf;

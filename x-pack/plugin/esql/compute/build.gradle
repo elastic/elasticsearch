@@ -183,6 +183,13 @@ tasks.named('stringTemplates').configure {
   longProperties["valueRead"] = 'valueBuffer.getLong((long) valueIndex * Long.BYTES)'
   longProperties["arrowDesc"] = '64 bits signed integers'
 
+  intProperties["partitioned"] = "true"
+  intProperties["swissHash"] = "LongSwissHash"
+  longProperties["partitioned"] = "true"
+  longProperties["swissHash"] = "LongSwissHash"
+  bytesRefProperties["partitioned"] = "true"
+  bytesRefProperties["swissHash"] = "BytesRefSwissHash"
+
   floatProperties["byteSize"] = "Float.BYTES"
   floatProperties["valueRead"] = 'valueBuffer.getFloat((long) valueIndex * Float.BYTES)'
   floatProperties["arrowDesc"] = '32 bits floats'

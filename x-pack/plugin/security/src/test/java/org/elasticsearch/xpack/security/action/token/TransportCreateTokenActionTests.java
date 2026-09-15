@@ -32,7 +32,6 @@ import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.Releasables;
 import org.elasticsearch.index.shard.ShardId;
-import org.elasticsearch.license.MockLicenseState;
 import org.elasticsearch.node.Node;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.test.ClusterServiceUtils;
@@ -52,7 +51,6 @@ import org.elasticsearch.xpack.core.security.authc.service.ServiceAccount.Servic
 import org.elasticsearch.xpack.core.security.authc.service.ServiceAccountToken;
 import org.elasticsearch.xpack.core.security.authc.support.UsernamePasswordToken;
 import org.elasticsearch.xpack.core.security.user.User;
-import org.elasticsearch.xpack.security.Security;
 import org.elasticsearch.xpack.security.authc.AuthenticationService;
 import org.elasticsearch.xpack.security.authc.TokenService;
 import org.elasticsearch.xpack.security.authc.kerberos.KerberosAuthenticationToken;
@@ -95,7 +93,6 @@ public class TransportCreateTokenActionTests extends ESTestCase {
     private ClusterService clusterService;
     private AtomicReference<IndexRequest> idxReqReference;
     private AuthenticationService authenticationService;
-    private MockLicenseState license;
     private SecurityContext securityContext;
     private MockBytesRefRecycler bytesRefRecycler;
 
@@ -212,9 +209,6 @@ public class TransportCreateTokenActionTests extends ESTestCase {
 
         this.clusterService = ClusterServiceUtils.createClusterService(threadPool);
 
-        this.license = mock(MockLicenseState.class);
-        when(license.isAllowed(Security.TOKEN_SERVICE_FEATURE)).thenReturn(true);
-
         this.bytesRefRecycler = new MockBytesRefRecycler();
     }
 
@@ -235,7 +229,6 @@ public class TransportCreateTokenActionTests extends ESTestCase {
             SETTINGS,
             Clock.systemUTC(),
             client,
-            license,
             securityContext,
             securityIndex,
             securityIndex,
@@ -277,7 +270,6 @@ public class TransportCreateTokenActionTests extends ESTestCase {
             SETTINGS,
             Clock.systemUTC(),
             client,
-            license,
             securityContext,
             securityIndex,
             securityIndex,
@@ -321,7 +313,6 @@ public class TransportCreateTokenActionTests extends ESTestCase {
             SETTINGS,
             Clock.systemUTC(),
             client,
-            license,
             securityContext,
             securityIndex,
             securityIndex,
@@ -375,7 +366,6 @@ public class TransportCreateTokenActionTests extends ESTestCase {
             SETTINGS,
             Clock.systemUTC(),
             client,
-            license,
             securityContext,
             securityIndex,
             securityIndex,
@@ -418,7 +408,6 @@ public class TransportCreateTokenActionTests extends ESTestCase {
             SETTINGS,
             Clock.systemUTC(),
             client,
-            license,
             securityContext,
             securityIndex,
             securityIndex,
@@ -454,7 +443,6 @@ public class TransportCreateTokenActionTests extends ESTestCase {
             SETTINGS,
             Clock.systemUTC(),
             client,
-            license,
             securityContext,
             securityIndex,
             securityIndex,
@@ -502,7 +490,6 @@ public class TransportCreateTokenActionTests extends ESTestCase {
             SETTINGS,
             Clock.systemUTC(),
             client,
-            license,
             securityContext,
             securityIndex,
             securityIndex,
@@ -547,7 +534,6 @@ public class TransportCreateTokenActionTests extends ESTestCase {
             SETTINGS,
             Clock.systemUTC(),
             client,
-            license,
             securityContext,
             securityIndex,
             securityIndex,
@@ -590,7 +576,6 @@ public class TransportCreateTokenActionTests extends ESTestCase {
             SETTINGS,
             Clock.systemUTC(),
             client,
-            license,
             securityContext,
             securityIndex,
             securityIndex,

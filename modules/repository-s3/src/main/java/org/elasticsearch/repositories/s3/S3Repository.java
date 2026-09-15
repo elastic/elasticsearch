@@ -52,6 +52,7 @@ import org.elasticsearch.threadpool.Scheduler;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xcontent.NamedXContentRegistry;
 
+import java.net.URISyntaxException;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.List;
@@ -503,7 +504,7 @@ class S3Repository extends MeteredBlobStoreRepository {
         final S3ClientSettings clientSettings;
         try {
             clientSettings = service.settings(getProjectId(), getMetadata());
-        } catch (IllegalArgumentException ignored) {
+        } catch (Exception ignored) {
             // Client construction happens lazily so this repository might have an invalid config (e.g. if it was created before this node
             // joined the cluster, or created with `?verify=false`). If so, we can't validate its client-specific config which might hide
             // some critical deprecations, thus we must also consider this state to be critically-deprecated:
@@ -571,8 +572,20 @@ class S3Repository extends MeteredBlobStoreRepository {
                 );
             }
         };
-        service.getClientRegion(clientSettings, deprecatedLeniencyHandler);
-        service.getClientEndpoint(clientSettings, deprecatedLeniencyHandler);
+        try {
+            service.getClientRegion(clientSettings, deprecatedLeniencyHandler);
+        } catch (Exception e) {
+            // unexpected, but we need to continue regardless
+            logger.warn("failure getting S3 client region", e);
+            assert false : e;
+        }
+        try {
+            service.getClientEndpoint(clientSettings, deprecatedLeniencyHandler);
+        } catch (Exception e) {
+            // e.g. URI.create failed? we need to continue regardless
+            logger.warn("failure getting S3 client endpoint", e);
+            assert e instanceof IllegalArgumentException && e.getCause() instanceof URISyntaxException : e;
+        }
     }
 
     private static Map<String, String> buildLocation(RepositoryMetadata metadata) {

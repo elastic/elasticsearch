@@ -110,8 +110,11 @@ public class RestFleetSearchAction extends BaseRestHandler {
         }
         final SearchSourceBuilder parsedSource = searchRequest.source();
         return new RestChannelConsumer() {
+            private boolean dispatched = false;
+
             @Override
             public void accept(RestChannel channel) throws Exception {
+                dispatched = true;
                 RestCancellableNodeClient cancelClient = new RestCancellableNodeClient(client, request.getHttpChannel());
                 ActionListener<SearchResponse> completionListener = new RestRefCountedChunkedToXContentListener<>(channel);
                 cancelClient.execute(
@@ -124,7 +127,7 @@ public class RestFleetSearchAction extends BaseRestHandler {
             @Override
             public void close() {
                 // Abandonment path: parsed but never dispatched. SearchSourceBuilder.close() is idempotent.
-                if (parsedSource != null) {
+                if (dispatched == false && parsedSource != null) {
                     parsedSource.close();
                 }
             }

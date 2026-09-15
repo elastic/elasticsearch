@@ -114,8 +114,11 @@ public final class RestSubmitAsyncSearchAction extends BaseRestHandler {
             }
         }
         return new RestChannelConsumer() {
+            private boolean dispatched = false;
+
             @Override
             public void accept(RestChannel channel) throws Exception {
+                dispatched = true;
                 RestCancellableNodeClient cancelClient = new RestCancellableNodeClient(client, request.getHttpChannel());
                 ActionListener<AsyncSearchResponse> completionListener = new RestRefCountedChunkedToXContentListener<>(channel) {
                     @Override
@@ -133,7 +136,7 @@ public final class RestSubmitAsyncSearchAction extends BaseRestHandler {
             @Override
             public void close() {
                 // Abandonment path (e.g. unknown-parameter rejection). SearchSourceBuilder.close() is idempotent.
-                if (parsedSource != null) {
+                if (dispatched == false && parsedSource != null) {
                     parsedSource.close();
                 }
             }

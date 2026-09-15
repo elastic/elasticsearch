@@ -281,7 +281,7 @@ public class FunctionScoreQueryBuilder extends AbstractQueryBuilder<FunctionScor
                 Script script = s.getScript();
                 total += script.getIdOrCode().length() * 2L + estimateValue(script.getParams()) + 128L;
                 if (script.getLang() != null) total += script.getLang().length() * 2L + 64L;
-                if (script.getOptions().isEmpty() == false) total += estimateValue(script.getOptions());
+                if (script.getOptions() != null && script.getOptions().isEmpty() == false) total += estimateValue(script.getOptions());
             } else if (ffb.getScoreFunction() instanceof FieldValueFactorFunctionBuilder f) {
                 total += 128L + f.fieldName().length() * 2L + 64L;
             } else if (ffb.getScoreFunction() instanceof DecayFunctionBuilder<?> d) {

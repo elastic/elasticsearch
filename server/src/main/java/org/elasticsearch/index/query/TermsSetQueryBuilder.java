@@ -149,7 +149,8 @@ public final class TermsSetQueryBuilder extends LeafQueryBuilder<TermsSetQueryBu
             cost += minimumShouldMatchScript.getIdOrCode().length() * 2L + 64L;
             cost += estimateValue(minimumShouldMatchScript.getParams());
             if (minimumShouldMatchScript.getLang() != null) cost += minimumShouldMatchScript.getLang().length() * 2L + 64L;
-            if (minimumShouldMatchScript.getOptions().isEmpty() == false) cost += estimateValue(minimumShouldMatchScript.getOptions());
+            if (minimumShouldMatchScript.getOptions() != null && minimumShouldMatchScript.getOptions().isEmpty() == false) cost +=
+                estimateValue(minimumShouldMatchScript.getOptions());
         }
         return cost;
     }

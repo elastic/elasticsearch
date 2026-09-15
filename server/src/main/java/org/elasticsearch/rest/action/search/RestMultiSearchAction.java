@@ -99,8 +99,11 @@ public class RestMultiSearchAction extends BaseRestHandler {
             Optional.of(crossProjectEnabled)
         );
         return new RestChannelConsumer() {
+            private boolean dispatched = false;
+
             @Override
             public void accept(RestChannel channel) throws Exception {
+                dispatched = true;
                 final RestCancellableNodeClient cancellableClient = new RestCancellableNodeClient(client, request.getHttpChannel());
                 cancellableClient.execute(
                     TransportMultiSearchAction.TYPE,
@@ -125,9 +128,11 @@ public class RestMultiSearchAction extends BaseRestHandler {
             @Override
             public void close() {
                 // Abandonment path (e.g. unknown-parameter rejection). SearchSourceBuilder.close() is idempotent.
-                for (SearchRequest sr : multiSearchRequest.requests()) {
-                    if (sr.source() != null) {
-                        sr.source().close();
+                if (dispatched == false) {
+                    for (SearchRequest sr : multiSearchRequest.requests()) {
+                        if (sr.source() != null) {
+                            sr.source().close();
+                        }
                     }
                 }
             }

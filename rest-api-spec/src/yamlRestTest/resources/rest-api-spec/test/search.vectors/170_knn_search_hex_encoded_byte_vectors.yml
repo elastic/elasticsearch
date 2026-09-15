@@ -118,7 +118,7 @@ setup:
   # [64, 10, -30, 10] - is encoded as '400ae20a'
   # the error message has been adjusted in later versions
   - do:
-      catch: /dimension|dimensions \[4\] than the document|index vectors \[3\]/
+      catch: /(dimension|dimensions) \[4\] than the (document vectors|index vectors|expected) \[3\]/
       search:
         index: knn_hex_vector_index
         body:
@@ -129,21 +129,23 @@ setup:
             num_candidates: 100
             k: 10
 
+  - match: { status: 400 }
 
 ---
 "Knn search with hex string for byte field - cannot decode string" :
-  # '40af20a' is garbage :)
   - do:
-      catch: /failed to parse field \[query_vector\]/
+      catch: /must be a valid base64 or hex string/
       search:
         index: knn_hex_vector_index
         body:
           size: 3
           knn:
             field: my_vector_byte
-            query_vector: "40af20a"
+            query_vector: "garbage!"
             num_candidates: 100
             k: 10
+
+  - match: { status: 400 }
 
 ---
 "Knn search with standard byte vector matching against hex-encoded indexed docs" :

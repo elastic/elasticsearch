@@ -1632,7 +1632,7 @@ public class ElasticsearchInternalServiceTests extends InferenceServiceTestCase 
         try (var service = createService(mock(Client.class))) {
             PlainActionFuture<List<ChunkedInference>> listener = new PlainActionFuture<>();
             // the chunker throws while the batches are built, the failure must reach the listener rather than the caller
-            service.chunkedInfer(model, List.of(input), Map.of(), InputType.SEARCH, null, listener);
+            service.chunkedInfer(model, null, List.of(input), Map.of(), InputType.SEARCH, null, listener);
 
             var exception = expectThrows(IllegalArgumentException.class, () -> listener.actionGet(TEST_REQUEST_TIMEOUT));
             assertThat(exception.getMessage(), startsWith("Chunk separator regex [(a+)+b] has exceeded the character read limit"));

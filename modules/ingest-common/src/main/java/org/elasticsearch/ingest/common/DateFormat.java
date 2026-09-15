@@ -89,8 +89,8 @@ enum DateFormat {
             }
 
             final DateFormatter formatter = DateFormatter.forPattern(format).withLocale(locale);
-            return text -> {
-                TemporalAccessor accessor = formatter.parse(text);
+            return date -> {
+                TemporalAccessor accessor = formatter.parse(date);
                 // if there is no year nor year-of-era, we fall back to the current one and
                 // fill the rest of the date up with the parsed date
                 if (accessor.isSupported(ChronoField.YEAR) == false

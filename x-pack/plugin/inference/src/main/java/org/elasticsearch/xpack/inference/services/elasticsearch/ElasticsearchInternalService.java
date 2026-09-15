@@ -805,7 +805,7 @@ public class ElasticsearchInternalService extends BaseElasticsearchInternalServi
                     var sequentialRunner = new BatchIterator(esModel, inputType, timeout, batchedRequests);
                     sequentialRunner.run();
                 }
-            }catch (Exception e) {
+            } catch (Exception e) {
                 listener.onFailure(e);
             }
         } else {

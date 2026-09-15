@@ -3349,14 +3349,11 @@ public class DenseVectorFieldMapper extends FieldMapper {
                 return ValueFetcher.EMPTY;
             }
 
-            if (sourceExcludesVectors && (indexed || hasDocValues())) {
-                // _source holds no vector here, it would itself be rebuilt from these same doc values, so read them directly instead.
-                return new DenseVectorDocValuesValueFetcher(
-                    context.getForField(this, FielddataOperation.SEARCH),
-                    docValueFormat(format, null)
-                );
-            }
-
+            // Always read from _source, even when it does not hold the vector (synthetic source, or
+            // index.mapping.exclude_source_vectors). Doc values cannot serve fields under a nested object, since
+            // NestedValueFetcher delegates with the root doc id rather than the nested document holding the vector. They would
+            // save nothing either: ShardGetService#maybeExcludeVectorFields keeps a vector requested through the fields API in
+            // the loaded _source, so it is patched back in regardless and doc values would only be read a second time.
             return new DenseVectorSourceValueFetcher(name(), context, element.elementType(), dims, vectorFormat);
         }
 

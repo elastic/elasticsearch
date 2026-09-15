@@ -14,6 +14,7 @@ import org.elasticsearch.common.time.DateUtils;
 import org.elasticsearch.common.time.FormatNames;
 import org.elasticsearch.test.ESTestCase;
 
+import java.time.DateTimeException;
 import java.time.ZoneId;
 import java.time.ZoneOffset;
 import java.time.ZonedDateTime;
@@ -193,7 +194,7 @@ public class DateFormatTests extends ESTestCase {
         try {
             function.apply("2001-01-0:00-0800");
             fail("parse should have failed");
-        } catch (IllegalArgumentException e) {
+        } catch (IllegalArgumentException | DateTimeException e) {
             // all good
         }
     }

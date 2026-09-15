@@ -43,6 +43,7 @@ import java.util.Arrays;
 import java.util.List;
 import java.util.Locale;
 import java.util.Objects;
+import java.util.concurrent.atomic.AtomicInteger;
 
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.either;
@@ -51,7 +52,7 @@ import static org.hamcrest.Matchers.instanceOf;
 public class TermsQueryBuilderTests extends AbstractQueryTestCase<TermsQueryBuilder> {
     private List<Object> randomTerms;
     private String termsPath;
-    private int lookupGetCount;
+    private final AtomicInteger lookupGetCount = new AtomicInteger();
     private List<Object> lookupTermsOverride;
 
     @Before
@@ -201,7 +202,7 @@ public class TermsQueryBuilderTests extends AbstractQueryTestCase<TermsQueryBuil
 
     @Override
     public GetResponse executeGet(GetRequest getRequest) {
-        lookupGetCount++;
+        lookupGetCount.incrementAndGet();
         List<Object> terms = lookupTermsOverride != null ? lookupTermsOverride : randomTerms;
         String json;
         try {
@@ -294,17 +295,17 @@ public class TermsQueryBuilderTests extends AbstractQueryTestCase<TermsQueryBuil
         for (int i = 0; i < clauses; i++) {
             query.should(new TermsQueryBuilder(TEXT_FIELD_NAME, lookup));
         }
-        lookupGetCount = 0;
+        lookupGetCount.set(0);
         rewriteAndFetch(query, createSearchExecutionContext());
-        assertEquals("identical terms lookups must be fetched once", 1, lookupGetCount);
+        assertEquals("identical terms lookups must be fetched once", 1, lookupGetCount.get());
 
         // Lookups that differ (here by id) are resolved independently.
         BoolQueryBuilder distinctLookups = new BoolQueryBuilder().should(
             new TermsQueryBuilder(TEXT_FIELD_NAME, new TermsLookup("lookup_index", "1", termsPath))
         ).should(new TermsQueryBuilder(TEXT_FIELD_NAME, new TermsLookup("lookup_index", "2", termsPath)));
-        lookupGetCount = 0;
+        lookupGetCount.set(0);
         rewriteAndFetch(distinctLookups, createSearchExecutionContext());
-        assertEquals("distinct terms lookups must be fetched separately", 2, lookupGetCount);
+        assertEquals("distinct terms lookups must be fetched separately", 2, lookupGetCount.get());
     }
 
     public void testTermsLookupExceedingMaxTermsCountIsRejectedDuringRewrite() {

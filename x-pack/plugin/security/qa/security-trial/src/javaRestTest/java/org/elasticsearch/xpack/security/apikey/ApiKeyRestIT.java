@@ -697,6 +697,79 @@ public class ApiKeyRestIT extends SecurityOnTrialLicenseRestTestCase {
                     "read"
                   ],
                   "allow_restricted_indices": false
+                },
+                {
+                  "names": [
+                    ".workflows-executions*"
+                  ],
+                  "privileges": [
+                    "read"
+                  ],
+                  "field_security": [
+                    {
+                      "grant": [
+                        "spaceId", "id", "workflowId", "managed", "managedBy",
+                        "originManagedWorkflowId", "managedVersion", "status", "createdAt",
+                        "isTestRun", "stepId", "createdBy", "executedBy", "startedAt",
+                        "finishedAt", "duration", "triggeredBy", "eventChainDepth",
+                        "eventChainVisitedWorkflowIds", "dispatchEventId", "concurrencyGroupKey",
+                        "version", "stepType", "workflowRunId", "usage.*", "stepUsage.*", "hitl.*"
+                      ]
+                    }
+                  ],
+                  "query": [
+                    "{\\"bool\\":{\\"must_not\\":[{\\"term\\":{\\"managed\\":true}}]}}"
+                  ],
+                  "allow_restricted_indices": false
+                },
+                {
+                  "names": [
+                    ".workflows-step-executions*"
+                  ],
+                  "privileges": [
+                    "read"
+                  ],
+                  "field_security": [
+                    {
+                      "grant": [
+                        "spaceId", "id", "workflowId", "managed", "managedBy",
+                        "originManagedWorkflowId", "managedVersion", "status", "createdAt",
+                        "isTestRun", "stepId", "createdBy", "executedBy", "startedAt",
+                        "finishedAt", "duration", "triggeredBy", "eventChainDepth",
+                        "eventChainVisitedWorkflowIds", "dispatchEventId", "concurrencyGroupKey",
+                        "version", "stepType", "workflowRunId", "usage.*", "stepUsage.*", "hitl.*"
+                      ]
+                    }
+                  ],
+                  "query": [
+                    "{\\"bool\\":{\\"filter\\":[{\\"term\\":{\\"managed\\":false}}]}}"
+                  ],
+                  "allow_restricted_indices": false
+                },
+                {
+                  "names": [
+                    ".workflows-executions*",
+                    ".workflows-step-executions*"
+                  ],
+                  "privileges": [
+                    "read"
+                  ],
+                  "field_security": [
+                    {
+                      "grant": [
+                        "spaceId", "id", "workflowId", "managed", "managedBy",
+                        "originManagedWorkflowId", "managedVersion", "status", "createdAt",
+                        "isTestRun", "stepId", "createdBy", "executedBy", "startedAt",
+                        "finishedAt", "duration", "triggeredBy", "eventChainDepth",
+                        "eventChainVisitedWorkflowIds", "dispatchEventId", "concurrencyGroupKey",
+                        "version", "stepType", "workflowRunId", "usage.*", "stepUsage.*", "hitl.*"
+                      ]
+                    }
+                  ],
+                  "query": [
+                    "{\\"match_all\\":{}}"
+                  ],
+                  "allow_restricted_indices": false
                 }
               ],
               "applications": [

@@ -2,7 +2,7 @@
 navigation_title: "Add datasets"
 description: "Create ES|QL Data Federation datasets to query files in external storage. Choose file formats, adjust Parquet and CSV parsing, and control schema inference."
 applies_to:
-  stack: preview 9.5+
+  stack: experimental =9.5
   serverless: unavailable
 products:
   - id: elasticsearch
@@ -143,7 +143,7 @@ curl -X PUT "${ELASTICSEARCH_URL}/_query/dataset/access_logs" \
 ::::
 
 :::{note}
-{applies_to}`stack: preview 9.6+` Setting values are checked when the dataset is registered, not only when it
+{applies_to}`stack: experimental 9.6+` Setting values are checked when the dataset is registered, not only when it
 is first queried. A malformed value, such as a multi-character `delimiter`, an unknown `encoding`, or a
 `segment_size` below the minimum, is rejected with a `400` error that identifies the setting.
 
@@ -289,9 +289,9 @@ The following settings apply to all file-based data sources:
 | `target_split_size` | `64mb` | The target size of each unit of work a file is divided into to be read in parallel across nodes. Files larger than the target are cut into several splits. Files smaller than the target are read as a single split. Lower the split size for more parallelism over a few large files. Raise it to reduce planning work over a very large number of bytes. |
 | `split_probe_window` | `256kb` | The number of bytes a search for a record boundary can read while dividing files into splits. A dataset with records that are larger than this value is cut into fewer splits than the `target_split_size`. In this case, reads occur with less parallelism because a search that does not reach the end of a record finds no boundary to split at. Raise the value for a dataset with long records, within the budget in the note that follows. The setting applies to NDJSON and to CSV and TSV without quoting or escaping. Quoted or escaped records cannot be searched at a fixed offset, so those files are scanned sequentially and bounded by `external_max_record_size`, as it is dividing a split further across the threads of one node. Values below about `136kb` are read in full by every search, since finishing a window that small costs less than opening another connection. |
 | `max_split_probes` | `1000` | The maximum number of record-boundary searches a query can perform, which bounds how many splits its files are cut into. A searched file yields one split more than the searches spent on it. A file too small to search is read as a single whole-file split. A scan asking for more splits than this setting value is read at a wider split size than `target_split_size` requests. Raise it to get the requested split size on a very large scan. The highest accepted value is `10000`. |
-| `file_exclusions` {applies_to}`stack: preview 9.6+` | `["**/_*", "**/.*", "**/_temporary/**", "**/_delta_log/**"]` | Patterns naming objects to drop from wildcard discovery, written in the same [pattern language](esql-data-federation-patterns.md) as `resource` and matched against the object's path relative to the listing prefix. The default skips file names beginning with `_` or `.` and the contents of `_temporary` and `_delta_log` directories. Refer to [excluding non-data objects](#excluding-non-data-objects). |
-| `file_sort_by` {applies_to}`stack: preview 9.6+` | `list` (when `first_file_wins`) | What to order files by before taking the first-file-wins schema. Valid values: `"list"`, `"name"`, `"mtime"`. Only valid with `"schema_resolution": "first_file_wins"`. Refer to [first-file-wins file order](#first-file-wins-file-order). |
-| `file_order` {applies_to}`stack: preview 9.6+` | `asc` (when `first_file_wins`) | Sort direction for `file_sort_by`. Valid values: `"asc"`, `"desc"`. Always applied; `"list"` + `"desc"` reverses declaration or listing order. Only valid with `"schema_resolution": "first_file_wins"`. |
+| `file_exclusions` {applies_to}`stack: experimental 9.6+` | `["**/_*", "**/.*", "**/_temporary/**", "**/_delta_log/**"]` | Patterns naming objects to drop from wildcard discovery, written in the same [pattern language](esql-data-federation-patterns.md) as `resource` and matched against the object's path relative to the listing prefix. The default skips file names beginning with `_` or `.` and the contents of `_temporary` and `_delta_log` directories. Refer to [excluding non-data objects](#excluding-non-data-objects). |
+| `file_sort_by` {applies_to}`stack: experimental 9.6+` | `list` (when `first_file_wins`) | What to order files by before taking the first-file-wins schema. Valid values: `"list"`, `"name"`, `"mtime"`. Only valid with `"schema_resolution": "first_file_wins"`. Refer to [first-file-wins file order](#first-file-wins-file-order). |
+| `file_order` {applies_to}`stack: experimental 9.6+` | `asc` (when `first_file_wins`) | Sort direction for `file_sort_by`. Valid values: `"asc"`, `"desc"`. Always applied; `"list"` + `"desc"` reverses declaration or listing order. Only valid with `"schema_resolution": "first_file_wins"`. |
 
 % hive_partitioning intentionally omitted — being deprecated to a warn-only no-op in https://github.com/elastic/esql-planning/issues/1881
 
@@ -302,7 +302,7 @@ The following settings apply to all file-based data sources:
 ### Excluding non-data objects
 
 ```{applies_to}
-stack: preview 9.6+
+stack: experimental 9.6+
 ```
 
 Object-store prefixes rarely hold only data. A Spark `_SUCCESS` marker, `.crc` sidecars, a `_temporary/`
@@ -386,8 +386,8 @@ setting can bring them back.
 
 | Setting | Default (CSV / TSV) | Description |
 |---|---|---|
-| `delimiter` | `,` / `\t` | The field separator. <br> Must be a single character (or one of `\t`, `\n`, `\r`, `\\`). {applies_to}`stack: preview 9.6+` |
-| `mode` | `quoted` / `plain` | A preset bundling quoting and escaping into one choice. Valid values: `"quoted"`, `"escaped"`, `"plain"`. <br> Using `mode: escaped` with an explicit `quote` setting is rejected at registration time, because it silently turns quoting on and disables the escaped-mode decode. {applies_to}`stack: preview 9.6+` |
+| `delimiter` | `,` / `\t` | The field separator. <br> Must be a single character (or one of `\t`, `\n`, `\r`, `\\`). {applies_to}`stack: experimental 9.6+` |
+| `mode` | `quoted` / `plain` | A preset bundling quoting and escaping into one choice. Valid values: `"quoted"`, `"escaped"`, `"plain"`. <br> Using `mode: escaped` with an explicit `quote` setting is rejected at registration time, because it silently turns quoting on and disables the escaped-mode decode. {applies_to}`stack: experimental 9.6+` |
 | `header_row` | `true` | Whether the first non-comment, non-blank record names the columns. Applied after `skip_rows`. |
 | `skip_rows` | `0` | Number of leading content records to discard per file, after gzip unwrap, on the first split only. Blank and comment lines are not counted. Applied before `header_row`. Maximum `1000`. |
 | `null_value` | `""` (empty) | The token read as null (for example `NULL`, `NA`, `\N`). |
@@ -399,9 +399,9 @@ A file that starts with two prose lines then `state,ip,user_agent` is read with 
 
 | Setting | Default (CSV / TSV) | Description |
 |---|---|---|
-| `schema_sample_size` {applies_to}`stack: preview 9.6+` | `20000` | Rows sampled to infer the schema. Determines whether sparse or late-appearing fields get a column. |
-| `quote` | `"` / none | The quote character, or `"none"` to turn quoting off. An explicit value overrides the `mode` preset. <br> Must be a single character (or one of `\t`, `\n`, `\r`, `\\`). {applies_to}`stack: preview 9.6+` |
-| `escape` | `\` / none | The escape character, or `"none"` to turn escaping off. An explicit value overrides the `mode` preset. <br> Must be a single character (or one of `\t`, `\n`, `\r`, `\\`). {applies_to}`stack: preview 9.6+` |
+| `schema_sample_size` {applies_to}`stack: experimental 9.6+` | `20000` | Rows sampled to infer the schema. Determines whether sparse or late-appearing fields get a column. |
+| `quote` | `"` / none | The quote character, or `"none"` to turn quoting off. An explicit value overrides the `mode` preset. <br> Must be a single character (or one of `\t`, `\n`, `\r`, `\\`). {applies_to}`stack: experimental 9.6+` |
+| `escape` | `\` / none | The escape character, or `"none"` to turn escaping off. An explicit value overrides the `mode` preset. <br> Must be a single character (or one of `\t`, `\n`, `\r`, `\\`). {applies_to}`stack: experimental 9.6+` |
 | `comment` | `//` | Lines beginning with this prefix are skipped. |
 | `column_prefix` | `col` | Prefix for generated column names when `header_row` is `false`. |
 | `datetime_format` | ISO-8601 | The pattern used to parse date and time values. |
@@ -415,7 +415,7 @@ A file that starts with two prose lines then `state,ip,user_agent` is read with 
 
 | Setting | Default | Description |
 |---|---|---|
-| `schema_sample_size` {applies_to}`stack: preview 9.6+` | `20000` | Lines sampled to infer the schema. Determines whether sparse or late-appearing fields get a column. |
+| `schema_sample_size` {applies_to}`stack: experimental 9.6+` | `20000` | Lines sampled to infer the schema. Determines whether sparse or late-appearing fields get a column. |
 
 **Advanced:**
 
@@ -441,14 +441,14 @@ When a dataset spans multiple files, the files might have different schemas. Set
 
 - `union_by_name` (default): Merges schemas from all files by column name. Columns that exist in some files but not others are filled with nulls. Types are widened where possible: when two files define the same column with incompatible types, the column type defaults to `keyword`. If you want type conflicts to produce an error, use `strict` instead. This is safer when files can vary, at the cost of reading and merging more file metadata.
 - `first_file_wins`: After files are discovered, they are ordered and the schema is taken from **the first file in that order**. Later files are assumed to match. This is typically faster, but schema differences in later files can cause query errors or values to be read under the wrong assumptions.
-Use [`file_sort_by`](#first-file-wins-file-order) and [`file_order`](#first-file-wins-file-order) to choose that first file. {applies_to}`stack: preview 9.6+`
+Use [`file_sort_by`](#first-file-wins-file-order) and [`file_order`](#first-file-wins-file-order) to choose that first file. {applies_to}`stack: experimental 9.6+`
 Those settings are rejected on `union_by_name` and `strict`.
 - `strict`: Requires every file to have the same schema, apart from nullability, and returns an error when they differ. Use this when schema drift must fail explicitly.
 
 ### First-file-wins file order
 
 ```{applies_to}
-stack: preview 9.6+
+stack: experimental 9.6+
 ```
 
 `file_sort_by` and `file_order` apply only when `schema_resolution` is `first_file_wins`. The dataset API and query `WITH` clause reject them on `union_by_name` and `strict`.

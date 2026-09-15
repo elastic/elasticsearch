@@ -2,7 +2,7 @@
 navigation_title: "Resource patterns"
 description: "Reference for the glob pattern language used by ES|QL Data Federation dataset resources and file exclusions: wildcards, character classes, alternation, and numeric ranges."
 applies_to:
-  stack: preview 9.6+
+  stack: experimental 9.6+
   serverless: unavailable
 products:
   - id: elasticsearch

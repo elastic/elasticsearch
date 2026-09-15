@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.esql.datasources.spi;
 
+import org.elasticsearch.common.ValidationException;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.esql.datasources.DecompressionCodecRegistry;
@@ -19,6 +20,7 @@ import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.atomic.AtomicBoolean;
 
+import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.nullValue;
 import static org.mockito.Mockito.mock;
@@ -82,6 +84,27 @@ public class FileDataSourceValidatorInventoryTests extends ESTestCase {
         String auth = validator.authModeOrNull(Map.of("secret_key", new DataSourceSetting(DataSourceSetting.MASK_SENTINEL, true)));
         assertThat(putAsUpdateSplit.get(), equalTo(true));
         assertThat(auth, equalTo("static_credentials"));
+    }
+
+    public void testAdditionalDatasetKeyMustBeNonEmptyString() {
+        FileDataSourceValidator validator = new FileDataSourceValidator("s3", (settings, secrets) -> null, Set.of("s3"))
+            .withAdditionalDatasetKeys(Set.of("region"))
+            .withFormatReaderRegistry(csvGzipRegistry())
+            .withFormatConfigKeyResolver(
+                FileDataSourceValidator.FormatConfigKeyResolver.of(Map.of("csv", Set.of()), Map.of(".csv", "csv"))
+            );
+
+        ValidationException blankError = expectThrows(
+            ValidationException.class,
+            () -> validator.validateDataset(Map.of(), "s3://bucket/data.csv", Map.of("region", ""))
+        );
+        assertThat(blankError.getMessage(), containsString("[region] must be a non-empty string"));
+
+        ValidationException nonStringError = expectThrows(
+            ValidationException.class,
+            () -> validator.validateDataset(Map.of(), "s3://bucket/data.csv", Map.of("region", 42))
+        );
+        assertThat(nonStringError.getMessage(), containsString("[region] must be a non-empty string"));
     }
 
     private static FormatReaderRegistry csvGzipRegistry() {

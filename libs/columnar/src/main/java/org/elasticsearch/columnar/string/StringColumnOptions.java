@@ -9,6 +9,7 @@
 
 package org.elasticsearch.columnar.string;
 
+import org.elasticsearch.columnar.ColumNARDocValuesFormat;
 import org.elasticsearch.columnar.substrate.ChunkCodec;
 
 /**
@@ -25,8 +26,19 @@ import org.elasticsearch.columnar.substrate.ChunkCodec;
  *                                than {@code targetChunkBytes} because plain-path columns are scanned
  *                                sequentially and never bisected, so a larger chunk compresses better
  *                                at no extra read cost
+ * @param compressedOrdinalBlockSize ordinals a block holds when a column's ordinals are stored
+ *                                compressed, which bounds what reading one ordinal has to decompress
+ * @param slotCountsBlockSize     documents a block of slot counts holds, and so how many of them a read
+ *                                sums to reach a document that is not in the block it last read
  */
-public record StringColumnOptions(DictionaryPolicy dictionary, ChunkCodec chunkCodec, int targetChunkBytes, int plainPathTargetChunkBytes) {
+public record StringColumnOptions(
+    DictionaryPolicy dictionary,
+    ChunkCodec chunkCodec,
+    int targetChunkBytes,
+    int plainPathTargetChunkBytes,
+    int compressedOrdinalBlockSize,
+    int slotCountsBlockSize
+) {
 
     /**
      * The bounds a string column's dictionary is chosen under when a field names none of its own.
@@ -40,14 +52,12 @@ public record StringColumnOptions(DictionaryPolicy dictionary, ChunkCodec chunkC
     /**
      * How much a chunk holds before it is closed on the dictionary path, when a field names nothing of its own.
      *
-     * <p>Smaller than the 512kb {@code ES819Version3TSDBDocValuesFormat} writes a binary field in, and
-     * deliberately: a chunk is decoded whole, and this column is read at addresses a scan did not choose.
-     * Bisecting a column in term order lands each probe in a chunk of its own, so what a probe costs is the
-     * size of a chunk however few bytes of it the value needs, and there are a couple of dozen probes in a
-     * term. A larger chunk compresses better and is the right trade where the values are read in order; here
-     * it would be paid for by the reads this column exists to make cheap.
+     * <p>What this sizes is the values that escaped the dictionary, which are reached by escape rank rather
+     * than in the order they were written. A larger chunk barely compresses better, since what escapes a
+     * dictionary is the part of a column that repeats least, and costs a read that wants one value the whole
+     * of it. Smaller and a scan starts paying the per-chunk work instead.
      */
-    public static final int DEFAULT_TARGET_CHUNK_BYTES = 64 * 1024;
+    public static final int DEFAULT_TARGET_CHUNK_BYTES = 32 * 1024;
 
     /**
      * How much a chunk holds before it is closed on the plain path.
@@ -58,11 +68,30 @@ public record StringColumnOptions(DictionaryPolicy dictionary, ChunkCodec chunkC
      */
     public static final int DEFAULT_PLAIN_PATH_TARGET_CHUNK_BYTES = 512 * 1024;
 
+    /**
+     * Ordinals a block holds when they are stored compressed.
+     *
+     * <p>Large enough to hold repetition a compressor can find, and no larger: past this the compressor
+     * gains little, and the block is what a read decodes to answer for one ordinal.
+     */
+    public static final int DEFAULT_COMPRESSED_ORDINAL_BLOCK_SIZE = 2048;
+
+    /**
+     * Documents a block of slot counts holds.
+     *
+     * <p>A read reaching a document the last block did not cover sums the counts before it in its own
+     * block, so this bounds that walk. It is also the granularity the base addresses are kept at, so a
+     * smaller block trades a larger base table for a shorter walk.
+     */
+    public static final int DEFAULT_SLOT_COUNTS_BLOCK_SIZE = AddressingWriter.DEFAULT_COUNTS_BLOCK_SIZE;
+
     public static final StringColumnOptions DEFAULT = new StringColumnOptions(
         DEFAULT_DICTIONARY,
         ChunkCodec.ZSTD,
         DEFAULT_TARGET_CHUNK_BYTES,
-        DEFAULT_PLAIN_PATH_TARGET_CHUNK_BYTES
+        DEFAULT_PLAIN_PATH_TARGET_CHUNK_BYTES,
+        DEFAULT_COMPRESSED_ORDINAL_BLOCK_SIZE,
+        DEFAULT_SLOT_COUNTS_BLOCK_SIZE
     );
 
     public StringColumnOptions {
@@ -78,10 +107,41 @@ public record StringColumnOptions(DictionaryPolicy dictionary, ChunkCodec chunkC
         if (plainPathTargetChunkBytes <= 0) {
             throw new IllegalArgumentException("plainPathTargetChunkBytes must be positive, got " + plainPathTargetChunkBytes);
         }
+        if (compressedOrdinalBlockSize < ColumNARDocValuesFormat.MIN_BLOCK_SIZE
+            || compressedOrdinalBlockSize > ColumNARDocValuesFormat.MAX_BLOCK_SIZE
+            || Integer.bitCount(compressedOrdinalBlockSize) != 1) {
+            throw new IllegalArgumentException(
+                "compressedOrdinalBlockSize must be a power of 2 in ["
+                    + ColumNARDocValuesFormat.MIN_BLOCK_SIZE
+                    + ", "
+                    + ColumNARDocValuesFormat.MAX_BLOCK_SIZE
+                    + "], got "
+                    + compressedOrdinalBlockSize
+            );
+        }
+        if (slotCountsBlockSize < ColumNARDocValuesFormat.MIN_BLOCK_SIZE
+            || slotCountsBlockSize > ColumNARDocValuesFormat.MAX_BLOCK_SIZE
+            || Integer.bitCount(slotCountsBlockSize) != 1) {
+            throw new IllegalArgumentException(
+                "slotCountsBlockSize must be a power of 2 in ["
+                    + ColumNARDocValuesFormat.MIN_BLOCK_SIZE
+                    + ", "
+                    + ColumNARDocValuesFormat.MAX_BLOCK_SIZE
+                    + "], got "
+                    + slotCountsBlockSize
+            );
+        }
     }
 
     /** These options with a different dictionary policy, for a field that should decide it differently. */
     public StringColumnOptions withDictionary(DictionaryPolicy policy) {
-        return new StringColumnOptions(policy, chunkCodec, targetChunkBytes, plainPathTargetChunkBytes);
+        return new StringColumnOptions(
+            policy,
+            chunkCodec,
+            targetChunkBytes,
+            plainPathTargetChunkBytes,
+            compressedOrdinalBlockSize,
+            slotCountsBlockSize
+        );
     }
 }

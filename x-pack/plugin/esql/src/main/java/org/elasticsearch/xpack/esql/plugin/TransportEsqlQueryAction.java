@@ -62,6 +62,7 @@ import org.elasticsearch.xpack.esql.action.EsqlQueryTask;
 import org.elasticsearch.xpack.esql.action.EsqlResponseListener;
 import org.elasticsearch.xpack.esql.analysis.AnalyzerSettings;
 import org.elasticsearch.xpack.esql.core.async.AsyncTaskManagementService;
+import org.elasticsearch.xpack.esql.core.expression.Expressions;
 import org.elasticsearch.xpack.esql.core.expression.UnsupportedAttribute;
 import org.elasticsearch.xpack.esql.datasources.DatasetResolver;
 import org.elasticsearch.xpack.esql.datasources.ExternalSourceSettings;
@@ -74,6 +75,7 @@ import org.elasticsearch.xpack.esql.enrich.LookupFromIndexService;
 import org.elasticsearch.xpack.esql.execution.PlanExecutor;
 import org.elasticsearch.xpack.esql.inference.InferenceService;
 import org.elasticsearch.xpack.esql.plan.QuerySettings;
+import org.elasticsearch.xpack.esql.plan.logical.UnmappedFieldsAttribute;
 import org.elasticsearch.xpack.esql.planner.PlannerSettings;
 import org.elasticsearch.xpack.esql.querylog.EsqlLogContext;
 import org.elasticsearch.xpack.esql.querylog.EsqlLogContextBuilder;
@@ -292,7 +294,7 @@ public class TransportEsqlQueryAction extends HandledTransportAction<EsqlQueryRe
      * <p>
      * Backed by {@link EsqlPlugin#externalBlobStorePool()} — the dedicated {@code esql_external_io} scaling pool,
      * sized {@code 0..}{@link ExternalSourceSettings#blobStoreConcurrency(org.elasticsearch.common.settings.Settings)}
-     * (the single CPU-scaled concurrency knob). It is deliberately separate from the {@code esql_worker} compute pool
+     * (the heap- and CPU-scaled concurrency knob). It is deliberately separate from the {@code esql_worker} compute pool
      * ({@link EsqlPlugin#computePool()}): the blocking parse pipeline (segmentator + parser tasks) must not occupy the
      * same threads as the compute drivers that consume its output, or the parser starves its consumer and deadlocks
      * the query. Isolated from {@link ThreadPool.Names#SEARCH} to prevent heavy external queries (glob expansion over
@@ -317,10 +319,9 @@ public class TransportEsqlQueryAction extends HandledTransportAction<EsqlQueryRe
      * bound. Because footer reads are async (the {@code esql_worker} thread is released across the read), this caps
      * concurrent in-flight reads rather than pinning that many threads, so the bound may safely exceed the pool
      * size. It is the shared {@link ExternalSourceSettings#blobStoreConcurrency(org.elasticsearch.common.settings.Settings)}
-     * value — the single effective blob-store access concurrency that the data-read path also reads — so discovery
-     * throttles its footer fan-out with the same node-size-scaled formula ({@code snapshot_meta} shape, capped at
-     * 100, and any operator override once that setting lands) instead of the raw {@code esql_worker.getMax()} pool
-     * size.
+     * value — the same heap- and CPU-scaled default the data-read path uses ({@code NodeScope};
+     * {@code esql.external.max_concurrent_requests} wins when set, still memory-capped) — so discovery
+     * throttles its footer fan-out with that formula instead of the raw {@code esql_worker.getMax()} pool size.
      */
     protected int externalSourceConcurrency() {
         return ExternalSourceSettings.blobStoreConcurrency(clusterService.getSettings());
@@ -465,6 +466,8 @@ public class TransportEsqlQueryAction extends HandledTransportAction<EsqlQueryRe
                     ci.readCpuNanos(),
                     QueryMetricsListener.SPLIT_DISCOVERY_NANOS,
                     qp.splitDiscoveryNanos(),
+                    QueryMetricsListener.SPLIT_DISCOVERY_CPU_NANOS,
+                    qp.splitDiscoveryCpuNanos(),
                     QueryMetricsListener.BYTES_READ,
                     ci.bytesRead()
                 )
@@ -558,14 +561,10 @@ public class TransportEsqlQueryAction extends HandledTransportAction<EsqlQueryRe
     }
 
     private EsqlQueryResponse toResponse(Task task, EsqlQueryRequest request, boolean profileEnabled, Versioned<Result> versionedResult) {
-        var rawResult = versionedResult.inner();
-        // No-ops unless the schema carries an UnmappedFieldsAttribute (i.e., unmapped_fields="LOAD_ALL").
-        // expand() preserves completionInfo/executionInfo, so the partial-marking below applies to the expanded result.
-        var result = ExpandUnmappedFieldsPostProcessor.expand(
-            rawResult,
-            services.blockFactoryProvider().blockFactory(),
-            services.plannerSettings().get()
-        );
+        // Already expanded in EsqlSession, where the unmapped-fields ordering captured during analysis is in scope.
+        var result = versionedResult.inner();
+        assert result.schema().stream().noneMatch(a -> a instanceof UnmappedFieldsAttribute)
+            : UnmappedFieldsAttribute.ATTRIBUTE_NAME + " reached the response unexpanded: " + Expressions.names(result.schema());
         // A lenient external read (e.g. a external_max_record_size truncation under a non-strict error_mode) returns fewer
         // records than the source held. Surface that as is_partial on the response — the structured counterpart of
         // the client Warning header — here at the single Result->response chokepoint, so every execution path

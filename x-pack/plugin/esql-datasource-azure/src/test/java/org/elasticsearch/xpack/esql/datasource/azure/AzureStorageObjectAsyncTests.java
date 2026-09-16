@@ -70,11 +70,13 @@ public class AzureStorageObjectAsyncTests extends ESTestCase {
     public void testSupportsNativeAsyncWithAsyncClient() {
         AzureStorageObject obj = new AzureStorageObject(blobClient(), blobAsyncClient(), "container", "blob.parquet", PATH);
         assertTrue(obj.supportsNativeAsync());
+        assertTrue(obj.readBytesAsyncReleasesExecutor());
     }
 
     public void testSupportsNativeAsyncWithoutAsyncClient() {
         AzureStorageObject obj = new AzureStorageObject(blobClient(), "container", "blob.parquet", PATH);
         assertFalse(obj.supportsNativeAsync());
+        assertFalse(obj.readBytesAsyncReleasesExecutor());
     }
 
     public void testReadBytesAsyncNegativePositionFails() throws Exception {

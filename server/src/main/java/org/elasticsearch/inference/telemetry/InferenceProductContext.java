@@ -20,11 +20,30 @@ import org.elasticsearch.tasks.Task;
  *                       Can be null if not defined.
  * @param productOrigin the originating system, sourced from the {@code X-elastic-product-origin} header (e.g. "kibana").
  *                      Can be null if not defined.
+ * @param productSolution the originating Elastic solution, sourced from the {@code X-elastic-product-solution} header
+ *                        (e.g. "security"). Can be null if not defined.
+ * @param productFeature the stable inference feature identifier, sourced from the {@code X-elastic-product-feature} header
+ *                       (e.g. "attack_discovery"). Can be null if not defined.
+ * @param interactionId an identifier used to attribute related inference requests, sourced from the
+ *                      {@code X-Elastic-Inference-Interaction-Id} header. Can be null if not defined.
  */
-public record InferenceProductContext(@Nullable String productUseCase, @Nullable String productOrigin) {
+public record InferenceProductContext(
+    @Nullable String productUseCase,
+    @Nullable String productOrigin,
+    @Nullable String productSolution,
+    @Nullable String productFeature,
+    @Nullable String interactionId
+) {
     public static final String X_ELASTIC_PRODUCT_USE_CASE_HTTP_HEADER = "X-elastic-product-use-case";
+    public static final String X_ELASTIC_PRODUCT_SOLUTION_HTTP_HEADER = "X-elastic-product-solution";
+    public static final String X_ELASTIC_PRODUCT_FEATURE_HTTP_HEADER = "X-elastic-product-feature";
+    public static final String X_ELASTIC_INFERENCE_INTERACTION_ID_HTTP_HEADER = "X-Elastic-Inference-Interaction-Id";
 
-    public static final InferenceProductContext EMPTY = new InferenceProductContext(null, null);
+    public static final InferenceProductContext EMPTY = new InferenceProductContext(null, null, null, null, null);
+
+    public InferenceProductContext(@Nullable String productUseCase, @Nullable String productOrigin) {
+        this(productUseCase, productOrigin, null, null, null);
+    }
 
     /**
      * Creates an {@link InferenceProductContext} by reading the product attribution headers from the given thread context.
@@ -32,11 +51,14 @@ public record InferenceProductContext(@Nullable String productUseCase, @Nullable
     public static InferenceProductContext create(ThreadContext threadContext) {
         var useCase = threadContext.getHeader(X_ELASTIC_PRODUCT_USE_CASE_HTTP_HEADER);
         var origin = threadContext.getHeader(Task.X_ELASTIC_PRODUCT_ORIGIN_HTTP_HEADER);
+        var solution = threadContext.getHeader(X_ELASTIC_PRODUCT_SOLUTION_HTTP_HEADER);
+        var feature = threadContext.getHeader(X_ELASTIC_PRODUCT_FEATURE_HTTP_HEADER);
+        var interactionId = threadContext.getHeader(X_ELASTIC_INFERENCE_INTERACTION_ID_HTTP_HEADER);
 
-        if (useCase == null && origin == null) {
+        if (useCase == null && origin == null && solution == null && feature == null && interactionId == null) {
             return EMPTY;
         }
 
-        return new InferenceProductContext(useCase, origin);
+        return new InferenceProductContext(useCase, origin, solution, feature, interactionId);
     }
 }

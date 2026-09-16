@@ -12,6 +12,7 @@ package org.elasticsearch.snapshots;
 import org.elasticsearch.action.ActionFuture;
 import org.elasticsearch.action.admin.cluster.snapshots.restore.RestoreSnapshotResponse;
 import org.elasticsearch.action.admin.indices.recovery.RecoveryResponse;
+import org.elasticsearch.action.admin.indices.recovery.ShardRecoveryInfo;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.cluster.routing.RecoverySource;
 import org.elasticsearch.indices.recovery.RecoveryState;
@@ -66,7 +67,11 @@ public class AbortedRestoreIT extends AbstractSnapshotIntegTestCase {
                 .setActiveOnly(true)
                 .get();
             assertThat(recoveries.hasRecoveries(), is(true));
-            final List<RecoveryState> shardRecoveries = recoveries.shardRecoveryStates().get(indexName);
+            final List<RecoveryState> shardRecoveries = recoveries.shardRecoveryInfos()
+                .get(indexName)
+                .stream()
+                .map(ShardRecoveryInfo::recoveryState)
+                .toList();
             assertThat(shardRecoveries, hasSize(1));
             assertThat(future.isDone(), is(false));
 

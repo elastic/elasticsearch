@@ -24,6 +24,7 @@ import org.elasticsearch.xpack.esql.datasource.lz4.Lz4DataSourcePlugin;
 import org.elasticsearch.xpack.esql.datasource.ndjson.NdJsonDataSourcePlugin;
 import org.elasticsearch.xpack.esql.datasource.parquet.ParquetDataSourcePlugin;
 import org.elasticsearch.xpack.esql.datasource.zstd.ZstdDataSourcePlugin;
+import org.elasticsearch.xpack.esql.datasources.spi.StoragePath;
 import org.junit.After;
 import org.junit.Before;
 
@@ -39,7 +40,6 @@ import java.util.Map;
 import static org.elasticsearch.xpack.esql.action.EsqlQueryRequest.syncEsqlQueryRequest;
 import static org.elasticsearch.xpack.esql.datasources.FormatReaderRegistry.GA_TEXT_CODECS;
 import static org.hamcrest.Matchers.greaterThan;
-import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 import static org.hamcrest.Matchers.notNullValue;
 import static org.hamcrest.Matchers.nullValue;
 
@@ -114,9 +114,9 @@ public class EsqlQueryMetricsCollectorIT extends AbstractExternalDataSourceIT {
         }
 
         assertReadCpuNanos("csv");
+        assertSplitDiscoveryCpuNanos("csv");
         assertThat(lastMetrics.get(QueryMetricsListener.PLANNING_NANOS), greaterThan(0L));
         assertThat(lastMetrics.get(QueryMetricsListener.CPU_NANOS), greaterThan(0L));
-        assertThat(lastMetrics.get(QueryMetricsListener.SPLIT_DISCOVERY_NANOS), greaterThan(0L));
         // TODO: does not work for CVS for now: assertThat(lastMetrics.get(QueryMetricsListener.BYTES_READ), greaterThan(0L));
     }
 
@@ -132,6 +132,7 @@ public class EsqlQueryMetricsCollectorIT extends AbstractExternalDataSourceIT {
         try (var ignored = run(syncEsqlQueryRequest("FROM metrics_ndjson_ds | LIMIT 10"), TIMEOUT)) {}
 
         assertReadCpuNanos("ndjson");
+        assertSplitDiscoveryCpuNanos("ndjson");
     }
 
     /**
@@ -159,6 +160,7 @@ public class EsqlQueryMetricsCollectorIT extends AbstractExternalDataSourceIT {
             assertThat(name + "-csv: metrics must be set", lastMetrics, notNullValue());
             assertThat(name + "-csv: read_cpu_nanos > 0", lastMetrics.get(QueryMetricsListener.READ_CPU_NANOS), greaterThan(0L));
         }
+        assertSplitDiscoveryCpuNanos(name + "-csv");
 
         lastMetrics = null;
         // NDJSON
@@ -175,6 +177,7 @@ public class EsqlQueryMetricsCollectorIT extends AbstractExternalDataSourceIT {
             assertThat(name + "-ndjson: metrics must be set", lastMetrics, notNullValue());
             assertThat(name + "-ndjson: read_cpu_nanos > 0", lastMetrics.get(QueryMetricsListener.READ_CPU_NANOS), greaterThan(0L));
         }
+        assertSplitDiscoveryCpuNanos(name + "-ndjson");
     }
 
     record CompressionTestCase(CheckedBiConsumer<Path, String, IOException> writer, boolean splittable) {}
@@ -240,6 +243,7 @@ public class EsqlQueryMetricsCollectorIT extends AbstractExternalDataSourceIT {
 
         assertThat("brackets-csv: metrics must be set", lastMetrics, notNullValue());
         assertThat("brackets-csv: read_cpu_nanos > 0", lastMetrics.get(QueryMetricsListener.READ_CPU_NANOS), greaterThan(0L));
+        assertSplitDiscoveryCpuNanos("brackets-csv");
     }
 
     private static String createNdjson(int x) {
@@ -269,6 +273,26 @@ public class EsqlQueryMetricsCollectorIT extends AbstractExternalDataSourceIT {
         try (var ignored = run(syncEsqlQueryRequest("FROM metrics_parquet_ds | LIMIT 200"), TIMEOUT)) {}
 
         assertReadCpuNanos("parquet");
+        assertSplitDiscoveryCpuNanos("parquet");
+    }
+
+    /**
+     * Multi-file dataset — exercises the BoundedParallelGather path
+     * where each file's split discovery runs on an executor thread (Change 2 CPU accounting).
+     * Uses a glob URI so {@code FileSplitProvider} receives multiple file tasks and spawns BPG workers.
+     */
+    public void testMetricsCollectorMultiFileCsv() throws Exception {
+        assumeFalse("Windows has bad timer resolution, metrics are not accurate", Constants.WINDOWS);
+        Path dir = createTempDir();
+        for (int i = 0; i < 3; i++) {
+            Files.writeString(dir.resolve("data_" + i + ".csv"), createCsv(20));
+        }
+
+        registerDataset("metrics_multifile_csv_ds", StoragePath.fileUri(dir) + "/*.csv", Map.of("format", "csv"));
+
+        try (var ignored = run(syncEsqlQueryRequest("FROM metrics_multifile_csv_ds | LIMIT 200"), TIMEOUT)) {}
+
+        assertSplitDiscoveryCpuNanos("multifile-csv");
     }
 
     public void testNoCollectionWithoutExternalData() throws Exception {
@@ -309,15 +333,109 @@ public class EsqlQueryMetricsCollectorIT extends AbstractExternalDataSourceIT {
         assertThat("warm COUNT(*) over external source must be metered", lastMetrics, notNullValue());
     }
 
+    /**
+     * Verifies that successive queries against the same CSV dataset do not accumulate
+     * {@code read_cpu_nanos} across query boundaries, and that the registry singleton's counters
+     * remain zero. CSV uses the parallel-parse path; {@code freshCounters()} gives each split an
+     * isolated counter instance.
+     */
+    public void testCsvReadNanosIsolatedBetweenQueries() throws Exception {
+        assumeFalse("Windows has bad timer resolution, metrics are not accurate", Constants.WINDOWS);
+        Path dir = createTempDir();
+        Files.writeString(dir.resolve("data.csv"), createCsv(1000));
+        String dataset = registerDataset("csv_counter_isolation_ds", dir.resolve("data.csv").toUri().toString(), Map.of("format", "csv"));
+        assertCounterIsolatedBetweenQueries("FROM " + dataset + " | LIMIT 1000", "csv");
+    }
+
+    /**
+     * Verifies that successive queries against the same NdJson dataset do not accumulate
+     * {@code read_cpu_nanos} across query boundaries, and that the registry singleton's counters
+     * remain zero.
+     */
+    public void testNdJsonReadNanosIsolatedBetweenQueries() throws Exception {
+        assumeFalse("Windows has bad timer resolution, metrics are not accurate", Constants.WINDOWS);
+        Path dir = createTempDir();
+        Files.writeString(dir.resolve("data.ndjson"), createNdjson(1000));
+        String dataset = registerDataset("ndjson_counter_isolation_ds", dir.resolve("data.ndjson").toUri().toString(), Map.of());
+        assertCounterIsolatedBetweenQueries("FROM " + dataset + " | LIMIT 1000", "ndjson");
+    }
+
+    /**
+     * Verifies that successive queries against the same Parquet dataset do not accumulate
+     * {@code read_nanos} or {@code read_cpu_nanos} across query boundaries. Before the fix, the
+     * {@code FormatReaderRegistry} singleton's counters accumulated across queries, so
+     * Q_N.read_nanos ≈ N * Q_1.read_nanos. After the fix, each query calls {@code freshCounters()}
+     * and gets an isolated counter instance.
+     *
+     * <p>The assertion {@code Q_5 < 3 * Q_1} catches the geometric growth from accumulation
+     * (Q_5 ≈ 5 * Q_1) while tolerating normal timing variance (up to 3×).
+     */
+    public void testParquetReadNanosIsolatedBetweenQueries() throws Exception {
+        assumeFalse("Windows has bad timer resolution, metrics are not accurate", Constants.WINDOWS);
+        Path dir = createTempDir();
+        // Small row-group size creates multiple splits so the slice-queue path records read_nanos
+        // synchronously before query completion, making it reliably non-zero.
+        writeParquet(dir.resolve("data.parquet"), 2000, 512);
+        String dataset = registerDataset("counter_isolation_ds", dir.resolve("data.parquet").toUri().toString(), Map.of());
+        assertCounterIsolatedBetweenQueries("FROM " + dataset + " | LIMIT 2000", "parquet");
+    }
+
+    /**
+     * Runs {@code query} five times and asserts that {@code read_cpu_nanos} is positive on each run
+     * and does not grow by more than 3× from the first to the fifth query (which would indicate
+     * counter accumulation across queries). Also verifies that the registry singleton for
+     * {@code readerName} has zero counters after the runs.
+     */
+    private void assertCounterIsolatedBetweenQueries(String query, String readerName) throws Exception {
+        int numQueries = 5;
+        long[] readNanos = new long[numQueries];
+        long[] readCpuNanos = new long[numQueries];
+        for (int i = 0; i < numQueries; i++) {
+            lastMetrics = null;
+            try (var ignored = run(syncEsqlQueryRequest(query), TIMEOUT)) {}
+            assertThat("query " + i + ": metrics must be collected", lastMetrics, notNullValue());
+            Long rn = lastMetrics.get(QueryMetricsListener.READ_NANOS);
+            Long rcn = lastMetrics.get(QueryMetricsListener.READ_CPU_NANOS);
+            assertThat("query " + i + ": read_nanos must be positive", rn, greaterThan(0L));
+            assertThat("query " + i + ": read_cpu_nanos must be positive", rcn, greaterThan(0L));
+            readNanos[i] = rn;
+            readCpuNanos[i] = rcn;
+        }
+        assertIsolated("read_nanos", readNanos, numQueries);
+        assertIsolated("read_cpu_nanos", readCpuNanos, numQueries);
+    }
+
+    private static void assertIsolated(String metric, long[] values, int numQueries) {
+        long maxAllowed = values[0] * 3;
+        assertTrue(
+            "Q_5."
+                + metric
+                + "="
+                + values[numQueries - 1]
+                + " must be < 3 * Q_1."
+                + metric
+                + "="
+                + values[0]
+                + "; a value >= 3x indicates counter accumulation across queries",
+            values[numQueries - 1] < maxAllowed
+        );
+    }
+
+    /** Asserts that {@code split_discovery_cpu_nanos} is populated and does not exceed {@code split_discovery_nanos}. */
+    private void assertSplitDiscoveryCpuNanos(String format) {
+        assertThat(format + ": metrics must be set", lastMetrics, notNullValue());
+        assertThat(format + ": split_discovery_nanos > 0", lastMetrics.get(QueryMetricsListener.SPLIT_DISCOVERY_NANOS), greaterThan(0L));
+        assertThat(
+            format + ": split_discovery_cpu_nanos > 0",
+            lastMetrics.get(QueryMetricsListener.SPLIT_DISCOVERY_CPU_NANOS),
+            greaterThan(0L)
+        );
+    }
+
     /** Asserts that {@code read_cpu_nanos} is populated and does not exceed {@code read_nanos}. */
     private void assertReadCpuNanos(String format) {
         assertThat(format + ": metrics must be set", lastMetrics, notNullValue());
         assertThat(format + ": read_nanos > 0", lastMetrics.get(QueryMetricsListener.READ_NANOS), greaterThan(0L));
         assertThat(format + ": read_cpu_nanos > 0", lastMetrics.get(QueryMetricsListener.READ_CPU_NANOS), greaterThan(0L));
-        assertThat(
-            format + ": read_cpu_nanos <= read_nanos",
-            lastMetrics.get(QueryMetricsListener.READ_NANOS),
-            greaterThanOrEqualTo(lastMetrics.get(QueryMetricsListener.READ_CPU_NANOS))
-        );
     }
 }

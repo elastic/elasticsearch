@@ -16,12 +16,9 @@ import org.elasticsearch.xpack.esql.expression.function.FunctionAppliesToLifecyc
 import org.elasticsearch.xpack.esql.expression.function.FunctionDefinition;
 import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToDatetime;
 import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToDouble;
-import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToInteger;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.arithmetic.Mul;
 import org.elasticsearch.xpack.esql.plan.QuerySettings;
-import org.elasticsearch.xpack.esql.plan.logical.LimitRatioBy;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
-import org.elasticsearch.xpack.esql.plan.logical.TopNBy;
 import org.elasticsearch.xpack.esql.plan.logical.promql.HistogramFunctionCall;
 import org.elasticsearch.xpack.esql.plan.logical.promql.PromqlDataType;
 import org.elasticsearch.xpack.esql.session.Configuration;
@@ -57,16 +54,9 @@ public final class PromqlFunctionDefinition {
     private final String differenceFromPrometheus;
     private final List<StackAvailability> stack;
 
-    /**
-     * Builds the ES|QL node for a PromQL function. For scalar and aggregate functions this returns an
-     * {@link Expression}; for across-series reductions ({@code topk}, {@code bottomk}, {@code limitk},
-     * {@code limit_ratio}) it returns a {@link LogicalPlan} node ({@link TopNBy} or {@link LimitRatioBy}).
-     * The {@link PromqlFunctionRegistry.PromqlContext} carries {@code groupings} and {@code resultPlan}
-     * for the reduction case.
-     */
     @FunctionalInterface
     public interface FunctionBuilder {
-        Object build(Source source, Expression target, PromqlFunctionRegistry.PromqlContext ctx, List<Expression> extraParams);
+        Expression build(Source source, Expression target, PromqlFunctionRegistry.PromqlContext ctx, List<Expression> extraParams);
     }
 
     /**
@@ -660,46 +650,37 @@ public final class PromqlFunctionDefinition {
         ) {
             this.functionType = FunctionType.ACROSS_SERIES_REDUCTION;
             this.arity = PromqlFunctionArity.TWO;
-            this.builder = (source, value, ctx, extraParams) -> new TopNBy(
-                source,
-                ctx.resultPlan(),
-                List.of(new Order(source, value, orderDirection, Order.NullsPosition.LAST)),
-                new ToInteger(source, extraParams.getFirst()),
-                ctx.groupings()
-            );
+            this.builder = (source, target, ctx, extraParams) -> new Order(source, target, orderDirection, Order.NullsPosition.LAST);
             this.params = List.of(paramInfo, INSTANT_VECTOR);
             return this;
         }
 
         /**
          * Across-series reduction that keeps {@code k} arbitrary elements with no value-based ranking.
+         * The {@link FunctionBuilder} returns {@code null} to signal "no sort order" to the translator,
+         * which emits a {@link org.elasticsearch.xpack.esql.plan.logical.TopNBy} with an empty order list.
          */
         public PromqlFunctionDefinition.Builder acrossSeriesBinaryReduceUnordered(PromqlParamInfo paramInfo) {
             this.functionType = FunctionType.ACROSS_SERIES_REDUCTION;
             this.arity = PromqlFunctionArity.TWO;
-            this.builder = (source, value, ctx, extraParams) -> new TopNBy(
-                source,
-                ctx.resultPlan(),
-                List.of(),
-                new ToInteger(source, extraParams.getFirst()),
-                ctx.groupings()
-            );
+            this.builder = (source, target, ctx, extraParams) -> null;
             this.params = List.of(paramInfo, INSTANT_VECTOR);
             return this;
         }
 
         /**
-         * Across-series reduction that retains a streaming-sampled ratio of elements via Bresenham sampling.
+         * Across-series reduction that retains an approximate ratio of elements via streaming sampling.
+         * Like the metadata-manipulation functions this is not lowered through the generic {@link FunctionBuilder}:
+         * the translator builds the {@link org.elasticsearch.xpack.esql.plan.logical.LimitRatioBy} node directly
+         * (see {@code TranslatePromqlToEsqlPlan}), since it needs the collapsed child plan and its groupings,
+         * which the {@link PromqlFunctionRegistry.PromqlContext} does not carry.
          */
         public PromqlFunctionDefinition.Builder acrossSeriesBinaryRatioReduce(PromqlParamInfo ratioParam) {
             this.functionType = FunctionType.ACROSS_SERIES_REDUCTION;
             this.arity = PromqlFunctionArity.TWO;
-            this.builder = (source, value, ctx, extraParams) -> new LimitRatioBy(
-                source,
-                ctx.resultPlan(),
-                extraParams.getFirst(),
-                ctx.groupings()
-            );
+            this.builder = (source, target, ctx, extraParams) -> {
+                throw new UnsupportedOperationException("limit_ratio is translated directly, not built via the generic function builder");
+            };
             this.params = List.of(ratioParam, INSTANT_VECTOR);
             return this;
         }

@@ -106,15 +106,15 @@ public abstract sealed class PromqlFunctionCall extends UnaryPlan implements Pro
     /**
      * Builds the ES|QL expression that implements this PromQL function call.
      * <p>
-     * The builder returns an {@link Expression} for scalar/aggregate/value-transformation functions and a
-     * {@link LogicalPlan} for across-series reductions ({@code topk}, {@code bottomk}, {@code limitk},
-     * {@code limit_ratio}). Callers cast to the expected type based on {@link #functionType()}; a mismatch
-     * indicates a misconfigured function definition, not user input.
+     * The builder returns an {@link Expression}: a value expression for scalar/aggregate/value-transformation
+     * functions, or an {@code Order} (possibly {@code null} when unordered) for the order-statistic reductions
+     * ({@code topk}, {@code bottomk}, {@code limitk}), consumed by the translator. Functions lowered to plan nodes
+     * instead ({@code limit_ratio}) are translated directly and their builders throw.
      *
      * @param target the primary input expression (child vector or scalar), or {@code null} for zero-argument functions
      * @param ctx    the PromQL evaluation context (timestamp, window, step, configuration)
      */
-    public Object buildEsqlFunction(Expression target, PromqlFunctionRegistry.PromqlContext ctx) {
+    public Expression buildEsqlFunction(Expression target, PromqlFunctionRegistry.PromqlContext ctx) {
         try {
             // PromQL accepts any numeric range vector. ES|QL distinguishes counter from gauge types
             // internally, so plain numerics are wrapped with to_counter() for counter-required
@@ -128,11 +128,8 @@ public abstract sealed class PromqlFunctionCall extends UnaryPlan implements Pro
                 }
             }
             return definition.esqlBuilder().build(source(), target, ctx, parameters());
-        } catch (ParsingException e) {
-            throw e;
         } catch (Exception e) {
-            String message = e.getMessage() != null ? e.getMessage() : e.toString();
-            throw new ParsingException(source(), "Error building ESQL function for [{}]: {}", functionName(), message);
+            throw new ParsingException(source(), "Error building ESQL function for [{}]: {}", functionName(), e.getMessage());
         }
     }
 

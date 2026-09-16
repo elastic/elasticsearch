@@ -102,7 +102,7 @@ public final class ScalarFunction extends LeafPlan implements PromqlPlan {
             }
             throw new ParsingException(
                 source(),
-                "Error building ESQL function for [{}]: function produces a plan node, not an expression",
+                "Error building ESQL function for [{}]: function is not lowered to an expression",
                 functionName()
             );
         } catch (ParsingException e) {

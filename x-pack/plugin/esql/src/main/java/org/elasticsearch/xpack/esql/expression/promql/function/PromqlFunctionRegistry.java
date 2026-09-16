@@ -65,7 +65,6 @@ import org.elasticsearch.xpack.esql.expression.function.scalar.math.Sqrt;
 import org.elasticsearch.xpack.esql.expression.function.scalar.math.Tan;
 import org.elasticsearch.xpack.esql.expression.function.scalar.math.Tanh;
 import org.elasticsearch.xpack.esql.parser.ParsingException;
-import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.esql.session.Configuration;
 
 import java.util.ArrayList;
@@ -183,22 +182,7 @@ public class PromqlFunctionRegistry {
         }
     }
 
-    /**
-     * Carries the PromQL evaluation context needed by function builders to construct ES|QL expressions.
-     */
-    public record PromqlContext(
-        Expression timestamp,
-        Expression window,
-        Expression step,
-        Configuration configuration,
-        List<Expression> groupings,
-        LogicalPlan resultPlan
-    ) {
-        public PromqlContext(Expression timestamp, Expression window, Expression step, Configuration configuration) {
-            this(timestamp, window, step, configuration, null, null);
-        }
-
-    }
+    public record PromqlContext(Expression timestamp, Expression window, Expression step, Configuration configuration) {}
 
     // PromQL function names not yet implemented
     // https://github.com/elastic/metrics-program/issues/39
@@ -276,9 +260,9 @@ public class PromqlFunctionRegistry {
 
     /**
      * Builds the ES|QL expression for scalar, aggregate, and value-transformation functions.
-     * Across-series reductions ({@code topk}, {@code bottomk}, {@code limitk}, {@code limit_ratio}) produce a
-     * {@link LogicalPlan} instead and must go through {@code PromqlFunctionCall#buildEsqlFunction}; calling this
-     * method for them fails with a clear error rather than a {@code ClassCastException}.
+     * Reductions lowered to plan nodes ({@code limit_ratio}) and functions translated directly must go through
+     * {@code PromqlFunctionCall#buildEsqlFunction} or the translator instead; calling this method for them fails
+     * with a clear error rather than a {@code ClassCastException} or an unwrapped runtime exception.
      */
     public Expression buildEsqlFunction(String name, Source source, Expression target, PromqlContext ctx, List<Expression> extraParams) {
         checkFunction(source, name);
@@ -288,11 +272,7 @@ public class PromqlFunctionRegistry {
             if (built instanceof Expression expression) {
                 return expression;
             }
-            throw new ParsingException(
-                source,
-                "Error building ESQL function for [{}]: function produces a plan node, not an expression",
-                name
-            );
+            throw new ParsingException(source, "Error building ESQL function for [{}]: function is not lowered to an expression", name);
         } catch (ParsingException e) {
             throw e;
         } catch (Exception e) {

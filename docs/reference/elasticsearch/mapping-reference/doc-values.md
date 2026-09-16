@@ -223,7 +223,6 @@ PUT my-on-failure-index/_doc/1
 
 GET my-on-failure-index/_doc/1?stored_fields=_ignored <3>
 ```
-% TEST[skip:requires the doc_values_on_failure feature flag]
 
 1. `kw` keeps only the first value per document; extra values are redirected to the hidden `kw._on_failure` column instead of rejecting the document.
 2. Indexes three values. `val1` becomes the queryable doc value; `val2` and `val3` are redirected to the sidecar.
@@ -270,7 +269,6 @@ GET my-on-failure-multifield-index/_search
   "query": { "term": { "kw.raw": "val2" } } <4>
 }
 ```
-% TEST[skip:requires the doc_values_on_failure feature flag]
 
 1. `kw` keeps only the first value and redirects the rest. `_ignored` records `"kw"` for the redirected value.
 2. `kw.raw` uses the defaults and indexes every value passed to it, including values that the parent redirected.

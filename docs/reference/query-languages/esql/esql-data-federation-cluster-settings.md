@@ -33,7 +33,7 @@ These settings control how many concurrent requests each node sends to external 
 
 | Setting | Default | Description |
 |---|---|---|
-| `esql.external.max_concurrent_requests` | `allocated processors * 3`, minimum 16 and maximum 100 | Maximum concurrent cloud API requests per storage scheme, per node. `0` removes the limit. Range 0–500. |
+| `esql.external.max_concurrent_requests` | `allocated processors * 3`, minimum 4 and maximum 100, further limited so concurrent 10 MiB reads stay within a quarter of heap (or half of `indices.breaker.request.limit` when tighter) | Maximum concurrent cloud API requests per storage scheme, per node. A positive value is still capped by that memory term, so an old explicit `16` cannot skip the budget. `0` removes the permit limit. Range 0–500. On tiny heaps the parse floor of 4 can exceed that memory term. Node-scoped: changing this setting, or tightening the request breaker, takes effect after a restart. |
 | `esql.external.throttle_max_retry_duration` | 30 | Maximum total time, in seconds, spent retrying throttled cloud API requests before failing the query. `0` removes the budget. Range 0–300 seconds. |
 | `esql.external.max_concurrent_segmenters` {applies_to}`stack: experimental 9.6+`<br>`esql.external.max_concurrent_segmentators` {applies_to}`stack: experimental =9.5` | `0` | Maximum number of file segmentation tasks that run concurrently. `0` derives the value automatically. Range 0–4096. |
 
@@ -58,7 +58,7 @@ These settings control which authentication modes data sources can use.
 
 ## Caching
 
-These settings control the external-source cache, which stores inferred schemas and file listings.
+These settings control the external-source cache, which stores inferred schemas, file listings, and the footers of columnar files.
 
 | Setting | Default | Description |
 |---|---|---|
@@ -66,6 +66,9 @@ These settings control the external-source cache, which stores inferred schemas 
 | `esql.external.cache.size` {applies_to}`stack: experimental 9.6+`<br>`esql.source.cache.size` {applies_to}`stack: experimental 9.5, deprecated 9.6` | 0.4% of heap | Memory budget for the cache. Applied at node startup only. |
 | `esql.source.cache.schema.ttl` | — | Deprecated and ignored. Inferred schemas are invalidated by file identity and bounded by the cache memory budget, not by a TTL. |
 | `esql.external.cache.listing.ttl` {applies_to}`stack: experimental 9.6+`<br>`esql.source.cache.listing.ttl` {applies_to}`stack: experimental 9.5, deprecated 9.6` | 30s | How long a file-listing result is cached. Applied at node startup only. |
+| `esql.external.cache.footer.size` {applies_to}`stack: experimental 9.6+` | 0.5% of heap | Memory budget for cached raw footer bytes (for example, Parquet footers), which are reused across the resolution, split discovery, and execution phases of a query and across back-to-back queries. The budget applies per columnar format reader. Accepts a percentage of heap or an absolute size, and must be greater than zero. Applied at node startup only. |
+| `esql.external.cache.footer.parsed.size` {applies_to}`stack: experimental 9.6+` | 1% of heap | Memory budget for cached deserialized footers, which avoid re-parsing a footer in every query phase. A parsed footer costs several times its serialized form and grows with column count rather than file size, so raise this when querying wide schemas across large file sets. Applies per columnar format reader, like `esql.external.cache.footer.size`. Applied at node startup only. |
+| `esql.external.cache.footer.ttl` {applies_to}`stack: experimental 9.6+` | 5m | How long a cached footer survives without being accessed. Shared by the raw and parsed footer caches. Footer entries are keyed by path and file length rather than modification time, so a file overwritten in place at the same length can be served from the cache until its entry expires. Lower this if your data files are mutated in place. Applied at node startup only. |
 
 :::{note}
 :applies_to: stack: experimental 9.6+

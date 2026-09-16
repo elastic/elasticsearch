@@ -24,6 +24,7 @@ import org.elasticsearch.cluster.routing.allocation.AllocateUnassignedDecision;
 import org.elasticsearch.cluster.routing.allocation.ExistingShardsAllocator;
 import org.elasticsearch.cluster.routing.allocation.FailedShard;
 import org.elasticsearch.cluster.routing.allocation.RoutingAllocation;
+import org.elasticsearch.cluster.service.MasterService;
 import org.elasticsearch.common.Priority;
 import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
 import org.elasticsearch.core.Releasables;
@@ -157,13 +158,12 @@ public class GatewayAllocator implements ExistingShardsAllocator {
     public AllocateUnassignedDecision explainUnassignedShardAllocation(ShardRouting unassignedShard, RoutingAllocation routingAllocation) {
         assert unassignedShard.unassigned();
         assert routingAllocation.debugDecision();
-        // Explaining shard allocation should not mutate allocator fetch state
         if (unassignedShard.primary()) {
             assert primaryShardAllocator != null;
-            return primaryShardAllocator.makeAllocationDecision(unassignedShard, routingAllocation, logger, false);
+            return primaryShardAllocator.makeAllocationDecision(unassignedShard, routingAllocation, logger);
         } else {
             assert replicaShardAllocator != null;
-            return replicaShardAllocator.makeAllocationDecision(unassignedShard, routingAllocation, logger, false);
+            return replicaShardAllocator.makeAllocationDecision(unassignedShard, routingAllocation, logger);
         }
     }
 
@@ -244,23 +244,20 @@ public class GatewayAllocator implements ExistingShardsAllocator {
 
         @Override
         protected AsyncShardFetch.FetchResult<NodeGatewayStartedShards> fetchData(ShardRouting shard, RoutingAllocation allocation) {
-            return fetchData(shard, allocation, true);
-        }
-
-        @Override
-        protected AsyncShardFetch.FetchResult<NodeGatewayStartedShards> fetchData(
-            ShardRouting shard,
-            RoutingAllocation allocation,
-            boolean allocate
-        ) {
             final ShardId shardId = shard.shardId();
-            if (allocate == false) {
+            // debugDecision is true on the explain path and false on the allocation
+            // We do not want to trigger any new fetches if we're only explaining
+            if (allocation.debugDecision()) {
                 AsyncShardFetch<NodeGatewayStartedShards> fetch = asyncFetchStarted.get(shardId);
                 if (fetch == null) {
                     return new AsyncShardFetch.FetchResult<>(shardId, null, Collections.emptySet());
                 }
                 return fetch.peekData(allocation.nodes());
             }
+
+            // Allocation should run only off the master thread
+            assert MasterService.assertMasterUpdateOrTestThread();
+
             // explicitly type lister, some IDEs (Eclipse) are not able to correctly infer the function type
             AsyncShardFetch<NodeGatewayStartedShards> fetch = asyncFetchStarted.computeIfAbsent(
                 shardId,
@@ -309,23 +306,20 @@ public class GatewayAllocator implements ExistingShardsAllocator {
 
         @Override
         protected AsyncShardFetch.FetchResult<NodeStoreFilesMetadata> fetchData(ShardRouting shard, RoutingAllocation allocation) {
-            return fetchData(shard, allocation, true);
-        }
-
-        @Override
-        protected AsyncShardFetch.FetchResult<NodeStoreFilesMetadata> fetchData(
-            ShardRouting shard,
-            RoutingAllocation allocation,
-            boolean allocate
-        ) {
             final ShardId shardId = shard.shardId();
-            if (allocate == false) {
+            // debugDecision is true on the explain path and false on the allocation
+            // We do not want to trigger any new fetches if we're only explaining
+            if (allocation.debugDecision()) {
                 AsyncShardFetch<NodeStoreFilesMetadata> fetch = asyncFetchStore.get(shardId);
                 if (fetch == null) {
                     return new AsyncShardFetch.FetchResult<>(shardId, null, Collections.emptySet());
                 }
                 return fetch.peekData(allocation.nodes());
             }
+
+            // Allocation should run only off the master thread
+            assert MasterService.assertMasterUpdateOrTestThread();
+
             AsyncShardFetch<NodeStoreFilesMetadata> fetch = asyncFetchStore.computeIfAbsent(
                 shardId,
                 id -> new InternalAsyncFetch<>(

@@ -146,8 +146,7 @@ public abstract class ReplicaShardAllocator extends BaseGatewayShardAllocator {
     public AllocateUnassignedDecision makeAllocationDecision(
         final ShardRouting unassignedShard,
         final RoutingAllocation allocation,
-        final Logger logger,
-        final boolean allocate
+        final Logger logger
     ) {
         if (isResponsibleFor(unassignedShard) == false) {
             // this allocator is not responsible for deciding on this shard
@@ -166,10 +165,10 @@ public abstract class ReplicaShardAllocator extends BaseGatewayShardAllocator {
             return AllocateUnassignedDecision.no(UnassignedInfo.AllocationStatus.fromDecision(allocateDecision.type()), result.nodes());
         }
 
-        AsyncShardFetch.FetchResult<NodeStoreFilesMetadata> shardStores = fetchData(unassignedShard, allocation, allocate);
+        AsyncShardFetch.FetchResult<NodeStoreFilesMetadata> shardStores = fetchData(unassignedShard, allocation);
         if (shardStores.hasData() == false) {
             logger.trace("{}: ignoring allocation, still fetching shard stores", unassignedShard);
-            if (allocate) {
+            if (explain == false) {
                 allocation.setHasPendingAsyncFetch();
             }
             List<NodeAllocationResult> nodeDecisions = null;
@@ -465,18 +464,6 @@ public abstract class ReplicaShardAllocator extends BaseGatewayShardAllocator {
     }
 
     protected abstract AsyncShardFetch.FetchResult<NodeStoreFilesMetadata> fetchData(ShardRouting shard, RoutingAllocation allocation);
-
-    /**
-     * Fetch or observe shard store metadata from nodes. When {@code allocate} is {@code false},
-     * implementations must not start new fetches or create fetch state.
-     */
-    protected AsyncShardFetch.FetchResult<NodeStoreFilesMetadata> fetchData(
-        ShardRouting shard,
-        RoutingAllocation allocation,
-        boolean allocate
-    ) {
-        return fetchData(shard, allocation);
-    }
 
     /**
      * Returns a boolean indicating whether fetching shard data has been triggered at any point for the given shard.

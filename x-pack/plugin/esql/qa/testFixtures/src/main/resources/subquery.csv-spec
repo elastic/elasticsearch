@@ -1616,6 +1616,24 @@ absent(to_string(id_int)):boolean
 false
 ;
 
+// The same conversion applied twice to the same attribute above the subquery union used to make
+// the analyzer loop until the rule execution limit, see elasticsearch-serverless#7693.
+subqueryInFromWithSameConversionAppliedTwice
+required_capability: subquery_in_from_command
+required_capability: subquery_in_from_command_repeated_conversions
+
+FROM (FROM sample_data), (FROM sample_data)
+| WHERE TO_STRING(client_ip) IS NOT NULL AND NOT TO_STRING(client_ip) == "172.21.3.15"
+| STATS c = COUNT(*) BY client_ip
+| SORT client_ip
+;
+
+c:long | client_ip:ip
+2      | 172.21.0.5
+2      | 172.21.2.113
+2      | 172.21.2.162
+;
+
 subqueryInFromWithInlineStatsPruning
 required_capability: subquery_in_from_command
 required_capability: subquery_in_from_command_inline_stats_pruning

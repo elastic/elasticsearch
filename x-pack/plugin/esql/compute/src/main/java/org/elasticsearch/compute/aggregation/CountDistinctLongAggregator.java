@@ -17,7 +17,7 @@ import org.elasticsearch.compute.data.LongBlock;
 import org.elasticsearch.compute.operator.DriverContext;
 
 @Aggregator({ @IntermediateState(name = "hll", type = "BYTES_REF") })
-@GroupingAggregator
+@GroupingAggregator(supportsPartitioning = true)
 public class CountDistinctLongAggregator {
 
     public static HllStates.SingleState initSingle(DriverContext driverContext, int precision) {
@@ -47,6 +47,10 @@ public class CountDistinctLongAggregator {
 
     public static void combineIntermediate(HllStates.GroupingState current, int groupId, BytesRef inValue) {
         current.merge(groupId, inValue, 0);
+    }
+
+    public static void combinePartition(HllStates.GroupingState current, int groupId, BytesRef serializedHll) {
+        combineIntermediate(current, groupId, serializedHll);
     }
 
     public static Block evaluateFinal(HllStates.GroupingState state, IntVector selected, GroupingAggregatorEvaluationContext ctx) {

@@ -108,6 +108,18 @@ public class GroupingAggregatorImplementer {
     private final boolean anyArgumentSupportsVectors;
     private final boolean processNulls;
     private final boolean supportsPartitioning;
+    /**
+     * Optional method for combining partition values when the partition value type differs from the raw
+     * aggregation input type. When non-null, {@link #combinePartition()} emits a call to this method
+     * instead of {@code combine}, and {@link #partitionValueType} is inferred from its third parameter.
+     */
+    private final ExecutableElement combinePartitionMethod;
+    /**
+     * The element type of the partition values array used in {@link #combinePartition()}.
+     * Equals the third parameter type of {@link #combinePartitionMethod} if present,
+     * otherwise {@link AggregationState#declaredType()}.
+     */
+    private final TypeName partitionValueType;
 
     public GroupingAggregatorImplementer(
         Elements elements,
@@ -135,13 +147,23 @@ public class GroupingAggregatorImplementer {
             requireName("combine"),
             combineArgs(aggState)
         );
-        this.combineOnState = aggState.declaredType().isPrimitive()
-            && optionalStaticMethod(
-                declarationType,
-                requireVoidType(),
-                requireName("combine"),
-                requireArgs(requireType(aggState.type()), requireType(TypeName.INT), requireAnyType("<aggregation input column type>"))
-            ) != null;
+        this.combineOnState = optionalStaticMethod(
+            declarationType,
+            requireVoidType(),
+            requireName("combine"),
+            requireArgs(requireType(aggState.type()), requireType(TypeName.INT), requireAnyType("<aggregation input column type>"))
+        ) != null;
+        this.combinePartitionMethod = optionalStaticMethod(
+            declarationType,
+            requireVoidType(),
+            requireName("combinePartition"),
+            requireArgs(requireType(aggState.type()), requireType(TypeName.INT), requireAnyType("<partition value type>"))
+        );
+        if (combinePartitionMethod != null) {
+            this.partitionValueType = TypeName.get(combinePartitionMethod.getParameters().get(2).asType());
+        } else {
+            this.partitionValueType = aggState.declaredType();
+        }
         this.prepareEvaluateIntermediate = optionalStaticMethod(
             declarationType,
             requireType(GROUPING_AGGREGATOR_FUNCTION_PREPARED_FOR_EVALUATION),
@@ -175,13 +197,15 @@ public class GroupingAggregatorImplementer {
         this.anyArgumentSupportsVectors = aggParams.stream().anyMatch(a -> a instanceof StandardArgument && a.supportsVectorReadAccess());
         this.processNulls = processNulls;
         this.supportsPartitioning = supportsPartitioning;
-        if (supportsPartitioning && combineOnState == false) {
+        if (supportsPartitioning && combineOnState == false && combinePartitionMethod == null) {
             throw new IllegalArgumentException(
                 "["
                     + declarationType
                     + "] requests partitioning; it must declare public static void combine("
                     + aggState.type()
-                    + ", int groupId, <value>)"
+                    + ", int groupId, <value>) or public static void combinePartition("
+                    + aggState.type()
+                    + ", int groupId, <partitionValue>)"
             );
         }
 
@@ -940,7 +964,8 @@ public class GroupingAggregatorImplementer {
         builder.beginControlFlow("if (length == 0)");
         builder.addStatement("return");
         builder.endControlFlow();
-        builder.addStatement("$T values = state.partitionValues(source, partition)", ArrayTypeName.of(aggState.declaredType()));
+        String combineMethodName = (combinePartitionMethod != null) ? "combinePartition" : "combine";
+        builder.addStatement("$T values = state.partitionValues(source, partition)", ArrayTypeName.of(partitionValueType));
         builder.addStatement("boolean[] seen = state.partitionSeen(source, partition)");
         builder.beginControlFlow("if (seen == null)");
         {
@@ -948,7 +973,7 @@ public class GroupingAggregatorImplementer {
             builder.addStatement("state.appendPartition(values, dstIds[0], length)");
             builder.nextControlFlow("else");
             builder.beginControlFlow("for (int i = 0; i < length; i++)");
-            builder.addStatement("$T.combine(state, dstIds[i], values[i])", declarationType);
+            builder.addStatement("$T." + combineMethodName + "(state, dstIds[i], values[i])", declarationType);
             builder.endControlFlow();
             builder.endControlFlow();
             builder.addStatement("return");
@@ -956,7 +981,7 @@ public class GroupingAggregatorImplementer {
         builder.endControlFlow();
         builder.beginControlFlow("for (int i = 0; i < length; i++)");
         builder.beginControlFlow("if (seen[i])");
-        builder.addStatement("$T.combine(state, dstIds[i], values[i])", declarationType);
+        builder.addStatement("$T." + combineMethodName + "(state, dstIds[i], values[i])", declarationType);
         builder.endControlFlow();
         builder.endControlFlow();
         return builder.build();

@@ -9,7 +9,10 @@ package org.elasticsearch.compute.aggregation;
 
 import com.carrotsearch.hppc.BitMixer;
 
+import org.apache.lucene.util.ArrayUtil;
 import org.apache.lucene.util.BytesRef;
+import org.apache.lucene.util.RamUsageEstimator;
+import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.hash.MurmurHash3;
 import org.elasticsearch.common.io.stream.BytesRefStreamOutput;
 import org.elasticsearch.compute.data.Block;
@@ -20,6 +23,10 @@ import org.elasticsearch.search.aggregations.metrics.HyperLogLogPlusPlus;
 
 import java.io.IOException;
 import java.io.UncheckedIOException;
+import java.util.Arrays;
+
+import static org.elasticsearch.common.util.PartitionedHashTable.NUM_PARTITIONS;
+import static org.elasticsearch.common.util.PartitionedHashTable.PARTITION_WRITE_BATCH;
 
 final class HllStates {
     private HllStates() {}
@@ -162,9 +169,160 @@ final class HllStates {
             }
         }
 
+        void ensureCapacity(int groupCount) {
+            // HLL auto-grows as groups are collected; no explicit pre-allocation needed
+        }
+
+        GroupingAggregatorFunction.PartitionSplitter createPartitioningSplitter(CircuitBreaker breaker) {
+            return new HllPartitionSplitter(breaker);
+        }
+
+        BytesRef[] partitionValues(GroupingAggregatorFunction.PartitionedState source, int partition) {
+            return ((HllPartitionedState) source).values[partition];
+        }
+
+        boolean[] partitionSeen(GroupingAggregatorFunction.PartitionedState source, int partition) {
+            return null;
+        }
+
+        void appendPartition(BytesRef[] src, int firstId, int length) {
+            for (int i = 0; i < length; i++) {
+                if (src[i] != null) {
+                    merge(firstId + i, src[i], 0);
+                }
+            }
+        }
+
         @Override
         public void close() {
             Releasables.close(hll);
+        }
+
+        private static long bytesUsedByPointerPage(int length) {
+            return RamUsageEstimator.alignObjectSize(
+                (long) RamUsageEstimator.NUM_BYTES_ARRAY_HEADER + (long) RamUsageEstimator.NUM_BYTES_OBJECT_REF * length
+            );
+        }
+
+        private static long bytesUsedByValue(BytesRef value) {
+            return RamUsageEstimator.shallowSizeOfInstance(BytesRef.class) + RamUsageEstimator.alignObjectSize(
+                (long) RamUsageEstimator.NUM_BYTES_ARRAY_HEADER + value.length
+            );
+        }
+
+        private static final class HllPartitionedState implements GroupingAggregatorFunction.PartitionedState {
+            private static final long BASE_RAM_USAGE = RamUsageEstimator.shallowSizeOf(HllPartitionedState.class);
+            static final String LABEL = "HllStates#partition";
+
+            private final long baseBytes;
+            private final BytesRef[][] values;
+
+            HllPartitionedState(CircuitBreaker breaker, int partitionSize) {
+                baseBytes = BASE_RAM_USAGE + bytesUsedByPointerPage(NUM_PARTITIONS);
+                long pageBytes = bytesUsedByPointerPage(partitionSize);
+                breaker.addEstimateBytesAndMaybeBreak(baseBytes + NUM_PARTITIONS * pageBytes, LABEL);
+                values = new BytesRef[NUM_PARTITIONS][partitionSize];
+            }
+
+            @Override
+            public boolean hasAllValues(int partition) {
+                return true;
+            }
+
+            @Override
+            public void releasePartition(CircuitBreaker breaker, int partition) {
+                long usedBytes = 0;
+                if (values[partition] != null) {
+                    for (BytesRef v : values[partition]) {
+                        if (v != null) {
+                            usedBytes += bytesUsedByValue(v);
+                        }
+                    }
+                    usedBytes += bytesUsedByPointerPage(values[partition].length);
+                    values[partition] = null;
+                }
+                breaker.addWithoutBreaking(-usedBytes);
+            }
+
+            @Override
+            public void releaseAll(CircuitBreaker breaker) {
+                long usedBytes = baseBytes;
+                for (int p = 0; p < NUM_PARTITIONS; p++) {
+                    if (values[p] != null) {
+                        for (BytesRef v : values[p]) {
+                            if (v != null) {
+                                usedBytes += bytesUsedByValue(v);
+                            }
+                        }
+                        usedBytes += bytesUsedByPointerPage(values[p].length);
+                        values[p] = null;
+                    }
+                }
+                breaker.addWithoutBreaking(-usedBytes);
+            }
+        }
+
+        private final class HllPartitionSplitter implements GroupingAggregatorFunction.PartitionSplitter {
+            private final CircuitBreaker partitionBreaker;
+            private HllPartitionedState partitionedState;
+
+            HllPartitionSplitter(CircuitBreaker partitionBreaker) {
+                this.partitionBreaker = partitionBreaker;
+                int partitionSize = ArrayUtil.oversize(PARTITION_WRITE_BATCH, RamUsageEstimator.NUM_BYTES_OBJECT_REF);
+                partitionedState = new HllPartitionedState(partitionBreaker, partitionSize);
+            }
+
+            @Override
+            public void split(int firstId, short[] shiftedIds, int batchSize, int[] batchPartitionCounts, int[] partitionOffsets) {
+                BytesRefStreamOutput out = new BytesRefStreamOutput();
+                try {
+                    for (int p = 0; p < NUM_PARTITIONS; p++) {
+                        final int count = batchPartitionCounts[p];
+                        if (count == 0) {
+                            continue;
+                        }
+                        final int offset = partitionOffsets[p];
+                        ensurePartitionCapacity(p, offset + count);
+                        final int base = p * PARTITION_WRITE_BATCH;
+                        for (int i = 0; i < count; i++) {
+                            final int id = firstId + shiftedIds[base + i];
+                            hll.writeTo(id, out);
+                            BytesRef copy = BytesRef.deepCopyOf(out.get());
+                            partitionBreaker.addEstimateBytesAndMaybeBreak(bytesUsedByValue(copy), HllPartitionedState.LABEL);
+                            partitionedState.values[p][offset + i] = copy;
+                            out.reset();
+                        }
+                    }
+                } catch (IOException e) {
+                    throw new UncheckedIOException(e);
+                }
+            }
+
+            private void ensurePartitionCapacity(int partition, int minSize) {
+                BytesRef[] oldValues = partitionedState.values[partition];
+                if (oldValues.length >= minSize) {
+                    return;
+                }
+                int newSize = ArrayUtil.oversize(minSize, RamUsageEstimator.NUM_BYTES_OBJECT_REF);
+                partitionBreaker.addEstimateBytesAndMaybeBreak(bytesUsedByPointerPage(newSize), HllPartitionedState.LABEL);
+                partitionedState.values[partition] = Arrays.copyOf(oldValues, newSize);
+                partitionBreaker.addWithoutBreaking(-bytesUsedByPointerPage(oldValues.length));
+            }
+
+            @Override
+            public HllPartitionedState finish() {
+                HllPartitionedState result = partitionedState;
+                partitionedState = null;
+                return result;
+            }
+
+            @Override
+            public void release(CircuitBreaker breaker) {
+                if (partitionedState != null) {
+                    partitionedState.releaseAll(breaker);
+                    partitionedState = null;
+                }
+            }
         }
     }
 }

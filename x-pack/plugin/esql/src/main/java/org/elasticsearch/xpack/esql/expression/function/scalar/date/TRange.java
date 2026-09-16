@@ -297,9 +297,13 @@ public class TRange extends EsqlConfigurationFunction
     @Override
     public BiConsumer<LogicalPlan, Failures> postAnalysisPlanVerification() {
         return (logicalPlan, failures) -> {
+            Object rangeStartValue = first.fold(FoldContext.small());
+            if (rangeStartValue == null) {
+                failures.add(fail(first, "{} cannot be null", START_TIME_OR_OFFSET_PARAMETER));
+            }
+
             // single parameter mode
             if (second == null) {
-                Object rangeStartValue = first.fold(FoldContext.small());
                 if (rangeStartValue instanceof Duration duration && duration.isNegative()
                     || rangeStartValue instanceof Period period && period.isNegative()) {
                     failures.add(fail(first, "{} cannot be negative", START_TIME_OR_OFFSET_PARAMETER));

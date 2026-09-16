@@ -11,7 +11,6 @@ import org.apache.logging.log4j.Logger;
 import org.elasticsearch.ElasticsearchSecurityException;
 import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.common.breaker.CircuitBreakingException;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.rest.RestChannel;
 import org.elasticsearch.rest.RestHandler;
@@ -87,7 +86,7 @@ public class SecurityRestFilter implements RestInterceptor {
             final RestRequest wrappedRequest = maybeWrapRestRequest(aggregatedRestRequest, targetHandler);
             try {
                 auditTrailService.get().authenticationSuccess(wrappedRequest);
-            } catch (ElasticsearchStatusException | CircuitBreakingException e) {
+            } catch (ElasticsearchStatusException e) {
                 handleException(aggregatedRestRequest, e, listener);
                 return;
             }

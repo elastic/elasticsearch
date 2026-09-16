@@ -34,7 +34,6 @@ import org.elasticsearch.cluster.project.ProjectResolver;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.CheckedBiConsumer;
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.logging.DeprecationCategory;
@@ -774,8 +773,7 @@ public class Security extends Plugin
                 services.crossProjectModeDecider(),
                 services.projectRoutingResolver(),
                 services.systemIndices(),
-                services.usageService(),
-                services.circuitBreakerService()
+                services.usageService()
             );
         } catch (final Exception e) {
             throw new IllegalStateException("security initialization failed", e);
@@ -801,8 +799,7 @@ public class Security extends Plugin
         CrossProjectModeDecider crossProjectModeDecider,
         ProjectRoutingResolver projectRoutingResolver,
         SystemIndices coreSystemIndices,
-        UsageService usageService,
-        CircuitBreakerService circuitBreakerService
+        UsageService usageService
     ) throws Exception {
         logger.info("Security is {}", enabled ? "enabled" : "disabled");
         if (enabled == false) {
@@ -997,13 +994,7 @@ public class Security extends Plugin
             extension -> extension.getAuditLogCustomizer(extensionComponents, coreSystemIndices)
         );
         final AuditLogCustomizer auditLogCustomizer = customAuditLogCustomizer == null ? AuditLogCustomizer.NOOP : customAuditLogCustomizer;
-        final LoggingAuditTrail auditTrail = new LoggingAuditTrail(
-            settings,
-            clusterService,
-            threadPool,
-            auditLogCustomizer,
-            circuitBreakerService.getBreaker(CircuitBreaker.IN_FLIGHT_REQUESTS)
-        );
+        final AuditTrail auditTrail = new LoggingAuditTrail(settings, clusterService, threadPool, auditLogCustomizer);
         final AuditTrailService auditTrailService = new AuditTrailService(auditTrail, getLicenseState(), clusterService);
         components.add(auditTrailService);
         this.auditTrailService.set(auditTrailService);

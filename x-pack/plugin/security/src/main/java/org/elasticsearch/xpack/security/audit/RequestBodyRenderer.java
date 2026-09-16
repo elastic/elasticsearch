@@ -6,11 +6,8 @@
  */
 package org.elasticsearch.xpack.security.audit;
 
-import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.xcontent.XContentHelper;
-import org.elasticsearch.core.Nullable;
-import org.elasticsearch.core.Releasable;
 import org.elasticsearch.xcontent.XContentFactory;
 import org.elasticsearch.xcontent.XContentParserConfiguration;
 import org.elasticsearch.xcontent.XContentType;
@@ -18,84 +15,41 @@ import org.elasticsearch.xcontent.XContentType;
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
-import java.util.Objects;
 
 /**
- * Renders a request body as JSON while enforcing a hard byte cap and tracking heap usage via a circuit breaker.
+ * Renders a request body as JSON while enforcing a hard cap on the size of the rendered output.
  *
- * <p>Circuit-breaker charges accumulate during {@link #render} and are held until {@link #close()} is called,
- * so the charge covers the full lifetime of the rendered string — including any subsequent log write.
- * Callers are responsible for closing this object after the rendered string has been consumed.
+ * <p>Non-JSON bodies (e.g. SMILE, CBOR) can expand significantly when rendered as JSON, so the cap is enforced against
+ * the output as it is produced rather than against the input size. Rendering stops as soon as the cap would be exceeded,
+ * before the oversized output is materialized.
  */
-public final class RequestBodyRenderer implements Releasable {
+public final class RequestBodyRenderer {
 
-    private final long maxBytes;
-    @Nullable
-    private final CircuitBreaker breaker;
-    @Nullable
-    private final String label;
-    private long chargedBytes = 0;
+    private RequestBodyRenderer() {}
 
-    public RequestBodyRenderer(long maxBytes, @Nullable CircuitBreaker breaker, @Nullable String label) {
-        if (breaker != null) {
-            Objects.requireNonNull(label, "label required when breaker is non-null");
-        }
-        this.maxBytes = maxBytes;
-        this.breaker = breaker;
-        this.label = label;
-    }
-
-    public long maxBytes() {
-        return maxBytes;
-    }
-
-    public String render(BytesReference bytes, XContentType xContentType) throws IOException {
+    /**
+     * @param maxBytes maximum size of the rendered JSON in UTF-8 bytes; {@code 0} means unlimited
+     * @throws TooLargeBodyException if the rendered output would exceed {@code maxBytes}
+     */
+    public static String render(BytesReference bytes, XContentType xContentType, long maxBytes) throws IOException {
         if (xContentType.canonical() == XContentType.JSON) {
-            checkSize(0, bytes.length());
-            charge(bytes.length());
+            checkSize(0, bytes.length(), maxBytes);
             return bytes.utf8ToString();
         }
-
-        try (var os = new LimitedOutputStream()) {
+        try (var os = new LimitedOutputStream(maxBytes)) {
             try (var parser = XContentHelper.createParserNotCompressed(XContentParserConfiguration.EMPTY, bytes, xContentType)) {
                 parser.nextToken();
                 try (var builder = XContentFactory.jsonBuilder(os)) {
                     builder.copyCurrentStructure(parser);
                 }
             }
-            // Buffer and result String coexist during toString; charge for both before allocating.
-            final int renderedSize = os.size();
-            charge(renderedSize);
-            String result = os.toString(StandardCharsets.UTF_8);
-            // Buffer leaves scope here; release its portion, retaining only the String's charge.
-            if (breaker != null) {
-                breaker.addWithoutBreaking(-renderedSize, label);
-                chargedBytes -= renderedSize;
-            }
-            return result;
+            return os.toString(StandardCharsets.UTF_8);
         }
     }
 
-    @Override
-    public void close() {
-        if (breaker != null && chargedBytes > 0) {
-            breaker.addWithoutBreaking(-chargedBytes, label);
-            chargedBytes = 0;
-        }
-    }
-
-    private void checkSize(long current, long additional) {
+    private static void checkSize(long current, long additional, long maxBytes) {
         if (maxBytes > 0 && current + additional > maxBytes) {
             throw new TooLargeBodyException(current + additional, maxBytes);
-        }
-    }
-
-    private void charge(long bytes) {
-        if (breaker != null) {
-            // addEstimateBytesAndMaybeBreak is atomic: on trip it does not leave `bytes` charged.
-            // Bytes charged by prior successful calls accumulate in chargedBytes until close() releases them.
-            breaker.addEstimateBytesAndMaybeBreak(bytes, label);
-            chargedBytes += bytes;
         }
     }
 
@@ -112,19 +66,23 @@ public final class RequestBodyRenderer implements Releasable {
         }
     }
 
-    private final class LimitedOutputStream extends ByteArrayOutputStream {
+    private static final class LimitedOutputStream extends ByteArrayOutputStream {
+        private final long maxBytes;
+
+        LimitedOutputStream(long maxBytes) {
+            this.maxBytes = maxBytes;
+        }
+
         @Override
         public void write(byte[] b, int off, int len) {
-            checkSize(count, len);
+            checkSize(count, len, maxBytes);
             super.write(b, off, len);
-            charge(len);
         }
 
         @Override
         public void write(int b) {
-            checkSize(count, 1);
+            checkSize(count, 1, maxBytes);
             super.write(b);
-            charge(1);
         }
     }
 }

@@ -26,7 +26,6 @@ import org.elasticsearch.index.ActionLoggingFieldsProvider;
 import org.elasticsearch.index.IndexingPressure;
 import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.indices.SystemIndices;
-import org.elasticsearch.indices.breaker.CircuitBreakerService;
 import org.elasticsearch.iplocation.api.IpLocationService;
 import org.elasticsearch.persistent.PersistentTaskLifecycleManager;
 import org.elasticsearch.plugins.Plugin;
@@ -76,6 +75,5 @@ public record PluginServiceInstances(
     PersistentTaskLifecycleManager taskLifecycleManager,
     DataStreamLifecycleErrorStore dlmErrorStore,
     IpLocationService ipLocationService,
-    UsageService usageService,
-    CircuitBreakerService circuitBreakerService
+    UsageService usageService
 ) implements Plugin.PluginServices {}

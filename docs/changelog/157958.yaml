@@ -1,5 +1,5 @@
 area: Audit
 issues: []
 pr: 157958
-summary: Add circuit breaker checks to audit trail write
+summary: Bound audit log request body rendering by the configured size limit
 type: enhancement

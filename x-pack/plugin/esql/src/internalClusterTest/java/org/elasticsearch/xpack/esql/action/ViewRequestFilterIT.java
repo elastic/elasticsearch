@@ -30,6 +30,8 @@ import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.not;
+import static org.hamcrest.Matchers.startsWith;
 
 /**
  * Integration tests for applying the out-of-band request {@code filter} to logical views.
@@ -172,6 +174,42 @@ public class ViewRequestFilterIT extends AbstractEsqlIntegTestCase {
         try (EsqlQueryResponse resp = run(req)) {
             assertThat(getValuesList(resp).size(), equalTo(ROWS));
         }
+    }
+
+    /**
+     * A filter on a field the view does not output is not merely evaluated to no rows — the optimizer removes the view branch
+     * altogether, so no work is scheduled for it. The rewriter binds the missing field to {@code NULL}, the translated leaf is then
+     * a constant, and the standard pipeline takes over: {@code ConstantFolding} folds it to {@code false}, {@code PruneFilters}
+     * collapses the filtered branch to an empty {@code LocalRelation}, and {@code PruneEmptyMergeBranches} drops that branch — or
+     * the whole union, when every branch is a view. Pinned here so the rewriter never needs its own dead-branch detection.
+     */
+    public void testFilterOnFieldMissingFromViewPrunesTheViewBranch() {
+        QueryBuilder fake = QueryBuilders.termQuery("fake", 1);
+        // View branch alongside a bare index: only the bare-index branch survives.
+        String mixed = optimizedLogicalPlan("FROM " + PREFILTERED_VIEW + ", " + INDEX + " | KEEP id", fake);
+        assertThat("the view branch is pruned, leaving the bare-index branch", mixed, containsString("ViewUnionAll[[main]]"));
+        assertThat(mixed, not(containsString(PREFILTERED_VIEW)));
+        // Every branch is a view: the union collapses to an empty local relation.
+        String allViews = optimizedLogicalPlan("FROM " + PREFILTERED_VIEW + ", " + STATS_VIEW, fake);
+        assertThat("no branch survives", allViews, startsWith("LocalRelation["));
+        assertThat(allViews, containsString("EMPTY"));
+        assertThat(allViews, not(containsString("ViewUnionAll")));
+    }
+
+    /** Runs {@code EXPLAIN} over {@code query} with the given request filter and returns the coordinator's optimized logical plan. */
+    private String optimizedLogicalPlan(String query, QueryBuilder filter) {
+        try (EsqlQueryResponse response = run(syncEsqlQueryRequest("EXPLAIN (" + query + ")").filter(filter))) {
+            List<String> columns = response.columns().stream().map(ColumnInfoImpl::name).toList();
+            int role = columns.indexOf("role");
+            int type = columns.indexOf("type");
+            int plan = columns.indexOf("plan");
+            for (List<Object> row : getValuesList(response)) {
+                if ("coordinator".equals(row.get(role)) && "optimizedLogicalPlan".equals(row.get(type))) {
+                    return (String) row.get(plan);
+                }
+            }
+        }
+        throw new AssertionError("EXPLAIN returned no coordinator optimizedLogicalPlan row for [" + query + "]");
     }
 
     // ─── Pre-filtered view: request filter applies on top of view's own WHERE ───

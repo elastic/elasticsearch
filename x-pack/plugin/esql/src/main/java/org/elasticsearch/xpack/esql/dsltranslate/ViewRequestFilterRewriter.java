@@ -102,7 +102,7 @@ public final class ViewRequestFilterRewriter {
      * planner and this rewriter cannot disagree about it.
      *
      * <p>Returns {@code false} for a filter that matches every document. Kibana sends an empty filter rather than omitting the field
-     * when no filtering is wanted, and {@link #rewriteViewBranches} would translate such a filter to {@link Literal#TRUE} and drop it
+     * when no filtering is wanted, and {@link #applyRequestFilterToViewBranches} would translate such a filter to {@link Literal#TRUE} and drop it
      * as a no-op — so without this check those requests would suppress view compaction in order to install nothing.
      *
      * <p>The test is syntactic, so it needs neither a {@link Configuration} nor an output schema and can run before either exists.
@@ -181,7 +181,7 @@ public final class ViewRequestFilterRewriter {
         LogicalPlan rewritten = analyzed.transformDownSkipBranch((plan, skipBranch) -> {
             if (plan instanceof ViewUnionAll vua) {
                 skipBranch.set(true);
-                return rewriteViewBranches(vua, requestFilter, configuration);
+                return applyRequestFilterToViewBranches(vua, requestFilter, configuration);
             }
             return plan;
         });
@@ -199,7 +199,7 @@ public final class ViewRequestFilterRewriter {
      * is not sufficient, because bare-index branches carry {@code "main"} and literal subqueries carry
      * {@code "unnamed_view_<hash>"}. Translation is fail-closed: an unsupported construct produces a 400.
      */
-    private static LogicalPlan rewriteViewBranches(ViewUnionAll vua, QueryBuilder requestFilter, Configuration configuration) {
+    private static LogicalPlan applyRequestFilterToViewBranches(ViewUnionAll vua, QueryBuilder requestFilter, Configuration configuration) {
         LinkedHashMap<String, LogicalPlan> newSubqueries = new LinkedHashMap<>();
         boolean changed = false;
         for (Map.Entry<String, LogicalPlan> entry : vua.namedSubqueries().entrySet()) {

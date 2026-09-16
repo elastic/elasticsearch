@@ -21,12 +21,14 @@ import org.elasticsearch.xcontent.XContentParserConfiguration;
 import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xpack.esql.EsqlTestUtils;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
+import org.elasticsearch.xpack.esql.core.expression.Literal;
 import org.elasticsearch.xpack.esql.core.expression.ReferenceAttribute;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.datasources.spi.FileList;
 import org.elasticsearch.xpack.esql.datasources.spi.SimpleSourceMetadata;
 import org.elasticsearch.xpack.esql.datasources.spi.SourceMetadata;
+import org.elasticsearch.xpack.esql.expression.function.scalar.multivalue.MvContains;
 import org.elasticsearch.xpack.esql.plan.logical.EsRelation;
 import org.elasticsearch.xpack.esql.plan.logical.ExternalRelation;
 import org.elasticsearch.xpack.esql.plan.logical.Filter;
@@ -137,7 +139,14 @@ public class ViewRequestFilterRewriterTests extends ESTestCase {
 
         LogicalPlan viewChild = viewChild(result, "myView");
         assertThat("filter is installed above the view subplan", viewChild, instanceOf(Filter.class));
-        assertThat(((Filter) viewChild).child(), sameInstance(original));
+        Filter filter = (Filter) viewChild;
+        assertThat(filter.child(), sameInstance(original));
+        // The term translates to the any-value equality mv_contains(y, 42), with y bound to the view's own output attribute —
+        // not a fresh reference by name — so the filter resolves against exactly what the view produces.
+        assertThat(filter.condition(), instanceOf(MvContains.class));
+        MvContains condition = (MvContains) filter.condition();
+        assertThat("field side is the view's output attribute", condition.children().get(0), sameInstance(y));
+        assertThat(condition.children().get(1), equalTo(new Literal(Source.EMPTY, 42, DataType.INTEGER)));
     }
 
     /**

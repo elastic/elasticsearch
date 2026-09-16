@@ -769,3 +769,5 @@ tests:
   issue: https://github.com/elastic/elasticsearch/issues/159402
 - class: org.elasticsearch.xpack.esql.qa.parquet.ParquetFormatSpecIT
   issue: https://github.com/elastic/elasticsearch/issues/159407
+- class: org.elasticsearch.xpack.esql.datasource.s3.S3StorageObjectAsyncTests
+  issue: https://github.com/elastic/elasticsearch/issues/159417

@@ -28,7 +28,7 @@
 * [`JSON_EXTRACT`](../../functions-operators/string-functions/json_extract.md) {applies_to}`stack: preview =9.4, ga 9.5+`
   :::{include} ../generated/x-pack-esql/functions/briefSummary/json_extract.md
   :::
-* [`JSON_STRING`](../../functions-operators/string-functions/json_string.md)
+* [`JSON_STRING`](../../functions-operators/string-functions/json_string.md) {applies_to}`stack: ga 9.6+`
   :::{include} ../generated/x-pack-esql/functions/briefSummary/json_string.md
   :::
 * [`LEFT`](../../functions-operators/string-functions/left.md)

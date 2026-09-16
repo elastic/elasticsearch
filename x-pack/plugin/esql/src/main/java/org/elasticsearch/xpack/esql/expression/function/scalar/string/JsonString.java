@@ -99,7 +99,7 @@ public class JsonString extends EsqlScalarFunction {
     }
 
     @FunctionInfo(
-        appliesTo = { @FunctionAppliesTo(lifeCycle = FunctionAppliesToLifecycle.GA) },
+        appliesTo = { @FunctionAppliesTo(lifeCycle = FunctionAppliesToLifecycle.GA, version = "9.6+") },
         returnType = "keyword",
         briefSummary = "Builds a JSON object string from key/value pairs.",
         description = """

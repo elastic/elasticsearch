@@ -2,5 +2,5 @@ area: ES|QL
 issues:
  - 159395
 pr: 159416
-summary: Fix errant pushdown for `TO_STRING`
+summary: Fix `TO_STRING` being ignored in `MATCH/MATCH_PHRASE` on indexed fields
 type: bug

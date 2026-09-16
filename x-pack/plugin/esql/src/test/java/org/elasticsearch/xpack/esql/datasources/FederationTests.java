@@ -268,4 +268,25 @@ public class FederationTests extends ESTestCase {
             new MockLog.UnseenEventExpectation("no error", Federation.class.getCanonicalName(), Level.ERROR, "*")
         );
     }
+
+    /**
+     * The wiring of {@link Federation#defaultEnabled} to the real platform. The parameterised tests above prove the
+     * rule on any host; this proves the constants are actually fed to it, which only means anything where it runs.
+     */
+    public void testDefaultIsOffOnWindows() {
+        assumeTrue("verifies the Windows default; runs only on Windows", Constants.WINDOWS);
+        assertFalse("external data sources must be off out of the box", Federation.FEDERATION_ENABLED.get(Settings.EMPTY));
+        assertFalse(Federation.isAvailable(Settings.EMPTY));
+    }
+
+    /**
+     * On a Windows release build the feature cannot be reached by configuration. The setting still reads back the
+     * value it was given — it is accepted, not rejected, so a node configured this way still starts — but it no
+     * longer decides anything.
+     */
+    public void testCannotBeEnabledOnWindowsRelease() {
+        assumeTrue("runs only on a Windows release build", Constants.WINDOWS && Build.current().isSnapshot() == false);
+        assertTrue("the setting accepts the value", Federation.FEDERATION_ENABLED.get(enabled(true)));
+        assertFalse("but it cannot make the feature available", Federation.isAvailable(enabled(true)));
+    }
 }

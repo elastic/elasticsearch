@@ -30,6 +30,10 @@ import java.util.Set;
 
 final class CustomObjectHandler extends AbstractObjectHandler {
 
+    // Intentionally shadows AbstractObjectHandler.NOT_FOUND. We use our own sentinel to keep this
+    // class's resolution logic independent of library internals, which could change across versions.
+    private static final Object NOT_FOUND = new Object();
+
     private final boolean detectMissingParams;
 
     CustomObjectHandler(boolean detectMissingParams) {
@@ -93,27 +97,35 @@ final class CustomObjectHandler extends AbstractObjectHandler {
             int dot = name.indexOf('.');
             String first = dot == -1 ? name : name.substring(0, dot);
             // Search scope stack right-to-left (innermost scope first) for the first component
-            Object value = null;
+            Object value = NOT_FOUND;
             for (int i = scopes.size() - 1; i >= 0; i--) {
                 Object scope = coerce(scopes.get(i));
-                if (scope instanceof Map<?, ?> map && map.containsKey(first)) {
-                    value = map.get(first);
-                    break;
+                if (scope instanceof Map) {
+                    @SuppressWarnings("unchecked")
+                    Object found = ((Map<Object, Object>) scope).getOrDefault(first, NOT_FOUND);
+                    if (found != NOT_FOUND) {
+                        value = found;
+                        break;
+                    }
                 }
             }
             if (dot == -1) {
-                return coerce(value);
+                return value == NOT_FOUND ? null : coerce(value);
             }
             // Resolve remaining dot-separated components through coerce so that arrays and
-            // collections are accessible by index via ArrayMap/CollectionMap
+            // collections are accessible by index via ArrayMap/CollectionMap. Malformed names with
+            // empty segments (leading/trailing/consecutive dots) produce an empty-string part that
+            // will not match any key, so the path silently resolves to null.
             for (String part : name.substring(dot + 1).split("\\.")) {
-                Object coerced = coerce(value);
-                if (!(coerced instanceof Map<?, ?> map)) {
+                Object coerced = value == NOT_FOUND ? null : coerce(value);
+                if (coerced instanceof Map == false) {
                     return null;
                 }
-                value = map.get(part);
+                @SuppressWarnings("unchecked")
+                Object next = ((Map<Object, Object>) coerced).getOrDefault(part, NOT_FOUND);
+                value = next;
             }
-            return coerce(value);
+            return value == NOT_FOUND ? null : coerce(value);
         }
     }
 
@@ -139,18 +151,20 @@ final class CustomObjectHandler extends AbstractObjectHandler {
             int dot = name.indexOf('.');
             String first = dot == -1 ? name : name.substring(0, dot);
             // Search scope stack right-to-left (innermost scope first) for the first component,
-            // using containsKey to distinguish a present-but-null value from an absent key.
-            Object value = null;
-            boolean found = false;
+            // using NOT_FOUND to distinguish a present-but-null value from an absent key.
+            Object value = NOT_FOUND;
             for (int i = scopes.size() - 1; i >= 0; i--) {
                 Object scope = coerce(scopes.get(i));
-                if (scope instanceof Map<?, ?> map && map.containsKey(first)) {
-                    value = map.get(first);
-                    found = true;
-                    break;
+                if (scope instanceof Map) {
+                    @SuppressWarnings("unchecked")
+                    Object found = ((Map<Object, Object>) scope).getOrDefault(first, NOT_FOUND);
+                    if (found != NOT_FOUND) {
+                        value = found;
+                        break;
+                    }
                 }
             }
-            if (found == false) {
+            if (value == NOT_FOUND) {
                 if (throwOnMissing) {
                     throw new MustacheInvalidParameterException("Parameter [" + name + "] is missing");
                 }
@@ -159,17 +173,26 @@ final class CustomObjectHandler extends AbstractObjectHandler {
             if (dot == -1) {
                 return coerce(value);
             }
-            // Resolve remaining dot-separated components, throwing on any missing component
+            // Resolve remaining dot-separated components, throwing on any missing component.
+            // Malformed names with empty segments (leading/trailing/consecutive dots) produce an
+            // empty-string part that will not match any key and throws MustacheInvalidParameterException.
             for (String part : name.substring(dot + 1).split("\\.")) {
                 Object coerced = coerce(value);
-                if (coerced instanceof Map<?, ?> map && map.containsKey(part)) {
-                    value = map.get(part);
-                } else {
+                if (coerced instanceof Map == false) {
                     if (throwOnMissing) {
                         throw new MustacheInvalidParameterException("Parameter [" + name + "] is missing");
                     }
                     return null;
                 }
+                @SuppressWarnings("unchecked")
+                Object found = ((Map<Object, Object>) coerced).getOrDefault(part, NOT_FOUND);
+                if (found == NOT_FOUND) {
+                    if (throwOnMissing) {
+                        throw new MustacheInvalidParameterException("Parameter [" + name + "] is missing");
+                    }
+                    return null;
+                }
+                value = found;
             }
             return coerce(value);
         }

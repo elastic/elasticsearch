@@ -43,6 +43,7 @@ import org.elasticsearch.escf.EscfColumnKind;
 import org.elasticsearch.escf.EscfColumnTransforms;
 import org.elasticsearch.escf.LuceneBinaryColumn;
 import org.elasticsearch.escf.LuceneLongColumn;
+import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.IndexVersions;
@@ -843,8 +844,9 @@ public class IpFieldMapper extends FieldMapper {
 
     @Override
     protected boolean doSupportsColumnarParse(IndexSettings indexSettings) {
-        return (indexSettings.getMode().isStrictColumnar() || indexSettings.getMode().isTsdb())
-            && supportsColumnarDocValues()
+        final IndexMode mode = indexSettings.getMode();
+        return (mode.isStrictColumnar() || mode.isTsdb())
+            && supportsColumnarDocValues(mode)
             && fieldType().indexType.hasPoints() == false
             && stored == false
             && hasScript() == false
@@ -864,7 +866,7 @@ public class IpFieldMapper extends FieldMapper {
         return docValuesParameters.multiValue() == false;
     }
 
-    private boolean supportsColumnarDocValues() {
+    private boolean supportsColumnarDocValues(IndexMode mode) {
         if (fieldType().usesArrayOrderBinaryDocValues()) {
             return true;
         }
@@ -874,12 +876,9 @@ public class IpFieldMapper extends FieldMapper {
             return docValuesParameters.multiValue() == false;
         }
 
-        // SORTED_SET doc values (the TSDB case): always supported; multi-value is handled natively.
-        // Assert the TSDB invariant: the builder always produces IndexType.skippers() when binary doc
-        // values are disabled, which is the only path to SORTED_SET in ip fields.
-        assert fieldType().indexType.hasDocValuesSkipper()
-            : "SORTED_SET ip doc values expected only in TSDB mode (IndexType.skippers())";
-        return fieldType().hasDocValues();
+        // SORTED_SET doc values: only reachable in TSDB mode (the builder sets IndexType.skippers()
+        // whenever binary doc values are disabled, which is the only path to SORTED_SET for ip fields).
+        return mode.isTsdb() && fieldType().hasDocValues();
     }
 
     private static EscfColumnBuilder mergeStringColumn(BatchMappingContext ctx) {

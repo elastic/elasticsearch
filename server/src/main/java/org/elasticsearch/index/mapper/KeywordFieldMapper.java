@@ -1631,8 +1631,9 @@ public final class KeywordFieldMapper extends FieldMapper {
 
     @Override
     protected boolean doSupportsColumnarParse(IndexSettings indexSettings) {
-        return (indexSettings.getMode().isStrictColumnar() || indexSettings.getMode().isTsdb())
-            && supportsColumnarDocValues()
+        final IndexMode mode = indexSettings.getMode();
+        return (mode.isStrictColumnar() || mode.isTsdb())
+            && supportsColumnarDocValues(mode)
             && hasScript() == false
             && copyTo().copyToFields().isEmpty()
             && normalizerName == null
@@ -1680,10 +1681,11 @@ public final class KeywordFieldMapper extends FieldMapper {
      * doc values that store array order inline (written by {@link #mapColumnBatchOrdered}), and single-valued
      * (multi_value=false) binary fields. Other combinations fall back to the row path.
      */
-    private boolean supportsColumnarDocValues() {
+    private boolean supportsColumnarDocValues(IndexMode mode) {
         if (fieldType().diskFormat() == KeywordFieldType.DocValuesDiskFormat.SORTED_SET) {
-            // Native Lucene SORTED_SET: multi-value handled by mapColumnBatchUnordered using an ARRAY column.
-            return true;
+            // Native Lucene SORTED_SET: only reachable in TSDB mode (every keyword field there resolves to
+            // SORTED_SET); multi-value is handled natively by mapColumnBatchUnordered using an ARRAY column.
+            return mode.isTsdb();
         }
         if (fieldType().usesBinaryDocValues() == false) {
             return false;

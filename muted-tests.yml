@@ -142,6 +142,9 @@ tests:
 - class: org.elasticsearch.xpack.search.CrossClusterAsyncSearchIT
   method: testRemoteClusterOnlyCCSWithFailuresOnOneShardOnly
   issue: https://github.com/elastic/elasticsearch/issues/159428
+- class: org.elasticsearch.smoketest.DocsClientYamlTestSuiteIT
+  method: test {yaml=reference/indices/segments/line_116}
+  issue: https://github.com/elastic/elasticsearch/issues/159429
 
 # Examples:
 #

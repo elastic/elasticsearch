@@ -217,7 +217,7 @@ public class StGeohash extends SpatialGridFunction implements EvaluatorMapper, A
             GeoHashBoundedGrid.Factory bounds = new GeoHashBoundedGrid.Factory(precision, bbox);
             Source evalSource = source();
             Function<DriverContext, GeoShapeCellsComputer> shapeTilerFactory = ctx -> {
-                Warnings w = Warnings.createOnlyWarnings(ctx, evalSource);
+                Warnings w = ctx.createOnlyWarnings(evalSource);
                 return wkb -> computeGeohashCells(wkb, precision, bbox, w::registerWarning);
             };
             return spatialDocValues
@@ -236,7 +236,7 @@ public class StGeohash extends SpatialGridFunction implements EvaluatorMapper, A
             int precision = checkPrecisionRange((int) parameter.fold(toEvaluator.foldCtx()));
             Source evalSource = source();
             Function<DriverContext, GeoShapeCellsComputer> shapeTilerFactory = ctx -> {
-                Warnings w = Warnings.createOnlyWarnings(ctx, evalSource);
+                Warnings w = ctx.createOnlyWarnings(evalSource);
                 return wkb -> computeGeohashCells(wkb, precision, null, w::registerWarning);
             };
             return spatialDocValues
@@ -358,7 +358,7 @@ public class StGeohash extends SpatialGridFunction implements EvaluatorMapper, A
      * adding those that intersect the shape (and pass the optional bounds filter).
      * Adapted from {@code GeoHashGridTiler.setValuesByBruteForceScan} in the spatial module.
      */
-    private static boolean geohashBruteForceScan(
+    private static void geohashBruteForceScan(
         GeoShapeDocValues shape,
         int precision,
         GeoHashBoundedPredicate predicate,
@@ -368,7 +368,7 @@ public class StGeohash extends SpatialGridFunction implements EvaluatorMapper, A
         final String stop = Geohash.stringEncode(shape.maxLon, shape.maxLat, precision);
         String firstInRow = null;
         String lastInRow = null;
-        do {
+        outer: do {
             lastInRow = (lastInRow == null)
                 ? Geohash.stringEncode(shape.maxLon, shape.minLat, precision)
                 : Geohash.getNeighbor(lastInRow, precision, 0, 1);
@@ -387,7 +387,7 @@ public class StGeohash extends SpatialGridFunction implements EvaluatorMapper, A
                         String msg = "ST_GEOHASH generated more than " + SpatialGridFunction.MAX_GRID_CELLS + " grid cells";
                         if (onTruncation != null) {
                             onTruncation.accept(msg);
-                            return true;
+                            break outer;
                         }
                         throw new IllegalArgumentException(msg);
                     }
@@ -395,7 +395,6 @@ public class StGeohash extends SpatialGridFunction implements EvaluatorMapper, A
                 }
             } while (current.equals(lastInRow) == false);
         } while (lastInRow.equals(stop) == false);
-        return false;
     }
 
     /**
@@ -403,7 +402,7 @@ public class StGeohash extends SpatialGridFunction implements EvaluatorMapper, A
      * adding cells that intersect the shape.
      * Adapted from {@code GeoHashGridTiler.setValuesByRasterization} in the spatial module.
      */
-    private static boolean rasterizeGeohash(
+    private static void rasterizeGeohash(
         GeoShapeDocValues shape,
         String hash,
         int precision,
@@ -418,19 +417,19 @@ public class StGeohash extends SpatialGridFunction implements EvaluatorMapper, A
                         String msg = "ST_GEOHASH generated more than " + SpatialGridFunction.MAX_GRID_CELLS + " grid cells";
                         if (onTruncation != null) {
                             onTruncation.accept(msg);
-                            return true;
+                            return;
                         }
                         throw new IllegalArgumentException(msg);
                     }
                     cells.add(Geohash.longEncode(sub));
                 } else {
-                    if (rasterizeGeohash(shape, sub, precision, predicate, cells, onTruncation)) {
-                        return true;
+                    rasterizeGeohash(shape, sub, precision, predicate, cells, onTruncation);
+                    if (cells.size() >= SpatialGridFunction.MAX_GRID_CELLS) {
+                        return;
                     }
                 }
             }
         }
-        return false;
     }
 
     /**

@@ -214,7 +214,7 @@ public class StGeotile extends SpatialGridFunction implements EvaluatorMapper, A
             GeoTileBoundedGrid.Factory bounds = new GeoTileBoundedGrid.Factory(precision, bbox);
             Source evalSource = source();
             Function<DriverContext, GeoShapeCellsComputer> shapeTilerFactory = ctx -> {
-                Warnings w = Warnings.createOnlyWarnings(ctx, evalSource);
+                Warnings w = ctx.createOnlyWarnings(evalSource);
                 return wkb -> computeGeotileCells(wkb, precision, bbox, w::registerWarning);
             };
             return spatialDocValues
@@ -233,7 +233,7 @@ public class StGeotile extends SpatialGridFunction implements EvaluatorMapper, A
             int precision = checkPrecisionRange((int) parameter.fold(toEvaluator.foldCtx()));
             Source evalSource = source();
             Function<DriverContext, GeoShapeCellsComputer> shapeTilerFactory = ctx -> {
-                Warnings w = Warnings.createOnlyWarnings(ctx, evalSource);
+                Warnings w = ctx.createOnlyWarnings(evalSource);
                 return wkb -> computeGeotileCells(wkb, precision, null, w::registerWarning);
             };
             return spatialDocValues
@@ -387,7 +387,7 @@ public class StGeotile extends SpatialGridFunction implements EvaluatorMapper, A
      * adding those that intersect the shape.
      * Adapted from {@code GeoTileGridTiler.setValuesByBruteForceScan} in the spatial module.
      */
-    private static boolean geotileBruteForceScan(
+    private static void geotileBruteForceScan(
         GeoShapeDocValues shape,
         int precision,
         int minXTile,
@@ -398,14 +398,14 @@ public class StGeotile extends SpatialGridFunction implements EvaluatorMapper, A
         List<Long> cells,
         Consumer<String> onTruncation
     ) throws IOException {
-        for (int x = minXTile; x <= maxXTile; x++) {
+        outer: for (int x = minXTile; x <= maxXTile; x++) {
             for (int y = minYTile; y <= maxYTile; y++) {
                 if (geotileCellIntersectsShape(shape, x, y, precision, predicate)) {
                     if (cells.size() >= SpatialGridFunction.MAX_GRID_CELLS) {
                         String msg = "ST_GEOTILE generated more than " + SpatialGridFunction.MAX_GRID_CELLS + " grid cells";
                         if (onTruncation != null) {
                             onTruncation.accept(msg);
-                            return true;
+                            break outer;
                         }
                         throw new IllegalArgumentException(msg);
                     }
@@ -413,14 +413,13 @@ public class StGeotile extends SpatialGridFunction implements EvaluatorMapper, A
                 }
             }
         }
-        return false;
     }
 
     /**
      * Recursively descends the geotile quadtree, adding cells that intersect the shape.
      * Adapted from {@code GeoTileGridTiler.setValuesByRasterization} in the spatial module.
      */
-    private static boolean rasterizeGeotile(
+    private static void rasterizeGeotile(
         GeoShapeDocValues shape,
         int xTile,
         int yTile,
@@ -441,20 +440,20 @@ public class StGeotile extends SpatialGridFunction implements EvaluatorMapper, A
                             String msg = "ST_GEOTILE generated more than " + SpatialGridFunction.MAX_GRID_CELLS + " grid cells";
                             if (onTruncation != null) {
                                 onTruncation.accept(msg);
-                                return true;
+                                return;
                             }
                             throw new IllegalArgumentException(msg);
                         }
                         cells.add(GeoTileUtils.longEncodeTiles(zTile, nextX, nextY));
                     } else {
-                        if (rasterizeGeotile(shape, nextX, nextY, zTile, precision, predicate, cells, onTruncation)) {
-                            return true;
+                        rasterizeGeotile(shape, nextX, nextY, zTile, precision, predicate, cells, onTruncation);
+                        if (cells.size() >= SpatialGridFunction.MAX_GRID_CELLS) {
+                            return;
                         }
                     }
                 }
             }
         }
-        return false;
     }
 
     /**

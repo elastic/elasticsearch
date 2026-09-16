@@ -61,6 +61,7 @@ import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.hasItem;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.instanceOf;
+import static org.hamcrest.Matchers.not;
 
 /**
  * Unit tests for analysis of external datasets reached via {@code FROM <dataset>}. All such analyzer tests belong
@@ -650,7 +651,7 @@ public class AnalyzerExternalTests extends ESTestCase {
         assertThat(e.getMessage(), containsString("Unresolved metadata pattern [emp_no]"));
     }
 
-    public void testIdPathPresentAndPhysicalIdCollidesSkipsBind() {
+    public void testPhysicalIdDoesNotOverrideDeclaredIdPath() {
         assumeTrue("requires dataset-in-FROM support", EsqlCapabilities.Cap.DATASET_IN_FROM_COMMAND.isEnabled());
 
         var leafOutput = externalLeafOutput(
@@ -659,9 +660,67 @@ public class AnalyzerExternalTests extends ESTestCase {
 
         List<Attribute> ids = leafOutput.stream().filter(a -> a.name().equals("_id")).toList();
         assertThat(ids, hasSize(1));
-        assertFalse(ids.get(0) instanceof ExternalMetadataAttribute);
-        assertEquals(LONG, ids.get(0).dataType());
-        assertTrue(leafOutput.stream().noneMatch(a -> ColumnExtractor.ROW_POSITION_COLUMN.equals(a.name())));
+        assertThat(ids.get(0), instanceOf(ExternalMetadataAttribute.class));
+        assertEquals(KEYWORD, ids.get(0).dataType());
+        assertTrue(leafOutput.stream().anyMatch(a -> a.name().equals("first_name")));
+        assertWarnings(Analyzer.shadowedExternalColumnsWarning(DATASET_NAME, List.of("_id")));
+    }
+
+    public void testIdPathTypoWithPhysicalIdRejected() {
+        assumeTrue("requires dataset-in-FROM support", EsqlCapabilities.Cap.DATASET_IN_FROM_COMMAND.isEnabled());
+
+        Exception e = expectThrows(
+            Exception.class,
+            () -> analyzeDataset(externalCollision(), S3_PATH, "FROM " + DATASET_NAME + " METADATA _id", mappingWithIdPath("typo_col"))
+        );
+        assertThat(e.getMessage(), containsString("no such column exists in the dataset's schema"));
+        assertThat(e.getMessage(), containsString("typo_col"));
+    }
+
+    public void testIdPathFilePathWithPhysicalIdBindsEngineId() {
+        assumeTrue("requires dataset-in-FROM support", EsqlCapabilities.Cap.DATASET_IN_FROM_COMMAND.isEnabled());
+
+        var leafOutput = externalLeafOutput(
+            analyzeDataset(
+                externalCollision(),
+                S3_PATH,
+                "FROM " + DATASET_NAME + " METADATA _id, _file.path",
+                mappingWithIdPath(FileMetadataColumns.PATH)
+            )
+        );
+
+        Attribute id = leafOutput.stream().filter(a -> a.name().equals(ExternalMetadataColumns.ID)).findFirst().orElseThrow();
+        assertThat(id, instanceOf(ExternalMetadataAttribute.class));
+        assertEquals(KEYWORD, id.dataType());
+
+        List<Attribute> paths = leafOutput.stream().filter(a -> a.name().equals(FileMetadataColumns.PATH)).toList();
+        assertThat(paths, hasSize(1));
+        assertFalse(paths.get(0) instanceof ExternalMetadataAttribute);
+
+        assertWarnings(Analyzer.shadowedExternalColumnsWarning(DATASET_NAME, List.of("_id")));
+    }
+
+    public void testMetadataOrdinaryColumnIsUnresolvedPattern() {
+        assumeTrue("requires dataset-in-FROM support", EsqlCapabilities.Cap.DATASET_IN_FROM_COMMAND.isEnabled());
+
+        datasetError(
+            external(),
+            S3_PATH,
+            "FROM " + DATASET_NAME + " METADATA emp_no",
+            containsString("Unresolved metadata pattern [emp_no]")
+        );
+    }
+
+    public void testShadowWarningOmitsMappingAdviceWhenDatasetIsNull() {
+        String warning = Analyzer.shadowedExternalColumnsWarning(null, List.of(FileMetadataColumns.SIZE));
+        assertThat(warning, containsString("this source"));
+        assertThat(warning, not(containsString("dataset mapping")));
+    }
+
+    public void testShadowWarningIncludesMappingAdviceForDataset() {
+        String warning = Analyzer.shadowedExternalColumnsWarning(DATASET_NAME, List.of("_id"));
+        assertThat(warning, containsString("dataset [" + DATASET_NAME + "]"));
+        assertThat(warning, containsString("dataset mapping"));
     }
 
     public void testIdPathNamesFilePathSkipsFilePathBind() {

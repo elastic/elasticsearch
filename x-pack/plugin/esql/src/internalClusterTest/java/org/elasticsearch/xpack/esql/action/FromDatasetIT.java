@@ -5620,6 +5620,84 @@ public class FromDatasetIT extends AbstractExternalDataSourceIT {
         }
     }
 
+    public void testIdPathStampsFromDeclaredColumnDespitePhysicalIdHeader() throws Exception {
+        Path fixture = createTempFile("collision-id-path-", ".csv");
+        Files.writeString(
+            fixture,
+            String.join("\n", "_id:keyword,emp_no:integer,first_name:keyword", "row-a,1,Alice", "row-b,2,Bob", "row-c,3,Carol") + "\n"
+        );
+        DatasetMapping mapping = new DatasetMapping(
+            new DatasetMapping.Mappings(DatasetMapping.Dynamic.TRUE, new LinkedHashMap<>(), "first_name")
+        );
+        assertAcked(client().execute(PutDataSourceAction.INSTANCE, putDataSourceRequest("local_ds", Map.of())));
+        assertAcked(
+            client().execute(
+                PutDatasetAction.INSTANCE,
+                new PutDatasetAction.Request(
+                    TIMEOUT,
+                    TIMEOUT,
+                    "collision_id_path",
+                    "local_ds",
+                    fixture.toUri().toString(),
+                    null,
+                    new HashMap<>(Map.of("format", "csv")),
+                    mapping
+                )
+            )
+        );
+
+        try (
+            var response = run(
+                syncEsqlQueryRequest("FROM collision_id_path METADATA _id | KEEP _id, first_name | SORT first_name"),
+                TIMEOUT
+            )
+        ) {
+            List<String> names = response.columns().stream().map(ColumnInfo::name).toList();
+            int idIdx = names.indexOf("_id");
+            int nameIdx = names.indexOf("first_name");
+            List<List<Object>> rows = getValuesList(response);
+            assertThat(rows, hasSize(3));
+            for (List<Object> row : rows) {
+                assertThat("_id is stamped from first_name, not the file _id header", row.get(idIdx), equalTo(row.get(nameIdx)));
+            }
+            assertThat(rows.get(0).get(nameIdx).toString(), equalTo("Alice"));
+        }
+    }
+
+    public void testIdPathTypoWithPhysicalIdHeaderRejected() throws Exception {
+        Path fixture = createTempFile("collision-id-typo-", ".csv");
+        Files.writeString(
+            fixture,
+            String.join("\n", "_id:keyword,emp_no:integer,first_name:keyword", "row-a,1,Alice", "row-b,2,Bob", "row-c,3,Carol") + "\n"
+        );
+        DatasetMapping mapping = new DatasetMapping(
+            new DatasetMapping.Mappings(DatasetMapping.Dynamic.TRUE, new LinkedHashMap<>(), "no_such_column")
+        );
+        assertAcked(client().execute(PutDataSourceAction.INSTANCE, putDataSourceRequest("local_ds", Map.of())));
+        assertAcked(
+            client().execute(
+                PutDatasetAction.INSTANCE,
+                new PutDatasetAction.Request(
+                    TIMEOUT,
+                    TIMEOUT,
+                    "collision_id_typo",
+                    "local_ds",
+                    fixture.toUri().toString(),
+                    null,
+                    new HashMap<>(Map.of("format", "csv")),
+                    mapping
+                )
+            )
+        );
+
+        Exception e = expectThrows(
+            Exception.class,
+            () -> run(syncEsqlQueryRequest("FROM collision_id_typo METADATA _id | KEEP _id, emp_no | LIMIT 5"), TIMEOUT).close()
+        );
+        assertThat(e.getMessage(), containsString("no_such_column"));
+        assertThat(e.getMessage(), containsString("_id"));
+    }
+
     public void testIdFromRenamedColumn() throws Exception {
         assertAcked(client().execute(PutDataSourceAction.INSTANCE, putDataSourceRequest("local_ds", Map.of())));
         // The id-source is a LOGICAL name: declare uid as a rename of the physical first_name column and point

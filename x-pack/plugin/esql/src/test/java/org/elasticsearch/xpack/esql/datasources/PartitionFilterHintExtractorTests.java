@@ -466,6 +466,35 @@ public class PartitionFilterHintExtractorTests extends ESTestCase {
         assertEquals(Operator.EQUALS, hints.get(0).operator());
     }
 
+    public void testUnboundFileSizeInHintIsNotExtracted() {
+        Expression sizeFilter = new In(SRC, unresolved(FileMetadataColumns.SIZE), List.of(intLiteral(10), intLiteral(100)));
+
+        assertTrue(
+            "no METADATA clause: an IN predicate on storage size is not a listing hint",
+            PartitionFilterHintExtractor.extract(filterAboveExternal(sizeFilter, PATH)).isEmpty()
+        );
+    }
+
+    public void testFilePathInHintOmittedWhenIdPathAndIdRequested() {
+        Expression pathFilter = new In(
+            SRC,
+            unresolved(FileMetadataColumns.PATH),
+            List.of(keywordLiteral("s3://b/a.parquet"), keywordLiteral("s3://b/b.parquet"))
+        );
+        UnresolvedExternalRelation rel = relationWithMetadata(
+            PATH,
+            mappingWithIdPath(FileMetadataColumns.PATH),
+            ExternalMetadataColumns.ID,
+            FileMetadataColumns.PATH
+        );
+        LogicalPlan plan = new Filter(SRC, rel, pathFilter);
+
+        assertTrue(
+            "physical _file.path survives for the reader; listing must not prune by storage path",
+            PartitionFilterHintExtractor.extract(plan).isEmpty()
+        );
+    }
+
     public void testFileSizeHintKeptWhenIdPathIsFilePath() {
         Expression sizeFilter = new GreaterThan(SRC, unresolved(FileMetadataColumns.SIZE), intLiteral(100));
         UnresolvedExternalRelation rel = relationWithMetadata(

@@ -12,7 +12,6 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.expression.AttributeSet;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
-import org.elasticsearch.xpack.esql.core.expression.MetadataAttribute;
 import org.elasticsearch.xpack.esql.core.expression.NameId;
 import org.elasticsearch.xpack.esql.datasources.spi.ExternalSourceFactory;
 import org.elasticsearch.xpack.esql.datasources.spi.ExternalSplit;
@@ -401,13 +400,8 @@ public final class SplitDiscoveryPhase {
         FileList fileList = exec.fileList();
         PartitionMetadata partitionInfo = fileList != null ? fileList.partitionMetadata() : null;
 
-        List<Attribute> queryDataAttributes = new ArrayList<>(exec.output().size());
-        for (Attribute attr : exec.output()) {
-            if (attr instanceof MetadataAttribute == false) {
-                queryDataAttributes.add(attr);
-            }
-        }
-        ExternalSchema querySchema = new ExternalSchema(queryDataAttributes);
+        // Partition columns must survive: buildFileTasks strips them separately via stripPartitionColumns.
+        ExternalSchema querySchema = ExternalSchema.dataAttributesOf(exec.output());
 
         // Bind filter hints to the relation's output by NameId, not by name. A downstream EVAL/DISSECT/GROK/ENRICH can
         // introduce an attribute that SHARES A NAME with a partition column (e.g. `EVAL year = ...`) whose filter
@@ -458,13 +452,8 @@ public final class SplitDiscoveryPhase {
         FileList fileList = exec.fileList();
         PartitionMetadata partitionInfo = fileList != null ? fileList.partitionMetadata() : null;
 
-        List<Attribute> queryDataAttributes = new ArrayList<>(exec.output().size());
-        for (Attribute attr : exec.output()) {
-            if (attr instanceof MetadataAttribute == false) {
-                queryDataAttributes.add(attr);
-            }
-        }
-        ExternalSchema querySchema = new ExternalSchema(queryDataAttributes);
+        // Partition columns must survive: buildFileTasks strips them separately via stripPartitionColumns.
+        ExternalSchema querySchema = ExternalSchema.dataAttributesOf(exec.output());
         List<Expression> boundFilters = filtersBoundToOutput(ancestorFilters, exec.output());
 
         SplitDiscoveryContext context = new SplitDiscoveryContext(

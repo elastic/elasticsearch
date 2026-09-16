@@ -1545,7 +1545,9 @@ public class AsyncExternalSourceOperatorFactory implements SourceOperator.Source
         // Stamp how THIS file is read, from the split's own coordinator-minted schema. Deliberately not from the
         // schema handed to the reader below: that one is physicalized and narrowed to the per-file projection, so a
         // value derived from it would not match the coordinator's.
-        FormatReader reader = readerForMapping(fileSplit.columnMapping()).withReadConfig(
+        // Filter adaptation uses the query-width mapping. An empty queryDataSchema (COUNT(*),
+        // metadata-only) skips adaptSchema and must not hand mapFilters a unified-width mapping.
+        FormatReader reader = readerForMapping(queryDataSchema.isEmpty() ? null : fileSplit.columnMapping()).withReadConfig(
             readConfigFingerprinter.apply(fileSplit.readSchema())
         );
         return wrapForObject(reader, fileSplit.path().objectName());

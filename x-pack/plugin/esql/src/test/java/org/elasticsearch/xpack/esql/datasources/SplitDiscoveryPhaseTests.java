@@ -15,6 +15,7 @@ import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.ExternalMetadataAttribute;
 import org.elasticsearch.xpack.esql.core.expression.FieldAttribute;
 import org.elasticsearch.xpack.esql.core.expression.Literal;
+import org.elasticsearch.xpack.esql.core.expression.MetadataAttribute;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.core.type.EsField;
@@ -619,6 +620,51 @@ public class SplitDiscoveryPhaseTests extends ESTestCase {
         assertEquals(expected, recorder.lastContext.metadataColumnNames());
     }
 
+    /**
+     * {@link ExternalMetadataAttribute} extends {@code TypedAttribute}, not the final
+     * {@code MetadataAttribute}, so an {@code instanceof MetadataAttribute} test lets every bound
+     * metadata column through. Discovery would then count the name as a projected data column and
+     * narrow per-file mappings against a column the reader never produces in the data channel.
+     */
+    public void testQuerySchemaExcludesBoundMetadataColumns() {
+        ExternalSourceExec exec = createExternalSourceExec(createFileList(1), "parquet").withAttributes(
+            List.of(
+                fieldAttr("id", DataType.LONG),
+                new ExternalMetadataAttribute(SRC, FileMetadataColumns.PATH, DataType.KEYWORD),
+                new MetadataAttribute(SRC, "_index", DataType.KEYWORD, false),
+                fieldAttr("year", DataType.INTEGER)
+            )
+        );
+        RecordingSplitProvider recorder = new RecordingSplitProvider();
+        Map<String, ExternalSourceFactory> factories = Map.of("parquet", testFactory(recorder));
+
+        SplitDiscoveryPhase.resolveExternalSplits(exec, factories);
+
+        // `year` survives: buildFileTasks strips partition columns separately, via stripPartitionColumns.
+        assertEquals(List.of("id", "year"), schemaNames(recorder.lastContext));
+
+        recorder.lastContext = null;
+        discoverAsync(exec, factories);
+        assertEquals(List.of("id", "year"), schemaNames(recorder.lastContext));
+    }
+
+    /**
+     * A query that projects only metadata leaves no data columns, which is the same shape
+     * {@code COUNT(*)} already produces: the prune is skipped and {@code adaptSchema} short-circuits
+     * on the empty query schema rather than the reader widening to every column.
+     */
+    public void testMetadataOnlyProjectionYieldsEmptyQuerySchema() {
+        ExternalSourceExec exec = createExternalSourceExec(createFileList(2), "parquet").withAttributes(
+            List.of(new ExternalMetadataAttribute(SRC, "_index", DataType.KEYWORD))
+        );
+        RecordingSplitProvider recorder = new RecordingSplitProvider();
+        Map<String, ExternalSourceFactory> factories = Map.of("parquet", testFactory(recorder));
+
+        SplitDiscoveryPhase.resolveExternalSplits(exec, factories);
+
+        assertTrue(recorder.lastContext.querySchema().isEmpty());
+    }
+
     public void testNoFiltersWhenNoFilterExecInPlan() {
         FileList fileList = createFileList(2);
         ExternalSourceExec exec = createExternalSourceExec(fileList, "parquet");
@@ -766,6 +812,24 @@ public class SplitDiscoveryPhaseTests extends ESTestCase {
     /** The output attribute named {@code name} on {@code exec} — used to build filters whose reference id matches the relation output. */
     private static Attribute outputAttr(ExternalSourceExec exec, String name) {
         return exec.output().stream().filter(a -> a.name().equals(name)).findFirst().orElseThrow();
+    }
+
+    private static List<String> schemaNames(SplitDiscoveryContext context) {
+        return context.querySchema().attributes().stream().map(Attribute::name).toList();
+    }
+
+    private static void discoverAsync(PhysicalPlan plan, Map<String, ExternalSourceFactory> factories) {
+        PlainActionFuture<SplitDiscoveryPhase.Result> future = new PlainActionFuture<>();
+        SplitDiscoveryPhase.resolveExternalSplitsWithStatsAsync(
+            plan,
+            factories,
+            SegmentableFormatReader.DEFAULT_MAX_RECORD_BYTES,
+            () -> false,
+            List.of(),
+            EsExecutors.DIRECT_EXECUTOR_SERVICE,
+            future
+        );
+        future.actionGet(30, TimeUnit.SECONDS);
     }
 
     private static Attribute fieldAttr(String name, DataType type) {

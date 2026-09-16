@@ -15,18 +15,14 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.collect.Iterators;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.common.xcontent.ChunkedToXContentObject;
-import org.elasticsearch.indices.recovery.RecoveryState;
 import org.elasticsearch.xcontent.ToXContent;
 
 import java.io.IOException;
-import java.util.ArrayList;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
-import java.util.stream.Collectors;
 
 /**
  * Information regarding the recovery state of indices and their associated shards.
@@ -65,11 +61,8 @@ public class RecoveryResponse extends BaseBroadcastResponse implements ChunkedTo
         return shardRecoveryInfos.isEmpty() == false;
     }
 
-    public Map<String, List<RecoveryState>> shardRecoveryStates() {
-        return Maps.transformValues(
-            shardRecoveryInfos,
-            infos -> infos.stream().map(ShardRecoveryInfo::recoveryState).collect(Collectors.toCollection(ArrayList::new))
-        );
+    public Map<String, List<ShardRecoveryInfo>> shardRecoveryInfos() {
+        return shardRecoveryInfos;
     }
 
     @Override

@@ -114,6 +114,7 @@ public class Match extends SingleFieldFullTextFunction implements OptionalArgume
             "runtime_options",
             "runtime_analyzer",
             "runtime_score",
+            "runtime_anywhere",
             "to_text_on_indexed_field_fix",
             "to_string_on_indexed_field_fix"
         )

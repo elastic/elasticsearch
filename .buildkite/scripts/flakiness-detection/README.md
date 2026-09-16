@@ -283,7 +283,7 @@ The report annotation, the console output and `flakiness-outcomes.json` are iden
 The exit comes last, after the artifact and the annotation are written, and Buildkite uploads `artifact_paths` regardless of exit status, so a red run still publishes everything that explains it.
 
 Two caveats.
-Buildkite captures `GITHUB_PR_LABELS` when the build is created, so labelling an open PR takes effect on its next build - the same behaviour `allow-labels` has in `.buildkite/scripts/pull-request/pipeline.ts`.
+Buildkite captures `GITHUB_PR_LABELS` when the build is created, so labelling an open PR takes effect on its next build.
 And the manually-triggered pipeline has no PR, hence no labels, so it is never blocking.
 
 ## File layout

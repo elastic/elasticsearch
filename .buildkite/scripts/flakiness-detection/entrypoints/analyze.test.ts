@@ -115,11 +115,6 @@ describe("provenFlakinessJobs", () => {
     expect(provenFlakinessJobs(payloads)).toHaveLength(2);
   });
 
-  /**
-   * The false failures the outcome taxonomy exists to separate. If any of these could fail the step, an
-   * opted-in team would be blocked by agent trouble rather than by its own tests, which is exactly the
-   * experience that made the pipeline non-blocking in the first place.
-   */
   test("no other outcome qualifies, including a timeout with no failing test", () => {
     const payloads = [
       { outcome: "timeout" },
@@ -135,7 +130,6 @@ describe("provenFlakinessJobs", () => {
     expect(provenFlakinessJobs([buildFailedPayload()])).toEqual([]);
   });
 
-  /** A job that timed out *with* a real failure has proven flakiness, so it counts. */
   test("a proven failure alongside an unrelated timeout still counts", () => {
     expect(provenFlakinessJobs([{ outcome: "timeout" }, { outcome: "flaky_detected" }])).toHaveLength(1);
   });
@@ -157,7 +151,7 @@ describe("shouldBlock", () => {
   test("a proven failure on a PR that did not opt in is reported, not blocked", () => {
     // The default for the whole repo: the report and the outcomes artifact are identical either way, only
     // the exit code differs.
-    expect(shouldBlock(PROVEN, ">bug,Team:Search")).toBe(false);
+    expect(shouldBlock(PROVEN, ">bug,Team:NotIncludedTeam")).toBe(false);
   });
 
   test("an opted-in PR with nothing proven still passes", () => {

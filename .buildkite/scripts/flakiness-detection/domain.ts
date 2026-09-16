@@ -232,10 +232,6 @@ export const DEFAULT_AGENT_CONFIG: AgentConfig = {
 
 /**
  * PR labels that make flakiness detection blocking. A team opts in by adding its GitHub label here.
- *
- * The label format is the one the FIPS pipelines already use for `allow-labels`: "Team:Security", no
- * space after the colon. A typo means "never blocking", which fails in the safe direction but silently;
- * nothing in the build can validate an entry against GitHub's label list.
  */
 export const BLOCKING_LABELS: readonly string[] = ["Team:Core/Infra"];
 
@@ -259,9 +255,8 @@ export const FLAKINESS_PROVEN_EXIT_CODE = 42;
  * PR, which is the one thing a blocked developer needs in order to disagree with it.
  *
  * Matching is exact, as in .buildkite/scripts/pull-request/pipeline.ts. Buildkite captures the variable
- * when the build is created, so labelling an open PR takes effect on its next build - the same caveat
- * `allow-labels` carries. The manually-triggered pipeline has no PR and therefore no labels, so it is
- * never blocking.
+ * when the build is created, so labelling an open PR takes effect on its next build.
+ * The manually-triggered pipeline has no PR and therefore no labels, so it is never blocking.
  */
 export function matchedBlockingLabels(labels: string): string[] {
   return labels

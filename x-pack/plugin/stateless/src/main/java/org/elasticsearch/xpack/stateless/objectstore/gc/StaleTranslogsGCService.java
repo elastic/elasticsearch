@@ -25,12 +25,15 @@ import org.elasticsearch.xpack.stateless.cluster.coordination.TransportConsisten
 import org.elasticsearch.xpack.stateless.objectstore.ObjectStoreService;
 
 import java.io.IOException;
+import java.util.Collections;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.Map;
 import java.util.Set;
 import java.util.function.Supplier;
 import java.util.stream.Collectors;
+
+import static org.elasticsearch.core.Strings.format;
 
 public class StaleTranslogsGCService {
     private final Logger logger = LogManager.getLogger(StaleTranslogsGCService.class);
@@ -134,17 +137,26 @@ public class StaleTranslogsGCService {
                 }
                 Set<String> staleFiles = staleEphemeralIdsFiles.get(staleEphemeralId);
                 try {
-                    logger.debug("Translog GC deleting stale node ephemeral ID [{}] files {}", staleEphemeralId, staleFiles);
                     objectStoreService.get()
                         .getTranslogBlobContainer(staleEphemeralId)
                         .deleteBlobsIgnoringIfNotExists(OperationPurpose.TRANSLOG, staleFiles.iterator());
+                    // Recorded once per node per pass rather than per file: a recovery reads translog from a generation named in
+                    // the commit it starts from, so the range that has been reclaimed is what tells us whether it could have.
+                    logger.info(
+                        "Translog GC deleted [{}] stale files for node ephemeral ID [{}], generations [{}] to [{}]",
+                        staleFiles.size(),
+                        staleEphemeralId,
+                        Collections.min(staleFiles),
+                        Collections.max(staleFiles)
+                    );
                 } catch (IOException e) {
-                    logger.debug(
-                        "Unable to delete stale node ephemeral ID container ["
-                            + staleEphemeralId
-                            + "] files ["
-                            + staleFiles
-                            + "] from the object store. It will be deleted eventually",
+                    logger.warn(
+                        () -> format(
+                            "Unable to delete [%d] stale files for node ephemeral ID [%s] from the object store. "
+                                + "They will be deleted eventually",
+                            staleFiles.size(),
+                            staleEphemeralId
+                        ),
                         e
                     );
                 }

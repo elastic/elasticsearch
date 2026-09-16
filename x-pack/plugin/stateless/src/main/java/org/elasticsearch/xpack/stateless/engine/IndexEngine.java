@@ -883,7 +883,6 @@ public class IndexEngine extends InternalEngine {
         long translogRecoveryStartFile = indexDirectory.getTranslogRecoveryStartFile();
 
         if (nodeEphemeralId.isPresent()) {
-            logger.debug("new translog snapshot seqnos [{}]-[{}] and node ephemeral id [{}]", fromSeqNo, toSeqNo, nodeEphemeralId.get());
             BlobContainer translogBlobContainer = this.translogBlobContainer.apply(nodeEphemeralId.get());
             TranslogReplicatorReader reader = new TranslogReplicatorReader(
                 translogBlobContainer,

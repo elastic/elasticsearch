@@ -333,7 +333,7 @@ public class TranslogReplicatorReader implements Translog.Snapshot {
         logger.log(
             translogReplayTime.compareTo(SIXTY_SECONDS_SLOW_RECOVERY_THRESHOLD) >= 0 ? Level.WARN : Level.INFO,
             "[{}] stateless translog recovery [translogReplayTime={}, translogContainer={}, translogRecoveryStartFile={}, "
-                + "fromSeqNo={}, blobsToRead_count={}, blobsToRead_first={}, blobsToRead_last={}, networkTime={}, "
+                + "fromSeqNo={}, toSeqNo={}, blobsToRead_count={}, blobsToRead_first={}, blobsToRead_last={}, networkTime={}, "
                 + "blobsToRead_bytes={}, filesWithShardOperations={}, operationsRead={}, operationBytesRead={}, "
                 + "indexOperationsProcessed={}, indexOperationsWithIdProcessed={}, deleteOperationsProcessed={}, "
                 + "noOpOperationsProcessed={}, unreferencedBlobCount={}, unreferencedBlobSizeInBytes={}]",
@@ -342,6 +342,7 @@ public class TranslogReplicatorReader implements Translog.Snapshot {
             translogBlobContainer.path(),
             translogRecoveryStartFile,
             fromSeqNo,
+            toSeqNo,
             blobCount,
             blobCount > 0 ? blobsToRead.get(0).name() : "N/A",
             blobCount > 0 ? blobsToRead.get(blobCount - 1).name() : "N/A",

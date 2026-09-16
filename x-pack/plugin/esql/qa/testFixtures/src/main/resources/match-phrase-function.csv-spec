@@ -864,6 +864,36 @@ book_no:keyword | author:text
 5119            | William Faulkner
 ;
 
+matchPhraseOnToStringOverIndexedTextFieldIsExact
+required_capability: match_phrase_function
+required_capability: fn_match_phrase_to_string_on_indexed_field_fix
+
+// Mirror-image bug of matchPhraseOnToTextOverIndexedKeywordField: TO_STRING over a normal
+// mapped text field (author) must be matched as exact, unanalyzed keyword text. "Holly Byers" is a
+// consecutive substring of "Holly Byers Ochoa" (one value of book 2378's multi-valued author), never the
+// WHOLE value, so nothing should match, unlike an analyzed phrase match.
+FROM books
+| WHERE MATCH_PHRASE(TO_STRING(author), "Holly Byers")
+| KEEP book_no, author
+;
+
+book_no:keyword | author:text
+;
+
+matchPhraseOnToStringOverIndexedTextFieldViaEvalAlias
+required_capability: match_phrase_function
+required_capability: fn_match_phrase_to_string_on_indexed_field_fix
+
+// The EVAL-alias form of matchPhraseOnToStringOverIndexedTextFieldIsExact must agree with the inline form.
+FROM books
+| EVAL a = TO_STRING(author)
+| WHERE MATCH_PHRASE(a, "Holly Byers")
+| KEEP book_no, author
+;
+
+book_no:keyword | author:text
+;
+
 matchPhraseOnTextWithRow
 required_capability: match_phrase_function
 required_capability: fn_match_phrase_runtime_filter

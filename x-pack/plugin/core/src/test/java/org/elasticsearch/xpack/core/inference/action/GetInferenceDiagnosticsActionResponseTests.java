@@ -7,7 +7,6 @@
 
 package org.elasticsearch.xpack.core.inference.action;
 
-import org.apache.http.pool.PoolStats;
 import org.elasticsearch.TransportVersion;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.node.DiscoveryNodeUtils;
@@ -37,8 +36,8 @@ public class GetInferenceDiagnosticsActionResponseTests extends AbstractBWCWireS
 
     public void testToXContent() throws IOException {
         var node = DiscoveryNodeUtils.create("id");
-        var externalPoolStats = new PoolStats(1, 2, 3, 4);
-        var eisPoolStats = new PoolStats(5, 6, 7, 8);
+        var externalPoolStats = GetInferenceDiagnosticsAction.NodeResponse.ConnectionPoolStats.of(1, 2, 3, 4);
+        var eisPoolStats = GetInferenceDiagnosticsAction.NodeResponse.ConnectionPoolStats.of(5, 6, 7, 8);
         var entity = new GetInferenceDiagnosticsAction.Response(
             ClusterName.DEFAULT,
             List.of(

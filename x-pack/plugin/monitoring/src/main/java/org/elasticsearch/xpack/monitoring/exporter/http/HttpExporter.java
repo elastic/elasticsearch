@@ -13,7 +13,6 @@ import org.apache.http.auth.UsernamePasswordCredentials;
 import org.apache.http.client.CredentialsProvider;
 import org.apache.http.impl.client.BasicCredentialsProvider;
 import org.apache.http.message.BasicHeader;
-import org.apache.http.nio.conn.ssl.SSLIOSessionStrategy;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.Version;
@@ -522,7 +521,7 @@ public class HttpExporter extends Exporter {
     /**
      * Adds a validator for the {@link #SSL_SETTING} to prevent dynamic updates when secure settings also exist within that setting
      * groups (ssl context).
-     * Because it is not possible to re-read the secure settings during a dynamic update, we cannot rebuild the {@link SSLIOSessionStrategy}
+     * Because it is not possible to re-read the secure settings during a dynamic update, we cannot rebuild the SSL profile
      * (see {@link #configureSecurity(RestClientBuilder, Config, SSLService)} if this exporter has been configured with secure settings
      */
     public static void registerSettingValidators(ClusterService clusterService, SSLService sslService) {
@@ -530,12 +529,12 @@ public class HttpExporter extends Exporter {
             // no-op update. We only care about the validator
         }, (key, settings) -> {
             validateSslSettings(key, settings);
-            configureSslStrategy(settings, null, sslService);
+            configureSslProfile(settings, null, sslService);
         });
     }
 
     /**
-     * Validates that secure settings are not being used to rebuild the {@link SSLIOSessionStrategy}.
+     * Validates that secure settings are not being used to rebuild the SSL profile.
      *
      * @param exporter Name of the exporter to validate
      * @param settings Settings for the exporter
@@ -721,7 +720,7 @@ public class HttpExporter extends Exporter {
     private static void configureSecurity(final RestClientBuilder builder, final Config config, final SSLService sslService) {
         final Setting<Settings> concreteSetting = SSL_SETTING.getConcreteSettingForNamespace(config.name());
         final Settings sslSettings = concreteSetting.get(config.settings());
-        final SSLIOSessionStrategy sslStrategy = configureSslStrategy(sslSettings, concreteSetting, sslService);
+        final SslProfile sslProfile = configureSslProfile(sslSettings, concreteSetting, sslService);
         final CredentialsProvider credentialsProvider = createCredentialsProvider(config);
         List<String> hostList = HOST_SETTING.getConcreteSettingForNamespace(config.name()).get(config.settings());
         // sending credentials in plaintext!
@@ -732,37 +731,34 @@ public class HttpExporter extends Exporter {
             );
         }
 
-        if (sslStrategy != null) {
-            builder.setHttpClientConfigCallback(new SecurityHttpClientConfigCallback(sslStrategy, credentialsProvider));
+        if (sslProfile != null) {
+            builder.setHttpClientConfigCallback(
+                new SecurityHttpClientConfigCallback(sslProfile.sslContext(), sslProfile.hostnameVerifier(), credentialsProvider)
+            );
         }
     }
 
     /**
-     * Configures the {@link SSLIOSessionStrategy} to use. Relies on {@link #registerSettingValidators(ClusterService, SSLService)}
-     * to prevent invalid usage of secure settings in the SSL strategy.
+     * Configures the {@link SslProfile} to use. Relies on {@link #registerSettingValidators(ClusterService, SSLService)}
+     * to prevent invalid usage of secure settings in the SSL profile.
      * @param sslSettings The exporter's SSL settings
      * @param concreteSetting Settings to use for {@link SslConfiguration} if secure settings are used
      * @param sslService The SSL Service used to create the SSL Context necessary for TLS / SSL communication
-     * @return Appropriately configured instance of {@link SSLIOSessionStrategy}
+     * @return Appropriately configured {@link SslProfile}, or {@code null} if only used for validation
      */
-    private static SSLIOSessionStrategy configureSslStrategy(
+    private static SslProfile configureSslProfile(
         final Settings sslSettings,
         final Setting<Settings> concreteSetting,
         final SSLService sslService
     ) {
-        final SSLIOSessionStrategy sslStrategy;
-        if (SSLConfigurationSettings.withoutPrefix(true).getSecureSettingsInUse(sslSettings).isEmpty()) {
-            // This configuration does not use secure settings, so it is possible that is has been dynamically updated.
-            // We need to load a new SSL strategy in case these settings differ from the ones that the SSL service was configured with.
-            sslStrategy = sslService.sslIOSessionStrategy(sslSettings);
-        } else {
-            // This configuration uses secure settings. We cannot load a new SSL strategy, as the secure settings have already been closed.
-            // Due to #registerSettingValidators we know that the settings not been dynamically updated, and the pre-configured strategy
-            // is still the correct configuration for use in this exporter.
-            final SslProfile profile = sslService.profile(concreteSetting.getKey());
-            sslStrategy = profile.ioSessionStrategy();
+        if (concreteSetting == null) {
+            // Validation only - load the configuration to verify settings are parseable
+            sslService.sslConfiguration(sslSettings);
+            return null;
         }
-        return sslStrategy;
+        // Use the pre-configured profile for this exporter. When secure settings are not in use, the profile may be
+        // dynamically updated via SSLConfigurationReloader when certificate files change.
+        return sslService.profile(concreteSetting.getKey());
     }
 
     /**

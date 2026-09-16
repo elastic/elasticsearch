@@ -23,7 +23,6 @@ import org.elasticsearch.rest.action.RestToXContentListener;
 
 import java.io.IOException;
 import java.util.List;
-import java.util.Map;
 import java.util.Set;
 
 import static org.elasticsearch.rest.RestRequest.Method.POST;
@@ -66,19 +65,6 @@ public class RestPutMappingAction extends BaseRestHandler {
     @Override
     public Set<String> supportedCapabilities() {
         return Set.of(REJECT_RUNTIME_FIELD_SHADOWING_SORT_FIELD);
-    }
-
-    private static Map<String, Object> prepareV7Mappings(boolean includeTypeName, Map<String, Object> mappings) {
-        if (includeTypeName && mappings != null && mappings.size() == 1) {
-            String typeName = mappings.keySet().iterator().next();
-            if (Strings.hasText(typeName) == false) {
-                throw new IllegalArgumentException("name cannot be empty string");
-            }
-            @SuppressWarnings("unchecked")
-            Map<String, Object> typelessMappings = (Map<String, Object>) mappings.get(typeName);
-            return typelessMappings;
-        }
-        return mappings;
     }
 
 }

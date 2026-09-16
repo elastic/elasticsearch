@@ -105,9 +105,6 @@ tests:
   issue: https://github.com/elastic/elasticsearch/issues/159147
 - class: org.elasticsearch.xpack.ilm.actions.RolloverActionIT
   issue: https://github.com/elastic/elasticsearch/issues/159148
-- class: org.elasticsearch.xpack.inference.InferenceRestIT
-  method: test {p0=inference/30_semantic_text_inference_bwc/Calculates embeddings using the default ELSER 2 endpoint}
-  issue: https://github.com/elastic/elasticsearch/issues/159158
 - class: org.elasticsearch.xpack.esql.heap_attack.ManyRequestsIT
   method: testCancelTailRequest
   issue: https://github.com/elastic/elasticsearch/issues/153203

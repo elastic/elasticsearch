@@ -9,15 +9,20 @@
 
 package org.elasticsearch.workloadidentity;
 
-import org.apache.http.HttpHeaders;
-import org.apache.http.HttpResponse;
-import org.apache.http.client.config.RequestConfig;
-import org.apache.http.client.methods.HttpPost;
-import org.apache.http.concurrent.FutureCallback;
-import org.apache.http.entity.ByteArrayEntity;
-import org.apache.http.entity.ContentType;
-import org.apache.http.impl.nio.client.CloseableHttpAsyncClient;
-import org.apache.http.util.EntityUtils;
+import org.apache.hc.client5.http.async.methods.AbstractBinResponseConsumer;
+import org.apache.hc.client5.http.async.methods.SimpleHttpResponse;
+import org.apache.hc.client5.http.async.methods.SimpleRequestBuilder;
+import org.apache.hc.client5.http.async.methods.SimpleRequestProducer;
+import org.apache.hc.client5.http.config.RequestConfig;
+import org.apache.hc.client5.http.impl.async.CloseableHttpAsyncClient;
+import org.apache.hc.client5.http.protocol.HttpClientContext;
+import org.apache.hc.core5.concurrent.FutureCallback;
+import org.apache.hc.core5.http.ContentType;
+import org.apache.hc.core5.http.HttpException;
+import org.apache.hc.core5.http.HttpHeaders;
+import org.apache.hc.core5.http.HttpResponse;
+import org.apache.hc.core5.http.nio.AsyncResponseConsumer;
+import org.apache.hc.core5.util.Timeout;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.action.ActionListener;
@@ -37,10 +42,11 @@ import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xcontent.XContentParserConfiguration;
 import org.elasticsearch.xcontent.json.JsonXContent;
 
+import java.io.ByteArrayOutputStream;
 import java.io.IOException;
-import java.io.InputStream;
 import java.net.URI;
 import java.net.URISyntaxException;
+import java.nio.ByteBuffer;
 import java.nio.charset.StandardCharsets;
 import java.time.Instant;
 import java.util.Objects;
@@ -194,9 +200,8 @@ public final class HttpsWorkloadIdentityIssuerClient implements WorkloadIdentity
         final TimeValue connect = WorkloadIdentityHttpSettings.CONNECT_TIMEOUT.get(settings);
         final TimeValue request = WorkloadIdentityHttpSettings.REQUEST_TIMEOUT.get(settings);
         this.requestConfig = RequestConfig.custom()
-            .setConnectTimeout(Math.toIntExact(connect.millis()))
-            .setConnectionRequestTimeout(Math.toIntExact(connect.millis()))
-            .setSocketTimeout(Math.toIntExact(request.millis()))
+            .setConnectionRequestTimeout(Timeout.ofMilliseconds(connect.millis()))
+            .setResponseTimeout(Timeout.ofMilliseconds(request.millis()))
             .build();
 
         final ByteSizeValue maxResponseSize = WorkloadIdentityHttpSettings.MAX_RESPONSE_SIZE.get(settings);
@@ -376,36 +381,42 @@ public final class HttpsWorkloadIdentityIssuerClient implements WorkloadIdentity
         try {
             final byte[] body = renderRequestBody(request);
 
-            final HttpPost httpPost = new HttpPost(tokenEndpoint);
-            httpPost.setEntity(new ByteArrayEntity(body, ContentType.APPLICATION_JSON));
-            httpPost.setHeader(HttpHeaders.ACCEPT, ContentType.APPLICATION_JSON.getMimeType());
-            httpPost.setConfig(requestConfig);
+            final var httpRequest = SimpleRequestBuilder.post(tokenEndpoint)
+                .setBody(body, ContentType.APPLICATION_JSON)
+                .addHeader(HttpHeaders.ACCEPT, ContentType.APPLICATION_JSON.getMimeType())
+                .build();
+
+            final HttpClientContext context = HttpClientContext.create();
+            context.setRequestConfig(requestConfig);
 
             final CloseableHttpAsyncClient httpClient = httpClientManager.getHttpClient();
 
             logger.trace("dispatching workload-identity token request to [{}]", tokenEndpoint);
-            httpClient.execute(httpPost, new FutureCallback<>() {
-                @Override
-                public void completed(HttpResponse response) {
-                    try {
-                        listener.onResponse(handleResponse(response, maxResponseSizeBytes));
-                    } catch (Exception e) {
-                        listener.onFailure(e);
-                    } finally {
-                        EntityUtils.consumeQuietly(response.getEntity());
+            httpClient.execute(
+                SimpleRequestProducer.create(httpRequest),
+                sizeLimitedConsumer(maxResponseSizeBytes),
+                context,
+                new FutureCallback<>() {
+                    @Override
+                    public void completed(SimpleHttpResponse response) {
+                        try {
+                            listener.onResponse(handleResponse(response));
+                        } catch (Exception e) {
+                            listener.onFailure(e);
+                        }
+                    }
+
+                    @Override
+                    public void failed(Exception ex) {
+                        listener.onFailure(ex);
+                    }
+
+                    @Override
+                    public void cancelled() {
+                        listener.onFailure(new CancellationException("workload-identity token request was cancelled"));
                     }
                 }
-
-                @Override
-                public void failed(Exception ex) {
-                    listener.onFailure(ex);
-                }
-
-                @Override
-                public void cancelled() {
-                    listener.onFailure(new CancellationException("workload-identity token request was cancelled"));
-                }
-            });
+            );
         } catch (Exception e) {
             listener.onFailure(e);
         }
@@ -420,9 +431,9 @@ public final class HttpsWorkloadIdentityIssuerClient implements WorkloadIdentity
         }
     }
 
-    private static IssueTokenResponse handleResponse(HttpResponse response, long maxResponseSizeBytes) throws IOException {
-        final int status = response.getStatusLine().getStatusCode();
-        final byte[] body = readBody(response, maxResponseSizeBytes);
+    private static IssueTokenResponse handleResponse(SimpleHttpResponse response) throws IOException {
+        final int status = response.getCode();
+        final byte[] body = response.getBodyBytes() != null ? response.getBodyBytes() : new byte[0];
         if (status < 200 || status >= 300) {
             // Keep the body out of the exception message so callers and downstream log sites see only
             // the status code; surface the body at DEBUG for operators investigating issuer failures.
@@ -440,13 +451,44 @@ public final class HttpsWorkloadIdentityIssuerClient implements WorkloadIdentity
         return parseSuccess(body, status);
     }
 
-    private static byte[] readBody(HttpResponse response, long maxResponseSizeBytes) throws IOException {
-        if (response.getEntity() == null) {
-            return new byte[0];
-        }
-        try (InputStream input = new SizeLimitInputStream(maxResponseSizeBytes, response.getEntity().getContent())) {
-            return input.readAllBytes();
-        }
+    // Enforces maxBytes mid-stream; throws before the full body is buffered when exceeded.
+    private static AsyncResponseConsumer<SimpleHttpResponse> sizeLimitedConsumer(long maxBytes) {
+        return new AbstractBinResponseConsumer<>() {
+            private HttpResponse response;
+            private ContentType contentType;
+            private final ByteArrayOutputStream buf = new ByteArrayOutputStream();
+
+            @Override
+            protected void start(HttpResponse r, ContentType ct) throws HttpException, IOException {
+                this.response = r;
+                this.contentType = ct;
+            }
+
+            @Override
+            protected int capacityIncrement() {
+                return Integer.MAX_VALUE;
+            }
+
+            @Override
+            protected void data(ByteBuffer src, boolean endOfStream) throws IOException {
+                if ((long) buf.size() + src.remaining() > maxBytes) {
+                    throw new IOException("Maximum limit of [" + maxBytes + "] bytes reached");
+                }
+                final byte[] chunk = new byte[src.remaining()];
+                src.get(chunk);
+                buf.write(chunk);
+            }
+
+            @Override
+            protected SimpleHttpResponse buildResult() {
+                final SimpleHttpResponse result = SimpleHttpResponse.copy(response);
+                result.setBody(buf.toByteArray(), contentType);
+                return result;
+            }
+
+            @Override
+            public void releaseResources() {}
+        };
     }
 
     private static IssueTokenResponse parseSuccess(byte[] body, int status) throws IOException {

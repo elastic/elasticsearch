@@ -15,10 +15,9 @@ module org.elasticsearch.workloadidentity {
     requires org.elasticsearch.logging;
     requires org.elasticsearch.workloadidentity.spi;
 
-    requires org.apache.httpcomponents.httpclient;
-    requires org.apache.httpcomponents.httpcore;
-    requires org.apache.httpcomponents.httpasyncclient;
-    requires org.apache.httpcomponents.httpcore.nio;
+    requires org.apache.httpcomponents.client5.httpclient5;
+    requires org.apache.httpcomponents.core5.httpcore5;
+    requires org.apache.httpcomponents.core5.httpcore5.h2;
 
     // HttpsWorkloadIdentityIssuerClient declares its logger as org.apache.logging.log4j.Logger
     // (rather than the org.elasticsearch.logging facade used elsewhere in this module) so it

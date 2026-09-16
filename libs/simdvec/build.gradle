@@ -114,10 +114,18 @@ tasks.withType(CheckForbiddenApisTask).configureEach {
 // VEC_NATIVE_BUILD=host to build the current platform only. Unset, the published artifact is used.
 nativeLibraryBuild {
   modeEnvironmentVariable = 'VEC_NATIVE_BUILD'
-  sourceDir = layout.projectDirectory.dir('native')
-  sources = ['src/vec/**', 'Makefile']
+  workingDir = layout.projectDirectory.dir('native')
+  sources = ['native/src/vec/**', 'native/Makefile']
   toolchainImage = 'docker.elastic.co/elasticsearch-infra/es-native-cross-toolchain:6'
   forwardedEnvironment = ['CLANG_CXX']
+  // The platforms libvec is built for. Other hosts (Windows, Intel Mac) consume the artifact and
+  // fall back to the Panama implementation when they don't have a platform-specific implementation.
+  supportedPlatforms = ['darwin-aarch64', 'linux-aarch64', 'linux-x64']
+
+  // Reuse the published artifact whenever these sources already have one, addressed by their hash.
+  artifactRepositoryUrl = 'https://artifactory.elastic.dev/artifactory/elasticsearch-native'
+  artifactName = 'vec'
+  publishCredentialEnvironmentVariable = 'ARTIFACTORY_API_KEY'
 
   dockerCommand = ['make', 'all']
   collect = [

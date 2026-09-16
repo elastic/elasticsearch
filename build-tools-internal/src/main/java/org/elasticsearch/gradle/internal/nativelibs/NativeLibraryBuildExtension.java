@@ -15,6 +15,7 @@ import org.gradle.api.file.DirectoryProperty;
 import org.gradle.api.provider.ListProperty;
 import org.gradle.api.provider.MapProperty;
 import org.gradle.api.provider.Property;
+import org.gradle.api.provider.SetProperty;
 
 import java.util.List;
 
@@ -23,20 +24,48 @@ public abstract class NativeLibraryBuildExtension {
 
     private Transformer<List<String>, Directory> hostCommand;
 
-    /** Directory holding the native sources and their build file. */
-    public abstract DirectoryProperty getSourceDir();
+    /**
+     * Directory the build command runs in: the working directory on the host, the directory mounted
+     * into the container, and the base for resolving {@link #getCollect()}.
+     */
+    public abstract DirectoryProperty getWorkingDir();
 
-    /** Ant-style patterns, relative to {@link #getSourceDir()}, selecting the build's inputs. */
+    /**
+     * Ant-style patterns, relative to the project directory, selecting every file that determines
+     * which artifact a build produces. Their digest is the version the artifact is published under.
+     */
     public abstract ListProperty<String> getSources();
 
     /** Container image used to build every platform. */
     public abstract Property<String> getToolchainImage();
 
+    /**
+     * The {@code <os>-<arch>} platforms this library is built for, and therefore the platforms a
+     * complete artifact contains. Hosts outside this set never load the library: they consume the
+     * artifact like everyone else and simply find nothing for their own platform in it.
+     */
+    public abstract SetProperty<String> getSupportedPlatforms();
+
+    /**
+     * Repository holding published artifacts, addressed by the hash of the sources they were built
+     * from. When unset the build always compiles from source.
+     */
+    public abstract Property<String> getArtifactRepositoryUrl();
+
+    /** Artifact name in that repository. */
+    public abstract Property<String> getArtifactName();
+
+    /**
+     * Environment variable holding the credential that permits publishing.
+     * If omitted, a build can fetch and compile but will not publish.
+     */
+    public abstract Property<String> getPublishCredentialEnvironmentVariable();
+
     /** Command run inside the container, building all platforms. */
     public abstract ListProperty<String> getDockerCommand();
 
     /**
-     * Artifacts to gather after a container build: paths relative to {@link #getSourceDir()} mapped
+     * Artifacts to gather after a container build: paths relative to {@link #getWorkingDir()} mapped
      * to their destination in the {@code <os>-<arch>/} layout. A build that already writes to the
      * destination declares nothing.
      */
@@ -46,9 +75,9 @@ public abstract class NativeLibraryBuildExtension {
     public abstract ListProperty<String> getForwardedEnvironment();
 
     /**
-     * Environment variable selecting how the library is obtained: {@code docker} or {@code host} to
-     * build it, anything else (or unset) to leave it to the published artifact. Named per library so
-     * one native change does not force every native library to rebuild.
+     * Environment variable selecting how the library is built when no artifact is published for the
+     * current {@link #getSources()}: {@code docker} for every platform, {@code host} for the current
+     * one. Anything else, or unset, builds nothing and fails instead.
      */
     public abstract Property<String> getModeEnvironmentVariable();
 

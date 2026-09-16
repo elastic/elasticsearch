@@ -20,16 +20,8 @@ libs/simdvec/
 │   ├── src/vec/headers/    #     Shared and platform-specific headers
 │   ├── Makefile            #     Cross-compilation build (all platforms)
 │   └── Dockerfile.cross-toolchain
-└── build.gradle            # Gradle build config (multi-release JAR, JDK 21 coverage)
+└── build.gradle            # Gradle build config
 ```
-
-### Related code in other modules
-
-- **`libs/native`** — Low-level Panama FFI bindings
-  - `VectorLibrary.java` — interface declaring native function signatures
-  - `JdkVectorLibrary.java` — Panama implementation, loads `libvec`
-  - `VectorSimilarityFunctions.java` — public facade
-  - FFI-level tests for vector scoring functions
 
 ## Native code tiers
 
@@ -69,28 +61,14 @@ The native kernels cover single-pair and bulk scoring for:
 
 The native library is built via the `Makefile` in `native/`. For
 cross-compilation of all three platform binaries (darwin-aarch64,
-linux-aarch64, linux-x64), use the shared Docker-based toolchain image
-(`es-native-cross-toolchain`, also used by `libs/simdjson`):
+linux-aarch64, linux-x64), we use a shared Docker-based toolchain image
+(`es-native-cross-toolchain`, also used by `libs/simdjson`).
 
-```bash
-# Build the cross-compilation toolchain image
-./build_cross_toolchain_image.sh
-
-# Build and publish binaries
-./publish_vec_binaries.sh
-```
-
-For local development on the current platform:
-
-```bash
-cd native
-make local       # builds for the host platform
-```
-
-### Gradle integration
-
-The Gradle build can compile libvec from source instead of fetching
-from Artifactory. Set the `VEC_NATIVE_BUILD` environment variable:
+The build is integrated with Gradle; Gradle detects which version of the native
+sources are present and will fetch the matching binaries from Artifactory. If
+the source code is new (no matching binaries on Artifactory), it compiles libvec
+from source. You can drive this behaviour by setting the `VEC_NATIVE_BUILD`
+environment variable:
 
 ```bash
 # Cross-compile all platforms in Docker (CI mode)
@@ -99,6 +77,12 @@ VEC_NATIVE_BUILD=docker ./gradlew :libs:simdvec:buildNativeLibrary
 # Build for the host platform only (dev iteration)
 VEC_NATIVE_BUILD=host ./gradlew :libs:simdvec:buildNativeLibrary
 ```
+NOTE: the Gradle daemon might not be able to access your docker installation.
+If you receive a message like:
+```
+A problem occurred starting process 'command 'docker''
+```
+add `--no-daemon` to the Gradle command line.
 
 When `VEC_NATIVE_BUILD` is unset (or set to `artifactory`), the binary is
 fetched from Artifactory (no compiler or Docker required).
@@ -109,6 +93,14 @@ In `host` mode that means `libs/native/libraries/build/platform/` holds libvec
 for your platform only. Anything that needs other platforms (e.g. assembling
 a distribution for a different OS or architecture) needs `docker` mode or the
 published artifact.
+
+In the rare case in which your changes require a new `es-native-cross-toolchain`
+docker image (e.g. new clang version, additional build tools, etc.) you can
+change the Dockerfile and then build and push the cross-compilation toolchain
+image with:
+```bash
+./build_cross_toolchain_image.sh
+```
 
 ## Testing
 

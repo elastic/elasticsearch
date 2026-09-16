@@ -15,11 +15,9 @@ import org.apache.lucene.store.IndexInput;
 import org.apache.lucene.util.ArrayUtil;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.BytesRefBuilder;
-import org.apache.lucene.util.LongValues;
 import org.apache.lucene.util.RamUsageEstimator;
 import org.elasticsearch.columnar.substrate.ColumnIterator;
 import org.elasticsearch.columnar.substrate.ColumnIteratorReader;
-import org.elasticsearch.columnar.substrate.MonotonicReader;
 import org.elasticsearch.simdvec.ESVectorUtil;
 
 import java.io.IOException;
@@ -57,7 +55,8 @@ public abstract sealed class StringColumnReader permits PlainStringColumnReader,
      * Where each document's slots begin, and one past the last; null when every document holds exactly one
      * slot and a document's value address is therefore its rank.
      */
-    private final LongValues valueAddresses;
+    /** Null when the slots are in step with the documents, so a rank is its own value address. */
+    private final SlotAddressReader addresses;
 
     /** Held so a summary can be read on demand; a merge reads it, an ordinary search never does. */
     protected final IndexInput data;
@@ -110,15 +109,7 @@ public abstract sealed class StringColumnReader permits PlainStringColumnReader,
         this.data = data;
         this.blockSize = blockSize;
         this.iteratorReader = new ColumnIteratorReader(meta.iterator(), data);
-        this.valueAddresses = meta.hasValueAddresses()
-            ? MonotonicReader.open(
-                data,
-                meta.valueAddresses().meta(),
-                meta.numDocsWithField() + 1L,
-                meta.valueAddresses().dataOffset(),
-                meta.valueAddresses().dataLength()
-            )
-            : null;
+        this.addresses = meta.hasValueAddresses() ? new SlotAddressReader(meta.addressing(), meta.numDocsWithField(), data) : null;
     }
 
     /** A reader for {@code meta}, which decides whether the column has a dictionary to read through. */
@@ -139,7 +130,7 @@ public abstract sealed class StringColumnReader permits PlainStringColumnReader,
      * column holds exactly one slot per document.
      */
     public boolean hasValueAddresses() {
-        return valueAddresses != null;
+        return addresses != null;
     }
 
     /**
@@ -181,13 +172,13 @@ public abstract sealed class StringColumnReader permits PlainStringColumnReader,
     }
 
     /** The value address of a document's first slot, given its rank. */
-    public long firstValueAddress(int rank) {
-        return valueAddresses == null ? rank : valueAddresses.get(rank);
+    public long firstValueAddress(int rank) throws IOException {
+        return addresses == null ? rank : addresses.firstValueAddress(rank);
     }
 
     /** The number of slots a document has, given its rank; null slots are counted. */
-    public long valueCount(int rank) {
-        return valueAddresses == null ? 1 : valueAddresses.get(rank + 1) - valueAddresses.get(rank);
+    public long valueCount(int rank) throws IOException {
+        return addresses == null ? 1 : addresses.valueCount(rank);
     }
 
     /**

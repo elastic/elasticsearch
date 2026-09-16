@@ -18,13 +18,8 @@ import org.apache.lucene.search.QueryVisitor;
 import org.apache.lucene.util.Accountable;
 import org.elasticsearch.TransportVersion;
 import org.elasticsearch.common.breaker.CircuitBreaker;
-import org.elasticsearch.common.breaker.CircuitBreakingException;
-import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.lucene.search.Queries;
-import org.elasticsearch.common.unit.ByteSizeValue;
-import org.elasticsearch.common.util.LimitedBreaker;
-import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.index.query.support.AutoPrefilteringScope.ScopedPrefilter;
 import org.elasticsearch.test.AbstractQueryTestCase;
 import org.elasticsearch.xcontent.XContentBuilder;
@@ -876,36 +871,18 @@ public class BoolQueryBuilderTests extends AbstractQueryTestCase<BoolQueryBuilde
         // BoolQueryBuilder charges BASELINE + clauseCount * 8 for its list-slot overhead.
         // Set the limit so that (max+1) term children fit but adding the bool's own slot overhead trips it.
         long limit = (max + 1) * termCost + AbstractQueryBuilder.QUERY_BUILDER_SIZE_ESTIMATE_BYTES + (long) (max + 1) * 8L - 1;
-        LimitedBreaker limitedBreaker = new LimitedBreaker(CircuitBreaker.REQUEST, ByteSizeValue.ofBytes(limit));
-        AbstractQueryBuilder.setQueryParsingBreaker(limitedBreaker);
-        try {
-            // bool with max inner clauses: well within the limit — must succeed
-            BoolQueryBuilder okQuery = boolQuery();
-            for (int i = 0; i < max; i++) {
-                okQuery.should(termQuery(TEXT_FIELD_NAME, "v"));
-            }
-            for (XContentType type : new XContentType[] { XContentType.JSON, XContentType.SMILE }) {
-                BytesReference bytes = XContentHelper.toXContent(okQuery, type, false);
-                try (XContentParser parser = createParser(type.xContent(), bytes)) {
-                    parseQuery(parser); // must not throw
-                }
-            }
-
-            // bool with max+1 inner clauses: root bool slot overhead is the last charge that tips the limit.
-            // Root charge happens outside ObjectParser so CircuitBreakingException is not wrapped.
-            BoolQueryBuilder bigQuery = boolQuery();
-            for (int i = 0; i < max + 1; i++) {
-                bigQuery.should(termQuery(TEXT_FIELD_NAME, "v"));
-            }
-            for (XContentType type : new XContentType[] { XContentType.JSON, XContentType.SMILE }) {
-                BytesReference bytes = XContentHelper.toXContent(bigQuery, type, false);
-                try (XContentParser parser = createParser(type.xContent(), bytes)) {
-                    expectThrows(CircuitBreakingException.class, () -> parseQuery(parser));
-                }
-            }
-        } finally {
-            AbstractQueryBuilder.setQueryParsingBreaker(null);
+        // bool with max inner clauses: well within the limit — must succeed
+        BoolQueryBuilder okQuery = boolQuery();
+        for (int i = 0; i < max; i++) {
+            okQuery.should(termQuery(TEXT_FIELD_NAME, "v"));
         }
+        // bool with max+1 inner clauses: root bool slot overhead is the last charge that tips the limit.
+        // Root charge happens outside ObjectParser so CircuitBreakingException is not wrapped.
+        BoolQueryBuilder bigQuery = boolQuery();
+        for (int i = 0; i < max + 1; i++) {
+            bigQuery.should(termQuery(TEXT_FIELD_NAME, "v"));
+        }
+        assertParseTimeBreaker(limit, okQuery, bigQuery);
     }
 
     public void testBoolClauseSlotBreakerEstimate() throws IOException {
@@ -918,32 +895,15 @@ public class BoolQueryBuilderTests extends AbstractQueryTestCase<BoolQueryBuilde
         int max = 5;
         long okTotal = max * baseline + (baseline + (long) max * 8);
         long limit = okTotal + 1; // just above ok so big trips
-        LimitedBreaker breaker = new LimitedBreaker(CircuitBreaker.REQUEST, ByteSizeValue.ofBytes(limit));
-        AbstractQueryBuilder.setQueryParsingBreaker(breaker);
-        try {
-            BoolQueryBuilder ok = boolQuery();
-            for (int i = 0; i < max; i++) {
-                ok.should(new MatchAllQueryBuilder());
-            }
-            for (XContentType type : new XContentType[] { XContentType.JSON, XContentType.SMILE }) {
-                BytesReference bytes = XContentHelper.toXContent(ok, type, false);
-                try (XContentParser parser = createParser(type.xContent(), bytes)) {
-                    parseQuery(parser);
-                }
-            }
-            BoolQueryBuilder big = boolQuery();
-            for (int i = 0; i < max + 1; i++) {
-                big.should(new MatchAllQueryBuilder());
-            }
-            for (XContentType type : new XContentType[] { XContentType.JSON, XContentType.SMILE }) {
-                BytesReference bytes = XContentHelper.toXContent(big, type, false);
-                try (XContentParser parser = createParser(type.xContent(), bytes)) {
-                    expectThrows(CircuitBreakingException.class, () -> parseQuery(parser));
-                }
-            }
-        } finally {
-            AbstractQueryBuilder.setQueryParsingBreaker(null);
+        BoolQueryBuilder ok = boolQuery();
+        for (int i = 0; i < max; i++) {
+            ok.should(new MatchAllQueryBuilder());
         }
+        BoolQueryBuilder big = boolQuery();
+        for (int i = 0; i < max + 1; i++) {
+            big.should(new MatchAllQueryBuilder());
+        }
+        assertParseTimeBreaker(limit, ok, big);
     }
 
     private static final class TestAutoPrefilteringQueryBuilder extends LeafQueryBuilder<TestAutoPrefilteringQueryBuilder> {

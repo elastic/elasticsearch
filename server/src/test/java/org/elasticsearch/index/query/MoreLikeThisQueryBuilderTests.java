@@ -26,16 +26,11 @@ import org.elasticsearch.action.termvectors.TermVectorsRequest;
 import org.elasticsearch.action.termvectors.TermVectorsResponse;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.breaker.CircuitBreaker;
-import org.elasticsearch.common.breaker.CircuitBreakingException;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.lucene.search.MoreLikeThisQuery;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.util.CollectionUtils;
-import org.elasticsearch.common.util.LimitedBreaker;
-import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.index.VersionType;
 import org.elasticsearch.index.query.MoreLikeThisQueryBuilder.Item;
 import org.elasticsearch.test.AbstractQueryTestCase;
@@ -43,7 +38,6 @@ import org.elasticsearch.xcontent.ToXContent;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentFactory;
 import org.elasticsearch.xcontent.XContentParser;
-import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xcontent.json.JsonXContent;
 import org.junit.Before;
 
@@ -499,27 +493,10 @@ public class MoreLikeThisQueryBuilderTests extends AbstractQueryTestCase<MoreLik
         String shortText = "hi";
         long msmCost = MoreLikeThisQueryBuilder.DEFAULT_MINIMUM_SHOULD_MATCH.length() * 2L + 64L;
         long shortCost = AbstractQueryBuilder.QUERY_BUILDER_SIZE_ESTIMATE_BYTES + shortText.length() * 2L + 64L + msmCost;
-        long limit = shortCost; // just enough for one short likeText + default msm
-        LimitedBreaker breaker = new LimitedBreaker(CircuitBreaker.REQUEST, ByteSizeValue.ofBytes(limit));
-        AbstractQueryBuilder.setQueryParsingBreaker(breaker);
-        try {
-            MoreLikeThisQueryBuilder ok = new MoreLikeThisQueryBuilder(new String[] { shortText }, (Item[]) null);
-            for (XContentType type : new XContentType[] { XContentType.JSON, XContentType.SMILE }) {
-                BytesReference bytes = XContentHelper.toXContent(ok, type, false);
-                try (XContentParser parser = createParser(type.xContent(), bytes)) {
-                    parseQuery(parser);
-                }
-            }
-            MoreLikeThisQueryBuilder big = new MoreLikeThisQueryBuilder(new String[] { "x".repeat(500) }, (Item[]) null);
-            for (XContentType type : new XContentType[] { XContentType.JSON, XContentType.SMILE }) {
-                BytesReference bytes = XContentHelper.toXContent(big, type, false);
-                try (XContentParser parser = createParser(type.xContent(), bytes)) {
-                    expectThrows(CircuitBreakingException.class, () -> parseQuery(parser));
-                }
-            }
-        } finally {
-            AbstractQueryBuilder.setQueryParsingBreaker(null);
-        }
+        long limit = shortCost;
+        MoreLikeThisQueryBuilder ok = new MoreLikeThisQueryBuilder(new String[] { shortText }, (Item[]) null);
+        MoreLikeThisQueryBuilder big = new MoreLikeThisQueryBuilder(new String[] { "x".repeat(500) }, (Item[]) null);
+        assertParseTimeBreaker(limit, ok, big);
     }
 
     public void testStopWordsBreakerEstimate() throws IOException {
@@ -532,28 +509,9 @@ public class MoreLikeThisQueryBuilderTests extends AbstractQueryTestCase<MoreLik
         long baseline = AbstractQueryBuilder.QUERY_BUILDER_SIZE_ESTIMATE_BYTES;
         long msmCost = MoreLikeThisQueryBuilder.DEFAULT_MINIMUM_SHOULD_MATCH.length() * 2L + 64L;
         long limit = baseline + likeText.length() * 2L + 64L + shortStop.length() * 2L + 64L + 1 * 8L + msmCost;
-        LimitedBreaker breaker = new LimitedBreaker(CircuitBreaker.REQUEST, ByteSizeValue.ofBytes(limit));
-        AbstractQueryBuilder.setQueryParsingBreaker(breaker);
-        try {
-            MoreLikeThisQueryBuilder ok = new MoreLikeThisQueryBuilder(new String[] { likeText }, (Item[]) null).stopWords(shortStop);
-            for (XContentType type : new XContentType[] { XContentType.JSON, XContentType.SMILE }) {
-                BytesReference bytes = XContentHelper.toXContent(ok, type, false);
-                try (XContentParser parser = createParser(type.xContent(), bytes)) {
-                    parseQuery(parser);
-                }
-            }
-            MoreLikeThisQueryBuilder big = new MoreLikeThisQueryBuilder(new String[] { likeText }, (Item[]) null).stopWords(
-                "x".repeat(500)
-            );
-            for (XContentType type : new XContentType[] { XContentType.JSON, XContentType.SMILE }) {
-                BytesReference bytes = XContentHelper.toXContent(big, type, false);
-                try (XContentParser parser = createParser(type.xContent(), bytes)) {
-                    expectThrows(CircuitBreakingException.class, () -> parseQuery(parser));
-                }
-            }
-        } finally {
-            AbstractQueryBuilder.setQueryParsingBreaker(null);
-        }
+        MoreLikeThisQueryBuilder ok = new MoreLikeThisQueryBuilder(new String[] { likeText }, (Item[]) null).stopWords(shortStop);
+        MoreLikeThisQueryBuilder big = new MoreLikeThisQueryBuilder(new String[] { likeText }, (Item[]) null).stopWords("x".repeat(500));
+        assertParseTimeBreaker(limit, ok, big);
     }
 
     public void testItemMetadataBreakerEstimate() throws IOException {
@@ -565,54 +523,24 @@ public class MoreLikeThisQueryBuilderTests extends AbstractQueryTestCase<MoreLik
             // id("1")=66; fields=["a"]: 1*8+66=74 → item cost 140; msm=70; total 466
             Item smallItem = new Item(null, "1").fields("a");
             long smallCost = AbstractQueryBuilder.QUERY_BUILDER_SIZE_ESTIMATE_BYTES + 66L + 8L + 66L + msmCost;
-            LimitedBreaker breaker = new LimitedBreaker(CircuitBreaker.REQUEST, ByteSizeValue.ofBytes(smallCost));
-            AbstractQueryBuilder.setQueryParsingBreaker(breaker);
-            try {
-                MoreLikeThisQueryBuilder ok = new MoreLikeThisQueryBuilder(null, new Item[] { smallItem });
-                for (XContentType type : new XContentType[] { XContentType.JSON, XContentType.SMILE }) {
-                    BytesReference bytes = XContentHelper.toXContent(ok, type, false);
-                    try (XContentParser parser = createParser(type.xContent(), bytes)) {
-                        parseQuery(parser);
-                    }
-                }
-                Item largeItem = new Item(null, "1").fields("a", "x".repeat(200));
-                MoreLikeThisQueryBuilder big = new MoreLikeThisQueryBuilder(null, new Item[] { largeItem });
-                for (XContentType type : new XContentType[] { XContentType.JSON, XContentType.SMILE }) {
-                    BytesReference bytes = XContentHelper.toXContent(big, type, false);
-                    try (XContentParser parser = createParser(type.xContent(), bytes)) {
-                        expectThrows(CircuitBreakingException.class, () -> parseQuery(parser));
-                    }
-                }
-            } finally {
-                AbstractQueryBuilder.setQueryParsingBreaker(null);
-            }
+            Item largeItem = new Item(null, "1").fields("a", "x".repeat(200));
+            assertParseTimeBreaker(
+                smallCost,
+                new MoreLikeThisQueryBuilder(null, new Item[] { smallItem }),
+                new MoreLikeThisQueryBuilder(null, new Item[] { largeItem })
+            );
         }
         // per_field_analyzer map is charged: map overhead plus each key+value string
         {
             // id("1")=66; no map → item cost 66; msm=70; total 392
             Item smallItem = new Item(null, "1");
             long smallCost = AbstractQueryBuilder.QUERY_BUILDER_SIZE_ESTIMATE_BYTES + 66L + msmCost;
-            LimitedBreaker breaker = new LimitedBreaker(CircuitBreaker.REQUEST, ByteSizeValue.ofBytes(smallCost));
-            AbstractQueryBuilder.setQueryParsingBreaker(breaker);
-            try {
-                MoreLikeThisQueryBuilder ok = new MoreLikeThisQueryBuilder(null, new Item[] { smallItem });
-                for (XContentType type : new XContentType[] { XContentType.JSON, XContentType.SMILE }) {
-                    BytesReference bytes = XContentHelper.toXContent(ok, type, false);
-                    try (XContentParser parser = createParser(type.xContent(), bytes)) {
-                        parseQuery(parser);
-                    }
-                }
-                Item largeItem = new Item(null, "1").perFieldAnalyzer(Map.of("f", "x".repeat(200)));
-                MoreLikeThisQueryBuilder big = new MoreLikeThisQueryBuilder(null, new Item[] { largeItem });
-                for (XContentType type : new XContentType[] { XContentType.JSON, XContentType.SMILE }) {
-                    BytesReference bytes = XContentHelper.toXContent(big, type, false);
-                    try (XContentParser parser = createParser(type.xContent(), bytes)) {
-                        expectThrows(CircuitBreakingException.class, () -> parseQuery(parser));
-                    }
-                }
-            } finally {
-                AbstractQueryBuilder.setQueryParsingBreaker(null);
-            }
+            Item largeItem = new Item(null, "1").perFieldAnalyzer(Map.of("f", "x".repeat(200)));
+            assertParseTimeBreaker(
+                smallCost,
+                new MoreLikeThisQueryBuilder(null, new Item[] { smallItem }),
+                new MoreLikeThisQueryBuilder(null, new Item[] { largeItem })
+            );
         }
     }
 
@@ -625,28 +553,13 @@ public class MoreLikeThisQueryBuilderTests extends AbstractQueryTestCase<MoreLik
         long smallDocLen = smallItem.doc().length();
         long msmCost = MoreLikeThisQueryBuilder.DEFAULT_MINIMUM_SHOULD_MATCH.length() * 2L + 64L;
         long smallCost = AbstractQueryBuilder.QUERY_BUILDER_SIZE_ESTIMATE_BYTES + smallDocLen + 64L + msmCost;
-        long limit = smallCost; // equal to limit does not trip (LimitedBreaker uses strict >)
-        LimitedBreaker breaker = new LimitedBreaker(CircuitBreaker.REQUEST, ByteSizeValue.ofBytes(limit));
-        AbstractQueryBuilder.setQueryParsingBreaker(breaker);
-        try {
-            MoreLikeThisQueryBuilder ok = new MoreLikeThisQueryBuilder(null, new Item[] { smallItem });
-            for (XContentType type : new XContentType[] { XContentType.JSON, XContentType.SMILE }) {
-                BytesReference bytes = XContentHelper.toXContent(ok, type, false);
-                try (XContentParser parser = createParser(type.xContent(), bytes)) {
-                    parseQuery(parser); // must not throw
-                }
-            }
-            XContentBuilder largeDocBuilder = XContentFactory.jsonBuilder().startObject().field("content", "x".repeat(500)).endObject();
-            Item largeItem = new Item(null, largeDocBuilder);
-            MoreLikeThisQueryBuilder big = new MoreLikeThisQueryBuilder(null, new Item[] { largeItem });
-            for (XContentType type : new XContentType[] { XContentType.JSON, XContentType.SMILE }) {
-                BytesReference bytes = XContentHelper.toXContent(big, type, false);
-                try (XContentParser parser = createParser(type.xContent(), bytes)) {
-                    expectThrows(CircuitBreakingException.class, () -> parseQuery(parser));
-                }
-            }
-        } finally {
-            AbstractQueryBuilder.setQueryParsingBreaker(null);
-        }
+        long limit = smallCost;
+        XContentBuilder largeDocBuilder = XContentFactory.jsonBuilder().startObject().field("content", "x".repeat(500)).endObject();
+        Item largeItem = new Item(null, largeDocBuilder);
+        assertParseTimeBreaker(
+            limit,
+            new MoreLikeThisQueryBuilder(null, new Item[] { smallItem }),
+            new MoreLikeThisQueryBuilder(null, new Item[] { largeItem })
+        );
     }
 }

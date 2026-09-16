@@ -14,15 +14,8 @@ import org.apache.lucene.search.RegexpQuery;
 import org.apache.lucene.util.Accountable;
 import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.breaker.CircuitBreaker;
-import org.elasticsearch.common.breaker.CircuitBreakingException;
-import org.elasticsearch.common.bytes.BytesReference;
-import org.elasticsearch.common.unit.ByteSizeValue;
-import org.elasticsearch.common.util.LimitedBreaker;
-import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.core.Strings;
 import org.elasticsearch.test.AbstractQueryTestCase;
-import org.elasticsearch.xcontent.XContentParser;
-import org.elasticsearch.xcontent.XContentType;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -212,24 +205,11 @@ public class RegexpQueryBuilderTests extends AbstractQueryTestCase<RegexpQueryBu
         long baseline = AbstractQueryBuilder.QUERY_BUILDER_SIZE_ESTIMATE_BYTES;
         String shortValue = "hi";
         long smallCost = baseline + 13 * 2L + 64L + shortValue.length() * 2L + 64L;
-        long limit = smallCost; // equal to limit does not trip (LimitedBreaker uses strict >)
-        LimitedBreaker limitedBreaker = new LimitedBreaker(CircuitBreaker.REQUEST, ByteSizeValue.ofBytes(limit));
-        AbstractQueryBuilder.setQueryParsingBreaker(limitedBreaker);
-        try {
-            RegexpQueryBuilder small = new RegexpQueryBuilder(TEXT_FIELD_NAME, shortValue);
-            RegexpQueryBuilder big = new RegexpQueryBuilder(TEXT_FIELD_NAME, "x".repeat(500));
-            for (XContentType type : new XContentType[] { XContentType.JSON, XContentType.SMILE }) {
-                BytesReference bytes = XContentHelper.toXContent(small, type, false);
-                try (XContentParser parser = createParser(type.xContent(), bytes)) {
-                    parseQuery(parser); // must not throw
-                }
-                BytesReference bigBytes = XContentHelper.toXContent(big, type, false);
-                try (XContentParser parser = createParser(type.xContent(), bigBytes)) {
-                    expectThrows(CircuitBreakingException.class, () -> parseQuery(parser));
-                }
-            }
-        } finally {
-            AbstractQueryBuilder.setQueryParsingBreaker(null);
-        }
+        long limit = smallCost;
+        assertParseTimeBreaker(
+            limit,
+            new RegexpQueryBuilder(TEXT_FIELD_NAME, shortValue),
+            new RegexpQueryBuilder(TEXT_FIELD_NAME, "x".repeat(500))
+        );
     }
 }

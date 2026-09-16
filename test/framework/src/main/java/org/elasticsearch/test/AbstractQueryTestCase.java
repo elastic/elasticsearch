@@ -22,13 +22,17 @@ import org.elasticsearch.TransportVersion;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.breaker.CircuitBreaker;
+import org.elasticsearch.common.breaker.CircuitBreakingException;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.io.stream.NamedWriteableAwareStreamInput;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.Writeable.Reader;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.unit.Fuzziness;
+import org.elasticsearch.common.util.LimitedBreaker;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.index.query.AbstractQueryBuilder;
@@ -450,6 +454,41 @@ public abstract class AbstractQueryTestCase<QB extends AbstractQueryBuilder<QB>>
         QueryBuilder parseInnerQueryBuilder = parseTopLevelQuery(parser);
         assertNull(parser.nextToken());
         return parseInnerQueryBuilder;
+    }
+
+    /**
+     * Asserts parse-time circuit-breaker behaviour for a (small, large) query pair.
+     * <p>
+     * Installs a {@link LimitedBreaker} sized to {@code limit} bytes, then, for each of JSON and
+     * SMILE:
+     * <ul>
+     *   <li>Serializes and re-parses {@code small} — must succeed.</li>
+     *   <li>Asserts the breaker returns to zero after the successful parse.</li>
+     *   <li>Serializes and re-parses {@code large} — must trip the breaker.</li>
+     *   <li>Asserts the breaker returns to zero after the failed parse.</li>
+     * </ul>
+     * The breaker is reset to {@code null} in a {@code finally} block so failures leave the test
+     * harness clean.
+     */
+    protected void assertParseTimeBreaker(long limit, AbstractQueryBuilder<?> small, AbstractQueryBuilder<?> large) throws IOException {
+        LimitedBreaker limitedBreaker = new LimitedBreaker(CircuitBreaker.REQUEST, ByteSizeValue.ofBytes(limit));
+        AbstractQueryBuilder.setQueryParsingBreaker(limitedBreaker);
+        try {
+            for (XContentType type : new XContentType[] { XContentType.JSON, XContentType.SMILE }) {
+                BytesReference smallBytes = XContentHelper.toXContent(small, type, false);
+                try (XContentParser parser = createParser(type.xContent(), smallBytes)) {
+                    parseQuery(parser); // must not throw
+                }
+                assertEquals("breaker not released after successful parse", 0L, limitedBreaker.getUsed());
+                BytesReference largeBytes = XContentHelper.toXContent(large, type, false);
+                try (XContentParser parser = createParser(type.xContent(), largeBytes)) {
+                    expectThrows(CircuitBreakingException.class, () -> parseQuery(parser));
+                }
+                assertEquals("breaker not released after failed parse", 0L, limitedBreaker.getUsed());
+            }
+        } finally {
+            AbstractQueryBuilder.setQueryParsingBreaker(null);
+        }
     }
 
     /**

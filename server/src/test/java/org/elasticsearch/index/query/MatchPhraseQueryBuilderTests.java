@@ -20,16 +20,8 @@ import org.apache.lucene.search.Query;
 import org.apache.lucene.search.TermQuery;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.ParsingException;
-import org.elasticsearch.common.breaker.CircuitBreaker;
-import org.elasticsearch.common.breaker.CircuitBreakingException;
-import org.elasticsearch.common.bytes.BytesReference;
-import org.elasticsearch.common.unit.ByteSizeValue;
-import org.elasticsearch.common.util.LimitedBreaker;
-import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.core.Strings;
 import org.elasticsearch.test.AbstractQueryTestCase;
-import org.elasticsearch.xcontent.XContentParser;
-import org.elasticsearch.xcontent.XContentType;
 
 import java.io.IOException;
 import java.util.HashMap;
@@ -247,24 +239,9 @@ public class MatchPhraseQueryBuilderTests extends AbstractQueryTestCase<MatchPhr
         long baseline = AbstractQueryBuilder.QUERY_BUILDER_SIZE_ESTIMATE_BYTES;
         String shortValue = "hi";
         long smallCost = baseline + 13 * 2L + 64L + shortValue.length() * 2L + 64L;
-        long limit = smallCost; // equal to limit does not trip (LimitedBreaker uses strict >)
-        LimitedBreaker limitedBreaker = new LimitedBreaker(CircuitBreaker.REQUEST, ByteSizeValue.ofBytes(limit));
-        AbstractQueryBuilder.setQueryParsingBreaker(limitedBreaker);
-        try {
-            MatchPhraseQueryBuilder small = new MatchPhraseQueryBuilder(TEXT_FIELD_NAME, shortValue);
-            MatchPhraseQueryBuilder big = new MatchPhraseQueryBuilder(TEXT_FIELD_NAME, "x".repeat(500));
-            for (XContentType type : new XContentType[] { XContentType.JSON, XContentType.SMILE }) {
-                BytesReference bytes = XContentHelper.toXContent(small, type, false);
-                try (XContentParser parser = createParser(type.xContent(), bytes)) {
-                    parseQuery(parser); // must not throw
-                }
-                BytesReference bigBytes = XContentHelper.toXContent(big, type, false);
-                try (XContentParser parser = createParser(type.xContent(), bigBytes)) {
-                    expectThrows(CircuitBreakingException.class, () -> parseQuery(parser));
-                }
-            }
-        } finally {
-            AbstractQueryBuilder.setQueryParsingBreaker(null);
-        }
+        long limit = smallCost;
+        MatchPhraseQueryBuilder small = new MatchPhraseQueryBuilder(TEXT_FIELD_NAME, shortValue);
+        MatchPhraseQueryBuilder big = new MatchPhraseQueryBuilder(TEXT_FIELD_NAME, "x".repeat(500));
+        assertParseTimeBreaker(limit, small, big);
     }
 }

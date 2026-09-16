@@ -23,8 +23,6 @@ import org.apache.lucene.store.Directory;
 import org.apache.lucene.tests.index.RandomIndexWriter;
 import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.breaker.CircuitBreaker;
-import org.elasticsearch.common.breaker.CircuitBreakingException;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.geo.GeoPoint;
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -32,9 +30,7 @@ import org.elasticsearch.common.lucene.search.function.CombineFunction;
 import org.elasticsearch.common.lucene.search.function.FieldValueFactorFunction;
 import org.elasticsearch.common.lucene.search.function.FunctionScoreQuery;
 import org.elasticsearch.common.lucene.search.function.WeightFactorFunction;
-import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.unit.DistanceUnit;
-import org.elasticsearch.common.util.LimitedBreaker;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.index.mapper.SeqNoFieldMapper;
 import org.elasticsearch.index.query.AbstractQueryBuilder;
@@ -989,34 +985,21 @@ public class FunctionScoreQueryBuilderTests extends AbstractQueryTestCase<Functi
         long functionFilterMatchAllCost = baseline;
         long ownSmallCost = baseline + source.length() * 2L + 32L + MockScriptEngine.NAME.length() * 2L + 64L + 128L;
         long limit = innerMatchAllCost + functionFilterMatchAllCost + ownSmallCost;
-        LimitedBreaker breaker = new LimitedBreaker(CircuitBreaker.REQUEST, ByteSizeValue.ofBytes(limit));
-        AbstractQueryBuilder.setQueryParsingBreaker(breaker);
-        try {
-            Script smallScript = new Script(ScriptType.INLINE, MockScriptEngine.NAME, source, Collections.emptyMap());
-            FunctionScoreQueryBuilder small = new FunctionScoreQueryBuilder(
+        Script smallScript = new Script(ScriptType.INLINE, MockScriptEngine.NAME, source, Collections.emptyMap());
+        Script largeScript = new Script(ScriptType.INLINE, MockScriptEngine.NAME, source, Map.of("k", "x".repeat(500)));
+        assertParseTimeBreaker(
+            limit,
+            new FunctionScoreQueryBuilder(
                 new MatchAllQueryBuilder(),
                 new FunctionScoreQueryBuilder.FilterFunctionBuilder[] {
                     new FunctionScoreQueryBuilder.FilterFunctionBuilder(new ScriptScoreFunctionBuilder(smallScript)) }
-            );
-            Script largeScript = new Script(ScriptType.INLINE, MockScriptEngine.NAME, source, Map.of("k", "x".repeat(500)));
-            FunctionScoreQueryBuilder big = new FunctionScoreQueryBuilder(
+            ),
+            new FunctionScoreQueryBuilder(
                 new MatchAllQueryBuilder(),
                 new FunctionScoreQueryBuilder.FilterFunctionBuilder[] {
                     new FunctionScoreQueryBuilder.FilterFunctionBuilder(new ScriptScoreFunctionBuilder(largeScript)) }
-            );
-            for (XContentType type : new XContentType[] { XContentType.JSON, XContentType.SMILE }) {
-                BytesReference bytes = XContentHelper.toXContent(small, type, false);
-                try (XContentParser parser = createParser(type.xContent(), bytes)) {
-                    parseQuery(parser); // must not throw
-                }
-                BytesReference bigBytes = XContentHelper.toXContent(big, type, false);
-                try (XContentParser parser = createParser(type.xContent(), bigBytes)) {
-                    expectThrows(CircuitBreakingException.class, () -> parseQuery(parser));
-                }
-            }
-        } finally {
-            AbstractQueryBuilder.setQueryParsingBreaker(null);
-        }
+            )
+        );
     }
 
     public void testDecayFunctionBreakerEstimate() throws IOException {
@@ -1030,31 +1013,18 @@ public class FunctionScoreQueryBuilderTests extends AbstractQueryTestCase<Functi
         long topMatchAllCost = baseline;
         long ownSmallCost = baseline + 128L + smallDecay.getFunctionBytes().length() + smallDecay.getFieldName().length() * 2L + 64L;
         long limit = topMatchAllCost + filterMatchAllCost + ownSmallCost;
-        LimitedBreaker breaker = new LimitedBreaker(CircuitBreaker.REQUEST, ByteSizeValue.ofBytes(limit));
-        AbstractQueryBuilder.setQueryParsingBreaker(breaker);
-        try {
-            FunctionScoreQueryBuilder small = new FunctionScoreQueryBuilder(
+        GaussDecayFunctionBuilder largeDecay = new GaussDecayFunctionBuilder("f", "x".repeat(500), "1d", null);
+        assertParseTimeBreaker(
+            limit,
+            new FunctionScoreQueryBuilder(
                 new MatchAllQueryBuilder(),
                 new FunctionScoreQueryBuilder.FilterFunctionBuilder[] { new FunctionScoreQueryBuilder.FilterFunctionBuilder(smallDecay) }
-            );
-            GaussDecayFunctionBuilder largeDecay = new GaussDecayFunctionBuilder("f", "x".repeat(500), "1d", null);
-            FunctionScoreQueryBuilder big = new FunctionScoreQueryBuilder(
+            ),
+            new FunctionScoreQueryBuilder(
                 new MatchAllQueryBuilder(),
                 new FunctionScoreQueryBuilder.FilterFunctionBuilder[] { new FunctionScoreQueryBuilder.FilterFunctionBuilder(largeDecay) }
-            );
-            for (XContentType type : new XContentType[] { XContentType.JSON, XContentType.SMILE }) {
-                BytesReference bytes = XContentHelper.toXContent(small, type, false);
-                try (XContentParser parser = createParser(type.xContent(), bytes)) {
-                    parseQuery(parser); // must not throw
-                }
-                BytesReference bigBytes = XContentHelper.toXContent(big, type, false);
-                try (XContentParser parser = createParser(type.xContent(), bigBytes)) {
-                    expectThrows(CircuitBreakingException.class, () -> parseQuery(parser));
-                }
-            }
-        } finally {
-            AbstractQueryBuilder.setQueryParsingBreaker(null);
-        }
+            )
+        );
     }
 
     private boolean isCacheable(FunctionScoreQueryBuilder queryBuilder) {

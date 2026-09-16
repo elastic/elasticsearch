@@ -25,16 +25,10 @@ import org.elasticsearch.action.admin.indices.mapping.put.PutMappingRequest;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.breaker.CircuitBreaker;
-import org.elasticsearch.common.breaker.CircuitBreakingException;
-import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.compress.CompressedXContent;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.unit.ByteSizeValue;
-import org.elasticsearch.common.util.LimitedBreaker;
-import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.IndexVersions;
@@ -50,8 +44,6 @@ import org.elasticsearch.search.vectors.SparseVectorQueryWrapper;
 import org.elasticsearch.test.AbstractQueryTestCase;
 import org.elasticsearch.test.TransportVersionUtils;
 import org.elasticsearch.test.index.IndexVersionUtils;
-import org.elasticsearch.xcontent.XContentParser;
-import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xpack.core.XPackClientPlugin;
 import org.elasticsearch.xpack.core.ml.action.CoordinatedInferenceAction;
 import org.elasticsearch.xpack.core.ml.action.InferModelAction;
@@ -363,26 +355,11 @@ public class SparseVectorQueryBuilderTests extends AbstractQueryTestCase<SparseV
         String smallQueryString = "hi";
         long limit = AbstractQueryBuilder.QUERY_BUILDER_SIZE_ESTIMATE_BYTES + SPARSE_VECTOR_FIELD.length() * 2L + 64L + "inferenceId"
             .length() * 2L + 64L + smallQueryString.length() * 2L + 64L;
-        LimitedBreaker breaker = new LimitedBreaker(CircuitBreaker.REQUEST, ByteSizeValue.ofBytes(limit));
-        AbstractQueryBuilder.setQueryParsingBreaker(breaker);
-        try {
-            SparseVectorQueryBuilder small = new SparseVectorQueryBuilder(SPARSE_VECTOR_FIELD, "inferenceId", smallQueryString);
-            for (XContentType type : new XContentType[] { XContentType.JSON, XContentType.SMILE }) {
-                BytesReference bytes = XContentHelper.toXContent(small, type, false);
-                try (XContentParser parser = createParser(type.xContent(), bytes)) {
-                    parseQuery(parser); // must not throw
-                }
-            }
-            SparseVectorQueryBuilder large = new SparseVectorQueryBuilder(SPARSE_VECTOR_FIELD, "inferenceId", "x".repeat(500));
-            for (XContentType type : new XContentType[] { XContentType.JSON, XContentType.SMILE }) {
-                BytesReference bytes = XContentHelper.toXContent(large, type, false);
-                try (XContentParser parser = createParser(type.xContent(), bytes)) {
-                    expectThrows(CircuitBreakingException.class, () -> parseQuery(parser));
-                }
-            }
-        } finally {
-            AbstractQueryBuilder.setQueryParsingBreaker(null);
-        }
+        assertParseTimeBreaker(
+            limit,
+            new SparseVectorQueryBuilder(SPARSE_VECTOR_FIELD, "inferenceId", smallQueryString),
+            new SparseVectorQueryBuilder(SPARSE_VECTOR_FIELD, "inferenceId", "x".repeat(500))
+        );
     }
 
     public void testNullShouldPruneTokensSerializesToOlderTransportVersion() throws IOException {

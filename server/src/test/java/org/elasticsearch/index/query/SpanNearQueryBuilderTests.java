@@ -14,16 +14,8 @@ import org.apache.lucene.queries.spans.SpanQuery;
 import org.apache.lucene.queries.spans.SpanTermQuery;
 import org.apache.lucene.search.Query;
 import org.elasticsearch.common.ParsingException;
-import org.elasticsearch.common.breaker.CircuitBreaker;
-import org.elasticsearch.common.breaker.CircuitBreakingException;
-import org.elasticsearch.common.bytes.BytesReference;
-import org.elasticsearch.common.unit.ByteSizeValue;
-import org.elasticsearch.common.util.LimitedBreaker;
-import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.lucene.queries.SpanMatchNoDocsQuery;
 import org.elasticsearch.test.AbstractQueryTestCase;
-import org.elasticsearch.xcontent.XContentParser;
-import org.elasticsearch.xcontent.XContentType;
 
 import java.io.IOException;
 import java.util.Iterator;
@@ -241,26 +233,11 @@ public class SpanNearQueryBuilderTests extends AbstractQueryTestCase<SpanNearQue
         long parentCost = AbstractQueryBuilder.QUERY_BUILDER_SIZE_ESTIMATE_BYTES + 2 * 8L;
         long limit = termCost + shortGapCost + parentCost; // 387 + 322 + 272 = 981
         String longField = "f".repeat(200);
-        LimitedBreaker breaker = new LimitedBreaker(CircuitBreaker.REQUEST, ByteSizeValue.ofBytes(limit));
-        AbstractQueryBuilder.setQueryParsingBreaker(breaker);
-        try {
-            SpanNearQueryBuilder small = new SpanNearQueryBuilder(term, 0).addClause(new SpanNearQueryBuilder.SpanGapQueryBuilder("f", 1));
-            SpanNearQueryBuilder big = new SpanNearQueryBuilder(term, 0).addClause(
-                new SpanNearQueryBuilder.SpanGapQueryBuilder(longField, 1)
-            );
-            for (XContentType type : new XContentType[] { XContentType.JSON, XContentType.SMILE }) {
-                BytesReference bytes = XContentHelper.toXContent(small, type, false);
-                try (XContentParser parser = createParser(type.xContent(), bytes)) {
-                    parseQuery(parser); // must not throw
-                }
-                BytesReference bigBytes = XContentHelper.toXContent(big, type, false);
-                try (XContentParser parser = createParser(type.xContent(), bigBytes)) {
-                    expectThrows(CircuitBreakingException.class, () -> parseQuery(parser));
-                }
-            }
-        } finally {
-            AbstractQueryBuilder.setQueryParsingBreaker(null);
-        }
+        assertParseTimeBreaker(
+            limit,
+            new SpanNearQueryBuilder(term, 0).addClause(new SpanNearQueryBuilder.SpanGapQueryBuilder("f", 1)),
+            new SpanNearQueryBuilder(term, 0).addClause(new SpanNearQueryBuilder.SpanGapQueryBuilder(longField, 1))
+        );
     }
 
     public void testClausesBreakerEstimate() throws IOException {
@@ -274,23 +251,6 @@ public class SpanNearQueryBuilderTests extends AbstractQueryTestCase<SpanNearQue
         SpanTermQueryBuilder term = new SpanTermQueryBuilder("field", "value");
         long childCost = AbstractQueryBuilder.QUERY_BUILDER_SIZE_ESTIMATE_BYTES + ("field".length() * 2L + 64L) + ("value".length() + 64L);
         long limit = 2 * childCost + AbstractQueryBuilder.QUERY_BUILDER_SIZE_ESTIMATE_BYTES;
-        LimitedBreaker breaker = new LimitedBreaker(CircuitBreaker.REQUEST, ByteSizeValue.ofBytes(limit));
-        AbstractQueryBuilder.setQueryParsingBreaker(breaker);
-        try {
-            SpanNearQueryBuilder small = new SpanNearQueryBuilder(term, 0);
-            SpanNearQueryBuilder big = new SpanNearQueryBuilder(term, 0).addClause(term);
-            for (XContentType type : new XContentType[] { XContentType.JSON, XContentType.SMILE }) {
-                BytesReference bytes = XContentHelper.toXContent(small, type, false);
-                try (XContentParser parser = createParser(type.xContent(), bytes)) {
-                    parseQuery(parser);
-                }
-                BytesReference bigBytes = XContentHelper.toXContent(big, type, false);
-                try (XContentParser parser = createParser(type.xContent(), bigBytes)) {
-                    expectThrows(CircuitBreakingException.class, () -> parseQuery(parser));
-                }
-            }
-        } finally {
-            AbstractQueryBuilder.setQueryParsingBreaker(null);
-        }
+        assertParseTimeBreaker(limit, new SpanNearQueryBuilder(term, 0), new SpanNearQueryBuilder(term, 0).addClause(term));
     }
 }

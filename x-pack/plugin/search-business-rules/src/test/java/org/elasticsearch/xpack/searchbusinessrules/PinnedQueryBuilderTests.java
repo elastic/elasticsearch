@@ -251,26 +251,11 @@ public class PinnedQueryBuilderTests extends AbstractQueryTestCase<PinnedQueryBu
         String smallId = "a";
         long organicCost = AbstractQueryBuilder.QUERY_BUILDER_SIZE_ESTIMATE_BYTES;
         long limit = organicCost + AbstractQueryBuilder.QUERY_BUILDER_SIZE_ESTIMATE_BYTES + smallId.length() * 2L + 64L;
-        LimitedBreaker breaker = new LimitedBreaker(CircuitBreaker.REQUEST, ByteSizeValue.ofBytes(limit));
-        AbstractQueryBuilder.setQueryParsingBreaker(breaker);
-        try {
-            PinnedQueryBuilder small = new PinnedQueryBuilder(new MatchAllQueryBuilder(), smallId);
-            for (XContentType type : new XContentType[] { XContentType.JSON, XContentType.SMILE }) {
-                BytesReference bytes = XContentHelper.toXContent(small, type, false);
-                try (XContentParser parser = createParser(type.xContent(), bytes)) {
-                    parseQuery(parser); // must not throw
-                }
-            }
-            PinnedQueryBuilder large = new PinnedQueryBuilder(new MatchAllQueryBuilder(), "x".repeat(500));
-            for (XContentType type : new XContentType[] { XContentType.JSON, XContentType.SMILE }) {
-                BytesReference bytes = XContentHelper.toXContent(large, type, false);
-                try (XContentParser parser = createParser(type.xContent(), bytes)) {
-                    expectThrows(CircuitBreakingException.class, () -> parseQuery(parser));
-                }
-            }
-        } finally {
-            AbstractQueryBuilder.setQueryParsingBreaker(null);
-        }
+        assertParseTimeBreaker(
+            limit,
+            new PinnedQueryBuilder(new MatchAllQueryBuilder(), smallId),
+            new PinnedQueryBuilder(new MatchAllQueryBuilder(), "x".repeat(500))
+        );
     }
 
     public void testIdInsertionOrderRetained() {

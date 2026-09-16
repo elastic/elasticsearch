@@ -27,16 +27,10 @@ import org.apache.lucene.tests.index.RandomIndexWriter;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.breaker.CircuitBreaker;
-import org.elasticsearch.common.breaker.CircuitBreakingException;
-import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.compress.CompressedXContent;
 import org.elasticsearch.common.lucene.search.Queries;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.unit.Fuzziness;
-import org.elasticsearch.common.util.LimitedBreaker;
-import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.script.Script;
@@ -44,8 +38,6 @@ import org.elasticsearch.script.ScriptContext;
 import org.elasticsearch.script.ScriptType;
 import org.elasticsearch.test.AbstractQueryTestCase;
 import org.elasticsearch.xcontent.XContentBuilder;
-import org.elasticsearch.xcontent.XContentParser;
-import org.elasticsearch.xcontent.XContentType;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -1273,29 +1265,21 @@ public class IntervalQueryBuilderTests extends AbstractQueryTestCase<IntervalQue
             + scriptSource.length() * 2L + 64L  // idOrCode
             + 32L             // empty params map header
             + 8 * 2L + 64L;   // lang "painless"
-        long limit = smallCost; // equal to limit does not trip (LimitedBreaker uses strict >)
-        LimitedBreaker limitedBreaker = new LimitedBreaker(CircuitBreaker.REQUEST, ByteSizeValue.ofBytes(limit));
-        AbstractQueryBuilder.setQueryParsingBreaker(limitedBreaker);
-        try {
-            IntervalQueryBuilder small = new IntervalQueryBuilder(TEXT_FIELD_NAME, smallSource);
-            // Large params: one entry with a 500-char value dwarfs the small limit.
-            Script largeScript = new Script(ScriptType.INLINE, "painless", scriptSource, Map.of("k", "x".repeat(500)));
-            IntervalsSourceProvider.IntervalFilter largeFilter = new IntervalsSourceProvider.IntervalFilter(largeScript);
-            IntervalsSourceProvider largeSource = new IntervalsSourceProvider.Match("hi", -1, true, null, largeFilter, null);
-            IntervalQueryBuilder big = new IntervalQueryBuilder(TEXT_FIELD_NAME, largeSource);
-            for (XContentType type : new XContentType[] { XContentType.JSON, XContentType.SMILE }) {
-                BytesReference bytes = XContentHelper.toXContent(small, type, false);
-                try (XContentParser parser = createParser(type.xContent(), bytes)) {
-                    parseQuery(parser); // must not throw
-                }
-                BytesReference bigBytes = XContentHelper.toXContent(big, type, false);
-                try (XContentParser parser = createParser(type.xContent(), bigBytes)) {
-                    expectThrows(CircuitBreakingException.class, () -> parseQuery(parser));
-                }
-            }
-        } finally {
-            AbstractQueryBuilder.setQueryParsingBreaker(null);
-        }
+        long limit = smallCost;
+        Script largeScript = new Script(ScriptType.INLINE, "painless", scriptSource, Map.of("k", "x".repeat(500)));
+        IntervalsSourceProvider largeSource = new IntervalsSourceProvider.Match(
+            "hi",
+            -1,
+            true,
+            null,
+            new IntervalsSourceProvider.IntervalFilter(largeScript),
+            null
+        );
+        assertParseTimeBreaker(
+            limit,
+            new IntervalQueryBuilder(TEXT_FIELD_NAME, smallSource),
+            new IntervalQueryBuilder(TEXT_FIELD_NAME, largeSource)
+        );
     }
 
     public void testMatchSourceBreakerEstimate() throws IOException {
@@ -1306,31 +1290,12 @@ public class IntervalQueryBuilderTests extends AbstractQueryTestCase<IntervalQue
         long baseline = AbstractQueryBuilder.QUERY_BUILDER_SIZE_ESTIMATE_BYTES;
         String shortQuery = "hi";
         long smallCost = baseline + 13 * 2L + 64L + shortQuery.length() * 2L + 64L;
-        long limit = smallCost; // equal to limit does not trip (LimitedBreaker uses strict >)
-        LimitedBreaker limitedBreaker = new LimitedBreaker(CircuitBreaker.REQUEST, ByteSizeValue.ofBytes(limit));
-        AbstractQueryBuilder.setQueryParsingBreaker(limitedBreaker);
-        try {
-            IntervalQueryBuilder small = new IntervalQueryBuilder(
-                TEXT_FIELD_NAME,
-                new IntervalsSourceProvider.Match(shortQuery, -1, true, null, null, null)
-            );
-            IntervalQueryBuilder big = new IntervalQueryBuilder(
-                TEXT_FIELD_NAME,
-                new IntervalsSourceProvider.Match("x".repeat(500), -1, true, null, null, null)
-            );
-            for (XContentType type : new XContentType[] { XContentType.JSON, XContentType.SMILE }) {
-                BytesReference bytes = XContentHelper.toXContent(small, type, false);
-                try (XContentParser parser = createParser(type.xContent(), bytes)) {
-                    parseQuery(parser); // must not throw
-                }
-                BytesReference bigBytes = XContentHelper.toXContent(big, type, false);
-                try (XContentParser parser = createParser(type.xContent(), bigBytes)) {
-                    expectThrows(CircuitBreakingException.class, () -> parseQuery(parser));
-                }
-            }
-        } finally {
-            AbstractQueryBuilder.setQueryParsingBreaker(null);
-        }
+        long limit = smallCost;
+        assertParseTimeBreaker(
+            limit,
+            new IntervalQueryBuilder(TEXT_FIELD_NAME, new IntervalsSourceProvider.Match(shortQuery, -1, true, null, null, null)),
+            new IntervalQueryBuilder(TEXT_FIELD_NAME, new IntervalsSourceProvider.Match("x".repeat(500), -1, true, null, null, null))
+        );
     }
 
     public void testDisjunctionSourceBreakerEstimate() throws IOException {
@@ -1346,36 +1311,29 @@ public class IntervalQueryBuilderTests extends AbstractQueryTestCase<IntervalQue
         long disjSmall = 32L + 2 * 8L + matchHi + matchLo;
         long smallCost = baseline + fieldCost + disjSmall;
         long limit = smallCost;
-        LimitedBreaker limitedBreaker = new LimitedBreaker(CircuitBreaker.REQUEST, ByteSizeValue.ofBytes(limit));
-        AbstractQueryBuilder.setQueryParsingBreaker(limitedBreaker);
-        try {
-            IntervalsSourceProvider small = new IntervalsSourceProvider.Disjunction(
-                List.of(
-                    new IntervalsSourceProvider.Match("hi", -1, true, null, null, null),
-                    new IntervalsSourceProvider.Match("lo", -1, true, null, null, null)
-                ),
-                null
-            );
-            IntervalsSourceProvider big = new IntervalsSourceProvider.Disjunction(
-                List.of(
-                    new IntervalsSourceProvider.Match("hi", -1, true, null, null, null),
-                    new IntervalsSourceProvider.Match("x".repeat(500), -1, true, null, null, null)
-                ),
-                null
-            );
-            for (XContentType type : new XContentType[] { XContentType.JSON, XContentType.SMILE }) {
-                BytesReference bytes = XContentHelper.toXContent(new IntervalQueryBuilder(TEXT_FIELD_NAME, small), type, false);
-                try (XContentParser parser = createParser(type.xContent(), bytes)) {
-                    parseQuery(parser); // must not throw
-                }
-                BytesReference bigBytes = XContentHelper.toXContent(new IntervalQueryBuilder(TEXT_FIELD_NAME, big), type, false);
-                try (XContentParser parser = createParser(type.xContent(), bigBytes)) {
-                    expectThrows(CircuitBreakingException.class, () -> parseQuery(parser));
-                }
-            }
-        } finally {
-            AbstractQueryBuilder.setQueryParsingBreaker(null);
-        }
+        assertParseTimeBreaker(
+            limit,
+            new IntervalQueryBuilder(
+                TEXT_FIELD_NAME,
+                new IntervalsSourceProvider.Disjunction(
+                    List.of(
+                        new IntervalsSourceProvider.Match("hi", -1, true, null, null, null),
+                        new IntervalsSourceProvider.Match("lo", -1, true, null, null, null)
+                    ),
+                    null
+                )
+            ),
+            new IntervalQueryBuilder(
+                TEXT_FIELD_NAME,
+                new IntervalsSourceProvider.Disjunction(
+                    List.of(
+                        new IntervalsSourceProvider.Match("hi", -1, true, null, null, null),
+                        new IntervalsSourceProvider.Match("x".repeat(500), -1, true, null, null, null)
+                    ),
+                    null
+                )
+            )
+        );
     }
 
     public void testCombineSourceBreakerEstimate() throws IOException {
@@ -1389,40 +1347,33 @@ public class IntervalQueryBuilderTests extends AbstractQueryTestCase<IntervalQue
         long combineSmall = 32L + 2 * 8L + matchHi + matchLo;
         long smallCost = baseline + fieldCost + combineSmall;
         long limit = smallCost;
-        LimitedBreaker limitedBreaker = new LimitedBreaker(CircuitBreaker.REQUEST, ByteSizeValue.ofBytes(limit));
-        AbstractQueryBuilder.setQueryParsingBreaker(limitedBreaker);
-        try {
-            IntervalsSourceProvider small = new IntervalsSourceProvider.Combine(
-                List.of(
-                    new IntervalsSourceProvider.Match("hi", -1, true, null, null, null),
-                    new IntervalsSourceProvider.Match("lo", -1, true, null, null, null)
-                ),
-                false,
-                0,
-                null
-            );
-            IntervalsSourceProvider big = new IntervalsSourceProvider.Combine(
-                List.of(
-                    new IntervalsSourceProvider.Match("hi", -1, true, null, null, null),
-                    new IntervalsSourceProvider.Match("x".repeat(500), -1, true, null, null, null)
-                ),
-                false,
-                0,
-                null
-            );
-            for (XContentType type : new XContentType[] { XContentType.JSON, XContentType.SMILE }) {
-                BytesReference bytes = XContentHelper.toXContent(new IntervalQueryBuilder(TEXT_FIELD_NAME, small), type, false);
-                try (XContentParser parser = createParser(type.xContent(), bytes)) {
-                    parseQuery(parser); // must not throw
-                }
-                BytesReference bigBytes = XContentHelper.toXContent(new IntervalQueryBuilder(TEXT_FIELD_NAME, big), type, false);
-                try (XContentParser parser = createParser(type.xContent(), bigBytes)) {
-                    expectThrows(CircuitBreakingException.class, () -> parseQuery(parser));
-                }
-            }
-        } finally {
-            AbstractQueryBuilder.setQueryParsingBreaker(null);
-        }
+        assertParseTimeBreaker(
+            limit,
+            new IntervalQueryBuilder(
+                TEXT_FIELD_NAME,
+                new IntervalsSourceProvider.Combine(
+                    List.of(
+                        new IntervalsSourceProvider.Match("hi", -1, true, null, null, null),
+                        new IntervalsSourceProvider.Match("lo", -1, true, null, null, null)
+                    ),
+                    false,
+                    0,
+                    null
+                )
+            ),
+            new IntervalQueryBuilder(
+                TEXT_FIELD_NAME,
+                new IntervalsSourceProvider.Combine(
+                    List.of(
+                        new IntervalsSourceProvider.Match("hi", -1, true, null, null, null),
+                        new IntervalsSourceProvider.Match("x".repeat(500), -1, true, null, null, null)
+                    ),
+                    false,
+                    0,
+                    null
+                )
+            )
+        );
     }
 
     public void testNestedDisjunctionBreakerEstimate() throws IOException {
@@ -1441,43 +1392,32 @@ public class IntervalQueryBuilderTests extends AbstractQueryTestCase<IntervalQue
         long outerSmall = 32L + 2 * 8L + innerSmall + matchOk;
         long smallCost = baseline + fieldCost + outerSmall;
         long limit = smallCost;
-        LimitedBreaker limitedBreaker = new LimitedBreaker(CircuitBreaker.REQUEST, ByteSizeValue.ofBytes(limit));
-        AbstractQueryBuilder.setQueryParsingBreaker(limitedBreaker);
-        try {
-            IntervalsSourceProvider innerSmallSrc = new IntervalsSourceProvider.Disjunction(
-                List.of(
-                    new IntervalsSourceProvider.Match("hi", -1, true, null, null, null),
-                    new IntervalsSourceProvider.Match("lo", -1, true, null, null, null)
-                ),
-                null
-            );
-            IntervalsSourceProvider small = new IntervalsSourceProvider.Disjunction(
-                List.of(innerSmallSrc, new IntervalsSourceProvider.Match("ok", -1, true, null, null, null)),
-                null
-            );
-            IntervalsSourceProvider innerLargeSrc = new IntervalsSourceProvider.Disjunction(
-                List.of(
-                    new IntervalsSourceProvider.Match("hi", -1, true, null, null, null),
-                    new IntervalsSourceProvider.Match("x".repeat(500), -1, true, null, null, null)
-                ),
-                null
-            );
-            IntervalsSourceProvider big = new IntervalsSourceProvider.Disjunction(
-                List.of(innerLargeSrc, new IntervalsSourceProvider.Match("ok", -1, true, null, null, null)),
-                null
-            );
-            for (XContentType type : new XContentType[] { XContentType.JSON, XContentType.SMILE }) {
-                BytesReference bytes = XContentHelper.toXContent(new IntervalQueryBuilder(TEXT_FIELD_NAME, small), type, false);
-                try (XContentParser parser = createParser(type.xContent(), bytes)) {
-                    parseQuery(parser); // must not throw
-                }
-                BytesReference bigBytes = XContentHelper.toXContent(new IntervalQueryBuilder(TEXT_FIELD_NAME, big), type, false);
-                try (XContentParser parser = createParser(type.xContent(), bigBytes)) {
-                    expectThrows(CircuitBreakingException.class, () -> parseQuery(parser));
-                }
-            }
-        } finally {
-            AbstractQueryBuilder.setQueryParsingBreaker(null);
-        }
+        IntervalsSourceProvider innerSmallSrc = new IntervalsSourceProvider.Disjunction(
+            List.of(
+                new IntervalsSourceProvider.Match("hi", -1, true, null, null, null),
+                new IntervalsSourceProvider.Match("lo", -1, true, null, null, null)
+            ),
+            null
+        );
+        IntervalsSourceProvider smallSrc = new IntervalsSourceProvider.Disjunction(
+            List.of(innerSmallSrc, new IntervalsSourceProvider.Match("ok", -1, true, null, null, null)),
+            null
+        );
+        IntervalsSourceProvider innerLargeSrc = new IntervalsSourceProvider.Disjunction(
+            List.of(
+                new IntervalsSourceProvider.Match("hi", -1, true, null, null, null),
+                new IntervalsSourceProvider.Match("x".repeat(500), -1, true, null, null, null)
+            ),
+            null
+        );
+        IntervalsSourceProvider bigSrc = new IntervalsSourceProvider.Disjunction(
+            List.of(innerLargeSrc, new IntervalsSourceProvider.Match("ok", -1, true, null, null, null)),
+            null
+        );
+        assertParseTimeBreaker(
+            limit,
+            new IntervalQueryBuilder(TEXT_FIELD_NAME, smallSrc),
+            new IntervalQueryBuilder(TEXT_FIELD_NAME, bigSrc)
+        );
     }
 }

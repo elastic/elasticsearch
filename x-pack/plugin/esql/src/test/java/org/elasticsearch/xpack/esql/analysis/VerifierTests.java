@@ -11,10 +11,10 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.inference.TaskType;
-import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.TransportVersionUtils;
 import org.elasticsearch.xpack.core.enrich.EnrichPolicy;
 import org.elasticsearch.xpack.esql.TestAnalyzer;
+import org.elasticsearch.xpack.esql.VersionMode;
 import org.elasticsearch.xpack.esql.action.EsqlCapabilities;
 import org.elasticsearch.xpack.esql.core.InvalidArgumentException;
 import org.elasticsearch.xpack.esql.core.expression.UnresolvedTimestamp;
@@ -42,7 +42,6 @@ import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
 
-import static org.elasticsearch.xpack.esql.EsqlTestUtils.analyzer;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.withDefaultLimitWarning;
 import static org.elasticsearch.xpack.esql.analysis.Analyzer.ESQL_LOOKUP_JOIN_FULL_TEXT_FUNCTION;
 import static org.elasticsearch.xpack.esql.analysis.AnalyzerTestUtils.EMBEDDING_INFERENCE_ID;
@@ -82,7 +81,11 @@ import static org.hamcrest.Matchers.startsWith;
  * Use this class if you want to test post analysis verification
  * and especially if you expect to get a VerificationException
  */
-public class VerifierTests extends ESTestCase {
+public class VerifierTests extends AnalyzerTestCase {
+
+    public VerifierTests(VersionMode versionMode) {
+        super(versionMode);
+    }
 
     private final List<String> TIME_DURATIONS = List.of("millisecond", "second", "minute", "hour");
     private final List<String> DATE_PERIODS = List.of("day", "week", "month", "year");
@@ -4112,7 +4115,7 @@ public class VerifierTests extends ESTestCase {
         assertInvalidEmbeddingSecondArgument("EMBEDDING");
     }
 
-    private static void assertInvalidEmbeddingFirstArgument(String functionName, String inferenceId, TaskType taskType) {
+    private void assertInvalidEmbeddingFirstArgument(String functionName, String inferenceId, TaskType taskType) {
         defaultAnalyzer().addInferenceResolution(inferenceId, taskType)
             .error(
                 "from test | EVAL embedding = " + functionName + "(null, ?)",
@@ -4127,7 +4130,7 @@ public class VerifierTests extends ESTestCase {
             );
     }
 
-    private static void assertInvalidEmbeddingSecondArgument(String functionName) {
+    private void assertInvalidEmbeddingSecondArgument(String functionName) {
         defaultAnalyzer().error(
             "from test | EVAL embedding = " + functionName + "(?, null)",
             equalTo("1:30: second argument of [" + functionName + "(?, null)] cannot be null, received [null]"),
@@ -5040,41 +5043,41 @@ public class VerifierTests extends ESTestCase {
             """, containsString("WITHOUT is only supported in time-series queries (i.e. TS | ...) at the moment"));
     }
 
-    private static TestAnalyzer defaultAnalyzer() {
+    private TestAnalyzer defaultAnalyzer() {
         return analyzer().addDefaultIndex().stripErrorPrefix(true);
     }
 
-    private static TestAnalyzer analyzerWithLanguagesLookup() {
+    private TestAnalyzer analyzerWithLanguagesLookup() {
         return defaultAnalyzer().addLanguagesLookup();
     }
 
-    private static TestAnalyzer fullText() {
+    private TestAnalyzer fullText() {
         return analyzer().addIndex("test", "mapping-full_text_search.json").stripErrorPrefix(true);
     }
 
-    private static TestAnalyzer sampleData() {
+    private TestAnalyzer sampleData() {
         return analyzer().addIndex("test", "mapping-sample_data.json").stripErrorPrefix(true);
     }
 
-    private static TestAnalyzer oddSampleData() {
+    private TestAnalyzer oddSampleData() {
         return analyzer().addIndex("test", "mapping-odd-timestamp.json").stripErrorPrefix(true);
     }
 
-    private static TestAnalyzer tsdb() {
+    private TestAnalyzer tsdb() {
         return analyzer().addIndex("test", "tsdb-mapping.json", IndexMode.TIME_SERIES)
             .stripErrorPrefix(true)
             .minimumTransportVersion(DimensionValues.DIMENSION_VALUES_VERSION);
     }
 
-    private static TestAnalyzer k8s() {
+    private TestAnalyzer k8s() {
         return analyzer().addK8s().stripErrorPrefix(true);
     }
 
-    private static TestAnalyzer k8sDownsampled() {
+    private TestAnalyzer k8sDownsampled() {
         return analyzer().addK8sDownsampled().stripErrorPrefix(true);
     }
 
-    private static TestAnalyzer lookupJoinFullText() {
+    private TestAnalyzer lookupJoinFullText() {
         return analyzer().addDefaultIndex()
             .addLanguagesLookup()
             .minimumTransportVersion(ESQL_LOOKUP_JOIN_FULL_TEXT_FUNCTION)

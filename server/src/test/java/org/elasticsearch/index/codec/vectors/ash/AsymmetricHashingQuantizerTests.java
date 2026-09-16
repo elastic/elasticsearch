@@ -19,7 +19,6 @@ import org.elasticsearch.test.ESTestCase;
 import java.io.IOException;
 import java.util.Arrays;
 import java.util.Comparator;
-import java.util.Random;
 import java.util.Set;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
@@ -41,12 +40,12 @@ public class AsymmetricHashingQuantizerTests extends ESTestCase {
         // Check R^T R ~= I
         for (int i = 0; i < k; i++) {
             for (int j = 0; j < k; j++) {
-                double dot = 0;
+                float dot = 0;
                 for (int l = 0; l < k; l++) {
-                    dot += (double) r[l * k + i] * r[l * k + j];
+                    dot = Math.fma(r[l * k + i], r[l * k + j], dot);
                 }
                 float expected = (i == j) ? 1.0f : 0.0f;
-                assertEquals(expected, (float) dot, 1e-4f);
+                assertEquals(expected, dot, 1e-4f);
             }
         }
     }
@@ -63,18 +62,18 @@ public class AsymmetricHashingQuantizerTests extends ESTestCase {
         }
 
         // Single centroid (mean)
-        float[][] centroids = new float[1][dim];
+        float[] centroid = new float[dim];
         for (int i = 0; i < nVectors; i++) {
             for (int j = 0; j < dim; j++) {
-                centroids[0][j] += vectors[i][j];
+                centroid[j] += vectors[i][j];
             }
         }
         for (int j = 0; j < dim; j++) {
-            centroids[0][j] /= nVectors;
+            centroid[j] /= nVectors;
         }
-        int[] assignments = new int[nVectors]; // all zero
 
-        CheckedIntFunction<float[], IOException> centroidGetter = (i) -> centroids[assignments[i]];
+        // all assigned to the same centroid
+        CheckedIntFunction<float[], IOException> centroidGetter = i -> centroid;
 
         AsymmetricHashingQuantizer quantizer = new AsymmetricHashingQuantizer(
             projectedDimsFraction,
@@ -92,9 +91,9 @@ public class AsymmetricHashingQuantizerTests extends ESTestCase {
 
         // Encode per-cluster using the production path
         float[] wT = ESVectorUtil.transposeMatrix(w, dim, expectedNDims);
-        AsymmetricHashingQuantizer.VectorAndNorm precomputed = AsymmetricHashingQuantizer.precomputeCentroid(centroids[0], wT);
+        AsymmetricHashingQuantizer.VectorAndNorm precomputed = AsymmetricHashingQuantizer.precomputeCentroid(centroid, wT);
         for (int i = 0; i < nVectors; i++) {
-            AsymmetricHashingQuantizer.EncodedVector enc = quantizer.encode(vectors[i], centroids[0], wT, precomputed);
+            AsymmetricHashingQuantizer.EncodedVector enc = quantizer.encode(vectors[i], centroid, wT, precomputed);
             assertNotNull(enc.xEnc());
             assertEquals(expectedNDims, enc.xEnc().length);
         }
@@ -111,18 +110,18 @@ public class AsymmetricHashingQuantizerTests extends ESTestCase {
             vectors[i] = AshUtils.randomGaussians(random(), dim);
         }
 
-        float[][] centroids = new float[1][dim];
+        float[] centroid = new float[dim];
         for (int i = 0; i < nVectors; i++) {
             for (int j = 0; j < dim; j++) {
-                centroids[0][j] += vectors[i][j];
+                centroid[j] += vectors[i][j];
             }
         }
         for (int j = 0; j < dim; j++) {
-            centroids[0][j] /= nVectors;
+            centroid[j] /= nVectors;
         }
-        int[] assignments = new int[nVectors];
 
-        CheckedIntFunction<float[], IOException> centroidGetter = (i) -> centroids[assignments[i]];
+        // all assigned to the same centroid
+        CheckedIntFunction<float[], IOException> centroidGetter = i -> centroid;
 
         AsymmetricHashingQuantizer quantizer = new AsymmetricHashingQuantizer(
             projectedDimsFraction,
@@ -138,12 +137,12 @@ public class AsymmetricHashingQuantizerTests extends ESTestCase {
 
         // Encode per-cluster using the production path
         float[] wT = ESVectorUtil.transposeMatrix(w, dim, nDims);
-        AsymmetricHashingQuantizer.VectorAndNorm precomputed = AsymmetricHashingQuantizer.precomputeCentroid(centroids[0], wT);
+        AsymmetricHashingQuantizer.VectorAndNorm precomputed = AsymmetricHashingQuantizer.precomputeCentroid(centroid, wT);
         float[][] encodedVectors = new float[nVectors][nDims];
         float[] scales = new float[nVectors];
         float[] offsets = new float[nVectors];
         for (int i = 0; i < nVectors; i++) {
-            AsymmetricHashingQuantizer.EncodedVector enc = quantizer.encode(vectors[i], centroids[0], wT, precomputed);
+            AsymmetricHashingQuantizer.EncodedVector enc = quantizer.encode(vectors[i], centroid, wT, precomputed);
             encodedVectors[i] = enc.xEnc();
             scales[i] = enc.scale();
             offsets[i] = enc.offset();
@@ -154,7 +153,7 @@ public class AsymmetricHashingQuantizerTests extends ESTestCase {
 
         // Project query: qt = wT @ query (raw, not centered)
         float[] qt = ESVectorUtil.matrixVectorMultiply(wT, nDims, dim, query);
-        float queryDotCentroid = ESVectorUtil.dotProduct(query, centroids[0]);
+        float queryDotCentroid = ESVectorUtil.dotProduct(query, centroid);
 
         float[] scores = new float[nVectors];
         for (int i = 0; i < nVectors; i++) {
@@ -301,7 +300,6 @@ public class AsymmetricHashingQuantizerTests extends ESTestCase {
     }
 
     public void testProjectionMatrixSerializationRoundtrip() throws Exception {
-        Random rng = random();
         int originalDim = 8;
         int nDims = 3;
 
@@ -370,17 +368,17 @@ public class AsymmetricHashingQuantizerTests extends ESTestCase {
         // A^T U comes out orthogonal but scaled by the singular values, so the recovery step has
         // to normalize the columns
         for (int j = 0; j < k; j++) {
-            double normSq = 0;
+            float normSq = 0;
             for (int i = 0; i < n; i++) {
-                normSq += topK[i * k + j] * topK[i * k + j];
+                normSq = Math.fma(topK[i * k + j], topK[i * k + j], normSq);
             }
             assertThat("column " + j + " is not unit length", Math.sqrt(normSq), closeTo(1.0, 1e-5));
         }
-        double dot = 0;
+        float dot = 0;
         for (int i = 0; i < n; i++) {
-            dot += topK[i * k] * topK[i * k + 1];
+            dot = Math.fma(topK[i * k], topK[i * k + 1], dot);
         }
-        assertThat("columns are not orthogonal", Math.abs(dot), lessThan(1e-5));
+        assertThat("columns are not orthogonal", Math.abs(dot), lessThan(1e-5f));
     }
 
     public void testScoreReconstructsDotProduct() throws IOException {
@@ -542,7 +540,7 @@ public class AsymmetricHashingQuantizerTests extends ESTestCase {
         for (int i = 0; i < n; i++) {
             // no ESVectorUtil.squareDistance method with ints :(
             double d = exactRanks[i] - approxRanks[i];
-            sumD2 += d * d;
+            sumD2 = Math.fma(d, d, sumD2);
         }
         return 1.0 - 6.0 * sumD2 / (n * ((long) n * n - 1));
     }

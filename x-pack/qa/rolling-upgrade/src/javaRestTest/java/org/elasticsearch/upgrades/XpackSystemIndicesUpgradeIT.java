@@ -21,6 +21,7 @@ import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.indices.SystemIndices;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.xcontent.json.JsonXContent;
+import org.junit.BeforeClass;
 
 import java.io.IOException;
 import java.util.List;
@@ -32,6 +33,12 @@ import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.instanceOf;
 
 public class XpackSystemIndicesUpgradeIT extends AbstractXpackRollingUpgradeWithSecurityTestCase {
+
+    @BeforeClass
+    public static void avoidBugIn8_0_1() {
+        // 8.0.1 crashes when the X-elastic-product-origin header propagates to transport threads; skip to avoid cluster instability.
+        assumeTrue("https://github.com/elastic/elasticsearch/issues/125168", getOldClusterTestVersion().onOrAfter("8.1.0"));
+    }
 
     private static final String BASIC_AUTH_VALUE = basicAuthHeaderValue(USER, new SecureString(PASS.toCharArray()));
 

@@ -1,5 +1,0 @@
-area: Recovery
-issues: []
-pr: 159420
-summary: Log the sequence numbers a commit covered when it is uploaded
-type: enhancement

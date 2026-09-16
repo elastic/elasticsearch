@@ -227,6 +227,7 @@ public class NvidiaService extends SenderService<NvidiaModel> implements Reranki
         List<EmbeddingRequestChunker.BatchRequestAndListener> batchedRequests = new EmbeddingRequestChunker<>(
             inputs,
             EMBEDDING_MAX_BATCH_SIZE,
+            getRegexReadLimitFactor(),
             nvidiaEmbeddingsModel.getConfigurations().getChunkingSettings()
         ).batchRequestsWithListeners(listener);
 

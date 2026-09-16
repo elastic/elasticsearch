@@ -373,6 +373,9 @@ public class ES818BinaryQuantizedVectorsWriter extends FlatVectorsWriter {
     }
 
     static float[] getCentroid(KnnVectorsReader vectorsReader, String fieldName) {
+        if (vectorsReader == null) {
+            return null;
+        }
         vectorsReader = vectorsReader.unwrapReaderForField(fieldName);
         if (vectorsReader instanceof ES818BinaryQuantizedVectorsReader reader) {
             return reader.getCentroid(fieldName);

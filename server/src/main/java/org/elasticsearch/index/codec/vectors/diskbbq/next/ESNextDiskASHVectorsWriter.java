@@ -436,7 +436,9 @@ public class ESNextDiskASHVectorsWriter extends IVFVectorsWriter<FlatCentroidInd
         try {
             for (int i = 0; i < numSegments; i++) {
                 KnnVectorsReader reader = mergeState.knnVectorsReaders[i];
-                reader = reader.unwrapReaderForField(fieldInfo.name);
+                if (reader != null) {
+                    reader = reader.unwrapReaderForField(fieldInfo.name);
+                }
                 if (reader instanceof IVFVectorsReader<?> ivfReader && mergeState.fieldInfos[i].fieldInfo(fieldInfo.name) != null) {
                     if (fieldInfo.getVectorEncoding() == VectorEncoding.BYTE) {
                         ByteVectorValues bvv = ivfReader.getByteVectorValues(fieldInfo.name);

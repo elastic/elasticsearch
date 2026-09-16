@@ -290,7 +290,9 @@ public class IvfAutoCalibration {
 
         for (int i = 0; i < mergeState.knnVectorsReaders.length; i++) {
             KnnVectorsReader reader = mergeState.knnVectorsReaders[i];
-            reader = reader.unwrapReaderForField(fieldInfo.name);
+            if (reader != null) {
+                reader = reader.unwrapReaderForField(fieldInfo.name);
+            }
             if (reader instanceof CalibrationAwareReader car) {
                 QuantEncoding enc = car.getQuantEncoding(fieldInfo);
                 if (Float.isNaN(car.getOversampleFactor(fieldInfo)) || enc == null) {

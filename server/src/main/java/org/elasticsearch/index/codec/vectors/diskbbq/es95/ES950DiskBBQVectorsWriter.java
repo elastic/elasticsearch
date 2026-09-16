@@ -659,7 +659,9 @@ public class ES950DiskBBQVectorsWriter extends IVFVectorsWriter<FlatCentroidInde
         try {
             for (int i = 0; i < numSegments; i++) {
                 KnnVectorsReader reader = mergeState.knnVectorsReaders[i];
-                reader = reader.unwrapReaderForField(fieldInfo.name);
+                if (reader != null) {
+                    reader = reader.unwrapReaderForField(fieldInfo.name);
+                }
                 if (reader instanceof IVFVectorsReader<?> ivfReader && mergeState.fieldInfos[i].fieldInfo(fieldInfo.name) != null) {
                     // Get segment size — use the appropriate vector values accessor based on encoding
                     if (fieldInfo.getVectorEncoding() == VectorEncoding.BYTE) {

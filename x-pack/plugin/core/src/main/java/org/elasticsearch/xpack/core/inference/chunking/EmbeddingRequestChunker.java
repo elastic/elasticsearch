@@ -119,13 +119,38 @@ public class EmbeddingRequestChunker<E extends EmbeddingResults.Embedding<E>> {
         int maxNumberOfInputsPerBatch,
         @Nullable ChunkingSettings defaultChunkingSettings
     ) {
-        this(inputs, maxNumberOfInputsPerBatch, true, defaultChunkingSettings);
+        this(inputs, maxNumberOfInputsPerBatch, true, RecursiveChunkingSettings.DEFAULT_REGEX_READ_LIMIT_FACTOR, defaultChunkingSettings);
+    }
+
+    public EmbeddingRequestChunker(
+        List<ChunkInferenceInput> inputs,
+        int maxNumberOfInputsPerBatch,
+        int regexReadLimitFactor,
+        @Nullable ChunkingSettings defaultChunkingSettings
+    ) {
+        this(inputs, maxNumberOfInputsPerBatch, true, regexReadLimitFactor, defaultChunkingSettings);
     }
 
     public EmbeddingRequestChunker(
         List<ChunkInferenceInput> inputs,
         int maxNumberOfInputsPerBatch,
         boolean batchChunksAcrossInputs,
+        @Nullable ChunkingSettings defaultChunkingSettings
+    ) {
+        this(
+            inputs,
+            maxNumberOfInputsPerBatch,
+            batchChunksAcrossInputs,
+            RecursiveChunkingSettings.DEFAULT_REGEX_READ_LIMIT_FACTOR,
+            defaultChunkingSettings
+        );
+    }
+
+    public EmbeddingRequestChunker(
+        List<ChunkInferenceInput> inputs,
+        int maxNumberOfInputsPerBatch,
+        boolean batchChunksAcrossInputs,
+        int regexReadLimitFactor,
         @Nullable ChunkingSettings defaultChunkingSettings
     ) {
         this.resultEmbeddings = new ArrayList<>(inputs.size());
@@ -142,8 +167,10 @@ public class EmbeddingRequestChunker<E extends EmbeddingResults.Embedding<E>> {
             .filter(Objects::nonNull)
             .map(ChunkingSettings::getChunkingStrategy)
             .distinct()
-            .collect(Collectors.toMap(chunkingStrategy -> chunkingStrategy, ChunkerBuilder::fromChunkingStrategy));
-        Chunker defaultChunker = ChunkerBuilder.fromChunkingStrategy(defaultChunkingSettings.getChunkingStrategy());
+            .collect(
+                Collectors.toMap(chunkingStrategy -> chunkingStrategy, s -> ChunkerBuilder.fromChunkingStrategy(s, regexReadLimitFactor))
+            );
+        Chunker defaultChunker = ChunkerBuilder.fromChunkingStrategy(defaultChunkingSettings.getChunkingStrategy(), regexReadLimitFactor);
 
         List<Request> allRequests = new ArrayList<>();
         for (int inputIndex = 0; inputIndex < inputs.size(); inputIndex++) {

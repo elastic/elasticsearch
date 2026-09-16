@@ -10,14 +10,16 @@ package org.elasticsearch.xpack.esql.datasources;
 import org.elasticsearch.xpack.esql.datasources.spi.SkipWarnings;
 
 import java.util.List;
+import java.util.Objects;
+import java.util.function.Consumer;
 
 /**
  * The dedicated metadata namespace, shared by every {@link PartitionDetector}: standard metadata
  * names ({@code _id}, {@code _index}, ...), the {@code _file.*} family, and reader-synthesized
  * channel names are reserved — a dataset layout cannot claim them, or {@code METADATA _index}
  * would silently return a layout value instead of its spec-defined meaning. Detectors surface a
- * colliding partition column under {@link #RESERVED_RENAME_PREFIX} and disclose each rename with
- * a {@code Warning} response header.
+ * colliding partition column under {@link #RESERVED_RENAME_PREFIX} and disclose each rename
+ * through the caller's warning sink (see {@link #warnRenamed}).
  * <p>
  * Every detector MUST route its surfaced column names through {@link #surface(String)}: the
  * downstream consumers ({@code VirtualColumnIterator} role dispatch, the analyzer's
@@ -49,10 +51,11 @@ final class ReservedPartitionNames {
     }
 
     /**
-     * Emit one {@code Warning} response header per renamed key (none when {@code renamed} is
+     * Hand one notice per renamed key to {@code warningSink} (none when {@code renamed} is
      * empty). Callers pass the ORIGINAL key names that {@link #surface(String)} renamed.
      */
-    static void warnRenamed(List<String> renamed) {
+    static void warnRenamed(List<String> renamed, Consumer<String> warningSink) {
+        Objects.requireNonNull(warningSink, "warningSink: a null sink would fall back to HeaderWarning off the request thread");
         if (renamed.isEmpty()) {
             return;
         }
@@ -60,7 +63,8 @@ final class ReservedPartitionNames {
             "Partition columns shadowing reserved metadata names were renamed;"
                 + " reference them by the "
                 + RESERVED_RENAME_PREFIX
-                + "* name."
+                + "* name.",
+            warningSink
         );
         for (String key : renamed) {
             warnings.add("partition column [" + key + "] surfaced as [" + RESERVED_RENAME_PREFIX + key + "]");

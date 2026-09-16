@@ -68,16 +68,20 @@ import static org.hamcrest.Matchers.hasItem;
  * <em>is</em> the data node.
  *
  * <p>So this suite runs the identical read under {@code coordinator_only}, {@code round_robin}, and {@code adaptive}
- * from every coordinator, verifies from the profiles that at least one round-robin assignment differs from its
- * coordinator-only counterpart, and requires the notice in every response. A mode that returns the right values with
- * no notice is the silent-loss regression the notice exists to prevent.
+ * from every coordinator. The dataset is two files (one with a dropped null, one without) so a distributing mode
+ * occupies both nodes; the profile must name both, and the notice must appear in every response. A mode that
+ * returns the right values with no notice is the silent-loss regression the notice exists to prevent.
  */
 @ThreadLeakFilters(filters = { TestClustersThreadFilter.class, AzureReactorThreadFilter.class })
 public class ParquetNullListElementWarningIT extends AbstractFromDatasetSubqueryRestTestCase {
 
     private static final String DATA_SOURCE = "null_list_elem_s3_ds";
     private static final String DATASET = "null_list_elem_s3";
-    private static final String BLOB_KEY = WAREHOUSE + "/standalone/null_list_elements.parquet";
+    private static final String BLOB_PREFIX = WAREHOUSE + "/standalone/null_list_elements";
+    private static final String WARN_BLOB = BLOB_PREFIX + "-warn.parquet";
+    private static final String CLEAN_BLOB = BLOB_PREFIX + "-clean.parquet";
+    /** Last path segment keeps a {@code .parquet} suffix so PUT infers format from the glob. */
+    private static final String BLOB_GLOB = BLOB_PREFIX + "-*.parquet";
 
     /** Every external distribution mode {@code QueryPragmas#EXTERNAL_DISTRIBUTION} accepts. */
     private static final List<String> DISTRIBUTION_MODES = List.of("coordinator_only", "round_robin", "adaptive");
@@ -112,22 +116,24 @@ public class ParquetNullListElementWarningIT extends AbstractFromDatasetSubquery
     }
 
     /**
-     * {@code ints} holds {@code [1,2,3]}, {@code [null,1]}, {@code [4]}: six elements, five of them non-null. The
-     * value assertions pin the drop semantics (the read returns five) and the warning assertion pins that the drop is
-     * announced.
+     * Two files, six rows. The warn file holds {@code [1,2,3]}, {@code [null,1]}, {@code [4]} (the drop); the clean
+     * file holds {@code [1,2,3]}, {@code [1]}, {@code [4]}. Together that is ten non-null elements. The value
+     * assertions pin the drop semantics and the warning assertion pins that the drop is announced. The warn rows
+     * live in only one file so a second local drop cannot hide a broken remote warning channel; the off-coordinator
+     * proof is that a distributing mode occupies both nodes, not that the warn split was remote.
      */
     public void testDroppedNullElementIsAnnouncedInEveryDistributionMode() throws Exception {
         BackendFixture s3Backend = new S3BackendFixture(s3Fixture);
-        s3Backend.uploadBlob(BLOB_KEY, nullListElementParquetBytes());
+        s3Backend.uploadBlob(WARN_BLOB, parquetBytes(new Long[] { 1L, 2L, 3L }, new Long[] { null, 1L }, new Long[] { 4L }));
+        s3Backend.uploadBlob(CLEAN_BLOB, parquetBytes(new Long[] { 1L, 2L, 3L }, new Long[] { 1L }, new Long[] { 4L }));
         putDataSource(DATA_SOURCE, s3Backend.dataSourceType(), s3Backend.dataSourceSettings());
-        putDataset(DATASET, DATA_SOURCE, s3Backend.resourceUri(BLOB_KEY), Map.of());
+        putDataset(DATASET, DATA_SOURCE, s3Backend.resourceUri(BLOB_GLOB), Map.of());
 
         String query = "FROM " + DATASET + " | STATS rows = COUNT(*), elements = SUM(MV_COUNT(ints))";
 
         // Every combination is run before anything is asserted, so a failure report names all of them rather than
-        // stopping at the first. Each mode is issued once per node: under a distributing mode the one split lands on a
-        // fixed node, so sweeping the coordinator across the cluster gives the assignment a chance to differ. The
-        // profile assertion below proves that it actually did rather than assuming placement from the pragma alone.
+        // stopping at the first. Two files become two splits; a distributing mode therefore occupies both nodes.
+        // The profile assertion below proves that rather than assuming placement from the pragma alone.
         Map<String, QueryOutcome> outcomes = new LinkedHashMap<>();
         Map<String, RestClient> coordinators = perNodeClients();
         for (String mode : DISTRIBUTION_MODES) {
@@ -136,8 +142,8 @@ public class ParquetNullListElementWarningIT extends AbstractFromDatasetSubquery
             }
         }
         outcomes.forEach((label, outcome) -> {
-            assertThat("[" + label + "] rows", outcome.longValue("rows"), equalTo(3L));
-            assertThat("[" + label + "] elements (the null element is dropped)", outcome.longValue("elements"), equalTo(5L));
+            assertThat("[" + label + "] rows", outcome.longValue("rows"), equalTo(6L));
+            assertThat("[" + label + "] elements (the null element is dropped)", outcome.longValue("elements"), equalTo(10L));
         });
         Map<String, String> report = new LinkedHashMap<>();
         outcomes.forEach((label, outcome) -> report.put(label, "scan on " + outcome.scanNodes() + " warnings " + outcome.warnings()));
@@ -147,17 +153,18 @@ public class ParquetNullListElementWarningIT extends AbstractFromDatasetSubquery
                 outcome.scanNodes().isEmpty()
             )
         );
-        boolean observedOffCoordinatorAssignment = coordinators.keySet()
-            .stream()
-            .anyMatch(
-                coordinator -> outcomes.get("coordinator_only @ " + coordinator)
-                    .scanNodes()
-                    .equals(outcomes.get("round_robin @ " + coordinator).scanNodes()) == false
-            );
-        assertTrue(
-            "round_robin never changed the external scan node relative to coordinator_only for the same coordinator; per run: " + report,
-            observedOffCoordinatorAssignment
-        );
+        int clusterNodes = coordinators.size();
+        for (String mode : DISTRIBUTION_MODES) {
+            int expectedScanNodes = mode.equals("coordinator_only") ? 1 : clusterNodes;
+            for (String coordinator : coordinators.keySet()) {
+                String label = mode + " @ " + coordinator;
+                assertThat(
+                    "[" + label + "] external scan nodes; per run: " + report,
+                    outcomes.get(label).scanNodes().size(),
+                    equalTo(expectedScanNodes)
+                );
+            }
+        }
         outcomes.forEach((label, outcome) -> {
             assertThat("[" + label + "] summary notice; per run: " + report, outcome.warnings(), hasItem(SUMMARY_WARNING));
             assertThat("[" + label + "] per-column notice; per run: " + report, outcome.warnings(), hasItem(COLUMN_WARNING));
@@ -249,12 +256,12 @@ public class ParquetNullListElementWarningIT extends AbstractFromDatasetSubquery
     }
 
     /**
-     * A three-row, one-row-group file with a single 3-level {@code LIST} column of optional {@code int64} elements.
-     * The middle row's leading element is null: {@link Group#addGroup} with nothing appended writes a present list
-     * entry whose value is absent, which is exactly the definition level the reader recognises as a droppable
-     * element (as opposed to a null or empty list).
+     * A one-row-group file with a single 3-level {@code LIST} column of optional {@code int64} elements.
+     * A {@code null} vararg entry is a present list element whose value is absent: {@link Group#addGroup}
+     * with nothing appended, which is the definition level the reader recognises as a droppable element
+     * (as opposed to a null or empty list).
      */
-    private static byte[] nullListElementParquetBytes() throws IOException {
+    private static byte[] parquetBytes(Long[]... rows) throws IOException {
         MessageType schema = new MessageType(
             "null_list_elements",
             Types.optionalList().optionalElement(PrimitiveType.PrimitiveTypeName.INT64).named("ints")
@@ -269,9 +276,9 @@ public class ParquetNullListElementWarningIT extends AbstractFromDatasetSubquery
                 .withCompressionCodec(CompressionCodecName.UNCOMPRESSED)
                 .build()
         ) {
-            writer.write(listRow(factory, 1L, 2L, 3L));
-            writer.write(listRow(factory, null, 1L));
-            writer.write(listRow(factory, 4L));
+            for (Long[] row : rows) {
+                writer.write(listRow(factory, row));
+            }
         }
         return baos.toByteArray();
     }

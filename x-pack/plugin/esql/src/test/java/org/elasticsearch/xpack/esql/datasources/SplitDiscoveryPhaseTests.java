@@ -12,6 +12,7 @@ import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
+import org.elasticsearch.xpack.esql.core.expression.ExternalMetadataAttribute;
 import org.elasticsearch.xpack.esql.core.expression.FieldAttribute;
 import org.elasticsearch.xpack.esql.core.expression.Literal;
 import org.elasticsearch.xpack.esql.core.tree.Source;
@@ -43,6 +44,7 @@ import java.time.Instant;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
@@ -586,6 +588,37 @@ public class SplitDiscoveryPhaseTests extends ESTestCase {
         assertFalse(recorder.lastContext.isCancelled().getAsBoolean());
     }
 
+    public void testMetadataBindingsReachSyncAndAsyncDiscovery() {
+        ExternalSourceExec exec = createExternalSourceExec(createFileList(1), "parquet").withAttributes(
+            List.of(
+                fieldAttr("_index", DataType.KEYWORD),
+                new ExternalMetadataAttribute(SRC, "_version", DataType.LONG),
+                new ExternalMetadataAttribute(SRC, "_id", DataType.KEYWORD),
+                new ExternalMetadataAttribute(SRC, FileMetadataColumns.RECORD_REF, DataType.KEYWORD)
+            )
+        );
+        RecordingSplitProvider recorder = new RecordingSplitProvider();
+        Map<String, ExternalSourceFactory> factories = Map.of("parquet", testFactory(recorder));
+        Set<String> expected = Set.of("_version", "_id", FileMetadataColumns.RECORD_REF);
+
+        SplitDiscoveryPhase.resolveExternalSplits(exec, factories);
+        assertEquals(expected, recorder.lastContext.metadataColumnNames());
+
+        recorder.lastContext = null;
+        PlainActionFuture<SplitDiscoveryPhase.Result> future = new PlainActionFuture<>();
+        SplitDiscoveryPhase.resolveExternalSplitsWithStatsAsync(
+            exec,
+            factories,
+            SegmentableFormatReader.DEFAULT_MAX_RECORD_BYTES,
+            () -> false,
+            List.of(),
+            EsExecutors.DIRECT_EXECUTOR_SERVICE,
+            future
+        );
+        future.actionGet(30, TimeUnit.SECONDS);
+        assertEquals(expected, recorder.lastContext.metadataColumnNames());
+    }
+
     public void testNoFiltersWhenNoFilterExecInPlan() {
         FileList fileList = createFileList(2);
         ExternalSourceExec exec = createExternalSourceExec(fileList, "parquet");
@@ -670,6 +703,58 @@ public class SplitDiscoveryPhaseTests extends ESTestCase {
         assertEquals(sync.filesScanned(), async.filesScanned());
         assertEquals(FileList.EMPTY, ((ExternalSourceExec) async.plan()).fileList());
         assertEquals(((ExternalSourceExec) sync.plan()).fileList(), ((ExternalSourceExec) async.plan()).fileList());
+    }
+
+    public void testSyncDiscoveryPreservesFoldedStatistics() {
+        assertDiscoveryPreservesFoldedStatistics(false);
+    }
+
+    public void testAsyncDiscoveryPreservesFoldedStatistics() {
+        assertDiscoveryPreservesFoldedStatistics(true);
+    }
+
+    private void assertDiscoveryPreservesFoldedStatistics(boolean async) {
+        Map<String, Object> folded = Map.of(
+            SourceStatisticsSerializer.STATS_ROW_COUNT,
+            4L,
+            SourceStatisticsSerializer.columnValueCountKey("x"),
+            2L,
+            SourceStatisticsSerializer.columnNullCountKey("x"),
+            2L,
+            SourceStatisticsSerializer.columnMinUnservableKey("x"),
+            true,
+            SourceStatisticsSerializer.columnMaxUnservableKey("x"),
+            true
+        );
+        ExternalSourceExec exec = new ExternalSourceExec(
+            SRC,
+            "s3://bucket/data/*.parquet",
+            "parquet",
+            List.of(fieldAttr("x", DataType.DOUBLE)),
+            Map.of(),
+            folded,
+            null,
+            null
+        ).withFileList(createFileList(2));
+        RecordingSplitProvider recorder = new RecordingSplitProvider();
+        Map<String, ExternalSourceFactory> factories = Map.of("parquet", testFactory(recorder));
+        if (async) {
+            PlainActionFuture<SplitDiscoveryPhase.Result> future = new PlainActionFuture<>();
+            SplitDiscoveryPhase.resolveExternalSplitsWithStatsAsync(
+                exec,
+                factories,
+                SegmentableFormatReader.DEFAULT_MAX_RECORD_BYTES,
+                () -> false,
+                List.of(),
+                EsExecutors.DIRECT_EXECUTOR_SERVICE,
+                future
+            );
+            future.actionGet(30, TimeUnit.SECONDS);
+        } else {
+            SplitDiscoveryPhase.resolveExternalSplits(exec, factories);
+        }
+        assertNotNull(recorder.lastContext.metadata());
+        assertEquals(folded, recorder.lastContext.metadata().sourceMetadata());
     }
 
     /**

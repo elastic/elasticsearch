@@ -372,4 +372,48 @@ public class IpFieldMapperColumnarCompatibilityTests extends AbstractColumnarMap
             .put(IndexSettings.TIME_SERIES_END_TIME.getKey(), "9999-01-01T00:00:00Z")
             .build();
     }
+
+    public void testMultiValueViolationBailsOutOfColumnarPath() throws IOException {
+        // Two values for a multi_value=false field: mapColumnBatch must throw so that
+        // ShardBatchMapper falls back to the row path, which raises the correct
+        // on_failure=FAIL document-level error instead.
+        final var mapperService = createMapperService(columnarSettings(), mapping(b -> {
+            b.startObject(FIELD).field("type", "ip");
+            b.startObject("doc_values").field("multi_value", false).endObject();
+            b.endObject();
+        }));
+        expectThrows(UnsupportedOperationException.class, () -> mapColumnarLeaf(mapperService, FIELD, "{\"f\":[\"1.1.1.1\",\"2.2.2.2\"]}"));
+    }
+
+    public void testNullabilityViolationBailsOutOfColumnarPath() throws IOException {
+        // A null value for a nullability=false field: mapColumnBatch must throw so that
+        // ShardBatchMapper falls back to the row path, which raises the correct
+        // on_failure=FAIL document-level error instead.
+        final var mapperService = createMapperService(columnarSettings(), mapping(b -> {
+            b.startObject(FIELD).field("type", "ip");
+            b.startObject("doc_values").field("nullability", false).endObject();
+            b.endObject();
+        }));
+        expectThrows(
+            UnsupportedOperationException.class,
+            () -> mapColumnarLeaf(mapperService, FIELD, "{\"f\":\"1.1.1.1\"}", "{\"f\":null}")
+        );
+    }
+
+    public void testIpParentWithKeywordSubField() throws IOException {
+        assertColumnarMatchesXContent(mapping(b -> {
+            b.startObject(FIELD).field("type", "ip");
+            b.startObject("fields").startObject("raw").field("type", "keyword").endObject().endObject();
+            b.endObject();
+        }),
+            columnarSettings(),
+            batch(
+                "ip parent, keyword sub-field",
+                1L,
+                doc("d1", 1L, "{\"f\":\"192.168.0.1\"}"),
+                doc("d2", 2L, "{\"f\":[\"10.0.0.1\",\"10.0.0.2\"]}"),
+                doc("d3", 3L, "{}")
+            )
+        );
+    }
 }

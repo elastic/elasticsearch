@@ -24,6 +24,7 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.Set;
 import java.util.TimeZone;
+import java.util.function.Consumer;
 
 import static org.junit.Assert.assertArrayEquals;
 import static org.junit.Assert.assertEquals;
@@ -33,6 +34,8 @@ import static org.junit.Assert.assertThrows;
 import static org.junit.Assert.assertTrue;
 
 public class BuildNativeLibraryTaskTests {
+
+    private static final String REPOSITORY_URL = "https://example.invalid/native";
 
     @Rule
     public TemporaryFolder temporaryFolder = new TemporaryFolder();
@@ -220,26 +223,48 @@ public class BuildNativeLibraryTaskTests {
     }
 
     /**
-     * A cached all-platforms entry is trusted to mean the artifact for that hash is published, so the
-     * one kind of build that uploads nothing has to be recognised and kept out of the cache.
+     * A cached all-platforms entry is trusted to mean the artifact for that hash is published, so every
+     * build that uploads nothing has to be recognised and kept out of the cache.
      */
     @Test
-    public void testOnlyADockerBuildWithoutACredentialUploadsNothing() {
-        assertTrue(taskFor(BuildNativeLibraryTask.DOCKER_MODE, null).buildsWithoutPublishing());
-        assertFalse(taskFor(BuildNativeLibraryTask.DOCKER_MODE, "a-credential").buildsWithoutPublishing());
+    public void testRecognisesABuildThatUploadsNothing() {
+        assertFalse(publishingBuild("publishes").buildsWithoutPublishing());
+
+        var offline = publishingBuild("offline");
+        offline.getOffline().set(true);
+        assertTrue(offline.buildsWithoutPublishing());
+
+        var withoutCredential = dockerBuild("no-credential", task -> task.getArtifactRepositoryUrl().set(REPOSITORY_URL));
+        assertTrue(withoutCredential.buildsWithoutPublishing());
+
+        var withoutRepository = dockerBuild("no-repository", task -> task.getPublishApiKey().set("a-credential"));
+        assertTrue(withoutRepository.buildsWithoutPublishing());
+
         // Takes the published artifact rather than building, so there is nothing it could fail to upload.
-        assertFalse(taskFor(BuildNativeLibraryTask.PUBLISHED_MODE, null).buildsWithoutPublishing());
-        // Never publishable, and excluded from the cache for depending on the local compiler instead.
-        assertFalse(taskFor(BuildNativeLibraryTask.HOST_MODE, null).buildsWithoutPublishing());
+        var published = publishingBuild("published");
+        published.getMode().set(BuildNativeLibraryTask.PUBLISHED_MODE);
+        assertFalse(published.buildsWithoutPublishing());
+
+        // Never publishable, and kept out of the cache for depending on the local compiler instead.
+        var host = publishingBuild("host");
+        host.getMode().set(BuildNativeLibraryTask.HOST_MODE);
+        assertFalse(host.buildsWithoutPublishing());
     }
 
-    private BuildNativeLibraryTask taskFor(String mode, String credential) {
-        var created = project.getTasks().create("build-" + mode + "-" + (credential == null ? "anonymous" : "keyed"), BuildNativeLibraryTask.class);
-        created.getMode().set(mode);
-        if (credential != null) {
-            created.getPublishApiKey().set(credential);
-        }
-        return created;
+    /** A container build with everything it needs to upload: somewhere to put it, a credential, a network. */
+    private BuildNativeLibraryTask publishingBuild(String name) {
+        return dockerBuild(name, task -> {
+            task.getArtifactRepositoryUrl().set(REPOSITORY_URL);
+            task.getPublishApiKey().set("a-credential");
+        });
+    }
+
+    private BuildNativeLibraryTask dockerBuild(String name, Consumer<BuildNativeLibraryTask> configure) {
+        BuildNativeLibraryTask task = project.getTasks().create(name, BuildNativeLibraryTask.class);
+        task.getMode().set(BuildNativeLibraryTask.DOCKER_MODE);
+        task.getOffline().set(false);
+        configure.accept(task);
+        return task;
     }
 
     /**

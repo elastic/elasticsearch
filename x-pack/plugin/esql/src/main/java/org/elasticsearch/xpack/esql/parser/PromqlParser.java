@@ -50,7 +50,6 @@ public class PromqlParser {
      * Maximum number of binary operators allowed in a single PromQL expression. Retained heap grows as
      * 7*n^2 bytes with chain length n (measured empirically; each nested binary node keeps a full-span copy
      * of its source text), so the cap bounds the worst case at about 7MB.
-     * See <a href="https://github.com/elastic/security/issues/12593">security#12593</a>.
      */
     public static final int MAX_BINARY_OPERATORS = 1000;
 

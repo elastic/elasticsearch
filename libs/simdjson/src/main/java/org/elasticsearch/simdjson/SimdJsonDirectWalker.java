@@ -382,9 +382,9 @@ public final class SimdJsonDirectWalker {
         // many such fields per document) - with c1/c2 extracted from register shifts of the
         // word already loaded here, instead of separate byte reads; and
         // - the general path's SWAR loop, whose first iteration would otherwise reload and
-        // re-check this exact word. Passing (t, mask) through means numbers of any other
-        // length cost exactly what they did before this fast path existed: one load, one
-        // mask check, then either the SWAR loop or the scalar tail.
+        // re-check this exact word. So numbers of any other length still cost only one load
+        // and one mask check before falling into the SWAR loop or scalar tail - the fast
+        // path above adds no extra cost for them.
         long word = (long) LONG_LE.get(buffer, pos);
         long t = word - 0x3030303030303030L;
         long mask = t & 0xF0F0F0F0F0F0F0F0L;
@@ -407,14 +407,14 @@ public final class SimdJsonDirectWalker {
             }
         }
 
-        // General path, inlined directly here (rather than a separate handleNumberGeneral(...,
-        // firstT, firstMask) method) reusing the word/mask already loaded above as this SWAR
-        // loop's first iteration. See the long comment on handleNumberGeneral below for why
-        // this is a real method body here and not a call: a separate callee on this hot path
-        // can independently reach its own standalone JIT compilation before this method does,
-        // and then get excluded from inlining ("already compiled into a big method") - removing
-        // the callee removes the race. handleFloatingPoint and finishNumberSlow stay as real
-        // (cold, rarely-hit) calls since they're not on this hot path.
+        // General path, kept inline here (not factored into a helper) so it can reuse the
+        // word/mask already loaded above as this SWAR loop's first iteration. See the long
+        // comment on handleNumberGeneral below for why this must be a real method body here
+        // and not a call: a separate callee on this hot path can independently reach its own
+        // standalone JIT compilation before this method does, and then get excluded from
+        // inlining ("already compiled into a big method") - inlining the body removes that
+        // race. handleFloatingPoint and finishNumberSlow stay as real (cold, rarely-hit) calls
+        // since they're not on this hot path.
         long digits = 0;
         int digitStart = pos;
 

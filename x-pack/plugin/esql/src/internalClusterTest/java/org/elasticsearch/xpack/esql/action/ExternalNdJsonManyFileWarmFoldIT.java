@@ -39,8 +39,8 @@ import static org.hamcrest.Matchers.equalTo;
  * <p>
  * The CSV arm is the control (same shape, same fix); the surgical arm below removes ONE per-file entry
  * explicitly, making the failure mode deterministic instead of load-dependent; the file-set mutation
- * arm proves the file-set-fingerprint key is correct-or-miss (any add/touch re-scans and serves the NEW truth,
- * then re-warms).
+ * arm proves listing-cache TTL hides a mutation, then after listing expiry the fingerprint
+ * is correct-or-miss (re-scan, new truth, re-warm).
  */
 public class ExternalNdJsonManyFileWarmFoldIT extends AbstractWarmDatasetAggregateIT {
 
@@ -117,11 +117,13 @@ public class ExternalNdJsonManyFileWarmFoldIT extends AbstractWarmDatasetAggrega
     }
 
     /**
-     * The correct-or-miss arm: the dataset aggregate is keyed by the listing's file-set fingerprint, so ANY
-     * file-set change (a file added, a file's mtime touched) must MISS it — the next query re-scans and
-     * returns the new truth — and the re-scan's reconcile re-materializes the aggregate for the NEW set,
-     * so the query after that warms again. Serving a stale count at any step is the wrong-answer failure
-     * this arm exists to catch.
+     * Two layers, in order. The dataset aggregate is keyed by the listing's file-set fingerprint, so
+     * a listing that actually changed (add or mtime touch) must miss it, re-scan, and re-warm. The
+     * listing cache sits in front of that: default inferred UNION_BY_NAME reuses the listing for the
+     * TTL, so a mutation is invisible until the listing expires. This arm asserts both — TTL-hot
+     * listing keeps the old count, then a listing miss (TTL expiry, simulated by dropping listing
+     * entries only) sees the live set. Serving a new count while the listing is still cached, or a
+     * stale count after it has expired, is the failure this exists to catch.
      */
     public void testNdjsonFileSetChangeInvalidatesDatasetAggregate() throws Exception {
         Path dir = createTempDir();
@@ -136,25 +138,39 @@ public class ExternalNdJsonManyFileWarmFoldIT extends AbstractWarmDatasetAggrega
         );
         assertWarmCountShortCircuits(dataset, total);
 
-        // ADD a file: the aggregate for the old set must not serve; the scan returns the new total.
-        long newTotal = total + writeNdjsonFile(dir.resolve("part-added.ndjson"), total);
+        ExternalSourceCacheService cacheService = internalCluster().getInstance(PlanExecutor.class, internalCluster().getMasterName())
+            .cacheService();
         String query = "FROM " + dataset + " | STATS c = COUNT(*)";
+
+        long newTotal = total + writeNdjsonFile(dir.resolve("part-added.ndjson"), total);
+        try (var response = run(syncEsqlQueryRequest(query).profile(true), TimeValue.timeValueMinutes(5))) {
+            assertCount(response, total);
+            assertThat(
+                "TTL-hot listing must keep the pre-add fingerprint and serve the warm aggregate",
+                response.documentsFound(),
+                equalTo(0L)
+            );
+        }
+        ExternalSourceCacheTestAccess.invalidateListings(cacheService);
         try (var response = run(syncEsqlQueryRequest(query).profile(true), TimeValue.timeValueMinutes(5))) {
             assertCount(response, newTotal);
-            assertThat("a grown file set must re-scan, not serve the stale count", response.documentsFound(), equalTo(newTotal));
+            assertThat("after listing expiry a grown set must re-scan", response.documentsFound(), equalTo(newTotal));
         }
-        // ... and the re-scan re-materialized the aggregate for the grown set.
         try (var response = run(syncEsqlQueryRequest(query).profile(true), TimeValue.timeValueMinutes(5))) {
             assertCount(response, newTotal);
             assertThat("the grown set must warm again after one scan", response.documentsFound(), equalTo(0L));
         }
 
-        // TOUCH one file's mtime (content unchanged): still a different set identity — must re-scan.
         Path touched = dir.resolve("part-0.ndjson");
         Files.setLastModifiedTime(touched, FileTime.fromMillis(Files.getLastModifiedTime(touched).toMillis() + 2_000));
         try (var response = run(syncEsqlQueryRequest(query).profile(true), TimeValue.timeValueMinutes(5))) {
             assertCount(response, newTotal);
-            assertThat("a touched mtime must re-scan, not serve the stale aggregate", response.documentsFound(), equalTo(newTotal));
+            assertThat("TTL-hot listing must ignore a touched mtime and keep the warm aggregate", response.documentsFound(), equalTo(0L));
+        }
+        ExternalSourceCacheTestAccess.invalidateListings(cacheService);
+        try (var response = run(syncEsqlQueryRequest(query).profile(true), TimeValue.timeValueMinutes(5))) {
+            assertCount(response, newTotal);
+            assertThat("after listing expiry a touched mtime must re-scan", response.documentsFound(), equalTo(newTotal));
         }
         try (var response = run(syncEsqlQueryRequest(query).profile(true), TimeValue.timeValueMinutes(5))) {
             assertCount(response, newTotal);

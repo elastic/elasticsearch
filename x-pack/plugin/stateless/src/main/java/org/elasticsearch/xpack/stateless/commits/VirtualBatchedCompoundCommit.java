@@ -37,6 +37,7 @@ import org.elasticsearch.index.snapshots.blobstore.SlicedInputStream;
 import org.elasticsearch.index.store.LuceneFilesExtensions;
 import org.elasticsearch.index.store.Store;
 import org.elasticsearch.threadpool.ThreadPool;
+import org.elasticsearch.transport.Transports;
 import org.elasticsearch.xpack.stateless.StatelessPlugin;
 import org.elasticsearch.xpack.stateless.commits.StatelessCompoundCommit.InternalFile;
 import org.elasticsearch.xpack.stateless.commits.StatelessCompoundCommit.TimestampFieldValueRange;
@@ -796,6 +797,7 @@ public class VirtualBatchedCompoundCommit extends AbstractRefCounted implements 
 
     @Override
     public void close() {
+        assert Transports.assertNotTransportThread("can invoke lucene deletion policy");
         decRef();
     }
 

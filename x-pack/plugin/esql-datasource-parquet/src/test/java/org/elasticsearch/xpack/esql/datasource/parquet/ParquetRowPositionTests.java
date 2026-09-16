@@ -66,8 +66,7 @@ public class ParquetRowPositionTests extends ESTestCase {
     private BlockFactory blockFactory;
 
     @Before
-    public void initBlockFactoryAndClearFooterCache() {
-        ParquetStorageObjectAdapter.clearFooterCacheForTests();
+    public void initBlockFactory() {
         blockFactory = BlockFactory.builder(BigArrays.NON_RECYCLING_INSTANCE).breaker(new NoopCircuitBreaker("none")).build();
     }
 

@@ -16,6 +16,7 @@ import org.elasticsearch.common.util.PageCacheRecycler;
 import org.elasticsearch.core.Assertions;
 import org.elasticsearch.core.CheckedConsumer;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.xcontent.Text;
 
 import java.io.ByteArrayOutputStream;
 import java.io.FilterOutputStream;
@@ -125,6 +126,12 @@ public class StreamOutputToBytesTests extends ESTestCase {
             }, () -> {
                 final var value = randomUnicodeOfLengthBetween(0, maxFieldLen);
                 return s -> s.writeGenericString(value);
+            }, () -> {
+                final var text = new Text(randomUnicodeOfLengthBetween(0, maxFieldLen));
+                return s -> {
+                    s.writeText(text);
+                    assertFalse(text.hasBytes());
+                };
             });
 
             while (countingStream.position() < targetSize) {

@@ -717,7 +717,7 @@ public class MultiSearchRequestTests extends ESTestCase {
             assertThat(
                 e.getMessage(),
                 containsString(
-                    "Unexpected close marker '}': expected ']' (for root starting at "
+                    "Unexpected close marker '}': no open Object to close\n at "
                         + "[Source: (byte[])\"{ \"query\": {\"match_all\": {}}}}}}different error message\""
                 )
             );

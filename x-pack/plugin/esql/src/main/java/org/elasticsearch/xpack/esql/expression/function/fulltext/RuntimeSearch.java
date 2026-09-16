@@ -130,9 +130,11 @@ public final class RuntimeSearch {
     }
 
     /**
-     * Analyzes the given query string into the ordered list of its terms. With the standard analyzer (the only one
-     * supported for now) tokens are emitted at consecutive positions, so the order of the list is enough to describe
-     * a phrase; query-side position gaps cannot happen.
+     * Analyzes the given query string into the ordered list of its terms, discarding position increments. That is
+     * fine for {@code match} (its {@link AnyTermMatcher} is position-insensitive with any analyzer), but a phrase
+     * needs the gaps a stopword-removing analyzer leaves behind: {@code match_phrase} only takes the
+     * {@link PhraseMatcher} fast path with the standard analyzer, whose default configuration emits tokens at
+     * consecutive positions.
      */
     static List<BytesRef> analyzeTerms(Analyzer analyzer, String query) throws IOException {
         List<BytesRef> terms = new ArrayList<>();
@@ -204,9 +206,8 @@ public final class RuntimeSearch {
         for (int valueIndex = startIndex; valueIndex < startIndex + valueCount; valueIndex++) {
             boolean foundMatch;
             scratch = fieldBlock.getBytesRef(valueIndex, scratch);
-            // Because we use the standard analyzer and options cannot be specified, the analyzed token stream can be
-            // matched directly. Once we accept options (analyzer, slop), we might need a different execution path,
-            // e.g. a Lucene MemoryIndex.
+            // The analyzed token stream is matched directly; queries with options (or phrase queries under a
+            // non-standard analyzer, where position gaps matter) take the Lucene MemoryIndex path instead.
             try (TokenStream stream = analyzer.tokenStream(CONTENT_FIELD, scratch.utf8ToString())) {
                 stream.reset();
                 foundMatch = matcher.matches(stream);
@@ -224,17 +225,18 @@ public final class RuntimeSearch {
      * {@link org.elasticsearch.xpack.esql.core.querydsl.query.Query} (e.g. a {@code MatchQuery} with options).
      * The query is compiled once into a Lucene {@link Query} against a synthetic
      * {@link RuntimeSearchExecutionContext}, and each row is then matched by indexing its value into a temporary
-     * {@link MemoryIndex}. The same {@code analyzer} is used for both query compilation and per-row indexing,
-     * so tokenization stays consistent. ({@code null} selects the standard analyzer)
+     * {@link MemoryIndex}. Like an indexed text field's {@code search_analyzer}/{@code analyzer} pair, the
+     * {@code queryAnalyzer} covers the query string and the {@code valuesAnalyzer} covers the per-row values;
+     * {@code null} selects the standard analyzer for either.
      */
     public static ExpressionEvaluator.Factory textEvaluatorForQuery(
         Source source,
         ExpressionEvaluator.Factory fieldEvaluator,
         org.elasticsearch.xpack.esql.core.querydsl.query.Query query,
-        @Nullable NamedAnalyzer analyzer
+        @Nullable NamedAnalyzer queryAnalyzer,
+        @Nullable NamedAnalyzer valuesAnalyzer
     ) {
-        NamedAnalyzer namedAnalyzer = analyzer == null ? Lucene.STANDARD_ANALYZER : analyzer;
-        Query luceneQuery = compileQuery(query, namedAnalyzer);
+        Query luceneQuery = compileQuery(query, queryAnalyzer == null ? Lucene.STANDARD_ANALYZER : queryAnalyzer);
         if (luceneQuery instanceof MatchAllDocsQuery) {
             return ConstantEvaluators.CONSTANT_TRUE_FACTORY;
         }
@@ -244,7 +246,7 @@ public final class RuntimeSearch {
         return new RuntimeSearchTextWithLuceneQueryEvaluator.Factory(
             source,
             fieldEvaluator,
-            withPositionIncrementGap(namedAnalyzer),
+            withPositionIncrementGap(valuesAnalyzer == null ? Lucene.STANDARD_ANALYZER : valuesAnalyzer),
             luceneQuery,
             context -> new MemoryIndex(),
             context -> new BytesRef()
@@ -262,10 +264,10 @@ public final class RuntimeSearch {
         Source source,
         ExpressionEvaluator.Factory fieldEvaluator,
         org.elasticsearch.xpack.esql.core.querydsl.query.Query query,
-        @Nullable NamedAnalyzer analyzer
+        @Nullable NamedAnalyzer queryAnalyzer,
+        @Nullable NamedAnalyzer valuesAnalyzer
     ) {
-        NamedAnalyzer namedAnalyzer = analyzer == null ? Lucene.STANDARD_ANALYZER : analyzer;
-        Query luceneQuery = compileQuery(query, namedAnalyzer);
+        Query luceneQuery = compileQuery(query, queryAnalyzer == null ? Lucene.STANDARD_ANALYZER : queryAnalyzer);
         if (luceneQuery instanceof MatchAllDocsQuery) {
             return ConstantEvaluators.constantDouble(1.0);
         }
@@ -275,7 +277,7 @@ public final class RuntimeSearch {
         return new RuntimeSearchScoreLuceneQueryEvaluator.Factory(
             source,
             fieldEvaluator,
-            withPositionIncrementGap(namedAnalyzer),
+            withPositionIncrementGap(valuesAnalyzer == null ? Lucene.STANDARD_ANALYZER : valuesAnalyzer),
             luceneQuery,
             context -> new MemoryIndex(),
             context -> new BytesRef()
@@ -312,10 +314,19 @@ public final class RuntimeSearch {
     @Nullable
     public static NamedAnalyzer resolveNamedAnalyzer(Map<String, Object> options, EvaluatorMapper.ToEvaluator toEvaluator) {
         Object analyzerName = options.get(ANALYZER_FIELD.getPreferredName());
-        if (analyzerName == null) {
+        return analyzerName == null ? null : resolveNamedAnalyzer(BytesRefs.toString(analyzerName), toEvaluator);
+    }
+
+    /**
+     * Resolves an analyzer name (e.g. the values analyzer declared through {@code TO_TEXT}) into a
+     * {@link NamedAnalyzer} through the evaluator context's registry lookup. Returns {@code null} for a
+     * {@code null} name.
+     */
+    @Nullable
+    public static NamedAnalyzer resolveNamedAnalyzer(@Nullable String name, EvaluatorMapper.ToEvaluator toEvaluator) {
+        if (name == null) {
             return null;
         }
-        String name = BytesRefs.toString(analyzerName);
         Analyzer analyzer = toEvaluator.getAnalyzer(name);
         // Registry lookups return NamedAnalyzer in practice, but the interface only promises Analyzer
         return analyzer instanceof NamedAnalyzer namedAnalyzer ? namedAnalyzer : new NamedAnalyzer(name, AnalyzerScope.GLOBAL, analyzer);

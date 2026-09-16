@@ -13,6 +13,7 @@ import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.DocWriteRequest;
 import org.elasticsearch.action.support.ActiveShardCount;
+import org.elasticsearch.action.support.WriteRequest;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Setting;
@@ -131,9 +132,9 @@ public class IncrementalBulkService {
     }
 
     public Handler newBulkRequest(
-        @Nullable String waitForActiveShards,
+        @Nullable ActiveShardCount waitForActiveShards,
         @Nullable TimeValue timeout,
-        @Nullable String refresh,
+        @Nullable WriteRequest.RefreshPolicy refreshPolicy,
         Set<String> paramsUsed
     ) {
         ensureEnabled();
@@ -142,7 +143,7 @@ public class IncrementalBulkService {
             indexingPressure,
             waitForActiveShards,
             timeout,
-            refresh,
+            refreshPolicy,
             chunkWaitTimeMillisHistogram,
             paramsUsed,
             taskManager,
@@ -190,7 +191,7 @@ public class IncrementalBulkService {
         private final ActiveShardCount waitForActiveShards;
         private final TimeValue timeout;
         private final Set<String> paramsUsed;
-        private final String refresh;
+        private final WriteRequest.RefreshPolicy refreshPolicy;
 
         private final ArrayList<Releasable> releasables = new ArrayList<>(4);
         private final ArrayList<BulkResponse> responses = new ArrayList<>(2);
@@ -212,15 +213,24 @@ public class IncrementalBulkService {
         protected Handler(
             Client client,
             IndexingPressure indexingPressure,
-            @Nullable String waitForActiveShards,
+            @Nullable ActiveShardCount waitForActiveShards,
             @Nullable TimeValue timeout,
-            @Nullable String refresh,
+            @Nullable WriteRequest.RefreshPolicy refreshPolicy,
             LongHistogram chunkWaitTimeMillisHistogram,
             Set<String> paramsUsed,
             TaskManager taskManager,
             ThreadPool threadPool
         ) {
+            this.client = client;
+            this.threadPool = threadPool;
             this.taskManager = taskManager;
+            this.waitForActiveShards = waitForActiveShards;
+            this.timeout = timeout;
+            this.refreshPolicy = refreshPolicy;
+            this.paramsUsed = paramsUsed;
+            this.chunkWaitTimeMillisHistogram = chunkWaitTimeMillisHistogram;
+            this.incrementalOperation = indexingPressure.startIncrementalCoordinating(0, 0, false);
+
             try (var ignored = threadPool.getThreadContext().newTraceContext()) {
                 bulkSessionTask = (CancellableTask) taskManager.register(
                     BULK_SESSION_TASK_TYPE,
@@ -243,17 +253,12 @@ public class IncrementalBulkService {
                         }
                     }
                 );
+                createNewBulkRequest(EMPTY_STATE);
+            } catch (Exception e) {
+                // The caller never receives this Handler, so nothing would be left to release the reservation.
+                incrementalOperation.close();
+                throw e;
             }
-
-            this.client = client;
-            this.threadPool = threadPool;
-            this.waitForActiveShards = waitForActiveShards != null ? ActiveShardCount.parseString(waitForActiveShards) : null;
-            this.timeout = timeout;
-            this.refresh = refresh;
-            this.paramsUsed = paramsUsed;
-            this.incrementalOperation = indexingPressure.startIncrementalCoordinating(0, 0, false);
-            this.chunkWaitTimeMillisHistogram = chunkWaitTimeMillisHistogram;
-            createNewBulkRequest(EMPTY_STATE);
         }
 
         /**
@@ -264,11 +269,16 @@ public class IncrementalBulkService {
             // Guard on millis(), not nanos(): ThreadPool#schedule floors the delay to whole milliseconds, so a
             // sub-millisecond timeout would otherwise arm a zero-delay task that cancels the request immediately.
             if (requestTimeout != null && requestTimeout.millis() > 0) {
-                pendingTimeout = threadPool.schedule(
-                    () -> cancel("request timed out after [" + requestTimeout + "]", () -> {}),
-                    requestTimeout,
-                    threadPool.generic()
-                );
+                try {
+                    pendingTimeout = threadPool.schedule(
+                        () -> cancel("request timed out after [" + requestTimeout + "]", () -> {}),
+                        requestTimeout,
+                        threadPool.generic()
+                    );
+                } catch (EsRejectedExecutionException e) {
+                    // Failing to arm cancellation tracking is not a reason to reject the bulk request: the timeout is best effort.
+                    assert e.isExecutorShutdown() : e;
+                }
             }
         }
 
@@ -490,8 +500,8 @@ public class IncrementalBulkService {
             if (timeout != null) {
                 bulkRequest.timeout(timeout);
             }
-            if (refresh != null) {
-                bulkRequest.setRefreshPolicy(refresh);
+            if (refreshPolicy != null) {
+                bulkRequest.setRefreshPolicy(refreshPolicy);
             }
             bulkRequest.requestParamsUsed(paramsUsed);
         }

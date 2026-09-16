@@ -10,6 +10,7 @@
 package org.elasticsearch.benchmark.inference;
 
 import org.elasticsearch.benchmark.Utils;
+import org.elasticsearch.benchmark.internal.BenchmarkLogging;
 import org.elasticsearch.xcontent.XContentFactory;
 import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xcontent.XContentParserConfiguration;
@@ -91,7 +92,7 @@ public class OpenAiEmbeddingsParseBenchmark {
     private static final int INITIAL_BUFFER_SIZE = 1024;
 
     static {
-        Utils.configureBenchmarkLogging();
+        BenchmarkLogging.configure();
         if (false == "true".equals(System.getProperty("skipSelfTest"))) {
             selfTest();
         }

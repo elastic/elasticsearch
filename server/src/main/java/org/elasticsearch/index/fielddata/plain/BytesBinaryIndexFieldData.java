@@ -14,11 +14,13 @@ import org.apache.lucene.search.SortField;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.index.IndexVersion;
+import org.elasticsearch.index.IndexVersions;
 import org.elasticsearch.index.fielddata.IndexFieldData;
 import org.elasticsearch.index.fielddata.IndexFieldData.XFieldComparatorSource.Nested;
 import org.elasticsearch.index.fielddata.IndexFieldDataCache;
 import org.elasticsearch.index.fielddata.SortedBinaryDocValues;
 import org.elasticsearch.index.fielddata.fieldcomparator.BytesRefFieldComparatorSource;
+import org.elasticsearch.index.mapper.BinaryDocValuesFormat;
 import org.elasticsearch.indices.breaker.CircuitBreakerService;
 import org.elasticsearch.script.field.ToScriptFieldFactory;
 import org.elasticsearch.search.DocValueFormat;
@@ -33,7 +35,7 @@ public class BytesBinaryIndexFieldData implements IndexFieldData<MultiValuedBina
     protected final ValuesSourceType valuesSourceType;
     protected final ToScriptFieldFactory<SortedBinaryDocValues> toScriptFieldFactory;
     protected final IndexVersion indexVersion;
-    protected final boolean arrayOrder;
+    protected final BinaryDocValuesFormat binaryFormat;
 
     public BytesBinaryIndexFieldData(
         String fieldName,
@@ -41,7 +43,7 @@ public class BytesBinaryIndexFieldData implements IndexFieldData<MultiValuedBina
         ToScriptFieldFactory<SortedBinaryDocValues> toScriptFieldFactory,
         IndexVersion indexVersion
     ) {
-        this(fieldName, valuesSourceType, toScriptFieldFactory, indexVersion, false);
+        this(fieldName, valuesSourceType, toScriptFieldFactory, indexVersion, BinaryDocValuesFormat.SEPARATE_COUNT);
     }
 
     public BytesBinaryIndexFieldData(
@@ -49,13 +51,13 @@ public class BytesBinaryIndexFieldData implements IndexFieldData<MultiValuedBina
         ValuesSourceType valuesSourceType,
         ToScriptFieldFactory<SortedBinaryDocValues> toScriptFieldFactory,
         IndexVersion indexVersion,
-        boolean arrayOrder
+        BinaryDocValuesFormat binaryFormat
     ) {
         this.fieldName = fieldName;
         this.valuesSourceType = valuesSourceType;
         this.toScriptFieldFactory = toScriptFieldFactory;
         this.indexVersion = indexVersion;
-        this.arrayOrder = arrayOrder;
+        this.binaryFormat = binaryFormat;
     }
 
     @Override
@@ -70,18 +72,38 @@ public class BytesBinaryIndexFieldData implements IndexFieldData<MultiValuedBina
 
     @Override
     public SortField indexSort(IndexVersion indexCreatedVersion, @Nullable Object missingValue, MultiValueMode sortMode, boolean reverse) {
-        Object luceneMissingValue = XFieldComparatorSource.sortMissingLast(missingValue) ^ reverse
-            ? SortField.STRING_LAST
-            : SortField.STRING_FIRST;
-        boolean maxMode = sortMode == MultiValueMode.MAX;
-        return new MultiValuedBinaryDocValuesSortField(getFieldName(), reverse, luceneMissingValue, maxMode, arrayOrder);
+        return binaryDocValuesSortField(missingValue, sortMode, reverse);
     }
 
     @Override
     public SortField sortField(@Nullable Object missingValue, MultiValueMode sortMode, Nested nested, boolean reverse) {
-        // Falls back to: FieldComparator.TermValComparator which works with binary doc values.
+        if (nested == null && isStandardMissingSentinel(missingValue) && canUseBinaryDocValuesSortField()) {
+            return binaryDocValuesSortField(missingValue, sortMode, reverse);
+        }
         XFieldComparatorSource source = new BytesRefFieldComparatorSource(this, missingValue, sortMode, nested);
         return new SortField(getFieldName(), source, reverse);
+    }
+
+    private MultiValuedBinaryDocValuesSortField binaryDocValuesSortField(Object missingValue, MultiValueMode sortMode, boolean reverse) {
+        Object luceneMissingValue = XFieldComparatorSource.sortMissingLast(missingValue) ^ reverse
+            ? SortField.STRING_LAST
+            : SortField.STRING_FIRST;
+        return new MultiValuedBinaryDocValuesSortField(
+            getFieldName(),
+            reverse,
+            luceneMissingValue,
+            sortMode == MultiValueMode.MAX,
+            binaryFormat
+        );
+    }
+
+    private static boolean isStandardMissingSentinel(Object missingValue) {
+        return missingValue == null || "_first".equals(missingValue) || "_last".equals(missingValue);
+    }
+
+    private boolean canUseBinaryDocValuesSortField() {
+        return binaryFormat != BinaryDocValuesFormat.SEPARATE_COUNT
+            || indexVersion.onOrAfter(IndexVersions.DEPRECATE_INTEGRATED_COUNTS_BINARY_DOC_VALUES);
     }
 
     @Override
@@ -100,7 +122,7 @@ public class BytesBinaryIndexFieldData implements IndexFieldData<MultiValuedBina
 
     @Override
     public MultiValuedBinaryDVLeafFieldData load(LeafReaderContext context) {
-        return new MultiValuedBinaryDVLeafFieldData(fieldName, context.reader(), toScriptFieldFactory, indexVersion, arrayOrder);
+        return new MultiValuedBinaryDVLeafFieldData(fieldName, context.reader(), toScriptFieldFactory, indexVersion, binaryFormat);
     }
 
     @Override
@@ -113,7 +135,7 @@ public class BytesBinaryIndexFieldData implements IndexFieldData<MultiValuedBina
         private final ToScriptFieldFactory<SortedBinaryDocValues> toScriptFieldFactory;
         private final ValuesSourceType valuesSourceType;
         private final IndexVersion indexVersion;
-        private final boolean arrayOrder;
+        private final BinaryDocValuesFormat binaryFormat;
 
         public Builder(
             String name,
@@ -121,7 +143,7 @@ public class BytesBinaryIndexFieldData implements IndexFieldData<MultiValuedBina
             ToScriptFieldFactory<SortedBinaryDocValues> toScriptFieldFactory,
             IndexVersion indexVersion
         ) {
-            this(name, valuesSourceType, toScriptFieldFactory, indexVersion, false);
+            this(name, valuesSourceType, toScriptFieldFactory, indexVersion, BinaryDocValuesFormat.SEPARATE_COUNT);
         }
 
         public Builder(
@@ -129,19 +151,19 @@ public class BytesBinaryIndexFieldData implements IndexFieldData<MultiValuedBina
             ValuesSourceType valuesSourceType,
             ToScriptFieldFactory<SortedBinaryDocValues> toScriptFieldFactory,
             IndexVersion indexVersion,
-            boolean arrayOrder
+            BinaryDocValuesFormat binaryFormat
         ) {
             this.name = name;
             this.valuesSourceType = valuesSourceType;
             this.toScriptFieldFactory = toScriptFieldFactory;
             this.indexVersion = indexVersion;
-            this.arrayOrder = arrayOrder;
+            this.binaryFormat = binaryFormat;
         }
 
         @Override
         public IndexFieldData<?> build(IndexFieldDataCache cache, CircuitBreakerService breakerService) {
             // Ignore breaker
-            return new BytesBinaryIndexFieldData(name, valuesSourceType, toScriptFieldFactory, indexVersion, arrayOrder);
+            return new BytesBinaryIndexFieldData(name, valuesSourceType, toScriptFieldFactory, indexVersion, binaryFormat);
         }
     }
 }

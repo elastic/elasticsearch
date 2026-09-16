@@ -31,6 +31,7 @@ import org.elasticsearch.inference.UnifiedCompletionRequest;
 import org.elasticsearch.inference.UnparsedModel;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.xpack.core.inference.chunking.ChunkingSettingsBuilder;
+import org.elasticsearch.xpack.core.inference.chunking.RecursiveChunkingSettings;
 import org.elasticsearch.xpack.inference.external.http.sender.ChatCompletionInput;
 import org.elasticsearch.xpack.inference.external.http.sender.EmbeddingsInput;
 import org.elasticsearch.xpack.inference.external.http.sender.HttpRequestSender;
@@ -90,6 +91,10 @@ public abstract class SenderService<M extends Model> implements InferenceService
 
     protected ServiceComponents getServiceComponents() {
         return serviceComponents;
+    }
+
+    protected int getRegexReadLimitFactor() {
+        return clusterService.getClusterSettings().get(RecursiveChunkingSettings.REGEX_READ_LIMIT_FACTOR_SETTING);
     }
 
     @Override

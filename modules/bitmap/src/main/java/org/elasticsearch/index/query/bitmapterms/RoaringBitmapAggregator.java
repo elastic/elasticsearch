@@ -94,6 +94,8 @@ final class RoaringBitmapAggregator extends MetricsAggregator {
             return LeafBucketCollector.NO_OP_COLLECTOR;
         }
         LeafReader reader = aggCtx.getLeafReaderContext().reader();
+        // termsField is set only when the top-level match_all fast path is applicable;
+        // segments with deletions still fall back to collecting doc values.
         if (termsField != null && reader.getLiveDocs() == null) {
             collectTerms(reader.terms(termsField));
             return LeafBucketCollector.NO_OP_COLLECTOR;

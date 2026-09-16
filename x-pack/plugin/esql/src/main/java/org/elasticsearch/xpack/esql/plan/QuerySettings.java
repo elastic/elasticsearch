@@ -73,7 +73,6 @@ public final class QuerySettings {
     @Example(file = "from", tag = "project-routing", description = "Route a query to a specific project by alias:")
     public static final QuerySettingDef<String> PROJECT_ROUTING = QuerySettingDef.string("project_routing")
         .withServerlessOnly()
-        .withPreview()
         .withValidator((value, ctx) -> ctx.crossProjectEnabled() ? null : "cross-project search not enabled")
         .withRequestBody()
         .withAliasAtRoot()

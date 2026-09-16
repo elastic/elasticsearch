@@ -17,6 +17,8 @@ import org.apache.lucene.index.IndexWriter;
 import org.apache.lucene.index.IndexWriterConfig;
 import org.apache.lucene.index.IndexableField;
 import org.apache.lucene.index.NoMergePolicy;
+import org.apache.lucene.search.BooleanClause;
+import org.apache.lucene.search.BooleanQuery;
 import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.tests.index.RandomIndexWriter;
@@ -504,18 +506,28 @@ public class LuceneSourceOperatorTests extends SourceOperatorTestCase {
         // segments: {0}, {1..2000}, {2001..3999} - segment 1 is wider than maxPageSize so the 100 matches of [0,100] stay buffered
         reader = readerWithCommitsAfter(directory, 4000, 0, 2000);
         ShardContext ctx = new MockShardContext(reader, 0);
+        // SlowRange bulk-scorers jump to NO_MORE_DOCS after the last match, so [0,100] alone finishes segment 1 in one
+        // window and emits. A later SHOULD hit on the same leaf keeps the scorer unfinished so those 100 docs stay buffered.
+        List<LuceneSliceQueue.QueryAndTags> queries = List.of(
+            new LuceneSliceQueue.QueryAndTags(
+                new BooleanQuery.Builder() // formatter
+                    .add(SortedNumericDocValuesField.newSlowRangeQuery("s", 0, 100), BooleanClause.Occur.SHOULD)
+                    .add(SortedNumericDocValuesField.newSlowRangeQuery("s", 1500, 1500), BooleanClause.Occur.SHOULD)
+                    .build(),
+                List.of(123)
+            ),
+            new LuceneSliceQueue.QueryAndTags(SortedNumericDocValuesField.newSlowRangeQuery("s", 101, Long.MAX_VALUE), List.of(456))
+        );
         LuceneSourceOperator.Factory factory = new LuceneSourceOperator.Factory(
             new IndexedByShardIdFromSingleton<>(ctx),
-            ignored -> TestCase.LTE_100_GT_100.queryAndExtra(),
+            ignored -> queries,
             DataPartitioning.SHARD,
             DataPartitioning.AutoStrategy.DEFAULT,
             LuceneOperator.SMALL_INDEX_BOUNDARY,
             2,
             maxPageSize,
             limit,
-            scoring,
-            () -> 0L,
-            LuceneSliceQueue.MIN_DOCS_PER_SLICE
+            scoring
         );
         assertThat(factory.taskConcurrency(), equalTo(2));
 

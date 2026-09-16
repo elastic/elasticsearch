@@ -593,6 +593,38 @@ public class TSDBSyntheticIdPostingsFormatTests extends ESTestCase {
         });
     }
 
+    public void testGetMinAndGetMax() throws IOException {
+        // Reproduces the node crash observed during a serverless primary-shard relocation. On the relocation target,
+        // IndexEngine#prewarmIdLookups calls Terms#getMax() on the _id field. Lucene's default getMax() drills into the
+        // terms with incomplete probe keys via seekCeil(). When a probe's _tsid matches an indexed one,
+        // SyntheticIdTermsEnum#seekCeil used to call extractTimestampFromSyntheticId() on the probe, whose trailing
+        // 8 bytes are not a real (Long.MAX_VALUE - timestamp) delta, so the decoded delta is negative and tripped
+        // `assert timestamp >= 0`. The uncaught-exception handler turned that into a node exit.
+        runTest(false, (writer, parser) -> {
+            indexMultiBlockSegment(writer, parser);
+            try (var reader = DirectoryReader.open(writer)) {
+                assertThat(reader.leaves(), hasSize(1));
+                var terms = reader.leaves().getFirst().reader().terms(IdFieldMapper.NAME);
+                assertNotNull(terms);
+
+                BytesRef expectedMin = null;
+                BytesRef expectedMax = null;
+                var iter = terms.iterator();
+                for (BytesRef term = iter.next(); term != null; term = iter.next()) {
+                    if (expectedMin == null) {
+                        expectedMin = BytesRef.deepCopyOf(term);
+                    }
+                    expectedMax = BytesRef.deepCopyOf(term);
+                }
+                assertThat(expectedMin, notNullValue());
+                assertThat(expectedMax, notNullValue());
+
+                assertThat(terms.getMin(), equalTo(expectedMin));
+                assertThat(terms.getMax(), equalTo(expectedMax));
+            }
+        });
+    }
+
     public void testSortedDeleteTermsResolveAcrossSkipperBlocks() throws IOException {
         // We rely on skippers being enabled
         runTest(false, (writer, parser) -> {
@@ -609,6 +641,78 @@ public class TSDBSyntheticIdPostingsFormatTests extends ESTestCase {
         });
     }
 
+    public void testSeekCeilMatchesLinearScanAcrossManySkipperBlocks() throws IOException {
+        // We rely on skippers being enabled
+        runTest(false, (writer, parser) -> {
+            final var indexed = indexWideTsIdSegment(writer, parser);
+            try (var reader = DirectoryReader.open(writer)) {
+                assertThat(reader.leaves(), hasSize(1));
+                final var leaf = reader.leaves().getFirst().reader();
+
+                // Every term in the segment, in order, read through next(). This is the reference the seek is compared against.
+                final var terms = new ArrayList<BytesRef>();
+                final var allTerms = leaf.terms(IdFieldMapper.NAME).iterator();
+                for (BytesRef t = allTerms.next(); t != null; t = allTerms.next()) {
+                    terms.add(BytesRef.deepCopyOf(t));
+                }
+                assertThat(terms, hasSize(indexed.size()));
+
+                // Probe with terms that exist, and with terms that fall between or beyond them.
+                final var probes = new ArrayList<BytesRef>(indexed);
+                for (var id : randomSubsetOf(Math.min(64, indexed.size()), indexed)) {
+                    probes.add(randomTermAfter(id));
+                }
+                Collections.shuffle(probes, random());
+
+                final var termsEnum = leaf.terms(IdFieldMapper.NAME).iterator();
+                for (var probe : probes) {
+                    // The linear scan says what seekCeil has to return: the first term at or after the probe.
+                    BytesRef expectedTerm = null;
+                    for (var term : terms) {
+                        if (term.compareTo(probe) >= 0) {
+                            expectedTerm = term;
+                            break;
+                        }
+                    }
+                    final var expectedStatus = expectedTerm == null
+                        ? TermsEnum.SeekStatus.END
+                        : (expectedTerm.equals(probe) ? TermsEnum.SeekStatus.FOUND : TermsEnum.SeekStatus.NOT_FOUND);
+
+                    assertThat("seekCeil status for " + probe, termsEnum.seekCeil(probe), equalTo(expectedStatus));
+                    if (expectedStatus != TermsEnum.SeekStatus.END) {
+                        assertThat("seekCeil landed on the wrong term for " + probe, termsEnum.term(), equalTo(expectedTerm));
+                    }
+                }
+            }
+        });
+    }
+
+    /**
+     * Indexes a segment holding one time series wider than a skipper interval, so that seeking within it covers a range that
+     * spans more than one interval, alongside two narrower ones.
+     */
+    private static List<BytesRef> indexWideTsIdSegment(IndexWriter writer, TestDocParser parser) throws IOException {
+        // Keep everything in one segment: merging must not materialize synthetic ids. Flushing by document count is already
+        // disabled, and Lucene rejects disabling both triggers, so the RAM buffer is raised out of the way instead.
+        writer.getConfig().setRAMBufferSizeMB(64);
+        final int routing = randomNonNegativeInt();
+        // Added in ascending timestamp order; the index sort stores them descending per _tsid.
+        final long baseTimestamp = Instant.now().toEpochMilli();
+        final var hosts = List.of("vm-wide-a", "vm-wide-b", "vm-wide-c");
+        // The second time series spans a little over two skipper intervals; the others stay well inside one.
+        final int[] docCounts = { randomIntBetween(50, 200), randomIntBetween(8_500, 9_000), randomIntBetween(500, 1_000) };
+        final var ids = new ArrayList<BytesRef>();
+        for (int tsid = 0; tsid < hosts.size(); tsid++) {
+            for (int i = 0; i < docCounts[tsid]; i++) {
+                var doc = new Doc(baseTimestamp + i, hosts.get(tsid), "cpu-load", randomInt(), 1, routing);
+                writer.addDocument(parser.parse(doc));
+                ids.add(uidEncodedSyntheticId(doc));
+            }
+        }
+        writer.flush();
+        return ids;
+    }
+
     public void testConcurrentSeekExactNIOFSDirectory() throws IOException {
         // We test directly with a NIOFSDirectory since it uses mutable non-thread safe IndexInputs instead of MMap IndexInputs
         // that are less prone to concurrency issues.
@@ -617,6 +721,7 @@ public class TSDBSyntheticIdPostingsFormatTests extends ESTestCase {
 
     public void testConcurrentSeekExactRandomDirectory() throws IOException {
         final var directory = newDirectory();
+        // Synthetic _id terms report docFreq/totalTermFreq as 0 (postings are synthesized), which CheckIndex rejects.
         directory.setCheckIndexOnClose(false);
         doTestConcurrentSeekExact(directory);
     }
@@ -670,6 +775,7 @@ public class TSDBSyntheticIdPostingsFormatTests extends ESTestCase {
      */
     public static void runTestWithRandomDocs(CheckedBiConsumer<IndexWriter, TreeMap<BytesRef, Doc>, IOException> test) throws IOException {
         final var directory = newDirectory();
+        // Synthetic _id terms report docFreq/totalTermFreq as 0 (postings are synthesized), which CheckIndex rejects.
         directory.setCheckIndexOnClose(false);
         runTestWithRandomDocs(directory, test);
     }
@@ -765,10 +871,7 @@ public class TSDBSyntheticIdPostingsFormatTests extends ESTestCase {
     private static void runTest(boolean disableSkippers, CheckedBiConsumer<IndexWriter, TestDocParser, IOException> test)
         throws IOException {
         final var directory = newDirectory();
-        // Checking the index on close requires to support Terms#getMin()/getMax() methods on invalid (or incomplete) terms, something
-        // that is not supported in TSDBSyntheticIdFieldsProducer today.
-        //
-        // TODO would be nice to enable check-index-on-close
+        // Synthetic _id terms report docFreq/totalTermFreq as 0 (postings are synthesized), which CheckIndex rejects.
         directory.setCheckIndexOnClose(false);
         runTest(disableSkippers, directory, test);
     }

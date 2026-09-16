@@ -73,7 +73,10 @@ public class StringColumnOptionsSelectorTests extends ESTestCase {
         final StringColumnOptionsSelector selector = (fieldName, type) -> new StringColumnOptions(
             StringColumnOptions.DEFAULT_DICTIONARY,
             fieldName.equals(NAMED) ? ChunkCodec.ZSTD : ChunkCodec.IDENTITY,
-            StringColumnOptions.DEFAULT_TARGET_CHUNK_BYTES
+            StringColumnOptions.DEFAULT_TARGET_CHUNK_BYTES,
+            StringColumnOptions.DEFAULT_PLAIN_PATH_TARGET_CHUNK_BYTES,
+            StringColumnOptions.DEFAULT_COMPRESSED_ORDINAL_BLOCK_SIZE,
+            StringColumnOptions.DEFAULT_SLOT_COUNTS_BLOCK_SIZE
         );
 
         try (Directory dir = newDirectory()) {
@@ -86,18 +89,66 @@ public class StringColumnOptionsSelectorTests extends ESTestCase {
         }
     }
 
+    public void testOptionsRejectABlockSizeNoReaderCouldDecode() {
+        for (int blockSize : new int[] { 0, 64, 1000, 16384 }) {
+            expectThrows(
+                IllegalArgumentException.class,
+                () -> new StringColumnOptions(
+                    StringColumnOptions.DEFAULT_DICTIONARY,
+                    ChunkCodec.ZSTD,
+                    StringColumnOptions.DEFAULT_TARGET_CHUNK_BYTES,
+                    StringColumnOptions.DEFAULT_PLAIN_PATH_TARGET_CHUNK_BYTES,
+                    blockSize,
+                    StringColumnOptions.DEFAULT_SLOT_COUNTS_BLOCK_SIZE
+                )
+            );
+        }
+    }
+
     public void testOptionsRejectWhatWouldNotRoundTrip() {
         expectThrows(
             IllegalArgumentException.class,
-            () -> new StringColumnOptions(null, ChunkCodec.ZSTD, StringColumnOptions.DEFAULT_TARGET_CHUNK_BYTES)
+            () -> new StringColumnOptions(
+                null,
+                ChunkCodec.ZSTD,
+                StringColumnOptions.DEFAULT_TARGET_CHUNK_BYTES,
+                StringColumnOptions.DEFAULT_PLAIN_PATH_TARGET_CHUNK_BYTES,
+                StringColumnOptions.DEFAULT_COMPRESSED_ORDINAL_BLOCK_SIZE,
+                StringColumnOptions.DEFAULT_SLOT_COUNTS_BLOCK_SIZE
+            )
         );
         expectThrows(
             IllegalArgumentException.class,
-            () -> new StringColumnOptions(StringColumnOptions.DEFAULT_DICTIONARY, null, StringColumnOptions.DEFAULT_TARGET_CHUNK_BYTES)
+            () -> new StringColumnOptions(
+                StringColumnOptions.DEFAULT_DICTIONARY,
+                null,
+                StringColumnOptions.DEFAULT_TARGET_CHUNK_BYTES,
+                StringColumnOptions.DEFAULT_PLAIN_PATH_TARGET_CHUNK_BYTES,
+                StringColumnOptions.DEFAULT_COMPRESSED_ORDINAL_BLOCK_SIZE,
+                StringColumnOptions.DEFAULT_SLOT_COUNTS_BLOCK_SIZE
+            )
         );
         expectThrows(
             IllegalArgumentException.class,
-            () -> new StringColumnOptions(StringColumnOptions.DEFAULT_DICTIONARY, ChunkCodec.ZSTD, 0)
+            () -> new StringColumnOptions(
+                StringColumnOptions.DEFAULT_DICTIONARY,
+                ChunkCodec.ZSTD,
+                0,
+                StringColumnOptions.DEFAULT_PLAIN_PATH_TARGET_CHUNK_BYTES,
+                StringColumnOptions.DEFAULT_COMPRESSED_ORDINAL_BLOCK_SIZE,
+                StringColumnOptions.DEFAULT_SLOT_COUNTS_BLOCK_SIZE
+            )
+        );
+        expectThrows(
+            IllegalArgumentException.class,
+            () -> new StringColumnOptions(
+                StringColumnOptions.DEFAULT_DICTIONARY,
+                ChunkCodec.ZSTD,
+                StringColumnOptions.DEFAULT_TARGET_CHUNK_BYTES,
+                0,
+                StringColumnOptions.DEFAULT_COMPRESSED_ORDINAL_BLOCK_SIZE,
+                StringColumnOptions.DEFAULT_SLOT_COUNTS_BLOCK_SIZE
+            )
         );
     }
 

@@ -1,0 +1,6 @@
+area: ES|QL
+issues:
+ - 159395
+pr: 159416
+summary: Fix errant pushdown for `TO_STRING`
+type: bug

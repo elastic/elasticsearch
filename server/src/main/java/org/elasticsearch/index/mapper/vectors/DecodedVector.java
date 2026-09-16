@@ -59,7 +59,8 @@ public abstract sealed class DecodedVector permits DecodedVector.ByteVector, Dec
         // Try base64 if it matches expected dimensions for the element type
         byte[] base64Bytes = tryParseBase64(encoded);
         if (base64Bytes != null && matchesExpectedBase64Length(base64Bytes.length, elementType, dims)) {
-            if (elementType == ElementType.BFLOAT16 && base64Bytes.length == dims * BFloat16.BYTES) {
+            if ((elementType == ElementType.FLOAT || elementType == ElementType.BFLOAT16)
+                && base64Bytes.length == dims * BFloat16.BYTES) {
                 float[] widened = new float[dims];
                 BFloat16.bFloat16ToFloat(base64Bytes, 0, widened, 0, dims, ByteOrder.BIG_ENDIAN);
                 return new FloatVector(widened);
@@ -264,16 +265,14 @@ public abstract sealed class DecodedVector permits DecodedVector.ByteVector, Dec
     private static boolean matchesExpectedBase64Length(int length, ElementType elementType, int dims) {
         return switch (elementType) {
             case BYTE, BIT -> length == elementType.vectorLength(dims);
-            case FLOAT -> length == dims * Float.BYTES;
-            case BFLOAT16 -> length == dims * Float.BYTES || length == dims * BFloat16.BYTES;
+            case FLOAT, BFLOAT16 -> length == dims * Float.BYTES || length == dims * BFloat16.BYTES;
         };
     }
 
     private static IllegalArgumentException invalidBase64Length(int length, ElementType elementType) {
         String expectedType = switch (elementType) {
             case BYTE, BIT -> "byte";
-            case FLOAT -> "float";
-            case BFLOAT16 -> "float or bfloat16";
+            case FLOAT, BFLOAT16 -> "float or bfloat16";
         };
         return new IllegalArgumentException(
             "failed to decode vector: value must contain a valid Base64-encoded "

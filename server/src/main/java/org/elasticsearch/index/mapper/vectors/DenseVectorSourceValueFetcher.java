@@ -118,7 +118,7 @@ class DenseVectorSourceValueFetcher extends SourceValueFetcher {
 
     /**
      * Encodes source values as a single-element list containing a base64 string. Used for {@code format: "binary"}.
-     * For {@code bfloat16} element types, each component is widened to 4 bytes (float32) before encoding.
+     * For bfloat16-encoded input, each component is widened to 4 bytes (float32) before encoding.
      */
     private List<Object> binaryValues(Object sourceValue) {
         switch (sourceValue) {

@@ -619,7 +619,11 @@ public class InferenceStringTests extends AbstractBWCSerializationTestCase<Infer
     protected InferenceString mutateInstance(InferenceString instance) throws IOException {
         if (randomBoolean()) {
             DataType newDataType = randomValueOtherThan(instance.dataType(), () -> randomFrom(DataType.values()));
-            DataFormat format = randomFrom(newDataType.getSupportedFormats());
+            var availableFormats = newDataType.getSupportedFormats()
+                .stream()
+                .filter(f -> f != DataFormat.URL || URL_INPUT_FORMAT_FEATURE_FLAG.isEnabled())
+                .collect(Collectors.toCollection(() -> EnumSet.noneOf(DataFormat.class)));
+            DataFormat format = randomFrom(availableFormats);
             return new InferenceString(newDataType, format, convertToDataURIIfNeeded(newDataType, format, instance.value()));
         } else {
             String value = instance.value();

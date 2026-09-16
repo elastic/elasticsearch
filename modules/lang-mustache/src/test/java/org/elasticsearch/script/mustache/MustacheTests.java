@@ -91,6 +91,21 @@ public class MustacheTests extends ESTestCase {
             }""", result.execute());
     }
 
+    public void testScopeStackFallback() {
+        // A variable from an outer scope is accessible from inside a section.
+        assertScript("{{#inner}}{{outer}}{{/inner}}", Map.of("inner", Map.of("x", 1), "outer", "hello"), equalTo("hello"));
+
+        // When the same key appears in both inner and outer scope, the inner value wins.
+        assertScript("{{#inner}}{{x}}{{/inner}}", Map.of("inner", Map.of("x", "inner_val"), "x", "outer_val"), equalTo("inner_val"));
+    }
+
+    public void testNullIntermediateInDotPath() {
+        // A null intermediate in a dot path can't be traversed and renders as empty string.
+        Map<String, Object> params = new HashMap<>();
+        params.put("foo", null);
+        assertScript("{{foo.bar}}", params, equalTo(""));
+    }
+
     public void testArrayAccess() throws Exception {
         String template = "{{data.0}} {{data.1}}";
         TemplateScript.Factory factory = engine.compile(null, template, TemplateScript.CONTEXT, Collections.emptyMap());

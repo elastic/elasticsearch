@@ -27,7 +27,7 @@ import org.apache.lucene.search.Weight;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.store.FSDirectory;
 import org.elasticsearch.benchmark.internal.BenchmarkLogging;
-import org.elasticsearch.index.codec.Elasticsearch93Lucene104Codec;
+import org.elasticsearch.index.codec.Elasticsearch96Codec;
 import org.elasticsearch.index.codec.tsdb.es819.ES819TSDBDocValuesFormat;
 import org.elasticsearch.index.codec.tsdb.es95.ES95TSDBDocValuesFormat;
 import org.openjdk.jmh.annotations.Benchmark;
@@ -111,7 +111,7 @@ public class TSDBNumericRangeSlicingBenchmark {
             case "ES819" -> new ES819TSDBDocValuesFormat();
             default -> throw new IllegalArgumentException("unknown format [" + format + "]");
         };
-        final Codec codec = new Elasticsearch93Lucene104Codec() {
+        final Codec codec = new Elasticsearch96Codec() {
             @Override
             public DocValuesFormat getDocValuesFormatForField(String field) {
                 return dvFormat;

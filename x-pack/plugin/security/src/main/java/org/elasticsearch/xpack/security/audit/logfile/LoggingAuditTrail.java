@@ -89,8 +89,14 @@ import org.elasticsearch.xpack.core.security.action.rolemapping.PutRoleMappingAc
 import org.elasticsearch.xpack.core.security.action.rolemapping.PutRoleMappingRequest;
 import org.elasticsearch.xpack.core.security.action.service.CreateServiceAccountTokenAction;
 import org.elasticsearch.xpack.core.security.action.service.CreateServiceAccountTokenRequest;
+import org.elasticsearch.xpack.core.security.action.service.CreateUserManagedServiceAccountTokenAction;
 import org.elasticsearch.xpack.core.security.action.service.DeleteServiceAccountTokenAction;
 import org.elasticsearch.xpack.core.security.action.service.DeleteServiceAccountTokenRequest;
+import org.elasticsearch.xpack.core.security.action.service.DeleteUserManagedServiceAccountAction;
+import org.elasticsearch.xpack.core.security.action.service.DeleteUserManagedServiceAccountRequest;
+import org.elasticsearch.xpack.core.security.action.service.DeleteUserManagedServiceAccountTokenAction;
+import org.elasticsearch.xpack.core.security.action.service.PutUserManagedServiceAccountAction;
+import org.elasticsearch.xpack.core.security.action.service.PutUserManagedServiceAccountRequest;
 import org.elasticsearch.xpack.core.security.action.user.ChangePasswordRequest;
 import org.elasticsearch.xpack.core.security.action.user.DeleteUserAction;
 import org.elasticsearch.xpack.core.security.action.user.DeleteUserRequest;
@@ -99,6 +105,7 @@ import org.elasticsearch.xpack.core.security.action.user.PutUserRequest;
 import org.elasticsearch.xpack.core.security.action.user.SetEnabledRequest;
 import org.elasticsearch.xpack.core.security.audit.AuditEventContext;
 import org.elasticsearch.xpack.core.security.audit.AuditLogCustomizer;
+import org.elasticsearch.xpack.core.security.audit.AuditSubject;
 import org.elasticsearch.xpack.core.security.authc.Authentication;
 import org.elasticsearch.xpack.core.security.authc.AuthenticationField;
 import org.elasticsearch.xpack.core.security.authc.AuthenticationToken;
@@ -341,7 +348,11 @@ public class LoggingAuditTrail implements AuditTrail, ClusterStateListener {
         InvalidateApiKeyAction.NAME,
         DeletePrivilegesAction.NAME,
         CreateServiceAccountTokenAction.NAME,
+        CreateUserManagedServiceAccountTokenAction.NAME,
         DeleteServiceAccountTokenAction.NAME,
+        DeleteUserManagedServiceAccountTokenAction.NAME,
+        PutUserManagedServiceAccountAction.NAME,
+        DeleteUserManagedServiceAccountAction.NAME,
         ActivateProfileAction.NAME,
         UpdateProfileDataAction.NAME,
         SetProfileEnabledAction.NAME,
@@ -501,7 +512,7 @@ public class LoggingAuditTrail implements AuditTrail, ClusterStateListener {
         }
         if (events.contains(AUTHENTICATION_SUCCESS)) {
             String realm = ApiKeyService.getCreatorRealmName(authentication);
-            final var ctx = new AuditEventContext(null, null, realm);
+            final var ctx = new AuditEventContext(null, null, realm, AuditSubject.from(authentication));
             if (customizer.suppress(ctx)) return;
             if (eventFilterPolicyRegistry.ignorePredicate()
                 .test(
@@ -536,7 +547,7 @@ public class LoggingAuditTrail implements AuditTrail, ClusterStateListener {
         if (events.contains(AUTHENTICATION_SUCCESS)) {
             final Optional<String[]> indices = Optional.ofNullable(indices(transportRequest));
             String realm = ApiKeyService.getCreatorRealmName(authentication);
-            final var ctx = new AuditEventContext(indices.orElse(null), null, realm);
+            final var ctx = new AuditEventContext(indices.orElse(null), null, realm, AuditSubject.from(authentication));
             if (customizer.suppress(ctx)) return;
             if (eventFilterPolicyRegistry.ignorePredicate()
                 .test(
@@ -683,7 +694,7 @@ public class LoggingAuditTrail implements AuditTrail, ClusterStateListener {
     ) {
         if (events.contains(REALM_AUTHENTICATION_FAILED)) {
             final Optional<String[]> indices = Optional.ofNullable(indices(transportRequest));
-            final var ctx = new AuditEventContext(indices.orElse(null), null, realm);
+            final var ctx = new AuditEventContext(indices.orElse(null), null, null);
             if (customizer.suppress(ctx)) return;
             if (eventFilterPolicyRegistry.ignorePredicate()
                 .test(new AuditEventMetaInfo(Optional.of(token), Optional.of(realm), indices, Optional.of(action))) == false) {
@@ -733,7 +744,12 @@ public class LoggingAuditTrail implements AuditTrail, ClusterStateListener {
         if ((isSystem && events.contains(SYSTEM_ACCESS_GRANTED)) || ((isSystem == false) && events.contains(ACCESS_GRANTED))) {
             final Optional<String[]> indices = Optional.ofNullable(indices(msg));
             String realm = ApiKeyService.getCreatorRealmName(authentication);
-            final var ctx = new AuditEventContext(indices.orElse(null), principalRoles(authorizationInfo), realm);
+            final var ctx = new AuditEventContext(
+                indices.orElse(null),
+                principalRoles(authorizationInfo),
+                realm,
+                AuditSubject.from(authentication)
+            );
             if (customizer.suppress(ctx) == false
                 && eventFilterPolicyRegistry.ignorePredicate()
                     .test(
@@ -817,12 +833,20 @@ public class LoggingAuditTrail implements AuditTrail, ClusterStateListener {
                 } else if (msg instanceof DeletePrivilegesRequest) {
                     assert DeletePrivilegesAction.NAME.equals(action);
                     securityChangeLogEntryBuilder(requestId).withRequestBody((DeletePrivilegesRequest) msg).build();
-                } else if (msg instanceof CreateServiceAccountTokenRequest) {
-                    assert CreateServiceAccountTokenAction.NAME.equals(action);
-                    securityChangeLogEntryBuilder(requestId).withRequestBody((CreateServiceAccountTokenRequest) msg).build();
-                } else if (msg instanceof DeleteServiceAccountTokenRequest) {
-                    assert DeleteServiceAccountTokenAction.NAME.equals(action);
-                    securityChangeLogEntryBuilder(requestId).withRequestBody((DeleteServiceAccountTokenRequest) msg).build();
+                } else if (msg instanceof CreateServiceAccountTokenRequest createServiceAccountTokenRequest) {
+                    assert CreateServiceAccountTokenAction.NAME.equals(action)
+                        || CreateUserManagedServiceAccountTokenAction.NAME.equals(action);
+                    securityChangeLogEntryBuilder(requestId).withRequestBody(createServiceAccountTokenRequest).build();
+                } else if (msg instanceof PutUserManagedServiceAccountRequest putUserManagedServiceAccountRequest) {
+                    assert PutUserManagedServiceAccountAction.NAME.equals(action);
+                    securityChangeLogEntryBuilder(requestId).withRequestBody(putUserManagedServiceAccountRequest).build();
+                } else if (msg instanceof DeleteUserManagedServiceAccountRequest deleteUserManagedServiceAccountRequest) {
+                    assert DeleteUserManagedServiceAccountAction.NAME.equals(action);
+                    securityChangeLogEntryBuilder(requestId).withRequestBody(deleteUserManagedServiceAccountRequest).build();
+                } else if (msg instanceof DeleteServiceAccountTokenRequest deleteServiceAccountTokenRequest) {
+                    assert DeleteServiceAccountTokenAction.NAME.equals(action)
+                        || DeleteUserManagedServiceAccountTokenAction.NAME.equals(action);
+                    securityChangeLogEntryBuilder(requestId).withRequestBody(deleteServiceAccountTokenRequest).build();
                 } else if (msg instanceof final ActivateProfileRequest activateProfileRequest) {
                     assert ActivateProfileAction.NAME.equals(action);
                     securityChangeLogEntryBuilder(requestId).withRequestBody(activateProfileRequest).build();
@@ -877,7 +901,7 @@ public class LoggingAuditTrail implements AuditTrail, ClusterStateListener {
         }
         if (events.contains(eventType)) {
             String realm = ApiKeyService.getCreatorRealmName(authentication);
-            final var ctx = new AuditEventContext(indices, principalRoles(authorizationInfo), realm);
+            final var ctx = new AuditEventContext(indices, principalRoles(authorizationInfo), realm, AuditSubject.from(authentication));
             if (customizer.suppress(ctx)) return;
             if (eventFilterPolicyRegistry.ignorePredicate()
                 .test(
@@ -923,7 +947,12 @@ public class LoggingAuditTrail implements AuditTrail, ClusterStateListener {
         if (events.contains(ACCESS_DENIED)) {
             final Optional<String[]> indices = Optional.ofNullable(indices(transportRequest));
             String realm = ApiKeyService.getCreatorRealmName(authentication);
-            final var ctx = new AuditEventContext(indices.orElse(null), principalRoles(authorizationInfo), realm);
+            final var ctx = new AuditEventContext(
+                indices.orElse(null),
+                principalRoles(authorizationInfo),
+                realm,
+                AuditSubject.from(authentication)
+            );
             if (customizer.suppress(ctx)) return;
             if (eventFilterPolicyRegistry.ignorePredicate()
                 .test(
@@ -989,7 +1018,7 @@ public class LoggingAuditTrail implements AuditTrail, ClusterStateListener {
         if (events.contains(TAMPERED_REQUEST)) {
             final Optional<String[]> indices = Optional.ofNullable(indices(transportRequest));
             String realm = ApiKeyService.getCreatorRealmName(authentication);
-            final var ctx = new AuditEventContext(indices.orElse(null), null, realm);
+            final var ctx = new AuditEventContext(indices.orElse(null), null, realm, AuditSubject.from(authentication));
             if (customizer.suppress(ctx)) return;
             if (eventFilterPolicyRegistry.ignorePredicate()
                 .test(
@@ -1059,7 +1088,12 @@ public class LoggingAuditTrail implements AuditTrail, ClusterStateListener {
         if (events.contains(RUN_AS_GRANTED)) {
             final Optional<String[]> indices = Optional.ofNullable(indices(transportRequest));
             final String realm = ApiKeyService.getCreatorRealmName(authentication);
-            final var ctx = new AuditEventContext(indices.orElse(null), principalRoles(authorizationInfo), realm);
+            final var ctx = new AuditEventContext(
+                indices.orElse(null),
+                principalRoles(authorizationInfo),
+                realm,
+                AuditSubject.from(authentication)
+            );
             if (customizer.suppress(ctx)) return;
             if (eventFilterPolicyRegistry.ignorePredicate()
                 .test(
@@ -1098,7 +1132,12 @@ public class LoggingAuditTrail implements AuditTrail, ClusterStateListener {
         if (events.contains(RUN_AS_DENIED)) {
             final Optional<String[]> indices = Optional.ofNullable(indices(transportRequest));
             String realm = ApiKeyService.getCreatorRealmName(authentication);
-            final var ctx = new AuditEventContext(indices.orElse(null), principalRoles(authorizationInfo), realm);
+            final var ctx = new AuditEventContext(
+                indices.orElse(null),
+                principalRoles(authorizationInfo),
+                realm,
+                AuditSubject.from(authentication)
+            );
             if (customizer.suppress(ctx)) return;
             if (eventFilterPolicyRegistry.ignorePredicate()
                 .test(
@@ -1130,7 +1169,7 @@ public class LoggingAuditTrail implements AuditTrail, ClusterStateListener {
     public void runAsDenied(String requestId, Authentication authentication, HttpPreRequest request, AuthorizationInfo authorizationInfo) {
         if (events.contains(RUN_AS_DENIED)) {
             String realm = ApiKeyService.getCreatorRealmName(authentication);
-            final var ctx = new AuditEventContext(null, principalRoles(authorizationInfo), realm);
+            final var ctx = new AuditEventContext(null, principalRoles(authorizationInfo), realm, AuditSubject.from(authentication));
             if (customizer.suppress(ctx)) return;
             if (eventFilterPolicyRegistry.ignorePredicate()
                 .test(
@@ -1579,6 +1618,35 @@ public class LoggingAuditTrail implements AuditTrail, ClusterStateListener {
                 .endObject() // service_token
                 .endObject();
             logEntry.with(CREATE_CONFIG_FIELD_NAME, Strings.toString(builder));
+            return this;
+        }
+
+        LogEntryBuilder withRequestBody(PutUserManagedServiceAccountRequest putUserManagedServiceAccountRequest) throws IOException {
+            logEntry.with(EVENT_ACTION_FIELD_NAME, "put_user_managed_service_account");
+            XContentBuilder builder = JsonXContent.contentBuilder().humanReadable(true);
+            builder.startObject()
+                .startObject("user_managed_service_account")
+                .field("namespace", putUserManagedServiceAccountRequest.getNamespace())
+                .field("service", putUserManagedServiceAccountRequest.getServiceName())
+                .array("roles", putUserManagedServiceAccountRequest.getRoles().toArray(String[]::new))
+                .field("enabled", putUserManagedServiceAccountRequest.isEnabled())
+                .endObject() // user_managed_service_account
+                .endObject();
+            logEntry.with(PUT_CONFIG_FIELD_NAME, Strings.toString(builder));
+            return this;
+        }
+
+        LogEntryBuilder withRequestBody(DeleteUserManagedServiceAccountRequest deleteUserManagedServiceAccountRequest) throws IOException {
+            logEntry.with(EVENT_ACTION_FIELD_NAME, "delete_user_managed_service_account");
+            XContentBuilder builder = JsonXContent.contentBuilder().humanReadable(true);
+            builder.startObject()
+                .startObject("user_managed_service_account")
+                .field("namespace", deleteUserManagedServiceAccountRequest.getNamespace())
+                .field("service", deleteUserManagedServiceAccountRequest.getServiceName())
+                .field("force", deleteUserManagedServiceAccountRequest.isForce())
+                .endObject() // user_managed_service_account
+                .endObject();
+            logEntry.with(DELETE_CONFIG_FIELD_NAME, Strings.toString(builder));
             return this;
         }
 

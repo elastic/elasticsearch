@@ -13,6 +13,7 @@ import org.elasticsearch.common.cache.CacheLoader;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.TimeValue;
 
+import java.io.IOException;
 import java.util.concurrent.ExecutionException;
 
 /**
@@ -61,7 +62,11 @@ import java.util.concurrent.ExecutionException;
  */
 public class FooterByteCache {
 
-    /** Default max single entry (2 MiB). Prevents caching unusually large footers. */
+    /**
+     * Default max single-entry admission (2 MiB). Oversized footers may still be returned to the
+     * caller; {@link #put} skips them and {@link #getOrLoad} evicts them so they do not occupy the
+     * LRU. This is not a read limit.
+     */
     public static final long DEFAULT_MAX_ENTRY_BYTES = 2L * 1024 * 1024;
 
     /**
@@ -73,8 +78,21 @@ public class FooterByteCache {
 
         /**
          * Creates a key from a {@link org.elasticsearch.xpack.esql.datasources.spi.StorageObject},
+         * using its path string and {@link org.elasticsearch.xpack.esql.datasources.spi.StorageObject#lengthForFooterCacheKey()}.
+         * Prefer this over {@link #keyFor(org.elasticsearch.xpack.esql.datasources.spi.StorageObject, long)} so range
+         * views ({@code RangeStorageObject}) share one entry per file.
+         */
+        public static Key keyFor(org.elasticsearch.xpack.esql.datasources.spi.StorageObject storageObject) throws IOException {
+            return new Key(storageObject.path().toString(), storageObject.lengthForFooterCacheKey());
+        }
+
+        /**
+         * Creates a key from a {@link org.elasticsearch.xpack.esql.datasources.spi.StorageObject},
          * using its path string as the canonical identifier. All callers should prefer this factory
          * over constructing {@code Key} directly so that path canonicalization happens in one place.
+         * {@code length} must be the full file size
+         * ({@link org.elasticsearch.xpack.esql.datasources.spi.StorageObject#lengthForFooterCacheKey()}),
+         * not a range-view span.
          */
         public static Key keyFor(org.elasticsearch.xpack.esql.datasources.spi.StorageObject storageObject, long length) {
             return new Key(storageObject.path().toString(), length);

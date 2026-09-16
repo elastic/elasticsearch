@@ -51,23 +51,9 @@ tests:
 - class: org.elasticsearch.xpack.esql.heap_attack.ManyRequestsIT
   method: testManyRequests
   issue: https://github.com/elastic/elasticsearch/issues/151627
-- class: org.elasticsearch.upgrades.SemanticTextUpgradeIT
-  issue: https://github.com/elastic/elasticsearch/issues/158094
 - class: org.elasticsearch.search.fetch.subphase.highlight.HighlightBuilderTests
   method: testInvalidMaxAnalyzedOffset
   issue: https://github.com/elastic/elasticsearch/issues/158105
-- class: org.elasticsearch.upgrades.XpackSystemIndicesUpgradeIT
-  method: testUpgradeSystemIndexAndDataStream {upgradedNodes=1}
-  issue: https://github.com/elastic/elasticsearch/issues/158120
-- class: org.elasticsearch.upgrades.XpackSystemIndicesUpgradeIT
-  method: testUpgradeSystemIndexAndDataStream {upgradedNodes=2}
-  issue: https://github.com/elastic/elasticsearch/issues/158121
-- class: org.elasticsearch.upgrades.XpackSystemIndicesUpgradeIT
-  method: testUpgradeSystemIndexAndDataStream {upgradedNodes=0}
-  issue: https://github.com/elastic/elasticsearch/issues/158122
-- class: org.elasticsearch.upgrades.XpackSystemIndicesUpgradeIT
-  method: testUpgradeSystemIndexAndDataStream {upgradedNodes=3}
-  issue: https://github.com/elastic/elasticsearch/issues/158123
 - class: org.elasticsearch.upgrades.CcrRollingUpgradeIT
   method: testUniDirectionalIndexFollowing
   issue: https://github.com/elastic/elasticsearch/issues/153050
@@ -111,8 +97,6 @@ tests:
 - class: org.elasticsearch.xpack.esql.action.CrossClusterQueryWithPartialResultsIT
   method: testFailToStartRequestOnRemoteCluster
   issue: https://github.com/elastic/elasticsearch/issues/159134
-- class: org.elasticsearch.xpack.searchablesnapshots.minio.MinioSearchableSnapshotsIT
-  issue: https://github.com/elastic/elasticsearch/issues/159136
 - class: org.elasticsearch.upgrades.ApiKeyBackwardsCompatibilityIT
   method: testCreatingAndUpdatingApiKeys {upgradedNodes=1}
   issue: https://github.com/elastic/elasticsearch/issues/158101
@@ -124,6 +108,41 @@ tests:
 - class: org.elasticsearch.xpack.esql.heap_attack.ManyRequestsIT
   method: testCancelTailRequest
   issue: https://github.com/elastic/elasticsearch/issues/153203
+- class: org.elasticsearch.upgrades.UpgradeClusterClientYamlTestSuiteIT
+  method: test {p0=mixed_cluster/90_ml_data_frame_analytics_crud/Put an outlier_detection job on the mixed cluster}
+  issue: https://github.com/elastic/elasticsearch/issues/159411
+- class: org.elasticsearch.xpack.ilm.TimeSeriesLifecycleActionsIT
+  method: testWaitForSnapshot
+  issue: https://github.com/elastic/elasticsearch/issues/159412
+- class: org.elasticsearch.upgrades.UpgradeClusterClientYamlTestSuiteIT
+  method: test {p0=upgraded_cluster/90_ml_data_frame_analytics_crud/Get mixed cluster outlier_detection job}
+  issue: https://github.com/elastic/elasticsearch/issues/159421
+- class: org.elasticsearch.upgrades.UpgradeClusterClientYamlTestSuiteIT
+  method: test {p0=upgraded_cluster/90_ml_data_frame_analytics_crud/Get mixed cluster outlier_detection job stats}
+  issue: https://github.com/elastic/elasticsearch/issues/159422
+- class: org.elasticsearch.xpack.ilm.TimeSeriesLifecycleActionsIT
+  method: testForceMergeActionWithCompressionCodec
+  issue: https://github.com/elastic/elasticsearch/issues/159423
+- class: org.elasticsearch.xpack.test.rest.XPackRestIT
+  method: test {p0=profiling/10_basic/Test topN functions from test-events}
+  issue: https://github.com/elastic/elasticsearch/issues/159424
+- class: org.elasticsearch.xpack.snapshotbasedrecoveries.recovery.GCSSnapshotBasedRecoveryIT
+  issue: https://github.com/elastic/elasticsearch/issues/159425
+- class: org.elasticsearch.system_indices.action.FeatureMigrationIT
+  method: testStartMigrationAndImmediatelyCheckStatus
+  issue: https://github.com/elastic/elasticsearch/issues/159426
+- class: org.elasticsearch.xpack.inference.services.mistral.MistralServiceTests
+  method: testInfer_StreamRequest_ErrorResponse
+  issue: https://github.com/elastic/elasticsearch/issues/159427
+- class: org.elasticsearch.xpack.search.CrossClusterAsyncSearchIT
+  method: testRemoteClusterOnlyCCSWithFailuresOnOneShardOnly
+  issue: https://github.com/elastic/elasticsearch/issues/159428
+- class: org.elasticsearch.smoketest.DocsClientYamlTestSuiteIT
+  method: test {yaml=reference/indices/segments/line_116}
+  issue: https://github.com/elastic/elasticsearch/issues/159429
+- class: org.elasticsearch.xpack.test.rest.XPackRestIT
+  method: test {p0=ml/inference_crud/Test put model model aliases}
+  issue: https://github.com/elastic/elasticsearch/issues/159430
 
 # Examples:
 #

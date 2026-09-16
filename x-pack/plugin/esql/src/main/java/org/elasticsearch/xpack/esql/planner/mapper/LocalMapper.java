@@ -120,7 +120,7 @@ public class LocalMapper {
         }
 
         if (unary instanceof LimitRatioBy limitRatioBy) {
-            return new LimitRatioByExec(limitRatioBy.source(), mappedChild, limitRatioBy.ratio(), limitRatioBy.groupings(), null);
+            return new LimitRatioByExec(limitRatioBy.source(), mappedChild, limitRatioBy.ratio(), limitRatioBy.groupings());
         }
 
         if (unary instanceof TopN topN) {

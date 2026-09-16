@@ -23,8 +23,12 @@ import java.util.Objects;
  * Retains a ratio of rows per group using Bresenham-style streaming sampling.
  * For {@code limit_ratio(r, v)}, exactly {@code ceil(r * N)} of N rows are kept per group,
  * in arrival order, with O(groups) state and no buffering.
+ * <p>
+ * Runs on the coordinator only: unlike a fixed {@code LIMIT N BY}, a ratio limit cannot be
+ * pushed down to data nodes (per-shard {@code ceil(r * N_local)} followed by a coordinator
+ * {@code ceil(r * N_combined)} would under-count), so it requires the global per-group view.
  */
-public class LimitRatioBy extends UnaryPlan implements PipelineBreaker {
+public class LimitRatioBy extends UnaryPlan implements PipelineBreaker, ExecutesOn.Coordinator {
     public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(
         LogicalPlan.class,
         "LimitRatioBy",

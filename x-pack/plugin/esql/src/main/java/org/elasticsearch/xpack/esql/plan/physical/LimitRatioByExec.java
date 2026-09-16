@@ -10,11 +10,9 @@ package org.elasticsearch.xpack.esql.plan.physical;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
 import org.elasticsearch.xpack.esql.core.tree.Source;
-import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.io.stream.PlanStreamInput;
 
 import java.io.IOException;
@@ -23,8 +21,11 @@ import java.util.Objects;
 
 /**
  * Physical plan node for {@code limit_ratio(r, v)} per group.
+ * <p>
+ * A pure row filter: it drops rows but neither adds nor removes columns, so it does not
+ * participate in row-size estimation.
  */
-public class LimitRatioByExec extends UnaryExec implements EstimatesRowSize {
+public class LimitRatioByExec extends UnaryExec {
     public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(
         PhysicalPlan.class,
         "LimitRatioByExec",
@@ -33,22 +34,19 @@ public class LimitRatioByExec extends UnaryExec implements EstimatesRowSize {
 
     private final Expression ratio;
     private final List<Expression> groupings;
-    private final Integer estimatedRowSize;
 
-    public LimitRatioByExec(Source source, PhysicalPlan child, Expression ratio, List<Expression> groupings, Integer estimatedRowSize) {
+    public LimitRatioByExec(Source source, PhysicalPlan child, Expression ratio, List<Expression> groupings) {
         super(source, child);
         this.ratio = ratio;
         this.groupings = groupings;
-        this.estimatedRowSize = estimatedRowSize;
     }
 
     private static LimitRatioByExec readFrom(StreamInput in) throws IOException {
         Source source = Source.readFrom((PlanStreamInput) in);
         PhysicalPlan child = in.readNamedWriteable(PhysicalPlan.class);
         Expression ratio = in.readNamedWriteable(Expression.class);
-        Integer estimatedRowSize = in.readOptionalVInt();
         List<Expression> groupings = in.readNamedWriteableCollectionAsList(Expression.class);
-        return new LimitRatioByExec(source, child, ratio, groupings, estimatedRowSize);
+        return new LimitRatioByExec(source, child, ratio, groupings);
     }
 
     @Override
@@ -56,7 +54,6 @@ public class LimitRatioByExec extends UnaryExec implements EstimatesRowSize {
         Source.EMPTY.writeTo(out);
         out.writeNamedWriteable(child());
         out.writeNamedWriteable(ratio());
-        out.writeOptionalVInt(estimatedRowSize);
         out.writeNamedWriteableCollection(groupings());
     }
 
@@ -67,12 +64,12 @@ public class LimitRatioByExec extends UnaryExec implements EstimatesRowSize {
 
     @Override
     protected NodeInfo<? extends LimitRatioByExec> info() {
-        return NodeInfo.create(this, LimitRatioByExec::new, child(), ratio, groupings, estimatedRowSize);
+        return NodeInfo.create(this, LimitRatioByExec::new, child(), ratio, groupings);
     }
 
     @Override
     public LimitRatioByExec replaceChild(PhysicalPlan newChild) {
-        return new LimitRatioByExec(source(), newChild, ratio, groupings, estimatedRowSize);
+        return new LimitRatioByExec(source(), newChild, ratio, groupings);
     }
 
     public Expression ratio() {
@@ -83,24 +80,9 @@ public class LimitRatioByExec extends UnaryExec implements EstimatesRowSize {
         return groupings;
     }
 
-    public Integer estimatedRowSize() {
-        return estimatedRowSize;
-    }
-
-    @Override
-    public PhysicalPlan estimateRowSize(State unused) {
-        final List<Attribute> output = output();
-        EstimatesRowSize.State state = new EstimatesRowSize.State();
-        final boolean needsSortedDocIds = output.stream().anyMatch(a -> a.dataType() == DataType.DOC_DATA_TYPE);
-        state.add(needsSortedDocIds, output);
-        int size = state.consumeAllFields(true);
-        size = Math.max(size, 1);
-        return Objects.equals(this.estimatedRowSize, size) ? this : new LimitRatioByExec(source(), child(), ratio, groupings, size);
-    }
-
     @Override
     public int hashCode() {
-        return Objects.hash(ratio, groupings, estimatedRowSize, child());
+        return Objects.hash(ratio, groupings, child());
     }
 
     @Override
@@ -112,9 +94,6 @@ public class LimitRatioByExec extends UnaryExec implements EstimatesRowSize {
             return false;
         }
         LimitRatioByExec other = (LimitRatioByExec) obj;
-        return Objects.equals(ratio, other.ratio)
-            && Objects.equals(groupings, other.groupings)
-            && Objects.equals(estimatedRowSize, other.estimatedRowSize)
-            && Objects.equals(child(), other.child());
+        return Objects.equals(ratio, other.ratio) && Objects.equals(groupings, other.groupings) && Objects.equals(child(), other.child());
     }
 }

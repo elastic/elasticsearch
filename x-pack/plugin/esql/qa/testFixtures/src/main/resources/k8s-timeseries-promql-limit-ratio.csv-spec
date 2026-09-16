@@ -88,3 +88,40 @@ result:double | step:datetime            | _timeseries:keyword
 10277.0       | 2024-05-10T01:00:00.000Z | "{""cluster"":""prod"",""pod"":""two"",""region"":[""eu"",""us""]}"
 10797.0       | 2024-05-10T01:00:00.000Z | "{""cluster"":""qa"",""pod"":""three""}"
 ;
+
+// `by (pod)` with a fractional ratio applies Bresenham sampling within each pod group.
+// Each pod has 3 series (one per cluster), so ceil(0.5 * 3) = 2 are kept per pod.
+// Within each pod the 1st and 3rd series in storage order are kept and the 2nd is skipped,
+// mirroring the bare limit_ratio_bare trace (keep 1st and 3rd of 3).
+// Expected rows assume per-pod storage order prod, staging, qa (middle staging series skipped).
+limit_ratio_by_pod_fractional
+required_capability: promql_command_v0
+required_capability: promql_limit_ratio
+required_capability: fix_promql_time_bucket_v2
+PROMQL index=k8s step=1h result=(limit_ratio(0.5, network.total_bytes_in) by (pod))
+| SORT result;
+
+result:double | step:datetime            | _timeseries:keyword
+947.0         | 2024-05-10T01:00:00.000Z | "{""cluster"":""prod"",""pod"":""one"",""region"":[""eu"",""us""]}"
+7286.0        | 2024-05-10T01:00:00.000Z | "{""cluster"":""qa"",""pod"":""one""}"
+8568.0        | 2024-05-10T01:00:00.000Z | "{""cluster"":""qa"",""pod"":""two""}"
+9969.0        | 2024-05-10T01:00:00.000Z | "{""cluster"":""prod"",""pod"":""three"",""region"":[""eu"",""us""]}"
+10277.0       | 2024-05-10T01:00:00.000Z | "{""cluster"":""prod"",""pod"":""two"",""region"":[""eu"",""us""]}"
+10797.0       | 2024-05-10T01:00:00.000Z | "{""cluster"":""qa"",""pod"":""three""}"
+;
+
+// limit_ratio over an already-aggregated vector (sum by pod), mirroring limitk_over_sum_by.
+// The inner sum collapses the 3 prod pods to one row per pod; the outer ratio keeps
+// ceil(0.5 * 3) = 2 of those 3 rows (1st and 3rd in storage order: pod=one and pod=three).
+limit_ratio_over_sum_by
+required_capability: promql_command_v0
+required_capability: promql_limit_ratio
+required_capability: fix_promql_topk_over_aggregate
+required_capability: fix_promql_time_bucket_v2
+PROMQL index=k8s step=1h result=(limit_ratio(0.5, sum by (pod) (network.total_bytes_in{cluster="prod"})))
+| SORT result;
+
+result:double | step:datetime            | pod:keyword
+947.0         | 2024-05-10T01:00:00.000Z | one
+9969.0        | 2024-05-10T01:00:00.000Z | three
+;

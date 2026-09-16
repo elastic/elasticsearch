@@ -12,6 +12,7 @@ import org.elasticsearch.xpack.esql.action.EsqlCapabilities;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.expression.FoldContext;
 import org.elasticsearch.xpack.esql.core.expression.MetadataAttribute;
+import org.elasticsearch.xpack.esql.plan.logical.ExecutesOn;
 import org.elasticsearch.xpack.esql.plan.logical.LimitRatioBy;
 import org.junit.Before;
 
@@ -77,5 +78,50 @@ public class PromqlPlanLimitRatioTests extends AbstractPromqlPlanOptimizerTests 
         );
 
         assertThat(plan.collect(LimitRatioBy.class).get(0), instanceOf(LimitRatioBy.class));
+    }
+
+    /**
+     * A ratio limit needs the global per-group view: per-shard {@code ceil(r * N_local)} followed by a
+     * coordinator {@code ceil(r * N_combined)} would under-count, so the node must run on the coordinator only.
+     */
+    public void testLimitRatioRunsOnCoordinatorOnly() {
+        var plan = logicalOptimizerWithLatestVersion.optimize(
+            planPromql("PROMQL index=k8s step=1h result=(limit_ratio(0.5, network.bytes_in))", false)
+        );
+
+        var node = as(plan.collect(LimitRatioBy.class).get(0), LimitRatioBy.class);
+        assertThat(node, instanceOf(ExecutesOn.Coordinator.class));
+    }
+
+    public void testLimitRatioNegativeRejected() {
+        var e = expectThrows(
+            VerificationException.class,
+            () -> planPromql("PROMQL index=k8s step=1h result=(limit_ratio(-0.5, network.bytes_in))", true)
+        );
+        assertThat(e.getMessage(), containsString("negative ratio"));
+    }
+
+    public void testLimitRatioNaNRejected() {
+        var e = expectThrows(
+            VerificationException.class,
+            () -> planPromql("PROMQL index=k8s step=1h result=(limit_ratio(nan, network.bytes_in))", true)
+        );
+        assertThat(e.getMessage(), containsString("must be finite"));
+    }
+
+    public void testLimitRatioInfiniteRejected() {
+        var e = expectThrows(
+            VerificationException.class,
+            () -> planPromql("PROMQL index=k8s step=1h result=(limit_ratio(Inf, network.bytes_in))", true)
+        );
+        assertThat(e.getMessage(), containsString("must be finite"));
+    }
+
+    public void testLimitRatioStringRejected() {
+        var e = expectThrows(
+            VerificationException.class,
+            () -> planPromql("PROMQL index=k8s step=1h result=(limit_ratio(\"0.5\", network.bytes_in))", true)
+        );
+        assertThat(e.getMessage(), containsString("numeric ratio"));
     }
 }

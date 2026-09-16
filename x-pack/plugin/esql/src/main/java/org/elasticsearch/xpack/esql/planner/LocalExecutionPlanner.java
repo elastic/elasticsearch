@@ -2368,7 +2368,19 @@ public class LocalExecutionPlanner {
 
     private PhysicalOperation planLimitRatioBy(LimitRatioByExec limitRatioBy, LocalExecutionPlannerContext context) {
         PhysicalOperation source = plan(limitRatioBy.child(), context);
-        double ratioValue = ((Number) limitRatioBy.ratio().fold(context.foldCtx)).doubleValue();
+        Object folded = limitRatioBy.ratio().fold(context.foldCtx);
+        double ratioValue;
+        if (folded instanceof Number number) {
+            ratioValue = number.doubleValue();
+        } else {
+            throw new EsqlIllegalArgumentException("LIMIT RATIO BY ratio must be a numeric literal, got [{}]", folded);
+        }
+        if (Double.isFinite(ratioValue) == false) {
+            throw new EsqlIllegalArgumentException("LIMIT RATIO BY ratio must be finite, got [{}]", ratioValue);
+        }
+        if (ratioValue < 0.0) {
+            throw new EsqlIllegalArgumentException("LIMIT RATIO BY ratio must not be negative, got [{}]", ratioValue);
+        }
         Layout layout = source.layout;
         List<Integer> groupKeys = limitRatioBy.groupings()
             .stream()

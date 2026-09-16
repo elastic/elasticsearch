@@ -9,14 +9,8 @@ package org.elasticsearch.compute.operator;
 
 import org.apache.lucene.util.Accountable;
 import org.apache.lucene.util.RamUsageEstimator;
-import org.elasticsearch.TransportVersion;
-import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.PagedBytesBuilder;
 import org.elasticsearch.common.bytes.PagedBytesCursor;
-import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
-import org.elasticsearch.common.io.stream.StreamInput;
-import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.BytesRefHashTable;
 import org.elasticsearch.common.util.IntArray;
@@ -25,12 +19,9 @@ import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.ElementType;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.core.Releasables;
-import org.elasticsearch.xcontent.XContentBuilder;
 
-import java.io.IOException;
 import java.util.Arrays;
 import java.util.List;
-import java.util.Objects;
 
 /**
  * Streaming operator for {@code limit_ratio(r, v)}: retains exactly {@code ceil(r * N)} rows per
@@ -43,7 +34,7 @@ import java.util.Objects;
  * <p>
  * Group keys use list semantics for multivalues: {@code [1,2]} and {@code [2,1]} are different groups.
  */
-public class GroupedRatioLimitOperator implements Operator, Accountable {
+public class GroupedRatioLimitOperator extends AbstractPageMappingOperator implements Accountable {
 
     public static final class Factory implements Operator.OperatorFactory {
         private final double ratio;
@@ -51,6 +42,12 @@ public class GroupedRatioLimitOperator implements Operator, Accountable {
         private final List<ElementType> elementTypes;
 
         public Factory(double ratio, List<Integer> groupChannels, List<ElementType> elementTypes) {
+            if (Double.isFinite(ratio) == false) {
+                throw new IllegalArgumentException("ratio must be finite, got [" + ratio + "]");
+            }
+            if (ratio < 0.0) {
+                throw new IllegalArgumentException("ratio must not be negative, got [" + ratio + "]");
+            }
             this.ratio = ratio;
             this.groupChannels = groupChannels.stream().mapToInt(Integer::intValue).toArray();
             this.elementTypes = elementTypes;
@@ -85,14 +82,13 @@ public class GroupedRatioLimitOperator implements Operator, Accountable {
     /** Number of rows accepted so far per group ordinal. */
     private IntArray accepteds;
 
-    private int pagesProcessed;
-    private long rowsReceived;
-    private long rowsEmitted;
-
-    private Page lastOutput;
-    private boolean finished;
-
     public GroupedRatioLimitOperator(double ratio, GroupKeyEncoder keyEncoder, BlockFactory blockFactory) {
+        if (Double.isFinite(ratio) == false) {
+            throw new IllegalArgumentException("ratio must be finite, got [" + ratio + "]");
+        }
+        if (ratio < 0.0) {
+            throw new IllegalArgumentException("ratio must not be negative, got [" + ratio + "]");
+        }
         boolean success = false;
         try {
             this.ratio = ratio;
@@ -104,26 +100,18 @@ public class GroupedRatioLimitOperator implements Operator, Accountable {
             success = true;
         } finally {
             if (success == false) {
-                Releasables.closeExpectNoException(keyEncoder, seenKeys);
+                Releasables.closeExpectNoException(keyEncoder, seenKeys, totals, accepteds);
             }
         }
     }
 
     @Override
-    public boolean needsInput() {
-        return finished == false && lastOutput == null;
-    }
-
-    @Override
-    public void addInput(Page page) {
+    protected Page process(Page page) {
         try {
-            assert lastOutput == null : "has pending output page";
             int positionCount = page.getPositionCount();
-            rowsReceived += positionCount;
 
             if (ratio <= 0.0) {
-                page.releaseBlocks();
-                return;
+                return null;
             }
 
             int acceptedCount = 0;
@@ -160,44 +148,17 @@ public class GroupedRatioLimitOperator implements Operator, Accountable {
             }
 
             if (acceptedCount == 0) {
-                return;
+                return null;
             }
 
             if (acceptedCount == positionCount) {
-                lastOutput = page.shallowCopy();
+                return page.shallowCopy();
             } else {
-                lastOutput = page.filter(false, accepted, 0, acceptedCount);
+                return page.filter(false, accepted, 0, acceptedCount);
             }
         } finally {
             page.releaseBlocks();
         }
-    }
-
-    @Override
-    public void finish() {
-        finished = true;
-    }
-
-    @Override
-    public boolean isFinished() {
-        return lastOutput == null && finished;
-    }
-
-    @Override
-    public boolean canProduceMoreDataWithoutExtraInput() {
-        return lastOutput != null;
-    }
-
-    @Override
-    public Page getOutput() {
-        if (lastOutput == null) {
-            return null;
-        }
-        Page result = lastOutput;
-        lastOutput = null;
-        pagesProcessed++;
-        rowsEmitted += result.getPositionCount();
-        return result;
     }
 
     @Override
@@ -211,19 +172,8 @@ public class GroupedRatioLimitOperator implements Operator, Accountable {
     }
 
     @Override
-    public Status status() {
-        return new Status(ratio, (int) seenKeys.size(), pagesProcessed, rowsReceived, rowsEmitted, ramBytesUsed());
-    }
-
-    @Override
     public void close() {
-        Releasables.closeExpectNoException(
-            lastOutput == null ? () -> {} : lastOutput::releaseBlocks,
-            seenKeys,
-            totals,
-            accepteds,
-            keyEncoder
-        );
+        Releasables.closeExpectNoException(seenKeys, totals, accepteds, keyEncoder, super::close);
     }
 
     @Override
@@ -235,118 +185,5 @@ public class GroupedRatioLimitOperator implements Operator, Accountable {
             + ", groups="
             + seenKeys.size()
             + "]";
-    }
-
-    public static class Status implements Operator.Status {
-        public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(
-            Operator.Status.class,
-            "grouped_ratio_limit",
-            Status::new
-        );
-
-        private final double ratio;
-        private final int groupCount;
-        private final int pagesProcessed;
-        private final long rowsReceived;
-        private final long rowsEmitted;
-        private final long ramBytesUsed;
-
-        protected Status(double ratio, int groupCount, int pagesProcessed, long rowsReceived, long rowsEmitted, long ramBytesUsed) {
-            this.ratio = ratio;
-            this.groupCount = groupCount;
-            this.pagesProcessed = pagesProcessed;
-            this.rowsReceived = rowsReceived;
-            this.rowsEmitted = rowsEmitted;
-            this.ramBytesUsed = ramBytesUsed;
-        }
-
-        protected Status(StreamInput in) throws IOException {
-            ratio = in.readDouble();
-            groupCount = in.readVInt();
-            pagesProcessed = in.readVInt();
-            rowsReceived = in.readVLong();
-            rowsEmitted = in.readVLong();
-            ramBytesUsed = in.readVLong();
-        }
-
-        @Override
-        public void writeTo(StreamOutput out) throws IOException {
-            out.writeDouble(ratio);
-            out.writeVInt(groupCount);
-            out.writeVInt(pagesProcessed);
-            out.writeVLong(rowsReceived);
-            out.writeVLong(rowsEmitted);
-            out.writeVLong(ramBytesUsed);
-        }
-
-        @Override
-        public String getWriteableName() {
-            return ENTRY.name;
-        }
-
-        public double ratio() {
-            return ratio;
-        }
-
-        public int groupCount() {
-            return groupCount;
-        }
-
-        public int pagesProcessed() {
-            return pagesProcessed;
-        }
-
-        public long rowsReceived() {
-            return rowsReceived;
-        }
-
-        public long rowsEmitted() {
-            return rowsEmitted;
-        }
-
-        public long ramBytesUsed() {
-            return ramBytesUsed;
-        }
-
-        @Override
-        public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
-            builder.startObject();
-            builder.field("ratio", ratio);
-            builder.field("group_count", groupCount);
-            builder.field("pages_processed", pagesProcessed);
-            builder.field("rows_received", rowsReceived);
-            builder.field("rows_emitted", rowsEmitted);
-            builder.field("ram_bytes_used", ramBytesUsed);
-            builder.field("ram_used", ByteSizeValue.ofBytes(ramBytesUsed));
-            return builder.endObject();
-        }
-
-        @Override
-        public boolean equals(Object o) {
-            if (this == o) return true;
-            if (o == null || getClass() != o.getClass()) return false;
-            Status status = (Status) o;
-            return Double.compare(ratio, status.ratio) == 0
-                && groupCount == status.groupCount
-                && pagesProcessed == status.pagesProcessed
-                && rowsReceived == status.rowsReceived
-                && rowsEmitted == status.rowsEmitted
-                && ramBytesUsed == status.ramBytesUsed;
-        }
-
-        @Override
-        public int hashCode() {
-            return Objects.hash(ratio, groupCount, pagesProcessed, rowsReceived, rowsEmitted, ramBytesUsed);
-        }
-
-        @Override
-        public TransportVersion getMinimalSupportedVersion() {
-            return TransportVersion.minimumCompatible();
-        }
-
-        @Override
-        public String toString() {
-            return Strings.toString(this);
-        }
     }
 }

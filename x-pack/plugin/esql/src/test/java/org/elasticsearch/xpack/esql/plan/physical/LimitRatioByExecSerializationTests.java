@@ -24,7 +24,7 @@ public class LimitRatioByExecSerializationTests extends AbstractPhysicalPlanSeri
         PhysicalPlan child = randomChild(depth);
         Expression ratio = randomRatio();
         List<Expression> groupings = randomGroupings();
-        return new LimitRatioByExec(source, child, ratio, groupings, randomEstimatedRowSize());
+        return new LimitRatioByExec(source, child, ratio, groupings);
     }
 
     @Override
@@ -37,15 +37,13 @@ public class LimitRatioByExecSerializationTests extends AbstractPhysicalPlanSeri
         PhysicalPlan child = instance.child();
         Expression ratio = instance.ratio();
         List<Expression> groupings = instance.groupings();
-        Integer estimatedRowSize = instance.estimatedRowSize();
-        switch (between(0, 3)) {
+        switch (between(0, 2)) {
             case 0 -> child = randomValueOtherThan(child, () -> randomChild(0));
             case 1 -> ratio = randomValueOtherThan(ratio, LimitRatioByExecSerializationTests::randomRatio);
             case 2 -> groupings = randomValueOtherThan(groupings, LimitRatioByExecSerializationTests::randomGroupings);
-            case 3 -> estimatedRowSize = randomValueOtherThan(estimatedRowSize, LimitRatioByExecSerializationTests::randomEstimatedRowSize);
             default -> throw new AssertionError("Unexpected case");
         }
-        return new LimitRatioByExec(instance.source(), child, ratio, groupings, estimatedRowSize);
+        return new LimitRatioByExec(instance.source(), child, ratio, groupings);
     }
 
     @Override

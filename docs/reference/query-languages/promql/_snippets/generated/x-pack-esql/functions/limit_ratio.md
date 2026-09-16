@@ -27,4 +27,4 @@ limit_ratio(0.5, http_requests_total)
 
 **Differences from Prometheus**
 
-Elements are selected in storage-arrival order rather than uniformly at random. A `without` grouping clause is not yet supported.
+Elements are selected in storage-arrival order rather than by hashing series labels, so the kept subset can change when a series is missing at a step, whereas Prometheus keeps a series iff `hash(its labels) < r`. The ratio is applied independently within each `by` group, whereas `by` is effectively a no-op in Prometheus. Negative and non-finite ratios are rejected; a `without` grouping clause is not yet supported.

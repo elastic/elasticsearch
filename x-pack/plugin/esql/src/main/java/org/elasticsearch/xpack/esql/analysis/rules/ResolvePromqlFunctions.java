@@ -13,6 +13,7 @@ import org.elasticsearch.xpack.esql.analysis.AnalyzerContext;
 import org.elasticsearch.xpack.esql.analysis.AnalyzerRules.ParameterizedAnalyzerRule;
 import org.elasticsearch.xpack.esql.common.Failure;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
+import org.elasticsearch.xpack.esql.core.expression.FoldContext;
 import org.elasticsearch.xpack.esql.core.expression.Literal;
 import org.elasticsearch.xpack.esql.expression.promql.function.FunctionType;
 import org.elasticsearch.xpack.esql.expression.promql.function.PromqlBuiltinFunctionDefinitions;
@@ -122,6 +123,9 @@ public class ResolvePromqlFunctions extends ParameterizedAnalyzerRule<PromqlComm
         }
 
         AcrossSeriesAggregate.Grouping grouping = unresolved.grouping();
+        if (metadata == PromqlBuiltinFunctionDefinitions.LIMIT_RATIO) {
+            validateLimitRatio(unresolved, extraParams);
+        }
         if (grouping != null) {
             if (metadata.functionType() != FunctionType.ACROSS_SERIES_AGGREGATION
                 && metadata.functionType() != FunctionType.ACROSS_SERIES_REDUCTION) {
@@ -237,6 +241,57 @@ public class ResolvePromqlFunctions extends ParameterizedAnalyzerRule<PromqlComm
 
     private static String literalString(Expression e) {
         return BytesRefs.toString(((Literal) e).value());
+    }
+
+    /**
+     * Validates the {@code r} argument of {@code limit_ratio(r, v)} at analysis time.
+     * <p>
+     * Prometheus treats a negative {@code r} as the complement of the matching positive ratio and hard-errors on
+     * {@code NaN}. This implementation uses order-based streaming sampling and does not implement the complement,
+     * so negative and non-finite ratios are rejected here rather than silently dropping rows at execution time.
+     * Non-numeric literals (e.g. strings) are likewise rejected so a clear verification error surfaces instead of
+     * a {@code ClassCastException} in the execution planner. Ratios greater than {@code 1} are allowed and keep
+     * every row.
+     */
+    private static void validateLimitRatio(UnresolvedPromqlFunction unresolved, List<Expression> extraParams) {
+        String name = unresolved.functionName();
+        if (extraParams.isEmpty()) {
+            return;
+        }
+        Expression ratio = extraParams.getFirst();
+        if (ratio.resolved() == false || ratio.dataType().isNumeric() == false) {
+            throw new VerificationException(
+                List.of(
+                    Failure.fail(
+                        unresolved,
+                        "expected numeric ratio in call to function [{}], got [{}]",
+                        name,
+                        ratio.resolved() ? ratio.dataType() : "unresolved"
+                    )
+                )
+            );
+        }
+        if (ratio.foldable() == false) {
+            throw new VerificationException(List.of(Failure.fail(unresolved, "expected literal ratio in call to function [{}]", name)));
+        }
+        Object folded = ratio.fold(FoldContext.small());
+        if (folded instanceof Number number) {
+            double value = number.doubleValue();
+            if (Double.isFinite(value) == false) {
+                throw new VerificationException(
+                    List.of(Failure.fail(unresolved, "ratio in call to function [{}] must be finite, got [{}]", name, value))
+                );
+            }
+            if (value < 0.0) {
+                throw new VerificationException(
+                    List.of(Failure.fail(unresolved, "negative ratio in call to function [{}] is not supported, got [{}]", name, value))
+                );
+            }
+            return;
+        }
+        throw new VerificationException(
+            List.of(Failure.fail(unresolved, "expected numeric ratio in call to function [{}], got [{}]", name, folded))
+        );
     }
 
     /**

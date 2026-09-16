@@ -274,13 +274,30 @@ public class PromqlFunctionRegistry {
         }
     }
 
+    /**
+     * Builds the ES|QL expression for scalar, aggregate, and value-transformation functions.
+     * Across-series reductions ({@code topk}, {@code bottomk}, {@code limitk}, {@code limit_ratio}) produce a
+     * {@link LogicalPlan} instead and must go through {@code PromqlFunctionCall#buildEsqlFunction}; calling this
+     * method for them fails with a clear error rather than a {@code ClassCastException}.
+     */
     public Expression buildEsqlFunction(String name, Source source, Expression target, PromqlContext ctx, List<Expression> extraParams) {
         checkFunction(source, name);
         PromqlFunctionDefinition metadata = functionMetadata(name);
         try {
-            return (Expression) metadata.esqlBuilder().build(source, target, ctx, extraParams);
+            Object built = metadata.esqlBuilder().build(source, target, ctx, extraParams);
+            if (built instanceof Expression expression) {
+                return expression;
+            }
+            throw new ParsingException(
+                source,
+                "Error building ESQL function for [{}]: function produces a plan node, not an expression",
+                name
+            );
+        } catch (ParsingException e) {
+            throw e;
         } catch (Exception e) {
-            throw new ParsingException(source, "Error building ESQL function for [{}]: {}", name, e.getMessage());
+            String message = e.getMessage() != null ? e.getMessage() : e.toString();
+            throw new ParsingException(source, "Error building ESQL function for [{}]: {}", name, message);
         }
     }
 }

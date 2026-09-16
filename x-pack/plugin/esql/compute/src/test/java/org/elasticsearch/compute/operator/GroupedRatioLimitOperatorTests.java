@@ -23,11 +23,8 @@ import java.util.stream.LongStream;
 
 import static org.elasticsearch.test.MapMatcher.assertMap;
 import static org.elasticsearch.test.MapMatcher.matchesMap;
-import static org.hamcrest.Matchers.allOf;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
-import static org.hamcrest.Matchers.lessThanOrEqualTo;
-import static org.hamcrest.Matchers.notNullValue;
 import static org.hamcrest.Matchers.nullValue;
 
 public class GroupedRatioLimitOperatorTests extends OperatorTestCase {
@@ -124,7 +121,7 @@ public class GroupedRatioLimitOperatorTests extends OperatorTestCase {
             op.addInput(p);
             assertThat(op.getOutput(), nullValue());
 
-            GroupedRatioLimitOperator.Status status = op.status();
+            AbstractPageMappingOperator.Status status = op.status();
             assertThat(status.rowsReceived(), equalTo(3L));
             assertThat(status.rowsEmitted(), equalTo(0L));
         }
@@ -170,16 +167,17 @@ public class GroupedRatioLimitOperatorTests extends OperatorTestCase {
         DriverContext ctx = driverContext();
         BlockFactory blockFactory = ctx.blockFactory();
         try (GroupedRatioLimitOperator op = simple(SimpleOptions.DEFAULT).get(ctx)) {
-            GroupedRatioLimitOperator.Status status = op.status();
+            AbstractPageMappingOperator.Status status = op.status();
             assertThat(status.pagesProcessed(), equalTo(0));
             assertThat(status.rowsReceived(), equalTo(0L));
             assertThat(status.rowsEmitted(), equalTo(0L));
 
+            // Unique keys with ratio=0.5: ceil(0.5 * 1) = 1 per group, so both rows pass.
             Page p = new Page(BlockTestUtils.asBlock(blockFactory, ElementType.LONG, List.of(1L, 2L)));
             op.addInput(p);
             Page output = op.getOutput();
             try {
-                assertThat(output.getPositionCount(), greaterThanOrEqualTo(1));
+                assertThat(output.getPositionCount(), equalTo(2));
             } finally {
                 output.releaseBlocks();
             }
@@ -187,6 +185,64 @@ public class GroupedRatioLimitOperatorTests extends OperatorTestCase {
             status = op.status();
             assertThat(status.pagesProcessed(), equalTo(1));
             assertThat(status.rowsReceived(), equalTo(2L));
+            assertThat(status.rowsEmitted(), equalTo(2L));
+        }
+    }
+
+    public void testRejectsNegativeRatio() {
+        expectThrows(
+            IllegalArgumentException.class,
+            () -> new GroupedRatioLimitOperator.Factory(-0.5, List.of(0), List.of(ElementType.LONG))
+        );
+    }
+
+    public void testRejectsNonFiniteRatio() {
+        expectThrows(
+            IllegalArgumentException.class,
+            () -> new GroupedRatioLimitOperator.Factory(Double.NaN, List.of(0), List.of(ElementType.LONG))
+        );
+        expectThrows(
+            IllegalArgumentException.class,
+            () -> new GroupedRatioLimitOperator.Factory(Double.POSITIVE_INFINITY, List.of(0), List.of(ElementType.LONG))
+        );
+    }
+
+    /**
+     * Ratios greater than one keep every row, matching the {@code ratio >= 1.0} fast path.
+     */
+    public void testRatioGreaterThanOneKeepsAll() {
+        DriverContext ctx = driverContext();
+        BlockFactory blockFactory = ctx.blockFactory();
+        try (GroupedRatioLimitOperator op = op(1.5, blockFactory, new int[] { 0 })) {
+            Page p = new Page(BlockTestUtils.asBlock(blockFactory, ElementType.LONG, List.of(1L, 1L, 2L)));
+            op.addInput(p);
+            Page out = op.getOutput();
+            try {
+                assertThat(out.getPositionCount(), equalTo(3));
+            } finally {
+                out.releaseBlocks();
+            }
+        }
+    }
+
+    /**
+     * With ratio=0.25 and four rows in one group, exactly the first row is kept:
+     * {@code 0.25 * 1 > 0} accepts, then {@code 0.25 * N <= 1} rejects the rest.
+     */
+    public void testQuarterRatioKeepsFirstOfFour() {
+        DriverContext ctx = driverContext();
+        BlockFactory blockFactory = ctx.blockFactory();
+        try (GroupedRatioLimitOperator op = op(0.25, blockFactory, new int[] { 0 })) {
+            Page p = new Page(BlockTestUtils.asBlock(blockFactory, ElementType.LONG, List.of(7L, 7L, 7L, 7L)));
+            op.addInput(p);
+            Page out = op.getOutput();
+            try {
+                assertThat(out.getPositionCount(), equalTo(1));
+                LongBlock b = out.getBlock(0);
+                assertThat(b.getLong(0), equalTo(7L));
+            } finally {
+                out.releaseBlocks();
+            }
         }
     }
 
@@ -197,13 +253,10 @@ public class GroupedRatioLimitOperatorTests extends OperatorTestCase {
 
         assertMap(
             map,
-            matchesMap().entry("ratio", 0.5)
-                .entry("group_count", greaterThanOrEqualTo(0))
+            matchesMap().entry("process_nanos", greaterThanOrEqualTo(0))
                 .entry("pages_processed", output.size())
-                .entry("rows_received", allOf(greaterThanOrEqualTo(emittedRows), lessThanOrEqualTo(inputRows)))
+                .entry("rows_received", inputRows)
                 .entry("rows_emitted", emittedRows)
-                .entry("ram_bytes_used", greaterThanOrEqualTo(0))
-                .entry("ram_used", notNullValue())
         );
     }
 

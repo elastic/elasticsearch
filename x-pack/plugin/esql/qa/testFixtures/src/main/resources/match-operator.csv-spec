@@ -1834,6 +1834,21 @@ book_no:keyword | author:text
 3293            | Danny Faulkner
 ;
 
+matchOperatorOnToStringOverIndexedTextField
+required_capability: match_operator_colon
+required_capability: fn_match_to_string_on_indexed_field_fix
+required_capability: match_operator_lhs_expression
+
+// Mirror-image bug, exercised through the : operator form: TO_STRING over a normal text field (author) must be
+// matched as exact, unanalyzed keyword text - "Faulkner" is never the whole value of any author.
+FROM books
+| WHERE TO_STRING(author):"Faulkner"
+| KEEP book_no, author
+;
+
+book_no:keyword | author:text
+;
+
 matchOperatorFunctionOnLhsConstantFolded
 required_capability: match_operator_colon
 required_capability: fn_match_runtime_filter

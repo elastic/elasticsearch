@@ -31,6 +31,7 @@ import org.elasticsearch.sourcebatch.SourceSchema;
 
 import java.util.HashSet;
 import java.util.List;
+import java.util.function.IntPredicate;
 
 /**
  * Batch-time mapper resolution and columnar batch mapping for the bulk batch-indexing fast path.
@@ -75,7 +76,24 @@ public final class ShardBatchMapper {
      * falls outside the v1 batch-indexing support matrix and the caller should fall back to the
      * sequential path.
      */
+    public static BatchMapperResolution resolveMappers(SourceBatch batch, MappingLookup lookup, IndexSettings indexSettings) {
+        return resolveMappers(batch.schema(), lookup, indexSettings, batch::isEmptyObjectColumn);
+    }
+
+    /**
+     * Overload for tests that only have a schema. Column data is unavailable, so empty-object columns
+     * cannot be detected and any unmapped leaf under a dynamic parent causes the usual fallback.
+     */
     public static BatchMapperResolution resolveMappers(SourceSchema schema, MappingLookup lookup, IndexSettings indexSettings) {
+        return resolveMappers(schema, lookup, indexSettings, leaf -> false);
+    }
+
+    private static BatchMapperResolution resolveMappers(
+        SourceSchema schema,
+        MappingLookup lookup,
+        IndexSettings indexSettings,
+        IntPredicate isEmptyObjectColumn
+    ) {
         // Runtime fields or index-time scripts anywhere in the mapping would require the normal
         // parsing flow; the batch path does not support them.
         if (lookup.getMapping().getRoot().runtimeFields().isEmpty() == false) {
@@ -200,6 +218,13 @@ public final class ShardBatchMapper {
                     // The sink is keyed by the leaf's full dotted path, matching DynamicFieldsBuilder.FlattenedSink,
                     // which calls indexValueAtPath with context.path().pathAsText(name).
                     groupBuilder.add(new ColumnGroupLookup.Owned(sink, FlattenedFieldMapper.UNMAPPED_SINK_NAME, fullPath), leaf);
+                    columnMappers[leaf] = null;
+                    continue;
+                }
+                // An empty-object column ({} in every present row) produces nothing in the sequential
+                // path regardless of dynamic setting — DocumentParser finds no children and emits no
+                // mapper, no value, and nothing to ignored source. Skip it rather than aborting.
+                if (indexSettings.getMode().isStrictColumnar() && isEmptyObjectColumn.test(leaf)) {
                     columnMappers[leaf] = null;
                     continue;
                 }

@@ -31,6 +31,7 @@ import org.elasticsearch.index.mapper.MapperServiceTestCase;
 import org.elasticsearch.index.mapper.NumberFieldMapper;
 import org.elasticsearch.index.mapper.ShardBatchMapper;
 import org.elasticsearch.index.mapper.ShardBatchMapper.BatchMapperResolution;
+import org.elasticsearch.index.mapper.TextFieldMapper;
 import org.elasticsearch.index.mapper.flattened.FlattenedFieldMapper;
 import org.elasticsearch.indices.recovery.RecoverySettings;
 import org.elasticsearch.sourcebatch.SourceSchema;
@@ -86,6 +87,23 @@ public class ShardBatchMapperResolveTests extends MapperServiceTestCase {
                 return batch.schema();
             }
         }
+    }
+
+    /** Builds an {@link EscfBatch} from simple (non-dotted) leaf names with integer values. */
+    private static EscfBatch batchOf(String... leafPaths) throws IOException {
+        try (XContentBuilder b = XContentFactory.jsonBuilder()) {
+            b.startObject();
+            for (String path : leafPaths) {
+                b.field(path, 0);
+            }
+            b.endObject();
+            return EscfEncoder.encode(List.of(BytesReference.bytes(b)), XContentType.JSON);
+        }
+    }
+
+    /** Builds an {@link EscfBatch} from a raw JSON string. Caller must close the returned batch. */
+    private static EscfBatch batchOfJson(String json) throws IOException {
+        return EscfEncoder.encode(List.of(new BytesArray(json)), XContentType.JSON);
     }
 
     private MapperService mapper(XContentBuilder mapping) throws IOException {
@@ -198,8 +216,15 @@ public class ShardBatchMapperResolveTests extends MapperServiceTestCase {
         // redundant with the per-mapper guard, so this test is intentionally narrow).
     }
 
-    public void testTextMapperNotSupported() throws IOException {
+    public void testTextMapperIsSupported() throws IOException {
         MapperService ms = mapper(mapping(b -> { b.startObject("t").field("type", "text").endObject(); }));
+        BatchMapperResolution resolution = ShardBatchMapper.resolveMappers(schemaOf("t"), ms.mappingLookup(), indexSettings);
+        assertNotNull(resolution);
+        assertThat(resolution.columnMappers()[0], instanceOf(TextFieldMapper.class));
+    }
+
+    public void testTextMapperWithIndexPhrasesFallsBack() throws IOException {
+        MapperService ms = mapper(mapping(b -> { b.startObject("t").field("type", "text").field("index_phrases", true).endObject(); }));
         BatchMapperResolution resolution = ShardBatchMapper.resolveMappers(schemaOf("t"), ms.mappingLookup(), indexSettings);
         assertNull(resolution);
     }
@@ -245,6 +270,23 @@ public class ShardBatchMapperResolveTests extends MapperServiceTestCase {
         assertThat(resolution.columnMappers()[schema.findLeaf("host", 0)], instanceOf(KeywordFieldMapper.class));
     }
 
+    public void testKeywordWithTextMultiFieldIsSupported() throws IOException {
+        MapperService ms = mapper(mapping(b -> {
+            b.startObject("host");
+            b.field("type", "keyword");
+            b.startObject("fields");
+            b.startObject("lower").field("type", "keyword").endObject();
+            b.startObject("txt").field("type", "text").endObject();
+            b.endObject();
+            b.endObject();
+        }));
+        SourceSchema schema = schemaOf("host");
+        BatchMapperResolution resolution = ShardBatchMapper.resolveMappers(schema, ms.mappingLookup(), indexSettings);
+        assertNotNull(resolution);
+        assertEquals(1, resolution.columnMappers().length);
+        assertThat(resolution.columnMappers()[schema.findLeaf("host", 0)], instanceOf(KeywordFieldMapper.class));
+    }
+
     /** One sub-mapper without columnar support disqualifies the whole leaf, and therefore the whole batch. */
     public void testMultiFieldWithUnsupportedSubMapperFallsBack() throws IOException {
         MapperService ms = mapper(mapping(b -> {
@@ -252,7 +294,7 @@ public class ShardBatchMapperResolveTests extends MapperServiceTestCase {
             b.field("type", "keyword");
             b.startObject("fields");
             b.startObject("lower").field("type", "keyword").endObject();
-            b.startObject("txt").field("type", "text").endObject();
+            b.startObject("geo").field("type", "geo_point").endObject();
             b.endObject();
             b.endObject();
         }));
@@ -956,5 +998,48 @@ public class ShardBatchMapperResolveTests extends MapperServiceTestCase {
             resolution.columnMappers()[schema.findLeaf("text", schema.findNonLeaf("comments", 0))],
             instanceOf(KeywordFieldMapper.class)
         );
+    }
+
+    /**
+     * An unmapped empty-object leaf (every row is {@code {}}) should not abort batch indexing: the sequential path
+     * produces nothing for that field regardless of the {@code dynamic} setting, so skipping it is safe.
+     *
+     * <p>The test uses a real {@link EscfBatch} so that {@link EscfBatch#isEmptyObjectColumn} is exercised end-to-end,
+     * unlike the schema-only overload which always returns {@code false} for every column.
+     */
+    public void testEmptyObjectColumnDoesNotAbortBatch() throws IOException {
+        MapperService ms = mapper(mapping(b -> b.startObject("host").field("type", "keyword").endObject()));
+
+        // Batch where "pipeline_artifact" resolves to an empty-object leaf in every row — should succeed.
+        try (EscfBatch batch = batchOfJson("{\"host\":\"srv\",\"pipeline_artifact\":{}}")) {
+            BatchMapperResolution resolution = ShardBatchMapper.resolveMappers(batch, ms.mappingLookup(), indexSettings);
+            assertNotNull("empty-object column must not abort batch indexing", resolution);
+            int emptyCol = batch.schema().findLeaf("pipeline_artifact", 0);
+            assertNull("empty-object column should map to null, not a real mapper", resolution.columnMappers()[emptyCol]);
+            int hostCol = batch.schema().findLeaf("host", 0);
+            assertThat(resolution.columnMappers()[hostCol], instanceOf(KeywordFieldMapper.class));
+        }
+
+        // Batch where "pipeline_artifact" carries a real value — must still fall back.
+        try (EscfBatch batch = batchOfJson("{\"host\":\"srv\",\"pipeline_artifact\":\"real_value\"}")) {
+            assertNull(
+                "a column with real values must still abort under dynamic=TRUE",
+                ShardBatchMapper.resolveMappers(batch, ms.mappingLookup(), indexSettings)
+            );
+        }
+
+        // The skip is gated on strict-columnar mode: a standard-mode index must still fall back.
+        IndexSettings standardSettings = new IndexSettings(
+            new IndexMetadata.Builder("index").settings(
+                indexSettings(IndexVersion.current(), 1, 0).put(IndexSettings.MODE.getKey(), IndexMode.STANDARD.getName()).build()
+            ).build(),
+            Settings.EMPTY
+        );
+        try (EscfBatch batch = batchOfJson("{\"host\":\"srv\",\"pipeline_artifact\":{}}")) {
+            assertNull(
+                "empty-object skip must not apply outside strict-columnar mode",
+                ShardBatchMapper.resolveMappers(batch, ms.mappingLookup(), standardSettings)
+            );
+        }
     }
 }

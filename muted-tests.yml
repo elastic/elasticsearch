@@ -131,6 +131,8 @@ tests:
 - class: org.elasticsearch.xpack.test.rest.XPackRestIT
   method: test {p0=profiling/10_basic/Test topN functions from test-events}
   issue: https://github.com/elastic/elasticsearch/issues/159424
+- class: org.elasticsearch.xpack.snapshotbasedrecoveries.recovery.GCSSnapshotBasedRecoveryIT
+  issue: https://github.com/elastic/elasticsearch/issues/159425
 
 # Examples:
 #

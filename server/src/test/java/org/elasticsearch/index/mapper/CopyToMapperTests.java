@@ -812,4 +812,72 @@ public class CopyToMapperTests extends MapperServiceTestCase {
         assertEquals(2, doc.rootDoc().getFields("du._all").size());
 
     }
+
+    /**
+     * Verifies that {@code copy_to} pointing at a non-existent field when dynamic
+     * mappings are disabled at the target's scope throws {@link IllegalArgumentException}.
+     * See: https://github.com/elastic/elasticsearch/issues/112812
+     */
+    public void testCopyToNonExistentFieldWhenDynamicFalse() {
+        // Root-level dynamic=false: copy_to to a field that doesn't exist should throw
+        IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () ->
+            createDocumentMapper(mapping(b -> {
+                b.field("dynamic", "false");
+                b.startObject("properties");
+                {
+                    b.startObject("source").field("type", "keyword").field("copy_to", "nonexistent").endObject();
+                }
+                b.endObject();
+            }))
+        );
+        assertThat(e.getMessage(), equalTo(
+            "Dynamic mappings are disabled and the copy_to target field [nonexistent] does not exist in the mapping"
+        ));
+
+        // Object-level dynamic=false: copy_to to a field inside a dynamic:false object should throw
+        e = expectThrows(IllegalArgumentException.class, () ->
+            createDocumentMapper(mapping(b -> {
+                b.startObject("properties");
+                {
+                    b.startObject("obj");
+                    {
+                        b.field("type", "object");
+                        b.field("dynamic", "false");
+                        b.startObject("properties");
+                        {
+                            b.startObject("source").field("type", "keyword").field("copy_to", "targ").endObject();
+                        }
+                        b.endObject();
+                    }
+                    b.endObject();
+                }
+                b.endObject();
+            }))
+        );
+        assertThat(e.getMessage(), equalTo(
+            "Dynamic mappings are disabled and the copy_to target field [obj.targ] does not exist in the mapping"
+        ));
+
+        // When dynamic=true (default), copy_to to non-existent field is allowed (no error)
+        // This is the existing behavior - the field will be created dynamically when documents arrive
+        createDocumentMapper(mapping(b -> {
+            b.field("dynamic", "true");
+            b.startObject("properties");
+            {
+                b.startObject("source").field("type", "keyword").field("copy_to", "will_exist_later").endObject();
+            }
+            b.endObject();
+        }));
+
+        // When the target field DOES exist, no error is thrown (existing behavior preserved)
+        createDocumentMapper(mapping(b -> {
+            b.field("dynamic", "false");
+            b.startObject("properties");
+            {
+                b.startObject("source").field("type", "keyword").field("copy_to", "target").endObject();
+                b.startObject("target").field("type", "keyword").endObject();
+            }
+            b.endObject();
+        }));
+    }
 }

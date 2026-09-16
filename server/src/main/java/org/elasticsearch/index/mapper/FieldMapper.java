@@ -607,6 +607,21 @@ public abstract class FieldMapper extends Mapper {
 
                 final String targetScope = mappers.nestedLookup().getNestedParent(copyTo);
                 checkNestedScopeCompatibility(sourceScope, targetScope);
+
+                // When dynamic mappings are disabled at the target's scope, a copy_to pointing
+                // to a non-existent field is a configuration error — the target will never be
+                // created dynamically and no data will be copied.
+                if (mappers.getMapper(copyTo) == null) {
+                    ObjectMapper targetParent = findTargetParentObject(mappers, copyTo);
+                    ObjectMapper.Dynamic effectiveDynamic = targetParent != null
+                        ? targetParent.dynamic()
+                        : mappers.getMapping().getRoot().dynamic();
+                    if (effectiveDynamic == ObjectMapper.Dynamic.FALSE) {
+                        throw new IllegalArgumentException(
+                            "Dynamic mappings are disabled and the copy_to target field [" + copyTo + "] does not exist in the mapping"
+                        );
+                    }
+                }
             }
         }
         for (Mapper multiField : multiFields().mappers) {
@@ -616,6 +631,24 @@ public abstract class FieldMapper extends Mapper {
     }
 
     protected void doValidate(MappingLookup mappers) {}
+
+    /**
+     * Finds the nearest existing {@link ObjectMapper} that would govern dynamic creation
+     * of the given field. Walks up the field path one segment at a time until an object
+     * mapper is found, or returns {@code null} when no intermediate object exists (root scope).
+     */
+    private static ObjectMapper findTargetParentObject(MappingLookup mappers, String field) {
+        int lastDot = field.lastIndexOf('.');
+        while (lastDot != -1) {
+            String parentPath = field.substring(0, lastDot);
+            ObjectMapper parent = mappers.objectMappers().get(parentPath);
+            if (parent != null) {
+                return parent;
+            }
+            lastDot = parentPath.lastIndexOf('.');
+        }
+        return null;
+    }
 
     private static void checkNestedScopeCompatibility(String source, String target) {
         boolean targetIsParentOfSource;

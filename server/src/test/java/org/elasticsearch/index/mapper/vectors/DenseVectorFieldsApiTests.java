@@ -101,12 +101,18 @@ public class DenseVectorFieldsApiTests extends ESSingleNodeTestCase {
         }
 
         /**
-         * Comparison delta, derived from the element type and similarity.
+         * Comparison delta, derived from the element type, similarity, and ingest format.
          */
-        float delta() {
+        float delta(IngestFormat ingestFormat) {
             return switch (elementType) {
                 case BFLOAT16 -> BFLOAT16_DELTA;
-                case FLOAT -> similarity.vectorSimilarity() == VectorSimilarity.COSINE ? FLOAT_COSINE_DELTA : 0.0f;
+                case FLOAT -> {
+                    // bfloat16-encoded base64 introduces the same amount of error as using the bfloat16 element type directly
+                    if (ingestFormat == IngestFormat.BASE64_BFLOAT16) {
+                        yield BFLOAT16_DELTA;
+                    }
+                    yield similarity.vectorSimilarity() == VectorSimilarity.COSINE ? FLOAT_COSINE_DELTA : 0.0f;
+                }
                 case BYTE, BIT -> 0.0f;
             };
         }
@@ -125,8 +131,7 @@ public class DenseVectorFieldsApiTests extends ESSingleNodeTestCase {
             return switch (this) {
                 case ARRAY -> true;
                 case HEX, BASE64_BYTES -> elementType == ElementType.BYTE || elementType == ElementType.BIT;
-                case BASE64_FLOAT32 -> elementType == ElementType.FLOAT || elementType == ElementType.BFLOAT16;
-                case BASE64_BFLOAT16 -> elementType == ElementType.BFLOAT16;
+                case BASE64_FLOAT32, BASE64_BFLOAT16 -> elementType == ElementType.FLOAT || elementType == ElementType.BFLOAT16;
             };
         }
 
@@ -299,7 +304,7 @@ public class DenseVectorFieldsApiTests extends ESSingleNodeTestCase {
             response -> {
                 assertEquals(label, 1, response.getHits().getHits().length);
                 List<Object> values = response.getHits().getAt(0).field(field).getValues();
-                assertVectorValues(label, spec, values, vectorFormat);
+                assertVectorValues(label, spec, ingestFormat, values, vectorFormat);
             }
         );
     }
@@ -335,7 +340,7 @@ public class DenseVectorFieldsApiTests extends ESSingleNodeTestCase {
 
                     List<Object> outerValues = (List<Object>) outerEntry.get(field);
                     assertNotNull(label + " entry[" + i + "] must have field " + field, outerValues);
-                    assertVectorValues(label + " entry[" + i + "]", outerSpec, outerValues, vectorFormat);
+                    assertVectorValues(label + " entry[" + i + "]", outerSpec, ingestFormat, outerValues, vectorFormat);
 
                     List<Object> innerEntries = (List<Object>) outerEntry.get("inner");
                     assertNotNull(label + " entry[" + i + "] must have 'inner'", innerEntries);
@@ -346,15 +351,27 @@ public class DenseVectorFieldsApiTests extends ESSingleNodeTestCase {
                         Map<String, Object> innerEntry = (Map<String, Object>) innerEntries.get(j);
                         List<Object> innerValues = (List<Object>) innerEntry.get(field);
                         assertNotNull(label + " entry[" + i + "].inner[" + j + "] must have field " + field, innerValues);
-                        assertVectorValues(label + " entry[" + i + "].inner[" + j + "]", innerSpecs.get(j), innerValues, vectorFormat);
+                        assertVectorValues(
+                            label + " entry[" + i + "].inner[" + j + "]",
+                            innerSpecs.get(j),
+                            ingestFormat,
+                            innerValues,
+                            vectorFormat
+                        );
                     }
                 }
             }
         );
     }
 
-    /** Validates a fetched vector value list against the expected spec and fetch format. */
-    private void assertVectorValues(String label, VectorSpec spec, List<Object> values, VectorFormat vectorFormat) {
+    /** Validates a fetched vector value list against the expected spec, ingest format, and fetch format. */
+    private void assertVectorValues(
+        String label,
+        VectorSpec spec,
+        IngestFormat ingestFormat,
+        List<Object> values,
+        VectorFormat vectorFormat
+    ) {
         if (VectorFormat.BINARY.equals(vectorFormat)) {
             assertEquals(label + " binary format returns a single base64 value", 1, values.size());
 
@@ -366,10 +383,10 @@ public class DenseVectorFieldsApiTests extends ESSingleNodeTestCase {
                 assertArrayEquals(label, spec.bytes(), decoded);
             } else {
                 // potentially lossy: decode the big-endian float32 payload and compare with delta
-                assertFloatVector(label, spec.floats(), decodeFloat32(decoded), spec.delta());
+                assertFloatVector(label, spec.floats(), decodeFloat32(decoded), spec.delta(ingestFormat));
             }
         } else {
-            assertFloatVector(label, spec.floats(), values, spec.delta());
+            assertFloatVector(label, spec.floats(), values, spec.delta(ingestFormat));
         }
     }
 

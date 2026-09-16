@@ -13,7 +13,6 @@ import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.DoubleBlock;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.operator.SourceOperator;
-import org.elasticsearch.compute.test.TestDriverRunner;
 import org.elasticsearch.compute.test.operator.blocksource.SequenceDoubleBlockSourceOperator;
 import org.elasticsearch.search.aggregations.metrics.TDigestState;
 import org.junit.Before;
@@ -23,7 +22,6 @@ import java.util.List;
 import java.util.stream.LongStream;
 
 import static org.hamcrest.Matchers.closeTo;
-import static org.hamcrest.Matchers.hasSize;
 
 /**
  * Tests {@link PercentileDoubleAggregator} in the PromQL-only non-finite mode, where {@code NaN} and {@code ±Inf} are
@@ -33,7 +31,7 @@ import static org.hamcrest.Matchers.hasSize;
  *     {@code SINGLE / INITIAL / INTERMEDIATE / FINAL} matrix exercises the tallies travelling through the intermediate
  *     state alongside the digest. {@link #assertSimpleOutput} shares the rank resolution with the implementation, since
  *     what it checks is that every page reached the aggregator and survived the partial-state round trip; the rank
- *     resolution itself is pinned independently by {@link QuantileStatesTests}, and by the fixed corner cases below.
+ *     resolution itself is pinned independently by {@link QuantileStatesTests}.
  * </p>
  */
 public class PercentileDoubleNonFiniteAggregatorFunctionTests extends AggregatorFunctionTestCase {
@@ -85,46 +83,6 @@ public class PercentileDoubleNonFiniteAggregatorFunctionTests extends Aggregator
                 // The aggregator merges a digest per page while the reference builds one, so the finite estimate differs slightly.
                 assertThat(value, closeTo(expected, Math.abs(expected) * 0.1 + 1e-9));
             }
-        }
-    }
-
-    public void testAllPositiveInfinity() {
-        percentile = 50;
-        assertNonFinitePercentile(
-            List.of(Double.POSITIVE_INFINITY, Double.POSITIVE_INFINITY, Double.POSITIVE_INFINITY),
-            Double.POSITIVE_INFINITY
-        );
-    }
-
-    public void testAllNaN() {
-        percentile = 50;
-        assertNonFinitePercentile(List.of(Double.NaN, Double.NaN), Double.NaN);
-    }
-
-    public void testNaNRanksLowest() {
-        percentile = 50;
-        assertNonFinitePercentile(List.of(2.0, Double.NaN, 1.0), 1.0);
-    }
-
-    public void testInfinitiesBracketTheFiniteValues() {
-        percentile = 0;
-        assertNonFinitePercentile(List.of(Double.NEGATIVE_INFINITY, 1.0, Double.POSITIVE_INFINITY), Double.NEGATIVE_INFINITY);
-        percentile = 100;
-        assertNonFinitePercentile(List.of(Double.NEGATIVE_INFINITY, 1.0, Double.POSITIVE_INFINITY), Double.POSITIVE_INFINITY);
-    }
-
-    private void assertNonFinitePercentile(List<Double> values, double expected) {
-        var runner = new TestDriverRunner().builder(driverContext());
-        runner.input(new SequenceDoubleBlockSourceOperator(runner.blockFactory(), values));
-        List<Page> results = runner.run(simple());
-        assertThat(results, hasSize(1));
-        Block result = results.get(0).getBlock(0);
-        assertFalse(result.isNull(0));
-        double value = ((DoubleBlock) result).getDouble(0);
-        if (Double.isNaN(expected)) {
-            assertTrue("expected NaN but got [" + value + "]", Double.isNaN(value));
-        } else {
-            assertEquals(expected, value, 0.0);
         }
     }
 

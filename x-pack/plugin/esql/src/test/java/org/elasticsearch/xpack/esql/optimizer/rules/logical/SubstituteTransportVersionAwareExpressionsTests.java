@@ -300,7 +300,7 @@ public class SubstituteTransportVersionAwareExpressionsTests extends ESTestCase 
      */
     public void testNonFinitePercentileDowngradedWithOldVersion() {
         Percentile lenient = lenientPercentile(true);
-        TransportVersion oldVersion = TransportVersionUtils.randomVersionNotSupporting(ESQL_PROMQL_NON_FINITE_MATH);
+        TransportVersion oldVersion = TransportVersionUtils.randomVersionNotSupporting(ESQL_PROMQL_NON_FINITE_PERCENTILE);
         Expression downgraded = SubstituteTransportVersionAwareExpressions.rule(lenient, oldVersion);
         assertThat(downgraded, instanceOf(Percentile.class));
         assertFalse(((Percentile) downgraded).allowNonFinite());

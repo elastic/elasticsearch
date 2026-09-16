@@ -139,8 +139,7 @@ public class DecodedVectorTests extends ESTestCase {
         IllegalArgumentException ex = expectThrows(IllegalArgumentException.class, () -> DecodedVector.decode(encoded, elementType, dims));
         String expectedTypeWord = switch (elementType) {
             case BYTE, BIT -> "byte";
-            case FLOAT -> "float";
-            case BFLOAT16 -> "float or bfloat16";
+            case FLOAT, BFLOAT16 -> "float or bfloat16";
         };
         assertThat(ex.getMessage(), containsString("value must contain a valid Base64-encoded " + expectedTypeWord + " vector"));
         assertThat(ex.getMessage(), containsString("decoded bytes length [" + wrongLength + "]"));
@@ -167,8 +166,7 @@ public class DecodedVectorTests extends ESTestCase {
     private List<Base64Form> acceptedBase64Forms() {
         return switch (elementType) {
             case BYTE, BIT -> List.of(Base64Form.RAW_BYTES);
-            case FLOAT -> List.of(Base64Form.FLOAT32);
-            case BFLOAT16 -> List.of(Base64Form.FLOAT32, Base64Form.BFLOAT16);
+            case FLOAT, BFLOAT16 -> List.of(Base64Form.FLOAT32, Base64Form.BFLOAT16);
         };
     }
 
@@ -245,7 +243,8 @@ public class DecodedVectorTests extends ESTestCase {
      */
     private static int wrongByteArrayLength(int dims, ElementType elementType) {
         // If the element type is BFLOAT16, use FLOAT instead to ensure that we don't generate a byte array length that is exactly twice
-        // the expected size. For the BFLOAT16 case, a byte array of this length could be interpreted as 32-bit floats.
+        // the expected size. When using floating-point element types (FLOAT or BFLOAT16), a byte array of this length could be interpreted
+        // as 32-bit floats.
         var element = DenseVectorFieldMapper.Element.getElement(elementType == ElementType.BFLOAT16 ? ElementType.FLOAT : elementType);
         return element.getNumBytes(dims) + randomIntBetween(1, 10);
     }

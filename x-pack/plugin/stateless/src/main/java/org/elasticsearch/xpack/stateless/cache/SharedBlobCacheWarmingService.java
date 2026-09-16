@@ -31,6 +31,7 @@ import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.SingleNodeShutdownMetadata;
 import org.elasticsearch.cluster.routing.IndexShardRoutingTable;
 import org.elasticsearch.cluster.routing.ShardRouting;
+import org.elasticsearch.cluster.routing.ShardRoutingState;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.logging.ESLogMessage;
 import org.elasticsearch.common.settings.ClusterSettings;
@@ -1030,7 +1031,7 @@ public class SharedBlobCacheWarmingService {
      * Minimum timeout slice accepted on re-evaluation. Slices below this threshold are not worth rescheduling: the overhead of an extra
      * {@code schedule()} call would dominate.
      */
-    private static final long MIN_REEVALUATION_TIMEOUT_MS = 500L;
+    private static final long MIN_REEVALUATION_TIMEOUT_MS = 1000L;
 
     /**
      * Outcome of a {@link #searchRecoveryWarmingListener} race, together with whether the timeout logic should re-evaluate the remaining
@@ -1269,6 +1270,24 @@ public class SharedBlobCacheWarmingService {
         return node == null ? 0 : node.size();
     }
 
+    /**
+     * Counts shards that are in {@link ShardRoutingState#STARTED} state on {@code nodeId}. These are shards that have not yet begun
+     * relocating and will need grace-period budget in a future recovery round.
+     */
+    private static int countStartedShardsOnNode(ClusterState clusterState, String nodeId) {
+        var node = clusterState.getRoutingNodes().node(nodeId);
+        if (node == null) {
+            return 0;
+        }
+        int count = 0;
+        for (ShardRouting shard : node) {
+            if (shard.state() == ShardRoutingState.STARTED) {
+                count++;
+            }
+        }
+        return count;
+    }
+
     private static boolean hasActiveShutdownForRemovalNodes(ClusterState state) {
         for (Map.Entry<String, SingleNodeShutdownMetadata> entry : state.metadata().nodeShutdowns().getAll().entrySet()) {
             if (entry.getValue().getType().isRemovalType() && state.nodes().nodeExists(entry.getKey())) {
@@ -1341,7 +1360,17 @@ public class SharedBlobCacheWarmingService {
             timeoutMs = Math.min(remaining, equalShareMs * ongoingRelocations);
             context = "relocation source shutting down (equal share of remaining time to capped grace deadline)";
         }
-        return new SearchRecoveryTimeout(TimeValue.timeValueMillis(Math.round(timeoutMs)), context, true);
+
+        // Reserve at least MIN_REEVALUATION_TIMEOUT_MS for every shard on source that has not yet begun
+        // relocating (still STARTED). Without this cap, re-evaluations could consume all remaining
+        // grace-period time and leave those shards with no budget when their recovery eventually starts.
+        final int pendingShards = countStartedShardsOnNode(state, sourceNodeId);
+        final long reservedForPendingMs = (long) pendingShards * MIN_REEVALUATION_TIMEOUT_MS;
+        final double cappedTimeoutMs = Math.min(timeoutMs, Math.max(0.0, remaining - reservedForPendingMs));
+        final String finalContext = cappedTimeoutMs < timeoutMs
+            ? context + ", capped to reserve time for [" + pendingShards + "] pending shards"
+            : context;
+        return new SearchRecoveryTimeout(TimeValue.timeValueMillis(Math.round(cappedTimeoutMs)), finalContext, true);
     }
 
     /**

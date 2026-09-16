@@ -210,9 +210,10 @@ class SystemPackagingTaskFuncTest extends AbstractJavaGradleFuncTest {
         // the XB- prefixed custom field is rendered without the prefix in the binary control file
         control.contains('License: Test-License')
         readDebControlFile(deb, './conffiles').contains('/opt/test/conf/app.conf')
-        def postinst = readDebControlFile(deb, './postinst')
-        postinst.contains('install -o testuser -g testgroup -m 2750 -d /opt/test/conf/sub')
-        postinst.contains('install -o testuser -g testgroup -m 2750 -d /var/log/test-pkg')
+        // The narrowed Deb implementation keeps only the paths needed by the Elasticsearch
+        // packages, which always supply explicit maintainer scripts instead of relying on a
+        // generated postinst fallback for directory creation.
+        readDebControlFile(deb, './postinst') == null
 
         def entries = readDebDataEntries(deb)
         entries['/opt/test/bin/run.sh'].userName == 'root'
@@ -237,7 +238,7 @@ class SystemPackagingTaskFuncTest extends AbstractJavaGradleFuncTest {
         def deb = file('build/dists/test-pkg-with-postinst_1.2.3_all.deb')
         deb.exists()
         def postinst = readDebControlFile(deb, './postinst')
-        postinst.startsWith('#!/bin/bash\n')
+        postinst.startsWith('#!/bin/bash -e\n')
         postinst.contains('# custom post-install hook')
         postinst.contains('echo custom postinst')
     }

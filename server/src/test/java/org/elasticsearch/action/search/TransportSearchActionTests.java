@@ -1117,7 +1117,6 @@ public class TransportSearchActionTests extends ESTestCase {
                     IndicesOptions.lenientExpandOpen(),
                     null,
                     null,
-                    null,
                     false,
                     new MatchAllQueryBuilder(),
                     randomBoolean(),
@@ -1152,7 +1151,6 @@ public class TransportSearchActionTests extends ESTestCase {
                     parentTaskId,
                     IndicesOptions.lenientExpandOpen(),
                     "index_not_found",
-                    null,
                     null,
                     false,
                     new MatchAllQueryBuilder(),
@@ -1212,7 +1210,6 @@ public class TransportSearchActionTests extends ESTestCase {
                     IndicesOptions.lenientExpandOpen(),
                     null,
                     null,
-                    null,
                     false,
                     new MatchAllQueryBuilder(),
                     randomBoolean(),
@@ -1247,7 +1244,6 @@ public class TransportSearchActionTests extends ESTestCase {
                 TransportSearchAction.collectSearchShards(
                     parentTaskId,
                     IndicesOptions.lenientExpandOpen(),
-                    null,
                     null,
                     null,
                     false,
@@ -1300,7 +1296,6 @@ public class TransportSearchActionTests extends ESTestCase {
                 TransportSearchAction.collectSearchShards(
                     parentTaskId,
                     IndicesOptions.lenientExpandOpen(),
-                    null,
                     null,
                     null,
                     false,
@@ -2285,7 +2280,7 @@ public class TransportSearchActionTests extends ESTestCase {
         assertNull(request.routing());
     }
 
-    public void testValidateAndResolveSearchSliceRoutingClearsRoutingForPitWithExplicitSlice() {
+    public void testValidateAndResolveSearchSliceRoutingKeepsSliceRoutingForPit() {
         assumeTrue("slice indexing feature flag must be enabled", SliceIndexing.SLICE_FEATURE_FLAG.isEnabled());
         SearchRequest request = new SearchRequest("slice-enabled-index").source(
             new SearchSourceBuilder().pointInTimeBuilder(new PointInTimeBuilder(BytesArray.EMPTY))
@@ -2307,7 +2302,8 @@ public class TransportSearchActionTests extends ESTestCase {
         );
         assertEquals("tenant-a", requestedSlice);
         assertEquals("tenant-a", request.searchSlice());
-        assertNull(request.routing());
+        assertEquals("tenant-a", request.routing());
+        assertTrue(request.isRoutingFromSlice());
     }
 
     /**

@@ -1755,8 +1755,8 @@ public class AnalyzerSubqueryTests extends ESTestCase {
             TEST_PARSER.parseQuery(query),
             projectMetadata,
             TestIndexNameExpressionResolver.newInstance(),
-            // These cases reach a dataset through a wildcard, so resolve with dataset_wildcards on.
-            true
+            // These cases name their datasets exactly, which reaches them at the dataset_wildcards default.
+            false
         );
         ExternalSourceResolution resolution = new ExternalSourceResolution(
             Map.of(

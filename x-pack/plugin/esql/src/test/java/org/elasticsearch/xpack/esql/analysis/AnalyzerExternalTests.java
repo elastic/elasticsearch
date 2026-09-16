@@ -529,8 +529,8 @@ public class AnalyzerExternalTests extends ESTestCase {
             TEST_PARSER.parseQuery(query),
             datasetProject(resource),
             TestIndexNameExpressionResolver.newInstance(),
-            // These cases reach a dataset through a wildcard, so resolve with dataset_wildcards on.
-            true
+            // These cases name their datasets exactly, which reaches them at the dataset_wildcards default.
+            false
         );
         return testAnalyzer.buildAnalyzer().analyze(rewritten);
     }

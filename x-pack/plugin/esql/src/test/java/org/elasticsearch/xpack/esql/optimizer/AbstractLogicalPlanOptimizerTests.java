@@ -241,8 +241,8 @@ public abstract class AbstractLogicalPlanOptimizerTests extends ESTestCase {
             TEST_PARSER.parseQuery(query),
             datasetMetadata,
             TestIndexNameExpressionResolver.newInstance(),
-            // These cases reach a dataset through a wildcard, so resolve with dataset_wildcards on.
-            true
+            // These cases name their datasets exactly, which reaches them at the dataset_wildcards default.
+            false
         );
         return optimize(analyzer().externalSourceResolution(resource, schema, FileList.UNRESOLVED).buildAnalyzer().analyze(rewritten));
     }

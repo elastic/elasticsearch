@@ -2155,8 +2155,8 @@ public class PushDownFilterAndLimitIntoUnionAllTests extends AbstractLogicalPlan
             TEST_PARSER.parseQuery(query),
             projectMetadata,
             TestIndexNameExpressionResolver.newInstance(),
-            // These cases reach a dataset through a wildcard, so resolve with dataset_wildcards on.
-            true
+            // These cases name their datasets exactly, which reaches them at the dataset_wildcards default.
+            false
         );
         List<Attribute> externalSchema = List.of(
             referenceAttribute("emp_no", DataType.INTEGER),

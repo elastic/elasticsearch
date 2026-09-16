@@ -200,6 +200,9 @@ tests:
 - class: org.elasticsearch.xpack.search.AsyncSearchActionIT
   method: testSearchPhaseFailure
   issue: https://github.com/elastic/elasticsearch/issues/159452
+- class: org.elasticsearch.upgrades.MlMappingsUpgradeIT
+  method: testMappingsUpgrade
+  issue: https://github.com/elastic/elasticsearch/issues/159529
 
 # Examples:
 #

@@ -308,6 +308,37 @@ public class MatchFunctionIT extends AbstractEsqlIntegTestCase {
         }
     }
 
+    public void testWhereRuntimeMatchOnToStringOverIndexedTextField() {
+        var query = """
+            FROM test
+            | WHERE match(to_string(content), "fox")
+            | KEEP id
+            | SORT id
+            """;
+
+        try (var resp = run(query)) {
+            assertColumnNames(resp.columns(), List.of("id"));
+            assertColumnTypes(resp.columns(), List.of("integer"));
+            assertValues(resp.values(), List.of());
+        }
+    }
+
+    public void testWhereRuntimeMatchOnToStringOverIndexedTextFieldViaEvalAlias() {
+        var query = """
+            FROM test
+            | EVAL c = to_string(content)
+            | WHERE match(c, "fox")
+            | KEEP id
+            | SORT id
+            """;
+
+        try (var resp = run(query)) {
+            assertColumnNames(resp.columns(), List.of("id"));
+            assertColumnTypes(resp.columns(), List.of("integer"));
+            assertValues(resp.values(), List.of());
+        }
+    }
+
     public void testMatchWithinEval() {
         var query = """
             FROM test
@@ -437,6 +468,96 @@ public class MatchFunctionIT extends AbstractEsqlIntegTestCase {
         try (var resp = run(accepted)) {
             assertColumnNames(resp.columns(), List.of("host", "status"));
             assertColumnTypes(resp.columns(), List.of("keyword", "keyword"));
+            assertValues(resp.values(), List.of(List.of("a", "fox")));
+        }
+    }
+
+    public void testMatchOnToStringOverLookupJoinField() {
+        var client = client().admin().indices();
+        assertAcked(
+            client.prepareCreate("txt_lookup_tags")
+                .setSettings(Settings.builder().put("index.number_of_shards", 1).put("index.mode", "lookup"))
+                .setMapping("id", "type=integer", "tags", "type=text")
+        );
+        client().prepareBulk()
+            .add(new IndexRequest("txt_lookup_tags").source("id", 1, "tags", "fox"))
+            .add(new IndexRequest("txt_lookup_tags").source("id", 2, "tags", "red fox"))
+            .setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE)
+            .get();
+        ensureYellow("txt_lookup_tags");
+
+        var rejected = """
+            FROM test
+            | LOOKUP JOIN txt_lookup_tags ON id
+            | WHERE MATCH(tags, "fox")
+            """;
+        var error = expectThrows(VerificationException.class, () -> run(rejected));
+        assertThat(
+            error.getMessage(),
+            containsString(
+                "[MATCH] function cannot operate on [tags], supplied by an index [txt_lookup_tags] in non-STANDARD mode [lookup]"
+            )
+        );
+
+        // Exact/keyword semantics: "red fox" contains "fox" as an analyzed token but isn't exactly "fox", so only id=1 matches.
+        var accepted = """
+            FROM test
+            | LOOKUP JOIN txt_lookup_tags ON id
+            | WHERE MATCH(TO_STRING(tags), "fox")
+            | KEEP id, tags
+            | SORT id
+            """;
+        try (var resp = run(accepted)) {
+            assertColumnNames(resp.columns(), List.of("id", "tags"));
+            assertColumnTypes(resp.columns(), List.of("integer", "text"));
+            assertValues(resp.values(), List.of(List.of(1, "fox")));
+        }
+    }
+
+    public void testMatchOnToStringOverTimeSeriesField() {
+        Settings settings = Settings.builder().put("mode", "time_series").putList("routing_path", List.of("host")).build();
+        assertAcked(
+            client().admin()
+                .indices()
+                .prepareCreate("ts_hosts_text")
+                .setSettings(settings)
+                .setMapping(
+                    "@timestamp",
+                    "type=date",
+                    "host",
+                    "type=keyword,time_series_dimension=true",
+                    "status",
+                    "type=text",
+                    "cpu",
+                    "type=long,time_series_metric=gauge"
+                )
+        );
+        client().prepareBulk()
+            .add(new IndexRequest("ts_hosts_text").source("@timestamp", "2024-01-01T00:00:00Z", "host", "a", "status", "fox", "cpu", 1))
+            .add(new IndexRequest("ts_hosts_text").source("@timestamp", "2024-01-01T00:00:01Z", "host", "b", "status", "red fox", "cpu", 2))
+            .setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE)
+            .get();
+        ensureYellow("ts_hosts_text");
+
+        var rejected = "TS ts_hosts_text | WHERE MATCH(status, \"fox\")";
+        var error = expectThrows(VerificationException.class, () -> run(rejected));
+        assertThat(
+            error.getMessage(),
+            containsString(
+                "[MATCH] function cannot operate on [status], supplied by an index [ts_hosts_text] in non-STANDARD mode [time_series]"
+            )
+        );
+
+        // Exact/keyword semantics: "red fox" contains "fox" as an analyzed token but isn't exactly "fox", so only host=a matches.
+        var accepted = """
+            TS ts_hosts_text
+            | WHERE MATCH(TO_STRING(status), "fox")
+            | KEEP host, status
+            | SORT host
+            """;
+        try (var resp = run(accepted)) {
+            assertColumnNames(resp.columns(), List.of("host", "status"));
+            assertColumnTypes(resp.columns(), List.of("keyword", "text"));
             assertValues(resp.values(), List.of(List.of("a", "fox")));
         }
     }

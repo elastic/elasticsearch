@@ -2016,6 +2016,36 @@ book_no:keyword | author:text
 3293            | Danny Faulkner
 ;
 
+matchOnToStringOverIndexedTextFieldIsExact
+required_capability: match_function
+required_capability: fn_match_to_string_on_indexed_field_fix
+
+// Mirror-image bug of matchOnToTextOverIndexedKeywordFieldIsAnalyzed: TO_STRING over a normal
+// mapped text field (author, not a computed/runtime expression) must be matched as exact, unanalyzed
+// keyword text - "Faulkner" is never the WHOLE value of any author (always part of a full name or a list),
+// so nothing should match, unlike the analyzed match "author:Faulkner" gives elsewhere in this file.
+FROM books
+| WHERE MATCH(TO_STRING(author), "Faulkner")
+| KEEP book_no, author
+;
+
+book_no:keyword | author:text
+;
+
+matchOnToStringOverIndexedTextFieldViaEvalAlias
+required_capability: match_function
+required_capability: fn_match_to_string_on_indexed_field_fix
+
+// The EVAL-alias form of matchOnToStringOverIndexedTextFieldIsExact must agree with the inline form (above).
+FROM books
+| EVAL a = TO_STRING(author)
+| WHERE MATCH(a, "Faulkner")
+| KEEP book_no, author
+;
+
+book_no:keyword | author:text
+;
+
 matchOnRuntimeLongWithStringQueryMultiValueAndNull
 required_capability: match_function
 required_capability: fn_match_runtime_filter

@@ -134,6 +134,12 @@ public class RankEvalSpec implements Writeable, ToXContentObject {
     private static final ParseField METRIC_FIELD = new ParseField("metric");
     private static final ParseField REQUESTS_FIELD = new ParseField("requests");
     private static final ParseField MAX_CONCURRENT_SEARCHES_FIELD = new ParseField("max_concurrent_searches");
+
+    // Tracks RatedRequest objects parsed during PARSER.apply so parse() can release their SSB charges
+    // if ConstructingObjectParser throws before invoking the constructor (e.g. metric is absent, or a
+    // later request in the array fails after earlier ones were already successfully parsed).
+    private static final ThreadLocal<List<RatedRequest>> pendingRatedRequests = ThreadLocal.withInitial(ArrayList::new);
+
     @SuppressWarnings("unchecked")
     private static final ConstructingObjectParser<RankEvalSpec, Predicate<NodeFeature>> PARSER = new ConstructingObjectParser<>(
         "rank_eval",
@@ -141,7 +147,11 @@ public class RankEvalSpec implements Writeable, ToXContentObject {
     );
 
     static {
-        PARSER.declareObjectArray(ConstructingObjectParser.constructorArg(), (p, c) -> RatedRequest.fromXContent(p, c), REQUESTS_FIELD);
+        PARSER.declareObjectArray(ConstructingObjectParser.constructorArg(), (p, c) -> {
+            RatedRequest rr = RatedRequest.fromXContent(p, c);
+            pendingRatedRequests.get().add(rr);
+            return rr;
+        }, REQUESTS_FIELD);
         PARSER.declareObject(ConstructingObjectParser.constructorArg(), (p, c) -> parseMetric(p), METRIC_FIELD);
         PARSER.declareObjectArray(
             ConstructingObjectParser.optionalConstructorArg(),
@@ -160,7 +170,19 @@ public class RankEvalSpec implements Writeable, ToXContentObject {
     }
 
     public static RankEvalSpec parse(XContentParser parser, Predicate<NodeFeature> clusterSupportsFeature) {
-        return PARSER.apply(parser, clusterSupportsFeature);
+        try {
+            return PARSER.apply(parser, clusterSupportsFeature);
+        } catch (Exception e) {
+            // Release breaker charges for any RatedRequests that were fully parsed before the failure.
+            // SearchSourceBuilder.close() is idempotent, so double-closing is safe.
+            for (RatedRequest rr : pendingRatedRequests.get()) {
+                if (rr.getEvaluationRequest() != null) rr.getEvaluationRequest().close();
+            }
+            throw e;
+        } finally {
+            pendingRatedRequests.get().clear();
+            pendingRatedRequests.remove();
+        }
     }
 
     static class ScriptWithId {

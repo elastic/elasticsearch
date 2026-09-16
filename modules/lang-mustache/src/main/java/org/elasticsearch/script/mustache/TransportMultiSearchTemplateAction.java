@@ -226,6 +226,9 @@ public class TransportMultiSearchTemplateAction extends HandledTransportAction<M
                 renderBytesPerItem[i] = renderBytes;
                 renderBytesCharged[0] += renderBytes;
             } catch (CircuitBreakingException cbe) {
+                if (searchRequest != null && searchRequest.source() != null) {
+                    searchRequest.source().close();
+                }
                 searchTemplateResponse.decRef();
                 items[i] = new MultiSearchTemplateResponse.Item(null, cbe);
                 long subBytes = TransportMultiSearchAction.estimateFailureBytes(cbe);

@@ -97,70 +97,96 @@ public class TransportRankEvalAction extends HandledTransportAction<RankEvalRequ
         List<RatedRequest> ratedRequests = evaluationSpecification.getRatedRequests();
         Map<String, Exception> errors = new ConcurrentHashMap<>(ratedRequests.size());
 
-        Map<String, TemplateScript.Factory> scriptsWithoutParams = new HashMap<>();
-        for (Entry<String, Script> entry : evaluationSpecification.getTemplates().entrySet()) {
-            scriptsWithoutParams.put(entry.getKey(), scriptService.compile(entry.getValue(), TemplateScript.CONTEXT));
-        }
-
         MultiSearchRequest msearchRequest = new MultiSearchRequest();
-        msearchRequest.maxConcurrentSearchRequests(evaluationSpecification.getMaxConcurrentSearches());
         List<RatedRequest> ratedRequestsInSearch = new ArrayList<>();
-        for (RatedRequest ratedRequest : ratedRequests) {
-            SearchSourceBuilder evaluationRequest = ratedRequest.getEvaluationRequest();
-            if (evaluationRequest == null) {
-                Map<String, Object> params = ratedRequest.getParams();
-                String templateId = ratedRequest.getTemplateId();
-                TemplateScript.Factory templateScript = scriptsWithoutParams.get(templateId);
-                String resolvedRequest = templateScript.newInstance(params).execute();
-                try (
-                    XContentParser subParser = createParser(
-                        namedXContentRegistry,
-                        LoggingDeprecationHandler.INSTANCE,
-                        new BytesArray(resolvedRequest),
-                        XContentType.JSON
-                    )
-                ) {
-                    evaluationRequest = new SearchSourceBuilder().parseXContent(subParser, false, clusterSupportsFeature);
-                    // check for parts that should not be part of a ranking evaluation request
-                    validateEvaluatedQuery(evaluationRequest);
-                } catch (IOException e) {
-                    // if we fail parsing, put the exception into the errors map and continue
-                    errors.put(ratedRequest.getId(), e);
-                    continue;
-                } catch (IllegalArgumentException e) {
-                    // validateEvaluatedQuery threw after parsing; release the charge then propagate
-                    // so the caller sees the specific validation message, not a generic "no requests added"
-                    if (evaluationRequest != null) evaluationRequest.close();
-                    throw e;
+        boolean dispatched = false;
+        try {
+            // Both maxConcurrentSearchRequests and script compilation are inside the guard so that
+            // validation or compile failures trigger cleanup of pre-parsed REST-time sources that
+            // already hold parse-time breaker charges.
+            msearchRequest.maxConcurrentSearchRequests(evaluationSpecification.getMaxConcurrentSearches());
+            Map<String, TemplateScript.Factory> scriptsWithoutParams = new HashMap<>();
+            for (Entry<String, Script> entry : evaluationSpecification.getTemplates().entrySet()) {
+                scriptsWithoutParams.put(entry.getKey(), scriptService.compile(entry.getValue(), TemplateScript.CONTEXT));
+            }
+
+            for (RatedRequest ratedRequest : ratedRequests) {
+                SearchSourceBuilder evaluationRequest = ratedRequest.getEvaluationRequest();
+                if (evaluationRequest == null) {
+                    Map<String, Object> params = ratedRequest.getParams();
+                    String templateId = ratedRequest.getTemplateId();
+                    TemplateScript.Factory templateScript = scriptsWithoutParams.get(templateId);
+                    String resolvedRequest = templateScript.newInstance(params).execute();
+                    try (
+                        XContentParser subParser = createParser(
+                            namedXContentRegistry,
+                            LoggingDeprecationHandler.INSTANCE,
+                            new BytesArray(resolvedRequest),
+                            XContentType.JSON
+                        )
+                    ) {
+                        SearchSourceBuilder ssb = new SearchSourceBuilder();
+                        boolean parseOk = false;
+                        try {
+                            ssb.parseXContent(subParser, false, clusterSupportsFeature);
+                            validateEvaluatedQuery(ssb);
+                            parseOk = true;
+                            evaluationRequest = ssb;
+                        } finally {
+                            if (parseOk == false) ssb.close();
+                        }
+                    } catch (IOException e) {
+                        // if we fail parsing, put the exception into the errors map and continue
+                        errors.put(ratedRequest.getId(), e);
+                        continue;
+                    } catch (IllegalArgumentException e) {
+                        // validateEvaluatedQuery threw; propagate so the caller sees the validation message
+                        throw e;
+                    }
                 }
-            }
 
-            if (metric.forcedSearchSize().isPresent()) {
-                evaluationRequest.size(metric.forcedSearchSize().getAsInt());
-            }
+                if (metric.forcedSearchSize().isPresent()) {
+                    evaluationRequest.size(metric.forcedSearchSize().getAsInt());
+                }
 
-            ratedRequestsInSearch.add(ratedRequest);
-            List<String> summaryFields = ratedRequest.getSummaryFields();
-            if (summaryFields.isEmpty()) {
-                evaluationRequest.fetchSource(false);
-            } else {
-                evaluationRequest.fetchSource(summaryFields.toArray(new String[summaryFields.size()]), new String[0]);
+                ratedRequestsInSearch.add(ratedRequest);
+                List<String> summaryFields = ratedRequest.getSummaryFields();
+                if (summaryFields.isEmpty()) {
+                    evaluationRequest.fetchSource(false);
+                } else {
+                    evaluationRequest.fetchSource(summaryFields.toArray(new String[summaryFields.size()]), new String[0]);
+                }
+                SearchRequest searchRequest = new SearchRequest(request.indices(), evaluationRequest);
+                searchRequest.indicesOptions(request.indicesOptions());
+                searchRequest.searchType(request.searchType());
+                msearchRequest.add(searchRequest);
             }
-            SearchRequest searchRequest = new SearchRequest(request.indices(), evaluationRequest);
-            searchRequest.indicesOptions(request.indicesOptions());
-            searchRequest.searchType(request.searchType());
-            msearchRequest.add(searchRequest);
+            assert ratedRequestsInSearch.size() == msearchRequest.requests().size();
+            // Guard 2: close all sources on any completion (including synchronous READ-block rejection
+            // where listener.onFailure fires inside client.multiSearch before it returns).
+            ActionListener<MultiSearchResponse> closingListener = ActionListener.runAfter(
+                new RankEvalActionListener(
+                    listener,
+                    metric,
+                    ratedRequestsInSearch.toArray(new RatedRequest[ratedRequestsInSearch.size()]),
+                    errors
+                ),
+                () -> msearchRequest.requests().forEach(r -> {
+                    if (r.source() != null) r.source().close();
+                })
+            );
+            client.multiSearch(msearchRequest, closingListener);
+            dispatched = true;
+        } finally {
+            // Guard 1: if multiSearch was never dispatched (exception in loop or in multiSearch itself),
+            // close all sources accumulated in msearchRequest up to the point of failure, then close any
+            // pre-parsed REST-time sources from rated requests that were not yet reached in the loop.
+            // SearchSourceBuilder.close() is idempotent, so double-closing is safe.
+            if (dispatched == false) {
+                msearchRequest.requests().forEach(r -> { if (r.source() != null) r.source().close(); });
+                ratedRequests.forEach(rr -> { if (rr.getEvaluationRequest() != null) rr.getEvaluationRequest().close(); });
+            }
         }
-        assert ratedRequestsInSearch.size() == msearchRequest.requests().size();
-        client.multiSearch(
-            msearchRequest,
-            new RankEvalActionListener(
-                listener,
-                metric,
-                ratedRequestsInSearch.toArray(new RatedRequest[ratedRequestsInSearch.size()]),
-                errors
-            )
-        );
     }
 
     static class RankEvalActionListener extends DelegatingActionListener<MultiSearchResponse, RankEvalResponse> {

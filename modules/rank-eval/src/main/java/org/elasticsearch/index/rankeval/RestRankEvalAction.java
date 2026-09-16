@@ -9,12 +9,14 @@
 
 package org.elasticsearch.index.rankeval;
 
+import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.search.SearchType;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.client.internal.node.NodeClient;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.features.NodeFeature;
 import org.elasticsearch.rest.BaseRestHandler;
+import org.elasticsearch.rest.RestChannel;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.RestResponse;
 import org.elasticsearch.rest.Scope;
@@ -109,16 +111,41 @@ public class RestRankEvalAction extends BaseRestHandler {
         try (XContentParser parser = request.contentOrSourceParamParser()) {
             parseRankEvalRequest(rankEvalRequest, request, parser, clusterSupportsFeature);
         }
-        return channel -> client.execute(RankEvalPlugin.ACTION, rankEvalRequest, new RestToXContentListener<RankEvalResponse>(channel) {
+        List<RatedRequest> ratedRequests = rankEvalRequest.getRankEvalSpec().getRatedRequests();
+        return new RestChannelConsumer() {
+            private boolean dispatched = false;
+
             @Override
-            public RestResponse buildResponse(RankEvalResponse response, XContentBuilder builder) throws Exception {
-                try {
-                    return super.buildResponse(response, builder);
-                } finally {
-                    response.close();
+            public void accept(RestChannel channel) throws Exception {
+                dispatched = true;
+                // ActionListener.runAfter covers action-filter rejection: if a filter calls
+                // listener.onFailure before doExecute runs, Guard 1/2 there never fire, so we
+                // release parse-time breaker charges here on both success and failure paths.
+                // SearchSourceBuilder.close() is idempotent, so double-closing with Guard 2 is safe.
+                client.execute(
+                    RankEvalPlugin.ACTION,
+                    rankEvalRequest,
+                    ActionListener.runAfter(new RestToXContentListener<RankEvalResponse>(channel) {
+                        @Override
+                        public RestResponse buildResponse(RankEvalResponse response, XContentBuilder builder) throws Exception {
+                            try {
+                                return super.buildResponse(response, builder);
+                            } finally {
+                                response.close();
+                            }
+                        }
+                    }, () -> ratedRequests.forEach(rr -> { if (rr.getEvaluationRequest() != null) rr.getEvaluationRequest().close(); }))
+                );
+            }
+
+            @Override
+            public void close() {
+                // Abandonment path: called if the consumer is discarded without accept() being invoked.
+                if (dispatched == false) {
+                    ratedRequests.forEach(rr -> { if (rr.getEvaluationRequest() != null) rr.getEvaluationRequest().close(); });
                 }
             }
-        });
+        };
     }
 
     private static void parseRankEvalRequest(

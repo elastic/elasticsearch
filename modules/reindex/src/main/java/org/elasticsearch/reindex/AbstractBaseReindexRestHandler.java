@@ -44,41 +44,53 @@ public abstract class AbstractBaseReindexRestHandler<
     protected RestChannelConsumer doPrepareRequest(RestRequest request, NodeClient client, boolean includeCreated, boolean includeUpdated)
         throws IOException {
         // Build the internal request
-        Request internal = setCommonOptions(request, buildRequest(request));
+        Request internal = buildRequest(request);
 
         // Only requests supporting remote indices can have IndicesOptions allowing cross-project index expressions
         assert internal.supportsRemoteIndicesSearch()
             || internal.getSearchRequest().indicesOptions().resolveCrossProjectIndexExpression() == false;
 
-        // Executes the request and waits for completion
-        if (request.paramAsBoolean("wait_for_completion", true)) {
-            Map<String, String> params = new HashMap<>();
-            params.put(BulkByPaginatedSearchTask.Status.INCLUDE_CREATED, Boolean.toString(includeCreated));
-            params.put(BulkByPaginatedSearchTask.Status.INCLUDE_UPDATED, Boolean.toString(includeUpdated));
+        final SearchSourceBuilder source = internal.getSearchRequest().source();
+        try {
+            setCommonOptions(request, internal);
 
-            final SearchSourceBuilder source = internal.getSearchRequest().source();
-            return new RestChannelConsumer() {
-                @Override
-                public void accept(RestChannel channel) throws Exception {
-                    client.execute(
-                        action,
-                        internal,
-                        source != null
-                            ? ActionListener.runAfter(new BulkIndexByPaginatedSearchResponseContentListener(channel, params), source::close)
-                            : new BulkIndexByPaginatedSearchResponseContentListener(channel, params)
-                    );
-                }
+            // Executes the request and waits for completion
+            if (request.paramAsBoolean("wait_for_completion", true)) {
+                Map<String, String> params = new HashMap<>();
+                params.put(BulkByPaginatedSearchTask.Status.INCLUDE_CREATED, Boolean.toString(includeCreated));
+                params.put(BulkByPaginatedSearchTask.Status.INCLUDE_UPDATED, Boolean.toString(includeUpdated));
 
-                @Override
-                public void close() {
-                    // Abandonment path (e.g. unknown-parameter rejection). SearchSourceBuilder.close() is idempotent.
-                    if (source != null) {
-                        source.close();
+                return new RestChannelConsumer() {
+                    private boolean dispatched = false;
+
+                    @Override
+                    public void accept(RestChannel channel) throws Exception {
+                        dispatched = true;
+                        client.execute(
+                            action,
+                            internal,
+                            source != null
+                                ? ActionListener.runAfter(
+                                    new BulkIndexByPaginatedSearchResponseContentListener(channel, params),
+                                    source::close
+                                )
+                                : new BulkIndexByPaginatedSearchResponseContentListener(channel, params)
+                        );
                     }
-                }
-            };
-        } else {
+
+                    @Override
+                    public void close() {
+                        // Abandonment path only; SearchSourceBuilder.close() is idempotent.
+                        if (dispatched == false && source != null) {
+                            source.close();
+                        }
+                    }
+                };
+            }
             internal.setShouldStoreResult(true);
+        } catch (Exception e) {
+            if (source != null) source.close();
+            throw e;
         }
 
         /*
@@ -88,8 +100,8 @@ public abstract class AbstractBaseReindexRestHandler<
          */
         ActionRequestValidationException validationException = internal.validate();
         if (validationException != null) {
-            if (internal.getSearchRequest().source() != null) {
-                internal.getSearchRequest().source().close();
+            if (source != null) {
+                source.close();
             }
             throw validationException;
         }
@@ -97,15 +109,13 @@ public abstract class AbstractBaseReindexRestHandler<
         try {
             final var task = client.executeAndReturnTask(action, internal, responseListener);
             responseListener.addListener(new LoggingReindexTaskListener(task));
-            // Parsing is done; release the parse-time breaker charges. SearchSourceBuilder.close() is idempotent.
-            if (internal.getSearchRequest().source() != null) {
-                internal.getSearchRequest().source().close();
+            // Release parse-time breaker charges when the task completes. SearchSourceBuilder.close() is idempotent.
+            if (source != null) {
+                responseListener.addListener(ActionListener.running(source::close));
             }
             return sendTask(client.getLocalNodeId(), task);
         } catch (Exception e) {
-            if (internal.getSearchRequest().source() != null) {
-                internal.getSearchRequest().source().close();
-            }
+            if (source != null) source.close();
             throw e;
         }
     }

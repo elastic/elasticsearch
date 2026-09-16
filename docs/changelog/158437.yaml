@@ -1,0 +1,6 @@
+area: SQL
+issues:
+ - 157664
+pr: 158437
+summary: Wrap runtime errors when decoding a SQL cursor
+type: bug

@@ -84,6 +84,14 @@ public class ES95TSDBDocValuesFormatTests extends AbstractTSDBDocValuesFormatTes
         return codec;
     }
 
+    @Override
+    protected boolean isOptimizedMergeEnabled() {
+        // The codec randomizes enableOptimizedMerge; reflect the actual value so tests that assert
+        // the verbatim-copy trace log only do so when the optimized path is actually taken.
+        var format = (ES95TSDBDocValuesFormat) ((Elasticsearch93Lucene104Codec) codec).getDocValuesFormatForField("field");
+        return format.enableOptimizedMerge;
+    }
+
     public void testAddIndices() throws IOException {
         doTestAddIndices(
             List.of(

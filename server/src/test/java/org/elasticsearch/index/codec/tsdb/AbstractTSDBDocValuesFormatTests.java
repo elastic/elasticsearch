@@ -9,6 +9,7 @@
 
 package org.elasticsearch.index.codec.tsdb;
 
+import org.apache.logging.log4j.Level;
 import org.apache.lucene.codecs.DocValuesFormat;
 import org.apache.lucene.document.BinaryDocValuesField;
 import org.apache.lucene.document.Document;
@@ -43,6 +44,7 @@ import org.apache.lucene.util.IOFunction;
 import org.elasticsearch.cluster.metadata.DataStream;
 import org.elasticsearch.common.Randomness;
 import org.elasticsearch.common.logging.LogConfigurator;
+import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.util.CollectionUtils;
 import org.elasticsearch.index.codec.bwc.Elasticsearch900Lucene101Codec;
 import org.elasticsearch.index.codec.tsdb.AbstractTSDBDocValuesProducer.BaseDenseNumericValues;
@@ -54,6 +56,7 @@ import org.elasticsearch.index.mapper.BlockLoader.OptionalColumnAtATimeReader;
 import org.elasticsearch.index.mapper.TestBlock;
 import org.elasticsearch.index.mapper.blockloader.docvalues.CustomBinaryDocValuesReader;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.test.MockLog;
 
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
@@ -78,6 +81,7 @@ import static org.elasticsearch.test.ESTestCase.randomIntBetween;
 import static org.elasticsearch.test.ESTestCase.randomLong;
 import static org.elasticsearch.test.ESTestCase.randomLongBetween;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.instanceOf;
 
 /**
@@ -107,6 +111,26 @@ public abstract class AbstractTSDBDocValuesFormatTests extends BaseDocValuesForm
 
     protected static final int BINARY_DV_BLOCK_BYTES_THRESHOLD_DEFAULT = 128 * 1024;
     protected static final int BINARY_DV_BLOCK_COUNT_THRESHOLD_DEFAULT = 1024;
+
+    /**
+     * The binary doc-values block bytes threshold of the format under test. All current concrete
+     * subclasses ({@code ES819TSDBDocValuesFormatTests}, {@code ES95TSDBDocValuesFormatTests}) use
+     * the 512 KB threshold introduced in ES819 v3 / ES95. Override if a subclass ever tests a
+     * format with a different threshold.
+     */
+    protected int binaryDvBlockBytesThreshold() {
+        return 512 * 1024;
+    }
+
+    /**
+     * Whether the codec returned by {@link #getCodec()} has optimized merge enabled. Used by
+     * {@code testForceMergeWithOversizedBinaryValues} to decide whether to assert that the
+     * verbatim-copy trace log was emitted — the log only fires through the optimized merge path.
+     * Subclasses whose codec randomizes this flag must override and return the actual value.
+     */
+    protected boolean isOptimizedMergeEnabled() {
+        return true;
+    }
 
     static {
         LogConfigurator.configureESLogging();
@@ -2827,6 +2851,295 @@ public abstract class AbstractTSDBDocValuesFormatTests extends BaseDocValuesForm
                         assertEquals(expectedBitSet, bitSet);
                     }
                 }
+            }
+        }
+    }
+
+    /**
+     * Tests that the raw-block probe ({@link TSDBBinaryDocValues#rawSingleValueBlock}) correctly
+     * identifies single-doc blocks for oversized values, returns {@code null} for small values in
+     * multi-doc blocks, and does not disturb the decode state when interleaved with
+     * {@link org.apache.lucene.index.BinaryDocValues#binaryValue()} calls.
+     *
+     * <p>The interleave assertion is the key regression test for the probe/decode cursor isolation:
+     * if anyone routes the probe through {@code findAndUpdateBlock} (which mutates
+     * {@code startDocNumForBlock}/{@code limitDocNumForBlock} without advancing {@code lastBlockId}),
+     * a subsequent {@code binaryValue()} would return bytes from the wrong block.
+     */
+    public void testRawSingleDocBlockHandoff() throws IOException {
+        // Use the actual format's block bytes threshold so the oversized values we create are truly
+        // oversized relative to the writer — the pre-flush fires only when v.length >= threshold.
+        final int threshold = binaryDvBlockBytesThreshold();
+        final String binaryField = "binary_field";
+        final boolean sparse = randomBoolean();
+
+        // Build a value list: small | oversized | small | oversized | small (tail)
+        // The two oversized values should each land in a single-doc block (after the write-side
+        // pre-flush added by this change). Small values share a block.
+        List<String> values = new ArrayList<>();
+        int smallCount = randomIntBetween(3, 10);
+        for (int i = 0; i < smallCount; i++) {
+            values.add(sparse && randomBoolean() ? null : randomAlphaOfLengthBetween(1, 20));
+        }
+        // First oversized value: just above the threshold so it is a single-doc block.
+        final String oversized1 = randomAlphaOfLength(threshold + 1024);
+        values.add(oversized1);
+        for (int i = 0; i < randomIntBetween(2, 5); i++) {
+            values.add(sparse && randomBoolean() ? null : randomAlphaOfLengthBetween(1, 20));
+        }
+        // Second oversized value.
+        final String oversized2 = randomAlphaOfLength(threshold + 2048);
+        values.add(oversized2);
+        for (int i = 0; i < randomIntBetween(1, 4); i++) {
+            values.add(randomAlphaOfLengthBetween(1, 20));
+        }
+
+        var config = getTimeSeriesIndexWriterConfig(HOSTNAME_FIELD, TIMESTAMP_FIELD);
+        try (var dir = newDirectory(); var iw = new IndexWriter(dir, config)) {
+            // Write everything in a single segment so we test the read-side probe on a flushed seg.
+            for (int i = 0; i < values.size(); i++) {
+                var d = new Document();
+                d.add(new SortedDocValuesField(HOSTNAME_FIELD, new BytesRef("host-1")));
+                d.add(new SortedNumericDocValuesField(TIMESTAMP_FIELD, BASE_TIMESTAMP + i * 1000L));
+                if (values.get(i) != null) {
+                    d.add(new BinaryDocValuesField(binaryField, new BytesRef(values.get(i))));
+                }
+                iw.addDocument(d);
+            }
+            iw.commit();
+
+            try (var reader = DirectoryReader.open(iw)) {
+                var leaf = reader.leaves().getFirst().reader();
+                var tsdb = getTSDBBinaryValues(leaf, binaryField);
+                assertNotNull(tsdb);
+
+                // Iterate in doc order, probing each doc.
+                Set<Integer> oversizedDocIds = new HashSet<>();
+                for (int doc = tsdb.nextDoc(); doc != DocIdSetIterator.NO_MORE_DOCS; doc = tsdb.nextDoc()) {
+                    String expected = null;
+                    // Map back: values list is indexed by document position (some may be null/absent).
+                    // We need to find the non-null value for this doc.
+                    // Use binaryValue() to get the actual value for assertions below.
+
+                    // First probe — before calling binaryValue(). Pass MIN_BLOCK_COPY_BYTES as the
+                    // minimum so that small values in count-limited single-doc blocks (blockCountThreshold=1)
+                    // do not return a raw block and trigger the size assertion below.
+                    RawBinaryBlock raw = tsdb.rawSingleValueBlock(AbstractTSDBDocValuesConsumer.MIN_BLOCK_COPY_BYTES);
+
+                    if (raw != null) {
+                        // This is an oversized value in its own block.
+                        assertThat("raw block must have positive uncompressed length", raw.uncompressedLength(), greaterThan(0));
+                        assertThat(
+                            "raw block must meet minimum size",
+                            raw.uncompressedLength(),
+                            greaterThan(AbstractTSDBDocValuesConsumer.MIN_BLOCK_COPY_BYTES - 1)
+                        );
+                        oversizedDocIds.add(doc);
+                    }
+
+                    // Call binaryValue() — must work regardless of whether we probed.
+                    BytesRef actualValue = tsdb.binaryValue();
+                    assertNotNull(actualValue);
+                    // If we got a raw block, verify the decoded length matches.
+                    if (raw != null) {
+                        assertEquals(
+                            "rawSingleValueBlock uncompressedLength must match binaryValue().length",
+                            actualValue.length,
+                            raw.uncompressedLength()
+                        );
+                    }
+
+                    // Probe again after binaryValue() — must still work and return the same answer.
+                    RawBinaryBlock rawAgain = tsdb.rawSingleValueBlock(AbstractTSDBDocValuesConsumer.MIN_BLOCK_COPY_BYTES);
+                    if (raw != null) {
+                        assertNotNull("second probe must also return non-null for the same oversized doc", rawAgain);
+                        assertEquals(raw.uncompressedLength(), rawAgain.uncompressedLength());
+                    } else {
+                        assertNull("second probe must also return null for a small/multi-doc value", rawAgain);
+                    }
+                }
+
+                // Oversized values should have been found (assuming the format threshold is met).
+                // Both current formats (ES819 v3, ES95) use a 512 KB threshold; the values we create
+                // are threshold+1 KB and threshold+2 KB, so they always qualify.
+                if (threshold <= oversized1.length() && threshold <= oversized2.length()) {
+                    assertFalse("at least one oversized value should have been detected", oversizedDocIds.isEmpty());
+                }
+            }
+        }
+    }
+
+    /**
+     * Verifies that a force merge of multiple index-sorted segments containing oversized binary
+     * values produces correct results, and that the verbatim-copy fast path actually fired when
+     * optimized merge is enabled.
+     *
+     * <p>The MockLog assertion on the TRACE line is the key observability check: zstd is
+     * deterministic at a fixed level, so a verbatim-copied and a re-compressed segment are
+     * byte-identical — we cannot observe the optimization from output bytes alone.
+     */
+    public void testForceMergeWithOversizedBinaryValues() throws IOException {
+        final int threshold = binaryDvBlockBytesThreshold();
+        final String denseField = "binary_dense";
+        final String sparseField = "binary_sparse";
+        // Oversized values are just above the threshold to keep CI heap sane.
+        final int oversizedLen = threshold + 1024;
+        final int numSmall = randomIntBetween(5, 20);
+        final int numSegments = randomIntBetween(2, 4);
+
+        var config = getTimeSeriesIndexWriterConfig(HOSTNAME_FIELD, TIMESTAMP_FIELD);
+        // This test class extends Lucene's BaseDocValuesFormatTestCase rather than ESTestCase, so
+        // the @TestLogging annotation is not processed. Enable TRACE programmatically instead, and
+        // restore the original level on exit, so the verbatim-copy log events reach the MockLog appender.
+        var log4jLogger = org.apache.logging.log4j.LogManager.getLogger(AbstractTSDBDocValuesConsumer.class);
+        var savedLevel = log4jLogger.getLevel();
+        Loggers.setLevel(log4jLogger, Level.TRACE);
+        try (
+            var dir = newDirectory();
+            var iw = new IndexWriter(dir, config);
+            var mockLog = MockLog.capture(AbstractTSDBDocValuesConsumer.class)
+        ) {
+            // Each segment gets some small values plus one oversized value. All segments share the
+            // same hostname so that their timestamps interleave in sort order, which forces
+            // needsIndexSort=true during the merge — required for the optimized merge path.
+            // Segment seg uses timestamps BASE + seg, BASE + seg + numSegments, ...,
+            // BASE + seg + numSmall * numSegments. The oversized value (highest timestamp per
+            // segment = BASE + seg + numSmall * numSegments) lands at physical doc 0 after the
+            // index sort (timestamp DESC), making it a single-doc block via the pre-flush.
+            for (int seg = 0; seg < numSegments; seg++) {
+                for (int i = 0; i < numSmall; i++) {
+                    var d = new Document();
+                    d.add(new SortedDocValuesField(HOSTNAME_FIELD, new BytesRef("host-1")));
+                    d.add(new SortedNumericDocValuesField(TIMESTAMP_FIELD, BASE_TIMESTAMP + seg + (long) i * numSegments));
+                    d.add(new BinaryDocValuesField(denseField, new BytesRef(randomAlphaOfLengthBetween(1, 20))));
+                    if (randomBoolean()) {
+                        d.add(new BinaryDocValuesField(sparseField, new BytesRef(randomAlphaOfLengthBetween(1, 20))));
+                    }
+                    iw.addDocument(d);
+                }
+                // The oversized value — must land in its own block after the write-side pre-flush.
+                var d = new Document();
+                d.add(new SortedDocValuesField(HOSTNAME_FIELD, new BytesRef("host-1")));
+                d.add(new SortedNumericDocValuesField(TIMESTAMP_FIELD, BASE_TIMESTAMP + seg + (long) numSmall * numSegments));
+                d.add(new BinaryDocValuesField(denseField, new BytesRef(randomAlphaOfLength(oversizedLen))));
+                d.add(new BinaryDocValuesField(sparseField, new BytesRef(randomAlphaOfLength(oversizedLen))));
+                iw.addDocument(d);
+                iw.commit();
+            }
+
+            // Set the expectation before the merge so we catch the log event. Verbatim copy only
+            // runs through the optimized merge path, which requires enableOptimizedMerge = true.
+            // Concrete subclasses that randomize this flag override isOptimizedMergeEnabled().
+            if (isOptimizedMergeEnabled()) {
+                mockLog.addExpectation(
+                    new MockLog.SeenEventExpectation(
+                        "verbatim-copy trace log",
+                        AbstractTSDBDocValuesConsumer.class.getName(),
+                        Level.TRACE,
+                        "copied binary block of * verbatim"
+                    )
+                );
+            }
+
+            iw.forceMerge(1);
+
+            // Check values round-trip.
+            try (var reader = DirectoryReader.open(iw)) {
+                assertEquals(1, reader.leaves().size());
+                int totalDocs = reader.maxDoc();
+                var leaf = reader.leaves().getFirst().reader();
+
+                // Dense field: every doc has a value.
+                var denseDV = leaf.getBinaryDocValues(denseField);
+                assertNotNull(denseDV);
+                for (int i = 0; i < totalDocs; i++) {
+                    assertTrue("dense field must have value for doc " + i, denseDV.advanceExact(i));
+                    assertNotNull(denseDV.binaryValue());
+                }
+
+                // Sparse field: every doc has a value (we added a value for every doc).
+                var sparseDV = leaf.getBinaryDocValues(sparseField);
+                assertNotNull(sparseDV);
+                int sparseCount = 0;
+                while (sparseDV.nextDoc() != DocIdSetIterator.NO_MORE_DOCS) {
+                    assertNotNull(sparseDV.binaryValue());
+                    sparseCount++;
+                }
+                assertTrue("sparse field should have values", sparseCount > 0);
+            }
+
+            // The log assertion: when optimized merge is enabled, the verbatim-copy trace must have
+            // fired at least once (one oversized single-doc block per source segment per field).
+            if (isOptimizedMergeEnabled()) {
+                mockLog.assertAllExpectationsMatched();
+            }
+        } finally {
+            Loggers.setLevel(log4jLogger, savedLevel);
+        }
+    }
+
+    /**
+     * Verifies that after the write-side pre-flush (flush pending block before an oversized value),
+     * an oversized value written to a fresh segment lands in a single-doc block — observable by
+     * {@link TSDBBinaryDocValues#rawSingleValueBlock} returning non-null for it.
+     */
+    public void testOversizedValueAlwaysLandsInSingleDocBlock() throws IOException {
+        final int threshold = binaryDvBlockBytesThreshold();
+        final String binaryField = "binary_field";
+        final int oversizedLen = threshold + 512;
+
+        var config = getTimeSeriesIndexWriterConfig(HOSTNAME_FIELD, TIMESTAMP_FIELD);
+        try (var dir = newDirectory(); var iw = new IndexWriter(dir, config)) {
+            // Mix small values with an oversized value in the middle. The oversized value must land
+            // alone regardless of what preceded it.
+            int smallBefore = randomIntBetween(2, 10);
+            for (int i = 0; i < smallBefore; i++) {
+                var d = new Document();
+                d.add(new SortedDocValuesField(HOSTNAME_FIELD, new BytesRef("host-1")));
+                d.add(new SortedNumericDocValuesField(TIMESTAMP_FIELD, BASE_TIMESTAMP + i));
+                d.add(new BinaryDocValuesField(binaryField, new BytesRef(randomAlphaOfLengthBetween(1, 20))));
+                iw.addDocument(d);
+            }
+            final String oversizedValue = randomAlphaOfLength(oversizedLen);
+            int oversizedDocIndex = smallBefore;
+            var od = new Document();
+            od.add(new SortedDocValuesField(HOSTNAME_FIELD, new BytesRef("host-1")));
+            od.add(new SortedNumericDocValuesField(TIMESTAMP_FIELD, BASE_TIMESTAMP + oversizedDocIndex));
+            od.add(new BinaryDocValuesField(binaryField, new BytesRef(oversizedValue)));
+            iw.addDocument(od);
+            int smallAfter = randomIntBetween(1, 5);
+            for (int i = 0; i < smallAfter; i++) {
+                var d = new Document();
+                d.add(new SortedDocValuesField(HOSTNAME_FIELD, new BytesRef("host-1")));
+                d.add(new SortedNumericDocValuesField(TIMESTAMP_FIELD, BASE_TIMESTAMP + oversizedDocIndex + 1 + i));
+                d.add(new BinaryDocValuesField(binaryField, new BytesRef(randomAlphaOfLengthBetween(1, 20))));
+                iw.addDocument(d);
+            }
+            iw.commit();
+
+            try (var reader = DirectoryReader.open(iw)) {
+                var leaf = reader.leaves().getFirst().reader();
+                var tsdb = getTSDBBinaryValues(leaf, binaryField);
+                assertNotNull(tsdb);
+
+                boolean foundOversized = false;
+                for (int doc = tsdb.nextDoc(); doc != DocIdSetIterator.NO_MORE_DOCS; doc = tsdb.nextDoc()) {
+                    BytesRef val = tsdb.binaryValue();
+                    if (val.length == oversizedLen) {
+                        // This is the oversized value. It must be the sole doc in its block.
+                        RawBinaryBlock raw = tsdb.rawSingleValueBlock(threshold);
+                        assertNotNull(
+                            "Oversized value (length="
+                                + oversizedLen
+                                + ") must land in a single-doc block "
+                                + "and rawSingleValueBlock must return non-null",
+                            raw
+                        );
+                        assertEquals(oversizedLen, raw.uncompressedLength());
+                        foundOversized = true;
+                    }
+                }
+                assertTrue("Should have found the oversized value", foundOversized);
             }
         }
     }

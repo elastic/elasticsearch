@@ -578,6 +578,37 @@ public class MatchPhraseFunctionIT extends AbstractEsqlIntegTestCase {
         }
     }
 
+    public void testWhereRuntimeMatchPhraseOnToStringOverIndexedTextField() {
+        var query = """
+            FROM test
+            | WHERE match_phrase(to_string(content), "brown fox")
+            | KEEP id
+            | SORT id
+            """;
+
+        try (var resp = run(query)) {
+            assertColumnNames(resp.columns(), List.of("id"));
+            assertColumnTypes(resp.columns(), List.of("integer"));
+            assertValues(resp.values(), List.of());
+        }
+    }
+
+    public void testWhereRuntimeMatchPhraseOnToStringOverIndexedTextFieldViaEvalAlias() {
+        var query = """
+            FROM test
+            | EVAL c = to_string(content)
+            | WHERE match_phrase(c, "brown fox")
+            | KEEP id
+            | SORT id
+            """;
+
+        try (var resp = run(query)) {
+            assertColumnNames(resp.columns(), List.of("id"));
+            assertColumnTypes(resp.columns(), List.of("integer"));
+            assertValues(resp.values(), List.of());
+        }
+    }
+
     public void testRuntimeMatchPhraseOrderMatters() {
         // Both tokens exist in ids 1 and 6, but never adjacent in this order, so a runtime phrase matches nothing.
         var query = """

@@ -24,6 +24,7 @@ import java.util.Set;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 
+import static org.hamcrest.Matchers.closeTo;
 import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.lessThan;
 
@@ -342,6 +343,44 @@ public class AsymmetricHashingQuantizerTests extends ESTestCase {
         assertThat(Math.abs(topK[0 * k + 0]), greaterThan(0.9f));
         // Second column should be dominated by row 1 (singular value 3)
         assertThat(Math.abs(topK[1 * k + 1]), greaterThan(0.9f));
+    }
+
+    public void testTopKRightSingularVectorsWideMatrix() {
+        // Fewer rows than columns takes the A A^T path, which iterates on the left singular
+        // vectors and recovers the right singular vectors afterwards as V = A^T U. Same diagonal
+        // entries as above, so the top right singular vectors are still the first two axes.
+        int m = 4;
+        int n = 6;
+        int k = 2;
+        float[] a = new float[m * n];
+        a[0 * n + 0] = 4.0f;
+        a[1 * n + 1] = 3.0f;
+        a[2 * n + 2] = 2.0f;
+        a[3 * n + 3] = 1.0f;
+
+        // Top-2 right singular vectors returned as columns (n x k)
+        float[] topK = AshUtils.topKRightSingularVectors(a, m, n, k, 42L);
+        assertEquals(n * k, topK.length);
+
+        // First column should be dominated by row 0 (corresponding to singular value 4)
+        assertThat(Math.abs(topK[0 * k + 0]), greaterThan(0.9f));
+        // Second column should be dominated by row 1 (singular value 3)
+        assertThat(Math.abs(topK[1 * k + 1]), greaterThan(0.9f));
+
+        // A^T U comes out orthogonal but scaled by the singular values, so the recovery step has
+        // to normalize the columns
+        for (int j = 0; j < k; j++) {
+            double normSq = 0;
+            for (int i = 0; i < n; i++) {
+                normSq += topK[i * k + j] * topK[i * k + j];
+            }
+            assertThat("column " + j + " is not unit length", Math.sqrt(normSq), closeTo(1.0, 1e-5));
+        }
+        double dot = 0;
+        for (int i = 0; i < n; i++) {
+            dot += topK[i * k] * topK[i * k + 1];
+        }
+        assertThat("columns are not orthogonal", Math.abs(dot), lessThan(1e-5));
     }
 
     public void testScoreReconstructsDotProduct() throws IOException {

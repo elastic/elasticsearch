@@ -13,6 +13,7 @@ import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.core.Nullable;
+import org.elasticsearch.core.Tuple;
 import org.elasticsearch.ingest.AbstractProcessor;
 import org.elasticsearch.ingest.IngestDocument;
 import org.elasticsearch.ingest.Processor;
@@ -51,6 +52,11 @@ public final class SetSecurityUserProcessor extends AbstractProcessor {
     private static final String REALM_KEY = "realm";
     // a 'not found' sentinel value for use in getOrDefault calls below
     private static final Object NOT_FOUND = new Object();
+
+    // 1-slot cache: avoids re-parsing the same API key metadata JSON for every document in a bulk
+    // request. All documents in a bulk share the same Authentication (same BytesReference instance),
+    // and ingest processes them sequentially on one thread, so reference-equality keying is correct.
+    private static final ThreadLocal<Tuple<BytesReference, Map<String, Object>>> API_KEY_METADATA_CACHE = new ThreadLocal<>();
 
     private final SecurityContext securityContext;
     private final Settings settings;
@@ -161,9 +167,16 @@ public final class SetSecurityUserProcessor extends AbstractProcessor {
 
                         final BytesReference rawMetadata = ApiKeyService.getApiKeyMetadata(authentication);
                         if (rawMetadata != null) {
-                            final Map<String, Object> apiKeyMetadata = parseApiKeyMetadata(rawMetadata);
+                            final Map<String, Object> apiKeyMetadata = getCachedApiKeyMetadata(rawMetadata);
                             if (false == apiKeyMetadata.isEmpty()) {
-                                apiKeyField.put("metadata", apiKeyMetadata);
+                                // we deep-copy the structure because, sadly, we previously exposed mutable maps here,
+                                // so it's possible there are ingest pipelines out there that bang on these structures.
+                                // if we returned the cached metadata (immutable or mutable!) then we could break them,
+                                // so instead we copy the object tree into a fresh, mutable copy on each call.
+                                // this is still much faster than parsing json.
+                                final var copy = IngestDocument.deepCopyMap(apiKeyMetadata);
+                                assert Objects.equals(copy, parseApiKeyMetadata(rawMetadata));
+                                apiKeyField.put("metadata", copy);
                             }
                         }
 
@@ -204,6 +217,16 @@ public final class SetSecurityUserProcessor extends AbstractProcessor {
 
     private static Map<String, Object> parseApiKeyMetadata(BytesReference bytes) {
         return XContentHelper.convertToMap(bytes, false, XContentType.JSON).v2();
+    }
+
+    private static Map<String, Object> getCachedApiKeyMetadata(BytesReference bytes) {
+        final Tuple<BytesReference, Map<String, Object>> cached = API_KEY_METADATA_CACHE.get();
+        if (cached != null && cached.v1() == bytes) { // note: reference equality!
+            return cached.v2();
+        }
+        final Map<String, Object> parsed = parseApiKeyMetadata(bytes);
+        API_KEY_METADATA_CACHE.set(new Tuple<>(bytes, parsed));
+        return parsed;
     }
 
     @SuppressWarnings("unchecked")

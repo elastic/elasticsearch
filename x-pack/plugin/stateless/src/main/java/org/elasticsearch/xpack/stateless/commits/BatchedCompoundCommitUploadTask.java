@@ -217,11 +217,12 @@ public class BatchedCompoundCommitUploadTask extends RetryableAction<BccUploadRe
                         final var commits = virtualBcc.getPendingCompoundCommits();
                         final var newest = commits.getLast();
                         return format(
-                            "%s uuid [%s] commit [%s] uploaded in %s (%s files, %s total bytes, generations [%s], "
-                                + "local_checkpoint [%s], max_seq_no [%s])",
+                            "%s uuid [%s] commit [%s] blob [%s] uploaded in %s (%s files, %s total bytes, "
+                                + "generations [%s], local_checkpoint [%s], max_seq_no [%s])",
                             shardId,
                             shardId.getIndex().getUUID(),
                             virtualBcc.primaryTermAndGeneration(),
+                            virtualBcc.getBlobName(),
                             timing.toLogString(),
                             uploadedFileCount,
                             uploadedFileBytes,

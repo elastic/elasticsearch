@@ -34,6 +34,7 @@ import java.nio.ByteOrder;
 import java.util.ArrayList;
 import java.util.Base64;
 import java.util.Collection;
+import java.util.HashMap;
 import java.util.HexFormat;
 import java.util.List;
 import java.util.Locale;
@@ -55,6 +56,7 @@ import static org.hamcrest.Matchers.instanceOf;
 public class DenseVectorFieldsApiTests extends ESSingleNodeTestCase {
 
     private static final String INDEX = "test";
+    private static final int NESTED_ENTRIES = 3;
 
     /**
      * Bounds the bfloat16 round-trip error for random floats in [-1, 1). The bfloat16 format has 7 mantissa
@@ -158,6 +160,8 @@ public class DenseVectorFieldsApiTests extends ESSingleNodeTestCase {
     private final boolean excludeSourceVectors;
 
     private List<VectorSpec> specs;
+    private Map<VectorSpec, List<VectorSpec>> nestedSpecs;
+    private Map<VectorSpec, List<VectorSpec>> innerNestedSpecs;
 
     public DenseVectorFieldsApiTests(
         @Name("syntheticSource") boolean syntheticSource,
@@ -221,6 +225,22 @@ public class DenseVectorFieldsApiTests extends ESSingleNodeTestCase {
             )
         );
 
+        nestedSpecs = new HashMap<>();
+        innerNestedSpecs = new HashMap<>();
+        for (VectorSpec spec : specs) {
+            List<VectorSpec> nested = new ArrayList<>(NESTED_ENTRIES);
+            for (int i = 0; i < NESTED_ENTRIES; i++) {
+                VectorSpec outerSpec = variantOf(spec);
+                nested.add(outerSpec);
+                List<VectorSpec> inner = new ArrayList<>(NESTED_ENTRIES);
+                for (int j = 0; j < NESTED_ENTRIES; j++) {
+                    inner.add(variantOf(spec));
+                }
+                innerNestedSpecs.put(outerSpec, inner);
+            }
+            nestedSpecs.put(spec, nested);
+        }
+
         createTestIndex();
         indexDocuments();
         indicesAdmin().prepareRefresh(INDEX).get();
@@ -246,6 +266,26 @@ public class DenseVectorFieldsApiTests extends ESSingleNodeTestCase {
     }
 
     /**
+     * Verifies that the fields API returns the correct float components for each entry of a {@code nested}
+     * array and for each entry of the doubly-nested {@code nested.inner} array, fetching both levels in a
+     * single request, regardless of which format was used to ingest the vectors.
+     */
+    public void testFetchNestedArrayFormat() {
+        for (VectorFormat vectorFormat : new VectorFormat[] { null, VectorFormat.ARRAY }) {
+            forEachSpecFormatAndField((spec, ingest, field) -> assertNestedField(spec, ingest, field, vectorFormat));
+        }
+    }
+
+    /**
+     * Verifies that the fields API returns the correct binary-encoded vector for each entry of a {@code nested}
+     * array and for each entry of the doubly-nested {@code nested.inner} array, fetching both levels in a
+     * single request, regardless of which format was used to ingest the vectors.
+     */
+    public void testFetchNestedBinaryFormat() {
+        forEachSpecFormatAndField((spec, ingest, field) -> assertNestedField(spec, ingest, field, VectorFormat.BINARY));
+    }
+
+    /**
      * Fetches {@code field} for the document holding {@code spec}'s vector in {@code ingestFormat} and
      * validates the result against the expected components and delta derived from {@code spec}.
      */
@@ -259,24 +299,78 @@ public class DenseVectorFieldsApiTests extends ESSingleNodeTestCase {
             response -> {
                 assertEquals(label, 1, response.getHits().getHits().length);
                 List<Object> values = response.getHits().getAt(0).field(field).getValues();
-                if (VectorFormat.BINARY.equals(vectorFormat)) {
-                    assertEquals(label + " binary format returns a single base64 value", 1, values.size());
+                assertVectorValues(label, spec, values, vectorFormat);
+            }
+        );
+    }
 
-                    Object value = values.getFirst();
-                    assertThat(value, instanceOf(String.class));
-                    byte[] decoded = Base64.getDecoder().decode((String) value);
-                    if (spec.isByteEncoded()) {
-                        // lossless: one raw byte per component, pins the exact encoding
-                        assertArrayEquals(label, spec.bytes(), decoded);
-                    } else {
-                        // potentially lossy: decode the big-endian float32 payload and compare with delta
-                        assertFloatVector(label, spec.floats(), decodeFloat32(decoded), spec.delta());
+    /**
+     * Fetches both {@code "nested." + field} and {@code "nested.inner." + field} in a single search for the
+     * document holding {@code spec}'s vector in {@code ingestFormat}, and validates each of the
+     * {@link #NESTED_ENTRIES} outer entries and each of the {@link #NESTED_ENTRIES} inner entries within them
+     * against the per-entry variant specs stored in {@link #nestedSpecs} and {@link #innerNestedSpecs}.
+     */
+    @SuppressWarnings("unchecked")
+    private void assertNestedField(VectorSpec spec, IngestFormat ingestFormat, String field, VectorFormat vectorFormat) {
+        String docId = ingestFormat.docId(spec);
+        String fetchFormat = vectorFormat == null ? null : vectorFormat.toString();
+        String label = "nested/" + docId + "/" + field + "/" + (fetchFormat == null ? "<default>" : fetchFormat);
+
+        assertNoFailuresAndResponse(
+            client().prepareSearch(INDEX)
+                .setQuery(idsQuery().addIds(docId))
+                .addFetchField(new FieldAndFormat("nested." + field, fetchFormat))
+                .addFetchField(new FieldAndFormat("nested.inner." + field, fetchFormat)),
+            response -> {
+                assertEquals(label, 1, response.getHits().getHits().length);
+                var nestedDocField = response.getHits().getAt(0).field("nested");
+                assertNotNull(label + " nested field must be present", nestedDocField);
+                List<Object> outerEntries = nestedDocField.getValues();
+                assertEquals(label + " outer entry count", NESTED_ENTRIES, outerEntries.size());
+
+                List<VectorSpec> outerSpecs = nestedSpecs.get(spec);
+                for (int i = 0; i < NESTED_ENTRIES; i++) {
+                    VectorSpec outerSpec = outerSpecs.get(i);
+                    Map<String, Object> outerEntry = (Map<String, Object>) outerEntries.get(i);
+
+                    List<Object> outerValues = (List<Object>) outerEntry.get(field);
+                    assertNotNull(label + " entry[" + i + "] must have field " + field, outerValues);
+                    assertVectorValues(label + " entry[" + i + "]", outerSpec, outerValues, vectorFormat);
+
+                    List<Object> innerEntries = (List<Object>) outerEntry.get("inner");
+                    assertNotNull(label + " entry[" + i + "] must have 'inner'", innerEntries);
+                    assertEquals(label + " entry[" + i + "] inner entry count", NESTED_ENTRIES, innerEntries.size());
+
+                    List<VectorSpec> innerSpecs = innerNestedSpecs.get(outerSpec);
+                    for (int j = 0; j < NESTED_ENTRIES; j++) {
+                        Map<String, Object> innerEntry = (Map<String, Object>) innerEntries.get(j);
+                        List<Object> innerValues = (List<Object>) innerEntry.get(field);
+                        assertNotNull(label + " entry[" + i + "].inner[" + j + "] must have field " + field, innerValues);
+                        assertVectorValues(label + " entry[" + i + "].inner[" + j + "]", innerSpecs.get(j), innerValues, vectorFormat);
                     }
-                } else {
-                    assertFloatVector(label, spec.floats(), values, spec.delta());
                 }
             }
         );
+    }
+
+    /** Validates a fetched vector value list against the expected spec and fetch format. */
+    private void assertVectorValues(String label, VectorSpec spec, List<Object> values, VectorFormat vectorFormat) {
+        if (VectorFormat.BINARY.equals(vectorFormat)) {
+            assertEquals(label + " binary format returns a single base64 value", 1, values.size());
+
+            Object value = values.getFirst();
+            assertThat(value, instanceOf(String.class));
+            byte[] decoded = Base64.getDecoder().decode((String) value);
+            if (spec.isByteEncoded()) {
+                // lossless: one raw byte per component, pins the exact encoding
+                assertArrayEquals(label, spec.bytes(), decoded);
+            } else {
+                // potentially lossy: decode the big-endian float32 payload and compare with delta
+                assertFloatVector(label, spec.floats(), decodeFloat32(decoded), spec.delta());
+            }
+        } else {
+            assertFloatVector(label, spec.floats(), values, spec.delta());
+        }
     }
 
     private static void assertFloatVector(String label, float[] expected, List<Object> actual, float delta) {
@@ -317,10 +411,27 @@ public class DenseVectorFieldsApiTests extends ESSingleNodeTestCase {
 
     private XContentBuilder buildMapping() throws IOException {
         XContentBuilder b = XContentFactory.jsonBuilder().startObject().startObject("properties");
+
+        // Root-level fields
         for (VectorSpec spec : specs) {
             addVectorField(b, spec.indexedField(), spec.elementType(), spec.dims(), true, spec.similarity().toString());
             addVectorField(b, spec.docValuesField(), spec.elementType(), spec.dims(), false, null);
         }
+
+        // nested object: mirrors every root field, plus a doubly-nested inner object
+        b.startObject("nested").field("type", "nested").startObject("properties");
+        for (VectorSpec spec : specs) {
+            addVectorField(b, spec.indexedField(), spec.elementType(), spec.dims(), true, spec.similarity().toString());
+            addVectorField(b, spec.docValuesField(), spec.elementType(), spec.dims(), false, null);
+        }
+        b.startObject("inner").field("type", "nested").startObject("properties");
+        for (VectorSpec spec : specs) {
+            addVectorField(b, spec.indexedField(), spec.elementType(), spec.dims(), true, spec.similarity().toString());
+            addVectorField(b, spec.docValuesField(), spec.elementType(), spec.dims(), false, null);
+        }
+        b.endObject().endObject(); // inner.properties, inner
+        b.endObject().endObject(); // nested.properties, nested
+
         return b.endObject().endObject();
     }
 
@@ -350,13 +461,67 @@ public class DenseVectorFieldsApiTests extends ESSingleNodeTestCase {
                     continue;
                 }
                 Object value = ingestFormat.sourceValue(spec);
-                index(ingestFormat.docId(spec), Map.of(spec.indexedField(), value, spec.docValuesField(), value));
+
+                // Build the nested array: NESTED_ENTRIES outer entries, each with NESTED_ENTRIES inner entries
+                List<Map<String, Object>> nestedArray = new ArrayList<>(NESTED_ENTRIES);
+                for (VectorSpec outerSpec : nestedSpecs.get(spec)) {
+                    Object outerValue = ingestFormat.sourceValue(outerSpec);
+
+                    List<Map<String, Object>> innerArray = new ArrayList<>(NESTED_ENTRIES);
+                    for (VectorSpec innerSpec : innerNestedSpecs.get(outerSpec)) {
+                        Object innerValue = ingestFormat.sourceValue(innerSpec);
+                        Map<String, Object> innerEntry = new HashMap<>();
+                        innerEntry.put(innerSpec.indexedField(), innerValue);
+                        innerEntry.put(innerSpec.docValuesField(), innerValue);
+                        innerArray.add(innerEntry);
+                    }
+
+                    Map<String, Object> outerEntry = new HashMap<>();
+                    outerEntry.put(outerSpec.indexedField(), outerValue);
+                    outerEntry.put(outerSpec.docValuesField(), outerValue);
+                    outerEntry.put("inner", innerArray);
+                    nestedArray.add(outerEntry);
+                }
+
+                Map<String, Object> source = new HashMap<>();
+                source.put(spec.indexedField(), value);
+                source.put(spec.docValuesField(), value);
+                source.put("nested", nestedArray);
+
+                index(ingestFormat.docId(spec), source);
             }
         }
     }
 
     private void index(String id, Map<String, Object> source) {
         prepareIndex(INDEX).setId(id).setSource(source).setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE).get(TEST_REQUEST_TIMEOUT);
+    }
+
+    /** Returns a new {@link VectorSpec} with the same element type, dims, and similarity as {@code spec}, but fresh random vector data. */
+    private VectorSpec variantOf(VectorSpec spec) {
+        return switch (spec.elementType()) {
+            case FLOAT, BFLOAT16 -> new VectorSpec(
+                spec.elementType(),
+                spec.dims(),
+                spec.similarity(),
+                VectorTestUtils.randomFloatVector(spec.dims()),
+                null
+            );
+            case BYTE -> new VectorSpec(
+                spec.elementType(),
+                spec.dims(),
+                spec.similarity(),
+                null,
+                VectorTestUtils.randomByteVector(ElementType.BYTE.vectorLength(spec.dims()))
+            );
+            case BIT -> new VectorSpec(
+                spec.elementType(),
+                spec.dims(),
+                spec.similarity(),
+                null,
+                VectorTestUtils.randomByteVector(ElementType.BIT.vectorLength(spec.dims()))
+            );
+        };
     }
 
     /** Encodes {@code floats} as big-endian float32 bytes, then base64. */

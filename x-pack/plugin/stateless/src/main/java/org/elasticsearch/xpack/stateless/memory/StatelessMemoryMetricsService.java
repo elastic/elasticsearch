@@ -24,6 +24,8 @@ import org.elasticsearch.cluster.node.DiscoveryNodeRole;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.routing.RoutingNode;
 import org.elasticsearch.cluster.routing.ShardRouting;
+import org.elasticsearch.cluster.service.ClusterService;
+import org.elasticsearch.common.component.Lifecycle;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
@@ -142,6 +144,7 @@ public class StatelessMemoryMetricsService implements ClusterStateListener {
     public static final long MAX_HEAP_SIZE = ByteSizeUnit.GB.toBytes(31);
 
     private volatile ByteSizeValue fixedShardMemoryOverhead;
+    private final ClusterService clusterService;
     private final boolean selfReportedShardMemoryOverheadEnabled;
 
     /**
@@ -174,13 +177,6 @@ public class StatelessMemoryMetricsService implements ClusterStateListener {
      */
     private final Map<ShardId, ShardMemoryMetrics> shardMemoryMetrics = new ConcurrentHashMap<>();
     private volatile int totalIndices;
-    /**
-     * Master-only snapshot of {@link Metadata} waiting to be sized by {@link #getIndexMetadataEstimatedHeapBytes()}.
-     * {@link #clusterChanged} publishes; the getter steals with {@link AtomicReference#getAndSet} so a concurrent
-     * publish is not lost and the extra {@link Metadata} reference is dropped after the walk.
-     */
-    private final AtomicReference<Metadata> pendingIndexMetadata = new AtomicReference<>();
-    private volatile long indexMetadataEstimatedHeapBytes;
     private final AtomicReference<IndexingOperationsMemoryRequirements> indexingOperationsHeapMemoryRequirementsRef =
         new AtomicReference<>();
 
@@ -199,8 +195,10 @@ public class StatelessMemoryMetricsService implements ClusterStateListener {
     protected volatile boolean adaptiveShardMemoryEstimationMinThresholdEnabled;
 
     @SuppressWarnings("this-escape")
-    public StatelessMemoryMetricsService(LongSupplier relativeTimeInNanosSupplier, ClusterSettings clusterSettings) {
+    public StatelessMemoryMetricsService(LongSupplier relativeTimeInNanosSupplier, ClusterService clusterService) {
         this.relativeTimeInNanosSupplier = relativeTimeInNanosSupplier;
+        this.clusterService = clusterService;
+        final ClusterSettings clusterSettings = clusterService.getClusterSettings();
         this.selfReportedShardMemoryOverheadEnabled = clusterSettings.get(SELF_REPORTED_SHARD_MEMORY_OVERHEAD_ENABLED_SETTING);
         clusterSettings.initializeAndWatch(
             INDEXING_OPERATIONS_MEMORY_REQUIREMENTS_ENABLED_SETTING,
@@ -309,22 +307,21 @@ public class StatelessMemoryMetricsService implements ClusterStateListener {
     }
 
     /**
-     * Estimated heap used by index metadata objects in the current cluster state. Recalculated on demand from the
-     * snapshot published by master {@link #clusterChanged} events ({@link ClusterChangedEvent#metadataChanged()} or
-     * becoming master), not on the cluster-state applier thread. This is an approximate
-     * {@link org.apache.lucene.util.Accountable} walk (not measured RSS): shared {@link MappingMetadata} instances are
-     * counted once, some fields are omitted, and interned settings strings are not attributed per index.
+     * Estimated heap used by index metadata objects in the current cluster state. This is an approximate
+     * {@link org.apache.lucene.util.Accountable} walk (not measured RSS): shared {@link MappingMetadata}
+     * instances are counted once, some fields are omitted, and interned settings strings are not attributed per index.
      * <p>
      * Expected to be lower than {@link #INDEX_MEMORY_OVERHEAD} times the index count for typical metadata;
      * callers that previously used the fixed overhead should treat this as a reduction, not a drop-in for
-     * absolute heap accounting. Readers may observe a value from a previous metadata version.
+     * absolute heap accounting.
+     *
+     * @return estimated heap used by index metadata objects in the current cluster state, or -1 if the cluster state is not available
      */
     public long getIndexMetadataEstimatedHeapBytes() {
-        Metadata metadata = pendingIndexMetadata.getAndSet(null);
-        if (metadata != null) {
-            indexMetadataEstimatedHeapBytes = estimateIndexMetadataHeapBytes(metadata);
+        if (clusterService.lifecycleState() == Lifecycle.State.STARTED) {
+            return estimateIndexMetadataHeapBytes(clusterService.state().metadata());
         }
-        return indexMetadataEstimatedHeapBytes;
+        return -1;
     }
 
     /** Derived from the master-only {@link #totalIndices}; node-local callers must use {@link #getNodeBaseHeapEstimateInBytes(int)}. */
@@ -541,8 +538,6 @@ public class StatelessMemoryMetricsService implements ClusterStateListener {
             initialized = false;
             // Set the cluster state to unknown so we don't ignore valid updates that arrive during our next promotion
             clusterStateVersion = ClusterState.UNKNOWN_VERSION;
-            pendingIndexMetadata.set(null);
-            indexMetadataEstimatedHeapBytes = 0L;
             return;
         }
         this.totalIndices = event.state().metadata().getTotalNumberOfIndices();
@@ -564,17 +559,13 @@ public class StatelessMemoryMetricsService implements ClusterStateListener {
                     }
                 }
             }
-            pendingIndexMetadata.set(event.state().metadata());
             initialized = true;
             clusterStateVersion = event.state().version();
             return;
         }
 
-        if (event.metadataChanged()) {
-            pendingIndexMetadata.set(event.state().metadata());
-        }
-
         if (event.metadataChanged() || event.routingTableChanged()) {
+
             // index delete use case
             for (Index deletedIndex : event.indicesDeleted()) {
                 int numberOfShards = event.previousState().metadata().indexMetadata(deletedIndex).getNumberOfShards();

@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.stateless.engine.translog;
 
+import org.apache.logging.log4j.Level;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.lucene.store.AlreadyClosedException;
@@ -326,30 +327,37 @@ public class TranslogReplicatorReader implements Translog.Snapshot {
         var blobCount = blobsToRead.size();
         var blobSizeInBytes = ByteSizeValue.of(blobsToRead.stream().mapToLong(BlobMetadata::length).sum(), ByteSizeUnit.BYTES);
 
-        if (translogReplayTime.compareTo(SIXTY_SECONDS_SLOW_RECOVERY_THRESHOLD) >= 0) {
-            logger.warn(
-                "[{}] slow stateless translog recovery [translogRecoveryStartFile={}, blobsToRead_count={}, blobsToRead_first={}, "
-                    + "blobsToRead_last={}, networkTime={}, blobsToRead_bytes={}, filesWithShardOperations={}, operationsRead={}, "
-                    + "operationBytesRead={}, indexOperationsProcessed={}, indexOperationsWithIdProcessed={}, "
-                    + "deleteOperationsProcessed={}, noOpOperationsProcessed={}, unreferencedBlobCount={}, unreferencedBlobSizeInBytes={}]",
-                translogReplayTime,
-                translogRecoveryStartFile,
-                blobCount,
-                blobCount > 0 ? blobsToRead.get(0).name() : "N/A",
-                blobCount > 0 ? blobsToRead.get(blobCount - 1).name() : "N/A",
-                networkTime,
-                blobSizeInBytes,
-                filesWithShardOperations,
-                operationsRead,
-                ByteSizeValue.of(operationBytesRead, ByteSizeUnit.BYTES),
-                indexOperationsProcessed,
-                indexOperationsWithIDProcessed,
-                deleteOperationsProcessed,
-                noOpOperationsProcessed,
-                unreferencedBlobCount,
-                unreferencedBlobSizeInBytes
-            );
-        }
+        // Logged for every recovery, including one that replayed nothing: "no operations were replayed" is the single most
+        // useful fact when reconstructing what a shard did, and it is indistinguishable from "there was nothing to replay"
+        // unless it is recorded. A slow recovery keeps its own level so existing alerting on WARN still fires.
+        logger.log(
+            translogReplayTime.compareTo(SIXTY_SECONDS_SLOW_RECOVERY_THRESHOLD) >= 0 ? Level.WARN : Level.INFO,
+            "[{}] stateless translog recovery [translogReplayTime={}, translogContainer={}, translogRecoveryStartFile={}, "
+                + "fromSeqNo={}, toSeqNo={}, blobsToRead_count={}, blobsToRead_first={}, blobsToRead_last={}, networkTime={}, "
+                + "blobsToRead_bytes={}, filesWithShardOperations={}, operationsRead={}, operationBytesRead={}, "
+                + "indexOperationsProcessed={}, indexOperationsWithIdProcessed={}, deleteOperationsProcessed={}, "
+                + "noOpOperationsProcessed={}, unreferencedBlobCount={}, unreferencedBlobSizeInBytes={}]",
+            shardId,
+            translogReplayTime,
+            translogBlobContainer.path(),
+            translogRecoveryStartFile,
+            fromSeqNo,
+            toSeqNo,
+            blobCount,
+            blobCount > 0 ? blobsToRead.get(0).name() : "N/A",
+            blobCount > 0 ? blobsToRead.get(blobCount - 1).name() : "N/A",
+            networkTime,
+            blobSizeInBytes,
+            filesWithShardOperations,
+            operationsRead,
+            ByteSizeValue.of(operationBytesRead, ByteSizeUnit.BYTES),
+            indexOperationsProcessed,
+            indexOperationsWithIDProcessed,
+            deleteOperationsProcessed,
+            noOpOperationsProcessed,
+            unreferencedBlobCount,
+            unreferencedBlobSizeInBytes
+        );
 
         translogRecoveryMetrics.getTranslogReplayTimeHistogram().record(translogReplayTime.millis());
         translogRecoveryMetrics.getTranslogFilesNetworkTimeHistogram().record(networkTime.millis());

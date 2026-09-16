@@ -25,6 +25,7 @@ import com.google.cloud.storage.MultipartUploadSettings;
 import com.google.cloud.storage.RequestBody;
 import com.google.cloud.storage.Storage;
 import com.google.cloud.storage.StorageBatch;
+import com.google.cloud.storage.StorageBatchResult;
 import com.google.cloud.storage.StorageOptions;
 import com.google.cloud.storage.multipartupload.model.AbortMultipartUploadRequest;
 import com.google.cloud.storage.multipartupload.model.AbortMultipartUploadResponse;
@@ -114,8 +115,51 @@ public class MeteredStorage {
         statsCollector.collectIOSupplier(purpose, INSERT, () -> storage.create(blobInfo, buffer, offset, blobSize, targetOptions));
     }
 
-    public StorageBatch batch() {
-        return storage.batch();
+    /**
+     * Returns a metered batch that counts submitted items and records them as DELETE operations
+     * when {@link MeteredStorageBatch#submit()} is called. GCS charges per item in a batch, so
+     * the operation count is set to the item count rather than 1.
+     */
+    public MeteredStorageBatch batch(OperationPurpose purpose) {
+        return new MeteredStorageBatch(storage.batch(), statsCollector, purpose);
+    }
+
+    /**
+     * A {@link StorageBatch} wrapper that meters submitted items and records them as DELETE
+     * operations on {@link #submit()}.
+     */
+    public static class MeteredStorageBatch {
+        private final StorageBatch batch;
+        private final GcsRepositoryStatsCollector statsCollector;
+        private final OperationPurpose purpose;
+        private int itemCount = 0;
+
+        MeteredStorageBatch(StorageBatch batch, GcsRepositoryStatsCollector statsCollector, OperationPurpose purpose) {
+            this.batch = batch;
+            this.statsCollector = statsCollector;
+            this.purpose = purpose;
+        }
+
+        public StorageBatchResult<Boolean> delete(BlobId blobId) {
+            itemCount++;
+            return batch.delete(blobId);
+        }
+
+        /**
+         * Submits the batch, recording {@link #itemCount} DELETE operations against the stats
+         * collector. The METERING_INTERCEPTOR sees one HTTP envelope, so operations must be
+         * counted explicitly here rather than derived from the interceptor's per-request count.
+         */
+        public void submit() throws IOException {
+            final int count = itemCount;
+            statsCollector.collectBatch(purpose, DELETE, count, () -> {
+                try {
+                    batch.submit();
+                } catch (Exception e) {
+                    throw new IOException("Failed to execute batch", e);
+                }
+            });
+        }
     }
 
     public StorageOptions getOptions() {

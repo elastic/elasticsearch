@@ -22,6 +22,7 @@ import org.elasticsearch.action.get.TransportGetAction;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.index.IndexResponse;
 import org.elasticsearch.action.search.SearchRequest;
+import org.elasticsearch.action.search.TransportSearchAction;
 import org.elasticsearch.action.support.ContextPreservingActionListener;
 import org.elasticsearch.action.support.WriteRequest;
 import org.elasticsearch.client.internal.Client;
@@ -37,6 +38,8 @@ import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.features.FeatureService;
 import org.elasticsearch.index.query.BoolQueryBuilder;
 import org.elasticsearch.index.query.QueryBuilders;
+import org.elasticsearch.search.SearchHit;
+import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentFactory;
 import org.elasticsearch.xpack.core.security.ScrollHelper;
@@ -53,9 +56,11 @@ import org.elasticsearch.xpack.security.support.SecurityIndexManager.IndexState;
 
 import java.io.IOException;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Collection;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 import java.util.function.Supplier;
 
 import static org.elasticsearch.action.bulk.TransportSingleItemBulkWriteAction.toSingleItemBulkRequest;
@@ -92,7 +97,7 @@ public class UserManagedServiceAccountStore implements CacheInvalidatorRegistry.
 
     public static final String CACHE_NAME = "user_managed_service_account";
 
-    static final String SERVICE_ACCOUNT_DOC_TYPE = "service_account";
+    public static final String SERVICE_ACCOUNT_DOC_TYPE = "service_account";
 
     private static final Logger logger = LogManager.getLogger(UserManagedServiceAccountStore.class);
 
@@ -291,6 +296,78 @@ public class UserManagedServiceAccountStore implements CacheInvalidatorRegistry.
 
     private void setAllowExpensiveQueries(boolean allowExpensiveQueries) {
         this.allowExpensiveQueries = allowExpensiveQueries;
+    }
+
+    /**
+     * Runs a caller-shaped search over the stored accounts and reports one page of it. The caller has already
+     * restricted the query to service-account documents and translated its field names; this only adds the checks
+     * that the index can be searched at all and turns hits into accounts. A hit that does not parse is dropped, as in
+     * {@link #listAccounts}, which can leave fewer items than {@link QueryResult#total()} claims.
+     */
+    void queryAccounts(SearchSourceBuilder searchSourceBuilder, ActionListener<QueryResult> listener) {
+        final IndexState projectSecurityIndex = securityIndex.forCurrentProject();
+        if (projectSecurityIndex.indexExists() == false) {
+            logger.debug("security index does not exist");
+            listener.onResponse(QueryResult.EMPTY);
+            return;
+        }
+        if (projectSecurityIndex.isAvailable(SEARCH_SHARDS) == false) {
+            listener.onFailure(projectSecurityIndex.getUnavailableReason(SEARCH_SHARDS));
+            return;
+        }
+        final SearchRequest searchRequest = new SearchRequest(new String[] { SECURITY_MAIN_ALIAS }, searchSourceBuilder);
+        projectSecurityIndex.checkIndexVersionThenExecute(
+            listener::onFailure,
+            () -> executeAsyncWithOrigin(
+                client,
+                SECURITY_ORIGIN,
+                TransportSearchAction.TYPE,
+                searchRequest,
+                ActionListener.wrap(searchResponse -> {
+                    final long total = searchResponse.getHits().getTotalHits().value();
+                    if (total == 0) {
+                        logger.debug("no service accounts found for query [{}]", searchSourceBuilder.query());
+                        listener.onResponse(QueryResult.EMPTY);
+                        return;
+                    }
+                    final List<QueryResult.Item> items = Arrays.stream(searchResponse.getHits().getHits())
+                        .map(UserManagedServiceAccountStore::toQueryResultItem)
+                        .filter(Objects::nonNull)
+                        .toList();
+                    listener.onResponse(new QueryResult(items, total));
+                }, listener::onFailure)
+            )
+        );
+    }
+
+    @Nullable
+    private static QueryResult.Item toQueryResultItem(SearchHit hit) {
+        final Map<String, Object> source = hit.getSourceAsMap();
+        if (source == null) {
+            logger.warn("service account document [{}] has no source", hit.getId());
+            return null;
+        }
+        if (source.get("username") instanceof String principal) {
+            final UserManagedServiceAccount account = parseAccountDocument(principal, source);
+            return account == null ? null : new QueryResult.Item(account, hit.getSortValues());
+        }
+        logger.warn("service account document [{}] has an invalid [username] field", hit.getId());
+        return null;
+    }
+
+    /**
+     * One page of a query. {@code total} counts every hit of the query, not just the page's, so a caller can tell how
+     * far through the result it is.
+     */
+    public record QueryResult(List<Item> items, long total) {
+
+        public static final QueryResult EMPTY = new QueryResult(List.of(), 0);
+
+        /**
+         * An account and the sort values of the hit it came from, which are what a caller passes back as
+         * {@code search_after}. Empty when the query was not sorted.
+         */
+        public record Item(UserManagedServiceAccount account, Object[] sortValues) {}
     }
 
     /**

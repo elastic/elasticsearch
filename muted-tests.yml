@@ -189,9 +189,6 @@ tests:
 - class: org.elasticsearch.upgrades.TransformSurvivesUpgradeIT
   method: testTransformRollingUpgrade
   issue: https://github.com/elastic/elasticsearch/issues/150442
-- class: org.elasticsearch.xpack.stateless.recovery.BlockRefreshUponIndexCreationIT
-  method: testRefreshesAreBlockedUntilBlockIsRemoved
-  issue: https://github.com/elastic/elasticsearch/issues/150492
 - class: org.elasticsearch.xpack.ml.integration.DatafeedCcsIT
   method: testDatafeedWithCcsRemoteUnavailable
   issue: https://github.com/elastic/elasticsearch/issues/150541
@@ -693,9 +690,6 @@ tests:
 - class: org.elasticsearch.multiproject.test.XpackWithMultipleProjectsClientYamlTestSuiteIT
   method: test {yaml=esql/40_tsdb/PromQL missing field outside the command fails under nullify}
   issue: https://github.com/elastic/elasticsearch/issues/159152
-- class: org.elasticsearch.backwards.MixedClusterClientYamlTestSuiteIT
-  method: test {p0=snapshot.restore/10_basic/Create a snapshot and then restore single index from it}
-  issue: https://github.com/elastic/elasticsearch/issues/159161
 - class: org.elasticsearch.xpack.application.CohereServiceUpgradeIT
   method: testCohereCompletions {upgradedNodes=3}
   issue: https://github.com/elastic/elasticsearch/issues/159162
@@ -774,3 +768,9 @@ tests:
 - class: org.elasticsearch.index.store.FieldInfoCachingDirectoryTests
   method: testWeakReferenceReclaimsCanonical
   issue: https://github.com/elastic/elasticsearch/issues/159154
+- class: org.elasticsearch.xpack.esql.qa.mixed.MixedClusterEsqlCurrentCoordinatorSpecDenseVectorIT
+  method: test {csv-spec:dense_vector.limitByDenseVectorN2}
+  issue: https://github.com/elastic/elasticsearch/issues/159460
+- class: org.elasticsearch.datastreams.lifecycle.DataStreamLifecycleServiceIT
+  method: testErrorRecordingOnRollover
+  issue: https://github.com/elastic/elasticsearch/issues/159525

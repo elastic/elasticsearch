@@ -276,8 +276,9 @@ public class ESNextDiskASHVectorsWriter extends IVFVectorsWriter<FlatCentroidInd
                 metaOutput.writeVInt(maxSliceSize);
             }
         }
-        // ASH-specific: bits per dimension
-        metaOutput.writeVInt(ivfSegmentConfig.ashConfig().bitsPerDim());
+        // ASH-specific: bits per dimension — use the writer's own config rather than the segment
+        // config, because the segment config may be IvfSegmentConfig.NONE for unsupported byte fields.
+        metaOutput.writeVInt(ashConfig.bitsPerDim());
     }
 
     @Override

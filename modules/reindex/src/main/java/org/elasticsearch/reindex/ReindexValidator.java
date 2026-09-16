@@ -179,17 +179,22 @@ public class ReindexValidator {
     ) {
         boolean anySourceSliceEnabled = false;
         boolean sourceRequiresRouting = false;
-        // Remote sources are validated separately and their metadata is not available in the local cluster state.
+        // Remote sources (reindex-from-remote and cross-cluster/cross-project index expressions) cannot be resolved against the local
+        // cluster state, and doing so throws "Cross-cluster calls are not supported in this context". Skip remote index names, mirroring
+        // validateAgainstAliases, and only inspect the local source indices for slice/required-routing settings.
         if (request.getRemoteInfo() == null) {
-            for (Index index : indexResolver.concreteIndices(projectMetadata, request.getSearchRequest())) {
-                final IndexMetadata indexMetadata = projectMetadata.index(index);
-                if (indexMetadata == null) {
-                    continue;
-                }
-                if (IndexSettings.SLICE_ENABLED.get(indexMetadata.getSettings())) {
-                    anySourceSliceEnabled = true;
-                } else if (routingRequired(indexMetadata)) {
-                    sourceRequiresRouting = true;
+            final SearchRequest localSource = skipRemoteIndexNames(request.getSearchRequest());
+            if (localSource.indices().length > 0) {
+                for (Index index : indexResolver.concreteIndices(projectMetadata, localSource)) {
+                    final IndexMetadata indexMetadata = projectMetadata.index(index);
+                    if (indexMetadata == null) {
+                        continue;
+                    }
+                    if (IndexSettings.SLICE_ENABLED.get(indexMetadata.getSettings())) {
+                        anySourceSliceEnabled = true;
+                    } else if (routingRequired(indexMetadata)) {
+                        sourceRequiresRouting = true;
+                    }
                 }
             }
         }

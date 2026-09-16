@@ -4912,6 +4912,23 @@ public class VerifierTests extends ESTestCase {
         );
     }
 
+    public void testHighlightOnTimeSeriesStillRejectsWhereClause() {
+        // The HIGHLIGHT exemption is narrow: full-text functions in WHERE remain rejected on non-STANDARD indices.
+        k8s().error(
+            "TS k8s | WHERE MATCH(event_log, \"fox\")",
+            allOf(containsString("[MATCH] function cannot operate on [event_log]"), containsString("non-STANDARD mode"))
+        );
+        k8s().error(
+            "TS k8s | WHERE event_log : \"fox\"",
+            allOf(containsString("cannot operate on [event_log]"), containsString("non-STANDARD mode"))
+        );
+        // A WHERE violation is still reported when a valid HIGHLIGHT on the same field is present.
+        supportsHighlight(k8s()).error(
+            "TS k8s | WHERE MATCH(event_log, \"fox\") | HIGHLIGHT MATCH(event_log, \"fox\") ON event_log",
+            allOf(containsString("[MATCH] function cannot operate on [event_log]"), containsString("non-STANDARD mode"))
+        );
+    }
+
     public void testHighlightAnalyzerOption() {
         supportsHighlight(defaultAnalyzer()).error(
             "FROM test | HIGHLIGHT \"search\" ON first_name WITH { \"analyzer\": \"not_a_real_analyzer\" }",

@@ -405,12 +405,13 @@ public final class GlobExpander {
                         walked = applyFileFiltersRetainingAnchor(walked, hints);
                     }
                     walked.sort(Comparator.comparing(e -> e.path().toString()));
-                    PartitionMetadata walkedMetadata = detectPartitions(walked, partitionConfig);
+                    List<String> walkNotices = new ArrayList<>();
+                    PartitionMetadata walkedMetadata = detectPartitions(walked, partitionConfig, walkNotices::add);
                     if (walkPruningProven(walk.prunedColumns(), walkedMetadata)) {
                         if (walkTypesConsistent(walk, walkedMetadata)) {
                             // Counted pre-_file.*-filter, as the flat path counts.
-                            List<String> walkWarnings = walk.excludedCount() > 0
-                                ? List.of(
+                            if (walk.excludedCount() > 0) {
+                                walkNotices.add(
                                     exclusionWarning(
                                         walk.excludedCount(),
                                         walk.matched().size(),
@@ -418,9 +419,9 @@ public final class GlobExpander {
                                         walk.excludedExample(),
                                         walk.excludedExampleEntry()
                                     )
-                                )
-                                : List.of();
-                            return new GenericFileList(walked, pattern, walkedMetadata, walkWarnings);
+                                );
+                            }
+                            return new GenericFileList(walked, pattern, walkedMetadata, walkNotices);
                         }
                         logger.debug(
                             "Walked listing of [{}] would narrow the type of non-pruned partition columns; re-listing flat",

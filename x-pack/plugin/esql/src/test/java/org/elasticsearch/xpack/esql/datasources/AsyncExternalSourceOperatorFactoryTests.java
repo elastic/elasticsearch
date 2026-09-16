@@ -4253,6 +4253,11 @@ public class AsyncExternalSourceOperatorFactoryTests extends ESTestCase {
         }
 
         @Override
+        public StorageChildren listChildren(StoragePath prefix, int limit) {
+            return null; // directory-aware listing is irrelevant to this test double
+        }
+
+        @Override
         public StorageIterator listObjects(StoragePath prefix, boolean recursive) {
             throw new UnsupportedOperationException();
         }

@@ -355,6 +355,39 @@ teardown:
   - match: { service_accounts.0.username: "batch/nightly_job" }
 
 ---
+"Test search_after without a sort or with mismatched sort values is rejected":
+  - do:
+      catch: bad_request
+      security.query_service_accounts:
+        body: >
+          {
+            "search_after": [ "apps/worker_1" ]
+          }
+  - match: { error.root_cause.0.type: illegal_argument_exception }
+  - match: { error.root_cause.0.reason: "Sort must contain at least one field." }
+
+  - do:
+      catch: bad_request
+      security.query_service_accounts:
+        body: >
+          {
+            "sort": ["username"],
+            "search_after": [ "apps/worker_1", true ]
+          }
+  - match: { error.root_cause.0.type: illegal_argument_exception }
+  - match: { error.root_cause.0.reason: "search_after has 2 value(s) but sort has 1." }
+
+  - do:
+      catch: bad_request
+      security.query_service_accounts:
+        body: >
+          {
+            "sort": ["enabled"],
+            "search_after": [ "not-a-boolean" ]
+          }
+  - match: { error.root_cause.0.type: illegal_argument_exception }
+
+---
 "Test query on a field or with a query type outside the allowlist is rejected":
   - do:
       catch: bad_request

@@ -937,8 +937,8 @@ public final class AstKeywordFieldRewriter {
                     && spanMatches(attr.source())) {
                     wrappedMatchFunctionArg = true;
                 }
-                // Heuristic to map variadic args to the last named param, or just skip if we don't care
-                // but IN and CONCAT can just cap at 1.
+                // Heuristic to map variadic args to the last named param, or just skip if we don't care.
+                // IN, CONCAT and JSON_STRING can just cap at 1.
                 // TODO use a `kind` marker for varargs somehow.
                 int argIndex = i;
                 if (expressionName != null) {
@@ -946,6 +946,9 @@ public final class AstKeywordFieldRewriter {
                         argIndex = 1;
                     }
                     if (expressionName.equals("IN") && argIndex > 1) {
+                        argIndex = 1;
+                    }
+                    if (expressionName.equals("JSON_STRING") && argIndex > 1) {
                         argIndex = 1;
                     }
                 }

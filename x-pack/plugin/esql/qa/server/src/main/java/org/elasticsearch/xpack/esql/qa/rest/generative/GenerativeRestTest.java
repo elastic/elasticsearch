@@ -7,6 +7,9 @@
 
 package org.elasticsearch.xpack.esql.qa.rest.generative;
 
+import com.carrotsearch.randomizedtesting.RandomizedContext;
+
+import org.elasticsearch.Build;
 import org.elasticsearch.client.Request;
 import org.elasticsearch.client.ResponseException;
 import org.elasticsearch.common.settings.Settings;
@@ -698,7 +701,7 @@ public abstract class GenerativeRestTest extends ESRestTestCase implements Query
             if (isAllowedFailure(new FailureContext(outputValidation.errorMessage(), result.query(), previousCommands, currentSchema))) {
                 return;
             }
-            fail("query: " + result.query() + "\nerror: " + outputValidation.errorMessage());
+            fail(failureReport(result.query(), outputValidation.errorMessage()));
         }
     }
 
@@ -710,7 +713,53 @@ public abstract class GenerativeRestTest extends ESRestTestCase implements Query
         if (isAllowedFailure(new FailureContext(query.exception().getMessage(), query.query(), previousCommands, currentSchema))) {
             return;
         }
-        fail("query: " + query.query() + "\nexception: " + query.exception().getMessage());
+        fail(failureReport(query.query(), query.exception().getMessage()));
+    }
+
+    /**
+     * The {@code Warnings: [...]} block {@link ResponseException} inserts between the request line and the
+     * response body.
+     */
+    private static final Pattern RESPONSE_WARNINGS = Pattern.compile("\nWarnings: \\[.*?]\n", Pattern.DOTALL);
+
+    /**
+     * Composes the message for a failing generated query, ordered so that a reader who only sees the start of it
+     * can still act.
+     *
+     * <p>Ordering is the whole point. These messages run to tens of kilobytes and are truncated by the time they
+     * reach a filed issue. {@link ResponseException} puts the response warnings ahead of the body, and for a query
+     * over a wildcard source those warnings are one deprecation notice per unmapped field; they have been measured
+     * at six kilobytes standing between the query and the error that explains it. They are moved to the end here.
+     *
+     * <p>The seed is reported next to the build hash because it only replays against the build that produced it:
+     * the generator and the dataset definitions change over time, so an old seed yields a different query and the
+     * original failure appears to vanish. The query is the record that survives; the seed is a shortcut for
+     * reproducing a failure on the commit it was found on.
+     */
+    protected String failureReport(String query, String error) {
+        String warnings = "";
+        Matcher matcher = RESPONSE_WARNINGS.matcher(error);
+        if (matcher.find()) {
+            warnings = matcher.group().strip();
+            error = matcher.replaceFirst("\n");
+        }
+
+        StringBuilder report = new StringBuilder("query: ").append(query);
+        report.append("\nfeatures: ").append(enabledFeatures());
+        String datasets = DatasetRegistry.registeredDatasetNames();
+        if (datasets.isEmpty() == false) {
+            report.append("\nregistered datasets: ").append(datasets);
+        }
+        report.append("\nreproduce with -Dtests.seed=")
+            .append(RandomizedContext.current().getRunnerSeedAsString())
+            .append(" on build ")
+            .append(Build.current().hash())
+            .append(" (a seed only reproduces on the build that generated it)");
+        report.append("\nerror: ").append(error);
+        if (warnings.isEmpty() == false) {
+            report.append("\n").append(warnings);
+        }
+        return report.toString();
     }
 
     /**

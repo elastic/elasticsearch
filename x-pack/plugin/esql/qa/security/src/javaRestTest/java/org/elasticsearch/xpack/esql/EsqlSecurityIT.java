@@ -1087,7 +1087,7 @@ public class EsqlSecurityIT extends ESRestTestCase {
     public void testFieldLevelSecurityFieldDeniedWithUnmappedFieldsLoadAll() throws Exception {
         assumeTrue(
             "Requires unmapped_fields=LOAD_ALL support",
-            hasCapabilities(adminClient(), List.of(EsqlCapabilities.Cap.OPTIONAL_FIELDS_LOAD_ALL.capabilityName()))
+            hasCapabilities(adminClient(), List.of(EsqlCapabilities.Cap.OPTIONAL_FIELDS_LOAD_ALL_V2.capabilityName()))
         );
         // Sorting on the unmapped salary keeps the row order stable for both users; the only mapped field is denied below.
         String query = "SET unmapped_fields=\"LOAD_ALL\"; FROM " + INDEX_PARTIAL_MAPPING + " | SORT salary | LIMIT 10";
@@ -2396,7 +2396,7 @@ public class EsqlSecurityIT extends ESRestTestCase {
         builder.endObject();
         builder.endObject();
         request.setJsonEntity(Strings.toString(builder));
-        setUser(request, "test-admin");
+        request.setOptions(runAsUserOptions("test-admin", WarningsHandler.PERMISSIVE));
         assertOK(client().performRequest(request));
     }
 
@@ -2490,7 +2490,7 @@ public class EsqlSecurityIT extends ESRestTestCase {
         builder.endObject();
         builder.endObject();
         request.setJsonEntity(Strings.toString(builder));
-        setUser(request, "ds_manage_datasource");
+        request.setOptions(runAsUserOptions("ds_manage_datasource", WarningsHandler.PERMISSIVE));
         assertOK(client().performRequest(request));
         Request delete = new Request("DELETE", "/_query/data_source/" + name);
         setUser(delete, "test-admin");

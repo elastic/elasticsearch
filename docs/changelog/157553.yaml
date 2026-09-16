@@ -1,6 +1,0 @@
-pr: 157553
-summary: Reject `COUNT_DISTINCT` precision thresholds outside the integer range
-area: ES|QL
-type: bug
-issues:
-  - 157549

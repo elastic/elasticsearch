@@ -134,6 +134,12 @@ MIID+jCCAuKgAwIBAgIGAJJMzlxLMA0GCSqGSIb3DQEBCwUAMHoxCzAJBgNVBAYT
 +
 *Note:* This configuration is applicable for `Outlook Server` only.
 
+Sync all mail folders::
+Indexes mail from all mailbox folders, not only Inbox, Sent, Junk, and Archive.
+Other folders are stored as `Mail` with `folder_name`; the four default folders keep their existing types.
+Default value is `false`.
+Introduced in 8.19.22.
+
 Document level security::
 Toggle to enable <<es-dls, Document level security (DLS)>>.
 When enabled:
@@ -156,6 +162,7 @@ The connector syncs the following objects and entities:
 ** *Sent Mails*
 ** *Archive Mails*
 ** *Junk Mails*
+** *Mail* (other folders when **Sync all mail folders** is enabled; includes `folder_name`)
 * *Contacts*
 * *Calendar Events*
 * *Tasks*
@@ -343,6 +350,12 @@ MIID+jCCAuKgAwIBAgIGAJJMzlxLMA0GCSqGSIb3DQEBCwUAMHoxCzAJBgNVBAYT
 Use <<es-connectors-content-extraction-data-extraction-service,self-hosted content extraction service>>.
 Default value is `False`.
 
+`sync_all_mail_folders`::
+Indexes mail from all mailbox folders, not only Inbox, Sent, Junk, and Archive.
+Other folders are stored as `Mail` with `folder_name`; the four default folders keep their existing types.
+Default value is `False`.
+Introduced in 8.19.22.
+
 `document_level_security`::
 Toggle to enable <<es-dls, Document level security (DLS)>>.
 When enabled:
@@ -372,6 +385,7 @@ The connector syncs the following objects and entities:
 ** *Sent Mails*
 ** *Archive Mails*
 ** *Junk Mails*
+** *Mail* (other folders when **Sync all mail folders** is enabled; includes `folder_name`)
 * *Contacts*
 * *Calendar Events*
 * *Tasks*

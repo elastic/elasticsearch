@@ -1857,8 +1857,17 @@ public class ObjectStoreService extends AbstractLifecycleComponent implements Cl
                 final BlobContainer container = blobContainer.get();
                 container.deleteBlobsIgnoringIfNotExists(OperationPurpose.TRANSLOG, toDeleteInThisTask.iterator());
                 // This is the path that reclaims translog during normal operation, so it decides which generations a later
-                // recovery can still reach. Listed rather than summarised as a range: the batch need not be contiguous.
-                logger.info(() -> format("deleted translog files %s from [%s]", toDeleteInThisTask, container.path()));
+                // recovery can still reach. Summarised rather than listed: a batch holds up to DELETE_BATCH_SIZE names, and
+                // the count tells a reader whether the range was contiguous.
+                logger.info(
+                    () -> format(
+                        "deleted [%d] translog files from [%s], generations [%d] to [%d]",
+                        toDeleteInThisTask.size(),
+                        container.path(),
+                        toDeleteInThisTask.stream().mapToLong(Long::parseLong).min().orElse(-1L),
+                        toDeleteInThisTask.stream().mapToLong(Long::parseLong).max().orElse(-1L)
+                    )
+                );
                 success = true;
             } finally {
                 if (success == false) {

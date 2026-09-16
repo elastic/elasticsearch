@@ -1,0 +1,5 @@
+area: Recovery
+issues: []
+pr: 159413
+summary: Log the sequence numbers of the recovery commit
+type: enhancement

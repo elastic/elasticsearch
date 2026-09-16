@@ -8,9 +8,12 @@ package org.elasticsearch.xpack.watcher.input.search;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.search.SearchType;
+import org.elasticsearch.action.search.TransportSearchAction;
+import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
@@ -82,49 +85,53 @@ public class ExecutableSearchInput extends ExecutableInput<SearchInput, SearchIn
 
         SearchRequest searchRequest = searchTemplateService.toSearchRequest(request);
         ClientHelper.assertNoAuthorizationHeader(ctx.watch().status().getHeaders());
+        // Use PlainActionFuture so the cleanup fires at actual search completion,
+        // not merely when actionGet(timeout) stops waiting.
+        PlainActionFuture<SearchResponse> future = new PlainActionFuture<>();
+        ClientHelper.executeWithHeadersAsync(
+            ctx.watch().status().getHeaders(),
+            ClientHelper.WATCHER_ORIGIN,
+            client,
+            TransportSearchAction.TYPE,
+            searchRequest,
+            ActionListener.runAfter(future, () -> {
+                if (searchRequest.source() != null) searchRequest.source().close();
+            })
+        );
+        final SearchResponse response = future.actionGet(timeout);
         try {
-            final SearchResponse response = ClientHelper.executeWithHeaders(
-                ctx.watch().status().getHeaders(),
-                ClientHelper.WATCHER_ORIGIN,
-                client,
-                () -> client.search(searchRequest).actionGet(timeout)
-            );
-            try {
-                if (logger.isDebugEnabled()) {
-                    logger.debug("[{}] found [{}] hits", ctx.id(), response.getHits().getTotalHits().value());
-                }
-
-                final Payload payload;
-                final Params params;
-                if (request.isRestTotalHitsAsint()) {
-                    params = new MapParams(Collections.singletonMap("rest_total_hits_as_int", "true"));
-                } else {
-                    params = EMPTY_PARAMS;
-                }
-                if (input.getExtractKeys() != null) {
-                    BytesReference bytes = XContentHelper.toXContent(response, XContentType.SMILE, params, false);
-                    // EMPTY is safe here because we never use namedObject
-                    try (
-                        XContentParser parser = XContentHelper.createParser(
-                            NamedXContentRegistry.EMPTY,
-                            LoggingDeprecationHandler.INSTANCE,
-                            bytes,
-                            XContentType.SMILE
-                        )
-                    ) {
-                        Map<String, Object> filteredKeys = XContentFilterKeysUtils.filterMapOrdered(input.getExtractKeys(), parser);
-                        payload = new Payload.Simple(filteredKeys);
-                    }
-                } else {
-                    payload = new Payload.XContent(response, params);
-                }
-
-                return new SearchInput.Result(request, payload);
-            } finally {
-                response.decRef();
+            if (logger.isDebugEnabled()) {
+                logger.debug("[{}] found [{}] hits", ctx.id(), response.getHits().getTotalHits().value());
             }
+
+            final Payload payload;
+            final Params params;
+            if (request.isRestTotalHitsAsint()) {
+                params = new MapParams(Collections.singletonMap("rest_total_hits_as_int", "true"));
+            } else {
+                params = EMPTY_PARAMS;
+            }
+            if (input.getExtractKeys() != null) {
+                BytesReference bytes = XContentHelper.toXContent(response, XContentType.SMILE, params, false);
+                // EMPTY is safe here because we never use namedObject
+                try (
+                    XContentParser parser = XContentHelper.createParser(
+                        NamedXContentRegistry.EMPTY,
+                        LoggingDeprecationHandler.INSTANCE,
+                        bytes,
+                        XContentType.SMILE
+                    )
+                ) {
+                    Map<String, Object> filteredKeys = XContentFilterKeysUtils.filterMapOrdered(input.getExtractKeys(), parser);
+                    payload = new Payload.Simple(filteredKeys);
+                }
+            } else {
+                payload = new Payload.XContent(response, params);
+            }
+
+            return new SearchInput.Result(request, payload);
         } finally {
-            if (searchRequest.source() != null) searchRequest.source().close();
+            response.decRef();
         }
     }
 }

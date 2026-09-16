@@ -7,9 +7,12 @@
 package org.elasticsearch.xpack.watcher.transform.search;
 
 import org.apache.logging.log4j.Logger;
+import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.search.SearchType;
+import org.elasticsearch.action.search.TransportSearchAction;
+import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.core.TimeValue;
@@ -56,26 +59,30 @@ public class ExecutableSearchTransform extends ExecutableTransform<SearchTransfo
             // We need to make a copy, so that we don't modify the original instance that we keep around in a watch:
             request = new WatcherSearchTemplateRequest(transform.getRequest(), new BytesArray(renderedTemplate));
             SearchRequest searchRequest = searchTemplateService.toSearchRequest(request);
+            // Use PlainActionFuture so the cleanup fires at actual search completion,
+            // not merely when actionGet(timeout) stops waiting.
+            PlainActionFuture<SearchResponse> future = new PlainActionFuture<>();
+            ClientHelper.executeWithHeadersAsync(
+                ctx.watch().status().getHeaders(),
+                ClientHelper.WATCHER_ORIGIN,
+                client,
+                TransportSearchAction.TYPE,
+                searchRequest,
+                ActionListener.runAfter(future, () -> {
+                    if (searchRequest.source() != null) searchRequest.source().close();
+                })
+            );
+            SearchResponse resp = future.actionGet(timeout);
             try {
-                SearchResponse resp = ClientHelper.executeWithHeaders(
-                    ctx.watch().status().getHeaders(),
-                    ClientHelper.WATCHER_ORIGIN,
-                    client,
-                    () -> client.search(searchRequest).actionGet(timeout)
-                );
-                try {
-                    final Params params;
-                    if (request.isRestTotalHitsAsint()) {
-                        params = new MapParams(Collections.singletonMap("rest_total_hits_as_int", "true"));
-                    } else {
-                        params = EMPTY_PARAMS;
-                    }
-                    return new SearchTransform.Result(request, new Payload.XContent(resp, params));
-                } finally {
-                    resp.decRef();
+                final Params params;
+                if (request.isRestTotalHitsAsint()) {
+                    params = new MapParams(Collections.singletonMap("rest_total_hits_as_int", "true"));
+                } else {
+                    params = EMPTY_PARAMS;
                 }
+                return new SearchTransform.Result(request, new Payload.XContent(resp, params));
             } finally {
-                if (searchRequest.source() != null) searchRequest.source().close();
+                resp.decRef();
             }
         } catch (Exception e) {
             logger.error(() -> format("failed to execute [%s] transform for [%s]", TYPE, ctx.id()), e);

@@ -486,6 +486,9 @@ public abstract class AbstractScalarFunctionTestCase extends AbstractFunctionTes
                 assertWarnings(testCase.getExpectedBuildEvaluatorWarnings());
             }
             if (testCase.getExpectedWarnings() != null) {
+                // Fold-time warnings go to HTTP response headers (plan-time channel). Functions that
+                // emit warnings during constant folding must use HeaderWarning.addWarning(...) so that
+                // assertWarnings() can find them here.
                 assertWarnings(testCase.getExpectedWarnings());
             }
         } else {

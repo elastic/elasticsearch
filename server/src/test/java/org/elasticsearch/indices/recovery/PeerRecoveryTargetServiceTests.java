@@ -12,6 +12,7 @@ package org.elasticsearch.indices.recovery;
 import org.apache.lucene.codecs.CodecUtil;
 import org.apache.lucene.index.CorruptIndexException;
 import org.apache.lucene.index.IndexFileNames;
+import org.apache.lucene.store.AlreadyClosedException;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.store.IOContext;
 import org.apache.lucene.store.IndexInput;
@@ -371,16 +372,12 @@ public class PeerRecoveryTargetServiceTests extends IndexShardTestCase {
             public void onRecoveryFailure(RecoveryFailedException e, FailureStrategy failureStrategy) {
                 future.onFailure(e);
             }
-
-            @Override
-            public void onRecoveryAborted() {
-                future.onResponse(null);
-            }
         });
         recoveryTarget.markAsDone();
 
         // The recovery fails because the post recovery step attempts to refresh the engine, but it is not open.
-        expectThrows(RecoveryFailedException.class, future::actionGet);
+        RecoveryFailedException recoveryFailedException = expectThrows(RecoveryFailedException.class, future::actionGet);
+        assertThat(recoveryFailedException.getRootCause(), instanceOf(AlreadyClosedException.class));
 
         closeShards(shard);
     }

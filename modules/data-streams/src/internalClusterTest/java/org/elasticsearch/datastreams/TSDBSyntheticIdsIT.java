@@ -744,7 +744,8 @@ public class TSDBSyntheticIdsIT extends ESIntegTestCase {
         for (var index : docsIndices) {
             var recoveryResponse = indicesAdmin().prepareRecoveries(index).get();
             assertThat(recoveryResponse.hasRecoveries(), equalTo(true));
-            for (var shardRecoveryState : recoveryResponse.shardRecoveryStates().get(index)) {
+            for (var recoveryInfo : recoveryResponse.shardRecoveryInfos().get(index)) {
+                var shardRecoveryState = recoveryInfo.recoveryState();
                 assertThat(shardRecoveryState.getStage(), equalTo(RecoveryState.Stage.DONE));
                 assertThat(shardRecoveryState.getTargetNode(), notNullValue());
                 assertThat(shardRecoveryState.getTargetNode().getName(), equalTo(targetNode));
@@ -941,7 +942,8 @@ public class TSDBSyntheticIdsIT extends ESIntegTestCase {
         // Check that operations were successfully recovered locally
         var recoveryResponse = indicesAdmin().prepareRecoveries(backingIndex).get();
         assertThat(recoveryResponse.hasRecoveries(), equalTo(true));
-        for (var shardRecoveryState : recoveryResponse.shardRecoveryStates().get(backingIndex)) {
+        for (var recoveryInfo : recoveryResponse.shardRecoveryInfos().get(backingIndex)) {
+            var shardRecoveryState = recoveryInfo.recoveryState();
             assertThat(shardRecoveryState.getStage(), equalTo(RecoveryState.Stage.DONE));
             assertThat(shardRecoveryState.getRecoverySource(), equalTo(RecoverySource.ExistingStoreRecoverySource.INSTANCE));
             assertThat((long) shardRecoveryState.getTranslog().totalOperationsOnStart(), equalTo(expectedRecoveredOperations));

@@ -11,6 +11,7 @@ package org.elasticsearch.benchmark.vector.scorer;
 
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.benchmark.internal.BenchmarkLogging;
+import org.elasticsearch.benchmark.vector.VectorizationInfo;
 import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.script.field.vectors.BinaryDenseVector;
 import org.elasticsearch.script.field.vectors.BitBinaryDenseVector;
@@ -57,6 +58,7 @@ public class VectorScorerDistanceFunctionBenchmark {
 
     static {
         BenchmarkLogging.configure();
+        VectorizationInfo.printOnce();
     }
 
     public enum VectorType {

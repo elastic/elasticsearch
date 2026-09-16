@@ -116,7 +116,8 @@ public class DatafeedJobBuilderTests extends ESTestCase {
             jobResultsPersister,
             Settings.EMPTY,
             clusterService,
-            CloudCredentialManager.Noop::new
+            CloudCredentialManager.Noop::new,
+            DatafeedSearchTelemetry.NOOP
         );
     }
 
@@ -220,7 +221,8 @@ public class DatafeedJobBuilderTests extends ESTestCase {
             jobResultsPersister,
             nonRemoteClusterClientNode(),
             clusterService,
-            CloudCredentialManager.Noop::new
+            CloudCredentialManager.Noop::new,
+            DatafeedSearchTelemetry.NOOP
         );
         DataDescription.Builder dataDescription = new DataDescription.Builder();
         dataDescription.setTimeField("time");

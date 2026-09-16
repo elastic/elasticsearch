@@ -8,6 +8,9 @@
 package org.elasticsearch.xpack.esql.datasources;
 
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.common.logging.DeprecationCategory;
+import org.elasticsearch.common.logging.DeprecationLogger;
+import org.elasticsearch.common.logging.HeaderWarning;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.core.IOUtils;
@@ -15,13 +18,17 @@ import org.elasticsearch.core.Nullable;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.util.Check;
 import org.elasticsearch.xpack.esql.datasources.cache.ExternalSourceCacheSettings;
+import org.elasticsearch.xpack.esql.datasources.cache.ReadConfigFingerprint;
 import org.elasticsearch.xpack.esql.datasources.cache.StorageProviderCache;
+import org.elasticsearch.xpack.esql.datasources.glob.ExclusionConfig;
+import org.elasticsearch.xpack.esql.datasources.glob.FileOrderConfig;
 import org.elasticsearch.xpack.esql.datasources.spi.ColumnExtractorAware;
 import org.elasticsearch.xpack.esql.datasources.spi.ConfigKeyValidator;
 import org.elasticsearch.xpack.esql.datasources.spi.Configured;
 import org.elasticsearch.xpack.esql.datasources.spi.ErrorPolicy;
 import org.elasticsearch.xpack.esql.datasources.spi.ExternalSourceFactory;
 import org.elasticsearch.xpack.esql.datasources.spi.ExternalSourceMetrics;
+import org.elasticsearch.xpack.esql.datasources.spi.FileDataSourceValidator;
 import org.elasticsearch.xpack.esql.datasources.spi.FileList;
 import org.elasticsearch.xpack.esql.datasources.spi.FilterPushdownSupport;
 import org.elasticsearch.xpack.esql.datasources.spi.FormatReader;
@@ -44,6 +51,7 @@ import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.Executor;
 import java.util.concurrent.ExecutorService;
+import java.util.function.Consumer;
 import java.util.function.Supplier;
 
 /**
@@ -57,6 +65,8 @@ import java.util.function.Supplier;
  */
 final class FileSourceFactory implements ExternalSourceFactory {
 
+    private static final DeprecationLogger deprecationLogger = DeprecationLogger.getLogger(FileSourceFactory.class);
+
     static final String CONFIG_FORMAT = "format";
 
     /**
@@ -64,8 +74,8 @@ final class FileSourceFactory implements ExternalSourceFactory {
      * Built from each component's own {@code CONFIG_KEYS} set so adding a new coordinator-level
      * configuration consumer requires updating only the consumer's own constant — the union here
      * picks it up automatically. Components contributing today: {@link ErrorPolicy},
-     * {@link FileSplitProvider}, {@link PartitionConfig}, the {@link #CONFIG_FORMAT} override read
-     * by this class, and the {@link FormatNameResolver#CONFIG_READER} override read by the
+     * {@link FileSplitProvider}, {@link PartitionConfig}, {@link FileOrderConfig}, the {@link #CONFIG_FORMAT}
+     * override read by this class, and the {@link FormatNameResolver#CONFIG_READER} override read by the
      * format-name resolver.
      */
     static final Set<String> COORDINATOR_KEYS;
@@ -81,6 +91,16 @@ final class FileSourceFactory implements ExternalSourceFactory {
      */
     static final Set<String> EXTERNAL_ONLY_KEYS = Set.of(FormatNameResolver.CONFIG_READER);
 
+    /**
+     * Handles existing problematic dataset configurations: before {@code schema_sample_size} became
+     * format-scoped at PUT time, it could be registered on any dataset (e.g. Parquet) and is still stored
+     * in cluster state. When such a stored key reaches a reader that does not consume it, it is ignored
+     * with a warning instead of failing the query as an "unknown option". Applied to every query, because
+     * nothing reliably marks a config as dataset-originated (the {@code _datasource} envelope is absent
+     * when the parent data source has no settings).
+     */
+    static final Set<String> LEGACY_VOCABULARY_KEYS = Set.of(FileDataSourceValidator.SCHEMA_SAMPLE_SIZE);
+
     static {
         Set<String> keys = new HashSet<>();
         keys.add(CONFIG_FORMAT);
@@ -89,6 +109,8 @@ final class FileSourceFactory implements ExternalSourceFactory {
         keys.addAll(FileSplitProvider.CONFIG_KEYS);
         keys.addAll(ExternalSourceResolver.CONFIG_KEYS);
         keys.addAll(PartitionConfig.CONFIG_KEYS);
+        keys.addAll(ExclusionConfig.CONFIG_KEYS);
+        keys.addAll(FileOrderConfig.CONFIG_KEYS);
         COORDINATOR_KEYS = Set.copyOf(keys);
     }
 
@@ -96,6 +118,12 @@ final class FileSourceFactory implements ExternalSourceFactory {
     private final FormatReaderRegistry formatRegistry;
     private final DecompressionCodecRegistry codecRegistry;
     private final Settings settings;
+    /**
+     * Executor for Phase-2 split discovery (Parquet/ORC footer fan-out and record-boundary probes).
+     * Production wires {@code esql_external_io}; tests may pass {@code null} and fall back to serial
+     * discovery on the calling thread. Must not be {@code SEARCH} or {@code GENERIC}: those pools must
+     * not issue object-store GETs, and {@code esql_external_io} must not join its own work.
+     */
     @Nullable
     private final ExecutorService splitDiscoveryExecutor;
     /**
@@ -276,10 +304,36 @@ final class FileSourceFactory implements ExternalSourceFactory {
 
     @Override
     public void validateConfig(String location, Map<String, Object> config) {
+        // Direct callers run on a request thread, where HeaderWarning targets the caller's own
+        // ThreadContext. The resolver calls the sink variant instead — it validates on the
+        // metadata-read executor, where a direct HeaderWarning call would never reach the client.
+        validateConfig(location, config, HeaderWarning::addWarning);
+    }
+
+    @Override
+    public void validateConfig(String location, Map<String, Object> config, Consumer<String> warningSink) {
         // Gate file:// reads at planning time so the failure is clean and pre-execution.
         // This check runs before the empty-config early-return so bare file:// reads (no WITH clause)
         // are also validated — resolveMetadata calls validateConfig first, covering both paths.
         localFileAccess.check(location);
+        if (config != null) {
+            Object hivePartitioningValue = config.get(PartitionConfig.CONFIG_PARTITIONING_HIVE);
+            if (hivePartitioningValue != null) {
+                if ("false".equalsIgnoreCase(hivePartitioningValue.toString())) {
+                    deprecationLogger.warn(
+                        DeprecationCategory.API,
+                        FileDataSourceValidator.HIVE_PARTITIONING_FALSE_DEPRECATION_KEY,
+                        FileDataSourceValidator.HIVE_PARTITIONING_FALSE_DEPRECATION_MESSAGE
+                    );
+                } else {
+                    deprecationLogger.warn(
+                        DeprecationCategory.API,
+                        FileDataSourceValidator.HIVE_PARTITIONING_NOOP_DEPRECATION_KEY,
+                        FileDataSourceValidator.HIVE_PARTITIONING_NOOP_DEPRECATION_MESSAGE
+                    );
+                }
+            }
+        }
         if (config == null || config.isEmpty()) {
             return;
         }
@@ -293,7 +347,22 @@ final class FileSourceFactory implements ExternalSourceFactory {
             Configured<FormatReader> resolvedReader = resolveFormatReader(storagePath.objectName(), config).withConfigTrackingConsumedKeys(
                 config
             );
-            ConfigKeyValidator.check(config, List.of(resolvedStorage.consumedKeys(), resolvedReader.consumedKeys(), COORDINATOR_KEYS));
+            ConfigKeyValidator.check(
+                config,
+                List.of(resolvedStorage.consumedKeys(), resolvedReader.consumedKeys(), COORDINATOR_KEYS, LEGACY_VOCABULARY_KEYS)
+            );
+            // Consume-and-warn: a legacy key the reader does not consume does nothing, and the user must be
+            // told. The message goes through the sink, not HeaderWarning directly — the resolver runs this
+            // on its metadata-read executor and flushes the sink under the restored request context.
+            // Identical warnings from per-file re-validation dedupe in the thread context at flush time.
+            for (String key : LEGACY_VOCABULARY_KEYS) {
+                if (config.containsKey(key) && resolvedReader.consumedKeys().contains(key) == false) {
+                    warningSink.accept(
+                        FileDataSourceValidator.notSupportedByFormatError(key, resolvedReader.value().formatName()) + "; ignored"
+                    );
+                }
+            }
+            FileOrderConfig.validate(config);
         } finally {
             StorageProviderCache.closeLease(resolvedStorage.value());
         }
@@ -344,6 +413,7 @@ final class FileSourceFactory implements ExternalSourceFactory {
         @Nullable ListingHint hint,
         Map<String, Object> config,
         Executor executor,
+        Consumer<String> warningSink,
         ActionListener<SourceMetadata> listener
     ) {
         final StorageObject storageObject;
@@ -354,7 +424,7 @@ final class FileSourceFactory implements ExternalSourceFactory {
         try {
             // Reject unknown configuration keys before any provider/reader work — same single source
             // of truth as the synchronous resolveMetadata path.
-            validateConfig(location, config);
+            validateConfig(location, config, warningSink);
             StoragePath storagePath = StoragePath.of(location);
             String scheme = storagePath.scheme();
 
@@ -471,7 +541,19 @@ final class FileSourceFactory implements ExternalSourceFactory {
                     partitionValues = fileSplit.partitionValues();
                 }
 
+                // Whether this read drops whole rows on a coercion failure. The plan already accounted for it:
+                // PushFiltersToSource withheld the pushdown for readers that cannot drop rows once filtered, and
+                // InsertExternalFieldExtraction skipped the extract exec. Recomputed here (rather than trusted from
+                // the plan) so the factory's own deferred-extraction decision cannot drift from the rule's — both
+                // resolve the policy against the same reader default via ErrorPolicy.forReader.
+                boolean dropsRowsOnCoercionFailure = context.declaredReadSpec().dropsRowsOnCoercionFailure(errorPolicy);
+
                 List<Expression> pushedExpressions = context.pushedExpressions();
+                // Note: this only controls the per-file re-mint in AsyncExternalSourceOperatorFactory#readerForFile
+                // (schema-drifted files whose ColumnMapping needs the predicate adapted). It does NOT control whether
+                // the reader sees a pushed filter at all — that rides withPushedFilter above, straight off the plan.
+                // Suppressing it here would strand a drifted file with an un-adapted predicate, so it stays keyed on
+                // the pushed expressions alone.
                 FilterPushdownSupport pushdownSupport = (pushedExpressions != null && pushedExpressions.isEmpty() == false)
                     ? format.filterPushdownSupport()
                     : null;
@@ -503,7 +585,12 @@ final class FileSourceFactory implements ExternalSourceFactory {
                 // projection is NOT a valid signal on its own — InjectRowPositionForExternalId also
                 // injects it for plain _id composition, where enabling deferred mode would create a
                 // SourceExtractors registry no extract operator ever closes.
-                boolean deferredExtraction = format instanceof ColumnExtractorAware && context.deferredExtraction();
+                // Additionally, deferred extraction is disabled when skip_row is active with declared-type
+                // coercion columns: the extractor runs after the page shape is fixed and cannot drop rows
+                // that fail coercion; the columnar iterator must do the filtering at emit time instead.
+                boolean deferredExtraction = format instanceof ColumnExtractorAware
+                    && context.deferredExtraction()
+                    && dropsRowsOnCoercionFailure == false;
 
                 AsyncExternalSourceOperatorFactory built = AsyncExternalSourceOperatorFactory.builder(
                     storage,
@@ -542,6 +629,12 @@ final class FileSourceFactory implements ExternalSourceFactory {
                     .datasetName(context.datasetName())
                     // Declared `path` renames, applied to reader-facing names (projection + read schema) at the last mile.
                     .renames(context.declaredReadSpec().renames())
+                    // How a file's bytes get interpreted, bound to this query's declaration and applied per file by
+                    // the operator factory. Computed here because the declared spec lives here; derived rather than
+                    // shipped, so both sides reach the same value from what the coordinator already minted.
+                    .readConfigFingerprinter(schema -> ReadConfigFingerprint.of(schema, context.declaredReadSpec()))
+                    // For the split-less rails, which read one whole file and so have no per-split schema.
+                    .unifiedReadSchema(context.unifiedSchema() == null ? null : context.unifiedSchema().attributes())
                     // Declared _id.path (logical column name): stamps _id from that column instead of the synthetic id.
                     .idPath(context.declaredReadSpec().idPath())
                     // Single-file producer paths (sync-wrapper, native-async) carry no per-file mtime
@@ -616,10 +709,10 @@ final class FileSourceFactory implements ExternalSourceFactory {
         return physical;
     }
 
-    /** Delegates to {@link ErrorPolicy#fromConfig(Map, ErrorPolicy)} with the format's default
-     *  policy as the fallback. Kept here so existing call sites and tests do not have to change. */
+    /** Delegates to {@link ErrorPolicy#forReader(Map, FormatReader)}, the one resolution the plan-time rules use too.
+     *  Kept here so existing call sites and tests do not have to change. */
     static ErrorPolicy resolveErrorPolicy(Map<String, Object> config, FormatReader format) {
-        return ErrorPolicy.fromConfig(config, format.defaultErrorPolicy());
+        return ErrorPolicy.forReader(config, format);
     }
 
     private FormatReader resolveFormatReader(String objectName, Map<String, Object> config) {

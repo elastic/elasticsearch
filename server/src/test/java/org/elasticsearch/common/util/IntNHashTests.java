@@ -9,13 +9,18 @@
 
 package org.elasticsearch.common.util;
 
+import org.elasticsearch.common.breaker.CircuitBreaker;
+import org.elasticsearch.common.breaker.CircuitBreakingException;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.Releasables;
+import org.elasticsearch.indices.CrankyCircuitBreakerService;
 import org.elasticsearch.indices.breaker.NoneCircuitBreakerService;
 import org.elasticsearch.test.ESTestCase;
 
+import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 
 import static org.hamcrest.Matchers.equalTo;
@@ -23,6 +28,44 @@ import static org.hamcrest.Matchers.equalTo;
 public class IntNHashTests extends ESTestCase {
     private BigArrays randombigArrays() {
         return new MockBigArrays(new MockPageCacheRecycler(Settings.EMPTY), new NoneCircuitBreakerService());
+    }
+
+    public void testAddDiscardsKeyRefusedByCircuitBreaker() {
+        // set() claims the slot before append() stores the keys, and append() grows the key array, so a refusal
+        // there leaves a slot pointing at an id whose keys were never written.
+        CrankyCircuitBreakerService breakerService = new CrankyCircuitBreakerService();
+        BigArrays bigArrays = new MockBigArrays(new MockPageCacheRecycler(Settings.EMPTY), breakerService, true);
+        int keySize = between(1, 4);
+        // Only the adds that grow allocate, so a single pass can see no trip at all, and here the damage is
+        // usually silent as well: a slot left claiming an id whose keys were never written still answers lookups
+        // correctly once a later key takes that id. Many short passes are needed to land an observable one.
+        for (int attempt = 0; attempt < 1500; attempt++) {
+            List<int[]> expected = new ArrayList<>();
+            try (IntNHash hash = new IntNHash(1, keySize, bigArrays)) {
+                for (int key = 0; key < 300; key++) {
+                    int[] keys = new int[keySize];
+                    for (int k = 0; k < keySize; k++) {
+                        keys[k] = key + k;
+                    }
+                    try {
+                        assertThat(hash.add(keys), equalTo((long) expected.size()));
+                        expected.add(keys);
+                    } catch (CircuitBreakingException e) {
+                        // the key must be rejected outright, leaving the hash exactly as it was
+                        assertThat(e.getMessage(), equalTo(CrankyCircuitBreakerService.ERROR_MESSAGE));
+                    }
+                }
+                assertThat(hash.size(), equalTo((long) expected.size()));
+                for (int i = 0; i < expected.size(); i++) {
+                    assertThat(hash.getKeys(i), equalTo(expected.get(i)));
+                    assertThat(hash.find(expected.get(i)), equalTo((long) i));
+                }
+            } catch (CircuitBreakingException e) {
+                // constructing the hash can trip too, which leaves nothing to verify on this pass
+                assertThat(e.getMessage(), equalTo(CrankyCircuitBreakerService.ERROR_MESSAGE));
+            }
+        }
+        assertThat(breakerService.getBreaker(CircuitBreaker.REQUEST).getUsed(), equalTo(0L));
     }
 
     public void test1Key() {

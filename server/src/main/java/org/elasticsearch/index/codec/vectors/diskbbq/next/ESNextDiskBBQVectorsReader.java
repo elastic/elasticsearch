@@ -100,7 +100,8 @@ public class ESNextDiskBBQVectorsReader extends IVFVectorsReader<ESNextDiskBBQVe
         int size = values.size();
         assert esAcceptDocs == null
             || entry.numSlices >= 0 && esAcceptDocs.sliceOrd() >= 0
-            || entry.numSlices == -1 && esAcceptDocs.sliceOrd() == -1;
+            || entry.numSlices == -1 && esAcceptDocs.sliceOrd() == -1
+            : "slice ordinal [" + esAcceptDocs.sliceOrd() + "] does not match segment slice layout [" + entry.numSlices + "]";
         if (entry.numSlices > 0) {
             long fp = centroidSlice.getFilePointer();
             final int bitsRequired = DirectWriter.bitsRequired(entry.maxSliceSize);
@@ -496,13 +497,16 @@ public class ESNextDiskBBQVectorsReader extends IVFVectorsReader<ESNextDiskBBQVe
             // Uses SlicedMemorySegmentPostingsVisitor which handles the flat posting list format.
             int startDoc;
             int endDoc;
-            if (acceptDocs instanceof ESAcceptDocs esAccept && esAccept.sliceAcceptDocs() != null) {
-                ESAcceptDocs.SliceAcceptDocs sliceAcceptDocs = esAccept.sliceAcceptDocs();
-                startDoc = sliceAcceptDocs.startDoc();
-                endDoc = sliceAcceptDocs.endDoc();
-            } else {
+            if (acceptDocs == null) {
+                // Plain Lucene AcceptDocs (e.g. CheckIndex) carry no slice information: search the whole segment.
                 startDoc = 0;
                 endDoc = values.ordToDoc(values.size() - 1) + 1;
+            } else {
+                // Sliced segments are only ever searched by sliced queries, which always carry a slice ordinal.
+                assert acceptDocs.sliceOrd() >= 0 : "sliced segment searched without a slice ordinal";
+                ESAcceptDocs.SliceAcceptDocs sliceAcceptDocs = acceptDocs.sliceAcceptDocs();
+                startDoc = sliceAcceptDocs.startDoc();
+                endDoc = sliceAcceptDocs.endDoc();
             }
             return new SlicedMemorySegmentPostingsVisitor(
                 queryQuantizer,
@@ -619,6 +623,27 @@ public class ESNextDiskBBQVectorsReader extends IVFVectorsReader<ESNextDiskBBQVe
     public Map<String, Long> getOffHeapByteSize(FieldInfo fieldInfo) {
         // TODO: override if adding new files
         return super.getOffHeapByteSize(fieldInfo);
+    }
+
+    /**
+     * Calls {@link #getPostingVisitor} directly for a named float-vector field, bypassing
+     * {@link #getNumberOfVectors} and its assertion. Used in tests to exercise the
+     * {@code acceptDocs} handling in the {@code numSlices == 0} branch in isolation.
+     */
+    // package-private for testing
+    PostingVisitor getPostingVisitorForTest(String field, float[] query, ESAcceptDocs acceptDocs) throws IOException {
+        FieldInfo fieldInfo = fieldInfos.fieldInfo(field);
+        NextFieldEntry entry = fields.get(fieldInfo.number);
+        KnnVectorValues values = getFloatVectorValues(field);
+        return getPostingVisitor(
+            fieldInfo,
+            values,
+            entry.postingListSlice(ivfClusters.clone()),
+            new QueryTarget.FloatQuery(query),
+            null,
+            entry.centroidSlice(ivfCentroids.clone()),
+            acceptDocs
+        );
     }
 
     private static class SlicedMemorySegmentPostingsVisitor extends MemorySegmentPostingsVisitor {

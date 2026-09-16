@@ -1,6 +1,6 @@
 // Native-multi-value external-format coverage. The pre-PR external-basic.csv-spec ran these queries
 // against {{employees}} for every external-format IT — Parquet (repetition-level decoding), ORC (list
-// columns), NDJSON (JSON arrays), Parquet-rs, and ExternalDistributedSpecIT on multi-node. After the
+// columns), NDJSON (JSON arrays), and ExternalDistributedSpecIT on multi-node. After the
 // multi_value_syntax default flip those queries moved to csv-multivalue.csv-spec with an explicit
 // "brackets" opt-in, which only works for the CSV reader. Non-CSV/TSV readers reject the unknown
 // `multi_value_syntax` key (ConfigKeyValidator), so this spec carries the SAME queries WITHOUT the

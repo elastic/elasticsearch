@@ -18,7 +18,6 @@ import org.elasticsearch.common.Explicit;
 import org.elasticsearch.common.compress.CompressedXContent;
 import org.elasticsearch.common.regex.Regex;
 import org.elasticsearch.core.Nullable;
-import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.IndexVersions;
@@ -774,7 +773,7 @@ public final class DocumentParser {
                 context.getOffSetContext().maybeRecordEmptyArray(mapper.getOffsetFieldName());
             } else if (mapper.storesArrayValuesInOrder()) {
                 // In-order values live in the field's own binary doc-values column, so the field name is just its full path.
-                MultiValuedBinaryDocValuesField.ArrayOrderInlineNull.recordEmptyArray(context.doc(), mapper.fullPath());
+                mapper.recordEmptyArrayInOrder(context.doc());
             }
         }
         postProcessDynamicArrayMapping(context, lastFieldName, valueElements);
@@ -785,7 +784,7 @@ public final class DocumentParser {
      */
     private static void postProcessDynamicArrayMapping(DocumentParserContext context, String fieldName, int arraySize) {
         // cheap/free early return checks
-        final int minDims = context.indexSettings().getMode() == IndexMode.VECTORDB_DOCUMENT
+        final int minDims = context.indexSettings().getMode().isVectorDb()
             ? MIN_DIMS_FOR_DYNAMIC_FLOAT_MAPPING_VECTORDB
             : MIN_DIMS_FOR_DYNAMIC_FLOAT_MAPPING;
         if (arraySize < minDims

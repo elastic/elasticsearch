@@ -103,8 +103,9 @@ public final class LongHash extends AbstractHash implements LongHashTable {
     public long add(long key) {
         if (size >= maxSize) {
             assert size == maxSize;
+            keys = bigArrays.resize(keys, maxSizeAfterGrow());
             grow();
-            keys = bigArrays.resize(keys, maxSize);
+            assert keys.size() >= maxSize;
         }
         assert size < maxSize;
         return set(key, size);

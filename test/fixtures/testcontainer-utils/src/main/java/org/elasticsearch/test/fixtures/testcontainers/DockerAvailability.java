@@ -114,8 +114,9 @@ public class DockerAvailability {
             try {
                 return Files.readAllLines(exclusionsFile.toPath())
                     .stream()
+                    .map(line -> line.contains("#") ? line.substring(0, line.indexOf('#')) : line)
                     .map(String::trim)
-                    .filter(line -> (line.isEmpty() || line.startsWith("#")) == false)
+                    .filter(line -> line.isEmpty() == false)
                     .collect(Collectors.toList());
             } catch (IOException e) {
                 throw new RuntimeException("Failed to read " + exclusionsFile.getAbsolutePath(), e);

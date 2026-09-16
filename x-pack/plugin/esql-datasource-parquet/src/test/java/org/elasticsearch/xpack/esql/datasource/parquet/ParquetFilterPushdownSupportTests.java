@@ -1073,6 +1073,120 @@ public class ParquetFilterPushdownSupportTests extends ESTestCase {
         assertEquals(FilterPushdownSupport.Pushability.NO, support.canPush(filter));
     }
 
+    public void testMixedDateComparisonNotPushed() {
+        Attribute nanos = attr("ts", DataType.DATE_NANOS);
+        assertEquals(
+            FilterPushdownSupport.Pushability.NO,
+            support.canPush(new Equals(Source.EMPTY, nanos, datetimeLit(1_700_000_000_000L), null))
+        );
+        assertEquals(
+            FilterPushdownSupport.Pushability.NO,
+            support.canPush(new Equals(Source.EMPTY, attr("ts", DataType.DATETIME), dateNanosLit(1_700_000_000_000_000_000L), null))
+        );
+    }
+
+    public void testMixedDateInNotPushed() {
+        Attribute nanos = attr("ts", DataType.DATE_NANOS);
+        Expression filter = new In(Source.EMPTY, nanos, List.of(datetimeLit(1_000L), datetimeLit(2_000L)));
+        assertEquals(FilterPushdownSupport.Pushability.NO, support.canPush(filter));
+        Expression reverse = new In(Source.EMPTY, attr("ts", DataType.DATETIME), List.of(dateNanosLit(1_000L), dateNanosLit(2_000L)));
+        assertEquals(FilterPushdownSupport.Pushability.NO, support.canPush(reverse));
+    }
+
+    public void testMixedDateRangeNotPushed() {
+        Attribute nanos = attr("ts", DataType.DATE_NANOS);
+        Expression filter = new Range(Source.EMPTY, nanos, datetimeLit(1_000L), true, datetimeLit(2_000L), true, ZoneOffset.UTC);
+        assertEquals(FilterPushdownSupport.Pushability.NO, support.canPush(filter));
+        Attribute date = attr("ts", DataType.DATETIME);
+        Expression reverse = new Range(Source.EMPTY, date, dateNanosLit(1_000L), true, dateNanosLit(2_000L), true, ZoneOffset.UTC);
+        assertEquals(FilterPushdownSupport.Pushability.NO, support.canPush(reverse));
+    }
+
+    public void testMixedNumericComparisonInAndRangeNotPushed() {
+        Attribute id = attr("id", DataType.INTEGER);
+        assertEquals(FilterPushdownSupport.Pushability.NO, support.canPush(new LessThan(Source.EMPTY, id, doubleLit(5.5), null)));
+        assertEquals(FilterPushdownSupport.Pushability.NO, support.canPush(new In(Source.EMPTY, id, List.of(doubleLit(5.5)))));
+        assertEquals(
+            FilterPushdownSupport.Pushability.NO,
+            support.canPush(new Range(Source.EMPTY, id, intLit(0), true, doubleLit(5.5), true, ZoneOffset.UTC))
+        );
+    }
+
+    public void testMatchingTemporalAndNumericStillRecheck() {
+        assertEquals(
+            FilterPushdownSupport.Pushability.RECHECK,
+            support.canPush(new Equals(Source.EMPTY, attr("ts", DataType.DATETIME), datetimeLit(1_700_000_000_000L), null))
+        );
+        assertEquals(
+            FilterPushdownSupport.Pushability.RECHECK,
+            support.canPush(new Equals(Source.EMPTY, attr("ts", DataType.DATE_NANOS), dateNanosLit(1_700_000_000_000_000_000L), null))
+        );
+        assertEquals(
+            FilterPushdownSupport.Pushability.RECHECK,
+            support.canPush(new Equals(Source.EMPTY, attr("id", DataType.INTEGER), intLit(42), null))
+        );
+        assertEquals(FilterPushdownSupport.Pushability.RECHECK, support.canPush(new IsNull(Source.EMPTY, attr("ts", DataType.DATE_NANOS))));
+        assertEquals(FilterPushdownSupport.Pushability.RECHECK, support.canPush(new IsNotNull(Source.EMPTY, attr("id", DataType.INTEGER))));
+    }
+
+    public void testNestedMixedDateOrAndNotAttached() {
+        Attribute ts = attr("ts", DataType.DATE_NANOS);
+        Attribute id = attr("id", DataType.INTEGER);
+        Attribute other = attr("other", DataType.INTEGER);
+        Expression mixed = new Equals(Source.EMPTY, ts, datetimeLit(1_700_000_000_000L), null);
+        Expression intEq = new Equals(Source.EMPTY, id, intLit(1), null);
+        Expression otherEq = new Equals(Source.EMPTY, other, intLit(2), null);
+        Expression filter = new Or(Source.EMPTY, new And(Source.EMPTY, mixed, intEq), otherEq);
+        assertEquals(FilterPushdownSupport.Pushability.NO, support.canPush(filter));
+        assertFalse(support.pushFilters(List.of(filter)).hasPushedFilter());
+    }
+
+    public void testNestedMixedDateNotAndNotAttached() {
+        Attribute ts = attr("ts", DataType.DATE_NANOS);
+        Attribute id = attr("id", DataType.INTEGER);
+        Expression mixed = new Equals(Source.EMPTY, ts, datetimeLit(1_700_000_000_000L), null);
+        Expression intEq = new Equals(Source.EMPTY, id, intLit(1), null);
+        Expression filter = new Not(Source.EMPTY, new And(Source.EMPTY, mixed, intEq));
+        assertEquals(FilterPushdownSupport.Pushability.NO, support.canPush(filter));
+        assertFalse(support.pushFilters(List.of(filter)).hasPushedFilter());
+    }
+
+    public void testNestedMixedDateInOrAndNotAttached() {
+        Attribute ts = attr("ts", DataType.DATE_NANOS);
+        Attribute id = attr("id", DataType.INTEGER);
+        Attribute other = attr("other", DataType.INTEGER);
+        Expression mixedIn = new In(Source.EMPTY, ts, List.of(datetimeLit(1_700_000_000_000L)));
+        Expression intEq = new Equals(Source.EMPTY, id, intLit(1), null);
+        Expression otherEq = new Equals(Source.EMPTY, other, intLit(2), null);
+        Expression filter = new Or(Source.EMPTY, new And(Source.EMPTY, mixedIn, intEq), otherEq);
+        assertEquals(FilterPushdownSupport.Pushability.NO, support.canPush(filter));
+        assertFalse(support.pushFilters(List.of(filter)).hasPushedFilter());
+    }
+
+    public void testNestedMixedNumericOrAndNotAttached() {
+        Attribute id = attr("id", DataType.INTEGER);
+        Attribute other = attr("other", DataType.INTEGER);
+        Expression mixed = new LessThan(Source.EMPTY, id, doubleLit(5.5), null);
+        Expression otherEq = new Equals(Source.EMPTY, other, intLit(2), null);
+        Expression filter = new Or(Source.EMPTY, new And(Source.EMPTY, mixed, otherEq), otherEq);
+        assertEquals(FilterPushdownSupport.Pushability.NO, support.canPush(filter));
+        assertFalse(support.pushFilters(List.of(filter)).hasPushedFilter());
+    }
+
+    public void testColumnColumnDateAndIntegerStillPushesInteger() {
+        Attribute dateCol = attr("ts", DataType.DATETIME);
+        Attribute nanosCol = attr("ts2", DataType.DATE_NANOS);
+        Attribute id = attr("id", DataType.INTEGER);
+        Expression colCol = new Equals(Source.EMPTY, dateCol, nanosCol, null);
+        Expression intEq = new Equals(Source.EMPTY, id, intLit(1), null);
+        FilterPushdownSupport.PushdownResult result = support.pushFilters(List.of(colCol, intEq));
+        assertTrue(result.hasPushedFilter());
+        assertTrue(result.pushedExpressions().contains(intEq));
+        assertFalse(result.pushedExpressions().contains(colCol));
+        assertTrue(result.remainder().contains(colCol));
+        assertTrue(result.remainder().contains(intEq));
+    }
+
     // --- helpers ---
 
     private static Attribute attr(String name, DataType type) {
@@ -1105,5 +1219,9 @@ public class ParquetFilterPushdownSupportTests extends ESTestCase {
 
     private static Literal datetimeLit(long millis) {
         return new Literal(Source.EMPTY, millis, DataType.DATETIME);
+    }
+
+    private static Literal dateNanosLit(long nanos) {
+        return new Literal(Source.EMPTY, nanos, DataType.DATE_NANOS);
     }
 }

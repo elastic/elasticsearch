@@ -53,11 +53,7 @@ public abstract class AbstractBaseReindexRestHandler<
             params.put(BulkByPaginatedSearchTask.Status.INCLUDE_CREATED, Boolean.toString(includeCreated));
             params.put(BulkByPaginatedSearchTask.Status.INCLUDE_UPDATED, Boolean.toString(includeUpdated));
 
-            return channel -> client.executeLocally(
-                action,
-                internal,
-                new BulkIndexByPaginatedSearchResponseContentListener(channel, params)
-            );
+            return channel -> client.execute(action, internal, new BulkIndexByPaginatedSearchResponseContentListener(channel, params));
         } else {
             internal.setShouldStoreResult(true);
         }
@@ -72,7 +68,7 @@ public abstract class AbstractBaseReindexRestHandler<
             throw validationException;
         }
         final var responseListener = new SubscribableListener<BulkByPaginatedSearchResponse>();
-        final var task = client.executeLocally(action, internal, responseListener);
+        final var task = client.executeAndReturnTask(action, internal, responseListener);
         responseListener.addListener(new LoggingReindexTaskListener(task));
         return sendTask(client.getLocalNodeId(), task);
     }

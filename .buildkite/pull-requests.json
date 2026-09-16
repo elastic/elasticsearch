@@ -19,7 +19,7 @@
       "trigger_comment_regex": "^(buildkite|@elastic(search)?machine) test this$",
       "cancel_intermediate_builds": true,
       "cancel_intermediate_builds_on_comment": false,
-      "merge_upstream_before_trigger": true
+      "merge_upstream_before_trigger": false
     },
     {
       "enabled": true,

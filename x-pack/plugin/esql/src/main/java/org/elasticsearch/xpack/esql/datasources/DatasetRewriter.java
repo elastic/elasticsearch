@@ -273,7 +273,7 @@ public final class DatasetRewriter {
         Set<String> nonDatasetNamesList = resolution.nonDatasetNames();
 
         // One rail for every FROM shape — dataset-only and heterogeneous (index + dataset). The non-remotable-abstraction
-        // CPS rule (a remote view fails, a remote dataset is invisible, and a remote index of the same name reads) must
+        // CPS rule (a remote view is invisible, a remote dataset is invisible, and a remote index of the same name reads) must
         // hold uniformly, so the cross-project siblings below are appended regardless of whether the FROM also names
         // local indices. Keeping the two shapes on one path is what stops them drifting.
         List<LogicalPlan> children = new ArrayList<>();
@@ -284,7 +284,7 @@ public final class DatasetRewriter {
         // Index branch: the concrete local non-dataset names plus, under cross-project, any preserved positive
         // wildcards — joined into one UnresolvedRelation so the resolver dedups a local index matched by both a
         // concrete name and a wildcard (no double read) and the wildcard's remote half reaches field-caps (closing
-        // #151977's dropped-remote-wildcard gap). A remote view the wildcard matches still fails there; a remote dataset
+        // #151977's dropped-remote-wildcard gap). A remote view the wildcard matches is ignored; a remote dataset
         // is not matched at all. METADATA fields ride along so _index/_id resolve on the index rows.
         List<String> indexBranch = new ArrayList<>(nonDatasetNamesList);
         if (crossProjectEnabled) {
@@ -319,7 +319,7 @@ public final class DatasetRewriter {
         }
 
         // CPS: an exact (non-wildcard) dataset name has no wildcard to re-emit, so its remote half rides a
-        // DatasetShadowRelation — a remote index of the same name federates in, a remote view of the same name fails,
+        // DatasetShadowRelation — a remote index of the same name federates in, a remote view of the same name is ignored,
         // and a remote dataset of the same name is invisible. See DatasetShadowRelation for the full lifecycle. This stays inert until
         // datasets exist: datasetNames is non-empty only once datasets are registered, which the upstream
         // esql_external_datasources feature flag controls — this method enforces no flag check of its own.
@@ -462,7 +462,14 @@ public final class DatasetRewriter {
      * <p>
      * {@link RemovedParquetDatasetSettings} keys are dropped from the dataset map so a stored
      * document from before those kill-switches were removed still plans; PUT and WITH reject them.
-     * The parent {@code _datasource} map is left untouched.
+     * {@code region} is stripped from the {@code _datasource} sub-map before merging — it is a
+     * dataset-level key and must not be inherited from the parent data source. The strip is
+     * hardcoded here rather than driven by {@code FileDataSourceValidator.additionalDatasetKeys}
+     * because {@code DatasetRewriter} has no access to plugin validators; making it plugin-driven
+     * would require either threading a {@code Function<type, nonInheritedKeys>} through the static
+     * call chain or storing the keys on {@code DataSource} in cluster state. {@code region} is
+     * the only such key today, and retiring it from the data-source vocabulary entirely is not
+     * planned, so the hardcoded strip is intentional.
      */
     private static Map<String, Object> mergeSettings(DataSource parent, Dataset dataset) {
         Map<String, Object> merged = new HashMap<>();
@@ -473,6 +480,8 @@ public final class DatasetRewriter {
             for (Map.Entry<String, DataSourceSetting> e : parent.settings()) {
                 dsSettings.put(e.getKey(), e.getValue().secret() ? e.getValue().rawValue() : e.getValue().nonSecretValue());
             }
+            // region is a dataset-level key; a data-source-level value is never inherited.
+            dsSettings.remove("region");
             merged.put(ExternalSourceResolver.DATASOURCE_CONFIG_KEY, dsSettings);
         }
         return merged;

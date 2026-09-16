@@ -692,7 +692,8 @@ public class OpenIdConnectAuthenticator {
             .setConnectionManager(connectionManager)
             .setIOReactorConfig(IOReactorConfig.custom().setSoKeepAlive(realmConfig.getSetting(HTTP_TCP_KEEP_ALIVE)).build())
             .setDefaultRequestConfig(requestConfig)
-            .setKeepAliveStrategy(getKeepAliveStrategy());
+            .setKeepAliveStrategy(getKeepAliveStrategy())
+            .disableAutomaticRetries();
         if (realmConfig.hasSetting(HTTP_PROXY_HOST)) {
             httpAsyncClientBuilder.setProxy(
                 new HttpHost(

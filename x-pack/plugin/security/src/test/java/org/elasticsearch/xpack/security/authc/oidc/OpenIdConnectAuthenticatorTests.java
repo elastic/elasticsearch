@@ -1108,6 +1108,7 @@ public class OpenIdConnectAuthenticatorTests extends OpenIdConnectTestCase {
 
         // In addition, capture logs to show that kept alive (TTL) is honored
         final Logger logger = LogManager.getLogger(PoolingAsyncClientConnectionManager.class);
+        // Note: Setting an org.apache.hc logger to DEBUG requires es.insecure_network_trace_enabled=true
         Loggers.setLevel(logger, Level.DEBUG);
         try (var mockLog = MockLog.capture(PoolingAsyncClientConnectionManager.class)) {
             mockLog.addExpectation(

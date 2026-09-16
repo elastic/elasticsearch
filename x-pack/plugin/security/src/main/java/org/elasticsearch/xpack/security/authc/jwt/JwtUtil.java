@@ -283,7 +283,8 @@ public class JwtUtil {
             .build();
         final var httpAsyncClientBuilder = HttpAsyncClients.custom()
             .setConnectionManager(connectionManager)
-            .setDefaultRequestConfig(requestConfig);
+            .setDefaultRequestConfig(requestConfig)
+            .disableAutomaticRetries();
         if (realmConfig.hasSetting(HTTP_PROXY_HOST)) {
             httpAsyncClientBuilder.setProxy(
                 new HttpHost(

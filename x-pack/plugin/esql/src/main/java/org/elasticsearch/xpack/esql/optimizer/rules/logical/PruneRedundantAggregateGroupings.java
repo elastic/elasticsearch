@@ -45,6 +45,7 @@ public final class PruneRedundantAggregateGroupings extends OptimizerRules.Optim
      * Cap on alias substitutions while expanding one grouping. Each substitution recurses and re-expands shared aliases,
      * so an unbounded chain of {@code EVAL}s exhausts the stack or the heap and takes the node down
      * (https://github.com/elastic/elasticsearch/issues/150104). A grouping whose chain exceeds the cap is simply kept.
+     * 100 is far above any hand-written chain and far below the depth that overflows a 1 MB thread stack.
      */
     static final int MAX_ALIAS_SUBSTITUTIONS = 100;
 
@@ -174,7 +175,15 @@ public final class PruneRedundantAggregateGroupings extends OptimizerRules.Optim
             return child;
         }
 
-        AttributeSet requiredByAggregate = Aggregate.computeReferences(newAggregates, newGroupings);
+        AttributeSet.Builder requiredByAggregate = Aggregate.computeReferences(newAggregates, newGroupings).asBuilder();
+        // A kept grouping may reach a pruned alias through other aliases (ip_2 = ip_1 - 1 keeps ip_1 alive). Fields only
+        // reference earlier fields, so one pass from the end collects everything still reachable.
+        List<Alias> fields = eval.fields();
+        for (int i = fields.size() - 1; i >= 0; i--) {
+            if (requiredByAggregate.contains(fields.get(i).toAttribute())) {
+                requiredByAggregate.addAll(fields.get(i).child().references());
+            }
+        }
         AttributeSet.Builder removableAttributes = AttributeSet.builder();
         for (PrunedGrouping prunedGrouping : prunedGroupings) {
             Attribute attribute = Expressions.attribute(prunedGrouping.grouping());

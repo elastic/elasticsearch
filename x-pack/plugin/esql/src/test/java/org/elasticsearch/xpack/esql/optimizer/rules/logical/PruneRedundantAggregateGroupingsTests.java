@@ -28,7 +28,7 @@ import static org.elasticsearch.xpack.esql.EsqlTestUtils.referenceAttribute;
 import static org.elasticsearch.xpack.esql.core.type.DataType.INTEGER;
 import static org.elasticsearch.xpack.esql.core.type.DataType.KEYWORD;
 import static org.hamcrest.Matchers.contains;
-import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.instanceOf;
 
 public class PruneRedundantAggregateGroupingsTests extends AbstractLogicalPlanOptimizerTests {
@@ -285,8 +285,10 @@ public class PruneRedundantAggregateGroupingsTests extends AbstractLogicalPlanOp
     }
 
     /**
-     * The heap-attack shape from https://github.com/elastic/elasticsearch/issues/150104: thousands of chained EVAL aliases
-     * grouped on, over an ordinary index. Expanding the chain recursively overflowed the stack and killed the node.
+     * Thousands of chained EVAL aliases grouped on, over an ordinary index, each alias referencing the two before it so the
+     * unbounded expansion of https://github.com/elastic/elasticsearch/issues/150104 grows exponentially. Without the cap
+     * this run exhausts the heap; the depth-only shape of {@code HeapAttackIT.testGroupOnManyLongs} only fails on a node's
+     * 1 MB stack and is covered there.
      */
     public void testLongAliasChainOverOrdinaryIndexDoesNotOverflow() {
         int count = 5000;
@@ -301,7 +303,7 @@ public class PruneRedundantAggregateGroupingsTests extends AbstractLogicalPlanOp
         var plan = plan(query.toString());
 
         var aggregate = as(as(plan, Limit.class).child(), Aggregate.class);
-        assertThat(aggregate.groupings().size(), equalTo(count + 2));
+        assertThat(aggregate.groupings(), hasSize(count + 2));
     }
 
     /** A chain of depth {@code d} takes {@code d - 1} substitutions to reach the external attribute. */
@@ -323,13 +325,49 @@ public class PruneRedundantAggregateGroupingsTests extends AbstractLogicalPlanOp
         assertThat(Expressions.names(aggregate.groupings()), contains("ClientIP", "ip_" + depth));
     }
 
-    /** {@code ip_1 = ClientIP - 1, ip_2 = ip_1 - 1, ...} grouped by {@code ClientIP} and the last alias. */
+    /** A pruned alias stays in the child Eval while a kept grouping still reaches it through the chain. */
+    public void testKeepsPrunedAliasStillReachableFromKeptGrouping() {
+        int depth = PruneRedundantAggregateGroupings.MAX_ALIAS_SUBSTITUTIONS + 50;
+        var plan = externalPlan(chainedExternalQuery(depth, "ip_50"));
+
+        var project = rewrittenProject(plan);
+        assertThat(Expressions.names(project.projections()), contains("c", "ClientIP", "ip_50", "ip_" + depth));
+        var aggregate = rewrittenAggregate(as(project.child(), Eval.class));
+        assertThat(Expressions.names(aggregate.groupings()), contains("ClientIP", "ip_" + depth));
+        var childEval = as(aggregate.child(), Eval.class);
+        assertThat(childEval.fields(), hasSize(depth));
+    }
+
+    /** {@code b} is not prunable and reads {@code a}, so pruning {@code a} must not drop its definition. */
+    public void testKeepsPrunedAliasReadByUnprunableGrouping() {
+        var plan = externalPlan("""
+            FROM ext_ds
+            | EVAL a = ClientIP - 1, b = a * 2
+            | STATS c = COUNT(*) BY ClientIP, a, b
+            """);
+
+        var project = rewrittenProject(plan);
+        assertThat(Expressions.names(project.projections()), contains("c", "ClientIP", "a", "b"));
+        var aggregate = rewrittenAggregate(as(project.child(), Eval.class));
+        assertThat(Expressions.names(aggregate.groupings()), contains("ClientIP", "b"));
+        assertThat(Expressions.names(as(aggregate.child(), Eval.class).fields()), contains("a", "b"));
+    }
+
     private static String chainedExternalQuery(int depth) {
+        return chainedExternalQuery(depth, null);
+    }
+
+    /** {@code ip_1 = ClientIP - 1, ip_2 = ip_1 - 1, ...} grouped by {@code ClientIP}, an optional extra alias, and the last one. */
+    private static String chainedExternalQuery(int depth, String extraGrouping) {
         StringBuilder query = new StringBuilder("FROM ext_ds\n| EVAL ip_1 = ClientIP - 1");
         for (int i = 2; i <= depth; i++) {
             query.append(", ip_").append(i).append(" = ip_").append(i - 1).append(" - 1");
         }
-        return query.append("\n| STATS c = COUNT(*) BY ClientIP, ip_").append(depth).toString();
+        query.append("\n| STATS c = COUNT(*) BY ClientIP, ");
+        if (extraGrouping != null) {
+            query.append(extraGrouping).append(", ");
+        }
+        return query.append("ip_").append(depth).toString();
     }
 
     private LogicalPlan externalPlan(String query) {

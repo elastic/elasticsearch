@@ -47,13 +47,15 @@ public class MatrixMultiplyBenchmark {
     @Param({ "SCALAR", "PANAMA" })
     VectorImplementation implementation;
 
-    @Param({ "192", "768" })
+    // ASH defaults are 10240 x 1024 x 512
+    // also use an odd number to exercise the tails
+    @Param({ "192", "481", "768", "10240" })
     int m;
 
-    @Param({ "192", "768" })
+    @Param({ "192", "481", "768", "1024" })
     int k;
 
-    @Param({ "96", "384" })
+    @Param({ "96", "241", "384", "512" })
     int n;
 
     private ESVectorUtilSupport impl;

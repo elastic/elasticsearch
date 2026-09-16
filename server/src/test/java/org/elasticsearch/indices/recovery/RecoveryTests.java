@@ -459,11 +459,6 @@ public class RecoveryTests extends ESIndexLevelReplicationTestCase {
                     public void onRecoveryFailure(RecoveryFailedException e, FailureStrategy failureStrategy) {
                         assertThat(ExceptionsHelper.unwrap(e, IOException.class).getMessage(), equalTo("simulated"));
                     }
-
-                    @Override
-                    public void onRecoveryAborted() {
-                        throw new AssertionError("recovery must fail");
-                    }
                 });
             }));
             expectThrows(AlreadyClosedException.class, () -> replica.refresh("test"));

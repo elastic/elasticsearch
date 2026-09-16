@@ -23,6 +23,11 @@ GradleUtils.extendSourceSet(project, "main", "javaRestTest", tasks.named("javaRe
 tasks.named('javaRestTest').configure {
   def buildParams = project.rootProject.extensions.getByName('buildParams')
   it.onlyIf("snapshot build") { buildParams.snapshotBuild }
+  jvmArgs '-da:sun.net.httpserver...'
+}
+
+tasks.named('test').configure {
+  jvmArgs '-da:sun.net.httpserver...'
 }
 
 dependencies {

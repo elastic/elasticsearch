@@ -49,6 +49,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.TreeMap;
+import java.util.TreeSet;
 import java.util.zip.ZipEntry;
 import java.util.zip.ZipOutputStream;
 
@@ -200,14 +201,15 @@ public abstract class BuildNativeLibraryTask extends DefaultTask {
     public abstract Property<Boolean> getOffline();
 
     /**
-     * Whether this run builds the library but uploads nothing, which is what a {@code docker} build
-     * without a credential does. Such an output must stay out of the build cache: see
-     * {@link #getCachedArtifactKind()} for the guarantee that depends on it.
+     * Whether this run builds the library but uploads nothing. Such an output must stay out of the build cache: see
+     * {@link #getCachedArtifactKind()} for the guarantee that depends on it. The conditions below are the ones
+     * {@link #maybePublish} declines to publish on.
      *
      * <p>Security note: this reads the presence of a credential, never its value.
      */
     boolean buildsWithoutPublishing() {
-        return DOCKER_MODE.equals(getMode().get()) && getPublishApiKey().isPresent() == false;
+        return DOCKER_MODE.equals(getMode().get())
+            && (getArtifactRepositoryUrl().isPresent() == false || getPublishApiKey().isPresent() == false || getOffline().get());
     }
 
     @OutputDirectory
@@ -238,22 +240,23 @@ public abstract class BuildNativeLibraryTask extends DefaultTask {
         switch (mode) {
             case DOCKER_MODE:
                 buildDocker(workingDir, outputDir);
-                if (getArtifactRepositoryUrl().isPresent() && getPublishApiKey().isPresent()) {
-                    LOGGER.info("Publishing artifact");
-                    publish(outputDir);
-                } else {
-                    LOGGER.warn("No repository or no credential specified: skipping publish");
-                }
+                maybePublish(outputDir);
                 break;
             case HOST_MODE:
                 buildHost(workingDir, outputDir);
                 LOGGER.info("Host mode: skipping publish. Only a complete cross-platform build is publishable");
                 break;
             case PUBLISHED_MODE:
-                throw new GradleException(
-                    "This library is configured to come from its published artifact. Select a build mode "
-                        + "('docker' for every platform, 'host' for the current one) to build it from source."
-                );
+                if (getOffline().get()) {
+                    throw new GradleException(
+                        "Cannot fetch a published artifact while offline. Run without --offline, or build it from source with a build mode."
+                    );
+                } else {
+                    throw new GradleException(
+                        "This library is configured to come from its published artifact. Select a build mode "
+                            + "('docker' for every platform, 'host' for the current one) to build it from source."
+                    );
+                }
             default:
                 throw new GradleException("Unknown mode: '" + mode + "'. Expected 'docker' or 'host'.");
         }
@@ -264,19 +267,12 @@ public abstract class BuildNativeLibraryTask extends DefaultTask {
      * fetched and unpacked, false when the sources have no published artifact and must be built.
      */
     private boolean materializeFromRepository(File outputDir) {
-        String hash = sourceHash();
-        String name = getArtifactName().get();
-
         if (getOffline().get()) {
-            throw new GradleException(
-                "Cannot fetch "
-                    + name
-                    + " for hash "
-                    + hash
-                    + " while offline. Run without --offline, or build it from source with a build mode."
-            );
+            return false;
         }
 
+        String hash = sourceHash();
+        String name = getArtifactName().get();
         java.util.Optional<byte[]> published = repository().download(name, hash);
         if (published.isEmpty()) {
             return false;
@@ -288,7 +284,18 @@ public abstract class BuildNativeLibraryTask extends DefaultTask {
         return true;
     }
 
-    private void publish(File outputDir) {
+    private void maybePublish(File outputDir) {
+        if (getArtifactRepositoryUrl().isPresent() == false || getPublishApiKey().isPresent() == false) {
+            LOGGER.warn("Skipping publish: no repository/no credentials specified");
+            return;
+        }
+
+        if (getOffline().get()) {
+            LOGGER.warn("Skipping publish: offline mode");
+            return;
+        }
+
+        LOGGER.info("Publishing artifact");
         String hash = sourceHash();
         String name = getArtifactName().get();
         byte[] archive = pack(outputDir, getTemporaryDir().toPath().resolve("to-publish.zip"));
@@ -298,8 +305,21 @@ public abstract class BuildNativeLibraryTask extends DefaultTask {
         repository.verifyPublished(name, hash, archive);
     }
 
+    private Map<String, String> identityProperties() {
+        Map<String, String> properties = new TreeMap<>();
+        properties.put("toolchainImage", getToolchainImage().get());
+        properties.put("supportedPlatforms", String.join(";", new TreeSet<>(getSupportedPlatforms().get())));
+        getCollect().get().forEach((source, destination) -> properties.put("collect." + source, destination));
+        getEnvironment().get().forEach((name, value) -> properties.put("environment." + name, value));
+        List<String> command = getDockerCommand().get();
+        for (int i = 0; i < command.size(); i++) {
+            properties.put("dockerCommand." + i, command.get(i));
+        }
+        return properties;
+    }
+
     private String sourceHash() {
-        return NativeSourceHash.compute(getSourceRoot().get().getAsFile(), getSourceFiles().getFiles(), getToolchainImage().get());
+        return NativeSourceHash.compute(getSourceRoot().get().getAsFile(), getSourceFiles().getFiles(), identityProperties());
     }
 
     private NativeArtifactRepository repository() {

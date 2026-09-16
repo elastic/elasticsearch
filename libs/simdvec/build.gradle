@@ -115,9 +115,7 @@ tasks.withType(CheckForbiddenApisTask).configureEach {
 nativeLibraryBuild {
   modeEnvironmentVariable = 'VEC_NATIVE_BUILD'
   workingDir = layout.projectDirectory.dir('native')
-  // "build.gradle" is part of the sources: it declares the toolchain, the platforms and the build commands,
-  // so a change here can change the compiled artifact just as a change to the C++ sources can.
-  sources = ['native/src/vec/**', 'native/Makefile', 'build.gradle']
+  sources = ['native/src/vec/**', 'native/Makefile']
   toolchainImage = 'docker.elastic.co/elasticsearch-infra/es-native-cross-toolchain:6'
   forwardedEnvironment = ['CLANG_CXX']
   // The platforms libvec is built for. Other hosts (Windows, Intel Mac) consume the artifact and

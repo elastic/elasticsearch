@@ -93,20 +93,37 @@ class NativeLibraryBuildPluginFuncTest extends AbstractGradleInternalPluginFuncT
         file("build/native-libs/built-marker").exists()
     }
 
-    def "fails with an actionable message when offline and nothing is published locally"() {
+    def "builds from source offline, without asking the repository"() {
+        given:
+        def requests = new AtomicInteger()
+        useRepositoryServing { exchange ->
+            requests.incrementAndGet()
+            respond(exchange, 404, new byte[0])
+        }
+        markerOnBuild()
+
+        when:
+        def result = gradleRunner("buildNativeLibrary", "--offline")
+            .withEnvironment(["TEST_NATIVE_BUILD": "host"])
+            .build()
+
+        then:
+        result.task(":buildNativeLibrary").outcome == TaskOutcome.SUCCESS
+        file("build/native-libs/built-marker").exists()
+        requests.get() == 0
+    }
+
+    def "explains itself when offline and no build mode is selected"() {
         given:
         useRepositoryServing { exchange ->
             respond(exchange, 404, new byte[0])
         }
 
         when:
-        def result = gradleRunner("buildNativeLibrary", "--offline")
-            .withEnvironment(["TEST_NATIVE_BUILD": "host"])
-            .buildAndFail()
+        def result = gradleRunner("buildNativeLibrary", "--offline").buildAndFail()
 
         then:
         result.output.contains("while offline")
-        result.output.contains("build it from source")
     }
 
     def "does not publish a host build even with a credential"() {

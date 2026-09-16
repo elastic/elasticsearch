@@ -15,16 +15,16 @@ import org.junit.rules.TemporaryFolder;
 import java.io.File;
 import java.io.IOException;
 import java.nio.file.Files;
+import java.util.LinkedHashMap;
 import java.util.LinkedHashSet;
 import java.util.List;
+import java.util.Map;
 import java.util.Set;
 
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertNotEquals;
 
 public class NativeSourceHashTests {
-
-    private static final String TOOLCHAIN = "toolchain:1";
 
     @Rule
     public TemporaryFolder temporaryFolder = new TemporaryFolder();
@@ -39,8 +39,8 @@ public class NativeSourceHashTests {
         File first = write(root, "a.cpp", "int a();");
         File second = write(root, "b.cpp", "int b();");
 
-        String forward = NativeSourceHash.compute(root, ordered(first, second), TOOLCHAIN);
-        String reversed = NativeSourceHash.compute(root, ordered(second, first), TOOLCHAIN);
+        String forward = NativeSourceHash.compute(root, ordered(first, second), Map.of());
+        String reversed = NativeSourceHash.compute(root, ordered(second, first), Map.of());
 
         assertEquals(forward, reversed);
     }
@@ -54,8 +54,8 @@ public class NativeSourceHashTests {
         File unix = temporaryFolder.newFolder("unix");
         File windows = temporaryFolder.newFolder("windows");
 
-        String hashLf = NativeSourceHash.compute(unix, ordered(write(unix, "a.cpp", "int a();\nint b();\n")), TOOLCHAIN);
-        String hashCrLf = NativeSourceHash.compute(windows, ordered(write(windows, "a.cpp", "int a();\r\nint b();\r\n")), TOOLCHAIN);
+        String hashLf = NativeSourceHash.compute(unix, ordered(write(unix, "a.cpp", "int a();\nint b();\n")), Map.of());
+        String hashCrLf = NativeSourceHash.compute(windows, ordered(write(windows, "a.cpp", "int a();\r\nint b();\r\n")), Map.of());
 
         assertEquals(hashLf, hashCrLf);
     }
@@ -70,8 +70,8 @@ public class NativeSourceHashTests {
         File without = temporaryFolder.newFolder("without");
 
         assertNotEquals(
-            NativeSourceHash.compute(with, ordered(write(with, "a.cpp", "char c = '\r';")), TOOLCHAIN),
-            NativeSourceHash.compute(without, ordered(write(without, "a.cpp", "char c = '';")), TOOLCHAIN)
+            NativeSourceHash.compute(with, ordered(write(with, "a.cpp", "char c = '\r';")), Map.of()),
+            NativeSourceHash.compute(without, ordered(write(without, "a.cpp", "char c = '';")), Map.of())
         );
     }
 
@@ -81,8 +81,8 @@ public class NativeSourceHashTests {
         File here = temporaryFolder.newFolder("here");
         File elsewhere = temporaryFolder.newFolder("some", "deeper", "elsewhere");
 
-        String first = NativeSourceHash.compute(here, ordered(write(here, "a.cpp", "int a();")), TOOLCHAIN);
-        String second = NativeSourceHash.compute(elsewhere, ordered(write(elsewhere, "a.cpp", "int a();")), TOOLCHAIN);
+        String first = NativeSourceHash.compute(here, ordered(write(here, "a.cpp", "int a();")), Map.of());
+        String second = NativeSourceHash.compute(elsewhere, ordered(write(elsewhere, "a.cpp", "int a();")), Map.of());
 
         assertEquals(first, second);
     }
@@ -93,8 +93,8 @@ public class NativeSourceHashTests {
         File after = temporaryFolder.newFolder("after");
 
         assertNotEquals(
-            NativeSourceHash.compute(before, ordered(write(before, "a.cpp", "int a();")), TOOLCHAIN),
-            NativeSourceHash.compute(after, ordered(write(after, "a.cpp", "int a(); // changed")), TOOLCHAIN)
+            NativeSourceHash.compute(before, ordered(write(before, "a.cpp", "int a();")), Map.of()),
+            NativeSourceHash.compute(after, ordered(write(after, "a.cpp", "int a(); // changed")), Map.of())
         );
     }
 
@@ -108,8 +108,8 @@ public class NativeSourceHashTests {
         Set<File> sources = ordered(write(root, "a.cpp", "int a();"));
 
         assertNotEquals(
-            NativeSourceHash.compute(root, sources, "toolchain:1"),
-            NativeSourceHash.compute(root, sources, "toolchain:2")
+            NativeSourceHash.compute(root, sources, Map.of("toolchainImage", "toolchain:1")),
+            NativeSourceHash.compute(root, sources, Map.of("toolchainImage", "toolchain:2"))
         );
     }
 
@@ -117,10 +117,10 @@ public class NativeSourceHashTests {
     public void testChangesWhenASourceIsAdded() throws IOException {
         File root = temporaryFolder.newFolder("checkout");
         File first = write(root, "a.cpp", "int a();");
-        String single = NativeSourceHash.compute(root, ordered(first), TOOLCHAIN);
+        String single = NativeSourceHash.compute(root, ordered(first), Map.of());
 
         File second = write(root, "b.cpp", "int b();");
-        String both = NativeSourceHash.compute(root, ordered(first, second), TOOLCHAIN);
+        String both = NativeSourceHash.compute(root, ordered(first, second), Map.of());
 
         assertNotEquals(single, both);
     }
@@ -132,8 +132,8 @@ public class NativeSourceHashTests {
         File after = temporaryFolder.newFolder("after");
 
         assertNotEquals(
-            NativeSourceHash.compute(before, ordered(write(before, "a.cpp", "int a();")), TOOLCHAIN),
-            NativeSourceHash.compute(after, ordered(write(after, "renamed.cpp", "int a();")), TOOLCHAIN)
+            NativeSourceHash.compute(before, ordered(write(before, "a.cpp", "int a();")), Map.of()),
+            NativeSourceHash.compute(after, ordered(write(after, "renamed.cpp", "int a();")), Map.of())
         );
     }
 
@@ -147,8 +147,69 @@ public class NativeSourceHashTests {
         File moved = temporaryFolder.newFolder("moved");
 
         assertNotEquals(
-            NativeSourceHash.compute(split, ordered(write(split, "a.cpp", "ab"), write(split, "b.cpp", "c")), TOOLCHAIN),
-            NativeSourceHash.compute(moved, ordered(write(moved, "a.cpp", "a"), write(moved, "b.cpp", "bc")), TOOLCHAIN)
+            NativeSourceHash.compute(split, ordered(write(split, "a.cpp", "ab"), write(split, "b.cpp", "c")), Map.of()),
+            NativeSourceHash.compute(moved, ordered(write(moved, "a.cpp", "a"), write(moved, "b.cpp", "bc")), Map.of())
+        );
+    }
+
+    /**
+     * The properties are handed over as a map, and a map's iteration order is its own business — for
+     * {@link Map#of} the documentation states it outright: "the iteration order of mappings is
+     * unspecified and is subject to change". The digest addresses a published artifact, so it must
+     * depend on the pairs and not on the order they arrive in.
+     */
+    @Test
+    public void testIndependentOfPropertyOrder() throws IOException {
+        File root = temporaryFolder.newFolder("checkout");
+        Set<File> sources = ordered(write(root, "a.cpp", "int a();"));
+
+        Map<String, String> oneWay = new LinkedHashMap<>();
+        oneWay.put("toolchainImage", "toolchain:1");
+        oneWay.put("supportedPlatforms", "linux-x64");
+
+        Map<String, String> theOther = new LinkedHashMap<>();
+        theOther.put("supportedPlatforms", "linux-x64");
+        theOther.put("toolchainImage", "toolchain:1");
+
+        assertEquals(NativeSourceHash.compute(root, sources, oneWay), NativeSourceHash.compute(root, sources, theOther));
+    }
+
+    /**
+     * Rendering the properties as {@code key=value} run together gives these two the same text, and a
+     * build would then resolve an artifact compiled for a different configuration.
+     */
+    @Test
+    public void testDistinguishesPropertiesThatRenderAlike() throws IOException {
+        File root = temporaryFolder.newFolder("checkout");
+        Set<File> sources = ordered(write(root, "a.cpp", "int a();"));
+
+        assertNotEquals(
+            NativeSourceHash.compute(root, sources, Map.of("a", "b", "c", "d")),
+            NativeSourceHash.compute(root, sources, Map.of("a", "bc=d"))
+        );
+    }
+
+    /** Declaring a property that was not there before describes a different build. */
+    @Test
+    public void testChangesWhenAPropertyIsAdded() throws IOException {
+        File root = temporaryFolder.newFolder("checkout");
+        Set<File> sources = ordered(write(root, "a.cpp", "int a();"));
+
+        assertNotEquals(
+            NativeSourceHash.compute(root, sources, Map.of("toolchainImage", "toolchain:1")),
+            NativeSourceHash.compute(root, sources, Map.of("toolchainImage", "toolchain:1", "dockerCommand.0", "make"))
+        );
+    }
+
+    /** Digesting values alone would let a property be renamed without changing the identity. */
+    @Test
+    public void testChangesWhenAPropertyKeyChanges() throws IOException {
+        File root = temporaryFolder.newFolder("checkout");
+        Set<File> sources = ordered(write(root, "a.cpp", "int a();"));
+
+        assertNotEquals(
+            NativeSourceHash.compute(root, sources, Map.of("collect.a", "darwin-aarch64/libtest.dylib")),
+            NativeSourceHash.compute(root, sources, Map.of("collect.b", "darwin-aarch64/libtest.dylib"))
         );
     }
 

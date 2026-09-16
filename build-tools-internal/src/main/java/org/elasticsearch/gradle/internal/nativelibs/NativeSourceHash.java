@@ -22,12 +22,13 @@ import java.util.Arrays;
 import java.util.Collection;
 import java.util.HexFormat;
 import java.util.List;
+import java.util.Map;
 import java.util.stream.Collectors;
 import java.util.stream.StreamSupport;
 
 /**
- * The identity of a native library: a digest of its sources and of the toolchain that builds them,
- * used as the version of published compiled artifact.
+ * The identity of a native library: a digest of its sources and of the build environment properties that
+ * can influence their build, used as the version of published compiled artifact.
  *
  * <p>The toolchain is included because a compiler upgrade could produce different binaries.
  */
@@ -39,9 +40,9 @@ final class NativeSourceHash {
      * @param sourceRoot directory the sources live under; paths are digested relative to it so the
      *                   result does not depend on where the repository is checked out
      * @param sourceFiles the library's sources
-     * @param toolchainKey the build environment container image tag
+     * @param properties additional build environment properties that might influence the build output
      */
-    static String compute(File sourceRoot, Collection<File> sourceFiles, String toolchainKey) {
+    static String compute(File sourceRoot, Collection<File> sourceFiles, Map<String, String> properties) {
         MessageDigest digest = sha256();
 
         // Sorted as strings rather than with File.compareTo, whose ordering is platform-dependent.
@@ -54,7 +55,11 @@ final class NativeSourceHash {
             digest.update(sha256().digest(normalizeLineEndings(readAllBytes(file))));
         }
 
-        digest.update(utf8(toolchainKey));
+        properties.entrySet().stream().sorted(Map.Entry.comparingByKey()).forEach(e -> {
+            digest.update(utf8(e.getKey()));
+            digest.update((byte) 0);
+            digest.update(sha256().digest(utf8(e.getValue())));
+        });
         return HexFormat.of().formatHex(digest.digest());
     }
 

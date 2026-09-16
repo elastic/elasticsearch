@@ -268,9 +268,6 @@ export function toBuildkitePipeline(
     const step: PipelineStep = {
       label: head.label,
       key,
-      // Batch steps never propagate a failure: a batch's rc cannot distinguish a proven flaky test from a
-      // timeout, an OOM-kill or a task Gradle skipped. Only the analyze step, which has deriveOutcome's
-      // verdict, is allowed to fail.
       command: wrapNeverFail(key, cfg.timeoutInMinutes, { kind: head.kind }),
       timeout_in_minutes: cfg.timeoutInMinutes,
       agents: { ...cfg.agents },
@@ -296,8 +293,7 @@ export function toBuildkitePipeline(
       command: wrapNeverFail("flakiness-detection:analyze", 10, { hardFail: true }),
       // Never-fail like a batch step, but with no `kind`, so it writes no batch outcome of its own. The
       // exception is `hardFail`: this is the one step allowed to go red, and only on its proven-flakiness
-      // code. Whether it ever reaches that code is analyze.ts's call (`shouldBlock`), which is why the
-      // flag is unconditional here and this function needs to know nothing about PR labels.
+      // code. Whether it ever reaches that code is analyze.ts's call (`shouldBlock`).
       env: {
         [`${CMD_VAR_PREFIX}0`]: [
           `buildkite-agent artifact download "${FLAKINESS_STATUS_ARTIFACTS}" . || true`,

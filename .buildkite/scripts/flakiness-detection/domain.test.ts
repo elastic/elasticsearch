@@ -13,6 +13,7 @@ describe("matchedBlockingLabels", () => {
     // Buildkite sets GITHUB_PR_LABELS as a comma-separated list; the spacing around entries is not
     // something we control, and pipeline.ts trims it the same way.
     expect(matchedBlockingLabels(`>bug, ${OPTED_IN} ,v9.3.0`)).toEqual([OPTED_IN]);
+    expect(matchedBlockingLabels(`>bug, ${OPTED_IN},v9.3.0`)).toEqual([OPTED_IN]);
   });
 
   test("empty for a PR with no labels at all", () => {
@@ -22,7 +23,7 @@ describe("matchedBlockingLabels", () => {
   });
 
   test("empty when no label opted in", () => {
-    expect(matchedBlockingLabels(">bug,v9.3.0,:Delivery/Build")).toEqual([]);
+    expect(matchedBlockingLabels(">bug,v9.3.0,Team:SomeOtherTeam")).toEqual([]);
   });
 
   test("matches exactly, so a near miss does not opt a team in by accident", () => {

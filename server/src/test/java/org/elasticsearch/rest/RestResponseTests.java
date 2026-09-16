@@ -17,6 +17,8 @@ import org.apache.logging.log4j.core.config.Configurator;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ElasticsearchSecurityException;
 import org.elasticsearch.ElasticsearchStatusException;
+import org.elasticsearch.client.internal.transport.NoNodeAvailableException;
+import org.elasticsearch.discovery.MasterNotDiscoveredException;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.ResourceAlreadyExistsException;
 import org.elasticsearch.ResourceNotFoundException;
@@ -33,6 +35,7 @@ import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.search.SearchShardTarget;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.rest.FakeRestRequest;
+import org.elasticsearch.transport.ConnectTransportException;
 import org.elasticsearch.transport.RemoteTransportException;
 import org.elasticsearch.xcontent.MediaType;
 import org.elasticsearch.xcontent.NamedXContentRegistry;
@@ -484,6 +487,8 @@ public class RestResponseTests extends ESTestCase {
             request.params().put(REST_EXCEPTION_SKIP_STACK_TRACE, "true");
         }
         assertLogging(channel, new ElasticsearchException("simulated"), Level.WARN, "500", "simulated");
+        assertLogging(channel, new ConnectTransportException(null, "simulated_502"), Level.DEBUG, "502", "simulated_502");
+        assertLogging(channel, new NoNodeAvailableException("simulated_503"), Level.DEBUG, "503", "simulated_503");
         assertLogging(channel, new IllegalArgumentException("simulated_iae"), Level.DEBUG, "400", "simulated_iae");
         assertLogging(channel, null, null, null, null);
         assertLogging(

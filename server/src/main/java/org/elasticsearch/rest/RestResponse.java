@@ -152,7 +152,7 @@ public final class RestResponse implements Releasable {
                 channel.request().params(),
                 status.getStatus()
             );
-            if (status.getStatus() < 500) {
+            if (status.getStatus() < 500 || status == RestStatus.BAD_GATEWAY || status == RestStatus.SERVICE_UNAVAILABLE) {
                 SUPPRESSED_ERROR_LOGGER.debug(messageSupplier, e);
             } else {
                 SUPPRESSED_ERROR_LOGGER.warn(messageSupplier, e);

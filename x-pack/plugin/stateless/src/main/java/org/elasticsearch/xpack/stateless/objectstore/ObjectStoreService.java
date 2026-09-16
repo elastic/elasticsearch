@@ -1854,8 +1854,11 @@ public class ObjectStoreService extends AbstractLifecycleComponent implements Cl
         protected void doRun() throws Exception {
             boolean success = false;
             try {
-                blobContainer.get().deleteBlobsIgnoringIfNotExists(OperationPurpose.TRANSLOG, toDeleteInThisTask.iterator());
-                logger.debug(() -> format("deleted translog files %s", toDeleteInThisTask));
+                final BlobContainer container = blobContainer.get();
+                container.deleteBlobsIgnoringIfNotExists(OperationPurpose.TRANSLOG, toDeleteInThisTask.iterator());
+                // This is the path that reclaims translog during normal operation, so it decides which generations a later
+                // recovery can still reach. Listed rather than summarised as a range: the batch need not be contiguous.
+                logger.info(() -> format("deleted translog files %s from [%s]", toDeleteInThisTask, container.path()));
                 success = true;
             } finally {
                 if (success == false) {

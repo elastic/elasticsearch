@@ -25,7 +25,6 @@ import org.elasticsearch.xpack.stateless.cluster.coordination.TransportConsisten
 import org.elasticsearch.xpack.stateless.objectstore.ObjectStoreService;
 
 import java.io.IOException;
-import java.util.Collections;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.Map;
@@ -146,8 +145,8 @@ public class StaleTranslogsGCService {
                         "Translog GC deleted [{}] stale files for node ephemeral ID [{}], generations [{}] to [{}]",
                         staleFiles.size(),
                         staleEphemeralId,
-                        Collections.min(staleFiles),
-                        Collections.max(staleFiles)
+                        staleFiles.stream().mapToLong(Long::parseLong).min().orElse(-1L),
+                        staleFiles.stream().mapToLong(Long::parseLong).max().orElse(-1L)
                     );
                 } catch (IOException e) {
                     logger.warn(

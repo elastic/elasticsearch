@@ -219,8 +219,8 @@ public class DataStreamLifecycleService implements ClusterStateListener, Closeab
     private final MasterServiceTaskQueue<DeleteSourceAndAddDownsampleToDS> swapSourceWithDownsampleIndexQueue;
     private final MasterServiceTaskQueue<MarkIndexForDlmForceMergeTask> markIndexForDlmForceMergeQueue;
     private final MasterServiceTaskQueue<MarkIndicesForFrozenTask> markIndicesForFrozenQueue;
-    private volatile ByteSizeValue standardTargetMergePolicyFloorSegment;
-    private volatile int standardTargetMergePolicyFactor;
+    private volatile ByteSizeValue targetMergePolicyFloorSegment;
+    private volatile int targetMergePolicyFactor;
     private volatile ByteSizeValue tsdbTargetMergePolicyFloorSegment;
     private volatile int tsdbTargetMergePolicyFactor;
     private volatile int maxDownsamplingIndicesInProgress;
@@ -277,8 +277,8 @@ public class DataStreamLifecycleService implements ClusterStateListener, Closeab
         this.downsamplingOperations = downsamplingOperations;
         this.scheduledJob = null;
         this.pollInterval = DATA_STREAM_LIFECYCLE_POLL_INTERVAL_SETTING.get(settings);
-        this.standardTargetMergePolicyFloorSegment = DATA_STREAM_MERGE_POLICY_TARGET_FLOOR_SEGMENT_SETTING.get(settings);
-        this.standardTargetMergePolicyFactor = DATA_STREAM_MERGE_POLICY_TARGET_FACTOR_SETTING.get(settings);
+        this.targetMergePolicyFloorSegment = DATA_STREAM_MERGE_POLICY_TARGET_FLOOR_SEGMENT_SETTING.get(settings);
+        this.targetMergePolicyFactor = DATA_STREAM_MERGE_POLICY_TARGET_FACTOR_SETTING.get(settings);
         this.tsdbTargetMergePolicyFloorSegment = DATA_STREAM_MERGE_POLICY_TSDB_TARGET_FLOOR_SEGMENT_SETTING.get(settings);
         this.tsdbTargetMergePolicyFactor = DATA_STREAM_MERGE_POLICY_TSDB_TARGET_FACTOR_SETTING.get(settings);
         this.maxDownsamplingIndicesInProgress = DATA_STREAM_MAX_DOWNSAMPLING_INDICES_IN_PROGRESS_SETTING.get(settings);
@@ -1364,10 +1364,8 @@ public class DataStreamLifecycleService implements ClusterStateListener, Closeab
             }
 
             boolean isTsdb = backingIndex.getIndexMode() == IndexMode.TIME_SERIES;
-            ByteSizeValue targetMergePolicyFloorSegment = isTsdb
-                ? tsdbTargetMergePolicyFloorSegment
-                : standardTargetMergePolicyFloorSegment;
-            Integer targetMergePolicyFactor = isTsdb ? tsdbTargetMergePolicyFactor : standardTargetMergePolicyFactor;
+            ByteSizeValue targetMergePolicyFloorSegment = isTsdb ? tsdbTargetMergePolicyFloorSegment : this.targetMergePolicyFloorSegment;
+            Integer targetMergePolicyFactor = isTsdb ? tsdbTargetMergePolicyFactor : this.targetMergePolicyFactor;
 
             ByteSizeValue configuredFloorSegmentMerge = MergePolicyConfig.INDEX_MERGE_POLICY_FLOOR_SEGMENT_SETTING.get(
                 backingIndex.getSettings()
@@ -1859,11 +1857,11 @@ public class DataStreamLifecycleService implements ClusterStateListener, Closeab
     }
 
     private void updateMergePolicyFloorSegment(ByteSizeValue newFloorSegment) {
-        this.standardTargetMergePolicyFloorSegment = newFloorSegment;
+        this.targetMergePolicyFloorSegment = newFloorSegment;
     }
 
     private void updateMergePolicyFactor(int newFactor) {
-        this.standardTargetMergePolicyFactor = newFactor;
+        this.targetMergePolicyFactor = newFactor;
     }
 
     private void updateTsdbMergePolicyFloorSegment(ByteSizeValue newFloorSegment) {

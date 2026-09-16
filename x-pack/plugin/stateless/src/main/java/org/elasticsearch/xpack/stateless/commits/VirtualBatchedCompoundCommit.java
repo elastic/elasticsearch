@@ -930,7 +930,6 @@ public class VirtualBatchedCompoundCommit extends AbstractRefCounted implements 
         return true;
     }
 
-    // TODO: make package-private ES-13786
     /**
      * The local checkpoint recorded in a commit, or {@link SequenceNumbers#UNASSIGNED_SEQ_NO} when the commit does not carry one.
      * It is only used for logging, so an absent value must not stop a commit being appended.
@@ -940,6 +939,7 @@ public class VirtualBatchedCompoundCommit extends AbstractRefCounted implements 
         return localCheckpoint == null ? SequenceNumbers.UNASSIGNED_SEQ_NO : Long.parseLong(localCheckpoint);
     }
 
+    // TODO: make package-private ES-13786
     public static class PendingCompoundCommit implements Closeable, Comparable<PendingCompoundCommit> {
         private final int headerSize;
         private final StatelessCommitRef reference;

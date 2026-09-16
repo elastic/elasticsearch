@@ -282,6 +282,7 @@ public class IndexVersions {
     public static final IndexVersion MALFORMED_VALUES_IN_ON_FAILURE_COLUMN = def(9_115_0_00, Version.LUCENE_10_5_1);
 
     public static final IndexVersion UPGRADE_TO_LUCENE_10_6_0 = def(9_300_00_0, Version.LUCENE_10_6_0);
+    public static final IndexVersion UPGRADE_TO_LUCENE_11_0_0 = def(9_301_00_0, Version.LUCENE_11_0_0);
     /*
      * STOP! READ THIS FIRST! No, really,
      *        ____ _____ ___  ____  _        ____  _____    _    ____    _____ _   _ ___ ____    _____ ___ ____  ____ _____ _
@@ -335,7 +336,9 @@ public class IndexVersions {
      * In branches 8.7-8.11 see server/src/main/java/org/elasticsearch/index/IndexVersion.java for the equivalent definitions.
      */
 
+    // TODO: LUCENE11 Lucene 11 MIN_SUPPORTED_MAJOR is 10 in main.
     public static final IndexVersion MINIMUM_COMPATIBLE = V_8_0_0;
+    // TODO: LUCENE11 Lucene 8 read-only support needs to be added and tested
     public static final IndexVersion MINIMUM_READONLY_COMPATIBLE = V_7_0_0;
 
     static final NavigableMap<Integer, IndexVersion> VERSION_IDS = getAllVersionIds(IndexVersions.class);

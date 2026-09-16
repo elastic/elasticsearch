@@ -33,10 +33,12 @@ import org.elasticsearch.xpack.esql.datasources.spi.NoConfigFormatReader;
 import org.elasticsearch.xpack.esql.datasources.spi.PassThroughRowPositionStrategy;
 import org.elasticsearch.xpack.esql.datasources.spi.RowPositionStrategy;
 import org.elasticsearch.xpack.esql.datasources.spi.SourceMetadata;
+import org.elasticsearch.xpack.esql.datasources.spi.SplitDiscoveryContext;
 import org.elasticsearch.xpack.esql.datasources.spi.StorageChildren;
 import org.elasticsearch.xpack.esql.datasources.spi.StorageObject;
 import org.elasticsearch.xpack.esql.datasources.spi.StoragePath;
 import org.elasticsearch.xpack.esql.datasources.spi.StorageProvider;
+import org.elasticsearch.xpack.esql.expression.predicate.nulls.IsNull;
 
 import java.io.InputStream;
 import java.time.Instant;
@@ -102,6 +104,70 @@ public class AsyncExternalSourceOperatorFactoryMetadataMergeTests extends ESTest
             assertEquals(mtimeMillis, versionBlock.getLong(versionBlock.getFirstValueIndex(0)));
         } finally {
             page.releaseBlocks();
+        }
+    }
+
+    public void testIndexBindingAgreesBetweenDiscoveryAndReader() throws Exception {
+        StoragePath path = StoragePath.of("s3://bucket/data/file.parquet");
+        FileList fileList = GlobExpander.fileListOf(List.of(new StorageEntry(path, 100, Instant.EPOCH)), path.toString());
+        Attribute value = new FieldAttribute(
+            Source.EMPTY,
+            "value",
+            new EsField("value", DataType.INTEGER, Map.of(), false, EsField.TimeSeriesFieldType.NONE)
+        );
+        ExternalSchema fileSchema = new ExternalSchema(List.of(value));
+        for (boolean metadata : List.of(false, true)) {
+            Attribute index = metadata
+                ? new ExternalMetadataAttribute(Source.EMPTY, "_index", DataType.KEYWORD)
+                : new FieldAttribute(
+                    Source.EMPTY,
+                    "_index",
+                    new EsField("_index", DataType.KEYWORD, Map.of(), false, EsField.TimeSeriesFieldType.NONE)
+                );
+            List<Attribute> output = List.of(value, index);
+            ExternalSchema querySchema = ExternalSchema.dataAttributesOf(output);
+            Map<StoragePath, SchemaReconciliation.FileSchemaInfo> schemas = Map.of(
+                path,
+                new SchemaReconciliation.FileSchemaInfo(
+                    fileSchema,
+                    ColumnMapping.alignToQuery(querySchema, fileSchema.attributes(), List.of("value")),
+                    null
+                )
+            );
+            SplitDiscoveryContext context = new SplitDiscoveryContext(
+                null,
+                fileList,
+                schemas,
+                Map.of(),
+                PartitionMetadata.EMPTY,
+                List.of(new IsNull(Source.EMPTY, index)),
+                querySchema,
+                "ds",
+                ExternalMetadataColumns.metadataNames(output)
+            );
+            int survivingFiles = new FileSplitProvider().discoverSplits(context).filesScanned();
+
+            AsyncExternalSourceOperatorFactory factory = AsyncExternalSourceOperatorFactory.builder(
+                new StubStorageProvider(),
+                new SingleIntPageFormatReader(),
+                path,
+                output,
+                100,
+                10,
+                Runnable::run
+            ).fileList(fileList).schemaMap(schemas).datasetName("ds").producerBlockFactory(TEST_BLOCK_FACTORY).build();
+            Page page = drainSinglePage(factory, newDriverContext());
+            try {
+                assertEquals(1, page.getPositionCount());
+                assertEquals(metadata == false, page.getBlock(1).isNull(0));
+                assertEquals(page.getBlock(1).isNull(0) ? 1 : 0, survivingFiles);
+                if (metadata) {
+                    BytesRefBlock block = page.getBlock(1);
+                    assertEquals(new BytesRef("ds"), block.getBytesRef(block.getFirstValueIndex(0), new BytesRef()));
+                }
+            } finally {
+                page.releaseBlocks();
+            }
         }
     }
 

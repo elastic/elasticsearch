@@ -67,11 +67,11 @@ public final class SizeLimitingStringWriter extends Writer {
     @Override
     public void write(char[] cbuf, int off, int len) {
         Objects.checkFromIndexSize(off, len, cbuf.length);
+        if (len == 0) {
+            return;
+        }
         int limitedLen = limitSize(len);
         if (limitedLen > 0) {
-            if (len == 0) {
-                return;
-            }
             builder.append(cbuf, off, limitedLen);
         }
         if (limitedLen != len) {

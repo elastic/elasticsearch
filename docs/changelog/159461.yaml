@@ -1,0 +1,6 @@
+area: ES|QL
+issues:
+  - 158957
+pr: 159461
+summary: Fold nested integer CASE without overflowing the stack
+type: bug

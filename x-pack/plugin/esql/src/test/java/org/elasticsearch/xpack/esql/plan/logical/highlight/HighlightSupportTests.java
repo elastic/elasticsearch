@@ -123,7 +123,7 @@ public class HighlightSupportTests extends ESTestCase {
             e.getMessage(),
             equalTo(
                 "HIGHLIGHT full-text functions use different analyzers [english, whitespace]; "
-                    + "use the same analyzer for every clause, or set it on HIGHLIGHT with WITH { \"analyzer\": ... }"
+                    + "use the same analyzer for every clause, or write an explicit HIGHLIGHT query using a single analyzer"
             )
         );
     }

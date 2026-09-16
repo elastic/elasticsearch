@@ -114,16 +114,6 @@ public abstract class AbstractTSDBDocValuesFormatTests extends BaseDocValuesForm
     protected static final int BINARY_DV_BLOCK_COUNT_THRESHOLD_DEFAULT = 1024;
 
     /**
-     * The binary doc-values block bytes threshold of the format under test. All current concrete
-     * subclasses ({@code ES819TSDBDocValuesFormatTests}, {@code ES95TSDBDocValuesFormatTests}) use
-     * the 512 KB threshold introduced in ES819 v3 / ES95. Override if a subclass ever tests a
-     * format with a different threshold.
-     */
-    protected int binaryDvBlockBytesThreshold() {
-        return 512 * 1024;
-    }
-
-    /**
      * Returns a codec guaranteed to have optimized merge enabled. Used by
      * {@code testForceMergeWithOversizedBinaryValues} so the verbatim-copy assertion always fires.
      * Subclasses whose main codec randomizes this flag must override to return a codec with the flag
@@ -2881,9 +2871,7 @@ public abstract class AbstractTSDBDocValuesFormatTests extends BaseDocValuesForm
      * a subsequent {@code binaryValue()} would return bytes from the wrong block.
      */
     public void testRawSingleDocBlockHandoff() throws IOException {
-        // Use the actual format's block bytes threshold so the oversized values we create are truly
-        // oversized relative to the writer — the pre-flush fires only when v.length >= threshold.
-        final int threshold = binaryDvBlockBytesThreshold();
+        final int threshold = 512 * 1024;
         final String binaryField = "binary_field";
         final boolean sparse = randomBoolean();
 
@@ -2988,7 +2976,7 @@ public abstract class AbstractTSDBDocValuesFormatTests extends BaseDocValuesForm
      * byte-identical — we cannot observe the optimization from output bytes alone.
      */
     public void testForceMergeWithOversizedBinaryValues() throws IOException {
-        final int threshold = binaryDvBlockBytesThreshold();
+        final int threshold = 512 * 1024;
         final String denseField = "binary_dense";
         final String sparseField = "binary_sparse";
         // Oversized values are just above the threshold to keep CI heap sane.
@@ -3091,7 +3079,7 @@ public abstract class AbstractTSDBDocValuesFormatTests extends BaseDocValuesForm
      * {@link TSDBBinaryDocValues#rawSingleValueBlock} returning non-null for it.
      */
     public void testOversizedValueAlwaysLandsInSingleDocBlock() throws IOException {
-        final int threshold = binaryDvBlockBytesThreshold();
+        final int threshold = 512 * 1024;
         final String binaryField = "binary_field";
         final int oversizedLen = threshold + 512;
 

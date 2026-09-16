@@ -25,6 +25,7 @@ import java.util.concurrent.ExecutorService;
 import static org.apache.lucene.codecs.lucene99.Lucene99HnswVectorsFormat.DEFAULT_BEAM_WIDTH;
 import static org.apache.lucene.codecs.lucene99.Lucene99HnswVectorsFormat.DEFAULT_MAX_CONN;
 import static org.apache.lucene.codecs.lucene99.Lucene99HnswVectorsFormat.DEFAULT_NUM_MERGE_WORKER;
+import static org.elasticsearch.index.codec.vectors.es93.ES93GenericFlatVectorsFormat.OFF_HEAP_BUFFERING;
 
 public class ES93HnswScalarQuantizedVectorsFormat extends AbstractHnswVectorsFormat {
 
@@ -33,7 +34,14 @@ public class ES93HnswScalarQuantizedVectorsFormat extends AbstractHnswVectorsFor
 
     public ES93HnswScalarQuantizedVectorsFormat() {
         super(NAME, DEFAULT_MAX_CONN, DEFAULT_BEAM_WIDTH, DEFAULT_NUM_MERGE_WORKER, null, ES93HnswVectorsFormat.HNSW_GRAPH_THRESHOLD);
-        flatVectorFormat = new ES93ScalarQuantizedVectorsFormat(DenseVectorFieldMapper.ElementType.FLOAT);
+        flatVectorFormat = new ES93ScalarQuantizedVectorsFormat(
+            DenseVectorFieldMapper.ElementType.FLOAT,
+            null,
+            7,
+            false,
+            false,
+            OFF_HEAP_BUFFERING
+        );
     }
 
     public ES93HnswScalarQuantizedVectorsFormat(
@@ -46,7 +54,14 @@ public class ES93HnswScalarQuantizedVectorsFormat extends AbstractHnswVectorsFor
         boolean useDirectIO
     ) {
         super(NAME, maxConn, beamWidth, DEFAULT_NUM_MERGE_WORKER, null, ES93HnswVectorsFormat.HNSW_GRAPH_THRESHOLD);
-        flatVectorFormat = new ES93ScalarQuantizedVectorsFormat(elementType, confidenceInterval, bits, compress, useDirectIO);
+        flatVectorFormat = new ES93ScalarQuantizedVectorsFormat(
+            elementType,
+            confidenceInterval,
+            bits,
+            compress,
+            useDirectIO,
+            OFF_HEAP_BUFFERING
+        );
     }
 
     public ES93HnswScalarQuantizedVectorsFormat(
@@ -61,7 +76,14 @@ public class ES93HnswScalarQuantizedVectorsFormat extends AbstractHnswVectorsFor
         ExecutorService mergeExec
     ) {
         super(NAME, maxConn, beamWidth, numMergeWorkers, mergeExec, ES93HnswVectorsFormat.HNSW_GRAPH_THRESHOLD);
-        flatVectorFormat = new ES93ScalarQuantizedVectorsFormat(elementType, confidenceInterval, bits, compress, useDirectIO);
+        flatVectorFormat = new ES93ScalarQuantizedVectorsFormat(
+            elementType,
+            confidenceInterval,
+            bits,
+            compress,
+            useDirectIO,
+            OFF_HEAP_BUFFERING
+        );
     }
 
     public ES93HnswScalarQuantizedVectorsFormat(
@@ -84,7 +106,14 @@ public class ES93HnswScalarQuantizedVectorsFormat extends AbstractHnswVectorsFor
             mergeExec,
             resolveThreshold(hnswGraphThreshold, ES93HnswVectorsFormat.HNSW_GRAPH_THRESHOLD)
         );
-        flatVectorFormat = new ES93ScalarQuantizedVectorsFormat(elementType, confidenceInterval, bits, compress, useDirectIO);
+        flatVectorFormat = new ES93ScalarQuantizedVectorsFormat(
+            elementType,
+            confidenceInterval,
+            bits,
+            compress,
+            useDirectIO,
+            OFF_HEAP_BUFFERING
+        );
     }
 
     @Override

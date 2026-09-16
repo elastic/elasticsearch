@@ -18,7 +18,6 @@ import org.apache.lucene.index.SegmentReadState;
 import org.apache.lucene.index.SegmentWriteState;
 import org.elasticsearch.index.codec.vectors.AbstractHnswVectorsFormat;
 import org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapper;
-import org.elasticsearch.simdvec.ESVectorizationProvider;
 
 import java.io.IOException;
 import java.util.concurrent.ExecutorService;
@@ -26,16 +25,9 @@ import java.util.concurrent.ExecutorService;
 import static org.apache.lucene.codecs.lucene99.Lucene99HnswVectorsFormat.DEFAULT_BEAM_WIDTH;
 import static org.apache.lucene.codecs.lucene99.Lucene99HnswVectorsFormat.DEFAULT_MAX_CONN;
 import static org.apache.lucene.codecs.lucene99.Lucene99HnswVectorsFormat.DEFAULT_NUM_MERGE_WORKER;
+import static org.elasticsearch.index.codec.vectors.es93.ES93GenericFlatVectorsFormat.OFF_HEAP_BUFFERING;
 
 public class ES93HnswVectorsFormat extends AbstractHnswVectorsFormat {
-
-    /**
-     * Buffer raw vectors off-heap while the segment is written, so graph construction scores them
-     * through the native scorers rather than copying out of an on-heap list. Enabled only where those
-     * scorers exist: without them, scoring the off-heap store copies each vector back onto the heap on
-     * every comparison, which is slower than buffering on-heap in the first place.
-     */
-    private static final boolean OFF_HEAP_BUFFERING = ESVectorizationProvider.getInstance().getVectorScorerFactory().usesNative();
 
     static final String NAME = "ES93HnswVectorsFormat";
     /**
@@ -47,18 +39,15 @@ public class ES93HnswVectorsFormat extends AbstractHnswVectorsFormat {
     private final FlatVectorsFormat flatVectorsFormat;
 
     public ES93HnswVectorsFormat() {
-        super(NAME, DEFAULT_MAX_CONN, DEFAULT_BEAM_WIDTH, DEFAULT_NUM_MERGE_WORKER, null, HNSW_GRAPH_THRESHOLD);
-        flatVectorsFormat = new ES93GenericFlatVectorsFormat(DenseVectorFieldMapper.ElementType.FLOAT, false, OFF_HEAP_BUFFERING);
+        this(DEFAULT_MAX_CONN, DEFAULT_BEAM_WIDTH, DenseVectorFieldMapper.ElementType.FLOAT);
     }
 
     public ES93HnswVectorsFormat(DenseVectorFieldMapper.ElementType elementType) {
-        super(NAME, DEFAULT_MAX_CONN, DEFAULT_BEAM_WIDTH, DEFAULT_NUM_MERGE_WORKER, null, HNSW_GRAPH_THRESHOLD);
-        flatVectorsFormat = new ES93GenericFlatVectorsFormat(elementType, false, OFF_HEAP_BUFFERING);
+        this(DEFAULT_MAX_CONN, DEFAULT_BEAM_WIDTH, elementType);
     }
 
     public ES93HnswVectorsFormat(int maxConn, int beamWidth, DenseVectorFieldMapper.ElementType elementType) {
-        super(NAME, maxConn, beamWidth, DEFAULT_NUM_MERGE_WORKER, null, HNSW_GRAPH_THRESHOLD);
-        flatVectorsFormat = new ES93GenericFlatVectorsFormat(elementType, false, OFF_HEAP_BUFFERING);
+        this(maxConn, beamWidth, elementType, DEFAULT_NUM_MERGE_WORKER, null);
     }
 
     public ES93HnswVectorsFormat(
@@ -68,8 +57,7 @@ public class ES93HnswVectorsFormat extends AbstractHnswVectorsFormat {
         int numMergeWorkers,
         ExecutorService mergeExec
     ) {
-        super(NAME, maxConn, beamWidth, numMergeWorkers, mergeExec, HNSW_GRAPH_THRESHOLD);
-        flatVectorsFormat = new ES93GenericFlatVectorsFormat(elementType, false, OFF_HEAP_BUFFERING);
+        this(maxConn, beamWidth, elementType, numMergeWorkers, mergeExec, HNSW_GRAPH_THRESHOLD, OFF_HEAP_BUFFERING);
     }
 
     public ES93HnswVectorsFormat(
@@ -80,8 +68,20 @@ public class ES93HnswVectorsFormat extends AbstractHnswVectorsFormat {
         ExecutorService mergeExec,
         int hnswGraphThreshold
     ) {
+        this(maxConn, beamWidth, elementType, numMergeWorkers, mergeExec, hnswGraphThreshold, OFF_HEAP_BUFFERING);
+    }
+
+    ES93HnswVectorsFormat(
+        int maxConn,
+        int beamWidth,
+        DenseVectorFieldMapper.ElementType elementType,
+        int numMergeWorkers,
+        ExecutorService mergeExec,
+        int hnswGraphThreshold,
+        boolean offHeapBuffering
+    ) {
         super(NAME, maxConn, beamWidth, numMergeWorkers, mergeExec, resolveThreshold(hnswGraphThreshold, HNSW_GRAPH_THRESHOLD));
-        flatVectorsFormat = new ES93GenericFlatVectorsFormat(elementType, false, OFF_HEAP_BUFFERING);
+        flatVectorsFormat = new ES93GenericFlatVectorsFormat(elementType, false, offHeapBuffering);
     }
 
     @Override

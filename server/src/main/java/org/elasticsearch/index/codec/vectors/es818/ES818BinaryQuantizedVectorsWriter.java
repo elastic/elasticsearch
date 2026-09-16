@@ -36,7 +36,6 @@ import org.apache.lucene.index.SegmentWriteState;
 import org.apache.lucene.index.Sorter;
 import org.apache.lucene.index.VectorEncoding;
 import org.apache.lucene.index.VectorSimilarityFunction;
-import org.apache.lucene.internal.hppc.FloatArrayList;
 import org.apache.lucene.search.DocIdSetIterator;
 import org.apache.lucene.search.VectorScorer;
 import org.apache.lucene.store.IndexOutput;
@@ -57,6 +56,7 @@ import java.util.List;
 import static org.apache.lucene.index.VectorSimilarityFunction.COSINE;
 import static org.apache.lucene.search.DocIdSetIterator.NO_MORE_DOCS;
 import static org.apache.lucene.util.RamUsageEstimator.shallowSizeOfInstance;
+import static org.apache.lucene.util.RamUsageEstimator.sizeOf;
 import static org.elasticsearch.index.codec.vectors.es818.ES818BinaryQuantizedVectorsFormat.BINARIZED_VECTOR_COMPONENT;
 import static org.elasticsearch.index.codec.vectors.es818.ES818BinaryQuantizedVectorsFormat.DIRECT_MONOTONIC_BLOCK_SHIFT;
 
@@ -71,7 +71,6 @@ public class ES818BinaryQuantizedVectorsWriter extends FlatVectorsWriter {
     private final List<FieldWriter> fields = new ArrayList<>();
     private final IndexOutput meta, binarizedVectorData;
     private final FlatVectorsWriter rawVectorDelegate;
-    private final ES818BinaryFlatVectorsScorer vectorsScorer;
     private boolean finished;
 
     /**
@@ -86,7 +85,6 @@ public class ES818BinaryQuantizedVectorsWriter extends FlatVectorsWriter {
         SegmentWriteState state
     ) throws IOException {
         super(vectorsScorer);
-        this.vectorsScorer = vectorsScorer;
         this.segmentWriteState = state;
         String metaFileName = IndexFileNames.segmentFileName(
             state.segmentInfo.name,
@@ -140,10 +138,6 @@ public class ES818BinaryQuantizedVectorsWriter extends FlatVectorsWriter {
     public void flush(int maxDoc, Sorter.DocMap sortMap) throws IOException {
         rawVectorDelegate.flush(maxDoc, sortMap);
         for (FieldWriter field : fields) {
-            // after raw vectors are written, normalize vectors for clustering and quantization
-            if (VectorSimilarityFunction.COSINE == field.fieldInfo.getVectorSimilarityFunction()) {
-                field.normalizeVectors();
-            }
             final float[] clusterCenter;
             int vectorCount = field.flatFieldVectorsWriter.getVectors().size();
             clusterCenter = new float[field.dimensionSums.length];
@@ -195,6 +189,9 @@ public class ES818BinaryQuantizedVectorsWriter extends FlatVectorsWriter {
         float[] scratch = new float[fieldData.fieldInfo.getVectorDimension()];
         for (int i = 0; i < fieldData.getVectors().size(); i++) {
             float[] v = fieldData.getVectors().get(i);
+            if (VectorSimilarityFunction.COSINE == fieldData.fieldInfo.getVectorSimilarityFunction()) {
+                normalizeVector(v);
+            }
             OptimizedScalarQuantizer.QuantizationResult corrections = scalarQuantizer.scalarQuantize(
                 v,
                 scratch,
@@ -209,6 +206,16 @@ public class ES818BinaryQuantizedVectorsWriter extends FlatVectorsWriter {
             binarizedVectorData.writeInt(Float.floatToIntBits(corrections.additionalCorrection()));
             assert corrections.quantizedComponentSum() >= 0 && corrections.quantizedComponentSum() <= 0xffff;
             binarizedVectorData.writeShort((short) corrections.quantizedComponentSum());
+        }
+    }
+
+    /**
+     * Prepare the vector for quantization with COSINE: scale to unit length, as the centroid is.
+     */
+    private static void normalizeVector(float[] vector) {
+        float magnitude = (float) Math.sqrt(ESVectorUtil.dotProduct(vector, vector));
+        for (int i = 0; i < vector.length; i++) {
+            vector[i] /= magnitude;
         }
     }
 
@@ -245,6 +252,9 @@ public class ES818BinaryQuantizedVectorsWriter extends FlatVectorsWriter {
         float[] scratch = new float[fieldData.fieldInfo.getVectorDimension()];
         for (int ordinal : ordMap) {
             float[] v = fieldData.getVectors().get(ordinal);
+            if (VectorSimilarityFunction.COSINE == fieldData.fieldInfo.getVectorSimilarityFunction()) {
+                normalizeVector(v);
+            }
             OptimizedScalarQuantizer.QuantizationResult corrections = scalarQuantizer.scalarQuantize(
                 v,
                 scratch,
@@ -471,7 +481,6 @@ public class ES818BinaryQuantizedVectorsWriter extends FlatVectorsWriter {
         private boolean finished;
         private final FlatFieldVectorsWriter<float[]> flatFieldVectorsWriter;
         private final float[] dimensionSums;
-        private final FloatArrayList magnitudes = new FloatArrayList();
 
         FieldWriter(FieldInfo fieldInfo, FlatFieldVectorsWriter<float[]> flatFieldVectorsWriter) {
             this.fieldInfo = fieldInfo;
@@ -484,14 +493,9 @@ public class ES818BinaryQuantizedVectorsWriter extends FlatVectorsWriter {
             return flatFieldVectorsWriter.getVectors();
         }
 
-        public void normalizeVectors() {
-            for (int i = 0; i < flatFieldVectorsWriter.getVectors().size(); i++) {
-                float[] vector = flatFieldVectorsWriter.getVectors().get(i);
-                float magnitude = magnitudes.get(i);
-                for (int j = 0; j < vector.length; j++) {
-                    vector[j] /= magnitude;
-                }
-            }
+        @Override
+        public KnnVectorValues asKnnVectorValues(VectorEncoding encoding, int dim) throws IOException {
+            return flatFieldVectorsWriter.asKnnVectorValues(encoding, dim);
         }
 
         @Override
@@ -519,7 +523,6 @@ public class ES818BinaryQuantizedVectorsWriter extends FlatVectorsWriter {
             if (fieldInfo.getVectorSimilarityFunction() == COSINE) {
                 float dp = ESVectorUtil.dotProduct(vectorValue, vectorValue);
                 float divisor = (float) Math.sqrt(dp);
-                magnitudes.add(divisor);
                 for (int i = 0; i < vectorValue.length; i++) {
                     dimensionSums[i] += (vectorValue[i] / divisor);
                 }
@@ -539,7 +542,7 @@ public class ES818BinaryQuantizedVectorsWriter extends FlatVectorsWriter {
         public long ramBytesUsed() {
             long size = SHALLOW_SIZE;
             size += flatFieldVectorsWriter.ramBytesUsed();
-            size += magnitudes.ramBytesUsed();
+            size += sizeOf(dimensionSums);
             return size;
         }
     }

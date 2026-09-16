@@ -84,6 +84,22 @@ public class ES93ScalarQuantizedVectorsFormat extends FlatVectorsFormat {
         boolean compress,
         boolean useDirectIO
     ) {
+        this(elementType, confidenceInterval, bits, compress, useDirectIO, false);
+    }
+
+    /**
+     * Variant that can buffer the raw vectors off-heap while the segment is written, see
+     * {@link ES93GenericFlatVectorsFormat#ES93GenericFlatVectorsFormat(DenseVectorFieldMapper.ElementType, boolean, boolean)}.
+     * Only worthwhile for the enclosing formats that build a graph, as nothing else scores the raw vectors.
+     */
+    public ES93ScalarQuantizedVectorsFormat(
+        DenseVectorFieldMapper.ElementType elementType,
+        Float confidenceInterval,
+        int bits,
+        boolean compress,
+        boolean useDirectIO,
+        boolean offHeapBuffering
+    ) {
         super(NAME);
         if (confidenceInterval != null
             && confidenceInterval != DYNAMIC_CONFIDENCE_INTERVAL
@@ -102,7 +118,7 @@ public class ES93ScalarQuantizedVectorsFormat extends FlatVectorsFormat {
         }
         assert elementType != DenseVectorFieldMapper.ElementType.BIT : "BIT should not be used with scalar quantization";
 
-        this.rawVectorFormat = new ES93GenericFlatVectorsFormat(elementType, useDirectIO);
+        this.rawVectorFormat = new ES93GenericFlatVectorsFormat(elementType, useDirectIO, offHeapBuffering);
         this.confidenceInterval = confidenceInterval;
         this.bits = (byte) bits;
         this.compress = compress;

@@ -132,6 +132,7 @@ public final class AsyncExternalSourceBuffer {
     private volatile boolean partial = false;
 
     private volatile FormatReaderStatus formatReaderStatus = null;
+    private final ExternalReadCounters readCounters = new ExternalReadCounters();
     // LongAdder (rather than the AtomicLong used for {@link #bytesInBuffer}) because every read
     // iteration adds a delta to bytesRead, so contention between concurrent producer threads on
     // multi-file paths would dominate AtomicLong's CAS cost. bytesInBuffer is a single producer /
@@ -541,6 +542,11 @@ public final class AsyncExternalSourceBuffer {
     /** Returns the latest format-reader counter snapshot, or {@code null} if none recorded yet. */
     public FormatReaderStatus formatReaderStatus() {
         return formatReaderStatus;
+    }
+
+    /** Returns the operator-level read counters accumulating wall and CPU time for this buffer's reads. */
+    public ExternalReadCounters readCounters() {
+        return readCounters;
     }
 
     /** Returns cumulative pre-decompression bytes read from the storage layer. */

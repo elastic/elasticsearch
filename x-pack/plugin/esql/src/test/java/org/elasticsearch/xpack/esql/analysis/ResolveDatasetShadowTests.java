@@ -72,9 +72,7 @@ import static org.elasticsearch.xpack.esql.core.type.DataType.LONG;
  * </ul>
  * The lenient field-caps integration that populates the resolution map in production
  * ({@code EsqlSession.preAnalyzeLinkedIndices}) is shared with view shadows and exercised elsewhere;
- * the "remote view of the same name FAILS" leg is the detection rail
- * ({@code EsqlResolveFieldsAction} / {@code EsqlCCSUtils.checkForRemoteResourceErrors}) covered by
- * {@code EsqlCCSUtilsTests} — it fires at field-caps time, before this analyzer rule runs, so it is not
+ * a remote view of the same name is ignored — the shadow is stripped before this analyzer rule runs, so it is not
  * reachable through the analyzer-only path these tests drive. A remote dataset of the same name is invisible
  * and produces no leg at all.
  * <p>

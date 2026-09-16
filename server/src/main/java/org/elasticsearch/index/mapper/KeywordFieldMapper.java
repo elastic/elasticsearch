@@ -47,6 +47,7 @@ import org.apache.lucene.util.automaton.CompiledAutomaton.AUTOMATON_TYPE;
 import org.apache.lucene.util.automaton.Operations;
 import org.elasticsearch.cluster.routing.IndexRouting;
 import org.elasticsearch.columnar.string.StringBinaryPayload;
+import org.elasticsearch.columnar.string.StringColumnOptions;
 import org.elasticsearch.common.lucene.BytesRefs;
 import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.common.lucene.search.AutomatonQueries;
@@ -1630,16 +1631,20 @@ public final class KeywordFieldMapper extends FieldMapper {
     }
 
     @Override
+    public StringColumnOptions columnarStringOptions() {
+        // A keyword column is where a dictionary pays: its values repeat, and the terms are short enough that
+        // a bounded dictionary covers much of the column.
+        return fieldType().diskFormat() == KeywordFieldType.DocValuesDiskFormat.BINARY_COLUMNAR_PAYLOAD
+            ? StringColumnOptions.DEFAULT
+            : null;
+    }
+
+    @Override
     protected boolean doSupportsColumnarParse(IndexSettings indexSettings) {
         // TIME_SERIES is accepted by the mode gate, but every keyword field in a TSDB index resolves to
         // DocValuesDiskFormat.SORTED_SET (see Builder#diskFormat), which supportsColumnarDocValues() does
         // not accept yet — so TSDB keywords still fall back to the row path until SORTED_SET emission lands.
-        return (indexSettings.getMode().isStrictColumnar() || indexSettings.getMode().isTsdb())
-            && supportsColumnarDocValues()
-            && hasScript() == false
-            && copyTo().copyToFields().isEmpty()
-            && normalizerName == null
-            && dimensionAllowsColumnarParse(fieldType(), writeDimensionRouting);
+        return supportsColumnarDocValues() && normalizerName == null && dimensionAllowsColumnarParse(fieldType(), writeDimensionRouting);
     }
 
     /**
@@ -1682,6 +1687,11 @@ public final class KeywordFieldMapper extends FieldMapper {
     ) {
         final EscfColumnData data = builder.finish(docCount);
         ctx.addColumn(LuceneBinaryColumn.of(data, fieldName, luceneFieldType), data);
+    }
+
+    @Override
+    protected boolean shouldEnforceSingleValueBatch() {
+        return docValuesParameters().multiValue() == false;
     }
 
     @Override
@@ -1900,7 +1910,6 @@ public final class KeywordFieldMapper extends FieldMapper {
             final EscfColumnBuilder fallback = emitFallback ? pending.add(mergeStringColumn()) : null;
 
             int currentDoc = -1;
-            boolean valueSeenThisDoc = false;
             while (true) {
                 final int nextDoc = cursor.nextDoc();
                 if (nextDoc == DocIdSetIterator.NO_MORE_DOCS) {
@@ -1908,7 +1917,6 @@ public final class KeywordFieldMapper extends FieldMapper {
                 }
                 if (nextDoc != currentDoc) {
                     currentDoc = nextDoc;
-                    valueSeenThisDoc = false;
                 }
                 BytesRef binaryValue = cursor.value();
                 if (binaryValue == null) {
@@ -1918,16 +1926,6 @@ public final class KeywordFieldMapper extends FieldMapper {
                         continue;  // null without null_value -> absent (row-path parity)
                     }
                 }
-
-                // TODO: Can move this validation earlier based on array type
-                if (valueSeenThisDoc) {
-                    // multi_value=false violation: bail so ShardBatchMapper falls back to the row path,
-                    // which raises the correct per-doc error (on_failure=FAIL).
-                    throw new UnsupportedOperationException(
-                        "mapColumnBatch: multi_value=false field [" + fullPath() + "] has more than one value for doc [" + currentDoc + "]"
-                    );
-                }
-                valueSeenThisDoc = true;
 
                 if (fieldType().ignoreAbove().isIgnored(binaryValue)) {
                     ctx.addIgnoredFieldColumnar(currentDoc, fullPath());

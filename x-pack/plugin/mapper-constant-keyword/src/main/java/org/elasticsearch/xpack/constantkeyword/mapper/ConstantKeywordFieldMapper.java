@@ -379,7 +379,7 @@ public class ConstantKeywordFieldMapper extends FieldMapper {
 
     @Override
     protected boolean doSupportsColumnarParse(IndexSettings indexSettings) {
-        return fieldType().value() != null && copyTo().copyToFields().isEmpty();
+        return fieldType().value() != null;
     }
 
     /**

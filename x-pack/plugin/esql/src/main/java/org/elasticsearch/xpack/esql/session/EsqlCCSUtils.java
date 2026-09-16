@@ -13,8 +13,6 @@ import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.TransportVersion;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.fieldcaps.FieldCapabilitiesFailure;
-import org.elasticsearch.action.fieldcaps.RemoteResourceNotSupportedException;
-import org.elasticsearch.action.fieldcaps.RemoteViewNotSupportedException;
 import org.elasticsearch.action.search.ShardSearchFailure;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.common.Strings;
@@ -211,38 +209,6 @@ public class EsqlCCSUtils {
             } else {
                 throw e;
             }
-        }
-    }
-
-    /**
-     * Check per-cluster failures for remote view errors thrown by remote clusters during field resolution. A view is not
-     * remotable, so such an error must fail the entire query regardless of whether other clusters succeeded.
-     * <p>
-     * Views matched on several clusters are collected in a single pass and reported together, so a query that reaches a
-     * view on more than one of them names all of them at once rather than whichever was iterated first.
-     * <p>
-     * The aggregate carries an empty dataset list: a dataset on another cluster is invisible rather than an error, so
-     * nothing can put one here. Since #157726 this coordinator does not ask a remote to resolve its views either, so
-     * the views half is defensive in the same way. What can still reach it is a remote answering a coordinator old
-     * enough to ask, which is the whole of what either half now reports.
-     */
-    static void checkForRemoteResourceErrors(Map<String, List<FieldCapabilitiesFailure>> failures) {
-        List<String> views = new ArrayList<>();
-        for (var entry : failures.entrySet()) {
-            for (FieldCapabilitiesFailure failure : entry.getValue()) {
-                Throwable cause = ExceptionsHelper.unwrapCause(failure.getException());
-                // The aggregate is read defensively rather than because anything can send one. A remote only ever
-                // reported datasets when the request asked it to, and this coordinator never asks, so no peer can take
-                // its dataset branch. If an aggregate arrives anyway, only its views half can be acted on here.
-                if (cause instanceof RemoteResourceNotSupportedException resourceEx) {
-                    views.addAll(resourceEx.views());
-                } else if (cause instanceof RemoteViewNotSupportedException viewEx) {
-                    views.addAll(viewEx.views());
-                }
-            }
-        }
-        if (views.isEmpty() == false) {
-            throw new RemoteResourceNotSupportedException(views, List.of());
         }
     }
 

@@ -561,6 +561,8 @@ public class IndexThrottlingRecoveryIT extends AbstractIndexRecoveryIntegTestCas
             assertThat("expected queued recovery to be reported by /_recovery", recoveryResponse.evaluate(indexTwo), notNullValue());
             assertThat(recoveryResponse.evaluate(indexOne + ".shards.0.stage"), equalTo("INIT"));
             assertThat(recoveryResponse.evaluate(indexTwo + ".shards.0.stage"), equalTo("CREATED"));
+            assertNull("an active recovery is not gate-deferred", recoveryResponse.evaluate(indexOne + ".shards.0.gate"));
+            assertNull("a concurrency-queued recovery is not gate-deferred", recoveryResponse.evaluate(indexTwo + ".shards.0.gate"));
 
             assertThat(
                 "an active recovery reports a start time",
@@ -596,6 +598,7 @@ public class IndexThrottlingRecoveryIT extends AbstractIndexRecoveryIntegTestCas
                 activeOnlyResponse.evaluate(indexTwo + ".shards.0.stage"),
                 equalTo("CREATED")
             );
+            assertNull(activeOnlyResponse.evaluate(indexTwo + ".shards.0.gate"));
 
             catStageByIndex = catRecoveryStageByIndex(true, Set.of(indexOne, indexTwo));
             assertThat(

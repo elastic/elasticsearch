@@ -80,6 +80,7 @@ By default, an {{esql}} query returns up to 1,000 rows. You can increase the num
     * `nested`
     * `rank_feature`
     * `rank_features`
+    * `rank_vectors`
     * `search_as_you_type`
 
 

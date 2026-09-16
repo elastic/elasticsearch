@@ -131,3 +131,65 @@ count:long | languages:integer
 21         | 5
 10         | null
 ;
+
+// ---------------------------------------------------------------------------------------------------------
+// Multi-source FROM over the colliding Hive layout. Two datasets bound to the same tree make the union the
+// data twice, so COUNT and SUM double and AVG is unchanged. salary is a data column, so the adapter's
+// query schema is non-empty and ColumnMapping.alignToQuery runs under a UnionAll: COUNT(*) alone (or
+// COUNT(*) BY a partition key) would take the empty-schema passthrough instead. The grouped case uses
+// the path-derived languages key; the none case reads the physical column and emits no shadow warning.
+// ---------------------------------------------------------------------------------------------------------
+
+multiSourceShadowedColumnAggregate
+required_capability: dataset_in_from_command
+dataset: emp_shadow_a: "{{employees_hive_shadow}}"
+dataset: emp_shadow_b: "{{employees_hive_shadow}}"
+
+FROM emp_shadow_a, emp_shadow_b
+| STATS total = COUNT(*), sum_salary = SUM(salary), avg_salary = AVG(salary);
+
+warningRegex:.*one or more physical columns are shadowed by same-named Hive partition keys.*Set partition_detection to none to read the physical column instead.*
+warningRegex:.*physical column \[languages\] is shadowed by a same-named Hive partition key.*
+
+total:long | sum_salary:long | avg_salary:double
+200        | 9649710         | 48248.55
+;
+
+multiSourceShadowedColumnAggregateGroupedByShadowedKey
+required_capability: dataset_in_from_command
+dataset: emp_shadow_grp_a: "{{employees_hive_shadow}}"
+dataset: emp_shadow_grp_b: "{{employees_hive_shadow}}"
+
+FROM emp_shadow_grp_a, emp_shadow_grp_b
+| STATS total = COUNT(*), sum_salary = SUM(salary) BY languages
+| SORT languages NULLS LAST;
+
+warningRegex:.*one or more physical columns are shadowed by same-named Hive partition keys.*Set partition_detection to none to read the physical column instead.*
+warningRegex:.*physical column \[languages\] is shadowed by a same-named Hive partition key.*
+
+total:long | sum_salary:long | languages:integer
+30         | 1517300         | 1
+38         | 1830796         | 2
+34         | 1782242         | 3
+36         | 1718388         | 4
+42         | 1750592         | 5
+20         | 1050392         | null
+;
+
+multiSourceDetectionNoneColumnAggregateReadsThePhysicalColumn
+required_capability: dataset_in_from_command
+dataset: emp_none_a: "{{employees_hive_shadow}}" WITH {"partition_detection": "none"}
+dataset: emp_none_b: "{{employees_hive_shadow}}" WITH {"partition_detection": "none"}
+
+FROM emp_none_a, emp_none_b
+| STATS total = COUNT(*), sum_salary = SUM(salary) BY languages
+| SORT languages NULLS LAST;
+
+total:long | sum_salary:long | languages:integer
+30         | 1517300         | 1
+38         | 1830796         | 2
+34         | 1782242         | 3
+36         | 1718388         | 4
+42         | 1750592         | 5
+20         | 1050392         | null
+;

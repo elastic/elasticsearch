@@ -86,7 +86,7 @@ public class BatchBulkIT extends ESIntegTestCase {
     @Override
     protected Collection<Class<? extends Plugin>> nodePlugins() {
         // DataStreamsPlugin is needed by the pre-built-batch tests that target a data stream rather than a
-        // concrete index. MapperExtrasPlugin registers match_only_text, used by testColumnarMatchOnlyTextBatchMode.
+        // concrete index. MapperExtrasPlugin registers match_only_text, used by testColumnarTextBatchMode.
         return CollectionUtils.appendToCopyNoNullElements(
             CollectionUtils.appendToCopyNoNullElements(super.nodePlugins(), DataStreamsPlugin.class),
             MapperExtrasPlugin.class
@@ -331,8 +331,9 @@ public class BatchBulkIT extends ESIntegTestCase {
         );
     }
 
-    public void testColumnarMatchOnlyTextBatchMode() throws IOException {
-        String index = "test-columnar-match-only-text";
+    public void testColumnarTextBatchMode() throws IOException {
+        String fieldType = randomFrom("text", "match_only_text");
+        String index = "test-columnar-" + fieldType;
 
         XContentBuilder mapping = JsonXContent.contentBuilder();
         mapping.startObject();
@@ -342,7 +343,7 @@ public class BatchBulkIT extends ESIntegTestCase {
                 mapping.field("dynamic", "strict");
                 mapping.startObject("properties");
                 {
-                    mapping.startObject("message").field("type", "match_only_text").endObject();
+                    mapping.startObject("message").field("type", fieldType).endObject();
                 }
                 mapping.endObject();
             }
@@ -404,7 +405,7 @@ public class BatchBulkIT extends ESIntegTestCase {
             assertThat(searchResponse.getHits().getTotalHits().value(), equalTo((long) numDocs));
         });
 
-        // The inverted (DOCS-only) index built by the batch path must be searchable via match.
+        // The terms column built by the batch path must be searchable via match.
         assertResponse(
             prepareSearch(index).setQuery(QueryBuilders.matchQuery("message", "hello")).setSize(0).setTrackTotalHits(true),
             searchResponse -> {

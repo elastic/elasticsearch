@@ -1663,7 +1663,7 @@ public class ObjectStoreService extends AbstractLifecycleComponent implements Cl
         @Override
         public void skipNBytes(long n) throws LocalIOException {
             try {
-                delegate.skip(n);
+                delegate.skipNBytes(n);
             } catch (IOException e) {
                 throw new LocalIOException(e);
             }

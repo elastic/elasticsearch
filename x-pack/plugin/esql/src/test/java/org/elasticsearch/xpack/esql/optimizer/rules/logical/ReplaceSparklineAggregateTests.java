@@ -48,6 +48,10 @@ public class ReplaceSparklineAggregateTests extends AbstractLogicalPlanOptimizer
 
     private static final String SPARKLINE_EXPR = "sparkline(count(*), hire_date, 10, \"2024-01-01\", \"2024-12-31\")";
 
+    public ReplaceSparklineAggregateTests(VersionMode versionMode) {
+        super(versionMode);
+    }
+
     @Before
     public void checkCapability() {
         assumeTrue(

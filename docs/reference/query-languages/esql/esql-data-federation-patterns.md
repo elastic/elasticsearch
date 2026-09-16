@@ -156,6 +156,8 @@ nested.
 | `{a*,b}.csv` | `a.csv`, `axyz.csv`, `b.csv` | `.csv` |
 | `report{,-final}.pdf` | `report.pdf`, `report-final.pdf` | `report-draft.pdf` |
 
+`*.{parquet,csv}` is a matcher: it selects objects whose names end in either extension. A dataset still needs a single format. Use this pattern only with an explicit [`format`](esql-data-federation-datasets.md#common-settings) setting, or split the files into two datasets.
+
 ### Numeric ranges: `{N..M}`
 
 A brace group of the form `{N..M}`, where both endpoints are non-negative integers and the group contains no

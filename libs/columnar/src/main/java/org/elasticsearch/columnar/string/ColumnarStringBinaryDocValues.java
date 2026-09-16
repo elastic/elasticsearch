@@ -204,7 +204,7 @@ public final class ColumnarStringBinaryDocValues extends BinaryDocValues impleme
                 return iterator.cost();
             }
 
-            private int position(int doc) {
+            private int position(int doc) throws IOException {
                 if (doc != DocIdSetIterator.NO_MORE_DOCS) {
                     int rank = iterator.rank();
                     first = reader.firstValueAddress(rank);

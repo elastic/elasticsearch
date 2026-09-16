@@ -11,7 +11,7 @@ import org.elasticsearch.gradle.internal.precommit.CheckForbiddenApisTask
 
 apply plugin: 'elasticsearch.build'
 apply plugin: 'elasticsearch.publish'
-apply plugin: 'elasticsearch.jmh'
+apply plugin: 'elasticsearch.benchmark'
 
 dependencies {
   implementation project(':libs:x-content')

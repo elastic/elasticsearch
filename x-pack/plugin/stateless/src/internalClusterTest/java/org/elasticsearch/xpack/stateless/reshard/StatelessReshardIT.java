@@ -46,6 +46,7 @@ import org.elasticsearch.action.search.SearchTransportService;
 import org.elasticsearch.action.search.SearchType;
 import org.elasticsearch.action.support.ActiveShardCount;
 import org.elasticsearch.action.support.PlainActionFuture;
+import org.elasticsearch.action.support.SubscribableListener;
 import org.elasticsearch.action.support.WriteRequest;
 import org.elasticsearch.action.support.master.MasterNodeRequestHelper;
 import org.elasticsearch.action.support.replication.StaleRequestException;
@@ -163,7 +164,6 @@ import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.CyclicBarrier;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.Executors;
-import java.util.concurrent.LinkedBlockingQueue;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
 import java.util.concurrent.atomic.AtomicBoolean;
@@ -1049,17 +1049,17 @@ public class StatelessReshardIT extends AbstractStatelessPluginIntegTestCase {
         // briefly (should time out because DONE should wait for notification to be acknowledged). Perform search,
         // check that it doesn't have too many documents (it's still filtering unowned). Release commit block.
 
-        final var deferredNotifications = new LinkedBlockingQueue<CheckedRunnable<Exception>>();
+        final var notificationsUnblocked = new SubscribableListener<Void>();
         final var blockNotification = new AtomicBoolean(false);
         final var notificationBlocked = new CountDownLatch(1);
         MockTransportService.getInstance(searchNode)
             .addRequestHandlingBehavior(TransportNewCommitNotificationAction.NAME + "[u]", (handler, request, channel, task) -> {
                 if (blockNotification.get()) {
                     logger.info("deferring new commit notification {}", request);
-                    deferredNotifications.add(() -> {
+                    notificationsUnblocked.addListener(ActionListener.wrap(ignored -> {
                         logger.info("processing deferred notification {}", request);
                         handler.messageReceived(request, channel, task);
-                    });
+                    }, e -> { throw new AssertionError("deferred commit notification failed", e); }));
                 } else {
                     handler.messageReceived(request, channel, task);
                 }
@@ -1077,7 +1077,7 @@ public class StatelessReshardIT extends AbstractStatelessPluginIntegTestCase {
                         notificationBlocked.countDown();
                     }
                     assert splitStateRequest.getNewTargetShardState() != IndexReshardingState.Split.TargetShardState.DONE
-                        || deferredNotifications.isEmpty() : "all commit notifications should have been processed first";
+                        || notificationsUnblocked.isDone() : "commit notifications should have been unblocked first";
                 }
             }
             connection.sendRequest(requestId, action, request, options);
@@ -1093,13 +1093,10 @@ public class StatelessReshardIT extends AbstractStatelessPluginIntegTestCase {
         final var unblockThread = new Thread(() -> {
             try {
                 Thread.sleep(100); // allow reshard to reach the refresh-wait in deleteUnownedDocuments
-                blockNotification.set(false);
-                while (deferredNotifications.isEmpty() == false) {
-                    deferredNotifications.take().run();
-                }
-            } catch (Exception e) {
-                throw new RuntimeException(e);
+            } catch (InterruptedException e) {
+                throw new AssertionError(e);
             }
+            notificationsUnblocked.onResponse(null);
         });
         unblockThread.start();
 

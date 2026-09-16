@@ -13,6 +13,7 @@ import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.esql.datasource.csv.CsvFormatReader;
 import org.elasticsearch.xpack.esql.datasource.ndjson.NdJsonFormatReader;
 import org.elasticsearch.xpack.esql.datasources.DecompressionCodecRegistry;
+import org.elasticsearch.xpack.esql.datasources.FormatNameResolver;
 import org.elasticsearch.xpack.esql.datasources.FormatReaderRegistry;
 
 import java.io.InputStream;
@@ -181,10 +182,7 @@ public class FileDataSourceValidatorSampleSizeBoundTests extends ESTestCase {
             ValidationException.class,
             () -> validatorWithResolver().validateDataset(Map.of(), "file:///data/events", Map.of("schema_sample_size", "100"))
         );
-        assertEquals(
-            List.of(FileDataSourceValidator.cannotDetermineFormatError("file:///data/events", Set.of("schema_sample_size"))),
-            e.validationErrors()
-        );
+        assertThat(e.getMessage(), containsString(FormatNameResolver.ambiguousDatasetFormatMessage("file:///data/events")));
     }
 
     public void testParquetRejectionErrorNamesTheSettingAndTheFormat() {

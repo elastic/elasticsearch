@@ -12,6 +12,7 @@ import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.xpack.esql.datasource.csv.CsvDataSourcePlugin;
 import org.elasticsearch.xpack.esql.datasource.gzip.GzipDataSourcePlugin;
+import org.elasticsearch.xpack.esql.datasources.FormatNameResolver;
 
 import java.nio.file.Path;
 import java.util.Collection;
@@ -35,9 +36,9 @@ import static org.hamcrest.Matchers.not;
  *       goes through the async path, which selected factories with the path-only {@code canHandle(String)} and so
  *       discarded the caller's config; {@code format} was honored for one concrete file and silently a no-op for
  *       every glob, leaving a dump like this unreadable under any configuration.</li>
- *   <li>without one, the query fails as a 400 naming the extension and the {@code format} setting — not as a 500
- *       advising that a data-source plugin be installed, which was never the cause (the scheme is validated
- *       before the factory loop, so a missing plugin cannot be what went wrong here).</li>
+ *   <li>without one, the query fails as a 400 telling the caller to set {@code format} — the glob
+ *       {@code *.log.gz} implies no registered format. A declared {@code format} still reads those objects.
+ *       Type {@code test} ITs skip {@code FileDataSourceValidator}, so PUT acks; production PUT is REST CRUD.</li>
  * </ul>
  */
 public class DatasetUnrecognizedExtensionIT extends AbstractExternalDataSourceIT {
@@ -103,6 +104,10 @@ public class DatasetUnrecognizedExtensionIT extends AbstractExternalDataSourceIT
         }
     }
 
+    /**
+     * Type {@code test} ITs skip {@code FileDataSourceValidator}, so PUT acks. Query-time
+     * {@code datasetFormat} still returns 400. Production PUT is {@code DataSourceCrudRestIT}.
+     */
     public void testGlobOfUnrecognizedExtensionWithoutFormatFailsAsBadRequest() throws Exception {
         String glob = writeFlowLogDump();
 
@@ -112,10 +117,7 @@ public class DatasetUnrecognizedExtensionIT extends AbstractExternalDataSourceIT
         Exception e = expectThrows(Exception.class, () -> run(syncEsqlQueryRequest("FROM vpcflow_noformat | LIMIT 1"), TIMEOUT).close());
 
         assertThat(ExceptionsHelper.status(e), equalTo(RestStatus.BAD_REQUEST));
-        assertThat(e.getMessage(), containsString("Cannot determine how to read"));
-        // The compound tail, not the bare ".gz" — gzip IS installed here, so naming it alone would contradict itself.
-        assertThat(e.getMessage(), containsString("[.log.gz]"));
-        assertThat(e.getMessage(), containsString("[format]"));
+        assertThat(e.getMessage(), containsString(FormatNameResolver.ambiguousDatasetFormatMessage(glob)));
         assertThat(e.getMessage(), not(containsString("plugin is installed")));
     }
 

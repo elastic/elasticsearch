@@ -137,6 +137,16 @@ public interface InferenceService extends Closeable {
     );
 
     /**
+     * Whether this service supports non-streaming chat completion via the unified API.
+     * Services that return {@code true} here must handle {@link UnifiedCompletionRequest#stream()} being {@code false} in
+     * {@link #unifiedCompletionInfer}.
+     * @return {@code false} by default
+     */
+    default boolean supportsNonStreamingChatCompletion() {
+        return false;
+    }
+
+    /**
      * Perform completion inference on the model using the unified schema.
      *
      * @param model        The model

@@ -35,6 +35,7 @@ import org.elasticsearch.cluster.metadata.DataStreamTestHelper;
 import org.elasticsearch.cluster.metadata.IndexGraveyard;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
+import org.elasticsearch.cluster.metadata.ProjectId;
 import org.elasticsearch.cluster.metadata.ProjectMetadata;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.routing.allocation.AllocationService;
@@ -56,7 +57,6 @@ import org.elasticsearch.snapshots.SearchableSnapshotsSettings;
 import org.elasticsearch.test.EqualsHashCodeTestUtils;
 import org.elasticsearch.transport.TransportRequest;
 
-import java.io.IOException;
 import java.time.Clock;
 import java.time.Instant;
 import java.time.temporal.ChronoUnit;
@@ -466,7 +466,7 @@ public class DataStreamLifecycleServiceTests extends DataStreamLifecycleServiceT
         assertThat(clientSeenRequests.isEmpty(), is(true));
     }
 
-    public void testDeletedIndicesAreRemovedFromTheErrorStore() throws IOException {
+    public void testDeletedIndicesAreRemovedFromTheErrorStore() {
         String dataStreamName = randomAlphaOfLength(10).toLowerCase(Locale.ROOT);
         int numBackingIndices = 3;
         ProjectMetadata.Builder builder = ProjectMetadata.builder(randomProjectIdOrDefault());
@@ -487,11 +487,19 @@ public class DataStreamLifecycleServiceTests extends DataStreamLifecycleServiceT
 
         // all backing indices are in the error store
         for (Index index : dataStream.getIndices()) {
-            dataStreamLifecycleService.getErrorStore().recordError(builder.getId(), index.getName(), new NullPointerException("bad"));
+            dataStreamLifecycleService.getErrorStore().recordError(builder.getId(), index, new NullPointerException("bad"));
         }
         Index writeIndex = dataStream.getWriteIndex();
+        // Even one that has been deleted but has the same name as the write index
+        Index alreadyDeletedIndex = new Index(writeIndex.getName(), randomUUID());
+        dataStreamLifecycleService.getErrorStore().recordError(builder.getId(), alreadyDeletedIndex, new NullPointerException());
         // all indices but the write index are deleted
         List<Index> deletedIndices = dataStream.getIndices().stream().filter(index -> index.equals(writeIndex) == false).toList();
+
+        // Even the ones that belong to a project that does not exist.
+        ProjectId deletedProjectId = ProjectId.fromId("deleted-project-id");
+        Index deletedProjectIndex = new Index("deleted-project-index", randomUUID());
+        dataStreamLifecycleService.getErrorStore().recordError(deletedProjectId, deletedProjectIndex, new NullPointerException());
 
         ClusterState.Builder newStateBuilder = ClusterState.builder(previousState);
         newStateBuilder.stateUUID(UUIDs.randomBase64UUID());
@@ -509,13 +517,12 @@ public class DataStreamLifecycleServiceTests extends DataStreamLifecycleServiceT
         dataStreamLifecycleService.run(stateWithDeletedIndices);
 
         for (Index deletedIndex : deletedIndices) {
-            assertThat(dataStreamLifecycleService.getErrorStore().getError(builder.getId(), deletedIndex.getName()), nullValue());
+            assertThat(dataStreamLifecycleService.getErrorStore().getError(builder.getId(), deletedIndex), nullValue());
         }
+        assertThat(dataStreamLifecycleService.getErrorStore().getError(deletedProjectId, deletedProjectIndex), nullValue());
+        assertThat(dataStreamLifecycleService.getErrorStore().getError(builder.getId(), alreadyDeletedIndex), nullValue());
         // the value for the write index should still be in the error store
-        assertThat(
-            dataStreamLifecycleService.getErrorStore().getError(builder.getId(), dataStream.getWriteIndex().getName()),
-            notNullValue()
-        );
+        assertThat(dataStreamLifecycleService.getErrorStore().getError(builder.getId(), dataStream.getWriteIndex()), notNullValue());
     }
 
     public void testErrorStoreIsClearedOnBackingIndexBecomingUnmanaged() {
@@ -532,7 +539,7 @@ public class DataStreamLifecycleServiceTests extends DataStreamLifecycleServiceT
         );
         // all backing indices are in the error store
         for (Index index : dataStream.getIndices()) {
-            dataStreamLifecycleService.getErrorStore().recordError(builder.getId(), index.getName(), new NullPointerException("bad"));
+            dataStreamLifecycleService.getErrorStore().recordError(builder.getId(), index, new NullPointerException("bad"));
         }
         builder.put(dataStream);
         ClusterState state = ClusterState.builder(ClusterName.DEFAULT).putProjectMetadata(builder).build();
@@ -553,7 +560,7 @@ public class DataStreamLifecycleServiceTests extends DataStreamLifecycleServiceT
         dataStreamLifecycleService.run(updatedState);
 
         for (Index index : dataStream.getIndices()) {
-            assertThat(dataStreamLifecycleService.getErrorStore().getError(builder.getId(), index.getName()), nullValue());
+            assertThat(dataStreamLifecycleService.getErrorStore().getError(builder.getId(), index), nullValue());
         }
     }
 
@@ -571,7 +578,7 @@ public class DataStreamLifecycleServiceTests extends DataStreamLifecycleServiceT
         // all backing indices are in the error store
         for (Index index : ilmManagedDataStream.getIndices()) {
             dataStreamLifecycleService.getErrorStore()
-                .recordError(builder.getId(), index.getName(), new NullPointerException("will be ILM managed soon"));
+                .recordError(builder.getId(), index, new NullPointerException("will be ILM managed soon"));
         }
         String dataStreamWithBackingIndicesInErrorState = randomAlphaOfLength(15).toLowerCase(Locale.ROOT);
         DataStream dslManagedDataStream = createDataStream(
@@ -584,8 +591,7 @@ public class DataStreamLifecycleServiceTests extends DataStreamLifecycleServiceT
         );
         // put all backing indices in the error store
         for (Index index : dslManagedDataStream.getIndices()) {
-            dataStreamLifecycleService.getErrorStore()
-                .recordError(builder.getId(), index.getName(), new NullPointerException("dsl managed index"));
+            dataStreamLifecycleService.getErrorStore().recordError(builder.getId(), index, new NullPointerException("dsl managed index"));
         }
         builder.put(ilmManagedDataStream);
         builder.put(dslManagedDataStream);
@@ -607,10 +613,10 @@ public class DataStreamLifecycleServiceTests extends DataStreamLifecycleServiceT
         dataStreamLifecycleService.run(updatedState);
 
         for (Index index : dslManagedDataStream.getIndices()) {
-            assertThat(dataStreamLifecycleService.getErrorStore().getError(builder.getId(), index.getName()), notNullValue());
+            assertThat(dataStreamLifecycleService.getErrorStore().getError(builder.getId(), index), notNullValue());
         }
         for (Index index : ilmManagedDataStream.getIndices()) {
-            assertThat(dataStreamLifecycleService.getErrorStore().getError(builder.getId(), index.getName()), nullValue());
+            assertThat(dataStreamLifecycleService.getErrorStore().getError(builder.getId(), index), nullValue());
         }
     }
 

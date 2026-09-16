@@ -9,6 +9,12 @@
 
 package org.elasticsearch.action.bulk;
 
+import org.apache.lucene.index.PostingsEnum;
+import org.apache.lucene.index.Terms;
+import org.apache.lucene.index.TermsEnum;
+import org.apache.lucene.search.PhraseQuery;
+import org.apache.lucene.search.TopDocs;
+import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.action.DocWriteRequest;
 import org.elasticsearch.action.DocWriteResponse;
 import org.elasticsearch.action.index.IndexRequest;
@@ -669,6 +675,97 @@ public class ShardBatchIndexerTests extends IndexShardTestCase {
         // MockPageCacheRecycler.ensureAllPagesAreReleased() is called automatically by ESTestCase.after().
 
         closeShards(shard);
+    }
+
+    /**
+     * Verifies that the columnar batch path applies {@code position_increment_gap} between array elements
+     * identically to the row path. The parity harness only compares column descriptors and never reads
+     * postings, so this end-to-end test pins the invariant against future changes in
+     * {@code IndexingChain}'s {@code fieldGen/first} logic.
+     */
+    public void testBatchIndexTextFieldPositionIncrementGap() throws Exception {
+        String defaultGapMapping = """
+            {
+              "dynamic": "strict",
+              "properties": {
+                "f": { "type": "text" }
+              }
+            }""";
+        String zeroGapMapping = """
+            {
+              "dynamic": "strict",
+              "properties": {
+                "f": { "type": "text", "position_increment_gap": 0 }
+              }
+            }""";
+
+        for (String mapping : new String[] { defaultGapMapping, zeroGapMapping }) {
+            boolean isZeroGap = mapping.contains("position_increment_gap");
+
+            IndexShard rowShard = newColumnarPrimaryShardWithMapping(mapping);
+            indexDoc(rowShard, "1", "{\"f\":[\"quick brown\",\"fox jumps\"]}", XContentType.JSON, null);
+            rowShard.refresh("test");
+            IndexShard batchShard = newColumnarPrimaryShardWithMapping(mapping);
+            BulkItemRequest[] items = { new BulkItemRequest(0, new IndexRequest("index").id("1")) };
+            BulkShardRequest bulkReq = new BulkShardRequest(
+                batchShard.shardId(),
+                SplitShardCountSummary.IRRELEVANT,
+                RefreshPolicy.NONE,
+                items
+            );
+            BulkPrimaryExecutionContext ctx = new BulkPrimaryExecutionContext(bulkReq, batchShard);
+            List<BytesReference> sources = List.of(new BytesArray("{\"f\":[\"quick brown\",\"fox jumps\"]}"));
+            try (EscfBatch batch = EscfEncoder.encode(sources, XContentType.JSON)) {
+                PlainActionFuture<Void> future = new PlainActionFuture<>();
+                shardBatchIndexer.performBatchIndexOnPrimary(items, batch, ctx, future);
+                future.actionGet();
+            }
+            assertFalse("batch indexing should not fail", items[0].getPrimaryResponse().isFailed());
+            batchShard.refresh("test");
+
+            PhraseQuery boundaryPhrase = new PhraseQuery("f", "brown", "fox");
+
+            try (Engine.Searcher rowSearcher = rowShard.acquireSearcher("test")) {
+                TopDocs rowHits = rowSearcher.search(boundaryPhrase, 10);
+                try (Engine.Searcher batchSearcher = batchShard.acquireSearcher("test")) {
+                    TopDocs batchHits = batchSearcher.search(boundaryPhrase, 10);
+                    if (isZeroGap) {
+                        assertThat("row path: gap=0 boundary phrase should match", rowHits.totalHits.value(), equalTo(1L));
+                        assertThat("batch path: gap=0 boundary phrase should match", batchHits.totalHits.value(), equalTo(1L));
+                    } else {
+                        assertThat("row path: default gap boundary phrase should not match", rowHits.totalHits.value(), equalTo(0L));
+                        assertThat("batch path: default gap boundary phrase should not match", batchHits.totalHits.value(), equalTo(0L));
+                    }
+                }
+            }
+
+            try (Engine.Searcher rowSearcher = rowShard.acquireSearcher("test")) {
+                try (Engine.Searcher batchSearcher = batchShard.acquireSearcher("test")) {
+                    for (String term : new String[] { "quick", "fox" }) {
+                        int rowPos = firstPosition(rowSearcher, "f", term);
+                        int batchPos = firstPosition(batchSearcher, "f", term);
+                        assertThat(
+                            "term [" + term + "] position must match between row and batch paths (gap=" + (isZeroGap ? "0" : "100") + ")",
+                            batchPos,
+                            equalTo(rowPos)
+                        );
+                    }
+                }
+            }
+
+            closeShards(rowShard, batchShard);
+        }
+    }
+
+    /** Returns the first token position of {@code term} in {@code field}, or -1 if absent. */
+    private static int firstPosition(Engine.Searcher searcher, String field, String term) throws IOException {
+        Terms terms = searcher.getIndexReader().leaves().get(0).reader().terms(field);
+        if (terms == null) return -1;
+        TermsEnum te = terms.iterator();
+        if (te.seekExact(new BytesRef(term)) == false) return -1;
+        PostingsEnum pe = te.postings(null, PostingsEnum.POSITIONS);
+        if (pe.nextDoc() == PostingsEnum.NO_MORE_DOCS) return -1;
+        return pe.nextPosition();
     }
 
     public void testBatchIndexOnReplicaNoopResponse() throws Exception {

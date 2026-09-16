@@ -109,10 +109,14 @@ public final class ExternalSourceMetrics {
     public static final String PARSE_ROWS_TOTAL = "es.esql.datasources.parse.rows.total";
 
     /**
-     * Cumulative reader-thread time an external-source scan operator spent reading and parsing an object, in
-     * milliseconds — summed across parallel parse workers ({@link FormatReaderStatus#readNanos()}), not wall time.
+     * Cumulative wall-clock time an external-source scan operator spent reading and parsing an object, in milliseconds.
      */
     public static final String PARSE_DURATION = "es.esql.datasources.parse.duration.histogram";
+
+    /**
+     * Cumulative CPU time an external-source scan operator spent reading and parsing an object, in milliseconds.
+     */
+    public static final String PARSE_CPU_DURATION = "es.esql.datasources.parse.cpu_duration.histogram";
 
     /**
      * Number of splits scanned by an external-source scan operator. A scan/parse-phase quantity — the per-operator
@@ -225,6 +229,7 @@ public final class ExternalSourceMetrics {
     private final LongCounter discoveryFailuresTotal;
     private final LongCounter parseRowsTotal;
     private final LongHistogram parseDuration;
+    private final LongHistogram parseCpuDuration;
     private final LongHistogram parseSplitsScanned;
     private final LongCounter readerPoolRejectedTotal;
     private final LongCounter breakerTrippedTotal;
@@ -329,8 +334,12 @@ public final class ExternalSourceMetrics {
         );
         this.parseDuration = meterRegistry.registerLongHistogram(
             PARSE_DURATION,
-            "Cumulative reader-thread time an ES|QL external-data-source scan operator spent reading and parsing an object "
-                + "(summed across parallel parse workers)",
+            "Cumulative wall-clock time an ES|QL external-data-source scan operator spent reading and parsing an object",
+            "ms"
+        );
+        this.parseCpuDuration = meterRegistry.registerLongHistogram(
+            PARSE_CPU_DURATION,
+            "Cumulative CPU time an ES|QL external-data-source scan operator spent reading and parsing an object",
             "ms"
         );
         this.parseSplitsScanned = meterRegistry.registerLongHistogram(
@@ -517,17 +526,18 @@ public final class ExternalSourceMetrics {
     }
 
     /**
-     * Records the rows parsed and the read/parse wall time of one external-source scan operator, in milliseconds,
+     * Records the rows parsed, wall-clock and CPU read/parse time of one external-source scan operator, in milliseconds,
      * tagged with the storage {@code scheme} (folded to {@link #TYPE_ATTRIBUTE}) and the scan {@code format}
      * (folded to {@link #FORMAT_ATTRIBUTE}). Best-effort (self-guarded).
      */
-    public void recordParse(long rows, long parseDurationMillis, String scheme, String format) {
+    public void recordParse(long rows, long parseDurationMillis, long parseCpuDurationMillis, String scheme, String format) {
         try {
             Map<String, Object> attributes = typeFormatAttrs(scheme, format);
             if (rows > 0) {
                 parseRowsTotal.incrementBy(rows, attributes);
             }
             parseDuration.record(Math.max(0L, parseDurationMillis), attributes);
+            parseCpuDuration.record(Math.max(0L, parseCpuDurationMillis), attributes);
             if (usageAccumulator != null) {
                 usageAccumulator.recordParse(rows, parseDurationMillis, canonicalFormat(format));
             }

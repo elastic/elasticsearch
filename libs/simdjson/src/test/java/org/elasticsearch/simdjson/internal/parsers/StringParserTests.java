@@ -24,8 +24,7 @@ public class StringParserTests extends ESTestCase {
 
     @BeforeClass
     public static void requireVectorSupport() {
-        SimdJsonSupport.isSupported();
-        assumeTrue("jdk.incubator.vector required for StringParser", SimdJsonVectorSupport.isAvailable());
+        assumeTrue("simdjson not supported on this platform", SimdJsonSupport.isSupported());
     }
 
     private final StringParser parser = new StringParser();

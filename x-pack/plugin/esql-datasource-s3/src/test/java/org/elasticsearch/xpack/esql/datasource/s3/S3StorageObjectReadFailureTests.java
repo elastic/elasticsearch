@@ -8,9 +8,12 @@
 package org.elasticsearch.xpack.esql.datasource.s3;
 
 import io.netty.channel.ChannelException;
+import software.amazon.awssdk.awscore.retry.AwsRetryStrategy;
 import software.amazon.awssdk.core.async.AsyncResponseTransformer;
 import software.amazon.awssdk.core.async.SdkPublisher;
 import software.amazon.awssdk.core.exception.SdkClientException;
+import software.amazon.awssdk.retries.api.BackoffStrategy;
+import software.amazon.awssdk.retries.api.RetryStrategy;
 import software.amazon.awssdk.services.s3.S3AsyncClient;
 import software.amazon.awssdk.services.s3.S3Client;
 import software.amazon.awssdk.services.s3.model.GetObjectRequest;
@@ -58,6 +61,16 @@ public class S3StorageObjectReadFailureTests extends ESTestCase {
     private static final String BUCKET = "test-bucket";
     private static final String KEY = "data/file.parquet";
     private static final StoragePath PATH = StoragePath.of("s3://" + BUCKET + "/" + KEY);
+
+    /**
+     * AWS Standard retry semantics (same classification and attempt budget as production) but with
+     * immediate backoff so failure-mapping tests do not sleep while the strategy spends its budget.
+     */
+    private static final RetryStrategy RETRY_STRATEGY = AwsRetryStrategy.standardRetryStrategy()
+        .toBuilder()
+        .backoffStrategy(BackoffStrategy.retryImmediately())
+        .throttlingBackoffStrategy(BackoffStrategy.retryImmediately())
+        .build();
 
     public void testBareIllegalStateExceptionIsUnavailable503() {
         S3Client mockS3 = mock(S3Client.class);
@@ -314,7 +327,7 @@ public class S3StorageObjectReadFailureTests extends ESTestCase {
 
     /** Reads {@code length} bytes through the native async path and returns the failure handed to the listener. */
     private static Throwable readAsyncFailure(S3AsyncClient mockAsyncS3, int length) throws InterruptedException {
-        S3StorageObject obj = new S3StorageObject(mock(S3Client.class), mockAsyncS3, BUCKET, KEY, PATH);
+        S3StorageObject obj = new S3StorageObject(mock(S3Client.class), mockAsyncS3, RETRY_STRATEGY, BUCKET, KEY, PATH);
         CountDownLatch latch = new CountDownLatch(1);
         AtomicReference<Throwable> outcome = new AtomicReference<>();
 

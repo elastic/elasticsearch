@@ -7,6 +7,7 @@
 package org.elasticsearch.xpack.security.action.token;
 
 import org.elasticsearch.ElasticsearchException;
+import org.elasticsearch.ElasticsearchSecurityException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.HandledTransportAction;
@@ -15,6 +16,7 @@ import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.injection.guice.Inject;
+import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
@@ -29,6 +31,7 @@ import org.elasticsearch.xpack.core.security.authc.support.UsernamePasswordToken
 import org.elasticsearch.xpack.security.authc.AuthenticationService;
 import org.elasticsearch.xpack.security.authc.TokenService;
 import org.elasticsearch.xpack.security.authc.kerberos.KerberosAuthenticationToken;
+import org.elasticsearch.xpack.security.authc.service.ServiceAccountService;
 
 import java.util.Base64;
 import java.util.Collections;
@@ -70,7 +73,7 @@ public final class TransportCreateTokenAction extends HandledTransportAction<Cre
         CreateTokenRequest.GrantType type = CreateTokenRequest.GrantType.fromString(request.getGrantType());
         assert type != null : "type should have been validated in the action";
         switch (type) {
-            case PASSWORD, KERBEROS -> authenticateAndCreateToken(type, request, listener);
+            case PASSWORD, KERBEROS, USER_MANAGED_SERVICE_ACCOUNT -> authenticateAndCreateToken(type, request, listener);
             case CLIENT_CREDENTIALS -> {
                 Authentication authentication = securityContext.getAuthentication();
                 if (authentication.isServiceAccount()) {
@@ -103,15 +106,25 @@ public final class TransportCreateTokenAction extends HandledTransportAction<Cre
             }
 
             authenticationService.authenticate(CreateTokenAction.NAME, request, authToken, ActionListener.wrap(authentication -> {
-                clearCredentialsFromRequest(grantType, request);
+                clearCredentials(grantType, request, authToken);
 
                 if (authentication != null) {
-                    createToken(grantType, request, authentication, originatingAuthentication, true, listener);
+                    if (grantType == GrantType.USER_MANAGED_SERVICE_ACCOUNT && false == authentication.isUserManagedServiceAccount()) {
+                        // The credential authenticated, but not as a user-managed service account. In particular, built-in service
+                        // accounts (e.g. elastic/kibana) must not be able to derive OAuth2 tokens through this grant.
+                        listener.onFailure(invalidGrantException("service_account_token must belong to a user-managed service account"));
+                        return;
+                    }
+                    // The user-managed service account grant deliberately does not issue a refresh token: each new access token
+                    // requires re-presenting the service account credential, so that account existence, enabled status and token
+                    // validity are re-verified on every exchange.
+                    final boolean includeRefreshToken = grantType != GrantType.USER_MANAGED_SERVICE_ACCOUNT;
+                    createToken(grantType, request, authentication, originatingAuthentication, includeRefreshToken, listener);
                 } else {
                     listener.onFailure(new UnsupportedOperationException("cannot create token if authentication is not allowed"));
                 }
             }, e -> {
-                clearCredentialsFromRequest(grantType, request);
+                clearCredentials(grantType, request, authToken);
                 listener.onFailure(e);
             }));
         }
@@ -137,16 +150,38 @@ public final class TransportCreateTokenAction extends HandledTransportAction<Cre
                 );
             }
             authToken = new KerberosAuthenticationToken(decodedKerberosTicket);
+        } else if (grantType == GrantType.USER_MANAGED_SERVICE_ACCOUNT) {
+            // Parsing does not validate the credential; the token is authenticated through the regular service account
+            // authentication path below, so account existence, enabled status and secret validity are all re-checked.
+            authToken = ServiceAccountService.tryParseToken(request.getServiceAccountToken());
+            if (authToken == null) {
+                request.getServiceAccountToken().close();
+                return new Tuple<>(null, Optional.of(invalidGrantException("service_account_token is not a valid service account token")));
+            }
         }
         return new Tuple<>(authToken, Optional.empty());
     }
 
-    private static void clearCredentialsFromRequest(GrantType grantType, CreateTokenRequest request) {
+    private static void clearCredentials(GrantType grantType, CreateTokenRequest request, AuthenticationToken authToken) {
+        // Kerberos and service account tokens hold a decoded copy of the credential, separate from the request field
+        authToken.clearCredentials();
         if (grantType == GrantType.PASSWORD) {
             request.getPassword().close();
         } else if (grantType == GrantType.KERBEROS) {
             request.getKerberosTicket().close();
+        } else if (grantType == GrantType.USER_MANAGED_SERVICE_ACCOUNT) {
+            request.getServiceAccountToken().close();
         }
+    }
+
+    /**
+     * Creates an {@link ElasticsearchSecurityException} in the shape that {@code RestGetTokenAction} translates into
+     * an RFC 6749 {@code invalid_grant} error response.
+     */
+    private static ElasticsearchSecurityException invalidGrantException(String detail) {
+        ElasticsearchSecurityException e = new ElasticsearchSecurityException("invalid_grant", RestStatus.BAD_REQUEST);
+        e.addBodyHeader("error_description", detail);
+        return e;
     }
 
     private void createToken(

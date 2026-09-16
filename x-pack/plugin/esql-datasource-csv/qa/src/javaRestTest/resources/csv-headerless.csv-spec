@@ -59,6 +59,7 @@ multiFileHeaderlessReadSchemaPreventsTypeDrift
 required_capability: dataset_in_from_command
 required_capability: external_csv_header_row_option
 required_capability: external_source_read_schema
+required_capability: external_source_file_order_options
 required_capability: datasource_file_readers_no_text_type
 dataset: employees_multifile_headerless: "{{employees_multifile}}" WITH {"header_row": false, "schema_resolution": "first_file_wins", "file_sort_by": "name"}
 

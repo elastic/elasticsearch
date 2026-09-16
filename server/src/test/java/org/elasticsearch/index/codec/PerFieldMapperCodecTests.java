@@ -14,6 +14,8 @@ import org.apache.lucene.codecs.PostingsFormat;
 import org.apache.lucene.codecs.lucene104.Lucene104PostingsFormat;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.columnar.ColumNARDocValuesFormat;
+import org.elasticsearch.columnar.string.DictionaryPolicy;
+import org.elasticsearch.columnar.string.StringColumnOptions;
 import org.elasticsearch.common.compress.CompressedXContent;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.BigArrays;
@@ -146,6 +148,9 @@ public class PerFieldMapperCodecTests extends ESTestCase {
                 },
                 "score": {
                     "type": "double"
+                },
+                "body": {
+                    "type": "text"
                 }
             }
         }
@@ -602,6 +607,92 @@ public class PerFieldMapperCodecTests extends ESTestCase {
             true
         );
         assertFalse(supplier.getDocValuesFormatForField("category") instanceof ColumNARDocValuesFormat);
+    }
+
+    public void testColumnarUsedForTextInColumnarModeWhenEnabled() throws IOException {
+        assumeTrue("columnar_codec feature flag must be enabled", columnarFeatureFlagEnabled());
+        for (IndexMode mode : List.of(IndexMode.COLUMNAR, IndexMode.LOGSDB_COLUMNAR)) {
+            final PerFieldFormatSupplier supplier = createColumnarFormatSupplier(mode, randomColumnarEligibleIndexVersion(), true);
+            assertThat("mode=" + mode, supplier.getDocValuesFormatForField("body"), instanceOf(ColumNARDocValuesFormat.class));
+        }
+    }
+
+    public void testColumnarNotUsedForTextWhenSettingDisabled() throws IOException {
+        assumeTrue("columnar_codec feature flag must be enabled", columnarFeatureFlagEnabled());
+        final PerFieldFormatSupplier supplier = createColumnarFormatSupplier(
+            randomColumnarMode(),
+            randomColumnarEligibleIndexVersion(),
+            false
+        );
+        assertFalse(supplier.getDocValuesFormatForField("body") instanceof ColumNARDocValuesFormat);
+    }
+
+    public void testColumnarNotUsedForTextInNonColumnarMode() throws IOException {
+        assumeTrue("columnar_codec feature flag must be enabled", columnarFeatureFlagEnabled());
+        final IndexMode nonColumnarMode = randomFrom(IndexMode.STANDARD, IndexMode.LOGSDB);
+        final PerFieldFormatSupplier supplier = createColumnarFormatSupplier(nonColumnarMode, randomColumnarEligibleIndexVersion(), true);
+        assertFalse("mode=" + nonColumnarMode, supplier.getDocValuesFormatForField("body") instanceof ColumNARDocValuesFormat);
+    }
+
+    public void testColumnarNotUsedForTextOnOldIndexVersion() throws IOException {
+        assumeTrue("columnar_codec feature flag must be enabled", columnarFeatureFlagEnabled());
+        final IndexVersion oldVersion = IndexVersionUtils.getPreviousVersion(IndexVersions.COLUMNAR_DOC_VALUES_CODEC_FEATURE_FLAG);
+        final PerFieldFormatSupplier supplier = createColumnarFormatSupplier(randomColumnarMode(), oldVersion, true);
+        assertFalse(supplier.getDocValuesFormatForField("body") instanceof ColumNARDocValuesFormat);
+    }
+
+    public void testColumnarNotSelectedForTextWhenFlagDisabled() throws IOException {
+        assumeFalse("columnar_codec feature flag must be disabled", columnarFeatureFlagEnabled());
+        final PerFieldFormatSupplier supplier = createColumnarFormatSupplier(
+            randomColumnarMode(),
+            randomColumnarEligibleIndexVersion(),
+            true
+        );
+        assertFalse(supplier.getDocValuesFormatForField("body") instanceof ColumNARDocValuesFormat);
+    }
+
+    /** A text column is written without a dictionary; a keyword column with one. */
+    public void testTextAsksForNoDictionary() throws IOException {
+        assumeTrue("columnar_codec feature flag must be enabled", columnarFeatureFlagEnabled());
+        final PerFieldFormatSupplier supplier = createColumnarFormatSupplier(
+            randomColumnarMode(),
+            randomColumnarEligibleIndexVersion(),
+            true
+        );
+        final StringColumnOptions text = supplier.columnarStringOptionsOf("body");
+        assertNotNull("a columnar text field is written as a string column", text);
+        assertEquals("surveying a text column for a dictionary is not worth it", DictionaryPolicy.NONE, text.dictionary());
+        assertEquals(
+            "a keyword column is still worth a dictionary",
+            StringColumnOptions.DEFAULT_DICTIONARY,
+            supplier.columnarStringOptionsOf("category").dictionary()
+        );
+    }
+
+    /** The field says how its string column is written, and a field that is not one says nothing. */
+    public void testColumnarStringOptionsComeFromTheField() throws IOException {
+        assumeTrue("columnar_codec feature flag must be enabled", columnarFeatureFlagEnabled());
+        final PerFieldFormatSupplier supplier = createColumnarFormatSupplier(
+            randomColumnarMode(),
+            randomColumnarEligibleIndexVersion(),
+            true
+        );
+        final StringColumnOptions options = supplier.columnarStringOptionsOf("category");
+        assertNotNull("a columnar keyword field is written as a string column", options);
+        assertEquals("a keyword column is worth a dictionary", StringColumnOptions.DEFAULT_DICTIONARY, options.dictionary());
+        assertNull("a long field is not a string column", supplier.columnarStringOptionsOf("size"));
+        assertNull("a double field is not a string column", supplier.columnarStringOptionsOf("score"));
+    }
+
+    /** A field the codec does not store is not written as a string column, whatever its type. */
+    public void testColumnarStringOptionsAbsentWhenTheCodecIsOff() throws IOException {
+        assumeTrue("columnar_codec feature flag must be enabled", columnarFeatureFlagEnabled());
+        final PerFieldFormatSupplier supplier = createColumnarFormatSupplier(
+            randomColumnarMode(),
+            randomColumnarEligibleIndexVersion(),
+            false
+        );
+        assertNull(supplier.columnarStringOptionsOf("category"));
     }
 
     private static boolean columnarFeatureFlagEnabled() {

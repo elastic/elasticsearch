@@ -34,11 +34,14 @@ import org.elasticsearch.xpack.esql.core.expression.ReferenceAttribute;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.core.util.StringUtils;
+import org.elasticsearch.xpack.esql.datasources.spi.ColumnarRowDropHelper;
 import org.elasticsearch.xpack.esql.datasources.spi.DeclaredTypeCoercions;
+import org.elasticsearch.xpack.esql.datasources.spi.ErrorPolicy;
 import org.elasticsearch.xpack.esql.datasources.spi.SkipWarnings;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.GreaterThan;
 import org.elasticsearch.xpack.esql.type.EsqlDataTypeConverter;
 
+import java.util.ArrayList;
 import java.util.List;
 
 import static org.hamcrest.Matchers.equalTo;
@@ -977,6 +980,43 @@ public class ColumnMappingTests extends ESTestCase {
                     out.releaseBlocks();
                 }
             } finally {
+                filePage.releaseBlocks();
+            }
+        }
+    }
+
+    /**
+     * The 6-arg {@link ColumnMapping#mapPage} overload must call {@link ColumnarRowDropHelper#markFailed}
+     * for every position where the source was non-null and the cast produced null.
+     */
+    public void testMapPageWithDropHelperMarksCastFailurePositions() {
+        ColumnMapping mapping = new ColumnMapping(new int[] { 0 }, new DataType[] { DataType.DATE_NANOS });
+
+        long goodMillis = 1_711_800_000_000L;
+        long year3000Millis = 32_503_680_000_000L;
+
+        try (LongBlock.Builder builder = blockFactory.newLongBlockBuilder(3)) {
+            builder.appendLong(goodMillis);
+            builder.appendLong(year3000Millis);
+            builder.appendLong(goodMillis);
+            LongBlock src = builder.build();
+            Page filePage = new Page(3, new Block[] { src });
+
+            ErrorPolicy skipRow = new ErrorPolicy(ErrorPolicy.Mode.SKIP_ROW, Long.MAX_VALUE, 1.0, false);
+            ColumnarRowDropHelper dropHelper = ColumnarRowDropHelper.forPolicy(skipRow, "test.parquet");
+            dropHelper.beginBatch(3);
+
+            List<String> captured = new ArrayList<>();
+            SkipWarnings warnings = capturing(captured);
+            Page out = mapping.mapPage(filePage, blockFactory, new DataType[] { DataType.DATETIME }, null, warnings, dropHelper);
+            try {
+                assertThat("only the year-3000 row must be marked failed", dropHelper.failedCount(), equalTo(1));
+                LongBlock nanosBlock = out.getBlock(0);
+                assertFalse("position 0 must survive", nanosBlock.isNull(0));
+                assertTrue("position 1 must be null-filled (cast failed)", nanosBlock.isNull(1));
+                assertFalse("position 2 must survive", nanosBlock.isNull(2));
+            } finally {
+                out.releaseBlocks();
                 filePage.releaseBlocks();
             }
         }

@@ -475,15 +475,7 @@ public final class TranslateTimeSeriesAggregate extends AnalyzerRules.Parameteri
         if (attribute.isDimension()) {
             packDimensions.add(valuesAgg.toAttribute());
             unpackDimensions.add(
-                new ReferenceAttribute(
-                    group.source(),
-                    null,
-                    group.name(),
-                    attribute.dataType().noText(),
-                    Nullability.TRUE,
-                    group.id(),
-                    false
-                )
+                new ReferenceAttribute(group.source(), null, group.name(), attribute.dataType(), Nullability.TRUE, group.id(), false)
             );
             packPositions[position] = true;
         } else {

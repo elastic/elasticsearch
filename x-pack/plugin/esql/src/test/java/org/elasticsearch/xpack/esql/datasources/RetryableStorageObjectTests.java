@@ -35,11 +35,14 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
 import java.util.concurrent.Executor;
+import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
+import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.BooleanSupplier;
 
+import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.instanceOf;
@@ -989,6 +992,154 @@ public class RetryableStorageObjectTests extends ESTestCase {
             read = in.readAllBytes();
         }
         assertArrayEquals("progress-making drops still complete byte-exact", payload, read);
+    }
+
+    /**
+     * A trickle that never throws is invisible to {@link RetryPolicy#decide} and used to run unbounded.
+     * Once a duration-budget window elapses without {@link RetryableStorageObject#MIN_PROGRESS_BYTES_PER_SEC},
+     * the success path fails as a 503 rather than completing. The episode retry budget is not involved —
+     * this is not a resume.
+     */
+    public void testTricklingStreamFailsOnceDurationBudgetElapsed() throws IOException {
+        AtomicLong clock = new AtomicLong();
+        RetryPolicy policy = new RetryPolicy(3, 1, 10).withTotalDurationBudget(1_000).withClock(clock::get);
+        byte[] payload = new byte[1024];
+        Arrays.fill(payload, (byte) 7);
+        FakeStorageObject delegate = new FakeStorageObject(
+            StoragePath.of("s3://bucket/trickle"),
+            new StorageObjectMetrics(0, 0, 0, 0),
+            new IOException("unused"),
+            payload,
+            0
+        );
+        RetryableStorageObject obj = new RetryableStorageObject(delegate, policy);
+        try (InputStream in = obj.newStream()) {
+            byte[] one = new byte[1];
+            assertEquals(1, in.read(one));
+            clock.set(TimeUnit.MILLISECONDS.toNanos(1_001));
+            ExternalUnavailableException thrown = expectThrows(ExternalUnavailableException.class, () -> in.read(one));
+            assertThat(thrown.getMessage(), containsString("progress floor"));
+            assertThat(thrown.getMessage(), containsString("s3://bucket/trickle"));
+        }
+        assertEquals("a progress give-up must not re-open the object", 1, delegate.callsObserved);
+    }
+
+    /**
+     * The floor is per window, not a lifetime SLA: a range that delivered well above 1 KiB/s in the
+     * current window may continue after the duration budget has elapsed.
+     */
+    public void testHealthyReadContinuesAfterDurationBudgetIfRateIsAboveFloor() throws IOException {
+        AtomicLong clock = new AtomicLong();
+        RetryPolicy policy = new RetryPolicy(3, 1, 10).withTotalDurationBudget(1_000).withClock(clock::get);
+        byte[] payload = new byte[128 * 1024];
+        for (int i = 0; i < payload.length; i++) {
+            payload[i] = (byte) (i % 251);
+        }
+        FakeStorageObject delegate = new FakeStorageObject(
+            StoragePath.of("s3://bucket/healthy"),
+            new StorageObjectMetrics(0, 0, 0, 0),
+            new IOException("unused"),
+            payload,
+            0
+        );
+        RetryableStorageObject obj = new RetryableStorageObject(delegate, policy);
+        byte[] read;
+        try (InputStream in = obj.newStream()) {
+            byte[] first = new byte[64 * 1024];
+            assertEquals(first.length, in.read(first));
+            clock.set(TimeUnit.MILLISECONDS.toNanos(1_001));
+            read = in.readAllBytes();
+        }
+        assertEquals("second half of the payload after the budget elapsed", 64 * 1024, read.length);
+        assertEquals(payload[64 * 1024], read[0]);
+    }
+
+    /**
+     * A steady ~10 KiB/s WAN is slow, not idle. The old lifetime 32 KiB/s floor would 503 it after
+     * one budget window; the tumbling 1 KiB/s progress floor must not.
+     */
+    public void testSlowSteadyReadSurvivesProgressWindow() throws IOException {
+        AtomicLong clock = new AtomicLong();
+        RetryPolicy policy = new RetryPolicy(3, 1, 10).withTotalDurationBudget(1_000).withClock(clock::get);
+        byte[] payload = new byte[40 * 1024];
+        Arrays.fill(payload, (byte) 9);
+        FakeStorageObject delegate = new FakeStorageObject(
+            StoragePath.of("s3://bucket/wan"),
+            new StorageObjectMetrics(0, 0, 0, 0),
+            new IOException("unused"),
+            payload,
+            0
+        );
+        RetryableStorageObject obj = new RetryableStorageObject(delegate, policy);
+        byte[] read;
+        try (InputStream in = obj.newStream()) {
+            byte[] first = new byte[10 * 1024];
+            assertEquals(first.length, in.read(first));
+            clock.set(TimeUnit.MILLISECONDS.toNanos(1_001));
+            byte[] second = new byte[10 * 1024];
+            assertEquals(second.length, in.read(second));
+            clock.set(TimeUnit.MILLISECONDS.toNanos(2_002));
+            read = in.readAllBytes();
+        }
+        assertEquals(20 * 1024, read.length);
+        assertEquals("slow-but-steady must not re-open", 1, delegate.callsObserved);
+    }
+
+    /**
+     * Clearing one window does not buy the next: a burst then a 1-byte drip still fails when the
+     * tumbled window elapses.
+     */
+    public void testDripAfterBurstFailsNextProgressWindow() throws IOException {
+        AtomicLong clock = new AtomicLong();
+        RetryPolicy policy = new RetryPolicy(3, 1, 10).withTotalDurationBudget(1_000).withClock(clock::get);
+        byte[] payload = new byte[8 * 1024];
+        Arrays.fill(payload, (byte) 4);
+        FakeStorageObject delegate = new FakeStorageObject(
+            StoragePath.of("s3://bucket/burst-then-drip"),
+            new StorageObjectMetrics(0, 0, 0, 0),
+            new IOException("unused"),
+            payload,
+            0
+        );
+        RetryableStorageObject obj = new RetryableStorageObject(delegate, policy);
+        try (InputStream in = obj.newStream()) {
+            byte[] burst = new byte[4 * 1024];
+            assertEquals(burst.length, in.read(burst));
+            clock.set(TimeUnit.MILLISECONDS.toNanos(1_001));
+            byte[] one = new byte[1];
+            assertEquals(1, in.read(one));
+            clock.set(TimeUnit.MILLISECONDS.toNanos(2_002));
+            ExternalUnavailableException thrown = expectThrows(ExternalUnavailableException.class, () -> in.read(one));
+            assertThat(thrown.getMessage(), containsString("progress floor"));
+        }
+        assertEquals("a progress give-up must not re-open the object", 1, delegate.callsObserved);
+    }
+
+    /**
+     * {@link RetryPolicy#NO_BUDGET} (the 3-arg constructor, and {@code throttle_max_retry_duration=0})
+     * must restore pre-change behaviour: a trickle that never throws completes.
+     */
+    public void testTricklingStreamCompletesWhenDurationBudgetDisabled() throws IOException {
+        AtomicLong clock = new AtomicLong();
+        RetryPolicy policy = new RetryPolicy(3, 1, 10).withClock(clock::get);
+        byte[] payload = new byte[64];
+        Arrays.fill(payload, (byte) 3);
+        FakeStorageObject delegate = new FakeStorageObject(
+            StoragePath.of("s3://bucket/unbounded"),
+            new StorageObjectMetrics(0, 0, 0, 0),
+            new IOException("unused"),
+            payload,
+            0
+        );
+        RetryableStorageObject obj = new RetryableStorageObject(delegate, policy);
+        byte[] read;
+        try (InputStream in = obj.newStream()) {
+            byte[] one = new byte[1];
+            assertEquals(1, in.read(one));
+            clock.set(TimeUnit.MILLISECONDS.toNanos(60_000));
+            read = in.readAllBytes();
+        }
+        assertEquals(63, read.length);
     }
 
     /**

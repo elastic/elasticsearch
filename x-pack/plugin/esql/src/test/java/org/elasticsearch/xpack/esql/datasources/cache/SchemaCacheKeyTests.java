@@ -103,6 +103,32 @@ public class SchemaCacheKeyTests extends ESTestCase {
         assertNotEquals(ndjson, csv);
     }
 
+    public void testDatasetAggregateKeyChangesWithRegion() {
+        // region is a dataset-level key; two identical file sets accessed with different regions
+        // must not share the same aggregate cache entry.
+        SchemaCacheKey usEast = SchemaCacheKey.forDatasetAggregate(
+            PATTERN,
+            new FileSetFingerprint(11, 22),
+            "ndjson",
+            Map.of("region", "us-east-1")
+        );
+        SchemaCacheKey euWest = SchemaCacheKey.forDatasetAggregate(
+            PATTERN,
+            new FileSetFingerprint(11, 22),
+            "ndjson",
+            Map.of("region", "eu-west-1")
+        );
+        assertNotEquals(usEast, euWest);
+    }
+
+    public void testPerFileKeyChangesWithRegion() {
+        // region is a dataset-level key; the same file at the same mtime on different regions
+        // must not share a per-file schema cache entry.
+        SchemaCacheKey usEast = SchemaCacheKey.build("s3://bucket/file.parquet", 1000L, "parquet", Map.of("region", "us-east-1"));
+        SchemaCacheKey euWest = SchemaCacheKey.build("s3://bucket/file.parquet", 1000L, "parquet", Map.of("region", "eu-west-1"));
+        assertNotEquals(usEast, euWest);
+    }
+
     /**
      * {@code hive_partitioning} is a deprecated no-op and must NOT discriminate the schema cache. Two configs
      * differing only in this key must produce the same {@code buildFormatConfig} string, so they share one cache

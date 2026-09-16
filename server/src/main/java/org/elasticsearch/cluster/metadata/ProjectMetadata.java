@@ -19,6 +19,7 @@ import org.elasticsearch.cluster.DiffableUtils;
 import org.elasticsearch.cluster.NamedDiffableValueSerializer;
 import org.elasticsearch.cluster.block.ClusterBlock;
 import org.elasticsearch.cluster.block.ClusterBlockLevel;
+import org.elasticsearch.cluster.block.ClusterBlocks;
 import org.elasticsearch.cluster.routing.GlobalRoutingTable;
 import org.elasticsearch.cluster.routing.allocation.IndexMetadataUpdater;
 import org.elasticsearch.common.Strings;
@@ -128,6 +129,14 @@ public class ProjectMetadata implements Iterable<IndexMetadata>, Diffable<Projec
         RestStatus.NOT_FOUND,
         EnumSet.of(ClusterBlockLevel.READ, ClusterBlockLevel.WRITE, ClusterBlockLevel.METADATA_READ, ClusterBlockLevel.METADATA_WRITE)
     );
+
+    /**
+     * Whether the project carries the {@link #PROJECT_UNDER_DELETION_BLOCK}. The block is never lifted: it stays until the project and its
+     * metadata are removed from the cluster state.
+     */
+    public static boolean isProjectUnderDeletion(ClusterBlocks blocks, ProjectId projectId) {
+        return blocks.hasGlobalBlock(projectId, PROJECT_UNDER_DELETION_BLOCK);
+    }
 
     public static final ClusterBlock PROJECT_UNDER_CREATION_BLOCK = new ClusterBlock(
         16,

@@ -285,6 +285,110 @@ public class AsyncExternalSourceOperatorFactoryTests extends ESTestCase {
         assertSame(executor, factory.producerExecutor());
     }
 
+    /**
+     * The factory holds the unwrapped configured reader. Each listed object's compression is applied
+     * from that object's name via {@code wrapForObject}, so gzip and plain csv of one format both
+     * present decompressed bytes to the inner reader.
+     */
+    public void testPerFileWrapDecompressesGzipLeavingConfiguredReaderUnwrapped() throws Exception {
+        byte[] plain = "n\n1\n".getBytes(StandardCharsets.UTF_8);
+        byte[] gzipped = gzipCompress(plain);
+        Map<String, byte[]> bodies = Map.of("s3://bucket/a.csv.gz", gzipped, "s3://bucket/b.csv", plain);
+        ByteArrayStorageProvider storage = new ByteArrayStorageProvider(bodies);
+        StreamPeekingFormatReader reader = new StreamPeekingFormatReader();
+        DecompressionCodecRegistry codecs = new DecompressionCodecRegistry();
+        codecs.register(new GzipDecompressionCodec());
+        FormatReaderRegistry formatRegistry = new FormatReaderRegistry(codecs);
+
+        FileList fileList = GlobExpander.fileListOf(
+            List.of(
+                new StorageEntry(StoragePath.of("s3://bucket/a.csv.gz"), gzipped.length, Instant.EPOCH),
+                new StorageEntry(StoragePath.of("s3://bucket/b.csv"), plain.length, Instant.EPOCH)
+            ),
+            "s3://bucket/*.csv*"
+        );
+
+        DriverContext driverContext = mock(DriverContext.class);
+        when(driverContext.blockFactory()).thenReturn(mock(BlockFactory.class));
+        doAnswer(inv -> null).when(driverContext).addAsyncAction();
+        doAnswer(inv -> null).when(driverContext).removeAsyncAction();
+
+        List<Attribute> attributes = List.of(
+            new FieldAttribute(Source.EMPTY, "n", new EsField("n", DataType.INTEGER, Map.of(), false, EsField.TimeSeriesFieldType.NONE))
+        );
+
+        AsyncExternalSourceOperatorFactory factory = AsyncExternalSourceOperatorFactory.builder(
+            storage,
+            reader,
+            StoragePath.of("s3://bucket/*.csv*"),
+            attributes,
+            100,
+            10,
+            Runnable::run
+        ).fileList(fileList).formatReaderRegistry(formatRegistry).build();
+
+        assertSame("scan keeps the unwrapped configured reader", reader, factory.formatReader());
+
+        SourceOperator operator = factory.get(driverContext);
+        while (operator.isFinished() == false) {
+            Page page = operator.getOutput();
+            if (page != null) {
+                page.releaseBlocks();
+            }
+        }
+        operator.close();
+
+        assertEquals(2, reader.peeked.size());
+        for (int first : reader.peeked) {
+            assertEquals("gzip magic must not reach the inner reader", (int) 'n', first);
+        }
+    }
+
+    /**
+     * Single-file {@code .csv.gz} also wraps from this object's name once the factory stops wrapping
+     * from the resource leaf at construction.
+     */
+    public void testSingleFileWrapDecompressesGzipFromObjectName() throws Exception {
+        byte[] plain = "n\n1\n".getBytes(StandardCharsets.UTF_8);
+        byte[] gzipped = gzipCompress(plain);
+        StoragePath path = StoragePath.of("s3://bucket/hits.csv.gz");
+        ByteArrayStorageProvider storage = new ByteArrayStorageProvider(Map.of(path.toString(), gzipped));
+        StreamPeekingFormatReader reader = new StreamPeekingFormatReader();
+        DecompressionCodecRegistry codecs = new DecompressionCodecRegistry();
+        codecs.register(new GzipDecompressionCodec());
+        FormatReaderRegistry formatRegistry = new FormatReaderRegistry(codecs);
+
+        DriverContext driverContext = mock(DriverContext.class);
+        when(driverContext.blockFactory()).thenReturn(mock(BlockFactory.class));
+        doAnswer(inv -> null).when(driverContext).addAsyncAction();
+        doAnswer(inv -> null).when(driverContext).removeAsyncAction();
+
+        List<Attribute> attributes = List.of(
+            new FieldAttribute(Source.EMPTY, "n", new EsField("n", DataType.INTEGER, Map.of(), false, EsField.TimeSeriesFieldType.NONE))
+        );
+
+        AsyncExternalSourceOperatorFactory factory = AsyncExternalSourceOperatorFactory.builder(
+            storage,
+            reader,
+            path,
+            attributes,
+            100,
+            10,
+            Runnable::run
+        ).formatReaderRegistry(formatRegistry).build();
+
+        assertSame(reader, factory.formatReader());
+        SourceOperator operator = factory.get(driverContext);
+        while (operator.isFinished() == false) {
+            Page page = operator.getOutput();
+            if (page != null) {
+                page.releaseBlocks();
+            }
+        }
+        operator.close();
+        assertEquals(List.of((int) 'n'), reader.peeked);
+    }
+
     public void testProducerExecutorWiredDistinctFromReadExecutor() {
         StorageProvider storageProvider = mock(StorageProvider.class);
         FormatReader formatReader = mock(FormatReader.class);
@@ -3097,7 +3201,8 @@ public class AsyncExternalSourceOperatorFactoryTests extends ESTestCase {
                 0L,
                 null,
                 null,
-                null
+                null,
+                ExternalReadCounters.NOOP
             )
         );
     }
@@ -3126,7 +3231,8 @@ public class AsyncExternalSourceOperatorFactoryTests extends ESTestCase {
                 0L,
                 null,
                 null,
-                null
+                null,
+                ExternalReadCounters.NOOP
             );
             assertNotNull(iterator);
             iterator.close();
@@ -3168,7 +3274,8 @@ public class AsyncExternalSourceOperatorFactoryTests extends ESTestCase {
                 0L,
                 null,
                 null,
-                null
+                null,
+                ExternalReadCounters.NOOP
             );
             assertNotNull(iterator);
             try {
@@ -3211,7 +3318,21 @@ public class AsyncExternalSourceOperatorFactoryTests extends ESTestCase {
 
         IOException thrown = expectThrows(
             IOException.class,
-            () -> factory.openWithParallelism(cdr, object, List.of("a"), ErrorPolicy.STRICT, false, true, true, null, 0L, null, null, null)
+            () -> factory.openWithParallelism(
+                cdr,
+                object,
+                List.of("a"),
+                ErrorPolicy.STRICT,
+                false,
+                true,
+                true,
+                null,
+                0L,
+                null,
+                null,
+                null,
+                ExternalReadCounters.NOOP
+            )
         );
         assertEquals("decompress failed", thrown.getMessage());
         assertTrue("raw stream must be aborted when decompression fails", tracking.aborted.get());
@@ -3279,7 +3400,21 @@ public class AsyncExternalSourceOperatorFactoryTests extends ESTestCase {
 
         RuntimeException thrown = expectThrows(
             RuntimeException.class,
-            () -> factory.openWithParallelism(cdr, object, List.of("a"), ErrorPolicy.STRICT, false, true, true, null, 0L, null, null, null)
+            () -> factory.openWithParallelism(
+                cdr,
+                object,
+                List.of("a"),
+                ErrorPolicy.STRICT,
+                false,
+                true,
+                true,
+                null,
+                0L,
+                null,
+                null,
+                null,
+                ExternalReadCounters.NOOP
+            )
         );
         assertEquals("simulated parallelRead construction failure", thrown.getMessage());
         assertTrue("decompressor wrapper must be closed to release codec-specific native handles (e.g. zstd Arena)", wrapperClosed.get());
@@ -3309,7 +3444,8 @@ public class AsyncExternalSourceOperatorFactoryTests extends ESTestCase {
                 0L,
                 null,
                 null,
-                null
+                null,
+                ExternalReadCounters.NOOP
             );
             assertNotNull(iterator);
             iterator.close();
@@ -3361,7 +3497,8 @@ public class AsyncExternalSourceOperatorFactoryTests extends ESTestCase {
                 baseFileOffset,
                 null,
                 null,
-                null
+                null,
+                ExternalReadCounters.NOOP
             )
         );
         assertTrue(
@@ -4084,6 +4221,141 @@ public class AsyncExternalSourceOperatorFactoryTests extends ESTestCase {
             calls.add(new Call(path, length, lastModified));
             return super.newObject(path, length, lastModified);
         }
+    }
+
+    /** Storage provider that serves canned bytes keyed by {@link StoragePath#toString()}. */
+    private static class ByteArrayStorageProvider implements StorageProvider {
+        private final Map<String, byte[]> bodies;
+
+        ByteArrayStorageProvider(Map<String, byte[]> bodies) {
+            this.bodies = bodies;
+        }
+
+        private StorageObject object(StoragePath path) {
+            byte[] bytes = bodies.getOrDefault(path.toString(), new byte[0]);
+            return new ByteArrayStorageObject(path, bytes);
+        }
+
+        @Override
+        public StorageObject newObject(StoragePath path) {
+            return object(path);
+        }
+
+        @Override
+        public StorageObject newObject(StoragePath path, long length) {
+            return object(path);
+        }
+
+        @Override
+        public StorageObject newObject(StoragePath path, long length, Instant lastModified) {
+            return object(path);
+        }
+
+        @Override
+        public StorageIterator listObjects(StoragePath prefix, boolean recursive) {
+            throw new UnsupportedOperationException();
+        }
+
+        @Override
+        public boolean exists(StoragePath path) {
+            return bodies.containsKey(path.toString());
+        }
+
+        @Override
+        public List<String> supportedSchemes() {
+            return List.of("s3");
+        }
+
+        @Override
+        public void close() {}
+    }
+
+    private static class ByteArrayStorageObject implements StorageObject {
+        private final StoragePath path;
+        private final byte[] bytes;
+
+        ByteArrayStorageObject(StoragePath path, byte[] bytes) {
+            this.path = path;
+            this.bytes = bytes;
+        }
+
+        @Override
+        public InputStream newStream() {
+            return new ByteArrayInputStream(bytes);
+        }
+
+        @Override
+        public InputStream newStream(long position, long length) {
+            int start = Math.toIntExact(position);
+            int len = Math.toIntExact(length);
+            return new ByteArrayInputStream(bytes, start, len);
+        }
+
+        @Override
+        public long length() {
+            return bytes.length;
+        }
+
+        @Override
+        public Instant lastModified() {
+            return Instant.EPOCH;
+        }
+
+        @Override
+        public boolean exists() {
+            return true;
+        }
+
+        @Override
+        public StoragePath path() {
+            return path;
+        }
+    }
+
+    /**
+     * Records the first byte of each object's stream so wrap-for-object tests can see whether gzip
+     * was stripped before the inner reader ran.
+     */
+    private static class StreamPeekingFormatReader implements NoConfigFormatReader {
+        final List<Integer> peeked = new ArrayList<>();
+
+        @Override
+        public RowPositionStrategy rowPositionStrategy() {
+            return PassThroughRowPositionStrategy.INSTANCE;
+        }
+
+        @Override
+        public SourceMetadata metadata(StorageObject object) {
+            return null;
+        }
+
+        @Override
+        public CloseableIterator<Page> read(StorageObject object, FormatReadContext context) {
+            try (InputStream in = object.newStream()) {
+                peeked.add(in.read());
+            } catch (IOException e) {
+                throw new RuntimeException(e);
+            }
+            return emptyIterator();
+        }
+
+        @Override
+        public String formatName() {
+            return "csv";
+        }
+
+        @Override
+        public List<String> fileExtensions() {
+            return List.of(".csv");
+        }
+
+        @Override
+        public boolean supportsWholeFileCompression() {
+            return true;
+        }
+
+        @Override
+        public void close() {}
     }
 
     private static class StubMultiFileStorageProvider implements StorageProvider {

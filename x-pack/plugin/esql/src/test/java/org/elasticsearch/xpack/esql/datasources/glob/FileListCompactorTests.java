@@ -11,6 +11,7 @@ import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.esql.datasources.HivePartitionDetector;
 import org.elasticsearch.xpack.esql.datasources.PartitionMetadata;
 import org.elasticsearch.xpack.esql.datasources.StorageEntry;
+import org.elasticsearch.xpack.esql.datasources.WarningSinks;
 import org.elasticsearch.xpack.esql.datasources.spi.FileList;
 import org.elasticsearch.xpack.esql.datasources.spi.StoragePath;
 import org.hamcrest.Matchers;
@@ -20,6 +21,7 @@ import java.util.ArrayList;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
+import java.util.function.Consumer;
 
 /**
  * Round-trip characterization of {@link FileListCompactor}.
@@ -42,12 +44,16 @@ public class FileListCompactorTests extends ESTestCase {
      * {@link GlobExpander}'s behaviour when hive partitioning is off or finds no partitions.
      */
     private static GenericFileList listOf(String pattern, String... keys) {
+        return listOf(WarningSinks.FAILING, pattern, keys);
+    }
+
+    private static GenericFileList listOf(Consumer<String> warningSink, String pattern, String... keys) {
         Instant mtime = Instant.ofEpochMilli(1_700_000_000_000L);
         List<StorageEntry> entries = new ArrayList<>(keys.length);
         for (int i = 0; i < keys.length; i++) {
             entries.add(new StorageEntry(StoragePath.of(keys[i]), 100L * (i + 1), mtime));
         }
-        PartitionMetadata pm = HivePartitionDetector.INSTANCE.detect(entries);
+        PartitionMetadata pm = HivePartitionDetector.INSTANCE.detect(entries, warningSink);
         return new GenericFileList(entries, pattern, pm == null || pm.isEmpty() ? null : pm);
     }
 
@@ -60,7 +66,7 @@ public class FileListCompactorTests extends ESTestCase {
             assertEquals("size at " + i, raw.size(i), compact.size(i));
             assertEquals("mtime at " + i, raw.lastModifiedMillis(i), compact.lastModifiedMillis(i));
         }
-        assertEquals("exclusion warnings", raw.exclusionWarnings(), compact.exclusionWarnings());
+        assertEquals("exclusion warnings", raw.listingWarnings(), compact.listingWarnings());
         return compact;
     }
 
@@ -139,10 +145,14 @@ public class FileListCompactorTests extends ESTestCase {
     /** A partition key colliding with a metadata name surfaces renamed; the directory on disk did not. */
     public void testReservedPartitionKeyKeepsOnDiskName() {
         String base = "s3://b/data/";
-        assertRoundTrip(base, listOf(base + "**/*.parquet", base + "_index=foo/f.parquet"));
-        assertWarnings(
-            "Partition columns shadowing reserved metadata names were renamed; reference them by the _partition.* name.",
-            "partition column [_index] surfaced as [_partition._index]"
+        List<String> warnings = new ArrayList<>();
+        assertRoundTrip(base, listOf(warnings::add, base + "**/*.parquet", base + "_index=foo/f.parquet"));
+        assertEquals(
+            List.of(
+                "Partition columns shadowing reserved metadata names were renamed; reference them by the _partition.* name.",
+                "partition column [_index] surfaced as [_partition._index]"
+            ),
+            warnings
         );
     }
 
@@ -374,7 +384,7 @@ public class FileListCompactorTests extends ESTestCase {
         );
         FileList compact = assertRoundTrip(base, raw);
         assertThat(compact, Matchers.not(Matchers.instanceOf(GenericFileList.class)));
-        assertEquals(List.of(warning), compact.exclusionWarnings());
+        assertEquals(List.of(warning), compact.listingWarnings());
     }
 
     /**
@@ -424,7 +434,7 @@ public class FileListCompactorTests extends ESTestCase {
         for (int i = 0; i < keys.length; i++) {
             entries.add(new StorageEntry(StoragePath.of(keys[i]), 100L * (i + 1), Instant.ofEpochMilli(mtimesMillis[i])));
         }
-        PartitionMetadata pm = HivePartitionDetector.INSTANCE.detect(entries);
+        PartitionMetadata pm = HivePartitionDetector.INSTANCE.detect(entries, WarningSinks.FAILING);
         return new GenericFileList(entries, pattern, pm == null || pm.isEmpty() ? null : pm);
     }
 }

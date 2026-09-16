@@ -259,25 +259,25 @@ public class BatchedRerouteServiceTests extends ESTestCase {
                     "unexpected failure"
                 )
             );
-            mockLog.addExpectation(
-                new MockLog.SeenEventExpectation(
-                    "failure within reroute includes current state",
-                    BatchedRerouteService.class.getCanonicalName(),
-                    Level.ERROR,
-                    "current state"
-                )
-            );
 
             final BatchedRerouteService failingRerouteService = new BatchedRerouteService(clusterService, (s, r, l) -> {
                 throw new ElasticsearchException("simulated");
             });
             final var rerouteFailureFuture = new PlainActionFuture<Void>();
-            failingRerouteService.reroute("publish failure", randomFrom(EnumSet.allOf(Priority.class)), rerouteFailureFuture);
-            assertThat(
-                expectThrows(ExecutionException.class, ElasticsearchException.class, () -> rerouteFailureFuture.get(10, TimeUnit.SECONDS))
-                    .getMessage(),
-                equalTo("simulated")
-            );
+            try {
+                BatchedRerouteService.allowRerouteExceptions = true;
+                failingRerouteService.reroute("publish failure", randomFrom(EnumSet.allOf(Priority.class)), rerouteFailureFuture);
+                assertThat(
+                    expectThrows(
+                        ExecutionException.class,
+                        ElasticsearchException.class,
+                        () -> rerouteFailureFuture.get(10, TimeUnit.SECONDS)
+                    ).getMessage(),
+                    equalTo("simulated")
+                );
+            } finally {
+                BatchedRerouteService.allowRerouteExceptions = false;
+            }
             mockLog.assertAllExpectationsMatched();
 
             // None of the other cases should yield any log messages by default
@@ -304,15 +304,7 @@ public class BatchedRerouteServiceTests extends ESTestCase {
                     "publish failure",
                     BatchedRerouteService.class.getCanonicalName(),
                     Level.DEBUG,
-                    "unexpected failure"
-                )
-            );
-            mockLog.addExpectation(
-                new MockLog.UnseenEventExpectation(
-                    "publish failure omits current state",
-                    BatchedRerouteService.class.getCanonicalName(),
-                    Level.DEBUG,
-                    "current state"
+                    "publication failure"
                 )
             );
 
@@ -337,15 +329,7 @@ public class BatchedRerouteServiceTests extends ESTestCase {
                     "not-master failure",
                     BatchedRerouteService.class.getCanonicalName(),
                     Level.DEBUG,
-                    "unexpected failure"
-                )
-            );
-            mockLog.addExpectation(
-                new MockLog.UnseenEventExpectation(
-                    "not-master failure omits current state",
-                    BatchedRerouteService.class.getCanonicalName(),
-                    Level.DEBUG,
-                    "current state"
+                    "publication failure"
                 )
             );
             final var notMasterFuture = new PlainActionFuture<Void>();

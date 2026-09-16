@@ -48,6 +48,17 @@ class RetryableStorageObject implements StorageObject {
      */
     private static final int MAX_TOTAL_RESUMES = 1000;
 
+    /**
+     * Anti-drip floor for one {@link ResumingInputStream} progress window, not a transfer SLA.
+     * Idle timers (HTTP wrapper, S3 socket timeout) catch a silent body; they reset on any byte, so a
+     * keepalive-sized trickle never looks idle. Once a window of
+     * {@code esql.external.throttle_max_retry_duration} elapses, that window must have delivered at
+     * least this many bytes per second (1 KiB/s). A steady few-KiB/s WAN clears it; a 1-byte drip
+     * does not. The window then tumbles, so a fast burst does not buy later silence. {@link
+     * RetryPolicy#NO_BUDGET} disables the check.
+     */
+    static final int MIN_PROGRESS_BYTES_PER_SEC = 1024;
+
     private final StorageObject delegate;
     private final RetryPolicy retryPolicy;
     /** Schedules the async read-retry continuation after a backoff delay without parking a thread on the wait. */
@@ -476,6 +487,20 @@ class RetryableStorageObject implements StorageObject {
         private String pinnedGeneration;
         /** {@link StorageObject#knownLength()} at the first open; {@link #READ_TO_END} if unknown. */
         private long pinnedKnownLength;
+        /**
+         * Start of the current progress window. Tumbling: when the duration budget elapses with enough
+         * bytes, this resets so a fast burst does not excuse a later drip. Independent of
+         * {@link #episodeStartNanos}, which still resets on any progress for retry-budget accounting.
+         */
+        private long windowStartNanos;
+        /** Bytes delivered in the current {@link #windowStartNanos} window. */
+        private long bytesInWindow;
+        /**
+         * Set just before a progress-floor give-up. {@link ExternalUnavailableException} is otherwise
+         * always treated as transient; this flag keeps the give-up terminal even if a later refactor
+         * catches it on the resume path.
+         */
+        private boolean belowProgressFloor;
 
         ResumingInputStream(InputStream initial, long position, long length) {
             this.current = initial;
@@ -483,6 +508,7 @@ class RetryableStorageObject implements StorageObject {
             this.length = length;
             this.pinnedGeneration = delegate.contentGeneration();
             this.pinnedKnownLength = delegate.knownLength();
+            this.windowStartNanos = retryPolicy.nanoTime();
         }
 
         // Consecutive re-opens since the last byte of progress, and when that "stuck" episode began.
@@ -509,36 +535,95 @@ class RetryableStorageObject implements StorageObject {
         @Override
         public int read(byte[] b, int off, int len) throws IOException {
             while (true) {
+                final int n;
                 try {
-                    int n = current.read(b, off, len);
-                    if (n > 0) {
-                        delivered += n;
-                        failuresSinceProgress = 0;
-                        episodeStartNanos = 0;
-                        return n;
-                    }
-                    if (n < 0 && isPrematureEof()) {
-                        reopenOrThrow(
-                            new ExternalUnavailableException(
-                                false,
-                                "Premature end of object body for [{}] after [{}] of [{}] bytes",
-                                delegate.path(),
-                                delivered,
-                                expectedCount()
-                            )
-                        );
-                        continue;
-                    }
-                    return n;
+                    n = current.read(b, off, len);
                 } catch (IOException | ExternalUnavailableException e) {
                     // A raw transport fault surfaces as an IOException; a provider's typing wrapper re-types a
                     // mid-read status fault as the unchecked ExternalUnavailableException. Both drive a resume.
                     reopenOrThrow(e);
+                    continue;
                 }
+                if (n > 0) {
+                    delivered += n;
+                    bytesInWindow += n;
+                    // Progress give-up is terminal: it must not be caught as a resume-able fault, or a
+                    // 1-byte trickle would reset the episode clock and loop. Fail the logical read instead.
+                    failIfBelowProgressFloor();
+                    failuresSinceProgress = 0;
+                    episodeStartNanos = 0;
+                    return n;
+                }
+                if (n < 0 && isPrematureEof()) {
+                    reopenOrThrow(
+                        new ExternalUnavailableException(
+                            false,
+                            "Premature end of object body for [{}] after [{}] of [{}] bytes",
+                            delegate.path(),
+                            delivered,
+                            expectedCount()
+                        )
+                    );
+                    continue;
+                }
+                return n;
             }
         }
 
+        /**
+         * Once the current window has lasted the policy duration budget, require
+         * {@link #MIN_PROGRESS_BYTES_PER_SEC} over <em>that window</em>. Idle timeouts still handle a
+         * silent body; this catches a drip those timers reset on. A window that clears the floor
+         * tumbles so later drips cannot ride an earlier burst.
+         */
+        private void failIfBelowProgressFloor() {
+            long budgetMs = retryPolicy.maxTotalDurationMs();
+            if (budgetMs <= 0) {
+                return;
+            }
+            long elapsedMs = (retryPolicy.nanoTime() - windowStartNanos) / 1_000_000L;
+            if (elapsedMs < budgetMs) {
+                return;
+            }
+            long minBytes = minBytesForWindow(budgetMs);
+            if (bytesInWindow >= minBytes) {
+                windowStartNanos = retryPolicy.nanoTime();
+                bytesInWindow = 0;
+                return;
+            }
+            logger.warn(
+                "giving up read of [{}] at byte [{}]: [{}] bytes in [{}] ms window is below [{}] B/s progress floor",
+                delegate.path(),
+                position + delivered,
+                bytesInWindow,
+                elapsedMs,
+                MIN_PROGRESS_BYTES_PER_SEC
+            );
+            belowProgressFloor = true;
+            throw new ExternalUnavailableException(
+                false,
+                "Read of [{}] at byte [{}] below progress floor: [{}] bytes in [{}] ms",
+                delegate.path(),
+                position + delivered,
+                bytesInWindow,
+                elapsedMs
+            );
+        }
+
+        private static long minBytesForWindow(long windowMs) {
+            if (windowMs <= 0) {
+                return 0L;
+            }
+            if (windowMs > Long.MAX_VALUE / MIN_PROGRESS_BYTES_PER_SEC) {
+                return Long.MAX_VALUE;
+            }
+            return MIN_PROGRESS_BYTES_PER_SEC * windowMs / 1000L;
+        }
+
         private void reopenOrThrow(Exception e) throws IOException {
+            if (belowProgressFloor) {
+                throw rethrow(e);
+            }
             if (totalResumes >= MAX_TOTAL_RESUMES) {
                 throw rethrow(e);
             }

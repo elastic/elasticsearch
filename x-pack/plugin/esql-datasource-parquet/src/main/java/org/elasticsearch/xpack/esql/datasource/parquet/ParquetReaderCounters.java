@@ -201,8 +201,6 @@ public final class ParquetReaderCounters {
             lateMaterializationEnabled,
             lateMaterializationUsed,
             sortedPredicates,
-            totalReadNanos.sum(),
-            totalReadCpuNanos.sum(),
             columnsSnap
         );
     }

@@ -10,7 +10,9 @@ package org.elasticsearch.xpack.esql.action;
 import org.elasticsearch.core.PathUtils;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.xpack.core.esql.action.ColumnInfo;
+import org.elasticsearch.xpack.esql.core.expression.MetadataAttribute;
 import org.elasticsearch.xpack.esql.datasources.ExternalRowIdentity;
+import org.elasticsearch.xpack.esql.datasources.FileMetadataColumns;
 import org.elasticsearch.xpack.esql.plugin.QueryPragmas;
 import org.junit.Before;
 
@@ -18,10 +20,13 @@ import java.net.URI;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.ArrayList;
+import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.getValuesList;
+import static org.elasticsearch.xpack.esql.action.EsqlCapabilities.Cap.INLINE_STATS;
 import static org.elasticsearch.xpack.esql.action.EsqlQueryRequest.syncEsqlQueryRequest;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
@@ -317,6 +322,84 @@ public abstract class AbstractExternalMetadataMatrixIT extends AbstractExternalD
         }
     }
 
+    public void testMetadataColumnGroupsInStats() throws Exception {
+        try (var response = run(syncEsqlQueryRequest("FROM employees METADATA _index | STATS c = COUNT(*) BY _index"), TIMEOUT)) {
+            int idx = columnIndex(response.columns(), "_index");
+            int countIdx = columnIndex(response.columns(), "c");
+            List<List<Object>> rows = getValuesList(response);
+            assertThat(rows, hasSize(1));
+            assertThat(rows.get(0).get(idx).toString(), equalTo("employees"));
+            assertThat(((Number) rows.get(0).get(countIdx)).longValue(), equalTo(3L));
+        }
+
+        try (var response = run(syncEsqlQueryRequest("FROM employees METADATA _file.name | STATS c = COUNT(*) BY _file.name"), TIMEOUT)) {
+            List<List<Object>> rows = getValuesList(response);
+            assertThat(rows, hasSize(1));
+            int nameIdx = columnIndex(response.columns(), "_file.name");
+            int countIdx = columnIndex(response.columns(), "c");
+            assertThat(rows.get(0).get(nameIdx), notNullValue());
+            assertThat(((Number) rows.get(0).get(countIdx)).longValue(), equalTo(3L));
+        }
+    }
+
+    /**
+     * Iterates the live metadata registries so a name added later is grouped without extending this
+     * test. Snapshot-only and feature-flagged names ({@code _tier}, {@code _slice}) appear only when
+     * the corresponding map entry is present.
+     */
+    public void testEveryMetadataColumnGroupsInStats() throws Exception {
+        Set<String> names = new LinkedHashSet<>();
+        names.addAll(MetadataAttribute.ATTRIBUTES_MAP.keySet());
+        names.addAll(FileMetadataColumns.COLUMNS.keySet());
+        List<String> failures = new ArrayList<>();
+        for (String name : names) {
+            String query = "FROM employees METADATA " + name + " | STATS c = COUNT(*) BY " + name;
+            try (var response = run(syncEsqlQueryRequest(query), TIMEOUT)) {
+                List<List<Object>> rows = getValuesList(response);
+                List<String> columns = response.columns().stream().map(ColumnInfo::name).toList();
+                if (rows.isEmpty()) {
+                    failures.add(name + ": empty result");
+                }
+                if (columns.contains("c") == false) {
+                    failures.add(name + ": missing c, columns=" + columns);
+                }
+                if (columns.contains(name) == false) {
+                    failures.add(name + ": missing grouping column, columns=" + columns);
+                }
+            } catch (Exception e) {
+                failures.add(name + ": " + e.getClass().getSimpleName() + ": " + e.getMessage());
+            }
+        }
+        if (failures.isEmpty() == false) {
+            fail("grouping by " + names.size() + " metadata columns failed:\n" + String.join("\n", failures));
+        }
+    }
+
+    public void testMetadataColumnGroupsInInlineStats() throws Exception {
+        assumeTrue("INLINE STATS requires the capability to be enabled", INLINE_STATS.isEnabled());
+        try (var response = run(syncEsqlQueryRequest("FROM employees METADATA _index | INLINE STATS c = COUNT(*) BY _index"), TIMEOUT)) {
+            int idx = columnIndex(response.columns(), "_index");
+            int countIdx = columnIndex(response.columns(), "c");
+            List<List<Object>> rows = getValuesList(response);
+            assertThat(rows, hasSize(3));
+            for (List<Object> row : rows) {
+                assertThat(row.get(idx).toString(), equalTo("employees"));
+                assertThat(((Number) row.get(countIdx)).longValue(), equalTo(3L));
+            }
+        }
+    }
+
+    public void testMetadataColumnGroupsInStatsWithAlias() throws Exception {
+        try (var response = run(syncEsqlQueryRequest("FROM employees METADATA _index | STATS c = COUNT(*) BY i = _index"), TIMEOUT)) {
+            int idx = columnIndex(response.columns(), "i");
+            int countIdx = columnIndex(response.columns(), "c");
+            List<List<Object>> rows = getValuesList(response);
+            assertThat(rows, hasSize(1));
+            assertThat(rows.get(0).get(idx).toString(), equalTo("employees"));
+            assertThat(((Number) rows.get(0).get(countIdx)).longValue(), equalTo(3L));
+        }
+    }
+
     /**
      * {@code _tier} only exists in snapshot builds (see {@code MetadataAttribute.ATTRIBUTES_MAP}).
      * When present in the metadata map it must bind for external datasets and surface as SQL NULL —
@@ -337,6 +420,160 @@ public abstract class AbstractExternalMetadataMatrixIT extends AbstractExternalD
             assertThat(rows, hasSize(3));
             for (List<Object> row : rows) {
                 assertThat("_tier is null on external rows", row.get(idx), nullValue());
+            }
+        }
+    }
+
+    public void testMetadataFilterSelectsRowsAndCountsThem() throws Exception {
+        try (
+            var response = run(
+                syncEsqlQueryRequest("FROM employees METADATA _index | WHERE _index == \"employees\" | SORT emp_no"),
+                TIMEOUT
+            )
+        ) {
+            assertThat(getValuesList(response), hasSize(3));
+        }
+        try (
+            var response = run(
+                syncEsqlQueryRequest("FROM employees METADATA _index | WHERE _index == \"employees\" | STATS c = COUNT(*)"),
+                TIMEOUT
+            )
+        ) {
+            assertThat(((Number) getValuesList(response).get(0).get(0)).longValue(), equalTo(3L));
+        }
+        try (
+            var response = run(syncEsqlQueryRequest("FROM employees METADATA _index | WHERE _index IS NULL | STATS c = COUNT(*)"), TIMEOUT)
+        ) {
+            assertThat(((Number) getValuesList(response).get(0).get(0)).longValue(), equalTo(0L));
+        }
+        try (
+            var response = run(
+                syncEsqlQueryRequest("FROM employees METADATA _file.name | WHERE _file.name IS NOT NULL | STATS c = COUNT(*)"),
+                TIMEOUT
+            )
+        ) {
+            assertThat(((Number) getValuesList(response).get(0).get(0)).longValue(), equalTo(3L));
+        }
+        try (
+            var response = run(
+                syncEsqlQueryRequest("FROM employees METADATA _file.record_ref | WHERE _file.record_ref IS NOT NULL | SORT emp_no"),
+                TIMEOUT
+            )
+        ) {
+            assertThat(getValuesList(response), hasSize(3));
+        }
+        try (
+            var response = run(
+                syncEsqlQueryRequest("FROM employees METADATA _file.record_ref | WHERE _file.record_ref IS NOT NULL | STATS c = COUNT(*)"),
+                TIMEOUT
+            )
+        ) {
+            assertThat(((Number) getValuesList(response).get(0).get(0)).longValue(), equalTo(3L));
+        }
+        try (
+            var response = run(
+                syncEsqlQueryRequest("FROM employees METADATA _version | WHERE _version IS NOT NULL | STATS c = COUNT(*)"),
+                TIMEOUT
+            )
+        ) {
+            assertThat(((Number) getValuesList(response).get(0).get(0)).longValue(), equalTo(3L));
+        }
+        try (
+            var response = run(syncEsqlQueryRequest("FROM employees METADATA _score | WHERE _score IS NULL | STATS c = COUNT(*)"), TIMEOUT)
+        ) {
+            assertThat(((Number) getValuesList(response).get(0).get(0)).longValue(), equalTo(3L));
+        }
+        try (
+            var response = run(
+                syncEsqlQueryRequest("FROM employees METADATA _score | WHERE _score IS NOT NULL | STATS c = COUNT(*)"),
+                TIMEOUT
+            )
+        ) {
+            assertThat(((Number) getValuesList(response).get(0).get(0)).longValue(), equalTo(0L));
+        }
+        try (
+            var response = run(
+                syncEsqlQueryRequest("FROM employees METADATA _index | WHERE _index == \"nosuchdataset\" | SORT emp_no"),
+                TIMEOUT
+            )
+        ) {
+            assertThat(getValuesList(response), hasSize(0));
+        }
+        try (
+            var response = run(
+                syncEsqlQueryRequest("FROM employees METADATA _index | WHERE NOT (_index IS NULL) | STATS c = COUNT(*)"),
+                TIMEOUT
+            )
+        ) {
+            assertThat(((Number) getValuesList(response).get(0).get(0)).longValue(), equalTo(3L));
+        }
+        try (
+            var response = run(
+                syncEsqlQueryRequest("FROM employees METADATA _index | EVAL idx = _index | WHERE idx IS NOT NULL | STATS c = COUNT(*)"),
+                TIMEOUT
+            )
+        ) {
+            assertThat(((Number) getValuesList(response).get(0).get(0)).longValue(), equalTo(3L));
+        }
+        try (
+            var response = run(syncEsqlQueryRequest("FROM employees METADATA _id | WHERE _id IS NOT NULL | STATS c = COUNT(*)"), TIMEOUT)
+        ) {
+            assertThat(((Number) getValuesList(response).get(0).get(0)).longValue(), equalTo(3L));
+        }
+        try (
+            var response = run(
+                syncEsqlQueryRequest("FROM employees METADATA _source | WHERE _source IS NOT NULL | STATS c = COUNT(*)"),
+                TIMEOUT
+            )
+        ) {
+            assertThat(((Number) getValuesList(response).get(0).get(0)).longValue(), equalTo(3L));
+        }
+    }
+
+    public void testComputedMetadataFilterCounts() throws Exception {
+        try (
+            var response = run(
+                syncEsqlQueryRequest(
+                    "FROM employees METADATA _index | EVAL idx = TO_LOWER(_index) | WHERE idx IS NOT NULL | STATS c = COUNT(*)"
+                ),
+                TIMEOUT
+            )
+        ) {
+            assertThat(((Number) getValuesList(response).get(0).get(0)).longValue(), equalTo(3L));
+        }
+    }
+
+    public void testComputedMetadataIsNullFilterCounts() throws Exception {
+        try (
+            var response = run(
+                syncEsqlQueryRequest(
+                    "FROM employees METADATA _index | EVAL idx = TO_LOWER(_index) | WHERE idx IS NULL | STATS c = COUNT(*)"
+                ),
+                TIMEOUT
+            )
+        ) {
+            assertThat(((Number) getValuesList(response).get(0).get(0)).longValue(), equalTo(0L));
+        }
+    }
+
+    public void testComputedMetadataShadowingIndexFiltersRowsAndCounts() throws Exception {
+        String source = "FROM employees METADATA _index | EVAL _index = CONCAT(_index, \"mytext\")";
+        for (var testCase : List.of(
+            Map.entry("_index == \"employeesmytext\"", 3L),
+            Map.entry("_index == \"employees\"", 0L),
+            Map.entry("_index IS NULL", 0L),
+            Map.entry("_index IS NOT NULL", 3L)
+        )) {
+            String filteredQuery = source + " | WHERE " + testCase.getKey();
+            try (var response = run(syncEsqlQueryRequest(filteredQuery + " | KEEP _index"), TIMEOUT)) {
+                List<List<Object>> rows = getValuesList(response);
+                assertThat(filteredQuery, rows, hasSize(testCase.getValue().intValue()));
+                for (List<Object> row : rows) {
+                    assertThat(row.get(0).toString(), equalTo("employeesmytext"));
+                }
+            }
+            try (var response = run(syncEsqlQueryRequest(filteredQuery + " | STATS c = COUNT(*)"), TIMEOUT)) {
+                assertThat(filteredQuery, ((Number) getValuesList(response).get(0).get(0)).longValue(), equalTo(testCase.getValue()));
             }
         }
     }

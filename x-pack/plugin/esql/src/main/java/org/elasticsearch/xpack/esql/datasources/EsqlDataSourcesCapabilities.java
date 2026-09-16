@@ -16,6 +16,12 @@ public final class EsqlDataSourcesCapabilities {
     public static final String DATASET_DECLARED_SCHEMA = "dataset_declared_schema";
 
     /**
+     * {@code region} is accepted on a dataset PUT (S3 plugin).
+     * A data-source PUT with {@code region} still succeeds but emits a deprecation warning.
+     */
+    public static final String DATASET_REGION = "dataset_region";
+
+    /**
      * Signals that the data_source/dataset CRUD routes ({@code PUT/GET/DELETE /_query/data_source/{name}} and
      * {@code PUT/GET/DELETE /_query/dataset/{name}}) are exposed with {@code @ServerlessScope(Scope.PUBLIC)}.
      * Old nodes in a mixed cluster predate this annotation and will not report this capability via

@@ -348,6 +348,17 @@ public class SearchEngine extends Engine {
             for (ReferenceManager.RefreshListener refreshListener : config.getInternalRefreshListener()) {
                 readerManager.addListener(refreshListener);
             }
+            readerManager.addListener(new ReferenceManager.RefreshListener() {
+                @Override
+                public void beforeRefresh() {}
+
+                @Override
+                public void afterRefresh(boolean didRefresh) {
+                    if (didRefresh) {
+                        warmReaderCacheAfterResharding();
+                    }
+                }
+            });
             this.prefetcherDynamicSettings = prefetcherDynamicSettings;
             this.commitPrefetcher = new SearchCommitPrefetcher(
                 searchDirectory.getShardId(),
@@ -360,6 +371,7 @@ public class SearchEngine extends Engine {
                 clusterSettings,
                 prefetcherDynamicSettings
             );
+            warmReaderCacheAfterResharding();
             success = true;
         } catch (Exception e) {
             throw new EngineCreationFailureException(config.getShardId(), "Failed to create a search engine", e);
@@ -1128,6 +1140,19 @@ public class SearchEngine extends Engine {
     @Override
     protected ReferenceManager<ElasticsearchDirectoryReader> getReferenceManager(SearcherScope scope) {
         return readerManager;
+    }
+
+    /**
+     * Schedules warming of the current reader's resharding unowned-document bitsets when this shard is in an active split.
+     */
+    public void warmReaderCacheAfterResharding() {
+        reshardSearchFilters.warmReaderCacheAfterResharding(
+            shardId,
+            engineConfig.getIndexSettings().getIndexMetadata(),
+            engineConfig.getMapperService(),
+            engineConfig.getThreadPool().executor(ThreadPool.Names.WARMER),
+            () -> acquireSearcher("reshard_unowned_bitset_warming", SearcherScope.INTERNAL)
+        );
     }
 
     @Override

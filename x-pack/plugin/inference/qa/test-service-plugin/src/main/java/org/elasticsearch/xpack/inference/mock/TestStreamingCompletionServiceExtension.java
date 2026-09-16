@@ -30,6 +30,7 @@ import org.elasticsearch.inference.ServiceSettings;
 import org.elasticsearch.inference.SettingsConfiguration;
 import org.elasticsearch.inference.TaskType;
 import org.elasticsearch.inference.UnifiedCompletionRequest;
+import org.elasticsearch.inference.UnifiedCompletionRequestBody;
 import org.elasticsearch.inference.configuration.SettingsConfigurationFieldType;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.xcontent.ToXContent;
@@ -42,6 +43,7 @@ import org.elasticsearch.xpack.core.inference.results.StreamingUnifiedChatComple
 import org.elasticsearch.xpack.core.inference.results.completion.ChatCompletionChoiceResponse;
 import org.elasticsearch.xpack.core.inference.results.completion.ChatCompletionChunkResponse;
 import org.elasticsearch.xpack.core.inference.results.completion.ChatCompletionMessageResponse;
+import org.elasticsearch.xpack.core.inference.results.completion.ChatCompletionUsageResponse;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -170,7 +172,9 @@ public class TestStreamingCompletionServiceExtension implements InferenceService
                 return;
             }
             switch (model.getConfigurations().getTaskType()) {
-                case CHAT_COMPLETION -> listener.onResponse(makeUnifiedResults(request));
+                case CHAT_COMPLETION -> listener.onResponse(
+                    request.stream() ? makeUnifiedResults(request.body()) : makeNonStreamingUnifiedResults(request.body())
+                );
                 default -> listener.onFailure(
                     new ElasticsearchStatusException(
                         TaskType.unsupportedTaskTypeErrorMsg(model.getConfigurations().getTaskType(), name()),
@@ -178,6 +182,11 @@ public class TestStreamingCompletionServiceExtension implements InferenceService
                     )
                 );
             }
+        }
+
+        @Override
+        public boolean supportsNonStreamingChatCompletion() {
+            return true;
         }
 
         @Override
@@ -263,7 +272,7 @@ public class TestStreamingCompletionServiceExtension implements InferenceService
             };
         }
 
-        private StreamingUnifiedChatCompletionResults makeUnifiedResults(UnifiedCompletionRequest request) {
+        private StreamingUnifiedChatCompletionResults makeUnifiedResults(UnifiedCompletionRequestBody request) {
             var responseIter = request.messages().stream().map(message -> message.content().toString().toUpperCase(Locale.ROOT)).iterator();
             return new StreamingUnifiedChatCompletionResults(subscriber -> {
                 subscriber.onSubscribe(new Flow.Subscription() {
@@ -280,6 +289,17 @@ public class TestStreamingCompletionServiceExtension implements InferenceService
                     public void cancel() {}
                 });
             });
+        }
+
+        private ChatCompletionChunkResponse makeNonStreamingUnifiedResults(UnifiedCompletionRequestBody request) {
+            var content = request.messages().get(0).content().toString().toUpperCase(Locale.ROOT);
+            return new ChatCompletionChunkResponse(
+                "test-id",
+                List.of(new ChatCompletionChoiceResponse(new ChatCompletionMessageResponse(content, null, "assistant", null), "stop", 0)),
+                "test-model",
+                "chat.completion",
+                new ChatCompletionUsageResponse(1, 1, 2)
+            );
         }
 
         /*

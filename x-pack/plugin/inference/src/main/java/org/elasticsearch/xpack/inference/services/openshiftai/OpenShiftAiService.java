@@ -38,7 +38,7 @@ import org.elasticsearch.xpack.inference.services.ModelCreator;
 import org.elasticsearch.xpack.inference.services.SenderService;
 import org.elasticsearch.xpack.inference.services.ServiceComponents;
 import org.elasticsearch.xpack.inference.services.ServiceUtils;
-import org.elasticsearch.xpack.inference.services.openai.response.OpenAiCompletionResponseEntity;
+import org.elasticsearch.xpack.inference.services.openai.response.OpenAiUnifiedChatCompletionResponseEntity;
 import org.elasticsearch.xpack.inference.services.openshiftai.action.OpenShiftAiActionCreator;
 import org.elasticsearch.xpack.inference.services.openshiftai.completion.OpenShiftAiChatCompletionModel;
 import org.elasticsearch.xpack.inference.services.openshiftai.completion.OpenShiftAiChatCompletionModelCreator;
@@ -84,7 +84,7 @@ public class OpenShiftAiService extends SenderService<OpenShiftAiModel> implemen
     );
     private static final ResponseHandler CHAT_COMPLETION_HANDLER = new OpenShiftAiChatCompletionResponseHandler(
         "OpenShift AI chat completions",
-        OpenAiCompletionResponseEntity::fromResponse
+        OpenAiUnifiedChatCompletionResponseEntity::fromResponse
     );
     private static final OpenShiftAiChatCompletionModelCreator COMPLETION_MODEL_CREATOR = new OpenShiftAiChatCompletionModelCreator();
     private static final Map<TaskType, ModelCreator<? extends OpenShiftAiModel>> MODEL_CREATORS = Map.of(
@@ -189,6 +189,7 @@ public class OpenShiftAiService extends SenderService<OpenShiftAiModel> implemen
         List<EmbeddingRequestChunker.BatchRequestAndListener> batchedRequests = new EmbeddingRequestChunker<>(
             inputs,
             EMBEDDING_MAX_BATCH_SIZE,
+            getRegexReadLimitFactor(),
             openShiftAiEmbeddingsModel.getConfigurations().getChunkingSettings()
         ).batchRequestsWithListeners(listener);
 
@@ -225,6 +226,11 @@ public class OpenShiftAiService extends SenderService<OpenShiftAiModel> implemen
     @Override
     public Set<TaskType> supportedStreamingTasks() {
         return EnumSet.of(TaskType.COMPLETION, TaskType.CHAT_COMPLETION);
+    }
+
+    @Override
+    public boolean supportsNonStreamingChatCompletion() {
+        return true;
     }
 
     @Override

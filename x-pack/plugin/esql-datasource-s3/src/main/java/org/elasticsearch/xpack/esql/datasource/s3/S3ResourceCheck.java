@@ -15,8 +15,10 @@ import java.util.Locale;
  * Provider-specific resource validation for S3 URIs, invoked at {@code PUT /_query/dataset} time
  * via {@link org.elasticsearch.xpack.esql.datasources.spi.FileDataSourceValidator#withResourceCheck}.
  *
- * <p>Two forms of resource URI are syntactically invalid for S3 but pass the scheme check:
+ * <p>Three forms of resource URI are syntactically invalid for S3 but pass the scheme check:
  * <ul>
+ *   <li><b>Empty location</b> — {@code s3://} with no bucket (and therefore no key). The scheme
+ *       matches, but the URI is not an object location.</li>
  *   <li><b>Multi-region access points (MRAP)</b> — not supported; the user must use a regional
  *       endpoint instead.</li>
  *   <li><b>ARN resources</b> — S3 does not accept ARNs as bucket identifiers in standard SDK calls;
@@ -25,10 +27,11 @@ import java.util.Locale;
  *
  * <p>Parsing is done on the raw resource string. {@code StoragePath.of} must not be called here
  * because it throws {@code Malformed authority in location} on ARNs before any check can run. The SDK's
- * {@code Arn.fromString} is also not used — two string checks cover all cases.
+ * {@code Arn.fromString} is also not used — the string checks below cover all cases.
  */
 class S3ResourceCheck {
 
+    static final String INCOMPLETE_LOCATION_PREFIX = "[resource] is not a complete object location but was [";
     static final String MRAP_MESSAGE_PREFIX = "[resource] looks like a multi-region access point, which is not supported, but was [";
     static final String ARN_MESSAGE_PREFIX = "[resource] does not accept an ARN but was [";
     static final String ARN_MESSAGE_SUFFIX = "]. Use a bucket name, or an access point alias if the bucket is behind an access point.";
@@ -36,10 +39,12 @@ class S3ResourceCheck {
     private S3ResourceCheck() {}
 
     /**
-     * Validates that {@code resource} is not an ARN or a multi-region access point URI.
+     * Validates that {@code resource} names a bucket (not an empty location, ARN, or MRAP).
      * Adds a {@link ValidationException} error for each problem found; does not throw.
      *
-     * <p>The MRAP check runs first: an MRAP ARN would otherwise fall through to the generic
+     * <p>Empty authority is rejected first: {@code s3://} matches the scheme check but is not an
+     * object location, and format inference would otherwise report that as "cannot determine a
+     * format". The MRAP check runs next: an MRAP ARN would otherwise fall through to the generic
      * ARN branch and receive a misleading "use an access point alias" suggestion (which does not
      * exist for MRAPs).
      */
@@ -52,6 +57,10 @@ class S3ResourceCheck {
         String afterScheme = resource.substring(schemeEnd + 3);
         int firstSlash = afterScheme.indexOf('/');
         String authority = firstSlash < 0 ? afterScheme : afterScheme.substring(0, firstSlash);
+        if (authority.isEmpty()) {
+            errors.addValidationError(INCOMPLETE_LOCATION_PREFIX + resource + "].");
+            return;
+        }
         String authorityLower = authority.toLowerCase(Locale.ROOT);
 
         // First path segment (the part of the path up to the next "/"), used for MRAP ARN detection.

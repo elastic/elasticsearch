@@ -51,6 +51,7 @@ id:long | padded_width:integer
 // only the clean columns cannot reach that ordering, so it would pin the happy path instead of the contract.
 strictDeclaredSchemaKeepsRowWidthValidation
 required_capability: dataset_in_from_command
+required_capability: external_csv_declared_schema_row_width_validation
 dataset: mv_sample_declared_none: "{{mv_sample}}" WITH {"multi_value_syntax": "none", "error_mode": "skip_row", "mappings": {"dynamic": "false", "properties": {"id": {"type": "integer", "path": "id"}, "tags": {"type": "keyword", "path": "tags"}, "score": {"type": "integer", "path": "score"}}}}
 
 FROM mv_sample_declared_none

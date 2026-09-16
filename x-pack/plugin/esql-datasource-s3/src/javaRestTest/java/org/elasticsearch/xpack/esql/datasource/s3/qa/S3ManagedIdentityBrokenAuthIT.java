@@ -136,7 +136,6 @@ public class S3ManagedIdentityBrokenAuthIT extends ESRestTestCase {
                 .field("type", "s3")
                 .startObject("settings")
                 .field("auth", "managed_identity")
-                .field("region", regionSupplier.get())
                 .field("endpoint", endpoint)
                 .endObject()
                 .endObject();
@@ -149,7 +148,13 @@ public class S3ManagedIdentityBrokenAuthIT extends ESRestTestCase {
     private static void putDataset(String name, String dataSource, String resource) throws IOException {
         Request req = new Request("PUT", "/_query/dataset/" + name);
         try (XContentBuilder b = jsonBuilder()) {
-            b.startObject().field("data_source", dataSource).field("resource", resource).endObject();
+            b.startObject()
+                .field("data_source", dataSource)
+                .field("resource", resource)
+                .startObject("settings")
+                .field("region", regionSupplier.get())
+                .endObject()
+                .endObject();
             req.setJsonEntity(Strings.toString(b));
         }
         Response r = client().performRequest(req);

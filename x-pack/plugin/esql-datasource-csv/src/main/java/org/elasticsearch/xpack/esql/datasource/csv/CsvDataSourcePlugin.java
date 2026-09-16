@@ -69,7 +69,8 @@ public class CsvDataSourcePlugin extends Plugin implements DataSourcePlugin {
         "header_row",
         "column_prefix",
         "trim_spaces",
-        "schema_sample_size"
+        "schema_sample_size",
+        "skip_rows"
     );
 
     /**
@@ -88,7 +89,20 @@ public class CsvDataSourcePlugin extends Plugin implements DataSourcePlugin {
 
     @Override
     public Set<FormatSpec> formatSpecs() {
-        return Set.of(FormatSpec.of("csv", ".csv", FORMAT_CONFIG_KEYS), FormatSpec.of("tsv", ".tsv", FORMAT_CONFIG_KEYS));
+        return Set.of(
+            new FormatSpec(
+                "csv",
+                Set.of(".csv"),
+                FORMAT_CONFIG_KEYS,
+                config -> CsvFormatReader.validateConfig(config, CsvFormatOptions.DEFAULT)
+            ),
+            new FormatSpec(
+                "tsv",
+                Set.of(".tsv"),
+                FORMAT_CONFIG_KEYS,
+                config -> CsvFormatReader.validateConfig(config, CsvFormatOptions.TSV)
+            )
+        );
     }
 
     /**

@@ -26,8 +26,11 @@ public final class MinioTestContainer extends DockerEnvironmentAwareTestContaine
      * [= 2025-05-24                ] known issue https://github.com/minio/minio/issues/21377; no workaround
      * [> 2025-05-24 && < 2025-09-07] known issue https://github.com/minio/minio/issues/21456; workaround in #131815
      * [>= 2025-09-07               ] no known issues (yet)
+     *
+     * The image is pulled from quay.io (MinIO's canonical registry) because the minio/minio
+     * repository was removed from Docker Hub, see https://github.com/elastic/elasticsearch/issues/159137.
      */
-    public static final String DOCKER_BASE_IMAGE = "minio/minio:RELEASE.2025-09-07T16-13-09Z";
+    public static final String DOCKER_BASE_IMAGE = "quay.io/minio/minio:RELEASE.2025-09-07T16-13-09Z";
 
     private static final int servicePort = 9000;
     private final boolean enabled;

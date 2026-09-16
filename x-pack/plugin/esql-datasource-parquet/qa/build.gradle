@@ -9,6 +9,7 @@ import org.elasticsearch.gradle.testclusters.StandaloneRestIntegTestTask
 
 apply plugin: 'elasticsearch.internal-java-rest-test'
 apply plugin: 'elasticsearch.esql-csv-spec-tests'
+apply plugin: 'elasticsearch.esql-datasource-bwc'
 apply plugin: org.elasticsearch.gradle.internal.precommit.CheckstylePrecommitPlugin
 apply plugin: org.elasticsearch.gradle.internal.precommit.ForbiddenApisPrecommitPlugin
 apply plugin: org.elasticsearch.gradle.internal.precommit.ForbiddenPatternsPrecommitPlugin
@@ -232,7 +233,7 @@ generateParquetTasks.add(tasks.named('generateMultifileSplitParquet_employees'))
 // directories lang=1/, lang=2/, ..., lang=5/ plus lang=__HIVE_DEFAULT_PARTITION__/ for the 10 rows
 // where languages is null. The partition column is named `lang` (distinct from the payload `languages`
 // column) so the data column stays intact and queries can compare lang against the underlying value.
-// Used by external-hive-partitioned.csv-spec to exercise HivePartitionDetector end-to-end, including
+// Used by parquet-hive-partitioned.csv-spec to exercise HivePartitionDetector end-to-end, including
 // the __HIVE_DEFAULT_PARTITION__ sentinel.
 def hivePartitionedDir = file("${parquetFixtureOutputDir}/hive-partitioned")
 def hivePartitionedEmployeesCsv = new File(testFixturesDataDir, "employees.csv")
@@ -270,6 +271,7 @@ generateParquetTasks.add(tasks.named('generateHiveShadowParquet_employees'))
 
 // Generate compressed Parquet fixtures for each supported internal codec.
 // Each codec gets its own directory: standalone-snappy/, standalone-gzip/, etc.
+ext.generateAllCompressedMultifileCodecs = true
 apply from: serverProject.file('compressed-parquet-fixtures.gradle')
 
 tasks.register('generateParquetFixtures') {
@@ -351,3 +353,13 @@ def csvSpecTests = tasks.register('csvSpecTests', StandaloneRestIntegTestTask) {
 }
 
 tasks.named('check').configure { dependsOn csvSpecTests }
+
+esqlDataSourceBwc {
+  minimumVersion '9.5.0'
+  classFilter 'org.elasticsearch.xpack.esql.qa.parquet.ParquetFormatSpecIT'
+  classFilter 'org.elasticsearch.xpack.esql.qa.parquet.ParquetCompressedFormatSpecIT'
+  classFilter 'org.elasticsearch.xpack.esql.qa.parquet.ParquetCompressedMultifileSpecIT'
+  coordinators 'old', 'current'
+  systemProperty 'tests.rest.client_timeout', '60'
+  systemProperty 'tests.rest.socket_timeout', '60'
+}

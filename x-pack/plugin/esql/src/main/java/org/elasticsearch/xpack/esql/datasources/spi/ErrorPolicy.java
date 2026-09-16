@@ -76,10 +76,11 @@ public record ErrorPolicy(Mode mode, long maxErrors, double maxErrorRatio, boole
         /**
          * Drop the entire row — equivalent to Spark {@code DROPMALFORMED}, DuckDB {@code ignore_errors}.
          * <p>
-         * Honoured by the row-oriented (text) readers and, via {@code ColumnarRowDropHelper}, by the columnar ones.
-         * One coercion site is exempt and null-fills instead: the cross-file schema-unification cast in
-         * {@code ColumnMapping#mapPage}, which runs above the reader and outside its error budget — see the
-         * "Known gap" note there, tracked as elastic/esql-planning#1824.
+         * Honoured by the row-oriented (text) readers, by the columnar ones via {@code ColumnarRowDropHelper},
+         * and by the cross-file schema-unification cast in {@code ColumnMapping#mapPage} via
+         * {@code SchemaAdaptingIterator}'s per-read helper. Both the reader and the adapter share a single
+         * {@code SharedErrorBudget} per file read, so {@code max_errors} / {@code max_error_ratio} applies
+         * to the combined drop total rather than being checked independently in each layer.
          */
         SKIP_ROW,
         /**

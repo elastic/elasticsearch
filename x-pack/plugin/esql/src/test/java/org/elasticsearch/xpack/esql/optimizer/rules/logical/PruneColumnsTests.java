@@ -83,6 +83,10 @@ import static org.hamcrest.Matchers.is;
 
 public class PruneColumnsTests extends AbstractLogicalPlanOptimizerTests {
 
+    public PruneColumnsTests(VersionMode versionMode) {
+        super(versionMode);
+    }
+
     public void testPruneUnusedEval() {
         var plan = plan("""
               from test

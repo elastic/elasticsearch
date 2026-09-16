@@ -470,7 +470,9 @@ public final class Authentication implements ToXContentObject {
      */
     public Authentication token() {
         assert false == isAuthenticatedInternally();
-        assert false == isServiceAccount();
+        // Built-in service accounts must not derive OAuth2 tokens, but user-managed service accounts may, through the
+        // privileged [_user_managed_service_account] grant of the create token API.
+        assert false == isServiceAccount() || isUserManagedServiceAccount();
         assert false == isCrossClusterAccess();
         final Authentication newTokenAuthentication = new Authentication(effectiveSubject, authenticatingSubject, AuthenticationType.TOKEN);
         return newTokenAuthentication;

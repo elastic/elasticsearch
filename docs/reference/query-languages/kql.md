@@ -102,15 +102,15 @@ To search for documents matching a pattern, use the wildcard syntax. Wildcard qu
 machine.os: win*
 ```
 
-Leading wildcards are allowed by default. For example, to find documents where `url` contains `elastic`, use the following syntax:
+By default, you can put `*` at the start of a pattern. For example, to find documents where `url` contains `elastic`:
 
 ```yaml
 url: *elastic*
 ```
 
-Leading wildcard queries can be expensive.
+Queries that start with `*` can slow searches.
 
-{applies_to}`stack: ga` {applies_to}`serverless: unavailable` In {{kib}}, you can turn them off with the [`query:allowLeadingWildcards`](kibana://reference/advanced-settings.md#query-allowleadingwildcards) advanced setting.
+{applies_to}`stack: ga` {applies_to}`serverless: unavailable` In {{kib}}, turn leading wildcards off with the [`query:allowLeadingWildcards`](kibana://reference/advanced-settings.md#query-allowleadingwildcards) advanced setting.
 
 ::::{note}
 Only `*` is currently supported. This matches zero or more characters.

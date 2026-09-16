@@ -194,6 +194,9 @@ tests:
 - class: org.elasticsearch.xpack.security.authc.ldap.LdapSessionFactoryTests
   method: testBindWithReadTimeout
   issue: https://github.com/elastic/elasticsearch/issues/159268
+- class: org.elasticsearch.xpack.search.AsyncSearchActionIT
+  method: testRestartAfterCompletion
+  issue: https://github.com/elastic/elasticsearch/issues/159451
 
 # Examples:
 #

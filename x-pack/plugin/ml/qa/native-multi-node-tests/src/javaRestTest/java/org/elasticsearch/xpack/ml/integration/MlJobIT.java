@@ -17,6 +17,7 @@ import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.common.xcontent.support.XContentMapValues;
 import org.elasticsearch.core.Strings;
 import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.test.SecuritySettingsSourceField;
 import org.elasticsearch.test.rest.ESRestTestCase;
@@ -26,6 +27,7 @@ import org.elasticsearch.xpack.core.ml.job.config.Job;
 import org.elasticsearch.xpack.core.ml.job.persistence.AnomalyDetectorsIndex;
 import org.elasticsearch.xpack.core.ml.job.persistence.AnomalyDetectorsIndexFields;
 import org.elasticsearch.xpack.core.ml.job.process.autodetect.state.TimingStats;
+import org.elasticsearch.xpack.core.ml.utils.MlIndexAndAlias;
 import org.elasticsearch.xpack.core.security.authc.support.UsernamePasswordToken;
 import org.elasticsearch.xpack.ml.MachineLearning;
 import org.junit.After;
@@ -54,14 +56,6 @@ public class MlJobIT extends ESRestTestCase {
         .setWarningsHandler(
             warnings -> Collections.singletonList(
                 "Posting data directly to anomaly detection jobs is deprecated, "
-                    + "in a future major version it will be compulsory to use a datafeed"
-            ).equals(warnings) == false
-        )
-        .build();
-    private static final RequestOptions FLUSH_OPTIONS = RequestOptions.DEFAULT.toBuilder()
-        .setWarningsHandler(
-            warnings -> Collections.singletonList(
-                "Forcing any buffered data to be processed is deprecated, "
                     + "in a future major version it will be compulsory to use a datafeed"
             ).equals(warnings) == false
         )

@@ -382,8 +382,11 @@ public abstract class CrossIndexModeGenerativeRestRunner extends GenerativeRestT
     @Override
     protected Set<String> additionalAllowedErrors() {
         Set<String> errors = new HashSet<>(super.additionalAllowedErrors());
-        // All mode-difference substrings are acceptable on either side of the pipeline.
-        errors.addAll(ALLOWED_MODE_DIFFERENCE_SUBSTRINGS);
+        // Mode-difference substrings are literal strings; quote them so the base-class regex
+        // compiler treats them as literals rather than as regex patterns.
+        for (String s : ALLOWED_MODE_DIFFERENCE_SUBSTRINGS) {
+            errors.add(Pattern.quote(s));
+        }
         return errors;
     }
 

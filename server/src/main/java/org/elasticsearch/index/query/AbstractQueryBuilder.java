@@ -20,6 +20,7 @@ import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.breaker.ChildMemoryCircuitBreaker;
 import org.elasticsearch.common.breaker.CircuitBreaker;
+import org.elasticsearch.common.breaker.CircuitBreakingException;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.lucene.BytesRefs;
@@ -35,6 +36,7 @@ import org.elasticsearch.xcontent.NamedObjectNotFoundException;
 import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentLocation;
+import org.elasticsearch.xcontent.XContentParseException;
 import org.elasticsearch.xcontent.XContentParser;
 
 import java.io.IOException;
@@ -569,6 +571,20 @@ public abstract class AbstractQueryBuilder<QB extends AbstractQueryBuilder<QB>> 
             QueryBuilder result = parseInnerQueryBuilder(parserWrapper);
             success = true;
             return result;
+        } catch (XContentParseException xpe) {
+            // ObjectParser wraps any exception from the namedObject hook (including
+            // CircuitBreakingException) in XContentParseException. ExceptionsHelper.status()
+            // maps XContentParseException to 400 without walking the cause chain, so a
+            // circuit-breaker trip inside a nested query returns 400 instead of 429.
+            // Unwrap through any chain of XContentParseException wrappers.
+            Throwable cause = xpe;
+            while (cause instanceof XContentParseException) {
+                cause = cause.getCause();
+            }
+            if (cause instanceof CircuitBreakingException) {
+                throw (CircuitBreakingException) cause;
+            }
+            throw xpe;
         } finally {
             if (breaker != null && totalCharged[0] > 0) {
                 if (success && trackTo != null) {

@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.fleet.rest;
 
+import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.search.MultiSearchRequest;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.search.TransportMultiSearchAction;
@@ -15,6 +16,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.features.NodeFeature;
 import org.elasticsearch.rest.BaseRestHandler;
+import org.elasticsearch.rest.RestChannel;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.Scope;
 import org.elasticsearch.rest.ServerlessScope;
@@ -101,38 +103,67 @@ public class RestFleetMultiSearchAction extends BaseRestHandler {
             Optional.empty()
         );
 
-        for (SearchRequest searchRequest : multiSearchRequest.requests()) {
-            String[] indices = searchRequest.indices();
-            Map<String, long[]> waitForCheckpoints = searchRequest.getWaitForCheckpoints();
-            if (waitForCheckpoints.isEmpty() == false) {
-                if (indices.length == 0) {
-                    throw new IllegalArgumentException(
-                        "Fleet search API param wait_for_checkpoints is only supported with an index to search specified. "
-                            + "No index specified."
-                    );
-                } else if (indices.length > 1) {
-                    throw new IllegalArgumentException(
-                        "Fleet search API only supports searching a single index. Found: [" + Arrays.toString(indices) + "]."
-                    );
+        boolean validated = false;
+        try {
+            for (SearchRequest searchRequest : multiSearchRequest.requests()) {
+                String[] indices = searchRequest.indices();
+                Map<String, long[]> waitForCheckpoints = searchRequest.getWaitForCheckpoints();
+                if (waitForCheckpoints.isEmpty() == false) {
+                    if (indices.length == 0) {
+                        throw new IllegalArgumentException(
+                            "Fleet search API param wait_for_checkpoints is only supported with an index to search specified. "
+                                + "No index specified."
+                        );
+                    } else if (indices.length > 1) {
+                        throw new IllegalArgumentException(
+                            "Fleet search API only supports searching a single index. Found: [" + Arrays.toString(indices) + "]."
+                        );
+                    }
+                }
+
+                if (indices.length == 1 && RemoteClusterService.isRemoteIndexName(indices[0])) {
+                    throw new IllegalArgumentException("Fleet search API does not support remote indices. Found: [" + indices[0] + "].");
+                }
+                long[] checkpoints = searchRequest.getWaitForCheckpoints().get("*");
+                if (checkpoints != null) {
+                    searchRequest.setWaitForCheckpoints(Collections.singletonMap(indices[0], checkpoints));
                 }
             }
-
-            if (indices.length == 1 && RemoteClusterService.isRemoteIndexName(indices[0])) {
-                throw new IllegalArgumentException("Fleet search API does not support remote indices. Found: [" + indices[0] + "].");
-            }
-            long[] checkpoints = searchRequest.getWaitForCheckpoints().get("*");
-            if (checkpoints != null) {
-                searchRequest.setWaitForCheckpoints(Collections.singletonMap(indices[0], checkpoints));
+            validated = true;
+        } finally {
+            if (validated == false) {
+                for (SearchRequest sr : multiSearchRequest.requests()) {
+                    if (sr.source() != null) sr.source().close();
+                }
             }
         }
 
-        return channel -> {
-            final RestCancellableNodeClient cancellableClient = new RestCancellableNodeClient(client, request.getHttpChannel());
-            cancellableClient.execute(
-                TransportMultiSearchAction.TYPE,
-                multiSearchRequest,
-                new RestRefCountedChunkedToXContentListener<>(channel)
-            );
+        return new RestChannelConsumer() {
+            private boolean dispatched = false;
+
+            @Override
+            public void accept(RestChannel channel) throws Exception {
+                dispatched = true;
+                final RestCancellableNodeClient cancellableClient = new RestCancellableNodeClient(client, request.getHttpChannel());
+                cancellableClient.execute(
+                    TransportMultiSearchAction.TYPE,
+                    multiSearchRequest,
+                    ActionListener.runAfter(new RestRefCountedChunkedToXContentListener<>(channel), () -> {
+                        for (SearchRequest sr : multiSearchRequest.requests()) {
+                            if (sr.source() != null) sr.source().close();
+                        }
+                    })
+                );
+            }
+
+            @Override
+            public void close() {
+                if (dispatched == false) {
+                    for (SearchRequest sr : multiSearchRequest.requests()) {
+                        if (sr.source() != null) sr.source().close();
+                    }
+                }
+            }
         };
     }
 

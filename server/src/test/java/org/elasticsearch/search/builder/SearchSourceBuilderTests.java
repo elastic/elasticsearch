@@ -1386,13 +1386,13 @@ public class SearchSourceBuilderTests extends AbstractSearchTestCase {
             SearchSourceBuilder source = new SearchSourceBuilder().query(query);
             BytesReference bytes = XContentHelper.toXContent(source, XContentType.JSON, false);
             try (XContentParser parser = createParser(XContentType.JSON.xContent(), bytes)) {
-                // ObjectParser wraps the CircuitBreakingException in an XContentParseException
-                XContentParseException ex = expectThrows(XContentParseException.class, () -> {
+                // parseTopLevelQuery unwraps the nested XContentParseException and rethrows
+                // CircuitBreakingException directly; SearchSourceBuilder does not re-wrap it.
+                expectThrows(CircuitBreakingException.class, () -> {
                     try (SearchSourceBuilder parsed = new SearchSourceBuilder()) {
                         parsed.parseXContent(parser, true, new UsageService().getSearchUsageHolder(), nf -> false);
                     }
                 });
-                assertThat(ex.getCause(), instanceOf(CircuitBreakingException.class));
             }
             // partial charges must be released — breaker returns to zero after failed parse
             assertEquals(0L, breaker.getUsed());

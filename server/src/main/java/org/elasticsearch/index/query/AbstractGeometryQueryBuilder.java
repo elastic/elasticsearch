@@ -28,6 +28,7 @@ import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.geometry.Geometry;
 import org.elasticsearch.geometry.GeometryCollection;
 import org.elasticsearch.geometry.ShapeType;
+import org.elasticsearch.geometry.utils.GeometryNodeCountVisitor;
 import org.elasticsearch.geometry.utils.GeometryPointCountVisitor;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.xcontent.NamedXContentRegistry;
@@ -441,9 +442,12 @@ public abstract class AbstractGeometryQueryBuilder<QB extends AbstractGeometryQu
             if (indexedShapeRouting != null) estimate += indexedShapeRouting.length() * 2L + 64L;
             return estimate;
         }
-        // 24 bytes per coordinate: two doubles (16 bytes) + per-element array overhead.
+        // 24 bytes per coordinate (two doubles + per-element array overhead).
+        // 32 bytes per geometry node (object header + inline fields) covers collection elements
+        // that hold no coordinates but still occupy heap (e.g. empty MultiPoint sub-geometries).
         int points = shape.visit(new GeometryPointCountVisitor());
-        return estimate + points * 24L;
+        int nodes = shape.visit(new GeometryNodeCountVisitor());
+        return estimate + points * 24L + nodes * 32L;
     }
 
     @Override

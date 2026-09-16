@@ -621,6 +621,7 @@ public final class SimpleQueryStringBuilder extends LeafQueryBuilder<SimpleQuery
         long estimate = QUERY_BUILDER_SIZE_ESTIMATE_BYTES + estimateValue(queryText) + estimateValue(fieldsAndWeights);
         if (analyzer != null) estimate += analyzer.length() * 2L + 64L;
         if (minimumShouldMatch != null) estimate += minimumShouldMatch.length() * 2L + 64L;
+        if (settings.quoteFieldSuffix() != null) estimate += settings.quoteFieldSuffix().length() * 2L + 64L;
         return estimate;
     }
 

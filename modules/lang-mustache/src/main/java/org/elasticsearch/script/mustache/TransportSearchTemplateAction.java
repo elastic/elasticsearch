@@ -95,14 +95,15 @@ public class TransportSearchTemplateAction extends HandledTransportAction<Search
                 searchUsageHolder
             );
             if (searchRequest != null) {
-                client.search(searchRequest, listener.delegateResponse((l, e) -> {
+                final SearchSourceBuilder searchSource = searchRequest.source();
+                client.search(searchRequest, ActionListener.runAfter(listener.delegateResponse((l, e) -> {
                     response.decRef();
                     l.onFailure(e);
                 }).delegateFailureAndWrap((l, searchResponse) -> {
                     response.setResponse(searchResponse);
                     searchResponse.incRef();
                     ActionListener.respondAndRelease(l, response);
-                }));
+                }), () -> { if (searchSource != null) searchSource.close(); }));
                 success = true;
             } else {
                 success = true;

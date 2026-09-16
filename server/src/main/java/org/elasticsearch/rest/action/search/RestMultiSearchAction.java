@@ -224,6 +224,15 @@ public class RestMultiSearchAction extends BaseRestHandler {
                     }
                 }
             }, extraParamParser, crossProjectEnabled, multiRequest.getProjectRouting());
+            for (SearchRequest request : multiRequest.requests()) {
+                // preserve if it's set on the request
+                if (preFilterShardSize != null && request.getPreFilterShardSize() == null) {
+                    request.setPreFilterShardSize(preFilterShardSize);
+                }
+                if (maxConcurrentShardRequests != null) {
+                    request.setMaxConcurrentShardRequests(maxConcurrentShardRequests);
+                }
+            }
             allAdded = true;
         } finally {
             if (allAdded == false) {
@@ -233,16 +242,6 @@ public class RestMultiSearchAction extends BaseRestHandler {
                         request.source().close();
                     }
                 }
-            }
-        }
-        List<SearchRequest> requests = multiRequest.requests();
-        for (SearchRequest request : requests) {
-            // preserve if it's set on the request
-            if (preFilterShardSize != null && request.getPreFilterShardSize() == null) {
-                request.setPreFilterShardSize(preFilterShardSize);
-            }
-            if (maxConcurrentShardRequests != null) {
-                request.setMaxConcurrentShardRequests(maxConcurrentShardRequests);
             }
         }
         return multiRequest;

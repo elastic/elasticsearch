@@ -245,12 +245,13 @@ public abstract class GeoShapeQueryBuilderTestCase extends AbstractQueryTestCase
     }
 
     public void testPolygonShapeBreakerEstimate() throws IOException {
-        // Formula: BASELINE + fieldName.length()*2+64 + point_count * 24, where point_count = ring.length() for a simple polygon.
-        // Small: triangle — 3 unique vertices + 1 closing point = 4 coords → 256 + fieldNameCost + 4*24
+        // Formula: BASELINE + fieldName.length()*2+64 + point_count*24 + node_count*32,
+        // where point_count = ring.length() and node_count = 2 (Polygon + outer LinearRing, no holes).
+        // Small: triangle — 3 unique vertices + 1 closing point = 4 coords → 256 + fieldNameCost + 4*24 + 2*32
         LinearRing smallRing = new LinearRing(new double[] { 0, 1, 1, 0 }, new double[] { 0, 0, 1, 0 });
         Polygon smallPolygon = new Polygon(smallRing);
         String fieldName = getFieldName();
-        long limit = AbstractQueryBuilder.QUERY_BUILDER_SIZE_ESTIMATE_BYTES + fieldName.length() * 2L + 64L + 4 * 24L;
+        long limit = AbstractQueryBuilder.QUERY_BUILDER_SIZE_ESTIMATE_BYTES + fieldName.length() * 2L + 64L + 4 * 24L + 2 * 32L;
         LimitedBreaker breaker = new LimitedBreaker(CircuitBreaker.REQUEST, ByteSizeValue.ofBytes(limit));
         AbstractQueryBuilder.setQueryParsingBreaker(breaker);
         try {

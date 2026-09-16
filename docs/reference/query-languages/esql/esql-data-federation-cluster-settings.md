@@ -74,3 +74,11 @@ These settings control the external-source cache, which stores inferred schemas,
 :applies_to: stack: experimental 9.6+
 The `esql.source.cache.*` keys are accepted as deprecated fallbacks and emit a deprecation warning. You can set them in `elasticsearch.yml`, but you can't update them through the cluster settings API. Use the `esql.external.cache.*` keys for new configuration.
 :::
+
+## Query defaults
+
+These settings supply the default for an {{esql}} query setting when a query does not specify one.
+
+| Setting | Default | Description |
+|---|---|---|
+| `esql.query.settings.dataset_wildcards` {applies_to}`stack: experimental 9.6+` | false | Whether a wildcard in `FROM` also matches registered datasets. When `false`, a wildcard resolves to indices, data streams, aliases, and views, and a dataset is reached by its exact name. A query overrides this in the `_query` request body or with `SET dataset_wildcards`. Refer to [query across datasets and indices](esql-data-federation-querying.md#query-across-datasets-and-indices). [Dynamic](docs-content://deploy-manage/stack-settings.md#dynamic-cluster-setting). |

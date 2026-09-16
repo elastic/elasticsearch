@@ -76,6 +76,17 @@ FROM speedtest_data, network_incidents METADATA _index
 
 When sources have different schemas, columns that do not exist in a given source return `null` for rows from that source. Use `METADATA _index` to see which source each row came from. The `_index` column returns the dataset name for dataset rows and the index name for index rows.
 
+{applies_to}`stack: experimental 9.6` By default, a wildcard does not match datasets. `FROM speedtest_data` reads the dataset, while `FROM speedtest*` resolves to indices, data streams, aliases, and views only. Registering a dataset therefore does not change what an existing wildcard query reads.
+
+To let wildcards discover datasets, enable the `dataset_wildcards` query setting:
+
+```esql
+SET dataset_wildcards = true;
+FROM speedtest*
+```
+
+You can also send it in the `_query` request body as `"settings": {"dataset_wildcards": true}`, or change the cluster-wide default with [`esql.query.settings.dataset_wildcards`](esql-data-federation-cluster-settings.md#query-defaults). A value set in the query overrides the request body, which overrides the cluster default.
+
 ## Use metadata columns
 
 [Metadata columns](/reference/query-languages/esql/esql-metadata-fields.md) are available using the `METADATA` directive:

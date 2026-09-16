@@ -99,6 +99,7 @@ import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.endsWith;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
+import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 import static org.hamcrest.Matchers.hasKey;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.is;
@@ -619,8 +620,13 @@ public class StoreTests extends ESTestCase {
             assertThat(dvUpdateDiff.toString(), dvUpdateDiff.different.size(), equalTo(1));
             assertThat(dvUpdateDiff.toString(), dvUpdateDiff.different.get(0).name(), endsWith(".liv"));
         }
-        // segments_N, fnm, dvd, dvm, dvs for the updated segment
-        int missingSize = 5;
+        // segments_N, fnm, dvd, dvm, dvs (and optionally dvp for sparse DV updates in newer Lucene versions)
+        final int missingSize = (int) dvUpdateSnapshot.fileMetadataMap()
+            .keySet()
+            .stream()
+            .filter(name -> newCommitMetadata.fileMetadataMap().containsKey(name) == false)
+            .count();
+        assertThat(dvUpdateDiff.toString(), missingSize, greaterThanOrEqualTo(5));
 
         assertThat(dvUpdateDiff.toString(), dvUpdateDiff.identical.size(), equalTo(dvUpdateSnapshot.size() - missingSize - delFileCount));
         assertThat(dvUpdateDiff.toString(), dvUpdateDiff.different.size(), equalTo(delFileCount));

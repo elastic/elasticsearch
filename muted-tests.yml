@@ -128,9 +128,6 @@ tests:
   issue: https://github.com/elastic/elasticsearch/issues/159424
 - class: org.elasticsearch.xpack.snapshotbasedrecoveries.recovery.GCSSnapshotBasedRecoveryIT
   issue: https://github.com/elastic/elasticsearch/issues/159425
-- class: org.elasticsearch.system_indices.action.FeatureMigrationIT
-  method: testStartMigrationAndImmediatelyCheckStatus
-  issue: https://github.com/elastic/elasticsearch/issues/159426
 - class: org.elasticsearch.xpack.inference.services.mistral.MistralServiceTests
   method: testInfer_StreamRequest_ErrorResponse
   issue: https://github.com/elastic/elasticsearch/issues/159427

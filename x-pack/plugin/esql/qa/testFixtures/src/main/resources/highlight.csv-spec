@@ -2141,6 +2141,42 @@ Return of the Shadow                                             | 2 | <em>Retur
 ;
 
 
+# A borrowed MATCH follows RENAME so HIGHLIGHT targets the current column.
+implicitQueryFollowsRename
+required_capability: highlight_implicit_query_and_fields
+
+FROM books
+| WHERE MATCH(title, "Return")
+| RENAME title AS t
+| HIGHLIGHT
+| KEEP t, highlight_t
+| SORT t
+;
+
+t:text | highlight_t:keyword
+Return of the King Being the Third Part of The Lord of the Rings | <em>Return</em> of the King Being the Third Part of The Lord of the Rings
+Return of the Shadow                                             | <em>Return</em> of the Shadow
+;
+
+
+# MV_EXPAND keeps the name but mints a new attribute id; the borrowed MATCH still highlights it.
+implicitQueryFollowsMvExpand
+required_capability: highlight_implicit_query_and_fields
+
+FROM books
+| WHERE MATCH(title, "Return")
+| MV_EXPAND title
+| HIGHLIGHT
+| KEEP title, highlight_title
+| SORT title
+;
+
+title:text | highlight_title:keyword
+Return of the King Being the Third Part of The Lord of the Rings | <em>Return</em> of the King Being the Third Part of The Lord of the Rings
+Return of the Shadow                                             | <em>Return</em> of the Shadow
+;
+
+
 # ON * includes multi-fields (author.keyword).
 highlightOnStar
 required_capability: highlight_implicit_query_and_fields

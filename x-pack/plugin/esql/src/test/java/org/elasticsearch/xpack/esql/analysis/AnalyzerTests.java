@@ -6805,6 +6805,27 @@ public class AnalyzerTests extends AnalyzerTestCase {
         );
     }
 
+    public void testHighlightImplicitQueryFollowsRenamedFields() {
+        assumeHighlightImplicitQueryAndFieldsEnabled();
+        TestAnalyzer analyzer = supportsHighlight(basic());
+        for (var follow : List.of(Map.entry("RENAME first_name AS fn", "fn"), Map.entry("MV_EXPAND first_name", "first_name"))) {
+            Highlight highlight = soleHighlight(
+                analyzer.query("FROM test | WHERE MATCH(first_name, \"x\") | " + follow.getKey() + " | HIGHLIGHT")
+            );
+            assertThat(Expressions.name(as(highlight.query(), Match.class).field()), equalTo(follow.getValue()));
+            assertTrue(highlight.implicitQuery());
+            assertThat(fieldNames(highlight.fields()), equalTo(List.of(follow.getValue())));
+        }
+        analyzer.error(
+            "FROM test | WHERE MATCH(first_name, \"x\") | EVAL first_name = last_name | HIGHLIGHT",
+            allOf(
+                containsString("HIGHLIGHT cannot borrow the WHERE condition on"),
+                containsString("first_name"),
+                containsString("redefined after the WHERE")
+            )
+        );
+    }
+
     public void testHighlightAnalysisConverges() {
         assumeHighlightImplicitQueryAndFieldsEnabled();
         TestAnalyzer testAnalyzer = supportsHighlight(basic());

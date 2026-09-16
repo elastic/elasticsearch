@@ -234,6 +234,67 @@ public class IVFKnnVectorQueryCalibratedMergeTests extends ESTestCase {
         }
     }
 
+    /**
+     * {@code auto_calibrate} is updatable, so a segment that merge calibration preconditioned can be queried
+     * after the mapping turns calibration off. Preconditioning is a physical property of the segment, so the
+     * query must still be transformed for that segment even though the mapping asks for no preconditioning.
+     * End-to-end recall across the toggle is covered by {@code BBQDiskAutoCalibrateUpdateIT}.
+     */
+    public void testPreconditionedSegmentsStillPreconditionQueryWhenAutoCalibrateDisabled() throws IOException {
+        Random rnd = random();
+        final int k = 10;
+        final int dims = 4;
+
+        try (Directory dir = newDirectory()) {
+            try (
+                DirectoryReader reader = ESNextRescoreOversampleTestFixture.buildTwoCommitsTwoSegmentsPreconditioning(
+                    dir,
+                    dims,
+                    64,
+                    true,
+                    true,
+                    IvfMergeConfigResolver.useCodecDefault()
+                )
+            ) {
+                assertThat(reader.leaves(), hasSize(2));
+                for (var leafCtx : reader.leaves()) {
+                    assertTrue(ESNextRescoreOversampleTestFixture.persistedPreconditionOnLeaf(leafCtx.reader()));
+                }
+
+                IndexSearcher searcher = newSearcher(reader);
+
+                float[] queryVector = new float[dims];
+                for (int i = 0; i < queryVector.length; i++) {
+                    queryVector[i] = rnd.nextFloat();
+                }
+                VectorUtil.l2normalize(queryVector);
+                float[] originalQuery = queryVector.clone();
+
+                // mapping says auto_calibrate off and precondition off, but both segments are preconditioned
+                var resolver = IvfQueryConfigResolver.from(false, false, 4, DenseVectorFieldMapper.DEFAULT_OVERSAMPLE, null);
+                for (var leafCtx : reader.leaves()) {
+                    var fieldInfo = leafCtx.reader().getFieldInfos().fieldInfo(ESNextRescoreOversampleTestFixture.FIELD_NAME);
+                    assertTrue(resolver.resolve(fieldInfo, leafCtx.reader()).usePrecondition());
+                }
+
+                IVFKnnFloatVectorQuery ivfQuery = new IVFKnnFloatVectorQuery(
+                    ESNextRescoreOversampleTestFixture.FIELD_NAME,
+                    queryVector,
+                    k,
+                    500,
+                    null,
+                    1f,
+                    resolver
+                );
+
+                TopDocs hits = searcher.search(ivfQuery.rewrite(searcher), Integer.MAX_VALUE);
+
+                assertArrayEquals(originalQuery, ivfQuery.getQuery(), 0f);
+                assertThat(hits.scoreDocs.length, greaterThan(0));
+            }
+        }
+    }
+
     public void testIvfRescoreQueryUsesCalibratedMergeCandidates() throws IOException {
         Random rnd = random();
         float oversampleA = 2f;

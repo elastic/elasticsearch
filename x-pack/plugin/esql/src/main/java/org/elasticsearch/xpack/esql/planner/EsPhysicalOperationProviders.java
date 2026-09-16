@@ -8,6 +8,7 @@
 package org.elasticsearch.xpack.esql.planner;
 
 import org.apache.lucene.document.FieldType;
+import org.apache.lucene.geo.GeoEncodingUtils;
 import org.apache.lucene.index.DocValuesType;
 import org.apache.lucene.index.IndexOptions;
 import org.apache.lucene.search.BooleanClause;
@@ -25,6 +26,7 @@ import org.elasticsearch.compute.aggregation.blockhash.BlockHash;
 import org.elasticsearch.compute.data.ElementType;
 import org.elasticsearch.compute.lucene.IndexedByShardId;
 import org.elasticsearch.compute.lucene.query.LuceneCountOperator;
+import org.elasticsearch.compute.lucene.query.LuceneGeoGridAggOperator;
 import org.elasticsearch.compute.lucene.query.LuceneOperator;
 import org.elasticsearch.compute.lucene.query.LuceneSliceQueue;
 import org.elasticsearch.compute.lucene.query.LuceneSourceOperator;
@@ -42,6 +44,8 @@ import org.elasticsearch.core.AbstractRefCounted;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.RefCounted;
 import org.elasticsearch.core.Releasable;
+import org.elasticsearch.geometry.utils.Geohash;
+import org.elasticsearch.h3.H3;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.analysis.AnalysisRegistry;
 import org.elasticsearch.index.mapper.BlockLoader;
@@ -70,6 +74,7 @@ import org.elasticsearch.index.search.NestedHelper;
 import org.elasticsearch.index.search.stats.ShardSearchStats;
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
+import org.elasticsearch.search.aggregations.bucket.geogrid.GeoTileUtils;
 import org.elasticsearch.search.fetch.subphase.FetchSourceContext;
 import org.elasticsearch.search.internal.AliasFilter;
 import org.elasticsearch.search.internal.SearchContext;
@@ -795,6 +800,57 @@ public class EsPhysicalOperationProviders extends AbstractPhysicalOperationProvi
             context.queryPragmas().minDocsPerSlice(LuceneSliceQueue.MIN_DOCS_PER_SLICE),
             singleValueQueryWarnings
         );
+    }
+
+    /**
+     * Build a {@link SourceOperator.SourceOperatorFactory} that counts documents per geo-grid cell.
+     *
+     * @param context      execution planner context
+     * @param query        the source query (may be {@code null} for match-all)
+     * @param fieldName    the name of the {@code geo_point} field
+     * @param precision    the grid precision
+     * @param gridType     the grid type (GEOHASH, GEOTILE, or GEOHEX)
+     */
+    public LuceneGeoGridAggOperator.Factory geoGridAggSource(
+        LocalExecutionPlannerContext context,
+        org.elasticsearch.index.query.QueryBuilder query,
+        String fieldName,
+        int precision,
+        DataType gridType
+    ) {
+        final LuceneGeoGridAggOperator.GeoGridEncoder encoder = buildEncoder(precision, gridType);
+        final var queryFunction = querySupplierForField(query, fieldName);
+        return new LuceneGeoGridAggOperator.Factory(
+            shardContexts,
+            queryFunction,
+            context.queryPragmas().taskConcurrency(),
+            fieldName,
+            encoder,
+            directoryBytesRead,
+            singleValueQueryWarnings
+        );
+    }
+
+    private static LuceneGeoGridAggOperator.GeoGridEncoder buildEncoder(int precision, DataType gridType) {
+        return switch (gridType) {
+            case GEOHASH -> docValue -> {
+                final double lat = GeoEncodingUtils.decodeLatitude((int) (docValue >> 32));
+                final double lon = GeoEncodingUtils.decodeLongitude((int) docValue);
+                return Geohash.longEncode(lon, lat, precision);
+            };
+            case GEOTILE -> docValue -> {
+                final double lat = GeoEncodingUtils.decodeLatitude((int) (docValue >> 32));
+                final double lon = GeoEncodingUtils.decodeLongitude((int) docValue);
+                return GeoTileUtils.longEncode(lon, lat, precision);
+            };
+            case GEOHEX -> docValue -> {
+                final double lat = GeoEncodingUtils.decodeLatitude((int) (docValue >> 32));
+                final double lon = GeoEncodingUtils.decodeLongitude((int) docValue);
+                // H3.geoToH3 takes latitude first, longitude second (note: different from Geohash/GeoTile)
+                return H3.geoToH3(lat, lon, precision);
+            };
+            default -> throw new IllegalArgumentException("Unsupported grid type for geo-grid pushdown: " + gridType);
+        };
     }
 
     @Override

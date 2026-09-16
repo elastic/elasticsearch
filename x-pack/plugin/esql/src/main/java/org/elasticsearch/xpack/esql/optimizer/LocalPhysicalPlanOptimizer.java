@@ -21,6 +21,7 @@ import org.elasticsearch.xpack.esql.optimizer.rules.physical.local.InsertFieldEx
 import org.elasticsearch.xpack.esql.optimizer.rules.physical.local.PushCountQueryAndTagsToSource;
 import org.elasticsearch.xpack.esql.optimizer.rules.physical.local.PushExpressionsToFieldLoad;
 import org.elasticsearch.xpack.esql.optimizer.rules.physical.local.PushFiltersToSource;
+import org.elasticsearch.xpack.esql.optimizer.rules.physical.local.PushGeoGridStatsToSource;
 import org.elasticsearch.xpack.esql.optimizer.rules.physical.local.PushLimitToExternalSource;
 import org.elasticsearch.xpack.esql.optimizer.rules.physical.local.PushLimitToSource;
 import org.elasticsearch.xpack.esql.optimizer.rules.physical.local.PushSampleToSource;
@@ -85,6 +86,7 @@ public class LocalPhysicalPlanOptimizer extends ParameterizedRuleExecutor<Physic
             new PushSampleToSource(),
             new ReplaceSampledStatsByExactStats(),
             new PushStatsToSource(),
+            new PushGeoGridStatsToSource(),
             new PushStatsToExternalSource(),
             new PushTopNIntoExternalSource(),
             new EnableSpatialDistancePushdown(),

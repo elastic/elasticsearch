@@ -1,0 +1,5 @@
+area: "ES|QL, Geo"
+issues: []
+pr: 159106
+summary: Push geo-grid STATS aggs to Lucene
+type: enhancement

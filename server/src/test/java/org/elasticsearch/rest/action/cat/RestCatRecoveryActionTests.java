@@ -109,12 +109,14 @@ public class RestCatRecoveryActionTests extends ESTestCase {
             recoveryStates.add(state);
         }
 
-        final List<RecoveryState> shuffle = new ArrayList<>(recoveryStates);
+        final String gate = randomBoolean() ? randomIdentifier() : null;
+        final long blockedForMillis = gate == null ? ShardRecoveryInfo.NOT_BLOCKED_MILLIS : randomLongBetween(0, 1_000_000_000);
+        final List<ShardRecoveryInfo> expectedRecoveryInfos = recoveryStates.stream()
+            .map(state -> new ShardRecoveryInfo(state, gate, blockedForMillis))
+            .toList();
+        final List<ShardRecoveryInfo> shuffle = new ArrayList<>(expectedRecoveryInfos);
         Randomness.shuffle(shuffle);
-        shardRecoveryInfos.put(
-            "index",
-            shuffle.stream().map(state -> new ShardRecoveryInfo(state, null, ShardRecoveryInfo.NOT_BLOCKED_MILLIS)).toList()
-        );
+        shardRecoveryInfos.put("index", List.copyOf(shuffle));
 
         final List<DefaultShardOperationFailedException> shardFailures = new ArrayList<>();
         final RecoveryResponse response = new RecoveryResponse(
@@ -146,6 +148,7 @@ public class RestCatRecoveryActionTests extends ESTestCase {
             "stage",
             "local_retries",
             "priority",
+            "gate",
             "source_host",
             "source_node",
             "target_host",
@@ -167,11 +170,14 @@ public class RestCatRecoveryActionTests extends ESTestCase {
 
         List<Object> actualHeaders = table.getHeaders().stream().map(cell -> cell.value).toList();
         assertThat(actualHeaders, equalTo(expectedHeaders));
+        assertThat(table.getHeaderMap().get("gate").attr.get("alias"), equalTo("g"));
 
         assertThat(table.getRows().size(), equalTo(successfulShards));
 
         for (int i = 0; i < successfulShards; i++) {
-            final RecoveryState state = recoveryStates.get(i);
+            final ShardRecoveryInfo recoveryInfo = expectedRecoveryInfos.get(i);
+            final RecoveryState state = recoveryInfo.recoveryState();
+            final String blockedByGate = recoveryInfo.blockedByGate();
             final List<Object> expectedValues = Arrays.asList(
                 "index",
                 i,
@@ -184,6 +190,7 @@ public class RestCatRecoveryActionTests extends ESTestCase {
                 state.getStage().name().toLowerCase(Locale.ROOT),
                 state.getLocalRetries(),
                 state.getRecoveryPriority().name().toLowerCase(Locale.ROOT),
+                blockedByGate == null ? "n/a" : blockedByGate,
                 state.getSourceNode() == null ? "n/a" : state.getSourceNode().getHostName(),
                 state.getSourceNode() == null ? "n/a" : state.getSourceNode().getName(),
                 state.getTargetNode().getHostName(),

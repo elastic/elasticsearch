@@ -132,22 +132,6 @@ public class MlMappingsUpgradeIT extends AbstractXpackRollingUpgradeTestCase {
         assertEquals(200, response.getStatusLine().getStatusCode());
     }
 
-    /**
-     * Opens the test job if it was closed during rolling upgrade so results write aliases exist.
-     * The job must already exist from the {@code OLD} cluster phase.
-     */
-    private void ensureTestJobIsOpen() throws IOException {
-        Request getJob = new Request("GET", "_ml/anomaly_detectors/" + JOB_ID);
-        Response response = performRequestRaisingAssertionOnTransientStatus(getJob, RestStatus.NOT_FOUND);
-        assertEquals(200, response.getStatusLine().getStatusCode());
-        @SuppressWarnings("unchecked")
-        List<Map<String, Object>> jobs = (List<Map<String, Object>>) entityAsMap(response).get("jobs");
-        assertThat(jobs, hasSize(1));
-        if ("closed".equals(jobs.get(0).get("state"))) {
-            openTestJob();
-        }
-    }
-
     // Doing this should force the config index mappings to be upgraded,
     // when the finished time is cleared on reopening the job
     private void closeAndReopenTestJob() throws IOException {

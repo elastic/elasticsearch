@@ -129,7 +129,7 @@ public class RepositoryIntegrityHealthIndicatorServiceTests extends ESTestCase {
         var clusterState = createClusterStateWith(new RepositoriesMetadata(repos));
         var service = createRepositoryIntegrityHealthIndicatorService(clusterState);
 
-        List<String> corruptedNames = names(corruptedRepos);
+        List<String> corruptedNames = displayNames(corruptedRepos);
         int corrupted = corruptedNames.size();
         assertThat(
             service.calculate(true, healthInfo),
@@ -151,7 +151,7 @@ public class RepositoryIntegrityHealthIndicatorServiceTests extends ESTestCase {
         var repos = concatLists(randomList(1, 10, () -> createRepositoryMetadata("healthy-repo", false)), unknownRepos);
         var clusterState = createClusterStateWith(new RepositoriesMetadata(repos));
         var service = createRepositoryIntegrityHealthIndicatorService(clusterState);
-        List<String> unknownNames = names(unknownRepos);
+        List<String> unknownNames = displayNames(unknownRepos);
         int unknown = unknownNames.size();
         healthInfo.repositoriesInfoByNode().put(node1.getId(), new RepositoriesHealthInfo(unknownNames, List.of()));
 
@@ -180,7 +180,7 @@ public class RepositoryIntegrityHealthIndicatorServiceTests extends ESTestCase {
         var repos = concatLists(randomList(1, 10, () -> createRepositoryMetadata("healthy-repo", false)), invalidRepos);
         var clusterState = createClusterStateWith(new RepositoriesMetadata(repos));
         var service = createRepositoryIntegrityHealthIndicatorService(clusterState);
-        List<String> invalidNames = names(invalidRepos);
+        List<String> invalidNames = displayNames(invalidRepos);
         int invalid = invalidNames.size();
         healthInfo.repositoriesInfoByNode().put(node1.getId(), new RepositoriesHealthInfo(List.of(), invalidNames));
 
@@ -214,9 +214,9 @@ public class RepositoryIntegrityHealthIndicatorServiceTests extends ESTestCase {
         repos.addAll(invalidRepos);
         var clusterState = createClusterStateWith(new RepositoriesMetadata(repos));
         var service = createRepositoryIntegrityHealthIndicatorService(clusterState);
-        List<String> corruptedNames = names(corruptedRepos);
-        List<String> unknownNames = names(unknownRepos);
-        List<String> invalidNames = names(invalidRepos);
+        List<String> corruptedNames = displayNames(corruptedRepos);
+        List<String> unknownNames = displayNames(unknownRepos);
+        List<String> invalidNames = displayNames(invalidRepos);
         int corrupted = corruptedNames.size();
         int unknown = unknownNames.size();
         int invalid = invalidNames.size();

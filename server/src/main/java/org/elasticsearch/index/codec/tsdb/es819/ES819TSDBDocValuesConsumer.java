@@ -34,7 +34,7 @@ final class ES819TSDBDocValuesConsumer extends AbstractTSDBDocValuesConsumer {
         final String skipCodec,
         final String skipExtension,
         final TSDBDocValuesFormatConfig formatConfig,
-        final DocOffsetsCodec.Encoder docOffsetsEncoder,
+        final DocOffsetsCodec docOffsetsCodec,
         final SortedFieldObserverFactory sortedFieldObserverFactory
     ) throws IOException {
         super(
@@ -47,7 +47,7 @@ final class ES819TSDBDocValuesConsumer extends AbstractTSDBDocValuesConsumer {
             skipCodec,
             skipExtension,
             formatConfig,
-            docOffsetsEncoder,
+            docOffsetsCodec,
             sortedFieldObserverFactory,
             new TSDBNumericBlockCodec(),
             new TSDBOrdinalBlockCodec()

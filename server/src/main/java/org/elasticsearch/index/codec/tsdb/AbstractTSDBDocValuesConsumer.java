@@ -42,7 +42,10 @@ import org.apache.lucene.util.LongsRef;
 import org.apache.lucene.util.StringHelper;
 import org.apache.lucene.util.compress.LZ4;
 import org.apache.lucene.util.packed.DirectMonotonicWriter;
+import org.elasticsearch.core.Booleans;
 import org.elasticsearch.core.IOUtils;
+import org.elasticsearch.logging.LogManager;
+import org.elasticsearch.logging.Logger;
 
 import java.io.Closeable;
 import java.io.IOException;
@@ -61,6 +64,15 @@ import static org.elasticsearch.index.codec.tsdb.DocValuesConsumerUtil.compatibl
  * code drives during segment write.
  */
 public abstract class AbstractTSDBDocValuesConsumer extends XDocValuesConsumer {
+
+    private static final Logger logger = LogManager.getLogger(AbstractTSDBDocValuesConsumer.class);
+
+    /**
+     * Escape hatch for splicing whole compressed blocks between segments during a merge. Lucene keeps the same
+     * switch over its stored fields bulk merge, on the grounds that copying compressed bytes around has caused
+     * corruption bugs before; setting this to false falls back to decoding and re-encoding every value.
+     */
+    static final boolean BLOCK_SPLICE_ENABLED = Booleans.parseBoolean(System.getProperty("es.tsdb.binary_dv_block_splice.enabled", "true"));
 
     /** Type tag written to meta for numeric doc values fields. */
     public static final byte NUMERIC = 0;
@@ -115,6 +127,7 @@ public abstract class AbstractTSDBDocValuesConsumer extends XDocValuesConsumer {
     private final String metaCodecName;
     protected final TSDBDocValuesFormatConfig formatConfig;
     final long[] skipIndexJumpLengthPerLevel;
+    private final DocOffsetsCodec docOffsetsCodec;
     private final DocOffsetsCodec.Encoder docOffsetsEncoder;
     private final SortedFieldObserverFactory sortedFieldObserverFactory;
     private final NumericBlockCodec numericCodec;
@@ -131,7 +144,7 @@ public abstract class AbstractTSDBDocValuesConsumer extends XDocValuesConsumer {
      * @param metaCodec          codec name for the meta file header
      * @param metaExtension      file extension for the meta file
      * @param formatConfig                format-specific configuration for this codec version
-     * @param docOffsetsEncoder           encoder for doc offsets in compressed binary blocks
+     * @param docOffsetsCodec             codec for doc offsets in compressed binary blocks
      * @param sortedFieldObserverFactory  factory for creating observers during sorted field writes
      * @param numericCodec                codec for numeric doc values (NUMERIC and SORTED_NUMERIC)
      * @param ordinalCodec                codec for ordinal doc values (SORTED and SORTED_SET)
@@ -147,13 +160,14 @@ public abstract class AbstractTSDBDocValuesConsumer extends XDocValuesConsumer {
         final String skipCodec,
         final String skipExtension,
         final TSDBDocValuesFormatConfig formatConfig,
-        final DocOffsetsCodec.Encoder docOffsetsEncoder,
+        final DocOffsetsCodec docOffsetsCodec,
         final SortedFieldObserverFactory sortedFieldObserverFactory,
         final NumericBlockCodec numericCodec,
         final OrdinalBlockCodec ordinalCodec
     ) throws IOException {
         this.state = state;
-        this.docOffsetsEncoder = docOffsetsEncoder;
+        this.docOffsetsCodec = docOffsetsCodec;
+        this.docOffsetsEncoder = docOffsetsCodec.getEncoder();
         this.sortedFieldObserverFactory = sortedFieldObserverFactory;
         this.numericCodec = numericCodec;
         this.ordinalCodec = ordinalCodec;
@@ -305,11 +319,39 @@ public abstract class AbstractTSDBDocValuesConsumer extends XDocValuesConsumer {
     @Override
     public void mergeBinaryField(final FieldInfo mergeFieldInfo, final MergeState mergeState) throws IOException {
         final DocValuesConsumerUtil.MergeStats mergeStats = compatibleWithOptimizedMerge(enableOptimizedMerge, mergeState, mergeFieldInfo);
-        if (mergeStats.supported()) {
+        // Unlike the other field types, binary also has something to gain when the segments merely concatenate, so it
+        // asks a broader question than the plain supported() the rest of them use.
+        if (mergeStats.supportedForBinary()) {
             mergeBinaryField(mergeStats, mergeFieldInfo, mergeState);
         } else {
             super.mergeBinaryField(mergeFieldInfo, mergeState);
         }
+    }
+
+    /**
+     * Overridden so the merge sees a {@link BinaryMergedValues}, which can point out when the values it is about to
+     * produce are exactly one source block and so can be spliced rather than re-encoded. Falls back to the base
+     * implementation when this segment writes binary doc values without blocks at all.
+     */
+    @Override
+    public void mergeBinaryField(
+        final DocValuesConsumerUtil.MergeStats mergeStats,
+        final FieldInfo mergeFieldInfo,
+        final MergeState mergeState
+    ) throws IOException {
+        if (BLOCK_SPLICE_ENABLED == false || formatConfig.binaryCompressionMode() == BinaryDVCompressionMode.NO_COMPRESS) {
+            super.mergeBinaryField(mergeStats, mergeFieldInfo, mergeState);
+            return;
+        }
+        addBinaryField(mergeFieldInfo, new TsdbDocValuesProducer(mergeStats) {
+            @Override
+            public BinaryDocValues getBinary(final FieldInfo fieldInfo) throws IOException {
+                if (fieldInfo != mergeFieldInfo) {
+                    throw new IllegalArgumentException("wrong fieldInfo");
+                }
+                return BinaryMergedValues.create(mergeFieldInfo, mergeState, formatConfig.binaryCompressionMode(), docOffsetsCodec);
+            }
+        });
     }
 
     @Override
@@ -319,7 +361,7 @@ public abstract class AbstractTSDBDocValuesConsumer extends XDocValuesConsumer {
         meta.writeByte(formatConfig.binaryCompressionMode().code);
 
         final TsdbDocValuesProducer source = new TsdbDocValuesProducer(valuesProducer);
-        if (source.mergeStats.supported()) {
+        if (source.mergeStats.supportedForBinary()) {
             final int numDocsWithField = source.mergeStats.sumNumDocsWithField();
             final int minLength = source.mergeStats.minLength();
             final int maxLength = source.mergeStats.maxLength();
@@ -347,12 +389,26 @@ public abstract class AbstractTSDBDocValuesConsumer extends XDocValuesConsumer {
                     binaryWriter = new CompressedBinaryBlockWriter(formatConfig.binaryCompressionMode());
                 }
 
-                for (int doc = values.nextDoc(); doc != DocIdSetIterator.NO_MORE_DOCS; doc = values.nextDoc()) {
-                    BytesRef v = values.binaryValue();
-                    binaryWriter.addDoc(v);
+                // Only the block writer can take a source block without re-encoding it, and only a merge hands us
+                // values that know where those blocks begin.
+                final CompressedBinaryBlockWriter blockWriter = binaryWriter instanceof CompressedBinaryBlockWriter writer ? writer : null;
+                final BinaryMergedValues mergedValues = blockWriter != null && values instanceof BinaryMergedValues candidate
+                    ? candidate
+                    : null;
+
+                for (int doc = values.nextDoc(); doc != DocIdSetIterator.NO_MORE_DOCS;) {
+                    if (mergedValues != null) {
+                        final int block = mergedValues.blockCopyCandidate();
+                        if (block != BinaryMergedValues.NO_BLOCK && blockWriter.spliceBlock(mergedValues.currentBlockSource(), block)) {
+                            doc = mergedValues.consumeBlock(block, disiAccumulator);
+                            continue;
+                        }
+                    }
+                    binaryWriter.addDoc(values.binaryValue());
                     if (disiAccumulator != null) {
                         disiAccumulator.addDocId(doc);
                     }
+                    doc = values.nextDoc();
                 }
                 binaryWriter.flushData();
                 meta.writeLong(data.getFilePointer() - start); // dataLength
@@ -381,6 +437,17 @@ public abstract class AbstractTSDBDocValuesConsumer extends XDocValuesConsumer {
                 meta.writeInt(maxLength);
 
                 binaryWriter.writeAddressMetadata(minLength, maxLength, numDocsWithField);
+
+                if (blockWriter != null) {
+                    // Logged even when nothing was spliced, so that a merge which had no opportunity is distinguishable
+                    // from one that was never offered the chance.
+                    logger.debug(
+                        "spliced [{}] of [{}] binary doc values blocks for field [{}]",
+                        blockWriter.splicedBlocks,
+                        blockWriter.totalChunks,
+                        field.name
+                    );
+                }
             } finally {
                 IOUtils.close(disiAccumulator, binaryWriter);
             }
@@ -516,13 +583,22 @@ public abstract class AbstractTSDBDocValuesConsumer extends XDocValuesConsumer {
 
         byte[] block = BytesRef.EMPTY_BYTES;
         int totalChunks = 0;
+        int splicedBlocks = 0;
         int maxNumDocsInAnyBlock = 0;
+
+        /**
+         * Where the next block must start. {@link BlockMetadataAccumulator} stores per-block lengths and turns them
+         * back into absolute addresses by adding them to the file pointer captured when this writer was created, so
+         * every block address silently shifts if anything else writes to the data file in between.
+         */
+        long expectedBlockStart;
 
         final BlockMetadataAccumulator blockMetaAcc;
 
         CompressedBinaryBlockWriter(final BinaryDVCompressionMode compressionMode) throws IOException {
             this.compressor = compressionMode.compressionMode().newCompressor();
             long blockAddressesStart = data.getFilePointer();
+            this.expectedBlockStart = blockAddressesStart;
             this.blockMetaAcc = new BlockMetadataAccumulator(
                 state.directory,
                 state.context,
@@ -557,6 +633,7 @@ public abstract class AbstractTSDBDocValuesConsumer extends XDocValuesConsumer {
 
             totalChunks++;
             long thisBlockStartPointer = data.getFilePointer();
+            assert thisBlockStartPointer == expectedBlockStart : "blocks must stay contiguous in the data file";
 
             final boolean shouldCompress = formatConfig.enablePerBlockCompression();
             final BinaryDVCompressionMode.BlockHeader header = new BinaryDVCompressionMode.BlockHeader(shouldCompress);
@@ -576,8 +653,50 @@ public abstract class AbstractTSDBDocValuesConsumer extends XDocValuesConsumer {
             }
 
             long blockLenBytes = data.getFilePointer() - thisBlockStartPointer;
+            expectedBlockStart = data.getFilePointer();
             blockMetaAcc.addDoc(numDocsInCurrentBlock, blockLenBytes);
             numDocsInCurrentBlock = uncompressedBlockLength = 0;
+        }
+
+        /**
+         * Appends one block of {@code source} to the data file verbatim, or returns false and leaves this writer
+         * untouched when doing so would be a poor trade.
+         *
+         * <p>It is a poor trade in two situations. A splice has to begin on a block boundary, so whatever is buffered
+         * must be flushed first, and closing a nearly empty block would swap one avoided decompression for a badly
+         * sized block. Equally, a source block that is itself too small to count as full by this segment's thresholds
+         * is better re-encoded, so that it merges into a properly sized block instead of being propagated as a runt
+         * into every later merge.
+         */
+        boolean spliceBlock(final BinaryBlockSource source, int block) throws IOException {
+            if (numDocsInCurrentBlock > 0 && isFullEnough(uncompressedBlockLength, numDocsInCurrentBlock) == false) {
+                return false;
+            }
+            final int numDocs = source.numDocs(block);
+            final int uncompressedLength = source.uncompressedLength(block);
+            if (isFullEnough(uncompressedLength, numDocs) == false) {
+                return false;
+            }
+
+            flushData(); // closes the pending block, or does nothing when none is buffered
+            totalChunks++;
+            splicedBlocks++;
+
+            assert data.getFilePointer() == expectedBlockStart : "blocks must stay contiguous in the data file";
+            // The reader sizes its per-block scratch buffers from these two maxima, so a spliced block has to be
+            // folded into them using its own values rather than this segment's configured thresholds.
+            maxUncompressedBlockLength = Math.max(maxUncompressedBlockLength, uncompressedLength);
+            maxNumDocsInAnyBlock = Math.max(maxNumDocsInAnyBlock, numDocs);
+
+            final long blockLenBytes = source.copyTo(data, block);
+            expectedBlockStart = data.getFilePointer();
+            blockMetaAcc.addDoc(numDocs, blockLenBytes);
+            return true;
+        }
+
+        /** Whether a block of this size counts as full by this segment's thresholds, give or take half a block. */
+        private boolean isFullEnough(int lengthInBytes, int numDocs) {
+            return lengthInBytes * 2 >= formatConfig.blockBytesThreshold() || numDocs * 2 >= formatConfig.blockCountThreshold();
         }
 
         void compress(final byte[] data, int uncompressedLength, final DataOutput output) throws IOException {

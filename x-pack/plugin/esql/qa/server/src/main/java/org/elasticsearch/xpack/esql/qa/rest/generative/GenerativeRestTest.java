@@ -716,25 +716,12 @@ public abstract class GenerativeRestTest extends ESRestTestCase implements Query
         fail(failureReport(query.query(), query.exception().getMessage()));
     }
 
-    /**
-     * The {@code Warnings: [...]} block {@link ResponseException} inserts between the request line and the
-     * response body.
-     */
+    /** The {@code Warnings: [...]} block {@link ResponseException} inserts before the response body. */
     private static final Pattern RESPONSE_WARNINGS = Pattern.compile("\nWarnings: \\[.*?]\n", Pattern.DOTALL);
 
     /**
-     * Composes the message for a failing generated query, ordered so that a reader who only sees the start of it
-     * can still act.
-     *
-     * <p>Ordering is the whole point. These messages run to tens of kilobytes and are truncated by the time they
-     * reach a filed issue. {@link ResponseException} puts the response warnings ahead of the body, and for a query
-     * over a wildcard source those warnings are one deprecation notice per unmapped field; they have been measured
-     * at six kilobytes standing between the query and the error that explains it. They are moved to the end here.
-     *
-     * <p>The seed is reported next to the build hash because it only replays against the build that produced it:
-     * the generator and the dataset definitions change over time, so an old seed yields a different query and the
-     * original failure appears to vanish. The query is the record that survives; the seed is a shortcut for
-     * reproducing a failure on the commit it was found on.
+     * Composes the message for a failing generated query. These run to tens of kilobytes and are truncated before
+     * they reach a filed issue, so the error goes near the top and the warnings go last.
      */
     protected String failureReport(String query, String error) {
         String warnings = "";

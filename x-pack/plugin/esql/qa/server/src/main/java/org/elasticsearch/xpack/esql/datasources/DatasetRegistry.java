@@ -291,11 +291,7 @@ public final class DatasetRegistry {
      * failure that aborted cleanup) does not leave stale entries that would make a later suite in the same
      * JVM fork skip a needed PUT.
      */
-    /**
-     * Names of the datasets currently registered and not yet cleaned up, for inclusion in failure reports.
-     * A query that resolves a wildcard source can pick these up even when the suite that registered them has
-     * finished, so naming them turns an otherwise baffling "not supported for datasets" error into an obvious one.
-     */
+    /** Names of the datasets currently registered and not yet cleaned up. */
     public static synchronized String registeredDatasetNames() {
         return String.join(", ", datasets.keySet());
     }

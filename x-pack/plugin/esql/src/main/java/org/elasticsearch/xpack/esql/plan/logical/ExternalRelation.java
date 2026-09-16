@@ -320,9 +320,7 @@ public class ExternalRelation extends LeafPlan implements ExecutesOn.Coordinator
             fileList,
             schemaMap,
             List.of()
-        ).withUnifiedSchema(new ExternalSchema(dataOnlyUnifiedSchema()))
-            .withDatasetName(datasetName)
-            .withDeclaredReadSpec(declaredReadSpec);
+        ).withUnifiedSchema(dataOnlyUnifiedSchema()).withDatasetName(datasetName).withDeclaredReadSpec(declaredReadSpec);
     }
 
     /**
@@ -355,8 +353,8 @@ public class ExternalRelation extends LeafPlan implements ExecutesOn.Coordinator
      * metadata name can therefore leave this unified view wider than the query schema;
      * {@code ColumnMapping.pruneToPerFileQuery} drops the extra output slot.
      */
-    private List<Attribute> dataOnlyUnifiedSchema() {
-        return ExternalSchema.dataAttributesOf(metadata.schema(), partitionColumnNames()).attributes();
+    private ExternalSchema dataOnlyUnifiedSchema() {
+        return ExternalSchema.dataAttributesOf(metadata.schema(), partitionColumnNames());
     }
 
     @Override

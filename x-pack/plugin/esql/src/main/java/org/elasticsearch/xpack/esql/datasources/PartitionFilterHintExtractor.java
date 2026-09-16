@@ -169,25 +169,19 @@ public final class PartitionFilterHintExtractor {
 
     /**
      * Names from the relation's {@code METADATA} clause that listing may treat as engine values.
-     * When {@code _id.path} names a {@code _file.*} column and the clause also requests {@code _id},
-     * bind leaves that file column in place for the reader to stamp from, so it is omitted here:
-     * a storage-stat prune on that name would filter by the engine path, not the surviving file value.
+     * An {@code _id.path} stamp source is omitted when {@link ExternalMetadataColumns#idPathKeepsPhysical}
+     * says it stays a file column.
      */
     private static Set<String> requestedMetadataNames(UnresolvedExternalRelation rel) {
         Set<String> names = new LinkedHashSet<>();
         for (NamedExpression field : rel.metadataFields()) {
             names.add(MetadataAttribute.metadataName(field));
         }
-        String idPath = declaredIdPath(rel);
-        if (idPath != null && names.contains(ExternalMetadataColumns.ID) && FileMetadataColumns.isFileMetadataColumn(idPath)) {
+        String idPath = rel.declaredIdPath();
+        if (ExternalMetadataColumns.idPathKeepsPhysical(idPath, names) && FileMetadataColumns.isFileMetadataColumn(idPath)) {
             names.remove(idPath);
         }
         return names;
-    }
-
-    private static String declaredIdPath(UnresolvedExternalRelation rel) {
-        var mapping = rel.mapping();
-        return mapping != null && mapping.mappings() != null ? mapping.mappings().idPath() : null;
     }
 
     private static void extractFromExpression(Expression expr, List<PartitionFilterHint> hints, Set<String> requestedMetadata) {
@@ -224,7 +218,7 @@ public final class PartitionFilterHintExtractor {
         if (columnName == null) {
             return;
         }
-        if (FileMetadataColumns.isFileMetadataColumn(columnName) && requestedMetadata.contains(columnName) == false) {
+        if (isUnrequestedFileMetadata(columnName, requestedMetadata)) {
             return;
         }
 
@@ -241,7 +235,7 @@ public final class PartitionFilterHintExtractor {
         }
         UnresolvedAttribute attr = (UnresolvedAttribute) value;
         String columnName = attr.name();
-        if (FileMetadataColumns.isFileMetadataColumn(columnName) && requestedMetadata.contains(columnName) == false) {
+        if (isUnrequestedFileMetadata(columnName, requestedMetadata)) {
             return;
         }
 
@@ -257,6 +251,15 @@ public final class PartitionFilterHintExtractor {
         if (literalValues.isEmpty() == false) {
             hints.add(new PartitionFilterHint(columnName, Operator.IN, literalValues));
         }
+    }
+
+    /**
+     * A {@code _file.*} predicate is a listing hint only when that name is in the relation's
+     * {@code METADATA} clause (after an {@code _id.path} stamp source has been omitted). Without
+     * the clause the name is an ordinary data column.
+     */
+    private static boolean isUnrequestedFileMetadata(String columnName, Set<String> requestedMetadata) {
+        return FileMetadataColumns.isFileMetadataColumn(columnName) && requestedMetadata.contains(columnName) == false;
     }
 
     private static Object normalizeValue(Object value) {

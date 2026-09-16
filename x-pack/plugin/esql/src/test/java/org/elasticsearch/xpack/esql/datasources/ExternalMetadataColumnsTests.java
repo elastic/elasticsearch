@@ -26,6 +26,20 @@ import java.util.Set;
  */
 public class ExternalMetadataColumnsTests extends ESTestCase {
 
+    public void testIdPathKeepsPhysicalWhenIdRequestedAndPathSet() {
+        assertTrue(ExternalMetadataColumns.idPathKeepsPhysical(FileMetadataColumns.PATH, Set.of(ExternalMetadataColumns.ID)));
+        assertTrue(
+            ExternalMetadataColumns.idPathKeepsPhysical(
+                FileMetadataColumns.PATH,
+                Set.of(ExternalMetadataColumns.ID, FileMetadataColumns.PATH)
+            )
+        );
+        assertTrue(ExternalMetadataColumns.idPathKeepsPhysical("_id", Set.of(ExternalMetadataColumns.ID)));
+        assertFalse(ExternalMetadataColumns.idPathKeepsPhysical(FileMetadataColumns.PATH, Set.of(FileMetadataColumns.PATH)));
+        assertFalse(ExternalMetadataColumns.idPathKeepsPhysical(null, Set.of(ExternalMetadataColumns.ID)));
+        assertFalse(ExternalMetadataColumns.idPathKeepsPhysical("first_name", Set.of()));
+    }
+
     public void testMetadataNamesFollowAttributeBinding() {
         Set<String> names = new HashSet<>(ExternalMetadataColumns.STANDARD_NAMES);
         names.addAll(FileMetadataColumns.NAMES);

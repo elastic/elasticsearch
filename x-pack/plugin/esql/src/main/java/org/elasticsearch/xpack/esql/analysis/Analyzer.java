@@ -756,9 +756,9 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
          * {@code FROM x METADATA _typo} produces.
          * <p>
          * When {@code mappings._id.path} is set and {@code _id} is requested, the bind is skipped
-         * for the id-path column itself and for a colliding physical {@code _id}. The file column
-         * stays so the reader can stamp {@code _id} from it, and {@code _id} keeps that column's
-         * type rather than becoming {@code keyword}.
+         * for the id-path column itself so the file column stays for the reader to stamp from.
+         * A colliding physical {@code _id} is shadowed like any other metadata name unless the
+         * path is {@code _id}.
          */
         private static MetadataBindResult bindMetadataFields(
             UnresolvedExternalRelation plan,
@@ -769,13 +769,10 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
             if (plan.metadataFields().isEmpty()) {
                 return new MetadataBindResult(baseSchema, List.of());
             }
-            String declaredIdPath = declaredIdPath(plan);
-            boolean idRequested = false;
+            String declaredIdPath = plan.declaredIdPath();
+            Set<String> requestedNames = new LinkedHashSet<>();
             for (NamedExpression requested : plan.metadataFields()) {
-                if (ExternalMetadataColumns.ID.equals(MetadataAttribute.metadataName(requested))) {
-                    idRequested = true;
-                    break;
-                }
+                requestedNames.add(MetadataAttribute.metadataName(requested));
             }
             Set<String> baseNames = new LinkedHashSet<>();
             for (Attribute a : baseSchema) {
@@ -806,23 +803,12 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
                     unresolved.add(requested);
                     continue;
                 }
-                // _id.path names the column the reader stamps _id from. Dropping that column (or a
-                // colliding physical _id) would leave the reader with nothing to stamp, so skip the
-                // bind and leave the file column in place. The skip covers every requested name that
-                // equals the declared path, because METADATA _file.path, _id can name the path
-                // column before _id. A present declared path also skips a colliding physical _id:
-                // the file column stays and the missing-path check below does not run against it.
-                // A repeated physical header of that name is collapsed to the first attribute so
-                // the output still has exactly one.
-                if (declaredIdPath != null
-                    && idRequested
-                    && baseNames.contains(name)
-                    && (name.equals(declaredIdPath) || ExternalMetadataColumns.ID.equals(name))) {
-                    List<Attribute> current = enriched == null ? baseSchema : enriched;
-                    List<Attribute> collapsed = collapseDuplicatePhysicals(current, name);
-                    if (collapsed != current) {
-                        enriched = collapsed;
-                    }
+                // _id.path names the column the reader stamps _id from. If that column is itself
+                // requested via METADATA, skip the bind and leave the file column in place. A
+                // colliding physical _id is shadowed unless the path is _id itself.
+                if (ExternalMetadataColumns.idPathKeepsPhysical(declaredIdPath, requestedNames)
+                    && name.equals(declaredIdPath)
+                    && baseNames.contains(name)) {
                     continue;
                 }
                 // If the dataset declares _id.path but the resolved schema has no such DATA column
@@ -880,40 +866,6 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
             List<Attribute> resolvedSchema = enriched == null ? baseSchema : List.copyOf(enriched);
             List<? extends NamedExpression> unresolvedList = unresolved == null ? List.of() : List.copyOf(unresolved);
             return new MetadataBindResult(resolvedSchema, unresolvedList);
-        }
-
-        /**
-         * Keeps the first attribute of {@code name} and drops later duplicates. Returns {@code schema}
-         * unchanged when the name occurs at most once.
-         */
-        private static List<Attribute> collapseDuplicatePhysicals(List<Attribute> schema, String name) {
-            int extras = 0;
-            for (Attribute a : schema) {
-                if (a.name().equals(name)) {
-                    extras++;
-                }
-            }
-            if (extras <= 1) {
-                return schema;
-            }
-            List<Attribute> collapsed = new ArrayList<>(schema.size() - (extras - 1));
-            boolean kept = false;
-            for (Attribute a : schema) {
-                if (a.name().equals(name)) {
-                    if (kept) {
-                        continue;
-                    }
-                    kept = true;
-                }
-                collapsed.add(a);
-            }
-            return collapsed;
-        }
-
-        /** The declared {@code mappings._id.path}, or {@code null} when the dataset does not set {@code _id} from a column. */
-        private static String declaredIdPath(UnresolvedExternalRelation plan) {
-            var mapping = plan.mapping();
-            return mapping != null && mapping.mappings() != null ? mapping.mappings().idPath() : null;
         }
 
         private String extractTablePath(Expression tablePath) {
@@ -3821,14 +3773,17 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
         }
         String listed = String.join(", ", bracketed);
         String where = dataset != null ? "dataset [" + dataset + "]" : "this source";
-        return Strings.format(
-            "Physical column%s %s in %s %s shadowed by METADATA; the engine-generated value is used. "
-                + "Rename the physical column in the dataset mapping to keep both.",
+        String warning = Strings.format(
+            "Physical column%s %s in %s %s shadowed by METADATA; the engine-generated value is used.",
             names.size() == 1 ? "" : "s",
             listed,
             where,
             names.size() == 1 ? "is" : "are"
         );
+        if (dataset != null) {
+            warning += " Rename the physical column in the dataset mapping to keep both.";
+        }
+        return warning;
     }
 
     // visible for testing

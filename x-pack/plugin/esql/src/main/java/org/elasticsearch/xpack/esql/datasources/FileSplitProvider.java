@@ -569,6 +569,9 @@ public class FileSplitProvider implements SplitProvider {
                 }
             }
         }
+        // Hive / _file.* listing values already live in partitionValues. Copy and strip unbound
+        // _file.* (or overlay engine per-file constants) only when a hint names one of those keys.
+        boolean copyFilterValues = overlayPerFileConstants || hintsReferenceUnboundFileMetadata(filterHints, unboundFileMetadataNames);
         for (int i = 0; i < fileList.fileCount(); i++) {
             StoragePath filePath = fileList.path(i);
 
@@ -583,15 +586,17 @@ public class FileSplitProvider implements SplitProvider {
             SchemaReconciliation.FileSchemaInfo fileSchemaInfo = schemaInfo.get(filePath);
 
             if (filterHints.isEmpty() == false) {
-                Map<String, Object> filterValues = discoveryFilterValues(
-                    partitionValues,
-                    context.datasetName(),
-                    fileList,
-                    i,
-                    metadataColumnNames,
-                    overlayPerFileConstants,
-                    unboundFileMetadataNames
-                );
+                Map<String, Object> filterValues = copyFilterValues
+                    ? discoveryFilterValues(
+                        partitionValues,
+                        context.datasetName(),
+                        fileList,
+                        i,
+                        metadataColumnNames,
+                        overlayPerFileConstants,
+                        unboundFileMetadataNames
+                    )
+                    : partitionValues;
                 if (filterValues.isEmpty() == false && matchesPartitionFilters(filterValues, filterHints) == false) {
                     certifiedSkips++;
                     continue;
@@ -2858,6 +2863,18 @@ public class FileSplitProvider implements SplitProvider {
                 .anyMatch(
                     a -> metadataColumnNames.contains(a.name()) && ExternalMetadataColumns.PER_FILE_CONSTANT_NAMES.contains(a.name())
                 )) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    private static boolean hintsReferenceUnboundFileMetadata(List<Expression> filterHints, Set<String> unboundFileMetadataNames) {
+        if (unboundFileMetadataNames.isEmpty()) {
+            return false;
+        }
+        for (Expression hint : filterHints) {
+            if (hint.references().stream().anyMatch(a -> unboundFileMetadataNames.contains(a.name()))) {
                 return true;
             }
         }

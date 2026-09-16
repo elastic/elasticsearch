@@ -592,30 +592,6 @@ public class AnalyzerExternalTests extends ESTestCase {
         assertWarnings(Analyzer.shadowedExternalColumnsWarning(DATASET_NAME, List.of("_id")));
     }
 
-    public void testIdPathSkipCollapsesDuplicatePhysicalColumns() {
-        assumeTrue("requires dataset-in-FROM support", EsqlCapabilities.Cap.DATASET_IN_FROM_COMMAND.isEnabled());
-
-        List<Attribute> schema = List.of(
-            referenceAttribute("emp_no", LONG),
-            referenceAttribute("_id", LONG),
-            referenceAttribute("_id", KEYWORD),
-            referenceAttribute("first_name", KEYWORD)
-        );
-        var leafOutput = externalLeafOutput(
-            analyzeDataset(
-                analyzer().externalSourceUnresolved(S3_PATH, schema),
-                S3_PATH,
-                "FROM " + DATASET_NAME + " METADATA _id",
-                mappingWithIdPath("_id")
-            )
-        );
-
-        List<Attribute> ids = leafOutput.stream().filter(a -> a.name().equals("_id")).toList();
-        assertThat(ids, hasSize(1));
-        assertFalse(ids.get(0) instanceof ExternalMetadataAttribute);
-        assertEquals(LONG, ids.get(0).dataType());
-    }
-
     public void testIdPathEqualsIdSkipsBind() {
         assumeTrue("requires dataset-in-FROM support", EsqlCapabilities.Cap.DATASET_IN_FROM_COMMAND.isEnabled());
 

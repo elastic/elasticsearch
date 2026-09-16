@@ -3995,8 +3995,10 @@ public class EsqlCapabilities {
         /**
          * When {@code METADATA} names a column that also exists as a physical file column, the
          * engine-generated metadata value is used and the physical column is dropped, with a warning.
-         * Without {@code METADATA}, the physical column is used. Discriminates tests that assert
-         * this collision rule, since a pre-change node still answers the file column's value.
+         * Without {@code METADATA}, the physical column is used. {@code METADATA} of a name that is
+         * not a metadata column is an {@code Unresolved metadata pattern} error, matching indexed
+         * {@code FROM}. Discriminates tests that assert this collision rule, since a pre-change
+         * node still answers the file column's value.
          */
         EXTERNAL_SOURCE_METADATA_WINS_OVER_PHYSICAL_COLUMN,
 

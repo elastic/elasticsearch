@@ -429,23 +429,17 @@ public class AsyncExternalSourceOperatorFactory implements SourceOperator.Source
         this.rowLimit = rowLimit;
         this.fileList = fileList;
         this.schemaMap = schemaMap != null ? schemaMap : Map.of();
-        // Route engine-owned metadata names through VirtualColumnIterator's materialization paths
-        // by unioning them into the partition-column set. Per-file constants take the constant-block
-        // path; _id takes the iterator's per-row composition path; _source is handled by a separate
-        // operator wrapper.
+        // Route engine-owned metadata names through VirtualColumnIterator by unioning them into
+        // the partition-column set. Per-file constants take the constant-block path; _id takes
+        // the iterator's per-row composition path; _source is handled by a separate operator wrapper.
         Set<String> metadataNames = ExternalMetadataColumns.metadataNames(attributes);
         Set<String> stdMetaNames = new LinkedHashSet<>(metadataNames);
         stdMetaNames.retainAll(ExternalMetadataColumns.PER_FILE_CONSTANT_NAMES);
-        boolean idRequested = metadataNames.contains(ExternalMetadataColumns.ID);
-        boolean sourceRequested = metadataNames.contains(ExternalMetadataColumns.SOURCE);
-        this.idColumnRequested = idRequested;
+        this.idColumnRequested = metadataNames.contains(ExternalMetadataColumns.ID);
         this.standardMetadataPerFileNames = stdMetaNames.isEmpty() ? Set.of() : Set.copyOf(stdMetaNames);
         if (metadataNames.isEmpty()) {
             this.partitionColumnNames = partitionColumnNames != null ? partitionColumnNames : Set.of();
         } else {
-            // Union bound metadata names into the effective partition-column set so
-            // VirtualColumnIterator routes them through its constant-block / id-composition /
-            // source-synthesis path. Hive partition columns overlay last in the per-file merge.
             Set<String> union = new LinkedHashSet<>(metadataNames);
             if (partitionColumnNames != null) {
                 union.addAll(partitionColumnNames);

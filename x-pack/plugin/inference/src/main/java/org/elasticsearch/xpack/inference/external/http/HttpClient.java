@@ -24,6 +24,7 @@ import org.apache.hc.core5.reactor.IOReactorConfig;
 import org.apache.hc.core5.util.Timeout;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.common.breaker.CircuitBreaker;
+import org.elasticsearch.common.util.concurrent.FutureUtils;
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -210,16 +211,15 @@ public class HttpClient implements Closeable {
 
         /*
           Subscription#cancel() would only actually cancel when the next chunk arrives.
-          Cancelling the execute() future does cancel it directly (important for idle connections)
+          Cancelling the execute() future does cancel it directly (important for idle connections). FutureUtils.cancel does not
+          interrupt (mayInterruptIfRunning=false), which is sufficient: the async client has no thread blocked on the exchange,
+          and the future's cancellable tears the exchange down and releases the leased connection regardless of the flag.
          */
         var exchange = new AtomicReference<Future<Void>>();
         var aborted = new AtomicBoolean(false);
         Runnable abortExchange = () -> {
             aborted.set(true);
-            var future = exchange.get();
-            if (future != null) {
-                future.cancel(true);
-            }
+            FutureUtils.cancel(exchange.get());
         };
 
         // The callback fires as soon as the response head arrives; the body is streamed through the message's publisher afterwards,

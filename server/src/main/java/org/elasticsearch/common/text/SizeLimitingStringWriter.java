@@ -59,7 +59,7 @@ public final class SizeLimitingStringWriter extends Writer {
         if (limitSize(1) != 1) {
             throwSizeLimitExceeded(0, 1);
         }
-        builder.append(c);
+        builder.append((char) c);
     }
 
     // write(char[]) delegates to write(char[], int, int)

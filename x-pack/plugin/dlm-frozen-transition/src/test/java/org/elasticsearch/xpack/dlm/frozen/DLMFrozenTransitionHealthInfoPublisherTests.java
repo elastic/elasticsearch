@@ -375,13 +375,15 @@ public class DLMFrozenTransitionHealthInfoPublisherTests extends ESTestCase {
         for (int i = 0; i < overLimit; i++) {
             addDataStreamWithFrozenLifecycle(projectBuilder, "marked-ds-" + i, oldIndexTime(), true, TimeValue.timeValueDays(30));
         }
+
         String unmarkedIndexName = addDataStreamWithFrozenLifecycle(
             projectBuilder,
             "unmarked-ds",
             oldIndexTime(),
             false,
             TimeValue.timeValueDays(30)
-        );
+        ).getName();
+
         setProjectState(projectBuilder);
 
         DlmFrozenTransitionsHealthInfo info = publisher.buildHealthInfo(clusterService.state());

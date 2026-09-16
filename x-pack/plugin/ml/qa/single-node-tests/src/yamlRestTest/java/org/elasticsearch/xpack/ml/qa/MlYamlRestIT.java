@@ -10,6 +10,8 @@ package org.elasticsearch.xpack.ml.qa;
 import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
 
 import org.apache.http.HttpStatus;
+import org.elasticsearch.client.Request;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.core.CheckedFunction;
@@ -100,7 +102,14 @@ public class MlYamlRestIT extends ESClientYamlSuiteTestCase {
      */
     @Before
     public void setMlModelRepository() throws IOException {
-        assertOK(ML_MODEL_SERVER.setMlModelRepository(adminClient()));
+        var request = new Request("PUT", "/_cluster/settings");
+        request.setJsonEntity(Strings.format("""
+            {
+              "persistent": {
+                "xpack.ml.model_repository": "%s"
+              }
+            }""", ML_MODEL_SERVER.getUrl()));
+        assertOK(adminClient().performRequest(request));
     }
 
     /**

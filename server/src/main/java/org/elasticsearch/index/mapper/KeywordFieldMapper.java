@@ -1683,9 +1683,11 @@ public final class KeywordFieldMapper extends FieldMapper {
      */
     private boolean supportsColumnarDocValues(IndexMode mode) {
         if (fieldType().diskFormat() == KeywordFieldType.DocValuesDiskFormat.SORTED_SET) {
-            // Native Lucene SORTED_SET: only reachable in TSDB mode (every keyword field there resolves to
-            // SORTED_SET); multi-value is handled natively by mapColumnBatchUnordered using an ARRAY column.
-            return mode.isTsdb();
+            // Native Lucene SORTED_SET: multi-value handled by mapColumnBatchUnordered using an ARRAY column.
+            // Every keyword field in a TSDB index resolves to SORTED_SET; reaching this branch in any other
+            // mode is unexpected (though technically harmless).
+            assert mode.isTsdb() : "unexpected SORTED_SET keyword field in mode " + mode;
+            return true;
         }
         if (fieldType().usesBinaryDocValues() == false) {
             return false;

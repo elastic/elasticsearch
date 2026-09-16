@@ -876,9 +876,11 @@ public class IpFieldMapper extends FieldMapper {
             return docValuesParameters.multiValue() == false;
         }
 
-        // SORTED_SET doc values: only reachable in TSDB mode (the builder sets IndexType.skippers()
-        // whenever binary doc values are disabled, which is the only path to SORTED_SET for ip fields).
-        return mode.isTsdb() && fieldType().hasDocValues();
+        // SORTED_SET doc values: the builder sets IndexType.skippers() whenever binary doc values are
+        // disabled, which is the only path to SORTED_SET for ip fields. Reaching this branch outside
+        // TSDB mode is unexpected (though technically harmless).
+        assert mode.isTsdb() : "unexpected SORTED_SET ip field in mode " + mode;
+        return fieldType().hasDocValues();
     }
 
     private static EscfColumnBuilder mergeStringColumn(BatchMappingContext ctx) {

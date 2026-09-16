@@ -124,7 +124,7 @@ public class MatchRuntimeSearchEvaluatorTests extends ESTestCase {
      * <a href="https://github.com/elastic/elasticsearch/issues/159265">#159265</a>: {@code to_text} declares that
      * the value must be matched as analyzed {@code text} (see {@link ToText}'s class Javadoc), and that holds
      * regardless of whether the field happens to be indexed, so this must take the runtime path exactly like
-     * {@link #runtimeMatchOnToText} does for a non-indexed reference.
+     * {@link #runtimeMatch} does for a non-indexed reference.
      */
     private static Match runtimeMatchOnToTextOverIndexedField(String queryValue) {
         FieldAttribute child = new FieldAttribute(
@@ -325,7 +325,7 @@ public class MatchRuntimeSearchEvaluatorTests extends ESTestCase {
     /**
      * https://github.com/elastic/elasticsearch/issues/159265: {@code match(to_text(keyword_field), "benign")}
      * written inline, directly over a real single-typed mapped {@code keyword} field, must match case-insensitively
-     * — the same standard-analyzer semantics {@link #testTextValuesAnalyzerFromToText} pins for a non-indexed
+     * — the same standard-analyzer semantics {@link #testTextIsAnalyzed} pins for a non-indexed
      * reference. Before the fix, the field's presence as a genuine {@link FieldAttribute} made
      * {@link Match#isRuntimeSearch()} return {@code false}, so this case never reached the runtime evaluator at all
      * and instead got pushed down as a plain (exact, case-sensitive) match on the raw keyword field.

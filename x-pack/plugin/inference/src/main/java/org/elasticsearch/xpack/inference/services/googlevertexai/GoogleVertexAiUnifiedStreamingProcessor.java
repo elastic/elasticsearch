@@ -20,6 +20,11 @@ import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xcontent.XContentParserConfiguration;
 import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xpack.core.inference.results.StreamingUnifiedChatCompletionResults;
+import org.elasticsearch.xpack.core.inference.results.completion.ChatCompletionChoiceResponse;
+import org.elasticsearch.xpack.core.inference.results.completion.ChatCompletionChunkResponse;
+import org.elasticsearch.xpack.core.inference.results.completion.ChatCompletionMessageResponse;
+import org.elasticsearch.xpack.core.inference.results.completion.ChatCompletionToolCallResponse;
+import org.elasticsearch.xpack.core.inference.results.completion.ChatCompletionUsageResponse;
 import org.elasticsearch.xpack.inference.common.DelegatingProcessor;
 import org.elasticsearch.xpack.inference.external.response.streaming.ServerSentEvent;
 
@@ -73,7 +78,7 @@ public class GoogleVertexAiUnifiedStreamingProcessor extends DelegatingProcessor
     protected void next(Deque<ServerSentEvent> events) throws Exception {
 
         var parserConfig = XContentParserConfiguration.EMPTY.withDeprecationHandler(LoggingDeprecationHandler.INSTANCE);
-        var results = new ArrayDeque<StreamingUnifiedChatCompletionResults.ChatCompletionChunk>(events.size());
+        var results = new ArrayDeque<ChatCompletionChunkResponse>(events.size());
 
         for (var event : events) {
             try {
@@ -93,28 +98,21 @@ public class GoogleVertexAiUnifiedStreamingProcessor extends DelegatingProcessor
         }
     }
 
-    Iterator<StreamingUnifiedChatCompletionResults.ChatCompletionChunk> parse(XContentParserConfiguration parserConfig, String event)
-        throws IOException {
+    Iterator<ChatCompletionChunkResponse> parse(XContentParserConfiguration parserConfig, String event) throws IOException {
         return parseObjects(parserConfig, event, p -> Stream.of(GoogleVertexAiChatCompletionChunkParser.parse(p))).iterator();
     }
 
     public static class GoogleVertexAiChatCompletionChunkParser {
-        private static @Nullable StreamingUnifiedChatCompletionResults.ChatCompletionChunk.Usage usageMetadataToChunk(
-            @Nullable UsageMetadata usage
-        ) {
+        private static @Nullable ChatCompletionUsageResponse usageMetadataToChunk(@Nullable UsageMetadata usage) {
             if (usage == null) {
                 return null;
             }
-            return new StreamingUnifiedChatCompletionResults.ChatCompletionChunk.Usage(
-                usage.candidatesTokenCount(),
-                usage.promptTokenCount(),
-                usage.totalTokenCount()
-            );
+            return new ChatCompletionUsageResponse(usage.candidatesTokenCount(), usage.promptTokenCount(), usage.totalTokenCount());
         }
 
-        private static StreamingUnifiedChatCompletionResults.ChatCompletionChunk.Choice candidateToChoice(Candidate candidate) {
-            StringBuilder contentTextBuilder = new StringBuilder();
-            List<StreamingUnifiedChatCompletionResults.ChatCompletionChunk.Choice.Delta.ToolCall> toolCalls = new ArrayList<>();
+        private static ChatCompletionChoiceResponse candidateToChoice(Candidate candidate) {
+            var contentTextBuilder = new StringBuilder();
+            List<ChatCompletionToolCallResponse> toolCalls = new ArrayList<>();
 
             String role = null;
 
@@ -129,13 +127,10 @@ public class GoogleVertexAiUnifiedStreamingProcessor extends DelegatingProcessor
                         contentTextBuilder.append(part.text());
                     }
                     if (part.functionCall() != null) {
-                        FunctionCall fc = part.functionCall();
-                        var function = new StreamingUnifiedChatCompletionResults.ChatCompletionChunk.Choice.Delta.ToolCall.Function(
-                            fc.args(),
-                            fc.name()
-                        );
+                        var fc = part.functionCall();
+                        var function = new ChatCompletionToolCallResponse.Function(fc.args(), fc.name());
                         toolCalls.add(
-                            new StreamingUnifiedChatCompletionResults.ChatCompletionChunk.Choice.Delta.ToolCall(
+                            new ChatCompletionToolCallResponse(
                                 0, // No explicit ID from VertexAI so we use 0
                                 function.name(), // VertexAI does not provide an id for the function call so we use the name
                                 function,
@@ -146,41 +141,42 @@ public class GoogleVertexAiUnifiedStreamingProcessor extends DelegatingProcessor
                 }
             }
 
-            List<StreamingUnifiedChatCompletionResults.ChatCompletionChunk.Choice.Delta.ToolCall> finalToolCalls = toolCalls.isEmpty()
-                ? null
-                : toolCalls;
+            List<ChatCompletionToolCallResponse> finalToolCalls = toolCalls.isEmpty() ? null : toolCalls;
 
-            var delta = new StreamingUnifiedChatCompletionResults.ChatCompletionChunk.Choice.Delta(
+            var message = new ChatCompletionMessageResponse(
                 contentTextBuilder.isEmpty() ? null : contentTextBuilder.toString(),
                 null,
                 role,
                 finalToolCalls
             );
 
-            return new StreamingUnifiedChatCompletionResults.ChatCompletionChunk.Choice(delta, candidate.finishReason(), candidate.index());
+            return new ChatCompletionChoiceResponse(message, candidate.finishReason(), candidate.index());
         }
 
         @SuppressWarnings("unchecked")
-        private static final ConstructingObjectParser<StreamingUnifiedChatCompletionResults.ChatCompletionChunk, Void> PARSER =
-            new ConstructingObjectParser<>("google_vertexai_chat_completion_chunk", true, args -> {
+        private static final ConstructingObjectParser<ChatCompletionChunkResponse, Void> PARSER = new ConstructingObjectParser<>(
+            "google_vertexai_chat_completion_chunk",
+            true,
+            args -> {
                 List<Candidate> candidates = (List<Candidate>) args[0];
-                UsageMetadata usage = (UsageMetadata) args[1];
-                String modelversion = (String) args[2];
-                String responseId = (String) args[3];
+                var usage = (UsageMetadata) args[1];
+                var modelversion = (String) args[2];
+                var responseId = (String) args[3];
 
-                boolean candidatesIsEmpty = candidates == null || candidates.isEmpty();
-                List<StreamingUnifiedChatCompletionResults.ChatCompletionChunk.Choice> choices = candidatesIsEmpty
+                var candidatesIsEmpty = candidates == null || candidates.isEmpty();
+                List<ChatCompletionChoiceResponse> choices = candidatesIsEmpty
                     ? Collections.emptyList()
                     : candidates.stream().map(GoogleVertexAiChatCompletionChunkParser::candidateToChoice).toList();
 
-                return new StreamingUnifiedChatCompletionResults.ChatCompletionChunk(
+                return new ChatCompletionChunkResponse(
                     responseId,
                     choices,
                     modelversion,
                     CHAT_COMPLETION_CHUNK,
                     usageMetadataToChunk(usage)
                 );
-            });
+            }
+        );
 
         static {
             PARSER.declareObjectArray(
@@ -197,7 +193,7 @@ public class GoogleVertexAiUnifiedStreamingProcessor extends DelegatingProcessor
             PARSER.declareString(ConstructingObjectParser.constructorArg(), new ParseField(RESPONSE_ID_FIELD));
         }
 
-        public static StreamingUnifiedChatCompletionResults.ChatCompletionChunk parse(XContentParser parser) throws IOException {
+        public static ChatCompletionChunkResponse parse(XContentParser parser) throws IOException {
             return PARSER.parse(parser, null);
         }
     }
@@ -253,7 +249,7 @@ public class GoogleVertexAiUnifiedStreamingProcessor extends DelegatingProcessor
         }
     }
 
-    private record Part(@Nullable String text, @Nullable FunctionCall functionCall) {} // Modified
+    private record Part(@Nullable String text, @Nullable FunctionCall functionCall) {}
 
     private static class PartParser {
         private static final ConstructingObjectParser<Part, Void> PARSER = new ConstructingObjectParser<>(

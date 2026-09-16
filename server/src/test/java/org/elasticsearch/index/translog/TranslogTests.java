@@ -1020,7 +1020,8 @@ public class TranslogTests extends ESTestCase {
                     while (run.get() && idGenerator.get() < maxOps) {
                         long id = idGenerator.getAndIncrement();
                         final Translog.Operation op;
-                        // BATCH records are produced via Translog.add(IndexBatch); these tests cover the single-op path only.
+                        // BATCH records are produced via Translog.add(IndexOperationBatch.TranslogRecord); these tests cover the single-op
+                        // path only.
                         final Translog.Operation.Type[] singleOpTypes = {
                             Translog.Operation.Type.CREATE,
                             Translog.Operation.Type.INDEX,
@@ -1655,8 +1656,10 @@ public class TranslogTests extends ESTestCase {
         final ArrayList<Long> seqNos = new ArrayList<>();
         final ArrayList<Location> locations = new ArrayList<>();
         final ArrayList<BytesReference> datas = new ArrayList<>();
-        OperationListener listener = (operation, seqNo, location) -> {
-            seqNos.add(seqNo);
+        OperationListener listener = (operation, recordSeqNos, location) -> {
+            for (long seqNo : recordSeqNos) {
+                seqNos.add(seqNo);
+            }
             locations.add(location);
             try (RecyclerBytesStreamOutput output = new RecyclerBytesStreamOutput(BytesRefRecycler.NON_RECYCLING_INSTANCE)) {
                 try {
@@ -2429,7 +2432,8 @@ public class TranslogTests extends ESTestCase {
                 downLatch.await();
                 for (int opCount = 0; opCount < opsPerThread; opCount++) {
                     Translog.Operation op;
-                    // BATCH records are produced via Translog.add(IndexBatch); these tests cover the single-op path only.
+                    // BATCH records are produced via Translog.add(IndexOperationBatch.TranslogRecord); these tests cover the single-op path
+                    // only.
                     final Translog.Operation.Type type = randomFrom(
                         Translog.Operation.Type.CREATE,
                         Translog.Operation.Type.INDEX,

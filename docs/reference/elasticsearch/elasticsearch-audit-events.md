@@ -185,7 +185,7 @@ $$$event-change-password$$$
 $$$event-create-service-token$$$
 
 `create_service_token`
-:   Logged when the [create service account token API](https://www.elastic.co/docs/api/doc/elasticsearch/operation/operation-security-create-service-token) is invoked to create a new index-based token for a service account.
+:   Logged when the [create service account token API](https://www.elastic.co/docs/api/doc/elasticsearch/operation/operation-security-create-service-token) is invoked to create a new index-based token for a built-in or user-managed service account.
 
     You must include the `security_config_change` event type to audit the related event action.
 
@@ -374,7 +374,7 @@ $$$event-delete-role-mapping$$$
 $$$event-delete-service-token$$$
 
 `delete_service_token`
-:   Logged when the [delete service account token API](https://www.elastic.co/docs/api/doc/elasticsearch/operation/operation-security-delete-service-token) is invoked to delete an index-based token for a service account.
+:   Logged when the [delete service account token API](https://www.elastic.co/docs/api/doc/elasticsearch/operation/operation-security-delete-service-token) is invoked to delete an index-based token for a built-in or user-managed service account.
 
     You must include the `security_config_change` event type to audit the related event action.
 
@@ -403,6 +403,25 @@ $$$event-delete-user$$$
     "0RMNyghkQYCc_gVd1G6tZQ", "event.type":"security_config_change",
     "event.action":"delete_user", "request.id":"au5a1Cc3RrebDMitMGGNCw",
     "delete":{"user":{"name":"jacknich"}}}
+    ```
+    % NOTCONSOLE
+
+    ::::
+
+
+$$$event-delete-user-managed-service-account$$$
+
+`delete_user_managed_service_account` {applies_to}`stack: ga 9.6+`
+:   Logged when the delete user-managed service account API is invoked to delete a user-managed service account at `/_security/service/{namespace}/{service}`.
+
+    You must include the `security_config_change` event type to audit the related event action.
+
+    ::::{dropdown} Example
+    ```js
+    {"type":"audit", "timestamp":"2021-04-30T23:17:42,952+0200", "node.id":
+    "0RMNyghkQYCc_gVd1G6tZQ", "event.type":"security_config_change", "event.
+    action":"delete_user_managed_service_account", "request.id":"az9a1Db5QrebDMacQ8yGKc",
+    "delete":{"user_managed_service_account":{"namespace":"my-app","service":"worker","force":false}}}
     ```
     % NOTCONSOLE
 
@@ -507,6 +526,26 @@ $$$event-put-user$$$
     "put":{"user":{"name":"user1","enabled":false,"roles":["admin","other_role1"],
     "full_name":"Jack Sparrow","email":"jack@blackpearl.com",
     "has_password":true,"metadata":{"cunning":10}}}}
+    ```
+    % NOTCONSOLE
+
+    ::::
+
+
+$$$event-put-user-managed-service-account$$$
+
+`put_user_managed_service_account` {applies_to}`stack: ga 9.6+`
+:   Logged when the create or update user-managed service account API is invoked to create or update a user-managed service account at `/_security/service/{namespace}/{service}`.
+
+    You must include the `security_config_change` event type to audit the related event action.
+
+    ::::{dropdown} Example
+    ```js
+    {"type":"audit", "timestamp":"2021-04-30T23:17:42,952+0200", "node.id":
+    "0RMNyghkQYCc_gVd1G6tZQ", "event.type":"security_config_change", "event.
+    action":"put_user_managed_service_account", "request.id":"az9a1Db5QrebDMacQ8yGKc",
+    "put":{"user_managed_service_account":{"namespace":"my-app","service":"worker",
+    "roles":["role1","role2"],"enabled":true}}}
     ```
     % NOTCONSOLE
 
@@ -628,7 +667,10 @@ The following list shows attributes that are common to all audit event types:
 `event.action`
 :   The type of event that occurred: `anonymous_access_denied`, `authentication_failed`, `authentication_success`, `realm_authentication_failed`, `access_denied`, `access_granted`, `connection_denied`, `connection_granted`, `tampered_request`, `run_as_denied`, or `run_as_granted`.
 
-    In addition, if `event.type` equals [`security_config_change`](#security-config-change), the `event.action` attribute takes one of the following values: `put_user`, `change_password`, `put_role`, `put_role_mapping`, `change_enable_user`, `change_disable_user`, `put_privileges`, `create_apikey`, `delete_user`, `delete_role`, `delete_role_mapping`, `invalidate_apikeys`, `delete_privileges`, `change_apikey`, or `change_apikeys`.
+    In addition, if `event.type` equals [`security_config_change`](#security-config-change), the `event.action` attribute takes one of the following values: 
+    
+    * {applies_to}`stack: ga 9.0+` `put_user`, `change_password`, `put_role`, `put_role_mapping`, `change_enable_user`, `change_disable_user`, `put_privileges`, `create_apikey`, `create_service_token`, `delete_user`, `delete_role`, `delete_role_mapping`, `delete_service_token`, `invalidate_apikeys`, `delete_privileges`, `change_apikey`, `change_apikeys`
+    * {applies_to}`stack: ga 9.6+` `put_user_managed_service_account`, `delete_user_managed_service_account`
 
 
 `request.id`
@@ -665,7 +707,22 @@ The events with `event.type` equal to `rest` have one of the following `event.ac
 :   The HTTP method of the REST request associated with this event. It is one of GET, POST, PUT, DELETE, OPTIONS, HEAD, PATCH, TRACE and CONNECT.
 
 `request.body`
-:   The full content of the REST request associated with this event, if enabled. This contains the HTTP request body. The body is escaped as a string value according to the JSON RFC 4627.
+:   The full content of the REST request associated with this event, if enabled. This contains the HTTP request body. The body is escaped as a string value according to the JSON RFC 4627. {applies_to}`stack: ga 9.4` Requests whose body is not a JSON-representable format emit `request.raw_body` instead of this attribute.
+
+`request.raw_body`
+:   {applies_to}`stack: ga 9.4` The full content of the REST request associated with this event, base64-encoded, if enabled. This attribute is emitted in place of `request.body` when the request body cannot be represented as JSON. Currently this applies to requests with a `Content-Type` of `application/x-protobuf` (for example, OTLP and Prometheus remote-write requests). The bytes are recorded as received by the request handler: compression that the HTTP layer does not decompress, such as snappy for Prometheus remote-write, is preserved verbatim.
+
+    To decode the value of `request.raw_body`:
+
+    1. Base64-decode the value.
+    2. If `request.raw_body_content_encoding` is present, apply the matching decompression (for example, snappy for Prometheus remote-write, gzip for gzip-compressed OTLP).
+    3. Parse the resulting bytes as the protobuf message identified by `request.raw_body_content_type` together with `url.path` (which selects between OTLP logs, metrics, or traces and Prometheus remote-write).
+
+`request.raw_body_content_type`
+:   {applies_to}`stack: ga 9.4` The value of the `Content-Type` request header for the request whose body was recorded under `request.raw_body`. Identifies the wire format (for example, `application/x-protobuf`) so that a decoder does not have to infer it from the URL path.
+
+`request.raw_body_content_encoding`
+:   {applies_to}`stack: ga 9.4` The value of the `Content-Encoding` request header for the request whose body was recorded under `request.raw_body`, if the request carried one (for example, `snappy` for Prometheus remote-write). The audit log preserves the encoded bytes verbatim, so a decoder must apply the matching decompression after base64-decoding. Absent when the request had no `Content-Encoding` header.
 
 
 ### Audit event attributes of the `transport` event type [_audit_event_attributes_of_the_transport_event_type]
@@ -695,21 +752,28 @@ The events with `event.type` equal to `ip_filter` have one of the following `eve
 
 ### Audit event attributes of the `security_config_change` event type [security-config-change]
 
-The events with the `event.type` attribute equal to `security_config_change` have one of the following `event.action` attribute values: `put_user`, `change_password`, `put_role`, `put_role_mapping`, `change_enable_user`, `change_disable_user`, `put_privileges`, `create_apikey`, `delete_user`, `delete_role`, `delete_role_mapping`, `invalidate_apikeys`, `delete_privileges`, `change_apikey`, or `change_apikeys`.
+The events with the `event.type` attribute equal to `security_config_change` have one of the following `event.action` attribute values:
+
+    * {applies_to}`stack: ga 9.0+` `put_user`, `change_password`, `put_role`, `put_role_mapping`, `change_enable_user`, `change_disable_user`, `put_privileges`, `create_apikey`, `create_service_token`, `delete_user`, `delete_role`, `delete_role_mapping`, `delete_service_token`, `invalidate_apikeys`, `delete_privileges`, `change_apikey`, `change_apikeys`
+    * {applies_to}`stack: ga 9.6+` `put_user_managed_service_account`, `delete_user_managed_service_account`
 
 These events also have **one** of the following extra attributes (in addition to the common ones), which is specific to the `event.type` attribute. The attribute’s value is a nested JSON object:
 
 `put`
-:   The object representation of the security config that is being created, or the overwrite of an existing config. It contains the config for a `user`, `role`, `role_mapping`, or for application `privileges`.
+:   The object representation of the security config that is being created, or the overwrite of an existing config. It contains the following objects:
+    * {applies_to}`stack: ga 9.0+` `user`, `role`, `role_mapping`, or application `privileges`
+    * {applies_to}`stack: ga 9.6+` `user_managed_service_account`
 
 `delete`
-:   The object representation of the security config that is being deleted. It can be the config for a `user`, `role`, `role_mapping` or for application `privileges`.
+:   The object representation of the security config that is being deleted. It can be the config for a `user`, `role`, `role_mapping`, `user_managed_service_account`, or for application `privileges`.
 
 `change`
 :   The object representation of the security config that is being changed. It can be the `password`, `enable` or `disable`, config object for native or built-in users. If an API key is updated, the config object will be an `apikey`.
 
 `create`
-:   The object representation of the new security config that is being created. This is currently only used for API keys auditing. If the API key is created using the [create API key API](https://www.elastic.co/docs/api/doc/elasticsearch/operation/operation-security-create-api-key) it only contains an `apikey` config object. If the API key is created using the [grant API key API](https://www.elastic.co/docs/api/doc/elasticsearch/operation/operation-security-grant-api-key) it also contains a `grant` config object.
+:   The object representation of the new security config that is being created. This is used for API keys and service account token auditing. If the API key is created using the [create API key API](https://www.elastic.co/docs/api/doc/elasticsearch/operation/operation-security-create-api-key) it only contains an `apikey` config object. If the API key is created using the [grant API key API](https://www.elastic.co/docs/api/doc/elasticsearch/operation/operation-security-grant-api-key) it also contains a `grant` config object. 
+
+    {applies_to}`stack: ga 9.6+` If a service account token is created, it contains a `service_token` config object.
 
 `invalidate`
 :   The object representation of the security configuration that is being invalidated. The only config that currently supports invalidation is `apikeys`, through the [invalidate API key API](https://www.elastic.co/docs/api/doc/elasticsearch/operation/operation-security-invalidate-api-key).
@@ -832,7 +896,18 @@ The object for an API key update will differ in that it will not include a `name
     `{"namespace":<string>,"service":<string>,"name":<string>}`
     ```
     % NOTCONSOLE
-    
+
+
+`user_managed_service_account` {applies_to}`stack: ga 9.6+`
+:   An object like:
+
+    ```js
+    `{"namespace":<string>,"service":<string>,"roles":<string_list>,"enabled":<boolean>}`
+    ```
+    % NOTCONSOLE
+
+    On delete, the object contains `namespace`, `service`, and `force` instead of `roles` and `enabled`.
+ 
 ### Extra audit event attributes for specific events [_extra_audit_event_attributes_for_specific_events]
 
 There are a few events that have some more attributes in addition to those that have been previously described:
@@ -891,7 +966,7 @@ There are a few events that have some more attributes in addition to those that 
 * `run_as_denied` and `run_as_granted`:
 
     `user.roles`
-    :   The role names as an array of the *authenticated* user which is being granted or denied the *impersonation* action. If authenticated as a [service account](docs-content://deploy-manage/users-roles/cluster-or-deployment-auth/service-accounts.md), this is always an empty array.
+    :   The role names as an array of the *authenticated* user which is being granted or denied the *impersonation* action. If authenticated as a built-in [service account](docs-content://deploy-manage/users-roles/cluster-or-deployment-auth/service-accounts.md), this is always an empty array. {applies_to}`stack: ga 9.6+` If authenticated as a user-managed service account, this contains the role names assigned to that account.
 
     `user.name`
     :   The name of the *authenticated* user which is being granted or denied the *impersonation* action.
@@ -908,7 +983,7 @@ There are a few events that have some more attributes in addition to those that 
 * `access_granted` and `access_denied`:
 
     `user.roles`
-    :   The role names of the user as an array. If authenticated using an API key, this contains the role names of the API key owner. If authenticated as a [service account](docs-content://deploy-manage/users-roles/cluster-or-deployment-auth/service-accounts.md), this is always an empty array.
+    :   The role names of the user as an array. If authenticated using an API key, this contains the role names of the API key owner. If authenticated as a built-in [service account](docs-content://deploy-manage/users-roles/cluster-or-deployment-auth/service-accounts.md), this is always an empty array. {applies_to}`stack: ga 9.6+` If authenticated as a user-managed service account, this contains the role names assigned to that account.
 
     `user.name`
     :   The name of the *effective* user. This is usually the same as the *authenticated* user, but if using the [run as authorization functionality](docs-content://deploy-manage/users-roles/cluster-or-deployment-auth/submitting-requests-on-behalf-of-other-users.md) this instead denotes the name of the *impersonated* user. If authenticated using an API key, this is the name of the API key owner.

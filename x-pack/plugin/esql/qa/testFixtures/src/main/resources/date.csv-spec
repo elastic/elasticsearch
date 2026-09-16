@@ -410,6 +410,7 @@ diff:integer
 ;
 
 dateDiffUnitFromField
+required_capability: casting_operator_for_date
 FROM date_extract_fields
 | EVAL diff = DATE_DIFF(inner_val, "2022-01-01T00:00:00.000Z"::date, "2023-01-01T00:00:00.000Z"::date)
 | KEEP inner_val, diff
@@ -1143,6 +1144,7 @@ year              | 2022-05-06T14:30:00.000Z | 2022
 
 dateExtractFieldDatePart
 required_capability: fn_date_extract
+required_capability: casting_operator_for_date
 
 FROM date_extract_fields
 | EVAL result = DATE_EXTRACT(date_part, "2022-05-06T14:30:00.000Z"::date)

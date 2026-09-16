@@ -26,6 +26,7 @@ import org.elasticsearch.xcontent.ToXContentFragment;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xpack.inference.common.parser.StatefulValue;
 import org.elasticsearch.xpack.inference.services.ConfigurationParseContext;
+import org.elasticsearch.xpack.inference.services.SettingsScope;
 
 import java.io.IOException;
 import java.util.EnumSet;
@@ -38,6 +39,7 @@ import java.util.function.BiConsumer;
 import static org.elasticsearch.xcontent.ConstructingObjectParser.optionalConstructorArg;
 import static org.elasticsearch.xpack.inference.services.ServiceUtils.extractOptionalPositiveLong;
 import static org.elasticsearch.xpack.inference.services.ServiceUtils.removeFromMapOrDefaultEmpty;
+import static org.elasticsearch.xpack.inference.services.SettingsScope.RATE_LIMIT;
 
 public class RateLimitSettings implements Writeable, ToXContentFragment {
     public static final String FIELD_NAME = "rate_limit";
@@ -58,11 +60,13 @@ public class RateLimitSettings implements Writeable, ToXContentFragment {
         BiConsumer<V, RateLimitSettings> setter,
         RateLimitSettings defaultValue
     ) {
+        var strictParser = RateLimitSettings.createParser(false, defaultValue);
+        var lenientParser = RateLimitSettings.createParser(true, defaultValue);
         parser.declareObject(
             setter,
             // An explicitly empty rate_limit object ({}) resolves to the default rate limit rather than null, so the setter is never
             // invoked with null.
-            (p, c) -> RateLimitSettings.createParser(c == ConfigurationParseContext.PERSISTENT, defaultValue).apply(p, null),
+            (p, c) -> (c == ConfigurationParseContext.PERSISTENT ? lenientParser : strictParser).apply(p, null),
             new ParseField(RateLimitSettings.FIELD_NAME)
         );
     }
@@ -80,10 +84,11 @@ public class RateLimitSettings implements Writeable, ToXContentFragment {
         AbstractObjectParser<V, Void> parser,
         BiConsumer<V, StatefulValue<RateLimitSettings>> setter
     ) {
+        var innerParser = RateLimitSettings.createParser(false, null);
         StatefulValue.declareNullable(
             parser,
             setter,
-            (p) -> RateLimitSettings.createParser(false, null).apply(p, null),
+            (p) -> innerParser.apply(p, null),
             new ParseField(RateLimitSettings.FIELD_NAME),
             ObjectParser.ValueType.OBJECT_OR_NULL
         );
@@ -139,7 +144,7 @@ public class RateLimitSettings implements Writeable, ToXContentFragment {
         ConfigurationParseContext context
     ) {
         var rateLimitSettings = removeFromMapOrDefaultEmpty(serviceSettingsMap, FIELD_NAME);
-        var requestsPerMinute = extractOptionalPositiveLong(rateLimitSettings, REQUESTS_PER_MINUTE_FIELD, FIELD_NAME, validationException);
+        var requestsPerMinute = extractOptionalPositiveLong(rateLimitSettings, REQUESTS_PER_MINUTE_FIELD, RATE_LIMIT, validationException);
 
         if (ConfigurationParseContext.isRequestContext(context) && rateLimitSettings.isEmpty() == false) {
             validationException.addValidationError(
@@ -165,7 +170,7 @@ public class RateLimitSettings implements Writeable, ToXContentFragment {
      */
     public static void rejectRateLimitFieldForRequestContext(
         Map<String, Object> map,
-        String scope,
+        SettingsScope scope,
         String service,
         TaskType taskType,
         ConfigurationParseContext context,
@@ -189,7 +194,7 @@ public class RateLimitSettings implements Writeable, ToXContentFragment {
      */
     public static <V> void declareUnsupportedRateLimitField(
         AbstractObjectParser<V, ConfigurationParseContext> parser,
-        String scope,
+        SettingsScope scope,
         String service,
         TaskType taskType,
         ConfigurationParseContext context
@@ -201,7 +206,7 @@ public class RateLimitSettings implements Writeable, ToXContentFragment {
         }
     }
 
-    private static String rateLimitNotPermittedError(String scope, String service, TaskType taskType) {
+    private static String rateLimitNotPermittedError(SettingsScope scope, String service, TaskType taskType) {
         return Strings.format(
             "[%s] rate limit settings are not permitted for service [%s] and task type [%s]",
             scope,

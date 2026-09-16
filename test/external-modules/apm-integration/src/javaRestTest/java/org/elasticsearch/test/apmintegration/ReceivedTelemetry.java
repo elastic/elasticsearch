@@ -60,9 +60,10 @@ public sealed interface ReceivedTelemetry {
     }
 
     /**
-     * Protocol-neutral representation of the resource (telemetry source) that emitted spans.
-     * Populated from the APM intake {@code metadata} NDJSON event (service/agent/system/process/labels)
-     * and from {@code ExportTraceServiceRequest.resource_spans[].resource} on the OTLP path.
+     * Protocol-neutral representation of the resource (telemetry source) that emitted spans,
+     * metrics, or logs. Populated from the APM intake {@code metadata} NDJSON event
+     * (service/agent/system/process/labels) and from the OTLP {@code Resource} on
+     * {@code ResourceSpans}, {@code ResourceMetrics}, and {@code ResourceLogs}.
      * <p>
      * Attribute keys are passed through verbatim from each protocol — no translation. The
      * cross-path contract therefore asserts on the keys downstream consumers actually observe,
@@ -114,7 +115,8 @@ public sealed interface ReceivedTelemetry {
      * {@code attributes} is a flat map of OTLP log record attributes; the keys currently include
      * a {@code log4j.map_message.} prefix, which will be removed (tracked in #4183) when the raw
      * {@code OpenTelemetryAppender} is replaced with a custom one that applies the audit field
-     * rename.
+     * rename. The {@code ResourceLogs.resource} the record arrived under is emitted separately
+     * as a {@link ReceivedResource}.
      */
     record ReceivedLog(
         long timeUnixNano,

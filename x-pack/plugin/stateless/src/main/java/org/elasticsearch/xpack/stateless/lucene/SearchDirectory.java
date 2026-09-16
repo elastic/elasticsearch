@@ -23,6 +23,8 @@ import org.elasticsearch.core.RefCounted;
 import org.elasticsearch.core.Releasable;
 import org.elasticsearch.core.Releasables;
 import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.index.IndexVersion;
+import org.elasticsearch.index.IndexVersions;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.store.LuceneFilesExtensions;
 import org.elasticsearch.logging.LogManager;
@@ -40,6 +42,7 @@ import org.elasticsearch.xpack.stateless.engine.PrimaryTermAndGeneration;
 
 import java.io.FileNotFoundException;
 import java.io.IOException;
+import java.time.Instant;
 import java.util.ArrayList;
 import java.util.BitSet;
 import java.util.Collection;
@@ -59,6 +62,14 @@ import static org.elasticsearch.xpack.stateless.commits.StatelessCompoundCommit.
 
 public class SearchDirectory extends BlobStoreCacheDirectory {
     private static final Logger logger = LogManager.getLogger(SearchDirectory.class);
+
+    /// IndexVersion that guarantees the writing node recorded a `@timestamp` field value range in the compound
+    /// commit header. Indices created before this can additionally contain compound commits with no recorded range purely
+    /// because the field did not exist yet, rather than because the commit lacks `@timestamp` data.
+    public static final IndexVersion TIMESTAMP_FIELD_VALUE_RANGE_INTRODUCED_VERSION = IndexVersions.NESTED_PATH_LIMIT;
+
+    /// Fallback `@timestamp` for commits written before [#TIMESTAMP_FIELD_VALUE_RANGE_INTRODUCED_VERSION].
+    public static final long PRE_TIMESTAMP_FIELD_FALLBACK_MILLIS = Instant.parse("2026-01-01T00:00:00Z").toEpochMilli();
 
     private final CacheBlobReaderService cacheBlobReaderService;
     private final LongAdder totalBytesReadFromIndexing = new LongAdder();
@@ -83,26 +94,36 @@ public class SearchDirectory extends BlobStoreCacheDirectory {
     private final AtomicLong submittedObsoleteRegionsEvictionTasks = new AtomicLong();
 
     private final boolean hasTimestampField;
+    private final long fallbackRegionTimestampMillis;
 
     public SearchDirectory(
         StatelessSharedBlobCacheService cacheService,
         CacheBlobReaderService cacheBlobReaderService,
         MutableObjectStoreUploadTracker objectStoreUploadTracker,
         ShardId shardId,
-        boolean hasTimestampField
+        boolean hasTimestampField,
+        IndexVersion creationVersion
     ) {
         super(cacheService, shardId);
         this.cacheBlobReaderService = cacheBlobReaderService;
         this.objectStoreUploadTracker = objectStoreUploadTracker;
         this.generationalFilesTermAndGens = new HashMap<>();
         this.hasTimestampField = hasTimestampField;
+        this.fallbackRegionTimestampMillis = resolveFallbackRegionTimestampMillis(hasTimestampField, creationVersion);
     }
 
-    /**
-     * Whether this shard is time-based, i.e. its index has a {@code @timestamp} field.
-     */
-    public boolean hasTimestampField() {
-        return hasTimestampField;
+    private static long resolveFallbackRegionTimestampMillis(boolean hasTimestampField, IndexVersion creationVersion) {
+        if (hasTimestampField == false) {
+            return SharedBlobCacheService.UNKNOWN_TIMESTAMP;
+        }
+        // For a time-based index created after the introduction of timestamp range field, we treat all CCs without timestamp as having
+        // a minimal timestamp. This should be a rare case, e.g. a soft-delete only commit.
+        // For indices created before that, CCs can lack a timestamp range purely because the field did not exist yet. We conservatively
+        // assign a fallback timestamp to them. Note that recent CCs on pre-field indices (e.g. soft-delete only) will also receive this
+        // fallback, which is a known over-estimation but should be negligible in practice.
+        return creationVersion.before(TIMESTAMP_FIELD_VALUE_RANGE_INTRODUCED_VERSION)
+            ? PRE_TIMESTAMP_FIELD_FALLBACK_MILLIS
+            : SharedBlobCacheService.MINIMAL_CACHE_TIMESTAMP;
     }
 
     /**
@@ -115,7 +136,7 @@ public class SearchDirectory extends BlobStoreCacheDirectory {
 
     @Override
     public long fallbackRegionTimestampMillis() {
-        return hasTimestampField ? SharedBlobCacheService.MINIMAL_CACHE_TIMESTAMP : SharedBlobCacheService.UNKNOWN_TIMESTAMP;
+        return fallbackRegionTimestampMillis;
     }
 
     /**
@@ -495,6 +516,7 @@ public class SearchDirectory extends BlobStoreCacheDirectory {
         return getCacheBlobReader(
             fileName,
             blobFile,
+            objectStoreUploadTracker,
             BlobCacheMetrics.CachePopulationReason.CacheMiss,
             cacheService.getShardReadThreadPoolExecutor(),
             false
@@ -507,6 +529,7 @@ public class SearchDirectory extends BlobStoreCacheDirectory {
         return getCacheBlobReader(
             blobFile.blobName(),
             blobFile,
+            objectStoreUploadTracker,
             BlobCacheMetrics.CachePopulationReason.Warming,
             EsExecutors.DIRECT_EXECUTOR_SERVICE,
             true
@@ -528,6 +551,7 @@ public class SearchDirectory extends BlobStoreCacheDirectory {
         return getCacheBlobReader(
             blobFile.blobName(),
             blobFile,
+            objectStoreUploadTracker,
             BlobCacheMetrics.CachePopulationReason.OnlinePrewarming,
             EsExecutors.DIRECT_EXECUTOR_SERVICE,
             true
@@ -542,13 +566,18 @@ public class SearchDirectory extends BlobStoreCacheDirectory {
      * We allow creating this reader from any thread but the actual downloading of
      * bytes will happen on the stateless_prewarm pool.
      *
-     * @param blobFile blob file
+     * @param blobFile   blob file
+     * @param isUploaded when {@code true} the file's BCC generation is known to be uploaded (from the notification), so the blob-store
+     *                   reader is used directly rather than relying on the upload tracker — which may not yet reflect the upload because
+     *                   {@code updateLatestUploadedBcc} is deferred until after prefetch completes
      * @return a CacheBlobReader for reading the specified file
      */
-    public CacheBlobReader getCacheBlobReaderForPreFetching(BlobFile blobFile) {
+    public CacheBlobReader getCacheBlobReaderForPreFetching(BlobFile blobFile, boolean isUploaded) {
+        var tracker = isUploaded ? MutableObjectStoreUploadTracker.ALWAYS_UPLOADED : objectStoreUploadTracker;
         return getCacheBlobReader(
             blobFile.blobName(),
             blobFile,
+            tracker,
             BlobCacheMetrics.CachePopulationReason.PreFetchingNewCommit,
             EsExecutors.DIRECT_EXECUTOR_SERVICE,
             true
@@ -558,6 +587,7 @@ public class SearchDirectory extends BlobStoreCacheDirectory {
     private CacheBlobReader getCacheBlobReader(
         String fileName,
         BlobFile blobFile,
+        MutableObjectStoreUploadTracker tracker,
         BlobCacheMetrics.CachePopulationReason cachePopulationReason,
         Executor executor,
         boolean speculativeFill
@@ -566,7 +596,7 @@ public class SearchDirectory extends BlobStoreCacheDirectory {
             shardId,
             this::getBlobContainer,
             blobFile,
-            objectStoreUploadTracker,
+            tracker,
             totalBytesWarmedFromObjectStore::add,
             totalBytesWarmedFromIndexing::add,
             cachePopulationReason,
@@ -620,6 +650,7 @@ public class SearchDirectory extends BlobStoreCacheDirectory {
                 return SearchDirectory.this.getCacheBlobReader(
                     fileName,
                     blobFile,
+                    objectStoreUploadTracker,
                     BlobCacheMetrics.CachePopulationReason.Warming,
                     getCacheService().getShardReadThreadPoolExecutor(),
                     false
@@ -631,6 +662,7 @@ public class SearchDirectory extends BlobStoreCacheDirectory {
                 return SearchDirectory.this.getCacheBlobReader(
                     blobFile.blobName(),
                     blobFile,
+                    objectStoreUploadTracker,
                     BlobCacheMetrics.CachePopulationReason.Warming,
                     getCacheService().getShardReadThreadPoolExecutor(),
                     true

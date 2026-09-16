@@ -19,6 +19,8 @@ import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.xpack.core.ml.datafeed.DatafeedConfigUtils;
 import org.elasticsearch.xpack.core.ml.datafeed.SearchInterval;
 import org.elasticsearch.xpack.core.ml.utils.Intervals;
+import org.elasticsearch.xpack.ml.datafeed.DatafeedSearchTelemetry;
+import org.elasticsearch.xpack.ml.datafeed.DatafeedSearchTelemetry.ExtractorType;
 import org.elasticsearch.xpack.ml.datafeed.DatafeedTimingStatsReporter;
 import org.elasticsearch.xpack.ml.datafeed.LinkedClusterState;
 import org.elasticsearch.xpack.ml.datafeed.extractor.DataExtractor;
@@ -54,27 +56,33 @@ class CompositeAggregationDataExtractor implements DataExtractor {
     private final Client client;
     private final CompositeAggregationDataExtractorContext context;
     private final DatafeedTimingStatsReporter timingStatsReporter;
+    private final DatafeedSearchTelemetry searchTelemetry;
     private final AggregatedSearchRequestBuilder requestBuilder;
     private final long interval;
     private volatile boolean isCancelled;
     private volatile long nextBucketOnCancel;
     private boolean hasNext;
     private List<LinkedClusterState> lastLinkedClusterStates = List.of();
+    private boolean fullPagePending;
+    private final int compositePageSize;
 
     CompositeAggregationDataExtractor(
         CompositeAggregationBuilder compositeAggregationBuilder,
         Client client,
         CompositeAggregationDataExtractorContext dataExtractorContext,
         DatafeedTimingStatsReporter timingStatsReporter,
+        DatafeedSearchTelemetry searchTelemetry,
         AggregatedSearchRequestBuilder requestBuilder
     ) {
         this.compositeAggregationBuilder = Objects.requireNonNull(compositeAggregationBuilder);
         this.client = Objects.requireNonNull(client);
         this.context = Objects.requireNonNull(dataExtractorContext);
         this.timingStatsReporter = Objects.requireNonNull(timingStatsReporter);
+        this.searchTelemetry = Objects.requireNonNull(searchTelemetry);
         this.requestBuilder = Objects.requireNonNull(requestBuilder);
         this.interval = DatafeedConfigUtils.getHistogramIntervalMillis(compositeAggregationBuilder);
         this.hasNext = true;
+        this.compositePageSize = compositeAggregationBuilder.size();
     }
 
     @Override
@@ -113,6 +121,8 @@ class CompositeAggregationDataExtractor implements DataExtractor {
         InternalAggregations aggs = search();
         if (aggs == null) {
             LOGGER.trace("[{}] extraction finished", context.jobId);
+            searchTelemetry.recordSearchResults(ExtractorType.COMPOSITE, 0, compositePageSize);
+            fullPagePending = false;
             hasNext = false;
             afterKey = null;
             return new Result(searchInterval, Optional.empty(), lastLinkedClusterStates);
@@ -160,7 +170,18 @@ class CompositeAggregationDataExtractor implements DataExtractor {
             searchRequest.request().setProjectRouting(context.queryContext.projectRouting);
         }
 
-        SearchResponse searchResponse = AbstractAggregationDataExtractor.executeSearchRequest(client, context.queryContext, searchRequest);
+        SearchResponse searchResponse;
+        try {
+            searchResponse = AbstractAggregationDataExtractor.executeSearchRequest(client, context.queryContext, searchRequest);
+        } catch (SkippedClustersException e) {
+            lastLinkedClusterStates = DataExtractorUtils.preferRicherLinkedClusterStates(
+                lastLinkedClusterStates,
+                e.getLinkedClusterStates()
+            );
+            // Re-throw the original ResourceNotFoundException so callers and exception unwrappers
+            // see the same type and HTTP status as before this wrapper was introduced.
+            throw e.getResourceNotFoundException();
+        }
         try {
             LOGGER.trace("[{}] Search composite response was obtained", context.jobId);
             timingStatsReporter.reportSearchDuration(searchResponse.getTook());
@@ -198,6 +219,11 @@ class CompositeAggregationDataExtractor implements DataExtractor {
             )
         );
         aggregationToJsonProcessor.process(aggs);
+        CompositeAggregation compositeAgg = aggs.get(compositeAggregationBuilder.getName());
+        int bucketCount = compositeAgg.getBuckets().size();
+        if (fullPagePending) {
+            searchTelemetry.recordFullPage(ExtractorType.COMPOSITE);
+        }
         ByteArrayOutputStream outputStream = new ByteArrayOutputStream();
         final Long afterKeyTimeBucket = afterKey != null ? (Long) afterKey.get(context.compositeAggDateHistogramGroupSourceName) : null;
         boolean cancellable = aggregationToJsonProcessor.writeAllDocsCancellable(timestamp -> {
@@ -229,6 +255,12 @@ class CompositeAggregationDataExtractor implements DataExtractor {
             }
             return false;
         }, outputStream);
+        searchTelemetry.recordSearchResults(
+            ExtractorType.COMPOSITE,
+            aggregationToJsonProcessor.getWrittenDocumentCount(),
+            compositePageSize
+        );
+        fullPagePending = bucketCount == compositeAggregationBuilder.size();
         // If the process is canceled and cancelable, then we can indicate that there are no more buckets to process.
         if (isCancelled && cancellable) {
             LOGGER.debug(
@@ -242,10 +274,14 @@ class CompositeAggregationDataExtractor implements DataExtractor {
             hasNext = false;
         }
         // Only set the after key once we have processed the search, allows us to cancel on the first page
-        CompositeAggregation compositeAgg = aggs.get(compositeAggregationBuilder.getName());
         afterKey = compositeAgg.afterKey();
 
         return new ByteArrayInputStream(outputStream.toByteArray());
+    }
+
+    @Override
+    public List<LinkedClusterState> getLinkedClusterStates() {
+        return lastLinkedClusterStates;
     }
 
     @Override
@@ -254,11 +290,16 @@ class CompositeAggregationDataExtractor implements DataExtractor {
             client,
             context.queryContext
         );
-        SearchResponse searchResponse = AbstractAggregationDataExtractor.executeSearchRequest(
-            client,
-            context.queryContext,
-            searchRequestBuilder
-        );
+        SearchResponse searchResponse;
+        try {
+            searchResponse = AbstractAggregationDataExtractor.executeSearchRequest(client, context.queryContext, searchRequestBuilder);
+        } catch (SkippedClustersException e) {
+            lastLinkedClusterStates = DataExtractorUtils.preferRicherLinkedClusterStates(
+                lastLinkedClusterStates,
+                e.getLinkedClusterStates()
+            );
+            throw e.getResourceNotFoundException();
+        }
         try {
             LOGGER.debug("[{}] Aggregating Data summary response was obtained", context.jobId);
             timingStatsReporter.reportSearchDuration(searchResponse.getTook());

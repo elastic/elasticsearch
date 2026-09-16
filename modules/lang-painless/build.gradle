@@ -13,6 +13,7 @@ apply plugin: 'elasticsearch.validate-rest-spec'
 apply plugin: 'elasticsearch.internal-yaml-rest-test'
 apply plugin: 'elasticsearch.yaml-rest-compat-test'
 apply plugin: 'elasticsearch.internal-cluster-test'
+apply plugin: 'elasticsearch.internal-java-rest-test'
 
 esplugin {
     description = 'An easy, safe and fast scripting language for Elasticsearch'
@@ -32,6 +33,8 @@ configurations {
 }
 
 dependencies {
+    clusterModules project(':modules:ingest-common')
+    clusterModules project(':modules:apm')
     api "org.antlr:antlr4-runtime:${versions.antlr4}"
     api 'org.ow2.asm:asm-util:9.10.1'
     api 'org.ow2.asm:asm-tree:9.10.1'

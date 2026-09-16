@@ -27,7 +27,7 @@ public class ViewUnionAllTests extends ESTestCase {
     public void testIsInstanceOfUnionAll() {
         ViewUnionAll viewUnion = new ViewUnionAll(Source.EMPTY, viewMap(), List.of());
         assertThat(viewUnion, instanceOf(UnionAll.class));
-        assertThat(viewUnion, instanceOf(Fork.class));
+        assertThat(viewUnion, instanceOf(MergePlan.class));
     }
 
     public void testReplaceChildrenPreservesType() {

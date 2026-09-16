@@ -7,11 +7,8 @@
 
 package org.elasticsearch.xpack.esql.datasources;
 
-import org.apache.arrow.memory.BufferAllocator;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.common.breaker.NoopCircuitBreaker;
-import org.elasticsearch.common.util.BigArrays;
-import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.esql.datasources.spi.DirectBufferFactory;
 import org.elasticsearch.xpack.esql.datasources.spi.DirectReadBuffer;
@@ -32,14 +29,7 @@ import java.util.concurrent.atomic.AtomicReference;
 
 public class RangeStorageObjectTests extends ESTestCase {
 
-    // Hold a strong reference to the BlockFactory so the JVM Cleaner does not close the
-    // arrow root allocator mid-test (BlockFactory.arrowAllocator() registers a cleaner action
-    // on its own BlockFactory instance, which is otherwise unreachable from ALLOCATOR alone).
-    private static final BlockFactory BLOCK_FACTORY = BlockFactory.builder(BigArrays.NON_RECYCLING_INSTANCE)
-        .breaker(new NoopCircuitBreaker("test"))
-        .build();
-    private static final BufferAllocator ALLOCATOR = BLOCK_FACTORY.arrowAllocator();
-    private static final DirectBufferFactory FACTORY = DirectBufferFactory.forAllocator(ALLOCATOR);
+    private static final DirectBufferFactory FACTORY = DirectBufferFactory.forBreaker(new NoopCircuitBreaker("test"));
 
     private static final byte[] FILE_BYTES = "Hello, World! This is test data for range reads.".getBytes(StandardCharsets.UTF_8);
 
@@ -86,6 +76,12 @@ public class RangeStorageObjectTests extends ESTestCase {
         StorageObject delegate = new InMemoryStorageObject(FILE_BYTES);
         RangeStorageObject range = new RangeStorageObject(delegate, 10, 25);
         assertEquals(25, range.length());
+    }
+
+    public void testLengthForFooterCacheKeyReturnsUnderlyingFileLength() throws IOException {
+        StorageObject delegate = new InMemoryStorageObject(FILE_BYTES);
+        RangeStorageObject range = new RangeStorageObject(delegate, 10, 25);
+        assertEquals(FILE_BYTES.length, range.lengthForFooterCacheKey());
     }
 
     public void testPathDelegates() {
@@ -238,10 +234,12 @@ public class RangeStorageObjectTests extends ESTestCase {
         StorageObject syncDelegate = new InMemoryStorageObject(FILE_BYTES);
         RangeStorageObject syncRange = new RangeStorageObject(syncDelegate, 0, 10);
         assertFalse(syncRange.supportsNativeAsync());
+        assertFalse(syncRange.readBytesAsyncReleasesExecutor());
 
         StorageObject asyncDelegate = new AsyncCapableStorageObject(FILE_BYTES);
         RangeStorageObject asyncRange = new RangeStorageObject(asyncDelegate, 0, 10);
         assertTrue(asyncRange.supportsNativeAsync());
+        assertTrue(asyncRange.readBytesAsyncReleasesExecutor());
     }
 
     public void testReadBytesAsyncAdjustsPosition() throws Exception {
@@ -386,6 +384,11 @@ public class RangeStorageObjectTests extends ESTestCase {
 
         @Override
         public boolean supportsNativeAsync() {
+            return true;
+        }
+
+        @Override
+        public boolean readBytesAsyncReleasesExecutor() {
             return true;
         }
     }

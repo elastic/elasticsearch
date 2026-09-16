@@ -9,6 +9,7 @@ import org.elasticsearch.gradle.testclusters.StandaloneRestIntegTestTask
 
 apply plugin: 'elasticsearch.internal-java-rest-test'
 apply plugin: 'elasticsearch.esql-csv-spec-tests'
+apply plugin: 'elasticsearch.esql-datasource-bwc'
 apply plugin: org.elasticsearch.gradle.internal.precommit.CheckstylePrecommitPlugin
 apply plugin: org.elasticsearch.gradle.internal.precommit.ForbiddenApisPrecommitPlugin
 apply plugin: org.elasticsearch.gradle.internal.precommit.ForbiddenPatternsPrecommitPlugin
@@ -61,7 +62,7 @@ tasks.register('syncCsvIcebergFixtures', Sync) {
   dependsOn testFixturesProject.tasks.named('processResources')
   duplicatesStrategy = DuplicatesStrategy.FAIL
   from(testFixturesProject.file('src/main/resources/data')) {
-    include 'employees.csv', 'web_logs.csv', 'books.csv', 'apps.csv', 'mv_sample.csv', 'employees_no_mv.csv'
+    include 'employees.csv', 'web_logs.csv', 'books.csv', 'apps.csv', 'mv_sample.csv', 'employees_no_mv.csv', 'skip_rows_sessions.csv'
   }
   into file("${csvIcebergFixtureRoot}/iceberg-fixtures/standalone")
 }
@@ -181,6 +182,27 @@ tasks.register('generateMultifileSplitTsv_employees', JavaExec) {
 }
 generateStandaloneTsvTasks.add(tasks.named('generateMultifileSplitTsv_employees'))
 
+// Multifile-UBN TSV fixtures: per-file conversion of the two divergent-order CSVs into
+// multifile_ubn/multifile_ubn_{a,b}.tsv, so csv-declared-schema-multifile.csv-spec — whose whole
+// point is that a declaration makes the reconciliation mode irrelevant — runs on TSV too rather
+// than only on the format its fixtures happened to be materialized in.
+['multifile_ubn_a', 'multifile_ubn_b'].each { baseName ->
+  def taskName = "generateMultifileUbnTsv_${baseName}"
+  def ubnCsv = file("${csvIcebergFixtureRoot}/iceberg-fixtures/multifile_ubn/${baseName}.csv")
+  def ubnTsv = file("${tsvFixtureOutputRoot}/iceberg-fixtures/multifile_ubn/${baseName}.tsv")
+  tasks.register(taskName, JavaExec) {
+    dependsOn tasks.named('syncCsvIcebergMultifileUbnFixtures'), serverProject.tasks.named('compileTsvFixtureGeneratorJava')
+    classpath = serverProject.configurations.tsvFixtureGenerator + serverProject.sourceSets.tsvFixtureGenerator.output
+    mainClass = 'org.elasticsearch.xpack.esql.datasources.TsvFixtureGenerator'
+    args = [ubnCsv.path, ubnTsv.path]
+    inputs.file(ubnCsv)
+    outputs.file(ubnTsv)
+    systemProperty 'slf4j.provider', 'org.slf4j.nop.NOPServiceProvider'
+    systemProperty 'slf4j.internal.verbosity', 'WARN'
+  }
+  generateStandaloneTsvTasks.add(tasks.named(taskName))
+}
+
 tasks.register('generateStandaloneTsvFixtures') {
   dependsOn generateStandaloneTsvTasks
 }
@@ -257,3 +279,14 @@ def csvSpecTests = tasks.register('csvSpecTests', StandaloneRestIntegTestTask) {
 }
 
 tasks.named('check').configure { dependsOn csvSpecTests }
+
+esqlDataSourceBwc {
+  minimumVersion '9.5.0'
+  classFilter 'org.elasticsearch.xpack.esql.qa.csv.CsvFormatSpecIT'
+  classFilter 'org.elasticsearch.xpack.esql.qa.csv.CsvCompressedFormatSpecIT'
+  classFilter 'org.elasticsearch.xpack.esql.qa.csv.TsvFormatSpecIT'
+  classFilter 'org.elasticsearch.xpack.esql.qa.csv.TsvCompressedFormatSpecIT'
+  coordinators 'old', 'current'
+  systemProperty 'tests.rest.client_timeout', '60'
+  systemProperty 'tests.rest.socket_timeout', '60'
+}

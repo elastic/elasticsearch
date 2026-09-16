@@ -33,6 +33,7 @@ public class BlobCacheMetrics {
     public static final String ES_EXECUTOR_ATTRIBUTE_KEY = "executor";
     public static final String NON_LUCENE_EXTENSION_TO_RECORD = "other";
     public static final String NON_ES_EXECUTOR_TO_RECORD = "other";
+    public static final String BLOB_CACHE_COUNT_OF_EVICTED_USED_REGIONS_TOTAL = "es.blob_cache.count_of_evicted_used_regions.total";
     public static final String BLOB_CACHE_COUNT_OF_EVICTED_REGIONS_TOTAL = "es.blob_cache.count_of_evicted_regions.total";
     public static final String SEARCH_ORIGIN_REMOTE_STORAGE_DOWNLOAD_TOOK_TIME = "es.blob_cache.search_origin.download_took_time.total";
     public static final String BLOB_CACHE_BYPASS_READ_TOTAL = "es.blob_cache.bypass_read.total";
@@ -138,8 +139,9 @@ public class BlobCacheMetrics {
                 "count"
             ),
             meterRegistry.registerLongCounter(
-                "es.blob_cache.count_of_evicted_used_regions.total",
-                "The number of times a cache entry was evicted where the frequency was not zero",
+                BLOB_CACHE_COUNT_OF_EVICTED_USED_REGIONS_TOTAL,
+                "The number of cache entries with non-zero frequency evicted under LFU pressure to make room for another region; "
+                    + "excludes forced evictions",
                 "entries"
             ),
             meterRegistry.registerLongCounter(
@@ -210,7 +212,7 @@ public class BlobCacheMetrics {
             )
         );
 
-        meterRegistry.registerLongGauge(
+        meterRegistry.registerLongAsyncGauge(
             "es.blob_cache.read.total",
             "The number of cache reads (warming not included)",
             "count",
@@ -219,7 +221,7 @@ public class BlobCacheMetrics {
         // notice that this is different from `miss_that_triggered_read` in that `miss_that_triggered_read` will count once per gap
         // filled for a single read. Whereas this one only counts whenever a read provoked populating data from the object store, though
         // once per region for multi-region reads. This allows reasoning about hit ratio too.
-        meterRegistry.registerLongGauge(
+        meterRegistry.registerLongAsyncGauge(
             "es.blob_cache.miss.total",
             "The number of cache misses (warming not included)",
             "count",
@@ -227,7 +229,7 @@ public class BlobCacheMetrics {
         );
         // adding this helps search for high or low miss ratio. It will be since boot of the node though. More advanced queries can use
         // deltas of the totals to see miss ratio over time.
-        meterRegistry.registerDoubleGauge(
+        meterRegistry.registerDoubleAsyncGauge(
             "es.blob_cache.miss.ratio",
             "The fraction of cache reads that missed data (warming not included)",
             "fraction",

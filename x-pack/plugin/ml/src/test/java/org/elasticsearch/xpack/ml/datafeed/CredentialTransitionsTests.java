@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.ml.datafeed;
 
+import org.apache.logging.log4j.Level;
 import org.elasticsearch.ElasticsearchSecurityException;
 import org.elasticsearch.TransportVersion;
 import org.elasticsearch.action.ActionListener;
@@ -23,6 +24,7 @@ import org.elasticsearch.search.SearchModule;
 import org.elasticsearch.search.crossproject.CrossProjectModeDecider;
 import org.elasticsearch.search.crossproject.NoMatchingProjectException;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.test.MockLog;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xcontent.NamedXContentRegistry;
 import org.elasticsearch.xpack.core.ml.action.PutDatafeedAction;
@@ -41,10 +43,13 @@ import org.elasticsearch.xpack.ml.datafeed.CredentialTransitions.Intent;
 import org.elasticsearch.xpack.ml.datafeed.CredentialTransitions.TransitionContext;
 import org.elasticsearch.xpack.ml.datafeed.persistence.DatafeedConfigProvider;
 import org.elasticsearch.xpack.ml.notifications.AnomalyDetectionAuditor;
+import org.mockito.ArgumentCaptor;
 
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
+import java.util.concurrent.CyclicBarrier;
+import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.BiConsumer;
 
@@ -52,6 +57,7 @@ import static org.elasticsearch.xpack.core.security.cloud.CloudCredentialTestUti
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.instanceOf;
+import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.notNullValue;
 import static org.hamcrest.Matchers.sameInstance;
 import static org.mockito.ArgumentMatchers.any;
@@ -176,6 +182,8 @@ public class CredentialTransitionsTests extends ESTestCase {
 
     @SuppressWarnings("unchecked")
     public void testValidateSearchBeforeMintWhenCloudCredentialPresentShouldUseWrappedClient() {
+        assumeTrue("CPS feature flag must be enabled", CloudCredentialsExtension.ML_CROSS_PROJECT.isEnabled());
+
         CloudCredentialManager credentialManager = mock(CloudCredentialManager.class);
         InternalCloudApiKeyService apiKeyService = mock(InternalCloudApiKeyService.class);
         Client delegateClient = mock(Client.class);
@@ -201,7 +209,7 @@ public class CredentialTransitionsTests extends ESTestCase {
             delegateClient,
             xContentRegistry(),
             mock(DatafeedConfigProvider.class),
-            new CrossProjectModeDecider(Settings.EMPTY)
+            new CrossProjectModeDecider(Settings.builder().put("serverless.cross_project.enabled", true).build())
         );
 
         DatafeedConfig.Builder builder = new DatafeedConfig.Builder("df", "job");
@@ -222,12 +230,16 @@ public class CredentialTransitionsTests extends ESTestCase {
 
         assertThat(failure.get(), equalTo(grantFailure));
         verify(credentialManager).wrapClient(same(delegateClient), eq(callerCredential));
-        verify(wrappedClient).execute(same(TransportSearchAction.TYPE), any(SearchRequest.class), any());
+        ArgumentCaptor<SearchRequest> searchRequestCaptor = ArgumentCaptor.forClass(SearchRequest.class);
+        verify(wrappedClient).execute(same(TransportSearchAction.TYPE), searchRequestCaptor.capture(), any());
+        assertThat(searchRequestCaptor.getValue().indicesOptions().resolveCrossProjectIndexExpression(), equalTo(true));
         verify(delegateClient, never()).execute(same(TransportSearchAction.TYPE), any(SearchRequest.class), any());
     }
 
     @SuppressWarnings("unchecked")
     public void testValidateSearchBeforeMintWhenNoCloudCredentialShouldUseBareClient() {
+        assumeTrue("CPS feature flag must be enabled", CloudCredentialsExtension.ML_CROSS_PROJECT.isEnabled());
+
         CloudCredentialManager credentialManager = mock(CloudCredentialManager.class);
         InternalCloudApiKeyService apiKeyService = mock(InternalCloudApiKeyService.class);
         Client client = mock(Client.class);
@@ -250,7 +262,7 @@ public class CredentialTransitionsTests extends ESTestCase {
             client,
             xContentRegistry(),
             mock(DatafeedConfigProvider.class),
-            new CrossProjectModeDecider(Settings.EMPTY)
+            new CrossProjectModeDecider(Settings.builder().put("serverless.cross_project.enabled", true).build())
         );
 
         DatafeedConfig.Builder builder = new DatafeedConfig.Builder("df", "job");
@@ -273,7 +285,9 @@ public class CredentialTransitionsTests extends ESTestCase {
         // extract is consulted (atomic capture) and yields null, so the bare client is used
         verify(credentialManager, atLeastOnce()).extractCloudManagedCredential(same(threadContext));
         verify(credentialManager).wrapClient(same(client), nullable(CloudCredential.class));
-        verify(client).execute(same(TransportSearchAction.TYPE), any(SearchRequest.class), any());
+        ArgumentCaptor<SearchRequest> searchRequestCaptor = ArgumentCaptor.forClass(SearchRequest.class);
+        verify(client).execute(same(TransportSearchAction.TYPE), searchRequestCaptor.capture(), any());
+        assertThat(searchRequestCaptor.getValue().indicesOptions().resolveCrossProjectIndexExpression(), equalTo(false));
     }
 
     @SuppressWarnings("unchecked")
@@ -643,6 +657,221 @@ public class CredentialTransitionsTests extends ESTestCase {
 
         assertThat(persistedCred.get(), equalTo(persisted));
         assertThat(persistedHeaders.get().get(AuthenticationField.AUTHENTICATION_KEY), equalTo(mintedAuth.encode()));
+    }
+
+    public void testMintFailureLogThrottleShouldLogFirstFailureAndSuppressWithinInterval() {
+        CredentialTransitions.MintFailureLogThrottle throttle = new CredentialTransitions.MintFailureLogThrottle();
+        CredentialTransitions.MintFailureLogDecision first = throttle.recordFailure(0);
+        assertThat(first.shouldLog(), is(true));
+        assertThat(first.suppressedCount(), equalTo(0));
+
+        CredentialTransitions.MintFailureLogDecision second = throttle.recordFailure(1);
+        assertThat(second.shouldLog(), is(false));
+
+        CredentialTransitions.MintFailureLogDecision third = throttle.recordFailure(2);
+        assertThat(third.shouldLog(), is(false));
+    }
+
+    public void testMintFailureLogThrottleShouldReportSuppressedCountAtIntervalBoundary() {
+        CredentialTransitions.MintFailureLogThrottle throttle = new CredentialTransitions.MintFailureLogThrottle();
+        throttle.recordFailure(0);
+        throttle.recordFailure(1);
+        throttle.recordFailure(2);
+
+        CredentialTransitions.MintFailureLogDecision atBoundary = throttle.recordFailure(
+            CredentialTransitions.MINT_FAILURE_LOG_INTERVAL.millis()
+        );
+        assertThat(atBoundary.shouldLog(), is(true));
+        assertThat(atBoundary.suppressedCount(), equalTo(2));
+    }
+
+    public void testMintFailureLogThrottleShouldBoundDistinctDatafeedBurst() {
+        CredentialTransitions.MintFailureLogThrottle throttle = new CredentialTransitions.MintFailureLogThrottle();
+        int logCount = 0;
+        for (int i = 0; i < 1_000; i++) {
+            if (throttle.recordFailure(0).shouldLog()) {
+                logCount++;
+            }
+        }
+        assertThat(logCount, equalTo(1));
+    }
+
+    public void testMintFailureLogThrottleShouldMakeOneDecisionUnderConcurrency() throws Exception {
+        CredentialTransitions.MintFailureLogThrottle throttle = new CredentialTransitions.MintFailureLogThrottle();
+        int threads = 20;
+        CyclicBarrier barrier = new CyclicBarrier(threads);
+        AtomicInteger logCount = new AtomicInteger();
+        AtomicReference<Exception> failure = new AtomicReference<>();
+        Thread[] workers = new Thread[threads];
+        for (int t = 0; t < threads; t++) {
+            workers[t] = new Thread(() -> {
+                try {
+                    barrier.await();
+                    if (throttle.recordFailure(0).shouldLog()) {
+                        logCount.incrementAndGet();
+                    }
+                } catch (Exception e) {
+                    failure.set(e);
+                }
+            });
+            workers[t].start();
+        }
+        for (Thread worker : workers) {
+            worker.join();
+        }
+        assertThat(failure.get(), equalTo(null));
+        assertThat(logCount.get(), equalTo(1));
+    }
+
+    @SuppressWarnings("unchecked")
+    public void testMintFailureLoggingShouldPreserveFailurePropagationWhenSuppressed() {
+        CloudCredentialManager credentialManager = mock(CloudCredentialManager.class);
+        InternalCloudApiKeyService apiKeyService = mock(InternalCloudApiKeyService.class);
+        Client client = mock(Client.class);
+        ThreadPool threadPool = mock(ThreadPool.class);
+        ThreadContext threadContext = new ThreadContext(Settings.EMPTY);
+        when(threadPool.getThreadContext()).thenReturn(threadContext);
+        when(threadPool.relativeTimeInMillis()).thenReturn(1_000L);
+        when(client.threadPool()).thenReturn(threadPool);
+
+        CloudCredential callerCredential = new CloudCredential(new SecureString("caller".toCharArray()));
+        when(credentialManager.extractCloudManagedCredential(same(threadContext))).thenReturn(callerCredential);
+        when(credentialManager.wrapClient(same(client), eq(callerCredential))).thenReturn(client);
+
+        mockSearchProbeSucceeds(client);
+        RuntimeException grantFailure = new RuntimeException("grant failed");
+        stubGrantFailsAfterValidate(apiKeyService, grantFailure);
+
+        CredentialTransitions transitions = new CredentialTransitions(
+            mock(AnomalyDetectionAuditor.class),
+            () -> apiKeyService,
+            () -> credentialManager,
+            client,
+            xContentRegistry(),
+            mock(DatafeedConfigProvider.class),
+            new CrossProjectModeDecider(Settings.EMPTY)
+        );
+
+        ClusterState clusterState = mock(ClusterState.class);
+        AtomicReference<Exception> firstFailure = new AtomicReference<>();
+        AtomicReference<Exception> secondFailure = new AtomicReference<>();
+
+        Runnable mintTwoDatafeeds = () -> {
+            DatafeedConfig.Builder firstBuilder = new DatafeedConfig.Builder("df-1", "job");
+            firstBuilder.setIndices(List.of("logs-*"));
+            transitions.executePut(
+                Intent.REPLACE,
+                new PutDatafeedAction.Request(firstBuilder.build()),
+                clusterState,
+                threadPool,
+                null,
+                (req, headers, state, listener) -> listener.onFailure(new IllegalStateException("persist should not run")),
+                ActionListener.wrap(ignored -> fail("expected mint failure"), firstFailure::set)
+            );
+
+            DatafeedConfig.Builder secondBuilder = new DatafeedConfig.Builder("df-2", "job");
+            secondBuilder.setIndices(List.of("logs-*"));
+            transitions.executePut(
+                Intent.REPLACE,
+                new PutDatafeedAction.Request(secondBuilder.build()),
+                clusterState,
+                threadPool,
+                null,
+                (req, headers, state, listener) -> listener.onFailure(new IllegalStateException("persist should not run")),
+                ActionListener.wrap(ignored -> fail("expected mint failure"), secondFailure::set)
+            );
+        };
+
+        MockLog.assertThatLogger(
+            mintTwoDatafeeds,
+            CredentialTransitions.class,
+            new MockLog.PatternSeenEventExpectation(
+                "first mint failure logged at ERROR",
+                CredentialTransitions.class.getCanonicalName(),
+                Level.ERROR,
+                ".*\\[df-1\\].*Failed to mint internal cloud API key for CPS datafeed.*"
+            ),
+            new MockLog.PatternNotSeenEventExpectation(
+                "second mint failure suppressed within interval",
+                CredentialTransitions.class.getCanonicalName(),
+                Level.ERROR,
+                ".*\\[df-2\\].*Failed to mint internal cloud API key for CPS datafeed.*"
+            )
+        );
+
+        assertThat(firstFailure.get(), equalTo(grantFailure));
+        assertThat(secondFailure.get(), equalTo(grantFailure));
+    }
+
+    @SuppressWarnings("unchecked")
+    public void testMintFailureLoggingShouldIncludeSuppressedCountAfterInterval() {
+        CloudCredentialManager credentialManager = mock(CloudCredentialManager.class);
+        InternalCloudApiKeyService apiKeyService = mock(InternalCloudApiKeyService.class);
+        Client client = mock(Client.class);
+        ThreadPool threadPool = mock(ThreadPool.class);
+        ThreadContext threadContext = new ThreadContext(Settings.EMPTY);
+        when(threadPool.getThreadContext()).thenReturn(threadContext);
+        when(threadPool.relativeTimeInMillis()).thenReturn(0L, 1L, 2L, CredentialTransitions.MINT_FAILURE_LOG_INTERVAL.millis());
+        when(client.threadPool()).thenReturn(threadPool);
+
+        CloudCredential callerCredential = new CloudCredential(new SecureString("caller".toCharArray()));
+        when(credentialManager.extractCloudManagedCredential(same(threadContext))).thenReturn(callerCredential);
+        when(credentialManager.wrapClient(same(client), eq(callerCredential))).thenReturn(client);
+
+        mockSearchProbeSucceeds(client);
+        RuntimeException grantFailure = new RuntimeException("grant failed");
+        stubGrantFailsAfterValidate(apiKeyService, grantFailure);
+
+        CredentialTransitions transitions = new CredentialTransitions(
+            mock(AnomalyDetectionAuditor.class),
+            () -> apiKeyService,
+            () -> credentialManager,
+            client,
+            xContentRegistry(),
+            mock(DatafeedConfigProvider.class),
+            new CrossProjectModeDecider(Settings.EMPTY)
+        );
+
+        ClusterState clusterState = mock(ClusterState.class);
+        Runnable mintThreeTimes = () -> {
+            for (String datafeedId : List.of("df-1", "df-2", "df-3", "df-4")) {
+                DatafeedConfig.Builder builder = new DatafeedConfig.Builder(datafeedId, "job");
+                builder.setIndices(List.of("logs-*"));
+                transitions.executePut(
+                    Intent.REPLACE,
+                    new PutDatafeedAction.Request(builder.build()),
+                    clusterState,
+                    threadPool,
+                    null,
+                    (req, headers, state, listener) -> listener.onFailure(new IllegalStateException("persist should not run")),
+                    ActionListener.wrap(ignored -> fail("expected mint failure"), e -> {})
+                );
+            }
+        };
+
+        MockLog.assertThatLogger(
+            mintThreeTimes,
+            CredentialTransitions.class,
+            new MockLog.PatternSeenEventExpectation(
+                "first mint failure logged at ERROR",
+                CredentialTransitions.class.getCanonicalName(),
+                Level.ERROR,
+                ".*\\[df-1\\].*Failed to mint internal cloud API key for CPS datafeed.*"
+            ),
+            new MockLog.PatternSeenEventExpectation(
+                "interval boundary logs suppressed count",
+                CredentialTransitions.class.getCanonicalName(),
+                Level.ERROR,
+                ".*\\[df-4\\].*Failed to mint internal cloud API key for CPS datafeed;"
+                    + " suppressed \\[2\\] additional CPS datafeed mint failures since the previous report.*"
+            ),
+            new MockLog.PatternNotSeenEventExpectation(
+                "intermediate mint failures suppressed within interval",
+                CredentialTransitions.class.getCanonicalName(),
+                Level.ERROR,
+                ".*\\[df-2\\].*Failed to mint internal cloud API key for CPS datafeed.*"
+            )
+        );
     }
 
     @SuppressWarnings("unchecked")

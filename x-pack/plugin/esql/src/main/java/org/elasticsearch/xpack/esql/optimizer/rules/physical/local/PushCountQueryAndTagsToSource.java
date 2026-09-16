@@ -15,8 +15,10 @@ import org.elasticsearch.index.query.RangeQueryBuilder;
 import org.elasticsearch.index.query.TermQueryBuilder;
 import org.elasticsearch.xpack.esql.core.expression.Alias;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
+import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.Expressions;
 import org.elasticsearch.xpack.esql.core.expression.Literal;
+import org.elasticsearch.xpack.esql.core.expression.NamedExpression;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.core.util.DateUtils;
@@ -70,23 +72,15 @@ public class PushCountQueryAndTagsToSource extends PhysicalOptimizerRules.Optimi
         // This rejects multi-grouping queries and multi-aggregate queries (e.g. COUNT + MAX).
         // The COUNT must be Count(*) or CountApproximate(*), without a filter on the count itself.
         if (aggregateExec.groupings().size() == 1
-            && (aggregateExec.aggregates().size() == 1
-                // The second "aggregate" must be the grouping itself.
-                // Sometimes CombineProjections or other rules may remove it, so we check for both 1 and 2 aggs
-                || aggregateExec.aggregates().size() == 2
-                    && Expressions.equalsAsAttribute(Alias.unwrap(aggregateExec.aggregates().get(1)), aggregateExec.groupings().getFirst()))
-            && aggregateExec.aggregates().getFirst() instanceof Alias alias
-            && ((alias.child() instanceof Count count && count.hasFilter() == false && count.field() instanceof Literal)
-                || (alias.child() instanceof CountApproximate ca && ca.hasFilter() == false && ca.field() instanceof Literal))
+            && isPushableGroupedCount(aggregateExec.aggregates(), aggregateExec.groupings())
             && aggregateExec.child() instanceof EvalExec evalExec
-            && evalExec.child() instanceof EsQueryExec queryExec
-            && queryExec.queryBuilderAndTags().size() > 1 // Ensures there are query and tags to push down.
-        ) {
-            AggregateFunction count = (AggregateFunction) alias.child();
-            var withFilter = tryMerge(queryExec.queryBuilderAndTags());
-            if (withFilter.isEmpty() || withFilter.stream().allMatch(PushCountQueryAndTagsToSource::shouldPush) == false) {
+            && evalExec.child() instanceof EsQueryExec queryExec) {
+            List<EsQueryExec.QueryBuilderAndTags> withFilter = pushableCountQueries(queryExec.queryBuilderAndTags());
+            if (withFilter == null) {
                 return aggregateExec;
             }
+            Alias alias = (Alias) aggregateExec.aggregates().getFirst();
+            AggregateFunction count = (AggregateFunction) alias.child();
             // Next lines expect the agg to have a partial-output layout.
             // This rule is currently used in the LocalPhysicalPlanOptimizer, so it's a safe assumption now.
             assert aggregateExec.getMode().isOutputPartial() : "expected partial-output agg, got " + aggregateExec.getMode();
@@ -131,6 +125,29 @@ public class PushCountQueryAndTagsToSource extends PhysicalOptimizerRules.Optimi
             return plan;
         }
         return aggregateExec;
+    }
+
+    static boolean isPushableGroupedCount(List<? extends NamedExpression> aggregates, List<? extends Expression> groupings) {
+        return (aggregates.size() == 1
+            // The second "aggregate" must be the grouping itself.
+            // Sometimes CombineProjections or other rules may remove it, so we check for both 1 and 2 aggs
+            || aggregates.size() == 2 && Expressions.equalsAsAttribute(Alias.unwrap(aggregates.get(1)), groupings.getFirst()))
+            && aggregates.getFirst() instanceof Alias alias
+            && ((alias.child() instanceof Count count && count.hasFilter() == false && count.field() instanceof Literal)
+                || (alias.child() instanceof CountApproximate ca && ca.hasFilter() == false && ca.field() instanceof Literal));
+    }
+
+    /**
+     * Returns the merged, pushable query-and-tags list if a grouped {@code COUNT} over the given query-and-tags
+     * can be collapsed into an {@link EsStatsQueryExec}, or {@code null} otherwise.
+     */
+    @Nullable
+    static List<EsQueryExec.QueryBuilderAndTags> pushableCountQueries(List<EsQueryExec.QueryBuilderAndTags> queryBuilderAndTags) {
+        if (queryBuilderAndTags == null || queryBuilderAndTags.size() <= 1) {
+            return null;
+        }
+        List<EsQueryExec.QueryBuilderAndTags> merged = tryMerge(queryBuilderAndTags);
+        return merged.isEmpty() == false && merged.stream().allMatch(PushCountQueryAndTagsToSource::shouldPush) ? merged : null;
     }
 
     /** We only push down single and simple queries, since otherwise we risk overloading Lucene with a complex query. */

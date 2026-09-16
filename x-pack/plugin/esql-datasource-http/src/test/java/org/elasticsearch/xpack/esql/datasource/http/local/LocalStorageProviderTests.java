@@ -7,11 +7,8 @@
 
 package org.elasticsearch.xpack.esql.datasource.http.local;
 
-import org.apache.arrow.memory.BufferAllocator;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.common.breaker.NoopCircuitBreaker;
-import org.elasticsearch.common.util.BigArrays;
-import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.esql.datasources.StorageEntry;
 import org.elasticsearch.xpack.esql.datasources.StorageIterator;
@@ -42,14 +39,7 @@ import static org.hamcrest.Matchers.containsString;
  */
 public class LocalStorageProviderTests extends ESTestCase {
 
-    // Hold a strong reference to the BlockFactory so the JVM Cleaner does not close the
-    // arrow root allocator mid-test (BlockFactory.arrowAllocator() registers a cleaner action
-    // on its own BlockFactory instance, which is otherwise unreachable from ALLOCATOR alone).
-    private static final BlockFactory BLOCK_FACTORY = BlockFactory.builder(BigArrays.NON_RECYCLING_INSTANCE)
-        .breaker(new NoopCircuitBreaker("test"))
-        .build();
-    private static final BufferAllocator ALLOCATOR = BLOCK_FACTORY.arrowAllocator();
-    private static final DirectBufferFactory FACTORY = DirectBufferFactory.forAllocator(ALLOCATOR);
+    private static final DirectBufferFactory FACTORY = DirectBufferFactory.forBreaker(new NoopCircuitBreaker("test"));
 
     public void testReadFullFile() throws IOException {
         // Create a temporary file
@@ -269,7 +259,7 @@ public class LocalStorageProviderTests extends ESTestCase {
         assertTrue(latch.await(5, TimeUnit.SECONDS));
         assertNotNull(result.get());
         try (DirectReadBuffer drb = result.get()) {
-            assertTrue("readBytesAsync must return a direct ByteBuffer", drb.buffer().isDirect());
+            assertFalse("readBytesAsync must return a heap ByteBuffer", drb.buffer().isDirect());
             byte[] actual = new byte[drb.buffer().remaining()];
             drb.buffer().get(actual);
             assertEquals("56789", new String(actual, StandardCharsets.UTF_8));

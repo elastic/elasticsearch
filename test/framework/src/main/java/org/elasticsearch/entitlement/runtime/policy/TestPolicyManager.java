@@ -51,7 +51,7 @@ public class TestPolicyManager extends PolicyManager {
         Collection<Path> classpath,
         Collection<URI> testOnlyClasspath
     ) {
-        super(serverPolicy, apmAgentEntitlements, pluginPolicies, scopeResolver, name -> classpath, pathLookup);
+        super(serverPolicy, apmAgentEntitlements, pluginPolicies, Map.of(), scopeResolver, name -> classpath, pathLookup);
         this.classpath = classpath;
         this.testOnlyClasspath = testOnlyClasspath;
         resetAfterTest();

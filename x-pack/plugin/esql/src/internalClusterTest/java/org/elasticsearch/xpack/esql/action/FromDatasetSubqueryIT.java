@@ -918,6 +918,28 @@ public class FromDatasetSubqueryIT extends AbstractExternalDataSourceIT {
     }
 
     /**
+     * The values analyzer of a dataset-backed text column is declared through TO_TEXT, exactly as for any other
+     * runtime column: with the whitespace analyzer declared, the (defaulted) query analyzer keeps case too, so
+     * matching turns case-sensitive.
+     */
+    public void testMatchOnDatasetFieldWithDeclaredAnalyzer() {
+        registerEmployees();
+        try (var response = run(syncEsqlQueryRequest("""
+            FROM (FROM employees | EVAL name = TO_TEXT(first_name, {"analyzer": "whitespace"}) | WHERE MATCH(name, "Alice"))
+            | KEEP first_name
+            """), TIMEOUT)) {
+            assertColumnNames(response.columns(), List.of("first_name"));
+            assertValues(response.values(), List.of(List.of("Alice")));
+        }
+        try (var response = run(syncEsqlQueryRequest("""
+            FROM (FROM employees | EVAL name = TO_TEXT(first_name, {"analyzer": "whitespace"}) | WHERE MATCH(name, "alice"))
+            | KEEP first_name
+            """), TIMEOUT)) {
+            assertValues(response.values(), List.of());
+        }
+    }
+
+    /**
      * MATCH_PHRASE on a dataset (keyword) field works via runtime search, matching the exact value like the term
      * query a pushed-down match_phrase on a keyword field rewrites to.
      */

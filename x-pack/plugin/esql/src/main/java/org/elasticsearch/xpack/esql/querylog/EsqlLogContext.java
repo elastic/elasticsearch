@@ -103,13 +103,22 @@ public class EsqlLogContext extends QueryLoggerContext {
                 response.rowsEmitted(),
                 response.bytesRead(),
                 response.readNanos(),
+                response.readCpuNanos(),
                 response.cpuNanos()
             )
         );
     }
 
     /** Snapshot of the query-level rollup counters surfaced into the slow log. */
-    record RollupCounters(long documentsFound, long valuesLoaded, long rowsEmitted, long bytesRead, long readNanos, long cpuNanos) {}
+    record RollupCounters(
+        long documentsFound,
+        long valuesLoaded,
+        long rowsEmitted,
+        long bytesRead,
+        long readNanos,
+        long readCpuNanos,
+        long cpuNanos
+    ) {}
 
     @Override
     public String[] getIndices() {

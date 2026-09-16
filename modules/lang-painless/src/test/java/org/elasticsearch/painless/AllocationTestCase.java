@@ -26,16 +26,33 @@ public abstract class AllocationTestCase extends ScriptTestCase {
     /** Affix-setting key carrying the allocation byte limit for the test context. */
     protected static final String LIMIT_KEY = "script.painless.max_allocation_bytes.context." + PainlessTestScript.CONTEXT.name + ".limit";
 
+    /** The {@code -1b} sentinel: compile without enforcing a limit. */
+    protected static final String MAX_ALLOCATION_BYTES_DISABLED = CompilerSettings.MAX_ALLOCATION_BYTES_DISABLED.getStringRep();
+
     @Override
     protected PainlessScriptEngine buildScriptEngine() {
         // Each test builds its own engine via compile(source, limit) to set a per-test limit, so the shared engine is unused.
         return null;
     }
 
-    /** Compiles {@code source} for the test context under {@code limit} and returns a fresh script instance. */
+    /** Compiles {@code source} under {@code limit}, recording no metrics. */
     protected PainlessTestScript compile(String source, String limit) {
+        return compileWithMetricsAndLimit(source, limit, null);
+    }
+
+    /**
+     * Compiles {@code source} recording into {@code metrics}, with no limit: the counter runs and each execution is
+     * recorded, but nothing can fail the script. Supplying an instance is what enables recording, so no test needs the
+     * system property, which tests sharing a JVM must treat as immutable.
+     */
+    protected PainlessTestScript compileWithMetrics(String source, AllocationMetrics metrics) {
+        return compileWithMetricsAndLimit(source, MAX_ALLOCATION_BYTES_DISABLED, metrics);
+    }
+
+    /** Compiles {@code source} recording into {@code metrics} and enforcing {@code limit}; {@code null} metrics records none. */
+    protected PainlessTestScript compileWithMetricsAndLimit(String source, String limit, AllocationMetrics metrics) {
         Settings settings = Settings.builder().put(LIMIT_KEY, limit).build();
-        PainlessScriptEngine engine = new PainlessScriptEngine(settings, scriptContexts());
+        PainlessScriptEngine engine = new PainlessScriptEngine(settings, scriptContexts(), () -> metrics, metrics != null);
         PainlessTestScript.Factory factory = engine.compile("test", source, PainlessTestScript.CONTEXT, Map.of());
         return factory.newInstance(Map.of());
     }

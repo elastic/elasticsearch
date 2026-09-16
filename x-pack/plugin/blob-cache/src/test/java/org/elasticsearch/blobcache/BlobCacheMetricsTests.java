@@ -184,17 +184,17 @@ public class BlobCacheMetricsTests extends ESTestCase {
         recordingMeterRegistry.getRecorder().collect();
 
         Measurement totalReadsMeasurement = recordingMeterRegistry.getRecorder()
-            .getMeasurements(InstrumentType.LONG_GAUGE, "es.blob_cache.read.total")
+            .getMeasurements(InstrumentType.LONG_ASYNC_GAUGE, "es.blob_cache.read.total")
             .getLast();
         assertEquals(reads, totalReadsMeasurement.getLong());
 
         Measurement totalMissesMeasurement = recordingMeterRegistry.getRecorder()
-            .getMeasurements(InstrumentType.LONG_GAUGE, "es.blob_cache.miss.total")
+            .getMeasurements(InstrumentType.LONG_ASYNC_GAUGE, "es.blob_cache.miss.total")
             .getLast();
         assertEquals(writes, totalMissesMeasurement.getLong());
 
         Measurement missRatio = recordingMeterRegistry.getRecorder()
-            .getMeasurements(InstrumentType.DOUBLE_GAUGE, "es.blob_cache.miss.ratio")
+            .getMeasurements(InstrumentType.DOUBLE_ASYNC_GAUGE, "es.blob_cache.miss.ratio")
             .getLast();
         assertEquals((double) writes / readsForRatio, missRatio.getDouble(), 0.00000001d);
     }

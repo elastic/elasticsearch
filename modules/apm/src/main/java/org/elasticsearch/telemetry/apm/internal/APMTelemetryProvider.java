@@ -12,6 +12,7 @@ package org.elasticsearch.telemetry.apm.internal;
 import io.opentelemetry.sdk.common.CompletableResultCode;
 
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.telemetry.TelemetryLogResourceProvider;
 import org.elasticsearch.telemetry.TelemetryLoggingFilterProvider;
 import org.elasticsearch.telemetry.TelemetryProvider;
 import org.elasticsearch.telemetry.apm.internal.export.otelsdk.OtelSdkSettings;
@@ -36,11 +37,12 @@ public class APMTelemetryProvider implements TelemetryProvider {
         Settings settings,
         Path diskBufferPath,
         Path configDir,
-        Collection<TelemetryLoggingFilterProvider> filterProviders
+        Collection<TelemetryLoggingFilterProvider> filterProviders,
+        TelemetryLogResourceProvider logResourceProvider
     ) {
         apmMeterService = new APMMeterService(settings, diskBufferPath);
         apmTracer = new APMTracer(settings, apmMeterService::getHealthMeterProvider);
-        loggingService = new APMLoggingService(settings, configDir, filterProviders);
+        loggingService = new APMLoggingService(settings, configDir, filterProviders, logResourceProvider);
         apmHttpServerInstrumentation = new APMHttpServerInstrumentation(apmTracer);
     }
 

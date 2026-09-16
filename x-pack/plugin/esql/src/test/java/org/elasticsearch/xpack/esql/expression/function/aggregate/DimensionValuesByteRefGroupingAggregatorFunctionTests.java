@@ -130,7 +130,7 @@ public class DimensionValuesByteRefGroupingAggregatorFunctionTests extends Compu
                 int group = groups.getInt(p);
                 int valueCount = valuesBlock.getValueCount(p);
                 if (valueCount == 0) {
-                    actualValues.put(group, List.of());
+                    actualValues.putIfAbsent(group, List.of());
                 } else {
                     int firstValueIndex = valuesBlock.getFirstValueIndex(p);
                     List<BytesRef> values = new ArrayList<>(valueCount);
@@ -138,7 +138,7 @@ public class DimensionValuesByteRefGroupingAggregatorFunctionTests extends Compu
                         BytesRef dv = valuesBlock.getBytesRef(firstValueIndex + v, new BytesRef());
                         values.add(BytesRef.deepCopyOf(dv));
                     }
-                    actualValues.put(group, values);
+                    actualValues.putIfAbsent(group, values);
                 }
             }
             out.close();

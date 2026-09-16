@@ -56,7 +56,7 @@ public class ElasticInferenceServiceResponseHandler extends BaseResponseHandler 
         return error;
     }
 
-    private void addRetryAfterHeaderIfPresent(HttpResult result, ElasticsearchException e) {
+    protected void addRetryAfterHeaderIfPresent(HttpResult result, ElasticsearchException e) {
         Header retryAfterHeader = result.response().getFirstHeader(RETRY_AFTER_HEADER);
         if (retryAfterHeader != null) {
             e.addHttpHeader(RETRY_AFTER_HEADER, retryAfterHeader.getValue());

@@ -85,7 +85,7 @@ class TlsHandshakeThrottleManager extends AbstractLifecycleComponent {
         );
 
         metricsToClose.add(
-            meterRegistry.registerLongGauge(
+            meterRegistry.registerLongAsyncGauge(
                 "es.http.tls_handshakes.in_progress.current",
                 "current number of in-progress TLS handshakes for HTTP connections",
                 "count",
@@ -93,7 +93,7 @@ class TlsHandshakeThrottleManager extends AbstractLifecycleComponent {
             )
         );
         metricsToClose.add(
-            meterRegistry.registerLongGauge(
+            meterRegistry.registerLongAsyncGauge(
                 "es.http.tls_handshakes.delayed.current",
                 "current number of delayed TLS handshakes for HTTP connections",
                 "count",

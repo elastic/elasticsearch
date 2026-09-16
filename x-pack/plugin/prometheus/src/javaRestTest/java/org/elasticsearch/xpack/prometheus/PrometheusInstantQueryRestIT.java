@@ -17,6 +17,9 @@ import org.elasticsearch.test.rest.ObjectPath;
 import java.io.IOException;
 import java.util.List;
 
+import static org.elasticsearch.xpack.prometheus.PromqlResponseSeries.of;
+import static org.hamcrest.Matchers.contains;
+import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
@@ -27,6 +30,8 @@ import static org.hamcrest.Matchers.instanceOf;
  * Integration tests for the Prometheus {@code /api/v1/query} instant query endpoint.
  */
 public class PrometheusInstantQueryRestIT extends AbstractPrometheusRestIT {
+
+    private static final String METRIC = "test_gauge_labels_iq";
 
     /**
      * Verifies that querying when no Prometheus indices exist returns an empty result instead of an error.
@@ -143,6 +148,50 @@ public class PrometheusInstantQueryRestIT extends AbstractPrometheusRestIT {
 
         ObjectPath responsePath = executeInstantQuery("test_gauge_iq{job=\"test_job\"}", "2026-01-01T00:10:00Z", null);
         assertThat(responsePath.evaluate("data.result"), empty());
+    }
+
+    public void testInstantQuerySumByEachLabel() throws Exception {
+        ingestLabelledSeries(METRIC);
+
+        assertThat(
+            instantSeries("sum by (cluster) (" + METRIC + ")"),
+            containsInAnyOrder(of("cluster", "a", 3.0), of("cluster", "b", 7.0))
+        );
+        assertThat(instantSeries("sum by (pod) (" + METRIC + ")"), containsInAnyOrder(of("pod", "p1", 4.0), of("pod", "p2", 6.0)));
+        assertThat(instantSeries("sum by (region) (" + METRIC + ")"), containsInAnyOrder(of("region", "r1", 5.0), of("region", "r2", 5.0)));
+        assertThat(instantSeries("sum by (job) (" + METRIC + ")"), contains(of("job", "test_job", 10.0)));
+    }
+
+    public void testInstantQuerySumWithoutEachLabel() throws Exception {
+        ingestLabelledSeries(METRIC);
+
+        for (String dropped : LABELLED_SERIES_LABELS) {
+            assertThat(
+                "without(" + dropped + ")",
+                instantSeries("sum without (" + dropped + ") (" + METRIC + ")"),
+                containsInAnyOrder(LABELLED_SERIES.stream().map(series -> series.without(dropped)).toArray(PromqlResponseSeries[]::new))
+            );
+        }
+    }
+
+    public void testInstantQueryTopKKeepsSeriesLabels() throws Exception {
+        ingestLabelledSeries(METRIC);
+
+        assertThat(instantSeries("topk(2, " + METRIC + ")"), containsInAnyOrder(seriesWithValueAbove(2.0)));
+    }
+
+    public void testInstantQueryComparisonFiltersSeries() throws Exception {
+        ingestLabelledSeries(METRIC);
+
+        assertThat(instantSeries(METRIC + " > 1"), containsInAnyOrder(seriesWithValueAbove(1.0)));
+    }
+
+    private static PromqlResponseSeries[] seriesWithValueAbove(double threshold) {
+        return LABELLED_SERIES.stream().filter(series -> series.value() > threshold).toArray(PromqlResponseSeries[]::new);
+    }
+
+    private List<PromqlResponseSeries> instantSeries(String promql) throws Exception {
+        return PromqlResponseSeries.ofInstant(executeInstantQuery(promql, "2026-01-01T00:05:00Z", null));
     }
 
     private static void assertMetricResult(ObjectPath responsePath) throws IOException {

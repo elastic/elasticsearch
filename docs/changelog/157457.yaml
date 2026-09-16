@@ -1,0 +1,6 @@
+area: Search
+issues:
+ - 157302
+pr: 157457
+summary: Keep a cancelled search from failing others through the request cache
+type: bug

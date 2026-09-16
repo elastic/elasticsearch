@@ -8,13 +8,13 @@
 package org.elasticsearch.xpack.inference.common.parser;
 
 import org.elasticsearch.core.Nullable;
-import org.elasticsearch.inference.ModelConfigurations;
 
 import java.util.Map;
 
 import static org.elasticsearch.xpack.core.inference.InferenceUtils.mustBeAPositiveIntegerErrorMessage;
 import static org.elasticsearch.xpack.core.inference.InferenceUtils.mustBeLessThanOrEqualNumberErrorMessage;
 import static org.elasticsearch.xpack.inference.common.parser.ObjectParserUtils.invalidTypeErrorMsg;
+import static org.elasticsearch.xpack.inference.services.SettingsScope.SERVICE_SETTINGS;
 
 public final class NumberParser {
 
@@ -41,9 +41,7 @@ public final class NumberParser {
      */
     public static void validatePositiveInteger(@Nullable Integer value, String settingName) {
         if (value != null && value <= 0) {
-            throw new IllegalArgumentException(
-                mustBeAPositiveIntegerErrorMessage(settingName, ModelConfigurations.SERVICE_SETTINGS, value)
-            );
+            throw new IllegalArgumentException(mustBeAPositiveIntegerErrorMessage(settingName, SERVICE_SETTINGS.toString(), value));
         }
     }
 
@@ -56,7 +54,7 @@ public final class NumberParser {
 
         if (value != null && value > maxValue) {
             throw new IllegalArgumentException(
-                mustBeLessThanOrEqualNumberErrorMessage(settingName, ModelConfigurations.SERVICE_SETTINGS, value, maxValue)
+                mustBeLessThanOrEqualNumberErrorMessage(settingName, SERVICE_SETTINGS.toString(), value, maxValue)
             );
         }
     }

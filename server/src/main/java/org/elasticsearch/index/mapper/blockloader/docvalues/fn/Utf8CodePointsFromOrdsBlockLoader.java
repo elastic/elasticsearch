@@ -17,11 +17,12 @@ import org.apache.lucene.util.UnicodeUtil;
 import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.util.FeatureFlag;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.Releasables;
+import org.elasticsearch.index.mapper.BinaryDocValuesFormat;
 import org.elasticsearch.index.mapper.blockloader.ConstantNull;
 import org.elasticsearch.index.mapper.blockloader.Warnings;
 import org.elasticsearch.index.mapper.blockloader.docvalues.BlockDocValuesReader;
-import org.elasticsearch.index.mapper.blockloader.docvalues.BytesRefsFromBinaryMultiSeparateCountBlockLoader.ArrayOrderSource;
 import org.elasticsearch.index.mapper.blockloader.docvalues.tracking.BinaryAndCounts;
 import org.elasticsearch.index.mapper.blockloader.docvalues.tracking.SortedDvSingletonOrSet;
 import org.elasticsearch.index.mapper.blockloader.docvalues.tracking.TrackingBinaryDocValues;
@@ -32,6 +33,8 @@ import org.elasticsearch.simdvec.ESVectorUtil;
 
 import java.io.IOException;
 import java.util.Arrays;
+import java.util.Objects;
+import java.util.function.BiFunction;
 import java.util.function.ToIntFunction;
 
 import static org.elasticsearch.index.mapper.blockloader.Warnings.registerSingleValueWarning;
@@ -58,17 +61,28 @@ public class Utf8CodePointsFromOrdsBlockLoader extends BlockDocValuesReader.DocV
 
     private final String fieldName;
     private final ByteSizeValue size;
-    private final ArrayOrderSource arrayOrderSource;
+    @Nullable
+    private final BinaryDocValuesFormat binaryFormat;
 
     public Utf8CodePointsFromOrdsBlockLoader(Warnings warnings, String fieldName, ByteSizeValue size) {
-        this(warnings, fieldName, size, ArrayOrderSource.NONE);
+        this(warnings, fieldName, size, BinaryDocValuesFormat.SEPARATE_COUNT);
     }
 
-    public Utf8CodePointsFromOrdsBlockLoader(Warnings warnings, String fieldName, ByteSizeValue size, ArrayOrderSource arrayOrderSource) {
+    /**
+     * @param binaryFormat how the field's binary doc values are framed, or {@code null} if it has none. This loader
+     *                     resolves sorted-set doc values first and only consults the framing if it finds a binary
+     *                     column instead, so a field that reaches it by the sorted-set path has nothing to declare.
+     */
+    public Utf8CodePointsFromOrdsBlockLoader(
+        Warnings warnings,
+        String fieldName,
+        ByteSizeValue size,
+        @Nullable BinaryDocValuesFormat binaryFormat
+    ) {
         this.warnings = warnings;
         this.fieldName = fieldName;
         this.size = size;
-        this.arrayOrderSource = arrayOrderSource;
+        this.binaryFormat = binaryFormat;
     }
 
     @Override
@@ -91,14 +105,40 @@ public class Utf8CodePointsFromOrdsBlockLoader extends BlockDocValuesReader.DocV
             }
             return new SortedSet(warnings, dv.set());
         }
+        // Non-null past the sorted-set branch above: a field with no binary column never reaches here. See the constructor.
+        return switch (Objects.requireNonNull(binaryFormat, "no binary doc-values framing for field [" + fieldName + "]")) {
+            case COLUMNAR_PAYLOAD -> {
+                // The count travels in the blob, so there is no companion column to load or advance on.
+                TrackingBinaryDocValues binary = TrackingBinaryDocValues.get(breaker, context, fieldName);
+                yield binary == null ? ConstantNull.COLUMN_READER : new MultiValuedBinaryColumnarPayload(warnings, binary);
+            }
+            case ARRAY_ORDER_INLINE_NULL -> withCounts(
+                breaker,
+                context,
+                (binary, counts) -> new MultiValuedBinaryArrayOrderInlineNull(warnings, counts, binary)
+            );
+            case SEPARATE_COUNT -> withCounts(
+                breaker,
+                context,
+                (binary, counts) -> new MultiValuedBinaryWithSeparateCounts(warnings, counts, binary)
+            );
+        };
+    }
+
+    /**
+     * Resolves the binary column and its {@code .counts} companion, which both companion-carrying framings need, and
+     * hands them to {@code reader}.
+     */
+    private ColumnAtATimeReader withCounts(
+        CircuitBreaker breaker,
+        LeafReaderContext context,
+        BiFunction<TrackingBinaryDocValues, TrackingNumericDocValues, ColumnAtATimeReader> reader
+    ) throws IOException {
         BinaryAndCounts bc = BinaryAndCounts.get(breaker, context, fieldName, false);
         if (bc == null) {
             return ConstantNull.COLUMN_READER;
         }
-        if (arrayOrderSource == ArrayOrderSource.INLINE) {
-            return new MultiValuedBinaryArrayOrderInlineNull(warnings, bc.counts(), bc.binary());
-        }
-        return new MultiValuedBinaryWithSeparateCounts(warnings, bc.counts(), bc.binary());
+        return reader.apply(bc.binary(), bc.counts());
     }
 
     @Override
@@ -566,6 +606,22 @@ public class Utf8CodePointsFromOrdsBlockLoader extends BlockDocValuesReader.DocV
         @Override
         public String toString() {
             return "Utf8CodePointsFromOrds.MultiValuedBinaryWithSeparateCounts";
+        }
+    }
+
+    private static class MultiValuedBinaryColumnarPayload extends MultiValuedBinaryColumnarPayloadLengthReader {
+        MultiValuedBinaryColumnarPayload(Warnings warnings, TrackingBinaryDocValues values) {
+            super(warnings, values);
+        }
+
+        @Override
+        int length(BytesRef bytesRef) {
+            return codePointCountProvider.applyAsInt(bytesRef);
+        }
+
+        @Override
+        public String toString() {
+            return "Utf8CodePointsFromOrds.MultiValuedBinaryColumnarPayload";
         }
     }
 

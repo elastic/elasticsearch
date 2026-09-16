@@ -154,7 +154,7 @@ class NodePropertiesToString {
                  * and rendered as proper children, properly sharing the StringBuilder.
                  */
                 StringBuilder str = new StringBuilder();
-                n.nodeString(str, format, mapper);
+                NodeUtils.toString(str, n, format, mapper);
                 yield str.toString();
             }
             case NameId nameId -> "#" + obj;

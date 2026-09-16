@@ -1,3 +1,7 @@
+#### Document- and field-level security
+
+A role entry that grants `read` on a view name must not carry DLS or FLS restrictions. If it does, the query fails with a `403`. DLS/FLS on the underlying indices is applied normally. Refer to [view privileges](/reference/query-languages/esql/esql-views.md#esql-views-privileges).
+
 #### Branching inside views
 
 Commands that also generate branched query plans
@@ -17,13 +21,13 @@ combination as long as there is never more than one branch point:
 
 #### Cross-cluster and serverless
 
-Views are supported in [Cross-cluster search](/reference/query-languages/esql/esql-cross-clusters.md) with some limitations:
+Views are supported in [cross-cluster search](/reference/query-languages/esql/esql-cross-clusters.md) with some limitations:
  * Remote views in CCS are not allowed (ie. `FROM cluster:view` will only
    match remote indexes with the name `view`. If a remote view is found,
    the query will fail).
  * If a remote index matches a local view name, the query will fail.
 
-Views are available in serverless and [Cross-project search](/reference/query-languages/esql/esql-cross-serverless-projects.md), but with some limitations:
+Views are available in serverless and [cross-project search](/reference/query-languages/esql/esql-cross-serverless-projects.md), but with some limitations:
 :::{include} ../common/cps_view_limitations.md
 :::
 

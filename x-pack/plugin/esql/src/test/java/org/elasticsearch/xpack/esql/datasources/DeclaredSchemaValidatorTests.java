@@ -17,6 +17,12 @@ import org.elasticsearch.xpack.esql.core.type.DataType;
 import java.util.LinkedHashMap;
 import java.util.Map;
 
+import static org.hamcrest.Matchers.allOf;
+import static org.hamcrest.Matchers.containsString;
+import static org.hamcrest.Matchers.hasItem;
+import static org.hamcrest.Matchers.hasSize;
+import static org.hamcrest.Matchers.not;
+
 public class DeclaredSchemaValidatorTests extends ESTestCase {
 
     private static DatasetMapping mapping(Dynamic dynamic, Map<String, DatasetFieldMapping> props, String idPath) {
@@ -152,7 +158,7 @@ public class DeclaredSchemaValidatorTests extends ESTestCase {
     }
 
     public void testUnsupportedTypeRejected() {
-        for (String bad : new String[] { "geo_point", "binary", "short", "float", "version", "not_a_type" }) {
+        for (String bad : new String[] { "geo_point", "binary", "short", "float", "version", "not_a_type", "text" }) {
             IllegalArgumentException e = expectThrows(
                 IllegalArgumentException.class,
                 () -> DeclaredSchemaValidator.validate(mapping(Dynamic.TRUE, props("col", bad), null))
@@ -160,6 +166,41 @@ public class DeclaredSchemaValidatorTests extends ESTestCase {
             assertTrue(e.getMessage(), e.getMessage().contains("unsupported declared type [" + bad + "]"));
             assertTrue(e.getMessage(), e.getMessage().contains("col"));
         }
+    }
+
+    /**
+     * {@code text} is rejected like any undeclarable type, and the message additionally names the replacement,
+     * which no other rejected type does. Separate from {@link #testUnsupportedTypeRejected} because that method's
+     * assertions are shared across its whole array.
+     */
+    public void testDeclaredTextIsRejectedAndNamesTheReplacement() {
+        IllegalArgumentException e = expectThrows(
+            IllegalArgumentException.class,
+            () -> DeclaredSchemaValidator.validate(mapping(Dynamic.TRUE, props("msg", "text"), null))
+        );
+        assertThat(
+            e.getMessage(),
+            allOf(
+                containsString("unsupported declared type [text] for column [msg]"),
+                // The literal, not TEXT_ROUTE: asserting the constant moves both sides together.
+                containsString("apply TO_TEXT in the query")
+            )
+        );
+        // The whole list, not the absence of `text` from it: the names are sorted, so a "does not contain"
+        // assertion lands mid-list and is one edit away from matching nothing and passing for free.
+        assertThat(
+            e.getMessage(),
+            containsString("supported types are [boolean, date_nanos, datetime, double, integer, ip, keyword, long, unsigned_long]")
+        );
+    }
+
+    /**
+     * Nine declarable types. A count as well as {@link #testAllDeclarableTypesPass}'s enumeration, so widening the
+     * PUT-time vocabulary takes a deliberate edit here.
+     */
+    public void testDeclarableTypeCount() {
+        assertThat(DeclaredSchemaValidator.declarableTypes(), hasSize(9));
+        assertThat(DeclaredSchemaValidator.declarableTypes(), not(hasItem(DataType.TEXT)));
     }
 
     public void testStrictRequiresRoleColumnDeclared() {

@@ -274,10 +274,7 @@ public class RestSearchAction extends BaseRestHandler {
             searchRequest.scroll(parseTimeValue(scroll, null, "scroll"));
         }
         final SliceIndexing.ParsedRouting parsedRouting = SliceIndexing.parseSearchRoutingOrSliceWithProvenance(request);
-        searchRequest.routing(parsedRouting.routing());
-        searchRequest.searchSlice(
-            parsedRouting.fromSlice() ? (parsedRouting.routing() == null ? SliceIndexing.SLICE_ALL : parsedRouting.routing()) : null
-        );
+        SliceIndexing.applySearchRoutingOrSlice(parsedRouting, searchRequest);
         searchRequest.preference(request.param("preference"));
         IndicesOptions indicesOptions = IndicesOptions.fromRequest(request, searchRequest.indicesOptions());
         if (crossProjectEnabled.orElse(false) && searchRequest.allowsCrossProject()) {

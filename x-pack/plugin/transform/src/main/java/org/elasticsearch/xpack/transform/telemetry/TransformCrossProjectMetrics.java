@@ -102,7 +102,7 @@ public final class TransformCrossProjectMetrics extends AbstractLifecycleCompone
         this.pollInterval = pollInterval;
         this.transformNode = transformNode;
         registeredMetrics.add(
-            meterRegistry.registerLongsGauge(
+            meterRegistry.registerLongsAsyncGauge(
                 TRANSFORM_CPS_UIAM_AUTH_CURRENT,
                 "Number of running transforms on this node broken down by UIAM migration status",
                 "transforms",
@@ -110,7 +110,7 @@ public final class TransformCrossProjectMetrics extends AbstractLifecycleCompone
             )
         );
         registeredMetrics.add(
-            meterRegistry.registerLongsGauge(
+            meterRegistry.registerLongsAsyncGauge(
                 TRANSFORM_CPS_ACTIVE_CURRENT,
                 "Number of running transforms on this node broken down by whether their last search went cross-project",
                 "transforms",

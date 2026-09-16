@@ -72,6 +72,10 @@ public class TermsReduceBenchmark {
 
     private final TermsAggregationBuilder builder = new TermsAggregationBuilder("terms");
 
+    // The reduce-context lambda captures the builder field, so this escapes into the SearchPhaseController
+    // constructor before the JMH-generated subclass is initialized. The captured state is only read later at
+    // benchmark time, so the escape is harmless here.
+    @SuppressWarnings("this-escape")
     private final SearchPhaseController controller = new SearchPhaseController((task, req) -> new AggregationReduceContext.Builder() {
         @Override
         public AggregationReduceContext forPartialReduction(@Nullable Collection<SearchHits> topHitsToRelease) {

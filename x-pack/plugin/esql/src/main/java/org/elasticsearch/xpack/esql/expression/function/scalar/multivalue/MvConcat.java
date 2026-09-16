@@ -164,8 +164,7 @@ public class MvConcat extends BinaryScalarFunction implements EvaluatorMapper, A
                     BytesRef fieldScratch = new BytesRef();
                     BytesRef delimScratch = new BytesRef();
                     for (int p = 0; p < positionCount; p++) {
-                        int fieldValueCount = fieldVal.getValueCount(p);
-                        if (fieldValueCount == 0) {
+                        if (fieldVal.isNull(p)) {
                             builder.appendNull();
                             continue;
                         }
@@ -173,6 +172,7 @@ public class MvConcat extends BinaryScalarFunction implements EvaluatorMapper, A
                             builder.appendNull();
                             continue;
                         }
+                        int fieldValueCount = fieldVal.getValueCount(p);
                         int first = fieldVal.getFirstValueIndex(p);
                         if (fieldValueCount == 1) {
                             builder.appendBytesRef(fieldVal.getBytesRef(first, fieldScratch));

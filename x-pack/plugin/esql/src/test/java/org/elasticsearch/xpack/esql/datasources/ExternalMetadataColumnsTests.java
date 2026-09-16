@@ -9,15 +9,37 @@ package org.elasticsearch.xpack.esql.datasources;
 
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.xpack.esql.core.expression.ExternalMetadataAttribute;
 import org.elasticsearch.xpack.esql.core.expression.MetadataAttribute;
+import org.elasticsearch.xpack.esql.core.expression.ReferenceAttribute;
+import org.elasticsearch.xpack.esql.core.tree.Source;
+import org.elasticsearch.xpack.esql.core.type.DataType;
 
+import java.util.HashSet;
+import java.util.List;
 import java.util.Map;
+import java.util.Set;
 
 /**
  * Unit tests for {@link ExternalMetadataColumns}, the per-file constant synthesizer for the
  * standard metadata names.
  */
 public class ExternalMetadataColumnsTests extends ESTestCase {
+
+    public void testMetadataNamesFollowAttributeBinding() {
+        Set<String> names = new HashSet<>(ExternalMetadataColumns.STANDARD_NAMES);
+        names.addAll(FileMetadataColumns.NAMES);
+        for (String name : names) {
+            assertEquals(
+                Set.of(name),
+                ExternalMetadataColumns.metadataNames(List.of(new ExternalMetadataAttribute(Source.EMPTY, name, DataType.KEYWORD)))
+            );
+            assertEquals(
+                Set.of(),
+                ExternalMetadataColumns.metadataNames(List.of(new ReferenceAttribute(Source.EMPTY, name, DataType.KEYWORD)))
+            );
+        }
+    }
 
     public void testIndexCarriesDatasetName() {
         Map<String, Object> constants = ExternalMetadataColumns.extractPerFileConstants("events", 1700000000000L);

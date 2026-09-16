@@ -20,7 +20,7 @@ import java.util.Objects;
 
 /**
  * Strategy for readers that have no native row-position channel and must surface {@code _rowPosition}
- * as a NULL column (parquet-rs today; the Rust bridge does not yet expose row positions). The
+ * as a NULL column. The
  * reader strips {@code _rowPosition} from its native projection so the inner iterator's pages do
  * not carry the column at all; {@link #apply} wraps the iterator and splices a constant-null
  * {@link org.elasticsearch.compute.data.LongBlock} at the slot the user's projection requested.

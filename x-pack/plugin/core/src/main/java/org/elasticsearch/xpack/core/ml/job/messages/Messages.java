@@ -193,13 +193,16 @@ public final class Messages {
     public static final String DATAFEED_SCOPE_CHANGE_REQUIRES_CLOSED_JOB =
         "Cannot update project_routing for datafeed [{0}] while job [{1}] is {2}."
             + " Close the job so a rollback model snapshot can be retained.";
-    public static final String DATAFEED_SCOPE_CHANGE_REQUIRES_SNAPSHOT =
-        "Cannot update project_routing for datafeed [{0}] because job [{1}] has no model snapshot to use as a rollback point."
-            + " Open the job, ingest data, then close it before changing scope.";
     public static final String DATAFEED_SCOPE_CHANGE_ROLLBACK_SNAPSHOT_DESCRIPTION =
         "Automatic rollback snapshot retained before project_routing scope change [{0}] -> [{1}]";
     public static final String JOB_AUDIT_DATAFEED_SCOPE_CHANGE_ROLLBACK_SNAPSHOT_RETAINED =
         "Rollback model snapshot [{0}] retained before project_routing scope change: {1}";
+    public static final String JOB_AUDIT_DATAFEED_PROJECT_ROUTING_CHANGED =
+        "Datafeed project_routing changed via API request: [{0}] -> [{1}]." + " Data distribution may change when the datafeed runs.";
+    public static final String JOB_AUDIT_DATAFEED_PROJECT_ROUTING_CHANGED_SNAPSHOT_RETAINED =
+        " A rollback model snapshot was retained; review recent snapshots if detection quality degrades.";
+    public static final String JOB_AUDIT_DATAFEED_PROJECT_ROUTING_CHANGED_NO_SNAPSHOT =
+        " Review recent model snapshots for potential rollback if detection quality degrades.";
     public static final String JOB_AUDIT_IDLE_JOB_CLOSED = "Job closed automatically during maintenance: datafeed was stopped"
         + " and no data was received for [{0}]. To change the idle timeout,"
         + " adjust the [xpack.ml.idle_job_auto_close_timeout] setting"

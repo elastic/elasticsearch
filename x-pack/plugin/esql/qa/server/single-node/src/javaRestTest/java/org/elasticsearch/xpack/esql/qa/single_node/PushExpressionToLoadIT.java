@@ -322,6 +322,20 @@ public class PushExpressionToLoadIT extends ESRestTestCase {
         );
     }
 
+    public void testMvMinToIpHighCardinality() throws IOException {
+        String min = "192.168.0." + between(0, 255);
+        String max = "192.168.3." + between(0, 255);
+        testHighCardinality(
+            b -> b.startObject("test").field("type", "ip").endObject(),
+            b -> b.startArray("test").value(min).value(max).endArray(),
+            "| EVAL test = MV_MIN(test)",
+            matchesList().item(min),
+            // Like keyword, high-cardinality ip stores values as ArrayOrderInlineNull binary doc values, so MV_MIN must push down into
+            // the array-order reader. Reading these with the SeparateCount reader misparses the [valueLen+1] slot prefixes.
+            matchesMap().entry("test:column_at_a_time:MvMinBytesRefsFromBinary.ArrayOrderInlineNull", 1)
+        );
+    }
+
     public void testMvMinToHalfFloat() throws IOException {
         double min = randomDouble();
         double max = 1 + randomDouble();
@@ -465,6 +479,18 @@ public class PushExpressionToLoadIT extends ESRestTestCase {
             "| EVAL test = MV_MAX(test)",
             matchesList().item(max),
             matchesMap().entry("test:column_at_a_time:MvMaxBytesRefsFromOrds.SortedSet", 1)
+        );
+    }
+
+    public void testMvMaxToIpHighCardinality() throws IOException {
+        String min = "192.168.0." + between(0, 255);
+        String max = "192.168.3." + between(0, 255);
+        testHighCardinality(
+            b -> b.startObject("test").field("type", "ip").endObject(),
+            b -> b.startArray("test").value(min).value(max).endArray(),
+            "| EVAL test = MV_MAX(test)",
+            matchesList().item(max),
+            matchesMap().entry("test:column_at_a_time:MvMaxBytesRefsFromBinary.ArrayOrderInlineNull", 1)
         );
     }
 

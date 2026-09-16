@@ -9,12 +9,14 @@
 
 package org.elasticsearch.painless.phase;
 
+import org.elasticsearch.painless.AllocationMetrics;
 import org.elasticsearch.painless.Location;
 import org.elasticsearch.painless.PainlessError;
 import org.elasticsearch.painless.PainlessExplainError;
 import org.elasticsearch.painless.PainlessWrappedException;
 import org.elasticsearch.painless.ScriptClassInfo;
 import org.elasticsearch.painless.ScriptClassInfo.MethodArgument;
+import org.elasticsearch.painless.WriterConstants;
 import org.elasticsearch.painless.ir.BinaryImplNode;
 import org.elasticsearch.painless.ir.BlockNode;
 import org.elasticsearch.painless.ir.CatchNode;
@@ -56,7 +58,6 @@ import org.elasticsearch.painless.symbol.IRDecorations.IRDExceptionType;
 import org.elasticsearch.painless.symbol.IRDecorations.IRDExpressionType;
 import org.elasticsearch.painless.symbol.IRDecorations.IRDFieldType;
 import org.elasticsearch.painless.symbol.IRDecorations.IRDFunction;
-import org.elasticsearch.painless.symbol.IRDecorations.IRDMaxAllocationBytes;
 import org.elasticsearch.painless.symbol.IRDecorations.IRDMaxLoopCounter;
 import org.elasticsearch.painless.symbol.IRDecorations.IRDModifiers;
 import org.elasticsearch.painless.symbol.IRDecorations.IRDName;
@@ -146,11 +147,11 @@ public class PainlessUserTreeToIRTreePhase extends DefaultUserTreeToIRTreePhase 
             irFunctionNode.attachDecoration(new IRDTypeParameters(localFunction.getTypeParameters()));
             irFunctionNode.attachDecoration(new IRDParameterNames(parameterNames));
             attachLoopProtection(irFunctionNode, scriptScope);
-            // Carry the per-context allocation limit on the execute entry so its prologue can reset $allocBytes; the value
-            // is -1 when tracking is disabled, in which case no counter bytecode is emitted.
-            irFunctionNode.attachDecoration(new IRDMaxAllocationBytes(scriptScope.getCompilerSettings().getMaxAllocationBytes()));
+            // The execute entry needs both: its prologue resets $allocBytes and its return path records the total.
+            attachAllocationLimit(irFunctionNode, scriptScope);
 
             injectStaticFieldsAndGetters();
+            injectAllocationMetricsField(scriptScope);
             injectGetsDeclarations(irBlockNode, scriptScope);
             injectNeedsMethods(scriptScope);
             injectSandboxExceptions(irFunctionNode);
@@ -159,6 +160,23 @@ public class PainlessUserTreeToIRTreePhase extends DefaultUserTreeToIRTreePhase 
         } else {
             super.visitFunction(userFunctionNode, scriptScope);
         }
+    }
+
+    /**
+     * Declares the static field holding this script's allocation recorder, which {@code Compiler} sets after defining the
+     * class. Only when metrics are enabled; the field is what the {@code execute} return path records through.
+     */
+    protected void injectAllocationMetricsField(ScriptScope scriptScope) {
+        if (scriptScope.getCompilerSettings().isAllocationMetricsEnabled() == false) {
+            return;
+        }
+
+        FieldNode irFieldNode = new FieldNode(new Location("$internal$injectAllocationMetricsField", 0));
+        irFieldNode.attachDecoration(new IRDModifiers(Opcodes.ACC_PUBLIC | Opcodes.ACC_STATIC));
+        irFieldNode.attachDecoration(new IRDFieldType(AllocationMetrics.ContextRecorder.class));
+        irFieldNode.attachDecoration(new IRDName(WriterConstants.ALLOC_METRICS_FIELD));
+
+        irClassNode.addFieldNode(irFieldNode);
     }
 
     // adds static fields and getter methods required by PainlessScript for exception handling

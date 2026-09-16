@@ -1,0 +1,3 @@
+FROM employees
+| WHERE salary > 50000
+| LIMIT 5 BY languages

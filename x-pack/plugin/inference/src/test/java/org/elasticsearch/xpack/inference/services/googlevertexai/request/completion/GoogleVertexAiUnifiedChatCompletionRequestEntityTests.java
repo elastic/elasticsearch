@@ -10,7 +10,7 @@ package org.elasticsearch.xpack.inference.services.googlevertexai.request.comple
 import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.inference.UnifiedCompletionRequest;
+import org.elasticsearch.inference.UnifiedCompletionRequestBody;
 import org.elasticsearch.inference.completion.ContentObject;
 import org.elasticsearch.inference.completion.ContentObject.ContentObjectText;
 import org.elasticsearch.inference.completion.ContentObjects;
@@ -48,7 +48,7 @@ public class GoogleVertexAiUnifiedChatCompletionRequestEntityTests extends ESTes
         var messageList = new ArrayList<Message>();
         messageList.add(message);
 
-        var unifiedRequest = UnifiedCompletionRequest.of(messageList);
+        var unifiedRequest = UnifiedCompletionRequestBody.of(messageList);
         UnifiedChatInput unifiedChatInput = new UnifiedChatInput(unifiedRequest, true); // stream doesn't affect VertexAI request body
         GoogleVertexAiUnifiedChatCompletionRequestEntity entity = new GoogleVertexAiUnifiedChatCompletionRequestEntity(
             unifiedChatInput,
@@ -83,7 +83,7 @@ public class GoogleVertexAiUnifiedChatCompletionRequestEntityTests extends ESTes
             new Message(new ContentString("Current user query."), USER_ROLE, null, null)
         );
 
-        var unifiedRequest = UnifiedCompletionRequest.of(messages);
+        var unifiedRequest = UnifiedCompletionRequestBody.of(messages);
         UnifiedChatInput unifiedChatInput = new UnifiedChatInput(unifiedRequest, false);
 
         GoogleVertexAiUnifiedChatCompletionRequestEntity entity = new GoogleVertexAiUnifiedChatCompletionRequestEntity(
@@ -117,7 +117,7 @@ public class GoogleVertexAiUnifiedChatCompletionRequestEntityTests extends ESTes
     }
 
     public void testSerialization_Tools() throws IOException {
-        var request = new UnifiedCompletionRequest(
+        var request = new UnifiedCompletionRequestBody(
             List.of(new Message(new ContentObjects(List.of(new ContentObjectText("some text"))), "user", null, null)),
             "gemini-2.0",
             null,
@@ -176,7 +176,7 @@ public class GoogleVertexAiUnifiedChatCompletionRequestEntityTests extends ESTes
     }
 
     public void testSerialization_ToolsChoice() throws IOException {
-        var request = new UnifiedCompletionRequest(
+        var request = new UnifiedCompletionRequestBody(
             List.of(new Message(new ContentObjects(List.of(new ContentObjectText("some text"))), "user", null, null)),
             "gemini-2.0",
             null,
@@ -242,7 +242,7 @@ public class GoogleVertexAiUnifiedChatCompletionRequestEntityTests extends ESTes
 
     public void testSerialization_WithAllGenerationConfig() throws IOException {
         List<Message> messages = List.of(new Message(new ContentString("Hello Gemini!"), USER_ROLE, null, null));
-        var completionRequestWithGenerationConfig = new UnifiedCompletionRequest(
+        var completionRequestWithGenerationConfig = new UnifiedCompletionRequestBody(
             messages,
             "modelId",
             100L,
@@ -288,7 +288,7 @@ public class GoogleVertexAiUnifiedChatCompletionRequestEntityTests extends ESTes
 
     public void testSerialization_WithSomeGenerationConfig() throws IOException {
         Message message = new Message(new ContentString("Partial config."), USER_ROLE, null, null);
-        var completionRequestWithGenerationConfig = new UnifiedCompletionRequest(
+        var completionRequestWithGenerationConfig = new UnifiedCompletionRequestBody(
             List.of(message),
             "modelId",
             50L,
@@ -331,7 +331,7 @@ public class GoogleVertexAiUnifiedChatCompletionRequestEntityTests extends ESTes
         Message message = new Message(new ContentString("Partial config."), USER_ROLE, null, null);
 
         // No generation config fields set on unifiedRequest
-        var completionRequestWithNoGenerationConfig = UnifiedCompletionRequest.of(List.of(message));
+        var completionRequestWithNoGenerationConfig = UnifiedCompletionRequestBody.of(List.of(message));
 
         UnifiedChatInput unifiedChatInput = new UnifiedChatInput(completionRequestWithNoGenerationConfig, true);
 
@@ -365,7 +365,7 @@ public class GoogleVertexAiUnifiedChatCompletionRequestEntityTests extends ESTes
     public void testSerialization_FallsBackToTaskSettingsMaxTokensWhenRequestValueIsNull() throws IOException {
         // The max_tokens task setting must be honoured when the per-request maxCompletionTokens is null.
         Message message = new Message(new ContentString("Use my task setting."), USER_ROLE, null, null);
-        var unifiedRequest = UnifiedCompletionRequest.of(List.of(message));
+        var unifiedRequest = UnifiedCompletionRequestBody.of(List.of(message));
         UnifiedChatInput unifiedChatInput = new UnifiedChatInput(unifiedRequest, true);
 
         GoogleVertexAiUnifiedChatCompletionRequestEntity entity = new GoogleVertexAiUnifiedChatCompletionRequestEntity(
@@ -395,7 +395,7 @@ public class GoogleVertexAiUnifiedChatCompletionRequestEntityTests extends ESTes
 
     public void testSerialization_RequestMaxCompletionTokensTakesPrecedenceOverTaskSettings() throws IOException {
         Message message = new Message(new ContentString("Use the request value."), USER_ROLE, null, null);
-        var unifiedRequest = new UnifiedCompletionRequest(
+        var unifiedRequest = new UnifiedCompletionRequestBody(
             List.of(message),
             "modelId",
             123L, // explicit per-request value
@@ -435,7 +435,7 @@ public class GoogleVertexAiUnifiedChatCompletionRequestEntityTests extends ESTes
     public void testSerialization_NoGenerationConfig() throws IOException {
         Message message = new Message(new ContentString("No extra config."), USER_ROLE, null, null);
         // No generation config fields set on unifiedRequest
-        var unifiedRequest = UnifiedCompletionRequest.of(List.of(message));
+        var unifiedRequest = UnifiedCompletionRequestBody.of(List.of(message));
 
         UnifiedChatInput unifiedChatInput = new UnifiedChatInput(unifiedRequest, true);
 
@@ -467,7 +467,7 @@ public class GoogleVertexAiUnifiedChatCompletionRequestEntityTests extends ESTes
         var messageList = new ArrayList<Message>();
         messageList.add(message);
 
-        var unifiedRequest = UnifiedCompletionRequest.of(messageList);
+        var unifiedRequest = UnifiedCompletionRequestBody.of(messageList);
         UnifiedChatInput unifiedChatInput = new UnifiedChatInput(unifiedRequest, true);
 
         GoogleVertexAiUnifiedChatCompletionRequestEntity entity = new GoogleVertexAiUnifiedChatCompletionRequestEntity(
@@ -498,7 +498,7 @@ public class GoogleVertexAiUnifiedChatCompletionRequestEntityTests extends ESTes
     public void testError_UnsupportedRole() throws IOException {
         var unsupportedRole = "someUnexpectedRole";
         Message message = new Message(new ContentString("Test"), unsupportedRole, null, null);
-        var unifiedRequest = UnifiedCompletionRequest.of(List.of(message));
+        var unifiedRequest = UnifiedCompletionRequestBody.of(List.of(message));
         UnifiedChatInput unifiedChatInput = new UnifiedChatInput(unifiedRequest, false);
 
         GoogleVertexAiUnifiedChatCompletionRequestEntity entity = new GoogleVertexAiUnifiedChatCompletionRequestEntity(
@@ -521,7 +521,7 @@ public class GoogleVertexAiUnifiedChatCompletionRequestEntityTests extends ESTes
             )
         );
         Message message = new Message(new ContentObjects(contentObjects), USER_ROLE, null, null);
-        var unifiedRequest = UnifiedCompletionRequest.of(List.of(message));
+        var unifiedRequest = UnifiedCompletionRequestBody.of(List.of(message));
         UnifiedChatInput unifiedChatInput = new UnifiedChatInput(unifiedRequest, false);
 
         GoogleVertexAiUnifiedChatCompletionRequestEntity entity = new GoogleVertexAiUnifiedChatCompletionRequestEntity(
@@ -592,7 +592,7 @@ public class GoogleVertexAiUnifiedChatCompletionRequestEntityTests extends ESTes
             }
             """;
 
-        var request = new UnifiedCompletionRequest(
+        var request = new UnifiedCompletionRequestBody(
             List.of(
                 new Message(
                     new ContentObjects(List.of(new ContentObjectText("some text"))),
@@ -659,7 +659,7 @@ public class GoogleVertexAiUnifiedChatCompletionRequestEntityTests extends ESTes
             }
             """;
 
-        var request = new UnifiedCompletionRequest(
+        var request = new UnifiedCompletionRequestBody(
             List.of(
                 new Message(
                     null,
@@ -717,7 +717,7 @@ public class GoogleVertexAiUnifiedChatCompletionRequestEntityTests extends ESTes
             }
             """;
 
-        var request = new UnifiedCompletionRequest(
+        var request = new UnifiedCompletionRequestBody(
             List.of(
                 new Message(
                     null,
@@ -759,7 +759,7 @@ public class GoogleVertexAiUnifiedChatCompletionRequestEntityTests extends ESTes
         var illegalArguments = List.of("\"order_id\": \"order_12345\"}", "[]", Integer.toString(someNumber), "\"a\"");
         for (var illegalArgument : illegalArguments) {
 
-            var requestContentObject = new UnifiedCompletionRequest(
+            var requestContentObject = new UnifiedCompletionRequestBody(
                 List.of(
                     new Message(
                         new ContentObjects(List.of(new ContentObjectText(""))),
@@ -810,7 +810,7 @@ public class GoogleVertexAiUnifiedChatCompletionRequestEntityTests extends ESTes
             }
             """;
 
-        var requestContentObject = new UnifiedCompletionRequest(
+        var requestContentObject = new UnifiedCompletionRequestBody(
             List.of(
                 new Message(
                     new ContentObjects(List.of(new ContentObjectText(""))),
@@ -834,7 +834,7 @@ public class GoogleVertexAiUnifiedChatCompletionRequestEntityTests extends ESTes
             null
         );
 
-        var requestContentString = new UnifiedCompletionRequest(
+        var requestContentString = new UnifiedCompletionRequestBody(
             List.of(
                 new Message(
                     new ContentString(""),
@@ -888,7 +888,7 @@ public class GoogleVertexAiUnifiedChatCompletionRequestEntityTests extends ESTes
             }
             """;
 
-        var request = new UnifiedCompletionRequest(
+        var request = new UnifiedCompletionRequestBody(
             List.of(new Message(new ContentObjects(List.of(new ContentObjectText("some text"))), "user", null, null)),
             "gemini-2.0",
             null,
@@ -932,7 +932,7 @@ public class GoogleVertexAiUnifiedChatCompletionRequestEntityTests extends ESTes
             }
             """;
 
-        var request = new UnifiedCompletionRequest(
+        var request = new UnifiedCompletionRequestBody(
             List.of(
                 new Message(new ContentObjects(List.of(new ContentObjectText("instruction text"))), "system", null, null),
                 new Message(new ContentObjects(List.of(new ContentObjectText("instruction text2"))), "system", null, null),
@@ -979,7 +979,7 @@ public class GoogleVertexAiUnifiedChatCompletionRequestEntityTests extends ESTes
             }
             """;
 
-        var request = new UnifiedCompletionRequest(
+        var request = new UnifiedCompletionRequestBody(
             List.of(
                 new Message(new ContentObjects(List.of(new ContentObjectText("instruction text"))), "system", null, null),
                 new Message(new ContentObjects(List.of(new ContentObjectText("some text"))), "user", null, null)
@@ -1007,7 +1007,7 @@ public class GoogleVertexAiUnifiedChatCompletionRequestEntityTests extends ESTes
     }
 
     public void testParseToolChoiceInvalid_throwElasticSearchStatusException() throws IOException {
-        var request = new UnifiedCompletionRequest(
+        var request = new UnifiedCompletionRequestBody(
             List.of(new Message(new ContentObjects(List.of(new ContentObjectText("some text"))), "user", null, null)),
             "gemini-2.0",
             null,
@@ -1068,7 +1068,7 @@ public class GoogleVertexAiUnifiedChatCompletionRequestEntityTests extends ESTes
             }
             """;
 
-        var request = new UnifiedCompletionRequest(
+        var request = new UnifiedCompletionRequestBody(
             List.of(new Message(new ContentObjects(List.of(new ContentObjectText("some text"))), "user", null, null)),
             "gemini-2.0",
             null,

@@ -76,6 +76,8 @@ public final class QueryPragmas implements Writeable {
 
     public static final Setting<Boolean> NODE_LEVEL_REDUCTION = Setting.boolSetting("node_level_reduction", true);
 
+    public static final Setting<Boolean> SINGLE_NODE_OPTIMIZATIONS = Setting.boolSetting("single_node_optimizations", true);
+
     public static final Setting<ByteSizeValue> FOLD_LIMIT = Setting.memorySizeSetting("fold_limit", "5%");
 
     public static final Setting<MappedFieldType.FieldExtractPreference> FIELD_EXTRACT_PREFERENCE = Setting.enumSetting(
@@ -190,6 +192,11 @@ public final class QueryPragmas implements Writeable {
      */
     public static final Setting<Integer> MIN_DOCS_PER_SLICE = Setting.intSetting("min_docs_per_slice", -1, -1);
 
+    /**
+     *  When {@code true}, it allows KNN function to be used on runtime expressions and fields.
+     */
+    public static final Setting<Boolean> KNN_RUNTIME_FIELD = Setting.boolSetting("knn_runtime_field", false);
+
     public static final QueryPragmas EMPTY = new QueryPragmas(Settings.EMPTY);
 
     public static final List<String> VALID_PRAGMA_NAMES = Stream.of(
@@ -214,7 +221,11 @@ public final class QueryPragmas implements Writeable {
         MAX_CONCURRENT_OPEN_SEGMENTS,
         MAX_RECORD_SIZE,
         FORCE_DOC_SEQUENCE,
-        PlannerSettings.TIME_SERIES_TARGET_CHUNK_ROWS
+        PlannerSettings.TIME_SERIES_TARGET_CHUNK_ROWS,
+        PlannerSettings.AGG_PARTITIONING_COUNT_THRESHOLD,
+        KNN_RUNTIME_FIELD,
+        SINGLE_NODE_OPTIMIZATIONS
+
     ).map(Setting::getKey).toList();
 
     private final Settings settings;
@@ -319,6 +330,13 @@ public final class QueryPragmas implements Writeable {
     }
 
     /**
+     * Disable or enable the single node optimizations in case the query executes against a single node
+     */
+    public boolean singleNodeOptimizations() {
+        return SINGLE_NODE_OPTIMIZATIONS.get(settings);
+    }
+
+    /**
      * The maximum amount of memory we can use for {@link Expression#fold} during planing. This
      * defaults to 5% of memory available on the current node. If this method is called on the
      * coordinating node, this is 5% of the coordinating node's memory. If it's called on a data
@@ -393,6 +411,19 @@ public final class QueryPragmas implements Writeable {
         return defaultThreshold;
     }
 
+    public int aggregationPartitioningCountThreshold(int defaultThreshold) {
+        if (settings.hasValue(PlannerSettings.AGG_PARTITIONING_COUNT_THRESHOLD.getKey())) {
+            final String v = settings.get(PlannerSettings.AGG_PARTITIONING_COUNT_THRESHOLD.getKey());
+            try {
+                // allow smaller value for the threshold in tests than the min setting in the production
+                return Integer.parseInt(v);
+            } catch (NumberFormatException e) {
+                throw new IllegalArgumentException("invalid aggregation partitioning threshold [" + v + "]", e);
+            }
+        }
+        return defaultThreshold;
+    }
+
     public int timeSeriesTargetChunkRows(int defaultChunkRows) {
         if (settings.hasValue(PlannerSettings.TIME_SERIES_TARGET_CHUNK_ROWS.getKey())) {
             return PlannerSettings.TIME_SERIES_TARGET_CHUNK_ROWS.get(settings);
@@ -414,6 +445,13 @@ public final class QueryPragmas implements Writeable {
     public int minDocsPerSlice(int defaultMinDocsPerSlice) {
         int override = MIN_DOCS_PER_SLICE.get(settings);
         return override > 0 ? override : defaultMinDocsPerSlice;
+    }
+
+    /**
+     * When {@code true}, it allows KNN function to be used with expressions that are not indexed fields.
+     */
+    public boolean knnRuntimeField() {
+        return KNN_RUNTIME_FIELD.get(settings);
     }
 
     public boolean isEmpty() {

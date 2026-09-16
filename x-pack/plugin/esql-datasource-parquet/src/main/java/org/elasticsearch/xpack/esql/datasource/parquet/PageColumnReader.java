@@ -24,6 +24,7 @@ import org.apache.parquet.schema.PrimitiveType;
 import org.elasticsearch.common.util.BytesRefArray;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.BlockFactory;
+import org.elasticsearch.compute.data.BytesRefBlock;
 import org.elasticsearch.compute.data.BytesRefVector;
 import org.elasticsearch.compute.data.IntBlock;
 import org.elasticsearch.compute.data.OrdinalBytesRefBlock;
@@ -44,6 +45,8 @@ import java.nio.ByteOrder;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
+import java.util.function.Consumer;
+import java.util.function.IntConsumer;
 
 /**
  * Page-level batch column reader that bypasses {@code ColumnReadStoreImpl} and works directly
@@ -90,6 +93,10 @@ import java.util.List;
  * keep encoding consistent across all data pages of a column chunk), the partial ordinal
  * batch is resolved through the dictionary and the remainder is read via the materialized
  * binary path.
+ *
+ * <p>PLAIN BINARY values alias {@code PrefetchedPageReader}'s reused decompress dest, so
+ * KEYWORD/TEXT/UUID copy into the ESQL block via {@code appendBytesRef} before the next
+ * {@code ensurePage()}.
  */
 final class PageColumnReader implements Releasable {
 
@@ -99,9 +106,20 @@ final class PageColumnReader implements Releasable {
     private final ColumnDescriptor descriptor;
     private final ColumnInfo info;
     private final RowRanges rowRanges;
-    /** Per-value declared-coercion failure sink ({@code null} = strict); see the 5-arg constructor. */
+    /** Per-value declared-coercion failure sink ({@code null} = strict); see the 6-arg constructor. */
     @Nullable
     private final SkipWarnings coercionWarnings;
+    /** Relay for unconditional read-time notices that must survive execution away from the coordinator. */
+    @Nullable
+    private final Consumer<String> informationalWarningSink;
+    /**
+     * Per-batch row-drop sink for {@code skip_row} mode ({@code null} = not in skip_row mode).
+     * Positions reported are relative to the current batch (0-based within {@link #readBatch}'s
+     * {@code maxRows} window). Set via {@link #setFailedPositionSink} by the iterator after
+     * constructing the reader.
+     */
+    @Nullable
+    private IntConsumer failedPositionSink;
     private final int maxDefLevel;
 
     private Dictionary dictionary;
@@ -150,26 +168,30 @@ final class PageColumnReader implements Releasable {
     private long pendingPrejumped;
 
     PageColumnReader(PageReader pageReader, ColumnDescriptor descriptor, ColumnInfo info, RowRanges rowRanges) {
-        this(pageReader, descriptor, info, rowRanges, null);
+        this(pageReader, descriptor, info, rowRanges, null, null);
     }
 
     /**
      * @param coercionWarnings sink for per-value declared-coercion failures (nulled cell +
      *                         response Warning header), shared across the read so the warning cap
      *                         is per read. {@code null} = strict: a coercion failure propagates.
+     * @param informationalWarningSink relay for unconditional read-time notices, or {@code null} to emit directly
+     *                                 to the current thread's response headers
      */
     PageColumnReader(
         PageReader pageReader,
         ColumnDescriptor descriptor,
         ColumnInfo info,
         RowRanges rowRanges,
-        @Nullable SkipWarnings coercionWarnings
+        @Nullable SkipWarnings coercionWarnings,
+        @Nullable Consumer<String> informationalWarningSink
     ) {
         this.pageReader = pageReader;
         this.descriptor = descriptor;
         this.info = info;
         this.rowRanges = rowRanges;
         this.coercionWarnings = coercionWarnings;
+        this.informationalWarningSink = informationalWarningSink;
         this.maxDefLevel = descriptor.getMaxDefinitionLevel();
         this.columnExhausted = false;
         this.rowPositionInRowGroup = 0;
@@ -177,6 +199,15 @@ final class PageColumnReader implements Releasable {
         this.currentPageValueCount = 0;
         this.physicalPageValueCount = 0;
         this.buffers = new DecodeBuffers();
+    }
+
+    /**
+     * Sets the per-batch row-drop sink used in {@code skip_row} mode. Must be called before
+     * the first {@link #readBatch} call when the iterator holds a {@link
+     * org.elasticsearch.xpack.esql.datasources.spi.ColumnarRowDropHelper}.
+     */
+    void setFailedPositionSink(@Nullable IntConsumer sink) {
+        this.failedPositionSink = sink;
     }
 
     Block readBatch(int maxRows, BlockFactory blockFactory) {
@@ -208,7 +239,8 @@ final class PageColumnReader implements Releasable {
                     info.dateFormatter(),
                     blockFactory,
                     String.join(".", descriptor.getPath()),
-                    coercionWarnings
+                    coercionWarnings,
+                    failedPositionSink
                 );
             } finally {
                 physical.close();
@@ -254,10 +286,12 @@ final class PageColumnReader implements Releasable {
 
     /**
      * Filters a block to retain only the positions specified by {@code positions}.
-     * Takes ownership of {@code source}: the source block is closed after filtering
-     * and the caller owns the returned block.
+     * On success the source block is closed and the caller owns the returned block. On failure
+     * ownership stays with the caller — {@code readBatchFiltered} and the late-materialization
+     * call sites rely on this to release the source themselves.
      *
-     * @param source        the block to filter; ownership is transferred to this method
+     * @param source        the block to filter; ownership transfers on success only — if this method
+     *                       throws, the caller still owns {@code source} and must release it
      * @param positions     the positions to retain (ascending, no duplicates)
      * @param survivorCount the number of valid entries in {@code positions}
      * @param blockFactory  the factory used to create replacement blocks
@@ -268,8 +302,12 @@ final class PageColumnReader implements Releasable {
             return source;
         }
         if (survivorCount == 0) {
+            // Allocate before consuming the source: newConstantNullBlock charges the breaker and can
+            // throw, and if it does the caller must still own source exactly once. Closing first
+            // leaves a released block in the caller's array for its cleanup path to release again.
+            Block empty = blockFactory.newConstantNullBlock(0);
             source.close();
-            return blockFactory.newConstantNullBlock(0);
+            return empty;
         }
         if (positions.length != survivorCount) {
             positions = Arrays.copyOf(positions, survivorCount);
@@ -306,7 +344,7 @@ final class PageColumnReader implements Releasable {
             // never saw the reference.
             return filterBlock(full, survivorPositions, survivorCount, blockFactory);
         } catch (RuntimeException e) {
-            Releasables.closeExpectNoException(full);
+            ParquetReadFailures.closePreservingCause(e, full);
             throw e;
         }
     }
@@ -406,7 +444,7 @@ final class PageColumnReader implements Releasable {
             return BlockChunks.concat(chunks, blockFactory);
         } catch (RuntimeException e) {
             for (Block chunk : chunks) {
-                Releasables.closeExpectNoException(chunk);
+                ParquetReadFailures.closePreservingCause(e, chunk);
             }
             throw e;
         }
@@ -510,7 +548,7 @@ final class PageColumnReader implements Releasable {
                 currentValueBytes = pageBytes;
             }
         } catch (IOException e) {
-            throw new IllegalArgumentException("Failed to read V1 page bytes: " + e.getMessage(), e);
+            throw ParquetReadFailures.wrap(e, "Failed to read V1 page bytes");
         }
     }
 
@@ -524,7 +562,7 @@ final class PageColumnReader implements Releasable {
             }
             currentValueBytes = v2.getData().toByteBuffer();
         } catch (IOException e) {
-            throw new IllegalArgumentException("Failed to read V2 page bytes: " + e.getMessage(), e);
+            throw ParquetReadFailures.wrap(e, "Failed to read V2 page bytes");
         }
     }
 
@@ -549,10 +587,7 @@ final class PageColumnReader implements Releasable {
                 currentValueBytes.duplicate().get(bytes);
                 fallbackReader.initFromPage(currentPageValueCount, bytes, 0);
             } catch (IOException e) {
-                throw new IllegalArgumentException(
-                    "Failed to init fallback decoder for encoding " + currentEncoding + ": " + e.getMessage(),
-                    e
-                );
+                throw ParquetReadFailures.wrap(e, "Failed to init fallback decoder for encoding " + currentEncoding);
             }
         }
     }
@@ -1232,82 +1267,179 @@ final class PageColumnReader implements Releasable {
             return readBytesBatchAsOrdinals(maxRows, blockFactory);
         }
         if (maxDefLevel == 0) {
-            BytesRef[] allValues = new BytesRef[maxRows];
-            int produced = 0;
-            int remaining = maxRows;
+            return readRequiredBytesBatch(maxRows, blockFactory, isUuid);
+        }
+        return readOptionalBytesBatch(maxRows, blockFactory, isUuid);
+    }
+
+    private Block readRequiredBytesBatch(int maxRows, BlockFactory blockFactory, boolean isUuid) {
+        BytesRefBlock.Builder builder = null;
+        BytesRef constant = null;
+        int produced = 0;
+        int remaining = maxRows;
+        long firstPageBytes = -1L;
+        try {
             while (remaining > 0 && ensurePage()) {
                 int fromPage = Math.min(remaining, availableInPage());
                 BytesRef[] vals = readBinaryValues(fromPage);
-                for (int i = 0; i < fromPage; i++) {
-                    allValues[produced + i] = isUuid
-                        ? new BytesRef(ParquetColumnDecoding.formatUuid(vals[i].bytes, vals[i].offset, vals[i].length))
-                        : Utf8Sanitizer.sanitize(vals[i]);
+                materializeBinaries(vals, fromPage, isUuid);
+                if (fromPage > 0 && firstPageBytes < 0) {
+                    firstPageBytes = totalBytes(vals, fromPage);
+                }
+                if (builder != null) {
+                    appendAll(builder, vals, fromPage);
+                } else if (fromPage > 0) {
+                    if (constant == null) {
+                        if (allEqualTo(vals, fromPage, vals[0])) {
+                            constant = BytesRef.deepCopyOf(vals[0]);
+                        } else {
+                            builder = blockFactory.newBytesRefBlockBuilder(maxRows, extrapolateByteHint(firstPageBytes, fromPage, maxRows));
+                            appendAll(builder, vals, fromPage);
+                        }
+                    } else if (allEqualTo(vals, fromPage, constant) == false) {
+                        builder = blockFactory.newBytesRefBlockBuilder(
+                            maxRows,
+                            (long) produced * constant.length + totalBytes(vals, fromPage)
+                        );
+                        appendConstant(builder, constant, produced);
+                        appendAll(builder, vals, fromPage);
+                        constant = null;
+                    }
                 }
                 advancePosition(fromPage);
                 produced += fromPage;
                 remaining -= fromPage;
             }
-            Block constant = ConstantBlockDetection.tryConstantBytesRef(allValues, produced, blockFactory);
-            if (constant != null) {
-                return constant;
+            if (builder != null) {
+                Block result = builder.build();
+                Releasables.closeExpectNoException(builder);
+                builder = null;
+                return result;
             }
-            return buildBytesRefBlock(allValues, null, produced, blockFactory);
+            return blockFactory.newConstantBytesRefBlockWith(constant == null ? new BytesRef() : constant, produced);
+        } catch (Throwable e) {
+            ParquetReadFailures.closePreservingCause(e, builder);
+            throw e;
         }
-        BytesRef[] allValues = new BytesRef[maxRows];
-        WordMask allNulls = buffers.nullsMask(maxRows);
-        int produced = 0;
-        int remaining = maxRows;
-        while (remaining > 0 && ensurePage()) {
-            int fromPage = Math.min(remaining, availableInPage());
-            WordMask pageNulls = buffers.valueSelection(fromPage);
-            int nonNull = defDecoder.readBatch(fromPage, pageNulls, 0);
-            BytesRef[] vals = nonNull > 0 ? readBinaryValues(nonNull) : null;
-            int valIdx = 0;
-            for (int i = 0; i < fromPage; i++) {
-                if (pageNulls.get(i)) {
-                    allNulls.set(produced + i);
-                } else if (isUuid) {
-                    BytesRef uuidRef = vals[valIdx++];
-                    allValues[produced + i] = new BytesRef(ParquetColumnDecoding.formatUuid(uuidRef.bytes, uuidRef.offset, uuidRef.length));
-                } else {
-                    allValues[produced + i] = Utf8Sanitizer.sanitize(vals[valIdx++]);
-                }
-            }
-            advancePosition(fromPage);
-            produced += fromPage;
-            remaining -= fromPage;
-        }
-        if (allNulls.isEmpty() == false) {
-            Block allNull = ConstantBlockDetection.tryAllNull(allNulls.toBitSet(), produced, blockFactory);
-            if (allNull != null) {
-                return allNull;
-            }
-        }
-        return buildBytesRefBlock(allValues, allNulls, produced, blockFactory);
     }
 
-    /**
-     * Builds a {@code BytesRefBlock} from already-materialized values, pre-sizing the byte storage to
-     * the exact total byte size so the backing {@code BytesRefArray} does not regrow as values are
-     * appended. {@code nulls} may be {@code null} when no position is null; otherwise a set bit marks a
-     * null position that is skipped when sizing and appended as null.
-     */
-    private static Block buildBytesRefBlock(BytesRef[] values, WordMask nulls, int count, BlockFactory blockFactory) {
-        long byteHint = 0;
+    private Block readOptionalBytesBatch(int maxRows, BlockFactory blockFactory, boolean isUuid) {
+        BytesRefBlock.Builder builder = null;
+        int produced = 0;
+        int remaining = maxRows;
+        long firstPageBytes = -1L;
+        try {
+            while (remaining > 0 && ensurePage()) {
+                int fromPage = Math.min(remaining, availableInPage());
+                WordMask pageNulls = buffers.valueSelection(fromPage);
+                int nonNull = defDecoder.readBatch(fromPage, pageNulls, 0);
+                BytesRef[] vals = nonNull > 0 ? readBinaryValues(nonNull) : null;
+                if (vals != null) {
+                    materializeBinaries(vals, nonNull, isUuid);
+                }
+                if (firstPageBytes < 0 && nonNull > 0) {
+                    firstPageBytes = totalBytes(vals, nonNull);
+                }
+                if (builder != null) {
+                    appendNullableBinaries(builder, vals, pageNulls, fromPage);
+                } else if (nonNull > 0) {
+                    builder = blockFactory.newBytesRefBlockBuilder(maxRows, extrapolateByteHint(firstPageBytes, fromPage, maxRows));
+                    for (int i = 0; i < produced; i++) {
+                        builder.appendNull();
+                    }
+                    appendNullableBinaries(builder, vals, pageNulls, fromPage);
+                }
+                advancePosition(fromPage);
+                produced += fromPage;
+                remaining -= fromPage;
+            }
+            if (builder == null && produced > 0) {
+                return blockFactory.newConstantNullBlock(produced);
+            }
+            if (builder != null) {
+                Block result = builder.build();
+                Releasables.closeExpectNoException(builder);
+                builder = null;
+                return result;
+            }
+            assert produced == 0;
+            try (var empty = blockFactory.newBytesRefBlockBuilder(0)) {
+                return empty.build();
+            }
+        } catch (Throwable e) {
+            ParquetReadFailures.closePreservingCause(e, builder);
+            throw e;
+        }
+    }
+
+    private static BytesRef materializeBinary(BytesRef raw, boolean isUuid) {
+        return isUuid ? new BytesRef(ParquetColumnDecoding.formatUuid(raw.bytes, raw.offset, raw.length)) : Utf8Sanitizer.sanitize(raw);
+    }
+
+    private static void materializeBinaries(BytesRef[] vals, int count, boolean isUuid) {
         for (int i = 0; i < count; i++) {
-            if (nulls == null || nulls.get(i) == false) {
-                byteHint += values[i].length;
+            vals[i] = materializeBinary(vals[i], isUuid);
+        }
+    }
+
+    private static long totalBytes(BytesRef[] vals, int count) {
+        long n = 0;
+        for (int i = 0; i < count; i++) {
+            n += vals[i].length;
+        }
+        return n;
+    }
+
+    private static long extrapolateByteHint(long seenBytes, int seenPositions, int totalPositions) {
+        if (seenPositions <= 0) {
+            return seenBytes;
+        }
+        // Batch 2+ often starts on a leftover tail of 1-few values. Scaling that by maxRows
+        // pre-sizes Bytes.pages[] to a huge empty pointer array that build() never shrinks.
+        if (seenPositions < totalPositions && seenPositions < 32) {
+            return seenBytes;
+        }
+        if (totalPositions > 0 && seenBytes > Long.MAX_VALUE / totalPositions) {
+            return Long.MAX_VALUE;
+        }
+        return seenBytes * totalPositions / seenPositions;
+    }
+
+    private static boolean allEqualTo(BytesRef[] vals, int count, BytesRef expected) {
+        for (int i = 0; i < count; i++) {
+            if (expected.bytesEquals(vals[i]) == false) {
+                return false;
             }
         }
-        try (var builder = blockFactory.newBytesRefBlockBuilder(count, byteHint)) {
-            for (int i = 0; i < count; i++) {
-                if (nulls != null && nulls.get(i)) {
-                    builder.appendNull();
-                } else {
-                    builder.appendBytesRef(values[i]);
-                }
+        return true;
+    }
+
+    private static void appendAll(BytesRefBlock.Builder builder, BytesRef[] vals, int count) {
+        for (int i = 0; i < count; i++) {
+            builder.appendBytesRef(vals[i]);
+        }
+    }
+
+    private static void appendConstant(BytesRefBlock.Builder builder, BytesRef value, int times) {
+        for (int i = 0; i < times; i++) {
+            builder.appendBytesRef(value);
+        }
+    }
+
+    private static void appendNullableBinaries(BytesRefBlock.Builder builder, BytesRef[] vals, WordMask pageNulls, int fromPage) {
+        if (vals == null) {
+            for (int i = 0; i < fromPage; i++) {
+                builder.appendNull();
             }
-            return builder.build();
+            return;
+        }
+        int valIdx = 0;
+        for (int i = 0; i < fromPage; i++) {
+            if (pageNulls.get(i)) {
+                builder.appendNull();
+            } else {
+                builder.appendBytesRef(vals[valIdx++]);
+            }
         }
     }
 
@@ -1373,17 +1505,13 @@ final class PageColumnReader implements Releasable {
         }
         IntBlock ordinalsBlock = null;
         BytesRefVector dictVector = null;
-        boolean success = false;
         try {
             ordinalsBlock = buildOrdinalsBlock(ordinals, nulls, produced, blockFactory);
             dictVector = buildDictionaryVector(dict, blockFactory);
-            OrdinalBytesRefBlock result = new OrdinalBytesRefBlock(ordinalsBlock, dictVector);
-            success = true;
-            return result;
-        } finally {
-            if (success == false) {
-                Releasables.closeExpectNoException(ordinalsBlock, dictVector);
-            }
+            return new OrdinalBytesRefBlock(ordinalsBlock, dictVector);
+        } catch (Throwable e) {
+            ParquetReadFailures.closePreservingCause(e, ordinalsBlock, dictVector);
+            throw e;
         }
     }
 
@@ -1473,53 +1601,106 @@ final class PageColumnReader implements Releasable {
     private Block finishMaterializedFallback(int[] ordinals, WordMask nulls, int produced, int remaining, BlockFactory blockFactory) {
         BytesRef[] dict = dictDecoder.getDictionaryBytesRefs(dictionary);
         int total = produced + remaining;
-        BytesRef[] all = new BytesRef[total];
         WordMask combinedNulls = nulls;
-        for (int i = 0; i < produced; i++) {
-            if (combinedNulls != null && combinedNulls.get(i)) {
-                continue;
-            }
-            all[i] = dict[ordinals[i]];
-        }
-        int filled = produced;
-        while (remaining > 0 && ensurePage()) {
-            int fromPage = Math.min(remaining, availableInPage());
-            if (combinedNulls == null) {
-                BytesRef[] vals = readBinaryValues(fromPage);
-                System.arraycopy(vals, 0, all, filled, fromPage);
-            } else {
-                WordMask pageNulls = buffers.valueSelection(fromPage);
-                int nonNull = defDecoder.readBatch(fromPage, pageNulls, 0);
-                BytesRef[] vals = nonNull > 0 ? readBinaryValues(nonNull) : null;
-                int valIdx = 0;
-                for (int i = 0; i < fromPage; i++) {
-                    if (pageNulls.get(i)) {
-                        combinedNulls.set(filled + i);
-                    } else {
-                        all[filled + i] = vals[valIdx++];
+        BytesRefBlock.Builder builder = null;
+        try {
+            boolean prefixHasValue = false;
+            if (produced > 0) {
+                if (combinedNulls == null) {
+                    prefixHasValue = true;
+                } else {
+                    for (int i = 0; i < produced; i++) {
+                        if (combinedNulls.get(i) == false) {
+                            prefixHasValue = true;
+                            break;
+                        }
                     }
                 }
             }
-            advancePosition(fromPage);
-            filled += fromPage;
-            remaining -= fromPage;
+            if (prefixHasValue) {
+                builder = blockFactory.newBytesRefBlockBuilder(total, dictPrefixBytes(dict, ordinals, combinedNulls, produced));
+                appendDictPrefix(builder, dict, ordinals, combinedNulls, produced);
+            }
+            int filled = produced;
+            while (remaining > 0 && ensurePage()) {
+                int fromPage = Math.min(remaining, availableInPage());
+                if (combinedNulls == null) {
+                    BytesRef[] vals = readBinaryValues(fromPage);
+                    materializeBinaries(vals, fromPage, false);
+                    if (builder == null) {
+                        builder = blockFactory.newBytesRefBlockBuilder(total, totalBytes(vals, fromPage));
+                    }
+                    appendAll(builder, vals, fromPage);
+                } else {
+                    WordMask pageNulls = buffers.valueSelection(fromPage);
+                    int nonNull = defDecoder.readBatch(fromPage, pageNulls, 0);
+                    BytesRef[] vals = nonNull > 0 ? readBinaryValues(nonNull) : null;
+                    if (vals != null) {
+                        materializeBinaries(vals, nonNull, false);
+                    }
+                    for (int i = 0; i < fromPage; i++) {
+                        if (pageNulls.get(i)) {
+                            combinedNulls.set(filled + i);
+                        }
+                    }
+                    if (builder == null) {
+                        if (nonNull > 0) {
+                            builder = blockFactory.newBytesRefBlockBuilder(total, totalBytes(vals, nonNull));
+                            for (int i = 0; i < filled; i++) {
+                                builder.appendNull();
+                            }
+                            appendNullableBinaries(builder, vals, pageNulls, fromPage);
+                        }
+                    } else {
+                        appendNullableBinaries(builder, vals, pageNulls, fromPage);
+                    }
+                }
+                advancePosition(fromPage);
+                filled += fromPage;
+                remaining -= fromPage;
+            }
+            if (combinedNulls != null && combinedNulls.isEmpty() == false) {
+                Block allNull = ConstantBlockDetection.tryAllNull(combinedNulls.toBitSet(), filled, blockFactory);
+                if (allNull != null) {
+                    Releasables.closeExpectNoException(builder);
+                    builder = null;
+                    return allNull;
+                }
+            }
+            if (builder != null) {
+                Block result = builder.build();
+                Releasables.closeExpectNoException(builder);
+                builder = null;
+                return result;
+            }
+            assert filled == 0;
+            try (var empty = blockFactory.newBytesRefBlockBuilder(0)) {
+                return empty.build();
+            }
+        } catch (Throwable e) {
+            ParquetReadFailures.closePreservingCause(e, builder);
+            throw e;
         }
-        if (combinedNulls != null && combinedNulls.isEmpty() == false) {
-            Block allNull = ConstantBlockDetection.tryAllNull(combinedNulls.toBitSet(), filled, blockFactory);
-            if (allNull != null) {
-                return allNull;
+    }
+
+    private static long dictPrefixBytes(BytesRef[] dict, int[] ordinals, WordMask nulls, int produced) {
+        long n = 0;
+        for (int i = 0; i < produced; i++) {
+            if (nulls == null || nulls.get(i) == false) {
+                n += dict[ordinals[i]].length;
             }
         }
-        // KEYWORD materialized fallback: {@code all} mixes raw dictionary entries with scalar values read
-        // after the chunk fell off dictionary encoding (this path is never taken for UUID, see readBytesBatch),
-        // so sanitize each position once before building. sanitize returns the input unchanged when it is
-        // already well-formed, so shared dictionary entries are not copied or mutated.
-        for (int i = 0; i < filled; i++) {
-            if (combinedNulls == null || combinedNulls.get(i) == false) {
-                all[i] = Utf8Sanitizer.sanitize(all[i]);
+        return n;
+    }
+
+    private static void appendDictPrefix(BytesRefBlock.Builder builder, BytesRef[] dict, int[] ordinals, WordMask nulls, int produced) {
+        for (int i = 0; i < produced; i++) {
+            if (nulls != null && nulls.get(i)) {
+                builder.appendNull();
+            } else {
+                builder.appendBytesRef(Utf8Sanitizer.sanitize(dict[ordinals[i]]));
             }
         }
-        return buildBytesRefBlock(all, combinedNulls, filled, blockFactory);
     }
 
     // --- Datetime ---
@@ -1540,7 +1721,8 @@ final class PageColumnReader implements Releasable {
                     info.dateFormatter(),
                     blockFactory,
                     String.join(".", descriptor.getPath()),
-                    coercionWarnings
+                    coercionWarnings,
+                    failedPositionSink
                 );
             } finally {
                 bytes.close();
@@ -1642,7 +1824,7 @@ final class PageColumnReader implements Releasable {
                 if (needsShrinking(produced, maxRows)) values = Arrays.copyOf(values, produced);
                 return blockFactory.newLongArrayVector(values, produced).asBlock();
             }
-            ParquetColumnDecoding.warnTimestampOutOfRange(info);
+            ParquetColumnDecoding.warnTimestampOutOfRange(info, informationalWarningSink);
             Block allNull = ConstantBlockDetection.tryAllNull(overflow.toBitSet(), produced, blockFactory);
             if (allNull != null) {
                 return allNull;
@@ -1671,7 +1853,7 @@ final class PageColumnReader implements Releasable {
         }
         boolean anyOverflow = scaleDateNanosMasked(values, produced, micros, nulls);
         if (anyOverflow) {
-            ParquetColumnDecoding.warnTimestampOutOfRange(info);
+            ParquetColumnDecoding.warnTimestampOutOfRange(info, informationalWarningSink);
         }
         if (nulls.isEmpty()) {
             Block constant = ConstantBlockDetection.tryConstantLong(values, produced, blockFactory);

@@ -20,6 +20,7 @@ import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.search.crossproject.CrossProjectModeDecider;
 import org.elasticsearch.tasks.TaskCancelledException;
 import org.elasticsearch.telemetry.metric.MeterRegistry;
+import org.elasticsearch.usage.UsageService;
 import org.elasticsearch.xpack.esql.action.EsqlExecutionInfo;
 import org.elasticsearch.xpack.esql.action.EsqlQueryRequest;
 import org.elasticsearch.xpack.esql.analysis.AnalyzerSettings;
@@ -140,7 +141,7 @@ public class PlanExecutor {
      * @param externalSourceExecutor Executor for {@link ExternalSourceResolver} work — glob expansion, footer reads,
      *                               schema reconciliation. Must not be the SEARCH pool: a wildcard external query
      *                               would otherwise starve regular ES searches and other ES|QL queries. Production
-     *                               wiring passes {@code esql_worker}.
+     *                               wiring passes the dedicated {@code esql_external_io} pool.
      * @param externalSourceConcurrency maximum number of in-flight per-file metadata reads during a multi-file
      *                               resolve. Production wiring passes
      *                               {@link ExternalSourceSettings#blobStoreConcurrency(Settings)} (the
@@ -176,9 +177,8 @@ public class PlanExecutor {
         // caps in-flight reads rather than pinning that many threads, so a wide discovery cannot starve execution.
         // NOTE: this release-across-the-read guarantee holds for storage backends with native async
         // reads (e.g. S3). Backends whose readBytesAsync is an executor-backed sync read (local, GCS)
-        // still occupy a worker thread for the duration of each footer read; the bound limits how
-        // many do so at once, and re-homing those blocking reads off esql_worker is handled by the
-        // follow-up concurrency-fairness work rather than here.
+        // still occupy one of that executor's threads for the duration of each footer read; the bound
+        // limits how many do so at once.
         final ExternalSourceResolver externalSourceResolver = createExternalSourceResolver(
             externalSourceExecutor,
             dataSourceModule,
@@ -216,7 +216,7 @@ public class PlanExecutor {
 
         var begin = System.nanoTime();
         ActionListener<Versioned<Result>> executeListener = wrap(
-            x -> onQuerySuccess(request, listener, x, planTelemetry, begin),
+            x -> onQuerySuccess(request, listener, x, planTelemetry, services.usageService(), executionInfo, begin),
             ex -> onQueryFailure(request, listener, ex, clientId, planTelemetry, begin)
         );
         // Wrap it in a listener so that if we have any exceptions during execution, the listener picks it up
@@ -229,6 +229,8 @@ public class PlanExecutor {
         ActionListener<Versioned<Result>> listener,
         Versioned<Result> x,
         PlanTelemetry planTelemetry,
+        UsageService usageService,
+        EsqlExecutionInfo executionInfo,
         long begin
     ) {
         planTelemetryManager.publish(planTelemetry, true);
@@ -241,6 +243,13 @@ public class PlanExecutor {
             null
         );
         queryLog.onQueryPhase(x, request.queryDescription());
+        // record routing usage telemetry
+        usageService.getProjectRoutingUsageHolder()
+            .recordEsql(
+                executionInfo.getProjectRoutingInfo(),
+                planTelemetry.settings().containsKey("PROJECT_ROUTING"),
+                executionInfo.isHasLinkedProjects()
+            );
         listener.onResponse(x);
     }
 

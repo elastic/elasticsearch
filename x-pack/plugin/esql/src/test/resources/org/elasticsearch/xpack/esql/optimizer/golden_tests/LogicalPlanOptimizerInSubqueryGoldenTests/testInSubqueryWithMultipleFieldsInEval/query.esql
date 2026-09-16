@@ -1,0 +1,2 @@
+FROM employees
+| EVAL a = 1, m = emp_no IN (FROM employees | KEEP emp_no), b = salary

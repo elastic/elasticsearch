@@ -19,9 +19,10 @@ import java.util.function.Consumer;
  * Bundles all per-read execution parameters that were previously spread across 12+ method overloads.
  * <p>
  * Format-specific configuration (delimiter, encoding, etc.) lives on the reader instance via
- * {@link FormatReader#withConfig}. Per-query optimizer hints (pushed filters) live on the reader
- * instance via {@link FormatReader#withPushedFilter}. This context carries only the parameters
- * that may vary per file or per split within a single query execution.
+ * {@link FormatReader#withConfig}. Optimizer hints (pushed filters) live on the reader
+ * instance via {@link FormatReader#withPushedFilter} and are reminted per file. This context
+ * carries only the parameters that may vary per file or per split within a single query
+ * execution.
  *
  * @param projectedColumns columns to read. {@code null} means "no projection info available — read
  *                         every column" (backward compatibility default). An <em>empty</em> list
@@ -83,21 +84,24 @@ import java.util.function.Consumer;
  *                         readers do one check.
  * @param informationalWarningSink optional relay for client-visible lenient-policy warnings (see
  *                         {@link SkipWarnings}) raised while reading. {@code null} means the reader
- *                         should fall back to emitting warnings directly via {@link
- *                         org.elasticsearch.common.logging.HeaderWarning}, which is only correct when
- *                         the read runs on the request/driver thread. Callers that dispatch reads to a
- *                         background thread (e.g. {@code AsyncExternalSourceOperatorFactory}) must set
- *                         this to a sink — typically {@code AsyncExternalSourceBuffer::recordInformationalWarning},
- *                         preserving these warnings' pre-existing behavior of never flipping the response's
- *                         {@code is_partial} flag (see {@code AsyncExternalSourceBuffer#recordWarning} for
- *                         the one warning that does) — so the warning is relayed back and re-emitted on
- *                         the correct thread instead of being silently dropped.
+ *                         leaves sink-only informational warnings disabled; {@link SkipWarnings}-based
+ *                         paths use their legacy direct {@link org.elasticsearch.common.logging.HeaderWarning}
+ *                         fallback on the invoking thread. This is retained for standalone tests and benchmarks.
+ *                         Driver-associated production reads must provide an explicit structured or buffered
+ *                         sink; merely running on the driver thread is insufficient because ES|QL transports
+ *                         compute warnings through {@code DriverCompletionInfo.warnings}.
  * @param fileHeaderColumns the file's own column names, in file order, read from its leading bytes.
  *                         {@code null} for every read that owns the file's start, and for formats that do
  *                         not name their columns in a header. Set only for a read that cannot see the
  *                         header but still has to know what the columns are called — a chunk after the
  *                         first of a header-bearing file whose declared schema binds by name. Binding such
  *                         a chunk by position instead would shift every column silently.
+ * @param sharedErrorBudget per-read error budget shared between the columnar reader and
+ *                         {@code SchemaAdaptingIterator}. When non-{@code null}, both the reader and the
+ *                         adapter reference the same instance so that a single {@code max_errors} /
+ *                         {@code max_error_ratio} budget is enforced against the combined total rather than
+ *                         independently per layer. {@code null} for text-based readers (CSV, NDJSON) and
+ *                         for non-{@code SKIP_ROW} policies.
  */
 public record FormatReadContext(
     List<String> projectedColumns,
@@ -116,7 +120,8 @@ public record FormatReadContext(
     StripeColumnScope statsColumnScope,
     @Nullable Consumer<String> informationalWarningSink,
     @Nullable List<String> fileHeaderColumns,
-    @Nullable CircuitBreaker breaker
+    @Nullable CircuitBreaker breaker,
+    @Nullable SharedErrorBudget sharedErrorBudget
 ) {
 
     public FormatReadContext {
@@ -163,7 +168,8 @@ public record FormatReadContext(
             statsColumnScope,
             informationalWarningSink,
             fileHeaderColumns,
-            breaker
+            breaker,
+            sharedErrorBudget
         );
     }
 
@@ -188,7 +194,8 @@ public record FormatReadContext(
             statsColumnScope,
             informationalWarningSink,
             fileHeaderColumns,
-            breaker
+            breaker,
+            sharedErrorBudget
         );
     }
 
@@ -213,7 +220,8 @@ public record FormatReadContext(
             statsColumnScope,
             informationalWarningSink,
             fileHeaderColumns,
-            breaker
+            breaker,
+            sharedErrorBudget
         );
     }
 
@@ -246,6 +254,8 @@ public record FormatReadContext(
         private Consumer<String> informationalWarningSink = null;
         @Nullable
         private CircuitBreaker breaker = null;
+        @Nullable
+        private SharedErrorBudget sharedErrorBudget = null;
 
         private Builder() {}
 
@@ -329,8 +339,8 @@ public record FormatReadContext(
         }
 
         /**
-         * See {@link FormatReadContext#informationalWarningSink()}; pass {@code null} for
-         * direct-to-HeaderWarning emission.
+         * See {@link FormatReadContext#informationalWarningSink()}; {@code null} disables sink-only
+         * warnings and retains legacy direct-header behavior for {@link SkipWarnings}-based paths.
          */
         public Builder informationalWarningSink(@Nullable Consumer<String> informationalWarningSink) {
             this.informationalWarningSink = informationalWarningSink;
@@ -361,6 +371,11 @@ public record FormatReadContext(
             return this;
         }
 
+        public Builder sharedErrorBudget(@Nullable SharedErrorBudget sharedErrorBudget) {
+            this.sharedErrorBudget = sharedErrorBudget;
+            return this;
+        }
+
         public FormatReadContext build() {
             if (batchSize <= 0) {
                 throw new IllegalArgumentException("batchSize must be positive, got: " + batchSize);
@@ -382,7 +397,8 @@ public record FormatReadContext(
                 statsColumnScope,
                 informationalWarningSink,
                 fileHeaderColumns,
-                breaker
+                breaker,
+                sharedErrorBudget
             );
         }
     }

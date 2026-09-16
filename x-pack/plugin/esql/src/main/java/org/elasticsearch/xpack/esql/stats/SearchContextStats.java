@@ -354,16 +354,25 @@ public class SearchContextStats implements SearchStats {
             } else {
                 // fields are MV per default
                 var sv = new boolean[] { false };
-                for (SearchExecutionContext context : contexts) {
-                    MappedFieldType mappedType = context.isFieldMapped(fieldName) ? context.getFieldType(fieldName) : null;
-                    if (mappedType != null) {
+                try {
+                    for (SearchExecutionContext context : contexts) {
+                        MappedFieldType mappedType = context.isFieldMapped(fieldName) ? context.getFieldType(fieldName) : null;
+                        if (mappedType == null) {
+                            continue;
+                        }
                         sv[0] = true;
-                        doWithContexts(r -> {
-                            sv[0] &= detectSingleValue(r, mappedType, fieldName);
-                            return sv[0];
-                        }, true);
-                        break;
+                        for (LeafReaderContext leafCtx : context.searcher().getLeafContexts()) {
+                            if (detectSingleValue(leafCtx.reader(), mappedType, fieldName) == false) {
+                                sv[0] = false;
+                                break;
+                            }
+                        }
+                        if (sv[0] == false) {
+                            break;
+                        }
                     }
+                } catch (IOException ex) {
+                    throw new UncheckedIOException(ex);
                 }
                 stat.singleValue = sv[0];
             }
@@ -392,15 +401,37 @@ public class SearchContextStats implements SearchStats {
         // check against doc size
         DocCountTester tester = null;
         if (fieldType instanceof DateFieldType || fieldType instanceof NumberFieldType) {
-            tester = lr -> {
-                PointValues values = lr.getPointValues(name);
-                return values == null || values.size() == values.getDocCount();
-            };
-        } else if (fieldType instanceof KeywordFieldType) {
-            tester = lr -> {
-                Terms terms = lr.terms(name);
-                return terms == null || terms.getSumDocFreq() == terms.getDocCount();
-            };
+            if (fieldType.indexType().hasPoints()) {
+                tester = lr -> {
+                    PointValues values = lr.getPointValues(name);
+                    return values == null || values.size() == values.getDocCount();
+                };
+            } else if (fieldType.indexType().hasDocValuesSkipper()) {
+                tester = lr -> {
+                    DocValuesSkipper skipper = lr.getDocValuesSkipper(name);
+                    return skipper == null || skipper.maxValueCount() == 1;
+                };
+            }
+            // else: neither points nor skippers → cannot prove single-valuedness; tester stays null
+        } else if (fieldType instanceof KeywordFieldType keywordFieldType) {
+            if (keywordFieldType.usesMultivaluedBinaryDocValues()) {
+                // The binary multivalued format can store duplicate values per document (e.g. ["A", "A", "B"]).
+                // The terms index deduplicates per document, resulting in a lower sum doc freq than actually is.
+                return false;
+            }
+
+            if (keywordFieldType.indexType().hasDocValuesSkipper()) {
+                tester = lr -> {
+                    DocValuesSkipper skipper = lr.getDocValuesSkipper(name);
+                    return skipper == null || skipper.maxValueCount() == 1;
+                };
+            } else if (keywordFieldType.indexType().hasTerms()) {
+                tester = lr -> {
+                    Terms terms = lr.terms(name);
+                    return terms == null || terms.getSumDocFreq() == terms.getDocCount();
+                };
+            }
+            // else: cannot prove single-valuedness; tester stays null
         }
 
         if (tester != null) {

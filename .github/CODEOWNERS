@@ -33,6 +33,15 @@ x-pack/plugin/kibana/src/main/java/org/elasticsearch/xpack/kibana/KibanaAlertsIm
 x-pack/plugin/kibana/src/test/java/org/elasticsearch/xpack/kibana/KibanaAlertsImplicitPrivilegesProviderTests.java @elastic/kibana-security @elastic/response-ops
 x-pack/plugin/kibana/src/main/java/org/elasticsearch/xpack/kibana/KibanaCasesImplicitPrivilegesProvider.java @elastic/kibana-security @elastic/kibana-cases
 x-pack/plugin/kibana/src/test/java/org/elasticsearch/xpack/kibana/KibanaCasesImplicitPrivilegesProviderTests.java @elastic/kibana-security @elastic/kibana-cases
+x-pack/plugin/kibana/src/main/java/org/elasticsearch/xpack/kibana/ElasticAiIndexImplicitPrivilegesProvider.java @elastic/kibana-security @elastic/context-eng
+x-pack/plugin/kibana/src/test/java/org/elasticsearch/xpack/kibana/ElasticAiIndexImplicitPrivilegesProviderTests.java @elastic/kibana-security @elastic/context-eng
+x-pack/plugin/kibana/src/javaRestTest/java/org/elasticsearch/xpack/kibana/ElasticAiIndexImplicitPrivilegesIT.java @elastic/kibana-security @elastic/context-eng
+
+# Context Engine
+x-pack/plugin/core/template-resources/src/main/resources/ai-index @elastic/context-eng
+x-pack/plugin/stack/src/main/java/org/elasticsearch/xpack/stack/AiIndexTemplateRegistry.java @elastic/context-eng
+x-pack/plugin/stack/src/test/java/org/elasticsearch/xpack/stack/AiIndexTemplateRegistryTests.java @elastic/context-eng
+x-pack/plugin/stack/src/yamlRestTest/resources/rest-api-spec/test/ai-index @elastic/context-eng
 
 # APM Data index templates, etc.
 x-pack/plugin/apm-data/src/main/resources @elastic/obs-ds-intake-services
@@ -47,19 +56,22 @@ x-pack/plugin/otel-data/src/main/java/org/elasticsearch/xpack/oteldata/otlp @ela
 x-pack/plugin/otel-data/src/test/java/org/elasticsearch/xpack/oteldata/otlp @elastic/es-storage-engine
 x-pack/plugin/otel-data/src/javaRestTest/java/org/elasticsearch/xpack/oteldata/otlp @elastic/es-storage-engine
 
-# Delivery
-gradle @elastic/es-delivery
-build-conventions @elastic/es-delivery
-build-tools @elastic/es-delivery
-build-tools-internal @elastic/es-delivery
-.buildkite @elastic/es-delivery
-.ci @elastic/es-delivery
-.idea @elastic/es-delivery
-distribution/src @elastic/es-delivery
-distribution/packages/src @elastic/es-delivery
-distribution/docker/src @elastic/es-delivery
-
 # Core/Infra
+gradle @elastic/es-core-infra
+# ignore verification metadata
+gradle/verification-metadata.xml
+build-conventions @elastic/es-core-infra
+build-tools @elastic/es-core-infra
+build-tools-internal @elastic/es-core-infra
+# ignore shared version properties
+build-tools-internal/version.properties
+.buildkite @elastic/es-core-infra
+.ci @elastic/es-core-infra
+.idea @elastic/es-core-infra
+distribution/src @elastic/es-core-infra
+distribution/packages/src @elastic/es-core-infra
+distribution/docker/src @elastic/es-core-infra
+
 distribution/tools @elastic/es-core-infra
 libs/entitlement @elastic/es-core-infra
 libs/logging @elastic/es-core-infra

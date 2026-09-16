@@ -72,10 +72,11 @@ public final class LogEvaluator implements ExpressionEvaluator {
   public DoubleBlock eval(int positionCount, DoubleBlock baseBlock, DoubleBlock valueBlock) {
     try(DoubleBlock.Builder result = driverContext.blockFactory().newDoubleBlockBuilder(positionCount)) {
       position: for (int p = 0; p < positionCount; p++) {
+        if (baseBlock.isNull(p)) {
+          result.appendNull();
+          continue position;
+        }
         switch (baseBlock.getValueCount(p)) {
-          case 0:
-              result.appendNull();
-              continue position;
           case 1:
               break;
           default:
@@ -83,10 +84,11 @@ public final class LogEvaluator implements ExpressionEvaluator {
               result.appendNull();
               continue position;
         }
+        if (valueBlock.isNull(p)) {
+          result.appendNull();
+          continue position;
+        }
         switch (valueBlock.getValueCount(p)) {
-          case 0:
-              result.appendNull();
-              continue position;
           case 1:
               break;
           default:

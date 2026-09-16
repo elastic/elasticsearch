@@ -304,6 +304,18 @@ public final class WriterConstants {
         long.class
     );
 
+    /** The static constant holding a metrics-enabled script class's recorder, set at compile time like {@code $DEFINITION}. */
+    public static final String ALLOC_METRICS_FIELD = "$allocMetrics";
+
+    /** ASM {@link Type} for {@link AllocationMetrics.ContextRecorder}. */
+    public static final Type ALLOC_METRICS_TYPE = Type.getType(AllocationMetrics.ContextRecorder.class);
+
+    /**
+     * {@link AllocationMetrics.ContextRecorder#recordExecutionAllocation(long)}, invoked on {@code $allocMetrics} from the
+     * {@code execute} return path.
+     */
+    public static final Method RECORD_EXECUTION_ALLOCATION = getAsmMethod(void.class, "recordExecutionAllocation", long.class);
+
     /** {@link AllocationGuard#sanitizeEstimate(long)} — normalizes an {@code @allocates} estimator's result. */
     public static final Method SANITIZE_ESTIMATE = getAsmMethod(long.class, "sanitizeEstimate", long.class);
 

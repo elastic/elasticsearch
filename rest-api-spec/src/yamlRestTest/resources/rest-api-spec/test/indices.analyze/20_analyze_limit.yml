@@ -32,7 +32,6 @@ setup:
               text: This should fail as it exceeds limit
               analyzer: standard
 
-
 ---
 "_analyze with explain with No. generated tokens more than index.analyze.max_token_count should fail":
 

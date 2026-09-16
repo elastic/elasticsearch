@@ -20,6 +20,9 @@ package org.elasticsearch.foreign.processor.model;
  *   <li>{@link #ADDRESSABLE}: an {@code org.elasticsearch.foreign.Addressable} is unwrapped to
  *       the {@code long} address of its backing segment; laid out as {@link #LONG}. A
  *       {@code null} Addressable is passed as {@code 0L}.</li>
+ *   <li>{@link #UPCALL}: a {@code org.elasticsearch.foreign.Upcall}-annotated callback interface
+ *       is marshaled by installing a global-lifetime FFM upcall stub for the callback and passing
+ *       the stub's address; laid out as {@link #ADDRESS}.</li>
  * </ul>
  */
 public enum NativeType {
@@ -33,6 +36,7 @@ public enum NativeType {
     ADDRESS,
     STRING,
     ADDRESSABLE,
+    UPCALL,
     VOID;
 
     /** The native layout to use when describing this type to FFM. */
@@ -40,6 +44,7 @@ public enum NativeType {
         return switch (this) {
             case STRING -> ADDRESS;
             case ADDRESSABLE -> LONG;
+            case UPCALL -> ADDRESS;
             default -> this;
         };
     }

@@ -922,7 +922,7 @@ public class IndexingShardRecoveryIT extends AbstractStatelessPluginIntegTestCas
             var node = clusterState.getNodes().get(indexShard.routingEntry().currentNodeId());
             var commitService = internalCluster().getInstance(StatelessCommitService.class, node.getName());
             assertThat("Commit service does not exist: " + shard, commitService, notNullValue());
-            assertThat(commitService.hasPendingBccUploads(indexShard.shardId()), equalTo(false));
+            assertThat(commitService.hasBccUploadInProgress(indexShard.shardId()), equalTo(false));
             consumer.accept(indexShard.shardId(), commitService);
         }
     }

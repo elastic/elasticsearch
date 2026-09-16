@@ -12,6 +12,7 @@ import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.compute.aggregation.AggregatorMode;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.esql.core.tree.Source;
+import org.elasticsearch.xpack.esql.datasources.CoalescedSplit;
 import org.elasticsearch.xpack.esql.datasources.FileSplit;
 import org.elasticsearch.xpack.esql.datasources.spi.ExternalSplit;
 import org.elasticsearch.xpack.esql.datasources.spi.StoragePath;
@@ -25,6 +26,9 @@ import java.util.Map;
 import java.util.Set;
 
 import static org.elasticsearch.cluster.node.DiscoveryNodeRole.DATA_HOT_NODE_ROLE;
+import static org.elasticsearch.cluster.node.DiscoveryNodeRole.INDEX_ROLE;
+import static org.elasticsearch.cluster.node.DiscoveryNodeRole.SEARCH_ROLE;
+import static org.elasticsearch.xpack.esql.datasources.SplitCoalescer.DEFAULT_MAX_FILES_PER_GROUP;
 
 public class WeightedRoundRobinStrategyTests extends ESTestCase {
 
@@ -74,6 +78,40 @@ public class WeightedRoundRobinStrategyTests extends ESTestCase {
             totalAssigned += assigned.size();
         }
         assertEquals(4, totalAssigned);
+    }
+
+    public void testTinyCoalescedGroupsDoNotAllLandOnOneNode() {
+        // Bytes-only LPT gives the 128 MiB standalone to one node and every 32-leaf 1 KiB group to
+        // the other (3200 opens vs 1). Claim cost adds 4 MiB per leaf, so each full group is ~128 MiB
+        // of work and LPT spreads the groups instead of dumping them on the lighter-byte node.
+        long largeBytes = 128L * 1024 * 1024;
+        List<ExternalSplit> splits = new ArrayList<>();
+        splits.add(createSplit("large.parquet", largeBytes));
+        for (int g = 0; g < 100; g++) {
+            List<ExternalSplit> children = new ArrayList<>(DEFAULT_MAX_FILES_PER_GROUP);
+            for (int i = 0; i < DEFAULT_MAX_FILES_PER_GROUP; i++) {
+                children.add(createSplit("tiny-" + g + "-" + i + ".parquet", 1024));
+            }
+            splits.add(new CoalescedSplit("parquet", children));
+        }
+        ExternalDistributionContext context = new ExternalDistributionContext(createPlan(), splits, createNodes(2), QueryPragmas.EMPTY);
+
+        ExternalDistributionPlan plan = strategy.planDistribution(context);
+
+        assertTrue(plan.distributed());
+        assertEquals(2, plan.nodeAssignments().size());
+        int minLeaves = Integer.MAX_VALUE;
+        int maxLeaves = 0;
+        for (List<ExternalSplit> assigned : plan.nodeAssignments().values()) {
+            int leaves = 0;
+            for (ExternalSplit split : assigned) {
+                leaves += split instanceof CoalescedSplit coalesced ? coalesced.children().size() : 1;
+            }
+            minLeaves = Math.min(minLeaves, leaves);
+            maxLeaves = Math.max(maxLeaves, leaves);
+        }
+        assertTrue("leaf imbalance too high: " + maxLeaves + " vs " + minLeaves, maxLeaves - minLeaves <= 2 * DEFAULT_MAX_FILES_PER_GROUP);
+        assertTrue("both nodes must open a substantial share of files, min=" + minLeaves, minLeaves >= DEFAULT_MAX_FILES_PER_GROUP * 40);
     }
 
     public void testAllEqualSizesDegradesToEvenDistribution() {
@@ -135,6 +173,60 @@ public class WeightedRoundRobinStrategyTests extends ESTestCase {
         ExternalDistributionPlan plan2 = strategy.planDistribution(context);
 
         assertEquals(plan1.nodeAssignments(), plan2.nodeAssignments());
+    }
+
+    public void testAssignmentsNeverReferenceIndexNode() {
+        DiscoveryNodes nodes = DiscoveryNodes.builder()
+            .add(DiscoveryNodeUtils.builder("index-1").roles(Set.of(INDEX_ROLE)).build())
+            .add(DiscoveryNodeUtils.builder("search-1").roles(Set.of(SEARCH_ROLE)).build())
+            .add(DiscoveryNodeUtils.builder("data-1").roles(Set.of(DATA_HOT_NODE_ROLE)).build())
+            .build();
+
+        ExternalDistributionPlan plan = strategy.planDistribution(
+            new ExternalDistributionContext(
+                createPlan(),
+                List.of(createSplit("a.parquet", 500), createSplit("b.parquet", 300), createSplit("c.parquet", 200)),
+                nodes,
+                QueryPragmas.EMPTY
+            )
+        );
+
+        assertTrue(plan.distributed());
+        assertFalse(plan.nodeAssignments().containsKey("index-1"));
+        assertEquals(Set.of("search-1", "data-1"), plan.nodeAssignments().keySet());
+    }
+
+    public void testIndexCoordinatorAssignsEverySplitToSearchWorker() {
+        DiscoveryNodes nodes = DiscoveryNodes.builder()
+            .add(DiscoveryNodeUtils.builder("index-1").roles(Set.of(INDEX_ROLE)).build())
+            .add(DiscoveryNodeUtils.builder("search-1").roles(Set.of(SEARCH_ROLE)).build())
+            .build();
+
+        ExternalDistributionPlan plan = strategy.planDistribution(
+            new ExternalDistributionContext(
+                createPlan(),
+                List.of(createSplit("a.parquet", 500), createSplit("b.parquet", 300)),
+                nodes,
+                QueryPragmas.EMPTY
+            )
+        );
+
+        assertTrue(plan.distributed());
+        assertEquals(Set.of("search-1"), plan.nodeAssignments().keySet());
+        assertEquals(2, plan.nodeAssignments().get("search-1").size());
+    }
+
+    public void testIndexOnlyClusterReturnsLocal() {
+        DiscoveryNodes nodes = DiscoveryNodes.builder()
+            .add(DiscoveryNodeUtils.builder("index-1").roles(Set.of(INDEX_ROLE)).build())
+            .build();
+
+        ExternalDistributionPlan plan = strategy.planDistribution(
+            new ExternalDistributionContext(createPlan(), List.of(createSplit("a.parquet", 1024)), nodes, QueryPragmas.EMPTY)
+        );
+
+        assertFalse(plan.distributed());
+        assertTrue(plan.nodeAssignments().isEmpty());
     }
 
     private static ExternalSplit createSplit(String name, long sizeBytes) {

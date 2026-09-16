@@ -20,7 +20,6 @@ import org.elasticsearch.xpack.esql.expression.function.TestCaseSupplier;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.function.Supplier;
-import java.util.regex.PatternSyntaxException;
 
 import static org.hamcrest.Matchers.equalTo;
 
@@ -113,10 +112,6 @@ public class ReplaceTests extends AbstractScalarFunctionTestCase {
                         "\n",
                         System.lineSeparator()
                     )
-                )
-                .withFoldingException(
-                    PatternSyntaxException.class,
-                    "Unclosed character class near index 0\n[\n^".replaceAll("\n", System.lineSeparator())
                 );
         }));
         return parameterSuppliersFromTypedDataWithDefaultChecks(false, suppliers);

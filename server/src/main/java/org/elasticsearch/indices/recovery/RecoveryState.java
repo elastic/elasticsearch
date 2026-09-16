@@ -38,7 +38,24 @@ import java.util.Map;
  */
 public class RecoveryState implements ToXContentFragment, Writeable {
 
+    private static final TransportVersion RECOVERY_PRIORITY_TRANSPORT_VERSION = TransportVersion.fromName(
+        "recovery_priority_in_recovery_state"
+    );
+    private static final TransportVersion RECOVERY_STAGE_CREATED_TRANSPORT_VERSION = TransportVersion.fromName("recovery_stage_created");
+    private static final TransportVersion RECOVERY_LOCAL_RETRY_COUNT_TRANSPORT_VERSION = TransportVersion.fromName(
+        "recovery_local_retry_count_in_recovery_state"
+    );
+
     public enum Stage {
+        /**
+         * The index shard and its recovery state object have been created but recovery has not started yet. It is
+         * possibly still queued on the data node. Initial stage of every recovery. Moves to {@link #INIT} once the
+         * recovery actually starts. The recovery timer is not running at this stage, so a queued recovery reports
+         * zero timings rather than counting the time it spends queued as recovery time.
+         * note: stage ids are append-only for wire compatibility, so this stage's id is out of declaration order.
+         */
+        CREATED((byte) 6),
+
         INIT((byte) 0),
 
         /**
@@ -91,6 +108,7 @@ public class RecoveryState implements ToXContentFragment, Writeable {
     }
 
     private Stage stage;
+    private int localRetries;
 
     private final Index index;
     private final Translog translog;
@@ -126,7 +144,6 @@ public class RecoveryState implements ToXContentFragment, Writeable {
         assert shardRouting.recoverySource().getType() != RecoverySource.Type.RESHARD_SPLIT || sourceNode != null
             : "reshard split target recovery requires source node but it is null";
         assert shardRouting.recoveryPriority() != null : "recovery priority must not be null in shard routing: " + shardRouting;
-        timer.start();
     }
 
     private RecoveryState(
@@ -134,7 +151,7 @@ public class RecoveryState implements ToXContentFragment, Writeable {
         boolean primary,
         RecoverySource recoverySource,
         ShardRouting.RecoveryPriority recoveryPriority,
-        DiscoveryNode sourceNode,
+        @Nullable DiscoveryNode sourceNode,
         DiscoveryNode targetNode,
         Index index,
         Timer timer
@@ -145,20 +162,22 @@ public class RecoveryState implements ToXContentFragment, Writeable {
         this.recoveryPriority = recoveryPriority;
         this.sourceNode = sourceNode;
         this.targetNode = targetNode;
-        stage = Stage.INIT;
+        stage = Stage.CREATED;
+        localRetries = 0;
         this.index = index;
         translog = new Translog();
         verifyIndex = new VerifyIndex();
         this.timer = timer;
     }
 
-    private static final TransportVersion RECOVERY_PRIORITY_TRANSPORT_VERSION = TransportVersion.fromName(
-        "recovery_priority_in_recovery_state"
-    );
-
     private RecoveryState(StreamInput in) throws IOException {
         timer = new Timer(in);
         stage = Stage.fromId(in.readByte());
+        if (in.getTransportVersion().supports(RECOVERY_LOCAL_RETRY_COUNT_TRANSPORT_VERSION)) {
+            localRetries = in.readVInt();
+        } else {
+            localRetries = 0; // serializing node is too old to have this field, so it is also too old to do local retries
+        }
         shardId = new ShardId(in);
         recoverySource = RecoverySource.readFrom(in);
         if (in.getTransportVersion().supports(RECOVERY_PRIORITY_TRANSPORT_VERSION)) {
@@ -177,7 +196,17 @@ public class RecoveryState implements ToXContentFragment, Writeable {
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         timer.writeTo(out);
-        out.writeByte(stage.id());
+        final Stage stageToWrite = getStage();
+        if (stageToWrite == Stage.CREATED && out.getTransportVersion().supports(RECOVERY_STAGE_CREATED_TRANSPORT_VERSION) == false) {
+            out.writeByte(Stage.INIT.id());
+        } else {
+            out.writeByte(stageToWrite.id());
+        }
+        // Only send localRetries to nodes which are new enough to know about it.
+        // This is fine as the only time this is serialized is when returning in the response to the recovery API.
+        if (out.getTransportVersion().supports(RECOVERY_LOCAL_RETRY_COUNT_TRANSPORT_VERSION)) {
+            out.writeVInt(getLocalRetries());
+        }
         shardId.writeTo(out);
         recoverySource.writeTo(out);
         // Only send recoveryPriority to nodes which are new enough to know about it.
@@ -221,9 +250,21 @@ public class RecoveryState implements ToXContentFragment, Writeable {
     // synchronized is strictly speaking not needed (this is called by a single thread), but just to be safe
     public synchronized RecoveryState setStage(Stage stage) {
         switch (stage) {
+            case CREATED -> {
+                assert false : "can't move recovery to stage [CREATED] from [" + this.stage + "]";
+                throw new IllegalArgumentException(
+                    "can't move recovery to stage [CREATED] from ["
+                        + this.stage
+                        + "]: CREATED is the initial stage of every recovery, not a valid transition target"
+                );
+            }
             case INIT -> {
-                // reinitializing stop remove all state except for start time
+                // Covers both the CREATED to INIT transition and re-initialization via reset().
+                // In both cases, all substate is reset but the start time and retry count are preserved once set.
                 this.stage = Stage.INIT;
+                if (timer.startTime() == 0) {
+                    timer.start();
+                }
                 getIndex().reset();
                 getVerifyIndex().reset();
                 getTranslog().reset();
@@ -257,11 +298,24 @@ public class RecoveryState implements ToXContentFragment, Writeable {
     }
 
     /**
-     * Resets the stage to the initial state and clears all index, verify index and translog information keeping the original timing
-     * information
+     * Returns a {@link RecoveryState} equivalent to this one with all index, verify index and translog information cleared, keeping the
+     * original timing information and local retry count. The returned state is at stage {@link Stage#INIT}, since the recovery is already
+     * in flight.
      */
     public RecoveryState reset() {
-        return new RecoveryState(shardId, primary, recoverySource, recoveryPriority, sourceNode, targetNode, new Index(), timer);
+        final RecoveryState freshState = new RecoveryState(
+            shardId,
+            primary,
+            recoverySource,
+            recoveryPriority,
+            sourceNode,
+            targetNode,
+            new Index(),
+            timer
+        );
+        freshState.setStage(Stage.INIT);
+        freshState.setLocalRetries(getLocalRetries());
+        return freshState;
     }
 
     public synchronized RecoveryState setLocalTranslogStage() {
@@ -270,6 +324,20 @@ public class RecoveryState implements ToXContentFragment, Writeable {
 
     public synchronized RecoveryState setRemoteTranslogStage() {
         return setStage(Stage.TRANSLOG);
+    }
+
+    /// Returns the number of times this recovery has failed in a way which is retried locally (i.e. on the data node).
+    ///
+    /// Non-locally-retryable failures will not be counted here. They will be sent back to the master, which update the cluster state to
+    /// increment the [org.elasticsearch.cluster.routing.UnassignedInfo]'s `failedAllocations` value instead. Then the master should trigger
+    /// a new recovery, with this field starting again from zero.
+    public synchronized int getLocalRetries() {
+        return this.localRetries;
+    }
+
+    public synchronized RecoveryState setLocalRetries(int localRetries) {
+        this.localRetries = localRetries;
+        return this;
     }
 
     public Index getIndex() {
@@ -319,10 +387,12 @@ public class RecoveryState implements ToXContentFragment, Writeable {
     @Override
     public String toString() {
         return Strings.format(
-            "RecoveryState{shardId=%s, recoverySource=%s, stage=%s, primary=%s, recoveryPriority=%s, sourceNode=%s, targetNode=%s}",
+            "RecoveryState{shardId=%s, recoverySource=%s, stage=%s, localRetries=%d, primary=%s, recoveryPriority=%s, "
+                + "sourceNode=%s, targetNode=%s}",
             shardId,
             recoverySource.getType(),
-            stage,
+            getStage(),
+            getLocalRetries(),
             primary,
             recoveryPriority,
             sourceNode != null ? sourceNode.getId() : "null",
@@ -336,8 +406,10 @@ public class RecoveryState implements ToXContentFragment, Writeable {
         builder.field(Fields.ID, shardId.id());
         builder.field(Fields.TYPE, recoverySource.getType());
         builder.field(Fields.STAGE, stage.toString());
+        builder.field(Fields.LOCAL_RETRIES, localRetries);
         builder.field(Fields.PRIMARY, primary);
         builder.field(Fields.PRIORITY, recoveryPriority);
+        // Note: a recovery still at Stage.CREATED has not started its timer, so it reports a start time of 0.
         builder.timestampFieldsFromUnixEpochMillis(Fields.START_TIME_IN_MILLIS, Fields.START_TIME, timer.startTime);
         if (timer.stopTime > 0) {
             builder.timestampFieldsFromUnixEpochMillis(Fields.STOP_TIME_IN_MILLIS, Fields.STOP_TIME, timer.stopTime);
@@ -384,6 +456,7 @@ public class RecoveryState implements ToXContentFragment, Writeable {
         static final String TYPE = "type";
         static final String PRIORITY = "priority";
         static final String STAGE = "stage";
+        static final String LOCAL_RETRIES = "local_retries";
         static final String PRIMARY = "primary";
         static final String START_TIME = "start_time";
         static final String START_TIME_IN_MILLIS = "start_time_in_millis";

@@ -139,8 +139,14 @@ public class WaitForHttpResource {
         if (validResponseCodes.contains(response)) {
             logger.info("Got successful response [{}] from URL [{}]", response, url);
             return;
-        } else {
-            throw new IOException(response + " " + connection.getResponseMessage());
+        }
+        throw new IOException(response + " " + connection.getResponseMessage() + " " + readErrorBody(connection));
+    }
+
+    private static String readErrorBody(HttpURLConnection connection) throws IOException {
+        InputStream error = connection.getErrorStream();
+        try (InputStream stream = error != null ? error : connection.getInputStream()) {
+            return stream == null ? "" : new String(stream.readAllBytes(), StandardCharsets.UTF_8);
         }
     }
 

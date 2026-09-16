@@ -272,6 +272,15 @@ public abstract class AbstractAlibabaCloudSearchServiceSettingsTests<T extends S
         );
     }
 
+    public void testUpdateServiceSettings_ApiKey_IsIgnored() {
+        var originalServiceSettings = createServiceSettings(initialCommonServiceSettings());
+        var updatedServiceSettings = originalServiceSettings.updateServiceSettings(
+            new HashMap<>(Map.of(DefaultSecretSettings.API_KEY, "secret-key"))
+        );
+
+        assertThat(updatedServiceSettings, is(originalServiceSettings));
+    }
+
     public void testUpdateServiceSettings_MutableCommonFields_AreUpdated() {
         var originalServiceSettings = createServiceSettings(initialCommonServiceSettings());
         var updatedServiceSettings = originalServiceSettings.updateServiceSettings(
@@ -324,6 +333,29 @@ public abstract class AbstractAlibabaCloudSearchServiceSettingsTests<T extends S
                         INITIAL_TEST_HOST,
                         INITIAL_TEST_WORKSPACE_NAME,
                         null,
+                        new RateLimitSettings(DEFAULT_RATE_LIMIT)
+                    )
+                )
+            )
+        );
+    }
+
+    public void testUpdateServiceSettings_EmptyRateLimitObject_RevertsToDefault() {
+        var originalServiceSettings = createServiceSettings(initialCommonServiceSettings());
+
+        var updatedServiceSettings = originalServiceSettings.updateServiceSettings(
+            new HashMap<>(Map.of(RateLimitSettings.FIELD_NAME, new HashMap<>()))
+        );
+
+        assertThat(
+            updatedServiceSettings,
+            is(
+                createServiceSettings(
+                    new AlibabaCloudSearchServiceSettings(
+                        INITIAL_TEST_SERVICE_ID,
+                        INITIAL_TEST_HOST,
+                        INITIAL_TEST_WORKSPACE_NAME,
+                        INITIAL_TEST_HTTP_SCHEMA,
                         new RateLimitSettings(DEFAULT_RATE_LIMIT)
                     )
                 )

@@ -136,7 +136,9 @@ public class ESNextDiskBBQByteVectorsFormatTests extends BaseByteKnnVectorsForma
         int[] docsPerSlice = new int[slices];
         int[] docSlices = new int[numDocs];
         IndexWriterConfig iwc = newIndexWriterConfig();
-        iwc.setIndexSort(new Sort(new SortField(sliceField, SortField.Type.STRING)));
+        SortField sliceSortField = new SortField(sliceField, SortField.Type.STRING);
+        sliceSortField.setMissingValue(SortField.STRING_LAST);
+        iwc.setIndexSort(new Sort(sliceSortField));
         iwc.setCodec(TestUtil.alwaysKnnVectorsFormat(slicedFormat));
         try (Directory dir = newDirectory(); IndexWriter w = new IndexWriter(dir, iwc)) {
             for (int i = 0; i < numDocs; i++) {

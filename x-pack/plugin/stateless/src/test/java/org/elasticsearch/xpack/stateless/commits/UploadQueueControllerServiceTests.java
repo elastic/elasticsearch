@@ -7,10 +7,11 @@
 
 package org.elasticsearch.xpack.stateless.commits;
 
-import org.elasticsearch.common.unit.ByteSizeValue;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.indices.IndicesService;
+import org.elasticsearch.telemetry.metric.MeterRegistry;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.stateless.commits.UploadQueueControllerService.ThrottleCalculator;
 import org.elasticsearch.xpack.stateless.commits.UploadQueueControllerService.ThrottleSettings;
@@ -35,10 +36,10 @@ public class UploadQueueControllerServiceTests extends ESTestCase {
 
         var time = new AtomicLong(0);
         var throttler = new MemorizingThrottler();
-        var calculator = new ThrottleCalculator(time::get, throttler);
+        var calculator = new ThrottleCalculator(time::get, throttler, MeterRegistry.NOOP);
 
         var stats = new ShardCommitUploadStats() {
-            long pendingUploadBytes = 0;
+            long oldestCommitUploadStartTime = 0;
 
             @Override
             public ShardId shardId() {
@@ -46,12 +47,12 @@ public class UploadQueueControllerServiceTests extends ESTestCase {
             }
 
             @Override
-            public long pendingUploadBytes() {
-                return pendingUploadBytes;
+            public Long oldestCommitUploadStartTimeRelativeMillis() {
+                return oldestCommitUploadStartTime;
             }
         };
 
-        var settings = new ThrottleSettings(20, 10, 10);
+        var settings = new ThrottleSettings(TimeValue.timeValueMillis(20), TimeValue.timeValueMillis(20), 10);
 
         int iterations = randomIntBetween(1, 20);
         Map<ShardId, ThrottleState> currentState = Map.of();
@@ -60,17 +61,17 @@ public class UploadQueueControllerServiceTests extends ESTestCase {
             long timePassed = randomLongBetween(settings.cooldownPeriodMs() + 1, 60);
             time.addAndGet(timePassed);
 
-            // We will alternate between high and low backlog.
-            long pendingUploadMiB;
-            // Since the throughput is 1, we can use periods here directly.
+            // We will alternate between throttle and unthrottle conditions.
+            // Upload start time further in the past indicates backlog and lead to throttling.
+            long differenceWithCurrentTime;
             if (i % 2 == 0) {
-                pendingUploadMiB = randomLongBetween(settings.activationThresholdSeconds() + 1, 100);
+                differenceWithCurrentTime = randomLongBetween(settings.activationThreshold().millis() + 1, 100);
             } else {
-                pendingUploadMiB = randomLongBetween(0, settings.deactivationThresholdSeconds() - 1);
+                differenceWithCurrentTime = randomLongBetween(0, settings.deactivationThreshold().millis() - 1);
             }
-            stats.pendingUploadBytes = ByteSizeValue.ofMb(pendingUploadMiB).getBytes();
+            stats.oldestCommitUploadStartTime = time.get() - differenceWithCurrentTime;
 
-            currentState = calculator.newState(currentState, Stream.of(stats), settings, 1);
+            currentState = calculator.newState(currentState, Stream.of(stats), settings);
             var shardState = currentState.get(shardId);
             if (i % 2 == 0) {
                 assertEquals(Type.THROTTLED, shardState.latestDecision());
@@ -85,9 +86,10 @@ public class UploadQueueControllerServiceTests extends ESTestCase {
     public void testMultipleThrottlingPeriods() {
         var shardId = new ShardId(randomIndexName(), randomUUID(), 0);
 
-        var time = new AtomicLong(0);
+        long initialTime = 1000;
+        var time = new AtomicLong(initialTime);
         var throttler = new MemorizingThrottler();
-        var calculator = new ThrottleCalculator(time::get, throttler);
+        var calculator = new ThrottleCalculator(time::get, throttler, MeterRegistry.NOOP);
 
         // With empty current state we can throttle if conditions are met.
         var stats = new ShardCommitUploadStats() {
@@ -97,16 +99,17 @@ public class UploadQueueControllerServiceTests extends ESTestCase {
             }
 
             @Override
-            public long pendingUploadBytes() {
-                return ByteSizeValue.ofMb(50).getBytes(); // results in backlog higher than 20 seconds in settings below
+            public Long oldestCommitUploadStartTimeRelativeMillis() {
+                // See value of `time`, this results in the age of the oldest commit being larger than the threshold in settings below.
+                return 0L;
             }
         };
-        var settings = new ThrottleSettings(20, 10, 10);
-        // The backlog is 50 seconds with provided stats and throughput, which is more than 20.
-        Map<ShardId, ThrottleState> throttleState = calculator.newState(Map.of(), Stream.of(stats), settings, 1);
+        var settings = new ThrottleSettings(TimeValue.timeValueMillis(20), TimeValue.timeValueMillis(10), 10);
+        // Age of the oldest commit is 1000 which is higher than the threshold.
+        Map<ShardId, ThrottleState> throttleState = calculator.newState(Map.of(), Stream.of(stats), settings);
         var throttleShardState = throttleState.get(shardId);
         assertEquals(Type.THROTTLED, throttleShardState.latestDecision());
-        assertEquals(0, throttleShardState.relativeApplicationTimeMs());
+        assertEquals(initialTime, throttleShardState.relativeApplicationTimeMs());
         assertEquals(1, throttleShardState.consecutiveApplications());
         assertEquals(1, throttler.history.size());
         assertEquals(shardId, throttler.history.get(0).shardId);
@@ -118,20 +121,20 @@ public class UploadQueueControllerServiceTests extends ESTestCase {
             time.incrementAndGet();
 
             // So this is all the same as above.
-            throttleKeepState = calculator.newState(throttleState, Stream.of(stats), settings, 1);
+            throttleKeepState = calculator.newState(throttleState, Stream.of(stats), settings);
             var throttleKeepShardState = throttleKeepState.get(shardId);
             assertEquals(Type.THROTTLED, throttleKeepShardState.latestDecision());
-            assertEquals(0, throttleKeepShardState.relativeApplicationTimeMs());
+            assertEquals(initialTime, throttleKeepShardState.relativeApplicationTimeMs());
             assertEquals(1, throttleKeepShardState.consecutiveApplications());
             assertEquals(1, throttler.history.size());
         }
 
         time.incrementAndGet();
 
-        // We keep the throttle as long as needed if we still see the queue.
+        // We keep the throttle as long as needed if we still see commits being queued.
         time.addAndGet(settings.cooldownPeriodMs() + 1);
 
-        Map<ShardId, ThrottleState> secondPeriodState = calculator.newState(throttleKeepState, Stream.of(stats), settings, 1);
+        Map<ShardId, ThrottleState> secondPeriodState = calculator.newState(throttleKeepState, Stream.of(stats), settings);
         var secondPeriodShardState = secondPeriodState.get(shardId);
         assertEquals(Type.THROTTLED, secondPeriodShardState.latestDecision());
         assertEquals(time.get(), secondPeriodShardState.relativeApplicationTimeMs());
@@ -143,12 +146,13 @@ public class UploadQueueControllerServiceTests extends ESTestCase {
     public void testRemoveThrottleCooldown() {
         var shardId = new ShardId(randomIndexName(), randomUUID(), 0);
 
-        var time = new AtomicLong(0);
+        long initialTime = 1000;
+        var time = new AtomicLong(initialTime);
         var throttler = new MemorizingThrottler();
-        var calculator = new ThrottleCalculator(time::get, throttler);
+        var calculator = new ThrottleCalculator(time::get, throttler, MeterRegistry.NOOP);
 
         var stats = new ShardCommitUploadStats() {
-            long pendingUploadBytes = 0;
+            long oldestCommitUploadStartTime = 0;
 
             @Override
             public ShardId shardId() {
@@ -156,42 +160,45 @@ public class UploadQueueControllerServiceTests extends ESTestCase {
             }
 
             @Override
-            public long pendingUploadBytes() {
-                return pendingUploadBytes;
+            public Long oldestCommitUploadStartTimeRelativeMillis() {
+                return oldestCommitUploadStartTime;
             }
         };
 
-        var settings = new ThrottleSettings(20, 10, 10);
+        var settings = new ThrottleSettings(TimeValue.timeValueMillis(20), TimeValue.timeValueMillis(15), 10);
 
-        stats.pendingUploadBytes = ByteSizeValue.ofMb(50).getBytes();
+        // Upload start time that is in the past which leads to throttling.
+        stats.oldestCommitUploadStartTime = 0;
 
-        Map<ShardId, ThrottleState> throttledState = calculator.newState(Map.of(), Stream.of(stats), settings, 1);
+        Map<ShardId, ThrottleState> throttledState = calculator.newState(Map.of(), Stream.of(stats), settings);
         var throttledShardState = throttledState.get(shardId);
         assertEquals(Type.THROTTLED, throttledShardState.latestDecision());
-        assertEquals(0, throttledShardState.relativeApplicationTimeMs());
+        assertEquals(initialTime, throttledShardState.relativeApplicationTimeMs());
         assertEquals(1, throttledShardState.consecutiveApplications());
         assertEquals(1, throttler.history.size());
         assertTrue(throttler.history.get(0).throttled);
 
-        time.set(settings.cooldownPeriodMs() + 1);
-        stats.pendingUploadBytes = 0;
+        time.addAndGet(settings.cooldownPeriodMs() + 1);
+        // Results in 1 ms age of the oldest commit which is lower than the deactivation threshold.
+        // Leads to removal of throttling.
+        stats.oldestCommitUploadStartTime = time.get() - 1;
 
         long throttleRemovedTime = time.get();
-        Map<ShardId, ThrottleState> removeThrottleState = calculator.newState(throttledState, Stream.of(stats), settings, 1);
+        Map<ShardId, ThrottleState> removeThrottleState = calculator.newState(throttledState, Stream.of(stats), settings);
         var removeThrottleStateShardState = removeThrottleState.get(shardId);
         assertEquals(Type.THROTTLE_REMOVED, removeThrottleStateShardState.latestDecision());
         assertEquals(throttleRemovedTime, removeThrottleStateShardState.relativeApplicationTimeMs());
         assertEquals(2, throttler.history.size());
         assertFalse(throttler.history.get(1).throttled);
 
-        stats.pendingUploadBytes = ByteSizeValue.ofMb(50).getBytes();
+        stats.oldestCommitUploadStartTime = 0;
 
         Map<ShardId, ThrottleState> state = removeThrottleState;
         for (int i = 0; i < settings.cooldownPeriodMs(); i++) {
             time.incrementAndGet();
 
             // We don't throttle again during grace period after the throttle removal.
-            state = calculator.newState(state, Stream.of(stats), settings, 1);
+            state = calculator.newState(state, Stream.of(stats), settings);
             var shardState = state.get(shardId);
             assertEquals(Type.THROTTLE_REMOVED, shardState.latestDecision());
             assertEquals(throttleRemovedTime, shardState.relativeApplicationTimeMs());
@@ -200,13 +207,62 @@ public class UploadQueueControllerServiceTests extends ESTestCase {
 
         // Finally once the cooldown period passes, the throttle is applied again.
         time.incrementAndGet();
-        state = calculator.newState(state, Stream.of(stats), settings, 1);
+        state = calculator.newState(state, Stream.of(stats), settings);
         var shardState = state.get(shardId);
         assertEquals(Type.THROTTLED, shardState.latestDecision());
         assertEquals(time.get(), shardState.relativeApplicationTimeMs());
         assertEquals(1, shardState.consecutiveApplications());
         assertEquals(3, throttler.history.size());
         assertTrue(throttler.history.get(2).throttled);
+    }
+
+    public void testThrottleIsRemovedOnUndefinedOldestCommit() {
+        var shardId = new ShardId(randomIndexName(), randomUUID(), 0);
+
+        long initialTime = 1000;
+        var time = new AtomicLong(initialTime);
+        var throttler = new MemorizingThrottler();
+        var calculator = new ThrottleCalculator(time::get, throttler, MeterRegistry.NOOP);
+
+        var stats = new ShardCommitUploadStats() {
+            Long oldestCommitUploadStartTime = 0L;
+
+            @Override
+            public ShardId shardId() {
+                return shardId;
+            }
+
+            @Override
+            public Long oldestCommitUploadStartTimeRelativeMillis() {
+                return oldestCommitUploadStartTime;
+            }
+        };
+
+        var settings = new ThrottleSettings(TimeValue.timeValueMillis(20), TimeValue.timeValueMillis(15), 10);
+
+        // Upload start time that is in the past which leads to throttling.
+        stats.oldestCommitUploadStartTime = 0L;
+
+        Map<ShardId, ThrottleState> throttledState = calculator.newState(Map.of(), Stream.of(stats), settings);
+        var throttledShardState = throttledState.get(shardId);
+        assertEquals(Type.THROTTLED, throttledShardState.latestDecision());
+        assertEquals(initialTime, throttledShardState.relativeApplicationTimeMs());
+        assertEquals(1, throttledShardState.consecutiveApplications());
+        assertEquals(1, throttler.history.size());
+        assertTrue(throttler.history.get(0).throttled);
+
+        time.addAndGet(settings.cooldownPeriodMs() + 1);
+
+        // This happens when there are no pending commits and we should take throttle removal code path.
+        stats.oldestCommitUploadStartTime = null;
+
+        long throttleRemovedTime = time.get();
+        Map<ShardId, ThrottleState> removeThrottleState = calculator.newState(throttledState, Stream.of(stats), settings);
+        var removeThrottleStateShardState = removeThrottleState.get(shardId);
+        assertEquals(Type.THROTTLE_REMOVED, removeThrottleStateShardState.latestDecision());
+        assertEquals(throttleRemovedTime, removeThrottleStateShardState.relativeApplicationTimeMs());
+        assertEquals(2, throttler.history.size());
+        assertFalse(throttler.history.get(1).throttled);
     }
 
     public void testIndexingThrottler() {

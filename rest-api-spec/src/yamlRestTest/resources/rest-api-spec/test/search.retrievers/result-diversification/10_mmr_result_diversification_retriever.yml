@@ -28,6 +28,8 @@ setup:
                 dims: 4
                 index_options:
                   type: hnsw
+              sparsevector:
+                type: sparse_vector
               id:
                 type: integer
 
@@ -715,7 +717,7 @@ teardown:
   - match: { error.type: action_request_validation_exception }
 
 ---
-"Test MMR result diversification required field type":
+"Test MMR result diversification ignores an unmapped diversification field":
   - requires:
       cluster_features: [ "retriever.mmr_null_dense_vector_fix" ]
       reason: "MMR now drops null-vector docs instead of erroring"
@@ -740,7 +742,14 @@ teardown:
   - match: { hits.total.value: 6 }
   - length: { hits.hits: 0 }
 
+---
+"Test MMR result diversification rejects a diversification field that cannot return dense embeddings":
+  - requires:
+      cluster_features: [ "retriever.diversify_incompatible_embeddings_field_error" ]
+      reason: "diversifying on a field that cannot produce dense embeddings is now rejected"
+
   - do:
+      catch: bad_request
       search:
         index: test-result-diversification-index
         body:
@@ -757,10 +766,12 @@ teardown:
                   k: 6
                   num_candidates: 6
 
-  - match: { hits.total.value: 6 }
-  - length: { hits.hits: 0 }
+  - match: { status: 400 }
+  - contains: { error.root_cause.0.reason: "[diversify] search failed - retrievers '[knn]' returned errors" }
+  - contains: { error.root_cause.0.suppressed.0.failed_shards.0.reason.reason: "Field [keywordfield] of type [keyword] does not support [dense_vector] embeddings" }
 
   - do:
+      catch: bad_request
       search:
         index: test-result-diversification-index
         body:
@@ -777,8 +788,31 @@ teardown:
                   k: 6
                   num_candidates: 6
 
-  - match: { hits.total.value: 6 }
-  - length: { hits.hits: 0 }
+  - match: { status: 400 }
+  - contains: { error.root_cause.0.reason: "[diversify] search failed - retrievers '[knn]' returned errors" }
+  - contains: { error.root_cause.0.suppressed.0.failed_shards.0.reason.reason: "Field [textbody] of type [text] does not support [dense_vector] embeddings" }
+
+  - do:
+      catch: bad_request
+      search:
+        index: test-result-diversification-index
+        body:
+          retriever:
+            diversify:
+              type: "mmr"
+              field: "sparsevector"
+              lambda: 0.7
+              size: 3
+              retriever:
+                knn:
+                  field: "textvector"
+                  query_vector: [ 0.5, 0.2, 0.4, 0.4 ]
+                  k: 6
+                  num_candidates: 6
+
+  - match: { status: 400 }
+  - contains: { error.root_cause.0.reason: "[diversify] search failed - retrievers '[knn]' returned errors" }
+  - contains: { error.root_cause.0.suppressed.0.failed_shards.0.reason.reason: "Field [sparsevector] of type [sparse_vector] does not support [dense_vector] embeddings" }
 
 ---
 "Test MMR result diversification cannot have a string encoded query vector":

@@ -127,6 +127,38 @@ class AbstractRateGroupingFunction {
         }
     }
 
+    static boolean assertRawTimestampsWithinBuckets(
+        RawBuffer rawBuffer,
+        TimeSeriesGroupingAggregatorEvaluationContext context,
+        long timestampUnitsPerMillis
+    ) {
+        for (int slice = 0; slice < rawBuffer.sliceCount; slice++) {
+            int groupId = rawBuffer.sliceGroupIds[slice];
+            int start = rawBuffer.sliceStarts[slice];
+            int end = slice + 1 < rawBuffer.sliceCount ? rawBuffer.sliceStarts[slice + 1] : rawBuffer.timestamps.size();
+            long bucketStart = context.rangeStartInMillis(groupId) * timestampUnitsPerMillis;
+            long bucketEnd = context.rangeEndInMillis(groupId) * timestampUnitsPerMillis;
+            for (int position = start; position < end; position++) {
+                long timestamp = rawBuffer.timestamps.get(position);
+                assert timestamp >= bucketStart && timestamp <= bucketEnd
+                    : "raw timestamp "
+                        + timestamp
+                        + " at buffer position "
+                        + position
+                        + " in slice "
+                        + slice
+                        + " was assigned to group "
+                        + groupId
+                        + " outside bucket ["
+                        + bucketStart
+                        + ", "
+                        + bucketEnd
+                        + "]";
+            }
+        }
+        return true;
+    }
+
     record FlushQueues(RawBuffer buffer, int minGroupId, int maxGroupId, int[] runningOffsets, int[] sliceOffsets) {
         FlushQueue getFlushQueue(int groupId) {
             if (groupId < minGroupId || groupId > maxGroupId) {

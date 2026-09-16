@@ -75,7 +75,7 @@ public class TransportGetDataStreamLifecycleStatsActionTests extends ESTestCase 
     }
 
     public void testMixedDataStreams() {
-        Set<String> indicesInError = new HashSet<>();
+        Set<Index> indicesInError = new HashSet<>();
         int numBackingIndices = 3;
         ProjectMetadata.Builder builder = ProjectMetadata.builder(randomProjectIdOrDefault());
         DataStream ilmDataStream = createDataStream(
@@ -97,7 +97,7 @@ public class TransportGetDataStreamLifecycleStatsActionTests extends ESTestCase 
             DataStreamLifecycle.dataLifecycleBuilder().dataRetention(TimeValue.timeValueDays(10)).build(),
             Clock.systemUTC().millis()
         );
-        indicesInError.add(dslDataStream.getIndices().get(randomInt(numBackingIndices - 1)).getName());
+        indicesInError.add(dslDataStream.getIndices().get(randomInt(numBackingIndices - 1)));
         builder.put(dslDataStream);
         {
             String dataStreamName = "mixed";

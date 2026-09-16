@@ -14,6 +14,8 @@ import org.apache.lucene.codecs.KnnVectorsReader;
 import org.apache.lucene.codecs.KnnVectorsWriter;
 import org.apache.lucene.index.SegmentReadState;
 import org.apache.lucene.index.SegmentWriteState;
+import org.apache.lucene.search.Sort;
+import org.apache.lucene.search.SortField;
 import org.apache.lucene.search.TaskExecutor;
 import org.elasticsearch.index.codec.vectors.DirectIOCapableFlatVectorsFormat;
 import org.elasticsearch.index.codec.vectors.OptimizedScalarQuantizer;
@@ -279,6 +281,7 @@ public class ESNextDiskBBQVectorsFormat extends KnnVectorsFormat {
 
     @Override
     public KnnVectorsWriter fieldsWriter(SegmentWriteState state) throws IOException {
+        validateSliceSort(sliceField, state.segmentInfo.getIndexSort());
         return new ESNextDiskBBQVectorsWriter(
             state,
             rawVectorFormat.getName(),
@@ -301,6 +304,7 @@ public class ESNextDiskBBQVectorsFormat extends KnnVectorsFormat {
 
     @Override
     public KnnVectorsReader fieldsReader(SegmentReadState state) throws IOException {
+        validateSliceSort(sliceField, state.segmentInfo.getIndexSort());
         return new ESNextDiskBBQVectorsReader(state, (f, dio) -> {
             var format = supportedFormats.get(f);
             if (format == null) return null;
@@ -311,6 +315,35 @@ public class ESNextDiskBBQVectorsFormat extends KnnVectorsFormat {
     @Override
     public int getMaxDimensions(String fieldName) {
         return MAX_DIMENSIONS;
+    }
+
+    /**
+     * Validates that when a slice field is configured the primary index sort is that field, of type STRING,
+     * ascending, with missing values sorted last. Sliced search relies on this layout: slice ordinals must
+     * increase with doc id, and documents without a slice value (e.g. tombstones) must form a trailing suffix.
+     * Called before creating a writer, so that no segment files are opened if the configuration is invalid, and
+     * before opening a reader, so that a segment which somehow bypassed the write-time check is rejected up front.
+     */
+    static void validateSliceSort(String sliceField, Sort sort) {
+        if (sliceField == null) {
+            return;
+        }
+        if (sort == null || sort.getSort().length == 0) {
+            throw new IllegalStateException("sliceField requires index sort");
+        }
+        SortField primary = sort.getSort()[0];
+        if (sliceField.equals(primary.getField()) == false) {
+            throw new IllegalStateException("sliceField must be primary index sort");
+        }
+        if (primary.getType() != SortField.Type.STRING) {
+            throw new IllegalStateException("sliceField requires primary index sort of type STRING");
+        }
+        if (primary.getReverse()) {
+            throw new IllegalStateException("sliceField primary index sort must be ascending");
+        }
+        if (SortField.STRING_LAST.equals(primary.getMissingValue()) == false) {
+            throw new IllegalStateException("sliceField primary index sort must use missing=LAST");
+        }
     }
 
     @Override

@@ -35,6 +35,37 @@ public final class ExternalStats {
     public static final String CONFIG_FINGERPRINT_KEY = "_stats.config_fingerprint";
 
     /**
+     * Node-stable fingerprint of the RESOLVED READ CONFIGURATION this contribution was harvested under (see
+     * {@link ReadConfigFingerprint}) — how the file's bytes were interpreted, as opposed to which file it is or which
+     * options were asked for. A statistic is a measurement over the rows a read produced, so two reads whose read configurations
+     * differ measured different things and must not enrich or serve each other's entry.
+     * <p>
+     * {@link ReadConfigFingerprint#UNKNOWN} (absent, or empty) means the producing path had no coordinator-minted read
+     * schema to describe. That is a legitimate state, not an error, and it must never compare equal to a known read configuration:
+     * an unknown read configuration safe-misses rather than sharing on the strength of not knowing.
+     * <p>
+     * That rule governs the CONTRIBUTION side. Two consumers deliberately relax it on the ENTRY side, each disclosed
+     * where it happens: the serve gate passes an entry that carries no configuration straight through (the columnar
+     * readers harvest without stamping and would otherwise go cold on an identity they never join), and the
+     * dataset-aggregate fold falls back to the config-level check for a path whose expected configuration the
+     * resolution did not record.
+     */
+    public static final String READ_CONFIG_FINGERPRINT_KEY = "_stats.read_config_fingerprint";
+
+    /**
+     * Set by a producer whose error policy makes the harvested row count INDEPENDENT of the resolved read configuration: under
+     * {@code FAIL_FAST} any structural mismatch aborts the query before publish, so a committed row count is the
+     * file's physical record count and is the same number for every way of reading it. That is the one statistic
+     * that may legitimately cross resolved read configurations, and this flag is how the producer — the only party that knows its
+     * effective policy — licenses the crossing.
+     * <p>
+     * Absent means "no licence": the row count is treated as read-config-scoped like every other statistic. Under
+     * {@code skip_row} or {@code null_field} rows can be dropped, so the count is a survivor count for that read
+     * rather than the file's physical record count, and may not be shared.
+     */
+    public static final String ROW_COUNT_READ_CONFIG_INDEPENDENT_KEY = "_stats.row_count_read_config_independent";
+
+    /**
      * Set on per-chunk/per-segment contributions to mark them as a partial cover of the file (as
      * opposed to a whole-file read). {@code SourceStatsContribution.classify} routes a partial to the
      * stripe-fragment path: a stripe-addressed partial (carries {@link #STRIPE_SIZE_KEY} etc.) folds
@@ -71,8 +102,9 @@ public final class ExternalStats {
      * Classified as {@code Poison}: the coordinator discards every contribution for the file rather
      * than commit stats whose extent another scan would not reproduce. A row DROPPED by the error
      * policy (skip_row, or a structural malformed row under null_field) is deliberately NOT an error
-     * here: which rows survive is a deterministic function of the file bytes and the policy (pinned by
-     * the config fingerprint), so a clean-completing scan commits exact stats over the survivors.
+     * here: which rows survive is a function of the file bytes, the policy (pinned by the config fingerprint), the
+     * read configuration and the projection, so a clean-completing scan commits stats that are exact for THAT read
+     * over the survivors — the producer suppresses the publish where the projection is what decided them.
      */
     public static final String CHUNK_HAD_ERRORS_KEY = "_stats.chunk_had_errors";
 

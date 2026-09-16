@@ -18,7 +18,7 @@ import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.core.inference.action.InferenceAction;
-import org.elasticsearch.xpack.core.inference.results.ChatCompletionResults;
+import org.elasticsearch.xpack.core.inference.results.CompletionResults;
 import org.elasticsearch.xpack.core.inference.results.DenseEmbeddingFloatResults;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
@@ -427,7 +427,7 @@ public class InferenceFunctionEvaluatorTests extends ComputeTestCase {
     }
 
     private InferenceAction.Response completionResponse(String completionText) {
-        ChatCompletionResults.Result result = new ChatCompletionResults.Result(completionText);
-        return new InferenceAction.Response(new ChatCompletionResults(List.of(result)));
+        CompletionResults.Result result = new CompletionResults.Result(completionText);
+        return new InferenceAction.Response(new CompletionResults(List.of(result)));
     }
 }

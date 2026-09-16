@@ -14,18 +14,22 @@ import org.elasticsearch.xpack.esql.core.util.StringUtils;
 import org.elasticsearch.xpack.esql.datasources.spi.DeclaredTypeCoercions;
 import org.elasticsearch.xpack.esql.datasources.spi.StoragePath;
 
+import java.math.BigInteger;
 import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 import java.util.Set;
+import java.util.function.Consumer;
 
 /**
  * Detects Hive-style partition columns from file paths (e.g., {@code /year=2024/month=06/file.parquet}).
  * Parses key=value segments, validates consistency across all files, and infers types
- * using Spark-style rules: try Integer, Long, Double, Boolean, fallback to keyword.
+ * using Spark-style rules extended for ES|QL: try Integer, Long, Unsigned Long, Double, Boolean,
+ * fallback to keyword.
  */
 public final class HivePartitionDetector implements PartitionDetector {
 
@@ -46,7 +50,7 @@ public final class HivePartitionDetector implements PartitionDetector {
      * {@code METADATA _index} would silently return the partition value instead of its
      * spec-defined meaning (the dataset name). A directory like {@code /_index=foo/} surfaces as
      * {@code _partition._index} — the spec name keeps its meaning, the layout's value stays
-     * queryable, and a {@code Warning} header discloses each rename. Shared by every detector;
+     * queryable, and a notice on the caller's warning sink discloses each rename. Shared by every detector;
      * see {@link ReservedPartitionNames}.
      */
     public static final String RESERVED_RENAME_PREFIX = ReservedPartitionNames.RESERVED_RENAME_PREFIX;
@@ -59,11 +63,8 @@ public final class HivePartitionDetector implements PartitionDetector {
     }
 
     @Override
-    public PartitionMetadata detect(List<StorageEntry> files, Map<String, Object> config) {
-        return detect(files);
-    }
-
-    static PartitionMetadata detect(List<StorageEntry> files) {
+    public PartitionMetadata detect(List<StorageEntry> files, Consumer<String> warningSink) {
+        Objects.requireNonNull(warningSink, "warningSink: a null sink would fall back to HeaderWarning off the request thread");
         if (files == null || files.isEmpty()) {
             return PartitionMetadata.EMPTY;
         }
@@ -91,7 +92,7 @@ public final class HivePartitionDetector implements PartitionDetector {
             return PartitionMetadata.EMPTY;
         }
 
-        Map<String, String> surfacedNames = surfacedNames(referenceKeys);
+        Map<String, String> surfacedNames = surfacedNames(referenceKeys, warningSink);
         if (surfacedNames == null) {
             return PartitionMetadata.EMPTY;
         }
@@ -128,14 +129,14 @@ public final class HivePartitionDetector implements PartitionDetector {
     /**
      * Maps each detected partition key to the name it surfaces under. Non-reserved keys map to
      * themselves; keys colliding with a dedicated metadata name (see {@link #RESERVED_RENAME_PREFIX})
-     * map to the prefixed form, with one {@code Warning} response header per rename. Returns
+     * map to the prefixed form, with one notice on {@code warningSink} per rename. Returns
      * {@code null} — caller bails to {@link PartitionMetadata#EMPTY}, the detector's established
      * shape for unusable layouts — if a rename target collides with another detected key. That
      * branch is defensive: {@link #extractPartitions} rejects dotted segments, so no parsed key
      * can currently equal a {@code _partition.}-prefixed name; the guard keeps the invariant
      * explicit should the segment grammar ever relax.
      */
-    private static Map<String, String> surfacedNames(Set<String> referenceKeys) {
+    private static Map<String, String> surfacedNames(Set<String> referenceKeys, Consumer<String> warningSink) {
         Map<String, String> surfaced = Maps.newLinkedHashMapWithExpectedSize(referenceKeys.size());
         List<String> renamed = new ArrayList<>(0);
         for (String key : referenceKeys) {
@@ -148,7 +149,7 @@ public final class HivePartitionDetector implements PartitionDetector {
             }
             surfaced.put(key, surface);
         }
-        ReservedPartitionNames.warnRenamed(renamed);
+        ReservedPartitionNames.warnRenamed(renamed, warningSink);
         return surfaced;
     }
 
@@ -223,18 +224,31 @@ public final class HivePartitionDetector implements PartitionDetector {
 
     private static DataType tryAllIntegral(List<String> values) {
         boolean needsLong = false;
+        boolean needsUnsignedLong = false;
+        boolean hasNegative = false;
         for (String v : values) {
             if (v == null) {
                 continue;
             }
             try {
                 Number n = StringUtils.parseIntegral(v);
-                if (n instanceof Long) {
-                    needsLong = true;
+                if (n instanceof BigInteger) {
+                    needsUnsignedLong = true;
+                } else {
+                    if (n instanceof Long) {
+                        needsLong = true;
+                    }
+                    if (n.longValue() < 0) {
+                        hasNegative = true;
+                    }
                 }
             } catch (Exception e) {
                 return null;
             }
+        }
+        if (needsUnsignedLong) {
+            // A negative value and one above Long.MAX_VALUE have no exact common numeric type.
+            return hasNegative ? DataType.KEYWORD : DataType.UNSIGNED_LONG;
         }
         return needsLong ? DataType.LONG : DataType.INTEGER;
     }
@@ -274,6 +288,9 @@ public final class HivePartitionDetector implements PartitionDetector {
         }
         if (type == DataType.LONG) {
             return Long.parseLong(value);
+        }
+        if (type == DataType.UNSIGNED_LONG) {
+            return DeclaredTypeCoercions.coerceToUnsignedLong(value);
         }
         if (type == DataType.DOUBLE) {
             return Double.parseDouble(value);

@@ -138,14 +138,12 @@ public final class EscfBatchBuilder implements Releasable {
         return path;
     }
 
-    /** Discards all uncommitted and unbuilt column builders, releasing their recycler-backed buffers. */
+    /** Releases all uncommitted and unbuilt column builders, freeing their recycler-backed buffers. */
     @Override
     public void close() {
         for (Partition partition : partitions) {
             if (partition != null) {
-                for (EscfColumnBuilder builder : partition.builders) {
-                    builder.discard();
-                }
+                Releasables.close(partition.builders);
             }
         }
         Arrays.fill(partitions, null);

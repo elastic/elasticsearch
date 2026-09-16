@@ -8,19 +8,24 @@
 package org.elasticsearch.xpack.esql.plugin;
 
 import org.elasticsearch.cluster.node.DiscoveryNode;
+import org.elasticsearch.xpack.esql.datasources.SplitCoalescer;
 import org.elasticsearch.xpack.esql.datasources.spi.ExternalSplit;
 
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Comparator;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 
 /**
- * Distributes external splits across data nodes using a Longest Processing Time (LPT)
- * algorithm that considers {@link ExternalSplit#estimatedSizeInBytes()} for load balancing.
- * When all splits report size information, larger splits are assigned first to the node
- * with the least accumulated load. Falls back to plain round-robin when size info is absent.
+ * Distributes external splits across eligible remote workers using Longest Processing Time (LPT)
+ * on {@link SplitCoalescer#claimCost(ExternalSplit)} (stored bytes plus a per-leaf open cost).
+ * When all splits report size information, higher-cost splits are assigned first to the node
+ * with the least accumulated claim cost. Weighing by stored bytes alone would dump every
+ * many-leaf group of tiny files onto one node. Falls back to plain round-robin when size info
+ * is absent. An empty eligible-worker set returns {@code LOCAL} so the coordinator runs the scan
+ * itself.
  */
 public final class WeightedRoundRobinStrategy implements ExternalDistributionStrategy {
 
@@ -34,7 +39,7 @@ public final class WeightedRoundRobinStrategy implements ExternalDistributionStr
     }
 
     public WeightedRoundRobinStrategy() {
-        this(NodeEligibilityStrategy.DATA_NODES_ONLY);
+        this(NodeEligibilityStrategy.EXTERNAL_WORKER_NODES);
     }
 
     @Override
@@ -51,7 +56,8 @@ public final class WeightedRoundRobinStrategy implements ExternalDistributionStr
 
         boolean allHaveSize = true;
         for (ExternalSplit split : splits) {
-            if (split.estimatedSizeInBytes() <= 0) {
+            // Unknown size is negative. Zero is an empty file; it still has open cost.
+            if (split.estimatedSizeInBytes() < 0) {
                 allHaveSize = false;
                 break;
             }
@@ -65,8 +71,14 @@ public final class WeightedRoundRobinStrategy implements ExternalDistributionStr
     }
 
     static ExternalDistributionPlan assignByWeight(List<ExternalSplit> splits, List<DiscoveryNode> nodes) {
-        List<ExternalSplit> sorted = new ArrayList<>(splits);
-        sorted.sort(Comparator.comparingLong(ExternalSplit::estimatedSizeInBytes).reversed());
+        int n = splits.size();
+        Integer[] order = new Integer[n];
+        long[] costs = new long[n];
+        for (int i = 0; i < n; i++) {
+            order[i] = i;
+            costs[i] = SplitCoalescer.claimCost(splits.get(i));
+        }
+        Arrays.sort(order, Comparator.comparingLong((Integer i) -> costs[i]).reversed());
 
         Map<String, List<ExternalSplit>> assignments = new LinkedHashMap<>();
         long[] nodeLoads = new long[nodes.size()];
@@ -74,15 +86,15 @@ public final class WeightedRoundRobinStrategy implements ExternalDistributionStr
             assignments.put(node.getId(), new ArrayList<>());
         }
 
-        for (ExternalSplit split : sorted) {
+        for (int idx : order) {
             int minIdx = 0;
             for (int i = 1; i < nodeLoads.length; i++) {
                 if (nodeLoads[i] < nodeLoads[minIdx]) {
                     minIdx = i;
                 }
             }
-            assignments.get(nodes.get(minIdx).getId()).add(split);
-            nodeLoads[minIdx] += split.estimatedSizeInBytes();
+            assignments.get(nodes.get(minIdx).getId()).add(splits.get(idx));
+            nodeLoads[minIdx] += costs[idx];
         }
 
         return new ExternalDistributionPlan(assignments, true);

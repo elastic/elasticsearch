@@ -12,7 +12,7 @@
  * bytes, knowing nothing about numerics, keywords, or ordinals.
  *
  * <p>The column-iterator layer records which documents hold a value and maps a document to its 0-based
- * value ordinal; a dense field stores no per-document data, a sparse field is addressed compactly,
+ * rank; a dense field stores no per-document data, a sparse field is addressed compactly,
  * and it supplies the {@link DocIdSetIterator#intoBitSet} fast path. {@link BlockBytesCodec} is the
  * terminal byte-stream stage applied to a column's encoded blocks.
  */

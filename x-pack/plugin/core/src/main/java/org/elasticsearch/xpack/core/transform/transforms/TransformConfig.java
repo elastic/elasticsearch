@@ -10,6 +10,7 @@ package org.elasticsearch.xpack.core.transform.transforms;
 import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.TransportVersion;
 import org.elasticsearch.action.ActionRequestValidationException;
+import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.cluster.SimpleDiffable;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -350,6 +351,15 @@ public final class TransformConfig implements SimpleDiffable<TransformConfig>, W
 
     public SourceConfig getSource() {
         return source;
+    }
+
+    /**
+     * Returns IndicesOptions based on what security scope this transform is likely able to access.
+     * In CPS environments, if the transform has a UIAM cloud token, then we will likely have CPS-enabled IndicesOptions.
+     * In all other cases, we likely do not have CPS-enabled IndicesOptions.
+     */
+    public IndicesOptions getScopedIndicesOptions() {
+        return getSource().indicesOptions(credentialId != null);
     }
 
     public DestConfig getDestination() {

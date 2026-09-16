@@ -281,6 +281,7 @@ public class AsyncExternalSourceOperatorFactoryThresholdTests extends ESTestCase
             StorageObject object,
             FormatReadContext context,
             java.util.concurrent.Executor executor,
+            ExternalReadCounters readCounters,
             ActionListener<CloseableIterator<Page>> listener
         ) {
             asyncReads.incrementAndGet();

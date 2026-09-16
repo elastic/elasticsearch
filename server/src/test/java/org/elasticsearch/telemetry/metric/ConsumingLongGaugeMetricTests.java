@@ -29,7 +29,7 @@ public class ConsumingLongGaugeMetricTests extends ESTestCase {
         ConsumingLongGaugeMetric.create(registry, GAUGE_NAME, "desc", "bytes");
 
         registry.getRecorder().collect();
-        assertThat(registry.getRecorder().getMeasurements(InstrumentType.LONG_GAUGE, GAUGE_NAME), empty());
+        assertThat(registry.getRecorder().getMeasurements(InstrumentType.LONG_ASYNC_GAUGE, GAUGE_NAME), empty());
     }
 
     public void testGaugeReportsValueAfterSet() {
@@ -39,7 +39,10 @@ public class ConsumingLongGaugeMetricTests extends ESTestCase {
         metric.set(value);
 
         registry.getRecorder().collect();
-        assertThat(registry.getRecorder().getMeasurements(InstrumentType.LONG_GAUGE, GAUGE_NAME), RecordingMeterRegistry.measures(value));
+        assertThat(
+            registry.getRecorder().getMeasurements(InstrumentType.LONG_ASYNC_GAUGE, GAUGE_NAME),
+            RecordingMeterRegistry.measures(value)
+        );
     }
 
     public void testGaugeValueIsConsumedAfterPoll() {
@@ -49,11 +52,14 @@ public class ConsumingLongGaugeMetricTests extends ESTestCase {
         metric.set(value);
 
         registry.getRecorder().collect();
-        assertThat(registry.getRecorder().getMeasurements(InstrumentType.LONG_GAUGE, GAUGE_NAME), RecordingMeterRegistry.measures(value));
+        assertThat(
+            registry.getRecorder().getMeasurements(InstrumentType.LONG_ASYNC_GAUGE, GAUGE_NAME),
+            RecordingMeterRegistry.measures(value)
+        );
 
         registry.getRecorder().resetCalls();
         registry.getRecorder().collect();
-        assertThat(registry.getRecorder().getMeasurements(InstrumentType.LONG_GAUGE, GAUGE_NAME), empty());
+        assertThat(registry.getRecorder().getMeasurements(InstrumentType.LONG_ASYNC_GAUGE, GAUGE_NAME), empty());
     }
 
     public void testGaugeReportsAgainAfterSecondSet() {
@@ -70,7 +76,7 @@ public class ConsumingLongGaugeMetricTests extends ESTestCase {
 
         registry.getRecorder().collect();
         assertThat(
-            registry.getRecorder().getMeasurements(InstrumentType.LONG_GAUGE, GAUGE_NAME),
+            registry.getRecorder().getMeasurements(InstrumentType.LONG_ASYNC_GAUGE, GAUGE_NAME),
             RecordingMeterRegistry.measures(secondValue)
         );
     }
@@ -105,7 +111,7 @@ public class ConsumingLongGaugeMetricTests extends ESTestCase {
         metric.set(value, attributes);
 
         registry.getRecorder().collect();
-        final var measurement = registry.getRecorder().getMeasurements(InstrumentType.LONG_GAUGE, GAUGE_NAME).getFirst();
+        final var measurement = registry.getRecorder().getMeasurements(InstrumentType.LONG_ASYNC_GAUGE, GAUGE_NAME).getFirst();
         assertThat(measurement.getLong(), equalTo(value));
         assertThat(measurement.attributes(), equalTo(attributes));
     }
@@ -126,7 +132,7 @@ public class ConsumingLongGaugeMetricTests extends ESTestCase {
         attributes.put("label", "after");
 
         registry.getRecorder().collect();
-        final var measurement = registry.getRecorder().getMeasurements(InstrumentType.LONG_GAUGE, GAUGE_NAME).getFirst();
+        final var measurement = registry.getRecorder().getMeasurements(InstrumentType.LONG_ASYNC_GAUGE, GAUGE_NAME).getFirst();
         assertThat(measurement.getLong(), equalTo(value));
         assertThat(measurement.attributes(), equalTo(Map.of("label", "before")));
     }

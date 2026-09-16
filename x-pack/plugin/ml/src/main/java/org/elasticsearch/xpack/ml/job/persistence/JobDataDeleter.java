@@ -33,6 +33,7 @@ import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.common.breaker.CircuitBreakingException;
+import org.elasticsearch.common.util.concurrent.EsRejectedExecutionException;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.core.CheckedConsumer;
 import org.elasticsearch.core.Nullable;
@@ -49,6 +50,8 @@ import org.elasticsearch.index.reindex.BulkByPaginatedSearchResponse;
 import org.elasticsearch.index.reindex.BulkByPaginatedSearchTask;
 import org.elasticsearch.index.reindex.DeleteByQueryAction;
 import org.elasticsearch.index.reindex.DeleteByQueryRequest;
+import org.elasticsearch.index.reindex.PaginatedSearchFailure;
+import org.elasticsearch.search.SearchContextMissingException;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.xpack.core.action.util.PageParams;
 import org.elasticsearch.xpack.core.ml.action.GetModelSnapshotsAction;
@@ -83,6 +86,7 @@ import java.util.Objects;
 import java.util.Set;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Consumer;
+import java.util.function.Supplier;
 
 import static org.elasticsearch.xpack.core.ClientHelper.ML_ORIGIN;
 import static org.elasticsearch.xpack.core.ClientHelper.executeAsyncWithOrigin;
@@ -92,6 +96,22 @@ public class JobDataDeleter {
     private static final Logger logger = LogManager.getLogger(JobDataDeleter.class);
 
     private static final int MAX_SNAPSHOTS_TO_DELETE = 10000;
+
+    // Bound these result/annotation DeleteByQuery requests to a single slice. The primary driver is the
+    // revert-on-open path (elastic/elasticsearch#153260): reverting to the CURRENT (latest) snapshot makes the
+    // "intervening results/annotations since snapshot" delete small by construction, so AUTO_SLICES fan-out
+    // (up to min(shards,20) scroll contexts per request) buys negligible speedup while it can exhaust
+    // search.max_open_scroll_context during a mass reopen storm. deleteAnnotations is also reached by the
+    // job-delete path (deleteAllAnnotations); annotations are low-volume there too, so one slice is fine.
+    private static final int DELETE_SLICES = 1;
+
+    // Short scroll keepalive so abandoned/partial scroll contexts free quickly instead of lingering for the 5-minute
+    // default, preventing accumulation faster than expiry when the reopen pipeline retries (elastic/elasticsearch#153260).
+    private static final TimeValue DELETE_SCROLL_KEEP_ALIVE = TimeValue.timeValueMinutes(1);
+
+    // One fresh DeleteByQuery attempt after a scroll context expires mid-delete (elastic/elasticsearch#153260).
+    private static final TimeValue DELETE_SCROLL_CONTEXT_RETRY_DELAY = TimeValue.timeValueSeconds(30);
+    private static final int MAX_DELETE_SCROLL_CONTEXT_ATTEMPTS = 2;
 
     private final Client client;
     private final String jobId;
@@ -204,22 +224,90 @@ public class JobDataDeleter {
         );
         if (indicesToQuery.length == 0) return;
 
+        executeDeleteByQueryWithScrollContextRetry(() -> newDeleteByQueryRequest(indicesToQuery, query), listener);
+    }
+
+    private DeleteByQueryRequest newDeleteByQueryRequest(String[] indicesToQuery, QueryBuilder query) {
         DeleteByQueryRequest dbqRequest = new DeleteByQueryRequest(indicesToQuery).setQuery(query)
             .setIndicesOptions(IndicesOptions.lenientExpandOpen())
             .setAbortOnVersionConflict(false)
             .setRefresh(true)
-            .setSlices(AbstractBulkByPaginatedSearchRequest.AUTO_SLICES);
+            .setSlices(DELETE_SLICES)
+            .setScroll(DELETE_SCROLL_KEEP_ALIVE);
 
         // _doc is the most efficient sort order and will also disable scoring
         dbqRequest.getSearchRequest().source().sort(ElasticsearchMappings.ES_DOC);
+        return dbqRequest;
+    }
 
-        executeAsyncWithOrigin(
-            client,
-            ML_ORIGIN,
-            DeleteByQueryAction.INSTANCE,
-            dbqRequest,
-            ActionListener.wrap(r -> listener.onResponse(true), listener::onFailure)
-        );
+    private void executeDeleteByQueryWithScrollContextRetry(
+        Supplier<DeleteByQueryRequest> requestSupplier,
+        ActionListener<Boolean> listener
+    ) {
+        executeDeleteByQueryWithScrollContextRetry(requestSupplier, ActionListener.assertOnce(listener), 1);
+    }
+
+    private void executeDeleteByQueryWithScrollContextRetry(
+        Supplier<DeleteByQueryRequest> requestSupplier,
+        ActionListener<Boolean> listener,
+        int attempt
+    ) {
+        executeAsyncWithOrigin(client, ML_ORIGIN, DeleteByQueryAction.INSTANCE, requestSupplier.get(), ActionListener.wrap(response -> {
+            if (hasSearchContextMissingFailure(response)) {
+                if (attempt < MAX_DELETE_SCROLL_CONTEXT_ATTEMPTS) {
+                    scheduleDeleteByQueryRetry(requestSupplier, listener, attempt + 1);
+                } else {
+                    listener.onFailure(searchContextMissingFromResponse(response));
+                }
+            } else {
+                listener.onResponse(true);
+            }
+        }, failure -> {
+            if (isSearchContextMissing(failure) && attempt < MAX_DELETE_SCROLL_CONTEXT_ATTEMPTS) {
+                scheduleDeleteByQueryRetry(requestSupplier, listener, attempt + 1);
+            } else {
+                listener.onFailure(failure);
+            }
+        }));
+    }
+
+    private void scheduleDeleteByQueryRetry(Supplier<DeleteByQueryRequest> requestSupplier, ActionListener<Boolean> listener, int attempt) {
+        try {
+            client.threadPool()
+                .schedule(
+                    () -> executeDeleteByQueryWithScrollContextRetry(requestSupplier, listener, attempt),
+                    DELETE_SCROLL_CONTEXT_RETRY_DELAY,
+                    client.threadPool().generic()
+                );
+        } catch (EsRejectedExecutionException e) {
+            listener.onFailure(e);
+        }
+    }
+
+    private static boolean hasSearchContextMissingFailure(BulkByPaginatedSearchResponse response) {
+        for (PaginatedSearchFailure failure : response.getSearchFailures()) {
+            if (org.elasticsearch.ExceptionsHelper.unwrap(failure.getReason(), SearchContextMissingException.class) != null) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    private static Exception searchContextMissingFromResponse(BulkByPaginatedSearchResponse response) {
+        for (PaginatedSearchFailure failure : response.getSearchFailures()) {
+            Throwable cause = org.elasticsearch.ExceptionsHelper.unwrap(failure.getReason(), SearchContextMissingException.class);
+            if (cause != null) {
+                if (cause instanceof Exception exception) {
+                    return org.elasticsearch.ExceptionsHelper.convertToElastic(exception);
+                }
+                return new IllegalStateException(cause);
+            }
+        }
+        return new IllegalStateException("expected search context missing failure");
+    }
+
+    private static boolean isSearchContextMissing(Exception failure) {
+        return org.elasticsearch.ExceptionsHelper.unwrap(failure, SearchContextMissingException.class) != null;
     }
 
     private <T> String[] removeReadOnlyIndices(
@@ -274,22 +362,8 @@ public class JobDataDeleter {
             () -> listener.onResponse(true)
         );
         if (indicesToQuery.length == 0) return;
-        DeleteByQueryRequest dbqRequest = new DeleteByQueryRequest(indicesToQuery).setQuery(query)
-            .setIndicesOptions(IndicesOptions.lenientExpandOpen())
-            .setAbortOnVersionConflict(false)
-            .setRefresh(true)
-            .setSlices(AbstractBulkByPaginatedSearchRequest.AUTO_SLICES);
 
-        // _doc is the most efficient sort order and will also disable scoring
-        dbqRequest.getSearchRequest().source().sort(ElasticsearchMappings.ES_DOC);
-
-        executeAsyncWithOrigin(
-            client,
-            ML_ORIGIN,
-            DeleteByQueryAction.INSTANCE,
-            dbqRequest,
-            ActionListener.wrap(r -> listener.onResponse(true), listener::onFailure)
-        );
+        executeDeleteByQueryWithScrollContextRetry(() -> newDeleteByQueryRequest(indicesToQuery, query), listener);
     }
 
     /**
@@ -301,7 +375,7 @@ public class JobDataDeleter {
             .setIndicesOptions(IndicesOptions.lenientExpandOpen())
             .setAbortOnVersionConflict(false)
             .setRefresh(false)
-            .setSlices(AbstractBulkByPaginatedSearchRequest.AUTO_SLICES);
+            .setSlices(DELETE_SLICES);
 
         // _doc is the most efficient sort order and will also disable scoring
         dbqRequest.getSearchRequest().source().sort(ElasticsearchMappings.ES_DOC);

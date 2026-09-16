@@ -26,6 +26,7 @@ import org.elasticsearch.inference.ModelSecrets;
 import org.elasticsearch.inference.ServiceSettings;
 import org.elasticsearch.inference.TaskType;
 import org.elasticsearch.inference.UnifiedCompletionRequest;
+import org.elasticsearch.inference.UnifiedCompletionRequestBody;
 import org.elasticsearch.inference.UnparsedModel;
 import org.elasticsearch.inference.completion.ContentString;
 import org.elasticsearch.inference.completion.Message;
@@ -33,7 +34,7 @@ import org.elasticsearch.test.http.MockResponse;
 import org.elasticsearch.xcontent.XContentFactory;
 import org.elasticsearch.xcontent.XContentParserConfiguration;
 import org.elasticsearch.xcontent.XContentType;
-import org.elasticsearch.xpack.core.inference.results.ChatCompletionResults;
+import org.elasticsearch.xpack.core.inference.results.CompletionResults;
 import org.elasticsearch.xpack.core.inference.results.UnifiedChatCompletionException;
 import org.elasticsearch.xpack.inference.external.http.sender.HttpRequestSenderTests;
 import org.elasticsearch.xpack.inference.services.InferenceEventsAssertion;
@@ -221,10 +222,10 @@ public class DeepSeekServiceTests extends InferenceServiceTestCase {
             TestPlainActionFuture<InferenceServiceResults> listener = new TestPlainActionFuture<>();
             service.infer(model, List.of("hello"), false, Map.of(), InputType.UNSPECIFIED, TIMEOUT, listener);
             var result = listener.actionGet(TIMEOUT);
-            assertThat(result, isA(ChatCompletionResults.class));
-            var completionResults = (ChatCompletionResults) result;
+            assertThat(result, isA(CompletionResults.class));
+            var completionResults = (CompletionResults) result;
             assertThat(
-                completionResults.results().stream().map(ChatCompletionResults.Result::predictedValue).toList(),
+                completionResults.results().stream().map(CompletionResults.Result::predictedValue).toList(),
                 equalTo(List.of("hello, world"))
             );
         }
@@ -277,7 +278,9 @@ public class DeepSeekServiceTests extends InferenceServiceTestCase {
             TestPlainActionFuture<InferenceServiceResults> listener = new TestPlainActionFuture<>();
             service.unifiedCompletionInfer(
                 model,
-                UnifiedCompletionRequest.of(List.of(new Message(new ContentString("hello"), "user", null, null))),
+                UnifiedCompletionRequest.streaming(
+                    UnifiedCompletionRequestBody.of(List.of(new Message(new ContentString("hello"), "user", null, null)))
+                ),
                 null,
                 listener
             );
@@ -406,7 +409,9 @@ public class DeepSeekServiceTests extends InferenceServiceTestCase {
             TestPlainActionFuture<InferenceServiceResults> listener = new TestPlainActionFuture<>();
             service.unifiedCompletionInfer(
                 model,
-                UnifiedCompletionRequest.of(List.of(new Message(new ContentString("hello"), "user", null, null))),
+                UnifiedCompletionRequest.streaming(
+                    UnifiedCompletionRequestBody.of(List.of(new Message(new ContentString("hello"), "user", null, null)))
+                ),
                 TIMEOUT,
                 listener
             );

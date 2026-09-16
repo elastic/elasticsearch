@@ -14,6 +14,8 @@ import org.elasticsearch.xpack.esql.core.expression.MapExpression;
 import org.elasticsearch.xpack.esql.core.expression.NamedExpression;
 import org.elasticsearch.xpack.esql.core.util.Holder;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.AggregateFunction;
+import org.elasticsearch.xpack.esql.expression.function.aggregate.Count;
+import org.elasticsearch.xpack.esql.expression.function.aggregate.CountApproximate;
 import org.elasticsearch.xpack.esql.expression.function.grouping.GroupingFunction;
 import org.elasticsearch.xpack.esql.plan.logical.Aggregate;
 import org.elasticsearch.xpack.esql.plan.logical.Eval;
@@ -26,28 +28,47 @@ import java.util.Map;
 
 /**
  * Replace nested expressions inside a {@link Aggregate} with synthetic eval.
- * {@code STATS SUM(a + 1) BY x % 2}
- * becomes
- * {@code EVAL `a + 1` = a + 1, `x % 2` = x % 2 | STATS SUM(`a+1`_ref) BY `x % 2`_ref}
- * and
- * {@code INLINE STATS SUM(a + 1) BY x % 2}
- * becomes
- * {@code EVAL `a + 1` = a + 1, `x % 2` = x % 2 | INLINE STATS SUM(`a+1`_ref) BY `x % 2`_ref}
+ * <p>
+ * A nested expression in a {@code STATS}:
+ * <pre>
+ *     STATS SUM(a + 1) BY x % 2
+ * </pre>
+ * becomes:
+ * <pre>
+ *     EVAL `a + 1` = a + 1, `x % 2` = x % 2 | STATS SUM(`a + 1`_ref) BY `x % 2`_ref
+ * </pre>
+ * The same applies to {@code INLINE STATS}:
+ * <pre>
+ *     INLINE STATS SUM(a + 1) BY x % 2
+ * </pre>
+ * becomes:
+ * <pre>
+ *     EVAL `a + 1` = a + 1, `x % 2` = x % 2 | INLINE STATS SUM(`a + 1`_ref) BY `x % 2`_ref
+ * </pre>
+ * <p>
+ * When {@code extractConstants} is set, constant fields  are materialized too. For example:
+ * <pre>
+ *     STATS TOP(42, 10, "asc", "n/a")
+ * </pre>
+ * becomes:
+ * <pre>
+ *     EVAL `42` = 42, `n/a` = "n/a" | STATS TOP(`42`_ref, 10, "asc", `n/a`_ref)
+ * </pre>
  */
 public final class ReplaceAggregateNestedExpressionWithEval extends OptimizerRules.OptimizerRule<Aggregate> {
 
     private final boolean locallyUniqueNames;
-
-    public ReplaceAggregateNestedExpressionWithEval() {
-        this(false);
-    }
+    private final boolean extractConstants;
 
     /**
      * @param locallyUniqueNames when {@code true}, the synthetic eval names generated for extracted nested expressions are made
      *                           globally unique instead of being derived deterministically from the extracted expression.
+     * @param extractConstants   when {@code true}, in addition to nested expressions, also materialize constant input fields
+     *                           into the pre-agg eval.
      */
-    public ReplaceAggregateNestedExpressionWithEval(boolean locallyUniqueNames) {
+    public ReplaceAggregateNestedExpressionWithEval(boolean locallyUniqueNames, boolean extractConstants) {
         this.locallyUniqueNames = locallyUniqueNames;
+        this.extractConstants = extractConstants;
     }
 
     @Override
@@ -162,16 +183,41 @@ public final class ReplaceAggregateNestedExpressionWithEval extends OptimizerRul
         return childrenChanged ? gf.replaceChildren(newChildren) : gf;
     }
 
-    private static boolean skipOptimisingAgg(AggregateFunction af) {
-        // shortcut for the common scenario
-        if (af.field() instanceof Attribute) {
+    private boolean skipOptimisingAgg(AggregateFunction af) {
+        // do not replace nested aggregates
+        if (containsAggregate(af.field())
+            || af.parameters().stream().anyMatch(ReplaceAggregateNestedExpressionWithEval::containsAggregate)) {
             return true;
         }
+        // check if the field or any parameter needs to be extracted into an eval
+        return af.fields().stream().noneMatch(field -> needsExtraction(af, field));
+    }
 
-        // do not replace nested aggregates
-        Holder<Boolean> foundNestedAggs = new Holder<>(Boolean.FALSE);
-        af.field().forEachDown(AggregateFunction.class, unused -> foundNestedAggs.set(Boolean.TRUE));
-        return foundNestedAggs.get();
+    private static boolean containsAggregate(Expression e) {
+        return e.anyMatch(child -> child instanceof AggregateFunction);
+    }
+
+    /**
+     * Whether an aggregate input (field or parameter) must be materialized into a synthetic pre-agg eval.
+     */
+    private boolean needsExtraction(AggregateFunction af, Expression input) {
+        if (input instanceof Attribute) {
+            // already a channel, e.g. x in SUM(x), or both x and y in TOP(x, 3, "asc", y)
+            return false;
+        }
+        if (input.foldable() == false) {
+            // a nested expression must always be computed first, e.g. 2*x + 1 in SUM(2*x + 1)
+            return true;
+        }
+        if (extractConstants == false) {
+            // a constant input is only materialized when extractConstants is enabled
+            return false;
+        }
+        if (af instanceof Count || af instanceof CountApproximate) {
+            // COUNT reads a constant field directly, so it needs no channel
+            return false;
+        }
+        return true;
     }
 
     private Expression transformAggregateFunction(
@@ -181,28 +227,42 @@ public final class ReplaceAggregateNestedExpressionWithEval extends OptimizerRul
         int[] counter,
         Holder<Boolean> aggsChanged
     ) {
-        Expression result = af;
-
         if (skipOptimisingAgg(af)) {
             return af;
         }
-
-        Expression field = af.field();
-        // if the field is a nested expression (not attribute or literal), replace it
-        if (field instanceof Attribute == false && field.foldable() == false) {
-            // create a new alias if one doesn't exist yet
-            Attribute attr = expToAttribute.computeIfAbsent(field.canonical(), k -> {
-                Alias newAlias = new Alias(k.source(), syntheticName(k, af, counter[0]++), k, null, true);
-                evals.add(newAlias);
-                return newAlias.toAttribute();
-            });
-            aggsChanged.set(true);
-            // replace field with attribute
-            List<Expression> newChildren = new ArrayList<>(af.children());
-            newChildren.set(0, attr);
-            result = af.replaceChildren(newChildren);
+        boolean changed = false;
+        List<Expression> newFields = new ArrayList<>(af.fields());
+        for (int i = 0; i < af.fields().size(); i++) {
+            Expression field = af.fields().get(i);
+            if (needsExtraction(af, field)) {
+                newFields.set(i, extractIntoEval(field, af, expToAttribute, evals, counter));
+                changed = true;
+            }
         }
-        return result;
+        if (changed) {
+            aggsChanged.set(true);
+            return af.withFields(newFields);
+        }
+        return af;
+    }
+
+    /**
+     * Return an attribute referencing an eval that computes {@code expression}, creating (and registering) the synthetic
+     * eval if an equivalent one doesn't exist yet. Deduplication is by {@link Expression#canonical()} so that a value used
+     * both as a field and as a parameter (or shared across aggregates) is evaluated only once.
+     */
+    private Attribute extractIntoEval(
+        Expression expression,
+        AggregateFunction af,
+        Map<Expression, Attribute> expToAttribute,
+        List<Alias> evals,
+        int[] counter
+    ) {
+        return expToAttribute.computeIfAbsent(expression.canonical(), k -> {
+            Alias newAlias = new Alias(k.source(), syntheticName(k, af, counter[0]++), k, null, true);
+            evals.add(newAlias);
+            return newAlias.toAttribute();
+        });
     }
 
     private String syntheticName(Expression expression, Expression func, int counter) {

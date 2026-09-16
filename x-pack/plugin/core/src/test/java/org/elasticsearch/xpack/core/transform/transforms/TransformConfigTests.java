@@ -8,6 +8,7 @@
 package org.elasticsearch.xpack.core.transform.transforms;
 
 import org.elasticsearch.TransportVersion;
+import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
@@ -1155,6 +1156,28 @@ public class TransformConfigTests extends AbstractSerializingTransformTestCase<T
             validationException.getMessage(),
             containsString("Cross-project calls are not supported, but remote indices were requested: [project-1:src]")
         );
+    }
+
+    public void testGetScopedIndicesOptionsScopesToCredentialPresence() {
+        SourceConfig crossProjectSource = new SourceConfig(
+            new String[] { "src" },
+            QueryConfig.matchAll(),
+            Map.of(),
+            IndicesOptions.CPS_LENIENT_EXPAND_OPEN,
+            "_alias:_origin"
+        );
+
+        // A minted credential means the transform can fan out cross-project.
+        TransformConfig withCredential = new TransformConfig.Builder(randomTransformConfig()).setSource(crossProjectSource)
+            .setCredentialId("cloud-api-key-id")
+            .build();
+        assertThat(withCredential.getScopedIndicesOptions().resolveCrossProjectIndexExpression(), is(true));
+
+        // No credential: the stored identity carries no cloud token, so scope down to origin-only.
+        TransformConfig withoutCredential = new TransformConfig.Builder(randomTransformConfig()).setSource(crossProjectSource)
+            .setCredentialId(null)
+            .build();
+        assertThat(withoutCredential.getScopedIndicesOptions().resolveCrossProjectIndexExpression(), is(false));
     }
 
     public void testNotCrossProjectEnvironment() throws IOException {

@@ -148,7 +148,8 @@ public class RBACEngine implements AuthorizationEngine {
         SearchTransportService.FREE_CONTEXT_SCROLL_ACTION_NAME,
         TransportClearScrollAction.NAME,
         "indices:data/read/sql/close_cursor",
-        SearchTransportService.CLEAR_SCROLL_CONTEXTS_ACTION_NAME
+        SearchTransportService.CLEAR_SCROLL_CONTEXTS_ACTION_NAME,
+        SearchTransportService.MARK_CONTEXT_RELOCATING_ACTION_NAME
     );
 
     private final Settings settings;
@@ -755,8 +756,8 @@ public class RBACEngine implements AuthorizationEngine {
             } catch (UnsupportedOperationException e) {
                 listener.onFailure(
                     new IllegalArgumentException(
-                        "Cannot retrieve privileges for API keys with assigned role descriptors. "
-                            + "Please use the Get API key information API https://ela.st/es-api-get-api-key",
+                        "Cannot retrieve privileges for a subject whose effective privileges are constrained by limited-by roles. "
+                            + "For API keys, use the Get API key information API https://ela.st/es-api-get-api-key",
                         e
                     )
                 );

@@ -287,7 +287,14 @@ public class ExternalFieldExtractOperator implements Operator {
             }
         }
 
-        Block[] deferredBlocks = registry.materialize(refs, positions, deferredColumnNames, deferredColumnTypes, blockFactory);
+        final Block[] deferredBlocks;
+        try {
+            deferredBlocks = registry.materialize(refs, positions, deferredColumnNames, deferredColumnTypes, blockFactory);
+        } catch (Throwable t) {
+            // Deferred extraction performs external reads on the driver thread, so classify here
+            // while the concrete failure type is still available and before any transport hop.
+            throw ExternalFailures.classify(t);
+        }
         Block[] outBlocks = new Block[passThroughChannels.size() + deferredBlocks.length];
         try {
             int idx = 0;

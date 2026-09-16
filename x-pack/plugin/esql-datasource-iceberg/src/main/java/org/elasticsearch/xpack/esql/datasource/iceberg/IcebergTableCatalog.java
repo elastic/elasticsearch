@@ -24,6 +24,7 @@ import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 
 /**
  * Iceberg table catalog implementation.
@@ -47,10 +48,10 @@ public class IcebergTableCatalog implements TableCatalog {
 
     @Override
     public void validateConfig(String location, Map<String, Object> config) {
-        // Iceberg claims no per-query configuration keys today. Delegate to the generic validator
-        // with an empty claimed-set so any non-empty config map is rejected with "unknown option"
-        // — preserving the strict-validation contract until per-query options are wired in.
-        ConfigKeyValidator.check(config, List.of());
+        // Iceberg claims no per-query configuration keys today, except "region" which is a
+        // dataset-level key accepted by S3 datasets (including those resolved via Iceberg).
+        // Claim it here so dataset-level region values are not rejected as "unknown option".
+        ConfigKeyValidator.check(config, List.of(Set.of("region")));
     }
 
     @Override

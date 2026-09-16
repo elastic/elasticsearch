@@ -17,8 +17,11 @@ import org.elasticsearch.xpack.esql.core.expression.NamedExpression;
 import org.elasticsearch.xpack.esql.expression.Order;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.Values;
 import org.elasticsearch.xpack.esql.plan.logical.Aggregate;
+import org.elasticsearch.xpack.esql.plan.logical.TimeSeriesAggregate;
 import org.elasticsearch.xpack.esql.plan.logical.TopNBy;
 import org.junit.Before;
+
+import java.util.List;
 
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.as;
 import static org.hamcrest.Matchers.containsString;
@@ -28,6 +31,10 @@ import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.instanceOf;
 
 public class PromqlPlanTopKTests extends AbstractPromqlPlanOptimizerTests {
+
+    public PromqlPlanTopKTests(VersionMode versionMode) {
+        super(versionMode);
+    }
 
     @Before
     public void assumeTopkEnabled() {
@@ -91,6 +98,17 @@ public class PromqlPlanTopKTests extends AbstractPromqlPlanOptimizerTests {
 
         var topNBy = as(plan.collect(TopNBy.class).get(0), TopNBy.class);
         assertThat(topNBy.groupings().stream().map(g -> g instanceof Attribute a ? a.name() : g.toString()).toList(), hasItem("pod"));
+    }
+
+    public void testTopkByGroupingOnlyMaterializesPartitionLabel() {
+        var plan = planPromql("PROMQL index=k8s step=1h result=(topk(2, network.bytes_in) by (pod))", false);
+
+        var dimensions = plan.collect(TimeSeriesAggregate.class)
+            .stream()
+            .flatMap(aggregate -> packedDims(aggregate.aggregates()).stream())
+            .map(e -> e instanceof Attribute attribute ? attribute.name() : e.toString())
+            .toList();
+        assertThat(dimensions, equalTo(List.of(MetadataAttribute.TIMESERIES, "pod")));
     }
 
     public void testBottomkByGroupingPartitionsByLabelAndKeepsFullIdentity() {

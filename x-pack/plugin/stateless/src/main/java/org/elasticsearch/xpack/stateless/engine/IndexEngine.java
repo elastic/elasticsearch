@@ -15,6 +15,7 @@ import org.apache.lucene.index.FilterDirectoryReader;
 import org.apache.lucene.index.IndexCommit;
 import org.apache.lucene.index.IndexFileNames;
 import org.apache.lucene.index.IndexWriter;
+import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.index.MergePolicy;
 import org.apache.lucene.index.OneMergeWrappingMergePolicy;
 import org.apache.lucene.index.SegmentInfos;
@@ -23,6 +24,7 @@ import org.apache.lucene.index.StandardDirectoryReader;
 import org.apache.lucene.store.AlreadyClosedException;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.store.IOContext;
+import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.LongsRef;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionRunnable;
@@ -53,6 +55,7 @@ import org.elasticsearch.index.engine.MergeMemoryEstimateProvider;
 import org.elasticsearch.index.engine.MergeMetrics;
 import org.elasticsearch.index.engine.ThreadPoolMergeExecutorService;
 import org.elasticsearch.index.mapper.DateFieldMapper;
+import org.elasticsearch.index.mapper.IdFieldMapper;
 import org.elasticsearch.index.mapper.ParsedDocument;
 import org.elasticsearch.index.merge.OnGoingMerge;
 import org.elasticsearch.index.seqno.LocalCheckpointTracker;
@@ -237,6 +240,31 @@ public class IndexEngine extends InternalEngine {
             throw new EngineCreationFailureException(engineConfig.getShardId(), "Failed to create an index engine", e);
         }
         this.translogRecoveryMetrics = metrics.translogRecoveryMetrics();
+    }
+
+    /**
+     * Prefetches the min/max {@code _id} .tim blocks in each segment so the first id lookups after a primary relocation do not
+     * block on a cold read from the object store. Best-effort: only boundary blocks are prefetched; interior lookups will still
+     * cold-read on first access.
+     */
+    public void prewarmIdLookups() {
+        performActionWithDirectoryReader(SearcherScope.INTERNAL, reader -> {
+            for (LeafReaderContext leaf : reader.leaves()) {
+                var terms = leaf.reader().terms(IdFieldMapper.NAME);
+                if (terms == null) {
+                    continue; // no-op segment
+                }
+                BytesRef min = terms.getMin();
+                if (min != null) {
+                    terms.iterator().prepareSeekExact(min);
+                }
+                BytesRef max = terms.getMax();
+                if (max != null) {
+                    terms.iterator().prepareSeekExact(max);
+                }
+            }
+            return null;
+        });
     }
 
     /**
@@ -668,8 +696,15 @@ public class IndexEngine extends InternalEngine {
     }
 
     @Override
-    protected RefreshResult refreshInternalSearcher(String source, boolean block) throws EngineException {
-        if (source.equals(REAL_TIME_GET_REFRESH_SOURCE) || source.equals(UNSAFE_VERSION_MAP_REFRESH_SOURCE)) {
+    protected RefreshResult refreshInternalSearcher(OperationPurpose purpose, String source, boolean block) throws EngineException {
+        /// [org.elasticsearch.action.get.TransportGetFromTranslogAction] relies on the flush below being done
+        /// because it reads [lastUnsafeSegmentGenerationForGets] that is bumped in [getVersionFromMap].
+        /// This flush can happen in two scenarios:
+        /// 1. Live version map is unsafe
+        /// 2. Translog locations are not being tracked
+        /// We don't need to flush in the second case since `lastUnsafeSegmentGenerationForGets` is not bumped
+        /// and the read is performed on the index shard.
+        if (purpose == OperationPurpose.GET_FROM_TRANSLOG && source.equals(UNSAFE_VERSION_MAP_REFRESH_SOURCE)) {
             try {
                 IS_FLUSH_BY_REFRESH.set(true);
                 // TODO: Eventually the Refresh API will also need to transition (maybe) to an async API here.
@@ -679,7 +714,7 @@ public class IndexEngine extends InternalEngine {
             }
         }
         // TODO: could we avoid this refresh if we have flushed above?
-        return super.refreshInternalSearcher(source, block);
+        return super.refreshInternalSearcher(purpose, source, block);
     }
 
     // visible for testing
@@ -883,6 +918,12 @@ public class IndexEngine extends InternalEngine {
         } else {
             return Translog.Snapshot.EMPTY;
         }
+    }
+
+    public void waitForCurrentCommitDurability(ActionListener<Void> listener) {
+        // The current Lucene generation may have been produced by a flush-by-refresh, which is never queued for BCC upload.
+        long genToWaitFor = Math.min(getCurrentGeneration(), statelessCommitService.getMaxPendingOrUploadedGeneration(shardId));
+        waitForCommitDurability(genToWaitFor, listener);
     }
 
     @Override

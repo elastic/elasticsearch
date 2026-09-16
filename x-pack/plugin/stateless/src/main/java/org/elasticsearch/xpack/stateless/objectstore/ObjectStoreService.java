@@ -1939,7 +1939,9 @@ public class ObjectStoreService extends AbstractLifecycleComponent implements Cl
                 projectObjectStore.blobStore()
                     .blobContainer(BlobPath.EMPTY)
                     .deleteBlobsIgnoringIfNotExists(OperationPurpose.INDICES, blobPathStream(entry.getValue()).iterator());
-                SHARD_FILES_DELETES_LOGGER.debug(
+                // A commit is normally superseded and deleted within minutes, and it is the only record of the sequence
+                // numbers it covered, so the deletion is worth recording rather than leaving at debug.
+                SHARD_FILES_DELETES_LOGGER.info(
                     () -> format("project [%s] deleted shard files %s", projectId, blobPathStream(entry.getValue()).toList())
                 );
                 entry.getValue().forEach(ObjectStoreService.this::removeFromCommitBlobsDeletionsInProgress);

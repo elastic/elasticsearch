@@ -944,7 +944,9 @@ public class OpenAiServiceTests extends InferenceServiceTestCase {
                             "name": "OpenAI",
                             "task_types": ["text_embedding", "completion", "chat_completion", "embedding"],
                             "features": {
-                                "supports_non_streaming_chat": true
+                                "non_streaming_chat": {
+                                    "supported": true
+                                }
                             },
                             "configurations": {
                                 "api_key": {

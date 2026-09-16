@@ -631,7 +631,9 @@ public class NvidiaServiceTests extends InferenceServiceTestCase {
                        "name": "NVIDIA",
                        "task_types": ["text_embedding", "rerank", "completion", "chat_completion"],
                        "features": {
-                           "supports_non_streaming_chat": true
+                           "non_streaming_chat": {
+                               "supported": true
+                           }
                        },
                        "configurations": {
                            "api_key": {

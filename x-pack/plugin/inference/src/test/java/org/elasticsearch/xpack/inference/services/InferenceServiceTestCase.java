@@ -25,6 +25,7 @@ import org.elasticsearch.inference.Model;
 import org.elasticsearch.inference.RerankingInferenceService;
 import org.elasticsearch.inference.SimilarityMeasure;
 import org.elasticsearch.inference.TaskType;
+import org.elasticsearch.inference.configuration.NonStreamingChatFeature;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.http.MockWebServer;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -238,7 +239,7 @@ public abstract class InferenceServiceTestCase extends ESTestCase {
 
     /**
      * Validates that services which report {@link InferenceService#supportsNonStreamingChatCompletion()} true
-     * also expose that via the {@code features.supports_non_streaming_chat} flag in their configuration, so that
+     * also expose that via the {@code features.non_streaming_chat} entry in their configuration, so that
      * API consumers can discover the capability through {@code GET _inference/_services}.
      */
     public void testSupportsNonStreamingChatCompletion_IsReportedInConfiguration() throws IOException {
@@ -253,7 +254,7 @@ public abstract class InferenceServiceTestCase extends ESTestCase {
                 : service.getConfiguration();
 
             assertNotNull(configuration.getFeatures());
-            assertTrue(configuration.getFeatures().supportsNonStreamingChat());
+            assertTrue(configuration.getFeatures().isSupported(NonStreamingChatFeature.NAME));
         }
     }
 

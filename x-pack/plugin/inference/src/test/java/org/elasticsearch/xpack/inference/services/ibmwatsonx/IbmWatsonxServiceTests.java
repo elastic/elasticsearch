@@ -981,7 +981,9 @@ public class IbmWatsonxServiceTests extends InferenceServiceTestCase {
                        "name": "IBM watsonx",
                        "task_types": ["text_embedding", "rerank", "completion", "chat_completion"],
                        "features": {
-                           "supports_non_streaming_chat": true
+                           "non_streaming_chat": {
+                               "supported": true
+                           }
                        },
                        "configurations": {
                            "project_id": {

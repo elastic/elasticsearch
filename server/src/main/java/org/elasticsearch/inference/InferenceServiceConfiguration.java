@@ -16,6 +16,7 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.core.Nullable;
+import org.elasticsearch.inference.configuration.InferenceServiceFeatures;
 import org.elasticsearch.xcontent.ConstructingObjectParser;
 import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xcontent.ToXContentObject;
@@ -43,7 +44,7 @@ public class InferenceServiceConfiguration implements Writeable, ToXContentObjec
     private final String name;
     private final EnumSet<TaskType> taskTypes;
     private final Map<String, SettingsConfiguration> configurations;
-    private final Features features;
+    private final InferenceServiceFeatures features;
 
     /**
      * Constructs a new {@link InferenceServiceConfiguration} instance with specified properties.
@@ -52,14 +53,14 @@ public class InferenceServiceConfiguration implements Writeable, ToXContentObjec
      * @param name           The user-friendly name of the service provider.
      * @param taskTypes      A list of {@link TaskType} supported by the service provider.
      * @param configurations The configuration of the service provider, defined by {@link SettingsConfiguration}.
-     * @param features       The {@link Features} the {@link InferenceService} supports
+     * @param features       The {@link InferenceServiceFeatures} the {@link InferenceService} supports
      */
     private InferenceServiceConfiguration(
         String service,
         String name,
         EnumSet<TaskType> taskTypes,
         Map<String, SettingsConfiguration> configurations,
-        @Nullable Features features
+        @Nullable InferenceServiceFeatures features
     ) {
         this.service = Objects.requireNonNull(service);
         this.name = Objects.requireNonNull(name);
@@ -74,7 +75,7 @@ public class InferenceServiceConfiguration implements Writeable, ToXContentObjec
             in.readString(),
             in.readEnumSet(TaskType.class),
             in.readMap(SettingsConfiguration::new),
-            in.readOptionalWriteable(Features::new)
+            in.readOptionalWriteable(InferenceServiceFeatures::new)
         );
     }
 
@@ -92,7 +93,7 @@ public class InferenceServiceConfiguration implements Writeable, ToXContentObjec
             .setName((String) args[1])
             .setTaskTypes((List<String>) args[2])
             .setConfigurations((Map<String, SettingsConfiguration>) args[3])
-            .setFeatures((Features) args[4])
+            .setFeatures((InferenceServiceFeatures) args[4])
             .build()
     );
 
@@ -101,7 +102,7 @@ public class InferenceServiceConfiguration implements Writeable, ToXContentObjec
         PARSER.declareString(constructorArg(), NAME_FIELD);
         PARSER.declareStringArray(constructorArg(), TASK_TYPES_FIELD);
         PARSER.declareObject(constructorArg(), (p, c) -> p.map(HashMap::new, SettingsConfiguration::fromXContent), CONFIGURATIONS_FIELD);
-        PARSER.declareObject(optionalConstructorArg(), Features.PARSER::apply, FEATURES_FIELD);
+        PARSER.declareObject(optionalConstructorArg(), (p, c) -> InferenceServiceFeatures.fromXContent(p), FEATURES_FIELD);
     }
 
     public String getService() {
@@ -120,7 +121,7 @@ public class InferenceServiceConfiguration implements Writeable, ToXContentObjec
         return new HashMap<>(configurations);
     }
 
-    public Features getFeatures() {
+    public InferenceServiceFeatures getFeatures() {
         return features;
     }
 
@@ -145,7 +146,8 @@ public class InferenceServiceConfiguration implements Writeable, ToXContentObjec
     }
 
     public static InferenceServiceConfiguration fromXContentBytes(BytesReference source, XContentType xContentType) {
-        try (XContentParser parser = XContentHelper.createParser(XContentParserConfiguration.EMPTY, source, xContentType)) {
+        var parserConfig = XContentParserConfiguration.EMPTY.withRegistry(InferenceServiceFeatures.NAMED_X_CONTENT_REGISTRY);
+        try (XContentParser parser = XContentHelper.createParser(parserConfig, source, xContentType)) {
             return InferenceServiceConfiguration.fromXContent(parser);
         } catch (IOException e) {
             throw new ElasticsearchParseException("failed to parse inference service configuration", e);
@@ -184,7 +186,7 @@ public class InferenceServiceConfiguration implements Writeable, ToXContentObjec
         private String name;
         private EnumSet<TaskType> taskTypes = EnumSet.noneOf(TaskType.class);
         private Map<String, SettingsConfiguration> configurations = Map.of();
-        private Features features;
+        private InferenceServiceFeatures features;
 
         public Builder setService(String service) {
             this.service = service;
@@ -216,48 +218,13 @@ public class InferenceServiceConfiguration implements Writeable, ToXContentObjec
             return this;
         }
 
-        public Builder setFeatures(Features features) {
+        public Builder setFeatures(InferenceServiceFeatures features) {
             this.features = features;
             return this;
         }
 
         public InferenceServiceConfiguration build() {
             return new InferenceServiceConfiguration(service, name, taskTypes, configurations, features);
-        }
-    }
-
-    public record Features(boolean supportsNonStreamingChat) implements Writeable, ToXContentObject {
-
-        public static final ParseField SUPPORTS_NON_STREAMING_CHAT = new ParseField("supports_non_streaming_chat");
-        private static final ConstructingObjectParser<Features, Void> PARSER = new ConstructingObjectParser<>(
-            Features.class.getSimpleName(),
-            true,
-            args -> new Features((Boolean) args[0])
-        );
-
-        static {
-            PARSER.declareBoolean(constructorArg(), SUPPORTS_NON_STREAMING_CHAT);
-        }
-
-        public Features(StreamInput in) throws IOException {
-            this(in.readBoolean());
-        }
-
-        @Override
-        public void writeTo(StreamOutput out) throws IOException {
-            out.writeBoolean(supportsNonStreamingChat);
-        }
-
-        @Override
-        public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
-            builder.startObject();
-            builder.field(SUPPORTS_NON_STREAMING_CHAT.getPreferredName(), supportsNonStreamingChat);
-            builder.endObject();
-            return builder;
-        }
-
-        public static Features fromXContent(XContentParser parser) throws IOException {
-            return PARSER.parse(parser, null);
         }
     }
 }

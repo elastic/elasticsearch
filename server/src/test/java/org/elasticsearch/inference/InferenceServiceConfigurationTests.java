@@ -12,13 +12,18 @@ package org.elasticsearch.inference;
 import org.elasticsearch.TransportVersion;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
+import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.inference.InferenceServiceConfiguration.Builder;
-import org.elasticsearch.inference.InferenceServiceConfiguration.Features;
+import org.elasticsearch.inference.configuration.InferenceServiceFeatures;
+import org.elasticsearch.inference.configuration.InferenceServiceFeaturesTests;
+import org.elasticsearch.inference.configuration.NonStreamingChatFeature;
 import org.elasticsearch.inference.configuration.SettingsConfigurationFieldType;
 import org.elasticsearch.test.AbstractBWCSerializationTestCase;
+import org.elasticsearch.xcontent.NamedXContentRegistry;
 import org.elasticsearch.xcontent.ToXContent;
+import org.elasticsearch.xcontent.XContentParseException;
 import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xcontent.XContentType;
 
@@ -56,8 +61,19 @@ public class InferenceServiceConfigurationTests extends AbstractBWCSerialization
     protected Predicate<String> getRandomFieldsExcludeFilter() {
         // A random key inserted directly into the configurations map would not parse as a
         // SettingsConfiguration. Unknown fields inside each entry are fine because the parser
-        // is lenient (supportsUnknownFields = true).
-        return field -> field.startsWith("configurations");
+        // is lenient (supportsUnknownFields = true). Likewise every key in the features object is
+        // a feature name resolved through the registry, so a random key there is an unknown feature.
+        return field -> field.startsWith("configurations") || field.equals("features");
+    }
+
+    @Override
+    protected NamedXContentRegistry xContentRegistry() {
+        return InferenceServiceFeatures.NAMED_X_CONTENT_REGISTRY;
+    }
+
+    @Override
+    protected NamedWriteableRegistry getNamedWriteableRegistry() {
+        return new NamedWriteableRegistry(InferenceServiceFeatures.getNamedWriteables());
     }
 
     @Override
@@ -102,7 +118,7 @@ public class InferenceServiceConfigurationTests extends AbstractBWCSerialization
                 .setName(name)
                 .setTaskTypes(taskTypes)
                 .setConfigurations(configurations)
-                .setFeatures(randomValueOtherThan(features, InferenceServiceConfigurationFeaturesTests::randomInstance))
+                .setFeatures(randomValueOtherThan(features, InferenceServiceFeaturesTests::randomInstance))
                 .build();
             default -> throw new AssertionError("unexpected");
         };
@@ -200,12 +216,12 @@ public class InferenceServiceConfigurationTests extends AbstractBWCSerialization
                "name": "OpenAI",
                "task_types": ["completion"],
                "configurations": {},
-               "features": {"supports_non_streaming_chat": true}
+               "features": {"non_streaming_chat": {"supported": true}}
             }
             """);
 
         var configuration = InferenceServiceConfiguration.fromXContentBytes(new BytesArray(content), XContentType.JSON);
-        assertThat(configuration.getFeatures(), is(new Features(true)));
+        assertThat(configuration.getFeatures(), is(InferenceServiceFeatures.of(NonStreamingChatFeature.SUPPORTED_INSTANCE)));
         boolean humanReadable = true;
         var originalBytes = toShuffledXContent(configuration, XContentType.JSON, ToXContent.EMPTY_PARAMS, humanReadable);
         InferenceServiceConfiguration parsed;
@@ -235,18 +251,54 @@ public class InferenceServiceConfigurationTests extends AbstractBWCSerialization
         assertNull(configuration.getFeatures());
     }
 
-    public void testFromXContent_FeaturesWithSupportsNonStreamingChatFalse() throws IOException {
+    public void testFromXContent_FeaturesWithNonStreamingChatUnsupported() throws IOException {
         var content = XContentHelper.stripWhitespace("""
             {
                "service": "openai",
                "name": "OpenAI",
                "task_types": ["completion"],
                "configurations": {},
-               "features": {"supports_non_streaming_chat": false}
+               "features": {"non_streaming_chat": {"supported": false}}
             }
             """);
         var configuration = InferenceServiceConfiguration.fromXContentBytes(new BytesArray(content), XContentType.JSON);
-        assertThat(configuration.getFeatures(), is(new Features(false)));
+        assertThat(configuration.getFeatures(), is(InferenceServiceFeatures.of(NonStreamingChatFeature.UNSUPPORTED_INSTANCE)));
+    }
+
+    public void testFromXContent_NestedFeatureParseFailureIsWrappedByOuterParser() throws IOException {
+        var content = XContentHelper.stripWhitespace("""
+            {
+               "service": "openai",
+               "name": "OpenAI",
+               "task_types": ["completion"],
+               "configurations": {},
+               "features": {"non_streaming_chat": {}}
+            }
+            """);
+
+        var exception = expectThrows(
+            XContentParseException.class,
+            () -> InferenceServiceConfiguration.fromXContentBytes(new BytesArray(content), XContentType.JSON)
+        );
+        assertThat(exception.getMessage(), containsString("[features]"));
+    }
+
+    public void testFromXContent_ThrowsWhenTheFeatureNameIsUnknown() throws IOException {
+        var content = XContentHelper.stripWhitespace("""
+            {
+               "service": "openai",
+               "name": "OpenAI",
+               "task_types": ["completion"],
+               "configurations": {},
+               "features": {"not_a_real_feature": {"supported": true}}
+            }
+            """);
+
+        var exception = expectThrows(
+            XContentParseException.class,
+            () -> InferenceServiceConfiguration.fromXContentBytes(new BytesArray(content), XContentType.JSON)
+        );
+        assertThat(exception.getMessage(), containsString("[features]"));
     }
 
     public void testFromXContent_ParsesConfigurationsAsSettingsConfiguration() throws IOException {

@@ -328,7 +328,9 @@ public class Ai21ServiceTests extends InferenceServiceTestCase {
                        "name": "AI21",
                        "task_types": ["completion", "chat_completion"],
                        "features": {
-                           "supports_non_streaming_chat": true
+                           "non_streaming_chat": {
+                               "supported": true
+                           }
                        },
                        "configurations": {
                            "api_key": {

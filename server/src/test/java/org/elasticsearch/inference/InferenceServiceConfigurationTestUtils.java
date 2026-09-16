@@ -9,6 +9,9 @@
 
 package org.elasticsearch.inference;
 
+import org.elasticsearch.inference.configuration.InferenceServiceFeatures;
+import org.elasticsearch.inference.configuration.NonStreamingChatFeature;
+
 import java.util.EnumSet;
 import java.util.HashMap;
 import java.util.Map;
@@ -43,7 +46,7 @@ public class InferenceServiceConfigurationTestUtils {
         return configuration;
     }
 
-    public static InferenceServiceConfiguration.Features getRandomFeatures() {
-        return randomBoolean() ? null : new InferenceServiceConfiguration.Features(randomBoolean());
+    public static InferenceServiceFeatures getRandomFeatures() {
+        return randomBoolean() ? null : InferenceServiceFeatures.of(NonStreamingChatFeature.of(randomBoolean()));
     }
 }

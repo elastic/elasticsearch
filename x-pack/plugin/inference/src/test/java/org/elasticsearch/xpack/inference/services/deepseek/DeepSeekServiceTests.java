@@ -370,7 +370,9 @@ public class DeepSeekServiceTests extends InferenceServiceTestCase {
                            "name": "DeepSeek",
                            "task_types": ["completion", "chat_completion"],
                            "features": {
-                               "supports_non_streaming_chat": true
+                               "non_streaming_chat": {
+                                   "supported": true
+                               }
                            },
                            "configurations": {
                                "model_id": {

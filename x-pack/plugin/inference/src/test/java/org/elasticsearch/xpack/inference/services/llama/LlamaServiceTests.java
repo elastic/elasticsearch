@@ -430,7 +430,9 @@ public class LlamaServiceTests extends InferenceServiceTestCase {
                        "name": "Llama",
                        "task_types": ["text_embedding", "completion", "chat_completion"],
                        "features": {
-                           "supports_non_streaming_chat": true
+                           "non_streaming_chat": {
+                               "supported": true
+                           }
                        },
                        "configurations": {
                            "api_key": {

@@ -223,7 +223,9 @@ public class FireworksAiServiceTests extends InferenceServiceTestCase {
                          "chat_completion"
                      ],
                      "features": {
-                         "supports_non_streaming_chat": true
+                         "non_streaming_chat": {
+                             "supported": true
+                         }
                      },
                      "configurations": {
                          "api_key": {

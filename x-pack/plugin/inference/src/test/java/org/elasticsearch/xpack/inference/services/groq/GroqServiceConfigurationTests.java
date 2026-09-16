@@ -8,6 +8,7 @@
 package org.elasticsearch.xpack.inference.services.groq;
 
 import org.elasticsearch.inference.TaskType;
+import org.elasticsearch.inference.configuration.NonStreamingChatFeature;
 import org.elasticsearch.test.ESTestCase;
 
 import java.util.EnumSet;
@@ -25,6 +26,6 @@ public class GroqServiceConfigurationTests extends ESTestCase {
         assertThat(configuration.getTaskTypes(), equalTo(EnumSet.of(TaskType.CHAT_COMPLETION)));
         assertThat(configuration.getConfigurations().keySet(), hasItems("model_id", "url", "api_key"));
         assertNotNull(configuration.getFeatures());
-        assertTrue(configuration.getFeatures().supportsNonStreamingChat());
+        assertTrue(configuration.getFeatures().isSupported(NonStreamingChatFeature.NAME));
     }
 }

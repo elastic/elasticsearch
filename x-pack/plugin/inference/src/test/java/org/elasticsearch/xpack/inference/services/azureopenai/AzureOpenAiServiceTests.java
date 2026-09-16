@@ -1468,7 +1468,9 @@ public class AzureOpenAiServiceTests extends InferenceServiceTestCase {
                                   "chat_completion"
                               ],
                               "features": {
-                                  "supports_non_streaming_chat": true
+                                  "non_streaming_chat": {
+                                      "supported": true
+                                  }
                               },
                               "configurations": {
                                   "tenant_id": {

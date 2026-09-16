@@ -5546,25 +5546,24 @@ public class FileSplitProviderTests extends ESTestCase {
         // _file.record_ref is composed per row, so it is materializable on every file whichever way its
         // output attribute is bound. The standard names are per-file constants and are covered separately.
         String name = FileMetadataColumns.RECORD_REF;
-        {
-            DataType type = DataType.LONG;
-            for (boolean metadata : List.of(false, true)) {
-                Attribute column = metadata ? new ExternalMetadataAttribute(SRC, name, type) : new ReferenceAttribute(SRC, name, type);
-                List<Attribute> output = List.of(value, column);
-                for (Expression filter : List.of(new IsNull(SRC, column), new IsNotNull(SRC, column))) {
-                    SplitDiscoveryContext context = new SplitDiscoveryContext(
-                        null,
-                        fileList,
-                        schemas,
-                        Map.of(),
-                        PartitionMetadata.EMPTY,
-                        List.of(filter),
-                        ExternalSchema.dataAttributesOf(output),
-                        "ds",
-                        ExternalMetadataColumns.metadataNames(output)
-                    );
-                    assertEquals(name, 1, provider.discoverSplits(context).filesScanned());
-                }
+        for (boolean metadata : List.of(false, true)) {
+            Attribute column = metadata
+                ? new ExternalMetadataAttribute(SRC, name, DataType.LONG)
+                : new ReferenceAttribute(SRC, name, DataType.LONG);
+            List<Attribute> output = List.of(value, column);
+            for (Expression filter : List.of(new IsNull(SRC, column), new IsNotNull(SRC, column))) {
+                SplitDiscoveryContext context = new SplitDiscoveryContext(
+                    null,
+                    fileList,
+                    schemas,
+                    Map.of(),
+                    PartitionMetadata.EMPTY,
+                    List.of(filter),
+                    ExternalSchema.dataAttributesOf(output),
+                    "ds",
+                    ExternalMetadataColumns.metadataNames(output)
+                );
+                assertEquals(name, 1, provider.discoverSplits(context).filesScanned());
             }
         }
     }
@@ -5661,19 +5660,30 @@ public class FileSplitProviderTests extends ESTestCase {
             null,
             ExternalMetadataColumns.metadataNames(idEquals.references())
         );
-        assertEquals("_id equality is per-row, so the file is kept for scan", 1, provider.discoverSplits(ctx).splits().size());
+        assertEquals(
+            "_id is a null per-file constant, so equality is UNKNOWN and cannot certify a skip",
+            1,
+            provider.discoverSplits(ctx).splits().size()
+        );
     }
 
-    public void testVersionEqualsMtimeKeepsFile() {
-        Instant mtime = Instant.ofEpochMilli(1_700_000_000_000L);
+    public void testVersionEqualsKeepsEveryFileAcrossDifferentMtimes() {
+        Instant mtimeA = Instant.ofEpochMilli(1_700_000_000_000L);
+        Instant mtimeB = Instant.ofEpochMilli(1_800_000_000_000L);
         StoragePath pathA = StoragePath.of("s3://b/a.parquet");
-        FileList fileList = GlobExpander.fileListOf(List.of(new StorageEntry(pathA, 100, mtime)), "s3://b/*.parquet");
+        StoragePath pathB = StoragePath.of("s3://b/b.parquet");
+        FileList fileList = GlobExpander.fileListOf(
+            List.of(new StorageEntry(pathA, 100, mtimeA), new StorageEntry(pathB, 100, mtimeB)),
+            "s3://b/*.parquet"
+        );
         Map<StoragePath, SchemaReconciliation.FileSchemaInfo> schemaInfo = new HashMap<>();
-        schemaInfo.put(pathA, new SchemaReconciliation.FileSchemaInfo(new ExternalSchema(List.of(refAttr("id"))), null, null));
+        ExternalSchema schema = new ExternalSchema(List.of(refAttr("id")));
+        schemaInfo.put(pathA, new SchemaReconciliation.FileSchemaInfo(schema, null, null));
+        schemaInfo.put(pathB, new SchemaReconciliation.FileSchemaInfo(schema, null, null));
         Expression versionEquals = new Equals(
             SRC,
             metadataAttr(ExternalMetadataColumns.VERSION),
-            new Literal(SRC, mtime.toEpochMilli(), DataType.LONG)
+            new Literal(SRC, mtimeA.toEpochMilli(), DataType.LONG)
         );
         SplitDiscoveryContext ctx = new SplitDiscoveryContext(
             null,
@@ -5682,11 +5692,15 @@ public class FileSplitProviderTests extends ESTestCase {
             Map.of(),
             PartitionMetadata.EMPTY,
             List.of(versionEquals),
-            new ExternalSchema(List.of(refAttr("id"))),
+            schema,
             null,
             ExternalMetadataColumns.metadataNames(versionEquals.references())
         );
-        assertEquals("_version equality to the file mtime keeps the file", 1, provider.discoverSplits(ctx).splits().size());
+        assertEquals(
+            "_version no longer carries the file mtime, so equality to one mtime eliminates neither file",
+            2,
+            provider.discoverSplits(ctx).splits().size()
+        );
     }
 
     public void testVersionEqualsKeepsFileBecauseVersionIsNull() {

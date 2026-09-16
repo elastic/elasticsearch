@@ -314,9 +314,8 @@ teardown:
 
 ---
 "declared-text-is-rejected":
-  # Its own section rather than an arm of "mappings-validator-rejections", because `requires` is section-scoped:
-  # putting this capability there would skip that section's existing pins on any node lacking it. The gate matters
-  # in the mixed-cluster run, where a node without the capability accepts the declaration and answers 200.
+  # Its own section for the same reason as "declared-id-is-rejected" above: `requires` is section-scoped, and
+  # here a node without the capability accepts the declaration and answers 200.
   - requires:
       capabilities:
         - method: PUT

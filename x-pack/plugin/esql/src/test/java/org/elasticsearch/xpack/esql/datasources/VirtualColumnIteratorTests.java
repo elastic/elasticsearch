@@ -232,7 +232,7 @@ public class VirtualColumnIteratorTests extends ESTestCase {
     /**
      * Under deferred extraction the {@code _rowPosition} channel packs an extractor id above the file-local position.
      * {@code _file.record_ref} must answer the position alone, or the token would vary with how many extractors a
-     * driver registered. Only Parquet and ORC pack anything there, so no end-to-end case reaches this.
+     * driver registered. Only Parquet packs anything there, so no end-to-end case reaches this.
      */
     public void testRecordRefStripsExtractorIdFromEncodedPosition() {
         List<Attribute> fullOutput = List.of(

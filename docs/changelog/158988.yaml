@@ -1,5 +1,5 @@
 pr: 158988
-summary: "`_id`, `_version` and `_source` on a dataset bind and return null"
+summary: "`_id`, `_version` and `_source` on a dataset bind and return null, and `mappings._id` is refused"
 area: ES|QL
 type: enhancement
 issues: []

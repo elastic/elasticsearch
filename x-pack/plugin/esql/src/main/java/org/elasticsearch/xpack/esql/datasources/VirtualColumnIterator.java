@@ -276,9 +276,11 @@ final class VirtualColumnIterator implements CloseableIterator<Page> {
 
     /**
      * Builds the {@code _file.record_ref} block: the masked physical position from the reader-emitted
-     * {@code _rowPosition} channel, surfaced as an opaque per-record LONG. Decoding strips any
-     * deferred-extraction extractor id, keeping the token independent of split layout (a no-op for
-     * the row-index / byte-offset readers). Null positions propagate to null.
+     * {@code _rowPosition} channel, surfaced as an opaque per-record LONG. Decoding masks off any
+     * deferred-extraction extractor id, keeping the token independent of which extractor the driver
+     * registered (a no-op for the row-index / byte-offset readers). Independence from split layout
+     * comes from the reader anchoring {@code _rowPosition} file-globally, upstream of here. Null
+     * positions propagate to null.
      */
     private Block buildRecordRefBlock(LongBlock rowPositionBlock, int positions) {
         try (LongBlock.Builder builder = blockFactory.newLongBlockBuilder(positions)) {

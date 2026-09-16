@@ -333,6 +333,14 @@ public abstract class AbstractExternalMetadataMatrixIT extends AbstractExternalD
             assertThat(((Number) getValuesList(response).get(0).get(0)).longValue(), equalTo(3L));
         }
         try (
+            var response = run(
+                syncEsqlQueryRequest("FROM employees METADATA _version | WHERE _version IS NOT NULL | STATS c = COUNT(*)"),
+                TIMEOUT
+            )
+        ) {
+            assertThat(((Number) getValuesList(response).get(0).get(0)).longValue(), equalTo(0L));
+        }
+        try (
             var response = run(syncEsqlQueryRequest("FROM employees METADATA _score | WHERE _score IS NULL | STATS c = COUNT(*)"), TIMEOUT)
         ) {
             assertThat(((Number) getValuesList(response).get(0).get(0)).longValue(), equalTo(3L));
@@ -373,12 +381,25 @@ public abstract class AbstractExternalMetadataMatrixIT extends AbstractExternalD
             assertThat(((Number) getValuesList(response).get(0).get(0)).longValue(), equalTo(3L));
         }
         try (
+            var response = run(syncEsqlQueryRequest("FROM employees METADATA _id | WHERE _id IS NOT NULL | STATS c = COUNT(*)"), TIMEOUT)
+        ) {
+            assertThat(((Number) getValuesList(response).get(0).get(0)).longValue(), equalTo(0L));
+        }
+        try (
             var response = run(
                 syncEsqlQueryRequest("FROM employees METADATA _source | WHERE _source IS NULL | STATS c = COUNT(*)"),
                 TIMEOUT
             )
         ) {
             assertThat(((Number) getValuesList(response).get(0).get(0)).longValue(), equalTo(3L));
+        }
+        try (
+            var response = run(
+                syncEsqlQueryRequest("FROM employees METADATA _source | WHERE _source IS NOT NULL | STATS c = COUNT(*)"),
+                TIMEOUT
+            )
+        ) {
+            assertThat(((Number) getValuesList(response).get(0).get(0)).longValue(), equalTo(0L));
         }
     }
 

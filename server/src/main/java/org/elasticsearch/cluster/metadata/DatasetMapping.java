@@ -81,9 +81,11 @@ public final class DatasetMapping implements Writeable {
 
         Mappings(StreamInput in) throws IOException {
             this(in.readEnum(Dynamic.class), in.readOrderedMap(StreamInput::readString, DatasetFieldMapping::new));
-            // An optional string this version has no field for. dataset_declared_schema is on 9.5, so dropping the
-            // read would be a wire break; a 9.5 peer writes a column name here and it is discarded.
-            // TODO: remove the slot once 9.5 is out of the wire-compatibility window.
+            // An optional string this version has no field for. dataset_declared_schema is on 9.5, and both sides
+            // write the slot unconditionally, so a 9.5 peer puts a column name here and it is discarded — whether
+            // the mapping came off persisted state or off a PUT a 9.5 coordinator forwards to a 9.6 master
+            // mid-upgrade. Dropping the slot needs a new transport version gating read and write, since every
+            // peer from 9.5 onward writes it; 9.5 leaving the wire-compatibility window is not the trigger.
             in.readOptionalString();
         }
 
@@ -143,7 +145,7 @@ public final class DatasetMapping implements Writeable {
      * unsupported block unexamined is {@code IndexMetadata.Builder.fromXContent}'s {@code warmers} arm.
      * ({@link DataStream}'s {@code timestamp_field} is a different shape — it validates and writes the block back.)
      */
-    public static Mappings parseStoredMappings(XContentParser parser) throws IOException {
+    static Mappings parseStoredMappings(XContentParser parser) throws IOException {
         return parseMappings(parser, true);
     }
 

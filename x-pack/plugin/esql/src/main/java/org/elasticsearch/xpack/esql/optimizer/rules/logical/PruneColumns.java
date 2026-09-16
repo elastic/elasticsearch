@@ -235,8 +235,7 @@ public final class PruneColumns extends Rule<LogicalPlan, LogicalPlan> {
      * the attribute list on an external relation directly controls which columns the format reader loads from storage.
      * <p>
      * {@code _source} needs no exception here. A dataset answers it as SQL NULL — a file carries no stored
-     * source — so it is a constant null block built from the file entry alone, with no data column behind it
-     * to keep.
+     * source — so it is a constant null block with no data column behind it to keep.
      */
     private static LogicalPlan pruneColumnsInExternalRelation(ExternalRelation ext, AttributeSet.Builder used) {
         var remaining = pruneUnusedAndAddReferences(ext.output(), used);

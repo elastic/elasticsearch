@@ -28,7 +28,6 @@ import org.apache.lucene.search.Weight;
 import org.apache.lucene.search.join.BitSetProducer;
 import org.apache.lucene.store.ByteBuffersDirectory;
 import org.apache.lucene.store.Directory;
-import org.apache.lucene.util.BitDocIdSet;
 import org.apache.lucene.util.BitSet;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.SetOnce;
@@ -688,7 +687,7 @@ public class PercolateQueryBuilder extends LeafQueryBuilder<PercolateQueryBuilde
                     final Scorer s = weight.scorer(context);
 
                     if (s != null) {
-                        return new BitDocIdSet(BitSet.of(s.iterator(), context.reader().maxDoc())).bits();
+                        return BitSet.of(s.iterator(), context.reader().maxDoc());
                     } else {
                         return null;
                     }

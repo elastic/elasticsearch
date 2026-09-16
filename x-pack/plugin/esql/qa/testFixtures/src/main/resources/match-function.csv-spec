@@ -1987,6 +1987,49 @@ phrase:keyword
 The Quick Brown Fox
 ;
 
+matchOnToTextOverIndexedKeywordFieldIsAnalyzed
+required_capability: match_function
+required_capability: fn_match_to_text_on_indexed_field_fix
+
+// https://github.com/elastic/elasticsearch/issues/159265: TO_TEXT written inline over a normal mapped keyword field
+// must still be matched as analyzed text - the same lowercase-insensitive result the plain (already-text) `author`
+// field gives, matched in matchWithField.
+FROM books
+| WHERE MATCH(TO_TEXT(author.keyword), "faulkner")
+| KEEP book_no, author
+| SORT book_no
+| LIMIT 5
+;
+
+book_no:keyword | author:text
+2378            | [Carol Faulkner, Holly Byers Ochoa, Lucretia Mott]
+2713            | William Faulkner
+2847            | Colleen Faulkner
+2883            | William Faulkner
+3293            | Danny Faulkner
+;
+
+matchOnToTextOverIndexedKeywordFieldViaEvalAlias
+required_capability: match_function
+required_capability: fn_match_to_text_on_indexed_field_fix
+
+// The EVAL-alias form of matchOnToTextOverIndexedKeywordFieldIsAnalyzed must agree with the inline form (above).
+FROM books
+| EVAL a = TO_TEXT(author.keyword)
+| WHERE MATCH(a, "faulkner")
+| KEEP book_no, author
+| SORT book_no
+| LIMIT 5
+;
+
+book_no:keyword | author:text
+2378            | [Carol Faulkner, Holly Byers Ochoa, Lucretia Mott]
+2713            | William Faulkner
+2847            | Colleen Faulkner
+2883            | William Faulkner
+3293            | Danny Faulkner
+;
+
 matchOnRuntimeLongWithStringQueryMultiValueAndNull
 required_capability: match_function
 required_capability: fn_match_runtime_filter

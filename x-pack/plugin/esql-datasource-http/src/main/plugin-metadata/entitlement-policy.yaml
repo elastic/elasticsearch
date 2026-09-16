@@ -1,4 +1,8 @@
 ALL-UNNAMED:
+  # One daemon scheduler thread for HTTP body idle-timeout watchdogs. JDK HttpClient has no
+  # SO_TIMEOUT on BodyHandlers.ofInputStream() after headers; aborting a silent body requires
+  # closing the stream from a delayed task (S3 parity with the SDK's ~30s socket timeout).
+  - manage_threads
   - outbound_network
   - files:
       - relative_path: .

@@ -6393,6 +6393,8 @@ public class FromDatasetIT extends AbstractExternalDataSourceIT {
         assertThat(first.settings().get("schema_resolution"), nullValue());
         assertThat(firstRowOf("FROM re_put_legacy_omit | STATS c = COUNT(x)"), equalTo(List.of(4L)));
 
+        // Name order so INT32 part-a is the FFW donor; DirectoryStream list order is not name order.
+        settings.put("file_sort_by", "name");
         assertAcked(client().execute(PutDatasetAction.INSTANCE, putDatasetRequest("re_put_legacy_omit", FILE_DS, resource, settings)));
         Dataset second = getDataset("re_put_legacy_omit");
         assertThat(second.settings().get("schema_resolution"), equalTo("first_file_wins"));

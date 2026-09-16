@@ -402,13 +402,17 @@ public class DLMFrozenTransitionHealthInfoPublisherTests extends ESTestCase {
     }
 
     public void testPublishHealthInfoSendsRequestToHealthNode() {
-        ClusterState stateWithHealthNode = ClusterStateCreationUtils.state(node1, node1, node1, allNodes);
+        // node1 is local, node2 is master and health node — differentiating them catches the bug where
+        // the request was sent with the health-node id instead of the local-node id.
+        ClusterState stateWithHealthNode = ClusterStateCreationUtils.state(node1, node2, node2, allNodes);
         setState(clusterService, stateWithHealthNode);
 
         publisher.publishHealthInfo();
 
         assertThat(clientSeenRequests.size(), is(1));
-        assertThat(clientSeenRequests.get(0).getDlmFrozenTransitionsHealthInfo(), is(notNullValue()));
+        UpdateHealthInfoCacheAction.Request request = clientSeenRequests.get(0);
+        assertThat(request.getNodeId(), equalTo(node1.getId()));
+        assertThat(request.getDlmFrozenTransitionsHealthInfo(), is(notNullValue()));
     }
 
     public void testPublishHealthInfoNoHealthNode() {

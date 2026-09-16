@@ -16,6 +16,7 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.logging.HeaderWarning;
 import org.elasticsearch.compute.data.BytesRefBlock;
 import org.elasticsearch.compute.data.LongBlock;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.geometry.Geometry;
 import org.elasticsearch.geometry.Point;
 import org.elasticsearch.geometry.Rectangle;
@@ -227,19 +228,30 @@ public abstract class SpatialGridFunction extends SpatialDocValuesFunction
     /**
      * Fuses this function into the loading of a {@code geo_point} field so the cell id is computed straight from the
      * encoded doc value and the point itself is never materialised as a block. See {@link BlockLoaderExpression} for the
-     * general mechanism. Only unbounded grids over a mapped {@code geo_point} field with doc values and a constant, in-range
-     * precision qualify. {@code geo_shape} needs cell intersection rather than point-in-cell and keeps using the evaluator,
-     * as do bounded grids, whose filtering would otherwise have to be replicated in the loader.
+     * general mechanism. Only grids over a mapped {@code geo_point} field with doc values, a constant in-range precision
+     * and, if present, constant envelope bounds qualify. {@code geo_shape} needs cell intersection rather than
+     * point-in-cell and keeps using the evaluator, as do null or invalid bounds, so that the evaluator reports them.
      */
     @Override
     public PushedBlockLoaderExpression tryPushToFieldLoading(SearchStats stats) {
-        if (bounds == null
-            && spatialField instanceof FieldAttribute field
+        if (spatialField instanceof FieldAttribute field
             && field.dataType() == GEO_POINT
             && parameter instanceof Literal literal
             && literal.value() instanceof Integer precision
             && stats.hasDocValues(field.fieldName())) {
-            BlockLoaderFunctionConfig.GeoGrid config = blockLoaderConfig(precision);
+            GeoBoundingBox bbox = null;
+            if (bounds != null) {
+                if (bounds instanceof Literal boundsLiteral && boundsLiteral.value() instanceof BytesRef wkb) {
+                    try {
+                        bbox = asGeoBoundingBox(wkb);
+                    } catch (IllegalArgumentException e) {
+                        return null;
+                    }
+                } else {
+                    return null;
+                }
+            }
+            BlockLoaderFunctionConfig.GeoGrid config = blockLoaderConfig(precision, bbox);
             if (config != null) {
                 return new PushedBlockLoaderExpression(field, config);
             }
@@ -248,10 +260,10 @@ public abstract class SpatialGridFunction extends SpatialDocValuesFunction
     }
 
     /**
-     * The block loader configuration for this grid type at the given precision, or {@code null} if the precision is out of
-     * range, in which case the evaluator is left to report the error.
+     * The block loader configuration for this grid type at the given precision, restricted to {@code bounds} when not
+     * null, or {@code null} if the precision is out of range, in which case the evaluator is left to report the error.
      */
-    protected abstract BlockLoaderFunctionConfig.GeoGrid blockLoaderConfig(int precision);
+    protected abstract BlockLoaderFunctionConfig.GeoGrid blockLoaderConfig(int precision, @Nullable GeoBoundingBox bounds);
 
     @Override
     public boolean foldable() {

@@ -21,6 +21,7 @@ import org.elasticsearch.compute.expression.ConstantEvaluators;
 import org.elasticsearch.compute.expression.ExpressionEvaluator;
 import org.elasticsearch.compute.operator.DriverContext;
 import org.elasticsearch.compute.operator.Warnings;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.geometry.Geometry;
 import org.elasticsearch.geometry.LinearRing;
 import org.elasticsearch.geometry.Point;
@@ -49,6 +50,7 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.function.Consumer;
 import java.util.function.Function;
+import java.util.function.Supplier;
 
 import static org.elasticsearch.compute.ann.Fixed.Scope.THREAD_LOCAL;
 import static org.elasticsearch.search.aggregations.bucket.geogrid.GeoTileUtils.checkPrecisionRange;
@@ -75,7 +77,7 @@ public class StGeotile extends SpatialGridFunction implements EvaluatorMapper, A
         private final int precision;
         private final GeoTileBoundedPredicate bounds;
 
-        private GeoTileBoundedGrid(int precision, GeoBoundingBox bbox) {
+        GeoTileBoundedGrid(int precision, GeoBoundingBox bbox) {
             this.precision = checkPrecisionRange(precision);
             this.bounds = new GeoTileBoundedPredicate(precision, bbox);
         }
@@ -123,15 +125,21 @@ public class StGeotile extends SpatialGridFunction implements EvaluatorMapper, A
     );
 
     @Override
-    protected BlockLoaderFunctionConfig.GeoGrid blockLoaderConfig(int precision) {
+    protected BlockLoaderFunctionConfig.GeoGrid blockLoaderConfig(int precision, @Nullable GeoBoundingBox bounds) {
         if (precision < 0 || precision > GeoTileUtils.MAX_ZOOM) {
             return null;
         }
-        return new BlockLoaderFunctionConfig.GeoGrid(
-            BlockLoaderFunctionConfig.Function.ST_GEOTILE,
-            precision,
-            (lon, lat) -> GeoTileUtils.longEncode(lon, lat, precision)
-        );
+        Supplier<BlockLoaderFunctionConfig.GeoGridEncoder> encoders;
+        if (bounds == null) {
+            encoders = () -> (lon, lat) -> GeoTileUtils.longEncode(lon, lat, precision);
+        } else {
+            // The bounded grid keeps scratch state, so build one per encoder; it returns -1 for a point outside the bounds
+            encoders = () -> {
+                GeoTileBoundedGrid grid = new GeoTileBoundedGrid(precision, bounds);
+                return (lon, lat) -> grid.calculateGridId(new Point(lon, lat));
+            };
+        }
+        return new BlockLoaderFunctionConfig.GeoGrid(BlockLoaderFunctionConfig.Function.ST_GEOTILE, precision, bounds, encoders);
     }
 
     @FunctionInfo(

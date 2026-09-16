@@ -9,10 +9,14 @@
 
 package org.elasticsearch.index.mapper.blockloader;
 
+import org.elasticsearch.common.geo.GeoBoundingBox;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.index.mapper.MappedFieldType;
 
 import java.util.Arrays;
+import java.util.Objects;
 import java.util.Set;
+import java.util.function.Supplier;
 
 /**
  * Configuration needed to transform loaded values into blocks.
@@ -62,10 +66,12 @@ public interface BlockLoaderFunctionConfig {
 
     /**
      * Encodes a decoded {@code geo_point}, given as {@code (x, y)} i.e. longitude then latitude, into a geo-grid cell id.
-     * Implementations are supplied by the caller
-     * (ES|QL) because the grid libraries, in particular H3 for {@code geohex}, are not all available to the
-     * server module. Implementations must be stateless so that two configs with the same
-     * {@link GeoGrid#function()} and {@link GeoGrid#precision()} are interchangeable.
+     * A negative result means the point has no cell, which for a bounded grid means it lies outside the bounds; the
+     * loader then emits {@code null}, or drops the value for a multi-valued point.
+     * <p>
+     * Implementations are supplied by the caller (ES|QL) because the grid libraries, in particular H3 for
+     * {@code geohex}, are not all available to the server module. An encoder may keep per-instance scratch state, so the
+     * loader obtains a fresh one from {@link GeoGrid#encoders()} for every reader it creates.
      */
     @FunctionalInterface
     interface GeoGridEncoder {
@@ -74,10 +80,13 @@ public interface BlockLoaderFunctionConfig {
 
     /**
      * Configuration for loading {@code geo_point} doc values directly as geo-grid cell ids
-     * ({@code ST_GEOHASH}, {@code ST_GEOTILE} or {@code ST_GEOHEX}). Equality deliberately ignores the
-     * {@link #encoder()}: the encoder is fully determined by {@code function} and {@code precision}.
+     * ({@code ST_GEOHASH}, {@code ST_GEOTILE} or {@code ST_GEOHEX}), optionally restricted to the cells intersecting
+     * {@code bounds}. Equality deliberately ignores {@link #encoders()}: the encoder is fully determined by the
+     * function, precision and bounds.
      */
-    record GeoGrid(Function function, int precision, GeoGridEncoder encoder) implements BlockLoaderFunctionConfig {
+    record GeoGrid(Function function, int precision, @Nullable GeoBoundingBox bounds, Supplier<GeoGridEncoder> encoders)
+        implements
+            BlockLoaderFunctionConfig {
         public GeoGrid {
             if (function != Function.ST_GEOHASH && function != Function.ST_GEOTILE && function != Function.ST_GEOHEX) {
                 throw new IllegalArgumentException("not a geo-grid function [" + function + "]");
@@ -87,12 +96,15 @@ public interface BlockLoaderFunctionConfig {
         @Override
         public int hashCode() {
             // Enum hashCode is identity based; use the name so the hash is stable across JVMs (it ends up in attribute names).
-            return 31 * function.name().hashCode() + precision;
+            return Objects.hash(function.name(), precision, bounds);
         }
 
         @Override
         public boolean equals(Object o) {
-            return o instanceof GeoGrid other && function == other.function && precision == other.precision;
+            return o instanceof GeoGrid other
+                && function == other.function
+                && precision == other.precision
+                && Objects.equals(bounds, other.bounds);
         }
     }
 

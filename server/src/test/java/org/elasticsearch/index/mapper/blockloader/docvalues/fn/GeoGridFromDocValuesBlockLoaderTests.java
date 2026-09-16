@@ -13,29 +13,37 @@ import org.apache.lucene.document.LatLonDocValuesField;
 import org.apache.lucene.index.IndexableField;
 import org.apache.lucene.index.LeafReaderContext;
 import org.elasticsearch.common.breaker.CircuitBreaker;
+import org.elasticsearch.common.geo.GeoBoundingBox;
+import org.elasticsearch.common.geo.GeoPoint;
 import org.elasticsearch.geometry.utils.Geohash;
 import org.elasticsearch.index.mapper.BlockLoader;
 import org.elasticsearch.index.mapper.TestBlock;
 import org.elasticsearch.index.mapper.blockloader.BlockLoaderFunctionConfig;
 import org.elasticsearch.index.mapper.blockloader.docvalues.LongsBlockLoader;
+import org.elasticsearch.search.aggregations.bucket.geogrid.GeoHashBoundedPredicate;
+import org.elasticsearch.search.aggregations.bucket.geogrid.GeoTileBoundedPredicate;
 import org.elasticsearch.search.aggregations.bucket.geogrid.GeoTileUtils;
 import org.hamcrest.Matcher;
 
 import java.io.IOException;
 import java.util.List;
+import java.util.function.Supplier;
 
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.hasToString;
 import static org.hamcrest.Matchers.nullValue;
 
 /**
  * Checks that {@link GeoGridFromDocValuesBlockLoader} produces, for every document, exactly the cell ids that
- * result from loading the raw encoded {@code geo_point} doc values and encoding them afterwards. Geohash and
- * geotile are used since those libraries are available to the server module; geohex only differs in the encoder,
- * which the loader treats as opaque.
+ * result from loading the raw encoded {@code geo_point} doc values and encoding them afterwards, for unbounded and
+ * bounded grids. Geohash and geotile are used since those libraries are available to the server module; geohex only
+ * differs in the encoder, which the loader treats as opaque.
  */
 public class GeoGridFromDocValuesBlockLoaderTests extends AbstractNumericBlockLoaderTests {
     private static final int PRECISION = 5;
+    /** Roughly Europe and Africa, so a good share of the globally spread test points fall outside. */
+    private static final GeoBoundingBox BOUNDS = new GeoBoundingBox(new GeoPoint(60, -20), new GeoPoint(-35, 50));
 
     public GeoGridFromDocValuesBlockLoaderTests(boolean multiValues, boolean missingValues) {
         super(multiValues, missingValues);
@@ -51,7 +59,12 @@ public class GeoGridFromDocValuesBlockLoaderTests extends AbstractNumericBlockLo
 
     @Override
     protected void innerTest(CircuitBreaker breaker, LeafReaderContext ctx, int mvCount) throws IOException {
-        for (BlockLoaderFunctionConfig.GeoGrid config : List.of(geohash(PRECISION), geotile(PRECISION))) {
+        for (BlockLoaderFunctionConfig.GeoGrid config : List.of(
+            geohash(PRECISION, null),
+            geotile(PRECISION, null),
+            geohash(PRECISION, BOUNDS),
+            geotile(PRECISION, BOUNDS)
+        )) {
             LongsBlockLoader pointsLoader = new LongsBlockLoader("field");
             GeoGridFromDocValuesBlockLoader gridLoader = new GeoGridFromDocValuesBlockLoader("field", config);
             BlockLoader.Docs docs = TestBlock.docs(ctx);
@@ -84,20 +97,38 @@ public class GeoGridFromDocValuesBlockLoaderTests extends AbstractNumericBlockLo
         }
     }
 
-    static BlockLoaderFunctionConfig.GeoGrid geohash(int precision) {
-        return new BlockLoaderFunctionConfig.GeoGrid(
-            BlockLoaderFunctionConfig.Function.ST_GEOHASH,
-            precision,
-            (lon, lat) -> Geohash.longEncode(lon, lat, precision)
-        );
+    static BlockLoaderFunctionConfig.GeoGrid geohash(int precision, GeoBoundingBox bounds) {
+        Supplier<BlockLoaderFunctionConfig.GeoGridEncoder> encoders;
+        if (bounds == null) {
+            encoders = () -> (lon, lat) -> Geohash.longEncode(lon, lat, precision);
+        } else {
+            encoders = () -> {
+                GeoHashBoundedPredicate predicate = new GeoHashBoundedPredicate(precision, bounds);
+                return (lon, lat) -> {
+                    String hash = Geohash.stringEncode(lon, lat, precision);
+                    return predicate.validHash(hash) ? Geohash.longEncode(hash) : -1;
+                };
+            };
+        }
+        return new BlockLoaderFunctionConfig.GeoGrid(BlockLoaderFunctionConfig.Function.ST_GEOHASH, precision, bounds, encoders);
     }
 
-    static BlockLoaderFunctionConfig.GeoGrid geotile(int precision) {
-        return new BlockLoaderFunctionConfig.GeoGrid(
-            BlockLoaderFunctionConfig.Function.ST_GEOTILE,
-            precision,
-            (lon, lat) -> GeoTileUtils.longEncode(lon, lat, precision)
-        );
+    static BlockLoaderFunctionConfig.GeoGrid geotile(int precision, GeoBoundingBox bounds) {
+        Supplier<BlockLoaderFunctionConfig.GeoGridEncoder> encoders;
+        if (bounds == null) {
+            encoders = () -> (lon, lat) -> GeoTileUtils.longEncode(lon, lat, precision);
+        } else {
+            encoders = () -> {
+                GeoTileBoundedPredicate predicate = new GeoTileBoundedPredicate(precision, bounds);
+                int tiles = 1 << precision;
+                return (lon, lat) -> {
+                    int x = GeoTileUtils.getXTile(lon, tiles);
+                    int y = GeoTileUtils.getYTile(lat, tiles);
+                    return predicate.validTile(x, y, precision) ? GeoTileUtils.longEncodeTiles(precision, x, y) : -1;
+                };
+            };
+        }
+        return new BlockLoaderFunctionConfig.GeoGrid(BlockLoaderFunctionConfig.Function.ST_GEOTILE, precision, bounds, encoders);
     }
 
     private Matcher<Object> readerMatcher() {
@@ -109,20 +140,30 @@ public class GeoGridFromDocValuesBlockLoaderTests extends AbstractNumericBlockLo
 
     @SuppressWarnings("unchecked")
     private void checkBlocks(TestBlock points, TestBlock cells, BlockLoaderFunctionConfig.GeoGrid config) {
+        BlockLoaderFunctionConfig.GeoGridEncoder encoder = config.encoders().get();
+        int outOfBounds = 0;
         for (int i = 0; i < points.size(); i++) {
             Object v = points.get(i);
             if (v == null) {
                 assertThat(cells.get(i), nullValue());
                 continue;
             }
-            if (v instanceof List<?> l) {
-                List<Long> expected = ((List<Long>) l).stream()
-                    .map(encoded -> GeoGridFromDocValuesBlockLoader.cellId(encoded, config.encoder()))
-                    .toList();
-                assertThat(cells.get(i), equalTo(expected));
+            List<Long> pointValues = v instanceof List<?> l ? (List<Long>) l : List.of((Long) v);
+            List<Long> expected = pointValues.stream()
+                .map(encoded -> GeoGridFromDocValuesBlockLoader.cellId(encoded, encoder))
+                .filter(cellId -> cellId >= 0)
+                .toList();
+            outOfBounds += pointValues.size() - expected.size();
+            if (expected.isEmpty()) {
+                assertThat(cells.get(i), nullValue());
+            } else if (expected.size() == 1) {
+                assertThat(cells.get(i), equalTo(expected.get(0)));
             } else {
-                assertThat(cells.get(i), equalTo(GeoGridFromDocValuesBlockLoader.cellId((Long) v, config.encoder())));
+                assertThat(cells.get(i), equalTo(expected));
             }
+        }
+        if (config.bounds() != null && points.size() > 100) {
+            assertThat("bounded configs should see some points outside the bounds", outOfBounds, greaterThan(0));
         }
     }
 }

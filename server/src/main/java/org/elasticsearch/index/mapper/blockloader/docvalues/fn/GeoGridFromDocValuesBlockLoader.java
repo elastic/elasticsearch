@@ -13,6 +13,7 @@ import org.apache.lucene.geo.GeoEncodingUtils;
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.index.NumericDocValues;
 import org.apache.lucene.index.SortedNumericDocValues;
+import org.apache.lucene.util.ArrayUtil;
 import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.index.mapper.blockloader.BlockLoaderFunctionConfig;
 import org.elasticsearch.index.mapper.blockloader.ConstantNull;
@@ -29,7 +30,9 @@ import java.io.IOException;
  * is decoded to latitude and longitude and handed to the {@link BlockLoaderFunctionConfig.GeoGridEncoder}
  * from the config, so the point itself is never materialised as a block. Multi-valued points produce
  * one cell id per point, in doc values order and without de-duplication, which matches the output of the
- * equivalent ES|QL evaluator.
+ * equivalent ES|QL evaluator. For bounded grids the encoder returns a negative id for a point outside the
+ * bounds; such points are dropped, and a document left with no cell loads as {@code null}, again as the
+ * evaluator does.
  */
 public class GeoGridFromDocValuesBlockLoader extends BlockDocValuesReader.DocValuesBlockLoader {
     private final String fieldName;
@@ -51,15 +54,24 @@ public class GeoGridFromDocValuesBlockLoader extends BlockDocValuesReader.DocVal
         if (dv == null) {
             return ConstantNull.COLUMN_READER;
         }
+        // Encoders may carry scratch state, so every reader gets its own
+        BlockLoaderFunctionConfig.GeoGridEncoder encoder = config.encoders().get();
         if (dv.singleton() != null) {
-            return new Singleton(dv.singleton(), config.encoder());
+            return new Singleton(dv.singleton(), encoder);
         }
-        return new Sorted(dv.sorted(), config.encoder());
+        return new Sorted(dv.sorted(), encoder);
     }
 
     @Override
     public String toString() {
-        return "GeoGridFromDocValues[" + fieldName + ", " + config.function() + ", " + config.precision() + "]";
+        return "GeoGridFromDocValues["
+            + fieldName
+            + ", "
+            + config.function()
+            + ", "
+            + config.precision()
+            + (config.bounds() == null ? "" : ", bounded")
+            + "]";
     }
 
     static long cellId(long encodedPoint, BlockLoaderFunctionConfig.GeoGridEncoder encoder) {
@@ -84,10 +96,11 @@ public class GeoGridFromDocValuesBlockLoader extends BlockDocValuesReader.DocVal
             NumericDocValues docValues = numericDocValues.docValues();
             try (LongBuilder builder = factory.longsFromDocValues(docs.count() - offset)) {
                 for (int i = offset; i < docs.count(); i++) {
-                    if (docValues.advanceExact(docs.get(i))) {
-                        builder.appendLong(cellId(docValues.longValue(), encoder));
-                    } else {
+                    long cellId = docValues.advanceExact(docs.get(i)) ? cellId(docValues.longValue(), encoder) : -1;
+                    if (cellId < 0) {
                         builder.appendNull();
+                    } else {
+                        builder.appendLong(cellId);
                     }
                 }
                 return builder.build();
@@ -113,6 +126,8 @@ public class GeoGridFromDocValuesBlockLoader extends BlockDocValuesReader.DocVal
     private static class Sorted extends BlockDocValuesReader {
         private final TrackingSortedNumericDocValues numericDocValues;
         private final BlockLoaderFunctionConfig.GeoGridEncoder encoder;
+        /** Cells of the current document that lie inside the bounds; sized on demand. */
+        private long[] cells = new long[8];
 
         Sorted(TrackingSortedNumericDocValues numericDocValues, BlockLoaderFunctionConfig.GeoGridEncoder encoder) {
             super(null);
@@ -132,14 +147,35 @@ public class GeoGridFromDocValuesBlockLoader extends BlockDocValuesReader.DocVal
                     }
                     int count = docValues.docValueCount();
                     if (count == 1) {
-                        builder.appendLong(cellId(docValues.nextValue(), encoder));
+                        long cellId = cellId(docValues.nextValue(), encoder);
+                        if (cellId < 0) {
+                            builder.appendNull();
+                        } else {
+                            builder.appendLong(cellId);
+                        }
                         continue;
                     }
-                    builder.beginPositionEntry();
-                    for (int v = 0; v < count; v++) {
-                        builder.appendLong(cellId(docValues.nextValue(), encoder));
+                    if (cells.length < count) {
+                        cells = new long[ArrayUtil.oversize(count, Long.BYTES)];
                     }
-                    builder.endPositionEntry();
+                    int kept = 0;
+                    for (int v = 0; v < count; v++) {
+                        long cellId = cellId(docValues.nextValue(), encoder);
+                        if (cellId >= 0) {
+                            cells[kept++] = cellId;
+                        }
+                    }
+                    if (kept == 0) {
+                        builder.appendNull();
+                    } else if (kept == 1) {
+                        builder.appendLong(cells[0]);
+                    } else {
+                        builder.beginPositionEntry();
+                        for (int v = 0; v < kept; v++) {
+                            builder.appendLong(cells[v]);
+                        }
+                        builder.endPositionEntry();
+                    }
                 }
                 return builder.build();
             }

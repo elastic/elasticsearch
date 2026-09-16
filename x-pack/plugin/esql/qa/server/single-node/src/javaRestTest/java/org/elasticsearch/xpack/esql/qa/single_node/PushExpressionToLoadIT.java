@@ -55,6 +55,7 @@ import static org.hamcrest.Matchers.any;
 import static org.hamcrest.Matchers.anyOf;
 import static org.hamcrest.Matchers.closeTo;
 import static org.hamcrest.Matchers.instanceOf;
+import static org.hamcrest.Matchers.nullValue;
 import static org.hamcrest.Matchers.startsWith;
 
 /**
@@ -808,16 +809,42 @@ public class PushExpressionToLoadIT extends ESRestTestCase {
     }
 
     /**
-     * A bounded grid is not fused: the bounds filter is only implemented in the evaluator, so the point is loaded from
-     * doc values and the cell computed in {@code EvalOperator} as before.
+     * A bounded grid is fused as well: the cell is loaded when the point lies inside the bounds.
      */
-    public void testBoundedStGeohashNotPushed() throws IOException {
+    public void testBoundedStGeohashToGeoPoint() throws IOException {
         test(
             justType("geo_point"),
             b -> b.field("test", GEO_GRID_LAT + "," + GEO_GRID_LON),
-            "| EVAL test = TO_STRING(ST_GEOHASH(test, 4, TO_GEOSHAPE(\"BBOX(-180, 180, 90, -90)\")))",
+            "| EVAL test = TO_STRING(ST_GEOHASH(test, 4, TO_GEOSHAPE(\"BBOX(10, 15, 55, 50)\")))",
             matchesList().item(Geohash.stringEncode(GEO_GRID_LON, GEO_GRID_LAT, 4)),
-            matchesMap().entry("test:column_at_a_time:LongsFromDocValues.Singleton", 1)
+            matchesMap().entry("test:column_at_a_time:GeoGridFromDocValues.Singleton", 1)
+        );
+    }
+
+    /**
+     * A point outside the bounds of a bounded grid loads as {@code null}, as the evaluator would return.
+     */
+    public void testBoundedStGeohashOutsideBoundsToGeoPoint() throws IOException {
+        test(
+            justType("geo_point"),
+            b -> b.field("test", GEO_GRID_LAT + "," + GEO_GRID_LON),
+            "| EVAL test = TO_STRING(ST_GEOHASH(test, 4, TO_GEOSHAPE(\"BBOX(-120, -100, 40, 30)\")))",
+            matchesList().item(nullValue()),
+            matchesMap().entry("test:column_at_a_time:GeoGridFromDocValues.Singleton", 1)
+        );
+    }
+
+    /**
+     * Like {@link #testBoundedStGeohashToGeoPoint} for {@code ST_GEOHEX}, whose bounded predicate keeps scratch state
+     * and therefore exercises the per-reader encoder creation.
+     */
+    public void testBoundedStGeohexToGeoPoint() throws IOException {
+        test(
+            justType("geo_point"),
+            b -> b.field("test", GEO_GRID_LAT + "," + GEO_GRID_LON),
+            "| EVAL test = TO_STRING(ST_GEOHEX(test, 4, TO_GEOSHAPE(\"BBOX(10, 15, 55, 50)\")))",
+            matchesList().item(H3.geoToH3Address(GEO_GRID_LAT, GEO_GRID_LON, 4)),
+            matchesMap().entry("test:column_at_a_time:GeoGridFromDocValues.Singleton", 1)
         );
     }
 

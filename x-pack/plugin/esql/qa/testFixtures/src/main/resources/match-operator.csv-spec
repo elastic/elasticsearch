@@ -1833,6 +1833,41 @@ book_no:keyword | title:text
 2301            | Smith of Wootton Major & Farmer Giles of Ham
 ;
 
+matchOperatorOnToTextOverIndexedKeywordField
+required_capability: match_operator_colon
+required_capability: fn_match_to_text_on_indexed_field_fix
+required_capability: match_operator_lhs_expression
+
+FROM books
+| WHERE TO_TEXT(author.keyword):"faulkner"
+| KEEP book_no, author
+| SORT book_no
+| LIMIT 5
+;
+
+book_no:keyword | author:text
+2378            | [Carol Faulkner, Holly Byers Ochoa, Lucretia Mott]
+2713            | William Faulkner
+2847            | Colleen Faulkner
+2883            | William Faulkner
+3293            | Danny Faulkner
+;
+
+matchOperatorOnToStringOverIndexedTextField
+required_capability: match_operator_colon
+required_capability: fn_match_to_string_on_indexed_field_fix
+required_capability: match_operator_lhs_expression
+
+// Mirror-image bug, exercised through the : operator form: TO_STRING over a normal text field (author) must be
+// matched as exact, unanalyzed keyword text - "Faulkner" is never the whole value of any author.
+FROM books
+| WHERE TO_STRING(author):"Faulkner"
+| KEEP book_no, author
+;
+
+book_no:keyword | author:text
+;
+
 matchOperatorFunctionOnLhsConstantFolded
 required_capability: match_operator_colon
 required_capability: fn_match_runtime_filter

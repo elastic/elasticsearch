@@ -37,7 +37,6 @@ import java.util.ArrayList;
 import java.util.List;
 
 import static org.elasticsearch.xpack.core.enrich.EnrichPolicy.MATCH_TYPE;
-import static org.elasticsearch.xpack.esql.EsqlTestUtils.analyzer;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.as;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.singleValue;
 import static org.elasticsearch.xpack.esql.action.EsqlCapabilities.Cap.INLINE_STATS;
@@ -52,6 +51,10 @@ import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.not;
 
 public class OptimizerVerificationTests extends AbstractLogicalPlanOptimizerTests {
+
+    public OptimizerVerificationTests(VersionMode versionMode) {
+        super(versionMode);
+    }
 
     /**
      * A cast to keyword (`::keyword`) produces a foldable string pattern. {@code 12::keyword} folds to the
@@ -222,15 +225,34 @@ public class OptimizerVerificationTests extends AbstractLogicalPlanOptimizerTest
     /**
      * A subquery union merges columns exactly as {@code FORK} does, but it does not share {@code FORK}'s exposure to
      * the analyzer substitution, because {@code PushDownFilterAndLimitIntoUnionAll} pushes the filter into every
-     * branch unconditionally - there is no pipeline-breaker bail-out like {@code PushDownFiltersIntoFork}'s. The
-     * search therefore always lands on a branch's own {@code FieldAttribute} and stays index-backed, which is what
-     * this asserts directly: one search per branch, none of them a runtime search on the merged column.
+     * branch unconditionally - there is no pipeline-breaker bail-out like {@code PushDownFiltersIntoFork}'s. Pushed
+     * this far, the filter lands positioned after each branch's own {@code SORT ... | LIMIT ...} (folded into a
+     * {@code TopN}), which is rejected for the same reason a plain, non-union query in that shape would be: an
+     * index-backed search cannot run after a command that has already reduced or reordered the rows. That rejection
+     * is itself the proof that no search here ever reaches a merged column: the filter is relocated into the
+     * branch, not left merged above the union, before either of those two questions - position, then analyzer - is
+     * even asked.
      */
     public void testRuntimeTextSearchAfterUnionAllReachesTheBranches() {
         assumeTrue("requires subquery_in_from_command", EsqlCapabilities.Cap.SUBQUERY_IN_FROM_COMMAND.isEnabled());
-        var plan = optimize(fullTextAnalyzer().query("""
+        var err = error(fullTextAnalyzer().query("""
             FROM (FROM test | WHERE category == 1 | SORT id | LIMIT 5),
                  (FROM test | WHERE category == 2 | SORT id | LIMIT 5)
+            | WHERE match(title, "data")
+            """));
+        assertThat(err, containsString("[MATCH] function cannot be used after SORT and LIMIT"));
+    }
+
+    /**
+     * Companion to {@link #testRuntimeTextSearchAfterUnionAllReachesTheBranches}: without a pipeline breaker in
+     * either branch, the same push-down lands the filter as an ordinary index-backed search per branch - not a
+     * runtime search on a merged column - so the query succeeds.
+     */
+    public void testRuntimeTextSearchAfterUnionAllWithoutBreakerReachesTheBranches() {
+        assumeTrue("requires subquery_in_from_command", EsqlCapabilities.Cap.SUBQUERY_IN_FROM_COMMAND.isEnabled());
+        var plan = optimize(fullTextAnalyzer().query("""
+            FROM (FROM test | WHERE category == 1),
+                 (FROM test | WHERE category == 2)
             | WHERE match(title, "data")
             """));
 
@@ -277,7 +299,7 @@ public class OptimizerVerificationTests extends AbstractLogicalPlanOptimizerTest
         optimize(fullTextAnalyzer().minimumTransportVersion(Highlight.ESQL_HIGHLIGHT).query(HYBRID_FORK + "| HIGHLIGHT \"data\" ON title"));
     }
 
-    private static TestAnalyzer fullTextAnalyzer() {
+    private TestAnalyzer fullTextAnalyzer() {
         return analyzerWithEnrichPolicies().addIndex("test", "mapping-full_text_search.json");
     }
 

@@ -852,6 +852,80 @@ book_no:keyword | max_year:integer
 2130            | 2002
 ;
 
+matchPhraseOnToTextOverIndexedKeywordField
+required_capability: match_phrase_function
+required_capability: fn_match_phrase_to_text_on_indexed_field_fix
+
+// https://github.com/elastic/elasticsearch/issues/159265: TO_TEXT written inline over a normal mapped keyword field
+// must still be matched with analyzed (case-insensitive) phrase semantics, not pushed down as an exact, case-sensitive
+// match on the raw keyword field - the lowercase query only matches through the standard analyzer, same as
+// matchPhraseWithField's plain (already-text) `author` field would.
+FROM books
+| WHERE MATCH_PHRASE(TO_TEXT(author.keyword), "william faulkner")
+| KEEP book_no, author
+| SORT book_no
+| LIMIT 5
+;
+
+book_no:keyword | author:text
+2713            | William Faulkner
+2883            | William Faulkner
+4724            | William Faulkner
+4977            | William Faulkner
+5119            | William Faulkner
+;
+
+matchPhraseOnToTextOverIndexedKeywordFieldViaEvalAlias
+required_capability: match_phrase_function
+required_capability: fn_match_phrase_to_text_on_indexed_field_fix
+
+// The EVAL-alias form of matchPhraseOnToTextOverIndexedKeywordField must agree with the inline form (above).
+FROM books
+| EVAL a = TO_TEXT(author.keyword)
+| WHERE MATCH_PHRASE(a, "william faulkner")
+| KEEP book_no, author
+| SORT book_no
+| LIMIT 5
+;
+
+book_no:keyword | author:text
+2713            | William Faulkner
+2883            | William Faulkner
+4724            | William Faulkner
+4977            | William Faulkner
+5119            | William Faulkner
+;
+
+matchPhraseOnToStringOverIndexedTextFieldIsExact
+required_capability: match_phrase_function
+required_capability: fn_match_phrase_to_string_on_indexed_field_fix
+
+// Mirror-image bug of matchPhraseOnToTextOverIndexedKeywordField: TO_STRING over a normal
+// mapped text field (author) must be matched as exact, unanalyzed keyword text. "Holly Byers" is a
+// consecutive substring of "Holly Byers Ochoa" (one value of book 2378's multi-valued author), never the
+// WHOLE value, so nothing should match, unlike an analyzed phrase match.
+FROM books
+| WHERE MATCH_PHRASE(TO_STRING(author), "Holly Byers")
+| KEEP book_no, author
+;
+
+book_no:keyword | author:text
+;
+
+matchPhraseOnToStringOverIndexedTextFieldViaEvalAlias
+required_capability: match_phrase_function
+required_capability: fn_match_phrase_to_string_on_indexed_field_fix
+
+// The EVAL-alias form of matchPhraseOnToStringOverIndexedTextFieldIsExact must agree with the inline form.
+FROM books
+| EVAL a = TO_STRING(author)
+| WHERE MATCH_PHRASE(a, "Holly Byers")
+| KEEP book_no, author
+;
+
+book_no:keyword | author:text
+;
+
 matchPhraseOnTextWithRow
 required_capability: match_phrase_function
 required_capability: fn_match_phrase_runtime_filter

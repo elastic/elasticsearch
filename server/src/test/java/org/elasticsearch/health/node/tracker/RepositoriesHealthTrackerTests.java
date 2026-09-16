@@ -91,7 +91,7 @@ public class RepositoriesHealthTrackerTests extends ESTestCase {
         assertEquals(repo.name(), health.invalidRepositories().get(0));
     }
 
-    public void testGetHealthUnknownTypeMultiProject() {
+    public void testGetHealthWithUnknownTypeAndMultiProjectCluster() {
         repositoriesHealthTracker = new RepositoriesHealthTracker(repositoriesService, TestProjectResolvers.allProjects());
         var repo = createRepositoryMetadata();
         var projectId = randomUniqueProjectId();
@@ -107,7 +107,7 @@ public class RepositoriesHealthTrackerTests extends ESTestCase {
         assertTrue(health.invalidRepositories().isEmpty());
     }
 
-    public void testGetHealthSameRepositoryNameInDifferentProjects() {
+    public void testGetHealthWithSameRepositoryNameInDifferentProjects() {
         repositoriesHealthTracker = new RepositoriesHealthTracker(repositoriesService, TestProjectResolvers.allProjects());
         var repo = createRepositoryMetadata();
         var projectA = randomUniqueProjectId();

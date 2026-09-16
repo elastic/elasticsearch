@@ -393,9 +393,8 @@ public class RepositoryIntegrityHealthIndicatorServiceTests extends ESTestCase {
     }
 
     public void testSkippingFieldsWhenVerboseIsFalse() {
-        int problemType = randomIntBetween(0, 2);
-        boolean corrupted = problemType == 0;
-        boolean unknown = problemType == 1;
+        boolean corrupted = randomBoolean();
+        boolean unknown = corrupted == false;
         var problemRepos = createNamedRepositories(corrupted ? "corrupted-repo-" : unknown ? "unknown-repo-" : "invalid-repo-", corrupted);
         var repos = concatLists(randomList(1, 10, () -> createRepositoryMetadata("healthy-repo", false)), problemRepos);
         var clusterState = createClusterStateWith(new RepositoriesMetadata(repos));
@@ -480,9 +479,8 @@ public class RepositoryIntegrityHealthIndicatorServiceTests extends ESTestCase {
         var healthyProject = randomUniqueProjectId();
         var unhealthyProject = randomUniqueProjectId();
         var healthyRepos = randomList(1, 10, () -> createRepositoryMetadata("healthy-repo", false));
-        int problemType = randomIntBetween(0, 2);
-        boolean corrupted = problemType == 0;
-        boolean unknown = problemType == 1;
+        boolean corrupted = randomBoolean();
+        boolean unknown = corrupted == false;
         var problemRepos = createNamedRepositories(corrupted ? "corrupted-repo-" : unknown ? "unknown-repo-" : "invalid-repo-", corrupted);
         var clusterState = createClusterStateWith(Map.of(healthyProject, healthyRepos, unhealthyProject, problemRepos));
         var service = createRepositoryIntegrityHealthIndicatorService(clusterState, TestProjectResolvers.allProjects());

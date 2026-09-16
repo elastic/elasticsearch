@@ -46,6 +46,7 @@ import org.elasticsearch.action.search.SearchTransportService;
 import org.elasticsearch.action.search.SearchType;
 import org.elasticsearch.action.support.ActiveShardCount;
 import org.elasticsearch.action.support.PlainActionFuture;
+import org.elasticsearch.action.support.SubscribableListener;
 import org.elasticsearch.action.support.WriteRequest;
 import org.elasticsearch.action.support.master.MasterNodeRequestHelper;
 import org.elasticsearch.action.support.replication.StaleRequestException;
@@ -123,6 +124,7 @@ import org.elasticsearch.test.disruption.ServiceDisruptionScheme;
 import org.elasticsearch.test.junit.annotations.TestLogging;
 import org.elasticsearch.test.transport.MockTransportService;
 import org.elasticsearch.threadpool.ThreadPool;
+import org.elasticsearch.transport.ConnectTransportException;
 import org.elasticsearch.transport.TransportChannel;
 import org.elasticsearch.transport.TransportRequest;
 import org.elasticsearch.transport.TransportResponse;
@@ -162,7 +164,6 @@ import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.CyclicBarrier;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.Executors;
-import java.util.concurrent.LinkedBlockingQueue;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
 import java.util.concurrent.atomic.AtomicBoolean;
@@ -1048,17 +1049,17 @@ public class StatelessReshardIT extends AbstractStatelessPluginIntegTestCase {
         // briefly (should time out because DONE should wait for notification to be acknowledged). Perform search,
         // check that it doesn't have too many documents (it's still filtering unowned). Release commit block.
 
-        final var deferredNotifications = new LinkedBlockingQueue<CheckedRunnable<Exception>>();
+        final var notificationsUnblocked = new SubscribableListener<Void>();
         final var blockNotification = new AtomicBoolean(false);
         final var notificationBlocked = new CountDownLatch(1);
         MockTransportService.getInstance(searchNode)
             .addRequestHandlingBehavior(TransportNewCommitNotificationAction.NAME + "[u]", (handler, request, channel, task) -> {
                 if (blockNotification.get()) {
                     logger.info("deferring new commit notification {}", request);
-                    deferredNotifications.add(() -> {
+                    notificationsUnblocked.addListener(ActionListener.wrap(ignored -> {
                         logger.info("processing deferred notification {}", request);
                         handler.messageReceived(request, channel, task);
-                    });
+                    }, e -> { throw new AssertionError("deferred commit notification failed", e); }));
                 } else {
                     handler.messageReceived(request, channel, task);
                 }
@@ -1076,7 +1077,7 @@ public class StatelessReshardIT extends AbstractStatelessPluginIntegTestCase {
                         notificationBlocked.countDown();
                     }
                     assert splitStateRequest.getNewTargetShardState() != IndexReshardingState.Split.TargetShardState.DONE
-                        || deferredNotifications.isEmpty() : "all commit notifications should have been processed first";
+                        || notificationsUnblocked.isDone() : "commit notifications should have been unblocked first";
                 }
             }
             connection.sendRequest(requestId, action, request, options);
@@ -1092,13 +1093,10 @@ public class StatelessReshardIT extends AbstractStatelessPluginIntegTestCase {
         final var unblockThread = new Thread(() -> {
             try {
                 Thread.sleep(100); // allow reshard to reach the refresh-wait in deleteUnownedDocuments
-                blockNotification.set(false);
-                while (deferredNotifications.isEmpty() == false) {
-                    deferredNotifications.take().run();
-                }
-            } catch (Exception e) {
-                throw new RuntimeException(e);
+            } catch (InterruptedException e) {
+                throw new AssertionError(e);
             }
+            notificationsUnblocked.onResponse(null);
         });
         unblockThread.start();
 
@@ -3749,12 +3747,18 @@ public class StatelessReshardIT extends AbstractStatelessPluginIntegTestCase {
      * {@link IndexReshardingState.Split.TargetShardState#HANDOFF} in resharding metadata but before the target
      * primary is started in routing. Both force gateway recovery and verify the reshard completes with all
      * documents searchable. Post-handoff recovery does not copy blobs (CLONE already finished), so the target's
-     * {@link ShardStateAction#SHARD_STARTED_ACTION_NAME} notification to master is blocked to keep routing
+     * {@link ShardStateAction#SHARD_STARTED_ACTION_NAME} notification to master is suppressed to keep routing
      * {@code !started()} while metadata is {@code HANDOFF}.
+     * <p>
+     * The notification is suppressed by failing the send with a {@link ConnectTransportException} rather than
+     * blocking: a master-channel exception makes {@link ShardStateAction} re-register a
+     * {@link org.elasticsearch.cluster.ClusterStateObserver} retry, so no thread is ever parked inside the
+     * intercept. Blocking instead would park the cluster applier thread when the retry fires mid-publication,
+     * stalling the ack of the new master's first cluster state and deadlocking the restart.
      */
-    public void testTargetRecoversAfterMasterRestartDuringHandoff() throws RuntimeException {
+    public void testTargetRecoversAfterMasterRestartDuringHandoff() throws Exception {
         String masterNode = startMasterNodeForRestartTest();
-        String indexNode = startIndexNode();
+        startIndexNode();
         startSearchNodes(2);
         ensureStableCluster(4);
         final String indexName = randomAlphaOfLength(10).toLowerCase(Locale.ROOT);
@@ -3771,61 +3775,57 @@ public class StatelessReshardIT extends AbstractStatelessPluginIntegTestCase {
         String targetIndexNode = startIndexNode();
         ensureStableCluster(5);
 
-        // Block the target's SHARD_STARTED notification so routing stays !started
-        // while resharding metadata is HANDOFF.
-        CountDownLatch allowShardStarted = new CountDownLatch(1);
+        AtomicBoolean suppressShardStarted = new AtomicBoolean(true);
+        AtomicBoolean restartCompleted = new AtomicBoolean(false);
+        AtomicBoolean shardStartedAfterRestart = new AtomicBoolean(false);
         MockTransportService targetTransport = MockTransportService.getInstance(targetIndexNode);
         targetTransport.addSendBehavior((connection, requestId, action, request, options) -> {
             if (ShardStateAction.SHARD_STARTED_ACTION_NAME.equals(action)) {
-                safeAwait(allowShardStarted);
+                if (suppressShardStarted.get()) {
+                    throw new ConnectTransportException(connection.getNode(), "suppressed until master restart completes");
+                }
+                assertTrue("SHARD_STARTED must only succeed after master restart completes", restartCompleted.get());
+                shardStartedAfterRestart.set(true);
             }
             connection.sendRequest(requestId, action, request, options);
         });
 
-        CountDownLatch masterRestartDone = new CountDownLatch(1);
-        Thread restartThread = new Thread(() -> {
-            try {
-                Index index = resolveIndex(indexName);
-                awaitClusterState(state -> {
-                    IndexMetadata im = indexMetadata(state, index);
-                    if (im.getReshardingMetadata() == null) {
-                        return false;
-                    }
-                    boolean handoff = im.getReshardingMetadata()
-                        .getSplit()
-                        .getTargetShardState(1) == IndexReshardingState.Split.TargetShardState.HANDOFF;
-                    ShardRouting primary = state.routingTable().index(index).shard(1).primaryShard();
-                    // Shard could not have been started because of the block on SHARD_STARTED_ACTION_NAME above
-                    return handoff && primary.started() == false;
-                });
-                logger.info("--> restarting master during handoff before target started");
-                internalCluster().restartNode(masterNode, new InternalTestCluster.RestartCallback() {
-                    @Override
-                    public boolean validateClusterForming() {
-                        return false;
-                    }
-                });
-                allowShardStarted.countDown();
-                assertBusy(() -> ensureStableCluster(5));
-            } catch (Exception e) {
-                throw new RuntimeException(e);
-            } finally {
-                allowShardStarted.countDown();
-                masterRestartDone.countDown();
-            }
-        }, "master-restart-during-handoff");
-        restartThread.start();
-
         try {
             client().execute(TransportReshardAction.TYPE, new ReshardIndexRequest(indexName));
-            safeAwait(masterRestartDone);
+
+            Index index = resolveIndex(indexName);
+            awaitClusterState(state -> {
+                IndexMetadata im = indexMetadata(state, index);
+                if (im.getReshardingMetadata() == null) {
+                    return false;
+                }
+                boolean handoff = im.getReshardingMetadata()
+                    .getSplit()
+                    .getTargetShardState(1) == IndexReshardingState.Split.TargetShardState.HANDOFF;
+                ShardRouting primary = state.routingTable().index(index).shard(1).primaryShard();
+                // Shard could not have been started because SHARD_STARTED_ACTION_NAME is suppressed above
+                return handoff && primary.started() == false;
+            });
+
+            internalCluster().restartNode(masterNode, new InternalTestCluster.RestartCallback() {
+                @Override
+                public boolean validateClusterForming() {
+                    return false;
+                }
+            });
+            // restartCompleted before suppressShardStarted: volatile write order gives the intercept
+            // a happens-before guarantee that restartCompleted == true when it sees suppressShardStarted == false.
+            restartCompleted.set(true);
+            suppressShardStarted.set(false);
+            assertBusy(() -> ensureStableCluster(5));
+
             waitForReshardCompletion(indexName);
             ensureGreen(indexName);
             refresh(indexName);
             assertHitCount(prepareSearchAll(indexName), numDocs);
+            assertTrue("SHARD_STARTED must succeed after restart completes", shardStartedAfterRestart.get());
         } finally {
             targetTransport.clearAllRules();
-            safeJoin(restartThread);
         }
     }
 

@@ -185,6 +185,24 @@ public class MatchOnlyTextFieldMapperColumnarCompatibilityTests extends Abstract
         );
     }
 
+    /** A keyword sub-field on a match_only_text parent: both are driven from the same source column. */
+    public void testKeywordSubField() throws IOException {
+        assertColumnarMatchesXContent(mapping(b -> {
+            b.startObject(FIELD).field("type", "match_only_text");
+            b.startObject("fields").startObject("raw").field("type", "keyword").endObject().endObject();
+            b.endObject();
+        }),
+            columnarSettings(),
+            batch(
+                "match_only_text with keyword sub-field",
+                1L,
+                doc("d1", 1L, "{\"f\":\"hello\"}"),
+                doc("d2", 2L, "{}"),
+                doc("d3", 3L, "{\"f\":[\"alpha\",\"beta\"]}")
+            )
+        );
+    }
+
     public void testMultiValueViolationBailsOutOfColumnarPath() throws IOException {
         // Two values for a multi_value=false field: mapColumnBatch must throw so that
         // ShardBatchMapper falls back to the row path, which raises the correct
@@ -195,6 +213,18 @@ public class MatchOnlyTextFieldMapperColumnarCompatibilityTests extends Abstract
             b.endObject();
         }));
         expectThrows(UnsupportedOperationException.class, () -> mapColumnarLeaf(mapperService, FIELD, "{\"f\":[\"a\",\"b\"]}"));
+    }
+
+    public void testNullabilityViolationBailsOutOfColumnarPath() throws IOException {
+        // A null value for a nullability=false field: mapColumnBatch must throw so that
+        // ShardBatchMapper falls back to the row path, which raises the correct
+        // on_failure=FAIL document-level error instead.
+        final var mapperService = createMapperService(columnarSettings(), mapping(b -> {
+            b.startObject(FIELD).field("type", "match_only_text");
+            b.startObject("doc_values").field("nullability", false).endObject();
+            b.endObject();
+        }));
+        expectThrows(UnsupportedOperationException.class, () -> mapColumnarLeaf(mapperService, FIELD, "{\"f\":\"value\"}", "{\"f\":null}"));
     }
 
     public void testAllPresentDenseMultiValueFalse() throws IOException {

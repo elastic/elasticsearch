@@ -301,7 +301,7 @@ public abstract class AbstractExternalDataSourceIT extends AbstractEsqlIntegTest
         for (String dataset : registeredDatasets) {
             try {
                 client().execute(DeleteDatasetAction.INSTANCE, new DeleteDatasetAction.Request(TIMEOUT, TIMEOUT, new String[] { dataset }))
-                    .get(30, TimeUnit.SECONDS);
+                    .actionGet(30, TimeUnit.SECONDS);
             } catch (ResourceNotFoundException ignored) {
                 // already deleted
             } catch (Exception e) {
@@ -313,7 +313,7 @@ public abstract class AbstractExternalDataSourceIT extends AbstractEsqlIntegTest
                 client().execute(
                     DeleteDataSourceAction.INSTANCE,
                     new DeleteDataSourceAction.Request(TIMEOUT, TIMEOUT, new String[] { dataSource })
-                ).get(30, TimeUnit.SECONDS);
+                ).actionGet(30, TimeUnit.SECONDS);
             } catch (ResourceNotFoundException ignored) {
                 // already deleted
             } catch (Exception e) {

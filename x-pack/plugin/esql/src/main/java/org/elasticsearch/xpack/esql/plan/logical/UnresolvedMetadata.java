@@ -7,7 +7,6 @@
 package org.elasticsearch.xpack.esql.plan.logical;
 
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.xpack.esql.core.capabilities.Unresolvable;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.expression.NamedExpression;
 import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
@@ -17,13 +16,14 @@ import org.elasticsearch.xpack.esql.core.tree.Source;
 import java.io.IOException;
 import java.util.List;
 import java.util.Objects;
+import java.util.stream.Collectors;
 
 /**
  * A wrapper whose main purpose is to keep track of {@code METADATA} fields from a {@code FROM} command.
  * It helps to act on fields that were requested, but weren't produced by the child plan, by e.g. filling
  * them with nulls in the Analyzer.
  */
-public class UnresolvedMetadata extends UnaryPlan implements Unresolvable {
+public class UnresolvedMetadata extends UnaryPlan {
 
     private final List<NamedExpression> metadataFields;
 
@@ -62,18 +62,13 @@ public class UnresolvedMetadata extends UnaryPlan implements Unresolvable {
     }
 
     @Override
-    public boolean resolved() {
-        return false;
-    }
-
-    @Override
     public boolean expressionsResolved() {
-        return false;
-    }
-
-    @Override
-    public String unresolvedMessage() {
-        return "unresolved metadata fields: " + metadataFields.stream().filter(f -> f.resolved() == false).toList();
+        for (NamedExpression e : metadataFields) {
+            if (e.resolved() == false) {
+                return false;
+            }
+        }
+        return true;
     }
 
     @Override
@@ -91,6 +86,8 @@ public class UnresolvedMetadata extends UnaryPlan implements Unresolvable {
 
     @Override
     public void nodeString(StringBuilder sb, NodeStringFormat format, NodeStringMapper mapper) {
-        sb.append(nodeName()).append("[]");
+        sb.append(nodeName()).append("[");
+        sb.append(metadataFields.stream().map(NamedExpression::name).collect(Collectors.joining(",")));
+        sb.append("]");
     }
 }

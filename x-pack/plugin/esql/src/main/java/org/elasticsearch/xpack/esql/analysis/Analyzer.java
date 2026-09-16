@@ -444,7 +444,7 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
             );
         }
 
-        private List<NamedExpression> resolveMetadata(List<NamedExpression> metadata, AnalyzerContext context) {
+        static List<NamedExpression> resolveMetadata(List<NamedExpression> metadata, AnalyzerContext context) {
             LinkedHashMap<String, NamedExpression> resolved = new LinkedHashMap<>();
             Set<String> allTags = null;
             for (NamedExpression item : metadata) {
@@ -473,7 +473,7 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
             return resolved.values().stream().toList();
         }
 
-        private List<NamedExpression> tryResolveMetadata(UnresolvedMetadataAttributeExpression um, Set<String> allowedTags) {
+        private static List<NamedExpression> tryResolveMetadata(UnresolvedMetadataAttributeExpression um, Set<String> allowedTags) {
             Pattern pattern = Pattern.compile(StringUtils.wildcardToJavaPattern(um.pattern(), '\\'));
             List<String> matchingMetadata = allowedTags.stream().filter(x -> pattern.matcher(x).matches()).sorted().toList();
             List<NamedExpression> result = new ArrayList<>();
@@ -1195,6 +1195,7 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
     /**
      * Consumes {@link UnresolvedMetadata} nodes emitted by the parser and null-injects any
      * outer {@code METADATA} field that is absent from a branch's output.
+     * Includes fields with wildcard patterns
      */
     private static class InjectOuterMetadataForSubqueries extends ParameterizedAnalyzerRule<UnresolvedMetadata, AnalyzerContext> {
 
@@ -1205,21 +1206,19 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
 
         @Override
         protected LogicalPlan rule(UnresolvedMetadata unresolvedMetadata, AnalyzerContext context) {
-            List<NamedExpression> metadataFields = unresolvedMetadata.metadataFields();
-            // Skip injection if the child tree still has unresolved relations
-            // or if any metadata field itself is unresolvable - both should be caught by the Verifier.
-            if (unresolvedMetadata.anyMatch(node -> node instanceof UnresolvedRelation || node instanceof UnresolvedExternalRelation)
-                || metadataFields.stream().anyMatch(f -> f.resolved() == false)) {
+            LogicalPlan child = unresolvedMetadata.child();
+
+            List<NamedExpression> metadataFields = ResolveTable.resolveMetadata(unresolvedMetadata.metadataFields(), context);
+            // If anything remains unresolved, skip injection so the Verifier can throw an error.
+            if (metadataFields.stream().anyMatch(f -> f.resolved() == false)) {
                 return unresolvedMetadata;
             }
             if (metadataFields.isEmpty()) {
                 // Nothing to inject; just strip the wrapper.
-                return unresolvedMetadata.child();
+                return child;
             }
 
-            LogicalPlan child = unresolvedMetadata.child();
             Source src = unresolvedMetadata.source();
-
             if (child instanceof UnionAll unionAll) {
                 // Multi-source: inject into each branch that is missing the field.
                 List<LogicalPlan> newChildren = new ArrayList<>(unionAll.children().size());
@@ -1233,7 +1232,7 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
                 }
                 return changed ? unionAll.replaceChildren(newChildren) : child;
             } else {
-                // Single source (UR/EsRelation/Subquery/NamedSubquery): inject directly.
+                // Single source: inject directly.
                 return injectMissing(child, metadataFields, src);
             }
         }

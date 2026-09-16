@@ -125,6 +125,9 @@ tests:
 - class: org.elasticsearch.upgrades.UpgradeClusterClientYamlTestSuiteIT
   method: test {p0=upgraded_cluster/90_ml_data_frame_analytics_crud/Get mixed cluster outlier_detection job stats}
   issue: https://github.com/elastic/elasticsearch/issues/159422
+- class: org.elasticsearch.xpack.ilm.TimeSeriesLifecycleActionsIT
+  method: testForceMergeActionWithCompressionCodec
+  issue: https://github.com/elastic/elasticsearch/issues/159423
 
 # Examples:
 #

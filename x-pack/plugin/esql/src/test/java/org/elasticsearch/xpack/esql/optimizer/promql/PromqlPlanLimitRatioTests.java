@@ -24,6 +24,10 @@ import static org.hamcrest.Matchers.instanceOf;
 
 public class PromqlPlanLimitRatioTests extends AbstractPromqlPlanOptimizerTests {
 
+    public PromqlPlanLimitRatioTests(VersionMode versionMode) {
+        super(versionMode);
+    }
+
     @Before
     public void assumeLimitRatioEnabled() {
         assumeTrue("Requires PROMQL_LIMIT_RATIO capability", EsqlCapabilities.Cap.PROMQL_LIMIT_RATIO.isEnabled());

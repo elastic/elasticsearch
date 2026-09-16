@@ -29,12 +29,14 @@ import org.elasticsearch.xpack.textstructure.rest.RestFindFieldStructureAction;
 import org.elasticsearch.xpack.textstructure.rest.RestFindMessageStructureAction;
 import org.elasticsearch.xpack.textstructure.rest.RestFindStructureAction;
 import org.elasticsearch.xpack.textstructure.rest.RestTestGrokPatternAction;
+import org.elasticsearch.xpack.textstructure.transport.TextStructExecutor;
 import org.elasticsearch.xpack.textstructure.transport.TransportFindFieldStructureAction;
 import org.elasticsearch.xpack.textstructure.transport.TransportFindMessageStructureAction;
 import org.elasticsearch.xpack.textstructure.transport.TransportFindStructureAction;
 import org.elasticsearch.xpack.textstructure.transport.TransportTestGrokPatternAction;
 
 import java.util.Arrays;
+import java.util.Collection;
 import java.util.List;
 import java.util.function.Predicate;
 import java.util.function.Supplier;
@@ -46,6 +48,13 @@ import java.util.function.Supplier;
 public class TextStructurePlugin extends Plugin implements ActionPlugin {
 
     public static final String BASE_PATH = "/_text_structure/";
+
+    @Override
+    public Collection<?> createComponents(PluginServices services) {
+        // One runner for every find_*structure action. Guice is unscoped, so an @Inject
+        // constructor would mint a runner per transport action and double the processor cap.
+        return List.of(new TextStructExecutor(services.threadPool(), services.environment().settings()));
+    }
 
     @Override
     public List<RestHandler> getRestHandlers(

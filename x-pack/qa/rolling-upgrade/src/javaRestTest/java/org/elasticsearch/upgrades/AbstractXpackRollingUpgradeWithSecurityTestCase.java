@@ -39,7 +39,7 @@ public abstract class AbstractXpackRollingUpgradeWithSecurityTestCase extends Ab
         return buildCluster(
             b -> b.user(USER, PASS)
                 .setting("xpack.security.enabled", "true")
-                .setting("xpack.security.autoconfiguration.enabled", "false")
+                .setting("xpack.security.autoconfiguration.enabled", () -> "false", spec -> spec.getVersion().onOrAfter("8.0.0"))
                 .setting("xpack.security.transport.ssl.enabled", "true")
                 .setting("xpack.security.transport.ssl.key", "testnode.pem")
                 .setting("xpack.security.transport.ssl.certificate", "testnode.crt")

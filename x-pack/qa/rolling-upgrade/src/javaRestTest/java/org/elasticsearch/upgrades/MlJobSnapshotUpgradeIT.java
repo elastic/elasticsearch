@@ -17,6 +17,7 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.xcontent.support.XContentMapValues;
 import org.elasticsearch.core.Booleans;
 import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.test.cluster.ElasticsearchCluster;
 import org.elasticsearch.xcontent.json.JsonXContent;
 import org.elasticsearch.xpack.core.ml.MlConfigVersion;
@@ -32,6 +33,7 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.BiFunction;
 
 import static org.hamcrest.Matchers.containsString;
@@ -40,6 +42,7 @@ import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.hasEntry;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.is;
+import static org.hamcrest.Matchers.notNullValue;
 
 public class MlJobSnapshotUpgradeIT extends AbstractXpackRollingUpgradeTestCase {
 
@@ -122,7 +125,7 @@ public class MlJobSnapshotUpgradeIT extends AbstractXpackRollingUpgradeTestCase 
 
     @SuppressWarnings("unchecked")
     private void testSnapshotUpgradeFailsOnMixedCluster() throws Exception {
-        Map<String, Object> jobs = entityAsMap(getJob(JOB_ID));
+        Map<String, Object> jobs = waitForJobConfig(JOB_ID);
 
         String currentSnapshot = ((List<String>) XContentMapValues.extractValue("jobs.model_snapshot_id", jobs)).get(0);
         Response getResponse = getModelSnapshots(JOB_ID);
@@ -134,13 +137,20 @@ public class MlJobSnapshotUpgradeIT extends AbstractXpackRollingUpgradeTestCase 
             .findFirst()
             .orElseThrow(() -> new ElasticsearchException("Not found snapshot other than " + currentSnapshot));
 
+        // Upgrade is rejected only while DiscoveryNodes reports distinct min/max versions.
+        assertBusy(
+            () -> assertTrue("cluster should be mixed by node version before testing upgrade rejection", isMixedVersionCluster()),
+            30,
+            TimeUnit.SECONDS
+        );
+
         Exception ex = expectThrows(Exception.class, () -> upgradeJobSnapshot(JOB_ID, (String) snapshot.get("snapshot_id"), true));
         assertThat(ex.getMessage(), containsString("Cannot upgrade job"));
     }
 
     @SuppressWarnings("unchecked")
     private void testSnapshotUpgrade() throws Exception {
-        Map<String, Object> jobs = entityAsMap(getJob(JOB_ID));
+        Map<String, Object> jobs = waitForJobConfig(JOB_ID);
         String currentSnapshotId = ((List<String>) XContentMapValues.extractValue("jobs.model_snapshot_id", jobs)).get(0);
 
         Response getSnapshotsResponse = getModelSnapshots(JOB_ID);
@@ -324,6 +334,37 @@ public class MlJobSnapshotUpgradeIT extends AbstractXpackRollingUpgradeTestCase 
             now += bucketSpan.getMillis();
         }
         return data;
+    }
+
+    @SuppressWarnings("unchecked")
+    private Map<String, Object> waitForJobConfig(String jobId) throws Exception {
+        AtomicReference<Map<String, Object>> jobsHolder = new AtomicReference<>();
+        assertBusy(() -> {
+            Request getJob = new Request("GET", "_ml/anomaly_detectors/" + jobId);
+            // Transient 404 while ML config relocates during rolling upgrade.
+            Response response;
+            try {
+                response = client().performRequest(getJob);
+            } catch (ResponseException e) {
+                if (e.getResponse().getStatusLine().getStatusCode() == RestStatus.NOT_FOUND.getStatus()) {
+                    throw new AssertionError("retryable 404 from GET _ml/anomaly_detectors/" + jobId, e);
+                }
+                throw e;
+            }
+            Map<String, Object> body = entityAsMap(response);
+            List<Map<String, Object>> jobs = (List<Map<String, Object>>) body.get("jobs");
+            assertThat("old-cluster setup phase did not persist job [" + jobId + "]", jobs, notNullValue());
+            assertThat(jobs, hasSize(1));
+            jobsHolder.set(body);
+        }, 30, TimeUnit.SECONDS);
+        return jobsHolder.get();
+    }
+
+    private boolean isMixedVersionCluster() throws IOException {
+        List<NodeInfo> nodes = NodeInfo.getAll(adminClient());
+        boolean hasOldVersionNode = nodes.stream().anyMatch(NodeInfo::isOriginalVersionCluster);
+        boolean hasUpgradedVersionNode = nodes.stream().anyMatch(NodeInfo::isUpgradedVersionCluster);
+        return hasOldVersionNode && hasUpgradedVersionNode;
     }
 
     protected Response getJob(String jobId) throws IOException {

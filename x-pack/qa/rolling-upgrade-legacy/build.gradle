@@ -13,6 +13,9 @@ apply plugin: 'elasticsearch.standalone-rest-test'
 apply plugin: 'elasticsearch.bwc-test'
 apply plugin: 'elasticsearch.rest-resources'
 
+// oldClusterTest sets up state mixed/upgraded YAML asserts on; smart-retry must not skip it on retry.
+smartRetry.pruneIndividualTests.set(false)
+
 dependencies {
   testImplementation testArtifact(project(':server'))
   testImplementation testArtifact(project(xpackModule('core')))

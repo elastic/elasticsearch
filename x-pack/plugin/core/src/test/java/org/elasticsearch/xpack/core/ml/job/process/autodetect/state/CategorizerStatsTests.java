@@ -26,6 +26,12 @@ public class CategorizerStatsTests extends AbstractXContentSerializingTestCase<C
         assertEquals(CategorizationStatus.OK, stats.getCategorizationStatus());
     }
 
+    public void testDistinctDeadAndFailedCategoryCountsShouldBeReportedIndependently() {
+        CategorizerStats stats = new CategorizerStats.Builder("foo").setDeadCategoryCount(7).setFailedCategoryCount(3).build();
+        assertEquals(7, stats.getDeadCategoryCount());
+        assertEquals(3, stats.getFailedCategoryCount());
+    }
+
     @Override
     protected CategorizerStats createTestInstance() {
         return createRandomized("foo");

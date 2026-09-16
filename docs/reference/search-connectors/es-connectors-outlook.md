@@ -172,6 +172,9 @@ You can now use the Client ID, Tenant ID, and Client Secret you’ve noted to co
     ```
 
 
+`sync_all_mail_folders`
+:   Indexes mail from all mailbox folders, not only Inbox, Sent, Junk, and Archive. Other folders are stored as `Mail` with `folder_name`; the four default folders keep their existing types. Default value is `False`. Introduced in 8.19.22, 9.4.8, 9.5.4, and 9.6.
+
 `use_text_extraction_service`
 :   Use [self-hosted content extraction service](/reference/search-connectors/es-connectors-content-extraction.md#es-connectors-content-extraction-data-extraction-service). Default value is `False`.
 
@@ -273,6 +276,7 @@ The connector syncs the following objects and entities:
     * **Sent Mails**
     * **Archive Mails**
     * **Junk Mails**
+    * **Mail** (other folders when **Sync all mail folders** is enabled; includes `folder_name`)
 
 * **Contacts**
 * **Calendar Events**

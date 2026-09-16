@@ -2880,7 +2880,7 @@ public class NumberFieldMapper extends FieldMapper {
 
     @Override
     protected boolean shouldEnforceSingleValueBatch() {
-        return docValuesParameters.multiValue() == false;
+        return isSingleValueEnforced();
     }
 
     @Override
@@ -2910,9 +2910,6 @@ public class NumberFieldMapper extends FieldMapper {
         );
         assert source.kind() != EscfColumnKind.ARRAY || outData.kind() == EscfColumnKind.ARRAY || outData.kind() == EscfColumnKind.LONG
             : "ARRAY source produced " + EscfColumnKind.name(outData.kind());
-        if (outData.kind() == EscfColumnKind.ARRAY && isSingleValueEnforced()) {
-            rejectWideRows(outData);
-        }
         if (fieldType().indexType().hasDocValuesSkipper()) {
             ctx.addColumn(LuceneLongColumn.of(outData, fieldType().name(), SORTED_NUMERIC_DV_INDEXED_FIELD_TYPE, numericKind(type)));
         } else if (indexed) {
@@ -2962,17 +2959,6 @@ public class NumberFieldMapper extends FieldMapper {
             );
             if (offsets != null) {
                 ctx.addColumn(offsets);
-            }
-        }
-    }
-
-    private void rejectWideRows(EscfColumnData outData) {
-        int[] rowOffsets = outData.offsets();
-        for (int doc = 0; doc < outData.docCount(); doc++) {
-            if (rowOffsets[doc + 1] - rowOffsets[doc] > 1) {
-                throw new UnsupportedOperationException(
-                    "mapColumnBatch: multi_value=false field [" + fullPath() + "] has more than one value for doc [" + doc + "]"
-                );
             }
         }
     }

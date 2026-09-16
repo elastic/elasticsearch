@@ -100,6 +100,20 @@ final class CustomObjectHandler extends AbstractObjectHandler {
         @Override
         public Object get(List<Object> scopes) {
             int dot = name.indexOf('.');
+            // If the name contains dots, first try it as a literal key. This handles flat dotted
+            // keys (e.g. "metadata.extra_group") stored without nesting in the scope map — as
+            // used by the security role-mapping model.
+            if (dot != -1) {
+                for (int i = scopes.size() - 1; i >= 0; i--) {
+                    Object scope = coerce(scopes.get(i));
+                    if (scope instanceof Map) {
+                        Object found = mapGet(scope, name);
+                        if (found != NOT_FOUND) {
+                            return coerce(found);
+                        }
+                    }
+                }
+            }
             String first = dot == -1 ? name : name.substring(0, dot);
             // Search scope stack right-to-left (innermost scope first) for the first component
             Object value = NOT_FOUND;
@@ -151,6 +165,20 @@ final class CustomObjectHandler extends AbstractObjectHandler {
         @Override
         public Object get(List<Object> scopes) {
             int dot = name.indexOf('.');
+            // If the name contains dots, first try it as a literal key. This handles flat dotted
+            // keys (e.g. "metadata.extra_group") stored without nesting in the scope map — as
+            // used by the security role-mapping model.
+            if (dot != -1) {
+                for (int i = scopes.size() - 1; i >= 0; i--) {
+                    Object scope = coerce(scopes.get(i));
+                    if (scope instanceof Map) {
+                        Object found = mapGet(scope, name);
+                        if (found != NOT_FOUND) {
+                            return coerce(found);
+                        }
+                    }
+                }
+            }
             String first = dot == -1 ? name : name.substring(0, dot);
             // Search scope stack right-to-left (innermost scope first) for the first component,
             // using NOT_FOUND to distinguish a present-but-null value from an absent key.

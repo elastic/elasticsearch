@@ -10,6 +10,7 @@
 package org.elasticsearch.cluster.allocation;
 
 import org.elasticsearch.action.admin.cluster.reroute.ClusterRerouteUtils;
+import org.elasticsearch.action.admin.indices.recovery.ShardRecoveryInfo;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.health.ClusterHealthStatus;
 import org.elasticsearch.cluster.metadata.AutoExpandReplicas;
@@ -346,9 +347,10 @@ public class FilteringAllocationIT extends ESIntegTestCase {
         return admin().indices()
             .prepareRecoveries(index)
             .get()
-            .shardRecoveryStates()
+            .shardRecoveryInfos()
             .get(index)
             .stream()
+            .map(ShardRecoveryInfo::recoveryState)
             .map(RecoveryState::getRecoveryPriority)
             .toList();
     }

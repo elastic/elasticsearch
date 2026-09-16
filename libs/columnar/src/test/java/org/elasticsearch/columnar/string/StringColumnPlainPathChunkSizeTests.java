@@ -94,6 +94,8 @@ public class StringColumnPlainPathChunkSizeTests extends ColumnarStringTestCase 
                     ChunkCodec.IDENTITY,
                     targetChunkBytes,
                     plainPathTargetChunkBytes,
+                    StringColumnOptions.DEFAULT_COMPRESSED_ORDINAL_BLOCK_SIZE,
+                    StringColumnOptions.DEFAULT_SLOT_COUNTS_BLOCK_SIZE,
                     policy,
                     null,
                     dir,

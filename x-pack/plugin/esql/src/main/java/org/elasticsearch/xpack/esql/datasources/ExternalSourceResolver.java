@@ -416,15 +416,9 @@ public class ExternalSourceResolver {
      * telemetry. Best-effort: {@link ExternalSourceMetrics#recordDiscovery} self-guards, so an instrumentation
      * failure never fails resolution.
      */
-    private void recordDiscovery(FileList list, long startNanos, String scheme, Map<String, Object> config) {
+    private void recordDiscovery(FileList list, long startNanos, String scheme, FormatReader.SchemaResolution schemaResolution) {
         long durationMs = (System.nanoTime() - startNanos) / 1_000_000;
-        FormatReader.SchemaResolution strategy;
-        try {
-            strategy = parseSchemaResolution(config);
-        } catch (IllegalArgumentException e) {
-            strategy = FormatReader.DEFAULT_SCHEMA_RESOLUTION;
-        }
-        metrics.recordDiscovery(durationMs, list.fileCount(), list.estimatedBytes(), scheme, strategy);
+        metrics.recordDiscovery(durationMs, list.fileCount(), list.estimatedBytes(), scheme, schemaResolution);
     }
 
     /** Records one failed discovery/resolution attempt. Best-effort ({@link ExternalSourceMetrics#recordDiscoveryFailure} self-guards). */
@@ -893,7 +887,7 @@ public class ExternalSourceResolver {
         // returns it when the anchor read is issued; cachedResolveSingleSourceAsync /
         // resolveSingleSourceAsync re-borrow and must not capture this provider.
         try {
-            FormatReader.SchemaResolution schemaResolution = parseSchemaResolution(config);
+            FormatReader.SchemaResolution schemaResolution = effectiveSchemaResolution(config);
             boolean cacheable = isCacheable(provider);
 
             String datasetFormat = appliesFileDatasetFormat(path, config) ? fileDatasetFormat(path, config) : null;
@@ -904,7 +898,7 @@ public class ExternalSourceResolver {
                 listener.onResponse(resolveStrictMultiFile(path, storagePath, provider, hints, fileConfig, declaredMapping));
                 return;
             }
-            FileList listing = listAndRecord(path, storagePath, provider, hints, fileConfig, cacheable);
+            FileList listing = listAndRecord(path, storagePath, provider, hints, fileConfig, schemaResolution, cacheable);
             if (listing.fileCount() == 0) {
                 throw noFilesMatched(path, listing);
             }
@@ -1292,6 +1286,7 @@ public class ExternalSourceResolver {
         StorageProvider provider,
         @Nullable List<PartitionFilterHintExtractor.PartitionFilterHint> hints,
         Map<String, Object> config,
+        FormatReader.SchemaResolution schemaResolution,
         boolean cacheable
     ) throws Exception {
         long discoveryStartNanos = System.nanoTime();
@@ -1299,7 +1294,7 @@ public class ExternalSourceResolver {
             ? cachedListing(path, storagePath, provider, hints, config)
             : expandAndCompact(path, provider, hints, config, storagePath);
         pendingListingWarnings.addAll(listing.listingWarnings());
-        recordDiscovery(listing, discoveryStartNanos, storagePath.scheme(), config);
+        recordDiscovery(listing, discoveryStartNanos, storagePath.scheme(), schemaResolution);
         return listing;
     }
 
@@ -2358,7 +2353,7 @@ public class ExternalSourceResolver {
         if (GlobExpander.isMultiFile(sourcePath) == false) {
             return false;
         }
-        if (parseSchemaResolution(config) != FormatReader.SchemaResolution.FIRST_FILE_WINS) {
+        if (effectiveSchemaResolution(config) != FormatReader.SchemaResolution.FIRST_FILE_WINS) {
             return false;
         }
         SchemaProvenance provenance = declaredReadSpec == null ? SchemaProvenance.INFERRED : declaredReadSpec.provenance();
@@ -2645,10 +2640,6 @@ public class ExternalSourceResolver {
      */
     public static FormatReader.SchemaResolution effectivePersistedSchemaResolution(@Nullable Map<String, Object> datasetSettings) {
         return parseSchemaResolution(datasetSettings, FormatReader.SchemaResolution.UNION_BY_NAME);
-    }
-
-    static FormatReader.SchemaResolution parseSchemaResolution(@Nullable Map<String, Object> config) {
-        return effectiveSchemaResolution(config);
     }
 
     private static FormatReader.SchemaResolution parseSchemaResolution(
@@ -3503,7 +3494,7 @@ public class ExternalSourceResolver {
             listing = expandAndCompact(path, provider, hints, config, storagePath);
         }
         pendingListingWarnings.addAll(listing.listingWarnings());
-        recordDiscovery(listing, discoveryStartNanos, storagePath.scheme(), config);
+        recordDiscovery(listing, discoveryStartNanos, storagePath.scheme(), effectiveSchemaResolution(config));
         if (listing.fileCount() == 0) {
             throw noFilesMatched(path, listing);
         }

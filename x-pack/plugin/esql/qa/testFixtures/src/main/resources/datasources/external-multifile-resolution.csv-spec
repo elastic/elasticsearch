@@ -128,12 +128,11 @@ avg_salary:double | total:long
 ;
 
 // ===== OMITTED schema_resolution (new PUT materializes first_file_wins) =====
-// Homogeneous files: rows match explicit FFW and UBN. Gate on the default-flip capability so mixed
-// clusters that still treat omit as union_by_name skip rather than disagree on listing/merge.
+// Homogeneous files: rows match explicit FFW and UBN, so mixed clusters that still treat omit as
+// union_by_name still agree. No extra capability gate.
 
 omittedCount
 required_capability: dataset_in_from_command
-required_capability: external_default_schema_resolution_first_file_wins
 dataset: employees_multifile_split: "{{employees_multifile_split}}"
 
 FROM employees_multifile_split
@@ -157,7 +156,6 @@ count:long
 
 omittedFilterAndSort
 required_capability: dataset_in_from_command
-required_capability: external_default_schema_resolution_first_file_wins
 dataset: employees_multifile_split: "{{employees_multifile_split}}"
 
 FROM employees_multifile_split
@@ -175,7 +173,6 @@ emp_no:integer | first_name:keyword | salary:integer
 omittedAggregateByGender
 required_capability: dataset_in_from_command
 required_capability: external_csv_blank_cell_null_unless_declared
-required_capability: external_default_schema_resolution_first_file_wins
 dataset: employees_multifile_split: "{{employees_multifile_split}}"
 
 FROM employees_multifile_split
@@ -190,7 +187,6 @@ count:long | gender:keyword
 
 omittedSalaryStats
 required_capability: dataset_in_from_command
-required_capability: external_default_schema_resolution_first_file_wins
 dataset: employees_multifile_split: "{{employees_multifile_split}}"
 
 FROM employees_multifile_split

@@ -191,6 +191,25 @@ public class ExternalNdJsonManyFileWarmFoldIT extends AbstractWarmDatasetAggrega
         assertWarmCountShortCircuits(dataset, total);
     }
 
+    /**
+     * Same warm {@code COUNT(*)} fold on a {@code local} data source, so omitted
+     * {@code schema_resolution} persists as {@code first_file_wins}. Homogeneous files fold on
+     * either rail; this pins the product default path the TestValidator omit-key tests skip.
+     */
+    public void testNdjsonWarmCountShortCircuitsOnPersistedFirstFileWins() throws Exception {
+        Path dir = createTempDir();
+        long total = 0;
+        for (int f = 0; f < 4; f++) {
+            total += writeNdjsonFile(dir.resolve("part-" + f + ".ndjson"), total);
+        }
+        String dataset = registerLocalFileDataset(
+            "ndjson_ffw_warm",
+            globUri(dir, "*.ndjson"),
+            Map.of("segment_size", "64kb", "target_split_size", "256mb")
+        );
+        assertWarmCountShortCircuits(dataset, total);
+    }
+
     private void assertWarmCountShortCircuits(String dataset, long total) {
         String query = "FROM " + dataset + " | STATS c = COUNT(*)";
         // Cold: reads every row across every file.

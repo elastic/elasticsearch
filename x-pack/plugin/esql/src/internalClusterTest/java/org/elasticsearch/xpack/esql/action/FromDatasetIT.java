@@ -6374,6 +6374,31 @@ public class FromDatasetIT extends AbstractExternalDataSourceIT {
         assertThat(firstRowOf("FROM drift_pq_type_legacy | STATS c = COUNT(x)"), equalTo(List.of(4L)));
     }
 
+    /**
+     * {@code DatasetService.putDataset} equals-short-circuit does not keep a legacy omit-key
+     * document. Re-PUT of that body through {@code FileDataSourceValidator} stores
+     * {@code first_file_wins} and query results follow the new rail.
+     */
+    public void testRePutLegacyOmitKeyThroughFileDsStoresFirstFileWins() throws Exception {
+        assertAcked(client().execute(PutDataSourceAction.INSTANCE, putDataSourceRequest("local_ds", Map.of())));
+        assertAcked(client().execute(PutDataSourceAction.INSTANCE, putLocalFileDataSourceRequest()));
+        Path dir = createTempDir();
+        writeParquet(dir.resolve("part-a.parquet"), "message m { required int32 x; }", 2, 1024, (g, i) -> g.add("x", i + 1));
+        writeParquet(dir.resolve("part-b.parquet"), "message m { required int64 x; }", 2, 1024, (g, i) -> g.add("x", i == 0 ? -10L : 20L));
+        String resource = StoragePath.fileUri(dir) + "/*.parquet";
+        Map<String, Object> settings = new HashMap<>();
+        settings.put("format", "parquet");
+        assertAcked(client().execute(PutDatasetAction.INSTANCE, putDatasetRequest("re_put_legacy_omit", "local_ds", resource, settings)));
+        Dataset first = getDataset("re_put_legacy_omit");
+        assertThat(first.settings().get("schema_resolution"), nullValue());
+        assertThat(firstRowOf("FROM re_put_legacy_omit | STATS c = COUNT(x)"), equalTo(List.of(4L)));
+
+        assertAcked(client().execute(PutDatasetAction.INSTANCE, putDatasetRequest("re_put_legacy_omit", FILE_DS, resource, settings)));
+        Dataset second = getDataset("re_put_legacy_omit");
+        assertThat(second.settings().get("schema_resolution"), equalTo("first_file_wins"));
+        assertThat(firstRowOf("FROM re_put_legacy_omit | STATS c = COUNT(x)"), equalTo(List.of(2L)));
+    }
+
     public void testUnionByNameWarmAggregateWidensDivergentColumnTypes() throws Exception {
         assertAcked(client().execute(PutDataSourceAction.INSTANCE, putDataSourceRequest("local_ds", Map.of())));
         Path dir = createTempDir();

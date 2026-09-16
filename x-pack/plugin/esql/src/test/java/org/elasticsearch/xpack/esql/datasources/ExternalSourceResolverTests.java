@@ -2890,29 +2890,20 @@ public class ExternalSourceResolverTests extends ESTestCase {
     // ===== Default schema resolution strategy =====
 
     /**
-     * Both the SPI default ({@link FormatReader#defaultSchemaResolution()}) and the resolver's
-     * config-parse fallback ({@code parseSchemaResolution(null/missing)}) must derive from the
-     * same constant — keeping them in lockstep is the whole point of
-     * {@link FormatReader#DEFAULT_SCHEMA_RESOLUTION}. This test catches a drift between the two
-     * (which previously had to be kept in sync by convention).
+     * Query/FROM EXTERNAL omit-key fallback ({@code effectiveSchemaResolution(null/missing)})
+     * must equal {@link FormatReader#DEFAULT_SCHEMA_RESOLUTION}.
      */
     public void testDefaultSchemaResolutionIsSingleSourceOfTruth() {
-        FormatReader reader = new StubFormatReader(Map.of());
         assertEquals(FormatReader.SchemaResolution.FIRST_FILE_WINS, FormatReader.DEFAULT_SCHEMA_RESOLUTION);
-        assertEquals(
-            "SPI default must equal the FormatReader.DEFAULT_SCHEMA_RESOLUTION constant",
-            FormatReader.DEFAULT_SCHEMA_RESOLUTION,
-            reader.defaultSchemaResolution()
-        );
         assertEquals(
             "Resolver's null-config fallback must equal the FormatReader.DEFAULT_SCHEMA_RESOLUTION constant",
             FormatReader.DEFAULT_SCHEMA_RESOLUTION,
-            ExternalSourceResolver.parseSchemaResolution(null)
+            ExternalSourceResolver.effectiveSchemaResolution(null)
         );
         assertEquals(
             "Resolver's missing-key fallback must equal the FormatReader.DEFAULT_SCHEMA_RESOLUTION constant",
             FormatReader.DEFAULT_SCHEMA_RESOLUTION,
-            ExternalSourceResolver.parseSchemaResolution(Map.of())
+            ExternalSourceResolver.effectiveSchemaResolution(Map.of())
         );
     }
 

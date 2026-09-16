@@ -682,6 +682,10 @@ public final class ExternalSourceMetrics {
         return type + '\0' + format;
     }
 
+    private static String typeResolutionKey(String type, String resolution) {
+        return type + '\0' + resolution;
+    }
+
     /**
      * Returns the pre-built {@link #TYPE_ATTRIBUTE}×{@link #SCHEMA_RESOLUTION_ATTRIBUTE} map. Null resolution
      * folds to {@link FormatReader#DEFAULT_SCHEMA_RESOLUTION}. Every closed combination is present so this
@@ -690,10 +694,8 @@ public final class ExternalSourceMetrics {
     private static Map<String, Object> typeSchemaResolutionAttrs(String scheme, FormatReader.SchemaResolution schemaResolution) {
         String type = Type.fromScheme(scheme).key();
         String resolution = canonicalSchemaResolution(schemaResolution);
-        Map<String, Object> attrs = TYPE_SCHEMA_RESOLUTION_ATTRIBUTES.get(typeFormatKey(type, resolution));
-        if (attrs == null) {
-            throw new IllegalArgumentException("non-canonical type/schema_resolution [" + type + "/" + resolution + "]");
-        }
+        Map<String, Object> attrs = TYPE_SCHEMA_RESOLUTION_ATTRIBUTES.get(typeResolutionKey(type, resolution));
+        assert attrs != null : "non-canonical type/schema_resolution [" + type + "/" + resolution + "]";
         return attrs;
     }
 
@@ -702,7 +704,7 @@ public final class ExternalSourceMetrics {
         for (Type type : Type.values()) {
             for (FormatReader.SchemaResolution resolution : FormatReader.SchemaResolution.values()) {
                 String key = canonicalSchemaResolution(resolution);
-                maps.put(typeFormatKey(type.key(), key), Map.of(TYPE_ATTRIBUTE, type.key(), SCHEMA_RESOLUTION_ATTRIBUTE, key));
+                maps.put(typeResolutionKey(type.key(), key), Map.of(TYPE_ATTRIBUTE, type.key(), SCHEMA_RESOLUTION_ATTRIBUTE, key));
             }
         }
         return Map.copyOf(maps);

@@ -702,12 +702,11 @@ public class SchemaReconciliationTests extends ESTestCase {
     // === Config parsing tests ===
 
     public void testParseSchemaResolutionNull() {
-        assertThat(ExternalSourceResolver.parseSchemaResolution(null), equalTo(FormatReader.DEFAULT_SCHEMA_RESOLUTION));
+        assertThat(ExternalSourceResolver.effectiveSchemaResolution(null), equalTo(FormatReader.DEFAULT_SCHEMA_RESOLUTION));
     }
 
     public void testParseSchemaResolutionEmpty() {
-        assertThat(ExternalSourceResolver.parseSchemaResolution(Map.of()), equalTo(FormatReader.DEFAULT_SCHEMA_RESOLUTION));
-        assertThat(ExternalSourceResolver.effectiveSchemaResolution(Map.of()), equalTo(FormatReader.SchemaResolution.FIRST_FILE_WINS));
+        assertThat(ExternalSourceResolver.effectiveSchemaResolution(Map.of()), equalTo(FormatReader.DEFAULT_SCHEMA_RESOLUTION));
     }
 
     public void testEffectivePersistedSchemaResolutionMissingKeyIsUnionByName() {
@@ -728,28 +727,28 @@ public class SchemaReconciliationTests extends ESTestCase {
 
     public void testParseSchemaResolutionFirstFileWins() {
         assertThat(
-            ExternalSourceResolver.parseSchemaResolution(Map.of("schema_resolution", "first_file_wins")),
+            ExternalSourceResolver.effectiveSchemaResolution(Map.of("schema_resolution", "first_file_wins")),
             equalTo(FormatReader.SchemaResolution.FIRST_FILE_WINS)
         );
     }
 
     public void testParseSchemaResolutionStrict() {
         assertThat(
-            ExternalSourceResolver.parseSchemaResolution(Map.of("schema_resolution", "strict")),
+            ExternalSourceResolver.effectiveSchemaResolution(Map.of("schema_resolution", "strict")),
             equalTo(FormatReader.SchemaResolution.STRICT)
         );
     }
 
     public void testParseSchemaResolutionUnionByName() {
         assertThat(
-            ExternalSourceResolver.parseSchemaResolution(Map.of("schema_resolution", "union_by_name")),
+            ExternalSourceResolver.effectiveSchemaResolution(Map.of("schema_resolution", "union_by_name")),
             equalTo(FormatReader.SchemaResolution.UNION_BY_NAME)
         );
     }
 
     public void testParseSchemaResolutionCaseInsensitive() {
         assertThat(
-            ExternalSourceResolver.parseSchemaResolution(Map.of("schema_resolution", "UNION_BY_NAME")),
+            ExternalSourceResolver.effectiveSchemaResolution(Map.of("schema_resolution", "UNION_BY_NAME")),
             equalTo(FormatReader.SchemaResolution.UNION_BY_NAME)
         );
     }
@@ -757,7 +756,7 @@ public class SchemaReconciliationTests extends ESTestCase {
     public void testParseSchemaResolutionInvalid() {
         IllegalArgumentException e = expectThrows(
             IllegalArgumentException.class,
-            () -> ExternalSourceResolver.parseSchemaResolution(Map.of("schema_resolution", "invalid"))
+            () -> ExternalSourceResolver.effectiveSchemaResolution(Map.of("schema_resolution", "invalid"))
         );
         assertThat(e.getMessage(), containsString("Unknown schema_resolution value"));
     }

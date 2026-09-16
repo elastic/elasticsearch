@@ -677,6 +677,10 @@ public class FileDataSourceValidator implements DataSourceValidator {
         // still omits the key is a full replace and also stores first_file_wins. Cluster-state
         // documents that predate this key hydrate as union_by_name at query time; that path does
         // not go through this validator.
+        //
+        // Stamped on every omit-key PUT, including single-file and declared-mapping datasets. GET
+        // then shows the same default a later glob would use; the key is inert until
+        // resolveMultiFile consults it.
         if (result.get(ExternalSourceResolver.CONFIG_SCHEMA_RESOLUTION) == null) {
             result.put(ExternalSourceResolver.CONFIG_SCHEMA_RESOLUTION, FormatReader.DEFAULT_SCHEMA_RESOLUTION.configName());
         }

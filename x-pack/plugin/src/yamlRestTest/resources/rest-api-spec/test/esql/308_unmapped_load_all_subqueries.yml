@@ -1,0 +1,94 @@
+---
+setup:
+  - requires:
+      test_runner_features: [ capabilities, contains ]
+      capabilities:
+        - method: POST
+          path: /_query
+          parameters: [ ]
+          capabilities: [ optional_fields_load_all_v2, optional_fields_load_with_fork_subqueries_and_views ]
+      reason: >
+        LOAD and LOAD_ALL diverge on sub-queries. For a field named explicitly they are the same code:
+        UnmappedKeywordValues is "shared by the per-document UnmappedKeywordBlockLoader and the
+        coordinator-side ExpandUnmappedFieldsPostProcessor so an explicitly referenced unmapped field and its
+        LOAD_ALL auto-expanded twin render identically", and DetermineUnmappedFieldsToKeep excludes every
+        plan-output name from the discovery set precisely so the named field is served once, by the LOAD
+        path. What is NOT shared is discovery, and discovery has to decide which relations to stamp.
+
+  - do:
+      indices.create:
+        index: la_sub_a
+        body:
+          mappings:
+            dynamic: false
+            properties:
+              id:
+                type: keyword
+              color:
+                type: keyword
+
+  # Same shape, but "note" is left unmapped here so only _source carries it.
+  - do:
+      indices.create:
+        index: la_sub_b
+        body:
+          mappings:
+            dynamic: false
+            properties:
+              id:
+                type: keyword
+
+  - do:
+      bulk:
+        refresh: true
+        body:
+          - { "index": { "_index": "la_sub_a", "_id": "1" } }
+          - { "id": "a1", "color": "red" }
+          - { "index": { "_index": "la_sub_b", "_id": "1" } }
+          - { "id": "b1", "note": "from_source" }
+
+---
+teardown:
+  - do:
+      indices.delete:
+        index: la_sub_a,la_sub_b
+        ignore_unavailable: true
+
+---
+'LOAD serves a named unmapped field through a sub-query':
+  # The baseline the LOAD_ALL case is measured against: unmapped_fields="load" reaches into the sub-query and
+  # returns note from la_sub_b's _source.
+  - do:
+      esql.query:
+        body:
+          query: 'SET unmapped_fields="load"; FROM la_sub_a, (FROM la_sub_b | KEEP id, note) | KEEP id, note | SORT id | LIMIT 10'
+  - length: { columns: 2 }
+  - match: { columns.0.name: id }
+  - match: { columns.1.name: note }
+  - match: { columns.1.type: keyword }
+  - match: { values.0: [ "a1", null ] }
+  - match: { values.1: [ "b1", "from_source" ] }
+
+---
+'LOAD_ALL over a sub-query is rejected by the MVP guardrail':
+  - do:
+      catch: bad_request
+      esql.query:
+        body:
+          query: 'SET unmapped_fields="LOAD_ALL"; FROM la_sub_a, (FROM la_sub_b | KEEP id, note) | KEEP id, note | SORT id | LIMIT 10'
+  - match: { error.type: verification_exception }
+  - contains: { error.reason: "unmapped_fields=\"LOAD_ALL\" only supports the FROM, KEEP, DROP, RENAME, EVAL, WHERE, SORT, LIMIT, STATS, INLINE STATS, LOOKUP JOIN, ENRICH and FORK commands" }
+
+---
+'LOAD_ALL discovery works on the same indices without the sub-query':
+  - do:
+      esql.query:
+        body:
+          query: 'SET unmapped_fields="LOAD_ALL"; FROM la_sub_a, la_sub_b | SORT id | LIMIT 10'
+  - length: { columns: 3 }
+  - match: { columns.0.name: color }
+  - match: { columns.1.name: id }
+  - match: { columns.2.name: note }
+  - match: { columns.2.type: keyword }
+  - match: { values.0: [ "red", "a1", null ] }
+  - match: { values.1: [ null, "b1", "from_source" ] }

@@ -1,0 +1,204 @@
+---
+setup:
+  - requires:
+      test_runner_features: [ capabilities ]
+      capabilities:
+        - method: POST
+          path: /_query
+          parameters: [ ]
+          capabilities: [ optional_fields_load_all_v2 ]
+      reason: >
+        LOAD_ALL renders a discovered value with UnmappedKeywordValues#collect - Object#toString() for a
+        scalar, nothing for an object, element-wise for an array - so the JSON *shape* of a value in _source,
+        not the type it would have been mapped to, decides the output. These shapes cannot be written in a
+        csv-spec data file: CsvTestsDataLoader#toJson quotes any non-numeric cell, so a JSON boolean, an
+        exponent-form double or a negative zero is unreachable there.
+        Every query here deliberately avoids naming a discovered field. An all-literal KEEP makes
+        UnmappedFieldsPattern NONE (see UnmappedFieldsPattern#forKeep), which switches discovery off
+        entirely and leaves the values to be served by the LOAD demand path that unmapped_fields="load"
+        shares - so a literal KEEP would test the wrong half of the feature. Wildcards and bare projections
+        keep the pattern non-NONE.
+        The stored and synthetic indices carry identical documents so the two source modes can be asserted
+        to agree: under synthetic source these values survive only because _ignored_source keeps the raw
+        XContent of a dynamic:false field verbatim.
+
+  - do:
+      indices.create:
+        index: la_values_stored
+        body:
+          mappings:
+            dynamic: false
+            properties:
+              id:
+                type: keyword
+
+  - do:
+      indices.create:
+        index: la_values_synth
+        body:
+          settings:
+            index:
+              mapping:
+                source:
+                  mode: synthetic
+          mappings:
+            dynamic: false
+            properties:
+              id:
+                type: keyword
+
+  - do:
+      bulk:
+        refresh: true
+        body:
+          - { "index": { "_index": "la_values_stored", "_id": "1" } }
+          - {
+              "id": "1",
+              "b_true": true,
+              "b_false": false,
+              "i_small": 7,
+              "i_long": 3000000000,
+              "i_huge": 18446744073709551615,
+              "d_one": 1.0,
+              "d_frac": 1.5,
+              "d_exp": 1.0e3,
+              "d_neg_zero": -0.0,
+              "d_precise": 1.2345678901234567,
+              "s_num": "7",
+              "s_bool": "true"
+            }
+          - { "index": { "_index": "la_values_synth", "_id": "1" } }
+          - {
+              "id": "1",
+              "b_true": true,
+              "b_false": false,
+              "i_small": 7,
+              "i_long": 3000000000,
+              "i_huge": 18446744073709551615,
+              "d_one": 1.0,
+              "d_frac": 1.5,
+              "d_exp": 1.0e3,
+              "d_neg_zero": -0.0,
+              "d_precise": 1.2345678901234567,
+              "s_num": "7",
+              "s_bool": "true"
+            }
+
+  # Key-name edge cases kept in their own index so that one surprising key cannot take the value-rendering
+  # tests down with it.
+  - do:
+      indices.create:
+        index: la_keys
+        body:
+          mappings:
+            dynamic: false
+            properties:
+              id:
+                type: keyword
+
+  - do:
+      bulk:
+        refresh: true
+        body:
+          - { "index": { "_index": "la_keys", "_id": "1" } }
+          - { "id": "1", "dot.path": "literal", "dot": { "path": "nested" } }
+          - { "index": { "_index": "la_keys", "_id": "2" } }
+          - { "id": "2", "l1": { "l2": { "l3": { "l4": { "l5": "deep" } } } } }
+          - { "index": { "_index": "la_keys", "_id": "3" } }
+          - { "id": "3", "mixed": [ "scalar", { "sub": "from_object" } ] }
+          - { "index": { "_index": "la_keys", "_id": "4" } }
+          - { "id": "4", "Case": "upper", "case": "lower", "wild*card": "star", "with space": "spaced" }
+
+---
+teardown:
+  - do:
+      indices.delete:
+        index: la_values_stored,la_values_synth,la_keys
+        ignore_unavailable: true
+
+---
+'JSON scalar shapes render as toString of the parsed value (stored source)':
+  - do:
+      esql.query:
+        body:
+          query: 'SET unmapped_fields="LOAD_ALL"; FROM la_values_stored | LIMIT 5'
+  - length: { columns: 13 }
+  - match: { columns.0.name: id }
+  - match: { columns.1.name: b_false }
+  - match: { columns.1.type: keyword }
+  - match: { columns.2.name: b_true }
+  - match: { columns.3.name: d_exp }
+  - match: { columns.4.name: d_frac }
+  - match: { columns.5.name: d_neg_zero }
+  - match: { columns.6.name: d_one }
+  - match: { columns.7.name: d_precise }
+  - match: { columns.8.name: i_huge }
+  - match: { columns.9.name: i_long }
+  - match: { columns.10.name: i_small }
+  - match: { columns.11.name: s_bool }
+  - match: { columns.12.name: s_num }
+  - match: { values.0: [ "1", "false", "true", "1000.0", "1.5", "-0.0", "1.0", "1.2345678901234567", "18446744073709551615", "3000000000", "7", "true", "7" ] }
+
+---
+'JSON scalar shapes render identically from synthetic source':
+  # Same document, synthetic source. The values are only reachable because dynamic:false routes them to
+  # _ignored_source, which stores the raw XContent - so no mapper normalisation (boolean coercion, date
+  # formatting, scaled_float rounding) can get between _source and the output here.
+  - do:
+      esql.query:
+        body:
+          query: 'SET unmapped_fields="LOAD_ALL"; FROM la_values_synth | LIMIT 5'
+  - length: { columns: 13 }
+  - match: { values.0: [ "1", "false", "true", "1000.0", "1.5", "-0.0", "1.0", "1.2345678901234567", "18446744073709551615", "3000000000", "7", "true", "7" ] }
+
+---
+'a literal dotted key and the nested form of the same path merge into one discovered column':
+  - do:
+      esql.query:
+        body:
+          query: 'SET unmapped_fields="LOAD_ALL"; FROM la_keys | WHERE id == "1" | LIMIT 5'
+  - length: { columns: 2 }
+  - length: { values: 1 }
+  - match: { columns.0.name: id }
+  - match: { columns.1.name: dot.path }
+  - match: { columns.1.type: keyword }
+  - match: { values.0.0: "1" }
+  - length: { values.0.1: 2 }
+
+---
+'five levels of nesting flatten to one dotted leaf':
+  - do:
+      esql.query:
+        body:
+          query: 'SET unmapped_fields="LOAD_ALL"; FROM la_keys | WHERE id == "2" | KEEP id, l1.* | LIMIT 5'
+  - length: { columns: 2 }
+  - match: { columns.1.name: l1.l2.l3.l4.l5 }
+  - match: { columns.1.type: keyword }
+  - match: { values.0: [ "2", "deep" ] }
+
+---
+'an array of one scalar and one object yields both a parent column and a dotted leaf column':
+  - do:
+      esql.query:
+        body:
+          query: 'SET unmapped_fields="LOAD_ALL"; FROM la_keys | WHERE id == "3" | KEEP id, mixed* | LIMIT 5'
+  - length: { columns: 3 }
+  - match: { columns.1.name: mixed }
+  - match: { columns.1.type: keyword }
+  - match: { columns.2.name: mixed.sub }
+  - match: { columns.2.type: keyword }
+  - match: { values.0: [ "3", "scalar", "from_object" ] }
+
+---
+'keys differing only by case become two columns, and a wildcard character in a key is matched literally':
+  - do:
+      esql.query:
+        body:
+          query: 'SET unmapped_fields="LOAD_ALL"; FROM la_keys | WHERE id == "4" | LIMIT 5'
+  - length: { columns: 5 }
+  - match: { columns.0.name: id }
+  - match: { columns.1.name: Case }
+  - match: { columns.2.name: case }
+  - match: { columns.3.name: "wild*card" }
+  - match: { columns.4.name: "with space" }
+  - match: { values.0: [ "4", "upper", "lower", "star", "spaced" ] }

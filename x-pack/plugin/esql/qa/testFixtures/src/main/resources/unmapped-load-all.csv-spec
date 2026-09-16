@@ -3530,3 +3530,60 @@ unmapped_source_stored|7              |null           |null           |null     
 unmapped_source_mapped|8              |null           |null           |null                   |null         |null              |null                |null              |null                     |"{""id"":""8"",""nest"":[{""inner"":[{""leaf"":""t""}]},{""inner"":[{""leaf"":""u""}]}]}"
 unmapped_source_stored|8              |null           |null           |null                   |null         |null              |null                |null              |[t, u]                   |"{""id"":""8"",""nest"":[{""inner"":[{""leaf"":""t""}]},{""inner"":[{""leaf"":""u""}]}]}"
 ;
+
+loadAllLogsdbAgreesWithStoredAndSyntheticSource
+required_capability: optional_fields_load_all_v2
+skip_columnar: dynamic:false unmapped fields are dropped at ingest in columnar mode (no _ignored_source), so unmapped_fields=load_all has nothing to read
+
+// logsdb defaults _source to synthetic, but IndexMode.LOGSDB does not override isStrictColumnar(), so _ignored_source 
+// stays enabled and a dynamic:false field is still recoverable. The same seven documents in three index modes must 
+// yield identical discovered columns. unmapped* is a wildcard so the three leaves are genuinely discovered rather 
+// than demanded by name, and the sort is on the mapped @timestamp for the same reason.
+SET unmapped_fields="LOAD_ALL"\;
+FROM partial_mapping_sample_data, synthetic_source_partial_mapping, logsdb_partial_mapping METADATA _index
+| SORT @timestamp DESC, _index
+| KEEP _index, language_code, unmapped*
+| LIMIT 6
+;
+
+_index:keyword                   | language_code:keyword | unmapped.nested:keyword | unmapped_event_duration:keyword | unmapped_message:keyword
+logsdb_partial_mapping           | 1                     | a                       | 1756468                         | Disconnected from 10.1.0.1
+partial_mapping_sample_data      | 1                     | a                       | 1756468                         | Disconnected from 10.1.0.1
+synthetic_source_partial_mapping | 1                     | a                       | 1756468                         | Disconnected from 10.1.0.1
+logsdb_partial_mapping           | 2                     | b                       | 5033756                         | Disconnection error
+partial_mapping_sample_data      | 2                     | b                       | 5033756                         | Disconnection error
+synthetic_source_partial_mapping | 2                     | b                       | 5033756                         | Disconnection error
+;
+
+loadAllLogsdbStatsBY_ADiscoveredColumn
+required_capability: optional_fields_load_all_v2
+required_capability: optional_fields_load_all_stats
+skip_columnar: dynamic:false unmapped fields are dropped at ingest in columnar mode (no _ignored_source), so unmapped_fields=load_all has nothing to read
+
+// Grouping a logsdb index by a field that exists only in _source - language_code
+SET unmapped_fields="LOAD_ALL"\;
+FROM logsdb_partial_mapping
+| STATS rows = COUNT(*), total = SUM(event_duration) BY language_code
+| SORT language_code
+;
+
+rows:long | total:long | language_code:keyword
+2         | 2481913    | 1
+2         | 6266135    | 2
+2         | 11033040   | 3
+1         | 3450232    | 4
+;
+
+loadAllAllTypesUnmappedDiscoversEveryTypeAsKeyword
+required_capability: optional_fields_load_all_v2
+skip_columnar: dynamic:false unmapped fields are dropped at ingest in columnar mode (no _ignored_source), so unmapped_fields=load_all has nothing to read
+
+SET unmapped_fields="LOAD_ALL"\;
+FROM all_types_unmapped
+| SORT keyword
+| LIMIT 1
+;
+
+dense_vector:dense_vector | keyword:keyword | semantic_text:text | boolean:keyword | byte:keyword | constant_keyword-foo:keyword | date:keyword             | date_nanos:keyword             | double:keyword | float:keyword | half_float:keyword | integer:keyword | ip:keyword | long:keyword | scaled_float:keyword | short:keyword | text:keyword | unsigned_long:keyword | version:keyword | wildcard:keyword
+null                      | key1            | null               | true            | 1            | foo                          | 2024-01-01T00:00:00.000Z | 2024-01-01T00:00:00.000000001Z | 1.1            | 1.1           | 1.1                | 1               | 127.0.0.1  | 100          | 1.1                  | 10            | text1        | 100                   | 1.0.0           | wild1
+;

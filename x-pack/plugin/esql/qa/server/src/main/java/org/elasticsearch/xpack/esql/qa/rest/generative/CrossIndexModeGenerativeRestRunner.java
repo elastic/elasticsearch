@@ -126,7 +126,12 @@ public abstract class CrossIndexModeGenerativeRestRunner extends GenerativeRestT
         "unmapped_multi_synthetic",
         "unmapped_multi_stored_mixed",
         "unmapped_array_data",
-        "unmapped_object_data"
+        "unmapped_object_data",
+        // all_types_unmapped* drop every typed column from mapping-all-types.json so each ES scalar type lands in _source only.
+        // Same dynamic:false reasoning as the datasets exclusions above.
+        "all_types_unmapped",
+        "all_types_unmapped_synthetic",
+        "logsdb_partial_mapping"
     );
 
     /**

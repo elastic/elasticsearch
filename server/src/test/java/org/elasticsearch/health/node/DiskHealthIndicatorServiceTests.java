@@ -70,12 +70,12 @@ import static org.elasticsearch.health.node.DiskHealthIndicatorService.DiskHealt
 import static org.elasticsearch.health.node.DiskHealthIndicatorService.DiskHealthAnalyzer.NODES_OVER_HIGH_WATERMARK;
 import static org.elasticsearch.health.node.DiskHealthIndicatorService.DiskHealthAnalyzer.NODES_WITH_ENOUGH_DISK_SPACE;
 import static org.elasticsearch.health.node.DiskHealthIndicatorService.DiskHealthAnalyzer.NODES_WITH_UNKNOWN_DISK_STATUS;
+import static org.elasticsearch.health.node.HealthIndicatorDisplayValues.getTruncatedProjectIndices;
 import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.iterableWithSize;
-import static org.hamcrest.Matchers.startsWith;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
@@ -210,7 +210,15 @@ public class DiskHealthIndicatorServiceTests extends ESTestCase {
         assertThat(impact.severity(), equalTo(1));
         assertThat(
             impact.impactDescription(),
-            startsWith("The cluster is at risk of not being able to insert or update documents in the affected indices [")
+            equalTo(
+                "The cluster is at risk of not being able to insert or update documents in the affected indices ["
+                    + getTruncatedProjectIndices(
+                        toProjectIndices(indexNameToNodeIdsMap.keySet()),
+                        clusterService.state().metadata(),
+                        multiProject
+                    )
+                    + "]."
+            )
         );
         assertThat(result.diagnosisList().size(), equalTo(3));
         {
@@ -224,10 +232,7 @@ public class DiskHealthIndicatorServiceTests extends ESTestCase {
                 .collect(Collectors.toList());
             assertThat(affectedResources.get(0).getNodes(), equalTo(affectedNodes));
             assertThat(affectedResources.get(1).getType(), is(Diagnosis.Resource.Type.INDEX));
-            assertThat(
-                affectedResources.get(1).getValues(),
-                containsInAnyOrder(indexNameList(indexNameToNodeIdsMap.keySet()).toArray(String[]::new))
-            );
+            assertAffectedIndexNames(affectedResources.get(1).getValues(), indexNameToNodeIdsMap.keySet());
         }
         {
             Diagnosis diagnosis = result.diagnosisList().get(1);
@@ -309,7 +314,15 @@ public class DiskHealthIndicatorServiceTests extends ESTestCase {
         assertThat(impact.severity(), equalTo(1));
         assertThat(
             impact.impactDescription(),
-            startsWith("The cluster is at risk of not being able to insert or update documents in the affected indices [")
+            equalTo(
+                "The cluster is at risk of not being able to insert or update documents in the affected indices ["
+                    + getTruncatedProjectIndices(
+                        toProjectIndices(indexNameToNodeIdsMap.keySet()),
+                        clusterService.state().metadata(),
+                        multiProject
+                    )
+                    + "]."
+            )
         );
         assertThat(result.diagnosisList().size(), equalTo(1));
         Diagnosis diagnosis = result.diagnosisList().get(0);
@@ -319,10 +332,7 @@ public class DiskHealthIndicatorServiceTests extends ESTestCase {
         assertThat(affectedResources.get(0).getNodes(), is(affectedNodes));
 
         assertThat(affectedResources.get(1).getType(), is(Diagnosis.Resource.Type.INDEX));
-        assertThat(
-            affectedResources.get(1).getValues(),
-            containsInAnyOrder(indexNameList(indexNameToNodeIdsMap.keySet()).toArray(String[]::new))
-        );
+        assertAffectedIndexNames(affectedResources.get(1).getValues(), indexNameToNodeIdsMap.keySet());
 
         Map<String, Object> details = xContentToMap(result.details());
         assertThat(details.get(NODES_WITH_ENOUGH_DISK_SPACE), equalTo(discoveryNodes.size() - affectedNodes.size()));
@@ -340,7 +350,12 @@ public class DiskHealthIndicatorServiceTests extends ESTestCase {
      */
     public void testRedWithBlockedIndicesAndGreenNodes() throws IOException {
         Set<DiscoveryNode> discoveryNodes = createNodesWithAllRoles();
-        ClusterService clusterService = createClusterService(discoveryNodes, true);
+        String indexName = randomAlphaOfLength(20);
+        ClusterService clusterService = createClusterService(
+            Set.of(indexName),
+            discoveryNodes,
+            Map.of(indexName, Set.of(randomFrom(discoveryNodes).getId()))
+        );
         DiskHealthIndicatorService diskHealthIndicatorService = createDiskHealthIndicatorService(clusterService);
 
         HealthStatus expectedStatus = HealthStatus.RED;
@@ -363,13 +378,24 @@ public class DiskHealthIndicatorServiceTests extends ESTestCase {
         assertThat(impactAreas.size(), equalTo(1));
         assertThat(impactAreas.get(0), equalTo(ImpactArea.INGEST));
         assertThat(impact.severity(), equalTo(1));
-        assertThat(impact.impactDescription(), startsWith("Cannot insert or update documents in the affected indices ["));
+        assertThat(
+            impact.impactDescription(),
+            equalTo(
+                "Cannot insert or update documents in the affected indices ["
+                    + getTruncatedProjectIndices(
+                        toProjectIndices(Set.of(indexName)),
+                        clusterService.state().metadata(),
+                        multiProject
+                    )
+                    + "]."
+            )
+        );
         assertThat(result.diagnosisList().size(), equalTo(1));
         Diagnosis diagnosis = result.diagnosisList().get(0);
         List<Diagnosis.Resource> affectedResources = diagnosis.affectedResources();
         assertThat(affectedResources.size(), is(1));
         assertThat(affectedResources.get(0).getType(), is(Diagnosis.Resource.Type.INDEX));
-        assertThat(affectedResources.get(0).getValues(), iterableWithSize(projectIds.size()));
+        assertAffectedIndexNames(affectedResources.get(0).getValues(), Set.of(indexName));
 
         Map<String, Object> details = xContentToMap(result.details());
         assertThat(details.get(NODES_WITH_ENOUGH_DISK_SPACE), equalTo(discoveryNodes.size()));
@@ -387,7 +413,12 @@ public class DiskHealthIndicatorServiceTests extends ESTestCase {
      */
     public void testRedWithBlockedIndicesAndYellowNodes() throws IOException {
         Set<DiscoveryNode> discoveryNodes = createNodesWithAllRoles();
-        ClusterService clusterService = createClusterService(discoveryNodes, true);
+        String indexName = randomAlphaOfLength(20);
+        ClusterService clusterService = createClusterService(
+            Set.of(indexName),
+            discoveryNodes,
+            Map.of(indexName, Set.of(randomFrom(discoveryNodes).getId()))
+        );
         DiskHealthIndicatorService diskHealthIndicatorService = createDiskHealthIndicatorService(clusterService);
         HealthStatus expectedStatus = HealthStatus.RED;
         int numberOfYellowNodes = randomIntBetween(1, discoveryNodes.size());
@@ -411,7 +442,18 @@ public class DiskHealthIndicatorServiceTests extends ESTestCase {
         assertThat(impactAreas.size(), equalTo(1));
         assertThat(impactAreas.get(0), equalTo(ImpactArea.INGEST));
         assertThat(impact.severity(), equalTo(1));
-        assertThat(impact.impactDescription(), startsWith("Cannot insert or update documents in the affected indices ["));
+        assertThat(
+            impact.impactDescription(),
+            equalTo(
+                "Cannot insert or update documents in the affected indices ["
+                    + getTruncatedProjectIndices(
+                        toProjectIndices(Set.of(indexName)),
+                        clusterService.state().metadata(),
+                        multiProject
+                    )
+                    + "]."
+            )
+        );
         assertThat(result.diagnosisList().size(), equalTo(1));
         Diagnosis diagnosis = result.diagnosisList().get(0);
         List<Diagnosis.Resource> affectedResources = diagnosis.affectedResources();
@@ -419,7 +461,7 @@ public class DiskHealthIndicatorServiceTests extends ESTestCase {
         assertThat(affectedResources.get(0).getType(), is(Diagnosis.Resource.Type.NODE));
         assertThat(affectedResources.get(0).getNodes().size(), is(numberOfYellowNodes));
         assertThat(affectedResources.get(1).getType(), is(Diagnosis.Resource.Type.INDEX));
-        assertThat(affectedResources.get(1).getValues(), iterableWithSize(projectIds.size()));
+        assertAffectedIndexNames(affectedResources.get(1).getValues(), Set.of(indexName));
         Map<String, Object> details = xContentToMap(result.details());
         assertThat(details.get(NODES_WITH_ENOUGH_DISK_SPACE), equalTo(discoveryNodes.size() - numberOfYellowNodes));
         assertThat(details.get(NODES_WITH_UNKNOWN_DISK_STATUS), equalTo(0));
@@ -483,6 +525,32 @@ public class DiskHealthIndicatorServiceTests extends ESTestCase {
                     + " out of disk or running low on disk space."
             )
         );
+        assertThat(
+            result.impacts().getFirst().impactDescription(),
+            equalTo(
+                "Cannot insert or update documents in the affected indices ["
+                    + getTruncatedProjectIndices(
+                        toProjectIndices(blockedIndices),
+                        clusterService.state().metadata(),
+                        multiProject
+                    )
+                    + "]."
+            )
+        );
+        Set<String> indicesOnRedNodes = indexNameToNodeIdsMap.entrySet()
+            .stream()
+            .filter(entry -> entry.getValue().stream().anyMatch(redNodeIds::contains))
+            .map(Map.Entry::getKey)
+            .collect(Collectors.toSet());
+        Set<String> affectedIndexNames = Sets.union(blockedIndices, indicesOnRedNodes);
+        List<Diagnosis.Resource> affectedResources = result.diagnosisList().getFirst().affectedResources();
+        Diagnosis.Resource indexResources = affectedResources.stream()
+            .filter(resource -> resource.getType() == Diagnosis.Resource.Type.INDEX)
+            .findFirst()
+            .orElseThrow();
+        List<String> expectedIndexNames = indexNameList(affectedIndexNames);
+        assertThat(indexResources.getValues().size(), equalTo(Math.min(expectedIndexNames.size(), MAX_AFFECTED_RESOURCES_COUNT)));
+        assertThat(expectedIndexNames.containsAll(indexResources.getValues()), is(true));
         Map<String, Object> details = xContentToMap(result.details());
         assertThat(details.get(NODES_WITH_ENOUGH_DISK_SPACE), equalTo(discoveryNodes.size() - numberOfRedNodes));
         assertThat(details.get(NODES_WITH_UNKNOWN_DISK_STATUS), equalTo(0));
@@ -688,7 +756,12 @@ public class DiskHealthIndicatorServiceTests extends ESTestCase {
         Set<DiscoveryNode> dataNodes = createNodes(dataRoles);
         Set<DiscoveryNode> masterNodes = createNodes(masterRole);
         Set<DiscoveryNode> otherNodes = createNodes(otherRoles);
-        ClusterService clusterService = createClusterService(Sets.union(Sets.union(dataNodes, masterNodes), otherNodes), true);
+        String indexName = randomAlphaOfLength(20);
+        ClusterService clusterService = createClusterService(
+            Set.of(indexName),
+            Sets.union(Sets.union(dataNodes, masterNodes), otherNodes),
+            Map.of(indexName, Set.of(randomFrom(dataNodes).getId()))
+        );
         DiskHealthIndicatorService diskHealthIndicatorService = createDiskHealthIndicatorService(clusterService);
         int numberOfRedMasterNodes = randomIntBetween(1, masterNodes.size());
         int numberOfRedOtherNodes = randomIntBetween(1, otherNodes.size());
@@ -718,7 +791,18 @@ public class DiskHealthIndicatorServiceTests extends ESTestCase {
         );
         List<HealthIndicatorImpact> impacts = result.impacts();
         assertThat(impacts.size(), equalTo(3));
-        assertThat(impacts.get(0).impactDescription(), containsString("Cannot insert or update documents in the affected indices ["));
+        assertThat(
+            impacts.getFirst().impactDescription(),
+            equalTo(
+                "Cannot insert or update documents in the affected indices ["
+                    + getTruncatedProjectIndices(
+                        toProjectIndices(Set.of(indexName)),
+                        clusterService.state().metadata(),
+                        multiProject
+                    )
+                    + "]."
+            )
+        );
         assertThat(impacts.get(0).severity(), equalTo(1));
         assertThat(impacts.get(0).impactAreas(), equalTo(List.of(ImpactArea.INGEST)));
         assertThat(impacts.get(1).impactDescription(), equalTo("Cluster stability might be impaired."));
@@ -740,7 +824,7 @@ public class DiskHealthIndicatorServiceTests extends ESTestCase {
             assertThat(dataAffectedResources.get(0).getType(), is(Diagnosis.Resource.Type.NODE));
             assertThat(dataAffectedResources.get(0).getNodes().size(), is(numberOfYellowDataNodes));
             assertThat(dataAffectedResources.get(1).getType(), is(Diagnosis.Resource.Type.INDEX));
-            assertThat(dataAffectedResources.get(1).getValues().size(), is(projectIds.size()));
+            assertAffectedIndexNames(dataAffectedResources.get(1).getValues(), Set.of(indexName));
             Diagnosis.Definition dataDiagnosisDefinition = diagnosis.definition();
             assertThat(
                 dataDiagnosisDefinition.cause(),
@@ -916,7 +1000,12 @@ public class DiskHealthIndicatorServiceTests extends ESTestCase {
         Set<DiscoveryNode> dataNodes = createNodes(30, dataRoles);
         Set<DiscoveryNode> masterNodes = createNodes(20, masterRole);
         Set<DiscoveryNode> otherNodes = createNodes(10, otherRoles);
-        ClusterService clusterService = createClusterService(Sets.union(Sets.union(dataNodes, masterNodes), otherNodes), true);
+        String indexName = randomAlphaOfLength(20);
+        ClusterService clusterService = createClusterService(
+            Set.of(indexName),
+            Sets.union(Sets.union(dataNodes, masterNodes), otherNodes),
+            Map.of(indexName, Set.of(randomFrom(dataNodes).getId()))
+        );
         DiskHealthIndicatorService diskHealthIndicatorService = createDiskHealthIndicatorService(clusterService);
         int numberOfRedMasterNodes = masterNodes.size();
         int numberOfRedOtherNodes = otherNodes.size();
@@ -969,7 +1058,7 @@ public class DiskHealthIndicatorServiceTests extends ESTestCase {
                 assertThat(dataAffectedResources.get(0).getType(), is(Diagnosis.Resource.Type.NODE));
                 assertThat(dataAffectedResources.get(0).getNodes().size(), is(10));
                 assertThat(dataAffectedResources.get(1).getType(), is(Diagnosis.Resource.Type.INDEX));
-                assertThat(dataAffectedResources.get(1).getValues().size(), is(projectIds.size()));
+                assertAffectedIndexNames(dataAffectedResources.get(1).getValues(), Set.of(indexName));
             }
             {
                 Diagnosis diagnosis = diagnosisList.get(1);
@@ -1089,6 +1178,10 @@ public class DiskHealthIndicatorServiceTests extends ESTestCase {
             return List.copyOf(indexNames);
         }
         return indexNames.stream().flatMap(indexName -> projectIds.stream().map(id -> id.id() + "/" + indexName).sorted()).toList();
+    }
+
+    private void assertAffectedIndexNames(Collection<String> actual, Collection<String> indexNames) {
+        assertThat(actual, containsInAnyOrder(indexNameList(indexNames).toArray(String[]::new)));
     }
 
     private Set<ProjectIndexName> toProjectIndices(Set<String> indexNames) {

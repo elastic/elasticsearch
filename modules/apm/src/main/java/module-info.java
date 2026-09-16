@@ -36,5 +36,5 @@ module org.elasticsearch.telemetry.apm {
     requires okhttp3;
 
     exports org.elasticsearch.telemetry.apm;
-    exports org.elasticsearch.telemetry.apm.internal.metrics.spi to org.elasticsearch.nodesmetrics;
+    exports org.elasticsearch.telemetry.apm.internal.metrics.spi to org.elasticsearch.nodemetrics;
 }

@@ -939,12 +939,12 @@ public class EsqlSession {
     }
 
     /**
-     * A file's columns whose read type was pinned above their inferred type for a {@code union_by_name} widening read,
-     * plus whether that read's error policy drops whole rows ({@code skip_row}). Collected from the executed plan's
-     * {@link ExternalRelation} nodes and used to strip a widening read's polluting stat deltas off the captured
-     * contributions before commit. See {@link SourceStatisticsSerializer#removeColumnStatFamilies}.
+     * A file's columns read at a type its harvest does not describe (a {@code union_by_name} widening
+     * pin or a {@code first_file_wins} anchor pin), plus whether that read's error policy drops whole
+     * rows. See {@link SourceStatisticsSerializer#removeColumnStatFamilies} and
+     * {@link ExternalSourceResolver#pinnedColumnsOf}.
      */
-    private record PinnedColumns(Set<String> columns, boolean dropRowCount) {
+    record PinnedColumns(Set<String> columns, boolean dropRowCount) {
         PinnedColumns mergedWith(PinnedColumns other) {
             Set<String> union = new HashSet<>(columns);
             union.addAll(other.columns);
@@ -953,11 +953,9 @@ public class EsqlSession {
     }
 
     /**
-     * Collects the {@code union_by_name} pinned reads in {@code plan}, keyed by the file path string the data-node
-     * capture uses ({@code StoragePath#toString()}), merging into {@code into}. A pinned read of a file harvests
-     * {@code value_count}/{@code null_count}/extrema the same file's solo narrow read never produces, so those deltas
-     * must not commit into the read-schema-blind shared cache entry. Accumulates across every executed plan (each
-     * subplan and the final main plan) because a file may be read pinned inside a subquery.
+     * Collects pinned reads in {@code plan} ({@code union_by_name} widening and {@code first_file_wins}
+     * anchor pins), keyed by the file path the data-node capture uses. Those harvests must not commit
+     * into the read-schema-blind shared cache.
      */
     private void collectPinnedReads(LogicalPlan plan, Map<String, PinnedColumns> into) {
         plan.forEachDown(ExternalRelation.class, relation -> {
@@ -966,14 +964,27 @@ public class EsqlSession {
                 return;
             }
             boolean dropRowCount = externalSourceResolver.resolvesToSkipRow(relation.sourceType(), relation.metadata().config());
-            for (var entry : schemaMap.entrySet()) {
-                Set<String> pinned = ExternalSourceResolver.pinnedColumnsOf(entry.getValue());
-                if (pinned.isEmpty()) {
-                    continue;
-                }
-                into.merge(entry.getKey().toString(), new PinnedColumns(pinned, dropRowCount), PinnedColumns::mergedWith);
-            }
+            collectPinnedReads(relation, dropRowCount, into);
         });
+    }
+
+    static void collectPinnedReads(ExternalRelation relation, boolean dropRowCount, Map<String, PinnedColumns> into) {
+        boolean anchorPinnedFirstFileWins = ExternalSourceResolver.isAnchorPinnedFirstFileWins(
+            relation.sourcePath(),
+            relation.metadata().config(),
+            relation.declaredReadSpec()
+        );
+        for (var entry : relation.schemaMap().entrySet()) {
+            Set<String> pinned = ExternalSourceResolver.pinnedColumnsOf(
+                entry.getValue(),
+                anchorPinnedFirstFileWins,
+                relation.declaredReadSpec()
+            );
+            if (pinned.isEmpty()) {
+                continue;
+            }
+            into.merge(entry.getKey().toString(), new PinnedColumns(pinned, dropRowCount), PinnedColumns::mergedWith);
+        }
     }
 
     /**
@@ -1007,7 +1018,7 @@ public class EsqlSession {
      * Returns {@code captured} with each pinned file's per-contribution pinned-column stat families removed. Files not
      * read at a pinned type pass through untouched; when nothing is pinned the input map is returned unchanged.
      */
-    private static Map<String, List<Map<String, Object>>> stripPinnedContributions(
+    static Map<String, List<Map<String, Object>>> stripPinnedContributions(
         Map<String, List<Map<String, Object>>> captured,
         Map<String, PinnedColumns> pinnedReads
     ) {
@@ -2326,7 +2337,6 @@ public class EsqlSession {
                 indicesExpressionGrouper,
                 listener.delegateFailureAndWrap((l, indexResolution) -> {
                     EsqlCCSUtils.updateExecutionInfoWithUnavailableClusters(executionInfo, indexResolution.inner().failures());
-                    EsqlCCSUtils.checkForRemoteResourceErrors(indexResolution.inner().failures());
                     maybeRetryConcreteTimeSeriesResolution(indexPattern, indexMode, result, indexResolution, l, retryListener -> {
                         executionInfo.queryProfile().incFieldCapsCalls();
                         indexResolver.resolveMainIndicesVersioned(
@@ -2379,7 +2389,6 @@ public class EsqlSession {
             listener.delegateFailureAndWrap((l, indexResolution) -> {
                 EsqlCCSUtils.initCrossClusterState(indexResolution.inner(), executionInfo);
                 EsqlCCSUtils.updateExecutionInfoWithUnavailableClusters(executionInfo, indexResolution.inner().failures());
-                EsqlCCSUtils.checkForRemoteResourceErrors(indexResolution.inner().failures());
                 EsqlCCSUtils.validateCcsLicense(verifier.licenseState(), executionInfo);
                 // TODO count distinct linked projects
                 l.onResponse(result.withWithLinkedIndices(linkedIndexPattern, indexResolution.inner()));
@@ -2417,7 +2426,6 @@ public class EsqlSession {
             listener.delegateFailureAndWrap((l, indexResolution) -> {
                 EsqlCCSUtils.initCrossClusterState(indexResolution.inner(), executionInfo);
                 EsqlCCSUtils.updateExecutionInfoWithUnavailableClusters(executionInfo, indexResolution.inner().failures());
-                EsqlCCSUtils.checkForRemoteResourceErrors(indexResolution.inner().failures());
                 EsqlCCSUtils.validateCcsLicense(verifier.licenseState(), executionInfo);
                 planTelemetry.linkedProjectsCount(executionInfo.clusterInfo.size());
                 maybeRetryConcreteTimeSeriesResolution(indexPattern, indexMode, result, indexResolution, l, retryListener -> {

@@ -75,7 +75,8 @@ public class StringColumnOptionsSelectorTests extends ESTestCase {
             fieldName.equals(NAMED) ? ChunkCodec.ZSTD : ChunkCodec.IDENTITY,
             StringColumnOptions.DEFAULT_TARGET_CHUNK_BYTES,
             StringColumnOptions.DEFAULT_PLAIN_PATH_TARGET_CHUNK_BYTES,
-            StringColumnOptions.DEFAULT_COMPRESSED_ORDINAL_BLOCK_SIZE
+            StringColumnOptions.DEFAULT_COMPRESSED_ORDINAL_BLOCK_SIZE,
+            StringColumnOptions.DEFAULT_SLOT_COUNTS_BLOCK_SIZE
         );
 
         try (Directory dir = newDirectory()) {
@@ -97,7 +98,8 @@ public class StringColumnOptionsSelectorTests extends ESTestCase {
                     ChunkCodec.ZSTD,
                     StringColumnOptions.DEFAULT_TARGET_CHUNK_BYTES,
                     StringColumnOptions.DEFAULT_PLAIN_PATH_TARGET_CHUNK_BYTES,
-                    blockSize
+                    blockSize,
+                    StringColumnOptions.DEFAULT_SLOT_COUNTS_BLOCK_SIZE
                 )
             );
         }
@@ -111,7 +113,8 @@ public class StringColumnOptionsSelectorTests extends ESTestCase {
                 ChunkCodec.ZSTD,
                 StringColumnOptions.DEFAULT_TARGET_CHUNK_BYTES,
                 StringColumnOptions.DEFAULT_PLAIN_PATH_TARGET_CHUNK_BYTES,
-                StringColumnOptions.DEFAULT_COMPRESSED_ORDINAL_BLOCK_SIZE
+                StringColumnOptions.DEFAULT_COMPRESSED_ORDINAL_BLOCK_SIZE,
+                StringColumnOptions.DEFAULT_SLOT_COUNTS_BLOCK_SIZE
             )
         );
         expectThrows(
@@ -121,7 +124,8 @@ public class StringColumnOptionsSelectorTests extends ESTestCase {
                 null,
                 StringColumnOptions.DEFAULT_TARGET_CHUNK_BYTES,
                 StringColumnOptions.DEFAULT_PLAIN_PATH_TARGET_CHUNK_BYTES,
-                StringColumnOptions.DEFAULT_COMPRESSED_ORDINAL_BLOCK_SIZE
+                StringColumnOptions.DEFAULT_COMPRESSED_ORDINAL_BLOCK_SIZE,
+                StringColumnOptions.DEFAULT_SLOT_COUNTS_BLOCK_SIZE
             )
         );
         expectThrows(
@@ -131,7 +135,8 @@ public class StringColumnOptionsSelectorTests extends ESTestCase {
                 ChunkCodec.ZSTD,
                 0,
                 StringColumnOptions.DEFAULT_PLAIN_PATH_TARGET_CHUNK_BYTES,
-                StringColumnOptions.DEFAULT_COMPRESSED_ORDINAL_BLOCK_SIZE
+                StringColumnOptions.DEFAULT_COMPRESSED_ORDINAL_BLOCK_SIZE,
+                StringColumnOptions.DEFAULT_SLOT_COUNTS_BLOCK_SIZE
             )
         );
         expectThrows(
@@ -141,7 +146,8 @@ public class StringColumnOptionsSelectorTests extends ESTestCase {
                 ChunkCodec.ZSTD,
                 StringColumnOptions.DEFAULT_TARGET_CHUNK_BYTES,
                 0,
-                StringColumnOptions.DEFAULT_COMPRESSED_ORDINAL_BLOCK_SIZE
+                StringColumnOptions.DEFAULT_COMPRESSED_ORDINAL_BLOCK_SIZE,
+                StringColumnOptions.DEFAULT_SLOT_COUNTS_BLOCK_SIZE
             )
         );
     }

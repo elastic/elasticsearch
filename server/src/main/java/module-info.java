@@ -38,6 +38,7 @@ module org.elasticsearch.server {
     requires org.elasticsearch.simdjson;
     requires org.elasticsearch.columnar;
     requires org.elasticsearch.entitlement;
+    requires org.elasticsearch.zstd;
 
     requires hppc;
     requires HdrHistogram;

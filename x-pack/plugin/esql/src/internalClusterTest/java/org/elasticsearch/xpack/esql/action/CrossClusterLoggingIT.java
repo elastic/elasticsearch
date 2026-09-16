@@ -126,7 +126,7 @@ public class CrossClusterLoggingIT extends AbstractCrossClusterTestCase {
     }
 
     /**
-     * Streaming remote query: the {@code elasticsearch.querylog} event for a {@code /_query/stream}
+     * Streaming remote query: the {@code elasticsearch.querylog} event for a streaming
      * cross-cluster query must carry {@code remote_count}, {@code remotes}, and remote-qualified
      * {@code indices} — confirming that hardcoding {@code IncludeExecutionMetadata.NEVER} in the
      * streaming action gates only response rendering, not {@code clusterInfo} tracking.
@@ -155,7 +155,7 @@ public class CrossClusterLoggingIT extends AbstractCrossClusterTestCase {
         subscriber.rethrowIfFailed();
 
         var event = appender.getLastEventAndReset();
-        assertNotNull("expected a query-log event for /_query/stream CCS query", event);
+        assertNotNull("expected a query-log event for the streaming CCS query", event);
         Map<String, String> message = getMessageData(event);
         assertMessageSuccess(message, EsqlLogContext.TYPE, query);
         assertThat(message.get(QUERY_FIELD_REMOTE_COUNT), equalTo("2"));

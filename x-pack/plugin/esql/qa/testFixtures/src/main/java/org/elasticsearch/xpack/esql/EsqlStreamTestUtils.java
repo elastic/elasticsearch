@@ -315,7 +315,7 @@ public final class EsqlStreamTestUtils {
         }
         if ("x_content_parse_exception".equals(type) || "parsing_exception".equals(type)) {
             fail(
-                "Request was malformed, not disrupted — the body or params are wrong for /_query/stream"
+                "Request was malformed, not disrupted — the body or params are wrong for /_query?streaming=true"
                     + " (check that allow_partial_results and other non-body params are sent as URL params, not body fields): "
                     + error
             );

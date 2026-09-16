@@ -395,9 +395,10 @@ public class PageStreamPublisher implements Flow.Publisher<Page> {
     }
 
     /**
-     * Builds and hands one page to the subscriber. Returns {@code false} if the subscription was
-     * cancelled while the page was being built, in which case the page is released and no further
-     * delivery may happen.
+     * Builds and hands one page to the subscriber. Returns {@code false} if no further delivery
+     * may happen, either because the subscription was cancelled while the page was being built
+     * (page is released), or because the page could not be built (the subscriber has already been
+     * signalled with {@code onError} and the terminal state is recorded on {@link #failure}).
      */
     private boolean sendPage(PendingDelivery pending) {
         Page page;
@@ -418,7 +419,7 @@ public class PageStreamPublisher implements Flow.Publisher<Page> {
                 notifyWritable();
                 subscriber.onError(buildException);
             }
-            throw buildException;
+            return false;
         }
 
         boolean shouldSend;

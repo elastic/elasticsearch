@@ -18,7 +18,7 @@ import org.elasticsearch.xpack.esql.session.Result;
 import java.util.function.Supplier;
 
 /**
- * {@link ActivityLoggerContextBuilder} for streaming ES|QL queries ({@code POST /_query/stream}).
+ * {@link ActivityLoggerContextBuilder} for streaming ES|QL queries ({@code POST /_query?streaming=true}).
  * Because the response type is {@link ActionResponse.Empty} and carries no query data, this builder
  * holds the collaborators it needs: {@link EsqlExecutionInfo}, {@link PageStreamPublisher}, and a
  * {@link Supplier} of the final {@link Result} populated once the query completes.

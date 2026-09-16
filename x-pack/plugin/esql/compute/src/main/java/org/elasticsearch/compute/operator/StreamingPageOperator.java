@@ -57,6 +57,10 @@ public class StreamingPageOperator extends SinkOperator {
             // is closed" (Driver.java). The page was already released inside addPage.
             throw new DriverEarlyTerminationException("Streaming subscriber cancelled");
         }
+        Exception deliveryFailure = stream.failure();
+        if (deliveryFailure != null) {
+            throw deliveryFailure instanceof RuntimeException re ? re : new RuntimeException(deliveryFailure);
+        }
     }
 
     public void addCompletionListener(ActionListener<Void> listener) {

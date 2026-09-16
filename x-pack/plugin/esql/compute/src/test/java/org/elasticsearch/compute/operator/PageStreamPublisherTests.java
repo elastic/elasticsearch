@@ -23,6 +23,7 @@ import org.junit.After;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.concurrent.Flow;
+import java.util.function.Function;
 
 import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.containsString;
@@ -352,14 +353,33 @@ public class PageStreamPublisherTests extends ComputeTestCase {
         expectNoPages(subscriber);
 
         factory.throwOnNextLongBlockBuilder = true;
-        CircuitBreakingException thrown = expectThrows(
-            CircuitBreakingException.class,
-            () -> producer.addPage(makePageWithValues(factory, 2, 3))
-        );
-        assertThat(subscriber.error, sameInstance(thrown));
+        assertTrue("addPage must return true; sendPage swallows the build failure", producer.addPage(makePageWithValues(factory, 2, 3)));
+        assertNotNull("subscriber must receive the circuit-breaking exception via onError", subscriber.error);
+        assertTrue("error must be a CircuitBreakingException", subscriber.error instanceof CircuitBreakingException);
         expectNoPages(subscriber);
         assertDriverUnblocked(publisher);
         assertThat("breaker must be back to zero after drain failure", breaker.getUsed(), equalTo(0L));
+    }
+
+    public void testDrainFailurePropagatesThroughOperator() {
+        BigArrays bigArrays = nonBreakingBigArrays();
+        CircuitBreaker breaker = bigArrays.breakerService().getBreaker(CircuitBreaker.REQUEST);
+        ArmableBlockFactory factory = new ArmableBlockFactory(BlockFactory.builder(bigArrays).breaker(breaker));
+        int pageSize = 5;
+        PageStreamPublisher publisher = new PageStreamPublisher(pageSize);
+        StreamingPageOperator operator = new StreamingPageOperator(publisher, Function.identity());
+        TestSubscriber subscriber = subscribeWithDemand(publisher);
+
+        operator.addInput(makePageWithValues(factory, 0, 2));
+        expectNoPages(subscriber);
+
+        factory.throwOnNextLongBlockBuilder = true;
+        CircuitBreakingException thrown = expectThrows(
+            CircuitBreakingException.class,
+            () -> operator.addInput(makePageWithValues(factory, 2, 3))
+        );
+        assertNotNull("subscriber must receive onError after the build failure", subscriber.error);
+        assertThat(subscriber.error, sameInstance(thrown));
     }
 
     public void testFailStreamIdempotent() {

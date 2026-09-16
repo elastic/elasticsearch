@@ -22,6 +22,7 @@ import org.elasticsearch.xpack.esql.analysis.Analyzer;
 import org.elasticsearch.xpack.esql.core.expression.Alias;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.expression.AttributeMap;
+import org.elasticsearch.xpack.esql.core.expression.ExternalMetadataAttribute;
 import org.elasticsearch.xpack.esql.core.expression.FieldAttribute;
 import org.elasticsearch.xpack.esql.core.expression.Literal;
 import org.elasticsearch.xpack.esql.core.expression.MetadataAttribute;
@@ -32,9 +33,12 @@ import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.core.type.EsField;
 import org.elasticsearch.xpack.esql.core.type.UnsupportedEsField;
+import org.elasticsearch.xpack.esql.datasources.spi.FileList;
+import org.elasticsearch.xpack.esql.datasources.spi.SimpleSourceMetadata;
 import org.elasticsearch.xpack.esql.index.IndexProperties;
 import org.elasticsearch.xpack.esql.plan.logical.EsRelation;
 import org.elasticsearch.xpack.esql.plan.logical.Eval;
+import org.elasticsearch.xpack.esql.plan.logical.ExternalRelation;
 import org.elasticsearch.xpack.esql.plan.physical.EsSourceExec;
 import org.elasticsearch.xpack.esql.plan.physical.EvalExec;
 import org.elasticsearch.xpack.esql.plan.physical.FragmentExec;
@@ -273,6 +277,13 @@ public class TransportEsqlStreamQueryActionTests extends ESTestCase {
         assertNull("MetadataAttribute must not be a drop candidate", names[0]);
     }
 
+    public void testResolveIndexFieldNamesExternalMetadataAttributeIsNull() {
+        ExternalMetadataAttribute attr = new ExternalMetadataAttribute(Source.EMPTY, "_file.name", DataType.KEYWORD);
+        String[] names = TransportEsqlStreamQueryAction.resolveIndexFieldNames(List.of(attr), AttributeMap.emptyAttributeMap());
+        assertEquals(1, names.length);
+        assertNull("ExternalMetadataAttribute (_file.*) must not be a drop candidate", names[0]);
+    }
+
     public void testResolveIndexFieldNamesUnsupportedAttributeIsNull() {
         UnsupportedAttribute ua = new UnsupportedAttribute(Source.EMPTY, "unsup", new UnsupportedEsField("unsup", List.of("geo_shape")));
         String[] names = TransportEsqlStreamQueryAction.resolveIndexFieldNames(List.of(ua), AttributeMap.emptyAttributeMap());
@@ -384,6 +395,17 @@ public class TransportEsqlStreamQueryActionTests extends ESTestCase {
         FragmentExec plan = new FragmentExec(relation);
         Set<String> names = TransportEsqlStreamQueryAction.collectIndexNames(plan);
         assertEquals(Set.of(), names);
+    }
+
+    public void testCollectIndexNamesExternalRelationIsEmpty() {
+        ReferenceAttribute col = new ReferenceAttribute(Source.EMPTY, "data_col", DataType.KEYWORD);
+        List<Attribute> output = List.of(col);
+        String path = "s3://bucket/data.parquet";
+        SimpleSourceMetadata metadata = new SimpleSourceMetadata(output, "test", path);
+        ExternalRelation relation = new ExternalRelation(Source.EMPTY, path, metadata, output, FileList.UNRESOLVED, Map.of(), "ds");
+        FragmentExec plan = new FragmentExec(relation);
+        Set<String> names = TransportEsqlStreamQueryAction.collectIndexNames(plan);
+        assertEquals("ExternalRelation inside FragmentExec must not contribute any index names", Set.of(), names);
     }
 
     public void testMarkPartialFromCompletionInfoFlipsExecutionInfo() {

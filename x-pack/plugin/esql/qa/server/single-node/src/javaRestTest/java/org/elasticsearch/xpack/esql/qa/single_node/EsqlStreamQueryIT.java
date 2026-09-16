@@ -38,6 +38,7 @@ import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.everyItem;
 import static org.hamcrest.Matchers.greaterThan;
+import static org.hamcrest.Matchers.hasItem;
 import static org.hamcrest.Matchers.hasKey;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.instanceOf;
@@ -229,17 +230,17 @@ public class EsqlStreamQueryIT extends ESRestTestCase {
             """);
         assertOK(client().performRequest(bulk3));
 
-        assertUnionDropsNothing("row-view", "ROW f1 = 1", "f1");
-        assertUnionDropsNothing("from-eval-view", "FROM stream-test-3 | EVAL f2 = 2", "f2");
+        assertUnionDropsNothing("row-view", "ROW f1 = 1", "f1", 1);
+        assertUnionDropsNothing("from-eval-view", "FROM stream-test-3 | EVAL f2 = 2", "f2", 2);
     }
 
-    private void assertUnionDropsNothing(String viewSuffix, String viewBody, String viewColumn) throws IOException {
+    private void assertUnionDropsNothing(String viewSuffix, String viewBody, String viewColumn, Object viewColumnValue) throws IOException {
         String viewName = "test-union-view-" + viewSuffix + "-" + getTestName().toLowerCase(java.util.Locale.ROOT);
         Request createView = new Request("PUT", "/_query/view/" + viewName);
         createView.setJsonEntity("{\"query\": \"" + viewBody.replace("\"", "\\\"") + "\"}");
         try {
             client().performRequest(createView);
-            String query = "FROM stream-test, " + viewName + ", (FROM stream-test-2)" + " | KEEP value, sparse_field, " + viewColumn;
+            String query = "FROM stream-test, (FROM " + viewName + "), (FROM stream-test-2)" + " | KEEP value, sparse_field, " + viewColumn;
             List<Map<String, Object>> lines = stream(streamBody(query), "drop_null_columns=true");
             Map<String, Object> header = lines.get(0);
             assertThat("header must contain all_columns", header, hasKey("all_columns"));
@@ -252,6 +253,15 @@ public class EsqlStreamQueryIT extends ESRestTestCase {
                 trimmedNames.contains("sparse_field")
             );
             assertEquals("columns must equal all_columns: nothing is dropped for union-sourced queries", allNames, trimmedNames);
+
+            List<List<Object>> allRows = streamRows(lines);
+            int valueIdx = trimmedNames.indexOf("value");
+            List<Object> values = allRows.stream().map(row -> row.get(valueIdx)).toList();
+            assertThat("rows from the stream-test index branch must reach the stream", values, hasItem(1));
+            assertThat("the (FROM stream-test-2) subquery branch must contribute its document", values, hasItem(10));
+            int viewColIdx = trimmedNames.indexOf(viewColumn);
+            List<Object> viewColValues = allRows.stream().map(row -> row.get(viewColIdx)).toList();
+            assertThat("the view branch must contribute its row", viewColValues, hasItem(viewColumnValue));
         } finally {
             try {
                 client().performRequest(new Request("DELETE", "/_query/view/" + viewName));
@@ -535,7 +545,10 @@ public class EsqlStreamQueryIT extends ESRestTestCase {
             "batch_size=10"
         );
         List<String> streamColumnNames = columnNames(streamLines.get(0), "columns");
-        assertTrue("/_query/stream must keep description because it is populated index-wide", streamColumnNames.contains("description"));
+        assertTrue(
+            "/_query?streaming=true must keep description because it is populated index-wide",
+            streamColumnNames.contains("description")
+        );
     }
 
     public void testDropNullColumnsAliasOfPopulatedFieldIsKept() throws IOException {

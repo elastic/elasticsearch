@@ -349,7 +349,7 @@ public class EsqlQueryLoggingIT extends AbstractEsqlIntegTestCase {
         StreamQueryTestUtils.executeStreamRequest(client(), source, subscriber);
 
         var event = appender.getLastEventAndReset();
-        assertNotNull("expected a query-log event for /_query/stream", event);
+        assertNotNull("expected a query-log event for the streaming query", event);
         var message = getMessageData(event);
         assertMessageSuccess(message, EsqlLogContext.TYPE, query);
 

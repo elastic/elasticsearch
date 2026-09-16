@@ -39,7 +39,7 @@ import static org.elasticsearch.gradle.internal.util.ParamsUtils.loadBuildParams
  * backed by JMH. {@code benchmarkTest} is wired to {@code check}; the {@code benchmark}
  * runner is developer-invoked.
  */
-public class JmhPlugin implements Plugin<Project> {
+public class BenchmarkPlugin implements Plugin<Project> {
 
     public static final String BENCHMARK_SOURCE_SET = "benchmark";
     public static final String BENCHMARK_TEST_SOURCE_SET = "benchmarkTest";
@@ -56,7 +56,7 @@ public class JmhPlugin implements Plugin<Project> {
     private final JavaToolchainService javaToolchains;
 
     @Inject
-    public JmhPlugin(JavaToolchainService javaToolchains) {
+    public BenchmarkPlugin(JavaToolchainService javaToolchains) {
         this.javaToolchains = javaToolchains;
     }
 

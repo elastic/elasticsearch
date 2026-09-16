@@ -17,6 +17,7 @@ import org.apache.lucene.queryparser.classic.QueryParser;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Locale;
+import java.util.regex.Pattern;
 
 /**
  * Utility class for parsing and processing KQL expressions.
@@ -28,6 +29,7 @@ public final class ParserUtils {
     private static final char ESCAPE_CHAR = '\\';
     private static final char QUOTE_CHAR = '"';
     private static final char WILDCARD_CHAR = '*';
+    private static final Pattern UNESCAPED_WILDCARD_PATTERN = Pattern.compile("[^\\\\]*[*].*");
 
     private ParserUtils() {
         throw new UnsupportedOperationException("No need to instantiate this class");
@@ -83,7 +85,7 @@ public final class ParserUtils {
                 Token token = terminalNode.getSymbol();
                 return switch (token.getType()) {
                     case KqlBaseParser.WILDCARD -> true;
-                    case KqlBaseParser.UNQUOTED_LITERAL -> token.getText().matches("[^\\\\]*[*].*");
+                    case KqlBaseParser.UNQUOTED_LITERAL -> UNESCAPED_WILDCARD_PATTERN.matcher(token.getText()).matches();
                     default -> false;
                 };
             } else if (childNode instanceof ParserRuleContext childCtx && hasWildcard(childCtx)) {

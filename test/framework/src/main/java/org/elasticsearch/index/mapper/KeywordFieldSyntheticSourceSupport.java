@@ -54,13 +54,10 @@ public class KeywordFieldSyntheticSourceSupport implements MapperTestCase.Synthe
     public static FieldMapper.DocValuesParameter.Values randomDocValuesParams(boolean allowIgnoredSource, boolean isColumnar) {
         // multi_value=false is only valid in strict-columnar index modes.
         boolean multiValue = isColumnar == false || ESTestCase.randomBoolean();
-        // on_failure=ignore is rejected at parse time while the feature flag is off; keep release builds on FAIL only.
-        FieldMapper.DocValuesParameter.Values.OnFailure onFailure = FieldMapper.DOC_VALUES_ON_FAILURE_FEATURE_FLAG.isEnabled()
-            ? ESTestCase.randomFrom(
-                FieldMapper.DocValuesParameter.Values.OnFailure.FAIL,
-                FieldMapper.DocValuesParameter.Values.OnFailure.IGNORE
-            )
-            : FieldMapper.DocValuesParameter.Values.OnFailure.FAIL;
+        FieldMapper.DocValuesParameter.Values.OnFailure onFailure = ESTestCase.randomFrom(
+            FieldMapper.DocValuesParameter.Values.OnFailure.FAIL,
+            FieldMapper.DocValuesParameter.Values.OnFailure.IGNORE
+        );
 
         // Generate nullability=true only: nullability=false has no synthetic-source roundtrip behavior to fuzz.
         return switch (ESTestCase.randomInt(allowIgnoredSource ? 2 : 1)) {

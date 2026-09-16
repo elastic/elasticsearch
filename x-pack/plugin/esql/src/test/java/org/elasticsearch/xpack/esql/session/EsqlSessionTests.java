@@ -11,6 +11,7 @@ import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.fieldcaps.FieldCapabilitiesFailure;
 import org.elasticsearch.action.support.PlainActionFuture;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.test.ESTestCase;
@@ -21,14 +22,28 @@ import org.elasticsearch.xpack.esql.action.EsqlQueryRequest;
 import org.elasticsearch.xpack.esql.analysis.InSubqueryResolver;
 import org.elasticsearch.xpack.esql.analysis.PreAnalyzer;
 import org.elasticsearch.xpack.esql.core.expression.Alias;
+import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.Literal;
+import org.elasticsearch.xpack.esql.core.expression.ReferenceAttribute;
 import org.elasticsearch.xpack.esql.core.expression.UnresolvedAttribute;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
+import org.elasticsearch.xpack.esql.datasources.DeclaredReadSpec;
+import org.elasticsearch.xpack.esql.datasources.ExternalSchema;
 import org.elasticsearch.xpack.esql.datasources.ExternalSourceResolution;
 import org.elasticsearch.xpack.esql.datasources.ExternalSourceResolver;
 import org.elasticsearch.xpack.esql.datasources.PartitionFilterHintExtractor;
+import org.elasticsearch.xpack.esql.datasources.SchemaReconciliation;
+import org.elasticsearch.xpack.esql.datasources.SourceStatisticsSerializer;
+import org.elasticsearch.xpack.esql.datasources.StorageEntry;
+import org.elasticsearch.xpack.esql.datasources.cache.ExternalSourceCacheService;
+import org.elasticsearch.xpack.esql.datasources.cache.ExternalStats;
+import org.elasticsearch.xpack.esql.datasources.cache.SchemaCacheEntry;
+import org.elasticsearch.xpack.esql.datasources.cache.SchemaCacheKey;
+import org.elasticsearch.xpack.esql.datasources.glob.GlobExpander;
+import org.elasticsearch.xpack.esql.datasources.spi.SimpleSourceMetadata;
+import org.elasticsearch.xpack.esql.datasources.spi.StoragePath;
 import org.elasticsearch.xpack.esql.index.EsIndex;
 import org.elasticsearch.xpack.esql.index.IndexProperties;
 import org.elasticsearch.xpack.esql.index.IndexResolution;
@@ -39,10 +54,12 @@ import org.elasticsearch.xpack.esql.plan.QuerySetting;
 import org.elasticsearch.xpack.esql.plan.QuerySettings;
 import org.elasticsearch.xpack.esql.plan.logical.Aggregate;
 import org.elasticsearch.xpack.esql.plan.logical.Enrich;
+import org.elasticsearch.xpack.esql.plan.logical.ExternalRelation;
 import org.elasticsearch.xpack.esql.plan.logical.Limit;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.esql.plan.logical.UnresolvedExternalRelation;
 
+import java.time.Instant;
 import java.time.ZoneOffset;
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -51,6 +68,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
 
 import static java.util.stream.Collectors.toMap;
@@ -64,6 +82,142 @@ import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.sameInstance;
 
 public class EsqlSessionTests extends ESTestCase {
+
+    public void testUnknownFirstFileWinsRenamePreservesNativeCacheStats() throws Exception {
+        assertPinnedRenamePreservesNativeCacheStats(false, false);
+    }
+
+    public void testKnownFirstFileWinsRenamePreservesNativeCacheStats() throws Exception {
+        assertPinnedRenamePreservesNativeCacheStats(true, false);
+    }
+
+    public void testUnknownFirstFileWinsRenameWithRowDropsPreservesNativeCacheStats() throws Exception {
+        assertPinnedRenamePreservesNativeCacheStats(false, true);
+    }
+
+    public void testKnownFirstFileWinsRenameWithRowDropsPreservesNativeCacheStats() throws Exception {
+        assertPinnedRenamePreservesNativeCacheStats(true, true);
+    }
+
+    private void assertPinnedRenamePreservesNativeCacheStats(boolean knownNativeTypes, boolean dropRowCount) throws Exception {
+        String anchor = "s3://bucket/a.parquet";
+        String drift = "s3://bucket/b.parquet";
+        String resource = anchor + "," + drift;
+        List<Attribute> schema = List.of(
+            new ReferenceAttribute(EMPTY, "y", DataType.INTEGER),
+            new ReferenceAttribute(EMPTY, "z", DataType.INTEGER)
+        );
+        ExternalSchema readSchema = new ExternalSchema(schema);
+        Map<String, Object> config = Map.of("schema_resolution", "first_file_wins");
+        AtomicInteger sourcePathReads = new AtomicInteger();
+        ExternalRelation relation = new ExternalRelation(
+            EMPTY,
+            resource,
+            new SimpleSourceMetadata(schema, "parquet", resource, null, null, Map.of(), config),
+            schema,
+            GlobExpander.fileListOf(
+                List.of(
+                    new StorageEntry(StoragePath.of(anchor), 100, Instant.EPOCH),
+                    new StorageEntry(StoragePath.of(drift), 100, Instant.EPOCH)
+                ),
+                resource
+            ),
+            Map.of(
+                StoragePath.of(anchor),
+                new SchemaReconciliation.FileSchemaInfo(readSchema, null, null, Map.of("x", DataType.INTEGER, "z", DataType.INTEGER)),
+                StoragePath.of(drift),
+                new SchemaReconciliation.FileSchemaInfo(
+                    readSchema,
+                    null,
+                    null,
+                    knownNativeTypes ? Map.of("x", DataType.LONG, "z", DataType.INTEGER) : null
+                )
+            ),
+            null,
+            List.of(),
+            DeclaredReadSpec.of(Map.of("y", "x"), null, Map.of(), Set.of("y"))
+        ) {
+            @Override
+            public String sourcePath() {
+                sourcePathReads.incrementAndGet();
+                return super.sourcePath();
+            }
+        };
+        Map<String, EsqlSession.PinnedColumns> pinnedReads = new HashMap<>();
+        EsqlSession.collectPinnedReads(relation, dropRowCount, pinnedReads);
+        assertEquals("classify the resource once, not once per file", 1, sourcePathReads.get());
+        assertEquals(
+            Map.of(drift, new EsqlSession.PinnedColumns(knownNativeTypes ? Set.of("x") : Set.of("x", "z"), dropRowCount)),
+            pinnedReads
+        );
+
+        Map<String, Object> contribution = Map.of(
+            ExternalStats.MTIME_MILLIS_KEY,
+            0L,
+            SourceStatisticsSerializer.STATS_ROW_COUNT,
+            2L,
+            SourceStatisticsSerializer.columnValueCountKey("x"),
+            0L,
+            SourceStatisticsSerializer.columnNullCountKey("x"),
+            2L,
+            SourceStatisticsSerializer.columnValueCountKey("z"),
+            2L,
+            SourceStatisticsSerializer.columnNullCountKey("z"),
+            0L,
+            SourceStatisticsSerializer.columnMinKey("z"),
+            1,
+            SourceStatisticsSerializer.columnMaxKey("z"),
+            2
+        );
+        Map<String, List<Map<String, Object>>> captured = Map.of(anchor, List.of(contribution), drift, List.of(contribution));
+        Map<String, List<Map<String, Object>>> stripped = EsqlSession.stripPinnedContributions(captured, pinnedReads);
+        assertSame(captured.get(anchor), stripped.get(anchor));
+        assertEquals(0L, contribution.get(SourceStatisticsSerializer.columnValueCountKey("x")));
+        Map<String, Object> strippedDrift = stripped.get(drift).getFirst();
+        assertFalse(strippedDrift.containsKey(SourceStatisticsSerializer.columnValueCountKey("x")));
+        assertFalse(strippedDrift.containsKey(SourceStatisticsSerializer.columnNullCountKey("x")));
+        assertEquals(0L, strippedDrift.get(ExternalStats.MTIME_MILLIS_KEY));
+        assertEquals(dropRowCount == false, strippedDrift.containsKey(SourceStatisticsSerializer.STATS_ROW_COUNT));
+        assertEquals(
+            knownNativeTypes && dropRowCount == false,
+            strippedDrift.containsKey(SourceStatisticsSerializer.columnValueCountKey("z"))
+        );
+
+        try (ExternalSourceCacheService cache = new ExternalSourceCacheService(Settings.EMPTY)) {
+            SchemaCacheKey key = SchemaCacheKey.build(drift, 0L, "parquet", config);
+            Map<String, Object> nativeStats = Map.of(
+                SourceStatisticsSerializer.columnValueCountKey("x"),
+                2L,
+                SourceStatisticsSerializer.columnNullCountKey("x"),
+                0L,
+                SourceStatisticsSerializer.columnMinKey("x"),
+                3_000_000_000L,
+                SourceStatisticsSerializer.columnMaxKey("x"),
+                4_000_000_000L
+            );
+            cache.putSchema(
+                key,
+                SchemaCacheEntry.from(
+                    List.of(new ReferenceAttribute(EMPTY, "x", DataType.LONG), new ReferenceAttribute(EMPTY, "z", DataType.INTEGER)),
+                    "parquet",
+                    drift,
+                    nativeStats,
+                    config
+                )
+            );
+            cache.reconcileSourceStatsFromContributions(stripped);
+
+            SchemaCacheEntry cached = cache.getSchemaIfPresent(key);
+            assertNotNull(cached);
+            Map<String, Object> metadata = cached.safeMetadata();
+            nativeStats.forEach((stat, value) -> assertEquals(stat, value, metadata.get(stat)));
+            assertEquals(dropRowCount ? null : 2L, metadata.get(SourceStatisticsSerializer.STATS_ROW_COUNT));
+            assertEquals(
+                knownNativeTypes && dropRowCount == false ? 2L : null,
+                metadata.get(SourceStatisticsSerializer.columnValueCountKey("z"))
+            );
+        }
+    }
 
     public void testShouldRetryConcreteTimeSeriesResolution() {
         assertTrue(

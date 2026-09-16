@@ -83,15 +83,6 @@ public abstract class AbstractTSDBDocValuesConsumer extends XDocValuesConsumer {
     public static final int INDEX_ORDINAL_RANGE = -2;
 
     /**
-     * Absolute floor for the verbatim-copy size gate, regardless of {@code blockBytesThreshold}.
-     * Prevents pathological fragmentation when {@code blockBytesThreshold} is configured very small
-     * (e.g. in tests via the public {@code ES819TSDBDocValuesFormat(int, int)} constructor), where
-     * every block would otherwise hold one doc and each verbatim copy would flush the pending block
-     * for a handful of bytes, blowing up {@code totalChunks} and both metadata arrays.
-     */
-    static final int MIN_BLOCK_COPY_BYTES = 1 << 16; // 64 KB
-
-    /**
      * Sentinel passed as {@code maxOrd} to mark a field as numeric (no ordinal stream).
      * Ordinal fields pass their actual maximum ordinal value, which is always non-negative.
      */
@@ -365,16 +356,16 @@ public abstract class AbstractTSDBDocValuesConsumer extends XDocValuesConsumer {
                 // over all source segments' BinaryEntry.maxLength, so this is exact — no probe on
                 // fields that never produce single-doc blocks. The MergedBinaryDocValues wrapper
                 // exposes the current sub; Lucene's view (fallback branch) does not.
-                final int minBlockCopyBytes = Math.max(formatConfig.blockBytesThreshold(), MIN_BLOCK_COPY_BYTES);
+                final int blockBytesThreshold = formatConfig.blockBytesThreshold();
                 final MergedBinaryDocValues mergedView = values instanceof MergedBinaryDocValues mv ? mv : null;
                 final boolean mayCopyVerbatim = mergedView != null
                     && binaryWriter instanceof CompressedBinaryBlockWriter
-                    && maxLength >= minBlockCopyBytes;
+                    && maxLength >= blockBytesThreshold;
                 for (int doc = values.nextDoc(); doc != DocIdSetIterator.NO_MORE_DOCS; doc = values.nextDoc()) {
                     if (mayCopyVerbatim) {
                         AbstractTSDBDocValuesProducer.TSDBBinaryDocValues sub = mergedView.currentValues();
                         if (sub != null) {
-                            RawBinaryBlock raw = sub.rawSingleValueBlock(minBlockCopyBytes);
+                            RawBinaryBlock raw = sub.rawSingleValueBlock(blockBytesThreshold);
                             if (raw != null && binaryWriter.addRawBlock(raw)) {
                                 // Block copied verbatim — no decompression on the read side, no
                                 // re-compression here, and neither side materializes the value.

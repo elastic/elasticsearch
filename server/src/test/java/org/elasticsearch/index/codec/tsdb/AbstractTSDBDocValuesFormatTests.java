@@ -2921,19 +2921,14 @@ public abstract class AbstractTSDBDocValuesFormatTests extends BaseDocValuesForm
                     // We need to find the non-null value for this doc.
                     // Use binaryValue() to get the actual value for assertions below.
 
-                    // First probe — before calling binaryValue(). Pass MIN_BLOCK_COPY_BYTES as the
-                    // minimum so that small values in count-limited single-doc blocks (blockCountThreshold=1)
-                    // do not return a raw block and trigger the size assertion below.
-                    RawBinaryBlock raw = tsdb.rawSingleValueBlock(AbstractTSDBDocValuesConsumer.MIN_BLOCK_COPY_BYTES);
+                    // First probe — before calling binaryValue(). Pass the format threshold so
+                    // that small values do not return a raw block and trigger the size assertion.
+                    RawBinaryBlock raw = tsdb.rawSingleValueBlock(threshold);
 
                     if (raw != null) {
                         // This is an oversized value in its own block.
                         assertThat("raw block must have positive uncompressed length", raw.uncompressedLength(), greaterThan(0));
-                        assertThat(
-                            "raw block must meet minimum size",
-                            raw.uncompressedLength(),
-                            greaterThan(AbstractTSDBDocValuesConsumer.MIN_BLOCK_COPY_BYTES - 1)
-                        );
+                        assertThat("raw block must meet minimum size", raw.uncompressedLength(), greaterThan(threshold - 1));
                         oversizedDocIds.add(doc);
                     }
 
@@ -2950,7 +2945,7 @@ public abstract class AbstractTSDBDocValuesFormatTests extends BaseDocValuesForm
                     }
 
                     // Probe again after binaryValue() — must still work and return the same answer.
-                    RawBinaryBlock rawAgain = tsdb.rawSingleValueBlock(AbstractTSDBDocValuesConsumer.MIN_BLOCK_COPY_BYTES);
+                    RawBinaryBlock rawAgain = tsdb.rawSingleValueBlock(threshold);
                     if (raw != null) {
                         assertNotNull("second probe must also return non-null for the same oversized doc", rawAgain);
                         assertEquals(raw.uncompressedLength(), rawAgain.uncompressedLength());

@@ -91,6 +91,31 @@ public class MustacheTests extends ESTestCase {
             }""", result.execute());
     }
 
+    public void testFlatDottedKeyLookup() {
+        // a dotted name that matches a literal flat key in the scope map should resolve to that
+        // key's value, even though it looks like a nested path. this is the behavior used by the
+        // security role-mapping model, which stores metadata as flat keys like "metadata.uid".
+        Map<String, Object> params = Map.of("metadata.uid", "hhornblo");
+        assertScript("{{metadata.uid}}", params, equalTo("hhornblo"));
+
+        // a flat key takes priority over the nested path when both exist
+        Map<String, Object> both = Map.ofEntries(
+            Map.entry("metadata.uid", "flat_val"), //
+            Map.entry("metadata", Map.of("uid", "nested_val")) //
+        );
+        assertScript("{{metadata.uid}}", both, equalTo("flat_val"));
+
+        // a flat dotted key nested inside a regular key is NOT reachable via dot-path notation:
+        // resolving {{foo.bar.baz}} navigates foo -> inner map, then looks for "bar" (not "bar.baz")
+        // in the inner map, finds nothing, and renders as "".
+        Map<String, Object> mixed = Map.of("foo", Map.of("bar.baz", "quux"));
+        assertScript("{{foo.bar.baz}}", mixed, equalTo("")); // miss!
+
+        // but it IS reachable via a section that pushes the inner map onto the scope stack, where
+        // the literal-key lookup can then match "bar.baz" directly.
+        assertScript("{{#foo}}{{bar.baz}}{{/foo}}", mixed, equalTo("quux"));
+    }
+
     public void testArrayAccess() throws Exception {
         String template = "{{data.0}} {{data.1}}";
         TemplateScript.Factory factory = engine.compile(null, template, TemplateScript.CONTEXT, Collections.emptyMap());

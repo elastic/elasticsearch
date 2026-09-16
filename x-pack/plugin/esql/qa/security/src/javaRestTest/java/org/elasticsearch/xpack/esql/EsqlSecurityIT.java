@@ -782,7 +782,7 @@ public class EsqlSecurityIT extends ESRestTestCase {
             Request request = new Request("POST", "_query");
             XContentBuilder json = JsonXContent.contentBuilder();
             json.startObject();
-            json.field("query", "FROM index,indexpartial | SORT value DESC | LIMIT 2 | KEEP value, partial");
+            json.field("query", "FROM index,indexpartial | SORT value DESC | LIMIT 2 | KEEP value, org");
             json.field("profile", true);
             json.field("accept_pragma_risks", true);
             json.startObject("pragma");
@@ -796,7 +796,7 @@ public class EsqlSecurityIT extends ESRestTestCase {
             Response response = client().performRequest(request);
             assertOK(response);
             Map<String, Object> responseMap = entityAsMap(response);
-            assertThat(responseMap.get("values"), equalTo(List.of(Arrays.asList(40.0, null), List.of(10.0, "sales10.0"))));
+            assertThat(responseMap.get("values"), equalTo(List.of(Arrays.asList(40.0, null), List.of(10.0, "sales"))));
             assertTrue("query profile must contain the remote fetch operator", containsRemoteFetchOperator(responseMap.get("profile")));
         } finally {
             setRemoteFetchTopNEnabled(null);

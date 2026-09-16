@@ -87,7 +87,7 @@ remote_fetch_dls_fls:
     - names: [ 'index' ]
       privileges: [ 'read' ]
       field_security:
-        grant: [ value, partial ]
+        grant: [ value, org ]
       query: '{"term":{"org":"sales"}}'
     - names: [ 'indexpartial' ]
       privileges: [ 'read' ]

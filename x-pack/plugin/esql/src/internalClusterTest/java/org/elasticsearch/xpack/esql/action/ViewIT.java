@@ -31,6 +31,7 @@ import java.util.concurrent.TimeUnit;
 
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.getValuesList;
+import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 
@@ -117,6 +118,14 @@ public class ViewIT extends AbstractEsqlIntegTestCase {
         try (EsqlQueryResponse response = run("FROM ds-view")) {
             assertThat(getValuesList(response), equalTo(List.of(List.of(42))));
         }
+    }
+
+    public void testViewIsInvisibleInFieldCaps() {
+        assertAcked(indicesAdmin().prepareCreate("my-index"));
+        assertAcked(createView("my-view", "FROM my-index"));
+
+        String[] indices = client().prepareFieldCaps("*").setFields("*").get().getIndices();
+        assertThat(List.of(indices), contains("my-index"));
     }
 
     private AcknowledgedResponse createView(String viewName, String query) {

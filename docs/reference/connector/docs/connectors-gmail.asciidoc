@@ -104,6 +104,11 @@ Include spam and trash emails::
 Toggle to fetch spam and trash emails.
 Also works with document level security (DLS).
 
+Index full raw email (including headers)::
+Toggle to index the full raw RFC 822 message.
+Disabled by default: only the email body (preferring `text/plain` over `text/html`) and a minimal set of headers (`Subject`, `From`, `Reply-To`, `To`, `Cc`, `Bcc`, `Date`, `Message-ID`) are indexed; routing/authentication headers and binary attachments are dropped.
+Enable to restore the passthrough behavior for edge cases where body extraction misses content.
+
 Enable document level security::
 Toggle to enable <<es-dls,document level security (DLS>>.
 DLS is supported for the GMail connector.
@@ -280,6 +285,11 @@ Go to `Google Workspace Admin Console` -> `Account` and copy the value under `Cu
 `Include spam and trash emails`::
 Toggle to fetch spam and trash emails.
 Also works with DLS.
+
+`include_full_raw_message`::
+Toggle to index the full raw RFC 822 message.
+Disabled by default: only the email body (preferring `text/plain` over `text/html`) and a minimal set of headers (`Subject`, `From`, `Reply-To`, `To`, `Cc`, `Bcc`, `Date`, `Message-ID`) are indexed; routing/authentication headers and binary attachments are dropped.
+Enable to restore the passthrough behavior for edge cases where body extraction misses content.
 
 `Enable document level security`::
 Toggle to enable <<es-dls,document level security (DLS>>.

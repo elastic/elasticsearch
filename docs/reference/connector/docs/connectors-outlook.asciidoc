@@ -134,6 +134,12 @@ MIID+jCCAuKgAwIBAgIGAJJMzlxLMA0GCSqGSIb3DQEBCwUAMHoxCzAJBgNVBAYT
 +
 *Note:* This configuration is applicable for `Outlook Server` only.
 
+Index full raw email (including headers)::
+Toggle to index the full raw MIME message.
+Disabled by default: only the email body (preferring `text/plain` over `text/html`) and a minimal set of headers (`Subject`, `From`, `Reply-To`, `To`, `Cc`, `Bcc`, `Date`, `Message-ID`) are indexed; routing/authentication headers and binary attachments are dropped.
+Enable to restore the passthrough behavior for edge cases where body extraction misses content.
+Introduced in 8.19.22.
+
 Document level security::
 Toggle to enable <<es-dls, Document level security (DLS)>>.
 When enabled:
@@ -342,6 +348,12 @@ MIID+jCCAuKgAwIBAgIGAJJMzlxLMA0GCSqGSIb3DQEBCwUAMHoxCzAJBgNVBAYT
 `use_text_extraction_service`::
 Use <<es-connectors-content-extraction-data-extraction-service,self-hosted content extraction service>>.
 Default value is `False`.
+
+`include_full_raw_message`::
+Toggle to index the full raw MIME message.
+Disabled by default: only the email body (preferring `text/plain` over `text/html`) and a minimal set of headers (`Subject`, `From`, `Reply-To`, `To`, `Cc`, `Bcc`, `Date`, `Message-ID`) are indexed; routing/authentication headers and binary attachments are dropped.
+Enable to restore the passthrough behavior for edge cases where body extraction misses content.
+Introduced in 8.19.22.
 
 `document_level_security`::
 Toggle to enable <<es-dls, Document level security (DLS)>>.

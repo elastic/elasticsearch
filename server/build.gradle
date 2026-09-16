@@ -45,7 +45,9 @@ dependencies {
   implementation project(":libs:lucene-store")
   implementation project(":libs:simdvec")
   implementation project(":libs:simdjson")
-  implementation project(":libs:columnar")
+  // On the api surface rather than implementation: FieldMapper#columnarStringOptions returns one of its
+  // types, so a mapper outside the server has to be able to name it.
+  api project(":libs:columnar")
   implementation project(":libs:entitlement")
 
   // lucene

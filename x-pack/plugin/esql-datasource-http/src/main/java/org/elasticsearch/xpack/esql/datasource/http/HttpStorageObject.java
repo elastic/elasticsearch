@@ -9,6 +9,7 @@ package org.elasticsearch.xpack.esql.datasource.http;
 
 import org.apache.http.HttpHeaders;
 import org.apache.http.HttpStatus;
+import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.common.breaker.CircuitBreakingException;
 import org.elasticsearch.core.CheckedFunction;
@@ -34,7 +35,9 @@ import java.time.format.DateTimeParseException;
 import java.util.Map;
 import java.util.OptionalLong;
 import java.util.concurrent.CompletionException;
+import java.util.concurrent.ExecutionException;
 import java.util.concurrent.Executor;
+import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.atomic.AtomicReference;
 
 /**
@@ -54,6 +57,8 @@ public final class HttpStorageObject extends AbstractMeteredStorageObject {
     private final StoragePath path;
     private final URI uri;  // Cached URI to avoid repeated parsing
     private final HttpConfiguration config;
+    /** Null in unit tests that construct this object directly; production wires the provider's idle scheduler. */
+    private final ScheduledExecutorService idleScheduler;
 
     // Cached metadata to avoid repeated HEAD requests
     private Long cachedLength;
@@ -66,6 +71,10 @@ public final class HttpStorageObject extends AbstractMeteredStorageObject {
      * Creates an HttpStorageObject without pre-known metadata.
      */
     public HttpStorageObject(HttpClient client, StoragePath path, HttpConfiguration config) {
+        this(client, path, config, null);
+    }
+
+    HttpStorageObject(HttpClient client, StoragePath path, HttpConfiguration config, ScheduledExecutorService idleScheduler) {
         if (client == null) {
             throw new IllegalArgumentException("client cannot be null");
         }
@@ -79,13 +88,18 @@ public final class HttpStorageObject extends AbstractMeteredStorageObject {
         this.path = path;
         this.uri = URI.create(path.toString());
         this.config = config;
+        this.idleScheduler = idleScheduler;
     }
 
     /**
      * Creates an HttpStorageObject with pre-known length.
      */
     public HttpStorageObject(HttpClient client, StoragePath path, HttpConfiguration config, long length) {
-        this(client, path, config);
+        this(client, path, config, length, (ScheduledExecutorService) null);
+    }
+
+    HttpStorageObject(HttpClient client, StoragePath path, HttpConfiguration config, long length, ScheduledExecutorService idleScheduler) {
+        this(client, path, config, idleScheduler);
         this.cachedLength = length;
     }
 
@@ -93,7 +107,18 @@ public final class HttpStorageObject extends AbstractMeteredStorageObject {
      * Creates an HttpStorageObject with pre-known length and last modified time.
      */
     public HttpStorageObject(HttpClient client, StoragePath path, HttpConfiguration config, long length, Instant lastModified) {
-        this(client, path, config, length);
+        this(client, path, config, length, lastModified, null);
+    }
+
+    HttpStorageObject(
+        HttpClient client,
+        StoragePath path,
+        HttpConfiguration config,
+        long length,
+        Instant lastModified,
+        ScheduledExecutorService idleScheduler
+    ) {
+        this(client, path, config, length, idleScheduler);
         this.cachedLastModified = lastModified;
     }
 
@@ -115,7 +140,7 @@ public final class HttpStorageObject extends AbstractMeteredStorageObject {
                     bytesHolder[0] = contentLength.getAsLong();
                 }
                 InputStream body = validateHeaders(response.headers(), 0L, false, response.body());
-                return new HttpTransientTypingInputStream(body, path);
+                return wrapBody(body);
             });
         } finally {
             counters.addRequest(System.nanoTime() - startNanos, bytesHolder[0]);
@@ -210,12 +235,14 @@ public final class HttpStorageObject extends AbstractMeteredStorageObject {
                 // 200 = OK (server doesn't support ranges but returned full content)
                 if (statusCode == HttpStatus.SC_PARTIAL_CONTENT) {
                     InputStream body = validateHeaders(response.headers(), position, toEnd == false, response.body());
-                    return new HttpTransientTypingInputStream(body, path);
+                    return wrapBody(body);
                 } else if (statusCode == HttpStatus.SC_OK) {
-                    // Server doesn't support Range requests, skip to position manually. The skip runs on the raw
-                    // body (it is open-phase setup, retried by the open loop on failure); typing wraps the
-                    // delivered tail so a mid-read drop after the skip resumes byte-exactly.
-                    InputStream stream = response.body();
+                    // Server doesn't support Range requests, skip to position manually. The skip runs on the
+                    // idle-wrapped body (open-phase setup, retried by the open loop on failure); typing wraps
+                    // the delivered tail so a mid-read drop after the skip resumes byte-exactly. Idle wrap
+                    // is applied before skip so a stall while seeking is bounded the same way as a stall
+                    // while reading.
+                    InputStream stream = wrapIdle(response.body());
                     long skipped = stream.skip(position);
                     if (skipped != position) {
                         stream.close();
@@ -326,7 +353,7 @@ public final class HttpStorageObject extends AbstractMeteredStorageObject {
 
         long startNanos = System.nanoTime();
         onReadComplete(
-            client.sendAsync(request, DirectByteBufferBodyHandlers.ofRangeRead(position, (int) length, factory)),
+            client.sendAsync(request, DirectByteBufferBodyHandlers.ofRangeRead(position, (int) length, factory, path)),
             (response, throwable) -> {
                 if (throwable != null) {
                     counters.addRequest(System.nanoTime() - startNanos, 0L);
@@ -465,6 +492,17 @@ public final class HttpStorageObject extends AbstractMeteredStorageObject {
         }
     }
 
+    /**
+     * Idle-timeout the body (S3 socket-timeout parity) then type mid-read faults as transient.
+     */
+    private InputStream wrapBody(InputStream body) {
+        return new HttpTransientTypingInputStream(wrapIdle(body), path);
+    }
+
+    private InputStream wrapIdle(InputStream body) {
+        return IdleTimeoutInputStream.wrap(body, config.idleTimeout(), path, idleScheduler);
+    }
+
     private InputStream validateHeaders(java.net.http.HttpHeaders headers, long position, boolean closedRange, InputStream body)
         throws IOException {
         try {
@@ -543,19 +581,26 @@ public final class HttpStorageObject extends AbstractMeteredStorageObject {
     }
 
     /**
-     * Types an async {@code sendAsync} failure. Unwraps {@link CompletionException} so the same
-     * closed-keep-alive {@link IOException} / {@link IllegalStateException} that {@link #sendChecked}
-     * sees is classified here too; other faults keep the path-prefixed {@link IOException} wrapper.
+     * Types an async {@code sendAsync} failure. A circuit-breaker trip anywhere in the chain is
+     * returned first. An already-typed {@link ExternalUnavailableException} anywhere in the chain is
+     * returned unchanged so its retry and status signal is preserved — including the JDK
+     * {@code CompletionException(IOException("HTTP body processing failed: …", eue))} wrap of a 206
+     * length mismatch. One-level unwrap of {@link CompletionException} and {@link ExecutionException}
+     * then types a closed-keep-alive {@link IOException} / {@link IllegalStateException} the same way
+     * {@link #sendChecked} does. Cause is not peeled unconditionally: that would drop an
+     * {@link ExternalUnavailableException} that already has a transport cause. Other faults keep the
+     * path-prefixed {@link IOException} wrapper.
      */
     private Exception mapAsyncSendFailure(Throwable throwable) {
         CircuitBreakingException breakerTrip = unwrapBreakerTrip(throwable, "HTTP read failed for", path);
         if (breakerTrip != null) {
             return breakerTrip;
         }
-        Throwable cause = throwable instanceof CompletionException && throwable.getCause() != null ? throwable.getCause() : throwable;
-        if (cause instanceof ExternalUnavailableException eue) {
+        if (ExceptionsHelper.unwrap(throwable, ExternalUnavailableException.class) instanceof ExternalUnavailableException eue) {
             return eue;
         }
+        Throwable cause = (throwable instanceof CompletionException || throwable instanceof ExecutionException)
+            && throwable.getCause() != null ? throwable.getCause() : throwable;
         if (cause instanceof IOException || cause instanceof IllegalStateException) {
             return typeTransportFailure((Exception) cause);
         }

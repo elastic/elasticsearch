@@ -36,7 +36,7 @@ import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
 import org.elasticsearch.telemetry.apm.internal.APMAgentSettings;
 import org.elasticsearch.telemetry.apm.internal.export.MeterSupplier;
-import org.elasticsearch.telemetry.apm.internal.metrics.spi.SdkMeterProviderCustomizer;
+import org.elasticsearch.telemetry.apm.internal.metrics.spi.MetricReaderProvider;
 
 import java.nio.file.Path;
 import java.security.GeneralSecurityException;
@@ -71,25 +71,21 @@ public class OtelSdkExportMeterSupplier implements MeterSupplier {
     private final Settings settings;
     private final Path diskBufferPath;
     @Nullable
-    private final SdkMeterProviderCustomizer meterProviderCustomizer;
+    private final MetricReaderProvider metricReaderProvider;
     private volatile OTelMetricsResources resources;
     private final Object mutex = new Object();
 
-    public OtelSdkExportMeterSupplier(
-        Settings settings,
-        Path diskBufferPath,
-        @Nullable SdkMeterProviderCustomizer meterProviderCustomizer
-    ) {
+    public OtelSdkExportMeterSupplier(Settings settings, Path diskBufferPath, @Nullable MetricReaderProvider metricReaderProvider) {
         this.settings = settings;
         this.diskBufferPath = diskBufferPath;
-        this.meterProviderCustomizer = meterProviderCustomizer;
+        this.metricReaderProvider = metricReaderProvider;
     }
 
     /** For testing: pre-initializes resources so tests can inject readable providers. */
     OtelSdkExportMeterSupplier(Settings settings, Path diskBufferPath, OTelMetricsResources testResources) {
         this.settings = settings;
         this.diskBufferPath = diskBufferPath;
-        this.meterProviderCustomizer = null;
+        this.metricReaderProvider = null;
         this.resources = testResources;
     }
 
@@ -157,8 +153,8 @@ public class OtelSdkExportMeterSupplier implements MeterSupplier {
             .registerMetricReader(reader, instrumentType -> METRIC_CARDINALITY_LIMIT);
         registerDisabledMetricViews(builder, settings);
 
-        if (meterProviderCustomizer != null) {
-            builder = meterProviderCustomizer.customize(builder);
+        if (metricReaderProvider != null) {
+            builder.registerMetricReader(metricReaderProvider.getMetricReader());
         }
 
         return builder.build();

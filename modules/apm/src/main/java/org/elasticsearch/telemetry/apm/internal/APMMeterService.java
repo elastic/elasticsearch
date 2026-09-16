@@ -26,7 +26,7 @@ import org.elasticsearch.telemetry.apm.internal.export.agent.AgentExportMeterSup
 import org.elasticsearch.telemetry.apm.internal.export.otelsdk.OtelSdkExportMeterSupplier;
 import org.elasticsearch.telemetry.apm.internal.export.otelsdk.OtelSdkSettings;
 import org.elasticsearch.telemetry.apm.internal.metrics.APMMeterRegistry;
-import org.elasticsearch.telemetry.apm.internal.metrics.spi.SdkMeterProviderCustomizer;
+import org.elasticsearch.telemetry.apm.internal.metrics.spi.MetricReaderProvider;
 
 import java.nio.file.Path;
 import java.util.concurrent.TimeUnit;
@@ -44,8 +44,8 @@ public class APMMeterService extends AbstractLifecycleComponent {
 
     protected volatile boolean enabled;
 
-    public APMMeterService(Settings settings, Path diskBufferPath, @Nullable SdkMeterProviderCustomizer meterProviderConfigurer) {
-        this(settings, createOtelMeterSupplier(settings, diskBufferPath, meterProviderConfigurer), new NoOpMeterSupplier());
+    public APMMeterService(Settings settings, Path diskBufferPath, @Nullable MetricReaderProvider metricReaderProvider) {
+        this(settings, createOtelMeterSupplier(settings, diskBufferPath, metricReaderProvider), new NoOpMeterSupplier());
     }
 
     public APMMeterService(Settings settings, MeterSupplier otelMeterSupplier, MeterSupplier noopMeterSupplier) {
@@ -60,11 +60,11 @@ public class APMMeterService extends AbstractLifecycleComponent {
     private static MeterSupplier createOtelMeterSupplier(
         Settings settings,
         Path diskBufferPath,
-        @Nullable SdkMeterProviderCustomizer meterProviderCustomizer
+        @Nullable MetricReaderProvider metricReaderProvider
     ) {
         boolean otelMetricsEnabled = Booleans.parseBoolean(System.getProperty(OTEL_METRICS_ENABLED_SYSTEM_PROPERTY, "false"));
         if (otelMetricsEnabled) {
-            return new OtelSdkExportMeterSupplier(settings, diskBufferPath, meterProviderCustomizer);
+            return new OtelSdkExportMeterSupplier(settings, diskBufferPath, metricReaderProvider);
         } else {
             return new AgentExportMeterSupplier(settings);
         }

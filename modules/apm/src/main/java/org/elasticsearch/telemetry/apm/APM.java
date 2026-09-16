@@ -27,7 +27,7 @@ import org.elasticsearch.telemetry.apm.internal.APMLoggingService;
 import org.elasticsearch.telemetry.apm.internal.APMMeterService;
 import org.elasticsearch.telemetry.apm.internal.APMTelemetryProvider;
 import org.elasticsearch.telemetry.apm.internal.export.otelsdk.OtelSdkSettings;
-import org.elasticsearch.telemetry.apm.internal.metrics.spi.SdkMeterProviderCustomizer;
+import org.elasticsearch.telemetry.apm.internal.metrics.spi.MetricReaderProvider;
 import org.elasticsearch.telemetry.apm.internal.tracing.APMTracer;
 
 import java.nio.file.Path;
@@ -59,7 +59,7 @@ public class APM extends Plugin implements NetworkPlugin, TelemetryPlugin, Exten
 
     private final SetOnce<APMTelemetryProvider> telemetryProvider = new SetOnce<>();
     private final Settings settings;
-    private final SetOnce<SdkMeterProviderCustomizer> meterProviderCustomizer = new SetOnce<>();
+    private final SetOnce<MetricReaderProvider> metricReaderProvider = new SetOnce<>();
 
     public APM(Settings settings) {
         this.settings = settings;
@@ -67,11 +67,11 @@ public class APM extends Plugin implements NetworkPlugin, TelemetryPlugin, Exten
 
     @Override
     public void loadExtensions(ExtensionLoader loader) {
-        List<SdkMeterProviderCustomizer> customizers = loader.loadExtensions(SdkMeterProviderCustomizer.class);
-        assert customizers.size() <= 1 : "There must be at most 1 SdkMeterProviderCustomizer instance provided";
+        List<MetricReaderProvider> metricReaderProviders = loader.loadExtensions(MetricReaderProvider.class);
+        assert metricReaderProviders.size() <= 1 : "There must be at most 1 MetricReaderProvider instance provided";
 
-        if (customizers.isEmpty() == false) {
-            meterProviderCustomizer.set(customizers.getFirst());
+        if (metricReaderProviders.isEmpty() == false) {
+            metricReaderProvider.set(metricReaderProviders.getFirst());
         }
     }
 
@@ -88,7 +88,7 @@ public class APM extends Plugin implements NetworkPlugin, TelemetryPlugin, Exten
             environment.configDir(),
             filterProviders,
             logResourceProvider,
-            meterProviderCustomizer.get()
+            metricReaderProvider.get()
         );
         telemetryProvider.set(apmTelemetryProvider);
         return apmTelemetryProvider;

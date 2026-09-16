@@ -9,11 +9,14 @@ package org.elasticsearch.xpack.security.ingest;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.cluster.metadata.ProjectId;
+import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.ingest.AbstractProcessor;
 import org.elasticsearch.ingest.IngestDocument;
 import org.elasticsearch.ingest.Processor;
+import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xpack.core.XPackSettings;
 import org.elasticsearch.xpack.core.security.SecurityContext;
 import org.elasticsearch.xpack.core.security.authc.Authentication;
@@ -155,9 +158,13 @@ public final class SetSecurityUserProcessor extends AbstractProcessor {
                         if (apiKeyId != NOT_FOUND) {
                             apiKeyField.put("id", apiKeyId);
                         }
-                        final Map<String, Object> apiKeyMetadata = ApiKeyService.getApiKeyMetadata(authentication);
-                        if (false == apiKeyMetadata.isEmpty()) {
-                            apiKeyField.put("metadata", apiKeyMetadata);
+
+                        final BytesReference rawMetadata = ApiKeyService.getApiKeyMetadata(authentication);
+                        if (rawMetadata != null) {
+                            final Map<String, Object> apiKeyMetadata = parseApiKeyMetadata(rawMetadata);
+                            if (false == apiKeyMetadata.isEmpty()) {
+                                apiKeyField.put("metadata", apiKeyMetadata);
+                            }
                         }
 
                         if (false == apiKeyField.isEmpty()) {
@@ -193,6 +200,10 @@ public final class SetSecurityUserProcessor extends AbstractProcessor {
         }
         document.setFieldValue(field, userObject);
         return document;
+    }
+
+    private static Map<String, Object> parseApiKeyMetadata(BytesReference bytes) {
+        return XContentHelper.convertToMap(bytes, false, XContentType.JSON).v2();
     }
 
     @SuppressWarnings("unchecked")

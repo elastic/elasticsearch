@@ -2644,12 +2644,14 @@ public class ApiKeyService implements Closeable {
     }
 
     /**
-     * If the authentication has type of api_key, returns the metadata associated to the
-     * API key.
+     * If the authentication has type of api_key, returns the raw metadata bytes associated with the
+     * API key, or {@code null} if no metadata is present.
      * @param authentication {@link Authentication}
-     * @return A map for the metadata or an empty map if no metadata is found.
+     * @return the raw metadata bytes, or {@code null} if no metadata is found
+     * @throws IllegalArgumentException if the authentication is not an API key authentication
      */
-    public static Map<String, Object> getApiKeyMetadata(Authentication authentication) {
+    @Nullable
+    public static BytesReference getApiKeyMetadata(Authentication authentication) {
         if (false == authentication.isAuthenticatedAsApiKey()) {
             throw new IllegalArgumentException(
                 "authentication realm must be ["
@@ -2659,17 +2661,7 @@ public class ApiKeyService implements Closeable {
                     + "]"
             );
         }
-        final Object apiKeyMetadata = authentication.getEffectiveSubject().getMetadata().get(AuthenticationField.API_KEY_METADATA_KEY);
-        if (apiKeyMetadata != null) {
-            final Tuple<XContentType, Map<String, Object>> tuple = XContentHelper.convertToMap(
-                (BytesReference) apiKeyMetadata,
-                false,
-                XContentType.JSON
-            );
-            return tuple.v2();
-        } else {
-            return Map.of();
-        }
+        return (BytesReference) authentication.getEffectiveSubject().getMetadata().get(AuthenticationField.API_KEY_METADATA_KEY);
     }
 
     final class CachedApiKeyHashResult {

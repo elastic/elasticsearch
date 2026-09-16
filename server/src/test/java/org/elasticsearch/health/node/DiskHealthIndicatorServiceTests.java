@@ -395,11 +395,7 @@ public class DiskHealthIndicatorServiceTests extends ESTestCase {
             impact.impactDescription(),
             equalTo(
                 "Cannot insert or update documents in the affected indices ["
-                    + getTruncatedProjectIndices(
-                        toProjectIndices(Set.of(indexName)),
-                        clusterService.state().metadata(),
-                        multiProject
-                    )
+                    + getTruncatedProjectIndices(toProjectIndices(Set.of(indexName)), clusterService.state().metadata(), multiProject)
                     + "]."
             )
         );
@@ -459,11 +455,7 @@ public class DiskHealthIndicatorServiceTests extends ESTestCase {
             impact.impactDescription(),
             equalTo(
                 "Cannot insert or update documents in the affected indices ["
-                    + getTruncatedProjectIndices(
-                        toProjectIndices(Set.of(indexName)),
-                        clusterService.state().metadata(),
-                        multiProject
-                    )
+                    + getTruncatedProjectIndices(toProjectIndices(Set.of(indexName)), clusterService.state().metadata(), multiProject)
                     + "]."
             )
         );
@@ -542,11 +534,7 @@ public class DiskHealthIndicatorServiceTests extends ESTestCase {
             result.impacts().getFirst().impactDescription(),
             equalTo(
                 "Cannot insert or update documents in the affected indices ["
-                    + getTruncatedProjectIndices(
-                        toProjectIndices(blockedIndices),
-                        clusterService.state().metadata(),
-                        multiProject
-                    )
+                    + getTruncatedProjectIndices(toProjectIndices(blockedIndices), clusterService.state().metadata(), multiProject)
                     + "]."
             )
         );
@@ -808,11 +796,7 @@ public class DiskHealthIndicatorServiceTests extends ESTestCase {
             impacts.getFirst().impactDescription(),
             equalTo(
                 "Cannot insert or update documents in the affected indices ["
-                    + getTruncatedProjectIndices(
-                        toProjectIndices(Set.of(indexName)),
-                        clusterService.state().metadata(),
-                        multiProject
-                    )
+                    + getTruncatedProjectIndices(toProjectIndices(Set.of(indexName)), clusterService.state().metadata(), multiProject)
                     + "]."
             )
         );

@@ -53,6 +53,7 @@ public final class BytesRefArrayState implements GroupingAggregatorState, Releas
     private final BigArrays bigArrays;
     private final CircuitBreaker breaker;
     private final String breakerLabel;
+    private final long pagedPartitionThresholdBytes;
     private ObjectArray<BreakingBytesRefBuilder> values;
     private long totalValueBytes;
     private int totalValueCount;
@@ -63,9 +64,14 @@ public final class BytesRefArrayState implements GroupingAggregatorState, Releas
     private boolean groupIdTrackingEnabled;
 
     BytesRefArrayState(BigArrays bigArrays, CircuitBreaker breaker, String breakerLabel) {
+        this(bigArrays, breaker, breakerLabel, PAGED_PARTITION_THRESHOLD_BYTES);
+    }
+
+    BytesRefArrayState(BigArrays bigArrays, CircuitBreaker breaker, String breakerLabel, long pagedPartitionThresholdBytes) {
         this.bigArrays = bigArrays;
         this.breaker = breaker;
         this.breakerLabel = breakerLabel;
+        this.pagedPartitionThresholdBytes = pagedPartitionThresholdBytes;
         this.values = bigArrays.newObjectArray(0);
     }
 
@@ -343,7 +349,7 @@ public final class BytesRefArrayState implements GroupingAggregatorState, Releas
             this.partitionBreaker = partitionBreaker;
             final int avgKeysPerPartition = Math.max(Math.ceilDiv(totalValueCount, NUM_PARTITIONS), 1);
             final int avgBytesPerPartition = (int) Math.ceilDiv(Math.max(totalValueBytes, 1L), NUM_PARTITIONS);
-            if (totalValueBytes <= PAGED_PARTITION_THRESHOLD_BYTES) {
+            if (totalValueBytes <= pagedPartitionThresholdBytes) {
                 flatState = new FlatBytesRefPartitionedState(
                     partitionBreaker,
                     avgKeysPerPartition,

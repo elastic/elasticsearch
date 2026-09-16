@@ -302,6 +302,7 @@ public class CustomService extends SenderService {
         List<EmbeddingRequestChunker.BatchRequestAndListener> batchedRequests = new EmbeddingRequestChunker<>(
             inputs,
             customModel.getServiceSettings().getBatchSize(),
+            getRegexReadLimitFactor(),
             customModel.getConfigurations().getChunkingSettings()
         ).batchRequestsWithListeners(listener);
 

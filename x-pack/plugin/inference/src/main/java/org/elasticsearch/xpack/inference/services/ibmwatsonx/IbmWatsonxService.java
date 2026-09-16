@@ -309,6 +309,7 @@ public class IbmWatsonxService extends SenderService {
         var batchedRequests = new EmbeddingRequestChunker<>(
             input,
             EMBEDDING_MAX_BATCH_SIZE,
+            getRegexReadLimitFactor(),
             ibmWatsonxModel.getConfigurations().getChunkingSettings()
         ).batchRequestsWithListeners(listener);
 

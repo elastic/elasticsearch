@@ -15,7 +15,6 @@ import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
 
 import java.util.List;
 
-import static org.elasticsearch.xpack.esql.EsqlTestUtils.analyzer;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.withDefaultLimitWarning;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.instanceOf;
@@ -27,6 +26,10 @@ import static org.hamcrest.Matchers.instanceOf;
  * {@code LogicalPlanOptimizerSubqueryGoldenTests}.
  */
 public class LogicalPlanOptimizerSubqueryTests extends AbstractLogicalPlanOptimizerTests {
+
+    public LogicalPlanOptimizerSubqueryTests(VersionMode versionMode) {
+        super(versionMode);
+    }
 
     /**
      * {@code SORT | LIMIT} is rewritten to {@code TopN}; the message must be

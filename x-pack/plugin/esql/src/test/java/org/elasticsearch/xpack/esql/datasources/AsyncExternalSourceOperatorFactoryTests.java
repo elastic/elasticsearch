@@ -186,9 +186,9 @@ public class AsyncExternalSourceOperatorFactoryTests extends ESTestCase {
     }
 
     /**
-     * Engine-owned names, including a physical {@code _file.*} attribute, are unioned into
-     * {@code partitionColumnNames} so VirtualColumnIterator materializes them. {@code _rowPosition}
-     * is a {@link MetadataAttribute} and must stay out of that set.
+     * Bound metadata names are unioned into {@code partitionColumnNames} so VirtualColumnIterator
+     * materializes them. A physical {@code _file.*} column is not engine-owned and stays out of
+     * that set, as does {@code _rowPosition} (a {@link MetadataAttribute}).
      */
     public void testPartitionColumnNamesUnionEngineOwnedAndExcludeRowPosition() {
         Attribute value = new FieldAttribute(
@@ -203,7 +203,8 @@ public class AsyncExternalSourceOperatorFactoryTests extends ESTestCase {
         AsyncExternalSourceOperatorFactory factory = factoryWithAttributes(List.of(value, boundIndex, physicalFileSize, rowPosition));
 
         assertTrue(rowPosition instanceof MetadataAttribute);
-        assertThat(factory.partitionColumnNames(), Matchers.containsInAnyOrder("_index", FileMetadataColumns.SIZE));
+        assertThat(factory.partitionColumnNames(), Matchers.contains("_index"));
+        assertFalse(factory.partitionColumnNames().contains(FileMetadataColumns.SIZE));
         assertFalse(factory.partitionColumnNames().contains(ColumnExtractor.ROW_POSITION_COLUMN));
     }
 

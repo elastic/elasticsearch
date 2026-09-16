@@ -9,6 +9,7 @@ package org.elasticsearch.xpack.esql.analysis;
 
 import org.elasticsearch.cluster.metadata.DataSourceReference;
 import org.elasticsearch.cluster.metadata.Dataset;
+import org.elasticsearch.cluster.metadata.DatasetMapping;
 import org.elasticsearch.cluster.metadata.ProjectId;
 import org.elasticsearch.cluster.metadata.ProjectMetadata;
 import org.elasticsearch.indices.TestIndexNameExpressionResolver;
@@ -19,14 +20,17 @@ import org.elasticsearch.xpack.esql.action.EsqlCapabilities;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.expression.ExternalMetadataAttribute;
 import org.elasticsearch.xpack.esql.core.expression.MetadataAttribute;
+import org.elasticsearch.xpack.esql.core.expression.ReferenceAttribute;
 import org.elasticsearch.xpack.esql.core.expression.VirtualAttribute;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.datasources.DatasetRewriter;
+import org.elasticsearch.xpack.esql.datasources.ExternalMetadataColumns;
 import org.elasticsearch.xpack.esql.datasources.FileMetadataColumns;
 import org.elasticsearch.xpack.esql.datasources.StorageEntry;
 import org.elasticsearch.xpack.esql.datasources.glob.GlobExpander;
 import org.elasticsearch.xpack.esql.datasources.metadata.DataSource;
 import org.elasticsearch.xpack.esql.datasources.metadata.DataSourceMetadata;
+import org.elasticsearch.xpack.esql.datasources.spi.ColumnExtractor;
 import org.elasticsearch.xpack.esql.datasources.spi.FileList;
 import org.elasticsearch.xpack.esql.datasources.spi.StoragePath;
 import org.elasticsearch.xpack.esql.expression.function.fulltext.Match;
@@ -507,6 +511,142 @@ public class AnalyzerExternalTests extends ESTestCase {
         );
     }
 
+    public void testMetadataIdWinsOverPhysicalColumn() {
+        assumeTrue("requires dataset-in-FROM support", EsqlCapabilities.Cap.DATASET_IN_FROM_COMMAND.isEnabled());
+
+        var leafOutput = externalLeafOutput(analyzeDataset(externalCollision(), S3_PATH, "FROM " + DATASET_NAME + " METADATA _id"));
+
+        List<Attribute> ids = leafOutput.stream().filter(a -> a.name().equals("_id")).toList();
+        assertThat(ids, hasSize(1));
+        assertThat(ids.get(0), instanceOf(ExternalMetadataAttribute.class));
+        assertEquals(KEYWORD, ids.get(0).dataType());
+        assertWarnings(Analyzer.shadowedExternalColumnsWarning(DATASET_NAME, List.of("_id")));
+    }
+
+    public void testMetadataFilePathWinsOverPhysicalColumn() {
+        assumeTrue("requires dataset-in-FROM support", EsqlCapabilities.Cap.DATASET_IN_FROM_COMMAND.isEnabled());
+
+        var leafOutput = externalLeafOutput(analyzeDataset(externalCollision(), S3_PATH, "FROM " + DATASET_NAME + " METADATA _file.path"));
+
+        List<Attribute> paths = leafOutput.stream().filter(a -> a.name().equals(FileMetadataColumns.PATH)).toList();
+        assertThat(paths, hasSize(1));
+        assertThat(paths.get(0), instanceOf(ExternalMetadataAttribute.class));
+        assertEquals(KEYWORD, paths.get(0).dataType());
+        assertWarnings(Analyzer.shadowedExternalColumnsWarning(DATASET_NAME, List.of(FileMetadataColumns.PATH)));
+    }
+
+    public void testMetadataIdAndFilePathWinTogether() {
+        assumeTrue("requires dataset-in-FROM support", EsqlCapabilities.Cap.DATASET_IN_FROM_COMMAND.isEnabled());
+
+        var leafOutput = externalLeafOutput(
+            analyzeDataset(externalCollision(), S3_PATH, "FROM " + DATASET_NAME + " METADATA _id, _file.path")
+        );
+
+        Attribute id = leafOutput.stream().filter(a -> a.name().equals("_id")).findFirst().orElseThrow();
+        Attribute path = leafOutput.stream().filter(a -> a.name().equals(FileMetadataColumns.PATH)).findFirst().orElseThrow();
+        assertThat(id, instanceOf(ExternalMetadataAttribute.class));
+        assertEquals(KEYWORD, id.dataType());
+        assertThat(path, instanceOf(ExternalMetadataAttribute.class));
+        assertEquals(KEYWORD, path.dataType());
+        assertWarnings(Analyzer.shadowedExternalColumnsWarning(DATASET_NAME, List.of("_id", FileMetadataColumns.PATH)));
+    }
+
+    public void testMetadataIndexBindsWithoutWarningWhenNoCollision() {
+        assumeTrue("requires dataset-in-FROM support", EsqlCapabilities.Cap.DATASET_IN_FROM_COMMAND.isEnabled());
+
+        var leafOutput = externalLeafOutput(analyzeDataset(external(), S3_PATH, "FROM " + DATASET_NAME + " METADATA _index"));
+
+        Attribute index = leafOutput.stream().filter(a -> a.name().equals("_index")).findFirst().orElseThrow();
+        assertThat(index, instanceOf(ExternalMetadataAttribute.class));
+        assertEquals(KEYWORD, index.dataType());
+    }
+
+    public void testDuplicateMetadataClauseRejectedByParser() {
+        assumeTrue("requires dataset-in-FROM support", EsqlCapabilities.Cap.DATASET_IN_FROM_COMMAND.isEnabled());
+
+        Exception e = expectThrows(
+            Exception.class,
+            () -> analyzeDataset(external(), S3_PATH, "FROM " + DATASET_NAME + " METADATA _index, _index")
+        );
+        assertThat(e.getMessage(), containsString("already declared"));
+    }
+
+    public void testDuplicatePhysicalColumnsDroppedOnBind() {
+        assumeTrue("requires dataset-in-FROM support", EsqlCapabilities.Cap.DATASET_IN_FROM_COMMAND.isEnabled());
+
+        List<Attribute> schema = List.of(
+            referenceAttribute("emp_no", LONG),
+            referenceAttribute("_id", LONG),
+            referenceAttribute("_id", KEYWORD),
+            referenceAttribute("first_name", KEYWORD)
+        );
+        var leafOutput = externalLeafOutput(
+            analyzeDataset(analyzer().externalSourceUnresolved(S3_PATH, schema), S3_PATH, "FROM " + DATASET_NAME + " METADATA _id")
+        );
+
+        List<Attribute> ids = leafOutput.stream().filter(a -> a.name().equals("_id")).toList();
+        assertThat(ids, hasSize(1));
+        assertThat(ids.get(0), instanceOf(ExternalMetadataAttribute.class));
+        assertEquals(KEYWORD, ids.get(0).dataType());
+        assertWarnings(Analyzer.shadowedExternalColumnsWarning(DATASET_NAME, List.of("_id")));
+    }
+
+    public void testIdPathEqualsIdSkipsBind() {
+        assumeTrue("requires dataset-in-FROM support", EsqlCapabilities.Cap.DATASET_IN_FROM_COMMAND.isEnabled());
+
+        var leafOutput = externalLeafOutput(
+            analyzeDataset(externalCollision(), S3_PATH, "FROM " + DATASET_NAME + " METADATA _id", mappingWithIdPath("_id"))
+        );
+
+        List<Attribute> ids = leafOutput.stream().filter(a -> a.name().equals("_id")).toList();
+        assertThat(ids, hasSize(1));
+        assertThat(ids.get(0), instanceOf(ReferenceAttribute.class));
+        assertFalse(ids.get(0) instanceof ExternalMetadataAttribute);
+        assertEquals(LONG, ids.get(0).dataType());
+        assertTrue(leafOutput.stream().noneMatch(a -> ColumnExtractor.ROW_POSITION_COLUMN.equals(a.name())));
+    }
+
+    public void testIdPathPresentAndPhysicalIdCollidesSkipsBind() {
+        assumeTrue("requires dataset-in-FROM support", EsqlCapabilities.Cap.DATASET_IN_FROM_COMMAND.isEnabled());
+
+        var leafOutput = externalLeafOutput(
+            analyzeDataset(externalCollision(), S3_PATH, "FROM " + DATASET_NAME + " METADATA _id", mappingWithIdPath("first_name"))
+        );
+
+        List<Attribute> ids = leafOutput.stream().filter(a -> a.name().equals("_id")).toList();
+        assertThat(ids, hasSize(1));
+        assertFalse(ids.get(0) instanceof ExternalMetadataAttribute);
+        assertEquals(LONG, ids.get(0).dataType());
+        assertTrue(leafOutput.stream().noneMatch(a -> ColumnExtractor.ROW_POSITION_COLUMN.equals(a.name())));
+    }
+
+    public void testIdPathNamesFilePathSkipsFilePathBind() {
+        assumeTrue("requires dataset-in-FROM support", EsqlCapabilities.Cap.DATASET_IN_FROM_COMMAND.isEnabled());
+
+        List<Attribute> schema = List.of(
+            referenceAttribute("emp_no", LONG),
+            referenceAttribute(FileMetadataColumns.PATH, KEYWORD),
+            referenceAttribute("first_name", KEYWORD)
+        );
+        var leafOutput = externalLeafOutput(
+            analyzeDataset(
+                analyzer().externalSourceUnresolved(S3_PATH, schema),
+                S3_PATH,
+                "FROM " + DATASET_NAME + " METADATA _id, _file.path",
+                mappingWithIdPath(FileMetadataColumns.PATH)
+            )
+        );
+
+        Attribute id = leafOutput.stream().filter(a -> a.name().equals(ExternalMetadataColumns.ID)).findFirst().orElseThrow();
+        assertThat(id, instanceOf(ExternalMetadataAttribute.class));
+        assertEquals(KEYWORD, id.dataType());
+
+        List<Attribute> paths = leafOutput.stream().filter(a -> a.name().equals(FileMetadataColumns.PATH)).toList();
+        assertThat(paths, hasSize(1));
+        assertFalse(paths.get(0) instanceof ExternalMetadataAttribute);
+        assertEquals(KEYWORD, paths.get(0).dataType());
+    }
+
     /**
      * Returns the {@link ExternalRelation} leaf's output from an analyzed plan. The leaf's output
      * carries every name bound by {@code ResolveExternalRelations}, which is the binding contract
@@ -525,9 +665,13 @@ public class AnalyzerExternalTests extends ESTestCase {
      * {@code DatasetRewriter} produces in production, and analyzes the result with {@code testAnalyzer}.
      */
     private static LogicalPlan analyzeDataset(TestAnalyzer testAnalyzer, String resource, String query) {
+        return analyzeDataset(testAnalyzer, resource, query, null);
+    }
+
+    private static LogicalPlan analyzeDataset(TestAnalyzer testAnalyzer, String resource, String query, DatasetMapping mapping) {
         LogicalPlan rewritten = DatasetRewriter.rewriteUnsecured(
             TEST_PARSER.parseQuery(query),
-            datasetProject(resource),
+            datasetProject(resource, mapping),
             TestIndexNameExpressionResolver.newInstance()
         );
         return testAnalyzer.buildAnalyzer().analyze(rewritten);
@@ -544,8 +688,12 @@ public class AnalyzerExternalTests extends ESTestCase {
 
     /** A single-dataset {@link ProjectMetadata}: {@link #DATASET_NAME} pointing at {@code resource}. */
     private static ProjectMetadata datasetProject(String resource) {
+        return datasetProject(resource, null);
+    }
+
+    private static ProjectMetadata datasetProject(String resource, DatasetMapping mapping) {
         DataSource dataSource = new DataSource("ds_source", "test", null, Map.of());
-        Dataset dataset = new Dataset(DATASET_NAME, new DataSourceReference("ds_source"), resource, null, Map.of());
+        Dataset dataset = new Dataset(DATASET_NAME, new DataSourceReference("ds_source"), resource, null, Map.of(), mapping);
         return ProjectMetadata.builder(ProjectId.DEFAULT)
             .putCustom(DataSourceMetadata.TYPE, new DataSourceMetadata(Map.of("ds_source", dataSource)))
             .datasets(Map.of(DATASET_NAME, dataset))
@@ -554,6 +702,23 @@ public class AnalyzerExternalTests extends ESTestCase {
 
     public static TestAnalyzer external() {
         return analyzer().externalSourceUnresolved(S3_PATH, employeesSchema());
+    }
+
+    private static TestAnalyzer externalCollision() {
+        return analyzer().externalSourceUnresolved(S3_PATH, collisionSchema());
+    }
+
+    private static List<Attribute> collisionSchema() {
+        return List.of(
+            referenceAttribute("emp_no", LONG),
+            referenceAttribute("_id", LONG),
+            referenceAttribute(FileMetadataColumns.PATH, KEYWORD),
+            referenceAttribute("first_name", KEYWORD)
+        );
+    }
+
+    private static DatasetMapping mappingWithIdPath(String idPath) {
+        return new DatasetMapping(new DatasetMapping.Mappings(DatasetMapping.Dynamic.TRUE, Map.of(), idPath));
     }
 
     private static List<Attribute> employeesSchema() {

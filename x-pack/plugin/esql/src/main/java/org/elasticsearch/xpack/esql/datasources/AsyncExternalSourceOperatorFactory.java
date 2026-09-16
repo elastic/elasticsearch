@@ -440,19 +440,13 @@ public class AsyncExternalSourceOperatorFactory implements SourceOperator.Source
         boolean sourceRequested = metadataNames.contains(ExternalMetadataColumns.SOURCE);
         this.idColumnRequested = idRequested;
         this.standardMetadataPerFileNames = stdMetaNames.isEmpty() ? Set.of() : Set.copyOf(stdMetaNames);
-        Set<String> engineOwned = new LinkedHashSet<>();
-        for (Attribute attr : attributes) {
-            if (attr instanceof ExternalMetadataAttribute || FileMetadataColumns.isFileMetadataColumn(attr.name())) {
-                engineOwned.add(attr.name());
-            }
-        }
-        if (engineOwned.isEmpty()) {
+        if (metadataNames.isEmpty()) {
             this.partitionColumnNames = partitionColumnNames != null ? partitionColumnNames : Set.of();
         } else {
-            // Union engine-owned names into the effective partition-column set so
+            // Union bound metadata names into the effective partition-column set so
             // VirtualColumnIterator routes them through its constant-block / id-composition /
             // source-synthesis path. Hive partition columns overlay last in the per-file merge.
-            Set<String> union = new LinkedHashSet<>(engineOwned);
+            Set<String> union = new LinkedHashSet<>(metadataNames);
             if (partitionColumnNames != null) {
                 union.addAll(partitionColumnNames);
             }

@@ -686,9 +686,9 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
      * {@link MetadataAttribute#ATTRIBUTES_MAP} (standard names like {@code _id}/{@code _index}/...)
      * and every name in {@link org.elasticsearch.xpack.esql.datasources.FileMetadataColumns#COLUMNS}
      * ({@code _file.path}, {@code _file.name}, ...) becomes an {@link ExternalMetadataAttribute} of
-     * the registered type. Unknown names propagate as-is for the verifier to flag with the existing
-     * "Unknown column" diagnostic. Names already present in the source's natural schema are skipped
-     * — the source's own column wins.
+     * the registered type. A same-named physical column is dropped and a warning is deferred; the
+     * engine-generated value is used. Unknown names propagate as-is for the verifier to flag with
+     * the existing "Unresolved metadata pattern" diagnostic.
      */
     private static class ResolveExternalRelations extends ParameterizedAnalyzerRule<UnresolvedExternalRelation, AnalyzerContext> {
 
@@ -717,7 +717,7 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
             Set<String> partitionColumnNames = partitionMetadata != null && partitionMetadata.isEmpty() == false
                 ? partitionMetadata.partitionColumns().keySet()
                 : Set.of();
-            MetadataBindResult bindResult = bindMetadataFields(plan, metadata.schema(), partitionColumnNames);
+            MetadataBindResult bindResult = bindMetadataFields(plan, metadata.schema(), partitionColumnNames, context);
             ExternalRelation relation = new ExternalRelation(
                 plan.source(),
                 tablePath,
@@ -746,26 +746,43 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
          * Walks the user's METADATA clause. Names registered in
          * {@link MetadataAttribute#ATTRIBUTES_MAP} or
          * {@link org.elasticsearch.xpack.esql.datasources.FileMetadataColumns#COLUMNS} are bound
-         * to an {@link ExternalMetadataAttribute} appended to the source's natural schema. Names
-         * registered in neither stay as {@code UnresolvedMetadataAttributeExpression} in the
-         * returned {@code unresolvedMetadata} list — the verifier picks them up via the relation's
-         * expression walk and fires its native {@code "Unresolved metadata pattern [...]"} error,
-         * matching the diagnostic indexed {@code FROM x METADATA _typo} produces. Names already
-         * present in the source's natural schema are skipped (the source's own column takes
-         * precedence).
+         * to an {@link ExternalMetadataAttribute} appended to the source's natural schema. A
+         * same-named physical column is dropped from that schema (every attribute of that name,
+         * so a repeated header cannot leave a survivor) and a warning is deferred through
+         * {@code context}. Names registered in neither stay as
+         * {@code UnresolvedMetadataAttributeExpression} in the returned {@code unresolvedMetadata}
+         * list: the verifier picks them up via the relation's expression walk and fires its native
+         * {@code "Unresolved metadata pattern [...]"} error, matching the diagnostic indexed
+         * {@code FROM x METADATA _typo} produces.
+         * <p>
+         * When {@code mappings._id.path} is set and {@code _id} is requested, the bind is skipped
+         * for the id-path column itself and for a colliding physical {@code _id}. The file column
+         * stays so the reader can stamp {@code _id} from it, and {@code _id} keeps that column's
+         * type rather than becoming {@code keyword}.
          */
         private static MetadataBindResult bindMetadataFields(
             UnresolvedExternalRelation plan,
             List<Attribute> baseSchema,
-            Set<String> partitionColumnNames
+            Set<String> partitionColumnNames,
+            AnalyzerContext context
         ) {
             if (plan.metadataFields().isEmpty()) {
                 return new MetadataBindResult(baseSchema, List.of());
             }
-            Set<String> existing = new LinkedHashSet<>();
-            for (Attribute a : baseSchema) {
-                existing.add(a.name());
+            String declaredIdPath = declaredIdPath(plan);
+            boolean idRequested = false;
+            for (NamedExpression requested : plan.metadataFields()) {
+                if (ExternalMetadataColumns.ID.equals(MetadataAttribute.metadataName(requested))) {
+                    idRequested = true;
+                    break;
+                }
             }
+            Set<String> baseNames = new LinkedHashSet<>();
+            for (Attribute a : baseSchema) {
+                baseNames.add(a.name());
+            }
+            Set<String> emitted = new LinkedHashSet<>();
+            List<String> shadowed = null;
             List<Attribute> enriched = null;
             List<NamedExpression> unresolved = null;
             for (NamedExpression requested : plan.metadataFields()) {
@@ -773,20 +790,33 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
                 // (whose name() throws); EXTERNAL's parser threads plain UnresolvedAttribute. Resolve
                 // the textual name from either shape without invoking the throwing accessor.
                 String name = MetadataAttribute.metadataName(requested);
-                if (existing.contains(name)) {
+                if (emitted.contains(name)) {
                     continue;
                 }
-                // _id.path names the column the reader stamps _id from. If the dataset declares one but the resolved
-                // schema has no such DATA column — a typo, the files lost it, or it is a partition/virtual column the
-                // reader never materializes per row — reject the _id request loudly rather than returning silently-null
-                // ids. Fires only when _id is actually asked for — a bad _id.path on a query that never reads _id is
-                // moot, like any other unread column.
+                // _id.path names the column the reader stamps _id from. Dropping that column (or a
+                // colliding physical _id) would leave the reader with nothing to stamp, so skip the
+                // bind and leave the file column in place. The skip covers every requested name that
+                // equals the declared path, because METADATA _file.path, _id can name the path
+                // column before _id. A present declared path also skips a colliding physical _id,
+                // so a stale or typo'd path does not start failing a query that returned rows.
+                if (declaredIdPath != null && idRequested) {
+                    if (name.equals(declaredIdPath)) {
+                        continue;
+                    }
+                    if (ExternalMetadataColumns.ID.equals(name) && baseNames.contains(name)) {
+                        continue;
+                    }
+                }
+                // If the dataset declares _id.path but the resolved schema has no such DATA column
+                // (a typo, the files lost it, or it is a partition/virtual column the reader never
+                // materializes per row), reject the _id request rather than returning silently-null
+                // ids. Fires only when _id is actually asked for: a bad _id.path on a query that
+                // never reads _id is moot, like any other unread column.
                 if (ExternalMetadataColumns.ID.equals(name)) {
-                    String idPath = declaredIdPath(plan);
-                    if (idPath != null) {
+                    if (declaredIdPath != null) {
                         Attribute idSource = null;
                         for (Attribute a : baseSchema) {
-                            if (a.name().equals(idPath)) {
+                            if (a.name().equals(declaredIdPath)) {
                                 idSource = a;
                                 break;
                             }
@@ -794,7 +824,7 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
                         if (idSource == null) {
                             throw new IllegalArgumentException(
                                 "[_id] is declared to come from column ["
-                                    + idPath
+                                    + declaredIdPath
                                     + "] (mappings._id.path), but no such column exists in the dataset's schema"
                             );
                         }
@@ -803,10 +833,10 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
                         // it in the partition branch and never stamps _id from it (silent null id). Reject it here.
                         if (idSource instanceof VirtualAttribute
                             || idSource instanceof ExternalMetadataAttribute
-                            || partitionColumnNames.contains(idPath)) {
+                            || partitionColumnNames.contains(declaredIdPath)) {
                             throw new IllegalArgumentException(
                                 "[_id] is declared to come from ["
-                                    + idPath
+                                    + declaredIdPath
                                     + "] (mappings._id.path), which is not a data column of the files; _id must come from a "
                                     + "column the reader materializes per row"
                             );
@@ -818,7 +848,7 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
                     type = FileMetadataColumns.COLUMNS.get(name);
                 }
                 if (type == null) {
-                    // Unknown name — keep the unresolved expression so the verifier picks it up via
+                    // Unknown name: keep the unresolved expression so the verifier picks it up via
                     // ExternalRelation#metadataFields() and fires its native unresolved-pattern error.
                     if (unresolved == null) {
                         unresolved = new ArrayList<>();
@@ -829,8 +859,18 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
                 if (enriched == null) {
                     enriched = new ArrayList<>(baseSchema);
                 }
+                if (baseNames.contains(name)) {
+                    enriched.removeIf(a -> a.name().equals(name));
+                    if (shadowed == null) {
+                        shadowed = new ArrayList<>();
+                    }
+                    shadowed.add(name);
+                }
                 enriched.add(new ExternalMetadataAttribute(plan.source(), name, type));
-                existing.add(name);
+                emitted.add(name);
+            }
+            if (shadowed != null) {
+                context.deferredHeaderWarnings().add(shadowedExternalColumnsWarning(plan.datasetName(), shadowed));
             }
             List<Attribute> resolvedSchema = enriched == null ? baseSchema : List.copyOf(enriched);
             List<? extends NamedExpression> unresolvedList = unresolved == null ? List.of() : List.copyOf(unresolved);
@@ -3738,6 +3778,24 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
              */
             return SubstituteSurrogateExpressions.rule(e);
         }
+    }
+
+    // visible for testing
+    static String shadowedExternalColumnsWarning(String dataset, List<String> names) {
+        List<String> bracketed = new ArrayList<>(names.size());
+        for (String name : names) {
+            bracketed.add("[" + name + "]");
+        }
+        String listed = String.join(", ", bracketed);
+        String where = dataset != null ? "dataset [" + dataset + "]" : "this source";
+        return Strings.format(
+            "Physical column%s %s in %s %s shadowed by METADATA; the engine-generated value is used. "
+                + "Rename the physical column in the dataset mapping to keep both.",
+            names.size() == 1 ? "" : "s",
+            listed,
+            where,
+            names.size() == 1 ? "is" : "are"
+        );
     }
 
     // visible for testing

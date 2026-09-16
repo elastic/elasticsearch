@@ -107,14 +107,14 @@ public class NumericStorageSizeTests extends ESTestCase {
         Arrays.fill(block, 1L);
         block[BLOCK / 2] = 400L;
 
-        int asOrdinals = encodedSize(NumericPipeline.ordinalPipeline(BLOCK), block);
+        int asOrdinals = encodedSize(NumericPipeline.runsAndOutliersPipeline(BLOCK), block);
         int asAField = encodedSize(NumericPipeline.defaultPipeline(BLOCK), block);
         assertThat(asOrdinals, lessThan(asAField));
     }
 
     public void testOnlyOrdinalsCarryTheRunAndPatchedStages() {
         for (byte stage : new byte[] { RunTransform.ID, PatchedTransform.ID }) {
-            assertTrue("ordinals want stage [" + stage + "]", carries(NumericPipeline.ordinalPipeline(BLOCK), stage));
+            assertTrue("ordinals want stage [" + stage + "]", carries(NumericPipeline.runsAndOutliersPipeline(BLOCK), stage));
             assertFalse("a numeric field pays for stage [" + stage + "]", carries(NumericPipeline.defaultPipeline(BLOCK), stage));
             assertFalse(
                 "a monotonic long field pays for stage [" + stage + "]",

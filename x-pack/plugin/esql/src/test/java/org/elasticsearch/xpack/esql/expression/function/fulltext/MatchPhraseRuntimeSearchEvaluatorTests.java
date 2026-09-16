@@ -11,13 +11,17 @@ import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.expression.ConstantEvaluators;
 import org.elasticsearch.xpack.esql.EsqlIllegalArgumentException;
+import org.elasticsearch.xpack.esql.core.expression.FieldAttribute;
 import org.elasticsearch.xpack.esql.core.expression.Literal;
 import org.elasticsearch.xpack.esql.core.expression.MapExpression;
 import org.elasticsearch.xpack.esql.core.expression.Nullability;
 import org.elasticsearch.xpack.esql.core.expression.ReferenceAttribute;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
+import org.elasticsearch.xpack.esql.core.type.EsField;
 import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToText;
+
+import java.util.Map;
 
 import static org.elasticsearch.xpack.esql.core.type.DataType.KEYWORD;
 import static org.elasticsearch.xpack.esql.core.type.DataType.NULL;
@@ -293,6 +297,25 @@ public class MatchPhraseRuntimeSearchEvaluatorTests extends AbstractRuntimeSearc
     }
 
     /**
+     * {@code match_phrase(to_text(field), ...)} where {@code field} is a genuine, single-typed, always-mapped
+     * {@code keyword} {@link FieldAttribute} — the inline-{@code to_text}-on-an-indexed-field shape from
+     * <a href="https://github.com/elastic/elasticsearch/issues/159265">#159265</a>. See
+     * {@link MatchRuntimeSearchEvaluatorTests#runtimeMatchOnToTextOverIndexedField} for the {@code match} analogue.
+     */
+    private static MatchPhrase runtimeMatchPhraseOnToTextOverIndexedField(String queryValue) {
+        FieldAttribute child = new FieldAttribute(
+            Source.EMPTY,
+            "field",
+            new EsField("field", KEYWORD, Map.of(), true, EsField.TimeSeriesFieldType.NONE)
+        );
+        ToText field = new ToText(Source.EMPTY, child);
+        Literal query = new Literal(Source.EMPTY, new BytesRef(queryValue), KEYWORD);
+        MatchPhrase matchPhrase = new MatchPhrase(Source.EMPTY, field, query, null);
+        assertTrue("expected a runtime search, not a pushed-down query", matchPhrase.isRuntimeSearch());
+        return matchPhrase;
+    }
+
+    /**
      * A runtime {@code match_phrase("Brown Fox")} over a reference carrying the whitespace values analyzer as
      * attribute metadata, the {@code EVAL t = to_text(...)} form. The semantics matrix is exercised through the
      * inline {@code to_text} form; the reference form only pins that the second declaration site feeds the same
@@ -321,6 +344,21 @@ public class MatchPhraseRuntimeSearchEvaluatorTests extends AbstractRuntimeSearc
             builder.appendBytesRef(new BytesRef("a brown fox"));
         }));
         assertArrayEquals(new Double[] { 1.0, 0.0 }, result);
+    }
+
+    /**
+     * https://github.com/elastic/elasticsearch/issues/159265: {@code match_phrase(to_text(keyword_field), ...)}
+     * written inline, directly over a normal {@code keyword} field, must match with standard
+     * analyzed phrase semantics (case-insensitive) — the same as a non-indexed reference. Before the fix, the
+     * field's presence as a genuine {@link FieldAttribute} made {@link MatchPhrase#isRuntimeSearch()} return
+     * {@code false}, so this was pushed down as a plain (exact, case-sensitive) match on the raw keyword field.
+     */
+    public void testPhraseValuesAnalyzerFromToTextOverIndexedField() {
+        Boolean[] result = evaluate(runtimeMatchPhraseOnToTextOverIndexedField("brown fox"), factory -> bytesRefBlock(factory, builder -> {
+            builder.appendBytesRef(new BytesRef("a Brown Fox runs"));
+            builder.appendBytesRef(new BytesRef("a fox runs, brown"));
+        }));
+        assertArrayEquals(new Boolean[] { true, false }, result);
     }
 
     public void testPhraseValuesAnalyzerFromToText() {

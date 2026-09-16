@@ -27,6 +27,7 @@ import org.elasticsearch.monitor.fs.FsInfo;
 import org.elasticsearch.test.ESTestCase;
 
 import java.nio.file.Path;
+import java.util.Arrays;
 import java.util.HashMap;
 import java.util.Map;
 
@@ -145,7 +146,10 @@ public class DiskUsageTests extends ESTestCase {
         Map<ShardId, Double> shardWriteLoads = new HashMap<>();
         Map<ShardId, Long> shardDataSetSizes = new HashMap<>();
         Map<ClusterInfo.NodeAndShard, String> routingToPath = new HashMap<>();
-        WriteLoadDeciderShardWriteLoadType shardWriteLoadType = randomFrom(WriteLoadDeciderShardWriteLoadType.values());
+        // AVERAGE write loads are not sourced from indices stats, so buildShardLevelInfo does not populate them
+        WriteLoadDeciderShardWriteLoadType shardWriteLoadType = randomFrom(
+            Arrays.stream(WriteLoadDeciderShardWriteLoadType.values()).filter(WriteLoadDeciderShardWriteLoadType::useIndicesStats).toList()
+        );
         InternalClusterInfoService.buildShardLevelInfo(
             stats,
             shardWriteLoads,

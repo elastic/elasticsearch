@@ -1,0 +1,5 @@
+area: ES|QL
+issues: []
+pr: 159552
+summary: Accumulate total/successful/failed shard counts across branches
+type: bug

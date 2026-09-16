@@ -21,7 +21,10 @@ import org.elasticsearch.common.util.CollectionUtils;
 import org.elasticsearch.datastreams.DataStreamsPlugin;
 import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.index.mapper.DateFieldMapper;
+import org.elasticsearch.index.reindex.ReindexAction;
+import org.elasticsearch.index.reindex.ReindexRequest;
 import org.elasticsearch.plugins.Plugin;
+import org.elasticsearch.reindex.ReindexPlugin;
 import org.elasticsearch.xpack.esql.view.PutViewAction;
 
 import java.io.IOException;
@@ -39,7 +42,10 @@ public class ViewIT extends AbstractEsqlIntegTestCase {
 
     @Override
     protected Collection<Class<? extends Plugin>> nodePlugins() {
-        return CollectionUtils.appendToCopy(super.nodePlugins(), DataStreamsPlugin.class);
+        return CollectionUtils.appendToCopy(
+            CollectionUtils.appendToCopy(super.nodePlugins(), DataStreamsPlugin.class),
+            ReindexPlugin.class
+        );
     }
 
     public void testIndicesAreNotValidateUponCreation() {
@@ -118,6 +124,18 @@ public class ViewIT extends AbstractEsqlIntegTestCase {
         try (EsqlQueryResponse response = run("FROM ds-view")) {
             assertThat(getValuesList(response), equalTo(List.of(List.of(42))));
         }
+    }
+
+    public void testViewCannotBeReindexSource() {
+        assertAcked(createView("my-view", "FROM not-validated"));
+        assertAcked(indicesAdmin().prepareCreate("dest-index"));
+
+        expectThrows(
+            IndexNotFoundException.class,
+            containsString("no such index [my-view]"),
+            () -> client().execute(ReindexAction.INSTANCE, new ReindexRequest().setSourceIndices("my-view").setDestIndex("dest-index"))
+                .actionGet()
+        );
     }
 
     public void testViewIsInvisibleInFieldCaps() {

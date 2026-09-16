@@ -283,6 +283,7 @@ public class JinaAIService extends SenderService {
         List<EmbeddingRequestChunker.BatchRequestAndListener> batchedRequests = new EmbeddingRequestChunker<>(
             inputs,
             EMBEDDING_MAX_BATCH_SIZE,
+            getRegexReadLimitFactor(),
             jinaaiModel.getConfigurations().getChunkingSettings()
         ).batchRequestsWithListeners(listener);
 

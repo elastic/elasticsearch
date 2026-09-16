@@ -26,6 +26,7 @@ import org.elasticsearch.xcontent.XContentFactory;
 import org.elasticsearch.xcontent.XContentParserConfiguration;
 import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xpack.core.inference.results.ChatCompletionResults;
+import org.elasticsearch.xpack.inference.chunking.RecursiveChunkingSettings;
 import org.elasticsearch.xpack.inference.common.Truncator;
 import org.elasticsearch.xpack.inference.external.http.HttpClientManager;
 import org.elasticsearch.xpack.inference.external.http.HttpSettings;
@@ -78,7 +79,8 @@ public final class Utils {
             RetrySettings.getSettingsDefinitions(),
             Truncator.getSettingsDefinitions(),
             RequestExecutorServiceSettings.getSettingsDefinitions(),
-            ElasticInferenceServiceSettings.getSettingsDefinitions()
+            ElasticInferenceServiceSettings.getSettingsDefinitions(),
+            RecursiveChunkingSettings.getSettingsDefinitions()
         ).flatMap(Collection::stream).collect(Collectors.toSet());
 
         var cSettings = new ClusterSettings(settings, registeredSettings);

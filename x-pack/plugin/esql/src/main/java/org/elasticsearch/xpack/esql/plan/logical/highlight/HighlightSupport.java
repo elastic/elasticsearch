@@ -9,7 +9,10 @@ package org.elasticsearch.xpack.esql.plan.logical.highlight;
 
 import org.elasticsearch.common.lucene.BytesRefs;
 import org.elasticsearch.core.Nullable;
+import org.elasticsearch.xpack.esql.core.expression.Alias;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
+import org.elasticsearch.xpack.esql.core.expression.AttributeMap;
+import org.elasticsearch.xpack.esql.core.expression.AttributeSet;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.Expressions;
 import org.elasticsearch.xpack.esql.core.expression.FoldContext;
@@ -31,6 +34,8 @@ import org.elasticsearch.xpack.esql.expression.predicate.logical.Not;
 import org.elasticsearch.xpack.esql.plan.logical.DocPreserving;
 import org.elasticsearch.xpack.esql.plan.logical.Filter;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
+import org.elasticsearch.xpack.esql.plan.logical.MvExpand;
+import org.elasticsearch.xpack.esql.plan.logical.Project;
 
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
@@ -111,10 +116,12 @@ public final class HighlightSupport {
             return;
         }
         if (named.size() > 1) {
+            // Do not suggest WITH { "analyzer": ... } here: a single WITH value can never equal two distinct leaf analyzers, so
+            // that advice contradicts the WITH branch above. Point at the only remedy that works instead.
             throw new IllegalArgumentException(
                 "HIGHLIGHT full-text functions use different analyzers "
                     + named
-                    + "; use the same analyzer for every clause, or set it on HIGHLIGHT with WITH { \"analyzer\": ... }"
+                    + "; use the same analyzer for every clause, or write an explicit HIGHLIGHT query using a single analyzer"
             );
         }
     }
@@ -144,20 +151,33 @@ public final class HighlightSupport {
 
     /**
      * Walks {@link DocPreserving} plans and ORs borrowable full-text conjuncts. Stops when rows no longer map to documents.
+     * Rewrites conjuncts through intervening {@code RENAME}/{@code MV_EXPAND} and drops those whose field name was reused.
      */
     public static ImplicitQuery collectImplicitQuery(LogicalPlan child, Source source) {
         List<Expression> predicates = new ArrayList<>();
         boolean sawUnborrowableFullText = false;
+        Set<String> redefinedFields = new LinkedHashSet<>();
+        AttributeSet available = AttributeSet.of(child.output());
+        Set<String> availableNames = available.names();
+        AttributeMap.Builder<Attribute> lineage = AttributeMap.builder();
         LogicalPlan current = child;
         while (current instanceof DocPreserving docPreserving) {
             if (current instanceof Filter filter) {
+                AttributeMap<Attribute> renames = lineage.build();
                 for (Expression conjunct : Predicates.splitAnd(filter.condition())) {
                     if (isSupportedImplicitPredicate(conjunct)) {
-                        predicates.add(conjunct);
+                        Expression rebound = renames.isEmpty()
+                            ? conjunct
+                            : conjunct.transformUp(Attribute.class, a -> renames.resolve(a, a));
+                        if (namesRedefinedColumn(rebound, available, availableNames, redefinedFields) == false) {
+                            predicates.add(rebound);
+                        }
                     } else if (conjunct.anyMatch(e -> e instanceof FullTextFunction)) {
                         sawUnborrowableFullText = true;
                     }
                 }
+            } else {
+                collectLineage(current, lineage);
             }
             current = docPreserving.preservingInput();
         }
@@ -166,14 +186,56 @@ public final class HighlightSupport {
         if (predicates.isEmpty() == false) {
             return new ImplicitQuery(Predicates.combineOrWithSource(predicates, source), null);
         }
-        return new ImplicitQuery(null, missingQueryReason(sawUnborrowableFullText, blockedBy));
+        return new ImplicitQuery(null, missingQueryReason(sawUnborrowableFullText, redefinedFields, blockedBy));
     }
 
-    private static String missingQueryReason(boolean sawUnborrowableFullText, @Nullable LogicalPlan blockedBy) {
+    /** Maps a {@code RENAME} or {@code MV_EXPAND} column to the attribute that now holds its data. */
+    private static void collectLineage(LogicalPlan node, AttributeMap.Builder<Attribute> lineage) {
+        if (node instanceof Project project) {
+            AttributeSet output = AttributeSet.of(project.output());
+            for (NamedExpression projection : project.projections()) {
+                if (projection instanceof Alias alias && alias.child() instanceof Attribute source && output.contains(source) == false) {
+                    lineage.put(source, alias.toAttribute());
+                }
+            }
+        } else if (node instanceof MvExpand mvExpand) {
+            lineage.put(mvExpand.target().toAttribute(), mvExpand.expanded());
+        }
+    }
+
+    /** True when {@code conjunct} names a column whose id was replaced by a different attribute of the same name. */
+    private static boolean namesRedefinedColumn(
+        Expression conjunct,
+        AttributeSet available,
+        Set<String> availableNames,
+        Set<String> redefinedFields
+    ) {
+        boolean redefined = false;
+        for (Attribute reference : conjunct.references()) {
+            if (available.contains(reference) == false && availableNames.contains(reference.name())) {
+                redefinedFields.add(reference.name());
+                redefined = true;
+            }
+        }
+        return redefined;
+    }
+
+    private static String missingQueryReason(
+        boolean sawUnborrowableFullText,
+        Set<String> redefinedFields,
+        @Nullable LogicalPlan blockedBy
+    ) {
         if (blockedBy != null) {
             return "HIGHLIGHT cannot borrow the WHERE before ["
                 + blockedBy.sourceText()
                 + "] because that command does not preserve documents; add an explicit query";
+        }
+        if (redefinedFields.isEmpty() == false) {
+            return "HIGHLIGHT cannot borrow the WHERE condition on "
+                + redefinedFields
+                + " because "
+                + (redefinedFields.size() == 1 ? "that field was" : "those fields were")
+                + " redefined after the WHERE; add an explicit query and ON clause";
         }
         if (sawUnborrowableFullText) {
             return "HIGHLIGHT found no borrowable condition in the preceding WHERE: only positive MATCH, MATCH_PHRASE, "

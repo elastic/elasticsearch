@@ -9,8 +9,10 @@ package org.elasticsearch.xpack.esql.qa.single_node;
 
 import com.carrotsearch.randomizedtesting.annotations.ThreadLeakFilters;
 
+import org.apache.http.util.EntityUtils;
 import org.apache.lucene.util.Constants;
 import org.elasticsearch.Build;
+import org.elasticsearch.client.Request;
 import org.elasticsearch.test.TestClustersThreadFilter;
 import org.elasticsearch.test.cluster.ElasticsearchCluster;
 import org.elasticsearch.xpack.esql.datasources.Federation;
@@ -19,6 +21,9 @@ import org.junit.rules.RuleChain;
 import org.junit.rules.TestRule;
 import org.junit.runners.model.Statement;
 
+import java.io.IOException;
+
+import static org.hamcrest.Matchers.containsString;
 import static org.junit.Assume.assumeTrue;
 
 /**

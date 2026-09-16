@@ -2,7 +2,7 @@
 navigation_title: "Add datasets"
 description: "Create ES|QL Data Federation datasets to query files in external storage. Choose file formats, adjust Parquet and CSV parsing, and control schema inference."
 applies_to:
-  stack: experimental =9.5
+  stack: experimental 9.5+
   serverless: unavailable
 products:
   - id: elasticsearch
@@ -188,6 +188,7 @@ The `mappings` block supports the following properties:
 - `properties`: Columns keyed by their logical name. Each column requires a `type`.
   - `path`: Optional physical column name. Use it to expose a file column under a different logical name, including renaming a timestamp column to `@timestamp`.
   - `format`: Optional date parsing pattern for a column with type `date`.
+- `_id.path` {applies_to}`stack: experimental =9.5`: Optional source column whose value becomes the row's `_id`. Later versions reject an `_id` block in `mappings`.
 - `dynamic`: Controls undeclared columns. The default, `true`, overlays the declared columns on the inferred schema. Set it to `false` to treat the declaration as the complete schema, skip schema inference for text formats, and leave undeclared columns unavailable to queries.
 
 :::{note}

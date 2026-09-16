@@ -536,6 +536,16 @@ public abstract class AbstractTSDBDocValuesConsumer extends XDocValuesConsumer {
 
         @Override
         public void addDoc(final BytesRef v) throws IOException {
+            final int blockBytesThreshold = formatConfig.blockBytesThreshold();
+            // Flush before appending so that a block never exceeds the bytes threshold.
+            if (numDocsInCurrentBlock > 0 && uncompressedBlockLength + v.length > blockBytesThreshold) {
+                flushData();
+            }
+            if (v.length > blockBytesThreshold) {
+                writeSplitValue(v);
+                return;
+            }
+
             block = ArrayUtil.grow(block, uncompressedBlockLength + v.length);
             System.arraycopy(v.bytes, v.offset, block, uncompressedBlockLength, v.length);
             uncompressedBlockLength += v.length;
@@ -543,8 +553,7 @@ public abstract class AbstractTSDBDocValuesConsumer extends XDocValuesConsumer {
             numDocsInCurrentBlock++;
             docOffsets[numDocsInCurrentBlock] = uncompressedBlockLength;
 
-            if (uncompressedBlockLength >= formatConfig.blockBytesThreshold()
-                || numDocsInCurrentBlock >= formatConfig.blockCountThreshold()) {
+            if (uncompressedBlockLength >= blockBytesThreshold || numDocsInCurrentBlock >= formatConfig.blockCountThreshold()) {
                 flushData();
             }
         }
@@ -555,6 +564,41 @@ public abstract class AbstractTSDBDocValuesConsumer extends XDocValuesConsumer {
                 return;
             }
 
+            maxUncompressedBlockLength = Math.max(maxUncompressedBlockLength, uncompressedBlockLength);
+            maxNumDocsInAnyBlock = Math.max(maxNumDocsInAnyBlock, numDocsInCurrentBlock);
+            writeBlock(numDocsInCurrentBlock, block, 0, uncompressedBlockLength);
+            numDocsInCurrentBlock = uncompressedBlockLength = 0;
+        }
+
+        /**
+         * Writes a value that is larger than the bytes threshold over multiple consecutive blocks, so that no block holds more
+         * than the threshold. The first (head) block holds the doc with its logical offsets {@code [0, v.length]} but only the
+         * first threshold bytes of the value. The remaining bytes go into continuation blocks that hold zero docs. Readers
+         * recognise a split value by a head block whose logical end offset exceeds its physical length, and join the value back
+         * together from the zero-doc blocks that follow it.
+         */
+        private void writeSplitValue(final BytesRef v) throws IOException {
+            assert numDocsInCurrentBlock == 0 && uncompressedBlockLength == 0;
+            final int blockBytesThreshold = formatConfig.blockBytesThreshold();
+            assert v.length > blockBytesThreshold;
+
+            // A reader must hold the entire value in memory, so report its full length as the largest block.
+            maxUncompressedBlockLength = Math.max(maxUncompressedBlockLength, v.length);
+            maxNumDocsInAnyBlock = Math.max(maxNumDocsInAnyBlock, 1);
+
+            docOffsets[0] = 0;
+            docOffsets[1] = v.length;
+            writeBlock(1, v.bytes, v.offset, blockBytesThreshold);
+            for (int offset = blockBytesThreshold; offset < v.length; offset += blockBytesThreshold) {
+                writeBlock(0, v.bytes, v.offset + offset, Math.min(blockBytesThreshold, v.length - offset));
+            }
+        }
+
+        /**
+         * Writes a single block. Doc offsets are taken from {@link #docOffsets} and are only written when the block holds docs.
+         */
+        private void writeBlock(int numDocs, final byte[] bytes, int offset, int length) throws IOException {
+            assert length <= formatConfig.blockBytesThreshold() : "block of [" + length + "] bytes exceeds threshold";
             totalChunks++;
             long thisBlockStartPointer = data.getFilePointer();
 
@@ -562,26 +606,24 @@ public abstract class AbstractTSDBDocValuesConsumer extends XDocValuesConsumer {
             final BinaryDVCompressionMode.BlockHeader header = new BinaryDVCompressionMode.BlockHeader(shouldCompress);
             data.writeByte(header.toByte());
 
-            data.writeVInt(uncompressedBlockLength);
+            data.writeVInt(length);
 
-            maxUncompressedBlockLength = Math.max(maxUncompressedBlockLength, uncompressedBlockLength);
-            maxNumDocsInAnyBlock = Math.max(maxNumDocsInAnyBlock, numDocsInCurrentBlock);
-
-            docOffsetsEncoder.encode(docOffsets, numDocsInCurrentBlock, data);
+            if (numDocs > 0) {
+                docOffsetsEncoder.encode(docOffsets, numDocs, data);
+            }
 
             if (shouldCompress) {
-                compress(block, uncompressedBlockLength, data);
+                compress(bytes, offset, length, data);
             } else {
-                data.writeBytes(block, 0, uncompressedBlockLength);
+                data.writeBytes(bytes, offset, length);
             }
 
             long blockLenBytes = data.getFilePointer() - thisBlockStartPointer;
-            blockMetaAcc.addDoc(numDocsInCurrentBlock, blockLenBytes);
-            numDocsInCurrentBlock = uncompressedBlockLength = 0;
+            blockMetaAcc.addDoc(numDocs, blockLenBytes);
         }
 
-        void compress(final byte[] data, int uncompressedLength, final DataOutput output) throws IOException {
-            ByteBuffer inputBuffer = ByteBuffer.wrap(data, 0, uncompressedLength);
+        void compress(final byte[] data, int offset, int uncompressedLength, final DataOutput output) throws IOException {
+            ByteBuffer inputBuffer = ByteBuffer.wrap(data, offset, uncompressedLength).slice();
             ByteBuffersDataInput input = new ByteBuffersDataInput(List.of(inputBuffer));
             compressor.compress(input, output);
         }

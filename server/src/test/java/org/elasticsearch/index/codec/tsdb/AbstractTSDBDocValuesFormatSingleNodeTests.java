@@ -32,9 +32,13 @@ import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.test.ESSingleNodeTestCase;
 import org.elasticsearch.xcontent.XContentFactory;
 
+import java.util.Base64;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.Set;
 
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertResponse;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.instanceOf;
@@ -137,6 +141,69 @@ public abstract class AbstractTSDBDocValuesFormatSingleNodeTests extends ESSingl
             final DocValuesFormat format = getDocValuesFormatForField(indexName, field);
             assertStandardIndexDocValuesFormat(format, field);
         }
+    }
+
+    /**
+     * Indexes binary doc values larger than the production block bytes threshold through a real index, so that the values are
+     * split over multiple blocks, and reads them back with {@code docvalue_fields} before and after a force merge.
+     */
+    public void testLargeBinaryDocValuesSplitOverMultipleBlocks() throws Exception {
+        final String indexName = "large-binary-dv-test";
+        createIndex(
+            indexName,
+            tsdbSettings(),
+            "@timestamp",
+            "type=date",
+            "hostname",
+            "type=keyword,time_series_dimension=true",
+            "binary",
+            "type=binary,doc_values=true"
+        );
+
+        final long baseTimestamp = 1704067200000L;
+        final int numDocs = randomIntBetween(2, 5);
+        // Documents in time series mode get a generated _id, so key the expected values by their dimension instead.
+        final Map<String, String> expectedByHostname = new HashMap<>();
+        for (int i = 0; i < numDocs; i++) {
+            // Larger than the 128KB default block bytes threshold of the doc values format.
+            final byte[] value = randomByteArrayOfLength(randomIntBetween(150 * 1024, 400 * 1024));
+            final String encoded = Base64.getEncoder().encodeToString(value);
+            final String hostname = "host-" + i;
+            expectedByHostname.put(hostname, encoded);
+            prepareIndex(indexName).setSource(
+                XContentFactory.jsonBuilder()
+                    .startObject()
+                    .field("@timestamp", baseTimestamp + i * 1000)
+                    .field("hostname", hostname)
+                    .field("binary", encoded)
+                    .endObject()
+            ).get();
+        }
+        indicesAdmin().prepareRefresh(indexName).get();
+
+        assertTSDBDocValuesFormat(getDocValuesFormatForField(indexName, "binary"), "binary");
+        assertLargeBinaryDocValues(indexName, expectedByHostname);
+
+        // Merging rewrites the split values through the doc values merge path.
+        indicesAdmin().prepareForceMerge(indexName).setMaxNumSegments(1).get();
+        assertLargeBinaryDocValues(indexName, expectedByHostname);
+    }
+
+    private void assertLargeBinaryDocValues(String indexName, Map<String, String> expectedByHostname) {
+        assertResponse(
+            client().prepareSearch(indexName).addDocValueField("hostname").addDocValueField("binary").setSize(expectedByHostname.size()),
+            response -> {
+                assertThat(response.getHits().getHits().length, equalTo(expectedByHostname.size()));
+                for (var hit : response.getHits().getHits()) {
+                    final var hostnameField = hit.field("hostname");
+                    assertNotNull("no hostname doc value", hostnameField);
+                    final String hostname = hostnameField.getValue();
+                    final var binaryField = hit.field("binary");
+                    assertNotNull("no binary doc value for [" + hostname + "]", binaryField);
+                    assertThat("binary value of [" + hostname + "]", binaryField.getValue(), equalTo(expectedByHostname.get(hostname)));
+                }
+            }
+        );
     }
 
     protected Settings tsdbSettings() {

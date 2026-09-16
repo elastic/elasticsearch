@@ -12,6 +12,7 @@ package org.elasticsearch.index.codec.tsdb;
 import org.apache.lucene.codecs.DocValuesFormat;
 import org.apache.lucene.codecs.lucene90.Lucene90DocValuesFormat;
 import org.elasticsearch.index.codec.tsdb.ES87TSDBDocValuesFormatTests.TestES87TSDBDocValuesFormat;
+import org.elasticsearch.index.codec.tsdb.es819.ES819TSDBDocValuesFormatTests;
 import org.elasticsearch.index.codec.tsdb.es819.ES819Version3TSDBDocValuesFormat;
 
 public class ES819DocValuesDuelTests extends AbstractTSDBDocValuesDuelTests {
@@ -34,5 +35,10 @@ public class ES819DocValuesDuelTests extends AbstractTSDBDocValuesDuelTests {
                 randomBoolean()
             )
             : new TestES87TSDBDocValuesFormat();
+    }
+
+    @Override
+    protected DocValuesFormat contenderFormat(int blockBytesThreshold, int blockCountThreshold) {
+        return ES819TSDBDocValuesFormatTests.binaryBlockThresholdFormat(blockBytesThreshold, blockCountThreshold, randomBoolean());
     }
 }

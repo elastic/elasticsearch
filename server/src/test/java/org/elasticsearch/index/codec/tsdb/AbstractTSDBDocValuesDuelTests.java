@@ -61,6 +61,14 @@ public abstract class AbstractTSDBDocValuesDuelTests extends ESTestCase {
 
     protected abstract DocValuesFormat contenderFormat();
 
+    /**
+     * The contender format configured with the given binary doc values block thresholds, so that values larger than the threshold
+     * are split over multiple blocks. Subclasses whose format cannot be configured that way keep the default.
+     */
+    protected DocValuesFormat contenderFormat(int blockBytesThreshold, int blockCountThreshold) {
+        return contenderFormat();
+    }
+
     private static final String FIELD_1 = "string_field_1";
     private static final String FIELD_2 = "string_field_2";
     private static final String FIELD_3 = "number_field_3";
@@ -143,6 +151,63 @@ public abstract class AbstractTSDBDocValuesDuelTests extends ESTestCase {
                 assertSortedSetDocValues(baseLeafReader, contenderLeafReader, docIdsToAdvanceTo);
                 assertSortedNumericDocValues(baseLeafReader, contenderLeafReader, docIdsToAdvanceTo);
                 assertNumericDocValues(baseLeafReader, contenderLeafReader, docIdsToAdvanceTo);
+                assertBinaryDocValues(baseLeafReader, contenderLeafReader, docIdsToAdvanceTo);
+            }
+        }
+    }
+
+    /**
+     * Duels binary values large enough to be split over multiple blocks against the baseline format, which stores them as plain
+     * bytes. Uses fewer but much larger values than {@link #testDuel()}.
+     */
+    public void testDuelLargeBinaryValues() throws IOException {
+        final int blockBytesThreshold = randomIntBetween(64, 1024);
+        try (var baselineDirectory = newDirectory(); var contenderDirectory = newDirectory()) {
+            int numDocs = randomIntBetween(64, 512);
+
+            var mergePolicy = new ForceMergePolicy(newLogMergePolicy());
+            var baselineConfig = newIndexWriterConfig();
+            baselineConfig.setMergePolicy(mergePolicy);
+            baselineConfig.setCodec(TestUtil.alwaysDocValuesFormat(baselineFormat()));
+            var contenderConf = newIndexWriterConfig();
+            contenderConf.setMergePolicy(mergePolicy);
+            contenderConf.setCodec(TestUtil.alwaysDocValuesFormat(contenderFormat(blockBytesThreshold, randomIntBetween(1, 64))));
+
+            try (
+                var baselineIw = new RandomIndexWriter(random(), baselineDirectory, baselineConfig);
+                var contenderIw = new RandomIndexWriter(random(), contenderDirectory, contenderConf)
+            ) {
+                for (int i = 0; i < numDocs; i++) {
+                    Document doc = new Document();
+                    if (rarely() == false) {
+                        // A mix of values under, around and well over the threshold.
+                        final int length = switch (randomIntBetween(0, 2)) {
+                            case 0 -> randomIntBetween(0, blockBytesThreshold / 4);
+                            case 1 -> randomIntBetween(blockBytesThreshold - 2, blockBytesThreshold + 2);
+                            case 2 -> randomIntBetween(blockBytesThreshold + 1, 8 * blockBytesThreshold);
+                            default -> throw new AssertionError();
+                        };
+                        doc.add(new BinaryDocValuesField(FIELD_5, newBytesRef(randomAlphaOfLength(length))));
+                    }
+                    baselineIw.addDocument(doc);
+                    contenderIw.addDocument(doc);
+                }
+                baselineIw.forceMerge(1);
+                contenderIw.forceMerge(1);
+            }
+            try (var baselineIr = DirectoryReader.open(baselineDirectory); var contenderIr = DirectoryReader.open(contenderDirectory)) {
+                assertEquals(1, baselineIr.leaves().size());
+                assertEquals(1, contenderIr.leaves().size());
+
+                var baseLeafReader = baselineIr.leaves().get(0).reader();
+                var contenderLeafReader = contenderIr.leaves().get(0).reader();
+                assertEquals(baseLeafReader.maxDoc(), contenderLeafReader.maxDoc());
+
+                Integer[] docIdsToAdvanceTo = randomSet(1, 1 + randomInt(numDocs / 10), () -> randomInt(numDocs - 1)).toArray(
+                    Integer[]::new
+                );
+                Arrays.sort(docIdsToAdvanceTo);
+
                 assertBinaryDocValues(baseLeafReader, contenderLeafReader, docIdsToAdvanceTo);
             }
         }

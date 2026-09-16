@@ -1461,6 +1461,37 @@ public class ES95TSDBDocValuesFormatTests extends AbstractTSDBDocValuesFormatTes
         );
     }
 
+    @Override
+    protected DocValuesFormat getFormatWithBinaryBlockThresholds(
+        int blockBytesThreshold,
+        int blockCountThreshold,
+        boolean enablePerBlockCompression
+    ) {
+        return binaryBlockThresholdFormat(blockBytesThreshold, blockCountThreshold, enablePerBlockCompression);
+    }
+
+    /** An ES95 format with the given binary doc values block thresholds. */
+    public static DocValuesFormat binaryBlockThresholdFormat(
+        int blockBytesThreshold,
+        int blockCountThreshold,
+        boolean enablePerBlockCompression
+    ) {
+        return new ES95TSDBDocValuesFormat(
+            DEFAULT_SKIP_INDEX_INTERVAL_SIZE,
+            ORDINAL_RANGE_ENCODING_MIN_DOC_PER_ORDINAL,
+            random().nextBoolean(),
+            BinaryDVCompressionMode.COMPRESSED_ZSTD_LEVEL_1,
+            enablePerBlockCompression,
+            NUMERIC_BLOCK_SHIFT,
+            false,
+            blockBytesThreshold,
+            blockCountThreshold,
+            NumericCodecFactory.DEFAULT,
+            ES95NumericFieldReader::defaultFallbackDecoder,
+            null
+        );
+    }
+
     private static IndexWriterConfig writerConfig(final DocValuesFormat format) {
         final IndexWriterConfig config = new IndexWriterConfig();
         config.setCodec(TestUtil.alwaysDocValuesFormat(format));

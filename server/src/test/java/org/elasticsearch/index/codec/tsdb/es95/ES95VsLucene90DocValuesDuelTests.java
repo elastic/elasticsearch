@@ -25,4 +25,9 @@ public class ES95VsLucene90DocValuesDuelTests extends AbstractTSDBDocValuesDuelT
     protected DocValuesFormat contenderFormat() {
         return new ES95TSDBDocValuesFormat();
     }
+
+    @Override
+    protected DocValuesFormat contenderFormat(int blockBytesThreshold, int blockCountThreshold) {
+        return ES95TSDBDocValuesFormatTests.binaryBlockThresholdFormat(blockBytesThreshold, blockCountThreshold, randomBoolean());
+    }
 }

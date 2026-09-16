@@ -143,5 +143,6 @@ public record TSDBDocValuesFormatConfig(
     public static final int VERSION_ORDINAL_BLOCK_SHIFT = 6;
     public static final int VERSION_SKIPPER_MAX_VALUE_COUNT = 7;
     public static final int VERSION_REMOVE_ORDINAL_BLOCK_SHIFT = 8;
-    public static final int VERSION_CURRENT = VERSION_REMOVE_ORDINAL_BLOCK_SHIFT;
+    public static final int VERSION_BINARY_SPLIT_LARGE_VALUES = 9;
+    public static final int VERSION_CURRENT = VERSION_BINARY_SPLIT_LARGE_VALUES;
 }

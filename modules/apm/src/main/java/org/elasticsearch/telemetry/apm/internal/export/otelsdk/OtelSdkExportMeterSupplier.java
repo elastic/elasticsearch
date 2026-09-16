@@ -40,7 +40,6 @@ import org.elasticsearch.telemetry.apm.internal.metrics.spi.MetricReaderProvider
 
 import java.nio.file.Path;
 import java.security.GeneralSecurityException;
-import java.util.Objects;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.BiConsumer;
 import java.util.function.Supplier;
@@ -50,6 +49,7 @@ import javax.net.ssl.TrustManager;
 import javax.net.ssl.X509ExtendedTrustManager;
 import javax.net.ssl.X509TrustManager;
 
+import static java.util.Objects.requireNonNull;
 import static org.elasticsearch.telemetry.TelemetryProvider.OTEL_METRICS_ENABLED_SYSTEM_PROPERTY;
 
 /**
@@ -154,7 +154,9 @@ public class OtelSdkExportMeterSupplier implements MeterSupplier {
         registerDisabledMetricViews(builder, settings);
 
         if (metricReaderProvider != null) {
-            builder.registerMetricReader(metricReaderProvider.getMetricReader());
+            builder.registerMetricReader(
+                requireNonNull(metricReaderProvider.getMetricReader(), "MetricReaderProvider must return a non-null MetricReader instance")
+            );
         }
 
         return builder.build();
@@ -265,7 +267,7 @@ public class OtelSdkExportMeterSupplier implements MeterSupplier {
     ) implements AutoCloseable {
 
         OTelMetricsResources {
-            Objects.requireNonNull(meterProvider, "meterProvider");
+            requireNonNull(meterProvider, "meterProvider");
         }
 
         @Override

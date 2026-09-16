@@ -7,7 +7,7 @@
  * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
-package org.elasticsearch.nativeaccess;
+package org.elasticsearch.zstd;
 
 import org.elasticsearch.test.ESTestCase;
 import org.hamcrest.Matchers;
@@ -21,13 +21,11 @@ import static org.hamcrest.Matchers.equalTo;
 
 public class ZstdTests extends ESTestCase {
 
-    static NativeAccess nativeAccess;
     static Zstd zstd;
 
     @BeforeClass
     public static void getZstd() {
-        nativeAccess = NativeAccess.instance();
-        zstd = nativeAccess.getZstd();
+        zstd = Zstd.instance();
     }
 
     public void testCompressBound() {

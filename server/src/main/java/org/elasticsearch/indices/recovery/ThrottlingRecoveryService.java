@@ -50,6 +50,7 @@ import java.util.function.Consumer;
 import java.util.function.Supplier;
 import java.util.stream.Collectors;
 
+import static org.elasticsearch.indices.recovery.FailureStrategy.ABORT;
 import static org.elasticsearch.indices.recovery.FailureStrategy.FAIL_SEND;
 import static org.elasticsearch.indices.recovery.FailureStrategy.FAIL_SILENT;
 
@@ -190,7 +191,8 @@ public final class ThrottlingRecoveryService extends AbstractLifecycleComponent 
         if (pendingRecovery == null) {
             if (serviceClosed) {
                 logger.debug("service is closed, aborting recovery: {}", indexShard.recoveryState());
-                RecoveryListener.wrapPreservingContext(recoveryListener, context).onRecoveryAborted();
+                RecoveryListener.wrapPreservingContext(recoveryListener, context)
+                    .onRecoveryFailure(new RecoveryFailedException(indexShard.recoveryState(), "service is closed", null), ABORT);
             } else {
                 logger.debug("recovery cancelled at enqueue time: {}", indexShard.recoveryState());
                 final RecoverySource.Type recoveryType = recoverySource.getType();
@@ -346,7 +348,8 @@ public final class ThrottlingRecoveryService extends AbstractLifecycleComponent 
         }
         for (PendingRecovery pending : recoveriesToAbort) {
             logger.trace("service closing, aborting recovery: {}", pending.recoveryState());
-            RecoveryListener.wrapPreservingContext(pending.listener, pending.context).onRecoveryAborted();
+            RecoveryListener.wrapPreservingContext(pending.listener, pending.context)
+                .onRecoveryFailure(new RecoveryFailedException(pending.recoveryState(), "service closing", null), ABORT);
             schedulingListener.onQueuedRecoveryDiscardedOnTarget(
                 pending.recoveryState().getRecoverySource().getType(),
                 pending.priorityGroup()

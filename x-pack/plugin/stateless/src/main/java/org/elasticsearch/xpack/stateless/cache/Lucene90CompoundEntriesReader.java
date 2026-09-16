@@ -50,7 +50,7 @@ public class Lucene90CompoundEntriesReader {
 
     private static Map<String, FileEntry> readMapping(DataInput entriesStream) throws IOException {
         final int numEntries = entriesStream.readVInt();
-        var mapping = HashMap.<String, FileEntry>newHashMap(numEntries);
+        Map<String, FileEntry> mapping = HashMap.newHashMap(numEntries);
         for (int i = 0; i < numEntries; i++) {
             final String id = entriesStream.readString();
             final FileEntry fileEntry = new FileEntry(entriesStream.readLong(), entriesStream.readLong());

@@ -3505,7 +3505,7 @@ public class EsqlCapabilities {
          * {@code Map.toString()}. Applies to both source modes and to {@code LOAD} as well as {@code LOAD_ALL}.
          * See https://github.com/elastic/elasticsearch/issues/158306.
          */
-        OPTIONAL_FIELDS_FIX_UNMAPPED_OBJECT_VALUE(true),
+        OPTIONAL_FIELDS_FIX_UNMAPPED_OBJECT_VALUE(),
 
         OPTIONAL_FIELDS_LOAD_ALL_NET_ZERO_PROJECTION(OPTIONAL_FIELDS_LOAD_ALL_V2.isEnabled()),
 

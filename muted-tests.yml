@@ -143,6 +143,9 @@ tests:
 - class: org.elasticsearch.xpack.test.rest.XPackRestIT
   method: test {p0=ml/inference_crud/Test put model model aliases}
   issue: https://github.com/elastic/elasticsearch/issues/159430
+- class: org.elasticsearch.xpack.security.CoreWithSecurityClientYamlTestSuiteIT
+  method: test {yaml=search.highlight/50_synthetic_source/keyword multi fvh}
+  issue: https://github.com/elastic/elasticsearch/issues/159448
 
 # Examples:
 #

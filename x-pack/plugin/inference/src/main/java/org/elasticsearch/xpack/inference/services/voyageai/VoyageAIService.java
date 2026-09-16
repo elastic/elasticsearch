@@ -304,6 +304,7 @@ public class VoyageAIService extends SenderService {
         List<EmbeddingRequestChunker.BatchRequestAndListener> batchedRequests = new EmbeddingRequestChunker<>(
             inputs,
             getBatchSize(voyageaiModel),
+            getRegexReadLimitFactor(),
             voyageaiModel.getConfigurations().getChunkingSettings()
         ).batchRequestsWithListeners(listener);
 

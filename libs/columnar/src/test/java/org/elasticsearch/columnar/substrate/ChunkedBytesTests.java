@@ -614,19 +614,15 @@ public class ChunkedBytesTests extends ESTestCase {
         }
     }
 
-    /**
-     * A caller that appends several values between boundaries — a block of them — is counted for all of
-     * them, and the chunk closes at the first boundary at or past the bound rather than exactly on it.
-     */
-    public void testAChunkClosesAtTheFirstBoundaryPastTheValueBound() throws IOException {
+    /** The value bound is a maximum: a chunk never covers more values than it allows. */
+    public void testAChunkNeverHoldsMoreThanTheValueBound() throws IOException {
         final int perGroup = 8;
         final int groups = 50;
         final List<byte[]> values = new ArrayList<>();
         for (int i = 0; i < perGroup * groups; i++) {
             values.add(bytes("v" + i));
         }
-        // Not a multiple of the group, so every bound but the first falls inside one.
-        for (int maxValues : new int[] { 1, 5, 8, 12, 16 }) {
+        for (int maxValues : new int[] { 8, 12, 16, 64 }) {
             try (Directory dir = newDirectory()) {
                 final long[] offsets = new long[values.size() + 1];
                 final ChunkIndexMetadata index = writeStream(
@@ -637,10 +633,62 @@ public class ChunkedBytesTests extends ESTestCase {
                     offsets,
                     perGroup
                 );
-                // A chunk takes whole groups until it holds at least maxValues, so it holds that many rounded up.
-                final int perChunk = ((maxValues + perGroup - 1) / perGroup) * perGroup;
+                // Groups are taken whole, so a chunk holds as many as fit under the bound.
+                final int perChunk = (maxValues / perGroup) * perGroup;
                 assertEquals("chunks at maxValues=" + maxValues, (values.size() + perChunk - 1) / perChunk, index.numChunks());
                 assertReads(dir, index, values, offsets, "grouped maxValues=" + maxValues);
+            }
+        }
+    }
+
+    /**
+     * The byte bound is a maximum too, which it can only be if a chunk may end anywhere — including inside a
+     * value. A stream of a known size therefore takes exactly as many chunks as the bound divides it into.
+     */
+    public void testNoChunkIsLargerThanTheByteBound() throws IOException {
+        for (int valueLength : new int[] { 1, 7, 64, 1000 }) {
+            final List<byte[]> values = new ArrayList<>();
+            long total = 0;
+            for (int i = 0; i < 200; i++) {
+                values.add(bytes(randomAlphaOfLength(valueLength)));
+                total += valueLength;
+            }
+            for (int target : new int[] { 16, 64, 512, 4096 }) {
+                for (ChunkCodec codec : codecs()) {
+                    try (Directory dir = newDirectory()) {
+                        final long[] offsets = new long[values.size() + 1];
+                        final ChunkIndexMetadata index = writeStream(dir, codec, ChunkBounds.ofBytes(target), values, offsets);
+                        assertEquals(
+                            "valueLength=" + valueLength + " target=" + target + " codec=" + codec,
+                            (total + target - 1) / target,
+                            index.numChunks()
+                        );
+                        assertReads(dir, index, values, offsets, "valueLength=" + valueLength + " target=" + target);
+                    }
+                }
+            }
+        }
+    }
+
+    /**
+     * A value larger than a whole chunk is spread over as many as it takes rather than growing one to fit,
+     * and comes back whole from the pieces.
+     */
+    public void testAValueLargerThanAChunkIsSplitAcrossThem() throws IOException {
+        final int target = 1024;
+        for (int valueLength : new int[] { 1025, 4096, 10_000 }) {
+            final List<byte[]> values = List.of(bytes("before"), bytes(randomAlphaOfLength(valueLength)), bytes("after"));
+            long total = 0;
+            for (byte[] v : values) {
+                total += v.length;
+            }
+            for (ChunkCodec codec : codecs()) {
+                try (Directory dir = newDirectory()) {
+                    final long[] offsets = new long[values.size() + 1];
+                    final ChunkIndexMetadata index = writeStream(dir, codec, ChunkBounds.ofBytes(target), values, offsets);
+                    assertEquals("valueLength=" + valueLength, (total + target - 1) / target, index.numChunks());
+                    assertReads(dir, index, values, offsets, "oversized value of " + valueLength);
+                }
             }
         }
     }

@@ -43,22 +43,22 @@ public class StringColumnChunkBoundsTests extends ColumnarStringTestCase {
     }
 
     /**
-     * A value bound cuts a plain column the byte target never would. A chunk ends on a block boundary, so it
-     * takes whole blocks until it holds at least the bound, which is where a bound the block size does not
-     * divide ends up past it rather than on it.
+     * A value bound cuts a plain column the byte target never would, and it is a maximum: a chunk takes
+     * whole blocks while they fit under it.
      */
     public void testPlainValuesAreCutByTheValueBound() throws IOException {
         final BytesRef[][] docSlots = mixedDocSlots(400);
-        final long values = numValues(docSlots);
         for (int blockSize : new int[] { 128, 256 }) {
-            for (int maxValues : new int[] { 1, 100, 128, 200, 512, 1000 }) {
-                final int chunks = plainChunks(
+            for (int maxValues : new int[] { 128, 200, 512, 1000 }) {
+                withColumn(
                     docSlots,
-                    blockSize,
-                    new ChunkBounds(LARGE_CHUNK, maxValues),
-                    ChunkBounds.ofBytes(LARGE_CHUNK)
+                    options(DictionaryPolicy.NONE, blockSize, new ChunkBounds(LARGE_CHUNK, maxValues), ChunkBounds.ofBytes(LARGE_CHUNK)),
+                    (metadata, reader) -> assertEquals(
+                        "blockSize=" + blockSize + " maxValues=" + maxValues,
+                        expectedChunks(plainOf(metadata).values().numValues(), blockSize, maxValues),
+                        plainOf(metadata).values().chunks().numChunks()
+                    )
                 );
-                assertEquals("blockSize=" + blockSize + " maxValues=" + maxValues, expectedChunks(values, blockSize, maxValues), chunks);
             }
         }
     }
@@ -83,9 +83,6 @@ public class StringColumnChunkBoundsTests extends ColumnarStringTestCase {
         final BytesRef[][] docSlots = mostlyRepeatedDocSlots(4000, 600);
         final int blockSize = 128;
         assertEscapeChunks(docSlots, blockSize, ChunkBounds.ofBytes(LARGE_CHUNK), Integer.MAX_VALUE);
-        // Every escaped value is longer than the byte target, so a block of them is always past it and each
-        // block ends up in a chunk of its own — the same cut a value bound of one block would make.
-        assertEscapeChunks(docSlots, blockSize, ChunkBounds.ofBytes(SMALL_CHUNK), blockSize);
         assertEscapeChunks(docSlots, blockSize, new ChunkBounds(LARGE_CHUNK, blockSize), blockSize);
         assertEscapeChunks(docSlots, blockSize, new ChunkBounds(LARGE_CHUNK, 3 * blockSize), 3 * blockSize);
     }
@@ -110,11 +107,74 @@ public class StringColumnChunkBoundsTests extends ColumnarStringTestCase {
         );
     }
 
-    /** Blocks of {@code blockSize} taken whole until a chunk holds at least {@code maxValues} of them. */
+    /**
+     * Blocks taken whole into a chunk while they fit under {@code maxValues}, which is the rule the writer
+     * follows. The last block holds the remainder, so it can join a chunk a full one would have started.
+     */
     private static int expectedChunks(long values, int blockSize, int maxValues) {
-        final long blocks = (values + blockSize - 1) / blockSize;
-        final long blocksPerChunk = maxValues == Integer.MAX_VALUE ? blocks : (maxValues + blockSize - 1L) / blockSize;
-        return Math.toIntExact((blocks + blocksPerChunk - 1) / blocksPerChunk);
+        int chunks = 0;
+        int inChunk = 0;
+        for (long first = 0; first < values; first += blockSize) {
+            final int inBlock = (int) Math.min(blockSize, values - first);
+            if (inChunk > 0 && inChunk + inBlock > maxValues) {
+                chunks++;
+                inChunk = 0;
+            }
+            inChunk += inBlock;
+        }
+        return inChunk > 0 ? chunks + 1 : chunks;
+    }
+
+    /**
+     * A chunk is cut wherever the byte bound falls, so a column takes exactly as many chunks as the bound
+     * divides its bytes into, whatever the block size is.
+     */
+    public void testAColumnIsCutIntoChunksOfTheByteBound() throws IOException {
+        final BytesRef[][] docSlots = mixedDocSlots(400);
+        for (int blockSize : new int[] { 128, 256 }) {
+            for (int target : new int[] { 64, 512, 4096 }) {
+                final int[] seen = new int[2];
+                withColumn(
+                    docSlots,
+                    options(DictionaryPolicy.NONE, blockSize, ChunkBounds.ofBytes(target), ChunkBounds.ofBytes(LARGE_CHUNK)),
+                    (metadata, reader) -> {
+                        seen[0] = plainOf(metadata).values().chunks().numChunks();
+                        seen[1] = Math.toIntExact(plainOf(metadata).values().chunks().uncompressedLength());
+                    }
+                );
+                assertEquals("blockSize=" + blockSize + " target=" + target, (seen[1] + target - 1) / target, seen[0]);
+            }
+        }
+    }
+
+    /**
+     * A value larger than a whole chunk is spread over as many as it takes rather than growing one to fit,
+     * and still reads back whole — which is the read that has to put the pieces together again.
+     */
+    public void testAValueLargerThanAChunkReadsBack() throws IOException {
+        final int target = 1024;
+        for (int valueLength : new int[] { 1500, 8192, 40_000 }) {
+            final BytesRef[][] docSlots = new BytesRef[40][];
+            for (int doc = 0; doc < docSlots.length; doc++) {
+                docSlots[doc] = doc == 17
+                    ? new BytesRef[] { new BytesRef(randomAlphaOfLength(valueLength)) }
+                    : new BytesRef[] { new BytesRef("ordinary-value-" + doc), null };
+            }
+            for (int blockSize : new int[] { 128, 256 }) {
+                withColumn(
+                    docSlots,
+                    options(DictionaryPolicy.NONE, blockSize, ChunkBounds.ofBytes(target), ChunkBounds.ofBytes(target)),
+                    (metadata, reader) -> {
+                        assertThat(
+                            "the oversized value is spread over several chunks",
+                            plainOf(metadata).values().chunks().numChunks(),
+                            greaterThan(valueLength / target)
+                        );
+                        assertValuesReadBack(docSlots, reader);
+                    }
+                );
+            }
+        }
     }
 
     /** Every slot of every document, read forwards and then at random so no read leans on the one before it. */

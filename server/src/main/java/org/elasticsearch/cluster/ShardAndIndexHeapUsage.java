@@ -21,7 +21,9 @@ import java.io.IOException;
  *
  * @param shardHeapUsageBytes The shard-level heap usage, in bytes
  * @param indexHeapUsageBytes The index-level heap usage, in bytes
- * @param postingsHeapUsageBytes The postings heap usage for the shard, this is included in {@code shardHeapUsageBytes}
+ * @param postingsHeapUsageBytes The postings heap usage for the shard, this is included in {@code shardHeapUsageBytes}. We provide
+ *                               this separately to accommodate the way autoscaler node heap requirements are calculated
+ *                               (see EstimatedHeapUsageBuilder.EstimatedHeapUsageBuilder for details)
  */
 public record ShardAndIndexHeapUsage(long shardHeapUsageBytes, long indexHeapUsageBytes, long postingsHeapUsageBytes) implements Writeable {
 

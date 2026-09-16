@@ -61,6 +61,7 @@ public class AuditIT extends ESRestTestCase {
         .distribution(DistributionType.DEFAULT)
         .setting("xpack.license.self_generated.type", "trial")
         .setting("xpack.security.enabled", "true")
+        .setting("xpack.security.authc.token.enabled", "true")
         .setting("xpack.security.audit.enabled", "true")
         .setting("xpack.security.audit.logfile.events.include", "[ \"_all\" ]")
         .setting("xpack.security.audit.logfile.events.emit_request_body", "true")
@@ -149,6 +150,42 @@ public class AuditIT extends ESRestTestCase {
             final String eventJson = toJson(event);
             assertThat(eventJson, not(containsString(encodedCredential)));
         });
+    }
+
+    public void testFilteringOfUserManagedServiceAccountTokenRequestBody() throws Exception {
+        final String namespace = "audit" + randomAlphaOfLengthBetween(3, 8).toLowerCase(Locale.ROOT);
+        final String serviceName = "svc" + randomAlphaOfLengthBetween(3, 8).toLowerCase(Locale.ROOT);
+        final Request putAccountRequest = new Request("PUT", "/_security/service/" + namespace + "/" + serviceName);
+        putAccountRequest.setJsonEntity("{\"roles\":[\"superuser\"],\"enabled\":true}");
+        client().performRequest(putAccountRequest);
+        try {
+            final Request createTokenRequest = new Request(
+                "POST",
+                "/_security/service/" + namespace + "/" + serviceName + "/credential/token/exchange-token"
+            );
+            final Map<String, Object> token = asMap(responseAsMap(client().performRequest(createTokenRequest)).get("token"));
+            final String serviceAccountToken = (String) token.get("value");
+            assertThat(serviceAccountToken, notNullValue());
+
+            final Request exchangeRequest = new Request("POST", "/_security/oauth2/token");
+            try (XContentBuilder builder = XContentFactory.jsonBuilder()) {
+                builder.startObject()
+                    .field("grant_type", "_user_managed_service_account")
+                    .field("service_account_token", serviceAccountToken)
+                    .endObject();
+                exchangeRequest.setJsonEntity(Strings.toString(builder));
+            }
+            executeAndVerifyAudit(exchangeRequest, AuditLevel.AUTHENTICATION_SUCCESS, event -> {
+                String body = asInstanceOf(String.class, event.get(LoggingAuditTrail.REQUEST_BODY_FIELD_NAME));
+                assertThat(body, equalTo("{\"grant_type\":\"_user_managed_service_account\"}"));
+                assertThat(toJson(event), not(containsString(serviceAccountToken)));
+            });
+        } finally {
+            final Request deleteRequest = new Request("DELETE", "/_security/service/" + namespace + "/" + serviceName);
+            deleteRequest.addParameter("force", "true");
+            deleteRequest.addParameter("ignore", "404");
+            client().performRequest(deleteRequest);
+        }
     }
 
     public void testAuditPutUserManagedServiceAccount() throws Exception {

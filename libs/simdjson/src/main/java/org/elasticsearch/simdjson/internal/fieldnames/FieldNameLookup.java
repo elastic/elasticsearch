@@ -11,8 +11,15 @@ package org.elasticsearch.simdjson.internal.fieldnames;
 
 /**
  * Thread-confined field name cache used during JSON parsing. Implementations canonicalize
- * raw UTF-8 byte ranges into interned {@link String} instances so that repeated field names
- * across documents share the same object, reducing allocation and enabling identity comparisons.
+ * raw UTF-8 byte ranges into a cached {@link String} instance so that repeated field names
+ * across documents share the same object, reducing allocation.
+ *
+ * <p>That sharing is stable only <em>within</em> one {@link #release()} cycle, not across one:
+ * {@link #release()} may re-sync this instance against a shared parent, and a name this instance
+ * previously resolved can then either resolve to a different, but {@code equals}, instance another
+ * instance published first, or - rarely - stop resolving at all and require a fresh {@link #insert}
+ * (see {@link #release()}). Callers must compare resolved names with {@code equals}, not {@code ==},
+ * and must not assume a name that resolved once will keep resolving forever.
  *
  * <p>A lookup returns the cached {@link String} or {@code null} on miss. On miss the caller
  * should call {@link #insert} to register the name. Separating lookup and insert allows the
@@ -73,8 +80,19 @@ public interface FieldNameLookup {
     void freeze();
 
     /**
-     * Merges any new entries back to a shared parent (if applicable) and prepares
-     * this instance for reuse with the next batch/document.
+     * Merges any new entries back to a shared parent (if applicable), re-syncs this instance
+     * against the shared table so it picks up names other instances have published since its last
+     * release, and prepares this instance for reuse with the next batch/document.
+     *
+     * <p>Re-syncing usually only changes identity, not resolvability: a name already in this
+     * instance's frozen table keeps its instance as the shared table grows, while a name previously
+     * resolved through its overflow may start resolving to a different, but {@code equals}, instance
+     * if another instance published it first. But shared-table growth is capped, and the table may
+     * occasionally be reset rather than grown as a safety valve for long-running processes; a reset
+     * discards every name the previous shared table held, including ones this instance's own frozen
+     * table already resolved. After a reset, such a name stops resolving here until it is looked up
+     * as a miss and inserted again, exactly as if this instance had never seen it. Safe to call
+     * repeatedly — a call with nothing new to publish or adopt is a no-op.
      */
     void release();
 }

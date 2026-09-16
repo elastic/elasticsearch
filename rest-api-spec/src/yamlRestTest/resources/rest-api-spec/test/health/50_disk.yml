@@ -24,9 +24,7 @@ teardown:
   - gte: { indicators.disk.details.nodes_with_enough_disk_space: 1 }
 
 ---
-# The disk indicator reports RED when any index has INDEX_READ_ONLY_ALLOW_DELETE, the same cluster
-# block DiskThresholdMonitor applies at flood stage. Setting that block directly avoids mutating
-# cluster-wide watermarks and waiting for the health-node poll.
+# The disk indicator reports RED when any index has INDEX_READ_ONLY_ALLOW_DELETE
 "Red disk health when an index has a read-only allow-delete block":
   - requires:
       cluster_features: "gte_v8.7.0"

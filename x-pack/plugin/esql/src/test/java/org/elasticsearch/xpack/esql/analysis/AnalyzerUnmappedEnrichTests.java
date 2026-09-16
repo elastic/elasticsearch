@@ -9,6 +9,7 @@ package org.elasticsearch.xpack.esql.analysis;
 
 import org.elasticsearch.xpack.core.enrich.EnrichPolicy;
 import org.elasticsearch.xpack.esql.TestAnalyzer;
+import org.elasticsearch.xpack.esql.VersionMode;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.singleValue;
@@ -22,8 +23,8 @@ import static org.hamcrest.Matchers.is;
  */
 public class AnalyzerUnmappedEnrichTests extends AnalyzerUnmappedTestBase {
 
-    public AnalyzerUnmappedEnrichTests(String name, boolean pinCurrentVersion) {
-        super(name, pinCurrentVersion);
+    public AnalyzerUnmappedEnrichTests(VersionMode versionMode) {
+        super(versionMode);
     }
 
     private TestAnalyzer testWithLanguagesEnrich() {

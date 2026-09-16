@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.esql.analysis;
 
+import org.elasticsearch.xpack.esql.VersionMode;
 import org.elasticsearch.xpack.esql.action.EsqlCapabilities;
 import org.hamcrest.Matcher;
 
@@ -25,8 +26,8 @@ import static org.hamcrest.Matchers.containsString;
  */
 public class AnalyzerUnmappedLookupJoinExpressionTests extends AnalyzerUnmappedTestBase {
 
-    public AnalyzerUnmappedLookupJoinExpressionTests(String name, boolean pinCurrentVersion) {
-        super(name, pinCurrentVersion);
+    public AnalyzerUnmappedLookupJoinExpressionTests(VersionMode versionMode) {
+        super(versionMode);
     }
 
     private static final Matcher<String> UNSUPPORTED_JOIN_FILTER = containsString("Unsupported join filter expression");

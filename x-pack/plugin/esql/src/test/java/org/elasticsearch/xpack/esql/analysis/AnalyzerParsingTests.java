@@ -7,17 +7,11 @@
 
 package org.elasticsearch.xpack.esql.analysis;
 
-import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
-
-import org.elasticsearch.TransportVersion;
-import org.elasticsearch.test.ESTestCase;
-import org.elasticsearch.xpack.esql.EsqlTestUtils;
 import org.elasticsearch.xpack.esql.TestAnalyzer;
+import org.elasticsearch.xpack.esql.VersionMode;
 import org.elasticsearch.xpack.esql.parser.AbstractStatementParserTests;
 import org.elasticsearch.xpack.esql.parser.ParsingException;
 import org.elasticsearch.xpack.esql.parser.StatementParserTests;
-
-import java.util.List;
 
 import static org.hamcrest.Matchers.equalTo;
 
@@ -29,40 +23,28 @@ import static org.hamcrest.Matchers.equalTo;
  *  <p>
  *  For testing parsing <b>only</b>, use {@link StatementParserTests} or a subclass of {@link AbstractStatementParserTests}.
  */
-public class AnalyzerParsingTests extends ESTestCase {
+public class AnalyzerParsingTests extends AnalyzerTestCase {
 
-    @ParametersFactory(argumentFormatting = "%1$s")
-    public static List<Object[]> params() {
-        return List.of(new Object[] { "current", true }, new Object[] { "historical", false });
+    public AnalyzerParsingTests(VersionMode versionMode) {
+        super(versionMode);
     }
 
-    private final boolean pinCurrentVersion;
-
-    public AnalyzerParsingTests(@SuppressWarnings("unused") String name, boolean pinCurrentVersion) {
-        this.pinCurrentVersion = pinCurrentVersion;
-        this.defaultAnalyzer = analyzer().addEmployees("test");
+    private TestAnalyzer defaultAnalyzer() {
+        return analyzer().addEmployees("test");
     }
-
-    /** Pins {@link TransportVersion#current()} for the {@code current} run so a version-gated plan change surfaces here. */
-    private TestAnalyzer analyzer() {
-        TestAnalyzer analyzer = EsqlTestUtils.analyzer();
-        return pinCurrentVersion ? analyzer.minimumTransportVersion(TransportVersion.current()) : analyzer;
-    }
-
-    private final TestAnalyzer defaultAnalyzer;
 
     public void testCaseFunctionInvalidInputs() {
-        defaultAnalyzer.error(
+        defaultAnalyzer().error(
             "row a = 1 | eval x = case()",
             ParsingException.class,
             equalTo("line 1:22: error building [case]: expects at least two arguments")
         );
-        defaultAnalyzer.error(
+        defaultAnalyzer().error(
             "row a = 1 | eval x = case(a)",
             ParsingException.class,
             equalTo("line 1:22: error building [case]: expects at least two arguments")
         );
-        defaultAnalyzer.error(
+        defaultAnalyzer().error(
             "row a = 1 | eval x = case(1)",
             ParsingException.class,
             equalTo("line 1:22: error building [case]: expects at least two arguments")
@@ -70,17 +52,17 @@ public class AnalyzerParsingTests extends ESTestCase {
     }
 
     public void testConcatFunctionInvalidInputs() {
-        defaultAnalyzer.error(
+        defaultAnalyzer().error(
             "row a = 1 | eval x = concat()",
             ParsingException.class,
             equalTo("line 1:22: error building [concat]: expects at least two arguments")
         );
-        defaultAnalyzer.error(
+        defaultAnalyzer().error(
             "row a = 1 | eval x = concat(a)",
             ParsingException.class,
             equalTo("line 1:22: error building [concat]: expects at least two arguments")
         );
-        defaultAnalyzer.error(
+        defaultAnalyzer().error(
             "row a = 1 | eval x = concat(1)",
             ParsingException.class,
             equalTo("line 1:22: error building [concat]: expects at least two arguments")
@@ -88,7 +70,7 @@ public class AnalyzerParsingTests extends ESTestCase {
     }
 
     public void testCoalesceFunctionInvalidInputs() {
-        defaultAnalyzer.error(
+        defaultAnalyzer().error(
             "row a = 1 | eval x = coalesce()",
             ParsingException.class,
             equalTo("line 1:22: error building [coalesce]: expects at least one argument")
@@ -96,7 +78,7 @@ public class AnalyzerParsingTests extends ESTestCase {
     }
 
     public void testGreatestFunctionInvalidInputs() {
-        defaultAnalyzer.error(
+        defaultAnalyzer().error(
             "row a = 1 | eval x = greatest()",
             ParsingException.class,
             equalTo("line 1:22: error building [greatest]: expects at least one argument")
@@ -104,7 +86,7 @@ public class AnalyzerParsingTests extends ESTestCase {
     }
 
     public void testLeastFunctionInvalidInputs() {
-        defaultAnalyzer.error(
+        defaultAnalyzer().error(
             "row a = 1 | eval x = least()",
             ParsingException.class,
             equalTo("line 1:22: error building [least]: expects at least one argument")

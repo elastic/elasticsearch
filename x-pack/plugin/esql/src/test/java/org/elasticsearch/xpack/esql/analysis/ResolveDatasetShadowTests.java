@@ -7,14 +7,10 @@
 
 package org.elasticsearch.xpack.esql.analysis;
 
-import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
-
-import org.elasticsearch.TransportVersion;
 import org.elasticsearch.index.IndexMode;
-import org.elasticsearch.test.ESTestCase;
-import org.elasticsearch.xpack.esql.EsqlTestUtils;
 import org.elasticsearch.xpack.esql.LoadMapping;
 import org.elasticsearch.xpack.esql.TestAnalyzer;
+import org.elasticsearch.xpack.esql.VersionMode;
 import org.elasticsearch.xpack.esql.core.expression.Alias;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.expression.Literal;
@@ -84,23 +80,10 @@ import static org.elasticsearch.xpack.esql.core.type.DataType.LONG;
  * Each test calls {@link #assertWarnings(String...)} to acknowledge the "No limit defined" warning that
  * {@code AddImplicitLimit} adds since the test inputs are bare relations.
  */
-public class ResolveDatasetShadowTests extends ESTestCase {
+public class ResolveDatasetShadowTests extends AnalyzerTestCase {
 
-    @ParametersFactory(argumentFormatting = "%1$s")
-    public static List<Object[]> params() {
-        return List.of(new Object[] { "current", true }, new Object[] { "historical", false });
-    }
-
-    private final boolean pinCurrentVersion;
-
-    public ResolveDatasetShadowTests(@SuppressWarnings("unused") String name, boolean pinCurrentVersion) {
-        this.pinCurrentVersion = pinCurrentVersion;
-    }
-
-    /** Pins {@link TransportVersion#current()} for the {@code current} run so a version-gated plan change surfaces here. */
-    private TestAnalyzer analyzer() {
-        TestAnalyzer analyzer = EsqlTestUtils.analyzer();
-        return pinCurrentVersion ? analyzer.minimumTransportVersion(TransportVersion.current()) : analyzer;
+    public ResolveDatasetShadowTests(VersionMode versionMode) {
+        super(versionMode);
     }
 
     private static final Source EMPTY = Source.EMPTY;

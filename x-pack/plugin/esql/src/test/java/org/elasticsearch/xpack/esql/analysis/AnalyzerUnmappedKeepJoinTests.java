@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.esql.analysis;
 
+import org.elasticsearch.xpack.esql.VersionMode;
 import org.elasticsearch.xpack.esql.action.EsqlCapabilities;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 
@@ -28,8 +29,8 @@ import static org.hamcrest.Matchers.is;
  */
 public class AnalyzerUnmappedKeepJoinTests extends AnalyzerUnmappedTestBase {
 
-    public AnalyzerUnmappedKeepJoinTests(String name, boolean pinCurrentVersion) {
-        super(name, pinCurrentVersion);
+    public AnalyzerUnmappedKeepJoinTests(VersionMode versionMode) {
+        super(versionMode);
     }
 
     // -------------------------------------------------------------------------

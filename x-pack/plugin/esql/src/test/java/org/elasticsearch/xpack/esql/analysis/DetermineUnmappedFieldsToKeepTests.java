@@ -10,6 +10,7 @@ package org.elasticsearch.xpack.esql.analysis;
 import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.xpack.esql.EsqlTestUtils;
 import org.elasticsearch.xpack.esql.TestAnalyzer;
+import org.elasticsearch.xpack.esql.VersionMode;
 import org.elasticsearch.xpack.esql.action.EsqlCapabilities;
 import org.elasticsearch.xpack.esql.core.util.CollectionUtils;
 import org.elasticsearch.xpack.esql.plan.logical.EsRelation;
@@ -35,8 +36,8 @@ import static org.hamcrest.Matchers.is;
  */
 public class DetermineUnmappedFieldsToKeepTests extends AnalyzerUnmappedTestBase {
 
-    public DetermineUnmappedFieldsToKeepTests(String name, boolean pinCurrentVersion) {
-        super(name, pinCurrentVersion);
+    public DetermineUnmappedFieldsToKeepTests(VersionMode versionMode) {
+        super(versionMode);
     }
 
     /**

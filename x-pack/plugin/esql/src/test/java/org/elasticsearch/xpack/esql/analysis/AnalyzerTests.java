@@ -7,8 +7,6 @@
 
 package org.elasticsearch.xpack.esql.analysis;
 
-import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
-
 import org.elasticsearch.Build;
 import org.elasticsearch.TransportVersion;
 import org.elasticsearch.action.fieldcaps.FieldCapabilitiesIndexResponse;
@@ -23,12 +21,12 @@ import org.elasticsearch.index.analysis.IndexAnalyzers;
 import org.elasticsearch.index.mapper.TimeSeriesParams;
 import org.elasticsearch.inference.TaskType;
 import org.elasticsearch.logging.LogManager;
-import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.core.enrich.EnrichPolicy;
 import org.elasticsearch.xpack.esql.EsqlTestUtils;
 import org.elasticsearch.xpack.esql.LoadMapping;
 import org.elasticsearch.xpack.esql.TestAnalyzer;
 import org.elasticsearch.xpack.esql.VerificationException;
+import org.elasticsearch.xpack.esql.VersionMode;
 import org.elasticsearch.xpack.esql.action.EsqlCapabilities;
 import org.elasticsearch.xpack.esql.core.expression.Alias;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
@@ -210,23 +208,10 @@ import static org.hamcrest.Matchers.startsWith;
  * Use this class if you want to test analysis phase
  * and especially if you expect to get a VerificationException during analysis
  */
-public class AnalyzerTests extends ESTestCase {
+public class AnalyzerTests extends AnalyzerTestCase {
 
-    @ParametersFactory(argumentFormatting = "%1$s")
-    public static List<Object[]> params() {
-        return List.of(new Object[] { "current", true }, new Object[] { "historical", false });
-    }
-
-    private final boolean pinCurrentVersion;
-
-    public AnalyzerTests(@SuppressWarnings("unused") String name, boolean pinCurrentVersion) {
-        this.pinCurrentVersion = pinCurrentVersion;
-    }
-
-    /** Pins {@link TransportVersion#current()} for the {@code current} run so a version-gated plan change surfaces here. */
-    private TestAnalyzer analyzer() {
-        TestAnalyzer analyzer = EsqlTestUtils.analyzer();
-        return pinCurrentVersion ? analyzer.minimumTransportVersion(TransportVersion.current()) : analyzer;
+    public AnalyzerTests(VersionMode versionMode) {
+        super(versionMode);
     }
 
     private static final UnresolvedRelation UNRESOLVED_RELATION = unresolvedRelation("idx");

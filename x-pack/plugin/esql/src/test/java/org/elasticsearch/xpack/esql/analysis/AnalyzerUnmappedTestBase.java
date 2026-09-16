@@ -7,13 +7,9 @@
 
 package org.elasticsearch.xpack.esql.analysis;
 
-import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
-
-import org.elasticsearch.TransportVersion;
 import org.elasticsearch.index.IndexMode;
-import org.elasticsearch.test.ESTestCase;
-import org.elasticsearch.xpack.esql.EsqlTestUtils;
 import org.elasticsearch.xpack.esql.TestAnalyzer;
+import org.elasticsearch.xpack.esql.VersionMode;
 import org.elasticsearch.xpack.esql.action.EsqlCapabilities;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.core.type.EsField;
@@ -27,23 +23,10 @@ import java.util.Map;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.withDefaultLimitWarning;
 import static org.elasticsearch.xpack.esql.analysis.AnalyzerTests.withInlinestatsWarning;
 
-public abstract class AnalyzerUnmappedTestBase extends ESTestCase {
+public abstract class AnalyzerUnmappedTestBase extends AnalyzerTestCase {
 
-    @ParametersFactory(argumentFormatting = "%1$s")
-    public static List<Object[]> params() {
-        return List.of(new Object[] { "current", true }, new Object[] { "historical", false });
-    }
-
-    protected final boolean pinCurrentVersion;
-
-    AnalyzerUnmappedTestBase(@SuppressWarnings("unused") String name, boolean pinCurrentVersion) {
-        this.pinCurrentVersion = pinCurrentVersion;
-    }
-
-    /** Pins {@link TransportVersion#current()} for the {@code current} run so a version-gated plan change surfaces here. */
-    TestAnalyzer analyzer() {
-        TestAnalyzer analyzer = EsqlTestUtils.analyzer();
-        return pinCurrentVersion ? analyzer.minimumTransportVersion(TransportVersion.current()) : analyzer;
+    AnalyzerUnmappedTestBase(VersionMode versionMode) {
+        super(versionMode);
     }
 
     TestAnalyzer test() {

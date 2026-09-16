@@ -9,6 +9,7 @@ package org.elasticsearch.xpack.esql.analysis;
 
 import org.elasticsearch.xpack.esql.EsqlTestUtils;
 import org.elasticsearch.xpack.esql.TestAnalyzer;
+import org.elasticsearch.xpack.esql.VersionMode;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.expression.Expressions;
 import org.elasticsearch.xpack.esql.core.expression.ReferenceAttribute;
@@ -26,8 +27,8 @@ import static org.hamcrest.Matchers.nullValue;
 
 public class DetermineUnmappedFieldsToKeepOrderingTests extends AnalyzerUnmappedTestBase {
 
-    public DetermineUnmappedFieldsToKeepOrderingTests(String name, boolean pinCurrentVersion) {
-        super(name, pinCurrentVersion);
+    public DetermineUnmappedFieldsToKeepOrderingTests(VersionMode versionMode) {
+        super(versionMode);
     }
 
     /** An explicit term still beats a wildcard and keeps its written position, because the real KEEP resolver decides. */

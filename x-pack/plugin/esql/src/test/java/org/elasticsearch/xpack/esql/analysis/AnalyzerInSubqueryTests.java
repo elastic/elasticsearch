@@ -7,13 +7,9 @@
 
 package org.elasticsearch.xpack.esql.analysis;
 
-import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
-
 import org.elasticsearch.TransportVersion;
 import org.elasticsearch.index.IndexMode;
-import org.elasticsearch.test.ESTestCase;
-import org.elasticsearch.xpack.esql.EsqlTestUtils;
-import org.elasticsearch.xpack.esql.TestAnalyzer;
+import org.elasticsearch.xpack.esql.VersionMode;
 import org.elasticsearch.xpack.esql.action.EsqlCapabilities;
 import org.elasticsearch.xpack.esql.approximation.ApproximationVerifier;
 import org.elasticsearch.xpack.esql.core.type.DataType;
@@ -46,23 +42,10 @@ import static org.hamcrest.Matchers.nullValue;
 /**
  * Unit tests for IN/NOT IN subquery analysis that don't fit the golden-test model: the negative (rejection / error) cases.
  */
-public class AnalyzerInSubqueryTests extends ESTestCase {
+public class AnalyzerInSubqueryTests extends AnalyzerTestCase {
 
-    @ParametersFactory(argumentFormatting = "%1$s")
-    public static List<Object[]> params() {
-        return List.of(new Object[] { "current", true }, new Object[] { "historical", false });
-    }
-
-    private final boolean pinCurrentVersion;
-
-    public AnalyzerInSubqueryTests(@SuppressWarnings("unused") String name, boolean pinCurrentVersion) {
-        this.pinCurrentVersion = pinCurrentVersion;
-    }
-
-    /** Pins {@link TransportVersion#current()} for the {@code current} run so a version-gated plan change surfaces here. */
-    private TestAnalyzer analyzer() {
-        TestAnalyzer analyzer = EsqlTestUtils.analyzer();
-        return pinCurrentVersion ? analyzer.minimumTransportVersion(TransportVersion.current()) : analyzer;
+    public AnalyzerInSubqueryTests(VersionMode versionMode) {
+        super(versionMode);
     }
 
     // basic IN and NOT IN subquery, validate JoinConfig

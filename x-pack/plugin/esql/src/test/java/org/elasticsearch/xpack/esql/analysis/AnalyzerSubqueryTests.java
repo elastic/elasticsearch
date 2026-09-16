@@ -7,8 +7,6 @@
 
 package org.elasticsearch.xpack.esql.analysis;
 
-import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
-
 import org.elasticsearch.TransportVersion;
 import org.elasticsearch.cluster.metadata.DataSourceReference;
 import org.elasticsearch.cluster.metadata.Dataset;
@@ -18,11 +16,10 @@ import org.elasticsearch.common.logging.LoggerMessageFormat;
 import org.elasticsearch.common.lucene.BytesRefs;
 import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.indices.TestIndexNameExpressionResolver;
-import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.TransportVersionUtils;
-import org.elasticsearch.xpack.esql.EsqlTestUtils;
 import org.elasticsearch.xpack.esql.TestAnalyzer;
 import org.elasticsearch.xpack.esql.VerificationException;
+import org.elasticsearch.xpack.esql.VersionMode;
 import org.elasticsearch.xpack.esql.action.EsqlCapabilities;
 import org.elasticsearch.xpack.esql.core.expression.Alias;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
@@ -86,23 +83,10 @@ import static org.hamcrest.Matchers.is;
  * Negative tests for subquery analysis in {@code FROM} (and the related {@code ViewUnionAll}/{@code UnionAll} planning), or those don't
  * fit the golden tests. The successful plan-shape (positive) tests over real CSV datasets now live in {@code AnalyzerSubqueryGoldenTests}.
  */
-public class AnalyzerSubqueryTests extends ESTestCase {
+public class AnalyzerSubqueryTests extends AnalyzerTestCase {
 
-    @ParametersFactory(argumentFormatting = "%1$s")
-    public static List<Object[]> params() {
-        return List.of(new Object[] { "current", true }, new Object[] { "historical", false });
-    }
-
-    private final boolean pinCurrentVersion;
-
-    public AnalyzerSubqueryTests(@SuppressWarnings("unused") String name, boolean pinCurrentVersion) {
-        this.pinCurrentVersion = pinCurrentVersion;
-    }
-
-    /** Pins {@link TransportVersion#current()} for the {@code current} run so a version-gated plan change surfaces here. */
-    private TestAnalyzer analyzer() {
-        TestAnalyzer analyzer = EsqlTestUtils.analyzer();
-        return pinCurrentVersion ? analyzer.minimumTransportVersion(TransportVersion.current()) : analyzer;
+    public AnalyzerSubqueryTests(VersionMode versionMode) {
+        super(versionMode);
     }
 
     private static final String SALARIES_INT_RESOURCE = "s3://bucket/salaries_int.parquet";

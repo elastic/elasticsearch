@@ -31,9 +31,11 @@ import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
 
 import static org.elasticsearch.common.util.concurrent.AbstractThrottledTaskRunner.THROTTLED_TASK_RUNNER_METRIC_NAME_QUEUE;
+import static org.elasticsearch.common.util.concurrent.AbstractThrottledTaskRunner.THROTTLED_TASK_RUNNER_METRIC_NAME_QUEUE_TIME;
 import static org.elasticsearch.common.util.concurrent.AbstractThrottledTaskRunner.THROTTLED_TASK_RUNNER_METRIC_NAME_RUNNING;
 import static org.elasticsearch.common.util.concurrent.AbstractThrottledTaskRunner.THROTTLED_TASK_RUNNER_METRIC_PREFIX;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.lessThanOrEqualTo;
 
 public class AbstractThrottledTaskRunnerTests extends ESTestCase {
@@ -357,6 +359,56 @@ public class AbstractThrottledTaskRunnerTests extends ESTestCase {
             registry.getRecorder().getMeasurements(InstrumentType.LONG_ASYNC_GAUGE, runningMetric),
             RecordingMeterRegistry.measures(0L)
         );
+    }
+
+    public void testQueueLatencyHistogramRecordsCorrectBuckets() throws Exception {
+        final String runnerName = "some_throttler";
+        final String queueLatencyMetric = THROTTLED_TASK_RUNNER_METRIC_PREFIX + runnerName + THROTTLED_TASK_RUNNER_METRIC_NAME_QUEUE_TIME;
+
+        final var taskRunning = new CountDownLatch(1);
+        final var taskCanFinish = new CountDownLatch(1);
+
+        final BlockingQueue<ActionListener<Releasable>> queue = ConcurrentCollections.newBlockingQueue();
+        final AbstractThrottledTaskRunner<ActionListener<Releasable>> taskRunner = new AbstractThrottledTaskRunner<>(
+            runnerName,
+            1,
+            executor,
+            queue
+        );
+        final var registry = new RecordingMeterRegistry();
+        taskRunner.setupMetrics(registry, runnerName);
+
+        // we enqueue at 0ns and start running at 5_000_000ns, so we have 5ms latency
+        final long[] clockValues = { 0L, 5_000_000L };
+        final var clockIndex = new AtomicInteger();
+        taskRunner.setNanoClock(() -> clockValues[clockIndex.getAndIncrement()]);
+
+        // enqueue a single task and hold it there so we know it's running
+        taskRunner.enqueueTask(new ActionListener<>() {
+            @Override
+            public void onFailure(Exception e) {
+                throw new AssertionError(e);
+            }
+
+            @Override
+            public void onResponse(Releasable releasable) {
+                try (releasable) {
+                    taskRunning.countDown();
+                    safeAwait(taskCanFinish);
+                }
+            }
+        });
+        safeAwait(taskRunning);
+
+        // let the task finish
+        taskCanFinish.countDown();
+        assertNoRunningTasks(taskRunner);
+
+        // collect metrics: 5ms latency (falls in bucket [4,8), so upper bound 8)
+        registry.getRecorder().collect();
+        var histMeasurements = registry.getRecorder().getMeasurements(InstrumentType.LONG_ASYNC_GAUGE, queueLatencyMetric);
+        assertThat(histMeasurements, hasSize(3));
+        histMeasurements.forEach(m -> assertThat(m.getLong(), equalTo(8L)));
     }
 
     private void assertNoRunningTasks(AbstractThrottledTaskRunner<?> taskRunner) {

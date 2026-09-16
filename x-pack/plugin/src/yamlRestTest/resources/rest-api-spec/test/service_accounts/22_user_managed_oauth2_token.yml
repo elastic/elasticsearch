@@ -248,8 +248,7 @@ teardown:
   - set: { "token.value": self_minter_token }
 
   # The account holds manage_token, so authorization passes; the rejection comes from the long-standing rule that service
-  # accounts may not create OAuth2 tokens for themselves. It is reported as a generic exception rather than an RFC 6749
-  # token error, so pin the status through the error body rather than a named catch.
+  # accounts may not create OAuth2 tokens for themselves. That is a client error (400), not an RFC 6749 token error.
   - do:
       headers:
         Authorization: Bearer ${self_minter_token}
@@ -260,14 +259,13 @@ teardown:
   - match: { "cluster.manage_token": true }
 
   - do:
-      catch: request
+      catch: bad_request
       headers:
         Authorization: Bearer ${self_minter_token}
       security.get_token:
         body:
           grant_type: "client_credentials"
-  - match: { status: 500 }
-  - match: { error.type: "exception" }
+  - match: { error.type: "security_exception" }
   - match: { error.reason: "OAuth2 token creation is not supported for service accounts" }
 
 ---

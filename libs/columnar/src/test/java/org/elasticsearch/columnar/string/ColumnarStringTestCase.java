@@ -173,10 +173,12 @@ public abstract class ColumnarStringTestCase extends ESTestCase {
         final int slotCountsBlockSize,
         final ColumnCheck check
     ) throws IOException {
+        // A test that names a byte target is naming how small a chunk should be, not that it must be cut by
+        // bytes alone, so the value bound is randomized under it.
         final StringColumnOptions.Sizes sizes = new StringColumnOptions.Sizes(
             blockSize,
-            ChunkBounds.ofBytes(targetChunkBytes),
-            ChunkBounds.ofBytes(targetChunkBytes),
+            randomChunkBounds(targetChunkBytes),
+            randomChunkBounds(targetChunkBytes),
             StringColumnOptions.DEFAULT_PACKED_ORDINAL_BLOCK_SIZE,
             compressedOrdinalBlockSize,
             StringColumnOptions.DEFAULT_ESCAPE_RANK_BLOCK_SIZE,
@@ -239,6 +241,17 @@ public abstract class ColumnarStringTestCase extends ESTestCase {
     protected static StringColumnMetadata.Plain plainOf(StringColumnMetadata metadata) {
         assertTrue("expected a plain column, got " + metadata.layout(), metadata instanceof StringColumnMetadata.Plain);
         return (StringColumnMetadata.Plain) metadata;
+    }
+
+    /**
+     * What closes a chunk of {@code targetChunkBytes}: that byte target alone, or a value bound under it.
+     * The value bounds include ones no block size divides, so a chunk closes at the first boundary past the
+     * bound rather than on it.
+     */
+    protected static ChunkBounds randomChunkBounds(int targetChunkBytes) {
+        return randomBoolean()
+            ? ChunkBounds.ofBytes(targetChunkBytes)
+            : new ChunkBounds(targetChunkBytes, randomFrom(1, 100, 128, 200, 1024));
     }
 
     /** Verbatim or compressed; a value must read back the same either way. */

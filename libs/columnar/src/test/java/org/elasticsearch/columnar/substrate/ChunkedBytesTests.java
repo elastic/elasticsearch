@@ -514,6 +514,60 @@ public class ChunkedBytesTests extends ESTestCase {
     }
 
     /**
+     * Zero-length values reach the value bound while the chunk holds no bytes, and a chunk with no bytes is
+     * nothing to decompress, so none is written however low the bound is.
+     */
+    public void testAValueBoundWritesNoEmptyChunks() throws IOException {
+        final List<byte[]> values = new ArrayList<>();
+        for (int i = 0; i < 500; i++) {
+            values.add(new byte[0]);
+        }
+        for (int maxValues : new int[] { 1, 2, 128 }) {
+            for (ChunkCodec codec : codecs()) {
+                try (Directory dir = newDirectory()) {
+                    final long[] offsets = new long[values.size() + 1];
+                    final ChunkIndexMetadata index = writeStream(dir, codec, new ChunkBounds(1 << 20, maxValues), values, offsets);
+                    assertEquals("chunks at maxValues=" + maxValues, 0, index.numChunks());
+                    assertReads(dir, index, values, offsets, "empty values maxValues=" + maxValues);
+                }
+            }
+        }
+    }
+
+    /**
+     * A run of zero-length values followed by one that carries bytes: the run closes no chunk, and the chunk
+     * the value lands in is the first one written.
+     */
+    public void testEmptyValuesBeforeARealOneShareItsChunk() throws IOException {
+        final List<byte[]> values = new ArrayList<>();
+        for (int i = 0; i < 300; i++) {
+            values.add(new byte[0]);
+        }
+        values.add(bytes("the only bytes in the stream"));
+        for (ChunkCodec codec : codecs()) {
+            try (Directory dir = newDirectory()) {
+                final long[] offsets = new long[values.size() + 1];
+                final ChunkIndexMetadata index = writeStream(dir, codec, new ChunkBounds(1 << 20, 8), values, offsets);
+                assertEquals("one chunk for the one value that has bytes", 1, index.numChunks());
+                assertReads(dir, index, values, offsets, "empty values then a real one");
+            }
+        }
+    }
+
+    /** A bound of one value closes a chunk after every value, and never before the first one. */
+    public void testAValueBoundOfOne() throws IOException {
+        final List<byte[]> values = List.of(bytes("a"), bytes("bb"), bytes("ccc"));
+        for (ChunkCodec codec : codecs()) {
+            try (Directory dir = newDirectory()) {
+                final long[] offsets = new long[values.size() + 1];
+                final ChunkIndexMetadata index = writeStream(dir, codec, new ChunkBounds(1 << 20, 1), values, offsets);
+                assertEquals("one chunk a value", values.size(), index.numChunks());
+                assertReads(dir, index, values, offsets, "value bound of one");
+            }
+        }
+    }
+
+    /**
      * Values short enough that the byte target is never reached, so the value bound is the only thing that
      * closes a chunk and the stream is cut where it says.
      */

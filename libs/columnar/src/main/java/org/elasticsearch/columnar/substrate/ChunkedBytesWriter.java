@@ -92,7 +92,9 @@ public final class ChunkedBytesWriter implements Closeable {
      * spans more than one.
      */
     public void boundary(int values) throws IOException {
-        if (pendingLength >= bounds.targetBytes() || pendingValues >= bounds.maxValues()) {
+        // A chunk with no bytes in it is nothing to decompress and nothing to cut, so only a chunk that holds
+        // something closes: a run of zero-length values reaches the value bound while holding no bytes at all.
+        if (pendingLength > 0 && (pendingLength >= bounds.targetBytes() || pendingValues >= bounds.maxValues())) {
             flushChunk();
         }
         pendingValues += values;

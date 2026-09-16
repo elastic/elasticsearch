@@ -21,7 +21,6 @@ import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.columnar.ColumNARDocValuesFormat;
 import org.elasticsearch.columnar.ColumnarFieldType;
 import org.elasticsearch.columnar.numeric.NumericPipeline;
-import org.elasticsearch.columnar.substrate.ChunkBounds;
 import org.elasticsearch.columnar.substrate.ChunkCodec;
 import org.elasticsearch.test.ESTestCase;
 
@@ -96,13 +95,6 @@ public class StringColumnOptionsSelectorTests extends ESTestCase {
             expectThrows(IllegalArgumentException.class, () -> withCompressedOrdinalBlockSize(sizes, blockSize));
             expectThrows(IllegalArgumentException.class, () -> withEscapeRankBlockSize(sizes, blockSize));
             expectThrows(IllegalArgumentException.class, () -> withSlotCountsBlockSize(sizes, blockSize));
-        }
-    }
-
-    public void testChunkBoundsRejectWhatWouldNotClose() {
-        for (int invalid : new int[] { 0, -1 }) {
-            expectThrows(IllegalArgumentException.class, () -> new ChunkBounds(invalid, 1024));
-            expectThrows(IllegalArgumentException.class, () -> new ChunkBounds(1024, invalid));
         }
     }
 

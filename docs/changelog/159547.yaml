@@ -1,0 +1,5 @@
+area: Recovery
+issues: []
+pr: 159547
+summary: Log which translog generations GC reclaimed
+type: enhancement

@@ -41,8 +41,11 @@ import org.elasticsearch.xpack.esql.io.stream.PlanStreamInput;
 import org.elasticsearch.xpack.esql.planner.PlannerUtils;
 
 import java.io.IOException;
+import java.util.ArrayDeque;
 import java.util.ArrayList;
+import java.util.Deque;
 import java.util.List;
+import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Function;
 import java.util.stream.IntStream;
 import java.util.stream.Stream;
@@ -270,57 +273,78 @@ public final class Case extends EsqlScalarFunction {
 
     @Override
     public boolean foldable() {
-        Expression remaining = this;
-        while (remaining instanceof Case current) {
-            Expression next = null;
-            for (Condition condition : current.conditions) {
-                if (condition.condition.foldable() == false) {
-                    return false;
-                }
-                /* Given the current condition is foldable,
-                    if we have already folded the condition into a Literal
-                        If True, Case is foldable if the value is foldable
-                        If False, Case is foldable if the rest of the conditions are foldable
-                    Otherwise
-                        if the value is foldable and the rest of the conditions are foldable, Case is foldable
-                 */
-                if (condition.condition instanceof Literal literal) {
-                    if (Boolean.TRUE.equals(literal.value())) {
-                        // The condition is literally TRUE, so only the matching value needs to be foldable.
-                        next = condition.value;
-                        break;
-                    } else {
-                        continue;
+        Deque<Expression> pending = new ArrayDeque<>();
+        pending.push(this);
+        while (pending.isEmpty() == false) {
+            Expression remaining = pending.pop();
+            if (remaining instanceof Case current) {
+                boolean takenLiteralTrue = false;
+                for (Condition condition : current.conditions) {
+                    if (condition.condition.foldable() == false) {
+                        return false;
                     }
+                    /* Given the current condition is foldable,
+                        if we have already folded the condition into a Literal
+                            If True, Case is foldable if the value is foldable
+                            If False, Case is foldable if the rest of the conditions are foldable
+                        Otherwise
+                            if the value is foldable and the rest of the conditions are foldable, Case is foldable
+                     */
+                    if (condition.condition instanceof Literal literal) {
+                        if (Boolean.TRUE.equals(literal.value())) {
+                            // The condition is literally TRUE, so only the matching value needs to be foldable.
+                            pending.push(condition.value);
+                            takenLiteralTrue = true;
+                            break;
+                        } else {
+                            continue;
+                        }
+                    }
+                    pending.push(condition.value);
                 }
-                if (condition.value.foldable() == false) {
-                    return false;
+                if (takenLiteralTrue == false) {
+                    pending.push(current.elseValue);
                 }
+            } else if (remaining.foldable() == false) {
+                return false;
             }
-            if (next == null) {
-                next = current.elseValue;
-            }
-            remaining = next;
         }
-        return remaining.foldable();
+        return true;
     }
 
     @Override
     public Object fold(FoldContext ctx) {
-        if (isTemporal(this) == false) {
-            return super.fold(ctx);
+        /*
+         * Nested CASE(true, CASE(true, ...), ...) used to recurse until the stack
+         * overflowed. Temporal types have no evaluator, so they are always walked
+         * by hand. Evaluator-backed types must still go through the evaluator when
+         * a condition is not a plain boolean, so multivalue warnings are emitted.
+         */
+        Expression remaining = this;
+        while (remaining instanceof Case current) {
+            if (isTemporal(current)) {
+                remaining = takenBranch(ctx, current);
+                continue;
+            }
+            Expression taken = takenBranchIfSimpleConditions(ctx, current);
+            if (taken != null) {
+                remaining = taken;
+                continue;
+            }
+            AtomicReference<Case> nested = new AtomicReference<>();
+            Case rewritten = current.stubNestedCaseValues(nested);
+            Object result = rewritten.foldThroughEvaluator(ctx);
+            Case captured = nested.get();
+            if (captured == null) {
+                return result;
+            }
+            remaining = captured;
         }
-        // Temporal types can't be managed by evaluators, we have to fold them manually.
-        // TODO manage warnings for MV condition (evaluators take care of that, here we don't have the components)
-        // Walk nested CASE along the taken branch iteratively so a chain of
-        // CASE(true, CASE(true, ...), ...) cannot overflow the stack.
-        Case current = this;
-        Expression taken = takenBranch(ctx, current);
-        while (taken instanceof Case nested && isTemporal(nested)) {
-            current = nested;
-            taken = takenBranch(ctx, current);
-        }
-        return taken.fold(ctx);
+        return remaining.fold(ctx);
+    }
+
+    private Object foldThroughEvaluator(FoldContext ctx) {
+        return super.fold(ctx);
     }
 
     private static boolean isTemporal(Expression expression) {
@@ -335,6 +359,81 @@ public final class Case extends EsqlScalarFunction {
             }
         }
         return current.elseValue;
+    }
+
+    /**
+     * Returns the taken branch when every condition folds to {@code Boolean} or
+     * {@code null}. Returns {@code null} when a condition is multivalued (or
+     * otherwise not a plain boolean) so the caller can fold through the
+     * evaluator and keep its warnings.
+     */
+    private static Expression takenBranchIfSimpleConditions(FoldContext ctx, Case current) {
+        for (Condition condition : current.conditions) {
+            Object folded = condition.condition.fold(ctx);
+            if (folded instanceof Boolean || folded == null) {
+                if (Boolean.TRUE.equals(folded)) {
+                    return condition.value;
+                }
+                continue;
+            }
+            return null;
+        }
+        return current.elseValue;
+    }
+
+    /**
+     * Replace nested evaluator-backed {@code CASE} values with markers so
+     * {@link #foldThroughEvaluator} can run this node without recursively
+     * folding those children. If a marker is evaluated, {@code nested} captures
+     * the original {@code CASE} for the next loop iteration.
+     */
+    private Case stubNestedCaseValues(AtomicReference<Case> nested) {
+        List<Expression> newChildren = new ArrayList<>(children().size());
+        boolean replaced = false;
+        for (Condition condition : conditions) {
+            newChildren.add(condition.condition);
+            if (condition.value instanceof Case valueCase && isTemporal(valueCase) == false) {
+                newChildren.add(new NestedCaseMarker(valueCase, nested, dataType()));
+                replaced = true;
+            } else {
+                newChildren.add(condition.value);
+            }
+        }
+        if (elseValueIsExplicit()) {
+            if (elseValue instanceof Case elseCase && isTemporal(elseCase) == false) {
+                newChildren.add(new NestedCaseMarker(elseCase, nested, dataType()));
+                replaced = true;
+            } else {
+                newChildren.add(elseValue);
+            }
+        }
+        if (replaced == false) {
+            return this;
+        }
+        Case rewritten = (Case) replaceChildren(newChildren);
+        rewritten.dataType();
+        return rewritten;
+    }
+
+    /**
+     * Fold-time stand-in for a nested {@code CASE} value. Evaluating it records
+     * the original node instead of recursively folding it.
+     */
+    private static final class NestedCaseMarker extends Literal {
+        private final Case nested;
+        private final AtomicReference<Case> taken;
+
+        NestedCaseMarker(Case nested, AtomicReference<Case> taken, DataType dataType) {
+            super(nested.source(), null, dataType);
+            this.nested = nested;
+            this.taken = taken;
+        }
+
+        @Override
+        public Object fold(FoldContext ctx) {
+            taken.set(nested);
+            return null;
+        }
     }
 
     /**

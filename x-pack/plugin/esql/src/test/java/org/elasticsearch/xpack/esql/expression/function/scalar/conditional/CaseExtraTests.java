@@ -381,17 +381,73 @@ public class CaseExtraTests extends ESTestCase {
     }
 
     /**
-     * Nested temporal {@code CASE} used to recurse in {@link Case#fold(FoldContext)}
-     * until the JVM threw {@link StackOverflowError}. Non-temporal {@code CASE} still folds
-     * through evaluators so it can emit multivalue-condition warnings.
+     * Nested {@code CASE} used to recurse in {@link Case#fold(FoldContext)} until
+     * the JVM threw {@link StackOverflowError}. Covers temporal types (folded by
+     * hand) and evaluator-backed types such as integer.
      */
-    public void testDeeplyNestedTemporalFoldDoesNotStackOverflow() {
+    public void testDeeplyNestedFoldDoesNotStackOverflow() {
         boolean nestInTrueBranch = randomBoolean();
-        FoldedCaseValues values = randomFoldedCaseValues(false);
+        FoldedCaseValues values = randomFoldedCaseValues(true);
         Literal condition = new Literal(Source.EMPTY, nestInTrueBranch, DataType.BOOLEAN);
         Expression nested = nestCases(10_000, values.expected, values.unused, condition, nestInTrueBranch);
         assertTrue(nested.foldable());
         assertThat(nested.fold(FoldContext.small()), equalTo(values.expected.value()));
+    }
+
+    /**
+     * Walking the taken branch by hand would skip the evaluator, which is what
+     * warns when a condition is multivalued. Nested integer {@code CASE} must
+     * still emit those warnings.
+     */
+    public void testNestedIntegerFoldKeepsMultivalueConditionWarnings() {
+        int taken = randomInt();
+        int unused = randomValueOtherThan(taken, ESTestCase::randomInt);
+        Case inner = new Case(
+            Source.EMPTY,
+            new Literal(Source.EMPTY, true, DataType.BOOLEAN),
+            List.of(new Literal(Source.EMPTY, taken, DataType.INTEGER), new Literal(Source.EMPTY, unused, DataType.INTEGER))
+        );
+        inner.dataType();
+        Case outer = new Case(
+            Source.EMPTY,
+            new Literal(Source.synthetic("cond"), List.of(true, true), DataType.BOOLEAN),
+            List.of(inner, new Literal(Source.EMPTY, unused, DataType.INTEGER))
+        );
+        outer.dataType();
+        assertTrue(outer.foldable());
+        assertThat(outer.fold(FoldContext.small()), equalTo(unused));
+        assertWarnings(
+            "Line -1:-1: evaluation of [cond] failed, treating result as false. Only first 20 failures recorded.",
+            "Line -1:-1: java.lang.IllegalArgumentException: CASE expects a single-valued boolean"
+        );
+    }
+
+    /**
+     * Same warning requirement when the nested {@code CASE} is the else branch
+     * of a multivalued condition — the evaluator must still run, and must not
+     * recurse into the nested node.
+     */
+    public void testNestedIntegerFoldInElseKeepsMultivalueConditionWarnings() {
+        int taken = randomInt();
+        int unused = randomValueOtherThan(taken, ESTestCase::randomInt);
+        Case inner = new Case(
+            Source.EMPTY,
+            new Literal(Source.EMPTY, true, DataType.BOOLEAN),
+            List.of(new Literal(Source.EMPTY, taken, DataType.INTEGER), new Literal(Source.EMPTY, unused, DataType.INTEGER))
+        );
+        inner.dataType();
+        Case outer = new Case(
+            Source.EMPTY,
+            new Literal(Source.synthetic("cond"), List.of(true, true), DataType.BOOLEAN),
+            List.of(new Literal(Source.EMPTY, unused, DataType.INTEGER), inner)
+        );
+        outer.dataType();
+        assertTrue(outer.foldable());
+        assertThat(outer.fold(FoldContext.small()), equalTo(taken));
+        assertWarnings(
+            "Line -1:-1: evaluation of [cond] failed, treating result as false. Only first 20 failures recorded.",
+            "Line -1:-1: java.lang.IllegalArgumentException: CASE expects a single-valued boolean"
+        );
     }
 
     /**

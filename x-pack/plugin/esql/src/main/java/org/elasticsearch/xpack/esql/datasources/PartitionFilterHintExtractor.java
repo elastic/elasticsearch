@@ -167,12 +167,27 @@ public final class PartitionFilterHintExtractor {
         return expression.anyMatch(e -> e instanceof Attribute attr && names.contains(attr.name()));
     }
 
+    /**
+     * Names from the relation's {@code METADATA} clause that listing may treat as engine values.
+     * When {@code _id.path} names a {@code _file.*} column and the clause also requests {@code _id},
+     * bind leaves that file column in place for the reader to stamp from, so it is omitted here:
+     * a storage-stat prune on that name would filter by the engine path, not the surviving file value.
+     */
     private static Set<String> requestedMetadataNames(UnresolvedExternalRelation rel) {
         Set<String> names = new LinkedHashSet<>();
         for (NamedExpression field : rel.metadataFields()) {
             names.add(MetadataAttribute.metadataName(field));
         }
+        String idPath = declaredIdPath(rel);
+        if (idPath != null && names.contains(ExternalMetadataColumns.ID) && FileMetadataColumns.isFileMetadataColumn(idPath)) {
+            names.remove(idPath);
+        }
         return names;
+    }
+
+    private static String declaredIdPath(UnresolvedExternalRelation rel) {
+        var mapping = rel.mapping();
+        return mapping != null && mapping.mappings() != null ? mapping.mappings().idPath() : null;
     }
 
     private static void extractFromExpression(Expression expr, List<PartitionFilterHint> hints, Set<String> requestedMetadata) {
@@ -225,6 +240,10 @@ public final class PartitionFilterHintExtractor {
             return;
         }
         UnresolvedAttribute attr = (UnresolvedAttribute) value;
+        String columnName = attr.name();
+        if (FileMetadataColumns.isFileMetadataColumn(columnName) && requestedMetadata.contains(columnName) == false) {
+            return;
+        }
 
         List<Object> literalValues = new ArrayList<>();
         for (Expression listItem : in.list()) {
@@ -236,10 +255,6 @@ public final class PartitionFilterHintExtractor {
         }
 
         if (literalValues.isEmpty() == false) {
-            String columnName = attr.name();
-            if (FileMetadataColumns.isFileMetadataColumn(columnName) && requestedMetadata.contains(columnName) == false) {
-                return;
-            }
             hints.add(new PartitionFilterHint(columnName, Operator.IN, literalValues));
         }
     }

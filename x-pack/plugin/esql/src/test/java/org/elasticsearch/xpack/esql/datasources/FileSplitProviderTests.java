@@ -5534,10 +5534,6 @@ public class FileSplitProviderTests extends ESTestCase {
         assertTrue(((FileSplit) splits.get(1)).partitionValues().containsKey(FileMetadataColumns.SIZE));
     }
 
-    /**
-     * The same unbound {@code _file.size} over a file that has no such physical column is a
-     * certified missing-column skip.
-     */
     public void testUnboundFileSizeMissingFromFileIsCertifiedSkip() {
         StoragePath path = StoragePath.of("s3://b/a.parquet");
         FileList fileList = GlobExpander.fileListOf(List.of(new StorageEntry(path, 100, Instant.EPOCH)), "s3://b/*.parquet");
@@ -5561,9 +5557,6 @@ public class FileSplitProviderTests extends ESTestCase {
         assertEquals(0, provider.discoverSplits(ctx).splits().size());
     }
 
-    /**
-     * Bound {@code _file.size} still prunes by the listing storage stat.
-     */
     public void testBoundFileSizeFilterUsesListingStat() {
         StoragePath small = StoragePath.of("s3://b/small.parquet");
         StoragePath large = StoragePath.of("s3://b/large.parquet");

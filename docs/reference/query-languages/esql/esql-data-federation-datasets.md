@@ -189,9 +189,9 @@ PUT /_query/dataset/access_logs
 The `mappings` block supports the following properties:
 
 - `properties`: Columns keyed by their logical name. Each column requires a `type`.
-  - `path`: Optional physical column name. Use it to expose a file column under a different logical name, including renaming a timestamp column to `@timestamp`.
+  - `path`: Optional physical column name. Use it to expose a file column under a different logical name, including renaming a timestamp column to `@timestamp`. To keep a file column whose name matches a metadata name, rename it here before requesting that name via `METADATA`.
   - `format`: Optional date parsing pattern for a column with type `date`.
-- `_id.path`: Optional source column whose value becomes the row's `_id`. If that column is also requested via `METADATA`, or if the dataset has a physical `_id` column and `_id.path` is set, `METADATA _id` leaves the file column in place so the reader can stamp `_id` from it. In those cases `_id` keeps the file column's type rather than becoming `keyword`.
+- `_id.path`: Optional source column whose value becomes the row's `_id`. If that column is also named in the `METADATA` clause, the file column is left in place so the reader can stamp `_id` from it. If the dataset also has a physical `_id` column, `METADATA _id` leaves that file column in place as well (the engine `_id` is not bound). A surviving file `_id` keeps the file column's type rather than becoming `keyword`.
 - `dynamic`: Controls undeclared columns. The default, `true`, overlays the declared columns on the inferred schema. Set it to `false` to treat the declaration as the complete schema, skip schema inference for text formats, and leave undeclared columns unavailable to queries.
 
 :::{note}

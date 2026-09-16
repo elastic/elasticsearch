@@ -591,6 +591,30 @@ public class AnalyzerExternalTests extends ESTestCase {
         assertWarnings(Analyzer.shadowedExternalColumnsWarning(DATASET_NAME, List.of("_id")));
     }
 
+    public void testIdPathSkipCollapsesDuplicatePhysicalColumns() {
+        assumeTrue("requires dataset-in-FROM support", EsqlCapabilities.Cap.DATASET_IN_FROM_COMMAND.isEnabled());
+
+        List<Attribute> schema = List.of(
+            referenceAttribute("emp_no", LONG),
+            referenceAttribute("_id", LONG),
+            referenceAttribute("_id", KEYWORD),
+            referenceAttribute("first_name", KEYWORD)
+        );
+        var leafOutput = externalLeafOutput(
+            analyzeDataset(
+                analyzer().externalSourceUnresolved(S3_PATH, schema),
+                S3_PATH,
+                "FROM " + DATASET_NAME + " METADATA _id",
+                mappingWithIdPath("_id")
+            )
+        );
+
+        List<Attribute> ids = leafOutput.stream().filter(a -> a.name().equals("_id")).toList();
+        assertThat(ids, hasSize(1));
+        assertFalse(ids.get(0) instanceof ExternalMetadataAttribute);
+        assertEquals(LONG, ids.get(0).dataType());
+    }
+
     public void testIdPathEqualsIdSkipsBind() {
         assumeTrue("requires dataset-in-FROM support", EsqlCapabilities.Cap.DATASET_IN_FROM_COMMAND.isEnabled());
 
@@ -604,6 +628,26 @@ public class AnalyzerExternalTests extends ESTestCase {
         assertFalse(ids.get(0) instanceof ExternalMetadataAttribute);
         assertEquals(LONG, ids.get(0).dataType());
         assertTrue(leafOutput.stream().noneMatch(a -> ColumnExtractor.ROW_POSITION_COLUMN.equals(a.name())));
+    }
+
+    public void testIdPathEqualsIdWithNoPhysicalColumnRejected() {
+        assumeTrue("requires dataset-in-FROM support", EsqlCapabilities.Cap.DATASET_IN_FROM_COMMAND.isEnabled());
+
+        Exception e = expectThrows(
+            Exception.class,
+            () -> analyzeDataset(external(), S3_PATH, "FROM " + DATASET_NAME + " METADATA _id", mappingWithIdPath("_id"))
+        );
+        assertThat(e.getMessage(), containsString("no such column exists in the dataset's schema"));
+    }
+
+    public void testIdPathSkipDoesNotSwallowUnknownMetadataName() {
+        assumeTrue("requires dataset-in-FROM support", EsqlCapabilities.Cap.DATASET_IN_FROM_COMMAND.isEnabled());
+
+        VerificationException e = expectThrows(
+            VerificationException.class,
+            () -> analyzeDataset(external(), S3_PATH, "FROM " + DATASET_NAME + " METADATA _id, emp_no", mappingWithIdPath("emp_no"))
+        );
+        assertThat(e.getMessage(), containsString("Unresolved metadata pattern [emp_no]"));
     }
 
     public void testIdPathPresentAndPhysicalIdCollidesSkipsBind() {

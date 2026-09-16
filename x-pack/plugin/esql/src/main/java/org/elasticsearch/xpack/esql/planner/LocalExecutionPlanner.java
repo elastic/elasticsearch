@@ -2255,7 +2255,7 @@ public class LocalExecutionPlanner {
         // node-safe accessor, not the fileList: on a data node the resolved FileList is not serialized
         // (see the slice-queue note above), so reading it there yields nothing, whereas the stamp
         // travels with the relation. VirtualColumnIterator materialises each as a constant block even
-        // when only a partition column is projected (e.g. COUNT(p) that safe-missed to a scan):
+        // when only a partition column is projected (e.g., COUNT(p) that safe-missed to a scan):
         // otherwise the operator treats it as a data column, the reader emits a 0-block page, and the
         // downstream aggregator reads a non-existent block. The assert checks that on the coordinator
         // (where the fileList is resolved) the stamp already covers every fileList partition name.

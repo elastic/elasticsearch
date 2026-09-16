@@ -793,19 +793,37 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
                 if (emitted.contains(name)) {
                     continue;
                 }
+                DataType type = MetadataAttribute.dataType(name);
+                if (type == null) {
+                    type = FileMetadataColumns.COLUMNS.get(name);
+                }
+                if (type == null) {
+                    // Unknown name: keep the unresolved expression so the verifier picks it up via
+                    // ExternalRelation#metadataFields() and fires its native unresolved-pattern error.
+                    if (unresolved == null) {
+                        unresolved = new ArrayList<>();
+                    }
+                    unresolved.add(requested);
+                    continue;
+                }
                 // _id.path names the column the reader stamps _id from. Dropping that column (or a
                 // colliding physical _id) would leave the reader with nothing to stamp, so skip the
                 // bind and leave the file column in place. The skip covers every requested name that
                 // equals the declared path, because METADATA _file.path, _id can name the path
-                // column before _id. A present declared path also skips a colliding physical _id,
-                // so a stale or typo'd path does not start failing a query that returned rows.
-                if (declaredIdPath != null && idRequested) {
-                    if (name.equals(declaredIdPath)) {
-                        continue;
+                // column before _id. A present declared path also skips a colliding physical _id:
+                // the file column stays and the missing-path check below does not run against it.
+                // A repeated physical header of that name is collapsed to the first attribute so
+                // the output still has exactly one.
+                if (declaredIdPath != null
+                    && idRequested
+                    && baseNames.contains(name)
+                    && (name.equals(declaredIdPath) || ExternalMetadataColumns.ID.equals(name))) {
+                    List<Attribute> current = enriched == null ? baseSchema : enriched;
+                    List<Attribute> collapsed = collapseDuplicatePhysicals(current, name);
+                    if (collapsed != current) {
+                        enriched = collapsed;
                     }
-                    if (ExternalMetadataColumns.ID.equals(name) && baseNames.contains(name)) {
-                        continue;
-                    }
+                    continue;
                 }
                 // If the dataset declares _id.path but the resolved schema has no such DATA column
                 // (a typo, the files lost it, or it is a partition/virtual column the reader never
@@ -843,19 +861,6 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
                         }
                     }
                 }
-                DataType type = MetadataAttribute.dataType(name);
-                if (type == null) {
-                    type = FileMetadataColumns.COLUMNS.get(name);
-                }
-                if (type == null) {
-                    // Unknown name: keep the unresolved expression so the verifier picks it up via
-                    // ExternalRelation#metadataFields() and fires its native unresolved-pattern error.
-                    if (unresolved == null) {
-                        unresolved = new ArrayList<>();
-                    }
-                    unresolved.add(requested);
-                    continue;
-                }
                 if (enriched == null) {
                     enriched = new ArrayList<>(baseSchema);
                 }
@@ -875,6 +880,34 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
             List<Attribute> resolvedSchema = enriched == null ? baseSchema : List.copyOf(enriched);
             List<? extends NamedExpression> unresolvedList = unresolved == null ? List.of() : List.copyOf(unresolved);
             return new MetadataBindResult(resolvedSchema, unresolvedList);
+        }
+
+        /**
+         * Keeps the first attribute of {@code name} and drops later duplicates. Returns {@code schema}
+         * unchanged when the name occurs at most once.
+         */
+        private static List<Attribute> collapseDuplicatePhysicals(List<Attribute> schema, String name) {
+            int extras = 0;
+            for (Attribute a : schema) {
+                if (a.name().equals(name)) {
+                    extras++;
+                }
+            }
+            if (extras <= 1) {
+                return schema;
+            }
+            List<Attribute> collapsed = new ArrayList<>(schema.size() - (extras - 1));
+            boolean kept = false;
+            for (Attribute a : schema) {
+                if (a.name().equals(name)) {
+                    if (kept) {
+                        continue;
+                    }
+                    kept = true;
+                }
+                collapsed.add(a);
+            }
+            return collapsed;
         }
 
         /** The declared {@code mappings._id.path}, or {@code null} when the dataset does not set {@code _id} from a column. */

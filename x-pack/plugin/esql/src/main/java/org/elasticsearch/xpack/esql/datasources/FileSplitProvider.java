@@ -558,6 +558,17 @@ public class FileSplitProvider implements SplitProvider {
         int certifiedSkips = 0;
         long probedFileBytes = 0;
         List<FileTask> tasks = new ArrayList<>(fileList.fileCount());
+        boolean overlayPerFileConstants = filterHints.isEmpty() == false
+            && hintsReferencePerFileConstants(filterHints, metadataColumnNames);
+        Set<String> unboundFileMetadataNames = Set.of();
+        if (filterHints.isEmpty() == false) {
+            unboundFileMetadataNames = new LinkedHashSet<>();
+            for (String name : FileMetadataColumns.NAMES) {
+                if (metadataColumnNames.contains(name) == false) {
+                    unboundFileMetadataNames.add(name);
+                }
+            }
+        }
         for (int i = 0; i < fileList.fileCount(); i++) {
             StoragePath filePath = fileList.path(i);
 
@@ -578,7 +589,8 @@ public class FileSplitProvider implements SplitProvider {
                     fileList,
                     i,
                     metadataColumnNames,
-                    filterHints
+                    overlayPerFileConstants,
+                    unboundFileMetadataNames
                 );
                 if (filterValues.isEmpty() == false && matchesPartitionFilters(filterValues, filterHints) == false) {
                     certifiedSkips++;
@@ -2820,16 +2832,15 @@ public class FileSplitProvider implements SplitProvider {
         FileList fileList,
         int index,
         Set<String> metadataColumnNames,
-        List<Expression> filterHints
+        boolean overlayPerFileConstants,
+        Set<String> unboundFileMetadataNames
     ) {
         Map<String, Object> filterValues = new HashMap<>(partitionValues.size() + ExternalMetadataColumns.PER_FILE_CONSTANT_NAMES.size());
         filterValues.putAll(partitionValues);
-        for (String name : FileMetadataColumns.NAMES) {
-            if (metadataColumnNames.contains(name) == false) {
-                filterValues.remove(name);
-            }
+        for (String name : unboundFileMetadataNames) {
+            filterValues.remove(name);
         }
-        if (hintsReferencePerFileConstants(filterHints, metadataColumnNames)) {
+        if (overlayPerFileConstants) {
             for (Map.Entry<String, Object> constant : ExternalMetadataColumns.extractPerFileConstants(datasetName, fileList, index)
                 .entrySet()) {
                 if (metadataColumnNames.contains(constant.getKey())) {

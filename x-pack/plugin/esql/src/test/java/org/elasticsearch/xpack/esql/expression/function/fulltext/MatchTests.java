@@ -100,7 +100,13 @@ public class MatchTests extends SingleFieldFullTextFunctionTestCase {
 
     public void testToTextUnionFieldWithLegacyRepresentationAndNonTextBranchIsRuntimeSearch() {
         FieldAttribute field = unionFieldAttribute("field", DataType.TEXT, true, DataType.KEYWORD, DataType.TEXT);
-        Match match = new Match(Source.EMPTY, field, new Literal(Source.EMPTY, new BytesRef("x"), DataType.KEYWORD), null, randomConfiguration());
+        Match match = new Match(
+            Source.EMPTY,
+            field,
+            new Literal(Source.EMPTY, new BytesRef("x"), DataType.KEYWORD),
+            null,
+            randomConfiguration()
+        );
         assertTrue(
             "a union field resolved via the legacy MultiTypeEsField representation with a non-TEXT branch must not be pushed down",
             match.isRuntimeSearch()
@@ -109,7 +115,13 @@ public class MatchTests extends SingleFieldFullTextFunctionTestCase {
 
     public void testToStringUnionFieldWithLegacyRepresentationAndNonKeywordBranchIsRuntimeSearch() {
         FieldAttribute field = unionFieldAttribute("field", DataType.KEYWORD, true, DataType.TEXT, DataType.KEYWORD);
-        Match match = new Match(Source.EMPTY, field, new Literal(Source.EMPTY, new BytesRef("x"), DataType.KEYWORD), null, randomConfiguration());
+        Match match = new Match(
+            Source.EMPTY,
+            field,
+            new Literal(Source.EMPTY, new BytesRef("x"), DataType.KEYWORD),
+            null,
+            randomConfiguration()
+        );
         assertTrue(
             "a union field resolved via the legacy MultiTypeEsField representation with a non-KEYWORD branch must not be pushed down",
             match.isRuntimeSearch()
@@ -118,7 +130,13 @@ public class MatchTests extends SingleFieldFullTextFunctionTestCase {
 
     public void testToTextUnionFieldWithCompactRepresentationAndNonTextBranchIsRuntimeSearch() {
         FieldAttribute field = unionFieldAttribute("field", DataType.TEXT, false, DataType.KEYWORD, DataType.TEXT);
-        Match match = new Match(Source.EMPTY, field, new Literal(Source.EMPTY, new BytesRef("x"), DataType.KEYWORD), null, randomConfiguration());
+        Match match = new Match(
+            Source.EMPTY,
+            field,
+            new Literal(Source.EMPTY, new BytesRef("x"), DataType.KEYWORD),
+            null,
+            randomConfiguration()
+        );
         assertTrue(
             "a union field resolved via the compact representation with a non-TEXT branch must not be pushed down",
             match.isRuntimeSearch()
@@ -127,7 +145,13 @@ public class MatchTests extends SingleFieldFullTextFunctionTestCase {
 
     public void testToStringUnionFieldWithCompactRepresentationAndNonKeywordBranchIsRuntimeSearch() {
         FieldAttribute field = unionFieldAttribute("field", DataType.KEYWORD, false, DataType.TEXT, DataType.KEYWORD);
-        Match match = new Match(Source.EMPTY, field, new Literal(Source.EMPTY, new BytesRef("x"), DataType.KEYWORD), null, randomConfiguration());
+        Match match = new Match(
+            Source.EMPTY,
+            field,
+            new Literal(Source.EMPTY, new BytesRef("x"), DataType.KEYWORD),
+            null,
+            randomConfiguration()
+        );
         assertTrue(
             "a union field resolved via the compact representation with a non-KEYWORD branch must not be pushed down",
             match.isRuntimeSearch()

@@ -225,7 +225,7 @@ public class StatelessSearchNodeRecoveryListener extends AbstractStatelessRecove
                         searchDirectory.updateCommit(compoundCommit);
                     }
                     warmingService.warmCacheForSearchShardRecovery(
-                        clusterService.state(),
+                        clusterService::state,
                         indexShard,
                         compoundCommit,
                         searchDirectory,

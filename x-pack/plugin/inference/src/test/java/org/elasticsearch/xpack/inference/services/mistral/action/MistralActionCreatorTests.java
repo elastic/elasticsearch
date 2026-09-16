@@ -37,6 +37,7 @@ import java.util.concurrent.TimeUnit;
 
 import static org.elasticsearch.xpack.core.inference.results.ChatCompletionResultsTests.buildExpectationCompletion;
 import static org.elasticsearch.xpack.inference.Utils.inferenceUtilityPool;
+import static org.elasticsearch.xpack.inference.Utils.mockClusterService;
 import static org.elasticsearch.xpack.inference.Utils.mockClusterServiceEmpty;
 import static org.elasticsearch.xpack.inference.external.http.Utils.entityAsMap;
 import static org.elasticsearch.xpack.inference.external.http.Utils.getUrl;
@@ -132,7 +133,13 @@ public class MistralActionCreatorTests extends ESTestCase {
 
             PlainActionFuture<InferenceServiceResults> listener = createChatCompletionFuture(
                 sender,
-                new ServiceComponents(threadPool, mockThrottlerManager(), settings, TruncatorTests.createTruncator())
+                new ServiceComponents(
+                    threadPool,
+                    mockThrottlerManager(),
+                    settings,
+                    TruncatorTests.createTruncator(),
+                    mockClusterService(settings)
+                )
             );
 
             var thrownException = expectThrows(ElasticsearchException.class, () -> listener.actionGet(TIMEOUT));

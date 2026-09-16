@@ -30,7 +30,6 @@ import org.elasticsearch.xpack.esql.plan.logical.join.InlineJoin;
 import org.elasticsearch.xpack.esql.plan.logical.local.LocalRelation;
 
 import static org.elasticsearch.xpack.core.enrich.EnrichPolicy.MATCH_TYPE;
-import static org.elasticsearch.xpack.esql.EsqlTestUtils.analyzer;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.as;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.singleValue;
 import static org.elasticsearch.xpack.esql.action.EsqlCapabilities.Cap.INLINE_STATS;
@@ -45,6 +44,10 @@ import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.not;
 
 public class OptimizerVerificationTests extends AbstractLogicalPlanOptimizerTests {
+
+    public OptimizerVerificationTests(VersionMode versionMode) {
+        super(versionMode);
+    }
 
     /**
      * A cast to keyword (`::keyword`) produces a foldable string pattern. {@code 12::keyword} folds to the

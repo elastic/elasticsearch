@@ -1537,7 +1537,7 @@ public class OrcFormatReader implements RangeAwareFormatReader, NoConfigFormatRe
                         skipWarnings = new SkipWarnings(
                             "ORC file ["
                                 + fileLocation
-                                + "] has columns whose on-disk type is incompatible with the planner type; "
+                                + "] has columns whose on-disk type is incompatible with planner type; "
                                 + "they are returned as null",
                             warningSink
                         );

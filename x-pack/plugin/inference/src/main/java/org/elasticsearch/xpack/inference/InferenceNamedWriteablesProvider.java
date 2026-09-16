@@ -79,6 +79,7 @@ import org.elasticsearch.xpack.inference.services.deepseek.DeepSeekServiceSettin
 import org.elasticsearch.xpack.inference.services.elastic.completion.ElasticInferenceServiceChatCompletionTaskSettings;
 import org.elasticsearch.xpack.inference.services.elastic.completion.ElasticInferenceServiceCompletionServiceSettings;
 import org.elasticsearch.xpack.inference.services.elastic.denseembeddings.ElasticInferenceServiceDenseEmbeddingsServiceSettings;
+import org.elasticsearch.xpack.inference.services.elastic.documentextraction.ElasticInferenceServiceDocumentExtractionServiceSettings;
 import org.elasticsearch.xpack.inference.services.elastic.rerank.ElasticInferenceServiceRerankServiceSettings;
 import org.elasticsearch.xpack.inference.services.elastic.sparseembeddings.ElasticInferenceServiceSparseEmbeddingsServiceSettings;
 import org.elasticsearch.xpack.inference.services.elasticsearch.CustomElandInternalServiceSettings;
@@ -992,6 +993,15 @@ public class InferenceNamedWriteablesProvider {
                 ServiceSettings.class,
                 ElasticInferenceServiceRerankServiceSettings.NAME,
                 ElasticInferenceServiceRerankServiceSettings::new
+            )
+        );
+
+        // Document Extraction
+        namedWriteables.add(
+            new NamedWriteableRegistry.Entry(
+                ServiceSettings.class,
+                ElasticInferenceServiceDocumentExtractionServiceSettings.NAME,
+                ElasticInferenceServiceDocumentExtractionServiceSettings::new
             )
         );
 

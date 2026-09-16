@@ -10,6 +10,7 @@ package org.elasticsearch.xpack.inference.services.elastic.action;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.xpack.inference.common.InferencePreferences;
 import org.elasticsearch.xpack.inference.external.http.retry.ResponseHandler;
+import org.elasticsearch.xpack.inference.external.http.sender.DocumentExtractionInputs;
 import org.elasticsearch.xpack.inference.external.http.sender.EmbeddingsInput;
 import org.elasticsearch.xpack.inference.external.http.sender.GenericRequestManager;
 import org.elasticsearch.xpack.inference.external.http.sender.QueryAndDocsInputs;
@@ -22,12 +23,15 @@ import org.elasticsearch.xpack.inference.services.elastic.ElasticInferenceServic
 import org.elasticsearch.xpack.inference.services.elastic.ccm.CCMAuthenticationApplierFactory;
 import org.elasticsearch.xpack.inference.services.elastic.completion.ElasticInferenceServiceCompletionModel;
 import org.elasticsearch.xpack.inference.services.elastic.denseembeddings.ElasticInferenceServiceDenseEmbeddingsModel;
+import org.elasticsearch.xpack.inference.services.elastic.documentextraction.ElasticInferenceServiceDocumentExtractionModel;
 import org.elasticsearch.xpack.inference.services.elastic.request.ElasticInferenceServiceDenseEmbeddingsRequest;
+import org.elasticsearch.xpack.inference.services.elastic.request.ElasticInferenceServiceDocumentExtractionRequest;
 import org.elasticsearch.xpack.inference.services.elastic.request.ElasticInferenceServiceRerankRequest;
 import org.elasticsearch.xpack.inference.services.elastic.request.ElasticInferenceServiceSparseEmbeddingsRequest;
 import org.elasticsearch.xpack.inference.services.elastic.request.ElasticInferenceServiceUnifiedChatCompletionRequest;
 import org.elasticsearch.xpack.inference.services.elastic.rerank.ElasticInferenceServiceRerankModel;
 import org.elasticsearch.xpack.inference.services.elastic.response.ElasticInferenceServiceDenseEmbeddingsResponseEntity;
+import org.elasticsearch.xpack.inference.services.elastic.response.ElasticInferenceServiceDocumentExtractionResponseEntity;
 import org.elasticsearch.xpack.inference.services.elastic.response.ElasticInferenceServiceRerankResponseEntity;
 import org.elasticsearch.xpack.inference.services.elastic.response.ElasticInferenceServiceSparseEmbeddingsResponseEntity;
 import org.elasticsearch.xpack.inference.services.elastic.sparseembeddings.ElasticInferenceServiceSparseEmbeddingsModel;
@@ -93,6 +97,48 @@ record ModelStrategyFactory(ServiceComponents serviceComponents) {
         @Override
         public String requestDescription() {
             return SPARSE_EMBEDDINGS_REQUEST_DESCRIPTION;
+        }
+    };
+
+    private static final String DOCUMENT_EXTRACTION_REQUEST_DESCRIPTION = Strings.format(
+        "%s document extraction",
+        ELASTIC_INFERENCE_SERVICE_IDENTIFIER
+    );
+
+    private static final ResponseHandler DOCUMENT_EXTRACTION_HANDLER = new ElasticInferenceServiceResponseHandler(
+        DOCUMENT_EXTRACTION_REQUEST_DESCRIPTION,
+        (request, response) -> ElasticInferenceServiceDocumentExtractionResponseEntity.fromResponse(response)
+    );
+
+    private static final Strategy<ElasticInferenceServiceDocumentExtractionModel> DOCUMENT_EXTRACTION_STRATEGY = new Strategy<>() {
+        @Override
+        public RequestManager createRequestManager(
+            ElasticInferenceServiceDocumentExtractionModel model,
+            ServiceComponents serviceComponents,
+            TraceContext traceContext,
+            InferencePreferences preferences,
+            CCMAuthenticationApplierFactory.AuthApplier authApplier
+        ) {
+            var metadata = extractRequestMetadataFromThreadContext(serviceComponents.threadPool().getThreadContext());
+            return new GenericRequestManager<>(
+                serviceComponents.threadPool(),
+                model,
+                DOCUMENT_EXTRACTION_HANDLER,
+                (documentExtractionInput) -> new ElasticInferenceServiceDocumentExtractionRequest(
+                    documentExtractionInput.getDocuments(),
+                    model,
+                    traceContext,
+                    metadata,
+                    preferences,
+                    authApplier
+                ),
+                DocumentExtractionInputs.class
+            );
+        }
+
+        @Override
+        public String requestDescription() {
+            return DOCUMENT_EXTRACTION_REQUEST_DESCRIPTION;
         }
     };
 
@@ -230,6 +276,7 @@ record ModelStrategyFactory(ServiceComponents serviceComponents) {
             case ElasticInferenceServiceRerankModel ignored -> (Strategy<T>) RERANK_STRATEGY;
             case ElasticInferenceServiceDenseEmbeddingsModel ignored -> (Strategy<T>) EMBEDDING_STRATEGY;
             case ElasticInferenceServiceCompletionModel ignored -> (Strategy<T>) CHAT_COMPLETIONS_STRATEGY;
+            case ElasticInferenceServiceDocumentExtractionModel ignored -> (Strategy<T>) DOCUMENT_EXTRACTION_STRATEGY;
             default -> throw new IllegalArgumentException("No strategy found for model type: " + model.getClass().getSimpleName());
         };
     }

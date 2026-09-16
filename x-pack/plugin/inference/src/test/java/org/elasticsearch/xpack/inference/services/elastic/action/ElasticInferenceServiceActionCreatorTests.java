@@ -19,6 +19,8 @@ import org.elasticsearch.common.breaker.TestCircuitBreaker;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.features.FeatureService;
+import org.elasticsearch.inference.DataFormat;
+import org.elasticsearch.inference.DataType;
 import org.elasticsearch.inference.InferenceServiceResults;
 import org.elasticsearch.inference.InferenceString;
 import org.elasticsearch.inference.InputType;
@@ -30,12 +32,14 @@ import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xpack.core.inference.regionpolicy.RegionPolicy;
 import org.elasticsearch.xpack.core.inference.results.DenseEmbeddingFloatResults;
+import org.elasticsearch.xpack.core.inference.results.DocumentExtractionResults;
 import org.elasticsearch.xpack.core.inference.results.RankedDocsResultsTests;
 import org.elasticsearch.xpack.core.inference.results.SparseEmbeddingResultsTests;
 import org.elasticsearch.xpack.inference.InferenceFeatures;
 import org.elasticsearch.xpack.inference.common.InferencePreferencesCache;
 import org.elasticsearch.xpack.inference.external.action.ExecutableAction;
 import org.elasticsearch.xpack.inference.external.http.HttpClientManager;
+import org.elasticsearch.xpack.inference.external.http.sender.DocumentExtractionInputs;
 import org.elasticsearch.xpack.inference.external.http.sender.EmbeddingsInput;
 import org.elasticsearch.xpack.inference.external.http.sender.HttpRequestSenderTests;
 import org.elasticsearch.xpack.inference.external.http.sender.QueryAndDocsInputs;
@@ -45,6 +49,7 @@ import org.elasticsearch.xpack.inference.services.elastic.ElasticInferenceServic
 import org.elasticsearch.xpack.inference.services.elastic.ElasticInferenceServiceSparseEmbeddingsModelTests;
 import org.elasticsearch.xpack.inference.services.elastic.ccm.CCMAuthenticationApplierFactory;
 import org.elasticsearch.xpack.inference.services.elastic.denseembeddings.ElasticInferenceServiceDenseEmbeddingsModelTests;
+import org.elasticsearch.xpack.inference.services.elastic.documentextraction.ElasticInferenceServiceDocumentExtractionModelTests;
 import org.elasticsearch.xpack.inference.services.elastic.request.ElasticInferenceServiceRequest;
 import org.elasticsearch.xpack.inference.services.elastic.rerank.ElasticInferenceServiceRerankModelTests;
 import org.elasticsearch.xpack.inference.telemetry.TraceContext;
@@ -395,6 +400,77 @@ public class ElasticInferenceServiceActionCreatorTests extends ESTestCase {
             assertThat(requestMap.get("top_n"), equalTo(topN));
 
             assertThat(requestMap.get("query"), equalTo(inferenceStringToMap(query)));
+
+            assertThat(requestMap.get("model"), equalTo(modelId));
+        }
+    }
+
+    @SuppressWarnings("unchecked")
+    public void testExecute_ReturnsSuccessfulResponse_ForDocumentExtractionAction() throws IOException {
+        var senderFactory = HttpRequestSenderTests.createSenderFactory(threadPool, clientManager);
+
+        try (var sender = createSender(senderFactory)) {
+            String responseJson = """
+                {
+                    "results": [
+                        {
+                            "content": "# Annual Report 2025",
+                            "format": "markdown",
+                            "metadata": {"title": "Annual Report 2025"}
+                        }
+                    ]
+                }
+                """;
+
+            webServer.enqueue(new MockResponse().setResponseCode(200).setBody(responseJson));
+
+            var modelId = "my-model-id";
+            var documents = List.of(
+                new InferenceString(DataType.PDF, DataFormat.BASE64, "data:application/pdf;base64," + randomAlphanumericOfLength(16))
+            );
+
+            var model = ElasticInferenceServiceDocumentExtractionModelTests.createModel(getUrl(webServer), modelId);
+            var action = createAction(sender, model);
+
+            PlainActionFuture<InferenceServiceResults> listener = new PlainActionFuture<>();
+
+            action.execute(new DocumentExtractionInputs(documents), null, listener);
+
+            var result = listener.actionGet(TIMEOUT);
+
+            assertThat(
+                result.asMap(),
+                equalTo(
+                    Map.of(
+                        DocumentExtractionResults.DOCUMENT_EXTRACTION,
+                        List.of(
+                            Map.of(
+                                "content",
+                                "# Annual Report 2025",
+                                "format",
+                                "markdown",
+                                "metadata",
+                                Map.of("title", "Annual Report 2025")
+                            )
+                        )
+                    )
+                )
+            );
+
+            assertHeadersWithoutAuth(webServer.requests());
+
+            var request = webServer.requests().get(0);
+            assertThat(request.getUri().getPath(), is("/api/v1/document-extraction"));
+
+            var requestMap = entityAsMap(request.getBody());
+
+            assertThat(requestMap.size(), is(2));
+
+            assertThat(requestMap.get("input"), instanceOf(List.class));
+            var requestInput = (List<Map<String, Object>>) requestMap.get("input");
+            for (int i = 0; i < documents.size(); i++) {
+                assertThat(requestInput.get(i), equalTo(Map.of("content", inferenceStringToMap(documents.get(i)))));
+            }
 
             assertThat(requestMap.get("model"), equalTo(modelId));
         }

@@ -92,6 +92,9 @@ public class ElasticInferenceServiceAuthorizationResponseEntityTests extends EST
     public static final String RERANK_V1_MODEL_NAME = "jina-reranker-v2";
     public static final String EIS_RERANK_PATH = "rerank";
 
+    // document extraction
+    public static final String EIS_DOCUMENT_EXTRACTION_PATH = "document_extraction";
+
     public record EisAuthorizationResponse(
         String responseJson,
         ElasticInferenceServiceAuthorizationResponseEntity responseEntity,

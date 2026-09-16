@@ -25,6 +25,9 @@ import org.elasticsearch.core.Strings;
 import org.elasticsearch.features.FeatureService;
 import org.elasticsearch.inference.ChunkInferenceInput;
 import org.elasticsearch.inference.ChunkedInference;
+import org.elasticsearch.inference.DataFormat;
+import org.elasticsearch.inference.DataType;
+import org.elasticsearch.inference.DocumentExtractionRequest;
 import org.elasticsearch.inference.EmbeddingRequest;
 import org.elasticsearch.inference.EmptySecretSettings;
 import org.elasticsearch.inference.InferenceService;
@@ -84,6 +87,8 @@ import org.elasticsearch.xpack.inference.services.elastic.completion.ElasticInfe
 import org.elasticsearch.xpack.inference.services.elastic.denseembeddings.ElasticInferenceServiceDenseEmbeddingsModel;
 import org.elasticsearch.xpack.inference.services.elastic.denseembeddings.ElasticInferenceServiceDenseEmbeddingsModelTests;
 import org.elasticsearch.xpack.inference.services.elastic.denseembeddings.ElasticInferenceServiceDenseEmbeddingsServiceSettings;
+import org.elasticsearch.xpack.inference.services.elastic.documentextraction.ElasticInferenceServiceDocumentExtractionModel;
+import org.elasticsearch.xpack.inference.services.elastic.documentextraction.ElasticInferenceServiceDocumentExtractionModelTests;
 import org.elasticsearch.xpack.inference.services.elastic.rerank.ElasticInferenceServiceRerankModel;
 import org.elasticsearch.xpack.inference.services.elastic.rerank.ElasticInferenceServiceRerankModelTests;
 import org.elasticsearch.xpack.inference.services.elastic.sparseembeddings.ElasticInferenceServiceSparseEmbeddingsModel;
@@ -240,6 +245,25 @@ public class ElasticInferenceServiceTests extends InferenceServiceTestCase {
             assertThat(model, instanceOf(ElasticInferenceServiceRerankModel.class));
             ElasticInferenceServiceRerankModel rerankModel = (ElasticInferenceServiceRerankModel) model;
             assertThat(rerankModel.getServiceSettings().modelId(), is("my-rerank-model-id"));
+        }
+    }
+
+    public void testParseRequestConfig_CreatesADocumentExtractionModel() throws IOException {
+        try (var service = createServiceWithMockSender()) {
+            var modelListener = new TestPlainActionFuture<Model>();
+
+            service.parseRequestConfig(
+                INFERENCE_ENTITY_ID,
+                TaskType.DOCUMENT_EXTRACTION,
+                getRequestConfigMap(Map.of(ServiceFields.MODEL_ID, "my-document-extraction-model-id"), Map.of(), Map.of()),
+                modelListener
+            );
+
+            var model = modelListener.actionGet(ESTestCase.TEST_REQUEST_TIMEOUT);
+
+            assertThat(model, instanceOf(ElasticInferenceServiceDocumentExtractionModel.class));
+            ElasticInferenceServiceDocumentExtractionModel documentExtractionModel = (ElasticInferenceServiceDocumentExtractionModel) model;
+            assertThat(documentExtractionModel.getServiceSettings().modelId(), is("my-document-extraction-model-id"));
         }
     }
 
@@ -769,6 +793,68 @@ public class ElasticInferenceServiceTests extends InferenceServiceTestCase {
                 expectedRequestMap.put("top_n", topN);
             }
             assertThat(requestMap, is(expectedRequestMap));
+        }
+    }
+
+    @SuppressWarnings("unchecked")
+    public void testDocumentExtractionInfer_SendsDocumentExtractionRequest() throws IOException {
+        var senderFactory = HttpRequestSenderTests.createSenderFactory(threadPool, clientManager);
+        var elasticInferenceServiceURL = getUrl(webServer);
+
+        try (var service = createService(senderFactory, elasticInferenceServiceURL)) {
+            String responseJson = """
+                {
+                    "results": [
+                        {
+                            "content": "# Annual Report 2025",
+                            "format": "markdown",
+                            "metadata": {"title": "Annual Report 2025"}
+                        }
+                    ]
+                }
+                """;
+
+            webServer.enqueue(new MockResponse().setResponseCode(200).setBody(responseJson));
+
+            var modelId = randomAlphaOfLength(8);
+            var model = ElasticInferenceServiceDocumentExtractionModelTests.createModel(elasticInferenceServiceURL, modelId);
+
+            var documents = List.of(
+                new InferenceString(DataType.PDF, DataFormat.BASE64, "data:application/pdf;base64," + randomAlphanumericOfLength(16))
+            );
+            var documentExtractionRequest = new DocumentExtractionRequest(documents, Map.of());
+
+            TestPlainActionFuture<InferenceServiceResults> listener = new TestPlainActionFuture<>();
+            service.documentExtractionInfer(model, documentExtractionRequest, null, listener);
+
+            var result = listener.actionGet(TEST_REQUEST_TIMEOUT);
+
+            var resultMap = result.asMap();
+            var documentExtractionResults = (List<Map<String, Object>>) resultMap.get("document_extraction");
+            assertThat(documentExtractionResults.size(), Matchers.is(1));
+            assertThat(documentExtractionResults.getFirst().get("content"), is("# Annual Report 2025"));
+            assertThat(documentExtractionResults.getFirst().get("format"), is("markdown"));
+            assertThat(documentExtractionResults.getFirst().get("metadata"), is(Map.of("title", "Annual Report 2025")));
+
+            // Verify the outgoing HTTP request
+            var request = webServer.requests().getFirst();
+            assertNull(request.getUri().getQuery());
+            assertThat(request.getUri().getPath(), is("/api/v1/document-extraction"));
+            assertThat(request.getHeader(HttpHeaders.CONTENT_TYPE), Matchers.equalTo(XContentType.JSON.mediaType()));
+
+            // Verify the outgoing request body
+            Map<String, Object> requestMap = entityAsMap(request.getBody());
+            assertThat(
+                requestMap,
+                is(
+                    Map.of(
+                        "model",
+                        modelId,
+                        "input",
+                        documents.stream().map(document -> Map.of("content", inferenceStringToMap(document))).toList()
+                    )
+                )
+            );
         }
     }
 
@@ -1749,42 +1835,44 @@ public class ElasticInferenceServiceTests extends InferenceServiceTestCase {
     }
 
     public void testCreateConfiguration() throws Exception {
-        String content = XContentHelper.stripWhitespace("""
-            {
-                   "service": "elastic",
-                   "name": "Elastic",
-                   "task_types": ["sparse_embedding", "chat_completion", "text_embedding", "embedding"],
-                   "configurations": {
-                       "model_id": {
-                           "description": "The name of the model to use for the inference task.",
-                           "label": "Model ID",
-                           "required": true,
-                           "sensitive": false,
-                           "updatable": false,
-                           "type": "str",
-                           "supported_task_types": ["text_embedding", "sparse_embedding" , "rerank", "chat_completion", "embedding"]
-                       },
-                       "max_input_tokens": {
-                           "description": "Allows you to specify the maximum number of tokens per input.",
-                           "label": "Maximum Input Tokens",
-                           "required": false,
-                           "sensitive": false,
-                           "updatable": false,
-                           "type": "int",
-                           "supported_task_types": ["text_embedding", "sparse_embedding", "embedding"]
-                       },
-                       "max_batch_size": {
-                           "description": "Allows you to specify the maximum number of chunks per batch.",
-                           "label": "Maximum Batch Size",
-                           "required": false,
-                           "sensitive": false,
-                           "updatable": true,
-                           "type": "int",
-                           "supported_task_types": ["sparse_embedding"]
+        String content = XContentHelper.stripWhitespace(
+            """
+                {
+                       "service": "elastic",
+                       "name": "Elastic",
+                       "task_types": ["sparse_embedding", "chat_completion", "text_embedding", "embedding"],
+                       "configurations": {
+                           "model_id": {
+                               "description": "The name of the model to use for the inference task.",
+                               "label": "Model ID",
+                               "required": true,
+                               "sensitive": false,
+                               "updatable": false,
+                               "type": "str",
+                               "supported_task_types": ["text_embedding", "sparse_embedding" , "rerank", "chat_completion", "embedding", "document_extraction"]
+                           },
+                           "max_input_tokens": {
+                               "description": "Allows you to specify the maximum number of tokens per input.",
+                               "label": "Maximum Input Tokens",
+                               "required": false,
+                               "sensitive": false,
+                               "updatable": false,
+                               "type": "int",
+                               "supported_task_types": ["text_embedding", "sparse_embedding", "embedding"]
+                           },
+                           "max_batch_size": {
+                               "description": "Allows you to specify the maximum number of chunks per batch.",
+                               "label": "Maximum Batch Size",
+                               "required": false,
+                               "sensitive": false,
+                               "updatable": true,
+                               "type": "int",
+                               "supported_task_types": ["sparse_embedding"]
+                           }
                        }
                    }
-               }
-            """);
+                """
+        );
         InferenceServiceConfiguration configuration = InferenceServiceConfiguration.fromXContentBytes(
             new BytesArray(content),
             XContentType.JSON
@@ -1798,42 +1886,44 @@ public class ElasticInferenceServiceTests extends InferenceServiceTestCase {
     }
 
     public void testGetConfiguration_WithoutSupportedTaskTypes() throws Exception {
-        String content = XContentHelper.stripWhitespace("""
-            {
-                   "service": "elastic",
-                   "name": "Elastic",
-                   "task_types": [],
-                   "configurations": {
-                       "model_id": {
-                           "description": "The name of the model to use for the inference task.",
-                           "label": "Model ID",
-                           "required": true,
-                           "sensitive": false,
-                           "updatable": false,
-                           "type": "str",
-                           "supported_task_types": ["text_embedding", "sparse_embedding" , "rerank", "chat_completion", "embedding"]
-                       },
-                       "max_input_tokens": {
-                           "description": "Allows you to specify the maximum number of tokens per input.",
-                           "label": "Maximum Input Tokens",
-                           "required": false,
-                           "sensitive": false,
-                           "updatable": false,
-                           "type": "int",
-                           "supported_task_types": ["text_embedding", "sparse_embedding", "embedding"]
-                       },
-                       "max_batch_size": {
-                           "description": "Allows you to specify the maximum number of chunks per batch.",
-                           "label": "Maximum Batch Size",
-                           "required": false,
-                           "sensitive": false,
-                           "updatable": true,
-                           "type": "int",
-                           "supported_task_types": ["sparse_embedding"]
+        String content = XContentHelper.stripWhitespace(
+            """
+                {
+                       "service": "elastic",
+                       "name": "Elastic",
+                       "task_types": [],
+                       "configurations": {
+                           "model_id": {
+                               "description": "The name of the model to use for the inference task.",
+                               "label": "Model ID",
+                               "required": true,
+                               "sensitive": false,
+                               "updatable": false,
+                               "type": "str",
+                               "supported_task_types": ["text_embedding", "sparse_embedding" , "rerank", "chat_completion", "embedding", "document_extraction"]
+                           },
+                           "max_input_tokens": {
+                               "description": "Allows you to specify the maximum number of tokens per input.",
+                               "label": "Maximum Input Tokens",
+                               "required": false,
+                               "sensitive": false,
+                               "updatable": false,
+                               "type": "int",
+                               "supported_task_types": ["text_embedding", "sparse_embedding", "embedding"]
+                           },
+                           "max_batch_size": {
+                               "description": "Allows you to specify the maximum number of chunks per batch.",
+                               "label": "Maximum Batch Size",
+                               "required": false,
+                               "sensitive": false,
+                               "updatable": true,
+                               "type": "int",
+                               "supported_task_types": ["sparse_embedding"]
+                           }
                        }
                    }
-               }
-            """);
+                """
+        );
         InferenceServiceConfiguration configuration = InferenceServiceConfiguration.fromXContentBytes(
             new BytesArray(content),
             XContentType.JSON
@@ -2036,6 +2126,11 @@ public class ElasticInferenceServiceTests extends InferenceServiceTestCase {
         validateModelBuilding(model);
     }
 
+    public void testBuildModelFromConfigAndSecrets_DocumentExtraction() throws IOException {
+        var model = createTestModel(TaskType.DOCUMENT_EXTRACTION);
+        validateModelBuilding(model);
+    }
+
     public void testBuildModelFromConfigAndSecrets_UnsupportedTaskType() throws IOException {
         // Need to use a mock here because ModelConfigurations does not accept TaskType.ANY as a valid argument
         var modelConfigurationsMock = mock(ModelConfigurations.class);
@@ -2070,6 +2165,7 @@ public class ElasticInferenceServiceTests extends InferenceServiceTestCase {
                 TaskType.CHAT_COMPLETION
             );
             case RERANK -> ElasticInferenceServiceRerankModelTests.createModel(URL_VALUE, MODEL_ID_VALUE);
+            case DOCUMENT_EXTRACTION -> ElasticInferenceServiceDocumentExtractionModelTests.createModel(URL_VALUE, MODEL_ID_VALUE);
             default -> throw new IllegalArgumentException("Unsupported task type: " + taskType);
         };
     }

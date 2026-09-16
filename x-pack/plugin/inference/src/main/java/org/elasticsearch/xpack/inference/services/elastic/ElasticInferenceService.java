@@ -14,6 +14,7 @@ import org.elasticsearch.common.ValidationException;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.inference.ChunkInferenceInput;
 import org.elasticsearch.inference.ChunkedInference;
+import org.elasticsearch.inference.DocumentExtractionRequest;
 import org.elasticsearch.inference.EmbeddingRequest;
 import org.elasticsearch.inference.InferenceServiceConfiguration;
 import org.elasticsearch.inference.InferenceServiceExtension;
@@ -49,6 +50,8 @@ import org.elasticsearch.xpack.inference.services.elastic.completion.ElasticInfe
 import org.elasticsearch.xpack.inference.services.elastic.denseembeddings.ElasticInferenceServiceDenseEmbeddingsModel;
 import org.elasticsearch.xpack.inference.services.elastic.denseembeddings.ElasticInferenceServiceDenseEmbeddingsModelCreator;
 import org.elasticsearch.xpack.inference.services.elastic.denseembeddings.ElasticInferenceServiceDenseEmbeddingsServiceSettings;
+import org.elasticsearch.xpack.inference.services.elastic.documentextraction.ElasticInferenceServiceDocumentExtractionModel;
+import org.elasticsearch.xpack.inference.services.elastic.documentextraction.ElasticInferenceServiceDocumentExtractionModelCreator;
 import org.elasticsearch.xpack.inference.services.elastic.rerank.ElasticInferenceServiceRerankModel;
 import org.elasticsearch.xpack.inference.services.elastic.rerank.ElasticInferenceServiceRerankModelCreator;
 import org.elasticsearch.xpack.inference.services.elastic.sparseembeddings.ElasticInferenceServiceSparseEmbeddingsModel;
@@ -66,10 +69,12 @@ import java.util.Set;
 
 import static org.elasticsearch.inference.TaskType.CHAT_COMPLETION;
 import static org.elasticsearch.inference.TaskType.COMPLETION;
+import static org.elasticsearch.inference.TaskType.DOCUMENT_EXTRACTION;
 import static org.elasticsearch.inference.TaskType.EMBEDDING;
 import static org.elasticsearch.inference.TaskType.RERANK;
 import static org.elasticsearch.inference.TaskType.SPARSE_EMBEDDING;
 import static org.elasticsearch.inference.TaskType.TEXT_EMBEDDING;
+import static org.elasticsearch.xpack.inference.external.http.sender.DocumentExtractionInputs.fromDocumentExtractionRequest;
 import static org.elasticsearch.xpack.inference.external.http.sender.QueryAndDocsInputs.fromRerankRequest;
 import static org.elasticsearch.xpack.inference.services.ServiceFields.MAX_INPUT_TOKENS;
 import static org.elasticsearch.xpack.inference.services.ServiceFields.MODEL_ID;
@@ -93,7 +98,8 @@ public class ElasticInferenceService extends SenderService<ElasticInferenceServi
         COMPLETION,
         RERANK,
         TEXT_EMBEDDING,
-        EMBEDDING
+        EMBEDDING,
+        DOCUMENT_EXTRACTION
     );
     private static final String SERVICE_NAME = "Elastic";
 
@@ -173,7 +179,9 @@ public class ElasticInferenceService extends SenderService<ElasticInferenceServi
             TaskType.CHAT_COMPLETION,
             completionModelCreator,
             TaskType.RERANK,
-            new ElasticInferenceServiceRerankModelCreator(elasticInferenceServiceComponents)
+            new ElasticInferenceServiceRerankModelCreator(elasticInferenceServiceComponents),
+            TaskType.DOCUMENT_EXTRACTION,
+            new ElasticInferenceServiceDocumentExtractionModelCreator(elasticInferenceServiceComponents)
         );
     }
 
@@ -381,6 +389,25 @@ public class ElasticInferenceService extends SenderService<ElasticInferenceServi
     }
 
     @Override
+    protected void doDocumentExtractionInfer(
+        Model model,
+        DocumentExtractionRequest request,
+        TimeValue timeout,
+        ActionListener<InferenceServiceResults> listener
+    ) {
+        if (!(model instanceof ElasticInferenceServiceDocumentExtractionModel elasticInferenceServiceDocumentExtractionModel)) {
+            listener.onFailure(createInvalidModelException(model));
+            return;
+        }
+
+        actionCreator.create(
+            elasticInferenceServiceDocumentExtractionModel,
+            getCurrentTraceInfo(),
+            listener.delegateFailureAndWrap((delegate, action) -> action.execute(fromDocumentExtractionRequest(request), timeout, delegate))
+        );
+    }
+
+    @Override
     protected void doChunkedInfer(
         Model model,
         List<ChunkInferenceInput> inputs,
@@ -508,8 +535,9 @@ public class ElasticInferenceService extends SenderService<ElasticInferenceServi
 
         configurationMap.put(
             MODEL_ID,
-            new SettingsConfiguration.Builder(EnumSet.of(SPARSE_EMBEDDING, CHAT_COMPLETION, RERANK, TEXT_EMBEDDING, EMBEDDING))
-                .setDescription("The name of the model to use for the inference task.")
+            new SettingsConfiguration.Builder(
+                EnumSet.of(SPARSE_EMBEDDING, CHAT_COMPLETION, RERANK, TEXT_EMBEDDING, EMBEDDING, DOCUMENT_EXTRACTION)
+            ).setDescription("The name of the model to use for the inference task.")
                 .setLabel("Model ID")
                 .setRequired(true)
                 .setSensitive(false)

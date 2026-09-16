@@ -586,18 +586,7 @@ public class MatchFunctionIT extends AbstractEsqlIntegTestCase {
         );
         client().prepareBulk()
             .add(new IndexRequest("ts_hosts_text").source("@timestamp", "2024-01-01T00:00:00Z", "host", "a", "status", "fox", "cpu", 1))
-            .add(
-                new IndexRequest("ts_hosts_text").source(
-                    "@timestamp",
-                    "2024-01-01T00:00:01Z",
-                    "host",
-                    "b",
-                    "status",
-                    "red fox",
-                    "cpu",
-                    2
-                )
-            )
+            .add(new IndexRequest("ts_hosts_text").source("@timestamp", "2024-01-01T00:00:01Z", "host", "b", "status", "red fox", "cpu", 2))
             .setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE)
             .get();
         ensureYellow("ts_hosts_text");

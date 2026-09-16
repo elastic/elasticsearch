@@ -138,7 +138,7 @@ public class RepositoryIntegrityHealthIndicatorServiceTests extends ESTestCase {
                     NAME,
                     YELLOW,
                     "Detected [" + corrupted + "] corrupted snapshot " + (corrupted == 1 ? "repository" : "repositories") + ".",
-                    createDetails(repos.size(), corrupted, corruptedNames, 0, 0),
+                    createDetails(repos.size() * projectIds.size(), corrupted, corruptedNames, 0, 0),
                     RepositoryIntegrityHealthIndicatorService.IMPACTS,
                     List.of(new Diagnosis(CORRUPTED_DEFINITION, List.of(new Diagnosis.Resource(Type.SNAPSHOT_REPOSITORY, corruptedNames))))
                 )
@@ -162,7 +162,7 @@ public class RepositoryIntegrityHealthIndicatorServiceTests extends ESTestCase {
                     NAME,
                     YELLOW,
                     "Detected [" + unknown + "] unknown snapshot " + (unknown == 1 ? "repository" : "repositories") + ".",
-                    createDetails(repos.size(), 0, List.of(), unknown, 0),
+                    createDetails(repos.size() * projectIds.size(), 0, List.of(), unknown, 0),
                     RepositoryIntegrityHealthIndicatorService.IMPACTS,
                     List.of(
                         new Diagnosis(
@@ -191,7 +191,7 @@ public class RepositoryIntegrityHealthIndicatorServiceTests extends ESTestCase {
                     NAME,
                     YELLOW,
                     "Detected [" + invalid + "] invalid snapshot " + (invalid == 1 ? "repository" : "repositories") + ".",
-                    createDetails(repos.size(), 0, List.of(), 0, invalid),
+                    createDetails(repos.size() * projectIds.size(), 0, List.of(), 0, invalid),
                     RepositoryIntegrityHealthIndicatorService.IMPACTS,
                     List.of(
                         new Diagnosis(
@@ -242,7 +242,7 @@ public class RepositoryIntegrityHealthIndicatorServiceTests extends ESTestCase {
                         + "] invalid snapshot "
                         + (invalid == 1 ? "repository" : "repositories")
                         + ".",
-                    createDetails(repos.size(), corrupted, corruptedNames, unknown, invalid),
+                    createDetails(repos.size() * projectIds.size(), corrupted, corruptedNames, unknown, invalid),
                     RepositoryIntegrityHealthIndicatorService.IMPACTS,
                     List.of(
                         new Diagnosis(CORRUPTED_DEFINITION, List.of(new Diagnosis.Resource(Type.SNAPSHOT_REPOSITORY, corruptedNames))),
@@ -687,7 +687,7 @@ public class RepositoryIntegrityHealthIndicatorServiceTests extends ESTestCase {
     private ClusterState createClusterStateWith(RepositoriesMetadata metadata) {
         Map<ProjectId, List<RepositoryMetadata>> repositoriesByProject = new HashMap<>();
         for (ProjectId projectId : projectIds) {
-            repositoriesByProject.put(projectId, metadata == null ? List.of() : metadata.repositories());
+            repositoriesByProject.put(projectId, metadata == null ? null : metadata.repositories());
         }
         return createClusterStateWith(repositoriesByProject);
     }

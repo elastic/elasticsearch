@@ -12,6 +12,7 @@ import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.RamUsageEstimator;
 import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.util.BigArrays;
+import org.elasticsearch.common.util.BytesRefArray;
 import org.elasticsearch.common.util.ObjectArray;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.IntVector;
@@ -42,10 +43,12 @@ import static org.elasticsearch.common.util.PartitionedHashTable.PARTITION_WRITE
  */
 public final class BytesRefArrayState implements GroupingAggregatorState, Releasable {
     /**
-     * Total bytes per partition above which we fall back to the sparse (per-value BytesRef) layout.
+     * Total bytes per partition above which we fall back to the paged layout.
      * Matches {@code BytesRefSwissHash.PAGED_PARTITION_THRESHOLD_BYTES}.
      */
     static final long PAGED_PARTITION_THRESHOLD_BYTES = 400L * 1024 * 1024;
+
+    static final String PARTITION_LABEL = "BytesRefArrayState#partition";
 
     private final BigArrays bigArrays;
     private final CircuitBreaker breaker;
@@ -182,18 +185,14 @@ public final class BytesRefArrayState implements GroupingAggregatorState, Releas
         return RamUsageEstimator.alignObjectSize((long) RamUsageEstimator.NUM_BYTES_ARRAY_HEADER + (long) length * Integer.BYTES);
     }
 
-    private static long bytesUsedByValue(BytesRef value) {
-        return RamUsageEstimator.shallowSizeOfInstance(BytesRef.class) + RamUsageEstimator.alignObjectSize(
-            (long) RamUsageEstimator.NUM_BYTES_ARRAY_HEADER + value.length
-        );
-    }
-
     /**
-     * Dense partition state: one flat {@code byte[]} buffer per partition with an {@code int[]} offset array (end-offset encoding).
-     * Used when total value bytes across all partitions is at most {@link #PAGED_PARTITION_THRESHOLD_BYTES}.
+     * Flat partition state: one contiguous {@code byte[]} buffer per partition with an
+     * {@code int[]} end-offset array. Used when total value bytes is at most
+     * {@link #PAGED_PARTITION_THRESHOLD_BYTES}. Matches the layout of
+     * {@code BytesRefSwissHash.FlatBytesRefPartitionedHashKeys}.
      */
-    private static final class DenseBytesRefPartitionedState implements GroupingAggregatorFunction.PartitionedState {
-        private static final long BASE_RAM_USAGE = RamUsageEstimator.shallowSizeOf(DenseBytesRefPartitionedState.class);
+    private static final class FlatBytesRefPartitionedState implements GroupingAggregatorFunction.PartitionedState {
+        private static final long BASE_RAM_USAGE = RamUsageEstimator.shallowSizeOf(FlatBytesRefPartitionedState.class);
 
         private final long baseBytes;
         private byte[][] partitionData;
@@ -202,7 +201,7 @@ public final class BytesRefArrayState implements GroupingAggregatorState, Releas
         private final int[] partitionCounts;
         private boolean[][] seen;
 
-        DenseBytesRefPartitionedState(CircuitBreaker breaker, int avgKeysPerPartition, int avgBytesPerPartition, boolean trackSeen) {
+        FlatBytesRefPartitionedState(CircuitBreaker breaker, int avgKeysPerPartition, int avgBytesPerPartition, boolean trackSeen) {
             final int initialBytes = ArrayUtil.oversize(Math.max(avgBytesPerPartition, 1), 1);
             final int initialOffsets = ArrayUtil.oversize(Math.max(avgKeysPerPartition + 1, 2), Integer.BYTES);
             baseBytes = BASE_RAM_USAGE + bytesUsedByIntPage(NUM_PARTITIONS)        // partitionDataUsed
@@ -211,7 +210,7 @@ public final class BytesRefArrayState implements GroupingAggregatorState, Releas
                 + bytesUsedByPointerPage(NUM_PARTITIONS)    // partitionOffsets outer ref[]
                 + (trackSeen ? bytesUsedByPointerPage(NUM_PARTITIONS) : 0);  // seen outer ref[]
             long perPartitionBytes = (long) NUM_PARTITIONS * initialBytes + (long) NUM_PARTITIONS * bytesUsedByIntPage(initialOffsets);
-            breaker.addEstimateBytesAndMaybeBreak(baseBytes + perPartitionBytes, BytesRefPartitionedState.LABEL);
+            breaker.addEstimateBytesAndMaybeBreak(baseBytes + perPartitionBytes, PARTITION_LABEL);
             partitionDataUsed = new int[NUM_PARTITIONS];
             partitionCounts = new int[NUM_PARTITIONS];
             partitionData = new byte[NUM_PARTITIONS][];
@@ -278,20 +277,29 @@ public final class BytesRefArrayState implements GroupingAggregatorState, Releas
         }
     }
 
-    private static final class BytesRefPartitionedState implements GroupingAggregatorFunction.PartitionedState {
-        private static final long BASE_RAM_USAGE = RamUsageEstimator.shallowSizeOf(BytesRefPartitionedState.class);
-        static final String LABEL = "BytesRefArrayState#partition";
+    /**
+     * Paged partition state: one {@link BytesRefArray} per partition backed by {@link BigArrays}
+     * paged storage. Used when total value bytes exceeds {@link #PAGED_PARTITION_THRESHOLD_BYTES}.
+     * Matches the structure of {@code BytesRefSwissHash.PagedBytesRefPartitionedHashKeys}.
+     */
+    private static final class PagedBytesRefPartitionedState implements GroupingAggregatorFunction.PartitionedState {
+        BytesRefArray[] partitionArrays;
+        boolean[][] seen;
 
-        private final long baseBytes;
-        private final BytesRef[][] values;
-        private final boolean[][] seen;
-
-        BytesRefPartitionedState(CircuitBreaker breaker, int partitionSize, boolean trackSeen) {
-            long pageBytes = bytesUsedByPointerPage(partitionSize) + (trackSeen ? bytesUsedBySeenPage(partitionSize) : 0);
-            baseBytes = BASE_RAM_USAGE + bytesUsedByPointerPage(NUM_PARTITIONS) + (trackSeen ? bytesUsedByPointerPage(NUM_PARTITIONS) : 0);
-            breaker.addEstimateBytesAndMaybeBreak(baseBytes + NUM_PARTITIONS * pageBytes, LABEL);
-            values = new BytesRef[NUM_PARTITIONS][partitionSize];
-            seen = trackSeen ? new boolean[NUM_PARTITIONS][partitionSize] : null;
+        PagedBytesRefPartitionedState(BigArrays bigArrays, int avgKeysPerPartition, int avgBytesPerPartition, boolean trackSeen) {
+            partitionArrays = new BytesRefArray[NUM_PARTITIONS];
+            boolean success = false;
+            try {
+                for (int p = 0; p < NUM_PARTITIONS; p++) {
+                    partitionArrays[p] = new BytesRefArray(avgKeysPerPartition, bigArrays, avgBytesPerPartition);
+                }
+                seen = trackSeen ? new boolean[NUM_PARTITIONS][] : null;
+                success = true;
+            } finally {
+                if (success == false) {
+                    Releasables.close(partitionArrays);
+                }
+            }
         }
 
         @Override
@@ -301,219 +309,204 @@ public final class BytesRefArrayState implements GroupingAggregatorState, Releas
 
         @Override
         public void releasePartition(CircuitBreaker breaker, int partition) {
-            long usedBytes = 0;
-            if (values[partition] != null) {
-                for (BytesRef v : values[partition]) {
-                    if (v != null) {
-                        usedBytes += bytesUsedByValue(v);
-                    }
-                }
-                usedBytes += bytesUsedByPointerPage(values[partition].length);
-                values[partition] = null;
+            if (partitionArrays[partition] != null) {
+                partitionArrays[partition].close();
+                partitionArrays[partition] = null;
             }
             if (seen != null && seen[partition] != null) {
-                usedBytes += bytesUsedBySeenPage(seen[partition].length);
+                breaker.addWithoutBreaking(-bytesUsedBySeenPage(seen[partition].length));
                 seen[partition] = null;
             }
-            breaker.addWithoutBreaking(-usedBytes);
         }
 
         @Override
         public void releaseAll(CircuitBreaker breaker) {
-            long usedBytes = baseBytes;
             for (int p = 0; p < NUM_PARTITIONS; p++) {
-                if (values[p] != null) {
-                    for (BytesRef v : values[p]) {
-                        if (v != null) {
-                            usedBytes += bytesUsedByValue(v);
-                        }
-                    }
-                    usedBytes += bytesUsedByPointerPage(values[p].length);
-                    values[p] = null;
+                if (partitionArrays[p] != null) {
+                    partitionArrays[p].close();
+                    partitionArrays[p] = null;
                 }
                 if (seen != null && seen[p] != null) {
-                    usedBytes += bytesUsedBySeenPage(seen[p].length);
+                    breaker.addWithoutBreaking(-bytesUsedBySeenPage(seen[p].length));
                     seen[p] = null;
                 }
             }
-            breaker.addWithoutBreaking(-usedBytes);
         }
     }
 
     private final class BytesRefPartitionSplitter implements GroupingAggregatorFunction.PartitionSplitter {
         private final CircuitBreaker partitionBreaker;
-        private DenseBytesRefPartitionedState denseState;
-        private BytesRefPartitionedState sparseState;
+        private FlatBytesRefPartitionedState flatState;
+        private PagedBytesRefPartitionedState pagedState;
 
         BytesRefPartitionSplitter(CircuitBreaker partitionBreaker) {
             this.partitionBreaker = partitionBreaker;
             final int avgKeysPerPartition = Math.max(Math.ceilDiv(totalValueCount, NUM_PARTITIONS), 1);
             final int avgBytesPerPartition = (int) Math.ceilDiv(Math.max(totalValueBytes, 1L), NUM_PARTITIONS);
             if (totalValueBytes <= PAGED_PARTITION_THRESHOLD_BYTES) {
-                denseState = new DenseBytesRefPartitionedState(
+                flatState = new FlatBytesRefPartitionedState(
                     partitionBreaker,
                     avgKeysPerPartition,
                     avgBytesPerPartition,
                     groupIdTrackingEnabled
                 );
-                sparseState = null;
             } else {
-                sparseState = new BytesRefPartitionedState(
-                    partitionBreaker,
-                    ArrayUtil.oversize(avgKeysPerPartition, Long.BYTES),
+                pagedState = new PagedBytesRefPartitionedState(
+                    bigArrays,
+                    avgKeysPerPartition,
+                    avgBytesPerPartition,
                     groupIdTrackingEnabled
                 );
-                denseState = null;
             }
         }
 
         @Override
         public void split(int firstId, short[] shiftedIds, int batchSize, int[] batchPartitionCounts, int[] partitionOffsets) {
-            if (denseState != null) {
-                splitDense(firstId, shiftedIds, batchPartitionCounts);
+            if (flatState != null) {
+                splitFlat(firstId, shiftedIds, batchPartitionCounts);
             } else {
-                splitSparse(firstId, shiftedIds, batchPartitionCounts, partitionOffsets);
+                splitPaged(firstId, shiftedIds, batchPartitionCounts);
             }
         }
 
-        private void splitDense(int firstId, short[] shiftedIds, int[] batchPartitionCounts) {
+        private void splitFlat(int firstId, short[] shiftedIds, int[] batchPartitionCounts) {
             for (int p = 0; p < NUM_PARTITIONS; p++) {
                 final int count = batchPartitionCounts[p];
                 if (count == 0) {
                     continue;
                 }
                 final int base = p * PARTITION_WRITE_BATCH;
-                final int keyBase = denseState.partitionCounts[p];
+                final int keyBase = flatState.partitionCounts[p];
                 ensureOffsetCapacity(p, keyBase + count + 1);
-                if (denseState.seen != null) {
+                if (flatState.seen != null) {
                     ensureSeenCapacity(p, keyBase + count);
                 }
                 for (int i = 0; i < count; i++) {
                     final int id = firstId + shiftedIds[base + i];
-                    denseState.partitionOffsets[p][keyBase + i] = denseState.partitionDataUsed[p];
+                    flatState.partitionOffsets[p][keyBase + i] = flatState.partitionDataUsed[p];
                     if (id < values.size()) {
                         BreakingBytesRefBuilder builder = values.get(id);
                         if (builder != null) {
                             final int valueLen = builder.length();
-                            ensureDataCapacity(p, denseState.partitionDataUsed[p] + valueLen);
-                            System.arraycopy(builder.bytes(), 0, denseState.partitionData[p], denseState.partitionDataUsed[p], valueLen);
-                            denseState.partitionDataUsed[p] += valueLen;
-                            if (denseState.seen != null) {
-                                denseState.seen[p][keyBase + i] = true;
+                            ensureDataCapacity(p, flatState.partitionDataUsed[p] + valueLen);
+                            System.arraycopy(builder.bytes(), 0, flatState.partitionData[p], flatState.partitionDataUsed[p], valueLen);
+                            flatState.partitionDataUsed[p] += valueLen;
+                            if (flatState.seen != null) {
+                                flatState.seen[p][keyBase + i] = true;
                             }
                         }
                     }
                 }
-                // sentinel: end offset of last entry = bytes written so far
-                denseState.partitionOffsets[p][keyBase + count] = denseState.partitionDataUsed[p];
-                denseState.partitionCounts[p] += count;
+                flatState.partitionOffsets[p][keyBase + count] = flatState.partitionDataUsed[p];
+                flatState.partitionCounts[p] += count;
             }
         }
 
-        private void splitSparse(int firstId, short[] shiftedIds, int[] batchPartitionCounts, int[] partitionOffsets) {
+        private void splitPaged(int firstId, short[] shiftedIds, int[] batchPartitionCounts) {
+            BytesRef scratch = new BytesRef();
             for (int p = 0; p < NUM_PARTITIONS; p++) {
                 final int count = batchPartitionCounts[p];
                 if (count == 0) {
                     continue;
                 }
-                final int offset = partitionOffsets[p];
-                ensurePartitionCapacity(p, offset + count);
                 final int base = p * PARTITION_WRITE_BATCH;
+                final int currentCount = (int) pagedState.partitionArrays[p].size();
+                if (pagedState.seen != null) {
+                    ensurePagedSeenCapacity(p, currentCount + count);
+                }
                 for (int i = 0; i < count; i++) {
                     final int id = firstId + shiftedIds[base + i];
-                    if (id < values.size()) {
-                        BreakingBytesRefBuilder builder = values.get(id);
-                        if (builder != null) {
-                            BytesRef copy = BytesRef.deepCopyOf(builder.bytesRefView());
-                            partitionBreaker.addEstimateBytesAndMaybeBreak(bytesUsedByValue(copy), BytesRefPartitionedState.LABEL);
-                            sparseState.values[p][offset + i] = copy;
-                            if (sparseState.seen != null) {
-                                sparseState.seen[p][offset + i] = true;
-                            }
+                    BreakingBytesRefBuilder builder = id < values.size() ? values.get(id) : null;
+                    if (builder != null) {
+                        pagedState.partitionArrays[p].append(builder.bytesRefView());
+                        if (pagedState.seen != null) {
+                            pagedState.seen[p][currentCount + i] = true;
                         }
+                    } else {
+                        pagedState.partitionArrays[p].append(scratch);
                     }
                 }
             }
         }
 
         private void ensureDataCapacity(int p, int minLength) {
-            final byte[] sub = denseState.partitionData[p];
+            final byte[] sub = flatState.partitionData[p];
             if (sub.length >= minLength) {
                 return;
             }
             final int newLength = ArrayUtil.oversize(minLength, 1);
-            partitionBreaker.addEstimateBytesAndMaybeBreak(newLength, BytesRefPartitionedState.LABEL);
-            denseState.partitionData[p] = Arrays.copyOf(sub, newLength);
+            partitionBreaker.addEstimateBytesAndMaybeBreak(newLength, PARTITION_LABEL);
+            flatState.partitionData[p] = Arrays.copyOf(sub, newLength);
             partitionBreaker.addWithoutBreaking(-sub.length);
         }
 
         private void ensureOffsetCapacity(int p, int minCount) {
-            final int[] sub = denseState.partitionOffsets[p];
+            final int[] sub = flatState.partitionOffsets[p];
             if (sub.length >= minCount) {
                 return;
             }
             final int newCount = ArrayUtil.oversize(minCount, Integer.BYTES);
-            partitionBreaker.addEstimateBytesAndMaybeBreak(bytesUsedByIntPage(newCount), BytesRefPartitionedState.LABEL);
-            denseState.partitionOffsets[p] = Arrays.copyOf(sub, newCount);
+            partitionBreaker.addEstimateBytesAndMaybeBreak(bytesUsedByIntPage(newCount), PARTITION_LABEL);
+            flatState.partitionOffsets[p] = Arrays.copyOf(sub, newCount);
             partitionBreaker.addWithoutBreaking(-bytesUsedByIntPage(sub.length));
         }
 
         private void ensureSeenCapacity(int p, int minCount) {
-            if (denseState.seen[p] == null) {
+            if (flatState.seen[p] == null) {
                 final int newSize = ArrayUtil.oversize(minCount, 1);
-                partitionBreaker.addEstimateBytesAndMaybeBreak(bytesUsedBySeenPage(newSize), BytesRefPartitionedState.LABEL);
-                denseState.seen[p] = new boolean[newSize];
+                partitionBreaker.addEstimateBytesAndMaybeBreak(bytesUsedBySeenPage(newSize), PARTITION_LABEL);
+                flatState.seen[p] = new boolean[newSize];
                 return;
             }
-            final boolean[] sub = denseState.seen[p];
+            final boolean[] sub = flatState.seen[p];
             if (sub.length >= minCount) {
                 return;
             }
             final int newSize = ArrayUtil.oversize(minCount, 1);
-            partitionBreaker.addEstimateBytesAndMaybeBreak(bytesUsedBySeenPage(newSize), BytesRefPartitionedState.LABEL);
-            denseState.seen[p] = Arrays.copyOf(sub, newSize);
+            partitionBreaker.addEstimateBytesAndMaybeBreak(bytesUsedBySeenPage(newSize), PARTITION_LABEL);
+            flatState.seen[p] = Arrays.copyOf(sub, newSize);
             partitionBreaker.addWithoutBreaking(-bytesUsedBySeenPage(sub.length));
         }
 
-        private void ensurePartitionCapacity(int partition, int minSize) {
-            BytesRef[] oldValues = sparseState.values[partition];
-            if (oldValues.length >= minSize) {
+        private void ensurePagedSeenCapacity(int p, int minCount) {
+            if (pagedState.seen[p] == null) {
+                final int newSize = ArrayUtil.oversize(minCount, 1);
+                partitionBreaker.addEstimateBytesAndMaybeBreak(bytesUsedBySeenPage(newSize), PARTITION_LABEL);
+                pagedState.seen[p] = new boolean[newSize];
                 return;
             }
-            int newSize = ArrayUtil.oversize(minSize, Long.BYTES);
-            partitionBreaker.addEstimateBytesAndMaybeBreak(bytesUsedByPointerPage(newSize), BytesRefPartitionedState.LABEL);
-            sparseState.values[partition] = Arrays.copyOf(oldValues, newSize);
-            partitionBreaker.addWithoutBreaking(-bytesUsedByPointerPage(oldValues.length));
-            if (sparseState.seen != null) {
-                boolean[] oldSeen = sparseState.seen[partition];
-                partitionBreaker.addEstimateBytesAndMaybeBreak(bytesUsedBySeenPage(newSize), BytesRefPartitionedState.LABEL);
-                sparseState.seen[partition] = Arrays.copyOf(oldSeen, newSize);
-                partitionBreaker.addWithoutBreaking(-bytesUsedBySeenPage(oldSeen.length));
+            final boolean[] sub = pagedState.seen[p];
+            if (sub.length >= minCount) {
+                return;
             }
+            final int newSize = ArrayUtil.oversize(minCount, 1);
+            partitionBreaker.addEstimateBytesAndMaybeBreak(bytesUsedBySeenPage(newSize), PARTITION_LABEL);
+            pagedState.seen[p] = Arrays.copyOf(sub, newSize);
+            partitionBreaker.addWithoutBreaking(-bytesUsedBySeenPage(sub.length));
         }
 
         @Override
         public GroupingAggregatorFunction.PartitionedState finish() {
-            if (denseState != null) {
-                GroupingAggregatorFunction.PartitionedState result = denseState;
-                denseState = null;
+            if (flatState != null) {
+                GroupingAggregatorFunction.PartitionedState result = flatState;
+                flatState = null;
                 return result;
             } else {
-                GroupingAggregatorFunction.PartitionedState result = sparseState;
-                sparseState = null;
+                GroupingAggregatorFunction.PartitionedState result = pagedState;
+                pagedState = null;
                 return result;
             }
         }
 
         @Override
         public void release(CircuitBreaker breaker) {
-            if (denseState != null) {
-                denseState.releaseAll(breaker);
-                denseState = null;
+            if (flatState != null) {
+                flatState.releaseAll(breaker);
+                flatState = null;
             }
-            if (sparseState != null) {
-                sparseState.releaseAll(breaker);
-                sparseState = null;
+            if (pagedState != null) {
+                pagedState.releaseAll(breaker);
+                pagedState = null;
             }
         }
     }
@@ -523,32 +516,37 @@ public final class BytesRefArrayState implements GroupingAggregatorState, Releas
     }
 
     BytesRef[] partitionValues(GroupingAggregatorFunction.PartitionedState source, int partition) {
-        if (source instanceof DenseBytesRefPartitionedState dense) {
-            final int count = dense.partitionCounts[partition];
+        if (source instanceof FlatBytesRefPartitionedState flat) {
+            final int count = flat.partitionCounts[partition];
             final BytesRef[] result = new BytesRef[count];
             for (int i = 0; i < count; i++) {
-                final int start = dense.partitionOffsets[partition][i];
-                final int end = dense.partitionOffsets[partition][i + 1];
-                result[i] = new BytesRef(dense.partitionData[partition], start, end - start);
+                final int start = flat.partitionOffsets[partition][i];
+                final int end = flat.partitionOffsets[partition][i + 1];
+                result[i] = new BytesRef(flat.partitionData[partition], start, end - start);
             }
             return result;
         }
-        return ((BytesRefPartitionedState) source).values[partition];
+        final PagedBytesRefPartitionedState paged = (PagedBytesRefPartitionedState) source;
+        final int count = (int) paged.partitionArrays[partition].size();
+        final BytesRef[] result = new BytesRef[count];
+        for (int i = 0; i < count; i++) {
+            result[i] = new BytesRef();
+            paged.partitionArrays[partition].get(i, result[i]);
+        }
+        return result;
     }
 
     boolean[] partitionSeen(GroupingAggregatorFunction.PartitionedState source, int partition) {
-        if (source instanceof DenseBytesRefPartitionedState dense) {
-            return dense.seen == null ? null : dense.seen[partition];
+        if (source instanceof FlatBytesRefPartitionedState flat) {
+            return flat.seen == null ? null : flat.seen[partition];
         }
-        boolean[][] seen = ((BytesRefPartitionedState) source).seen;
-        return seen == null ? null : seen[partition];
+        final PagedBytesRefPartitionedState paged = (PagedBytesRefPartitionedState) source;
+        return paged.seen == null ? null : paged.seen[partition];
     }
 
     void appendPartition(BytesRef[] src, int firstId, int length) {
         for (int i = 0; i < length; i++) {
-            if (src[i] != null) {
-                set(firstId + i, src[i]);
-            }
+            set(firstId + i, src[i]);
         }
     }
 }

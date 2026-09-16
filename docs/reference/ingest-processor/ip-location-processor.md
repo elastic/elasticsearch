@@ -184,7 +184,7 @@ Which returns:
 
 ## Node settings
 The `ip_location` processor shares the same node-level lookup cache as the
-`geoip` processor. See [GeoIP processor node settings](geoip-processor.md#node-settings)
+`geoip` processor. See [GeoIP processor node settings](geoip-processor.md#ingest-geoip-settings)
 for configuration details, including `ingest.geoip.cache_size` (default: 1000).
 
 

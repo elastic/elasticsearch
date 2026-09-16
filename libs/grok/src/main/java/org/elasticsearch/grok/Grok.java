@@ -175,14 +175,15 @@ public final class Grok {
      * Checks whether a specific text matches the defined grok expression.
      *
      * @param text the string to match
-     * @return true if grok expression matches text or there is a timeout, false otherwise.
+     * @return true if grok expression matches text, false otherwise.
      */
     public boolean match(String text) {
-        Matcher matcher = compiledExpression.matcher(text.getBytes(StandardCharsets.UTF_8));
+        byte[] utf8Bytes = text.getBytes(StandardCharsets.UTF_8);
+        Matcher matcher = compiledExpression.matcher(utf8Bytes);
         int result;
         try {
             matcherWatchdog.register(matcher);
-            result = matcher.search(0, text.length(), Option.DEFAULT);
+            result = matcher.search(0, utf8Bytes.length, Option.DEFAULT);
         } finally {
             matcherWatchdog.unregister(matcher);
         }

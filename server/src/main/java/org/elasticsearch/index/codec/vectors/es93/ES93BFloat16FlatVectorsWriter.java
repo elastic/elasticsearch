@@ -540,9 +540,9 @@ public final class ES93BFloat16FlatVectorsWriter extends FlatVectorsWriter {
             long size = SHALLOW_RAM_BYTES_USED;
             if (vectors.isEmpty()) return size;
 
-            int byteSize = fieldInfo.getVectorEncoding() == VectorEncoding.FLOAT32
-                ? BFloat16.BYTES
-                : fieldInfo.getVectorEncoding().byteSize;
+            // although this is bfloat16, we're getting and storing input vectors in a `List<float[]>`,
+            // so we need to account for that properly
+            int byteSize = fieldInfo.getVectorEncoding().byteSize;
 
             return size + docsWithField.ramBytesUsed() + (long) vectors.size() * (RamUsageEstimator.NUM_BYTES_OBJECT_REF
                 + RamUsageEstimator.NUM_BYTES_ARRAY_HEADER) + (long) vectors.size() * fieldInfo.getVectorDimension() * byteSize;

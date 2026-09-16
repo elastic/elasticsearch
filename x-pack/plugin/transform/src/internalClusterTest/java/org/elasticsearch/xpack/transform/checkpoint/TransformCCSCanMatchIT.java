@@ -74,8 +74,6 @@ import org.elasticsearch.xpack.transform.LocalStateTransform;
 import org.junit.After;
 import org.junit.Before;
 
-import java.io.IOException;
-import java.io.UncheckedIOException;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
@@ -620,8 +618,6 @@ public class TransformCCSCanMatchIT extends AbstractMultiClustersTestCase {
                 }
 
                 return ShardLongFieldRange.of(LongPoint.decodeDimension(minPackedValue, 0), LongPoint.decodeDimension(maxPackedValue, 0));
-            } catch (IOException e) {
-                throw new UncheckedIOException(e);
             }
         }
     }

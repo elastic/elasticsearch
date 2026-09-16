@@ -37,8 +37,6 @@ import org.elasticsearch.test.transport.MockTransportService;
 import org.elasticsearch.transport.TransportService;
 import org.hamcrest.Matchers;
 
-import java.io.IOException;
-import java.io.UncheckedIOException;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.List;
@@ -72,8 +70,6 @@ public class CCSCanMatchIT extends AbstractCrossClusterSearchTestCase {
                 }
 
                 return ShardLongFieldRange.of(LongPoint.decodeDimension(minPackedValue, 0), LongPoint.decodeDimension(maxPackedValue, 0));
-            } catch (IOException e) {
-                throw new UncheckedIOException(e);
             }
         }
     }

@@ -30,8 +30,6 @@ import org.elasticsearch.plugins.EnginePlugin;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.test.ESIntegTestCase;
 
-import java.io.IOException;
-import java.io.UncheckedIOException;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.Optional;
@@ -68,8 +66,6 @@ public class FieldCapsWithFilterIT extends ESIntegTestCase {
                 }
 
                 return ShardLongFieldRange.of(LongPoint.decodeDimension(minPackedValue, 0), LongPoint.decodeDimension(maxPackedValue, 0));
-            } catch (IOException e) {
-                throw new UncheckedIOException(e);
             }
         }
     }

@@ -57,7 +57,7 @@ final class JvmErgonomics {
             ergonomicChoices.add("-XX:G1HeapRegionSize=4m");
         }
         if (tuneG1GCInitiatingHeapOccupancyPercent) {
-            ergonomicChoices.add("-XX:InitiatingHeapOccupancyPercent=30");
+            ergonomicChoices.add("-XX:" + initiatingHeapOccupancyFlag(finalJvmOptions) + "=30");
         }
         if (tuneG1GCReservePercent != 0) {
             ergonomicChoices.add("-XX:G1ReservePercent=" + tuneG1GCReservePercent);
@@ -99,7 +99,12 @@ final class JvmErgonomics {
     }
 
     static boolean tuneG1GCInitiatingHeapOccupancyPercent(final Map<String, JvmOption> finalJvmOptions) {
-        return usingG1GcWithoutCommandLineOriginOption(finalJvmOptions, "InitiatingHeapOccupancyPercent");
+        return usingG1GcWithoutCommandLineOriginOption(finalJvmOptions, initiatingHeapOccupancyFlag(finalJvmOptions));
+    }
+
+    // JDK 27 renamed InitiatingHeapOccupancyPercent to G1IHOP; the legacy alias no longer reports command-line origin
+    private static String initiatingHeapOccupancyFlag(final Map<String, JvmOption> finalJvmOptions) {
+        return finalJvmOptions.containsKey("G1IHOP") ? "G1IHOP" : "InitiatingHeapOccupancyPercent";
     }
 
     /**

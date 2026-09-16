@@ -38,7 +38,7 @@ import static org.hamcrest.Matchers.hasSize;
  * comes from a system property read into a {@code static final} at class load and cannot be flipped in-JVM, so property
  * parsing, the enforcement branch, the set of registered settings, and the startup logging are exercised through the
  * package-private {@link Federation#readRegistered}, {@link Federation#ensureEnabled(boolean)},
- * {@link Federation#settings(boolean)} and {@link Federation#logEffectiveState(boolean, boolean)} seams, which take
+ * {@link Federation#settings(boolean)} and {@link Federation#logEffectiveState(boolean, boolean, boolean, boolean)} seams, which take
  * their inputs as parameters. The end-to-end behavior of both levers at the REST and transport surface is covered by the
  * federation REST ITs.
  */
@@ -53,96 +53,63 @@ public class FederationTests extends ESTestCase {
     }
 
     public void testRegisteredByDefaultWhenPropertyAbsent() {
-        assertTrue(Federation.readRegistered(key -> null, true));
+        assertTrue(Federation.readRegistered(key -> null));
     }
 
     public void testRegisteredByDefaultWhenBlank() {
-        assertTrue(Federation.readRegistered(property("   "), true));
+        assertTrue(Federation.readRegistered(property("   ")));
     }
 
     public void testRegisteredWhenTrue() {
-        assertTrue(Federation.readRegistered(property("true"), false));
+        assertTrue(Federation.readRegistered(property("true")));
     }
 
     public void testNotRegisteredWhenFalse() {
-        assertFalse(Federation.readRegistered(property("false"), true));
+        assertFalse(Federation.readRegistered(property("false")));
     }
 
     public void testInvalidValueFailsFast() {
-        IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> Federation.readRegistered(property("maybe"), true));
+        IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> Federation.readRegistered(property("maybe")));
         assertTrue(e.getMessage().contains(Federation.REGISTER_PROPERTY));
-    }
-
-    /**
-     * Only a Windows release build is incapable of federation. A Windows snapshot build is capable so the feature's
-     * own tests can opt in there.
-     */
-    public void testOnlyWindowsReleaseBuildsAreUnsupported() {
-        assertFalse("windows release", Federation.supported(true, false));
-        assertTrue("windows snapshot", Federation.supported(true, true));
-        assertTrue("other release", Federation.supported(false, false));
-        assertTrue("other snapshot", Federation.supported(false, true));
-    }
-
-    /** Windows defaults the feature off so a node there behaves out of the box like the release build does. */
-    public void testDefaultRegisteredIsOffOnWindowsOnly() {
-        assertFalse(Federation.defaultRegistered(true));
-        assertTrue(Federation.defaultRegistered(false));
-    }
-
-    /**
-     * Where federation is unsupported it cannot be turned on by any means, and asking is a misconfiguration that
-     * fails the node rather than being ignored. {@link Federation#resolveRegistered} takes the platform and build as
-     * parameters, so every combination is exercised on any host.
-     */
-    public void testExplicitOptInRejectedWhereUnsupported() {
-        IllegalArgumentException e = expectThrows(
-            IllegalArgumentException.class,
-            () -> Federation.resolveRegistered(property("true"), true, false)
-        );
-        assertTrue(e.getMessage().contains(Federation.REGISTER_PROPERTY));
-        assertTrue(e.getMessage().contains("Windows"));
-    }
-
-    public void testUnsupportedStaysOffWithoutAnOptIn() {
-        assertFalse(Federation.resolveRegistered(key -> null, true, false));
-        assertFalse("whitespace is not an explicit opt-in", Federation.resolveRegistered(property("   "), true, false));
-        assertFalse(Federation.resolveRegistered(property("false"), true, false));
-    }
-
-    /**
-     * The whole point of keeping Windows snapshot builds supported: the default is off, but a test can turn the
-     * feature on, which is how the federation suites run on Windows in CI.
-     */
-    public void testWindowsSnapshotDefaultsOffButCanOptIn() {
-        assertFalse("off unless asked", Federation.resolveRegistered(key -> null, true, true));
-        assertTrue("a test can opt in", Federation.resolveRegistered(property("true"), true, true));
-    }
-
-    public void testPropertyHonoredOverDefaultOnOtherPlatforms() {
-        for (boolean snapshot : new boolean[] { true, false }) {
-            assertTrue("default on", Federation.resolveRegistered(key -> null, false, snapshot));
-            assertTrue(Federation.resolveRegistered(property("true"), false, snapshot));
-            assertFalse(Federation.resolveRegistered(property("false"), false, snapshot));
-        }
-    }
-
-    /** A bad value is still reported as invalid wherever the feature is supported. */
-    public void testInvalidValueStillReportsAsInvalidWhereSupported() {
-        IllegalArgumentException e = expectThrows(
-            IllegalArgumentException.class,
-            () -> Federation.resolveRegistered(property("maybe"), true, true)
-        );
-        assertTrue(e.getMessage().contains("Invalid value [maybe]"));
     }
 
     public void testEnabledByDefaultOnlyInSnapshotBuilds() {
-        assertEquals(Build.current().isSnapshot(), Federation.FEDERATION_ENABLED.get(Settings.EMPTY));
+        assertEquals(
+            Federation.defaultEnabled(Constants.WINDOWS, Build.current().isSnapshot()),
+            Federation.FEDERATION_ENABLED.get(Settings.EMPTY)
+        );
+    }
+
+    /** External data sources are off out of the box on Windows, whatever the build; elsewhere the build decides. */
+    public void testDefaultEnabledIsOffOnWindows() {
+        assertFalse("windows snapshot", Federation.defaultEnabled(true, true));
+        assertFalse("windows release", Federation.defaultEnabled(true, false));
+        assertTrue("other snapshot", Federation.defaultEnabled(false, true));
+        assertFalse("other release", Federation.defaultEnabled(false, false));
+    }
+
+    /**
+     * A Windows release build cannot be made to serve external data sources; every other combination honours the
+     * setting. Both branches are exercised on any host because the platform and build are parameters.
+     */
+    public void testSettingCannotEnableOnWindowsRelease() {
+        assertFalse("windows release ignores the opt-in", Federation.enabled(true, true, false));
+        assertTrue("windows snapshot honours it", Federation.enabled(true, true, true));
+        assertTrue("other release honours it", Federation.enabled(true, false, false));
+        assertTrue("other snapshot honours it", Federation.enabled(true, false, true));
+    }
+
+    public void testSettingStaysOffWhereNotAskedFor() {
+        for (boolean windows : new boolean[] { true, false }) {
+            for (boolean snapshot : new boolean[] { true, false }) {
+                assertFalse(Federation.enabled(false, windows, snapshot));
+            }
+        }
     }
 
     public void testAvailableWithoutSettingOnlyInSnapshotBuilds() {
         assumeTrue("the test JVM must not unregister the feature", Federation.isRegistered());
-        assertEquals(Build.current().isSnapshot(), Federation.isAvailable(Settings.EMPTY));
+        assertEquals(Federation.defaultEnabled(Constants.WINDOWS, Build.current().isSnapshot()), Federation.isAvailable(Settings.EMPTY));
     }
 
     public void testNotAvailableWhenSettingFalse() {
@@ -150,10 +117,11 @@ public class FederationTests extends ESTestCase {
     }
 
     public void testAvailableWhenRegisteredAndSettingTrue() {
-        // Guards on the resolved state rather than the property: the platform can unregister the feature with the
-        // property absent (Windows), which the old property-only check read as registered.
-        assumeTrue("the test JVM must not unregister the feature", Federation.isRegistered());
-        assertTrue(Federation.isAvailable(enabled(true)));
+        assumeTrue(
+            "the test JVM must not unregister the feature",
+            System.getProperty(Federation.REGISTER_PROPERTY) == null || Federation.readRegistered(System::getProperty)
+        );
+        assertEquals(Federation.enabled(true, Constants.WINDOWS, Build.current().isSnapshot()), Federation.isAvailable(enabled(true)));
     }
 
     public void testEnsureEnabledIsNoopWhenEnabled() {
@@ -163,37 +131,13 @@ public class FederationTests extends ESTestCase {
     public void testEnsureEnabledThrowsBadRequestWhenDisabled() {
         ElasticsearchStatusException e = expectThrows(ElasticsearchStatusException.class, () -> Federation.ensureEnabled(false));
         assertEquals(RestStatus.BAD_REQUEST, e.status());
-        assertTrue(e.getMessage().contains(Federation.externalNotSupportedMessage()));
+        assertTrue(e.getMessage().contains("external data sources are not available"));
     }
 
     public void testNotAvailableExceptionIsBadRequest() {
         ElasticsearchStatusException e = Federation.notAvailableException();
         assertEquals(RestStatus.BAD_REQUEST, e.status());
-        assertEquals(Federation.externalNotSupportedMessage(), e.getMessage());
-    }
-
-    /**
-     * Only a node that could never run the feature names the platform; one that merely has it switched off reuses
-     * the {@link Federation#notAvailableException()} wording, so the parser guard and the operator-build backstop
-     * read identically there.
-     */
-    public void testExternalNotSupportedMessageMatchesCapability() {
-        assertEquals(
-            Federation.SUPPORTED ? "external data sources are not available" : "external data sources are not supported on Windows",
-            Federation.externalNotSupportedMessage()
-        );
-    }
-
-    /**
-     * The wiring of the constants to the real platform and build. Unlike the parameterised tests above this cannot
-     * be driven from a host that is not Windows, so it asserts the local combination rather than a specific outcome.
-     */
-    public void testConstantsFollowPlatformAndBuild() {
-        assertEquals(Federation.supported(Constants.WINDOWS, Build.current().isSnapshot()), Federation.SUPPORTED);
-        if (Federation.SUPPORTED == false) {
-            assertFalse("an unsupported platform can never be registered", Federation.isRegistered());
-            assertThat("an unregistered feature owns no settings", Federation.settings(), empty());
-        }
+        assertEquals("external data sources are not available", e.getMessage());
     }
 
     public void testNoSettingsWhenNotRegistered() {
@@ -255,7 +199,7 @@ public class FederationTests extends ESTestCase {
 
     public void testLogsNotRegisteredAtInfo() {
         MockLog.assertThatLogger(
-            () -> Federation.logEffectiveState(false, false),
+            () -> Federation.logEffectiveState(false, false, false, true),
             Federation.class,
             new MockLog.SeenEventExpectation(
                 "not registered",
@@ -269,7 +213,7 @@ public class FederationTests extends ESTestCase {
 
     public void testLogsEnabledAtInfo() {
         MockLog.assertThatLogger(
-            () -> Federation.logEffectiveState(true, true),
+            () -> Federation.logEffectiveState(true, true, false, true),
             Federation.class,
             new MockLog.SeenEventExpectation(
                 "enabled",
@@ -287,7 +231,7 @@ public class FederationTests extends ESTestCase {
     )
     public void testLogsDisabledAtDebug() {
         MockLog.assertThatLogger(
-            () -> Federation.logEffectiveState(true, false),
+            () -> Federation.logEffectiveState(true, false, false, true),
             Federation.class,
             new MockLog.SeenEventExpectation(
                 "disabled",
@@ -296,6 +240,32 @@ public class FederationTests extends ESTestCase {
                 "*is disabled*" + Federation.FEDERATION_ENABLED.getKey() + "*"
             ),
             new MockLog.UnseenEventExpectation("no warning", Federation.class.getCanonicalName(), Level.WARN, "*")
+        );
+    }
+
+    /**
+     * Enabling the feature where it cannot be served is reported, not silently dropped — the one case where the node
+     * deliberately does something other than what it was configured to do.
+     */
+    public void testLogsUnhonourableEnableAtError() {
+        MockLog.assertThatLogger(
+            () -> Federation.logEffectiveState(true, true, true, false),
+            Federation.class,
+            new MockLog.SeenEventExpectation(
+                "ignored opt-in",
+                Federation.class.getCanonicalName(),
+                Level.ERROR,
+                "*" + Federation.FEDERATION_ENABLED.getKey() + "*not supported on Windows*ignoring*"
+            )
+        );
+    }
+
+    /** Leaving it alone on that platform is not a misconfiguration, so nothing is reported. */
+    public void testLogsNoErrorWhenNotAskedForOnWindows() {
+        MockLog.assertThatLogger(
+            () -> Federation.logEffectiveState(true, false, true, false),
+            Federation.class,
+            new MockLog.UnseenEventExpectation("no error", Federation.class.getCanonicalName(), Level.ERROR, "*")
         );
     }
 }

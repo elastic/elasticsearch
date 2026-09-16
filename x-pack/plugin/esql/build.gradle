@@ -174,14 +174,6 @@ tasks.named("test").configure {
   // Remote-fetch TopN is on by default in snapshot builds; keep it off for the bulk of unit
   // and golden tests so unrelated planner goldens stay stable. See remoteFetchTopnFeatureFlagTest.
   systemProperty 'es.esql_remote_fetch_topn_feature_flag_enabled', 'false'
-  // ESQL federation (external data sources) defaults off on Windows, so that a node there behaves out of the box
-  // like the release build it ships as. The unit suites still exercise the feature, so they opt in explicitly --
-  // see Federation.REGISTER_PROPERTY. Only a snapshot build can: on a Windows release build the feature is
-  // unsupported and the property is rejected outright, so the suites needing it skip on Federation.isRegistered().
-  // Every other platform already defaults on and needs nothing here.
-  if (buildParams.snapshotBuild && OS.current() == OS.WINDOWS) {
-    systemProperty 'es.esql.register_federation_feature', 'true'
-  }
 }
 
 // Planner unit tests and remote-fetch golden tests need the feature flag enabled in a dedicated JVM.

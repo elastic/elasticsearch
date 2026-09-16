@@ -9,13 +9,11 @@ package org.elasticsearch.xpack.esql.qa.single_node;
 
 import com.carrotsearch.randomizedtesting.annotations.ThreadLeakFilters;
 
-import org.apache.http.util.EntityUtils;
 import org.elasticsearch.client.Request;
 import org.elasticsearch.client.ResponseException;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.test.TestClustersThreadFilter;
 import org.elasticsearch.test.cluster.ElasticsearchCluster;
-import org.elasticsearch.xpack.esql.action.EsqlCapabilities;
 import org.elasticsearch.xpack.esql.datasources.ExternalSourceSettings;
 import org.elasticsearch.xpack.esql.datasources.Federation;
 import org.elasticsearch.xpack.esql.datasources.datasource.DataSourceService;
@@ -54,26 +52,6 @@ public class FederationDisabledRestIT extends AbstractFederationUnavailableRestT
     public void testFederationSettingsAreRejectedOverRest() throws IOException {
         assertRejected(ExternalSourceSettings.FEDERATED_IDENTITY_ENABLED.getKey(), "true");
         assertRejected(DataSourceService.MAX_DATA_SOURCES_COUNT_SETTING.getKey(), "7");
-    }
-
-    /**
-     * The inline {@code EXTERNAL} command is refused by the parser, before it resolves anything. This is the
-     * cross-platform home for that assertion: {@code EXTERNAL} does not pass through the {@code DatasetResolver}
-     * gate that closes {@code FROM <dataset>} (covered by the base class), so without the parser guard it would
-     * reach the operator-build backstop only after planning-time resolution had already read from {@code s3://}.
-     *
-     * <p>It cannot be a parser unit test: registration is resolved into a {@code static final} at class load, and
-     * the unit test JVM always has the feature registered. This suite is the one that boots a node with it off.
-     */
-    public void testExternalCommandIsRefusedByTheParser() throws IOException {
-        assumeTrue("EXTERNAL command should be enabled", EsqlCapabilities.Cap.EXTERNAL_COMMAND.isEnabled());
-        Request query = new Request("POST", "/_query");
-        query.setJsonEntity("""
-            {"query": "EXTERNAL \\"s3://bucket/data.parquet\\""}""");
-        ResponseException ex = expectThrows(ResponseException.class, () -> client().performRequest(query));
-        String body = EntityUtils.toString(ex.getResponse().getEntity());
-        assertThat(ex.getResponse().getStatusLine().getStatusCode(), equalTo(400));
-        assertThat(body, containsString(Federation.externalNotSupportedMessage()));
     }
 
     private static void assertRejected(String key, String value) throws IOException {

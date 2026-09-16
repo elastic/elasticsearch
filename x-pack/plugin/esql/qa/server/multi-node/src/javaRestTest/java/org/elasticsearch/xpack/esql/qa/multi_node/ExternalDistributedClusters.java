@@ -9,7 +9,7 @@ package org.elasticsearch.xpack.esql.qa.multi_node;
 
 import org.elasticsearch.test.cluster.ElasticsearchCluster;
 import org.elasticsearch.test.cluster.FeatureFlag;
-import org.elasticsearch.xpack.esql.datasources.FederationClusters;
+import org.elasticsearch.xpack.esql.datasources.Federation;
 import org.elasticsearch.xpack.esql.datasources.FixtureUtils;
 
 import java.util.function.Supplier;
@@ -41,7 +41,7 @@ public class ExternalDistributedClusters {
             // Federation is only on by default in snapshot builds; this suite reads external sources. It is set here
             // rather than relying on Clusters, which serverless substitutes with a builder that only defines node
             // shape.
-            FederationClusters.enable(spec);
+            spec.setting(Federation.FEDERATION_ENABLED.getKey(), "true");
             spec.plugin("inference-service-test");
             spec.module("repository-s3");
             spec.module("repository-gcs");

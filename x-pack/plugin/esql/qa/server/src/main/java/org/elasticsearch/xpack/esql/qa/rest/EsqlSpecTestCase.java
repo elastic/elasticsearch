@@ -32,7 +32,6 @@ import org.elasticsearch.xpack.esql.CsvTestUtils;
 import org.elasticsearch.xpack.esql.CsvTestsDataLoader;
 import org.elasticsearch.xpack.esql.SpecReader;
 import org.elasticsearch.xpack.esql.action.EsqlCapabilities;
-import org.elasticsearch.xpack.esql.datasources.Federation;
 import org.elasticsearch.xpack.esql.planner.PlannerSettings;
 import org.elasticsearch.xpack.esql.plugin.EsqlFeatures;
 import org.elasticsearch.xpack.esql.plugin.QueryPragmas;
@@ -433,11 +432,6 @@ public abstract class EsqlSpecTestCase extends ESRestTestCase {
     }
 
     protected final void doTest(String query) throws Throwable {
-        if (query.trim().toUpperCase(Locale.ROOT).contains("EXTERNAL ")) {
-            // Where the platform cannot run external data sources the node leaves the feature off and the parser
-            // refuses the command outright.
-            assumeTrue("external data sources are not supported on this platform", Federation.SUPPORTED);
-        }
         if (query.trim().toUpperCase(Locale.ROOT).contains("EXTERNAL \"{{")) {
             // Multi-file glob templates ({{x_multifile}}, {{x_multifile_split}}, {{x_multifile_ubn}},
             // {{x_multifile_type_drift}}), and hive-partitioned templates ({{x_hive}}) are resolved by

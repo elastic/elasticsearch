@@ -28,7 +28,6 @@ import org.elasticsearch.xpack.esql.datasources.AzureFixtureUtils;
 import org.elasticsearch.xpack.esql.datasources.AzureFixtureUtils.DataSourcesAzureHttpFixture;
 import org.elasticsearch.xpack.esql.datasources.DatasetRegistry;
 import org.elasticsearch.xpack.esql.datasources.EsqlDataSourcesCapabilities;
-import org.elasticsearch.xpack.esql.datasources.Federation;
 import org.elasticsearch.xpack.esql.datasources.FixtureUtils;
 import org.elasticsearch.xpack.esql.datasources.GcsFixtureUtils;
 import org.elasticsearch.xpack.esql.datasources.GcsFixtureUtils.DataSourcesGcsHttpFixture;
@@ -468,17 +467,6 @@ public abstract class AbstractExternalSourceSpecTestCase extends EsqlSpecTestCas
      * Compressed variants (.gz, .zst, .zstd, .bz2, .bz) of .csv, .ndjson, and .tsv files are generated
      * on the fly rather than checked in.
      */
-    /**
-     * Where the platform cannot run external data sources, every suite built on this base has nothing to read and
-     * {@code Clusters} leaves the feature off. The check is {@link Federation#SUPPORTED} rather than
-     * {@code isRegistered()} because this runs in the test JVM, not the node JVM: the node's registered state is not
-     * observable from here, but the platform and build behind {@code SUPPORTED} are the same for both.
-     */
-    @BeforeClass
-    public static void assumeExternalSourcesSupported() {
-        assumeTrue("external data sources are not supported on this platform", Federation.SUPPORTED);
-    }
-
     @BeforeClass
     public static void loadExternalSourceFixtures() {
         s3Fixture.loadFixturesFromResources();

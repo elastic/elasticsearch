@@ -21,7 +21,7 @@ import org.elasticsearch.test.TestClustersThreadFilter;
 import org.elasticsearch.test.cluster.ElasticsearchCluster;
 import org.elasticsearch.test.cluster.local.distribution.DistributionType;
 import org.elasticsearch.test.rest.ESRestTestCase;
-import org.elasticsearch.xpack.esql.datasources.FederationClusters;
+import org.elasticsearch.xpack.esql.datasources.Federation;
 import org.junit.After;
 import org.junit.BeforeClass;
 import org.junit.ClassRule;
@@ -71,7 +71,7 @@ public class RegionDiscoveryIT extends ESRestTestCase {
         .distribution(DistributionType.DEFAULT)
         .setting("xpack.security.enabled", "false")
         .setting("xpack.license.self_generated.type", "trial")
-        .apply(FederationClusters::enable)
+        .setting(Federation.FEDERATION_ENABLED.getKey(), "true")
         .keystore("cluster.state.encryption.password.test", "region-discovery-enc-password")
         .keystore("cluster.state.encryption.active_password_id", "test")
         // Do not set AWS_REGION: the provider explicitly seeds with us-east-1 when region is absent

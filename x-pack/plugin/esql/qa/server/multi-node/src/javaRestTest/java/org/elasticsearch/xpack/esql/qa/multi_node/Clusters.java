@@ -29,25 +29,15 @@ public class Clusters {
             .setting("xpack.security.enabled", "false")
             .setting("xpack.license.self_generated.type", "trial")
             .setting("path.repo", csvDataPath::toString)
+            .setting("esql.external.local_allowed_paths", csvDataPath::toString)
+            // Federation is only on by default in snapshot builds; the EXTERNAL and dataset specs run here need it on.
+            .setting(Federation.FEDERATION_ENABLED.getKey(), "true")
             .configFile("user-agent/custom-regexes.yml", Resource.fromClasspath("custom-regexes.yml"))
             .configFile("ingest-geoip/GeoLite2-City.mmdb", Resource.fromClasspath("GeoLite2-City.mmdb"))
             .configFile("ingest-geoip/GeoLite2-Country.mmdb", Resource.fromClasspath("GeoLite2-Country.mmdb"))
             .configFile("ingest-geoip/GeoLite2-ASN.mmdb", Resource.fromClasspath("GeoLite2-ASN.mmdb"))
-            .setting("ingest.geoip.downloader.enabled", "false");
-        // Federation is only on by default in snapshot builds; the EXTERNAL and dataset specs run here need it on.
-        // Only where the platform can run it at all: where it cannot, the node registers none of the feature's
-        // settings, so writing one into elasticsearch.yml would fail node startup with the framework's "unknown
-        // setting" error and take down every suite on this cluster, not just the external ones.
-        if (Federation.SUPPORTED) {
-            cluster.setting("esql.external.local_allowed_paths", csvDataPath::toString)
-                .setting(Federation.FEDERATION_ENABLED.getKey(), "true");
-            // Where registration defaults off (Windows) these suites must ask for it. Set only there: elsewhere it
-            // would merely restate the default.
-            if (Federation.DEFAULT_REGISTERED == false) {
-                cluster.systemProperty(Federation.REGISTER_PROPERTY, "true");
-            }
-        }
-        cluster.apply(() -> configProvider);
+            .setting("ingest.geoip.downloader.enabled", "false")
+            .apply(() -> configProvider);
         if (shared) {
             cluster.shared(true);
         }

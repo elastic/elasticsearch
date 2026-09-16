@@ -86,17 +86,7 @@ public class Clusters {
             .configFile("ingest-geoip/GeoLite2-Country.mmdb", Resource.fromClasspath("GeoLite2-Country.mmdb"))
             .configFile("ingest-geoip/GeoLite2-ASN.mmdb", Resource.fromClasspath("GeoLite2-ASN.mmdb"))
             .setting("ingest.geoip.downloader.enabled", "false");
-        // Only where the platform can run federation at all. Where it cannot, the node registers none of the
-        // feature's settings, so writing one into elasticsearch.yml would fail startup with the framework's
-        // "unknown setting" error and take down every suite on this cluster rather than just the external-source
-        // ones. Those skip themselves instead (see AbstractExternalSourceSpecTestCase).
-        if (federationSettings && Federation.SUPPORTED) {
-            // Where registration defaults off (Windows) the suites that need the feature must ask for it. Set only
-            // there: elsewhere it would restate the default, and a blanket "true" would fight the config providers
-            // that deliberately turn registration off.
-            if (Federation.DEFAULT_REGISTERED == false) {
-                builder.systemProperty(Federation.REGISTER_PROPERTY, "true");
-            }
+        if (federationSettings) {
             // Federation is only on by default in snapshot builds; the data source and dataset suites here need it on
             // in a release build too. A test that wants the unavailable surface turns it back off through the config
             // provider applied below. This default is a supplier, not a plain value, so that a config provider can

@@ -14,12 +14,15 @@ import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.search.internal.SearchContext;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.TestSearchContext;
+import org.elasticsearch.xpack.core.security.authc.Authentication;
+import org.elasticsearch.xpack.core.security.authc.AuthenticationTestHelper;
 import org.junit.After;
 import org.mockito.Mockito;
 
 import java.util.ArrayList;
 import java.util.List;
 import java.util.concurrent.CopyOnWriteArrayList;
+import java.util.concurrent.atomic.AtomicReference;
 
 import static org.hamcrest.Matchers.equalTo;
 
@@ -72,6 +75,52 @@ public class RetainedSearchContextsRegistryTests extends ESTestCase {
     public void testAcquireUnknownSessionRejected() {
         IllegalStateException e = expectThrows(IllegalStateException.class, () -> registry.acquire("missing"));
         assertEquals("no retained search contexts for session [missing]", e.getMessage());
+    }
+
+    public void testAcquireChecksRetainedSessionOwner() {
+        SearchContext searchContext = createSearchContext();
+        Authentication creator = AuthenticationTestHelper.builder().realm().build(false);
+        AtomicReference<Authentication> checkedCreator = new AtomicReference<>();
+
+        try (RetainedSearchContextsRegistry.Handle registration = registry.register("session-1", createContexts(searchContext), creator)) {
+            IllegalStateException e = expectThrows(
+                IllegalStateException.class,
+                () -> registry.acquire("session-1", retainedSessionCreator -> {
+                    checkedCreator.set(retainedSessionCreator);
+                    return false;
+                })
+            );
+            assertEquals("no retained search contexts for session [session-1]", e.getMessage());
+            assertSame(creator, checkedCreator.get());
+            assertFalse(searchContext.isClosed());
+
+            try (
+                RetainedSearchContextsRegistry.Handle ignored = registry.acquire(
+                    "session-1",
+                    retainedSessionCreator -> retainedSessionCreator == creator
+                )
+            ) {
+                assertFalse(searchContext.isClosed());
+            }
+        }
+
+        assertTrue(searchContext.isClosed());
+    }
+
+    public void testReleaseChecksRetainedSessionOwner() {
+        SearchContext searchContext = createSearchContext();
+        Authentication creator = AuthenticationTestHelper.builder().realm().build(false);
+        RetainedSearchContextsRegistry.Handle registration = registry.register("session-1", createContexts(searchContext), creator);
+
+        registry.closeRegistration("session-1", retainedSessionCreator -> false);
+        assertTrue(registry.isRetained("session-1"));
+        assertFalse(searchContext.isClosed());
+
+        registry.closeRegistration("session-1", retainedSessionCreator -> retainedSessionCreator == creator);
+        registration.close();
+
+        assertFalse(registry.isRetained("session-1"));
+        assertTrue(searchContext.isClosed());
     }
 
     public void testLeaseCloseIsIdempotent() {

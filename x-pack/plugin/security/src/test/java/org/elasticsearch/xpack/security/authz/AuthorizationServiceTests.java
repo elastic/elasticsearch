@@ -2805,15 +2805,37 @@ public class AuthorizationServiceTests extends ESTestCase {
     }
 
     public void testRemoteFetchExchangeSetupActionIsAuthorizedByName() {
-        assertCompositeReadActionIsAuthorizedByName("indices:data/read/esql/remote_fetch/exchange_setup");
+        assertRemoteFetchActionIsAuthorizedByName("indices:data/read/esql/remote_fetch/exchange_setup");
     }
 
     public void testRemoteFetchReleaseActionIsAuthorizedByName() {
-        assertCompositeReadActionIsAuthorizedByName("indices:data/read/esql/remote_fetch/release");
+        assertRemoteFetchActionIsAuthorizedByName("indices:data/read/esql/remote_fetch/release");
     }
 
-    private void assertCompositeReadActionIsAuthorizedByName(String action) {
-        final TransportRequest request = new MockCompositeIndicesRequest();
+    public void testRemoteFetchActionRequiresIndexPrivileges() {
+        final String action = randomFrom(
+            "indices:data/read/esql/remote_fetch/exchange_setup",
+            "indices:data/read/esql/remote_fetch/release"
+        );
+        final TransportRequest request = new EmptyRequest();
+        final Authentication authentication = createAuthentication(new User("test user", "no_indices"));
+        final RoleDescriptor role = new RoleDescriptor("no_indices", null, null, null);
+        roleMap.put("no_indices", role);
+        final String requestId = AuditUtil.getOrGenerateRequestId(threadContext);
+
+        assertThrowsAuthorizationException(() -> authorize(authentication, action, request), action, "test user");
+        verify(auditTrail).accessDenied(
+            eq(requestId),
+            eq(authentication),
+            eq(action),
+            eq(request),
+            authzInfoRoles(new String[] { role.getName() })
+        );
+        verifyNoMoreInteractions(auditTrail);
+    }
+
+    private void assertRemoteFetchActionIsAuthorizedByName(String action) {
+        final TransportRequest request = new EmptyRequest();
         final Authentication authentication = createAuthentication(new User("test user", "role"));
         final RoleDescriptor role = new RoleDescriptor(
             "role",
@@ -3510,7 +3532,7 @@ public class AuthorizationServiceTests extends ESTestCase {
     }
 
     private static Tuple<String, TransportRequest> randomCompositeRequest() {
-        return switch (randomIntBetween(0, 10)) {
+        return switch (randomIntBetween(0, 8)) {
             case 0 -> Tuple.tuple(TransportMultiGetAction.NAME, new MultiGetRequest().add("index", "id"));
             case 1 -> Tuple.tuple(TransportMultiSearchAction.TYPE.name(), new MultiSearchRequest().add(new SearchRequest()));
             case 2 -> Tuple.tuple(MultiTermVectorsAction.NAME, new MultiTermVectorsRequest().add("index", "id"));
@@ -3520,8 +3542,6 @@ public class AuthorizationServiceTests extends ESTestCase {
             case 6 -> Tuple.tuple("indices:data/read/search/template", new MockCompositeIndicesRequest());
             case 7 -> Tuple.tuple("indices:data/write/reindex", new MockCompositeIndicesRequest());
             case 8 -> Tuple.tuple("indices:data/write/reindex/resume", new MockCompositeIndicesRequest());
-            case 9 -> Tuple.tuple("indices:data/read/esql/remote_fetch/exchange_setup", new MockCompositeIndicesRequest());
-            case 10 -> Tuple.tuple("indices:data/read/esql/remote_fetch/release", new MockCompositeIndicesRequest());
             default -> throw new UnsupportedOperationException();
         };
     }

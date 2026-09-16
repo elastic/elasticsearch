@@ -9,14 +9,17 @@ package org.elasticsearch.xpack.esql.plugin;
 
 import org.elasticsearch.compute.lucene.IndexedByShardId;
 import org.elasticsearch.core.AbstractRefCounted;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.Releasable;
 import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.xpack.core.security.authc.Authentication;
 
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.function.Consumer;
 import java.util.function.LongSupplier;
+import java.util.function.Predicate;
 
 /**
  * Retains {@link AcquiredSearchContexts} beyond the lifetime of the initial distributed query so a follow-up fetch
@@ -27,6 +30,10 @@ import java.util.function.LongSupplier;
  * access to the same search contexts. When an explicit release request arrives from the coordinating node, the registration is closed —
  * its reference is released — but any already-acquired handles remain valid until individually closed. The underlying search contexts are
  * released only when the last outstanding handle is closed.
+ * <p>
+ * Each registration is bound to the authentication that created it. Remote fetch acquisition and release supply an access predicate so
+ * another user or API key cannot use a retained session identifier to access or close those contexts. A {@code null} creator represents a
+ * context created while security was disabled.
  * <p>
  * <b>Concurrency design:</b> This registry uses a {@link ConcurrentHashMap} for the session map and {@link AbstractRefCounted} for
  * per-entry lifecycle. Once the registration is closed, new fetch leases are rejected while already-acquired leases remain valid until
@@ -69,7 +76,11 @@ final class RetainedSearchContextsRegistry {
      *                               transferred — the caller remains responsible for closing {@code searchContexts}.
      */
     Handle register(String sessionId, AcquiredSearchContexts searchContexts) {
-        Entry entry = new Entry(searchContexts, relativeTimeInMillis.getAsLong(), e -> entriesBySessionId.remove(sessionId, e));
+        return register(sessionId, searchContexts, null);
+    }
+
+    Handle register(String sessionId, AcquiredSearchContexts searchContexts, @Nullable Authentication creator) {
+        Entry entry = new Entry(searchContexts, creator, relativeTimeInMillis.getAsLong(), e -> entriesBySessionId.remove(sessionId, e));
         if (entriesBySessionId.putIfAbsent(sessionId, entry) != null) {
             throw new IllegalStateException("search contexts already retained for session [" + sessionId + "]");
         }
@@ -82,9 +93,13 @@ final class RetainedSearchContextsRegistry {
     }
 
     Handle acquire(String sessionId) {
+        return acquire(sessionId, ignored -> true);
+    }
+
+    Handle acquire(String sessionId, Predicate<Authentication> canAccess) {
         Entry entry = entriesBySessionId.get(sessionId);
         long nowInMillis = relativeTimeInMillis.getAsLong();
-        if (entry == null || entry.tryAcquire(nowInMillis) == false) {
+        if (entry == null || canAccess.test(entry.creator) == false || entry.tryAcquire(nowInMillis) == false) {
             throw new IllegalStateException("no retained search contexts for session [" + sessionId + "]");
         }
         return new Handle(sessionId, entry.searchContexts.globalView(), () -> entry.closeLease(relativeTimeInMillis.getAsLong()), () -> {});
@@ -106,6 +121,14 @@ final class RetainedSearchContextsRegistry {
         }
     }
 
+    void closeRegistration(String sessionId, Predicate<Authentication> canAccess) {
+        Entry entry = entriesBySessionId.get(sessionId);
+        // Missing and inaccessible sessions are both no-ops, preserving idempotent release without exposing session existence.
+        if (entry != null && canAccess.test(entry.creator)) {
+            entry.closeRegistration();
+        }
+    }
+
     void expire() {
         long nowInMillis = relativeTimeInMillis.getAsLong();
         entriesBySessionId.forEach((sessionId, entry) -> {
@@ -117,13 +140,21 @@ final class RetainedSearchContextsRegistry {
 
     private static final class Entry {
         private final AcquiredSearchContexts searchContexts;
+        @Nullable
+        private final Authentication creator;
         private final AbstractRefCounted refs;
         private final AtomicBoolean registrationClosed = new AtomicBoolean();
         private final AtomicBoolean producerActive = new AtomicBoolean(true);
         private final AtomicLong lastAccessTimeInMillis;
 
-        private Entry(AcquiredSearchContexts searchContexts, long nowInMillis, Consumer<Entry> onMapRemoval) {
+        private Entry(
+            AcquiredSearchContexts searchContexts,
+            @Nullable Authentication creator,
+            long nowInMillis,
+            Consumer<Entry> onMapRemoval
+        ) {
             this.searchContexts = searchContexts;
+            this.creator = creator;
             this.lastAccessTimeInMillis = new AtomicLong(nowInMillis);
             this.refs = AbstractRefCounted.of(() -> {
                 onMapRemoval.accept(this);

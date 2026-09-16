@@ -17,7 +17,6 @@ import org.apache.lucene.index.IndexWriterConfig;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.action.CompositeIndicesRequest;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.node.DiscoveryNode;
@@ -73,6 +72,9 @@ import org.elasticsearch.test.TestSearchContext;
 import org.elasticsearch.threadpool.Scheduler;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
+import org.elasticsearch.xpack.core.security.SecurityContext;
+import org.elasticsearch.xpack.core.security.authc.Authentication;
+import org.elasticsearch.xpack.core.security.authc.AuthenticationTestHelper;
 import org.elasticsearch.xpack.esql.Column;
 import org.elasticsearch.xpack.esql.ConfigurationTestUtils;
 import org.elasticsearch.xpack.esql.SerializationTestUtils;
@@ -119,18 +121,6 @@ public class RemoteFetchServiceTests extends MapperServiceTestCase {
     private Directory directory;
     private IndexReader reader;
     private BlockFactory blockFactory;
-
-    public void testTransportRequestsAreCompositeIndicesRequests() {
-        assertCompositeIndicesRequest(RemoteFetchService.ExchangeSetupRequest.class);
-        assertCompositeIndicesRequest(RemoteFetchService.ReleaseRequest.class);
-    }
-
-    private static void assertCompositeIndicesRequest(Class<?> requestClass) {
-        assertTrue(
-            requestClass.getSimpleName() + " must implement CompositeIndicesRequest",
-            CompositeIndicesRequest.class.isAssignableFrom(requestClass)
-        );
-    }
 
     public void testInputPagePreservesHandleCoordinates() {
         blockFactory = blockFactory();
@@ -676,6 +666,35 @@ public class RemoteFetchServiceTests extends MapperServiceTestCase {
         assertTrue(searchContext.isClosed());
     }
 
+    public void testRetainedContextAccessChecksCreatingAuthentication() {
+        RetainedSearchContextsRegistry registry = new RetainedSearchContextsRegistry();
+        SecurityContext securityContext = Mockito.mock(SecurityContext.class);
+        Authentication creator = AuthenticationTestHelper.builder().realm().build(false);
+        Mockito.when(securityContext.getAuthentication()).thenReturn(creator);
+        RemoteFetchService service = remoteFetchService(
+            registry,
+            new ArrayList<>(),
+            BidirectionalBatchExchangeServer::new,
+            securityContext
+        );
+        SearchContext searchContext = new TestSearchContext(Mockito.mock(SearchExecutionContext.class, Mockito.withSettings().stubOnly()));
+
+        try (
+            RetainedSearchContextsRegistry.Handle registration = service.retainSearchContexts("session-1", createContexts(searchContext))
+        ) {
+            Mockito.when(securityContext.canIAccessResourcesCreatedBy(creator)).thenReturn(false);
+            IllegalStateException e = expectThrows(IllegalStateException.class, () -> service.acquireRetainedContexts("session-1"));
+            assertEquals("no retained search contexts for session [session-1]", e.getMessage());
+
+            Mockito.when(securityContext.canIAccessResourcesCreatedBy(creator)).thenReturn(true);
+            try (RetainedSearchContextsRegistry.Handle ignored = service.acquireRetainedContexts("session-1")) {
+                assertFalse(searchContext.isClosed());
+            }
+        }
+
+        assertTrue(searchContext.isClosed());
+    }
+
     public void testStartExchangeFetchServerReleasesLeaseWhenSetupFails() {
         RetainedSearchContextsRegistry registry = new RetainedSearchContextsRegistry();
         RuntimeException setupFailure = new RuntimeException("setup failed");
@@ -809,6 +828,17 @@ public class RemoteFetchServiceTests extends MapperServiceTestCase {
         List<Runnable> scheduledCommands,
         RemoteFetchService.ExchangeServerFactory exchangeServerFactory
     ) {
+        SecurityContext securityContext = Mockito.mock(SecurityContext.class);
+        Mockito.when(securityContext.canIAccessResourcesCreatedBy(Mockito.nullable(Authentication.class))).thenReturn(true);
+        return remoteFetchService(registry, scheduledCommands, exchangeServerFactory, securityContext);
+    }
+
+    private static RemoteFetchService remoteFetchService(
+        RetainedSearchContextsRegistry registry,
+        List<Runnable> scheduledCommands,
+        RemoteFetchService.ExchangeServerFactory exchangeServerFactory,
+        SecurityContext securityContext
+    ) {
         TransportService transportService = Mockito.mock(TransportService.class);
         ThreadPool threadPool = Mockito.mock(ThreadPool.class);
         Mockito.when(threadPool.executor(Mockito.anyString())).thenReturn(EsExecutors.DIRECT_EXECUTOR_SERVICE);
@@ -854,7 +884,8 @@ public class RemoteFetchServiceTests extends MapperServiceTestCase {
             BigArrays.NON_RECYCLING_INSTANCE,
             TestBlockFactory.getNonBreakingInstance(),
             registry,
-            exchangeServerFactory
+            exchangeServerFactory,
+            securityContext
         );
     }
 

@@ -78,16 +78,20 @@ dense_vector command on multiple non-constant fields from an index
 required_capability: dense_vector_command
 required_capability: dense_vector_field_type_released
 
+// tag::denseVectorMultipleFieldsForDocs[]
 FROM books
 | WHERE book_no IN ("7480", "8605")
 | DENSE_VECTOR title, publisher WITH { "inference_id" : "test_dense_inference" }
 | SORT book_no
 | KEEP book_no, title, publisher, title_dense_vector, publisher_dense_vector
+// end::denseVectorMultipleFieldsForDocs[]
 ;
 
+// tag::denseVectorMultipleFieldsForDocs-result[]
 book_no:keyword | title:text | publisher:text | title_dense_vector:dense_vector | publisher_dense_vector:dense_vector
 7480            | The Hobbit | Mariner Books  | [50.0, 49.0, 48.0]              | [45.0, 49.0, 53.0]
 8605            | Dead Souls | Vintage        | [45.0, 49.0, 53.0]              | [50.0, 49.0, 50.0]
+// end::denseVectorMultipleFieldsForDocs-result[]
 ;
 
 
@@ -114,16 +118,41 @@ dense_vector command on a single explicitly-named field over an index
 required_capability: dense_vector_command
 required_capability: dense_vector_field_type_released
 
+// tag::denseVectorSingleFieldForDocs[]
 FROM books
 | WHERE book_no IN ("7480", "8605")
 | DENSE_VECTOR title WITH { "inference_id" : "test_dense_inference" }
 | SORT book_no
 | KEEP book_no, title, title_dense_vector
+// end::denseVectorSingleFieldForDocs[]
 ;
 
+// tag::denseVectorSingleFieldForDocs-result[]
 book_no:keyword | title:text | title_dense_vector:dense_vector
 7480            | The Hobbit | [50.0, 49.0, 48.0]
 8605            | Dead Souls | [45.0, 49.0, 53.0]
+// end::denseVectorSingleFieldForDocs-result[]
+;
+
+// Same query as above, but naming the single output column (used in the docs "Name the output column" example).
+dense_vector command names the output over an index for docs
+required_capability: dense_vector_command_v3
+required_capability: dense_vector_field_type_released
+
+// tag::denseVectorNamedOutputForDocs[]
+FROM books
+| WHERE book_no IN ("7480", "8605")
+| DENSE_VECTOR book_vector = title WITH { "inference_id" : "test_dense_inference" }
+| SORT book_no
+| KEEP book_no, title, book_vector
+// end::denseVectorNamedOutputForDocs[]
+;
+
+// tag::denseVectorNamedOutputForDocs-result[]
+book_no:keyword | title:text | book_vector:dense_vector
+7480            | The Hobbit | [50.0, 49.0, 48.0]
+8605            | Dead Souls | [45.0, 49.0, 53.0]
+// end::denseVectorNamedOutputForDocs-result[]
 ;
 
 dense_vector command with timeout option over an index
@@ -197,6 +226,55 @@ FROM books
 
 book_no:keyword | sim:double
 2924            | 1.0
+;
+
+// A multi-clause pipeline: build a value with EVAL, then embed that computed column. DENSE_VECTOR
+// embeds any text/keyword column, including one produced earlier in the query.
+dense_vector command embeds a computed column for docs
+required_capability: dense_vector_command
+required_capability: dense_vector_field_type_released
+
+// tag::denseVectorComputedColumnForDocs[]
+FROM books
+| WHERE book_no IN ("7480", "8605")
+| EVAL description = CONCAT(title, " (", publisher, ")")
+| DENSE_VECTOR description WITH { "inference_id" : "test_dense_inference" }
+| SORT book_no
+| KEEP book_no, description, description_dense_vector
+// end::denseVectorComputedColumnForDocs[]
+;
+
+// tag::denseVectorComputedColumnForDocs-result[]
+book_no:keyword | description:keyword        | description_dense_vector:dense_vector
+7480            | The Hobbit (Mariner Books) | [45.0, 49.0, 49.0]
+8605            | Dead Souls (Vintage)       | [53.0, 48.0, 53.0]
+// end::denseVectorComputedColumnForDocs-result[]
+;
+
+// The generated column feeds MMR, which diversifies on a runtime dense_vector (no indexed field
+// required, unlike KNN). Mirrors the "MMR with single dimension vector" case in mmr.csv-spec, but the
+// runtime vector comes from DENSE_VECTOR instead of EVAL.
+dense_vector command output diversified by mmr
+required_capability: dense_vector_command
+required_capability: dense_vector_field_type_released
+required_capability: mmr_v2
+
+// tag::denseVectorThenMmrForDocs[]
+FROM books
+| DENSE_VECTOR title WITH { "inference_id" : "test_dense_inference" }
+| SORT book_no
+| LIMIT 10
+| MMR ON title_dense_vector LIMIT 3
+| KEEP book_no, title
+// end::denseVectorThenMmrForDocs[]
+;
+
+// tag::denseVectorThenMmrForDocs-result[]
+book_no:keyword | title:text
+1211            | The brothers Karamazov
+1502            | Selected Passages from Correspondence with Friends
+1937            | The Best Short Stories of Dostoevsky (Modern Library)
+// end::denseVectorThenMmrForDocs-result[]
 ;
 
 // Assert a generated column shadows an existing same-named column (last wins).
@@ -345,16 +423,20 @@ dense_vector command with a custom suffix over multiple indexed fields
 required_capability: dense_vector_command_v3
 required_capability: dense_vector_field_type_released
 
+// tag::denseVectorSuffixForDocs[]
 FROM books
 | WHERE book_no IN ("7480", "8605")
 | DENSE_VECTOR suffix = "_vec" ON title, publisher WITH { "inference_id" : "test_dense_inference" }
 | SORT book_no
 | KEEP book_no, title_vec, publisher_vec
+// end::denseVectorSuffixForDocs[]
 ;
 
+// tag::denseVectorSuffixForDocs-result[]
 book_no:keyword | title_vec:dense_vector | publisher_vec:dense_vector
 7480            | [50.0, 49.0, 48.0]     | [45.0, 49.0, 53.0]
 8605            | [45.0, 49.0, 53.0]     | [50.0, 49.0, 50.0]
+// end::denseVectorSuffixForDocs-result[]
 ;
 
 // `suffix` is a contextual keyword, not a reserved word: an identifier after `=` is an ordinary output name,

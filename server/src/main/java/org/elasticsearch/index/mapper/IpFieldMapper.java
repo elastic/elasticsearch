@@ -875,6 +875,10 @@ public class IpFieldMapper extends FieldMapper {
         }
 
         // SORTED_SET doc values (the TSDB case): always supported; multi-value is handled natively.
+        // Assert the TSDB invariant: the builder always produces IndexType.skippers() when binary doc
+        // values are disabled, which is the only path to SORTED_SET in ip fields.
+        assert fieldType().indexType.hasDocValuesSkipper()
+            : "SORTED_SET ip doc values expected only in TSDB mode (IndexType.skippers())";
         return fieldType().hasDocValues();
     }
 

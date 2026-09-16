@@ -48,6 +48,8 @@ import org.elasticsearch.xpack.core.security.action.token.CreateTokenResponse;
 import org.elasticsearch.xpack.core.security.authc.Authentication;
 import org.elasticsearch.xpack.core.security.authc.AuthenticationTestHelper;
 import org.elasticsearch.xpack.core.security.authc.AuthenticationToken;
+import org.elasticsearch.xpack.core.security.authc.service.ServiceAccount.ServiceAccountId;
+import org.elasticsearch.xpack.core.security.authc.service.ServiceAccountToken;
 import org.elasticsearch.xpack.core.security.authc.support.UsernamePasswordToken;
 import org.elasticsearch.xpack.core.security.user.User;
 import org.elasticsearch.xpack.security.Security;
@@ -57,6 +59,7 @@ import org.elasticsearch.xpack.security.authc.kerberos.KerberosAuthenticationTok
 import org.elasticsearch.xpack.security.support.SecurityIndexManager;
 import org.junit.After;
 import org.junit.Before;
+import org.mockito.ArgumentCaptor;
 import org.mockito.Mockito;
 
 import java.nio.charset.StandardCharsets;
@@ -164,6 +167,23 @@ public class TransportCreateTokenActionTests extends ESTestCase {
             @SuppressWarnings("unchecked")
             ActionListener<Authentication> authListener = (ActionListener<Authentication>) invocationOnMock.getArguments()[3];
             User user = null;
+            if (authToken instanceof ServiceAccountToken serviceAccountToken) {
+                // Mimics ServiceAccountService: tokens in the reserved namespace authenticate as built-in accounts,
+                // any other namespace authenticates as a user-managed service account.
+                final Authentication serviceAccountAuthentication;
+                if ("elastic".equals(serviceAccountToken.getAccountId().namespace())) {
+                    serviceAccountAuthentication = AuthenticationTestHelper.builder()
+                        .serviceAccount(new User(serviceAccountToken.getAccountId().asPrincipal()))
+                        .build(false);
+                } else {
+                    serviceAccountAuthentication = AuthenticationTestHelper.builder()
+                        .userManagedServiceAccount(serviceAccountToken.getAccountId().asPrincipal(), "role1")
+                        .build(false);
+                }
+                serviceAccountAuthentication.writeToContext(threadPool.getThreadContext());
+                authListener.onResponse(serviceAccountAuthentication);
+                return Void.TYPE;
+            }
             if (authToken instanceof UsernamePasswordToken) {
                 UsernamePasswordToken token = (UsernamePasswordToken) invocationOnMock.getArguments()[2];
                 user = new User(token.principal());
@@ -405,7 +425,11 @@ public class TransportCreateTokenActionTests extends ESTestCase {
             clusterService,
             bytesRefRecycler
         );
-        Authentication authentication = AuthenticationTestHelper.builder().serviceAccount().build(false);
+        // Neither built-in nor user-managed service accounts may self-mint through client_credentials; a user-managed
+        // account is only exchangeable through the dedicated grant by an independently authenticated manage_token caller.
+        Authentication authentication = randomBoolean()
+            ? AuthenticationTestHelper.builder().serviceAccount().build(false)
+            : AuthenticationTestHelper.builder().userManagedServiceAccount("apps/worker1", "role1").build(false);
         authentication.writeToContext(threadPool.getThreadContext());
 
         final TransportCreateTokenAction action = new TransportCreateTokenAction(
@@ -423,6 +447,198 @@ public class TransportCreateTokenActionTests extends ESTestCase {
         action.doExecute(null, createTokenRequest, future);
         final ElasticsearchException e = expectThrows(ElasticsearchException.class, future::actionGet);
         assertThat(e.getMessage(), containsString("OAuth2 token creation is not supported for service accounts"));
+    }
+
+    public void testUserManagedServiceAccountGrantCreatesTokenWithoutRefreshToken() throws Exception {
+        final TokenService tokenService = new TokenService(
+            SETTINGS,
+            Clock.systemUTC(),
+            client,
+            license,
+            securityContext,
+            securityIndex,
+            securityIndex,
+            clusterService,
+            bytesRefRecycler
+        );
+        // the caller (e.g. Kibana) is authenticated independently of the exchanged credential
+        Authentication authentication = AuthenticationTestHelper.builder()
+            .user(new User("kibana_system"))
+            .realmRef(new Authentication.RealmRef("realm", "type", "node"))
+            .build(false);
+        authentication.writeToContext(threadPool.getThreadContext());
+
+        final TransportCreateTokenAction action = new TransportCreateTokenAction(
+            threadPool,
+            transportService,
+            ActionFilters.EMPTY,
+            tokenService,
+            authenticationService,
+            securityContext
+        );
+        final CreateTokenRequest createTokenRequest = new CreateTokenRequest();
+        createTokenRequest.setGrantType("_user_managed_service_account");
+        final ServiceAccountToken serviceAccountToken = ServiceAccountToken.newToken(new ServiceAccountId("apps", "worker1"), "token1");
+        createTokenRequest.setServiceAccountToken(serviceAccountToken.asBearerString());
+
+        PlainActionFuture<CreateTokenResponse> tokenResponseFuture = new PlainActionFuture<>();
+        action.doExecute(null, createTokenRequest, tokenResponseFuture);
+        CreateTokenResponse createTokenResponse = tokenResponseFuture.get();
+        assertNull(createTokenResponse.getRefreshToken());
+        assertNotNull(createTokenResponse.getTokenString());
+        assertTrue(createTokenResponse.getAuthentication().isUserManagedServiceAccount());
+        assertThat(createTokenResponse.getAuthentication().getEffectiveSubject().getUser().principal(), is("apps/worker1"));
+        assertServiceAccountCredentialsCleared(createTokenRequest.getServiceAccountToken());
+
+        assertNotNull(idxReqReference.get());
+        Map<String, Object> sourceMap = idxReqReference.get().sourceAsMap();
+        assertNotNull(sourceMap);
+        assertNotNull(sourceMap.get("access_token"));
+        assertNull(sourceMap.get("refresh_token"));
+    }
+
+    public void testUserManagedServiceAccountGrantRejectsBuiltInServiceAccountToken() throws Exception {
+        final TokenService tokenService = new TokenService(
+            SETTINGS,
+            Clock.systemUTC(),
+            client,
+            license,
+            securityContext,
+            securityIndex,
+            securityIndex,
+            clusterService,
+            bytesRefRecycler
+        );
+        Authentication authentication = AuthenticationTestHelper.builder()
+            .user(new User("kibana_system"))
+            .realmRef(new Authentication.RealmRef("realm", "type", "node"))
+            .build(false);
+        authentication.writeToContext(threadPool.getThreadContext());
+
+        final TransportCreateTokenAction action = new TransportCreateTokenAction(
+            threadPool,
+            transportService,
+            ActionFilters.EMPTY,
+            tokenService,
+            authenticationService,
+            securityContext
+        );
+        final CreateTokenRequest createTokenRequest = new CreateTokenRequest();
+        createTokenRequest.setGrantType("_user_managed_service_account");
+        final ServiceAccountToken serviceAccountToken = ServiceAccountToken.newToken(new ServiceAccountId("elastic", "kibana"), "token1");
+        createTokenRequest.setServiceAccountToken(serviceAccountToken.asBearerString());
+
+        PlainActionFuture<CreateTokenResponse> future = new PlainActionFuture<>();
+        action.doExecute(null, createTokenRequest, future);
+        final ElasticsearchSecurityException e = expectThrows(ElasticsearchSecurityException.class, future::actionGet);
+        assertThat(e.getMessage(), containsString("invalid_grant"));
+        assertThat(e.getBodyHeader("error_description").size(), is(1));
+        assertThat(
+            e.getBodyHeader("error_description").get(0),
+            containsString("service_account_token must belong to a user-managed service account")
+        );
+        // No token document may be created for a built-in service account
+        assertNull(idxReqReference.get());
+        assertServiceAccountCredentialsCleared(createTokenRequest.getServiceAccountToken());
+    }
+
+    public void testUserManagedServiceAccountGrantClearsCredentialsOnAuthenticationFailure() throws Exception {
+        final TokenService tokenService = new TokenService(
+            SETTINGS,
+            Clock.systemUTC(),
+            client,
+            license,
+            securityContext,
+            securityIndex,
+            securityIndex,
+            clusterService,
+            bytesRefRecycler
+        );
+        AuthenticationTestHelper.builder().build().writeToContext(threadPool.getThreadContext());
+        final TransportCreateTokenAction action = new TransportCreateTokenAction(
+            threadPool,
+            transportService,
+            ActionFilters.EMPTY,
+            tokenService,
+            authenticationService,
+            securityContext
+        );
+        final CreateTokenRequest request = new CreateTokenRequest();
+        request.setGrantType("_user_managed_service_account");
+        try (ServiceAccountToken token = ServiceAccountToken.newToken(new ServiceAccountId("apps", "worker1"), "token1")) {
+            request.setServiceAccountToken(token.asBearerString());
+        }
+
+        final ElasticsearchSecurityException failure = new ElasticsearchSecurityException("invalid credential", RestStatus.UNAUTHORIZED);
+        // The authentication service is mocked so the failure path can be exercised without a backing service account store.
+        doAnswer(invocation -> {
+            ActionListener<Authentication> authenticationListener = invocation.getArgument(3);
+            authenticationListener.onFailure(failure);
+            return null;
+        }).when(authenticationService)
+            .authenticate(eq(CreateTokenAction.NAME), any(CreateTokenRequest.class), any(AuthenticationToken.class), anyActionListener());
+
+        PlainActionFuture<CreateTokenResponse> future = new PlainActionFuture<>();
+        action.doExecute(null, request, assertListenerIsOnlyCalledOnce(future));
+        assertSame(failure, expectThrows(ElasticsearchSecurityException.class, future::actionGet));
+        assertServiceAccountCredentialsCleared(request.getServiceAccountToken());
+        assertNull(idxReqReference.get());
+    }
+
+    public void testUserManagedServiceAccountGrantRejectsMalformedToken() throws Exception {
+        final TokenService tokenService = new TokenService(
+            SETTINGS,
+            Clock.systemUTC(),
+            client,
+            license,
+            securityContext,
+            securityIndex,
+            securityIndex,
+            clusterService,
+            bytesRefRecycler
+        );
+        Authentication authentication = AuthenticationTestHelper.builder()
+            .user(new User("kibana_system"))
+            .realmRef(new Authentication.RealmRef("realm", "type", "node"))
+            .build(false);
+        authentication.writeToContext(threadPool.getThreadContext());
+
+        final TransportCreateTokenAction action = new TransportCreateTokenAction(
+            threadPool,
+            transportService,
+            ActionFilters.EMPTY,
+            tokenService,
+            authenticationService,
+            securityContext
+        );
+        final CreateTokenRequest createTokenRequest = new CreateTokenRequest();
+        createTokenRequest.setGrantType("_user_managed_service_account");
+        createTokenRequest.setServiceAccountToken(new SecureString("not-a-service-account-token".toCharArray()));
+
+        PlainActionFuture<CreateTokenResponse> future = new PlainActionFuture<>();
+        action.doExecute(null, createTokenRequest, assertListenerIsOnlyCalledOnce(future));
+        final ElasticsearchSecurityException e = expectThrows(ElasticsearchSecurityException.class, future::actionGet);
+        assertThat(e.getMessage(), containsString("invalid_grant"));
+        assertThat(e.getBodyHeader("error_description").size(), is(1));
+        assertThat(e.getBodyHeader("error_description").get(0), containsString("not a valid service account token"));
+        expectThrows(IllegalStateException.class, () -> createTokenRequest.getServiceAccountToken().getChars());
+        // The code flow should stop after the parse failure and never reach authenticationService
+        Mockito.verifyNoMoreInteractions(authenticationService);
+    }
+
+    /**
+     * Asserts that both copies of a service account credential are cleared once authentication completes: the
+     * {@code service_account_token} request field and the secret of the parsed {@link ServiceAccountToken} passed to
+     * the authentication service, which is a separate buffer.
+     */
+    private void assertServiceAccountCredentialsCleared(SecureString requestCredential) {
+        final ArgumentCaptor<AuthenticationToken> tokenCaptor = ArgumentCaptor.forClass(AuthenticationToken.class);
+        Mockito.verify(authenticationService)
+            .authenticate(eq(CreateTokenAction.NAME), any(CreateTokenRequest.class), tokenCaptor.capture(), anyActionListener());
+        final Object credential = tokenCaptor.getValue().credentials();
+        assertTrue(credential instanceof SecureString);
+        expectThrows(IllegalStateException.class, () -> ((SecureString) credential).getChars());
+        expectThrows(IllegalStateException.class, requestCredential::getChars);
     }
 
     private static <T> ActionListener<T> assertListenerIsOnlyCalledOnce(ActionListener<T> delegate) {

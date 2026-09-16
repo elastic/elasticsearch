@@ -43,6 +43,7 @@ import com.nimbusds.openid.connect.sdk.validators.AccessTokenValidator;
 import com.nimbusds.openid.connect.sdk.validators.IDTokenValidator;
 
 import org.apache.hc.client5.http.ConnectionKeepAliveStrategy;
+import org.apache.hc.client5.http.async.methods.SimpleBody;
 import org.apache.hc.client5.http.async.methods.SimpleHttpRequest;
 import org.apache.hc.client5.http.async.methods.SimpleHttpResponse;
 import org.apache.hc.client5.http.async.methods.SimpleRequestBuilder;
@@ -440,7 +441,7 @@ public class OpenIdConnectAuthenticator {
         try {
             final ContentType contentType = httpResponse.getContentType();
             final String mimeType = contentType == null ? null : contentType.getMimeType();
-            final String contentAsString = httpResponse.getBodyText();
+            final String contentAsString = bodyAsString(httpResponse);
             if (LOGGER.isTraceEnabled()) {
                 LOGGER.trace(
                     "Received UserInfo Response from OP with status [{}] and content [{}] ",
@@ -606,7 +607,7 @@ public class OpenIdConnectAuthenticator {
             }
             final RestStatus responseStatus = RestStatus.fromCode(httpResponse.getCode());
             if (RestStatus.OK != responseStatus) {
-                final String json = httpResponse.getBodyText();
+                final String json = bodyAsString(httpResponse);
                 LOGGER.warn("Received Token Response from OP with status [{}] and content [{}]", responseStatus, json);
                 if (RestStatus.BAD_REQUEST == responseStatus) {
                     final TokenErrorResponse tokenErrorResponse = TokenErrorResponse.parse(JSONObjectUtils.parse(json));
@@ -621,7 +622,7 @@ public class OpenIdConnectAuthenticator {
                     tokensListener.onFailure(new ElasticsearchSecurityException("Failed to exchange code for Id Token"));
                 }
             } else {
-                final OIDCTokenResponse oidcTokenResponse = OIDCTokenResponse.parse(JSONObjectUtils.parse(httpResponse.getBodyText()));
+                final OIDCTokenResponse oidcTokenResponse = OIDCTokenResponse.parse(JSONObjectUtils.parse(bodyAsString(httpResponse)));
                 final OIDCTokens oidcTokens = oidcTokenResponse.getOIDCTokens();
                 final AccessToken accessToken = oidcTokens.getAccessToken();
                 final JWT idToken = oidcTokens.getIDToken();
@@ -648,6 +649,15 @@ public class OpenIdConnectAuthenticator {
                 )
             );
         }
+    }
+
+    private static String bodyAsString(final SimpleHttpResponse response) {
+        final SimpleBody body = response.getBody();
+        if (body == null) {
+            return "";
+        }
+        final byte[] bytes = body.getBodyBytes();
+        return new String(bytes != null ? bytes : new byte[0], ContentType.getCharset(response.getContentType(), StandardCharsets.UTF_8));
     }
 
     private static String truncateToken(String input) {
@@ -963,7 +973,7 @@ public class OpenIdConnectAuthenticator {
                     @Override
                     public void completed(SimpleHttpResponse result) {
                         try {
-                            cachedJwkSet = JWKSet.parse(result.getBodyText());
+                            cachedJwkSet = JWKSet.parse(bodyAsString(result));
                             reloadFutureRef.set(null);
                             LOGGER.trace("Successfully refreshed and cached remote JWKSet");
                             future.onResponse(null);

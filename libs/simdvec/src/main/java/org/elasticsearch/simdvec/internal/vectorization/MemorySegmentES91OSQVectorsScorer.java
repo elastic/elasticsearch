@@ -415,12 +415,12 @@ public final class MemorySegmentES91OSQVectorsScorer extends ES91OSQVectorsScore
                 offset + 4L * this.bulkSize + (long) i * Float.BYTES,
                 ByteOrder.LITTLE_ENDIAN
             ).sub(ax);
-            var targetComponentSums = ShortVector.fromMemorySegment(
+            var targetComponentSums = ((IntVector) ShortVector.fromMemorySegment(
                 SHORT_SPECIES_128,
                 memorySegment,
                 offset + 8L * this.bulkSize + (long) i * Short.BYTES,
                 ByteOrder.LITTLE_ENDIAN
-            ).convert(VectorOperators.S2I, 0).reinterpretAsInts().and(0xffff).convert(VectorOperators.I2F, 0);
+            ).convert(VectorOperators.S2I, 0)).and(0xffff).convert(VectorOperators.I2F, 0);
             var additionalCorrections = FloatVector.fromMemorySegment(
                 FLOAT_SPECIES_128,
                 memorySegment,
@@ -495,12 +495,12 @@ public final class MemorySegmentES91OSQVectorsScorer extends ES91OSQVectorsScore
                 offset + 4L * this.bulkSize + (long) i * Float.BYTES,
                 ByteOrder.LITTLE_ENDIAN
             ).sub(ax);
-            var targetComponentSums = ShortVector.fromMemorySegment(
+            var targetComponentSums = ((IntVector) ShortVector.fromMemorySegment(
                 SHORT_SPECIES_256,
                 memorySegment,
                 offset + 8L * this.bulkSize + (long) i * Short.BYTES,
                 ByteOrder.LITTLE_ENDIAN
-            ).convert(VectorOperators.S2I, 0).reinterpretAsInts().and(0xffff).convert(VectorOperators.I2F, 0);
+            ).convert(VectorOperators.S2I, 0)).and(0xffff).convert(VectorOperators.I2F, 0);
             var additionalCorrections = FloatVector.fromMemorySegment(
                 FLOAT_SPECIES_256,
                 memorySegment,

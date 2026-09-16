@@ -52,7 +52,7 @@ public class InferenceServiceConfiguration implements Writeable, ToXContentObjec
      * @param name           The user-friendly name of the service provider.
      * @param taskTypes      A list of {@link TaskType} supported by the service provider.
      * @param configurations The configuration of the service provider, defined by {@link SettingsConfiguration}.
-     * @param features       The features the service supports
+     * @param features       The {@link Features} the {@link InferenceService} supports
      */
     private InferenceServiceConfiguration(
         String service,

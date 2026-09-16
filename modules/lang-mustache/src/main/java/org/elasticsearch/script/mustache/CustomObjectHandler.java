@@ -63,6 +63,11 @@ final class CustomObjectHandler extends AbstractObjectHandler {
         return new DirectMapBinding(name);
     }
 
+    @SuppressWarnings("unchecked")
+    private static Object mapGet(Object map, String key) {
+        return ((Map<Object, Object>) map).getOrDefault(key, NOT_FOUND);
+    }
+
     /**
      * Never called — both binding implementations resolve values directly without going through
      * {@code find()}, so this method is unreachable in normal operation.
@@ -101,8 +106,7 @@ final class CustomObjectHandler extends AbstractObjectHandler {
             for (int i = scopes.size() - 1; i >= 0; i--) {
                 Object scope = coerce(scopes.get(i));
                 if (scope instanceof Map) {
-                    @SuppressWarnings("unchecked")
-                    Object found = ((Map<Object, Object>) scope).getOrDefault(first, NOT_FOUND);
+                    Object found = mapGet(scope, first);
                     if (found != NOT_FOUND) {
                         value = found;
                         break;
@@ -121,9 +125,7 @@ final class CustomObjectHandler extends AbstractObjectHandler {
                 if (coerced instanceof Map == false) {
                     return null;
                 }
-                @SuppressWarnings("unchecked")
-                Object next = ((Map<Object, Object>) coerced).getOrDefault(part, NOT_FOUND);
-                value = next;
+                value = mapGet(coerced, part);
             }
             return value == NOT_FOUND ? null : coerce(value);
         }
@@ -156,8 +158,7 @@ final class CustomObjectHandler extends AbstractObjectHandler {
             for (int i = scopes.size() - 1; i >= 0; i--) {
                 Object scope = coerce(scopes.get(i));
                 if (scope instanceof Map) {
-                    @SuppressWarnings("unchecked")
-                    Object found = ((Map<Object, Object>) scope).getOrDefault(first, NOT_FOUND);
+                    Object found = mapGet(scope, first);
                     if (found != NOT_FOUND) {
                         value = found;
                         break;
@@ -184,8 +185,7 @@ final class CustomObjectHandler extends AbstractObjectHandler {
                     }
                     return null;
                 }
-                @SuppressWarnings("unchecked")
-                Object found = ((Map<Object, Object>) coerced).getOrDefault(part, NOT_FOUND);
+                Object found = mapGet(coerced, part);
                 if (found == NOT_FOUND) {
                     if (throwOnMissing) {
                         throw new MustacheInvalidParameterException("Parameter [" + name + "] is missing");

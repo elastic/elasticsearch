@@ -554,7 +554,7 @@ public class MlAnomaliesIndexUpdate implements MlAutoUpdateService.UpdateAction 
      * {@code anomaly_score_explanation} is typed as {@code double}.
      */
     private boolean hasCorrectAnomalyScoreExplanationMapping(String indexName, ClusterState state) {
-        var indexMetadata = state.metadata().getProject(Metadata.DEFAULT_PROJECT_ID).index(indexName);
+        var indexMetadata = state.metadata().index(indexName);
         for (String fieldName : ANOMALY_SCORE_EXPLANATION_DOUBLE_FIELDS) {
             if (MlIndexAndAlias.hasFieldTypedAs(indexMetadata, List.of(ANOMALY_SCORE_EXPLANATION_OBJECT, fieldName), "double") == false) {
                 return false;

@@ -20,8 +20,10 @@ import org.elasticsearch.core.Booleans;
 import org.elasticsearch.core.Strings;
 import org.elasticsearch.test.cluster.ElasticsearchCluster;
 import org.elasticsearch.xpack.core.ml.MlConfigIndex;
+import org.elasticsearch.xpack.core.ml.MlStatsIndex;
 import org.elasticsearch.xpack.core.ml.annotations.AnnotationIndex;
 import org.elasticsearch.xpack.core.ml.job.persistence.AnomalyDetectorsIndex;
+import org.elasticsearch.xpack.core.ml.notifications.NotificationsIndex;
 import org.elasticsearch.xpack.test.rest.IndexMappingTemplateAsserter;
 import org.elasticsearch.xpack.test.rest.XPackRestTestConstants;
 import org.elasticsearch.xpack.test.rest.XPackRestTestHelper;
@@ -30,6 +32,7 @@ import org.junit.BeforeClass;
 import org.junit.ClassRule;
 
 import java.io.IOException;
+import java.util.List;
 import java.util.Map;
 
 import static org.elasticsearch.common.xcontent.support.XContentMapValues.extractValue;
@@ -51,6 +54,15 @@ public class MlMappingsUpgradeIT extends AbstractXpackRollingUpgradeTestCase {
 
     @ClassRule
     public static ElasticsearchCluster cluster = buildCluster();
+
+    public MlMappingsUpgradeIT(@Name("upgradedNodes") int upgradedNodes) {
+        super(upgradedNodes);
+    }
+
+    @Override
+    protected ElasticsearchCluster getUpgradeCluster() {
+        return cluster;
+    }
 
     /**
      * Mirrors {@code MlIndexTemplateRegistry#ML_INDEX_TEMPLATE_VERSION}; kept here because rolling-upgrade
@@ -102,25 +114,22 @@ public class MlMappingsUpgradeIT extends AbstractXpackRollingUpgradeTestCase {
             assertLegacyIndicesRollover();
             assertAnomalyIndicesRollover();
             assertNotificationsIndexAliasCreated();
-                assertBusy(
-                    () -> IndexMappingTemplateAsserter.assertTemplateVersionAndPattern(
-                        client(),
-                        ".ml-anomalies-",
-                        ML_INDEX_TEMPLATE_VERSION,
-                        List.of(".ml-anomalies-*", ".reindexed-v7-ml-anomalies-*", ".reindexed-v8-ml-anomalies-*")
-                    )
-                );
-                assertBusy(
-                    () -> IndexMappingTemplateAsserter.assertTemplateVersionAndPattern(
-                        client(),
-                        ".ml-state",
-                        ML_INDEX_TEMPLATE_VERSION,
-                        Arrays.asList(AnomalyDetectorsIndex.jobStateIndexPatterns())
-                    )
-                );
-                break;
-            default:
-                throw new UnsupportedOperationException("Unknown cluster type [" + CLUSTER_TYPE + "]");
+            assertBusy(
+                () -> IndexMappingTemplateAsserter.assertTemplateVersionAndPattern(
+                    client(),
+                    ".ml-anomalies-",
+                    ML_INDEX_TEMPLATE_VERSION,
+                    List.of(".ml-anomalies-*", ".reindexed-v7-ml-anomalies-*", ".reindexed-v8-ml-anomalies-*")
+                )
+            );
+            assertBusy(
+                () -> IndexMappingTemplateAsserter.assertTemplateVersionAndPattern(
+                    client(),
+                    ".ml-state",
+                    ML_INDEX_TEMPLATE_VERSION,
+                    List.of(AnomalyDetectorsIndex.jobStateIndexPattern())
+                )
+            );
         }
     }
 

@@ -38,6 +38,7 @@ import org.junit.Before;
 import org.mockito.ArgumentCaptor;
 import org.mockito.stubbing.Answer;
 
+import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.equalTo;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.same;
@@ -97,7 +98,7 @@ public class MlIndexTemplateRegistryTests extends ESTestCase {
 
         registry.clusterChanged(createClusterChangedEvent(nodes));
 
-        verify(projectClient, times(4)).execute(
+        verify(client, times(4)).execute(
             same(TransportPutComposableIndexTemplateAction.TYPE),
             putIndexTemplateRequestCaptor.capture(),
             any()

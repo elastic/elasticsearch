@@ -32,8 +32,13 @@ import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.instanceOf;
 
 public class PruneRedundantAggregateGroupingsTests extends AbstractLogicalPlanOptimizerTests {
+
     private static final String DATASET_NAME = "ext_ds";
     private static final String S3_RESOURCE = "s3://bucket/data.parquet";
+
+    public PruneRedundantAggregateGroupingsTests(VersionMode versionMode) {
+        super(versionMode);
+    }
 
     public void testPrunesEvalConstantGrouping() {
         var plan = plan("""

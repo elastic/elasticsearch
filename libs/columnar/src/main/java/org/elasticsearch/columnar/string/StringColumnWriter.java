@@ -110,6 +110,7 @@ public final class StringColumnWriter {
         int targetChunkBytes,
         int plainPathTargetChunkBytes,
         int compressedOrdinalBlockSize,
+        int slotCountsBlockSize,
         DictionaryPolicy policy,
         Vocabulary.Terms known,
         Directory directory,
@@ -140,6 +141,7 @@ public final class StringColumnWriter {
                         chunkCodec,
                         targetChunkBytes,
                         compressedOrdinalBlockSize,
+                        slotCountsBlockSize,
                         directory,
                         context,
                         data
@@ -165,7 +167,7 @@ public final class StringColumnWriter {
         // written under no dictionary policy was told not to weigh what it repeats, and the page decides.
         final boolean valuesWorthNaming;
         final ValueStream.Metadata written;
-        final MonotonicWriter.Table valueAddresses;
+        final SlotAddressing addressing;
         final MonotonicWriter.Table nullSlotTable;
         try (
             ValueStream.Writer stream = new ValueStream.Writer(
@@ -178,7 +180,14 @@ public final class StringColumnWriter {
                 data.getName(),
                 data
             );
-            AddressingWriter slots = AddressingWriter.open(numDocsWithField, numValues, directory, context, data.getName());
+            AddressingWriter slots = AddressingWriter.open(
+                numDocsWithField,
+                numValues,
+                slotCountsBlockSize,
+                directory,
+                context,
+                data.getName()
+            );
             // Bytes have no spare value to mean null with, so this layout alone tables its null slots.
             NullSlotWriter nullSlots = NullSlotWriter.open(numNullSlots, directory, context, data.getName())
         ) {
@@ -219,7 +228,7 @@ public final class StringColumnWriter {
             }
             written = stream.finish();
             valuesWorthNaming = policy.enabled() == false || stream.runs() * StringColumnReader.MIN_PAGE_REPEAT <= numValues;
-            valueAddresses = slots.finish(valueAddress, data);
+            addressing = slots.finish(valueAddress, data);
             nullSlotTable = nullSlots.finish(data);
         }
         return withSummary(
@@ -228,7 +237,7 @@ public final class StringColumnWriter {
                 numDocsWithField,
                 numValues,
                 numNullSlots,
-                valueAddresses,
+                addressing,
                 nullSlotTable,
                 written,
                 sorted,
@@ -317,6 +326,7 @@ public final class StringColumnWriter {
         ChunkCodec chunkCodec,
         int targetChunkBytes,
         int compressedOrdinalBlockSize,
+        int slotCountsBlockSize,
         Directory directory,
         IOContext context,
         IndexOutput data
@@ -364,11 +374,18 @@ public final class StringColumnWriter {
             long index = 0;
             final ValueStream.Metadata escapeStream;
             final MonotonicWriter.Table escapeRanks;
-            final MonotonicWriter.Table valueAddresses;
+            final SlotAddressing addressing;
             try (
                 MonotonicWriter ranks = new MonotonicWriter(directory, context, data.getName(), escapeRankEntries(numValues));
                 // Nulls are named by a reserved ordinal below, so this layout keeps no null-slot table.
-                AddressingWriter slots = AddressingWriter.open(numDocsWithField, numValues, directory, context, data.getName())
+                AddressingWriter slots = AddressingWriter.open(
+                    numDocsWithField,
+                    numValues,
+                    slotCountsBlockSize,
+                    directory,
+                    context,
+                    data.getName()
+                )
             ) {
                 // Opened one at a time, each named before the next is asked for: a temporary file that the
                 // one after it fails to open is still a file to delete, and only its name says which.
@@ -453,7 +470,7 @@ public final class StringColumnWriter {
                         ranks.add(escapes);
                     }
                 }
-                valueAddresses = slots.finish(index, data);
+                addressing = slots.finish(index, data);
                 escapeStream = replayEscapes(
                     directory,
                     context,
@@ -475,13 +492,13 @@ public final class StringColumnWriter {
             // One ordinal a slot, reached by value address: nothing asks the ordinals which document a slot
             // belongs to, and the string column already tables that, so they table nothing themselves.
             final NumericColumnMetadata ordinals = NumericColumnWriter.write(numDocsWithField, numDocsWithField, numValues, false, () -> {
-                final IndexInput in = directory.openInput(staged, context);
+                final IndexInput in = directory.openInput(staged, IOContext.READONCE);
                 replays.add(in);
                 return stagedOrdinals(cursors.get(), in);
             },
                 compressOrdinals
                     ? NumericPipeline.compressedOrdinalPipeline(ordinalBlockSize)
-                    : NumericPipeline.ordinalPipeline(ordinalBlockSize),
+                    : NumericPipeline.runsAndOutliersPipeline(ordinalBlockSize),
                 BlockBytesCodec.forId(compressOrdinals ? BlockBytesCodec.ZSTD_ID : BlockBytesCodec.IDENTITY_ID),
                 // The ordinals build no skip index, so nothing is ever written to one.
                 null,
@@ -496,7 +513,7 @@ public final class StringColumnWriter {
                 numValues,
                 numNullSlots,
                 valueBytes,
-                valueAddresses,
+                addressing,
                 dictionary,
                 ordinals,
                 escapeStream,
@@ -530,7 +547,7 @@ public final class StringColumnWriter {
             return ValueStream.Metadata.empty();
         }
         try (
-            IndexInput staged = directory.openInput(name, context);
+            IndexInput staged = directory.openInput(name, IOContext.READONCE);
             ValueStream.Writer writer = new ValueStream.Writer(
                 chunkCodec,
                 targetChunkBytes,
@@ -593,7 +610,7 @@ public final class StringColumnWriter {
     /** What {@code sample} occupies under the pipeline and block a packed column is written with. */
     private static long packedOrdinalBytes(long[] sample) throws IOException {
         final NumericBlockEncoder encoder = new NumericBlockEncoder(
-            NumericPipeline.ordinalPipeline(ORDINAL_BLOCK_SIZE),
+            NumericPipeline.runsAndOutliersPipeline(ORDINAL_BLOCK_SIZE),
             ORDINAL_BLOCK_SIZE
         );
         final long[] block = new long[ORDINAL_BLOCK_SIZE];

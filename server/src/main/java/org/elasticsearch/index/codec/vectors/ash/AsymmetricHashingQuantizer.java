@@ -111,7 +111,7 @@ public final class AsymmetricHashingQuantizer {
      *
      * @param vectors all vectors in the segment, shape (nVectors, originalDim)
      * @param centroids cluster centroids, fetched by vector ordinal
-     * @return the transposed learned projection matrix W^T in row-major order, shape (originalDim, nDims)
+     * @return the transposed learned projection matrix W^T in row-major order, shape (nDims, originalDim)
      */
     public float[] train(float[][] vectors, CheckedIntFunction<float[], IOException> centroids) throws IOException {
         int originalDim = vectors[0].length;
@@ -143,7 +143,7 @@ public final class AsymmetricHashingQuantizer {
         }
 
         // LEARNED: PCA init + Procrustes
-        return ESVectorUtil.transposeMatrix(learnedTraining(xTraining, trainingSize, originalDim, nDims), nDims, originalDim);
+        return ESVectorUtil.transposeMatrix(learnedTraining(xTraining, trainingSize, originalDim, nDims), originalDim, nDims);
     }
 
     /**

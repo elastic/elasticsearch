@@ -5496,6 +5496,99 @@ public class FileSplitProviderTests extends ESTestCase {
         assertEquals(pathB, ((FileSplit) splits.getFirst()).path());
     }
 
+    /**
+     * An unbound {@code _file.size} is an ordinary data column. Discovery must not prune by the
+     * listing storage stat: both files survive a size predicate that would have dropped the small
+     * one if the overlay leaked into the filter map.
+     */
+    public void testUnboundFileSizeFilterDoesNotUseListingStat() {
+        StoragePath small = StoragePath.of("s3://b/small.parquet");
+        StoragePath large = StoragePath.of("s3://b/large.parquet");
+        FileList fileList = GlobExpander.fileListOf(
+            List.of(new StorageEntry(small, 10, Instant.EPOCH), new StorageEntry(large, 1000, Instant.EPOCH)),
+            "s3://b/*.parquet"
+        );
+        Attribute size = new ReferenceAttribute(SRC, FileMetadataColumns.SIZE, DataType.LONG);
+        Expression filter = new GreaterThan(SRC, size, new Literal(SRC, 100L, DataType.LONG), null);
+        ExternalSchema schema = new ExternalSchema(List.of(refAttr("id"), size));
+        Map<StoragePath, SchemaReconciliation.FileSchemaInfo> schemas = Map.of(
+            small,
+            new SchemaReconciliation.FileSchemaInfo(schema, null, null),
+            large,
+            new SchemaReconciliation.FileSchemaInfo(schema, null, null)
+        );
+        SplitDiscoveryContext ctx = new SplitDiscoveryContext(
+            null,
+            fileList,
+            schemas,
+            Map.of(),
+            PartitionMetadata.EMPTY,
+            List.of(filter),
+            schema,
+            "ds",
+            Set.of()
+        );
+        List<ExternalSplit> splits = provider.discoverSplits(ctx).splits();
+        assertEquals(2, splits.size());
+        assertTrue(((FileSplit) splits.get(0)).partitionValues().containsKey(FileMetadataColumns.SIZE));
+        assertTrue(((FileSplit) splits.get(1)).partitionValues().containsKey(FileMetadataColumns.SIZE));
+    }
+
+    /**
+     * The same unbound {@code _file.size} over a file that has no such physical column is a
+     * certified missing-column skip.
+     */
+    public void testUnboundFileSizeMissingFromFileIsCertifiedSkip() {
+        StoragePath path = StoragePath.of("s3://b/a.parquet");
+        FileList fileList = GlobExpander.fileListOf(List.of(new StorageEntry(path, 100, Instant.EPOCH)), "s3://b/*.parquet");
+        Attribute size = new ReferenceAttribute(SRC, FileMetadataColumns.SIZE, DataType.LONG);
+        Expression filter = new GreaterThan(SRC, size, new Literal(SRC, 100L, DataType.LONG), null);
+        Map<StoragePath, SchemaReconciliation.FileSchemaInfo> schemas = Map.of(
+            path,
+            new SchemaReconciliation.FileSchemaInfo(new ExternalSchema(List.of(refAttr("id"))), null, null)
+        );
+        SplitDiscoveryContext ctx = new SplitDiscoveryContext(
+            null,
+            fileList,
+            schemas,
+            Map.of(),
+            PartitionMetadata.EMPTY,
+            List.of(filter),
+            new ExternalSchema(List.of(refAttr("id"), size)),
+            "ds",
+            Set.of()
+        );
+        assertEquals(0, provider.discoverSplits(ctx).splits().size());
+    }
+
+    /**
+     * Bound {@code _file.size} still prunes by the listing storage stat.
+     */
+    public void testBoundFileSizeFilterUsesListingStat() {
+        StoragePath small = StoragePath.of("s3://b/small.parquet");
+        StoragePath large = StoragePath.of("s3://b/large.parquet");
+        FileList fileList = GlobExpander.fileListOf(
+            List.of(new StorageEntry(small, 10, Instant.EPOCH), new StorageEntry(large, 1000, Instant.EPOCH)),
+            "s3://b/*.parquet"
+        );
+        Attribute size = new ExternalMetadataAttribute(SRC, FileMetadataColumns.SIZE, DataType.LONG);
+        Expression filter = new GreaterThan(SRC, size, new Literal(SRC, 100L, DataType.LONG), null);
+        SplitDiscoveryContext ctx = new SplitDiscoveryContext(
+            null,
+            fileList,
+            Map.of(),
+            Map.of(),
+            PartitionMetadata.EMPTY,
+            List.of(filter),
+            ExternalSchema.EMPTY,
+            "ds",
+            Set.of(FileMetadataColumns.SIZE)
+        );
+        List<ExternalSplit> splits = provider.discoverSplits(ctx).splits();
+        assertEquals(1, splits.size());
+        assertEquals(large, ((FileSplit) splits.get(0)).path());
+    }
+
     public void testPhysicalPerFileMetadataNamesAreNullWhenMissingFromFile() {
         StoragePath pathA = StoragePath.of("s3://b/a.parquet");
         StoragePath pathB = StoragePath.of("s3://b/b.parquet");

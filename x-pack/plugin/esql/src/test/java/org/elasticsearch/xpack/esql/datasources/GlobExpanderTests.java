@@ -2146,6 +2146,23 @@ public class GlobExpanderTests extends ESTestCase {
         assertEquals("s3://b/big.parquet", filtered.get(1).path().toString());
     }
 
+    /**
+     * {@code _file.record_ref} has no listing-time constant, so a hint on it prunes nothing.
+     */
+    public void testFileMetadataFilterByRecordRefPrunesNothing() {
+        List<StorageEntry> entries = List.of(
+            new StorageEntry(StoragePath.of("s3://b/a.parquet"), 10, Instant.EPOCH),
+            new StorageEntry(StoragePath.of("s3://b/b.parquet"), 20, Instant.EPOCH)
+        );
+        var hint = new PartitionFilterHintExtractor.PartitionFilterHint(
+            FileMetadataColumns.RECORD_REF,
+            PartitionFilterHintExtractor.Operator.EQUALS,
+            List.of(1L)
+        );
+        List<StorageEntry> filtered = GlobExpander.applyFileMetadataFilters(entries, List.of(hint));
+        assertEquals(entries, filtered);
+    }
+
     public void testFileMetadataFilterByName() {
         List<StorageEntry> entries = List.of(
             new StorageEntry(StoragePath.of("s3://b/events_2024.parquet"), 100, Instant.EPOCH),

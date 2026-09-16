@@ -76,6 +76,7 @@ import org.elasticsearch.xpack.esql.core.type.PotentiallyUnmappedKeywordEsField;
 import org.elasticsearch.xpack.esql.core.util.StringUtils;
 import org.elasticsearch.xpack.esql.datasources.CoalescedSplit;
 import org.elasticsearch.xpack.esql.datasources.Federation;
+import org.elasticsearch.xpack.esql.datasources.FileMetadataColumns;
 import org.elasticsearch.xpack.esql.datasources.FileSplit;
 import org.elasticsearch.xpack.esql.datasources.OperatorFactoryRegistry;
 import org.elasticsearch.xpack.esql.datasources.SourceStatisticsSerializer;
@@ -619,6 +620,48 @@ public class LocalExecutionPlannerTests extends MapperServiceTestCase {
             captured.get().partitionColumnNames(),
             equalTo(Set.of("p"))
         );
+    }
+
+    /**
+     * The planner passes the partition stamp through and does not classify {@code _file.*} by name.
+     * Ownership of those names is decided from the attributes at the operator factory.
+     */
+    public void testExternalSourceDoesNotAddFileMetadataNamesToPartitionStamp() throws IOException {
+        AtomicReference<SourceOperatorContext> captured = new AtomicReference<>();
+        SourceOperatorFactoryProvider provider = capturingProvider(captured);
+        OperatorFactoryRegistry operatorFactoryRegistry = new OperatorFactoryRegistry(Map.of(), Map.of("file", provider), Runnable::run);
+
+        List<Attribute> attrs = List.of(
+            new FieldAttribute(
+                Source.EMPTY,
+                FileMetadataColumns.PATH,
+                new EsField(FileMetadataColumns.PATH, DataType.KEYWORD, Map.of(), true, EsField.TimeSeriesFieldType.NONE)
+            )
+        );
+        ExternalSourceExec exec = new ExternalSourceExec(
+            Source.EMPTY,
+            "s3://test-bucket/data/*.parquet",
+            "file",
+            attrs,
+            Map.of(),
+            Map.of(),
+            null,
+            10
+        ).withSplits(
+            List.of(new FileSplit("file", StoragePath.of("s3://test-bucket/data/f.parquet"), 0, 10, ".parquet", Map.of(), Map.of()))
+        );
+
+        planner(operatorFactoryRegistry).plan(
+            "test",
+            FoldContext.small(),
+            PlannerSettings.DEFAULTS,
+            exec,
+            EmptyIndexedByShardId.instance(),
+            randomBoolean()
+        );
+
+        assertThat(captured.get(), notNullValue());
+        assertThat(captured.get().partitionColumnNames(), equalTo(Set.of()));
     }
 
     public void testPlanUnmappedFieldExtractStoredSource() throws Exception {

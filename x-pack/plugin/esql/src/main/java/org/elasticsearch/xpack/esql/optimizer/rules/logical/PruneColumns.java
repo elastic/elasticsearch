@@ -263,8 +263,10 @@ public final class PruneColumns extends Rule<LogicalPlan, LogicalPlan> {
             }
         }
         if (sourceConsumed) {
+            // Pin every data column, including Hive partition columns: they are part of the
+            // synthesized _source document. ExternalMetadataAttribute implements VirtualAttribute.
             for (Attribute a : ext.output()) {
-                if (a instanceof ExternalMetadataAttribute == false && a instanceof VirtualAttribute == false) {
+                if (a instanceof VirtualAttribute == false) {
                     used.add(a);
                 }
             }
@@ -273,9 +275,7 @@ public final class PruneColumns extends Rule<LogicalPlan, LogicalPlan> {
             String idPath = declaredIdPath(ext);
             if (idPath != null) {
                 for (Attribute a : ext.output()) {
-                    if (a instanceof ExternalMetadataAttribute == false
-                        && a instanceof VirtualAttribute == false
-                        && idPath.equals(a.name())) {
+                    if (a instanceof VirtualAttribute == false && idPath.equals(a.name())) {
                         used.add(a);
                         break;
                     }

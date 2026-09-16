@@ -27,6 +27,7 @@ import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.ExternalMetadataAttribute;
 import org.elasticsearch.xpack.esql.core.expression.FieldAttribute;
 import org.elasticsearch.xpack.esql.core.expression.Literal;
+import org.elasticsearch.xpack.esql.core.expression.MetadataAttribute;
 import org.elasticsearch.xpack.esql.core.expression.ReferenceAttribute;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
@@ -34,6 +35,7 @@ import org.elasticsearch.xpack.esql.core.type.EsField;
 import org.elasticsearch.xpack.esql.datasource.gzip.GzipDecompressionCodec;
 import org.elasticsearch.xpack.esql.datasource.ndjson.NdJsonFormatReader;
 import org.elasticsearch.xpack.esql.datasources.glob.GlobExpander;
+import org.elasticsearch.xpack.esql.datasources.spi.ColumnExtractor;
 import org.elasticsearch.xpack.esql.datasources.spi.DecompressionCodec;
 import org.elasticsearch.xpack.esql.datasources.spi.ErrorPolicy;
 import org.elasticsearch.xpack.esql.datasources.spi.ExternalSplit;
@@ -181,6 +183,49 @@ public class AsyncExternalSourceOperatorFactoryTests extends ESTestCase {
             IllegalArgumentException.class,
             () -> AsyncExternalSourceOperatorFactory.builder(storageProvider, formatReader, path, attributes, 1000, -1, executor).build()
         );
+    }
+
+    /**
+     * Engine-owned names, including a physical {@code _file.*} attribute, are unioned into
+     * {@code partitionColumnNames} so VirtualColumnIterator materializes them. {@code _rowPosition}
+     * is a {@link MetadataAttribute} and must stay out of that set.
+     */
+    public void testPartitionColumnNamesUnionEngineOwnedAndExcludeRowPosition() {
+        Attribute value = new FieldAttribute(
+            Source.EMPTY,
+            "value",
+            new EsField("value", DataType.INTEGER, Map.of(), false, EsField.TimeSeriesFieldType.NONE)
+        );
+        Attribute boundIndex = new ExternalMetadataAttribute(Source.EMPTY, "_index", DataType.KEYWORD);
+        Attribute physicalFileSize = new ReferenceAttribute(Source.EMPTY, FileMetadataColumns.SIZE, DataType.LONG);
+        Attribute rowPosition = SyntheticColumns.newRowPositionMetadataAttribute(Source.EMPTY);
+
+        AsyncExternalSourceOperatorFactory factory = factoryWithAttributes(List.of(value, boundIndex, physicalFileSize, rowPosition));
+
+        assertTrue(rowPosition instanceof MetadataAttribute);
+        assertThat(factory.partitionColumnNames(), Matchers.containsInAnyOrder("_index", FileMetadataColumns.SIZE));
+        assertFalse(factory.partitionColumnNames().contains(ColumnExtractor.ROW_POSITION_COLUMN));
+    }
+
+    public void testBoundFileMetadataEntersPartitionColumnNames() {
+        Attribute path = new ExternalMetadataAttribute(Source.EMPTY, FileMetadataColumns.PATH, DataType.KEYWORD);
+        AsyncExternalSourceOperatorFactory factory = factoryWithAttributes(List.of(path));
+        assertThat(factory.partitionColumnNames(), Matchers.contains(FileMetadataColumns.PATH));
+    }
+
+    private static AsyncExternalSourceOperatorFactory factoryWithAttributes(List<Attribute> attributes) {
+        StorageProvider storageProvider = mock(StorageProvider.class);
+        FormatReader formatReader = mock(FormatReader.class);
+        when(formatReader.rowPositionStrategy()).thenReturn(PassThroughRowPositionStrategy.INSTANCE);
+        return AsyncExternalSourceOperatorFactory.builder(
+            storageProvider,
+            formatReader,
+            StoragePath.of("file:///test.csv"),
+            attributes,
+            1000,
+            10,
+            Runnable::run
+        ).build();
     }
 
     public void testDescribeSyncWrapperMode() {

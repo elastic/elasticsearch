@@ -429,10 +429,10 @@ public class AsyncExternalSourceOperatorFactory implements SourceOperator.Source
         this.rowLimit = rowLimit;
         this.fileList = fileList;
         this.schemaMap = schemaMap != null ? schemaMap : Map.of();
-        // Route requested standard metadata names (and _id when requested) through
-        // VirtualColumnIterator's materialization paths by unioning them into the partition-column
-        // set. Per-file constants take the constant-block path; _id takes the iterator's per-row
-        // composition path; _source is handled by a separate operator wrapper.
+        // Route engine-owned metadata names through VirtualColumnIterator's materialization paths
+        // by unioning them into the partition-column set. Per-file constants take the constant-block
+        // path; _id takes the iterator's per-row composition path; _source is handled by a separate
+        // operator wrapper.
         Set<String> metadataNames = ExternalMetadataColumns.metadataNames(attributes);
         Set<String> stdMetaNames = new LinkedHashSet<>(metadataNames);
         stdMetaNames.retainAll(ExternalMetadataColumns.PER_FILE_CONSTANT_NAMES);
@@ -440,21 +440,19 @@ public class AsyncExternalSourceOperatorFactory implements SourceOperator.Source
         boolean sourceRequested = metadataNames.contains(ExternalMetadataColumns.SOURCE);
         this.idColumnRequested = idRequested;
         this.standardMetadataPerFileNames = stdMetaNames.isEmpty() ? Set.of() : Set.copyOf(stdMetaNames);
-        if (stdMetaNames.isEmpty() && idRequested == false && sourceRequested == false) {
+        Set<String> engineOwned = new LinkedHashSet<>();
+        for (Attribute attr : attributes) {
+            if (attr instanceof ExternalMetadataAttribute || FileMetadataColumns.isFileMetadataColumn(attr.name())) {
+                engineOwned.add(attr.name());
+            }
+        }
+        if (engineOwned.isEmpty()) {
             this.partitionColumnNames = partitionColumnNames != null ? partitionColumnNames : Set.of();
         } else {
-            // Union the standard metadata names (plus {@code _id} / {@code _source} when projected)
-            // into the effective partition-column set so VirtualColumnIterator routes them through
-            // its constant-block / id-composition / source-synthesis path. Hive partition columns
-            // and {@code _file.*} always take precedence on key collision (they overlay last in
-            // the per-file merge).
-            Set<String> union = new LinkedHashSet<>(stdMetaNames);
-            if (idRequested) {
-                union.add(ExternalMetadataColumns.ID);
-            }
-            if (sourceRequested) {
-                union.add(ExternalMetadataColumns.SOURCE);
-            }
+            // Union engine-owned names into the effective partition-column set so
+            // VirtualColumnIterator routes them through its constant-block / id-composition /
+            // source-synthesis path. Hive partition columns overlay last in the per-file merge.
+            Set<String> union = new LinkedHashSet<>(engineOwned);
             if (partitionColumnNames != null) {
                 union.addAll(partitionColumnNames);
             }

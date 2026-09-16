@@ -12,6 +12,8 @@ import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.esql.core.expression.Alias;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.Literal;
+import org.elasticsearch.xpack.esql.core.expression.MetadataAttribute;
+import org.elasticsearch.xpack.esql.core.expression.NamedExpression;
 import org.elasticsearch.xpack.esql.core.expression.UnresolvedAttribute;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
@@ -367,6 +369,63 @@ public class PartitionFilterHintExtractorTests extends ESTestCase {
         assertNotNull("both branches want only year=2025, so the rest may be skipped", hints);
         assertEquals(1, hints.size());
         assertEquals("year", hints.get(0).columnName());
+    }
+
+    /**
+     * A {@code _file.*} predicate is a listing hint only when that name is in the relation's
+     * {@code METADATA} clause. Without the clause the name is an ordinary data column.
+     */
+    public void testFileMetadataHintRequiresMetadataClause() {
+        Expression sizeFilter = new GreaterThan(SRC, unresolved(FileMetadataColumns.SIZE), intLiteral(100));
+
+        assertTrue(
+            "no METADATA clause: the storage-stat predicate is not a listing hint",
+            PartitionFilterHintExtractor.extract(filterAboveExternal(sizeFilter, PATH)).isEmpty()
+        );
+
+        NamedExpression requested = MetadataAttribute.create(SRC, FileMetadataColumns.SIZE);
+        UnresolvedExternalRelation rel = new UnresolvedExternalRelation(SRC, Literal.keyword(SRC, PATH), Map.of(), List.of(requested));
+        LogicalPlan plan = new Filter(SRC, rel, sizeFilter);
+
+        List<PartitionFilterHint> hints = PartitionFilterHintExtractor.extract(plan).get(PATH);
+        assertNotNull(hints);
+        assertEquals(1, hints.size());
+        assertEquals(FileMetadataColumns.SIZE, hints.get(0).columnName());
+        assertEquals(Operator.GREATER_THAN, hints.get(0).operator());
+    }
+
+    /**
+     * {@code MetadataAttribute.create} returns {@code UnresolvedMetadataAttributeExpression} for
+     * {@code _file.*} names, whose {@code name()} throws. The extractor must read the clause through
+     * {@link MetadataAttribute#metadataName}.
+     */
+    public void testFileMetadataClauseNameDoesNotUseThrowingAccessor() {
+        NamedExpression requested = MetadataAttribute.create(SRC, FileMetadataColumns.PATH);
+        expectThrows(Exception.class, requested::name);
+        assertEquals(FileMetadataColumns.PATH, MetadataAttribute.metadataName(requested));
+    }
+
+    /**
+     * One listing serves every occurrence of a path. A branch that omits {@code METADATA _file.size}
+     * must veto a listing prune the other branch would have applied.
+     */
+    public void testUnboundOccurrenceVetoesFileMetadataListingHint() {
+        Expression sizeFilter = new GreaterThan(SRC, unresolved(FileMetadataColumns.SIZE), intLiteral(100));
+        UnresolvedExternalRelation bound = new UnresolvedExternalRelation(
+            SRC,
+            Literal.keyword(SRC, PATH),
+            Map.of(),
+            List.of(MetadataAttribute.create(SRC, FileMetadataColumns.SIZE))
+        );
+        UnresolvedExternalRelation unbound = externalRelation(PATH);
+        LogicalPlan left = new Filter(SRC, bound, sizeFilter);
+        LogicalPlan right = new Filter(SRC, unbound, sizeFilter);
+        LogicalPlan fork = new Fork(SRC, List.of(left, right), List.of());
+
+        assertTrue(
+            "an occurrence without METADATA _file.size must keep the shared listing unpruned",
+            PartitionFilterHintExtractor.extract(fork).isEmpty()
+        );
     }
 
     /** Branches wanting different years between them need every folder, so nothing may be skipped. */

@@ -772,7 +772,7 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
                 // FROM's parser threads non-standard names through UnresolvedMetadataAttributeExpression
                 // (whose name() throws); EXTERNAL's parser threads plain UnresolvedAttribute. Resolve
                 // the textual name from either shape without invoking the throwing accessor.
-                String name = requested instanceof UnresolvedMetadataAttributeExpression unr ? unr.pattern() : requested.name();
+                String name = MetadataAttribute.metadataName(requested);
                 if (existing.contains(name)) {
                     continue;
                 }

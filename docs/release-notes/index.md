@@ -78,10 +78,10 @@ Machine Learning:
 * Fail closed on incomplete `TorchScript` pre-load state-hook scan [#3149](https://github.com/elastic/ml-cpp/pull/3149)
 * Fail gracefully when restoring a categorizer with an out of range token ID [#3143](https://github.com/elastic/ml-cpp/pull/3143)
 * Fix flaky concurrent least frequently used (LFU) cache count invariant under lock timeouts [#3090](https://github.com/elastic/ml-cpp/pull/3090)
+* Harden the Linux system call filter for machine learning native processes to block non-native instruction set variants [#3080](https://github.com/elastic/ml-cpp/pull/3080)
 * Mark machine learning controller non-dumpable before accepting commands [#3081](https://github.com/elastic/ml-cpp/pull/3081)
 * Prevent anomaly detection job reopen from exhausting search scroll contexts during mass reassignment [#154925](https://github.com/elastic/elasticsearch/pull/154925) (issue: [#153260](https://github.com/elastic/elasticsearch/issues/153260))
 * Reject TorchScript custom state hooks before load and forbid `inductor::_reinterpret_tensor` [#3078](https://github.com/elastic/ml-cpp/pull/3078)
-* Harden the Linux system call filter for machine learning native processes to block non-native instruction set variants [#3080](https://github.com/elastic/ml-cpp/pull/3080)
 * Return HTTP 4xx status codes when machine learning nodes are exhausted [#155310](https://github.com/elastic/elasticsearch/pull/155310)
 
 Mapping:
@@ -95,16 +95,15 @@ TSDB:
 * Guard against oversized protobuf requests causing out of memory failures [#157968](https://github.com/elastic/elasticsearch/pull/157968)
 
 Task Management:
-* Fix leaked cancellation task in bulk indexing [#158108](https://github.com/elastic/elasticsearch/pull/158108) (issue: [#158018](https://github.com/elastic/elasticsearch/issues/158018))
 * Fix leaked bulk task when shard dispatch fails [#158112](https://github.com/elastic/elasticsearch/pull/158112) (issue: [#158019](https://github.com/elastic/elasticsearch/issues/158019))
+* Fix leaked cancellation task in bulk indexing [#158108](https://github.com/elastic/elasticsearch/pull/158108) (issue: [#158018](https://github.com/elastic/elasticsearch/issues/158018))
 
 Templates:
 * Reduce memory usage when serializing component and composable templates in GET API responses [#158175](https://github.com/elastic/elasticsearch/pull/158175)
 
+
+
 ## 9.4.7 [elasticsearch-9.4.7-release-notes]
-```{applies_to}
-stack: ga 9.4.7
-```
 
 ### Features and enhancements [elasticsearch-9.4.7-features-enhancements]
 

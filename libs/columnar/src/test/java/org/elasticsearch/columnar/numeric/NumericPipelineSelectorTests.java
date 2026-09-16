@@ -46,6 +46,7 @@ import static org.elasticsearch.columnar.ColumnarTestUtils.singleValuedCursor;
 public class NumericPipelineSelectorTests extends ESTestCase {
 
     private static final byte[] DEFAULT_TRANSFORM_IDS = { DeltaTransform.ID, OffsetTransform.ID, GcdTransform.ID };
+    private static final byte[] ORDINAL_TRANSFORM_IDS = { RunTransform.ID, DeltaTransform.ID, OffsetTransform.ID, PatchedTransform.ID };
     private static final byte[] SPLIT_DELTA_TRANSFORM_IDS = {
         SplitDeltaTransform.ID,
         DeltaTransform.ID,
@@ -69,6 +70,10 @@ public class NumericPipelineSelectorTests extends ESTestCase {
 
     public void testDefaultPipelineTransformIds() throws IOException {
         assertTransformIds((f, t) -> NumericPipeline::defaultPipeline, longValues(), DEFAULT_TRANSFORM_IDS);
+    }
+
+    public void testOrdinalPipelineTransformIds() throws IOException {
+        assertTransformIds((f, t) -> NumericPipeline::runsAndOutliersPipeline, longValues(), ORDINAL_TRANSFORM_IDS);
     }
 
     public void testSplitDeltaPipelineTransformIds() throws IOException {
@@ -173,6 +178,7 @@ public class NumericPipelineSelectorTests extends ESTestCase {
                     values.length,
                     values.length,
                     values.length,
+                    true,
                     () -> singleValuedCursor(values),
                     pipeline,
                     BlockBytesCodec.forId(BlockBytesCodec.IDENTITY_ID),

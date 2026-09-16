@@ -16,7 +16,7 @@ module org.elasticsearch.columnar {
     // LongValues, ...), so consumers of this module must be able to read lucene.core too.
     requires transitive org.apache.lucene.core;
     requires org.elasticsearch.simdvec;
-    requires org.elasticsearch.nativeaccess;
+    requires org.elasticsearch.zstd;
     requires org.elasticsearch.lucene.store;
     requires org.elasticsearch.base;
 

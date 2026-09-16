@@ -106,7 +106,7 @@ Federated data sources can read the following file formats:
 :::{include} _snippets/data-federation/supported-file-formats.md
 :::
 
-The format is detected automatically from the file extension. You can override this in the dataset settings if needed.
+The format is inferred from the resource pattern when that pattern implies exactly one registered format. Extensionless or mixed patterns require an explicit `format` in the dataset settings.
 
 For details on type-specific settings and format options, refer to [](esql-data-federation-datasets.md).
 

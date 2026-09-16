@@ -120,13 +120,7 @@ public class JvmErgonomicsTests extends ESTestCase {
 
     public void testG1GOptionsForSmallHeapWhenTuningSet() throws Exception {
         List<String> jvmErgonomics = JvmErgonomics.choose(
-            Arrays.asList(
-                "-Xms6g",
-                "-Xmx6g",
-                "-XX:+UseG1GC",
-                "-XX:G1HeapRegionSize=4m",
-                "-XX:" + initiatingHeapOccupancyFlag() + "=45"
-            ),
+            Arrays.asList("-Xms6g", "-Xmx6g", "-XX:+UseG1GC", "-XX:G1HeapRegionSize=4m", "-XX:" + initiatingHeapOccupancyFlag() + "=45"),
             Settings.EMPTY
         );
         assertThat(jvmErgonomics, everyItem(not(startsWith("-XX:G1HeapRegionSize="))));

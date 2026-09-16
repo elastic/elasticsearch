@@ -6647,7 +6647,7 @@ public class AnalyzerTests extends AnalyzerTestCase {
         return analyzer.minimumTransportVersion(Highlight.ESQL_HIGHLIGHT_IMPLICIT_QUERY_AND_FIELDS);
     }
 
-    private static TestAnalyzer basic() {
+    private TestAnalyzer basic() {
         return analyzer().addEmployees("test").stripErrorPrefix(true);
     }
 

@@ -144,9 +144,6 @@ tests:
 - class: org.elasticsearch.indices.state.OpenCloseIndexIT
   method: testTranslogStats
   issue: https://github.com/elastic/elasticsearch/issues/149852
-- class: org.elasticsearch.xpack.esql.ccq.MultiClusterSpecIntsIT
-  method: test {csv-spec:ints.valuesLongGrouped}
-  issue: https://github.com/elastic/elasticsearch/issues/149905
 - class: org.elasticsearch.xpack.esql.qa.single_node.GenerativeIT
   method: test {feature:UNMAPPED_FIELDS_LOAD}
   issue: https://github.com/elastic/elasticsearch/issues/148619

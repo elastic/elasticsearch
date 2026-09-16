@@ -79,17 +79,37 @@ public class ES95TSDBDocValuesFormatTests extends AbstractTSDBDocValuesFormatTes
         }
     };
 
+    private final Codec codecWithOptimizedMerge = new Elasticsearch93Lucene104Codec() {
+
+        final DocValuesFormat docValuesFormat = new ES95TSDBDocValuesFormat(
+            ESTestCase.randomIntBetween(2, 4096),
+            ESTestCase.randomIntBetween(1, 512),
+            true,
+            BinaryDVCompressionMode.COMPRESSED_ZSTD_LEVEL_1,
+            true,
+            random().nextBoolean() ? NUMERIC_LARGE_BLOCK_SHIFT : NUMERIC_BLOCK_SHIFT,
+            random().nextBoolean(),
+            ES95TSDBDocValuesFormat.BINARY_DV_BLOCK_BYTES_THRESHOLD_DEFAULT,
+            ES95TSDBDocValuesFormat.BINARY_DV_BLOCK_COUNT_THRESHOLD_DEFAULT,
+            NumericCodecFactory.DEFAULT,
+            ES95NumericFieldReader::defaultFallbackDecoder,
+            null
+        );
+
+        @Override
+        public DocValuesFormat getDocValuesFormatForField(String field) {
+            return docValuesFormat;
+        }
+    };
+
     @Override
     protected Codec getCodec() {
         return codec;
     }
 
     @Override
-    protected boolean isOptimizedMergeEnabled() {
-        // The codec randomizes enableOptimizedMerge; reflect the actual value so tests that assert
-        // the verbatim-copy trace log only do so when the optimized path is actually taken.
-        var format = (ES95TSDBDocValuesFormat) ((Elasticsearch93Lucene104Codec) codec).getDocValuesFormatForField("field");
-        return format.enableOptimizedMerge;
+    protected Codec getCodecWithOptimizedMerge() {
+        return codecWithOptimizedMerge;
     }
 
     public void testAddIndices() throws IOException {

@@ -10,6 +10,7 @@
 package org.elasticsearch.index.codec.tsdb;
 
 import org.apache.logging.log4j.Level;
+import org.apache.lucene.codecs.Codec;
 import org.apache.lucene.codecs.DocValuesFormat;
 import org.apache.lucene.document.BinaryDocValuesField;
 import org.apache.lucene.document.Document;
@@ -123,13 +124,13 @@ public abstract class AbstractTSDBDocValuesFormatTests extends BaseDocValuesForm
     }
 
     /**
-     * Whether the codec returned by {@link #getCodec()} has optimized merge enabled. Used by
-     * {@code testForceMergeWithOversizedBinaryValues} to decide whether to assert that the
-     * verbatim-copy trace log was emitted — the log only fires through the optimized merge path.
-     * Subclasses whose codec randomizes this flag must override and return the actual value.
+     * Returns a codec guaranteed to have optimized merge enabled. Used by
+     * {@code testForceMergeWithOversizedBinaryValues} so the verbatim-copy assertion always fires.
+     * Subclasses whose main codec randomizes this flag must override to return a codec with the flag
+     * forced on.
      */
-    protected boolean isOptimizedMergeEnabled() {
-        return true;
+    protected Codec getCodecWithOptimizedMerge() {
+        return getCodec();
     }
 
     static {
@@ -137,10 +138,23 @@ public abstract class AbstractTSDBDocValuesFormatTests extends BaseDocValuesForm
     }
 
     protected IndexWriterConfig getTimeSeriesIndexWriterConfig(String hostnameField, String timestampField) {
-        return getTimeSeriesIndexWriterConfig(hostnameField, false, timestampField);
+        return getTimeSeriesIndexWriterConfig(hostnameField, false, timestampField, getCodec());
+    }
+
+    protected IndexWriterConfig getTimeSeriesIndexWriterConfig(String hostnameField, String timestampField, Codec codec) {
+        return getTimeSeriesIndexWriterConfig(hostnameField, false, timestampField, codec);
     }
 
     protected IndexWriterConfig getTimeSeriesIndexWriterConfig(String hostnameField, boolean multiValued, String timestampField) {
+        return getTimeSeriesIndexWriterConfig(hostnameField, multiValued, timestampField, getCodec());
+    }
+
+    protected IndexWriterConfig getTimeSeriesIndexWriterConfig(
+        String hostnameField,
+        boolean multiValued,
+        String timestampField,
+        Codec codec
+    ) {
         var config = new IndexWriterConfig();
         if (hostnameField != null) {
             config.setIndexSort(
@@ -154,7 +168,7 @@ public abstract class AbstractTSDBDocValuesFormatTests extends BaseDocValuesForm
         }
         config.setLeafSorter(DataStream.TIMESERIES_LEAF_READERS_SORTER);
         config.setMergePolicy(new LogByteSizeMergePolicy());
-        config.setCodec(getCodec());
+        config.setCodec(codec);
         return config;
     }
 
@@ -2982,7 +2996,9 @@ public abstract class AbstractTSDBDocValuesFormatTests extends BaseDocValuesForm
         final int numSmall = randomIntBetween(5, 20);
         final int numSegments = randomIntBetween(2, 4);
 
-        var config = getTimeSeriesIndexWriterConfig(HOSTNAME_FIELD, TIMESTAMP_FIELD);
+        // Use a codec with optimized merge always enabled so the verbatim-copy trace assertion
+        // fires unconditionally, regardless of how the subclass's main codec randomizes that flag.
+        var config = getTimeSeriesIndexWriterConfig(HOSTNAME_FIELD, TIMESTAMP_FIELD, getCodecWithOptimizedMerge());
         // This test class extends Lucene's BaseDocValuesFormatTestCase rather than ESTestCase, so
         // the @TestLogging annotation is not processed. Enable TRACE programmatically instead, and
         // restore the original level on exit, so the verbatim-copy log events reach the MockLog appender.
@@ -3022,19 +3038,17 @@ public abstract class AbstractTSDBDocValuesFormatTests extends BaseDocValuesForm
                 iw.commit();
             }
 
-            // Set the expectation before the merge so we catch the log event. Verbatim copy only
-            // runs through the optimized merge path, which requires enableOptimizedMerge = true.
-            // Concrete subclasses that randomize this flag override isOptimizedMergeEnabled().
-            if (isOptimizedMergeEnabled()) {
-                mockLog.addExpectation(
-                    new MockLog.SeenEventExpectation(
-                        "verbatim-copy trace log",
-                        AbstractTSDBDocValuesConsumer.class.getName(),
-                        Level.TRACE,
-                        "copied binary block of * verbatim"
-                    )
-                );
-            }
+            // Set the expectation before the merge so we catch the log event. The codec passed to
+            // this test always has optimized merge enabled (via getCodecWithOptimizedMerge()), so
+            // the verbatim-copy trace fires unconditionally.
+            mockLog.addExpectation(
+                new MockLog.SeenEventExpectation(
+                    "verbatim-copy trace log",
+                    AbstractTSDBDocValuesConsumer.class.getName(),
+                    Level.TRACE,
+                    "copied binary block of * verbatim"
+                )
+            );
 
             iw.forceMerge(1);
 
@@ -3063,11 +3077,9 @@ public abstract class AbstractTSDBDocValuesFormatTests extends BaseDocValuesForm
                 assertTrue("sparse field should have values", sparseCount > 0);
             }
 
-            // The log assertion: when optimized merge is enabled, the verbatim-copy trace must have
-            // fired at least once (one oversized single-doc block per source segment per field).
-            if (isOptimizedMergeEnabled()) {
-                mockLog.assertAllExpectationsMatched();
-            }
+            // The log assertion: the verbatim-copy trace must have fired at least once (one
+            // oversized single-doc block per source segment per field).
+            mockLog.assertAllExpectationsMatched();
         } finally {
             Loggers.setLevel(log4jLogger, savedLevel);
         }

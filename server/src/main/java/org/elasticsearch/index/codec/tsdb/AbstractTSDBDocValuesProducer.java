@@ -656,6 +656,7 @@ public abstract class AbstractTSDBDocValuesProducer extends DocValuesProducer {
         private final IndexInput compressedData;
         private final IndexInput readAhead;
         private long lastBlockId = -1;
+        private boolean blockDecompressed = false;
         private final int[] uncompressedDocStarts;
         private final int biggestUncompressedBlockSize;
         // Lazily allocated to avoid eagerly over-consuming memory under a large query fan-out or a single outlier block
@@ -773,9 +774,10 @@ public abstract class AbstractTSDBDocValuesProducer extends DocValuesProducer {
             int idxInBlock = (int) (docNumber - startDocNumForBlock);
             assert idxInBlock >= 0 && idxInBlock < numDocsInBlock : outOfBlock(docNumber, idxInBlock, numDocsInBlock);
 
-            if (blockId != lastBlockId) {
+            if (blockId != lastBlockId || blockDecompressed == false) {
                 decompressBlock(blockId, numDocsInBlock);
                 lastBlockId = blockId;
+                blockDecompressed = true;
             }
 
             int start = uncompressedDocStarts[idxInBlock];
@@ -996,6 +998,7 @@ public abstract class AbstractTSDBDocValuesProducer extends DocValuesProducer {
             offsetBuffer[offsetBufferIndex] = valuesBufferIndex;
 
             lastBlockId = endBlockId;
+            blockDecompressed = true;
 
             // TODO: This sets state for the decode(...), we should look into removing this.
             startDocNumForBlock = docOffsets.get(endBlockId);
@@ -1021,7 +1024,15 @@ public abstract class AbstractTSDBDocValuesProducer extends DocValuesProducer {
          * {@code advanceExact} calls before any {@code binaryValue()} read is issued.
          */
         void prefetchBlock(int index, int numBlocks) throws IOException {
+            // Fast path: doc is within the already-known block — no new prefetch needed.
+            if (index >= startDocNumForBlock && index < limitDocNumForBlock) {
+                return;
+            }
             long blockId = findBlock(index, numBlocks, lastBlockId >= 0 ? lastBlockId : 0);
+            startDocNumForBlock = docOffsets.get(blockId);
+            limitDocNumForBlock = docOffsets.get(blockId + 1);
+            lastBlockId = blockId;
+            blockDecompressed = false;
             long blockStart = addresses.get(blockId);
             // addresses has numBlocks+1 entries: the sentinel gives the end of the last block.
             readAhead.prefetch(blockStart, addresses.get(blockId + 1) - blockStart);

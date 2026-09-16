@@ -40,12 +40,12 @@ import java.util.concurrent.TimeUnit;
  * unescaping, double parsing, field-name resolution, and the rest of the encoder pipeline: every
  * field in every generated document is a plain JSON integer of a single, controlled digit width.
  *
- * <p>Parameterized by {@link #digitCount}, spanning the shape actually seen in ClickBench-style
- * analytics documents (see {@code SIMDJSON_MAP_EVAL.md}, ClickBench numeric-value analysis):
- * roughly 77% of numeric fields there are 1-2 digits (booleans-as-0/1, small enum/status codes),
- * with a long tail out past 10 digits (large IDs/hashes). {@code digitCount=1,2} exercise the
- * fast path added to {@code handleNumber}/{@code handleArrayNumber}; {@code digitCount=5,10}
- * exercise the unchanged general (SWAR-loop) path, as a check that it isn't regressed.
+ * <p>Parameterized by {@link #digitCount}, spanning the digit-count shapes seen in
+ * ClickBench-style analytics documents: roughly 77% of numeric fields there are 1-2 digits
+ * (booleans-as-0/1, small enum/status codes), with a long tail out past 10 digits (large
+ * IDs/hashes). {@code digitCount=1,2} exercise the fast path added to
+ * {@code handleNumber}/{@code handleArrayNumber}; {@code digitCount=5,10} exercise the
+ * unchanged general (SWAR-loop) path, as a check that it isn't regressed.
  *
  * <pre>{@code
  * ./gradlew :libs:simdjson:benchmark --args "NumberFieldParsingBenchmark"

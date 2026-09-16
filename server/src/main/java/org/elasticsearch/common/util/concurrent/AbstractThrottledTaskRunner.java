@@ -35,7 +35,7 @@ public class AbstractThrottledTaskRunner<T extends ActionListener<Releasable>> {
 
     public static final String THROTTLED_TASK_RUNNER_METRIC_PREFIX = "es.throttled_task_runner.";
     public static final String THROTTLED_TASK_RUNNER_METRIC_NAME_QUEUE = ".tasks.queue.size";
-    public static final String THROTTLED_TASK_RUNNER_METRIC_RUNNING = ".tasks.running.current";
+    public static final String THROTTLED_TASK_RUNNER_METRIC_NAME_RUNNING = ".tasks.running.current";
 
     private final String taskRunnerName;
     // The max number of tasks that this runner will schedule to concurrently run on the executor.
@@ -74,7 +74,7 @@ public class AbstractThrottledTaskRunner<T extends ActionListener<Releasable>> {
         );
         instruments.add(
             meterRegistry.registerLongAsyncGauge(
-                prefix + THROTTLED_TASK_RUNNER_METRIC_RUNNING,
+                prefix + THROTTLED_TASK_RUNNER_METRIC_NAME_RUNNING,
                 "number of tasks currently running (i.e., submitted to the underlying executor)" + name,
                 "count",
                 () -> new LongWithAttributes(runningTasks())

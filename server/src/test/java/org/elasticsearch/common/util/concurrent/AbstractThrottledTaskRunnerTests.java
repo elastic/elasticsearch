@@ -20,7 +20,6 @@ import org.elasticsearch.test.TestEsExecutors;
 import org.junit.After;
 import org.junit.Before;
 
-import java.util.Arrays;
 import java.util.concurrent.BlockingQueue;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.CyclicBarrier;
@@ -32,10 +31,9 @@ import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
 
 import static org.elasticsearch.common.util.concurrent.AbstractThrottledTaskRunner.THROTTLED_TASK_RUNNER_METRIC_NAME_QUEUE;
-import static org.elasticsearch.common.util.concurrent.AbstractThrottledTaskRunner.THROTTLED_TASK_RUNNER_METRIC_RUNNING;
+import static org.elasticsearch.common.util.concurrent.AbstractThrottledTaskRunner.THROTTLED_TASK_RUNNER_METRIC_NAME_RUNNING;
 import static org.elasticsearch.common.util.concurrent.AbstractThrottledTaskRunner.THROTTLED_TASK_RUNNER_METRIC_PREFIX;
 import static org.hamcrest.Matchers.equalTo;
-import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.lessThanOrEqualTo;
 
 public class AbstractThrottledTaskRunnerTests extends ESTestCase {
@@ -287,7 +285,7 @@ public class AbstractThrottledTaskRunnerTests extends ESTestCase {
     public void testSetupMetricsReportsQueuingAndRunningCounts() throws Exception {
         final String runnerName = "some_throttler";
         final String queueSizeMetric = THROTTLED_TASK_RUNNER_METRIC_PREFIX + runnerName + THROTTLED_TASK_RUNNER_METRIC_NAME_QUEUE;
-        final String runningMetric = THROTTLED_TASK_RUNNER_METRIC_PREFIX + runnerName + THROTTLED_TASK_RUNNER_METRIC_RUNNING;
+        final String runningMetric = THROTTLED_TASK_RUNNER_METRIC_PREFIX + runnerName + THROTTLED_TASK_RUNNER_METRIC_NAME_RUNNING;
 
         final var taskRunning = new CountDownLatch(1);
         final var taskCanFinish = new CountDownLatch(1);
@@ -304,20 +302,19 @@ public class AbstractThrottledTaskRunnerTests extends ESTestCase {
 
         // enqueue a single task and hold it there so we know it's running
         taskRunner.enqueueTask(new ActionListener<>() {
-                                   @Override
-                                   public void onFailure(Exception e) {
-                                       throw new AssertionError(e);
-                                   }
+            @Override
+            public void onFailure(Exception e) {
+                throw new AssertionError(e);
+            }
 
-                                   @Override
-                                   public void onResponse(Releasable releasable) {
-                                       try (releasable) {
-                                           taskRunning.countDown();
-                                           safeAwait(taskCanFinish);
-                                       }
-                                   }
-                               }
-        );
+            @Override
+            public void onResponse(Releasable releasable) {
+                try (releasable) {
+                    taskRunning.countDown();
+                    safeAwait(taskCanFinish);
+                }
+            }
+        });
         safeAwait(taskRunning);
 
         // enqueue a second task that will get queued because of maxRunningTasks=1
@@ -348,7 +345,8 @@ public class AbstractThrottledTaskRunnerTests extends ESTestCase {
         taskCanFinish.countDown();
         assertNoRunningTasks(taskRunner);
 
-        // reset and re-collect metrics and both queue- and running-size should be 0 now since we had no queued or running tasks right before
+        // reset and re-collect metrics and both queue- and running-size should be 0 now since we had no queued or running tasks right
+        // before
         registry.getRecorder().resetCalls();
         registry.getRecorder().collect();
         assertThat(
@@ -357,7 +355,8 @@ public class AbstractThrottledTaskRunnerTests extends ESTestCase {
         );
         assertThat(
             registry.getRecorder().getMeasurements(InstrumentType.LONG_ASYNC_GAUGE, runningMetric),
-            RecordingMeterRegistry.measures(0L));
+            RecordingMeterRegistry.measures(0L)
+        );
     }
 
     private void assertNoRunningTasks(AbstractThrottledTaskRunner<?> taskRunner) {

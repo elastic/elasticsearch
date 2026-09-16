@@ -57,6 +57,8 @@ import static org.hamcrest.Matchers.oneOf;
 
 public class ES93HnswVectorsFormatTests extends BaseHnswVectorsFormatTestCase {
 
+    private static final boolean NATIVE_SCORERS_AVAILABLE = ESVectorizationProvider.getInstance().getVectorScorerFactory().usesNative();
+
     @Override
     protected KnnVectorsFormat createFormat() {
         return new ES93HnswVectorsFormat(
@@ -167,13 +169,14 @@ public class ES93HnswVectorsFormatTests extends BaseHnswVectorsFormatTestCase {
         }
     }
 
-    @SuppressWarnings("unchecked")
     public void testFloat32GraphBuildUsesNativeScorer() throws IOException {
+        assumeTrue("off-heap buffering only when the native scorers are available", NATIVE_SCORERS_AVAILABLE);
         int dims = random().nextInt(2, 64);
         float[][] vectors = { randomVector(dims), randomVector(dims) };
         try (Directory dir = newDirectory()) {
             var format = new ES93HnswVectorsFormat(DenseVectorFieldMapper.ElementType.FLOAT).flatVectorsFormat();
             try (var writer = format.fieldsWriter(segmentWriteState(dir))) {
+                @SuppressWarnings("unchecked")
                 var fieldWriter = (FlatFieldVectorsWriter<float[]>) writer.addField(fieldInfo(dims, VectorEncoding.FLOAT32));
                 for (int i = 0; i < vectors.length; i++) {
                     fieldWriter.addValue(i, vectors[i]);
@@ -186,13 +189,14 @@ public class ES93HnswVectorsFormatTests extends BaseHnswVectorsFormatTestCase {
         }
     }
 
-    @SuppressWarnings("unchecked")
     public void testByteGraphBuildUsesNativeScorer() throws IOException {
+        assumeTrue("off-heap buffering only when the native scorers are available", NATIVE_SCORERS_AVAILABLE);
         int dims = random().nextInt(2, 64);
         byte[][] vectors = { randomVector8(dims), randomVector8(dims) };
         try (Directory dir = newDirectory()) {
             var format = new ES93HnswVectorsFormat(DenseVectorFieldMapper.ElementType.BYTE).flatVectorsFormat();
             try (var writer = format.fieldsWriter(segmentWriteState(dir))) {
+                @SuppressWarnings("unchecked")
                 var fieldWriter = (FlatFieldVectorsWriter<byte[]>) writer.addField(fieldInfo(dims, VectorEncoding.BYTE));
                 for (int i = 0; i < vectors.length; i++) {
                     fieldWriter.addValue(i, vectors[i]);
@@ -205,19 +209,36 @@ public class ES93HnswVectorsFormatTests extends BaseHnswVectorsFormatTestCase {
         }
     }
 
+    public void testBFloat16GraphBuildUsesNativeScorer() throws IOException {
+        assumeTrue("off-heap buffering only when the native scorers are available", NATIVE_SCORERS_AVAILABLE);
+        int dims = random().nextInt(2, 64);
+        float[][] vectors = { randomVector(dims), randomVector(dims) };
+        try (Directory dir = newDirectory()) {
+            var format = new ES93HnswVectorsFormat(DenseVectorFieldMapper.ElementType.BFLOAT16).flatVectorsFormat();
+            try (var writer = format.fieldsWriter(segmentWriteState(dir))) {
+                @SuppressWarnings("unchecked")
+                var fieldWriter = (FlatFieldVectorsWriter<float[]>) writer.addField(fieldInfo(dims, VectorEncoding.FLOAT32));
+                for (int i = 0; i < vectors.length; i++) {
+                    fieldWriter.addValue(i, vectors[i]);
+                }
+                assertNativeSupplierSelected(
+                    fieldWriter.asKnnVectorValues(VectorEncoding.FLOAT32, dims),
+                    FloatVectorValues.fromFloats(List.of(vectors), dims)
+                );
+            }
+        }
+    }
+
     /**
-     * A native scorer that fails to resolve degrades to a Java one with nothing but a log line, so assert the
-     * selection directly: the values the graph builder gets must expose a slice, and that must yield a
-     * different supplier than equivalent on-heap values, which cannot.
+     * A native scorer that fails to resolve degrades to a Java one, so assert the
+     * selection directly: the values the graph builder gets must expose a slice.
      */
     private static void assertNativeSupplierSelected(KnnVectorValues offHeap, KnnVectorValues onHeap) throws IOException {
         assertThat(offHeap, instanceOf(HasIndexSlice.class));
         var scorer = ES93GenericFlatVectorScorer.INSTANCE;
         var offHeapSupplier = scorer.getRandomVectorScorerSupplier(VectorSimilarityFunction.DOT_PRODUCT, offHeap);
         var onHeapSupplier = scorer.getRandomVectorScorerSupplier(VectorSimilarityFunction.DOT_PRODUCT, onHeap);
-        if (ESVectorizationProvider.getInstance().getVectorScorerFactory().usesNative()) {
-            assertNotEquals("expected a native supplier for off-heap values", onHeapSupplier.getClass(), offHeapSupplier.getClass());
-        }
+        assertNotEquals("expected a native supplier for off-heap values", onHeapSupplier.getClass(), offHeapSupplier.getClass());
         var expected = onHeapSupplier.scorer();
         var actual = offHeapSupplier.scorer();
         expected.setScoringOrdinal(0);

@@ -19,11 +19,14 @@
  */
 package org.elasticsearch.index.codec.vectors.es93;
 
+import org.apache.lucene.codecs.hnsw.FlatFieldVectorsWriter;
 import org.apache.lucene.codecs.hnsw.FlatVectorsReader;
 import org.apache.lucene.codecs.hnsw.FlatVectorsScorer;
 import org.apache.lucene.codecs.hnsw.FlatVectorsWriter;
+import org.apache.lucene.index.FieldInfo;
 import org.apache.lucene.index.SegmentReadState;
 import org.apache.lucene.index.SegmentWriteState;
+import org.apache.lucene.util.IOFunction;
 import org.elasticsearch.index.codec.vectors.DirectIOCapableFlatVectorsFormat;
 
 import java.io.IOException;
@@ -41,10 +44,23 @@ public final class ES93BFloat16FlatVectorsFormat extends DirectIOCapableFlatVect
 
     static final int DIRECT_MONOTONIC_BLOCK_SHIFT = 16;
     private final FlatVectorsScorer vectorsScorer;
+    private final IOFunction<FieldInfo, FlatFieldVectorsWriter<?>> fieldWriterFactory;
 
     public ES93BFloat16FlatVectorsFormat(FlatVectorsScorer vectorsScorer) {
+        this(vectorsScorer, null);
+    }
+
+    /**
+     * Variant whose writer accumulates vectors through {@code fieldWriterFactory} rather than the default
+     * on-heap storage. A {@code null} factory selects the default.
+     */
+    public ES93BFloat16FlatVectorsFormat(
+        FlatVectorsScorer vectorsScorer,
+        IOFunction<FieldInfo, FlatFieldVectorsWriter<?>> fieldWriterFactory
+    ) {
         super(NAME);
         this.vectorsScorer = vectorsScorer;
+        this.fieldWriterFactory = fieldWriterFactory;
     }
 
     @Override
@@ -54,7 +70,9 @@ public final class ES93BFloat16FlatVectorsFormat extends DirectIOCapableFlatVect
 
     @Override
     public FlatVectorsWriter fieldsWriter(SegmentWriteState state) throws IOException {
-        return new ES93BFloat16FlatVectorsWriter(state, vectorsScorer);
+        return fieldWriterFactory == null
+            ? new ES93BFloat16FlatVectorsWriter(state, vectorsScorer)
+            : new ES93BFloat16FlatVectorsWriter(state, vectorsScorer, fieldWriterFactory);
     }
 
     @Override

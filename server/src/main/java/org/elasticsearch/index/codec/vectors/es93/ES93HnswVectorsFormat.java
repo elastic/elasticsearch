@@ -18,6 +18,7 @@ import org.apache.lucene.index.SegmentReadState;
 import org.apache.lucene.index.SegmentWriteState;
 import org.elasticsearch.index.codec.vectors.AbstractHnswVectorsFormat;
 import org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapper;
+import org.elasticsearch.simdvec.ESVectorizationProvider;
 
 import java.io.IOException;
 import java.util.concurrent.ExecutorService;
@@ -30,9 +31,11 @@ public class ES93HnswVectorsFormat extends AbstractHnswVectorsFormat {
 
     /**
      * Buffer raw vectors off-heap while the segment is written, so graph construction scores them
-     * through the native scorers rather than copying out of an on-heap list.
+     * through the native scorers rather than copying out of an on-heap list. Enabled only where those
+     * scorers exist: without them, scoring the off-heap store copies each vector back onto the heap on
+     * every comparison, which is slower than buffering on-heap in the first place.
      */
-    private static final boolean OFF_HEAP_BUFFERING = true;
+    private static final boolean OFF_HEAP_BUFFERING = ESVectorizationProvider.getInstance().getVectorScorerFactory().usesNative();
 
     static final String NAME = "ES93HnswVectorsFormat";
     /**

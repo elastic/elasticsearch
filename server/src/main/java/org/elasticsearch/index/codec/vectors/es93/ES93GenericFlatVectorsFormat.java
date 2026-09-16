@@ -75,6 +75,19 @@ public class ES93GenericFlatVectorsFormat extends AbstractFlatVectorsFormat {
         ES93GenericFlatVectorScorer.INSTANCE
     );
 
+    /**
+     * A write-side-only variant of {@link #bfloat16VectorFormat} that buffers vectors in native memory
+     * ({@link ES93FlatFieldVectorsWriter}) instead of an on-heap list. Vectors are buffered as float32 and
+     * truncated to bfloat16 at write-out, so graph construction scores them at full precision.
+     *
+     * <p>It produces the same files as {@link #bfloat16VectorFormat} and deliberately inherits its
+     * {@code getName()}. It therefore must not be added to {@link #supportedFormats}.
+     */
+    private static final DirectIOCapableFlatVectorsFormat offHeapBufferedBFloat16VectorFormat = new ES93BFloat16FlatVectorsFormat(
+        ES93GenericFlatVectorScorer.INSTANCE,
+        ES93FlatFieldVectorsWriter::create
+    );
+
     private static final Map<String, DirectIOCapableFlatVectorsFormat> supportedFormats = Map.of(
         defaultVectorFormat.getName(),
         defaultVectorFormat,
@@ -96,17 +109,18 @@ public class ES93GenericFlatVectorsFormat extends AbstractFlatVectorsFormat {
     }
 
     /**
-     * Variant that can buffer FLOAT32 and BYTE vectors in native memory while the segment is written, see
-     * {@link #offHeapBufferedDefaultVectorFormat}. Off-heap buffering requires that each buffered vector is
+     * Variant that can buffer FLOAT32, BYTE and BFLOAT16 vectors in native memory while the segment is
+     * written, see {@link #offHeapBufferedDefaultVectorFormat} and
+     * {@link #offHeapBufferedBFloat16VectorFormat}. Off-heap buffering requires that each buffered vector is
      * read at most once, and never mutated in place, by the enclosing format's write path; it is ignored for
-     * BIT and BFLOAT16.
+     * BIT.
      */
     public ES93GenericFlatVectorsFormat(DenseVectorFieldMapper.ElementType elementType, boolean useDirectIO, boolean offHeapBuffering) {
         super(NAME);
         writeFormat = switch (elementType) {
             case FLOAT, BYTE -> offHeapBuffering ? offHeapBufferedDefaultVectorFormat : defaultVectorFormat;
             case BIT -> bitVectorFormat;
-            case BFLOAT16 -> bfloat16VectorFormat;
+            case BFLOAT16 -> offHeapBuffering ? offHeapBufferedBFloat16VectorFormat : bfloat16VectorFormat;
         };
         this.useDirectIO = useDirectIO;
     }

@@ -73,7 +73,7 @@ public class NumericPipelineSelectorTests extends ESTestCase {
     }
 
     public void testOrdinalPipelineTransformIds() throws IOException {
-        assertTransformIds((f, t) -> NumericPipeline::ordinalPipeline, longValues(), ORDINAL_TRANSFORM_IDS);
+        assertTransformIds((f, t) -> NumericPipeline::runsAndOutliersPipeline, longValues(), ORDINAL_TRANSFORM_IDS);
     }
 
     public void testSplitDeltaPipelineTransformIds() throws IOException {

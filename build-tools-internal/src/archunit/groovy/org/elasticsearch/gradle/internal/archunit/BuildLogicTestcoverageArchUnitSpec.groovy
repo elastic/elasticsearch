@@ -118,13 +118,10 @@ class BuildLogicTestCoverageArchUnitSpec extends AbstractArchUnitSpec {
         "org.elasticsearch.gradle.internal.test.DistroTestPlugin",
         "org.elasticsearch.gradle.internal.test.InternalClusterTestPlugin",
         "org.elasticsearch.gradle.internal.test.LegacyRestTestBasePlugin",
-        "org.elasticsearch.gradle.internal.test.StandaloneRestTestPlugin",
         "org.elasticsearch.gradle.internal.test.StandaloneTestPlugin",
         "org.elasticsearch.gradle.internal.test.TestWithDependenciesPlugin",
-        "org.elasticsearch.gradle.internal.test.TestWithSslPlugin",
         "org.elasticsearch.gradle.internal.test.rest.InternalJavaRestTestPlugin",
         "org.elasticsearch.gradle.internal.test.rest.InternalYamlRestTestPlugin",
-        "org.elasticsearch.gradle.internal.test.rest.LegacyJavaRestTestPlugin",
         "org.elasticsearch.gradle.internal.test.rest.RestTestBasePlugin",
         "org.elasticsearch.gradle.internal.test.rest.compat.compat.YamlRestCompatTestPlugin",
         "org.elasticsearch.gradle.internal.testfixtures.TestFixturesDeployPlugin",
@@ -138,9 +135,7 @@ class BuildLogicTestCoverageArchUnitSpec extends AbstractArchUnitSpec {
         // their original base class until the harness supports deferred/multi-project application.
         "org.elasticsearch.gradle.internal.InternalDistributionArchiveCheckPlugin",
         "org.elasticsearch.gradle.internal.doc.DocsTestPlugin",
-        "org.elasticsearch.gradle.internal.test.rest.LegacyYamlRestTestPlugin",
         "org.elasticsearch.gradle.internal.test.rest.RestResourcesPlugin",
-        "org.elasticsearch.gradle.internal.test.rest.compat.compat.LegacyYamlRestCompatTestPlugin",
 
         // --- tasks lacking a unit or functional test ---
         "org.elasticsearch.gradle.internal.JavaClassPublicifier",

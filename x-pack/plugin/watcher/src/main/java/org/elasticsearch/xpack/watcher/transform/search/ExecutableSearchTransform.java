@@ -56,22 +56,26 @@ public class ExecutableSearchTransform extends ExecutableTransform<SearchTransfo
             // We need to make a copy, so that we don't modify the original instance that we keep around in a watch:
             request = new WatcherSearchTemplateRequest(transform.getRequest(), new BytesArray(renderedTemplate));
             SearchRequest searchRequest = searchTemplateService.toSearchRequest(request);
-            SearchResponse resp = ClientHelper.executeWithHeaders(
-                ctx.watch().status().getHeaders(),
-                ClientHelper.WATCHER_ORIGIN,
-                client,
-                () -> client.search(searchRequest).actionGet(timeout)
-            );
             try {
-                final Params params;
-                if (request.isRestTotalHitsAsint()) {
-                    params = new MapParams(Collections.singletonMap("rest_total_hits_as_int", "true"));
-                } else {
-                    params = EMPTY_PARAMS;
+                SearchResponse resp = ClientHelper.executeWithHeaders(
+                    ctx.watch().status().getHeaders(),
+                    ClientHelper.WATCHER_ORIGIN,
+                    client,
+                    () -> client.search(searchRequest).actionGet(timeout)
+                );
+                try {
+                    final Params params;
+                    if (request.isRestTotalHitsAsint()) {
+                        params = new MapParams(Collections.singletonMap("rest_total_hits_as_int", "true"));
+                    } else {
+                        params = EMPTY_PARAMS;
+                    }
+                    return new SearchTransform.Result(request, new Payload.XContent(resp, params));
+                } finally {
+                    resp.decRef();
                 }
-                return new SearchTransform.Result(request, new Payload.XContent(resp, params));
             } finally {
-                resp.decRef();
+                if (searchRequest.source() != null) searchRequest.source().close();
             }
         } catch (Exception e) {
             logger.error(() -> format("failed to execute [%s] transform for [%s]", TYPE, ctx.id()), e);

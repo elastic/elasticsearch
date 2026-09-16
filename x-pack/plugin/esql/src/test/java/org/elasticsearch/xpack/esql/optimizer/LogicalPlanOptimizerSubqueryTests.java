@@ -28,6 +28,10 @@ import static org.hamcrest.Matchers.instanceOf;
  */
 public class LogicalPlanOptimizerSubqueryTests extends AbstractLogicalPlanOptimizerTests {
 
+    public LogicalPlanOptimizerSubqueryTests(VersionMode versionMode) {
+        super(versionMode);
+    }
+
     /**
      * {@code SORT | LIMIT} is rewritten to {@code TopN}; the message must be
      * {@code SORT and LIMIT}, not {@code SORT} (bare SORT is legal).

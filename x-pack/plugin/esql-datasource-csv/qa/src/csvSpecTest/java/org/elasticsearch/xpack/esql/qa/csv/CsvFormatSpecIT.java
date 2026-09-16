@@ -13,6 +13,7 @@ import com.carrotsearch.randomizedtesting.annotations.ThreadLeakFilters;
 import org.elasticsearch.test.AzureReactorThreadFilter;
 import org.elasticsearch.test.TestClustersThreadFilter;
 import org.elasticsearch.xpack.esql.CsvSpecReader.CsvTestCase;
+import org.elasticsearch.xpack.esql.qa.rest.BwcMatrixPolicy;
 
 import java.util.List;
 
@@ -22,6 +23,8 @@ import java.util.List;
  */
 @ThreadLeakFilters(filters = { TestClustersThreadFilter.class, AzureReactorThreadFilter.class })
 public class CsvFormatSpecIT extends AbstractCsvExternalSpecTestCase {
+
+    private static final BwcMatrixPolicy BWC_MATRIX_POLICY = UNCOMPRESSED_BWC_MATRIX_POLICY;
 
     public CsvFormatSpecIT(
         String fileName,
@@ -36,8 +39,8 @@ public class CsvFormatSpecIT extends AbstractCsvExternalSpecTestCase {
     }
 
     @Override
-    protected String getTestRestCluster() {
-        return cluster.getHttpAddresses();
+    protected BwcMatrixPolicy bwcMatrixPolicy() {
+        return BWC_MATRIX_POLICY;
     }
 
     // CSV reads the csv-*.csv-spec files. Most shared external-*.csv-spec files read the multi-value
@@ -47,6 +50,11 @@ public class CsvFormatSpecIT extends AbstractCsvExternalSpecTestCase {
     // the exception: it uses only the bracket-free employees_no_mv twin, so it parses under CSV too.
     @ParametersFactory(argumentFormatting = "csv-spec:%2$s.%3$s [%7$s]")
     public static List<Object[]> readScriptSpec() throws Exception {
-        return readExternalSpecTests("/csv-*.csv-spec", "/external-declared-schema.csv-spec", "/external-heavy-aggregates.csv-spec");
+        return readExternalSpecTests(
+            BWC_MATRIX_POLICY,
+            "/csv-*.csv-spec",
+            "/datasources/external-declared-schema.csv-spec",
+            "/datasources/external-heavy-aggregates.csv-spec"
+        );
     }
 }

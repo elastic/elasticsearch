@@ -56,6 +56,7 @@ public class RestPutDatasetAction extends BaseRestHandler {
             EsqlDataSourcesCapabilities.DATA_SOURCES,
             EsqlDataSourcesCapabilities.DATASET_DECLARED_SCHEMA,
             EsqlDataSourcesCapabilities.DATA_SOURCES_SERVERLESS_SCOPE,
+            EsqlDataSourcesCapabilities.DATASET_REGION,
             EsqlDataSourcesCapabilities.DATASET_TEXT_TYPE_NOT_DECLARABLE
         );
     }

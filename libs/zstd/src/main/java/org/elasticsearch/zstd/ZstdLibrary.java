@@ -7,7 +7,7 @@
  * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
-package org.elasticsearch.nativeaccess.lib;
+package org.elasticsearch.zstd;
 
 import org.elasticsearch.foreign.Critical;
 import org.elasticsearch.foreign.Function;
@@ -29,7 +29,7 @@ import java.lang.foreign.MemorySegment;
  * @see <a href="https://facebook.github.io/zstd/zstd_manual.html">zstd manual</a>
  */
 @LibrarySpecification(name = "zstd")
-public interface ZstdLibrary {
+interface ZstdLibrary {
 
     /**
      * Maximum compressed size for a given source size, in the worst-case single-pass scenario.

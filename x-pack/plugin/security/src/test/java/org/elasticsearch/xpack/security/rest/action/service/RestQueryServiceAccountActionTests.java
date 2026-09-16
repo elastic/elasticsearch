@@ -135,7 +135,7 @@ public class RestQueryServiceAccountActionTests extends ESTestCase {
     private void handle(String body, Consumer<QueryServiceAccountRequest> requestAssertions) throws Exception {
         final FakeRestRequest.Builder requestBuilder = new FakeRestRequest.Builder(xContentRegistry()).withMethod(
             randomFrom(RestRequest.Method.GET, RestRequest.Method.POST)
-        ).withPath("/_security/_query/service_account");
+        ).withPath("/_security/_query/service");
         if (body != null) {
             requestBuilder.withContent(new BytesArray(body), XContentType.JSON);
         }

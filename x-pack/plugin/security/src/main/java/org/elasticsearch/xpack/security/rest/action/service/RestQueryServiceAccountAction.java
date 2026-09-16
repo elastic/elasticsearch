@@ -79,7 +79,7 @@ public final class RestQueryServiceAccountAction extends SecurityBaseRestHandler
 
     @Override
     public List<Route> routes() {
-        return List.of(new Route(GET, "/_security/_query/service_account"), new Route(POST, "/_security/_query/service_account"));
+        return List.of(new Route(GET, "/_security/_query/service"), new Route(POST, "/_security/_query/service"));
     }
 
     @Override

@@ -91,7 +91,7 @@ public final class StDistanceCartesianPointDocValuesAndDocValuesEvaluator implem
 
   private Warnings warnings() {
     if (warnings == null) {
-      this.warnings = driverContext.createWarnings(source);
+      this.warnings = Warnings.createWarnings(driverContext.warningsMode(), source);
     }
     return warnings;
   }

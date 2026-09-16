@@ -251,6 +251,7 @@ public class GoogleAiStudioService extends SenderService<GoogleAiStudioModel> {
         List<EmbeddingRequestChunker.BatchRequestAndListener> batchedRequests = new EmbeddingRequestChunker<>(
             inputs,
             EMBEDDING_MAX_BATCH_SIZE,
+            getRegexReadLimitFactor(),
             googleAiStudioModel.getConfigurations().getChunkingSettings()
         ).batchRequestsWithListeners(listener);
 

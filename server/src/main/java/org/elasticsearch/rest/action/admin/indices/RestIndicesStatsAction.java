@@ -16,6 +16,7 @@ import org.elasticsearch.action.admin.indices.stats.IndicesStatsRequest;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.client.internal.node.NodeClient;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.index.shard.DenseVectorStats;
 import org.elasticsearch.rest.BaseRestHandler;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.Scope;
@@ -133,6 +134,8 @@ public class RestIndicesStatsAction extends BaseRestHandler {
             indicesStatsRequest.includeSegmentFileSizes(request.paramAsBoolean("include_segment_file_sizes", false));
             indicesStatsRequest.includeUnloadedSegments(request.paramAsBoolean("include_unloaded_segments", false));
         }
+
+        request.paramAsBoolean(DenseVectorStats.INCLUDE_AUTO_CALIBRATION, false);
 
         return channel -> new RestCancellableNodeClient(client, request.getHttpChannel()).admin()
             .indices()

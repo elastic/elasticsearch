@@ -96,6 +96,7 @@ public class MapperFeatures implements FeatureSpecification {
     public static final NodeFeature INDEX_MAPPING_IGNORE_DYNAMIC_BEYOND_FIELD_NAME_LIMIT = new NodeFeature(
         "mapper.ignore_dynamic_field_names_beyond_limit"
     );
+    public static final NodeFeature MAPPING_LIMIT_CHECKS_AT_PARSE_TIME = new NodeFeature("mapper.mapping_limit_checks_at_parse_time");
     public static final NodeFeature EXCLUDE_VECTORS_DOCVALUE_BUGFIX = new NodeFeature("mapper.exclude_vectors_docvalue_bugfix");
     public static final NodeFeature BASE64_DENSE_VECTORS = new NodeFeature("mapper.base64_dense_vectors");
     public static final NodeFeature GENERIC_VECTOR_FORMAT = new NodeFeature("mapper.vectors.generic_vector_format");
@@ -167,7 +168,9 @@ public class MapperFeatures implements FeatureSpecification {
     public static final NodeFeature COLUMNAR_DROPS_DYNAMIC_FALSE_FIELDS = new NodeFeature("mapper.columnar.drops_dynamic_false_fields");
     public static final NodeFeature COLUMNAR_SUPPORTS_SHAPE_FIELDS = new NodeFeature("mapper.columnar.supports_shape_fields");
     public static final NodeFeature TSDB_METRIC_TEMPORALITY_SUPPORT = new NodeFeature("mapper.tsdb.metric_temporality_support");
-    public static final NodeFeature DUPLICATE_DYNAMIC_TEMPLATE_NAMES_WARNING = new NodeFeature("mapper.dynamic_template.warn_on_duplicate_names");
+    public static final NodeFeature DUPLICATE_DYNAMIC_TEMPLATE_NAMES_WARNING = new NodeFeature(
+        "mapper.dynamic_template.warn_on_duplicate_names"
+    );
     public static final NodeFeature PUT_MAPPING_NO_TYPES_CHECK = new NodeFeature("indices.put_mapping.no_types_check");
 
     @Override
@@ -270,7 +273,8 @@ public class MapperFeatures implements FeatureSpecification {
             ASH_QUANTIZATION_TYPE_SUPPORT,
             DOC_VALUES_ON_FAILURE,
             DISK_BBQ_STABLE_FORMAT_SELECTION,
-            PUT_MAPPING_NO_TYPES_CHECK
+            PUT_MAPPING_NO_TYPES_CHECK,
+            MAPPING_LIMIT_CHECKS_AT_PARSE_TIME
         );
     }
 }

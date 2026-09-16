@@ -78,13 +78,11 @@ public abstract class BaseGatewayShardAllocator {
      * @param logger           the logger
      * @return an {@link AllocateUnassignedDecision} with the final decision of whether to allocate and details of the decision
      */
-    public final AllocateUnassignedDecision makeAllocationDecision(
+    public abstract AllocateUnassignedDecision makeAllocationDecision(
         ShardRouting unassignedShard,
         RoutingAllocation allocation,
         Logger logger
-    ) {
-        return makeAllocationDecision(unassignedShard, allocation, logger, true);
-    }
+    );
 
     /**
      * Builds decisions for all nodes in the cluster, so that the explain API can provide information on

@@ -212,10 +212,7 @@ public class EsPhysicalOperationProvidersTests extends MapperServiceTestCase {
      * null for object values, rather than delegating to the broken KeywordFieldType loader paths.
      */
     public void testTrulyUnmappedFieldUsesUnmappedKeywordBlockLoader() throws IOException {
-        SearchExecutionContext searchExecutionContext = createSearchExecutionContext(
-            createMapperService(mapping(b -> {})),
-            null
-        );
+        SearchExecutionContext searchExecutionContext = createSearchExecutionContext(createMapperService(mapping(b -> {})), null);
         var defaultCtx = new EsPhysicalOperationProviders.DefaultShardContext(
             0,
             new NoOpReleasable(),

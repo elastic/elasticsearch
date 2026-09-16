@@ -37,7 +37,7 @@ public class BytesRefArrayStatePartitionTests extends ESTestCase {
         var breaker = bigArrays.breakerService().getBreaker(CircuitBreaker.REQUEST);
         var partitionBreaker = new NoopCircuitBreaker("partition");
 
-        int numGroups = between(1, 2000);
+        int numGroups = between(1, 50000);
         boolean withNulls = randomBoolean();
         BytesRef[] expected = new BytesRef[numGroups];
 

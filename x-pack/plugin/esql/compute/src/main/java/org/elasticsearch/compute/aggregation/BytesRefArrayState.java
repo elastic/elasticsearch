@@ -409,7 +409,7 @@ public final class BytesRefArrayState implements GroupingAggregatorState, Releas
         }
 
         private void splitPaged(int firstId, short[] shiftedIds, int[] batchPartitionCounts) {
-            BytesRef scratch = new BytesRef();
+            BytesRef empty = new BytesRef();
             for (int p = 0; p < NUM_PARTITIONS; p++) {
                 final int count = batchPartitionCounts[p];
                 if (count == 0) {
@@ -429,7 +429,7 @@ public final class BytesRefArrayState implements GroupingAggregatorState, Releas
                             pagedState.seen[p][currentCount + i] = true;
                         }
                     } else {
-                        pagedState.partitionArrays[p].append(scratch);
+                        pagedState.partitionArrays[p].append(empty);
                     }
                 }
             }

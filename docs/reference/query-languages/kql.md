@@ -8,7 +8,7 @@ mapped_pages:
 :::{note}
 This section provides detailed **reference information**.
 
-Refer to [KQL overview](docs-content://explore-analyze/query-filter/languages/kql.md) in the **Explore and analyze** section for overview and conceptual information about the SQL query language.
+Refer to [KQL overview](docs-content://explore-analyze/query-filter/languages/kql.md) in the **Explore and analyze** section for overview and conceptual information about KQL.
 :::
 
 
@@ -96,13 +96,15 @@ For more examples on acceptable date formats, refer to [Date Math](/reference/el
 
 ## Filter for documents using wildcards [_filter_for_documents_using_wildcards]
 
-To search for documents matching a pattern, use the wildcard syntax. For example, to find documents where `http.response.status_code` begins with a 4, use the following syntax:
+To search for documents matching a pattern, use the wildcard syntax. Wildcard queries are supported on keyword, text, and wildcard fields, but not on numeric, date, or boolean fields. For example, to find documents where `machine.os` begins with "win", use the following syntax:
 
 ```yaml
-http.response.status_code: 4*
+machine.os: win*
 ```
 
-By default, leading wildcards are not allowed for performance reasons. You can modify this with the [`query:allowLeadingWildcards`](kibana://reference/advanced-settings.md#query-allowleadingwildcards) advanced setting.
+Leading wildcards are allowed by default. Leading wildcard queries can be expensive.
+
+{applies_to}`stack: ga` {applies_to}`serverless: unavailable` In {{kib}}, you can turn them off with the [`query:allowLeadingWildcards`](kibana://reference/advanced-settings.md#query-allowleadingwildcards) advanced setting.
 
 ::::{note}
 Only `*` is currently supported. This matches zero or more characters.

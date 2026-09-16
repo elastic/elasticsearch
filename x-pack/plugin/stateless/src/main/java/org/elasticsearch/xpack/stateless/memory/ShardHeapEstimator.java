@@ -55,8 +55,8 @@ public class ShardHeapEstimator {
     /// If [#selfReportedShardMemoryOverheadEnabled] and the shard has a self-reported overhead, it'll be returned in
     /// [ShardAndIndexHeapUsage#shardHeapUsageBytes()] and [ShardAndIndexHeapUsage#postingsHeapUsageBytes()] will be zero.
     ///
-    /// If [#selfReportedShardMemoryOverheadEnabled] is disabled, or the shard has no self-reported overhead
-    /// [ShardAndIndexHeapUsage#shardHeapUsageBytes()] will be set to the adaptive shard estimate and
+    /// If [#selfReportedShardMemoryOverheadEnabled] is disabled, or the shard has no self-reported overhead,
+    /// then [ShardAndIndexHeapUsage#shardHeapUsageBytes()] will be set to the adaptive shard estimate and
     /// [ShardAndIndexHeapUsage#postingsHeapUsageBytes()] will be set to shard's reported postings size.
     public ShardAndIndexHeapUsage computeShardHeapUsage(StatelessMemoryMetricsService.ShardMemoryMetrics shardMemoryMetrics) {
         return new ShardAndIndexHeapUsage(

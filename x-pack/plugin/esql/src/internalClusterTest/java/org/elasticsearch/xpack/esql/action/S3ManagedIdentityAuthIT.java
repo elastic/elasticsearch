@@ -16,6 +16,7 @@ import com.carrotsearch.randomizedtesting.ThreadFilter;
 import com.carrotsearch.randomizedtesting.annotations.ThreadLeakFilters;
 import com.sun.net.httpserver.HttpServer;
 
+import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.SuppressForbidden;
@@ -49,17 +50,19 @@ import java.util.Collection;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicReference;
 
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.getValuesList;
 import static org.elasticsearch.xpack.esql.action.EsqlQueryRequest.syncEsqlQueryRequest;
+import static org.hamcrest.Matchers.anyOf;
 import static org.hamcrest.Matchers.containsString;
+import static org.hamcrest.Matchers.containsStringIgnoringCase;
 import static org.hamcrest.Matchers.equalTo;
-import static org.hamcrest.Matchers.greaterThanOrEqualTo;
+import static org.hamcrest.Matchers.hasItem;
 import static org.hamcrest.Matchers.hasSize;
-import static org.hamcrest.Matchers.notNullValue;
 
 /**
  * End-to-end regression guard for {@code auth=managed_identity} on S3 external data sources,
@@ -77,11 +80,16 @@ import static org.hamcrest.Matchers.notNullValue;
  *       construction → IMDS credential resolution → actual data read.</li>
  * </ol>
  *
- * <p>The mock IMDS serves whatever {@link #imdsAccessKey} holds at fetch time. The wrong-credential
- * sub-test sets a different key and registers the datasource with a distinct endpoint string
- * ({@code 127.0.0.1} vs {@code localhost}) to force a cache miss in {@code StorageProviderRegistry}
- * — the cache key includes the config map, so a different endpoint string means a fresh provider
- * is constructed, whose first IMDS fetch picks up the updated key.
+ * <p>The mock IMDS serves whatever {@link #imdsAccessKey} holds at fetch time. Both the IMDS and S3
+ * fixtures bind to {@code 127.0.0.1} and the advertised URLs use that same address (not
+ * {@code localhost}): {@code localhost} is dual-stack, so the AWS SDK can connect to {@code ::1} and
+ * miss an IPv4-only IMDS bind — credential resolution then fails before any S3 request is signed.
+ * The wrong-credential sub-test sets a different IMDS key and puts {@code region=us-east-2} on the
+ * <em>dataset</em> (not the data source: {@code DatasetRewriter} strips data-source {@code region})
+ * so both {@code StorageProviderCache} (scheme + config map) and {@code SchemaCacheKey} (endpoint +
+ * region) miss the happy-path client; a fresh provider's first IMDS fetch picks up the updated key.
+ * The S3 fixture accepts any SigV4 region so HTTP 403 is from the wrong access key, not a region
+ * mismatch.
  */
 @ESIntegTestCase.ClusterScope(scope = ESIntegTestCase.Scope.SUITE, numDataNodes = 1, numClientNodes = 0, supportsDedicatedMasters = false)
 @SuppressForbidden(reason = "uses HttpServer for local S3 fixture and System.setProperty for workload identity credential seeding")
@@ -97,8 +105,11 @@ public class S3ManagedIdentityAuthIT extends AbstractEsqlIntegTestCase {
     static final String DATASOURCE_NAME = "managed_identity_s3";
     static final String DATASET_NAME = "managed_identity_rows";
 
-    /** Captures the Authorization header from the most recent S3 request for assertion. */
-    static final AtomicReference<String> lastAuthorizationHeader = new AtomicReference<>();
+    /**
+     * SigV4 {@code Authorization} headers captured from the S3 fixture. A list (not last-writer)
+     * so leftover SDK traffic after the query cannot replace the header the assertion needs.
+     */
+    static final List<String> authorizationHeaders = new CopyOnWriteArrayList<>();
 
     /** Access key served by the mock IMDS; swap before registering a datasource to inject a different credential. */
     static final AtomicReference<String> imdsAccessKey = new AtomicReference<>(WORKLOAD_IDENTITY_ACCESS_KEY);
@@ -114,11 +125,18 @@ public class S3ManagedIdentityAuthIT extends AbstractEsqlIntegTestCase {
         s3Handler.blobs().put("/" + BUCKET + "/" + OBJECT_KEY, new BlobEntry(new BytesArray(ndjson), "STANDARD"));
 
         // Validate SigV4 signatures: only requests signed with WORKLOAD_IDENTITY_ACCESS_KEY are accepted.
-        // checkAuthorization sends the 403 response itself when auth fails, so we just return.
-        var authPredicate = AwsCredentialsUtils.fixedAccessKey(WORKLOAD_IDENTITY_ACCESS_KEY, () -> "us-east-1", "s3");
-        s3Server = HttpServer.create(new InetSocketAddress(0), 0);
+        // Region is not checked so the wrong-credential test can set dataset region=us-east-2 to miss
+        // the provider cache without turning a 403 into a region mismatch. checkAuthorization sends
+        // the 403 response itself when auth fails, so we just return.
+        var authPredicate = AwsCredentialsUtils.fixedAccessKey(WORKLOAD_IDENTITY_ACCESS_KEY, AwsCredentialsUtils.ANY_REGION, "s3");
+        s3Server = HttpServer.create(new InetSocketAddress(InetAddress.getByName("127.0.0.1"), 0), 0);
         s3Server.createContext("/", exchange -> {
-            lastAuthorizationHeader.set(exchange.getRequestHeaders().getFirst("Authorization"));
+            // Record every signed request. Unsigned probes are ignored; later signed leftovers are
+            // still in the list so assertions can match on any header, not the last writer.
+            String authorization = exchange.getRequestHeaders().getFirst("Authorization");
+            if (authorization != null) {
+                authorizationHeaders.add(authorization);
+            }
             if (AwsCredentialsUtils.checkAuthorization(authPredicate, exchange) == false) {
                 return;  // checkAuthorization already wrote the 403 response
             }
@@ -138,43 +156,47 @@ public class S3ManagedIdentityAuthIT extends AbstractEsqlIntegTestCase {
 
     @BeforeClass
     public static void startImdsServer() throws Exception {
-        imdsServer = HttpServer.create(new InetSocketAddress(InetAddress.getLoopbackAddress(), 0), 0);
+        imdsServer = HttpServer.create(new InetSocketAddress(InetAddress.getByName("127.0.0.1"), 0), 0);
         // IMDSv2 token endpoint — the SDK PUTs here first; return a dummy token.
         imdsServer.createContext("/latest/api/token", exchange -> {
-            byte[] token = "test-imds-token".getBytes(StandardCharsets.UTF_8);
-            exchange.sendResponseHeaders(200, token.length);
-            exchange.getResponseBody().write(token);
-            exchange.close();
+            try (exchange) {
+                exchange.getRequestBody().readAllBytes();
+                byte[] token = "test-imds-token".getBytes(StandardCharsets.UTF_8);
+                exchange.sendResponseHeaders(200, token.length);
+                exchange.getResponseBody().write(token);
+            }
         });
-        // Credentials endpoints — list role, then return credentials JSON.
         // Credentials endpoint — list role then return credentials JSON.
         imdsServer.createContext("/latest/meta-data/iam/security-credentials", exchange -> {
-            String path = exchange.getRequestURI().getPath();
-            if (path.endsWith("security-credentials") || path.endsWith("security-credentials/")) {
-                byte[] role = "test-role\n".getBytes(StandardCharsets.UTF_8);
-                exchange.sendResponseHeaders(200, role.length);
-                exchange.getResponseBody().write(role);
-            } else {
-                String expiration = Instant.now().plusSeconds(3600).toString();
-                String json = "{\"Code\":\"Success\",\"LastUpdated\":\"2025-01-01T00:00:00Z\","
-                    + "\"Type\":\"AWS-HMAC\",\"AccessKeyId\":\""
-                    + imdsAccessKey.get()
-                    + "\",\"SecretAccessKey\":\""
-                    + WORKLOAD_IDENTITY_SECRET_KEY
-                    + "\",\"Expiration\":\""
-                    + expiration
-                    + "\"}";
-                byte[] body = json.getBytes(StandardCharsets.UTF_8);
-                exchange.getResponseHeaders().set("Content-Type", "application/json");
-                exchange.sendResponseHeaders(200, body.length);
-                exchange.getResponseBody().write(body);
+            try (exchange) {
+                exchange.getRequestBody().readAllBytes();
+                String path = exchange.getRequestURI().getPath();
+                if (path.endsWith("security-credentials") || path.endsWith("security-credentials/")) {
+                    byte[] role = "test-role\n".getBytes(StandardCharsets.UTF_8);
+                    exchange.sendResponseHeaders(200, role.length);
+                    exchange.getResponseBody().write(role);
+                } else {
+                    String expiration = Instant.now().plusSeconds(3600).toString();
+                    String json = "{\"Code\":\"Success\",\"LastUpdated\":\"2025-01-01T00:00:00Z\","
+                        + "\"Type\":\"AWS-HMAC\",\"AccessKeyId\":\""
+                        + imdsAccessKey.get()
+                        + "\",\"SecretAccessKey\":\""
+                        + WORKLOAD_IDENTITY_SECRET_KEY
+                        + "\",\"Token\":\"test-imds-session-token\""
+                        + ",\"Expiration\":\""
+                        + expiration
+                        + "\"}";
+                    byte[] body = json.getBytes(StandardCharsets.UTF_8);
+                    exchange.getResponseHeaders().set("Content-Type", "application/json");
+                    exchange.sendResponseHeaders(200, body.length);
+                    exchange.getResponseBody().write(body);
+                }
             }
-            exchange.close();
         });
         imdsServer.start();
-        // Set before cluster nodes are created so InstanceProfileCredentialsProvider
-        // uses the mock from the very first credential resolution.
-        System.setProperty("aws.ec2MetadataServiceEndpoint", "http://localhost:" + imdsServer.getAddress().getPort());
+        // Bind and advertise the same IPv4 loopback address. "localhost" can resolve to ::1 and miss this server.
+        // Set before tests run so InstanceProfileCredentialsProvider uses the mock on first resolution.
+        System.setProperty("aws.ec2MetadataServiceEndpoint", "http://127.0.0.1:" + imdsServer.getAddress().getPort());
     }
 
     @AfterClass
@@ -189,6 +211,7 @@ public class S3ManagedIdentityAuthIT extends AbstractEsqlIntegTestCase {
     @Before
     public void resetImdsKey() {
         imdsAccessKey.set(WORKLOAD_IDENTITY_ACCESS_KEY);
+        authorizationHeaders.clear();
     }
 
     @After
@@ -267,17 +290,15 @@ public class S3ManagedIdentityAuthIT extends AbstractEsqlIntegTestCase {
         registerManagedIdentityDatasource();
         registerDataset();
 
-        try (EsqlQueryResponse response = run(syncEsqlQueryRequest("FROM " + DATASET_NAME + " | STATS count = COUNT(*)"))) {
+        try (EsqlQueryResponse response = run(syncEsqlQueryRequest("FROM " + DATASET_NAME))) {
             List<List<Object>> rows = getValuesList(response);
-            assertThat("auth=managed_identity FROM query must return rows from fixture", rows, hasSize(greaterThanOrEqualTo(1)));
+            assertThat("auth=managed_identity FROM query must return rows from fixture", rows, hasSize(equalTo(2)));
         }
 
-        String authHeader = lastAuthorizationHeader.get();
-        assertThat("S3 request must carry an Authorization header", authHeader, notNullValue());
         assertThat(
-            "Authorization header must contain the workload identity access key from mock IMDS",
-            authHeader,
-            containsString(WORKLOAD_IDENTITY_ACCESS_KEY)
+            "S3 request must carry an Authorization header with the workload identity access key from mock IMDS",
+            authorizationHeaders,
+            hasItem(containsString(WORKLOAD_IDENTITY_ACCESS_KEY))
         );
     }
 
@@ -286,39 +307,32 @@ public class S3ManagedIdentityAuthIT extends AbstractEsqlIntegTestCase {
      * {@link #WORKLOAD_IDENTITY_ACCESS_KEY}, proving the auth gate is actually enforced.
      *
      * <p>Sets a wrong key in {@link #imdsAccessKey} <em>before</em> registering the datasource
-     * and uses {@code 127.0.0.1} instead of {@code localhost} as the endpoint, forcing a cache miss
-     * in {@code StorageProviderRegistry}. The fresh provider's first IMDS fetch returns the wrong
-     * key, the S3 request is signed with it, and the fixture rejects with HTTP 403.
+     * and puts {@code region=us-east-2} on the dataset so both the provider cache and
+     * {@code SchemaCacheKey} miss the happy-path client. Data-source {@code region} is ignored
+     * at query time, so it cannot bust those caches. The fresh provider's first IMDS fetch
+     * returns the wrong key, the S3 request is signed with it, and the fixture rejects with
+     * HTTP 403 because the access key does not match (the fixture accepts any region).
      */
     public void testQueryFailsWhenWrongCredentialIsUsed() throws Exception {
         imdsAccessKey.set("wrong-key-that-fixture-rejects");
-        assertAcked(
-            client().execute(
-                PutDataSourceAction.INSTANCE,
-                new PutDataSourceAction.Request(
-                    TIMEOUT,
-                    TIMEOUT,
-                    DATASOURCE_NAME,
-                    "s3",
-                    null,
-                    new HashMap<>(Map.of("auth", "managed_identity", "region", "us-east-1", "endpoint", "http://127.0.0.1:" + s3Port))
-                )
-            )
-        );
-        registerDataset();
+        registerManagedIdentityDatasource();
+        registerDataset(Map.of("region", "us-east-2"));
 
-        lastAuthorizationHeader.set(null);
-        expectThrows(Exception.class, () -> {
-            try (var ignored = run(syncEsqlQueryRequest("FROM " + DATASET_NAME + " | STATS count = COUNT(*)"))) {
+        authorizationHeaders.clear();
+        Exception thrown = expectThrows(Exception.class, () -> {
+            try (var ignored = run(syncEsqlQueryRequest("FROM " + DATASET_NAME))) {
                 fail("query must fail: fixture rejects requests not signed with WORKLOAD_IDENTITY_ACCESS_KEY");
             }
         });
-        String authHeader = lastAuthorizationHeader.get();
-        assertThat("S3 request must have reached the fixture", authHeader, notNullValue());
         assertThat(
-            "Authorization header must contain the wrong key injected via mock IMDS",
-            authHeader,
-            containsString("wrong-key-that-fixture-rejects")
+            "query must fail because the fixture rejected the signed request, not because IMDS was unreachable",
+            ExceptionsHelper.stackTrace(thrown),
+            anyOf(containsString("AccessDenied"), containsStringIgnoringCase("access denied"))
+        );
+        assertThat(
+            "S3 request must have reached the fixture with the wrong key injected via mock IMDS",
+            authorizationHeaders,
+            hasItem(containsString("wrong-key-that-fixture-rejects"))
         );
     }
 
@@ -360,7 +374,7 @@ public class S3ManagedIdentityAuthIT extends AbstractEsqlIntegTestCase {
                             "region",
                             "us-east-1",
                             "endpoint",
-                            "http://localhost:" + s3Port
+                            "http://127.0.0.1:" + s3Port
                         )
                     )
                 )
@@ -387,13 +401,17 @@ public class S3ManagedIdentityAuthIT extends AbstractEsqlIntegTestCase {
                     DATASOURCE_NAME,
                     "s3",
                     null,
-                    new HashMap<>(Map.of("auth", "managed_identity", "region", "us-east-1", "endpoint", "http://localhost:" + s3Port))
+                    new HashMap<>(Map.of("auth", "managed_identity", "region", "us-east-1", "endpoint", "http://127.0.0.1:" + s3Port))
                 )
             )
         );
     }
 
     private void registerDataset() throws Exception {
+        registerDataset(Map.of());
+    }
+
+    private void registerDataset(Map<String, Object> settings) throws Exception {
         assertAcked(
             client().execute(
                 PutDatasetAction.INSTANCE,
@@ -404,7 +422,7 @@ public class S3ManagedIdentityAuthIT extends AbstractEsqlIntegTestCase {
                     DATASOURCE_NAME,
                     "s3://" + BUCKET + "/" + OBJECT_KEY,
                     null,
-                    new HashMap<>()
+                    new HashMap<>(settings)
                 )
             )
         );

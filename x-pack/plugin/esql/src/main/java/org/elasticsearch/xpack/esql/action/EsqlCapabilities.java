@@ -1481,6 +1481,16 @@ public class EsqlCapabilities {
         SUBQUERY_IN_FROM_COMMAND_CARRY_OVER_SYNTHETIC_CONVERT_ATTRIBUTES,
 
         /**
+         * Fix for the same conversion function applied more than once to the same attribute above a {@code UnionAll}
+         * (e.g. twice in one WHERE): {@code ResolveUnionTypesInUnionAll} dedupes the equal conversions into a single
+         * pushed-down alias and must replace every equal occurrence with the union output's attribute. Matching
+         * occurrences by identity used to leave all but one unreplaced, making the analyzer's Resolution batch loop
+         * until the rule execution limit.
+         * https://github.com/elastic/elasticsearch-serverless/issues/7693
+         */
+        SUBQUERY_IN_FROM_COMMAND_REPEATED_CONVERSIONS,
+
+        /**
          * Fix for union types that have counter field renamed, but the data type is inconsistent with union all output.
          */
         SUBQUERY_IN_FROM_COMMAND_UNION_TYPES_IMPLICIT_CASTING_INCONSISTENT_AFTER_RENAME,
@@ -2926,6 +2936,12 @@ public class EsqlCapabilities {
         EXTERNAL_CSV_HEADER_ROW_OPTION,
 
         /**
+         * Support for the {@code skip_rows} CSV/TSV option, which discards a fixed number of
+         * leading content records on the first split of each file before {@code header_row}.
+         */
+        EXTERNAL_CSV_SKIP_ROWS_OPTION,
+
+        /**
          * The CSV/TSV file-level {@code datetime_format} option compiles to an Elasticsearch
          * {@code DateFormatter} rather than a raw JDK {@code DateTimeFormatter}: zone offsets are honored,
          * date-only patterns parse, and named formats and {@code a||b} composites are accepted.
@@ -3487,16 +3503,9 @@ public class EsqlCapabilities {
         /**
          * Read an unmapped field straight from {@code _source}, so an object value reads as {@code null} rather than as Java's
          * {@code Map.toString()}. Applies to both source modes and to {@code LOAD} as well as {@code LOAD_ALL}.
-         * <p>
-         * Snapshot-gated because changing it for the released {@code LOAD} is a minor breaking change pending
-         * https://github.com/elastic/elasticsearch/issues/158306. To lift the gate, drop the constructor argument; that also makes
-         * {@code DefaultShardContextForUnmappedField#fieldType} and its helpers dead code, so see the TODO on that override in
-         * {@code EsPhysicalOperationProviders} for the clean-up that has to follow.
-         * <p>
-         * Note this must be lifted no later than {@link #OPTIONAL_FIELDS_LOAD_ALL_V2}: both share the block loader this gates, so
-         * graduating {@code LOAD_ALL} while this stays gated would reintroduce #156381 and #156433.
+         * See https://github.com/elastic/elasticsearch/issues/158306.
          */
-        OPTIONAL_FIELDS_FIX_UNMAPPED_OBJECT_VALUE(Build.current().isSnapshot()),
+        OPTIONAL_FIELDS_FIX_UNMAPPED_OBJECT_VALUE(),
 
         OPTIONAL_FIELDS_LOAD_ALL_NET_ZERO_PROJECTION(OPTIONAL_FIELDS_LOAD_ALL_V2.isEnabled()),
 

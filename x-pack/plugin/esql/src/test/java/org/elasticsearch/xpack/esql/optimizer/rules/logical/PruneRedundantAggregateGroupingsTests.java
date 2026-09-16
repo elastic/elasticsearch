@@ -286,9 +286,9 @@ public class PruneRedundantAggregateGroupingsTests extends AbstractLogicalPlanOp
 
     /**
      * Thousands of chained EVAL aliases grouped on, over an ordinary index, each alias referencing the two before it so the
-     * unbounded expansion of https://github.com/elastic/elasticsearch/issues/150104 grows exponentially. Without the cap
-     * this run exhausts the heap; the depth-only shape of {@code HeapAttackIT.testGroupOnManyLongs} only fails on a node's
-     * 1 MB stack and is covered there.
+     * unbounded expansion of https://github.com/elastic/elasticsearch/issues/150104 grows exponentially and exhausts the
+     * heap. Over an ordinary index nothing is prunable, so the expansion is now skipped before any cap applies; the
+     * depth-only shape of {@code HeapAttackIT.testGroupOnManyLongs} only fails on a node's 1 MB stack and is covered there.
      */
     public void testLongAliasChainOverOrdinaryIndexDoesNotOverflow() {
         int count = 5000;
@@ -353,6 +353,25 @@ public class PruneRedundantAggregateGroupingsTests extends AbstractLogicalPlanOp
         assertThat(Expressions.names(as(aggregate.child(), Eval.class).fields()), contains("a", "b"));
     }
 
+    /**
+     * {@code d} is dead but reads the pruned {@code a}; the rule alone must leave a valid plan rather than rely on
+     * {@code PruneColumns} removing {@code d} later in the batch.
+     */
+    public void testKeepsPrunedAliasReadByUnusedField() {
+        var analyzed = analyzedExternalPlan("""
+            FROM ext_ds
+            | EVAL a = ClientIP - 1, d = a + 1
+            | STATS c = COUNT(*) BY ClientIP, a
+            """);
+
+        var plan = new PruneRedundantAggregateGroupings().apply(analyzed);
+
+        var project = as(as(plan, Limit.class).child(), Project.class);
+        var aggregate = as(as(project.child(), Eval.class).child(), Aggregate.class);
+        assertThat(Expressions.names(aggregate.groupings()), contains("ClientIP"));
+        assertThat(Expressions.names(as(aggregate.child(), Eval.class).fields()), contains("a", "d"));
+    }
+
     private static String chainedExternalQuery(int depth) {
         return chainedExternalQuery(depth, null);
     }
@@ -371,12 +390,15 @@ public class PruneRedundantAggregateGroupingsTests extends AbstractLogicalPlanOp
     }
 
     private LogicalPlan externalPlan(String query) {
-        List<Attribute> schema = List.of(
-            referenceAttribute("ClientIP", INTEGER),
-            referenceAttribute("OtherIP", INTEGER),
-            referenceAttribute("URL", KEYWORD)
-        );
-        return datasetPlan(query, DATASET_NAME, S3_RESOURCE, schema);
+        return datasetPlan(query, DATASET_NAME, S3_RESOURCE, externalSchema());
+    }
+
+    private LogicalPlan analyzedExternalPlan(String query) {
+        return analyzedDatasetPlan(query, DATASET_NAME, S3_RESOURCE, externalSchema());
+    }
+
+    private static List<Attribute> externalSchema() {
+        return List.of(referenceAttribute("ClientIP", INTEGER), referenceAttribute("OtherIP", INTEGER), referenceAttribute("URL", KEYWORD));
     }
 
     private static Project rewrittenProject(LogicalPlan plan) {

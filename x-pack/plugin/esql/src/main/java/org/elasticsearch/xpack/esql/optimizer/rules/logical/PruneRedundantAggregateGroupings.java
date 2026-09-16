@@ -175,19 +175,26 @@ public final class PruneRedundantAggregateGroupings extends OptimizerRules.Optim
             return child;
         }
 
-        AttributeSet.Builder requiredByAggregate = Aggregate.computeReferences(newAggregates, newGroupings).asBuilder();
-        // A kept grouping may reach a pruned alias through other aliases (ip_2 = ip_1 - 1 keeps ip_1 alive). Fields only
-        // reference earlier fields, so one pass from the end collects everything still reachable.
+        AttributeSet.Builder prunedAttributes = AttributeSet.builder();
+        for (PrunedGrouping prunedGrouping : prunedGroupings) {
+            Attribute attribute = Expressions.attribute(prunedGrouping.grouping());
+            if (attribute != null) {
+                prunedAttributes.add(attribute);
+            }
+        }
+        // Only a pruned alias may go, and only if nothing left behind reads it: a kept grouping such as b = a * 2, or a field
+        // that stays regardless. Fields only reference earlier fields, so one pass from the end sees every remaining reader.
+        AttributeSet.Builder required = Aggregate.computeReferences(newAggregates, newGroupings).asBuilder();
         List<Alias> fields = eval.fields();
         for (int i = fields.size() - 1; i >= 0; i--) {
-            if (requiredByAggregate.contains(fields.get(i).toAttribute())) {
-                requiredByAggregate.addAll(fields.get(i).child().references());
+            Attribute attribute = fields.get(i).toAttribute();
+            if (prunedAttributes.contains(attribute) == false || required.contains(attribute)) {
+                required.addAll(fields.get(i).child().references());
             }
         }
         AttributeSet.Builder removableAttributes = AttributeSet.builder();
-        for (PrunedGrouping prunedGrouping : prunedGroupings) {
-            Attribute attribute = Expressions.attribute(prunedGrouping.grouping());
-            if (attribute != null && requiredByAggregate.contains(attribute) == false) {
+        for (Attribute attribute : prunedAttributes.build()) {
+            if (required.contains(attribute) == false) {
                 removableAttributes.add(attribute);
             }
         }

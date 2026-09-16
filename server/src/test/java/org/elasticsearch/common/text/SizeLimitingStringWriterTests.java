@@ -27,6 +27,22 @@ public class SizeLimitingStringWriterTests extends ESTestCase {
         assertThat(writer.toString(), equalTo("ABCDEFGHIKLMNO"));
     }
 
+    public void testZeroLengthWriteAtCapacity() throws Exception {
+        final var writer = new SizeLimitingStringWriter(3);
+        writer.write("abc");
+        // zero-length writes must not throw even when the writer is at capacity
+        writer.write(new char[0]);
+        writer.write(new char[] { 'x', 'y' }, 0, 0);
+        writer.write("", 0, 0);
+        assertThat(writer.toString(), equalTo("abc"));
+    }
+
+    public void testPartialWriteBeforeLimit() throws Exception {
+        final var writer = new SizeLimitingStringWriter(5);
+        expectThrows(SizeLimitingStringWriter.SizeLimitExceededException.class, () -> writer.write("abcdefgh"));
+        assertThat(writer.toString(), equalTo("abcde"));
+    }
+
     public void testSizeIsLimited() {
         SizeLimitingStringWriter writer = new SizeLimitingStringWriter(10);
 

@@ -1279,7 +1279,9 @@ public class ParquetFormatReader implements RangeAwareFormatReader, NoConfigForm
      * offered to the cache best-effort after a successful parse so a later split-discovery pass can
      * reuse them, but correctness never depends on that. Callers of this listener seed
      * {@link #parsedFooters} after a successful metadata convert or range extract. {@code release}
-     * uncharges the GET (or the heap copy) after parse, success or failure.
+     * uncharges the GET (or the heap copy) after parse, success or failure, and always before
+     * {@code listener} is notified so a parse-time {@link CircuitBreakingException} cannot complete
+     * with leftover request-breaker charge.
      */
     private void parseTailOnExecutor(
         StorageObject object,
@@ -1290,30 +1292,19 @@ public class ParquetFormatReader implements RangeAwareFormatReader, NoConfigForm
         Executor executor,
         ActionListener<ParquetMetadata> listener
     ) {
+        ActionListener<ParquetMetadata> released = ActionListener.releaseBefore(release, listener);
         try {
             executor.execute(() -> {
-                boolean closed = false;
                 try {
                     ParquetMetadata footer = parseParsedFooterFromTail(object, length, tailBytes);
                     footerBytes.put(cacheKey, tailBytes);
-                    release.close();
-                    closed = true;
-                    listener.onResponse(footer);
+                    released.onResponse(footer);
                 } catch (Exception e) {
-                    listener.onFailure(e);
-                } finally {
-                    if (closed == false) {
-                        release.close();
-                    }
+                    released.onFailure(e);
                 }
             });
         } catch (Exception e) {
-            try {
-                release.close();
-            } catch (Exception closeEx) {
-                e.addSuppressed(closeEx);
-            }
-            listener.onFailure(e);
+            released.onFailure(e);
         }
     }
 

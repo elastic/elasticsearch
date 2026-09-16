@@ -19,17 +19,17 @@ import org.gradle.api.tasks.JavaExec
 import org.gradle.api.tasks.SourceSetContainer
 import org.gradle.api.tasks.testing.Test
 
-class JmhPluginSpec extends AbstractProjectBuilderPluginSpec {
+class BenchmarkPluginSpec extends AbstractProjectBuilderPluginSpec {
 
     @Override
-    Class<JmhPlugin> getPluginClassUnderTest() {
-        return JmhPlugin
+    Class<BenchmarkPlugin> getPluginClassUnderTest() {
+        return BenchmarkPlugin
     }
 
     Project consumer
 
     def setup() {
-        // Sibling projects match JmhPlugin's findProject paths so the guarded wiring is exercised.
+        // Sibling projects match BenchmarkPlugin's findProject paths so the guarded wiring is exercised.
         def rootProject = buildProject("root")
         def benchmarks = buildProject("benchmarks", rootProject)
         buildProject("common", benchmarks)
@@ -56,8 +56,8 @@ class JmhPluginSpec extends AbstractProjectBuilderPluginSpec {
         def sourceSets = consumer.extensions.getByType(SourceSetContainer)
 
         then:
-        sourceSets.findByName(JmhPlugin.BENCHMARK_SOURCE_SET) != null
-        sourceSets.findByName(JmhPlugin.BENCHMARK_TEST_SOURCE_SET) != null
+        sourceSets.findByName(BenchmarkPlugin.BENCHMARK_SOURCE_SET) != null
+        sourceSets.findByName(BenchmarkPlugin.BENCHMARK_TEST_SOURCE_SET) != null
     }
 
     def "benchmark implementation extends main; benchmarkTest extends benchmark and test"() {
@@ -75,7 +75,7 @@ class JmhPluginSpec extends AbstractProjectBuilderPluginSpec {
 
     def "registers a benchmark JavaExec task running the JMH main class"() {
         when:
-        def task = consumer.tasks.getByName(JmhPlugin.BENCHMARK_TASK)
+        def task = consumer.tasks.getByName(BenchmarkPlugin.BENCHMARK_TASK)
 
         then:
         task instanceof JavaExec
@@ -85,7 +85,7 @@ class JmhPluginSpec extends AbstractProjectBuilderPluginSpec {
 
     def "registers a benchmarkTest Test task"() {
         when:
-        def task = consumer.tasks.getByName(JmhPlugin.BENCHMARK_TEST_TASK)
+        def task = consumer.tasks.getByName(BenchmarkPlugin.BENCHMARK_TEST_TASK)
 
         then:
         task instanceof Test
@@ -98,9 +98,9 @@ class JmhPluginSpec extends AbstractProjectBuilderPluginSpec {
         def deps = check.taskDependencies.getDependencies(check).collect { it.name }
 
         then:
-        JmhPlugin.BENCHMARK_TEST_TASK in deps
+        BenchmarkPlugin.BENCHMARK_TEST_TASK in deps
         // benchmark is developer-invoked; it must not be pulled in by check.
-        (JmhPlugin.BENCHMARK_TASK in deps) == false
+        (BenchmarkPlugin.BENCHMARK_TASK in deps) == false
     }
 
     def "wires jmh-core on benchmarkImplementation and generator-annprocess on benchmarkAnnotationProcessor"() {

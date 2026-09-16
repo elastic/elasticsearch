@@ -1120,26 +1120,20 @@ public class DenseVectorFieldMapper extends FieldMapper {
             return VectorData.fromBytes(vector);
         }
 
-        VectorData parseStringValue(
-            String s,
-            IntBooleanConsumer dimChecker,
-            VectorSimilarity similarity,
-            Function<String, byte[]> decoder
-        ) {
-            byte[] decodedVector = decoder.apply(s);
-            dimChecker.accept(decodedVector.length, true);
-            VectorData vectorData = VectorData.fromBytes(decodedVector);
-            double squaredMagnitude = computeSquaredMagnitude(vectorData);
-            checkVectorMagnitude(similarity, errorElementsAppender(decodedVector), (float) squaredMagnitude);
+        VectorData parseEncodedVector(DocumentParserContext context, int dims, IntBooleanConsumer dimChecker, VectorSimilarity similarity)
+            throws IOException {
+            XContentString.UTF8Bytes utfBytes = context.parser().optimizedText().bytes();
+            byte[] decoded;
+            try {
+                decoded = DecodedVector.decode(utfBytes, elementType(), dims).bytes();
+            } catch (IllegalArgumentException e) {
+                throw new ParsingException(context.parser().getTokenLocation(), e.getMessage());
+            }
+
+            dimChecker.accept(elementType().dims(decoded.length), true);
+            VectorData vectorData = VectorData.fromBytes(decoded);
+            checkVectorMagnitude(similarity, errorElementsAppender(decoded), (float) computeSquaredMagnitude(vectorData));
             return vectorData;
-        }
-
-        VectorData parseHexEncodedVector(String s, IntBooleanConsumer dimChecker, VectorSimilarity similarity) {
-            return parseStringValue(s, dimChecker, similarity, HexFormat.of()::parseHex);
-        }
-
-        VectorData parseBase64EncodedVector(String s, IntBooleanConsumer dimChecker, VectorSimilarity similarity) {
-            return parseStringValue(s, dimChecker, similarity, Base64.getDecoder()::decode);
         }
 
         @Override
@@ -1152,22 +1146,7 @@ public class DenseVectorFieldMapper extends FieldMapper {
             XContentParser.Token token = context.parser().currentToken();
             return switch (token) {
                 case START_ARRAY -> parseVectorArray(context, dims, dimChecker, similarity);
-                case VALUE_STRING -> {
-                    String s = context.parser().text();
-                    if (s.length() == dims * 2) {
-                        try {
-                            yield parseHexEncodedVector(s, dimChecker, similarity);
-                        } catch (IllegalArgumentException e) {
-                            yield parseBase64EncodedVector(s, dimChecker, similarity);
-                        }
-                    } else {
-                        try {
-                            yield parseBase64EncodedVector(s, dimChecker, similarity);
-                        } catch (IllegalArgumentException e) {
-                            yield parseHexEncodedVector(s, dimChecker, similarity);
-                        }
-                    }
-                }
+                case VALUE_STRING -> parseEncodedVector(context, dims, dimChecker, similarity);
                 default -> throw new ParsingException(
                     context.parser().getTokenLocation(),
                     format("Unsupported type [%s] for provided value [%s]", token, context.parser().text())
@@ -1484,33 +1463,16 @@ public class DenseVectorFieldMapper extends FieldMapper {
         VectorDataAndMagnitude parseBase64EncodedVector(DocumentParserContext context, IntBooleanConsumer dimChecker, int dims)
             throws IOException {
             XContentString.UTF8Bytes utfBytes = context.parser().optimizedText().bytes();
-            ByteBuffer srcBuffer = ByteBuffer.wrap(utfBytes.bytes(), utfBytes.offset(), utfBytes.length());
-            // BIG_ENDIAN is the default, but just being explicit here
-            ByteBuffer byteBuffer = Base64.getDecoder().decode(srcBuffer).order(ByteOrder.BIG_ENDIAN);
-            float[] decodedVector = new float[dims];
-            if (byteBuffer.remaining() == dims * Float.BYTES) {
-                byteBuffer.asFloatBuffer().get(decodedVector);
-            } else if (byteBuffer.remaining() == dims * BFloat16.BYTES) {
-                BFloat16.bFloat16ToFloat(byteBuffer, decodedVector);
-            } else {
-                throw new ParsingException(
-                    context.parser().getTokenLocation(),
-                    "Failed to parse object: Base64 decoded vector byte length ["
-                        + byteBuffer.remaining()
-                        + "] does not match the expected length of ["
-                        + (dims * Float.BYTES)
-                        + "] or ["
-                        + (dims * BFloat16.BYTES)
-                        + "] for dimension count ["
-                        + dims
-                        + "]"
-                );
+            float[] decodedVector;
+            try {
+                decodedVector = DecodedVector.decode(utfBytes, elementType(), dims, false).toFloatArray();
+            } catch (IllegalArgumentException e) {
+                throw new ParsingException(context.parser().getTokenLocation(), e.getMessage());
             }
 
             dimChecker.accept(decodedVector.length, true);
             VectorData vectorData = VectorData.fromFloats(decodedVector);
-            float squaredMagnitude = (float) computeSquaredMagnitude(vectorData);
-            return new VectorDataAndMagnitude(vectorData, squaredMagnitude);
+            return new VectorDataAndMagnitude(vectorData, (float) computeSquaredMagnitude(vectorData));
         }
 
         record VectorDataAndMagnitude(VectorData vectorData, float squaredMagnitude) {}
@@ -1632,18 +1594,6 @@ public class DenseVectorFieldMapper extends FieldMapper {
                 (value, isComplete) -> dimChecker.accept(value * Byte.SIZE, isComplete),
                 similarity
             );
-        }
-
-        @Override
-        VectorData parseStringValue(
-            String s,
-            IntBooleanConsumer dimChecker,
-            VectorSimilarity similarity,
-            Function<String, byte[]> decoder
-        ) {
-            byte[] decodedVector = decoder.apply(s);
-            dimChecker.accept(decodedVector.length * Byte.SIZE, true);
-            return VectorData.fromBytes(decodedVector);
         }
 
         @Override

@@ -11,6 +11,7 @@ package org.elasticsearch.index.mapper.vectors;
 
 import org.elasticsearch.index.codec.vectors.BFloat16;
 import org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapper.ElementType;
+import org.elasticsearch.xcontent.XContentString;
 
 import java.nio.ByteBuffer;
 import java.nio.ByteOrder;
@@ -20,7 +21,7 @@ import java.util.HexFormat;
 import java.util.List;
 
 /**
- * A dense vector decoded from a hex or base64 string.
+ * A dense vector decoded from a hex or base64 string, or UTF-8 byte slice.
  */
 public abstract sealed class DecodedVector permits DecodedVector.ByteVector, DecodedVector.EncodedFloatVector, DecodedVector.FloatVector {
 
@@ -50,42 +51,46 @@ public abstract sealed class DecodedVector permits DecodedVector.ByteVector, Dec
      * @throws IllegalArgumentException if the string cannot be decoded or doesn't match the expected dimensions
      */
     public static DecodedVector decode(String encoded, ElementType elementType, int dims, boolean parseHex) {
-        boolean isHex = parseHex && isHexString(encoded);
+        boolean isHex = parseHex && isHex(encoded);
         int hexVectorLength = encoded.length() / 2;
         if (isHex && hexVectorLength == elementType.vectorLength(dims)) {
             return new ByteVector(HexFormat.of().parseHex(encoded));
         }
+        return decodeBase64OrFail(tryParseBase64(encoded), isHex, hexVectorLength, elementType, dims, parseHex);
+    }
 
-        // Try base64 if it matches expected dimensions for the element type
-        byte[] base64Bytes = tryParseBase64(encoded);
-        if (base64Bytes != null && matchesExpectedBase64Length(base64Bytes.length, elementType, dims)) {
-            if ((elementType == ElementType.FLOAT || elementType == ElementType.BFLOAT16) && base64Bytes.length == dims * BFloat16.BYTES) {
-                float[] widened = new float[dims];
-                BFloat16.bFloat16ToFloat(base64Bytes, 0, widened, 0, dims, ByteOrder.BIG_ENDIAN);
-                return new FloatVector(widened);
-            }
-            return byteBackedVector(base64Bytes, elementType);
+    /**
+     * Decodes a dense vector supplied as a UTF-8 byte slice of a hex or base64 string, resolving which encoding
+     * was used and how the resulting bytes should be read.
+     *
+     * @param utf8        UTF-8 bytes of the hex or base64 string
+     * @param elementType element type of the field
+     * @param dims        expected number of dimensions
+     * @return the decoded vector
+     * @throws IllegalArgumentException if the bytes are not valid hex or base64, or don't match the expected dimensions
+     */
+    public static DecodedVector decode(XContentString.UTF8Bytes utf8, ElementType elementType, int dims) {
+        return decode(utf8, elementType, dims, true);
+    }
+
+    /**
+     * Decodes a dense vector supplied as a UTF-8 byte slice of a hex or base64 string, resolving which encoding
+     * was used and how the resulting bytes should be read.
+     *
+     * @param utf8        UTF-8 bytes of the hex or base64 string
+     * @param elementType element type of the field
+     * @param dims        expected number of dimensions
+     * @param parseHex    flag controlling if hex parsing is attempted
+     * @return the decoded vector
+     * @throws IllegalArgumentException if the bytes are not valid hex or base64, or don't match the expected dimensions
+     */
+    public static DecodedVector decode(XContentString.UTF8Bytes utf8, ElementType elementType, int dims, boolean parseHex) {
+        boolean isHex = parseHex && isHex(utf8.bytes(), utf8.offset(), utf8.length());
+        int hexVectorLength = utf8.length() / 2;
+        if (isHex && hexVectorLength == elementType.vectorLength(dims)) {
+            return new ByteVector(parseHexDigits(utf8.bytes(), utf8.offset(), utf8.length()));
         }
-
-        // The value is hex but doesn't match the expected dimensions
-        if (isHex) {
-            throw new IllegalArgumentException(
-                "failed to decode vector: hex-decoded vector has a different number of dimensions ["
-                    + elementType.dims(hexVectorLength)
-                    + "] than the expected ["
-                    + dims
-                    + "]"
-            );
-        }
-
-        // base64 was parsed but doesn't match dimensions
-        if (base64Bytes != null) {
-            throw invalidBase64Length(base64Bytes.length, elementType);
-        }
-
-        throw new IllegalArgumentException(
-            "failed to decode vector: value must be a valid base64" + (parseHex ? " or hex" : "") + " string"
-        );
+        return decodeBase64OrFail(tryParseBase64(utf8), isHex, hexVectorLength, elementType, dims, parseHex);
     }
 
     /**
@@ -233,14 +238,60 @@ public abstract sealed class DecodedVector permits DecodedVector.ByteVector, Dec
         }
     }
 
-    private static DecodedVector byteBackedVector(byte[] bytes, ElementType elementType) {
+    /**
+     * Completes decoding once the hex fast path has been ruled out: attempts to interpret {@code base64Bytes}
+     * (null when the input was not valid base64) according to the element type, or reports why the input
+     * could not be decoded.
+     *
+     * @param base64Bytes     the pre-attempted base64 decoded bytes, or {@code null} if decoding failed
+     * @param isHex           whether the input looked like a hex string (wrong length for hex path)
+     * @param hexVectorLength vector length the input would have had as hex, used only in the error message
+     */
+    private static DecodedVector decodeBase64OrFail(
+        ByteBuffer base64Bytes,
+        boolean isHex,
+        int hexVectorLength,
+        ElementType elementType,
+        int dims,
+        boolean parseHex
+    ) {
+        if (base64Bytes != null && matchesExpectedBase64Length(base64Bytes.remaining(), elementType, dims)) {
+            if ((elementType == ElementType.FLOAT || elementType == ElementType.BFLOAT16)
+                && base64Bytes.remaining() == dims * BFloat16.BYTES) {
+                float[] widened = new float[dims];
+                BFloat16.bFloat16ToFloat(base64Bytes.duplicate().order(ByteOrder.BIG_ENDIAN), widened);
+                return new FloatVector(widened);
+            }
+
+            return byteBackedVector(base64Bytes, elementType);
+        }
+
+        // The value is hex but doesn't match the expected dimensions
+        if (isHex) {
+            throw new IllegalArgumentException(
+                "failed to decode vector: hex-decoded vector has a different number of dimensions ["
+                    + elementType.dims(hexVectorLength)
+                    + "] than the expected ["
+                    + dims
+                    + "]"
+            );
+        } else if (base64Bytes != null) {
+            throw invalidBase64Length(base64Bytes.remaining(), elementType);
+        }
+
+        throw new IllegalArgumentException(
+            "failed to decode vector: value must be a valid base64" + (parseHex ? " or hex" : "") + " string"
+        );
+    }
+
+    private static DecodedVector byteBackedVector(ByteBuffer buffer, ElementType elementType) {
         return switch (elementType) {
-            case BYTE, BIT -> new ByteVector(bytes);
-            case FLOAT, BFLOAT16 -> new EncodedFloatVector(bytes);
+            case BYTE, BIT -> new ByteVector(toByteArray(buffer));
+            case FLOAT, BFLOAT16 -> new EncodedFloatVector(toByteArray(buffer));
         };
     }
 
-    private static boolean isHexString(String s) {
+    private static boolean isHex(String s) {
         int len = s.length();
         if (len % 2 != 0) {
             return false;
@@ -253,12 +304,57 @@ public abstract sealed class DecodedVector permits DecodedVector.ByteVector, Dec
         return true;
     }
 
-    private static byte[] tryParseBase64(String encoded) {
+    private static boolean isHex(byte[] bytes, int offset, int length) {
+        if (length % 2 != 0) {
+            return false;
+        }
+        for (int i = offset, end = offset + length; i < end; i++) {
+            if (HexFormat.isHexDigit(bytes[i] & 0xFF) == false) {
+                return false;
+            }
+        }
+        return true;
+    }
+
+    /** Parses hex digit pairs from an ASCII byte slice. Callers must validate with {@link #isHex} first. */
+    private static byte[] parseHexDigits(byte[] bytes, int offset, int length) {
+        byte[] result = new byte[length / 2];
+        for (int i = 0; i < result.length; i++) {
+            int high = HexFormat.fromHexDigit(bytes[offset + i * 2] & 0xFF);
+            int low = HexFormat.fromHexDigit(bytes[offset + i * 2 + 1] & 0xFF);
+            result[i] = (byte) ((high << 4) | low);
+        }
+        return result;
+    }
+
+    private static ByteBuffer tryParseBase64(String encoded) {
         try {
-            return Base64.getDecoder().decode(encoded);
+            return ByteBuffer.wrap(Base64.getDecoder().decode(encoded));
         } catch (IllegalArgumentException e) {
             return null;
         }
+    }
+
+    private static ByteBuffer tryParseBase64(XContentString.UTF8Bytes utf8) {
+        ByteBuffer srcBuffer = ByteBuffer.wrap(utf8.bytes(), utf8.offset(), utf8.length());
+        try {
+            return Base64.getDecoder().decode(srcBuffer);
+        } catch (IllegalArgumentException e) {
+            return null;
+        }
+    }
+
+    /**
+     * Converts a {@link ByteBuffer} to a byte array, avoiding an array copy when the buffer's backing array
+     * exactly covers the readable region.
+     */
+    private static byte[] toByteArray(ByteBuffer buffer) {
+        if (buffer.hasArray() && buffer.arrayOffset() == 0 && buffer.position() == 0 && buffer.remaining() == buffer.array().length) {
+            return buffer.array();
+        }
+        byte[] bytes = new byte[buffer.remaining()];
+        buffer.get(bytes);
+        return bytes;
     }
 
     private static boolean matchesExpectedBase64Length(int length, ElementType elementType, int dims) {

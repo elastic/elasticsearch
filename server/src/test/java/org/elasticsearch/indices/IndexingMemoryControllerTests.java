@@ -434,7 +434,7 @@ public class IndexingMemoryControllerTests extends IndexShardTestCase {
         shard.markAsRecovering("store");
 
         assertEquals(1, imc.availableShards().size());
-        assertTrue(recoverFromStore(shard));
+        recoverFromStore(shard);
         assertThat("we should have flushed in IMC at least once", flushes.get(), greaterThanOrEqualTo(1));
         closeShards(shard);
     }

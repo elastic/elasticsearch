@@ -59,7 +59,6 @@ public class ViewIT extends AbstractEsqlIntegTestCase {
 
     public void testCannotCreateAliasToView() {
         assertAcked(createView("my-view", "FROM not-validated"));
-        assertAcked(indicesAdmin().prepareCreate("source-index"));
 
         expectThrows(
             IndexNotFoundException.class,

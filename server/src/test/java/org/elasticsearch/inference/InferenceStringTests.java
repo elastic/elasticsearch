@@ -30,10 +30,10 @@ import java.util.List;
 import java.util.Map;
 import java.util.stream.Collectors;
 
+import static org.elasticsearch.inference.DataFormat.URL_INPUT_FORMAT_FEATURE_FLAG;
 import static org.elasticsearch.inference.InferenceString.EMBEDDING_AUDIO_VIDEO_PDF_INPUT_SUPPORT_ADDED;
 import static org.elasticsearch.inference.InferenceString.FORMAT_FIELD;
 import static org.elasticsearch.inference.InferenceString.TYPE_FIELD;
-import static org.elasticsearch.inference.InferenceString.URL_INPUT_FORMAT_FEATURE_FLAG;
 import static org.elasticsearch.inference.InferenceString.URL_INPUT_FORMAT_SUPPORT_ADDED;
 import static org.elasticsearch.inference.InferenceString.VALUE_FIELD;
 import static org.elasticsearch.inference.InferenceString.fromStringList;
@@ -316,9 +316,10 @@ public class InferenceStringTests extends AbstractBWCSerializationTestCase<Infer
                 () -> InferenceString.PARSER.apply(parser, null)
             );
             assertThat(exception.getMessage(), containsString("[InferenceString] failed to parse field [format]"));
+            var expectedFormats = URL_INPUT_FORMAT_FEATURE_FLAG.isEnabled() ? "[text, base64, url]" : "[text, base64]";
             assertThat(
                 exception.getCause().getMessage(),
-                is(Strings.format("Unrecognized format [%s], must be one of [text, base64, url]", invalidFormat))
+                is(Strings.format("Unrecognized format [%s], must be one of %s", invalidFormat, expectedFormats))
             );
         }
     }
@@ -343,6 +344,10 @@ public class InferenceStringTests extends AbstractBWCSerializationTestCase<Infer
             assertThat(exception.getMessage(), containsString("[InferenceString] failed to parse field [value]"));
             Throwable cause = exception.getCause();
             assertThat(cause.getMessage(), is("Failed to build [InferenceString] after last required field arrived"));
+            var displayedSupportedFormats = type.getSupportedFormats()
+                .stream()
+                .filter(f -> f != DataFormat.URL || URL_INPUT_FORMAT_FEATURE_FLAG.isEnabled())
+                .toList();
             assertThat(
                 cause.getCause().getMessage(),
                 is(
@@ -350,7 +355,7 @@ public class InferenceStringTests extends AbstractBWCSerializationTestCase<Infer
                         "Data type [%s] does not support data format [%s], supported formats are %s",
                         type,
                         invalidFormat,
-                        type.getSupportedFormats()
+                        displayedSupportedFormats
                     )
                 )
             );

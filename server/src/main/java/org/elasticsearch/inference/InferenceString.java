@@ -17,7 +17,6 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
-import org.elasticsearch.common.util.FeatureFlag;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.xcontent.ConstructingObjectParser;
@@ -45,11 +44,6 @@ public record InferenceString(DataType dataType, DataFormat dataFormat, String v
     public static final TransportVersion URL_INPUT_FORMAT_SUPPORT_ADDED = TransportVersion.fromName(
         "inference_api_url_input_format_support"
     );
-
-    /**
-     * Feature flag for URL-format inference inputs.
-     */
-    public static final FeatureFlag URL_INPUT_FORMAT_FEATURE_FLAG = new FeatureFlag("inference_url_input_format");
 
     // Caps regex cost regardless of total input size; real MIME types are well under this.
     static final int MAX_DATA_URI_PREFIX_LENGTH = 256;
@@ -117,12 +111,16 @@ public record InferenceString(DataType dataType, DataFormat dataFormat, String v
 
     private void validateTypeAndFormat() {
         if (dataType.getSupportedFormats().contains(dataFormat) == false) {
+            var displayedFormats = dataType.getSupportedFormats()
+                .stream()
+                .filter(f -> f != DataFormat.URL || DataFormat.URL_INPUT_FORMAT_FEATURE_FLAG.isEnabled())
+                .toList();
             throw new IllegalArgumentException(
                 Strings.format(
                     "Data type [%s] does not support data format [%s], supported formats are %s",
                     dataType,
                     dataFormat,
-                    dataType.getSupportedFormats()
+                    displayedFormats
                 )
             );
         }
@@ -139,7 +137,7 @@ public record InferenceString(DataType dataType, DataFormat dataFormat, String v
     }
 
     private void validateURLFormat() {
-        if (URL_INPUT_FORMAT_FEATURE_FLAG.isEnabled() == false) {
+        if (DataFormat.URL_INPUT_FORMAT_FEATURE_FLAG.isEnabled() == false) {
             throw new IllegalArgumentException("url format is not supported");
         }
         try {

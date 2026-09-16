@@ -24,9 +24,9 @@ import java.util.Collection;
 import java.util.List;
 import java.util.Map;
 
+import static org.elasticsearch.inference.DataFormat.URL_INPUT_FORMAT_FEATURE_FLAG;
 import static org.elasticsearch.inference.EmbeddingRequest.JINA_AI_EMBEDDING_TASK_ADDED;
 import static org.elasticsearch.inference.InferenceString.EMBEDDING_AUDIO_VIDEO_PDF_INPUT_SUPPORT_ADDED;
-import static org.elasticsearch.inference.InferenceString.URL_INPUT_FORMAT_FEATURE_FLAG;
 import static org.elasticsearch.inference.InferenceString.URL_INPUT_FORMAT_SUPPORT_ADDED;
 import static org.elasticsearch.inference.InferenceStringTests.TEST_DATA_URI;
 import static org.elasticsearch.inference.InferenceStringTests.randomDataTypeSupportingBase64;

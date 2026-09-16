@@ -91,10 +91,10 @@ public final class ChunkedBytesReader {
     }
 
     /**
-     * Points {@code dst} at {@code length} bytes at {@code offset} rather than copying them. The bytes are
-     * the decoded chunk's own, or the file's under the identity codec, and stay valid only until the next
-     * call on this reader. A caller that decodes a block and then hands out the values inside it saves a
-     * copy of the whole block this way; one that keeps the bytes must copy them.
+     * Points {@code dst} at {@code length} bytes at {@code offset} without copying them where they lie in one
+     * chunk, which is what a caller that decodes a block and then hands out the values inside it saves by.
+     * Bytes spread over several chunks are put back together first. Either way they are valid only until the
+     * next call on this reader, so a caller that keeps them must copy them.
      */
     public void span(long offset, int length, BytesRef dst) throws IOException {
         if (length == 0) {

@@ -48,7 +48,7 @@ import java.util.Arrays;
  *
  * <p>Blocks and chunks are separate on purpose. A block of long values and a block of short ones are the same
  * count of values and nothing like the same number of bytes, so the unit that is addressed cannot also be the
- * unit that is compressed. A chunk closes only on a block boundary, so no value spans two of them.
+ * unit that is compressed, and a chunk is cut wherever its own bound falls rather than where a block ends.
  */
 public final class ValueStream {
 

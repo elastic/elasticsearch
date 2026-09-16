@@ -75,7 +75,6 @@ final class ColumNARDocValuesConsumer extends DocValuesConsumer {
     private final int blockSize;
     private final StringColumnOptionsSelector stringSelector;
 
-    /** Bytes a chunk of a string column's byte stream holds before it is closed and compressed. */
     private boolean closed = false;
 
     private record FieldEntry(int fieldNumber, byte fieldTypeId, ColumnMetadata metadata) {}

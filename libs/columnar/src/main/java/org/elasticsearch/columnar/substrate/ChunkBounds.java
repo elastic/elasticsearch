@@ -13,9 +13,10 @@ package org.elasticsearch.columnar.substrate;
  * What closes a chunk: whichever bound it reaches first. A chunk is what a read of one value decompresses,
  * and the same byte count is a few long values or tens of thousands of short ones, so it is bounded both ways.
  *
- * @param targetBytes bytes a chunk holds before it is closed
- * @param maxValues   values a chunk holds before it is closed. A chunk ends on a value boundary, so it
- *                    closes at the first one at or past this rather than exactly on it.
+ * @param targetBytes the most bytes a chunk holds. A chunk is cut wherever this falls, inside a value if
+ *                    that is where it lands, so no chunk is larger than it.
+ * @param maxValues   the most values a chunk holds. Only the caller knows where a value ends, so this is
+ *                    reached at a boundary they offer rather than exactly on the count.
  */
 public record ChunkBounds(int targetBytes, int maxValues) {
 

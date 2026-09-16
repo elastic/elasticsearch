@@ -95,7 +95,7 @@ public record StringColumnOptions(DictionaryPolicy dictionary, ChunkCodec chunkC
     public static final int DEFAULT_VALUES_PER_BLOCK = 128;
 
     /**
-     * Values a chunk holds before it is closed, whichever stream it belongs to.
+     * The most values a chunk holds, whichever stream it belongs to.
      *
      * <p>A read of one value decompresses its whole chunk, so this is what such a read costs where the
      * values are short enough that the byte target alone would let a chunk hold tens of thousands of them.

@@ -103,7 +103,22 @@ tasks.named("thirdPartyAudit").configure {
           'net.bytebuddy.agent.Installer',
           'net.bytebuddy.agent.ByteBuddyAgent',
           'org.mockito.internal.creation.bytebuddy.inject.MockMethodDispatcher',
-          'org.opentest4j.AssertionFailedError',
+
+          // junit-jupiter-api Kotlin extensions; we do not ship Kotlin
+          'kotlin.Unit',
+          'kotlin.collections.ArraysKt',
+          'kotlin.collections.CollectionsKt',
+          'kotlin.jvm.functions.Function0',
+          'kotlin.jvm.functions.Function1',
+          'kotlin.jvm.internal.Intrinsics',
+          'kotlin.text.StringsKt',
+
+          // Lucene 11 / randomizedtesting JUnit 5 integration; tests stay on JUnit 4
+          'com.carrotsearch.randomizedtesting.jupiter.Hashing',
+          'com.carrotsearch.randomizedtesting.jupiter.RandomizedContext',
+          'com.carrotsearch.randomizedtesting.jupiter.Seed',
+          'com.carrotsearch.randomizedtesting.jupiter.SeedChain',
+          'com.carrotsearch.randomizedtesting.jupiter.SysProps',
 
           // not using JNA
          'com.sun.jna.FunctionMapper',

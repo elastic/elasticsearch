@@ -51,6 +51,8 @@ public final class BytesRefArrayState implements GroupingAggregatorState, Releas
     private final CircuitBreaker breaker;
     private final String breakerLabel;
     private ObjectArray<BreakingBytesRefBuilder> values;
+    private long totalValueBytes;
+    private int totalValueCount;
     /**
      * If false, no group id is expected to have nulls.
      * If true, they may have nulls.
@@ -69,15 +71,19 @@ public final class BytesRefArrayState implements GroupingAggregatorState, Releas
     }
 
     void set(int groupId, BytesRef value) {
-        growForGroupId(groupId);
+        ensureCapacity(groupId + 1);
 
         var currentBuilder = values.get(groupId);
         if (currentBuilder == null) {
             currentBuilder = new BreakingBytesRefBuilder(breaker, breakerLabel, value.length);
             values.set(groupId, currentBuilder);
+            totalValueCount++;
+        } else {
+            totalValueBytes -= currentBuilder.length();
         }
 
         currentBuilder.copyBytes(value);
+        totalValueBytes += value.length;
     }
 
     Block toValuesBlock(IntVector selected, DriverContext driverContext) {
@@ -109,10 +115,6 @@ public final class BytesRefArrayState implements GroupingAggregatorState, Releas
         if (minSize > values.size()) {
             values = bigArrays.grow(values, minSize);
         }
-    }
-
-    private void growForGroupId(int groupId) {
-        ensureCapacity(groupId + 1);
     }
 
     /** Extracts an intermediate view of the contents of this state.  */
@@ -345,17 +347,8 @@ public final class BytesRefArrayState implements GroupingAggregatorState, Releas
 
         BytesRefPartitionSplitter(CircuitBreaker partitionBreaker) {
             this.partitionBreaker = partitionBreaker;
-            long totalValueBytes = 0;
-            int totalValueCount = 0;
-            for (int i = 0; i < values.size(); i++) {
-                BreakingBytesRefBuilder builder = values.get(i);
-                if (builder != null) {
-                    totalValueBytes += builder.length();
-                    totalValueCount++;
-                }
-            }
             final int avgKeysPerPartition = Math.max(Math.ceilDiv(totalValueCount, NUM_PARTITIONS), 1);
-            final int avgBytesPerPartition = (int) Math.ceilDiv(Math.max(totalValueBytes, 1), NUM_PARTITIONS);
+            final int avgBytesPerPartition = (int) Math.ceilDiv(Math.max(totalValueBytes, 1L), NUM_PARTITIONS);
             if (totalValueBytes <= PAGED_PARTITION_THRESHOLD_BYTES) {
                 denseState = new DenseBytesRefPartitionedState(
                     partitionBreaker,

@@ -177,6 +177,19 @@ public class DiskHealthIndicatorServiceTests extends ESTestCase {
         assertThat(details.get(INDICES_WITH_READONLY_BLOCK), equalTo(0));
     }
 
+    public void testGreenWhenVerboseIsFalse() {
+        Set<DiscoveryNode> discoveryNodes = createNodesWithAllRoles();
+        ClusterService clusterService = createClusterService(discoveryNodes, false);
+        DiskHealthIndicatorService diskHealthIndicatorService = createDiskHealthIndicatorService(clusterService);
+        HealthInfo healthInfo = createHealthInfoWithOneUnhealthyNode(HealthStatus.GREEN, discoveryNodes);
+        HealthIndicatorResult result = diskHealthIndicatorService.calculate(false, healthInfo);
+        assertThat(result.status(), equalTo(HealthStatus.GREEN));
+        assertThat(result.symptom(), equalTo("The cluster has enough available disk space."));
+        assertThat(result.impacts(), equalTo(List.of()));
+        assertThat(result.diagnosisList(), equalTo(List.of()));
+        assertThat(result.details(), equalTo(HealthIndicatorDetails.EMPTY));
+    }
+
     /*
      * Simulates a cluster with data nodes, dedicated master nodes and other nodes that are YELLOW.
      * We expect 3 impacts and 3 diagnosis.

@@ -1,0 +1,5 @@
+area: Recovery
+issues: []
+pr: 159548
+summary: Log commit blob deletions
+type: enhancement

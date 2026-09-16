@@ -92,18 +92,15 @@ public class IvfQueryConfigResolver {
             vectorsReader = perField.getFieldReader(fieldInfo.name);
         }
         if (vectorsReader instanceof CalibrationAwareReader calibrationAwareReader) {
-            QuantEncoding quantEncoding = calibrationAwareReader.getQuantEncoding(fieldInfo);
-            if (quantEncoding == null) {
-                return mappingDefaults();
-            }
-            float oversampleFactor = calibrationAwareReader.getOversampleFactor(fieldInfo);
-            boolean precondition = calibrationAwareReader.shouldPrecondition(fieldInfo);
-            return new IvfSegmentConfig(
-                CentroidIndexFormat.FLAT,
-                new IvfSegmentConfig.OsqConfig(quantEncoding),
-                precondition,
-                oversampleFactor
-            );
+            return switch (calibrationAwareReader.getCalibrationParameters(fieldInfo)) {
+                case null -> mappingDefaults();
+                case SegmentCalibrationParameters.Osq osq -> new IvfSegmentConfig(
+                    CentroidIndexFormat.FLAT,
+                    new IvfSegmentConfig.OsqConfig(osq.encoding()),
+                    osq.precondition(),
+                    osq.oversample()
+                );
+            };
         }
         return mappingDefaults();
     }

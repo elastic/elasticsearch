@@ -59,8 +59,7 @@ public abstract sealed class DecodedVector permits DecodedVector.ByteVector, Dec
         // Try base64 if it matches expected dimensions for the element type
         byte[] base64Bytes = tryParseBase64(encoded);
         if (base64Bytes != null && matchesExpectedBase64Length(base64Bytes.length, elementType, dims)) {
-            if ((elementType == ElementType.FLOAT || elementType == ElementType.BFLOAT16)
-                && base64Bytes.length == dims * BFloat16.BYTES) {
+            if ((elementType == ElementType.FLOAT || elementType == ElementType.BFLOAT16) && base64Bytes.length == dims * BFloat16.BYTES) {
                 float[] widened = new float[dims];
                 BFloat16.bFloat16ToFloat(base64Bytes, 0, widened, 0, dims, ByteOrder.BIG_ENDIAN);
                 return new FloatVector(widened);

@@ -191,11 +191,15 @@ tests:
 - class: org.elasticsearch.versioning.ConcurrentSeqNoVersioningIT
   method: testSeqNoCASLinearizability
   issue: https://github.com/elastic/elasticsearch/issues/159150
-- class: org.elasticsearch.xpack.sql.qa.jdbc.security.without_ssl.SecurityWithoutSslJdbcWarningsIT
-  issue: https://github.com/elastic/elasticsearch/issues/159160
 - class: org.elasticsearch.xpack.security.authc.ldap.LdapSessionFactoryTests
   method: testBindWithReadTimeout
   issue: https://github.com/elastic/elasticsearch/issues/159268
+- class: org.elasticsearch.xpack.search.AsyncSearchActionIT
+  method: testRestartAfterCompletion
+  issue: https://github.com/elastic/elasticsearch/issues/159451
+- class: org.elasticsearch.xpack.search.AsyncSearchActionIT
+  method: testSearchPhaseFailure
+  issue: https://github.com/elastic/elasticsearch/issues/159452
 
 # Examples:
 #

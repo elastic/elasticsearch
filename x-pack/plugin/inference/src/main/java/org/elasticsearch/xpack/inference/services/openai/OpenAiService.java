@@ -288,6 +288,11 @@ public class OpenAiService extends SenderService<OpenAiModel> {
     }
 
     @Override
+    protected boolean supportsChatCompletionReasoning() {
+        return true;
+    }
+
+    @Override
     protected void doChunkedInfer(
         Model model,
         List<ChunkInferenceInput> inputs,
@@ -307,6 +312,7 @@ public class OpenAiService extends SenderService<OpenAiModel> {
         List<EmbeddingRequestChunker.BatchRequestAndListener> batchedRequests = new EmbeddingRequestChunker<>(
             inputs,
             EMBEDDING_MAX_BATCH_SIZE,
+            getRegexReadLimitFactor(),
             openAiModel.getConfigurations().getChunkingSettings()
         ).batchRequestsWithListeners(listener);
 

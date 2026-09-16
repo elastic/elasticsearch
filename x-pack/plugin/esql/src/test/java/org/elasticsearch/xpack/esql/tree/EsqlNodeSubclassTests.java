@@ -73,6 +73,7 @@ import org.elasticsearch.xpack.esql.plan.logical.RemoteFetchSource;
 import org.elasticsearch.xpack.esql.plan.logical.UnionAll;
 import org.elasticsearch.xpack.esql.plan.logical.UnmappedFieldsPattern;
 import org.elasticsearch.xpack.esql.plan.logical.ViewUnionAll;
+import org.elasticsearch.xpack.esql.plan.logical.inference.DenseVector;
 import org.elasticsearch.xpack.esql.plan.logical.join.AntiJoin;
 import org.elasticsearch.xpack.esql.plan.logical.join.InlineJoin;
 import org.elasticsearch.xpack.esql.plan.logical.join.InnerJoin;
@@ -84,6 +85,7 @@ import org.elasticsearch.xpack.esql.plan.logical.join.LookupJoin;
 import org.elasticsearch.xpack.esql.plan.logical.join.MarkJoin;
 import org.elasticsearch.xpack.esql.plan.logical.join.SemiJoin;
 import org.elasticsearch.xpack.esql.plan.logical.local.ResolvingProject;
+import org.elasticsearch.xpack.esql.plan.logical.promql.HistogramFraction;
 import org.elasticsearch.xpack.esql.plan.logical.promql.HistogramQuantile;
 import org.elasticsearch.xpack.esql.plan.logical.promql.UnresolvedPromqlFunction;
 import org.elasticsearch.xpack.esql.plan.physical.CompoundOutputEvalExec;
@@ -549,6 +551,15 @@ public class EsqlNodeSubclassTests<T extends B, B extends Node<B>> extends NodeS
             ElementType type = randomFrom(ElementType.LONG, ElementType.INT, ElementType.DOUBLE, ElementType.FLOAT);
             Object value = type == ElementType.LONG && randomBoolean() ? randomLong() : null;
             return new DefaultValue(type, value);
+        } else if (argClass == DenseVector.OutputNaming.class) {
+            // DenseVector.OutputNaming is a record and cannot be mocked. Build it through its factories so the value is a
+            // legitimate naming — the explicit-name and suffix forms are mutually exclusive — with enough variety that a
+            // caller needing a value different from the current one does not run out of retries.
+            return randomFrom(
+                DenseVector.OutputNaming.DEFAULT,
+                DenseVector.OutputNaming.explicit(randomAlphaOfLength(5)),
+                DenseVector.OutputNaming.suffixed(randomAlphaOfLength(4))
+            );
         } else if (argClass == ResolvingProject.Command.class) {
             return RESOLVING_PROJECT_COMMAND;
         } else if (argClass == AttributeSet.class) {
@@ -816,7 +827,8 @@ public class EsqlNodeSubclassTests<T extends B, B extends Node<B>> extends NodeS
              * It's like an unresolved expression. Building it from makeNode will make invalid trees.
              */
             subclasses.remove(UnresolvedPromqlFunction.class);
-            // HistogramQuantile requires a quantile parameter and delegates output() to its child; see HistogramQuantileTests.
+            // Histogram functions require scalar parameters and delegate output() to their children; see their node tests.
+            subclasses.remove(HistogramFraction.class);
             subclasses.remove(HistogramQuantile.class);
             // It *is* safe to build an UnresoledRelation here because it is a leaf node.
             nodeClass = randomFrom(subclasses);

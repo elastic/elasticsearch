@@ -20,6 +20,7 @@ import org.elasticsearch.cluster.node.DiscoveryNodeRole;
 import org.elasticsearch.cluster.project.ProjectResolver;
 import org.elasticsearch.cluster.routing.SplitShardCountSummary;
 import org.elasticsearch.cluster.service.ClusterService;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.logging.HeaderWarning;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.compute.lucene.EmptyIndexedByShardId;
@@ -28,8 +29,8 @@ import org.elasticsearch.compute.operator.DriverCompletionInfo;
 import org.elasticsearch.compute.operator.PlanTimeProfile;
 import org.elasticsearch.compute.operator.exchange.ExchangeService;
 import org.elasticsearch.compute.operator.exchange.ExchangeSink;
-import org.elasticsearch.compute.operator.exchange.ExchangeSinkHandler;
 import org.elasticsearch.compute.operator.exchange.ExchangeSourceHandler;
+import org.elasticsearch.compute.operator.exchange.LocalExchange;
 import org.elasticsearch.core.IOUtils;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.Releasable;
@@ -249,7 +250,8 @@ final class DataNodeComputeHandler implements TransportRequestHandler<DataNodeRe
                                 // work as the final driver.
                                 queryPragmas.nodeLevelReduction() && sameNodeAsCoordinator == false,
                                 queryPragmas.nodeLevelReduction() && enableReduceNodeLateMaterialization,
-                                retainSearchContexts
+                                retainSearchContexts,
+                                sameNodeAsCoordinator && queryPragmas.singleNodeOptimizations() && Strings.isEmpty(clusterAlias)
                             );
                             ThreadContext threadContext = transportService.getThreadPool().getThreadContext();
                             transportService.sendChildRequest(
@@ -419,6 +421,7 @@ final class DataNodeComputeHandler implements TransportRequestHandler<DataNodeRe
                             queryPragmas.nodeLevelReduction(),
                             false,
                             false,
+                            false,
                             nodeSplits
                         );
                         ThreadContext threadContext = transportService.getThreadPool().getThreadContext();
@@ -531,11 +534,12 @@ final class DataNodeComputeHandler implements TransportRequestHandler<DataNodeRe
         private final EsqlFlags flags;
         private final DataNodeRequest request;
         private final CancellableTask parentTask;
-        private final ExchangeSinkHandler exchangeSink;
+        private final LocalExchange exchange;
         private final ComputeListener computeListener;
         private final int maxConcurrentShards;
         private final ExchangeSink blockingSink; // block until we have completed on all shards or the coordinator has enough data
         private final boolean failFastOnShardFailure;
+        private final boolean singleNodeOptimizations;
         private final Map<ShardId, Exception> shardLevelFailures;
         private final AcquiredSearchContexts searchContexts;
         private final PlanTimeProfile planTimeProfile;
@@ -544,9 +548,10 @@ final class DataNodeComputeHandler implements TransportRequestHandler<DataNodeRe
             EsqlFlags flags,
             DataNodeRequest request,
             CancellableTask parentTask,
-            ExchangeSinkHandler exchangeSink,
+            LocalExchange exchange,
             int maxConcurrentShards,
             boolean failFastOnShardFailure,
+            boolean singleNodeOptimizations,
             Map<ShardId, Exception> shardLevelFailures,
             ComputeListener computeListener,
             AcquiredSearchContexts searchContexts
@@ -554,12 +559,13 @@ final class DataNodeComputeHandler implements TransportRequestHandler<DataNodeRe
             this.flags = flags;
             this.request = request;
             this.parentTask = parentTask;
-            this.exchangeSink = exchangeSink;
+            this.exchange = exchange;
             this.computeListener = computeListener;
             this.maxConcurrentShards = maxConcurrentShards;
             this.failFastOnShardFailure = failFastOnShardFailure;
+            this.singleNodeOptimizations = singleNodeOptimizations;
             this.shardLevelFailures = shardLevelFailures;
-            this.blockingSink = exchangeSink.createExchangeSink(() -> {});
+            this.blockingSink = exchange.exchangeSink(() -> {});
             this.searchContexts = searchContexts;
             this.planTimeProfile = new PlanTimeProfile();
         }
@@ -597,7 +603,7 @@ final class DataNodeComputeHandler implements TransportRequestHandler<DataNodeRe
                     } else {
                         // TODO: add these to fatal failures so we can continue processing other shards.
                         try {
-                            exchangeService.finishSinkHandler(request.sessionId(), e);
+                            exchange.finish(true);
                         } finally {
                             ref.onFailure(e);
                         }
@@ -624,8 +630,9 @@ final class DataNodeComputeHandler implements TransportRequestHandler<DataNodeRe
                         configuration,
                         configuration.newFoldContext(),
                         null,
-                        () -> exchangeSink.createExchangeSink(pagesProduced::incrementAndGet),
-                        request.retainSearchContexts()
+                        () -> exchange.exchangeSink(pagesProduced::incrementAndGet),
+                        request.retainSearchContexts(),
+                        singleNodeOptimizations
                     );
                     computeService.runCompute(
                         parentTask,
@@ -712,14 +719,11 @@ final class DataNodeComputeHandler implements TransportRequestHandler<DataNodeRe
         }
 
         private void onBatchCompleted(int lastBatchIndex) {
-            if (lastBatchIndex < request.shards().size() && exchangeSink.isFinished() == false) {
+            if (lastBatchIndex < request.shards().size() && exchange.isFinished() == false) {
                 runBatch(lastBatchIndex);
             } else {
-                // don't return until all pages are fetched
-                var completionListener = computeListener.acquireAvoid();
-                exchangeSink.addCompletionListener(
-                    ActionListener.runAfter(completionListener, () -> exchangeService.finishSinkHandler(request.sessionId(), null))
-                );
+                // don't return until the reduce driver has consumed all pages
+                exchange.addCompletionListener(computeListener.acquireAvoid());
                 blockingSink.finish();
             }
         }
@@ -753,13 +757,16 @@ final class DataNodeComputeHandler implements TransportRequestHandler<DataNodeRe
             )
         ) {
             var parentListener = computeListener.acquireAvoid();
+            final LocalExchange internalExchange = new LocalExchange(request.pragmas().exchangeBufferSize());
             try {
+                assert request.singleNodeOptimizations() == false
+                    || task.getParentTaskId().getNodeId().equals(transportService.getLocalNode().getId())
+                    : "single node optimizations enabled but wrong parent task: " + task + " vs " + transportService.getLocalNode().getId();
                 // run compute with target shards
                 var externalSink = exchangeService.getSinkHandler(externalId);
-                var internalSink = exchangeService.createSinkHandler(request.sessionId(), request.pragmas().exchangeBufferSize());
                 task.addListener(() -> {
                     exchangeService.finishSinkHandler(externalId, new TaskCancelledException(task.getReasonCancelled()));
-                    exchangeService.finishSinkHandler(request.sessionId(), new TaskCancelledException(task.getReasonCancelled()));
+                    internalExchange.finish(true);
                 });
                 EsqlFlags flags = computeService.createFlags();
                 int maxConcurrentShards = request.pragmas().maxConcurrentShardsPerNode();
@@ -767,17 +774,16 @@ final class DataNodeComputeHandler implements TransportRequestHandler<DataNodeRe
                     flags,
                     request,
                     task,
-                    internalSink,
+                    internalExchange,
                     maxConcurrentShards,
                     failFastOnShardFailure,
+                    request.singleNodeOptimizations(),
                     shardLevelFailures,
                     computeListener,
                     searchContexts
                 );
                 dataNodeRequestExecutor.start();
                 // run the node-level reduction
-                var exchangeSource = new ExchangeSourceHandler(1, searchExecutor);
-                exchangeSource.addRemoteSink(internalSink::fetchPageAsync, true, () -> {}, 1, ActionListener.noop());
                 var reductionListener = computeListener.acquireCompute();
                 computeService.runCompute(
                     task,
@@ -789,9 +795,10 @@ final class DataNodeComputeHandler implements TransportRequestHandler<DataNodeRe
                         searchContexts.globalView(),
                         request.configuration(),
                         new FoldContext(request.pragmas().foldLimit().getBytes()),
-                        exchangeSource::createExchangeSource,
+                        internalExchange::exchangeSource,
                         () -> externalSink.createExchangeSink(() -> {}),
-                        request.retainSearchContexts()
+                        request.retainSearchContexts(),
+                        request.singleNodeOptimizations()
                     ),
                     reducePlan,
                     plannerSettings,
@@ -814,7 +821,7 @@ final class DataNodeComputeHandler implements TransportRequestHandler<DataNodeRe
                 parentListener.onResponse(null);
             } catch (Exception e) {
                 exchangeService.finishSinkHandler(externalId, e);
-                exchangeService.finishSinkHandler(request.sessionId(), e);
+                internalExchange.finish(true);
                 parentListener.onFailure(e);
             }
         }
@@ -893,6 +900,7 @@ final class DataNodeComputeHandler implements TransportRequestHandler<DataNodeRe
             request.runNodeLevelReduction(),
             request.reductionLateMaterialization(),
             request.retainSearchContexts(),
+            request.singleNodeOptimizations(),
             request.externalSplits()
         );
         // the sender doesn't support retry on shard failures, so we need to fail fast here.
@@ -1098,6 +1106,7 @@ final class DataNodeComputeHandler implements TransportRequestHandler<DataNodeRe
                     configuration.newFoldContext(),
                     null,
                     () -> externalSink.createExchangeSink(() -> {}),
+                    false,
                     false
                 );
                 computeService.runCompute(

@@ -278,8 +278,7 @@ The analyze step is wrapped with `--hard-fail-rc <FLAKINESS_PROVEN_EXIT_CODE>` u
 That is not a second decision: the wrapper propagates one specific value and keeps returning 0 for every other, so the step can only go red by deliberately reaching the verdict above.
 Batch steps are never given the flag, because a gradle invocation that happened to exit with that value would fail a PR with no verdict behind it.
 
-Only the exit code is gated on the labels.
-The report annotation, the console output and `flakiness-outcomes.json` are identical on every PR, so the observability data never depends on who opted in, and the log always names the label that blocked (or says none did).
+Only the exit code is gated on the labels: the annotation and `flakiness-outcomes.json` are identical on every PR, so the observability data never depends on who opted in.
 The exit comes last, after the artifact and the annotation are written, and Buildkite uploads `artifact_paths` regardless of exit status, so a red run still publishes everything that explains it.
 
 Two caveats.

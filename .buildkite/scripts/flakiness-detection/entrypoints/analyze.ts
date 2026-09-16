@@ -419,8 +419,8 @@ async function run(): Promise<void> {
   }
 
   // The verdict, last, so the outcomes artifact and the annotation that explains a red step have already
-  // landed. Only the exit code is gated on the labels: the artifact, the annotation and the log say the
-  // same thing on every PR, so the observability data does not depend on who opted in.
+  // landed. Only the exit code is gated on the labels: the artifact and the annotation say the same thing
+  // on every PR, so the observability data does not depend on who opted in.
   //
   // `exitCode` rather than `exit()`: the step's stdout is a pipe, and `exit()` abandons writes still
   // queued on it - which would truncate the report just printed above, the one thing a blocked developer
@@ -428,7 +428,7 @@ async function run(): Promise<void> {
   const labels = process.env.GITHUB_PR_LABELS ?? "";
   const proven = provenFlakinessJobs(payloads);
   // One boolean drives both the message and the exit code, so the log cannot claim one thing while the
-  // step does another. Naming the matched label is presentation only.
+  // step does another.
   const blocking = shouldBlock(payloads, labels);
   if (proven.length > 0) {
     const verdict = blocking

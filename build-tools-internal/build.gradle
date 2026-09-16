@@ -160,9 +160,9 @@ gradlePlugin {
       id = 'elasticsearch.mrjar'
       implementationClass = 'org.elasticsearch.gradle.internal.MrjarPlugin'
     }
-    jmh {
-      id = 'elasticsearch.jmh'
-      implementationClass = 'org.elasticsearch.gradle.internal.JmhPlugin'
+    benchmark {
+      id = 'elasticsearch.benchmark'
+      implementationClass = 'org.elasticsearch.gradle.internal.BenchmarkPlugin'
     }
     foreignLibrary {
       id = 'elasticsearch.foreign-library'

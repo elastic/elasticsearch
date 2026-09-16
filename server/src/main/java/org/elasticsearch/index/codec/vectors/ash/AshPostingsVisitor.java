@@ -9,6 +9,7 @@
 
 package org.elasticsearch.index.codec.vectors.ash;
 
+import org.apache.lucene.index.KnnVectorValues;
 import org.apache.lucene.index.VectorSimilarityFunction;
 import org.apache.lucene.search.KnnCollector;
 import org.apache.lucene.store.IndexInput;
@@ -19,6 +20,7 @@ import org.elasticsearch.common.CheckedIntFunction;
 import org.elasticsearch.index.codec.vectors.diskbbq.DocIdsWriter;
 import org.elasticsearch.index.codec.vectors.diskbbq.IVFVectorsReader;
 import org.elasticsearch.index.codec.vectors.diskbbq.PostingMetadata;
+import org.elasticsearch.index.codec.vectors.diskbbq.SlicedBlockRange;
 import org.elasticsearch.search.vectors.BulkKnnCollector;
 import org.elasticsearch.simdvec.AshScorer;
 import org.elasticsearch.simdvec.ESVectorUtil;
@@ -35,9 +37,12 @@ import static org.elasticsearch.simdvec.ES940OSQVectorsScorer.BULK_SIZE;
  * <p>
  * The on-disk format per block is:
  * <pre>
- *   [docIds][packed_codes × blockSize][corrections × blockSize]
+ *   [docIds][packed_codes × blockSize]
+ *   [scales × blockSize][offsets × blockSize][docSums × blockSize]
+ *   [vecCentroidDots × blockSize][vecCentroidSqDists × blockSize]
  * </pre>
- * Corrections use AoS layout: [scale, offset, docSum, vecCentroidDot, vecCentroidSqDist] per vector.
+ * Corrections use SoA (Structure of Arrays) layout: each correction field is stored
+ * contiguously for all vectors in the block, matching the OSQ correction format.
  * <p>
  * Two scoring paths are supported:
  * <ul>
@@ -56,18 +61,7 @@ import static org.elasticsearch.simdvec.ES940OSQVectorsScorer.BULK_SIZE;
  */
 public class AshPostingsVisitor<T> implements IVFVectorsReader.PostingVisitor {
 
-    // --- Per-vector correction layout (AoS: all fields interleaved per vector) ---
-    /** Byte offset of scale (float32) within a correction entry. */
-    public static final int CORR_SCALE = 0;
-    /** Byte offset of offset (float32) within a correction entry. */
-    public static final int CORR_OFFSET = Float.BYTES;
-    /** Byte offset of docSum (int32) within a correction entry. */
-    public static final int CORR_DOC_SUM = 2 * Float.BYTES;
-    /** Byte offset of the vector-centroid dot product (float32) within a correction entry (EUCLIDEAN; 0 otherwise). */
-    public static final int CORR_VEC_CENTROID_DOT = 3 * Float.BYTES;
-    /** Byte offset of the vector-centroid squared distance (float32) within a correction entry (EUCLIDEAN; 0 otherwise). */
-    public static final int CORR_VEC_CENTROID_SQ_DIST = 4 * Float.BYTES;
-    /** Total bytes per correction entry. */
+    /** Total bytes of correction data per vector: scale + offset + docSum + vecCentroidDot + vecCentroidSqDist. */
     public static final int CORRECTION_BYTES = 5 * Float.BYTES;
 
     /**
@@ -161,10 +155,81 @@ public class AshPostingsVisitor<T> implements IVFVectorsReader.PostingVisitor {
         int queryBitsPerDim,
         CheckedIntFunction<float[], IOException> centroidReader
     ) throws IOException {
+        return createVisitor(
+            wT,
+            originalDim,
+            query,
+            similarityFunction,
+            indexInput,
+            acceptDocs,
+            bitsPerDim,
+            queryBitsPerDim,
+            centroidReader
+        );
+    }
+
+    /**
+     * Factory method that creates a sliced {@link AshPostingsVisitor} for flushed sliced segments
+     * ({@code numSlices == 0}). The returned visitor translates vector ordinals to doc IDs via
+     * {@link KnnVectorValues#ordToDoc} and restricts scoring to the {@code [startDoc, endDoc)} range.
+     *
+     * @param wT transposed projection matrix W^T in row-major order, shape (nDims, originalDim)
+     * @param originalDim original vector dimensionality (number of columns in wT)
+     * @param query the raw query vector
+     * @param similarityFunction the vector similarity function for score conversion
+     * @param indexInput input for reading posting list data (must be unwrapped for MemorySegment access)
+     * @param acceptDocs live docs filter
+     * @param bitsPerDim bits per dimension for document codes
+     * @param queryBitsPerDim bits per dimension for query quantization (0 for float path)
+     * @param centroidReader function mapping centroid ordinal to float[] centroid vector
+     * @param vectorValues vector values for ordinal-to-doc translation in the sliced path
+     * @param startDoc inclusive start of the slice doc range
+     * @param endDoc exclusive end of the slice doc range
+     * @return a configured sliced visitor for the appropriate scoring path
+     */
+    public static AshPostingsVisitor<?> createSliced(
+        float[] wT,
+        int originalDim,
+        float[] query,
+        VectorSimilarityFunction similarityFunction,
+        IndexInput indexInput,
+        Bits acceptDocs,
+        int bitsPerDim,
+        int queryBitsPerDim,
+        CheckedIntFunction<float[], IOException> centroidReader,
+        KnnVectorValues vectorValues,
+        int startDoc,
+        int endDoc
+    ) throws IOException {
+        AshPostingsVisitor<?> base = createVisitor(
+            wT,
+            originalDim,
+            query,
+            similarityFunction,
+            indexInput,
+            acceptDocs,
+            bitsPerDim,
+            queryBitsPerDim,
+            centroidReader
+        );
+        return new SlicedAshPostingsVisitor<>(base, vectorValues, startDoc, endDoc);
+    }
+
+    private static AshPostingsVisitor<?> createVisitor(
+        float[] wT,
+        int originalDim,
+        float[] query,
+        VectorSimilarityFunction similarityFunction,
+        IndexInput indexInput,
+        Bits acceptDocs,
+        int bitsPerDim,
+        int queryBitsPerDim,
+        CheckedIntFunction<float[], IOException> centroidReader
+    ) throws IOException {
         int nDims = wT.length / originalDim;
 
         // Precompute query projection: queryTransformed[j] = dot(query, wT[j*originalDim .. (j+1)*originalDim))
-        float[] queryTransformed = SvdUtil.matrixVectorMultiply(wT, nDims, originalDim, query);
+        float[] queryTransformed = ESVectorUtil.matrixVectorMultiply(wT, nDims, originalDim, query);
 
         if (queryBitsPerDim > 0) {
             QuantizedQuery qq = quantizeQuery(queryTransformed, nDims, queryBitsPerDim, bitsPerDim);
@@ -200,47 +265,86 @@ public class AshPostingsVisitor<T> implements IVFVectorsReader.PostingVisitor {
         }
     }
 
-    /** Strategy for transforming a score using per-vector correction data. */
+    /**
+     * Strategy for transforming a score using per-vector correction data.
+     * Package-private so {@link SlicedAshPostingsVisitor} copy constructor can reference the type.
+     */
     @FunctionalInterface
-    private interface ScoreTransform {
-        float apply(float score, byte[] corrections, int correctionOffset);
+    interface ScoreTransform {
+        float apply(float score, byte[] corrections, int vectorIndex);
     }
 
-    private final IndexInput indexInput;
-    private final Bits acceptDocs;
-    private final int packedCodeBytes;
-    private final VectorSimilarityFunction similarityFunction;
+    // package-private: accessed by SlicedAshPostingsVisitor
+    final IndexInput indexInput;
+    final Bits acceptDocs;
+    final int packedCodeBytes;
+    final VectorSimilarityFunction similarityFunction;
 
     // Raw query vector — retained for exact centroid dot products at query time
-    private final float[] query;
+    final float[] query;
 
     // Centroid lookup: ordinal → float[] centroid vector (reads from centroid file)
-    private final CheckedIntFunction<float[], IOException> centroidReader;
+    final CheckedIntFunction<float[], IOException> centroidReader;
 
     // The scorer and its query, both typed on T
-    private final AshScorer<T> scorer;
-    private final T scorerQuery;
+    final AshScorer<T> scorer;
+    final T scorerQuery;
 
     // Correction and similarity strategies, selected once at construction time
-    private final ScoreTransform correctionApplier;
-    private final ScoreTransform similarityConverter;
+    final ScoreTransform correctionApplier;
+    final ScoreTransform similarityConverter;
 
     // Scratch buffers for bulk I/O
-    private final DocIdsWriter idsWriter = new DocIdsWriter();
-    private final int[] docIdsScratch = new int[BULK_SIZE];
-    private final int[] offsetsScratch = new int[BULK_SIZE];
+    final DocIdsWriter idsWriter = new DocIdsWriter();
+    final int[] docIdsScratch = new int[BULK_SIZE];
+    final int[] offsetsScratch = new int[BULK_SIZE];
     private final float[] scores = new float[BULK_SIZE];
-    // Per-vector corrections in AoS layout: [scale, offset, docSum, vecCentroidDot, vecCentroidSqDist] × blockSize
+    // Per-vector corrections in SoA layout: [scales][offsets][docSums][vecCentroidDots][vecCentroidSqDists]
     private final byte[] bulkCorrectionsBuf = new byte[BULK_SIZE * CORRECTION_BYTES];
 
+    // SoA base offsets into bulkCorrectionsBuf, recomputed per block (depend on blockSize)
+    private int corrScaleBase;
+    private int corrOffsetBase;
+    private int corrDocSumBase;
+    private int corrVecCentroidDotBase;
+    private int corrVecCentroidSqDistBase;
+
     // Per-posting-list state
-    private int vectors;
-    private byte docEncoding;
+    int vectors;
+    byte docEncoding;
     private int docBase;
     private float currentQueryDotCentroid;
     // EUCLIDEAN per-posting-list state (Appendix A, Eq. A.2)
     private float currentQueryCentroidSqDist;
     private float currentCentroidNormSq;
+
+    /**
+     * Package-private copy constructor for {@link SlicedAshPostingsVisitor}. Copies the pre-computed
+     * correction and similarity strategies from the delegate rather than re-deriving them.
+     */
+    AshPostingsVisitor(
+        float[] query,
+        VectorSimilarityFunction similarityFunction,
+        AshScorer<T> scorer,
+        T scorerQuery,
+        IndexInput indexInput,
+        Bits acceptDocs,
+        int packedCodeBytes,
+        ScoreTransform correctionApplier,
+        ScoreTransform similarityConverter,
+        CheckedIntFunction<float[], IOException> centroidReader
+    ) {
+        this.indexInput = indexInput;
+        this.acceptDocs = acceptDocs;
+        this.packedCodeBytes = packedCodeBytes;
+        this.similarityFunction = similarityFunction;
+        this.query = query;
+        this.centroidReader = centroidReader;
+        this.scorer = scorer;
+        this.scorerQuery = scorerQuery;
+        this.correctionApplier = correctionApplier;
+        this.similarityConverter = similarityConverter;
+    }
 
     /**
      * @param wT transposed projection matrix W^T in row-major order, shape (nDims, originalDim)
@@ -279,37 +383,40 @@ public class AshPostingsVisitor<T> implements IVFVectorsReader.PostingVisitor {
         this.scorerQuery = scorerQuery;
 
         // Correction applier: captures quantization params for integer path,
-        // or uses the simple float formula. Reads currentQueryDotCentroid at call time.
+        // or uses the simple float formula. Reads from the SoA correction buffer using per-block base offsets.
         if (quantizedQuery != null) {
             float invQScale = quantizedQuery.invQScale();
             float qOffset = quantizedQuery.qOffset();
             float constantCorrection = quantizedQuery.constantCorrection();
-            this.correctionApplier = (rawScore, corr, corrOff) -> {
-                float scale = Float.intBitsToFloat((int) BitUtil.VH_LE_INT.get(corr, corrOff + CORR_SCALE));
-                float offset = Float.intBitsToFloat((int) BitUtil.VH_LE_INT.get(corr, corrOff + CORR_OFFSET));
-                float docSum = (int) BitUtil.VH_LE_INT.get(corr, corrOff + CORR_DOC_SUM);
+            this.correctionApplier = (rawScore, corr, j) -> {
+                int jOff = j * Float.BYTES;
+                float scale = Float.intBitsToFloat((int) BitUtil.VH_BE_INT.get(corr, corrScaleBase + jOff));
+                float offset = Float.intBitsToFloat((int) BitUtil.VH_BE_INT.get(corr, corrOffsetBase + jOff));
+                float docSum = (int) BitUtil.VH_BE_INT.get(corr, corrDocSumBase + jOff);
                 float floatDot = Math.fma(invQScale, rawScore, Math.fma(qOffset, docSum, -constantCorrection));
                 return Math.fma(floatDot, scale, currentQueryDotCentroid + offset);
             };
         } else {
-            this.correctionApplier = (rawScore, corr, corrOff) -> {
-                float scale = Float.intBitsToFloat((int) BitUtil.VH_LE_INT.get(corr, corrOff + CORR_SCALE));
-                float offset = Float.intBitsToFloat((int) BitUtil.VH_LE_INT.get(corr, corrOff + CORR_OFFSET));
+            this.correctionApplier = (rawScore, corr, j) -> {
+                int jOff = j * Float.BYTES;
+                float scale = Float.intBitsToFloat((int) BitUtil.VH_BE_INT.get(corr, corrScaleBase + jOff));
+                float offset = Float.intBitsToFloat((int) BitUtil.VH_BE_INT.get(corr, corrOffsetBase + jOff));
                 return Math.fma(rawScore, scale, currentQueryDotCentroid + offset);
             };
         }
 
         // Similarity conversion strategy
         this.similarityConverter = switch (similarityFunction) {
-            case EUCLIDEAN -> (dot, corr, corrOff) -> {
-                float vecCentroidDot = Float.intBitsToFloat((int) BitUtil.VH_LE_INT.get(corr, corrOff + CORR_VEC_CENTROID_DOT));
-                float vecCentroidSqDist = Float.intBitsToFloat((int) BitUtil.VH_LE_INT.get(corr, corrOff + CORR_VEC_CENTROID_SQ_DIST));
+            case EUCLIDEAN -> (dot, corr, j) -> {
+                int jOff = j * Float.BYTES;
+                float vecCentroidDot = Float.intBitsToFloat((int) BitUtil.VH_BE_INT.get(corr, corrVecCentroidDotBase + jOff));
+                float vecCentroidSqDist = Float.intBitsToFloat((int) BitUtil.VH_BE_INT.get(corr, corrVecCentroidSqDistBase + jOff));
                 float sqDist = currentQueryCentroidSqDist + vecCentroidSqDist - 2 * (dot - vecCentroidDot - currentQueryDotCentroid
                     + currentCentroidNormSq);
                 return 1 / (1 + Math.max(0, sqDist));
             };
-            case COSINE, DOT_PRODUCT -> (dot, corr, corrOff) -> VectorUtil.normalizeToUnitInterval(dot);
-            case MAXIMUM_INNER_PRODUCT -> (dot, corr, corrOff) -> VectorUtil.scaleMaxInnerProductScore(dot);
+            case COSINE, DOT_PRODUCT -> (dot, corr, j) -> VectorUtil.normalizeToUnitInterval(dot);
+            case MAXIMUM_INNER_PRODUCT -> (dot, corr, j) -> VectorUtil.scaleMaxInnerProductScore(dot);
         };
     }
 
@@ -372,16 +479,22 @@ public class AshPostingsVisitor<T> implements IVFVectorsReader.PostingVisitor {
             scorer.scoreBulk(scorerQuery, blockSize, scores);
         }
 
-        // Step 2: Read corrections (IndexInput is now past the codes, at the corrections)
+        // Step 2: Read corrections in SoA order (IndexInput is now past the codes, at the corrections)
         indexInput.readBytes(bulkCorrectionsBuf, 0, blockSize * CORRECTION_BYTES);
+
+        // Compute SoA base offsets for this block (depend on blockSize for tail blocks)
+        corrScaleBase = 0;
+        corrOffsetBase = blockSize * Float.BYTES;
+        corrDocSumBase = 2 * blockSize * Float.BYTES;
+        corrVecCentroidDotBase = 3 * blockSize * Float.BYTES;
+        corrVecCentroidSqDistBase = 4 * blockSize * Float.BYTES;
 
         // Step 3: Apply per-vector corrections and similarity conversion
         float maxScore = Float.NEGATIVE_INFINITY;
         for (int j = 0; j < blockSize; j++) {
             if (docIdsScratch[j] != -1) {
-                int corrOff = j * CORRECTION_BYTES;
-                float approxDotProduct = correctionApplier.apply(scores[j], bulkCorrectionsBuf, corrOff);
-                scores[j] = similarityConverter.apply(approxDotProduct, bulkCorrectionsBuf, corrOff);
+                float approxDotProduct = correctionApplier.apply(scores[j], bulkCorrectionsBuf, j);
+                scores[j] = similarityConverter.apply(approxDotProduct, bulkCorrectionsBuf, j);
                 if (scores[j] > maxScore) {
                     maxScore = scores[j];
                 }
@@ -394,7 +507,8 @@ public class AshPostingsVisitor<T> implements IVFVectorsReader.PostingVisitor {
         return docsToScore;
     }
 
-    private void readDocIds(int count) throws IOException {
+    // package-private so SlicedAshPostingsVisitor can override
+    void readDocIds(int count) throws IOException {
         idsWriter.readInts(indexInput, count, docEncoding, docIdsScratch);
         for (int j = 0; j < count; j++) {
             docBase += docIdsScratch[j];
@@ -402,7 +516,8 @@ public class AshPostingsVisitor<T> implements IVFVectorsReader.PostingVisitor {
         }
     }
 
-    private int filterAcceptedDocs(int bulkSize) {
+    // package-private so SlicedAshPostingsVisitor can override
+    int filterAcceptedDocs(int bulkSize) {
         if (acceptDocs == null) {
             return bulkSize;
         }
@@ -437,6 +552,82 @@ public class AshPostingsVisitor<T> implements IVFVectorsReader.PostingVisitor {
             if (doc != -1) {
                 knnCollector.collect(doc, scores[ii]);
             }
+        }
+    }
+
+    /**
+     * A sliced variant of {@link AshPostingsVisitor} for flushed sliced segments ({@code numSlices == 0}).
+     * <p>
+     * In the flush case the writer omits per-block doc IDs (vectors are in ordinal order), so the
+     * on-disk format for each block is just {@code [packed_codes][corrections]}. This visitor translates
+     * vector ordinals to doc IDs via {@link KnnVectorValues#ordToDoc} and restricts scoring to the
+     * {@code [startDocId, endDocId)} range that corresponds to the target slice.
+     * <p>
+     * This mirrors the approach used by the BBQ equivalent ({@code SlicedMemorySegmentPostingsVisitor}):
+     * the block-skip optimization in {@link #resetPostingsScorer} computes the ordinal range from the
+     * doc range and skips the {@link IndexInput} past irrelevant blocks.
+     */
+    static class SlicedAshPostingsVisitor<T> extends AshPostingsVisitor<T> {
+        private final int startDocId;
+        private final int endDocId;
+        private final KnnVectorValues vectorValues;
+        private int docBase;
+
+        SlicedAshPostingsVisitor(AshPostingsVisitor<T> delegate, KnnVectorValues vectorValues, int startDocId, int endDocId) {
+            super(
+                delegate.query,
+                delegate.similarityFunction,
+                delegate.scorer,
+                delegate.scorerQuery,
+                delegate.indexInput,
+                delegate.acceptDocs,
+                delegate.packedCodeBytes,
+                delegate.correctionApplier,
+                delegate.similarityConverter,
+                delegate.centroidReader
+            );
+            this.startDocId = startDocId;
+            this.endDocId = endDocId;
+            this.vectorValues = vectorValues;
+        }
+
+        @Override
+        public int resetPostingsScorer(PostingMetadata metadata) throws IOException {
+            int totalVectors = super.resetPostingsScorer(metadata);
+            // The docEncoding byte is consumed by super.resetPostingsScorer() but is unused
+            // in the sliced path since no doc IDs are stored on disk.
+            long perVectorBytes = packedCodeBytes + CORRECTION_BYTES;
+            SlicedBlockRange range = SlicedBlockRange.compute(vectorValues, startDocId, endDocId, totalVectors, BULK_SIZE, perVectorBytes);
+            this.vectors = range.vectors();
+            docBase = range.docBase();
+            indexInput.skipBytes(range.skipBytes());
+            return this.vectors;
+        }
+
+        @Override
+        void readDocIds(int count) {
+            // No doc IDs on disk -- the sliced flush writer omits them.
+            // Translate ordinals to doc IDs and filter by the slice range.
+            for (int j = 0; j < count; j++) {
+                int doc = vectorValues.ordToDoc(docBase++);
+                docIdsScratch[j] = (doc >= startDocId && doc < endDocId) ? doc : -1;
+            }
+        }
+
+        @Override
+        int filterAcceptedDocs(int bulkSize) {
+            // Combined slice range filtering (already applied in readDocIds via -1 sentinel)
+            // plus acceptDocs filtering.
+            int docsToScore = 0;
+            for (int i = 0; i < bulkSize; i++) {
+                if (docIdsScratch[i] == -1 || (acceptDocs != null && acceptDocs.get(docIdsScratch[i]) == false)) {
+                    docIdsScratch[i] = -1;
+                } else {
+                    offsetsScratch[docsToScore] = i;
+                    docsToScore++;
+                }
+            }
+            return docsToScore;
         }
     }
 }

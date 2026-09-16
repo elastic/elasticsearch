@@ -50,7 +50,23 @@ public class BytesRefSwissHashPartitionTests extends PartitionedHashTestCase {
             bigArrays,
             breaker,
             BytesRefSwissHash.FlatBytesRefPartitionedHashKeys.class,
-            BytesRefSwissHash.PAGED_PARTITION_THRESHOLD_BYTES
+            BytesRefSwissHash.PAGED_PARTITION_THRESHOLD_BYTES,
+            false
+        );
+        assertThat(breaker.getUsed(), equalTo(0L));
+    }
+
+    public void testPartitionFlatFixedLength() {
+        var recycler = new BytesRefSwissHashTests.TestRecycler();
+        BigArrays bigArrays = new MockBigArrays(PageCacheRecycler.NON_RECYCLING_INSTANCE, ByteSizeValue.ofMb(100)).withCircuitBreaking();
+        CircuitBreaker breaker = bigArrays.breakerService().getBreaker(CircuitBreaker.REQUEST);
+        runPartitionTest(
+            recycler,
+            bigArrays,
+            breaker,
+            BytesRefSwissHash.FlatBytesRefPartitionedHashKeys.class,
+            BytesRefSwissHash.PAGED_PARTITION_THRESHOLD_BYTES,
+            true
         );
         assertThat(breaker.getUsed(), equalTo(0L));
     }
@@ -59,7 +75,7 @@ public class BytesRefSwissHashPartitionTests extends PartitionedHashTestCase {
         var recycler = new BytesRefSwissHashTests.TestRecycler();
         BigArrays bigArrays = new MockBigArrays(PageCacheRecycler.NON_RECYCLING_INSTANCE, ByteSizeValue.ofMb(100)).withCircuitBreaking();
         CircuitBreaker breaker = bigArrays.breakerService().getBreaker(CircuitBreaker.REQUEST);
-        runPartitionTest(recycler, bigArrays, breaker, BytesRefSwissHash.PagedBytesRefPartitionedHashKeys.class, 0L);
+        runPartitionTest(recycler, bigArrays, breaker, BytesRefSwissHash.PagedBytesRefPartitionedHashKeys.class, 0L, false);
         assertThat(breaker.getUsed(), equalTo(0L));
     }
 
@@ -68,8 +84,10 @@ public class BytesRefSwissHashPartitionTests extends PartitionedHashTestCase {
         BigArrays bigArrays,
         CircuitBreaker breaker,
         Class<? extends BytesRefSwissHash.BytesRefPartitionedHashKeys> expectedType,
-        long pagedPartitionBytesThreshold
+        long pagedPartitionBytesThreshold,
+        boolean fixedLength
     ) {
+        final int keyLength = fixedLength ? randomIntBetween(1, 32) : -1;
         final int partitionSize = randomIntBetween(128, 10 * 1024);
         var hash1 = new BytesRefSwissHash(recycler, breaker, bigArrays, pagedPartitionBytesThreshold);
         SumAgg agg1 = new SumAgg(breaker);
@@ -81,9 +99,9 @@ public class BytesRefSwissHashPartitionTests extends PartitionedHashTestCase {
             for (int i = 0; i < numBlocks; i++) {
                 final int positions = between(1, 2048);
                 final BytesRef[] keys = new BytesRef[positions];
-                boolean collisions = randomBoolean();
+                boolean collisions = fixedLength == false && randomBoolean();
                 for (int v = 0; v < positions; v++) {
-                    final int len = collisions ? randomIntBetween(1, 3) : randomIntBetween(10, 20);
+                    final int len = fixedLength ? keyLength : collisions ? randomIntBetween(1, 3) : randomIntBetween(10, 20);
                     final byte[] bytes = new byte[len];
                     random().nextBytes(bytes);
                     keys[v] = new BytesRef(bytes);

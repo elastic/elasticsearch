@@ -823,20 +823,15 @@ public class IpFieldMapper extends FieldMapper {
     }
 
     @Override
-    public boolean supportsColumnarParse(IndexSettings indexSettings) {
+    protected boolean doSupportsColumnarParse(IndexSettings indexSettings) {
         // Columnar support requires binary doc values only (no SortedSet ordinals). TIME_SERIES is accepted
         // by the mode gate, but every ip field in a TSDB index resolves to IndexType.skippers() — SORTED_SET
         // doc values with a RANGE skip index (see Builder#indexType) — which supportsColumnarDocValues() does
         // not accept yet, so TSDB ip fields still fall back to the row path until SORTED_SET emission lands.
-        return (indexSettings.getMode().isStrictColumnar() || indexSettings.getMode().isTsdb())
-            && supportsColumnarDocValues()
+        return supportsColumnarDocValues()
             && fieldType().indexType.hasPoints() == false
             && stored == false
-            && hasScript() == false
-            && copyTo().copyToFields().isEmpty()
-            && multiFields().iterator().hasNext() == false
-            && dimensionAllowsColumnarParse(fieldType(), writeDimensionRouting)
-            && indexSettings.getIndexVersionCreated().isLegacyIndexVersion() == false;
+            && dimensionAllowsColumnarParse(fieldType(), writeDimensionRouting);
     }
 
     /**
@@ -844,6 +839,11 @@ public class IpFieldMapper extends FieldMapper {
      * Accepts both the array-order (multi_value=true, ArrayOrderInlineNull blob + .counts sidecar)
      * and single-valued binary (multi_value=false) encoding. Other combinations fall back to the row path.
      */
+    @Override
+    protected boolean shouldEnforceSingleValueBatch() {
+        return docValuesParameters.multiValue() == false;
+    }
+
     private boolean supportsColumnarDocValues() {
         if (fieldType().usesBinaryDocValues() == false) {
             return false;
@@ -883,7 +883,7 @@ public class IpFieldMapper extends FieldMapper {
     }
 
     @Override
-    public void mapColumnBatch(BatchMappingContext ctx, EscfColumn source) {
+    protected void doMapColumnBatch(BatchMappingContext ctx, EscfColumn source) {
         if (fieldType().hasDocValues() == false) {
             return;
         }
@@ -900,10 +900,7 @@ public class IpFieldMapper extends FieldMapper {
         // retainValues=false: each value is encoded and appended to the document blob before the cursor
         // advances, so no value has to outlive the nextDoc() that moves past it.
         final ObjectTupleCursor<BytesRef> cursor = EscfColumnTransforms.utf8Cursor(source, false);
-        final EscfColumnBuilder binaryDvs = mergeStringColumn(ctx);
-        final EscfColumnBuilder dvCounts = mergeLongColumn(ctx);
-        boolean success = false;
-        try {
+        try (EscfColumnBuilder binaryDvs = mergeStringColumn(ctx); EscfColumnBuilder dvCounts = mergeLongColumn(ctx)) {
             // The 16-byte null-value substitute, or null when no null_value is configured.
             final BytesRef nullValueEncoded = nullValue != null ? new BytesRef(CIDRUtils.encode(nullValue.getAddress())) : null;
 
@@ -977,12 +974,6 @@ public class IpFieldMapper extends FieldMapper {
                 EscfColumnData dvCountData = dvCounts.finish(docCount);
                 ctx.addColumn(LuceneLongColumn.counts(dvCountData, fieldType().name()), dvCountData);
             }
-            success = true;
-        } finally {
-            if (success == false) {
-                binaryDvs.discard();
-                dvCounts.discard();
-            }
         }
     }
 
@@ -991,14 +982,11 @@ public class IpFieldMapper extends FieldMapper {
         // retainValues=false: every value is consumed within one loop iteration, before the cursor advances.
         final ObjectTupleCursor<BytesRef> cursor = EscfColumnTransforms.utf8Cursor(source, false);
         // IP always re-encodes (no zero-copy shortcut), so the values builder is unconditional.
-        final EscfColumnBuilder values = mergeStringColumn(ctx);
-        boolean success = false;
-        try {
+        try (EscfColumnBuilder values = mergeStringColumn(ctx)) {
             // The 16-byte null-value substitute, or null when no null_value is configured.
             final BytesRef nullValueEncoded = nullValue != null ? new BytesRef(CIDRUtils.encode(nullValue.getAddress())) : null;
 
             int currentDoc = -1;
-            boolean valueSeenThisDoc = false;
             while (true) {
                 final int nextDoc = cursor.nextDoc();
                 if (nextDoc == DocIdSetIterator.NO_MORE_DOCS) {
@@ -1006,28 +994,16 @@ public class IpFieldMapper extends FieldMapper {
                 }
                 if (nextDoc != currentDoc) {
                     currentDoc = nextDoc;
-                    valueSeenThisDoc = false;
                 }
                 BytesRef utf8Value = cursor.value();
                 if (utf8Value == null) {
                     if (nullValueEncoded != null) {
                         // substitute, fall through to normal processing
                         values.setString(currentDoc, nullValueEncoded);
-                        valueSeenThisDoc = true;
                     }
                     // else null without null_value -> absent (row-path parity)
                     continue;
                 }
-
-                if (valueSeenThisDoc) {
-                    // multi_value=false violation: bail so ShardBatchMapper falls back to the row path,
-                    // which raises the correct per-doc error (on_failure=FAIL).
-                    // TODO: move to external method validation.
-                    throw new UnsupportedOperationException(
-                        "mapColumnBatch: multi_value=false field [" + fullPath() + "] has more than one value for doc [" + currentDoc + "]"
-                    );
-                }
-                valueSeenThisDoc = true;
 
                 // encodeIp throws UnsupportedOperationException on malformed input, which makes
                 // ShardBatchMapper fall back to the row path for the whole batch.
@@ -1040,13 +1016,6 @@ public class IpFieldMapper extends FieldMapper {
             if (values.isEmpty() == false) {
                 EscfColumnData valuesData = values.finish(docCount);
                 ctx.addColumn(LuceneBinaryColumn.of(valuesData, fieldType().name(), BinaryDocValuesField.TYPE), valuesData);
-            } else {
-                values.discard();
-            }
-            success = true;
-        } finally {
-            if (success == false) {
-                values.discard();
             }
         }
     }
@@ -1198,12 +1167,7 @@ public class IpFieldMapper extends FieldMapper {
                     }
                 }
 
-                if (ignoreMalformed) {
-                    layers.add(CompositeSyntheticFieldLoader.malformedValuesLayer(fullPath(), indexSettings.getIndexVersionCreated()));
-                }
-                if (onFailureColumnEnabled()) {
-                    layers.add(CompositeSyntheticFieldLoader.onFailureValuesLayer(fullPath(), indexSettings.getIndexVersionCreated()));
-                }
+                CompositeSyntheticFieldLoader.addFallbackLayers(layers, this, indexSettings);
                 return new CompositeSyntheticFieldLoader(leafName(), fullPath(), layers);
             });
         }

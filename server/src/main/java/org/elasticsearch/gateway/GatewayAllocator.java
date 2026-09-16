@@ -255,7 +255,7 @@ public class GatewayAllocator implements ExistingShardsAllocator {
                 return fetch.peekData(allocation.nodes());
             }
 
-            // Allocation should run only off the master thread
+            // Allocation should run only on the master thread
             assert MasterService.assertMasterUpdateOrTestThread();
 
             // explicitly type lister, some IDEs (Eclipse) are not able to correctly infer the function type
@@ -317,7 +317,7 @@ public class GatewayAllocator implements ExistingShardsAllocator {
                 return fetch.peekData(allocation.nodes());
             }
 
-            // Allocation should run only off the master thread
+            // Allocation should run only on the master thread
             assert MasterService.assertMasterUpdateOrTestThread();
 
             AsyncShardFetch<NodeStoreFilesMetadata> fetch = asyncFetchStore.computeIfAbsent(

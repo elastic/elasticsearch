@@ -89,9 +89,7 @@ public abstract class PrimaryShardAllocator extends BaseGatewayShardAllocator {
 
         final FetchResult<NodeGatewayStartedShards> shardState = fetchData(unassignedShard, allocation);
         if (shardState.hasData() == false) {
-            if (explain == false) {
-                allocation.setHasPendingAsyncFetch();
-            }
+            allocation.setHasPendingAsyncFetch();
             List<NodeAllocationResult> nodeDecisions = null;
             if (explain) {
                 nodeDecisions = buildDecisionsForAllNodes(unassignedShard, allocation);

@@ -9,14 +9,17 @@ package org.elasticsearch.xpack.esql.datasource.http;
 
 import org.apache.http.HttpHeaders;
 import org.apache.http.HttpStatus;
+import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.common.breaker.CircuitBreakingException;
 import org.elasticsearch.core.CheckedFunction;
 import org.elasticsearch.xpack.esql.datasources.spi.AbstractMeteredStorageObject;
 import org.elasticsearch.xpack.esql.datasources.spi.DirectBufferFactory;
 import org.elasticsearch.xpack.esql.datasources.spi.DirectReadBuffer;
+import org.elasticsearch.xpack.esql.datasources.spi.ExternalObjectChangedException;
 import org.elasticsearch.xpack.esql.datasources.spi.ExternalUnavailableException;
 import org.elasticsearch.xpack.esql.datasources.spi.StoragePath;
+import org.elasticsearch.xpack.esql.datasources.utils.ContentRangeParser;
 
 import java.io.IOException;
 import java.io.InputStream;
@@ -32,7 +35,10 @@ import java.time.format.DateTimeParseException;
 import java.util.Map;
 import java.util.OptionalLong;
 import java.util.concurrent.CompletionException;
+import java.util.concurrent.ExecutionException;
 import java.util.concurrent.Executor;
+import java.util.concurrent.ScheduledExecutorService;
+import java.util.concurrent.atomic.AtomicReference;
 
 /**
  * StorageObject implementation using HTTP Range requests for efficient partial reads.
@@ -51,16 +57,24 @@ public final class HttpStorageObject extends AbstractMeteredStorageObject {
     private final StoragePath path;
     private final URI uri;  // Cached URI to avoid repeated parsing
     private final HttpConfiguration config;
+    /** Null in unit tests that construct this object directly; production wires the provider's idle scheduler. */
+    private final ScheduledExecutorService idleScheduler;
 
     // Cached metadata to avoid repeated HEAD requests
     private Long cachedLength;
     private Instant cachedLastModified;
     private Boolean cachedExists;
+    /** First strong ETag returned by a GET; sent as If-Match on later GETs and reported as {@link #contentGeneration()}. */
+    private final AtomicReference<String> pinnedEtag = new AtomicReference<>();
 
     /**
      * Creates an HttpStorageObject without pre-known metadata.
      */
     public HttpStorageObject(HttpClient client, StoragePath path, HttpConfiguration config) {
+        this(client, path, config, null);
+    }
+
+    HttpStorageObject(HttpClient client, StoragePath path, HttpConfiguration config, ScheduledExecutorService idleScheduler) {
         if (client == null) {
             throw new IllegalArgumentException("client cannot be null");
         }
@@ -74,13 +88,18 @@ public final class HttpStorageObject extends AbstractMeteredStorageObject {
         this.path = path;
         this.uri = URI.create(path.toString());
         this.config = config;
+        this.idleScheduler = idleScheduler;
     }
 
     /**
      * Creates an HttpStorageObject with pre-known length.
      */
     public HttpStorageObject(HttpClient client, StoragePath path, HttpConfiguration config, long length) {
-        this(client, path, config);
+        this(client, path, config, length, (ScheduledExecutorService) null);
+    }
+
+    HttpStorageObject(HttpClient client, StoragePath path, HttpConfiguration config, long length, ScheduledExecutorService idleScheduler) {
+        this(client, path, config, idleScheduler);
         this.cachedLength = length;
     }
 
@@ -88,7 +107,18 @@ public final class HttpStorageObject extends AbstractMeteredStorageObject {
      * Creates an HttpStorageObject with pre-known length and last modified time.
      */
     public HttpStorageObject(HttpClient client, StoragePath path, HttpConfiguration config, long length, Instant lastModified) {
-        this(client, path, config, length);
+        this(client, path, config, length, lastModified, null);
+    }
+
+    HttpStorageObject(
+        HttpClient client,
+        StoragePath path,
+        HttpConfiguration config,
+        long length,
+        Instant lastModified,
+        ScheduledExecutorService idleScheduler
+    ) {
+        this(client, path, config, length, idleScheduler);
         this.cachedLastModified = lastModified;
     }
 
@@ -109,7 +139,8 @@ public final class HttpStorageObject extends AbstractMeteredStorageObject {
                 if (contentLength.isPresent()) {
                     bytesHolder[0] = contentLength.getAsLong();
                 }
-                return new HttpTransientTypingInputStream(response.body(), path);
+                InputStream body = validateHeaders(response.headers(), 0L, false, response.body());
+                return wrapBody(body);
             });
         } finally {
             counters.addRequest(System.nanoTime() - startNanos, bytesHolder[0]);
@@ -140,6 +171,9 @@ public final class HttpStorageObject extends AbstractMeteredStorageObject {
                 statusCode,
                 suffix
             );
+        }
+        if (statusCode == HttpStatus.SC_PRECONDITION_FAILED) {
+            return new ExternalObjectChangedException("Object changed during read of [{}] (HTTP {}){}", path, statusCode, suffix);
         }
         return new IOException(context + " " + path + ", HTTP status: " + statusCode + suffix);
     }
@@ -200,17 +234,21 @@ public final class HttpStorageObject extends AbstractMeteredStorageObject {
                 // 206 = Partial Content (successful range request)
                 // 200 = OK (server doesn't support ranges but returned full content)
                 if (statusCode == HttpStatus.SC_PARTIAL_CONTENT) {
-                    return new HttpTransientTypingInputStream(response.body(), path);
+                    InputStream body = validateHeaders(response.headers(), position, toEnd == false, response.body());
+                    return wrapBody(body);
                 } else if (statusCode == HttpStatus.SC_OK) {
-                    // Server doesn't support Range requests, skip to position manually. The skip runs on the raw
-                    // body (it is open-phase setup, retried by the open loop on failure); typing wraps the
-                    // delivered tail so a mid-read drop after the skip resumes byte-exactly.
-                    InputStream stream = response.body();
+                    // Server doesn't support Range requests, skip to position manually. The skip runs on the
+                    // idle-wrapped body (open-phase setup, retried by the open loop on failure); typing wraps
+                    // the delivered tail so a mid-read drop after the skip resumes byte-exactly. Idle wrap
+                    // is applied before skip so a stall while seeking is bounded the same way as a stall
+                    // while reading.
+                    InputStream stream = wrapIdle(response.body());
                     long skipped = stream.skip(position);
                     if (skipped != position) {
                         stream.close();
                         throw new IOException("Failed to skip to position " + position + ", only skipped " + skipped + " bytes");
                     }
+                    stream = validateHeaders(response.headers(), 0L, false, stream);
                     InputStream typed = new HttpTransientTypingInputStream(stream, path);
                     // READ_TO_END: read to the end (no bound); otherwise cap at the requested length.
                     return toEnd ? typed : new BoundedInputStream(typed, length);
@@ -265,6 +303,16 @@ public final class HttpStorageObject extends AbstractMeteredStorageObject {
         return path;
     }
 
+    @Override
+    public long knownLength() {
+        return cachedLength != null ? cachedLength : READ_TO_END;
+    }
+
+    @Override
+    public String contentGeneration() {
+        return pinnedEtag.get();
+    }
+
     // === ASYNC API (native implementation using HttpClient.sendAsync) ===
 
     /**
@@ -305,7 +353,7 @@ public final class HttpStorageObject extends AbstractMeteredStorageObject {
 
         long startNanos = System.nanoTime();
         onReadComplete(
-            client.sendAsync(request, DirectByteBufferBodyHandlers.ofRangeRead(position, (int) length, factory)),
+            client.sendAsync(request, DirectByteBufferBodyHandlers.ofRangeRead(position, (int) length, factory, path)),
             (response, throwable) -> {
                 if (throwable != null) {
                     counters.addRequest(System.nanoTime() - startNanos, 0L);
@@ -318,6 +366,14 @@ public final class HttpStorageObject extends AbstractMeteredStorageObject {
                 // slicing internally for both 206 (server-side range) and 200 (full body) responses,
                 // returning a DirectReadBuffer scoped to the requested window.
                 if (statusCode == HttpStatus.SC_PARTIAL_CONTENT || statusCode == HttpStatus.SC_OK) {
+                    try {
+                        observeHeaders(response.headers(), position, true);
+                    } catch (ExternalObjectChangedException e) {
+                        counters.addRequest(System.nanoTime() - startNanos, 0L);
+                        response.body().close();
+                        listener.onFailure(e);
+                        return;
+                    }
                     deliverRead(listener, response.body(), startNanos);
                 } else {
                     counters.addRequest(System.nanoTime() - startNanos, 0L);
@@ -352,6 +408,7 @@ public final class HttpStorageObject extends AbstractMeteredStorageObject {
     private HttpRequest buildGetRequest() {
         HttpRequest.Builder builder = HttpRequest.newBuilder().uri(uri).GET().timeout(config.requestTimeout());
         addCustomHeaders(builder);
+        addIfMatch(builder);
         return builder.build();
     }
 
@@ -368,6 +425,7 @@ public final class HttpStorageObject extends AbstractMeteredStorageObject {
             .GET()
             .timeout(config.requestTimeout());
         addCustomHeaders(builder);
+        addIfMatch(builder);
         return builder.build();
     }
 
@@ -390,6 +448,73 @@ public final class HttpStorageObject extends AbstractMeteredStorageObject {
         Map<String, String> headers = config.customHeaders();
         for (Map.Entry<String, String> entry : headers.entrySet()) {
             builder.header(entry.getKey(), entry.getValue());
+        }
+    }
+
+    private void addIfMatch(HttpRequest.Builder builder) {
+        String etag = pinnedEtag.get();
+        if (etag != null) {
+            builder.header(HttpHeaders.IF_MATCH, etag);
+        }
+    }
+
+    private void observeHeaders(java.net.http.HttpHeaders headers, long position, boolean closedRange) {
+        if (headers == null) {
+            observeEtag(null);
+            return;
+        }
+        observeEtag(headers.firstValue(HttpHeaders.ETAG).orElse(null));
+        Long total = headers.firstValue(HttpHeaders.CONTENT_RANGE).map(ContentRangeParser::parseTotalLength).orElse(null);
+        if (total != null) {
+            cachedLength = total;
+        } else if (closedRange == false && position == 0) {
+            headers.firstValueAsLong(HttpHeaders.CONTENT_LENGTH).ifPresent(len -> cachedLength = len);
+        }
+    }
+
+    /** Weak ETags ({@code W/"..."}) are not byte-for-byte identifiers, so they are never used as a pin. */
+    private void observeEtag(String etag) {
+        String current = pinnedEtag.get();
+        if (etag == null || etag.isBlank() || etag.regionMatches(true, 0, "W/", 0, 2)) {
+            if (current != null) {
+                throw new ExternalObjectChangedException("Object generation could not be verified during read of [{}]", path);
+            }
+            return;
+        }
+        if (current == null) {
+            if (pinnedEtag.compareAndSet(null, etag)) {
+                return;
+            }
+            current = pinnedEtag.get();
+        }
+        if (current.equals(etag) == false) {
+            throw new ExternalObjectChangedException("Object changed during read of [{}]", path);
+        }
+    }
+
+    /**
+     * Idle-timeout the body (S3 socket-timeout parity) then type mid-read faults as transient.
+     */
+    private InputStream wrapBody(InputStream body) {
+        return new HttpTransientTypingInputStream(wrapIdle(body), path);
+    }
+
+    private InputStream wrapIdle(InputStream body) {
+        return IdleTimeoutInputStream.wrap(body, config.idleTimeout(), path, idleScheduler);
+    }
+
+    private InputStream validateHeaders(java.net.http.HttpHeaders headers, long position, boolean closedRange, InputStream body)
+        throws IOException {
+        try {
+            observeHeaders(headers, position, closedRange);
+            return body;
+        } catch (RuntimeException e) {
+            try {
+                body.close();
+            } catch (Exception closeException) {
+                e.addSuppressed(closeException);
+            }
+            throw e;
         }
     }
 
@@ -456,19 +581,26 @@ public final class HttpStorageObject extends AbstractMeteredStorageObject {
     }
 
     /**
-     * Types an async {@code sendAsync} failure. Unwraps {@link CompletionException} so the same
-     * closed-keep-alive {@link IOException} / {@link IllegalStateException} that {@link #sendChecked}
-     * sees is classified here too; other faults keep the path-prefixed {@link IOException} wrapper.
+     * Types an async {@code sendAsync} failure. A circuit-breaker trip anywhere in the chain is
+     * returned first. An already-typed {@link ExternalUnavailableException} anywhere in the chain is
+     * returned unchanged so its retry and status signal is preserved — including the JDK
+     * {@code CompletionException(IOException("HTTP body processing failed: …", eue))} wrap of a 206
+     * length mismatch. One-level unwrap of {@link CompletionException} and {@link ExecutionException}
+     * then types a closed-keep-alive {@link IOException} / {@link IllegalStateException} the same way
+     * {@link #sendChecked} does. Cause is not peeled unconditionally: that would drop an
+     * {@link ExternalUnavailableException} that already has a transport cause. Other faults keep the
+     * path-prefixed {@link IOException} wrapper.
      */
     private Exception mapAsyncSendFailure(Throwable throwable) {
         CircuitBreakingException breakerTrip = unwrapBreakerTrip(throwable, "HTTP read failed for", path);
         if (breakerTrip != null) {
             return breakerTrip;
         }
-        Throwable cause = throwable instanceof CompletionException && throwable.getCause() != null ? throwable.getCause() : throwable;
-        if (cause instanceof ExternalUnavailableException eue) {
+        if (ExceptionsHelper.unwrap(throwable, ExternalUnavailableException.class) instanceof ExternalUnavailableException eue) {
             return eue;
         }
+        Throwable cause = (throwable instanceof CompletionException || throwable instanceof ExecutionException)
+            && throwable.getCause() != null ? throwable.getCause() : throwable;
         if (cause instanceof IOException || cause instanceof IllegalStateException) {
             return typeTransportFailure((Exception) cause);
         }
@@ -493,7 +625,14 @@ public final class HttpStorageObject extends AbstractMeteredStorageObject {
                 if (contentLength.isPresent() == false) {
                     throw new IOException("Server did not return " + HttpHeaders.CONTENT_LENGTH + " for " + path);
                 }
-                cachedLength = contentLength.getAsLong();
+                // HEAD is not a GET: it reports whatever representation is current, which is not necessarily
+                // the one reads are pinned to. It must neither establish the pin nor overwrite the pinned
+                // representation's size (already set by the GET that pinned it).
+                String etag = pinnedEtag.get();
+                String observedEtag = response.headers().firstValue(HttpHeaders.ETAG).orElse(null);
+                if (etag == null || etag.equals(observedEtag)) {
+                    cachedLength = contentLength.getAsLong();
+                }
 
                 // Extract Last-Modified (optional)
                 java.util.Optional<String> lastModified = response.headers().firstValue(HttpHeaders.LAST_MODIFIED);

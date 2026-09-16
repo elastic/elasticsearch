@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.esql.datasources;
 
+import org.elasticsearch.Build;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.core.IOUtils;
@@ -264,6 +265,9 @@ public final class DataSourceModule implements Closeable {
             // and pre-register extensions so hasExtension() works without triggering lazy init.
             for (FormatSpec spec : plugin.formatSpecs()) {
                 String format = spec.format();
+                if (Build.current().isSnapshot() == false && FormatReaderRegistry.GA_FORMAT_READERS.contains(format) == false) {
+                    throw new IllegalArgumentException("Format [" + format + "] is not available in the release build.");
+                }
                 FormatReaderFactory delegating = (s, bf) -> {
                     Map<String, FormatReaderFactory> factories = state.formatFactories();
                     FormatReaderFactory real = factories.get(format);

@@ -22,7 +22,7 @@ public class OffsetSourceFieldTests extends ESTestCase {
         RandomIndexWriter writer = new RandomIndexWriter(
             random(),
             dir,
-            newIndexWriterConfig().setMergePolicy(newLogMergePolicy(random().nextBoolean()))
+            newIndexWriterConfig().setMergePolicy(newLogMergePolicy())
         );
         Document doc = new Document();
         OffsetSourceField field1 = new OffsetSourceField("field1", "foo", 1, 10);
@@ -78,7 +78,7 @@ public class OffsetSourceFieldTests extends ESTestCase {
         RandomIndexWriter writer = new RandomIndexWriter(
             random(),
             dir,
-            newIndexWriterConfig().setMergePolicy(newLogMergePolicy(random().nextBoolean()))
+            newIndexWriterConfig().setMergePolicy(newLogMergePolicy())
         );
 
         Document doc = new Document();
@@ -123,7 +123,7 @@ public class OffsetSourceFieldTests extends ESTestCase {
         RandomIndexWriter writer = new RandomIndexWriter(
             random(),
             dir,
-            newIndexWriterConfig().setMergePolicy(newLogMergePolicy(random().nextBoolean()))
+            newIndexWriterConfig().setMergePolicy(newLogMergePolicy())
         );
 
         // Write a doc via the offset-form path with (0, 0) offsets. Under pre-SEMANTIC_FIELD_TYPE indices this is a legitimate zero-length

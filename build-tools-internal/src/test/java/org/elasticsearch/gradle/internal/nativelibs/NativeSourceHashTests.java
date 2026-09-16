@@ -152,12 +152,6 @@ public class NativeSourceHashTests {
         );
     }
 
-    /**
-     * The properties are handed over as a map, and a map's iteration order is its own business — for
-     * {@link Map#of} the documentation states it outright: "the iteration order of mappings is
-     * unspecified and is subject to change". The digest addresses a published artifact, so it must
-     * depend on the pairs and not on the order they arrive in.
-     */
     @Test
     public void testIndependentOfPropertyOrder() throws IOException {
         File root = temporaryFolder.newFolder("checkout");
@@ -171,43 +165,44 @@ public class NativeSourceHashTests {
         theOther.put("supportedPlatforms", "linux-x64");
         theOther.put("toolchainImage", "toolchain:1");
 
-        assertEquals(NativeSourceHash.compute(root, sources, oneWay), NativeSourceHash.compute(root, sources, theOther));
+        assertEquals(
+            "a map makes no promise about iteration order, so the digest must depend on the pairs alone",
+            NativeSourceHash.compute(root, sources, oneWay),
+            NativeSourceHash.compute(root, sources, theOther)
+        );
     }
 
-    /**
-     * Rendering the properties as {@code key=value} run together gives these two the same text, and a
-     * build would then resolve an artifact compiled for a different configuration.
-     */
     @Test
     public void testDistinguishesPropertiesThatRenderAlike() throws IOException {
         File root = temporaryFolder.newFolder("checkout");
         Set<File> sources = ordered(write(root, "a.cpp", "int a();"));
 
         assertNotEquals(
+            "property keys must not mix with values",
             NativeSourceHash.compute(root, sources, Map.of("a", "b", "c", "d")),
             NativeSourceHash.compute(root, sources, Map.of("a", "bc=d"))
         );
     }
 
-    /** Declaring a property that was not there before describes a different build. */
     @Test
     public void testChangesWhenAPropertyIsAdded() throws IOException {
         File root = temporaryFolder.newFolder("checkout");
         Set<File> sources = ordered(write(root, "a.cpp", "int a();"));
 
         assertNotEquals(
+            "a new property changes the identity",
             NativeSourceHash.compute(root, sources, Map.of("toolchainImage", "toolchain:1")),
             NativeSourceHash.compute(root, sources, Map.of("toolchainImage", "toolchain:1", "dockerCommand.0", "make"))
         );
     }
 
-    /** Digesting values alone would let a property be renamed without changing the identity. */
     @Test
     public void testChangesWhenAPropertyKeyChanges() throws IOException {
         File root = temporaryFolder.newFolder("checkout");
         Set<File> sources = ordered(write(root, "a.cpp", "int a();"));
 
         assertNotEquals(
+            "renaming a property changes the identity",
             NativeSourceHash.compute(root, sources, Map.of("collect.a", "darwin-aarch64/libtest.dylib")),
             NativeSourceHash.compute(root, sources, Map.of("collect.b", "darwin-aarch64/libtest.dylib"))
         );

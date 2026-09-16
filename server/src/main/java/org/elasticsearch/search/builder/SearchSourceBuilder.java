@@ -31,6 +31,7 @@ import org.elasticsearch.core.UpdateForV10;
 import org.elasticsearch.features.NodeFeature;
 import org.elasticsearch.index.query.BoolQueryBuilder;
 import org.elasticsearch.index.query.QueryBuilder;
+import org.elasticsearch.index.query.QueryParsingReservation;
 import org.elasticsearch.index.query.QueryRewriteContext;
 import org.elasticsearch.index.query.Rewriteable;
 import org.elasticsearch.inference.VectorType;
@@ -222,8 +223,14 @@ public final class SearchSourceBuilder implements Writeable, ToXContentObject, R
 
     private Map<String, VectorType> fetchEmbeddingsFields = new LinkedHashMap<>();
 
-    /** Circuit-breaker Releasables from parse-time query accounting; non-null only after {@link #parseXContent} is called. */
+    /** Backing list of circuit-breaker Releasables; non-null only after {@link #parseXContent} is called. */
     private List<Releasable> queryParsingReleasables;
+
+    /** Reservation wrapping {@link #queryParsingReleasables}; non-null whenever the list is non-null. */
+    private QueryParsingReservation queryParsingReservation;
+
+    /** The SSB's own handle on {@link #queryParsingReservation}; released by {@link #close()}. */
+    private Releasable queryParsingHandle;
 
     /**
      * Constructs a new search source builder.
@@ -231,22 +238,36 @@ public final class SearchSourceBuilder implements Writeable, ToXContentObject, R
     public SearchSourceBuilder() {}
 
     /**
+     * Returns the reservation that tracks circuit-breaker charges accumulated during parsing,
+     * or {@code null} if no parsing has occurred.
+     */
+    public QueryParsingReservation queryParsingReservation() {
+        return queryParsingReservation;
+    }
+
+    /**
      * Releases the circuit-breaker charge held for query clauses parsed via {@link #parseXContent}.
      * The builder itself remains fully usable after close; only the breaker accounting is released.
+     * Resets the reservation so that a subsequent {@link #parseXContent} call starts a fresh
+     * accounting period rather than appending to an already-released list.
      * Safe to call multiple times and from concurrent threads; subsequent calls are no-ops.
      */
     @Override
     public synchronized void close() {
-        if (queryParsingReleasables != null) {
-            List<Releasable> toClose = queryParsingReleasables;
+        if (queryParsingHandle != null) {
+            Releasable h = queryParsingHandle;
+            queryParsingHandle = null;
+            queryParsingReservation = null;
             queryParsingReleasables = null;
-            Releasables.close(toClose);
+            h.close();
         }
     }
 
     private List<Releasable> getQueryParsingReleasables() {
-        if (queryParsingReleasables == null) {
+        if (queryParsingReservation == null) {
             queryParsingReleasables = new ArrayList<>(2);
+            queryParsingReservation = new QueryParsingReservation(queryParsingReleasables);
+            queryParsingHandle = Releasables.releaseOnce(queryParsingReservation::decRef);
         }
         return queryParsingReleasables;
     }

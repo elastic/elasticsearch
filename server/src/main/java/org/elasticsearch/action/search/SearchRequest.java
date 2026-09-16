@@ -13,6 +13,7 @@ import org.elasticsearch.TransportVersion;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.IndicesRequest;
+import org.elasticsearch.action.ReleasableRequest;
 import org.elasticsearch.action.ResolvedIndexExpressions;
 import org.elasticsearch.action.UntypedActionRequest;
 import org.elasticsearch.action.support.IndicesOptions;
@@ -21,9 +22,11 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.core.Nullable;
+import org.elasticsearch.core.Releasable;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.SliceIndexing;
 import org.elasticsearch.index.mapper.SourceLoader;
+import org.elasticsearch.index.query.QueryParsingReservation;
 import org.elasticsearch.index.query.QueryRewriteContext;
 import org.elasticsearch.index.query.Rewriteable;
 import org.elasticsearch.search.builder.PointInTimeBuilder;
@@ -57,7 +60,11 @@ import static org.elasticsearch.search.SearchService.DEFAULT_ALLOW_PARTIAL_SEARC
  * @see Client#search(SearchRequest)
  * @see SearchResponse
  */
-public class SearchRequest extends UntypedActionRequest implements IndicesRequest.Replaceable, Rewriteable<SearchRequest> {
+public class SearchRequest extends UntypedActionRequest
+    implements
+        IndicesRequest.Replaceable,
+        Rewriteable<SearchRequest>,
+        ReleasableRequest {
 
     public static final ToXContent.Params FORMAT_PARAMS = new ToXContent.MapParams(Collections.singletonMap("pretty", "false"));
 
@@ -639,6 +646,14 @@ public class SearchRequest extends UntypedActionRequest implements IndicesReques
      */
     public SearchSourceBuilder source() {
         return source;
+    }
+
+    @Override
+    public Releasable acquireReservation() {
+        SearchSourceBuilder src = source();
+        if (src == null) return null;
+        QueryParsingReservation r = src.queryParsingReservation();
+        return r != null ? r.acquire() : null;
     }
 
     public PointInTimeBuilder pointInTimeBuilder() {

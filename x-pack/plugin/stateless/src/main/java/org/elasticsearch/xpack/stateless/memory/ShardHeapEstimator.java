@@ -77,9 +77,11 @@ public class ShardHeapEstimator {
         return estimateShardOverheadExcludingPostings(shardMemoryMetrics) + shardMemoryMetrics.getPostingsInMemoryBytes();
     }
 
-    /// Get the "effective postings". If the shard doesn't have a self-reported overhead, or self-reported overheads are disabled,
-    /// [StatelessMemoryMetricsService.ShardMemoryMetrics#getPostingsInMemoryBytes()] is returned. Otherwise, zero is returned
-    /// because the self-reported overhead takes precedence.
+    /// When self-reported overheads are enabled and the shard declares a self-reported overhead. We will use that
+    /// self-reported overhead instead of calculating the adaptive estimate. When the adaptive estimate is not in use, the postings
+    /// are considered to be zero, because they represent part of that estimate and that estimate which has been specifically overridden.
+    ///
+    /// @return the shard's declared postings when the self-reported overhead is not in use, or zero when it is.
     private long getEffectiveShardPostingsInBytes(StatelessMemoryMetricsService.ShardMemoryMetrics shardMemoryMetrics) {
         if (selfReportedShardMemoryOverheadEnabled == false
             || shardMemoryMetrics.getShardMemoryOverheadBytes() == UNDEFINED_SHARD_MEMORY_OVERHEAD_BYTES) {

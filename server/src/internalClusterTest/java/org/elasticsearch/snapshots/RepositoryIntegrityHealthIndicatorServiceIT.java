@@ -49,13 +49,13 @@ public class RepositoryIntegrityHealthIndicatorServiceIT extends AbstractSnapsho
                 .put(BlobStoreRepository.CACHE_REPOSITORY_DATA.getKey(), false)
         );
 
-        assertSnapshotRepositoryHealth("Indicator should be green after empty repository is created", greenResult(1));
+        assertSnapshotRepositoryHealth("Indicator should be green after empty repository is created", greenResult());
 
         createIndex("test-index-1");
         indexRandomDocs("test-index-1", randomIntBetween(1, 10));
         createFullSnapshot(repository, "snapshot-1");
 
-        assertSnapshotRepositoryHealth("Indicator should be green after successful snapshot is taken", greenResult(1));
+        assertSnapshotRepositoryHealth("Indicator should be green after successful snapshot is taken", greenResult());
 
         corruptRepository(repository, location);
         // Currently, the health indicator is not proactively checking the repository and
@@ -119,12 +119,12 @@ public class RepositoryIntegrityHealthIndicatorServiceIT extends AbstractSnapsho
         assertThat(message, response.findIndicator("repository_integrity"), equalTo(expected));
     }
 
-    private static HealthIndicatorResult greenResult(int totalRepositories) {
+    private static HealthIndicatorResult greenResult() {
         return new HealthIndicatorResult(
             "repository_integrity",
             GREEN,
             "All repositories are healthy.",
-            new SimpleHealthIndicatorDetails(Map.of("total_repositories", totalRepositories)),
+            new SimpleHealthIndicatorDetails(Map.of("total_repositories", 1)),
             List.of(),
             List.of()
         );

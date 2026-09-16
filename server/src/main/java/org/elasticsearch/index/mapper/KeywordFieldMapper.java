@@ -47,6 +47,7 @@ import org.apache.lucene.util.automaton.CompiledAutomaton.AUTOMATON_TYPE;
 import org.apache.lucene.util.automaton.Operations;
 import org.elasticsearch.cluster.routing.IndexRouting;
 import org.elasticsearch.columnar.string.StringBinaryPayload;
+import org.elasticsearch.columnar.string.StringColumnOptions;
 import org.elasticsearch.common.lucene.BytesRefs;
 import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.common.lucene.search.AutomatonQueries;
@@ -1627,6 +1628,15 @@ public final class KeywordFieldMapper extends FieldMapper {
     @Override
     public boolean isNullable() {
         return docValuesParameters.nullability() || fieldType().nullValue != null;
+    }
+
+    @Override
+    public StringColumnOptions columnarStringOptions() {
+        // A keyword column is where a dictionary pays: its values repeat, and the terms are short enough that
+        // a bounded dictionary covers much of the column.
+        return fieldType().diskFormat() == KeywordFieldType.DocValuesDiskFormat.BINARY_COLUMNAR_PAYLOAD
+            ? StringColumnOptions.DEFAULT
+            : null;
     }
 
     @Override

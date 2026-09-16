@@ -28,13 +28,16 @@ import org.elasticsearch.columnar.substrate.ChunkCodec;
  *                                at no extra read cost
  * @param compressedOrdinalBlockSize ordinals a block holds when a column's ordinals are stored
  *                                compressed, which bounds what reading one ordinal has to decompress
+ * @param slotCountsBlockSize     documents a block of slot counts holds, and so how many of them a read
+ *                                sums to reach a document that is not in the block it last read
  */
 public record StringColumnOptions(
     DictionaryPolicy dictionary,
     ChunkCodec chunkCodec,
     int targetChunkBytes,
     int plainPathTargetChunkBytes,
-    int compressedOrdinalBlockSize
+    int compressedOrdinalBlockSize,
+    int slotCountsBlockSize
 ) {
 
     /**
@@ -73,12 +76,22 @@ public record StringColumnOptions(
      */
     public static final int DEFAULT_COMPRESSED_ORDINAL_BLOCK_SIZE = 2048;
 
+    /**
+     * Documents a block of slot counts holds.
+     *
+     * <p>A read reaching a document the last block did not cover sums the counts before it in its own
+     * block, so this bounds that walk. It is also the granularity the base addresses are kept at, so a
+     * smaller block trades a larger base table for a shorter walk.
+     */
+    public static final int DEFAULT_SLOT_COUNTS_BLOCK_SIZE = AddressingWriter.DEFAULT_COUNTS_BLOCK_SIZE;
+
     public static final StringColumnOptions DEFAULT = new StringColumnOptions(
         DEFAULT_DICTIONARY,
         ChunkCodec.ZSTD,
         DEFAULT_TARGET_CHUNK_BYTES,
         DEFAULT_PLAIN_PATH_TARGET_CHUNK_BYTES,
-        DEFAULT_COMPRESSED_ORDINAL_BLOCK_SIZE
+        DEFAULT_COMPRESSED_ORDINAL_BLOCK_SIZE,
+        DEFAULT_SLOT_COUNTS_BLOCK_SIZE
     );
 
     public StringColumnOptions {
@@ -106,10 +119,29 @@ public record StringColumnOptions(
                     + compressedOrdinalBlockSize
             );
         }
+        if (slotCountsBlockSize < ColumNARDocValuesFormat.MIN_BLOCK_SIZE
+            || slotCountsBlockSize > ColumNARDocValuesFormat.MAX_BLOCK_SIZE
+            || Integer.bitCount(slotCountsBlockSize) != 1) {
+            throw new IllegalArgumentException(
+                "slotCountsBlockSize must be a power of 2 in ["
+                    + ColumNARDocValuesFormat.MIN_BLOCK_SIZE
+                    + ", "
+                    + ColumNARDocValuesFormat.MAX_BLOCK_SIZE
+                    + "], got "
+                    + slotCountsBlockSize
+            );
+        }
     }
 
     /** These options with a different dictionary policy, for a field that should decide it differently. */
     public StringColumnOptions withDictionary(DictionaryPolicy policy) {
-        return new StringColumnOptions(policy, chunkCodec, targetChunkBytes, plainPathTargetChunkBytes, compressedOrdinalBlockSize);
+        return new StringColumnOptions(
+            policy,
+            chunkCodec,
+            targetChunkBytes,
+            plainPathTargetChunkBytes,
+            compressedOrdinalBlockSize,
+            slotCountsBlockSize
+        );
     }
 }

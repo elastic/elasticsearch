@@ -26,6 +26,8 @@ import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.evaluator.mapper.EvaluatorMapper;
 import org.elasticsearch.xpack.esql.expression.function.AbstractFunctionTestCase;
+import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.Equals;
+import org.elasticsearch.xpack.esql.parser.ExpressionBuilder;
 import org.junit.After;
 
 import java.time.Duration;
@@ -376,6 +378,128 @@ public class CaseExtraTests extends ESTestCase {
         );
         assertTrue(caseExprMultiElse.foldable());
         assertEquals(tenDays, caseExprMultiElse.fold(FoldContext.small()));
+    }
+
+    /**
+     * Nested integer {@code CASE} used to recurse through {@link EvaluatorMapper#fold}
+     * until the JVM threw {@link StackOverflowError}. Temporal {@code CASE} is folded by
+     * hand in {@link Case#fold(FoldContext)}; evaluator-backed types must stay on that
+     * path so multivalue-condition warnings are still emitted.
+     */
+    public void testDeeplyNestedIntegerFoldDoesNotStackOverflow() {
+        boolean nestInTrueBranch = randomBoolean();
+        int expected = randomInt();
+        int unused = randomValueOtherThan(expected, ESTestCase::randomInt);
+        Literal expectedLit = new Literal(Source.EMPTY, expected, DataType.INTEGER);
+        Literal unusedLit = new Literal(Source.EMPTY, unused, DataType.INTEGER);
+        Literal condition = new Literal(Source.EMPTY, nestInTrueBranch, DataType.BOOLEAN);
+        Expression nested = nestCases(10_000, expectedLit, unusedLit, condition, nestInTrueBranch);
+        assertTrue(nested.foldable());
+        assertThat(nested.fold(FoldContext.small()), equalTo(expected));
+    }
+
+    /**
+     * Parser-depth nested integer {@code CASE} with mixed true/false branches and
+     * foldable non-literal conditions such as {@code 123 == 123}.
+     */
+    public void testNestedIntegerFoldAtMaxExpressionDepthWithMixedConditions() {
+        int expected = randomInt();
+        int unused = randomValueOtherThan(expected, ESTestCase::randomInt);
+        Literal expectedLit = new Literal(Source.EMPTY, expected, DataType.INTEGER);
+        Literal unusedLit = new Literal(Source.EMPTY, unused, DataType.INTEGER);
+        Expression nested = expectedLit;
+        for (int i = 0; i < ExpressionBuilder.MAX_EXPRESSION_DEPTH; i++) {
+            boolean nestInTrueBranch = randomBoolean();
+            Expression condition = randomBoolean()
+                ? new Literal(Source.EMPTY, nestInTrueBranch, DataType.BOOLEAN)
+                : randomEquals(nestInTrueBranch);
+            nested = nestCase(nested, unusedLit, condition, nestInTrueBranch);
+        }
+        assertTrue(nested.foldable());
+        assertThat(nested.fold(FoldContext.small()), equalTo(expected));
+    }
+
+    /**
+     * Walking the taken branch by hand would skip the evaluator, which is what
+     * warns when a condition is multivalued. Nested integer {@code CASE} must
+     * still emit those warnings.
+     */
+    public void testNestedIntegerFoldKeepsMultivalueConditionWarnings() {
+        int taken = randomInt();
+        int unused = randomValueOtherThan(taken, ESTestCase::randomInt);
+        Case inner = new Case(
+            Source.EMPTY,
+            new Literal(Source.EMPTY, true, DataType.BOOLEAN),
+            List.of(new Literal(Source.EMPTY, taken, DataType.INTEGER), new Literal(Source.EMPTY, unused, DataType.INTEGER))
+        );
+        inner.dataType();
+        Case outer = new Case(
+            Source.EMPTY,
+            new Literal(Source.synthetic("cond"), List.of(true, true), DataType.BOOLEAN),
+            List.of(inner, new Literal(Source.EMPTY, unused, DataType.INTEGER))
+        );
+        outer.dataType();
+        assertTrue(outer.foldable());
+        assertThat(outer.fold(FoldContext.small()), equalTo(unused));
+        assertWarnings(
+            "Line -1:-1: evaluation of [cond] failed, treating result as false. Only first 20 failures recorded.",
+            "Line -1:-1: java.lang.IllegalArgumentException: CASE expects a single-valued boolean"
+        );
+    }
+
+    /**
+     * Same warning requirement when the nested {@code CASE} is the else branch
+     * of a multivalued condition — the evaluator must still run, and must not
+     * recurse into the nested node.
+     */
+    public void testNestedIntegerFoldInElseKeepsMultivalueConditionWarnings() {
+        int taken = randomInt();
+        int unused = randomValueOtherThan(taken, ESTestCase::randomInt);
+        Case inner = new Case(
+            Source.EMPTY,
+            new Literal(Source.EMPTY, true, DataType.BOOLEAN),
+            List.of(new Literal(Source.EMPTY, taken, DataType.INTEGER), new Literal(Source.EMPTY, unused, DataType.INTEGER))
+        );
+        inner.dataType();
+        Case outer = new Case(
+            Source.EMPTY,
+            new Literal(Source.synthetic("cond"), List.of(true, true), DataType.BOOLEAN),
+            List.of(new Literal(Source.EMPTY, unused, DataType.INTEGER), inner)
+        );
+        outer.dataType();
+        assertTrue(outer.foldable());
+        assertThat(outer.fold(FoldContext.small()), equalTo(taken));
+        assertWarnings(
+            "Line -1:-1: evaluation of [cond] failed, treating result as false. Only first 20 failures recorded.",
+            "Line -1:-1: java.lang.IllegalArgumentException: CASE expects a single-valued boolean"
+        );
+    }
+
+    private static Equals randomEquals(boolean shouldMatch) {
+        int left = randomInt();
+        int right = shouldMatch ? left : randomValueOtherThan(left, ESTestCase::randomInt);
+        return new Equals(
+            Source.EMPTY,
+            new Literal(Source.EMPTY, left, DataType.INTEGER),
+            new Literal(Source.EMPTY, right, DataType.INTEGER)
+        );
+    }
+
+    private static Expression nestCases(int depth, Expression leaf, Expression unused, Expression condition, boolean nestInTrueBranch) {
+        Expression nested = leaf;
+        for (int i = 0; i < depth; i++) {
+            nested = nestCase(nested, unused, condition, nestInTrueBranch);
+        }
+        return nested;
+    }
+
+    private static Case nestCase(Expression nested, Expression unused, Expression condition, boolean nestInTrueBranch) {
+        Case c = nestInTrueBranch
+            ? new Case(Source.EMPTY, condition, List.of(nested, unused))
+            : new Case(Source.EMPTY, condition, List.of(unused, nested));
+        // Resolve types one level at a time so this test targets fold recursion, not type resolution.
+        c.dataType();
+        return c;
     }
 
     private static Case caseExprWithTemporalAmount(boolean condition, Object trueValue, Object elseValue, DataType dataType) {

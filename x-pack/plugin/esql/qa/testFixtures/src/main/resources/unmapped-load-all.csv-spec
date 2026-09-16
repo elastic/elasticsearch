@@ -1784,25 +1784,25 @@ required_capability: optional_fields_load_all_subqueries
 required_capability: subquery_in_from_command
 
 SET unmapped_fields="LOAD_ALL"\;
-FROM (FROM partial_mapping_sample_data), (FROM no_mapping_sample_data)
+FROM (FROM partial_mapping_sample_data METADATA _index), (FROM no_mapping_sample_data METADATA _index)
 ;
 ignoreOrder:true
 
-@timestamp:datetime      | client_ip:ip | event_duration:long | message:keyword        | language_code:keyword | unmapped.nested:keyword | unmapped_event_duration:keyword | unmapped_message:keyword
-2024-10-23T12:15:03.360Z | 173.21.2.162 | 3450232             | Connected to 10.1.0.3! | 4                     | g                       | 3450234                         | Disconnected from 10.1.0.3
-2024-10-23T12:15:03.360Z | 173.21.2.162 | 3450232             | Connected to 10.1.0.3! | 4                     | g                       | 3450234                         | Disconnected from 10.1.0.3
-2024-10-23T12:27:28.948Z | 173.21.2.113 | 2764888             | Connected to 10.1.0.2! | 3                     | f                       | 2764890                         | Disconnected from 10.1.0.2
-2024-10-23T12:27:28.948Z | 173.21.2.113 | 2764888             | Connected to 10.1.0.2! | 3                     | f                       | 2764890                         | Disconnected from 10.1.0.2
-2024-10-23T13:33:34.937Z | 173.21.0.5   | 1232381             | 42                     | 2                     | e                       | 1232383                         | 43
-2024-10-23T13:33:34.937Z | 173.21.0.5   | 1232381             | 42                     | 2                     | e                       | 1232383                         | 43
-2024-10-23T13:51:54.732Z | 173.21.3.15  | 725447              | Connection error?      | 1                     | d                       | 725449                          | Disconnection error
-2024-10-23T13:51:54.732Z | 173.21.3.15  | 725447              | Connection error?      | 1                     | d                       | 725449                          | Disconnection error
-2024-10-23T13:52:55.015Z | 173.21.3.15  | 8268152             | Connection error?      | 3                     | c                       | 8268154                         | Disconnection error
-2024-10-23T13:52:55.015Z | 173.21.3.15  | 8268152             | Connection error?      | 3                     | c                       | 8268154                         | Disconnection error
-2024-10-23T13:53:55.832Z | 173.21.3.15  | 5033754             | Connection error?      | 2                     | b                       | 5033756                         | Disconnection error
-2024-10-23T13:53:55.832Z | 173.21.3.15  | 5033754             | Connection error?      | 2                     | b                       | 5033756                         | Disconnection error
-2024-10-23T13:55:01.543Z | 173.21.3.15  | 1756466             | Connected to 10.1.0.1! | 1                     | a                       | 1756468                         | Disconnected from 10.1.0.1
-2024-10-23T13:55:01.543Z | 173.21.3.15  | 1756466             | Connected to 10.1.0.1! | 1                     | a                       | 1756468                         | Disconnected from 10.1.0.1
+@timestamp:datetime      | client_ip:ip | event_duration:long | message:keyword        | _index:keyword              | language_code:keyword | unmapped.nested:keyword | unmapped_event_duration:keyword | unmapped_message:keyword
+2024-10-23T12:15:03.360Z | 173.21.2.162 | 3450232             | Connected to 10.1.0.3! | no_mapping_sample_data      | 4                     | g                       | 3450234                         | Disconnected from 10.1.0.3
+2024-10-23T12:15:03.360Z | 173.21.2.162 | 3450232             | Connected to 10.1.0.3! | partial_mapping_sample_data | 4                     | g                       | 3450234                         | Disconnected from 10.1.0.3
+2024-10-23T12:27:28.948Z | 173.21.2.113 | 2764888             | Connected to 10.1.0.2! | no_mapping_sample_data      | 3                     | f                       | 2764890                         | Disconnected from 10.1.0.2
+2024-10-23T12:27:28.948Z | 173.21.2.113 | 2764888             | Connected to 10.1.0.2! | partial_mapping_sample_data | 3                     | f                       | 2764890                         | Disconnected from 10.1.0.2
+2024-10-23T13:33:34.937Z | 173.21.0.5   | 1232381             | 42                     | no_mapping_sample_data      | 2                     | e                       | 1232383                         | 43
+2024-10-23T13:33:34.937Z | 173.21.0.5   | 1232381             | 42                     | partial_mapping_sample_data | 2                     | e                       | 1232383                         | 43
+2024-10-23T13:51:54.732Z | 173.21.3.15  | 725447              | Connection error?      | no_mapping_sample_data      | 1                     | d                       | 725449                          | Disconnection error
+2024-10-23T13:51:54.732Z | 173.21.3.15  | 725447              | Connection error?      | partial_mapping_sample_data | 1                     | d                       | 725449                          | Disconnection error
+2024-10-23T13:52:55.015Z | 173.21.3.15  | 8268152             | Connection error?      | no_mapping_sample_data      | 3                     | c                       | 8268154                         | Disconnection error
+2024-10-23T13:52:55.015Z | 173.21.3.15  | 8268152             | Connection error?      | partial_mapping_sample_data | 3                     | c                       | 8268154                         | Disconnection error
+2024-10-23T13:53:55.832Z | 173.21.3.15  | 5033754             | Connection error?      | no_mapping_sample_data      | 2                     | b                       | 5033756                         | Disconnection error
+2024-10-23T13:53:55.832Z | 173.21.3.15  | 5033754             | Connection error?      | partial_mapping_sample_data | 2                     | b                       | 5033756                         | Disconnection error
+2024-10-23T13:55:01.543Z | 173.21.3.15  | 1756466             | Connected to 10.1.0.1! | no_mapping_sample_data      | 1                     | a                       | 1756468                         | Disconnected from 10.1.0.1
+2024-10-23T13:55:01.543Z | 173.21.3.15  | 1756466             | Connected to 10.1.0.1! | partial_mapping_sample_data | 1                     | a                       | 1756468                         | Disconnected from 10.1.0.1
 ;
 
 // Same as above with branches swapped: mapped columns still precede extras.
@@ -1811,29 +1811,28 @@ required_capability: optional_fields_load_all_subqueries
 required_capability: subquery_in_from_command
 
 SET unmapped_fields="LOAD_ALL"\;
-FROM (FROM no_mapping_sample_data), (FROM partial_mapping_sample_data)
+FROM (FROM no_mapping_sample_data METADATA _index), (FROM partial_mapping_sample_data METADATA _index)
 ;
 ignoreOrder:true
 
-@timestamp:datetime      | client_ip:ip | event_duration:long | message:keyword        | language_code:keyword | unmapped.nested:keyword | unmapped_event_duration:keyword | unmapped_message:keyword
-2024-10-23T12:15:03.360Z | 173.21.2.162 | 3450232             | Connected to 10.1.0.3! | 4                     | g                       | 3450234                         | Disconnected from 10.1.0.3
-2024-10-23T12:15:03.360Z | 173.21.2.162 | 3450232             | Connected to 10.1.0.3! | 4                     | g                       | 3450234                         | Disconnected from 10.1.0.3
-2024-10-23T12:27:28.948Z | 173.21.2.113 | 2764888             | Connected to 10.1.0.2! | 3                     | f                       | 2764890                         | Disconnected from 10.1.0.2
-2024-10-23T12:27:28.948Z | 173.21.2.113 | 2764888             | Connected to 10.1.0.2! | 3                     | f                       | 2764890                         | Disconnected from 10.1.0.2
-2024-10-23T13:33:34.937Z | 173.21.0.5   | 1232381             | 42                     | 2                     | e                       | 1232383                         | 43
-2024-10-23T13:33:34.937Z | 173.21.0.5   | 1232381             | 42                     | 2                     | e                       | 1232383                         | 43
-2024-10-23T13:51:54.732Z | 173.21.3.15  | 725447              | Connection error?      | 1                     | d                       | 725449                          | Disconnection error
-2024-10-23T13:51:54.732Z | 173.21.3.15  | 725447              | Connection error?      | 1                     | d                       | 725449                          | Disconnection error
-2024-10-23T13:52:55.015Z | 173.21.3.15  | 8268152             | Connection error?      | 3                     | c                       | 8268154                         | Disconnection error
-2024-10-23T13:52:55.015Z | 173.21.3.15  | 8268152             | Connection error?      | 3                     | c                       | 8268154                         | Disconnection error
-2024-10-23T13:53:55.832Z | 173.21.3.15  | 5033754             | Connection error?      | 2                     | b                       | 5033756                         | Disconnection error
-2024-10-23T13:53:55.832Z | 173.21.3.15  | 5033754             | Connection error?      | 2                     | b                       | 5033756                         | Disconnection error
-2024-10-23T13:55:01.543Z | 173.21.3.15  | 1756466             | Connected to 10.1.0.1! | 1                     | a                       | 1756468                         | Disconnected from 10.1.0.1
-2024-10-23T13:55:01.543Z | 173.21.3.15  | 1756466             | Connected to 10.1.0.1! | 1                     | a                       | 1756468                         | Disconnected from 10.1.0.1
+_index:keyword              | @timestamp:datetime      | client_ip:ip | event_duration:long | message:keyword        | language_code:keyword | unmapped.nested:keyword | unmapped_event_duration:keyword | unmapped_message:keyword
+no_mapping_sample_data      | 2024-10-23T12:15:03.360Z | 173.21.2.162 | 3450232             | Connected to 10.1.0.3! | 4                     | g                       | 3450234                         | Disconnected from 10.1.0.3
+partial_mapping_sample_data | 2024-10-23T12:15:03.360Z | 173.21.2.162 | 3450232             | Connected to 10.1.0.3! | 4                     | g                       | 3450234                         | Disconnected from 10.1.0.3
+no_mapping_sample_data      | 2024-10-23T12:27:28.948Z | 173.21.2.113 | 2764888             | Connected to 10.1.0.2! | 3                     | f                       | 2764890                         | Disconnected from 10.1.0.2
+partial_mapping_sample_data | 2024-10-23T12:27:28.948Z | 173.21.2.113 | 2764888             | Connected to 10.1.0.2! | 3                     | f                       | 2764890                         | Disconnected from 10.1.0.2
+no_mapping_sample_data      | 2024-10-23T13:33:34.937Z | 173.21.0.5   | 1232381             | 42                     | 2                     | e                       | 1232383                         | 43
+partial_mapping_sample_data | 2024-10-23T13:33:34.937Z | 173.21.0.5   | 1232381             | 42                     | 2                     | e                       | 1232383                         | 43
+no_mapping_sample_data      | 2024-10-23T13:51:54.732Z | 173.21.3.15  | 725447              | Connection error?      | 1                     | d                       | 725449                          | Disconnection error
+partial_mapping_sample_data | 2024-10-23T13:51:54.732Z | 173.21.3.15  | 725447              | Connection error?      | 1                     | d                       | 725449                          | Disconnection error
+no_mapping_sample_data      | 2024-10-23T13:52:55.015Z | 173.21.3.15  | 8268152             | Connection error?      | 3                     | c                       | 8268154                         | Disconnection error
+partial_mapping_sample_data | 2024-10-23T13:52:55.015Z | 173.21.3.15  | 8268152             | Connection error?      | 3                     | c                       | 8268154                         | Disconnection error
+no_mapping_sample_data      | 2024-10-23T13:53:55.832Z | 173.21.3.15  | 5033754             | Connection error?      | 2                     | b                       | 5033756                         | Disconnection error
+partial_mapping_sample_data | 2024-10-23T13:53:55.832Z | 173.21.3.15  | 5033754             | Connection error?      | 2                     | b                       | 5033756                         | Disconnection error
+no_mapping_sample_data      | 2024-10-23T13:55:01.543Z | 173.21.3.15  | 1756466             | Connected to 10.1.0.1! | 1                     | a                       | 1756468                         | Disconnected from 10.1.0.1
+partial_mapping_sample_data | 2024-10-23T13:55:01.543Z | 173.21.3.15  | 1756466             | Connected to 10.1.0.1! | 1                     | a                       | 1756468                         | Disconnected from 10.1.0.1
 ;
 
-// A sibling's mapped type wins over the keyword an unmapped branch fabricates, whichever branch is listed first. Here the
-// unmapped branch comes first and mentions the field via KEEP, which used to make the union reject the query outright.
+// Unmapped-first KEEP used to reject instead of casting the fabricated keyword to the sibling's LONG.
 loadAllSubqueryUnmappedBranchFirstKeepCastsToSiblingType
 required_capability: optional_fields_load_all_subqueries
 required_capability: subquery_in_from_command
@@ -1857,16 +1856,16 @@ required_capability: optional_fields_load_all_subqueries
 required_capability: subquery_in_from_command
 
 SET unmapped_fields="LOAD_ALL"\;
-FROM (FROM no_mapping_sample_data | WHERE event_duration IS NOT NULL), (FROM partial_mapping_sample_data)
-| KEEP event_duration
-| SORT event_duration
+FROM (FROM no_mapping_sample_data METADATA _index | WHERE event_duration IS NOT NULL), (FROM partial_mapping_sample_data METADATA _index)
+| KEEP event_duration, _index
+| SORT event_duration, _index
 | LIMIT 3
 ;
 
-event_duration:long
-725447
-725447
-1232381
+event_duration:long | _index:keyword
+725447              | no_mapping_sample_data
+725447              | partial_mapping_sample_data
+1232381             | no_mapping_sample_data
 ;
 
 // Mapped on both sides is an ordinary type conflict, unrelated to LOAD_ALL: no cast, and unsupported in either branch order.
@@ -1904,30 +1903,29 @@ required_capability: optional_fields_load_all_subqueries
 required_capability: subquery_in_from_command
 
 SET unmapped_fields="LOAD_ALL"\;
-FROM (FROM partial_mapping_sample_data), (FROM no_mapping_sample_data | KEEP unmapped*)
-| STATS with_timestamp = COUNT(*) WHERE @timestamp IS NOT NULL, rows = COUNT(*)
+FROM (FROM partial_mapping_sample_data METADATA _index), (FROM no_mapping_sample_data METADATA _index | KEEP unmapped*, _index)
+| STATS with_timestamp = COUNT(*) WHERE @timestamp IS NOT NULL, mapped_ts = COUNT(*) WHERE @timestamp IS NOT NULL AND _index == "partial_mapping_sample_data", rows = COUNT(*)
 ;
 
-with_timestamp:long | rows:long
-7                   | 14
+with_timestamp:long | mapped_ts:long | rows:long
+7                   | 7              | 14
 ;
 
-// text has no implicit cast from keyword; text_state_nonexistent has no txt in _source, so there is nothing to fail on.
-// The failing case (a sibling that does carry a value) is in 298_unmapped_load_all_subquery_non_loadable.yml.
+// The sibling-with-a-value failure is 298_unmapped_load_all_subquery_non_loadable.yml.
 loadAllSubqueryMappedTextNullsOnSiblingWithoutSourceValue
 required_capability: optional_fields_load_all_subqueries
 required_capability: subquery_in_from_command
 
 SET unmapped_fields="LOAD_ALL"\;
-FROM (FROM text_state_mapped), (FROM text_state_nonexistent)
-| KEEP doc_id, txt
+FROM (FROM text_state_mapped METADATA _source), (FROM text_state_nonexistent METADATA _source)
+| KEEP doc_id, txt, _source
 | SORT doc_id
 ;
 
-doc_id:keyword | txt:text
-mapped-1       | William Faulkner
-mapped-2       | Jane Austen
-nonexistent-1  | null
+doc_id:keyword | txt:text         | _source:_source
+mapped-1       | William Faulkner | "{""doc_id"":""mapped-1"",""txt"":""William Faulkner""}"
+mapped-2       | Jane Austen      | "{""doc_id"":""mapped-2"",""txt"":""Jane Austen""}"
+nonexistent-1  | null             | "{""doc_id"":""nonexistent-1""}"
 ;
 
 // Suffix glob so LOAD_ALL extras stay enabled without also keeping the metric subfields (tx.min/max/sum/value_count).
@@ -2034,57 +2032,105 @@ loaded:long | rows:long
 27          | 227
 ;
 
-// KEEP of an unmapped name is a mention: LOAD_ALL loads it from _source on the unrestricted sibling too.
-loadAllSubqueryKeepUnmappedLoadsOnSibling
+// A sibling KEEP that excludes the field stops the load just like DROP does; otherwise its integer _source value fails at execution.
+loadAllSubqueryKeepExcludingAmdOnUnmappedSibling
+required_capability: optional_fields_load_all_subqueries
+required_capability: subquery_in_from_command
+required_capability: aggregate_metric_double_v0
+
+SET unmapped_fields="LOAD_ALL"\;
+FROM (FROM k8s-downsampled), (FROM k8s_unmapped | KEEP cluster)
+| KEEP cluster, network.eth0.tx
+| STATS loaded = COUNT(*) WHERE network.eth0.tx IS NOT NULL, clusters = COUNT(cluster), rows = COUNT(*)
+;
+
+loaded:long | clusters:long | rows:long
+27          | 227           | 227
+;
+
+// The pattern itself is consulted, not just its presence: clus* does not admit the field, so the sibling must not load it either.
+loadAllSubqueryKeepWildcardExcludingAmdOnUnmappedSibling
+required_capability: optional_fields_load_all_subqueries
+required_capability: subquery_in_from_command
+required_capability: aggregate_metric_double_v0
+
+SET unmapped_fields="LOAD_ALL"\;
+FROM (FROM k8s-downsampled), (FROM k8s_unmapped | KEEP clus*)
+| KEEP cluster, network.eth0.tx
+| STATS loaded = COUNT(*) WHERE network.eth0.tx IS NOT NULL, clusters = COUNT(cluster), rows = COUNT(*)
+;
+
+loaded:long | clusters:long | rows:long
+27          | 227           | 227
+;
+
+// A mention the outer projection prunes must not be loaded on the sibling: its integer _source value would fail at execution.
+loadAllSubqueryMentionPrunedByOuterKeepNotLoadedOnSibling
+required_capability: optional_fields_load_all_subqueries
+required_capability: subquery_in_from_command
+required_capability: aggregate_metric_double_v0
+
+SET unmapped_fields="LOAD_ALL"\;
+FROM (FROM k8s-downsampled | KEEP network.eth0.tx), (FROM k8s_unmapped)
+| KEEP cluster
+| STATS rows = COUNT(*), clusters = COUNT(cluster)
+;
+
+rows:long | clusters:long
+227       | 200
+;
+
+// The KEEP restricts only its own branch; the sibling expands unmapped_message anyway, so the mention only moves it ahead of the extras.
+loadAllSubqueryKeepUnmappedRestrictsOnlyItsOwnBranch
 required_capability: optional_fields_load_all_subqueries
 required_capability: subquery_in_from_command
 
 SET unmapped_fields="LOAD_ALL"\;
-FROM (FROM no_mapping_sample_data | KEEP unmapped_message), (FROM partial_mapping_sample_data)
+FROM (FROM no_mapping_sample_data METADATA _index | KEEP unmapped_message, _index), (FROM partial_mapping_sample_data METADATA _index)
 ;
 ignoreOrder:true
 
-unmapped_message:keyword   | @timestamp:datetime      | client_ip:ip | event_duration:long | message:keyword        | language_code:keyword | unmapped.nested:keyword | unmapped_event_duration:keyword
-Disconnected from 10.1.0.3 | null                     | null         | null                | null                   | null                  | null                    | null
-Disconnected from 10.1.0.2 | null                     | null         | null                | null                   | null                  | null                    | null
-43                         | null                     | null         | null                | null                   | null                  | null                    | null
-Disconnection error        | null                     | null         | null                | null                   | null                  | null                    | null
-Disconnection error        | null                     | null         | null                | null                   | null                  | null                    | null
-Disconnection error        | null                     | null         | null                | null                   | null                  | null                    | null
-Disconnected from 10.1.0.1 | null                     | null         | null                | null                   | null                  | null                    | null
-Disconnected from 10.1.0.3 | 2024-10-23T12:15:03.360Z | 173.21.2.162 | 3450232             | Connected to 10.1.0.3! | 4                     | g                       | 3450234
-Disconnected from 10.1.0.2 | 2024-10-23T12:27:28.948Z | 173.21.2.113 | 2764888             | Connected to 10.1.0.2! | 3                     | f                       | 2764890
-43                         | 2024-10-23T13:33:34.937Z | 173.21.0.5   | 1232381             | 42                     | 2                     | e                       | 1232383
-Disconnection error        | 2024-10-23T13:51:54.732Z | 173.21.3.15  | 725447              | Connection error?      | 1                     | d                       | 725449
-Disconnection error        | 2024-10-23T13:52:55.015Z | 173.21.3.15  | 8268152             | Connection error?      | 3                     | c                       | 8268154
-Disconnection error        | 2024-10-23T13:53:55.832Z | 173.21.3.15  | 5033754             | Connection error?      | 2                     | b                       | 5033756
-Disconnected from 10.1.0.1 | 2024-10-23T13:55:01.543Z | 173.21.3.15  | 1756466             | Connected to 10.1.0.1! | 1                     | a                       | 1756468
+unmapped_message:keyword   | _index:keyword              | @timestamp:datetime      | client_ip:ip | event_duration:long | message:keyword        | language_code:keyword | unmapped.nested:keyword | unmapped_event_duration:keyword
+Disconnected from 10.1.0.3 | no_mapping_sample_data      | null                     | null         | null                | null                   | null                  | null                    | null
+Disconnected from 10.1.0.2 | no_mapping_sample_data      | null                     | null         | null                | null                   | null                  | null                    | null
+43                         | no_mapping_sample_data      | null                     | null         | null                | null                   | null                  | null                    | null
+Disconnection error        | no_mapping_sample_data      | null                     | null         | null                | null                   | null                  | null                    | null
+Disconnection error        | no_mapping_sample_data      | null                     | null         | null                | null                   | null                  | null                    | null
+Disconnection error        | no_mapping_sample_data      | null                     | null         | null                | null                   | null                  | null                    | null
+Disconnected from 10.1.0.1 | no_mapping_sample_data      | null                     | null         | null                | null                   | null                  | null                    | null
+Disconnected from 10.1.0.3 | partial_mapping_sample_data | 2024-10-23T12:15:03.360Z | 173.21.2.162 | 3450232             | Connected to 10.1.0.3! | 4                     | g                       | 3450234
+Disconnected from 10.1.0.2 | partial_mapping_sample_data | 2024-10-23T12:27:28.948Z | 173.21.2.113 | 2764888             | Connected to 10.1.0.2! | 3                     | f                       | 2764890
+43                         | partial_mapping_sample_data | 2024-10-23T13:33:34.937Z | 173.21.0.5   | 1232381             | 42                     | 2                     | e                       | 1232383
+Disconnection error        | partial_mapping_sample_data | 2024-10-23T13:51:54.732Z | 173.21.3.15  | 725447              | Connection error?      | 1                     | d                       | 725449
+Disconnection error        | partial_mapping_sample_data | 2024-10-23T13:52:55.015Z | 173.21.3.15  | 8268152             | Connection error?      | 3                     | c                       | 8268154
+Disconnection error        | partial_mapping_sample_data | 2024-10-23T13:53:55.832Z | 173.21.3.15  | 5033754             | Connection error?      | 2                     | b                       | 5033756
+Disconnected from 10.1.0.1 | partial_mapping_sample_data | 2024-10-23T13:55:01.543Z | 173.21.3.15  | 1756466             | Connected to 10.1.0.1! | 1                     | a                       | 1756468
 ;
 
-loadAllSubqueryKeepUnmappedLoadsOnSiblingReversed
+loadAllSubqueryKeepUnmappedRestrictsOnlyItsOwnBranchReversed
 required_capability: optional_fields_load_all_subqueries
 required_capability: subquery_in_from_command
 
 SET unmapped_fields="LOAD_ALL"\;
-FROM (FROM partial_mapping_sample_data), (FROM no_mapping_sample_data | KEEP unmapped_message)
+FROM (FROM partial_mapping_sample_data METADATA _index), (FROM no_mapping_sample_data METADATA _index | KEEP unmapped_message, _index)
 ;
 ignoreOrder:true
 
-@timestamp:datetime      | client_ip:ip | event_duration:long | message:keyword        | unmapped_message:keyword   | language_code:keyword | unmapped.nested:keyword | unmapped_event_duration:keyword
-2024-10-23T12:15:03.360Z | 173.21.2.162 | 3450232             | Connected to 10.1.0.3! | Disconnected from 10.1.0.3 | 4                     | g                       | 3450234
-2024-10-23T12:27:28.948Z | 173.21.2.113 | 2764888             | Connected to 10.1.0.2! | Disconnected from 10.1.0.2 | 3                     | f                       | 2764890
-2024-10-23T13:33:34.937Z | 173.21.0.5   | 1232381             | 42                     | 43                         | 2                     | e                       | 1232383
-2024-10-23T13:51:54.732Z | 173.21.3.15  | 725447              | Connection error?      | Disconnection error        | 1                     | d                       | 725449
-2024-10-23T13:52:55.015Z | 173.21.3.15  | 8268152             | Connection error?      | Disconnection error        | 3                     | c                       | 8268154
-2024-10-23T13:53:55.832Z | 173.21.3.15  | 5033754             | Connection error?      | Disconnection error        | 2                     | b                       | 5033756
-2024-10-23T13:55:01.543Z | 173.21.3.15  | 1756466             | Connected to 10.1.0.1! | Disconnected from 10.1.0.1 | 1                     | a                       | 1756468
-null                     | null         | null                | null                   | Disconnected from 10.1.0.3 | null                  | null                    | null
-null                     | null         | null                | null                   | Disconnected from 10.1.0.2 | null                  | null                    | null
-null                     | null         | null                | null                   | 43                         | null                  | null                    | null
-null                     | null         | null                | null                   | Disconnection error        | null                  | null                    | null
-null                     | null         | null                | null                   | Disconnection error        | null                  | null                    | null
-null                     | null         | null                | null                   | Disconnection error        | null                  | null                    | null
-null                     | null         | null                | null                   | Disconnected from 10.1.0.1 | null                  | null                    | null
+@timestamp:datetime      | client_ip:ip | event_duration:long | message:keyword        | _index:keyword              | unmapped_message:keyword   | language_code:keyword | unmapped.nested:keyword | unmapped_event_duration:keyword
+2024-10-23T12:15:03.360Z | 173.21.2.162 | 3450232             | Connected to 10.1.0.3! | partial_mapping_sample_data | Disconnected from 10.1.0.3 | 4                     | g                       | 3450234
+2024-10-23T12:27:28.948Z | 173.21.2.113 | 2764888             | Connected to 10.1.0.2! | partial_mapping_sample_data | Disconnected from 10.1.0.2 | 3                     | f                       | 2764890
+2024-10-23T13:33:34.937Z | 173.21.0.5   | 1232381             | 42                     | partial_mapping_sample_data | 43                         | 2                     | e                       | 1232383
+2024-10-23T13:51:54.732Z | 173.21.3.15  | 725447              | Connection error?      | partial_mapping_sample_data | Disconnection error        | 1                     | d                       | 725449
+2024-10-23T13:52:55.015Z | 173.21.3.15  | 8268152             | Connection error?      | partial_mapping_sample_data | Disconnection error        | 3                     | c                       | 8268154
+2024-10-23T13:53:55.832Z | 173.21.3.15  | 5033754             | Connection error?      | partial_mapping_sample_data | Disconnection error        | 2                     | b                       | 5033756
+2024-10-23T13:55:01.543Z | 173.21.3.15  | 1756466             | Connected to 10.1.0.1! | partial_mapping_sample_data | Disconnected from 10.1.0.1 | 1                     | a                       | 1756468
+null                     | null         | null                | null                   | no_mapping_sample_data      | Disconnected from 10.1.0.3 | null                  | null                    | null
+null                     | null         | null                | null                   | no_mapping_sample_data      | Disconnected from 10.1.0.2 | null                  | null                    | null
+null                     | null         | null                | null                   | no_mapping_sample_data      | 43                         | null                  | null                    | null
+null                     | null         | null                | null                   | no_mapping_sample_data      | Disconnection error        | null                  | null                    | null
+null                     | null         | null                | null                   | no_mapping_sample_data      | Disconnection error        | null                  | null                    | null
+null                     | null         | null                | null                   | no_mapping_sample_data      | Disconnection error        | null                  | null                    | null
+null                     | null         | null                | null                   | no_mapping_sample_data      | Disconnected from 10.1.0.1 | null                  | null                    | null
 ;
 
 // Mapped LONG first so the union type is LONG; KEEP on the unmapped index is a PUNK that gets ToLong.

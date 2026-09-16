@@ -456,42 +456,40 @@ public class PushDownFilterAndLimitIntoUnionAllTests extends AbstractLogicalPlan
      *               $$x$converted_to$long{r$}#125 AS x#38, $$y$converted_to$long{r$}#126 AS y#41]]
      * \_Limit[1000[INTEGER],false,false]
      *   \_UnionAll[[_meta_field{r}#102, emp_no{r}#103, first_name{r}#104, gender{r}#105, hire_date{r}#106, job{r}#107, job.raw{r}#108,
-     *                      languages{r}#109, last_name{r}#110, long_noidx{r}#111, salary{r}#112, x{r}#113, $$x$converted_to$long{r$}#125,
-     *                      y{r}#114, $$y$converted_to$long{r$}#126, z{r}#115, language_name{r}#116]]
+     *                      languages{r}#109, last_name{r}#110, long_noidx{r}#111, salary{r}#112, $$x$converted_to$long{r$}#125,
+     *                      $$y$converted_to$long{r$}#126, z{r}#115, language_name{r}#116]]
      *     |_Project[[_meta_field{f}#62, emp_no{f}#56, first_name{f}#57, gender{f}#58, hire_date{f}#63, job{f}#64, job.raw{f}#65,
-     *                             languages{f}#59, last_name{f}#60, long_noidx{f}#66, salary{f}#61, x{r}#5, $$x$converted_to$long{r}#119,
-     *                             y{r}#128, $$y$converted_to$long{r}#120, z{r}#11, language_name{r}#86]]
+     *                             languages{f}#59, last_name{f}#60, long_noidx{f}#66, salary{f}#61, $$x$converted_to$long{r}#119,
+     *                             $$y$converted_to$long{r}#120, z{r}#11, language_name{r}#86]]
      *     | \_Filter[ISNOTNULL($$y$converted_to$long{r}#120)]
      *     |   \_Eval[[null[KEYWORD] AS language_name#86, 1[LONG] AS $$x$converted_to$long#119,
-     *                     TOLONG(y{r}#8) AS $$y$converted_to$long#120, null[KEYWORD] AS y#128]]
+     *                     TOLONG(y{r}#8) AS $$y$converted_to$long#120]]
      *     |     \_Subquery[]
      *     |       \_Project[[_meta_field{f}#62, emp_no{f}#56, first_name{f}#57, gender{f}#58, hire_date{f}#63, job{f}#64, job.raw{f}#65,
-     *                              languages{f}#59, last_name{f}#60, long_noidx{f}#66, salary{f}#61, x{r}#5, emp_no{f}#56 AS y#8, z{r}#11]]
+     *                              languages{f}#59, last_name{f}#60, long_noidx{f}#66, salary{f}#61, emp_no{f}#56 AS y#8, z{r}#11]]
      *     |         \_Filter[z{r}#11 > 0[INTEGER]]
-     *     |           \_Eval[[1[INTEGER] AS x#5, emp_no{f}#56 + 1[INTEGER] AS z#11]]
+     *     |           \_Eval[[emp_no{f}#56 + 1[INTEGER] AS z#11]]
      *     |             \_Filter[salary{f}#61 < 100000[INTEGER]]
      *     |               \_EsRelation[test][_meta_field{f}#62, emp_no{f}#56, first_name{f}#57, ..]
-     *     |_EsqlProject[[_meta_field{r}#87, emp_no{r}#88, first_name{r}#89, gender{r}#90, hire_date{r}#91, job{r}#92, job.raw{r}#93,
-     *                             languages{r}#94, last_name{r}#95, long_noidx{r}#96, salary{r}#97, x{r}#22, $$x$converted_to$long{r}#121,
-     *                             y{r}#129, $$y$converted_to$long{r}#122, z{r}#17, language_name{r}#98]]
+     *     |_Project[[_meta_field{r}#87, emp_no{r}#88, first_name{r}#89, gender{r}#90, hire_date{r}#91, job{r}#92, job.raw{r}#93,
+     *                             languages{r}#94, last_name{r}#95, long_noidx{r}#96, salary{r}#97, $$x$converted_to$long{r}#121,
+     *                             $$y$converted_to$long{r}#122, z{r}#17, language_name{r}#98]]
      *     | \_Filter[ISNOTNULL($$y$converted_to$long{r}#122)]
      *     |   \_Eval[[null[KEYWORD] AS _meta_field#87, null[INTEGER] AS emp_no#88, null[KEYWORD] AS first_name#89,
      *                     null[TEXT] AS gender#90, null[DATETIME] AS hire_date#91, null[TEXT] AS job#92, null[KEYWORD] AS job.raw#93,
      *                     null[INTEGER] AS languages#94, null[KEYWORD] AS last_name#95, null[LONG] AS long_noidx#96,
      *                     null[INTEGER] AS salary#97, null[KEYWORD] AS language_name#98, 1[LONG] AS $$x$converted_to$long#121,
-     *                     TOLONG(y{r}#20) AS $$y$converted_to$long#122, null[KEYWORD] AS y#129]]
+     *                     TOLONG(y{r}#20) AS $$y$converted_to$long#122]]
      *     |     \_Subquery[]
-     *     |       \_Eval[[1[INTEGER] AS x#22]]
-     *     |         \_Filter[z{r}#17 > 0[INTEGER]]
-     *     |           \_Aggregate[[language_code{f}#67],[COUNT(*[KEYWORD],true[BOOLEAN]) AS y#20, language_code{f}#67 AS z#17]]
-     *     |             \_EsRelation[languages][language_code{f}#67, language_name{f}#68]
-     *     \_EsqlProject[[_meta_field{f}#75, emp_no{r}#99, first_name{f}#70, gender{f}#71, hire_date{f}#76, job{f}#77, job.raw{f}#78,
-     *                             languages{r}#100, last_name{f}#73, long_noidx{f}#79, salary{r}#101, x{r}#29,
-     *                             $$x$converted_to$long{r}#123, y{r}#130, $$y$converted_to$long{r}#124, z{r}#35, language_name{f}#81]]
+     *     |       \_Filter[z{r}#17 > 0[INTEGER]]
+     *     |         \_Aggregate[[language_code{f}#67],[COUNT(*[KEYWORD],true[BOOLEAN]) AS y#20, language_code{f}#67 AS z#17]]
+     *     |           \_EsRelation[languages][language_code{f}#67, language_name{f}#68]
+     *     \_Project[[_meta_field{f}#75, emp_no{r}#99, first_name{f}#70, gender{f}#71, hire_date{f}#76, job{f}#77, job.raw{f}#78,
+     *                             languages{r}#100, last_name{f}#73, long_noidx{f}#79, salary{r}#101,
+     *                             $$x$converted_to$long{r}#123, $$y$converted_to$long{r}#124, z{r}#35, language_name{f}#81]]
      *       \_Filter[ISNOTNULL($$x$converted_to$long{r}#123) AND ISNOTNULL($$y$converted_to$long{r}#124)]
      *         \_Eval[[null[INTEGER] AS emp_no#99, null[INTEGER] AS languages#100, null[INTEGER] AS salary#101,
-     *                     TOLONG(x{r}#29) AS $$x$converted_to$long#123, TOLONG(y{r}#32) AS $$y$converted_to$long#124,
-     *                     null[KEYWORD] AS y#130]]
+     *                     TOLONG(x{r}#29) AS $$x$converted_to$long#123, TOLONG(y{r}#32) AS $$y$converted_to$long#124]]
      *           \_Subquery[]
      *             \_Project[[_meta_field{f}#75, emp_no{f}#69 AS x#29, first_name{f}#70, gender{f}#71, hire_date{f}#76, job{f}#77,
      *                              job.raw{f}#78, languages{f}#72 AS z#35, last_name{f}#73, long_noidx{f}#79, salary{f}#74 AS y#32,
@@ -534,11 +532,10 @@ public class PushDownFilterAndLimitIntoUnionAllTests extends AbstractLogicalPlan
         assertEquals("$$y$converted_to$long", y.name());
         Eval eval = as(filter.child(), Eval.class);
         List<Alias> aliases = eval.fields();
-        assertEquals(4, aliases.size());
+        assertEquals(3, aliases.size());
         assertEquals("language_name", aliases.get(0).name());
         assertEquals("$$x$converted_to$long", aliases.get(1).name());
         assertEquals("$$y$converted_to$long", aliases.get(2).name());
-        assertEquals("y", aliases.get(3).name());
         Subquery subquery = as(eval.child(), Subquery.class);
         project = as(subquery.child(), Project.class);
         Filter childFilter = as(project.child(), Filter.class);
@@ -549,13 +546,8 @@ public class PushDownFilterAndLimitIntoUnionAllTests extends AbstractLogicalPlan
         assertEquals(0, right.value());
         eval = as(childFilter.child(), Eval.class);
         aliases = eval.fields();
-        assertEquals(2, aliases.size());
-        Alias aliasX = aliases.get(0);
-        assertEquals("x", aliasX.name());
-        Literal xLiteral = as(aliasX.child(), Literal.class);
-        assertEquals(1, xLiteral.value());
-        Alias aliasZ = aliases.get(1);
-        assertEquals("z", aliasZ.name());
+        assertEquals(1, aliases.size());
+        assertEquals("z", aliases.get(0).name());
         childFilter = as(eval.child(), Filter.class);
         LessThan lessThan = as(childFilter.condition(), LessThan.class);
         FieldAttribute salaryField = as(lessThan.left(), FieldAttribute.class);
@@ -572,8 +564,7 @@ public class PushDownFilterAndLimitIntoUnionAllTests extends AbstractLogicalPlan
         assertEquals("$$y$converted_to$long", y.name());
         eval = as(filter.child(), Eval.class);
         subquery = as(eval.child(), Subquery.class);
-        eval = as(subquery.child(), Eval.class);
-        filter = as(eval.child(), Filter.class);
+        filter = as(subquery.child(), Filter.class);
         greaterThan = as(filter.condition(), GreaterThan.class);
         z = as(greaterThan.left(), ReferenceAttribute.class);
         assertEquals("z", z.name());
@@ -602,7 +593,7 @@ public class PushDownFilterAndLimitIntoUnionAllTests extends AbstractLogicalPlan
         assertEquals("$$y$converted_to$long", yAttr.name());
         eval = as(filter.child(), Eval.class);
         aliases = eval.fields();
-        assertEquals(6, aliases.size());
+        assertEquals(5, aliases.size());
         subquery = as(eval.child(), Subquery.class);
         project = as(subquery.child(), Project.class);
         Join lookupJoin = as(project.child(), Join.class);
@@ -1091,16 +1082,14 @@ public class PushDownFilterAndLimitIntoUnionAllTests extends AbstractLogicalPlan
      *  knn validation will fail, or it may return wrong results. If a knn function is found in a subquery,
      * a limit is appended to the subquery to make sure the implicitK is preserved.
      *
-     * EsqlProject[[color{r}#27, rgb_vector{r}#32, language_name{r}#35]]
+     * Project[[color{r}#27, rgb_vector{r}#32, language_name{r}#35]]
      * \_TopN[[Order[_score{r}#33,DESC,FIRST], Order[color{r}#27,ASC,LAST]],10[INTEGER],false]
-     *   \_UnionAll[[color{r}#27, hex_code{r}#28, id{r}#29, primary{r}#30, rgb_byte_vector{r}#31, rgb_vector{r}#32, _score{r}#33,
-     *                      language_code{r}#34, language_name{r}#35]]
-     *     |_EsqlProject[[color{f}#11, hex_code{f}#12, id{f}#10, primary{f}#13, rgb_byte_vector{f}#15, rgb_vector{f}#14, _score{m}#3,
-     *                             language_code{r}#18, language_name{r}#19]]
-     *     | \_Eval[[null[INTEGER] AS language_code#18, null[KEYWORD] AS language_name#19]]
-     *     |   \_Limit[10[INTEGER],false,false]
-     *     |     \_Filter[KNN(rgb_vector{f}#14,[0.0, 120.0, 0.0][DENSE_VECTOR])]
-     *     |       \_EsRelation[colors][color{f}#11, hex_code{f}#12, id{f}#10, primary{f}#1..]
+     *   \_UnionAll[[color{r}#27, rgb_vector{r}#32, _score{r}#33, language_name{r}#35]]
+     *     \_Project[[color{f}#11, rgb_vector{f}#14, _score{m}#3, language_name{r}#19]]
+     *       \_Eval[[null[KEYWORD] AS language_name#19]]
+     *         \_Limit[10000[INTEGER],false,false]
+     *           \_Filter[KNN(rgb_vector{f}#14,[0.0, 120.0, 0.0][DENSE_VECTOR])]
+     *             \_EsRelation[colors][color{f}#11, hex_code{f}#12, id{f}#10, primary{f}#1..]
      */
     public void testPushDownKnnPastUnionAll() {
         var plan = planSubquery("""
@@ -1121,7 +1110,8 @@ public class PushDownFilterAndLimitIntoUnionAllTests extends AbstractLogicalPlan
         Project esqlProject = as(unionAll.children().get(0), Project.class);
         Eval eval = as(esqlProject.child(), Eval.class);
         List<Alias> aliases = eval.fields();
-        assertEquals(2, aliases.size());
+        assertEquals(1, aliases.size());
+        assertEquals("language_name", aliases.get(0).name());
         Limit limit = as(eval.child(), Limit.class);
         Filter filter = as(limit.child(), Filter.class);
         Knn knn = as(filter.condition(), Knn.class);

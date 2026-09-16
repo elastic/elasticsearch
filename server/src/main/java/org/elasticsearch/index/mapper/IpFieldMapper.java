@@ -828,14 +828,10 @@ public class IpFieldMapper extends FieldMapper {
         // by the mode gate, but every ip field in a TSDB index resolves to IndexType.skippers() — SORTED_SET
         // doc values with a RANGE skip index (see Builder#indexType) — which supportsColumnarDocValues() does
         // not accept yet, so TSDB ip fields still fall back to the row path until SORTED_SET emission lands.
-        return (indexSettings.getMode().isStrictColumnar() || indexSettings.getMode().isTsdb())
-            && supportsColumnarDocValues()
+        return supportsColumnarDocValues()
             && fieldType().indexType.hasPoints() == false
             && stored == false
-            && hasScript() == false
-            && copyTo().copyToFields().isEmpty()
-            && dimensionAllowsColumnarParse(fieldType(), writeDimensionRouting)
-            && indexSettings.getIndexVersionCreated().isLegacyIndexVersion() == false;
+            && dimensionAllowsColumnarParse(fieldType(), writeDimensionRouting);
     }
 
     /**
@@ -843,6 +839,11 @@ public class IpFieldMapper extends FieldMapper {
      * Accepts both the array-order (multi_value=true, ArrayOrderInlineNull blob + .counts sidecar)
      * and single-valued binary (multi_value=false) encoding. Other combinations fall back to the row path.
      */
+    @Override
+    protected boolean shouldEnforceSingleValueBatch() {
+        return docValuesParameters.multiValue() == false;
+    }
+
     private boolean supportsColumnarDocValues() {
         if (fieldType().usesBinaryDocValues() == false) {
             return false;
@@ -986,7 +987,6 @@ public class IpFieldMapper extends FieldMapper {
             final BytesRef nullValueEncoded = nullValue != null ? new BytesRef(CIDRUtils.encode(nullValue.getAddress())) : null;
 
             int currentDoc = -1;
-            boolean valueSeenThisDoc = false;
             while (true) {
                 final int nextDoc = cursor.nextDoc();
                 if (nextDoc == DocIdSetIterator.NO_MORE_DOCS) {
@@ -994,28 +994,16 @@ public class IpFieldMapper extends FieldMapper {
                 }
                 if (nextDoc != currentDoc) {
                     currentDoc = nextDoc;
-                    valueSeenThisDoc = false;
                 }
                 BytesRef utf8Value = cursor.value();
                 if (utf8Value == null) {
                     if (nullValueEncoded != null) {
                         // substitute, fall through to normal processing
                         values.setString(currentDoc, nullValueEncoded);
-                        valueSeenThisDoc = true;
                     }
                     // else null without null_value -> absent (row-path parity)
                     continue;
                 }
-
-                if (valueSeenThisDoc) {
-                    // multi_value=false violation: bail so ShardBatchMapper falls back to the row path,
-                    // which raises the correct per-doc error (on_failure=FAIL).
-                    // TODO: move to external method validation.
-                    throw new UnsupportedOperationException(
-                        "mapColumnBatch: multi_value=false field [" + fullPath() + "] has more than one value for doc [" + currentDoc + "]"
-                    );
-                }
-                valueSeenThisDoc = true;
 
                 // encodeIp throws UnsupportedOperationException on malformed input, which makes
                 // ShardBatchMapper fall back to the row path for the whole batch.

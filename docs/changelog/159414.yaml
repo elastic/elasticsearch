@@ -1,5 +1,0 @@
-area: Recovery
-issues: []
-pr: 159414
-summary: Log what stateless translog recovery replayed
-type: enhancement

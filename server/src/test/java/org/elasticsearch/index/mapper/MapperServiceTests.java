@@ -452,8 +452,11 @@ public class MapperServiceTests extends MapperServiceTestCase {
                 }
                 boolean isTimeSeriesField = builtIn.equals("_tsid") || builtIn.equals("_ts_routing_hash");
                 boolean isTimeSeriesMode = mapperService.getIndexSettings().getMode().equals(IndexMode.TIME_SERIES);
+                // _slice_key is mapped only on slice-enabled indices, like the time-series fields on time-series indices.
+                boolean isSliceOnlyField = builtIn.equals(SliceKeyFieldMapper.NAME);
+                boolean isSliceEnabled = mapperService.getIndexSettings().isSliceEnabled();
 
-                if (isTimeSeriesField && isTimeSeriesMode == false) {
+                if ((isTimeSeriesField && isTimeSeriesMode == false) || (isSliceOnlyField && isSliceEnabled == false)) {
                     assertFalse(
                         "Expected "
                             + builtIn

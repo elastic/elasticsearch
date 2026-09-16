@@ -127,6 +127,8 @@ public class FieldFilterMapperPluginTests extends ESSingleNodeTestCase {
         // Index is not a time-series index, and it will not contain _tsid and _ts_routing_hash fields.
         builtInMetadataFields.remove(TimeSeriesIdFieldMapper.NAME);
         builtInMetadataFields.remove(TimeSeriesRoutingHashFieldMapper.NAME);
+        // Nor is it slice-enabled, so it will not contain _slice_key.
+        builtInMetadataFields.remove(SliceKeyFieldMapper.NAME);
         return builtInMetadataFields;
     }
 

@@ -9,14 +9,18 @@
 
 package org.elasticsearch.index;
 
+import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.TransportVersion;
 import org.elasticsearch.action.search.OpenPointInTimeRequest;
 import org.elasticsearch.action.search.SearchRequest;
+import org.elasticsearch.cluster.routing.Murmur3HashFunction;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.util.ByteUtils;
 import org.elasticsearch.common.util.FeatureFlag;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.rest.RestRequest;
 
+import java.nio.charset.StandardCharsets;
 import java.util.regex.Pattern;
 
 /**
@@ -53,6 +57,65 @@ public final class SliceIndexing {
      * This is used to query across all slices while still indicating intentional slice-mode access.
      */
     public static final String SLICE_ALL = "_all";
+
+    /**
+     * Doc-values field holding the slice sort key, {@code BE32(sliceHash) ++ utf8(slice)}; the primary (and only
+     * prepended) index sort of a slice-enabled index. Bytewise order equals {@code (unsigned hash, slice)} order, so
+     * segments are laid out by hash prefix while slices with colliding hashes remain distinct, adjacent terms.
+     */
+    public static final String SLICE_KEY_FIELD_NAME = "_slice_key";
+
+    /**
+     * Numeric doc-values field holding {@link #sliceHash(String)} per document, with a skip index. Not a sort field: it
+     * exists so a segment's hash range can be read from doc-values metadata without touching the {@code _slice_key} terms.
+     */
+    public static final String SLICE_HASH_FIELD_NAME = "_slice_hash";
+
+    private static final int SLICE_HASH_BYTES = Integer.BYTES;
+
+    /** Unsigned 32-bit Murmur3 of the slice value; the same hash shard routing uses for the routing value. */
+    public static long sliceHash(String slice) {
+        return Murmur3HashFunction.hash(slice) & 0xFFFFFFFFL;
+    }
+
+    /** As {@link #sliceHash(String)} for a raw UTF-8 slice value (never an encoded key); hashed via the String form to match routing. */
+    public static long sliceHash(BytesRef slice) {
+        return sliceHash(slice.utf8ToString());
+    }
+
+    /** Encodes a {@link #SLICE_KEY_FIELD_NAME} term: big-endian unsigned hash followed by the UTF-8 slice bytes. */
+    public static BytesRef encodeSliceKey(String slice) {
+        byte[] utf8 = slice.getBytes(StandardCharsets.UTF_8);
+        byte[] key = new byte[SLICE_HASH_BYTES + utf8.length];
+        ByteUtils.writeIntBE((int) sliceHash(slice), key, 0);
+        System.arraycopy(utf8, 0, key, SLICE_HASH_BYTES, utf8.length);
+        return new BytesRef(key);
+    }
+
+    /** As {@link #encodeSliceKey(String)} for a raw UTF-8 slice value; never pass an already encoded key. */
+    public static BytesRef encodeSliceKey(BytesRef slice) {
+        return encodeSliceKey(slice.utf8ToString());
+    }
+
+    /**
+     * Field names a slice-enabled index reserves: the user-facing {@link #FIELD_NAME} alias and the internal
+     * {@link #SLICE_KEY_FIELD_NAME} and {@link #SLICE_HASH_FIELD_NAME} doc-values fields.
+     */
+    public static boolean isReservedFieldName(String name) {
+        return FIELD_NAME.equals(name) || SLICE_KEY_FIELD_NAME.equals(name) || SLICE_HASH_FIELD_NAME.equals(name);
+    }
+
+    /** The unsigned hash prefix of an encoded slice key. */
+    public static long sliceHashFromKey(BytesRef key) {
+        assert key.length >= SLICE_HASH_BYTES : "slice key too short: " + key.length;
+        return ByteUtils.readIntBE(key.bytes, key.offset) & 0xFFFFFFFFL;
+    }
+
+    /** The slice value an encoded slice key was built from. */
+    public static String sliceFromKey(BytesRef key) {
+        assert key.length >= SLICE_HASH_BYTES : "slice key too short: " + key.length;
+        return new BytesRef(key.bytes, key.offset + SLICE_HASH_BYTES, key.length - SLICE_HASH_BYTES).utf8ToString();
+    }
 
     /**
      * Parsed routing result with provenance indicating if the value came from {@code slice}.

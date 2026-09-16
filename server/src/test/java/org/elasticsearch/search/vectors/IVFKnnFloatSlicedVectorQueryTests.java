@@ -12,6 +12,7 @@ import org.apache.lucene.document.Document;
 import org.apache.lucene.document.Field;
 import org.apache.lucene.document.KnnFloatVectorField;
 import org.apache.lucene.document.SortedDocValuesField;
+import org.apache.lucene.document.SortedNumericDocValuesField;
 import org.apache.lucene.document.StoredField;
 import org.apache.lucene.document.StringField;
 import org.apache.lucene.index.DirectoryReader;
@@ -29,6 +30,7 @@ import org.apache.lucene.search.TopDocs;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.tests.util.TestUtil;
 import org.apache.lucene.util.BytesRef;
+import org.elasticsearch.index.SliceIndexing;
 import org.elasticsearch.index.cache.query.TrivialQueryCachingPolicy;
 import org.elasticsearch.index.codec.vectors.VectorTestUtils;
 import org.elasticsearch.index.codec.vectors.diskbbq.next.ESNextDiskBBQVectorsFormat;
@@ -112,10 +114,16 @@ public class IVFKnnFloatSlicedVectorQueryTests extends AbstractIVFKnnVectorQuery
         }
     }
 
+    /** Encoded slice key (the index sort field) plus the numeric slice hash that sliced search prunes on. */
+    private static void addSliceFields(Document doc, String sliceValue) {
+        doc.add(SortedDocValuesField.indexedField(SLICE_FIELD, SliceIndexing.encodeSliceKey(sliceValue)));
+        doc.add(SortedNumericDocValuesField.indexedField(SliceIndexing.SLICE_HASH_FIELD_NAME, SliceIndexing.sliceHash(sliceValue)));
+    }
+
     @Override
     protected Document getDocumentToIndex() {
         Document doc = new Document();
-        doc.add(SortedDocValuesField.indexedField(SLICE_FIELD, new BytesRef("" + random().nextInt(numSlices))));
+        addSliceFields(doc, "" + random().nextInt(numSlices));
         return doc;
     }
 
@@ -180,7 +188,7 @@ public class IVFKnnFloatSlicedVectorQueryTests extends AbstractIVFKnnVectorQuery
             for (int i = 0; i < numDocs; i++) {
                 int slice = random().nextInt(numSlices);
                 Document doc = new Document();
-                doc.add(SortedDocValuesField.indexedField(SLICE_FIELD, new BytesRef("" + slice)));
+                addSliceFields(doc, "" + slice);
                 boolean filterMatch = random().nextBoolean();
                 String filterText = filterMatch ? filterValue : filterMiss;
                 doc.add(new StringField(filterField, filterText, Field.Store.NO));

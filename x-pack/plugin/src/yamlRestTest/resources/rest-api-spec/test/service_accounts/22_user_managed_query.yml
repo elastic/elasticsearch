@@ -256,6 +256,65 @@ teardown:
   - match: { service_accounts.0.username: "apps/worker_2" }
 
 ---
+"Test query that matches no account returns an empty result":
+  - do:
+      security.query_service_accounts:
+        body: >
+          {
+            "query": { "term": { "username": "apps/worker_3" } }
+          }
+  - match: { total: 0 }
+  - match: { count: 0 }
+  - length: { service_accounts: 0 }
+
+  - do:
+      security.query_service_accounts:
+        body: >
+          {
+            "query": { "term": { "roles": "no_such_role" } }
+          }
+  - match: { total: 0 }
+  - match: { count: 0 }
+  - length: { service_accounts: 0 }
+
+  # The only batch/ account is enabled.
+  - do:
+      security.query_service_accounts:
+        body: >
+          {
+            "query": {
+              "bool": {
+                "filter": [
+                  { "prefix": { "username": "batch/" } },
+                  { "term": { "enabled": false } }
+                ]
+              }
+            }
+          }
+  - match: { total: 0 }
+  - match: { count: 0 }
+  - length: { service_accounts: 0 }
+
+  # Each clause matches an account on its own (apps/worker_1 exists, apps/worker_2 is disabled); only the
+  # conjunction is empty.
+  - do:
+      security.query_service_accounts:
+        body: >
+          {
+            "query": {
+              "bool": {
+                "filter": [
+                  { "term": { "username": "apps/worker_1" } },
+                  { "term": { "enabled": false } }
+                ]
+              }
+            }
+          }
+  - match: { total: 0 }
+  - match: { count: 0 }
+  - length: { service_accounts: 0 }
+
+---
 "Test pagination with from and size and with search_after":
   - do:
       security.query_service_accounts:

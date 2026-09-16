@@ -46,11 +46,10 @@ import org.apache.lucene.search.TopDocsCollector;
 import org.apache.lucene.search.TopKnnCollector;
 import org.apache.lucene.search.Weight;
 import org.apache.lucene.store.Directory;
-import org.apache.lucene.tests.index.BaseKnnVectorsFormatTestCase;
 import org.apache.lucene.tests.util.TestUtil;
 import org.apache.lucene.util.Bits;
 import org.apache.lucene.util.BytesRef;
-import org.elasticsearch.common.logging.LogConfigurator;
+import org.elasticsearch.index.codec.vectors.ESBaseKnnVectorsFormatTestCase;
 import org.elasticsearch.index.codec.vectors.diskbbq.IVFVectorsReader;
 import org.elasticsearch.index.codec.vectors.diskbbq.QuantEncoding;
 import org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapper;
@@ -86,11 +85,7 @@ import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.oneOf;
 
-public class ESNextDiskBBQVectorsFormatTests extends BaseKnnVectorsFormatTestCase {
-
-    static {
-        LogConfigurator.configureESLogging(); // native access requires logging to be initialized
-    }
+public class ESNextDiskBBQVectorsFormatTests extends ESBaseKnnVectorsFormatTestCase {
 
     @Override
     protected boolean supportsFloatVectorFallback() {

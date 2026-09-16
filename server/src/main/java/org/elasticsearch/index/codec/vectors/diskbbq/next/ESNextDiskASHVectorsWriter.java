@@ -229,6 +229,9 @@ public class ESNextDiskASHVectorsWriter extends IVFVectorsWriter<FlatCentroidInd
         if (vectorValues instanceof FloatVectorValues == false) {
             throw new IllegalStateException("ASH requires float vectors, got: " + vectorValues.getClass().getSimpleName());
         }
+        // In the sliced flush case (single centroid), skip writing per-block doc IDs.
+        // The reader uses vector ordinal order for doc translation via ordToDoc().
+        boolean skipDocIds = sliceField != null && centroidSupplier.size() == 1;
         var ashWriter = new AshPostingsListWriter();
         var result = ashWriter.buildAndWrite(
             fieldInfo,
@@ -239,7 +242,8 @@ public class ESNextDiskASHVectorsWriter extends IVFVectorsWriter<FlatCentroidInd
             assignments,
             overspillAssignments,
             segmentConfig.ashConfig(),
-            fieldInfo.getVectorSimilarityFunction()
+            fieldInfo.getVectorSimilarityFunction(),
+            skipDocIds
         );
         pendingAshMatrix = ashWriter.getAshProjectionMatrix();
         return new CentroidOffsetAndLength(result.offsets(), result.lengths());
@@ -272,8 +276,9 @@ public class ESNextDiskASHVectorsWriter extends IVFVectorsWriter<FlatCentroidInd
                 metaOutput.writeVInt(maxSliceSize);
             }
         }
-        // ASH-specific: bits per dimension
-        metaOutput.writeVInt(ivfSegmentConfig.ashConfig().bitsPerDim());
+        // ASH-specific: bits per dimension — use the writer's own config rather than the segment
+        // config, because the segment config may be IvfSegmentConfig.NONE for unsupported byte fields.
+        metaOutput.writeVInt(ashConfig.bitsPerDim());
     }
 
     @Override

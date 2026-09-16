@@ -39,6 +39,7 @@ import org.elasticsearch.xpack.esql.plan.logical.TsInfo;
 import org.elasticsearch.xpack.esql.plan.logical.UriParts;
 import org.elasticsearch.xpack.esql.plan.logical.UserAgent;
 import org.elasticsearch.xpack.esql.plan.logical.inference.Completion;
+import org.elasticsearch.xpack.esql.plan.logical.inference.DenseVector;
 import org.elasticsearch.xpack.esql.plan.logical.inference.Rerank;
 import org.elasticsearch.xpack.esql.plan.logical.join.InlineJoin;
 import org.elasticsearch.xpack.esql.plan.logical.join.Join;
@@ -69,6 +70,7 @@ import org.elasticsearch.xpack.esql.plan.physical.MetricsInfoExec;
 import org.elasticsearch.xpack.esql.plan.physical.MvExpandExec;
 import org.elasticsearch.xpack.esql.plan.physical.ProjectExec;
 import org.elasticsearch.xpack.esql.plan.physical.RegisteredDomainExec;
+import org.elasticsearch.xpack.esql.plan.physical.RemoteFetchBoundaryExec;
 import org.elasticsearch.xpack.esql.plan.physical.SampleExec;
 import org.elasticsearch.xpack.esql.plan.physical.SampledAggregateExec;
 import org.elasticsearch.xpack.esql.plan.physical.ShowExec;
@@ -81,6 +83,7 @@ import org.elasticsearch.xpack.esql.plan.physical.TsInfoExec;
 import org.elasticsearch.xpack.esql.plan.physical.UriPartsExec;
 import org.elasticsearch.xpack.esql.plan.physical.UserAgentExec;
 import org.elasticsearch.xpack.esql.plan.physical.inference.CompletionExec;
+import org.elasticsearch.xpack.esql.plan.physical.inference.DenseVectorExec;
 import org.elasticsearch.xpack.esql.plan.physical.inference.RerankExec;
 
 import java.util.ArrayList;
@@ -101,6 +104,7 @@ public class PlanWritables {
             Aggregate.ENTRY,
             Completion.ENTRY,
             Dissect.ENTRY,
+            DenseVector.ENTRY,
             Enrich.ENTRY,
             EsRelation.ENTRY,
             Eval.ENTRY,
@@ -142,6 +146,7 @@ public class PlanWritables {
             AggregateExec.ENTRY,
             CompletionExec.ENTRY,
             DissectExec.ENTRY,
+            DenseVectorExec.ENTRY,
             EnrichExec.ENTRY,
             EsSourceExec.ENTRY,
             EvalExec.ENTRY,
@@ -160,6 +165,7 @@ public class PlanWritables {
             LocalSourceExec.ENTRY,
             MvExpandExec.ENTRY,
             ProjectExec.ENTRY,
+            RemoteFetchBoundaryExec.ENTRY,
             RerankExec.ENTRY,
             SampleExec.ENTRY,
             SampledAggregateExec.ENTRY,

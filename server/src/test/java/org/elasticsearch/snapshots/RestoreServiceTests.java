@@ -11,23 +11,56 @@ package org.elasticsearch.snapshots;
 
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.admin.cluster.snapshots.restore.RestoreSnapshotRequest;
+import org.elasticsearch.action.support.PlainActionFuture;
+import org.elasticsearch.cluster.ClusterState;
+import org.elasticsearch.cluster.RestoreInProgress;
+import org.elasticsearch.cluster.TestShardRoutingRoleStrategies;
 import org.elasticsearch.cluster.metadata.DataStream;
 import org.elasticsearch.cluster.metadata.DataStreamTestHelper;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
+import org.elasticsearch.cluster.metadata.IndexMetadataVerifier;
+import org.elasticsearch.cluster.metadata.IndexReshardingMetadata;
+import org.elasticsearch.cluster.metadata.MetadataCreateIndexService;
 import org.elasticsearch.cluster.metadata.ProjectId;
 import org.elasticsearch.cluster.metadata.ProjectMetadata;
 import org.elasticsearch.cluster.metadata.RepositoryMetadata;
+import org.elasticsearch.cluster.node.DiscoveryNode;
+import org.elasticsearch.cluster.routing.IndexRoutingTable;
+import org.elasticsearch.cluster.routing.RecoverySource;
+import org.elasticsearch.cluster.routing.RecoverySource.SnapshotRecoverySource;
+import org.elasticsearch.cluster.routing.RoutingTable;
+import org.elasticsearch.cluster.routing.ShardRouting;
+import org.elasticsearch.cluster.routing.ShardRoutingState;
+import org.elasticsearch.cluster.routing.TestShardRouting;
+import org.elasticsearch.cluster.routing.allocation.AllocationService;
+import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.UUIDs;
+import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
+import org.elasticsearch.common.util.iterable.Iterables;
+import org.elasticsearch.core.Assertions;
+import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.features.FeatureService;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexVersion;
+import org.elasticsearch.index.shard.ShardId;
+import org.elasticsearch.indices.EmptySystemIndices;
+import org.elasticsearch.indices.IndicesService;
+import org.elasticsearch.indices.ShardLimitValidator;
+import org.elasticsearch.indices.SystemIndices;
+import org.elasticsearch.indices.recovery.RecoveryFeatures;
+import org.elasticsearch.repositories.IndexId;
 import org.elasticsearch.repositories.RepositoriesService;
 import org.elasticsearch.repositories.Repository;
 import org.elasticsearch.repositories.RepositoryData;
 import org.elasticsearch.repositories.blobstore.BlobStoreRepository;
+import org.elasticsearch.reservedstate.service.FileSettingsService;
+import org.elasticsearch.test.ClusterServiceUtils;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.threadpool.TestThreadPool;
+import org.elasticsearch.threadpool.ThreadPool;
 
 import java.util.ArrayList;
 import java.util.Collections;
@@ -36,11 +69,15 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.concurrent.atomic.AtomicInteger;
+import java.util.function.BiFunction;
 
 import static org.elasticsearch.core.Strings.format;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.not;
+import static org.hamcrest.Matchers.notNullValue;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.doAnswer;
@@ -339,6 +376,650 @@ public class RestoreServiceTests extends ESTestCase {
         assertEquals("a_b_c", result);
     }
 
+    // ---- isRestoringShardFromSnapshot predicate tests --------------------------------------------------
+
+    /**
+     * Bundles the objects needed to exercise {@link RestoreService#isRestoringShardFromSnapshot} with all six correlation
+     * conditions satisfied. Individual tests override specific parts to verify each failing condition.
+     */
+    private record RestoreTestState(ShardRouting primary, RestoreInProgress restoreInProgress, Snapshot snapshot) {}
+
+    /**
+     * Builds a {@link RestoreTestState} in which every predicate condition holds: the primary is
+     * {@code INITIALIZING} with a {@link SnapshotRecoverySource}, a matching {@link RestoreInProgress}
+     * entry exists, the source snapshot matches, the exact {@link ShardId} is present, and the shard's
+     * restore status is {@link RestoreInProgress.State#STARTED} (not completed).
+     */
+    private static RestoreTestState buildRestoreTestState() {
+        String restoreUuid = randomUUID();
+        String repoName = randomIdentifier();
+        String indexName = randomIdentifier();
+        String indexUuid = randomUUID();
+        String nodeId = randomUUID();
+
+        Snapshot snapshot = new Snapshot(randomProjectIdOrDefault(), repoName, new SnapshotId(randomIdentifier(), randomUUID()));
+        ShardId shardId = new ShardId(indexName, indexUuid, 0);
+
+        ShardRouting primary = TestShardRouting.shardRoutingBuilder(shardId, nodeId, true, ShardRoutingState.INITIALIZING)
+            .withRecoverySource(
+                new SnapshotRecoverySource(restoreUuid, snapshot, IndexVersion.current(), new IndexId(indexName, indexUuid))
+            )
+            .build();
+
+        RestoreInProgress restoreInProgress = new RestoreInProgress.Builder().add(
+            new RestoreInProgress.Entry(
+                restoreUuid,
+                snapshot,
+                RestoreInProgress.State.STARTED,
+                false,
+                List.of(indexName),
+                Map.of(shardId, new RestoreInProgress.ShardRestoreStatus(nodeId))
+            )
+        ).build();
+
+        return new RestoreTestState(primary, restoreInProgress, snapshot);
+    }
+
+    /**
+     * Baseline: all six conditions met, restore status {@code STARTED} — predicate must return {@code true}.
+     */
+    public void testIsRestoringShard_allConditionsMet_returnsTrue() {
+        var s = buildRestoreTestState();
+        assertTrue(RestoreService.isRestoringShardFromSnapshot(s.restoreInProgress(), s.primary()));
+    }
+
+    /**
+     * Condition 1: recovery source is not a {@link SnapshotRecoverySource} — must return {@code false}.
+     * Covers peer recovery, empty-store, and existing-store allocations.
+     */
+    public void testIsRestoringShard_nonSnapshotRecoverySource_returnsFalse() {
+        var s = buildRestoreTestState();
+        ShardRouting peerRecovery = TestShardRouting.shardRoutingBuilder(
+            s.primary().shardId(),
+            s.primary().currentNodeId(),
+            true,
+            ShardRoutingState.INITIALIZING
+        ).withRecoverySource(RecoverySource.PeerRecoverySource.INSTANCE).build();
+
+        assertFalse(RestoreService.isRestoringShardFromSnapshot(s.restoreInProgress(), peerRecovery));
+    }
+
+    /**
+     * Condition 2: {@code restoreUUID} is {@link SnapshotRecoverySource#NO_API_RESTORE_UUID} — must return {@code false}.
+     * This sentinel marks searchable-snapshot allocations, which must not be treated as API-level restores.
+     */
+    public void testIsRestoringShard_noApiRestoreUuid_returnsFalse() {
+        var s = buildRestoreTestState();
+        ShardId shardId = s.primary().shardId();
+        ShardRouting noApiRouting = TestShardRouting.shardRoutingBuilder(
+            shardId,
+            s.primary().currentNodeId(),
+            true,
+            ShardRoutingState.INITIALIZING
+        )
+            .withRecoverySource(
+                new SnapshotRecoverySource(
+                    SnapshotRecoverySource.NO_API_RESTORE_UUID,
+                    s.snapshot(),
+                    IndexVersion.current(),
+                    new IndexId(shardId.getIndexName(), randomUUID())
+                )
+            )
+            .build();
+
+        assertFalse(RestoreService.isRestoringShardFromSnapshot(s.restoreInProgress(), noApiRouting));
+    }
+
+    /**
+     * Condition 3: UUID present in the routing's recovery source has no matching entry in {@link RestoreInProgress}
+     * (stale routing) — must return {@code false}.
+     */
+    public void testIsRestoringShard_staleUuid_returnsFalse() {
+        var s = buildRestoreTestState();
+        // EMPTY has no entries at all, so the UUID lookup returns null
+        assertFalse(RestoreService.isRestoringShardFromSnapshot(RestoreInProgress.EMPTY, s.primary()));
+    }
+
+    /**
+     * Condition 3 (variant): {@link RestoreInProgress} has an active entry, but it is keyed under a different
+     * UUID than the one in the shard's routing recovery source — UUID lookup still returns {@code null}, so
+     * the predicate must return {@code false}.
+     */
+    public void testIsRestoringShard_staleUuidWithOtherEntry_returnsFalse() {
+        var s = buildRestoreTestState();
+        String otherUuid = randomUUID();
+        ShardId otherShardId = new ShardId(randomIdentifier(), randomUUID(), 0);
+        Snapshot otherSnapshot = new Snapshot(
+            randomProjectIdOrDefault(),
+            randomIdentifier(),
+            new SnapshotId(randomIdentifier(), randomUUID())
+        );
+
+        RestoreInProgress unrelatedRestoreInProgress = new RestoreInProgress.Builder().add(
+            new RestoreInProgress.Entry(
+                otherUuid,
+                otherSnapshot,
+                RestoreInProgress.State.STARTED,
+                false,
+                List.of(otherShardId.getIndexName()),
+                Map.of(otherShardId, new RestoreInProgress.ShardRestoreStatus(randomUUID()))
+            )
+        ).build();
+
+        assertFalse(RestoreService.isRestoringShardFromSnapshot(unrelatedRestoreInProgress, s.primary()));
+    }
+
+    /**
+     * Condition 4: an entry exists for the UUID but its {@link Snapshot} differs from the routing's recovery source
+     * (mismatched correlation state). With assertions enabled this throws {@link AssertionError}; in production
+     * (assertions disabled) it logs ERROR and returns {@code false}.
+     */
+    public void testIsRestoringShard_snapshotMismatch() {
+        var s = buildRestoreTestState();
+        SnapshotRecoverySource source = (SnapshotRecoverySource) s.primary().recoverySource();
+        ShardId shardId = s.primary().shardId();
+
+        Snapshot differentSnapshot = new Snapshot(
+            randomProjectIdOrDefault(),
+            randomIdentifier(),
+            new SnapshotId(randomIdentifier(), randomUUID())
+        );
+        RestoreInProgress mismatchedRestore = new RestoreInProgress.Builder().add(
+            new RestoreInProgress.Entry(
+                source.restoreUUID(),
+                differentSnapshot,
+                RestoreInProgress.State.STARTED,
+                false,
+                List.of(shardId.getIndexName()),
+                Map.of(shardId, new RestoreInProgress.ShardRestoreStatus(s.primary().currentNodeId()))
+            )
+        ).build();
+
+        if (Assertions.ENABLED) {
+            assertThrows(AssertionError.class, () -> RestoreService.isRestoringShardFromSnapshot(mismatchedRestore, s.primary()));
+        } else {
+            assertFalse(RestoreService.isRestoringShardFromSnapshot(mismatchedRestore, s.primary()));
+        }
+    }
+
+    /**
+     * Condition 5: entry has the right UUID and snapshot but does not contain this exact {@link ShardId}
+     * (entry covers a subset of shards) — must return {@code false}.
+     */
+    public void testIsRestoringShard_shardIdAbsent_returnsFalse() {
+        var s = buildRestoreTestState();
+        SnapshotRecoverySource source = (SnapshotRecoverySource) s.primary().recoverySource();
+        ShardId shardId = s.primary().shardId();
+
+        ShardId otherShardId = new ShardId(shardId.getIndexName(), shardId.getIndex().getUUID(), shardId.id() + 1);
+        RestoreInProgress noShardRestore = new RestoreInProgress.Builder().add(
+            new RestoreInProgress.Entry(
+                source.restoreUUID(),
+                s.snapshot(),
+                RestoreInProgress.State.STARTED,
+                false,
+                List.of(shardId.getIndexName()),
+                Map.of(otherShardId, new RestoreInProgress.ShardRestoreStatus(s.primary().currentNodeId()))
+            )
+        ).build();
+
+        assertFalse(RestoreService.isRestoringShardFromSnapshot(noShardRestore, s.primary()));
+    }
+
+    /**
+     * Condition 6: shard restore status is {@link RestoreInProgress.State#SUCCESS} (completed) — must return {@code false}.
+     */
+    public void testIsRestoringShard_restoreStatusSuccess_returnsFalse() {
+        var s = buildRestoreTestState();
+        SnapshotRecoverySource source = (SnapshotRecoverySource) s.primary().recoverySource();
+        ShardId shardId = s.primary().shardId();
+
+        RestoreInProgress completedRestore = new RestoreInProgress.Builder().add(
+            new RestoreInProgress.Entry(
+                source.restoreUUID(),
+                s.snapshot(),
+                RestoreInProgress.State.SUCCESS,
+                false,
+                List.of(shardId.getIndexName()),
+                Map.of(shardId, new RestoreInProgress.ShardRestoreStatus(s.primary().currentNodeId(), RestoreInProgress.State.SUCCESS))
+            )
+        ).build();
+
+        assertFalse(RestoreService.isRestoringShardFromSnapshot(completedRestore, s.primary()));
+    }
+
+    /**
+     * Condition 6 variant: shard restore status is {@link RestoreInProgress.State#FAILURE} — must return {@code false}.
+     * This case is real: {@link RestoreService} seeds {@code ignoreShards} entries with {@code State.FAILURE}
+     * from the outset, so a live entry can carry already-completed shard statuses.
+     */
+    public void testIsRestoringShard_restoreStatusFailure_returnsFalse() {
+        var s = buildRestoreTestState();
+        SnapshotRecoverySource source = (SnapshotRecoverySource) s.primary().recoverySource();
+        ShardId shardId = s.primary().shardId();
+
+        RestoreInProgress failedRestore = new RestoreInProgress.Builder().add(
+            new RestoreInProgress.Entry(
+                source.restoreUUID(),
+                s.snapshot(),
+                RestoreInProgress.State.FAILURE,
+                false,
+                List.of(shardId.getIndexName()),
+                Map.of(shardId, new RestoreInProgress.ShardRestoreStatus(s.primary().currentNodeId(), RestoreInProgress.State.FAILURE))
+            )
+        ).build();
+
+        assertFalse(RestoreService.isRestoringShardFromSnapshot(failedRestore, s.primary()));
+    }
+
+    /**
+     * Condition 6 variant: the restore's overall state is still {@link RestoreInProgress.State#STARTED} (other shards remain
+     * in progress), but the specific shard under evaluation has already reached {@link RestoreInProgress.State#FAILURE}.
+     * The predicate must return {@code false} based on the individual shard status, bypassing the early-exit on entry state.
+     */
+    public void testIsRestoringShard_shardStatusFailureRestoreStarted_returnsFalse() {
+        var s = buildRestoreTestState();
+        SnapshotRecoverySource source = (SnapshotRecoverySource) s.primary().recoverySource();
+        ShardId shardId = s.primary().shardId();
+        ShardId otherShardId = new ShardId(shardId.getIndexName(), shardId.getIndex().getUUID(), shardId.id() + 1);
+
+        RestoreInProgress partiallyCompleteRestore = new RestoreInProgress.Builder().add(
+            new RestoreInProgress.Entry(
+                source.restoreUUID(),
+                s.snapshot(),
+                RestoreInProgress.State.STARTED,
+                false,
+                List.of(shardId.getIndexName()),
+                Map.of(
+                    shardId,
+                    new RestoreInProgress.ShardRestoreStatus(s.primary().currentNodeId(), RestoreInProgress.State.FAILURE),
+                    otherShardId,
+                    new RestoreInProgress.ShardRestoreStatus(s.primary().currentNodeId(), RestoreInProgress.State.STARTED)
+                )
+            )
+        ).build();
+
+        assertFalse(RestoreService.isRestoringShardFromSnapshot(partiallyCompleteRestore, s.primary()));
+    }
+
+    /**
+     * Condition 6 variant: the entry's overall state is still {@link RestoreInProgress.State#STARTED} (other shards remain
+     * in progress), but the specific shard under evaluation has already reached {@link RestoreInProgress.State#SUCCESS}.
+     * The predicate must return {@code false} based on the individual shard status.
+     */
+    public void testIsRestoringShard_shardStatusSuccessRestoreStarted_returnsFalse() {
+        var s = buildRestoreTestState();
+        SnapshotRecoverySource source = (SnapshotRecoverySource) s.primary().recoverySource();
+        ShardId shardId = s.primary().shardId();
+        ShardId otherShardId = new ShardId(shardId.getIndexName(), shardId.getIndex().getUUID(), shardId.id() + 1);
+
+        RestoreInProgress partiallyCompleteRestore = new RestoreInProgress.Builder().add(
+            new RestoreInProgress.Entry(
+                source.restoreUUID(),
+                s.snapshot(),
+                RestoreInProgress.State.STARTED,
+                false,
+                List.of(shardId.getIndexName()),
+                Map.of(
+                    shardId,
+                    new RestoreInProgress.ShardRestoreStatus(s.primary().currentNodeId(), RestoreInProgress.State.SUCCESS),
+                    otherShardId,
+                    new RestoreInProgress.ShardRestoreStatus(s.primary().currentNodeId(), RestoreInProgress.State.STARTED)
+                )
+            )
+        ).build();
+
+        assertFalse(RestoreService.isRestoringShardFromSnapshot(partiallyCompleteRestore, s.primary()));
+    }
+
+    /**
+     * All conditions met with restore status {@link RestoreInProgress.State#INIT} — shard is initialising
+     * before data transfer begins — predicate must return {@code true}.
+     */
+    public void testIsRestoringShard_shardStatusInit_returnsTrue() {
+        var s = buildRestoreTestState();
+        SnapshotRecoverySource source = (SnapshotRecoverySource) s.primary().recoverySource();
+        ShardId shardId = s.primary().shardId();
+
+        RestoreInProgress initRestore = new RestoreInProgress.Builder().add(
+            new RestoreInProgress.Entry(
+                source.restoreUUID(),
+                s.snapshot(),
+                RestoreInProgress.State.INIT,
+                false,
+                List.of(shardId.getIndexName()),
+                Map.of(shardId, new RestoreInProgress.ShardRestoreStatus(s.primary().currentNodeId(), RestoreInProgress.State.INIT))
+            )
+        ).build();
+
+        assertTrue(RestoreService.isRestoringShardFromSnapshot(initRestore, s.primary()));
+    }
+
+    // ---- hook setter and executeRestoreCleanup tests -----------------
+
+    /** Builds a minimal mocked {@link RestoreService} so instance methods can be exercised without a full cluster. */
+    private RestoreService createMinimalRestoreService() {
+        ClusterService clusterService = mock(ClusterService.class);
+        when(clusterService.getSettings()).thenReturn(Settings.EMPTY);
+        when(clusterService.getClusterSettings()).thenReturn(
+            new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS)
+        );
+        ThreadPool threadPool = mock(ThreadPool.class);
+        when(threadPool.executor(ThreadPool.Names.SNAPSHOT_META)).thenReturn(EsExecutors.DIRECT_EXECUTOR_SERVICE);
+        return new RestoreService(
+            clusterService,
+            mock(RepositoriesService.class),
+            mock(AllocationService.class),
+            mock(MetadataCreateIndexService.class),
+            mock(IndexMetadataVerifier.class),
+            mock(ShardLimitValidator.class),
+            mock(SystemIndices.class),
+            mock(IndicesService.class),
+            mock(FileSettingsService.class),
+            threadPool,
+            false,
+            IndexMetadataRestoreTransformer.NoOpRestoreTransformer.getInstance(),
+            mock(FeatureService.class)
+        );
+    }
+
+    /** Builds a {@link ClusterState} that contains one completed {@link RestoreInProgress} entry. */
+    private static ClusterState stateWithCompletedRestore() {
+        String nodeId = randomUUID();
+        ShardId shardId = new ShardId(randomIdentifier(), randomUUID(), 0);
+        Snapshot snapshot = new Snapshot(randomProjectIdOrDefault(), randomIdentifier(), new SnapshotId(randomIdentifier(), randomUUID()));
+        RestoreInProgress rip = new RestoreInProgress.Builder().add(
+            new RestoreInProgress.Entry(
+                UUIDs.randomBase64UUID(),
+                snapshot,
+                RestoreInProgress.State.SUCCESS,
+                false,
+                List.of(shardId.getIndexName()),
+                Map.of(shardId, new RestoreInProgress.ShardRestoreStatus(nodeId, RestoreInProgress.State.SUCCESS))
+            )
+        ).build();
+        return ClusterState.builder(ClusterState.EMPTY_STATE).putCustom(RestoreInProgress.TYPE, rip).build();
+    }
+
+    /** Builds a {@link ClusterState} that contains one still-active {@link RestoreInProgress} entry. */
+    private static ClusterState stateWithActiveRestore() {
+        String nodeId = randomUUID();
+        ShardId shardId = new ShardId(randomIdentifier(), randomUUID(), 0);
+        Snapshot snapshot = new Snapshot(randomProjectIdOrDefault(), randomIdentifier(), new SnapshotId(randomIdentifier(), randomUUID()));
+        RestoreInProgress rip = new RestoreInProgress.Builder().add(
+            new RestoreInProgress.Entry(
+                UUIDs.randomBase64UUID(),
+                snapshot,
+                RestoreInProgress.State.STARTED,
+                false,
+                List.of(shardId.getIndexName()),
+                Map.of(shardId, new RestoreInProgress.ShardRestoreStatus(nodeId))
+            )
+        ).build();
+        return ClusterState.builder(ClusterState.EMPTY_STATE).putCustom(RestoreInProgress.TYPE, rip).build();
+    }
+
+    /** Builds a listener that applies {@code onCompleted} on completion and defaults on initialization. */
+    private static RestoreLifecycleListener completionListener(
+        BiFunction<RestoreInProgress.Entry, ClusterState, ClusterState> onCompleted
+    ) {
+        return new RestoreLifecycleListener() {
+            @Override
+            public ClusterState onRestoreCompleted(RestoreInProgress.Entry entry, ClusterState state) {
+                return onCompleted.apply(entry, state);
+            }
+        };
+    }
+
+    public void testSetLifecycleListenerRejectsNull() {
+        RestoreService service = createMinimalRestoreService();
+        expectThrows(NullPointerException.class, () -> service.setLifecycleListener(null));
+    }
+
+    public void testRestoreSnapshotRejectsInvalidRestoreUUID() {
+        RestoreService service = createMinimalRestoreService();
+        RestoreSnapshotRequest request = new RestoreSnapshotRequest(TEST_REQUEST_TIMEOUT);
+        expectThrows(
+            IllegalArgumentException.class,
+            () -> service.restoreSnapshot(
+                randomProjectIdOrDefault(),
+                request,
+                SnapshotRecoverySource.NO_API_RESTORE_UUID,
+                ActionListener.noop(),
+                (clusterState, builder) -> {}
+            )
+        );
+        expectThrows(
+            NullPointerException.class,
+            () -> service.restoreSnapshot(randomProjectIdOrDefault(), request, null, ActionListener.noop(), (clusterState, builder) -> {})
+        );
+    }
+
+    public void testOnRestoreCompletedCalledForCompletedEntry() {
+        RestoreService service = createMinimalRestoreService();
+        AtomicInteger callCount = new AtomicInteger(0);
+        service.setLifecycleListener(completionListener((entry, state) -> {
+            callCount.incrementAndGet();
+            return state;
+        }));
+
+        ClusterState result = service.executeRestoreCleanup(stateWithCompletedRestore());
+
+        assertEquals(1, callCount.get());
+        assertTrue(RestoreInProgress.get(result).isEmpty());
+    }
+
+    public void testOnRestoreCompletedNotCalledForActiveEntry() {
+        RestoreService service = createMinimalRestoreService();
+        AtomicInteger callCount = new AtomicInteger(0);
+        service.setLifecycleListener(completionListener((entry, state) -> {
+            callCount.incrementAndGet();
+            return state;
+        }));
+
+        ClusterState input = stateWithActiveRestore();
+        ClusterState result = service.executeRestoreCleanup(input);
+
+        assertEquals(0, callCount.get());
+        assertSame(input, result);
+    }
+
+    public void testDefaultNoopListenerPreservesClusterState() {
+        RestoreService service = createMinimalRestoreService();
+
+        ClusterState withActive = stateWithActiveRestore();
+        assertSame(withActive, service.executeRestoreCleanup(withActive));
+
+        ClusterState withCompleted = stateWithCompletedRestore();
+        ClusterState cleaned = service.executeRestoreCleanup(withCompleted);
+        assertTrue(RestoreInProgress.get(cleaned).isEmpty());
+    }
+
+    public void testOnRestoreCompletedReceivesEntryAndCanModifyState() {
+        RestoreService service = createMinimalRestoreService();
+        List<RestoreInProgress.Entry> capturedEntries = new ArrayList<>();
+        service.setLifecycleListener(completionListener((entry, state) -> {
+            capturedEntries.add(entry);
+            return ClusterState.builder(state).version(state.version() + 1).build();
+        }));
+
+        ClusterState input = stateWithCompletedRestore();
+        RestoreInProgress.Entry expectedEntry = RestoreInProgress.get(input).iterator().next();
+        long initialVersion = input.version();
+
+        ClusterState result = service.executeRestoreCleanup(input);
+
+        assertEquals(List.of(expectedEntry), capturedEntries);
+        assertEquals(initialVersion + 1, result.version());
+        assertTrue(RestoreInProgress.get(result).isEmpty());
+    }
+
+    /**
+     * Verifies the retry contract documented on {@link RestoreLifecycleListener#onRestoreCompleted}: when
+     * the listener throws, the entry is retained in cluster state and the listener is called again on the
+     * next cleanup pass.
+     */
+    public void testOnRestoreCompletedRetriedAfterException() {
+        RestoreService service = createMinimalRestoreService();
+        AtomicInteger callCount = new AtomicInteger(0);
+        RuntimeException boom = new RuntimeException("transient failure");
+        service.setLifecycleListener(completionListener((entry, state) -> {
+            if (callCount.incrementAndGet() == 1) {
+                throw boom;
+            }
+            return state;
+        }));
+
+        ClusterState input = stateWithCompletedRestore();
+
+        // First pass: listener throws — entry must be retained.
+        ClusterState afterFirst = service.executeRestoreCleanup(input);
+        assertEquals(1, callCount.get());
+        assertFalse("entry must be retained after listener exception", RestoreInProgress.get(afterFirst).isEmpty());
+
+        // Second pass: listener succeeds — entry must be removed.
+        ClusterState afterSecond = service.executeRestoreCleanup(afterFirst);
+        assertEquals(2, callCount.get());
+        assertTrue("entry must be removed after successful listener call", RestoreInProgress.get(afterSecond).isEmpty());
+    }
+
+    // ---- applyRestoreInitializedListener tests --------------------------------
+
+    /** Builds a single {@link RestoreInProgress.Entry} for use in initialization tests. */
+    private static RestoreInProgress.Entry buildRestoreEntry() {
+        String nodeId = randomUUID();
+        ShardId shardId = new ShardId(randomIdentifier(), randomUUID(), 0);
+        Snapshot snapshot = new Snapshot(randomProjectIdOrDefault(), randomIdentifier(), new SnapshotId(randomIdentifier(), randomUUID()));
+        return new RestoreInProgress.Entry(
+            UUIDs.randomBase64UUID(),
+            snapshot,
+            RestoreInProgress.State.INIT,
+            false,
+            List.of(shardId.getIndexName()),
+            Map.of(shardId, new RestoreInProgress.ShardRestoreStatus(nodeId))
+        );
+    }
+
+    public void testApplyRestoreInitializedListenerCallsListenerWhenEntryNonNull() {
+        RestoreService service = createMinimalRestoreService();
+        AtomicInteger callCount = new AtomicInteger(0);
+        service.setLifecycleListener(new RestoreLifecycleListener() {
+            @Override
+            public ClusterState onRestoreInitialized(RestoreInProgress.Entry entry, ClusterState state) {
+                callCount.incrementAndGet();
+                return ClusterState.builder(state).version(state.version() + 1).build();
+            }
+        });
+
+        RestoreInProgress.Entry entry = buildRestoreEntry();
+        long initialVersion = ClusterState.EMPTY_STATE.version();
+        ClusterState result = service.applyRestoreInitializedListener(entry, ClusterState.EMPTY_STATE);
+
+        assertEquals(1, callCount.get());
+        assertEquals(initialVersion + 1, result.version());
+    }
+
+    public void testApplyRestoreInitializedListenerSkipsListenerWhenEntryNull() {
+        RestoreService service = createMinimalRestoreService();
+        AtomicInteger callCount = new AtomicInteger(0);
+        service.setLifecycleListener(new RestoreLifecycleListener() {
+            @Override
+            public ClusterState onRestoreInitialized(RestoreInProgress.Entry entry, ClusterState state) {
+                callCount.incrementAndGet();
+                return state;
+            }
+        });
+
+        ClusterState result = service.applyRestoreInitializedListener(null, ClusterState.EMPTY_STATE);
+
+        assertEquals(0, callCount.get());
+        assertSame(ClusterState.EMPTY_STATE, result);
+    }
+
+    public void testSetLifecycleListenerRejectsDoubleRegistration() {
+        RestoreService service = createMinimalRestoreService();
+        RestoreLifecycleListener realListener = new RestoreLifecycleListener() {};
+        service.setLifecycleListener(realListener);
+        expectThrows(IllegalStateException.class, () -> service.setLifecycleListener(realListener));
+    }
+
+    // ---- restore-over-open-index guard tests ---------------------------------------------
+
+    /**
+     * A restore over an open index must refuse to publish the transition until every node in the cluster supports
+     * {@link RecoveryFeatures#RESTORE_OVER_OPEN_INDEX_RECREATES_INDEX_SERVICE}, since a node without it cannot safely recreate the
+     * {@code IndexService} for the resulting open-to-open history-UUID change.
+     */
+    public void testRestoreOverOpenIndexRejectsWhenNodeFeatureMissing() {
+        final FeatureService featureService = mock(FeatureService.class);
+        when(featureService.clusterHasFeature(any(), eq(RecoveryFeatures.RESTORE_OVER_OPEN_INDEX_RECREATES_INDEX_SERVICE))).thenReturn(
+            false
+        );
+        final Snapshot snapshot = new Snapshot(ProjectId.DEFAULT, "test-repo", new SnapshotId("test-snap", randomUUID()));
+
+        final SnapshotRestoreException e = expectThrows(
+            SnapshotRestoreException.class,
+            () -> RestoreService.ensureClusterSupportsRestoreOverOpenIndex(featureService, ClusterState.EMPTY_STATE, snapshot)
+        );
+        assertThat(e.getMessage(), containsString("not every node"));
+    }
+
+    /**
+     * The caller resolves the exact destination {@link Index} (name and UUID) before submitting the restore, precisely so that an index
+     * deleted and recreated under the same name is never silently adopted as the destination: the exact-identity check must reject a
+     * resolved identity that no longer matches the index now present under that name.
+     */
+    public void testRestoreOverOpenIndexRejectsExactIdentityMismatch() {
+        final IndexMetadata currentIndexMetadata = IndexMetadata.builder("test-idx")
+            .settings(indexSettings(IndexVersion.current(), 1, 0))
+            .build();
+        final Snapshot snapshot = new Snapshot(ProjectId.DEFAULT, "test-repo", new SnapshotId("test-snap", randomUUID()));
+        // same name, different UUID: the identity the caller resolved is stale relative to the index now present
+        final Index staleIndex = new Index(currentIndexMetadata.getIndex().getName(), UUIDs.randomBase64UUID());
+
+        final SnapshotRestoreException e = expectThrows(
+            SnapshotRestoreException.class,
+            () -> RestoreService.validateExistingOpenIndexForRestore(
+                snapshot,
+                ClusterState.EMPTY_STATE,
+                ProjectId.DEFAULT,
+                currentIndexMetadata,
+                currentIndexMetadata,
+                staleIndex,
+                false
+            )
+        );
+        assertThat(e.getMessage(), containsString("no longer exists in the cluster state"));
+    }
+
+    /**
+     * The caller resolves the destination as open, but it can be closed by a concurrent operation before this cluster-state update is
+     * published (closing keeps the same index UUID, so the exact-identity check still passes). The open-index restore path assumes an
+     * open-to-open transition, so it must reject a destination that is no longer open rather than proceed, and this is enforced at runtime
+     * (not merely asserted) so the guarantee holds in production where assertions are disabled.
+     */
+    public void testRestoreOverOpenIndexRejectsIndexThatIsNoLongerOpen() {
+        final IndexMetadata closedIndexMetadata = IndexMetadata.builder("test-idx")
+            .settings(indexSettings(IndexVersion.current(), 1, 0))
+            .state(IndexMetadata.State.CLOSE)
+            .build();
+        final Snapshot snapshot = new Snapshot(ProjectId.DEFAULT, "test-repo", new SnapshotId("test-snap", randomUUID()));
+
+        final SnapshotRestoreException e = expectThrows(
+            SnapshotRestoreException.class,
+            () -> RestoreService.validateExistingOpenIndexForRestore(
+                snapshot,
+                ClusterState.EMPTY_STATE,
+                ProjectId.DEFAULT,
+                closedIndexMetadata,
+                closedIndexMetadata,
+                closedIndexMetadata.getIndex(),
+                false
+            )
+        );
+        assertThat(e.getMessage(), containsString("no longer open"));
+    }
+
     private static SnapshotInfo createSnapshotInfo(Snapshot snapshot, Boolean includeGlobalState) {
         var shards = randomIntBetween(0, 100);
         return new SnapshotInfo(
@@ -358,5 +1039,308 @@ public class RestoreServiceTests extends ESTestCase {
             SnapshotState.SUCCESS,
             Map.of()
         );
+    }
+
+    /**
+     * Tests that calling restoreSnapshotOverOpenIndices a second time with the same restoreUUID is a no-op.
+     */
+    public void testRestoreOverOpenIndicesIdempotentRetryIsANoOp() throws Exception {
+        final String restoreUUID = UUIDs.randomBase64UUID();
+        withOpenIndexRestoreHarness(fixture -> {
+            PlainActionFuture<RestoreService.RestoreCompletionResponse> first = new PlainActionFuture<>();
+            fixture.restoreService()
+                .restoreSnapshotOverOpenIndices(
+                    ProjectId.DEFAULT,
+                    fixture.snapshot(),
+                    fixture.snapshotInfo(),
+                    TEST_REQUEST_TIMEOUT,
+                    restoreUUID,
+                    List.of(fixture.target()),
+                    first
+                );
+            first.actionGet(TimeValue.timeValueSeconds(10));
+
+            final ClusterState afterFirstCall = fixture.clusterService().state();
+            final String historyUuidAfterFirstCall = historyUuid(afterFirstCall, fixture.index().getName());
+            assertThat(historyUuidAfterFirstCall, notNullValue());
+            assertThat(Iterables.size(RestoreInProgress.get(afterFirstCall)), equalTo(1L));
+
+            PlainActionFuture<RestoreService.RestoreCompletionResponse> second = new PlainActionFuture<>();
+            fixture.restoreService()
+                .restoreSnapshotOverOpenIndices(
+                    ProjectId.DEFAULT,
+                    fixture.snapshot(),
+                    fixture.snapshotInfo(),
+                    TEST_REQUEST_TIMEOUT,
+                    restoreUUID,
+                    List.of(fixture.target()),
+                    second
+                );
+            second.actionGet(TimeValue.timeValueSeconds(10));
+
+            final ClusterState afterSecondCall = fixture.clusterService().state();
+            assertThat(historyUuid(afterSecondCall, fixture.index().getName()), equalTo(historyUuidAfterFirstCall));
+            assertThat(Iterables.size(RestoreInProgress.get(afterSecondCall)), equalTo(1L));
+        });
+    }
+
+    /**
+     * This test shows that {@link RestoreService#restoreSnapshotOverOpenIndices} is not idempotent across completed restores. It protects
+     * against two in-flight restores at the same time only.It holds only while the first restore's {@link RestoreInProgress} entry exists.
+     * That entry is transient ({@code removeCompletedRestoresFromClusterState} removes it once the restore completes). And because
+     * restoring over an open index preserves the destination's index UUID, the exact-identity check still passes on a retry after the entry
+     * is gone. So a same-{@code restoreUUID} retry is <em>not</em> deduplicated once cleaned up. It starts a fresh restore and creates a
+     * new history UUID. Guaranteeing at-most-once across the full lifecycle is the caller's responsibility (see
+     * {@link RestoreService#restoreSnapshotOverOpenIndices}).
+     */
+    public void testRestoreOverOpenIndicesRetryAfterCompletionIsNotDeduplicated() throws Exception {
+        final String restoreUUID = UUIDs.randomBase64UUID();
+        withOpenIndexRestoreHarness(fixture -> {
+            PlainActionFuture<RestoreService.RestoreCompletionResponse> first = new PlainActionFuture<>();
+            fixture.restoreService()
+                .restoreSnapshotOverOpenIndices(
+                    ProjectId.DEFAULT,
+                    fixture.snapshot(),
+                    fixture.snapshotInfo(),
+                    TEST_REQUEST_TIMEOUT,
+                    restoreUUID,
+                    List.of(fixture.target()),
+                    first
+                );
+            first.actionGet(TimeValue.timeValueSeconds(10));
+
+            final ClusterState afterFirstCall = fixture.clusterService().state();
+            final String historyUuidAfterFirstCall = historyUuid(afterFirstCall, fixture.index().getName());
+            assertThat(historyUuidAfterFirstCall, notNullValue());
+            assertThat(Iterables.size(RestoreInProgress.get(afterFirstCall)), equalTo(1L));
+
+            // Simulate the completed-restore cleanup that removeCompletedRestoresFromClusterState() performs once the restore finishes. The
+            // harness's restore never truly completes (routing is mocked), so strip the entry directly to reach the post-cleanup state.
+            ClusterServiceUtils.setState(
+                fixture.clusterService(),
+                ClusterState.builder(afterFirstCall).putCustom(RestoreInProgress.TYPE, RestoreInProgress.EMPTY).build()
+            );
+            assertThat(Iterables.size(RestoreInProgress.get(fixture.clusterService().state())), equalTo(0L));
+
+            PlainActionFuture<RestoreService.RestoreCompletionResponse> second = new PlainActionFuture<>();
+            fixture.restoreService()
+                .restoreSnapshotOverOpenIndices(
+                    ProjectId.DEFAULT,
+                    fixture.snapshot(),
+                    fixture.snapshotInfo(),
+                    TEST_REQUEST_TIMEOUT,
+                    restoreUUID,
+                    List.of(fixture.target()),
+                    second
+                );
+            second.actionGet(TimeValue.timeValueSeconds(10));
+
+            // The retry was not deduplicated: a fresh restore was initialized, minting a new history UUID and installing a new entry.
+            final ClusterState afterRetry = fixture.clusterService().state();
+            assertThat(historyUuid(afterRetry, fixture.index().getName()), not(equalTo(historyUuidAfterFirstCall)));
+            assertThat(Iterables.size(RestoreInProgress.get(afterRetry)), equalTo(1L));
+        });
+    }
+
+    /**
+     * An empty {@code targets} list is a caller error for this internal entry point. It is rejected up front rather than submitting a
+     * restore that does nothing, which was probably not the user's intention.
+     */
+    public void testRestoreOverOpenIndicesRejectsEmptyTargets() throws Exception {
+        withOpenIndexRestoreHarness(fixture -> {
+            final IllegalArgumentException e = expectThrows(
+                IllegalArgumentException.class,
+                () -> fixture.restoreService()
+                    .restoreSnapshotOverOpenIndices(
+                        ProjectId.DEFAULT,
+                        fixture.snapshot(),
+                        fixture.snapshotInfo(),
+                        TEST_REQUEST_TIMEOUT,
+                        UUIDs.randomBase64UUID(),
+                        List.of(),
+                        ActionListener.noop()
+                    )
+            );
+            assertThat(e.getMessage(), equalTo("targets must not be empty"));
+            assertThat(
+                "a rejected call must not initialize a restore",
+                Iterables.size(RestoreInProgress.get(fixture.clusterService().state())),
+                equalTo(0L)
+            );
+        });
+    }
+
+    /**
+     * A restore whose snapshot names a project that does not exist in the cluster state is rejected when the cluster-state update runs,
+     * surfacing the failure through the listener rather than mutating anything.
+     */
+    public void testRestoreOverOpenIndicesRejectsMissingProject() throws Exception {
+        withOpenIndexRestoreHarness(fixture -> {
+            final ProjectId missingProject = ProjectId.fromId("does-not-exist");
+            final Snapshot snapshotInMissingProject = new Snapshot(
+                missingProject,
+                fixture.snapshot().getRepository(),
+                fixture.snapshot().getSnapshotId()
+            );
+            final PlainActionFuture<RestoreService.RestoreCompletionResponse> future = new PlainActionFuture<>();
+            fixture.restoreService()
+                .restoreSnapshotOverOpenIndices(
+                    missingProject,
+                    snapshotInMissingProject,
+                    fixture.snapshotInfo(),
+                    TEST_REQUEST_TIMEOUT,
+                    UUIDs.randomBase64UUID(),
+                    List.of(fixture.target()),
+                    future
+                );
+            final SnapshotRestoreException e = expectThrows(
+                SnapshotRestoreException.class,
+                () -> future.actionGet(TimeValue.timeValueSeconds(10))
+            );
+            assertThat(e.getMessage(), containsString("project [" + missingProject + "] does not exist"));
+            assertThat(
+                "a rejected restore must not initialize an entry",
+                Iterables.size(RestoreInProgress.get(fixture.clusterService().state())),
+                equalTo(0L)
+            );
+        });
+    }
+
+    private static String historyUuid(ClusterState state, String indexName) {
+        return state.metadata().getProject(ProjectId.DEFAULT).index(indexName).getSettings().get(IndexMetadata.SETTING_HISTORY_UUID);
+    }
+
+    private record OpenIndexRestoreFixture(
+        RestoreService restoreService,
+        ClusterService clusterService,
+        Index index,
+        Snapshot snapshot,
+        SnapshotInfo snapshotInfo,
+        IndexId snapshotIndexId,
+        IndexMetadata snapshotIndexMetadata
+    ) {
+        RestoreService.OpenIndexRestoreTarget target() {
+            return target(index);
+        }
+
+        RestoreService.OpenIndexRestoreTarget target(Index destinationIndex) {
+            return new RestoreService.OpenIndexRestoreTarget(destinationIndex, snapshotIndexId, snapshotIndexMetadata);
+        }
+    }
+
+    private interface OpenIndexRestoreTestBody {
+        void run(OpenIndexRestoreFixture fixture) throws Exception;
+    }
+
+    /**
+     * Builds a real, single-node {@link ClusterService} (via {@link ClusterServiceUtils}) with one open index, and a {@link RestoreService}
+     * wired to it. Dependencies that the open-index restore validation path never reaches (index creation, mapping/version verification
+     * beyond a pass-through, shard limits, system indices, file settings) are mocked or stubbed with no-ops. Constructing the real
+     * equivalents would require an unrelated mapper/x-content registry setup this test does not exercise.
+     */
+    private void withOpenIndexRestoreHarness(OpenIndexRestoreTestBody body) throws Exception {
+        final ThreadPool threadPool = new TestThreadPool(getTestName());
+        try (ClusterService clusterService = ClusterServiceUtils.createClusterService(threadPool)) {
+            final ClusterState initial = clusterService.state();
+            final DiscoveryNode localNode = initial.nodes().getLocalNode();
+
+            final IndexMetadata indexMetadata = IndexMetadata.builder("test-idx")
+                .settings(indexSettings(IndexVersion.current(), 1, 0))
+                .build();
+            final Index index = indexMetadata.getIndex();
+
+            final IndexRoutingTable.Builder indexRoutingTable = IndexRoutingTable.builder(index);
+            indexRoutingTable.addShard(
+                TestShardRouting.newShardRouting(new ShardId(index, 0), localNode.getId(), true, ShardRoutingState.STARTED)
+            );
+
+            final ClusterState state = ClusterState.builder(initial)
+                .putProjectMetadata(ProjectMetadata.builder(initial.metadata().getProject(ProjectId.DEFAULT)).put(indexMetadata, true))
+                .putRoutingTable(
+                    ProjectId.DEFAULT,
+                    RoutingTable.builder(TestShardRoutingRoleStrategies.DEFAULT_ROLE_ONLY, initial.routingTable(ProjectId.DEFAULT))
+                        .add(indexRoutingTable)
+                        .build()
+                )
+                .build();
+            ClusterServiceUtils.setState(clusterService, state);
+
+            final RepositoriesService repositoriesService = mock(RepositoriesService.class);
+            when(repositoriesService.getPreRestoreVersionChecks()).thenReturn(List.of());
+
+            final AllocationService allocationService = mock(AllocationService.class);
+            when(allocationService.getShardRoutingRoleStrategy()).thenReturn(TestShardRoutingRoleStrategies.DEFAULT_ROLE_ONLY);
+            when(allocationService.reroute(any(), any(), any())).thenAnswer(invocation -> {
+                ActionListener<Void> rerouteListener = invocation.getArgument(2);
+                rerouteListener.onResponse(null);
+                return invocation.getArgument(0);
+            });
+
+            final IndexMetadataVerifier indexMetadataVerifier = mock(IndexMetadataVerifier.class);
+            when(indexMetadataVerifier.verifyIndexMetadata(any(), any(), any())).thenAnswer(invocation -> invocation.getArgument(0));
+
+            // the open-index restore path checks this feature at publish time; the harness exercises the happy path, so advertise support
+            final FeatureService featureService = mock(FeatureService.class);
+            when(featureService.clusterHasFeature(any(), eq(RecoveryFeatures.RESTORE_OVER_OPEN_INDEX_RECREATES_INDEX_SERVICE))).thenReturn(
+                true
+            );
+
+            final RestoreService restoreService = new RestoreService(
+                clusterService,
+                repositoriesService,
+                allocationService,
+                mock(MetadataCreateIndexService.class),
+                indexMetadataVerifier,
+                mock(ShardLimitValidator.class),
+                EmptySystemIndices.INSTANCE,
+                mock(IndicesService.class),
+                mock(FileSettingsService.class),
+                threadPool,
+                false,
+                IndexMetadataRestoreTransformer.NoOpRestoreTransformer.getInstance(),
+                featureService
+            );
+
+            final Snapshot snapshot = new Snapshot(ProjectId.DEFAULT, "test-repo", new SnapshotId("test-snap", randomUUID()));
+            final SnapshotInfo snapshotInfo = createSnapshotInfo(snapshot, Boolean.FALSE);
+            final IndexId snapshotIndexId = new IndexId(index.getName(), randomUUID());
+
+            body.run(
+                new OpenIndexRestoreFixture(restoreService, clusterService, index, snapshot, snapshotInfo, snapshotIndexId, indexMetadata)
+            );
+        } finally {
+            terminate(threadPool);
+        }
+    }
+
+    /**
+     * This tests that a restore over an open index that is being resharded is rejected. Restoring while resharding is happening would fail.
+     * Plus, you can't close an index that is resharding, so we are not losing any functionality a user had previously by explicitly closing
+     * an index and then restoring.
+     */
+    public void testRestoreOverOpenIndexRejectsReshardingIndex() {
+        final IndexMetadata currentIndexMetadata = IndexMetadata.builder("test-idx")
+            .settings(indexSettings(IndexVersion.current(), 2, 0))
+            .reshardingMetadata(IndexReshardingMetadata.newSplitByMultiple(2, 2))
+            .build();
+        final Index index = currentIndexMetadata.getIndex();
+        final ClusterState state = ClusterState.builder(ClusterState.EMPTY_STATE)
+            .putProjectMetadata(ProjectMetadata.builder(ProjectId.DEFAULT).put(currentIndexMetadata, false))
+            .build();
+        final Snapshot snapshot = new Snapshot(ProjectId.DEFAULT, "test-repo", new SnapshotId("test-snap", randomUUID()));
+
+        final SnapshotRestoreException e = expectThrows(
+            SnapshotRestoreException.class,
+            () -> RestoreService.validateExistingOpenIndexForRestore(
+                snapshot,
+                state,
+                ProjectId.DEFAULT,
+                currentIndexMetadata,
+                currentIndexMetadata,
+                index,
+                false
+            )
+        );
+        assertThat(e.getMessage(), containsString("being resharded"));
     }
 }

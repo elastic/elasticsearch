@@ -92,12 +92,7 @@ public class IntegrationTestUtils {
 
     public static XContentBuilder generateSemanticTextMapping(Map<String, String> semanticTextFields) throws IOException {
         XContentBuilder mapping = XContentFactory.jsonBuilder().startObject().startObject("properties");
-        for (var entry : semanticTextFields.entrySet()) {
-            mapping.startObject(entry.getKey());
-            mapping.field("type", SemanticTextFieldMapper.CONTENT_TYPE);
-            mapping.field("inference_id", entry.getValue());
-            mapping.endObject();
-        }
+        addSemanticTextFieldsToMapping(mapping, semanticTextFields);
         mapping.endObject().endObject();
 
         return mapping;
@@ -105,14 +100,28 @@ public class IntegrationTestUtils {
 
     public static XContentBuilder generateSemanticMapping(Map<String, String> semanticFields) throws IOException {
         XContentBuilder mapping = XContentFactory.jsonBuilder().startObject().startObject("properties");
-        for (var entry : semanticFields.entrySet()) {
-            mapping.startObject(entry.getKey());
-            mapping.field("type", SemanticFieldMapper.CONTENT_TYPE);
-            mapping.field("inference_id", entry.getValue());
-            mapping.endObject();
-        }
+        addSemanticFieldsToMapping(mapping, semanticFields);
         mapping.endObject().endObject();
 
         return mapping;
+    }
+
+    public static void addSemanticTextFieldsToMapping(XContentBuilder mappingBuilder, Map<String, String> semanticTextFields)
+        throws IOException {
+        for (var entry : semanticTextFields.entrySet()) {
+            mappingBuilder.startObject(entry.getKey());
+            mappingBuilder.field("type", SemanticTextFieldMapper.CONTENT_TYPE);
+            mappingBuilder.field("inference_id", entry.getValue());
+            mappingBuilder.endObject();
+        }
+    }
+
+    public static void addSemanticFieldsToMapping(XContentBuilder mappingBuilder, Map<String, String> semanticFields) throws IOException {
+        for (var entry : semanticFields.entrySet()) {
+            mappingBuilder.startObject(entry.getKey());
+            mappingBuilder.field("type", SemanticFieldMapper.CONTENT_TYPE);
+            mappingBuilder.field("inference_id", entry.getValue());
+            mappingBuilder.endObject();
+        }
     }
 }

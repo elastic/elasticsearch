@@ -12,6 +12,7 @@ package org.elasticsearch.index.mapper;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.lucene.index.LeafReaderContext;
+import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.Explicit;
 import org.elasticsearch.common.TriFunction;
@@ -20,9 +21,7 @@ import org.elasticsearch.common.logging.DeprecationCategory;
 import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Setting.Property;
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.CollectionUtils;
-import org.elasticsearch.common.util.FeatureFlag;
 import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.common.xcontent.support.XContentMapValues;
 import org.elasticsearch.escf.EscfColumn;
@@ -122,23 +121,6 @@ public abstract class FieldMapper extends Mapper {
         Property.Final,
         Property.ServerlessPublic
     );
-
-    /**
-     * Guards {@code doc_values.on_failure=ignore} (mapping parameter and {@link #DOC_VALUES_ON_FAILURE_SETTING} index setting) while the
-     * feature is incomplete: the failure column it redirects to isn't wired into synthetic source reconstruction, block loaders, or
-     * search yet, so a field configured with it today would silently lose the offending value on reconstruction.
-     */
-    public static final FeatureFlag DOC_VALUES_ON_FAILURE_FEATURE_FLAG = new FeatureFlag("doc_values_on_failure");
-
-    /**
-     * Resolves {@link #DOC_VALUES_ON_FAILURE_SETTING}, falling back to {@link DocValuesParameter.Values.OnFailure#FAIL} while
-     * {@link #DOC_VALUES_ON_FAILURE_FEATURE_FLAG} is disabled.
-     */
-    public static DocValuesParameter.Values.OnFailure resolveOnFailureSetting(Settings settings) {
-        return DOC_VALUES_ON_FAILURE_FEATURE_FLAG.isEnabled()
-            ? DOC_VALUES_ON_FAILURE_SETTING.get(settings)
-            : DocValuesParameter.Values.OnFailure.FAIL;
-    }
 
     protected static final DeprecationLogger deprecationLogger = DeprecationLogger.getLogger(FieldMapper.class);
     @SuppressWarnings("rawtypes")
@@ -249,19 +231,7 @@ public abstract class FieldMapper extends Mapper {
     }
 
     /**
-     * Whether this mapper can be driven through {@link #parse(DocumentParserContext)} by the
-     * bulk batch-indexing fast path (see {@code ShardBatchMapper}). The fast path pre-resolves
-     * one mapper per schema column and bypasses the normal document-level traversal, so mappers
-     * that rely on the surrounding parsing flow — scripts, {@code copy_to}, multi-fields,
-     * dimensions, compound structures, etc. — must return {@code false}. Defaults to
-     * {@code false}; supported mappers override after validating their configuration.
-     */
-    public boolean supportsBatchIndexing() {
-        return false;
-    }
-
-    /**
-     * Whether this mapper can be driven through the columnar bulk batch-mapping path (see
+     * Whether this mapper including its multi-fields can be driven through the columnar bulk batch-mapping path (see
      * {@code ShardBatchMapper}), which invokes each mapper once per batch over whole columns rather
      * than once per document. Defaults to {@code false}; supported mappers override once they
      * implement the columnar mapping entry point.
@@ -269,24 +239,89 @@ public abstract class FieldMapper extends Mapper {
      * @param indexSettings the settings of the index being mapped, for mappers whose columnar
      *                       support depends on index-level configuration
      */
-    public boolean supportsColumnarParse(IndexSettings indexSettings) {
+    public final boolean supportsColumnarParse(IndexSettings indexSettings) {
+        // Cross-cutting pre-conditions that apply to every mapper, mirroring how parse() handles script
+        // enforcement and copyTo before delegating to parseCreateField().
+        if (hasScript() || copyTo().copyToFields().isEmpty() == false) {
+            return false;
+        }
+        // The mode and legacy-version gates are data-field concerns only: metadata mappers (_id, _seq_no,
+        // _routing, etc.) must support the columnar path in any index mode that the shard batch mapper runs.
+        if (isMetadataFieldMapper() == false) {
+            if (indexSettings.getMode().isStrictColumnar() == false && indexSettings.getMode().isTsdb() == false) {
+                return false;
+            }
+            if (indexSettings.getIndexVersionCreated().isLegacyIndexVersion()) {
+                return false;
+            }
+        }
+        if (doSupportsColumnarParse(indexSettings) == false) {
+            return false;
+        }
+        if (resolvesColumnGroup()) {
+            // A group mapper is dispatched through mapColumnGroupBatch over a whole subtree of leaves, which never fans out to
+            // multi-fields, so it cannot carry any. Defensive: flattened, the only group mapper today, already rejects [fields] at
+            // mapping-parse time.
+            return builderParams.multiFields.mappers.length == 0;
+        }
+        for (FieldMapper subMapper : builderParams.multiFields) {
+            // The recursive call covers mul.
+            if (subMapper.resolvesColumnGroup() || subMapper.supportsColumnarParse(indexSettings) == false) {
+                return false;
+            }
+        }
+        return true;
+    }
+
+    protected boolean doSupportsColumnarParse(IndexSettings indexSettings) {
         return false;
     }
 
     /**
-     * Maps all documents in a batch for this field from the supplied ESCF source column. Called by
-     * the columnar bulk batch driver once per field per batch, only for mappers whose
+     * Returns {@code true} for metadata field mappers ({@link MetadataFieldMapper} subclasses),
+     * {@code false} for all user-defined data field mappers. Used by {@link #supportsColumnarParse}
+     * to skip the index-mode and legacy-version gates, which are data-field concerns only.
+     */
+    protected boolean isMetadataFieldMapper() {
+        return false;
+    }
+
+    /**
+     * Returns {@code true} when the field's dimension status does not block the columnar parse path. A dimension
+     * field that writes routing ({@code writeDimensionRouting=true}) must fall back to the row path because the
+     * routing hash is computed incrementally during row-level parse and is not available in the batch path.
+     */
+    protected static boolean dimensionAllowsColumnarParse(MappedFieldType fieldType, boolean writeDimensionRouting) {
+        return fieldType.isDimension() == false || writeDimensionRouting == false;
+    }
+
+    /**
+     * Maps all documents in a batch for this field from the supplied ESCF source column, then hands the same column to each
+     * multi-field sub-mapper. Called by the columnar bulk batch driver once per field per batch, only for mappers whose
      * {@link #supportsColumnarParse(IndexSettings)} returned {@code true}. Attaches the resulting
      * output columns to {@code ctx} via {@link BatchMappingContext#addColumn}.
      *
      * @param ctx    the batch mapping context; receives output columns via {@code addColumn}
      * @param source the Escf column holding the field's source values for the batch
      */
-    // TODO: See FieldMapper#parse. We need to migrate over multi-value and nullability restricts.
-    // This should be straightforward. We would reject array columns for multi-value and force
-    // dense columns or null replacement for no nullability. We might need to do a check if multi-value
-    // is false and there is an array column scan down the array counts because size 0 or 1 is still valid
-    public void mapColumnBatch(BatchMappingContext ctx, EscfColumn source) {
+    public final void mapColumnBatch(BatchMappingContext ctx, EscfColumn source) {
+        if (shouldEnforceSingleValueBatch() && source.hasMultiValueDoc()) {
+            throw new UnsupportedOperationException(
+                "mapColumnBatch: multi_value=false field [" + fullPath() + "] has more than one value per document"
+            );
+        }
+        if (isNullable() == false && source.hasNullOrAbsentDoc()) {
+            throw new UnsupportedOperationException(
+                "mapColumnBatch: nullability=false field [" + fullPath() + "] has a null or absent value"
+            );
+        }
+        doMapColumnBatch(ctx, source);
+        for (FieldMapper subMapper : builderParams.multiFields) {
+            subMapper.mapColumnBatch(ctx, source);
+        }
+    }
+
+    protected void doMapColumnBatch(BatchMappingContext ctx, EscfColumn source) {
         throw new UnsupportedOperationException(
             "mapColumnBatch not implemented for mapper [" + typeName() + "] on field [" + fullPath() + "]"
         );
@@ -323,15 +358,19 @@ public abstract class FieldMapper extends Mapper {
 
     /**
      * Parse the field value using the provided {@link DocumentParserContext}.
+     *
+     * @return {@link ParseResult.Indexed} on success, {@link ParseResult.Ignored} when the field was ignored
+     *         (e.g. {@code ignore_malformed} or {@code ignore_above}), or {@link ParseResult.MultiValueViolation} with
+     *         {@code multi_value=false, on_failure=ignore}.
      */
-    public void parse(DocumentParserContext context) throws IOException {
-        // Set when a multi_value=false violation is redirected to a failure column (on_failure=ignore) rather than thrown
+    public ParseResult parse(DocumentParserContext context) throws IOException {
+        boolean wasAlreadyIgnored = context.isFieldIgnored(fullPath());
         boolean redirectedToFailureColumn = false;
         try {
             if (builderParams.hasScript) {
                 throwIndexingWithScriptParam();
             }
-            if (isSingleValueEnforced()) {
+            if (shouldEnforceSingleValue(context.parser().currentToken())) {
                 redirectedToFailureColumn = context.enforceSingleValue(fullPath(), onFailureBehavior());
             }
             if (redirectedToFailureColumn == false) {
@@ -339,23 +378,45 @@ public abstract class FieldMapper extends Mapper {
                     // A non-null value satisfies the [nullability=false] requirement for this Lucene doc.
                     context.markRequiredSatisfied(fullPath());
                 }
-
                 parseCreateField(context);
             }
         } catch (Exception e) {
             rethrowAsDocumentParsingException(context, e);
         }
+        // Multi-fields run even when redirectedToFailureColumn is true: each sub-field applies its own
+        // doc_values configuration, the same way it does for ignore_above and ignore_malformed.
         // TODO: multi fields are really just copy fields, we just need to expose "sub fields" or something that can be part
         // of the mappings
         if (builderParams.multiFields.mappers.length != 0) {
             doParseMultiFields(context);
         }
+        BytesRef mvvStash = context.takePendingMultiValueViolation(fullPath());
+        if (mvvStash != null) {
+            return new ParseResult.MultiValueViolation(mvvStash);
+        }
+        return resolveIgnoredResult(context, wasAlreadyIgnored);
+    }
+
+    /**
+     * Returns {@link ParseResult.Ignored} if the field was newly added to the ignored-fields set
+     * during parse (i.e. was not already there before), {@link ParseResult.Indexed} otherwise.
+     * Subclasses that override {@link #parse} directly should call this instead of duplicating the check.
+     */
+    protected final ParseResult resolveIgnoredResult(DocumentParserContext context, boolean wasAlreadyIgnored) {
+        if (wasAlreadyIgnored == false && context.isFieldIgnored(fullPath())) {
+            return ParseResult.IGNORED;
+        }
+        return ParseResult.INDEXED;
     }
 
     protected void doParseMultiFields(DocumentParserContext context) throws IOException {
         context.path().add(leafName());
         for (FieldMapper mapper : builderParams.multiFields.mappers) {
-            mapper.parse(context);
+            ParseResult result = mapper.parse(context);
+            if (result instanceof ParseResult.MultiValueViolation mvv
+                && (context.mappingLookup().isSourceSynthetic() || context.mappingLookup().isSourceColumnarStored())) {
+                OnFailureStoredValues.storeEncoded(context, mapper.fullPath(), mvv.capturedValue());
+            }
         }
         context.path().remove();
     }
@@ -411,11 +472,24 @@ public abstract class FieldMapper extends Mapper {
     protected abstract void parseCreateField(DocumentParserContext context) throws IOException;
 
     /**
-     * Whether this mapper enforces single-valued semantics (ie. {@code multi_value=false}). When {@code true}, a second value for the
-     * same document violates the constraint: it either throws or is redirected to a failure column, depending on {@link
-     * #onFailureBehavior()}. Override on mappers that expose the {@code multi_value} doc values mapping parameter.
+     * Whether the current token should consume the single-value slot enforced by {@link #onFailureBehavior()}. Returns {@code true}
+     * when single-value semantics are active (ie. {@code multi_value=false}) and the token is a genuine value. Mappers that support a
+     * {@code null_value} parameter must override this to exempt {@link XContentParser.Token#VALUE_NULL} when no {@code null_value} is
+     * configured — a bare null is silently discarded and must not occupy the slot so that {@code [null, value]} is treated as
+     * {@code [value]}. Mappers without {@code null_value} support (eg. text) should exempt {@code VALUE_NULL} unconditionally.
      */
-    protected boolean isSingleValueEnforced() {
+    protected boolean shouldEnforceSingleValue(XContentParser.Token token) {
+        return false;
+    }
+
+    /**
+     * Whether this mapper enforces single-value semantics on the columnar batch path, analogous to
+     * {@link #shouldEnforceSingleValue(XContentParser.Token)} for the row path. When {@code true},
+     * {@link #mapColumnBatch} scans the source column upfront and throws {@link UnsupportedOperationException}
+     * if any document carries more than one value, causing {@code ShardBatchMapper} to fall back the whole
+     * batch to the row path.
+     */
+    protected boolean shouldEnforceSingleValueBatch() {
         return false;
     }
 
@@ -426,6 +500,17 @@ public abstract class FieldMapper extends Mapper {
      */
     protected DocValuesParameter.Values.OnFailure onFailureBehavior() {
         return DocValuesParameter.Values.OnFailure.FAIL;
+    }
+
+    /**
+     * Whether this mapper writes extra values to the {@code ._on_failure} sidecar column; when {@code true}, append
+     * {@link CompositeSyntheticFieldLoader#onFailureValuesLayer} <em>last</em> so encounter order is preserved.
+     * Uses {@link #onFailureBehavior()} not {@link #shouldEnforceSingleValue(XContentParser.Token)} because {@code NumberFieldMapper}
+     * diverges the two;
+     * FALLBACK excluded because those fields reconstruct from {@code _ignored_source} and have no composite loader.
+     */
+    protected final boolean onFailureColumnEnabled() {
+        return onFailureBehavior() == DocValuesParameter.Values.OnFailure.IGNORE && syntheticSourceMode() != SyntheticSourceMode.FALLBACK;
     }
 
     /**
@@ -889,7 +974,11 @@ public abstract class FieldMapper extends Mapper {
             }
             context.path().add(mainField.leafName());
             for (FieldMapper mapper : mappers) {
-                mapper.parse(multiFieldContextSupplier.get());
+                ParseResult result = mapper.parse(multiFieldContextSupplier.get());
+                if (result instanceof ParseResult.MultiValueViolation mvv
+                    && (context.mappingLookup().isSourceSynthetic() || context.mappingLookup().isSourceColumnarStored())) {
+                    OnFailureStoredValues.storeEncoded(context, mapper.fullPath(), mvv.capturedValue());
+                }
             }
             context.path().remove();
         }
@@ -1700,7 +1789,7 @@ public abstract class FieldMapper extends Mapper {
             }
             boolean multiValue = DOC_VALUES_MULTI_VALUE_SETTING.get(indexSettings.getSettings());
             boolean nullability = DOC_VALUES_NULLABILITY_SETTING.get(indexSettings.getSettings());
-            var onFailure = resolveOnFailureSetting(indexSettings.getSettings());
+            var onFailure = DOC_VALUES_ON_FAILURE_SETTING.get(indexSettings.getSettings());
             return new Values(true, columnarCardinality, multiValue, nullability, onFailure);
         }
 
@@ -1757,11 +1846,7 @@ public abstract class FieldMapper extends Mapper {
                 m -> initializer.apply(m).onFailure,
                 subParameterDefaults.onFailure,
                 Values.OnFailure.class
-            ).addValidator(v -> {
-                if (v == Values.OnFailure.IGNORE && DOC_VALUES_ON_FAILURE_FEATURE_FLAG.isEnabled() == false) {
-                    throw new MapperParsingException("[doc_values.on_failure=ignore] is not yet supported");
-                }
-            });
+            );
         }
 
         /**
@@ -1776,10 +1861,9 @@ public abstract class FieldMapper extends Mapper {
          *   <li>{@code "doc_values": { "nullability": true }} - allow documents to omit the field or supply null (default)</li>
          *   <li>{@code "doc_values": { "nullability": false }} - reject any document that omits the field or supplies null (sealed)</li>
          *   <li>{@code "doc_values": { "on_failure": "fail" }} - reject the document if it violates multi_value/nullability (default)</li>
-         *   <li>{@code "doc_values": { "on_failure": "ignore" }} - accept the document, routing the offending value to a per-field
-         *       failure column instead of rejecting it (see {@link DocumentParserContext#enforceSingleValue}). Rejected at parse time
-         *       unless {@link #DOC_VALUES_ON_FAILURE_FEATURE_FLAG} is enabled, since reconstruction of the failure column isn't wired
-         *       into synthetic source, block loaders, or search yet.</li>
+         *   <li>{@code "doc_values": { "on_failure": "ignore" }} - route the offending value to a per-field failure column
+         *       (see {@link DocumentParserContext#enforceSingleValue}).
+         *       Surfaced in synthetic {@code _source} only; not exposed to block loaders, ESQL, or aggregations.</li>
          * </ul>
          * <p>
          * The presence of {@code doc_values} as a map indicates the user wants doc_values enabled. The map format allows specifying
@@ -2350,4 +2434,30 @@ public abstract class FieldMapper extends Mapper {
         }
     }
 
+    /**
+     * The outcome of a {@link FieldMapper#parse} call. {@link FallbackPostMapper} switches exhaustively on this to route to
+     * exactly one fallback destination.
+     */
+    public sealed interface ParseResult permits ParseResult.Indexed, ParseResult.Ignored, ParseResult.MultiValueViolation {
+
+        /** The value was parsed and indexed successfully; no fallback write is needed. */
+        record Indexed() implements ParseResult {}
+
+        /**
+         * The field was ignored during parsing (e.g. {@code ignore_malformed} or {@code ignore_above});
+         * the mapper wrote to its own fallback destination.
+         */
+        record Ignored() implements ParseResult {}
+
+        /**
+         * A {@code multi_value=false} constraint was violated. {@code capturedValue} holds the encoded
+         * violating token for storage in {@code ._on_failure}.
+         */
+        record MultiValueViolation(BytesRef capturedValue) implements ParseResult {}
+
+        /** Singleton for the common indexed result; avoids repeated allocation of a zero-field record. */
+        Indexed INDEXED = new Indexed();
+        /** Singleton for the common ignored result; avoids repeated allocation of a zero-field record. */
+        Ignored IGNORED = new Ignored();
+    }
 }

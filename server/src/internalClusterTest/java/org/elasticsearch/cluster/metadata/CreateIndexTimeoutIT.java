@@ -275,7 +275,7 @@ public class CreateIndexTimeoutIT extends ESIntegTestCase {
                 () -> masterClusterService.getMasterService()
                     .pendingTasks()
                     .stream()
-                    .anyMatch(pct -> pct.getSource().toString().startsWith(taskSourcePrefix))
+                    .anyMatch(pct -> pct.getSource().startsWith(taskSourcePrefix))
             )
         );
     }

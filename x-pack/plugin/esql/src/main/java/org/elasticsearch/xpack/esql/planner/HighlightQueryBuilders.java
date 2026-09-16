@@ -111,9 +111,9 @@ public final class HighlightQueryBuilders {
         if (literal == null) {
             verifyQueryStructure(queryExpr, onFields);
         }
+        // Translate before planning to catch invalid options, syntax, and fields outside ON.
         try {
-            // Translate now to report invalid options and syntax before planning.
-            translate(queryExpr, onFields, analyzer);
+            translate(queryExpr, onFields, runtimeContext(onFields, analyzer));
         } catch (RuntimeException e) {
             throw new IllegalArgumentException(
                 "Invalid query [" + (literal != null ? literal : queryExpr.sourceText()) + "] in HIGHLIGHT: " + e.getMessage(),
@@ -179,18 +179,25 @@ public final class HighlightQueryBuilders {
         return context.toQuery(builder).query();
     }
 
+    private static RuntimeSearchExecutionContext runtimeContext(List<String> fieldNames, Analyzer analyzer) {
+        NamedAnalyzer namedAnalyzer = analyzer instanceof NamedAnalyzer na
+            ? na
+            : new NamedAnalyzer("_override", AnalyzerScope.GLOBAL, analyzer);
+        return RuntimeSearchExecutionContext.create(fieldNames, namedAnalyzer);
+    }
+
+    private static TranslatedQuery translate(Expression queryExpr, List<String> fieldNames, RuntimeSearchExecutionContext context) {
+        String literal = queryTextIfLiteral(queryExpr);
+        String queryText = literal != null ? literal : queryExpr.sourceText();
+        Query query = toLuceneQuery(toQueryBuilder(queryExpr, fieldNames), context);
+        return new TranslatedQuery(queryText, query, context.searchAnalyzer());
+    }
+
     /**
      * Builds the runtime query with the analyzer used to index each row's text.
      */
     private static TranslatedQuery translate(Expression queryExpr, List<String> fieldNames, Analyzer analyzer) {
-        String literal = queryTextIfLiteral(queryExpr);
-        String queryText = literal != null ? literal : queryExpr.sourceText();
-        NamedAnalyzer namedAnalyzer = analyzer instanceof NamedAnalyzer na
-            ? na
-            : new NamedAnalyzer("_override", AnalyzerScope.GLOBAL, analyzer);
-        RuntimeSearchExecutionContext context = RuntimeSearchExecutionContext.create(fieldNames, namedAnalyzer);
-        Query query = toLuceneQuery(toQueryBuilder(queryExpr, fieldNames), context);
-        return new TranslatedQuery(queryText, query, context.searchAnalyzer());
+        return translate(queryExpr, fieldNames, runtimeContext(fieldNames, analyzer));
     }
 
     /**

@@ -48,7 +48,7 @@ public class SystemMetricsTests extends ESTestCase {
         try (SystemMetrics systemMetrics = new SystemMetrics(registry, emitOTelMetrics)) {
             systemMetrics.start();
 
-            List<String> registeredGauges = registry.getRecorder().getRegisteredMetrics(InstrumentType.LONG_GAUGE);
+            List<String> registeredGauges = registry.getRecorder().getRegisteredMetrics(InstrumentType.LONG_ASYNC_GAUGE);
             boolean openFdSupported = ProcessProbe.getOpenFileDescriptorCount() >= 0;
             boolean maxFdSupported = ProcessProbe.getMaxFileDescriptorCount() >= 0;
             assertEquals("jvm.fd.used should be registered if supported", openFdSupported, registeredGauges.contains("jvm.fd.used"));

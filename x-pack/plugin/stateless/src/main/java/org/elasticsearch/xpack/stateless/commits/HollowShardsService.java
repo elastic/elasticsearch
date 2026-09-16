@@ -97,7 +97,7 @@ public class HollowShardsService extends AbstractLifecycleComponent implements M
      */
     public static final Setting<TimeValue> SETTING_HOLLOW_INGESTION_TTL = Setting.positiveTimeSetting(
         "stateless.hollow_index_shards.ingestion.ttl",
-        TimeValue.timeValueDays(3),
+        TimeValue.timeValueDays(1),
         Setting.Property.NodeScope
     );
 

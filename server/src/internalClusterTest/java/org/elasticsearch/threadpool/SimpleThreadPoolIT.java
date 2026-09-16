@@ -158,7 +158,7 @@ public class SimpleThreadPoolIT extends ESIntegTestCase {
         waitUntil(() -> (tps[0] = tp.stats()).stats().stream().allMatch(s -> s.active() == 0));
 
         plugin.collect();
-        ArrayList<String> registeredMetrics = plugin.getRegisteredMetrics(InstrumentType.LONG_GAUGE);
+        ArrayList<String> registeredMetrics = plugin.getRegisteredMetrics(InstrumentType.LONG_ASYNC_GAUGE);
         registeredMetrics.addAll(plugin.getRegisteredMetrics(InstrumentType.LONG_ASYNC_COUNTER));
 
         tps[0].forEach(stats -> {

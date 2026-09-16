@@ -1,0 +1,3 @@
+FROM employees
+| WHERE (salary > 50000 AND (((emp_no, languages) IN (FROM employees | KEEP emp_no, languages)) IS NULL))
+  OR (((salary, languages) IN (FROM employees | KEEP salary, languages)) IS NOT NULL AND languages < 5)

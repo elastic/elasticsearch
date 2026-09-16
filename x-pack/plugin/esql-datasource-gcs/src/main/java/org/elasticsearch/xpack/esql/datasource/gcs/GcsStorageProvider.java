@@ -52,7 +52,7 @@ import java.util.NoSuchElementException;
  *       and {@code service_account_impersonation_url}</li>
  *   <li>{@code auth=anonymous} — anonymous access to public buckets</li>
  *   <li>{@code auth=managed_identity} — the node's GCE/GKE metadata-server credentials
- *       ({@link ComputeEngineCredentials}); requires the {@code esql.datasource.managed_identity.enabled}
+ *       ({@link ComputeEngineCredentials}); requires the {@code esql.external.managed_identity.enabled}
  *       cluster setting</li>
  * </ul>
  * File-based ADC sources ({@code GOOGLE_APPLICATION_CREDENTIALS}, the well-known gcloud credential

@@ -935,6 +935,21 @@ TS k8s_unmapped
 2024-05-10T00:01:25.000Z | qa              | null
 ;
 
+countByBucketOfMissingHistogramTsIndex
+required_capability: optional_fields_nullify_tech_preview
+required_capability: fn_bucket_histogram_types
+required_capability: ts_command_v0
+
+SET unmapped_fields="nullify"\;
+TS k8s_unmapped
+| STATS c = COUNT(histogram, bucket) BY bucket = BUCKET(histogram, 1), tbucket = tbucket(1 hour)
+| EVAL bucket = RANGE_MIN(bucket)
+;
+
+c:long | tbucket:datetime         | bucket:null 
+null   | 2024-05-10T00:00:00.000Z | null        
+;
+
 rateOnUnmappedTsIndex
 required_capability: optional_fields_nullify_tech_preview
 required_capability: ts_command_v0

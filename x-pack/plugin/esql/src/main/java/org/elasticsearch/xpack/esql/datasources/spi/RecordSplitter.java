@@ -17,6 +17,12 @@ import java.util.function.BooleanSupplier;
  * Implementations are used in two different contexts: stream-based planning code that skips
  * forward to the next complete record, and byte-array chunking code that slices an already-read
  * buffer at the last complete record.
+ * <p>
+ * <b>Implementations must be immutable and safe to call concurrently.</b> A splitter holds only its
+ * configuration, never the state of a scan: every method here takes the stream or buffer it works on and
+ * carries no progress between calls. Callers rely on this, and one splitter serves every concurrent probe
+ * of a file during split discovery. A splitter that accumulated per-scan state in a field would corrupt
+ * those probes' boundaries against each other, and the resulting splits would silently mis-count rows.
  */
 public interface RecordSplitter {
 

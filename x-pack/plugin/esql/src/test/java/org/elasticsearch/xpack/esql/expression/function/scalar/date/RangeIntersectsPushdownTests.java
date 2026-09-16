@@ -161,6 +161,21 @@ public class RangeIntersectsPushdownTests extends ESTestCase {
         );
     }
 
+    public void testDoubleRangeFieldWithOpenLiteralRange() {
+        // Infinite bounds must translate to unbounded query sides: range queries on double fields
+        // reject non-finite values. RECHECK keeps the exact semantics.
+        RangeIntersects fn = new RangeIntersects(
+            Source.EMPTY,
+            doubleRangeField("height_range"),
+            doubleRangeLiteral(0.5, Double.POSITIVE_INFINITY)
+        );
+        var query = fn.asQuery(LucenePushdownPredicates.DEFAULT, TranslatorHandler.TRANSLATOR_HANDLER);
+        assertThat(
+            query,
+            equalTo(new RangeQuery(Source.EMPTY, "height_range", 0.5, true, null, false, null, null, ShapeRelation.INTERSECTS))
+        );
+    }
+
     private static FieldAttribute dateField(String name) {
         return new FieldAttribute(
             Source.EMPTY,

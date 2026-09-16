@@ -18,6 +18,7 @@ import org.elasticsearch.core.RestApiVersion;
 import org.elasticsearch.core.Strings;
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
+import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.test.cluster.ElasticsearchCluster;
 import org.elasticsearch.xcontent.XContentType;
 import org.junit.ClassRule;
@@ -28,6 +29,7 @@ import java.util.Base64;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicReference;
 import java.util.stream.Collectors;
 
 import static org.elasticsearch.client.WarningsHandler.PERMISSIVE;
@@ -113,7 +115,7 @@ public class MlAssignmentPlannerUpgradeIT extends AbstractXpackRollingUpgradeTes
             waitForDeploymentStarted("old_memory_format");
             waitForDeploymentStarted("new_memory_format");
 
-            assertNewMemoryFormat("old_memory_format");
+            assertOldMemoryFormat("old_memory_format");
             assertNewMemoryFormat("new_memory_format");
 
             cleanupDeployments();
@@ -123,7 +125,12 @@ public class MlAssignmentPlannerUpgradeIT extends AbstractXpackRollingUpgradeTes
     @SuppressWarnings("unchecked")
     private void waitForDeploymentStarted(String modelId) throws Exception {
         assertBusy(() -> {
-            var response = getTrainedModelStats(modelId);
+            // Transient 404/503 while ML indices relocate or the plugin is still recovering during upgrade.
+            var response = performRequestRaisingAssertionOnTransientStatus(
+                trainedModelStatsRequest(modelId),
+                RestStatus.NOT_FOUND,
+                RestStatus.SERVICE_UNAVAILABLE
+            );
             Map<String, Object> map = entityAsMap(response);
             List<Map<String, Object>> stats = (List<Map<String, Object>>) map.get("trained_model_stats");
             assertThat(stats, hasSize(1));
@@ -134,58 +141,53 @@ public class MlAssignmentPlannerUpgradeIT extends AbstractXpackRollingUpgradeTes
 
     @SuppressWarnings("unchecked")
     private void assertOldMemoryFormat(String modelId) throws Exception {
-        assertBusy(() -> {
-            Response response = getTrainedModelStats(modelId);
-            Map<String, Object> map = entityAsMap(response);
-            List<Map<String, Object>> stats = (List<Map<String, Object>>) map.get("trained_model_stats");
-            assertThat(stats, hasSize(1));
-            var stat = stats.get(0);
-            assertThat(
-                stat.toString(),
-                XContentMapValues.extractValue("deployment_stats.adaptive_allocations.enabled", stat),
-                equalTo(false)
-            );
-            var assignments = (List<Map<String, Object>>) XContentMapValues.extractValue("deployment_stats.nodes", stat);
-            assertThat(assignments, hasSize(1));
-            var assignment = assignments.get(0);
-            assertThat(assignment.toString(), XContentMapValues.extractValue("per_deployment_memory_bytes", assignment), equalTo(0));
-            assertThat(assignment.toString(), XContentMapValues.extractValue("per_allocation_memory_bytes", assignment), equalTo(0));
-        }, 30, TimeUnit.SECONDS);
+        Response response = getTrainedModelStats(modelId);
+        Map<String, Object> map = entityAsMap(response);
+        List<Map<String, Object>> stats = (List<Map<String, Object>>) map.get("trained_model_stats");
+        assertThat(stats, hasSize(1));
+        var stat = stats.get(0);
+        Long expectedMemoryUsage = ByteSizeValue.ofMb(240).getBytes() + RAW_MODEL_SIZE * 2;
+        Integer actualMemoryUsage = (Integer) XContentMapValues.extractValue("model_size_stats.required_native_memory_bytes", stat);
+        assertThat(
+            Strings.format("Memory usage mismatch for model %s", modelId),
+            actualMemoryUsage,
+            equalTo(expectedMemoryUsage.intValue())
+        );
     }
 
     @SuppressWarnings("unchecked")
     private void assertNewMemoryFormat(String modelId) throws Exception {
-        long expectedPerDeploymentMemoryBytes = ByteSizeValue.ofMb(300).getBytes();
-        long expectedPerAllocationMemoryBytes = ByteSizeValue.ofMb(10).getBytes();
-
-        assertBusy(() -> {
-            Response response = getTrainedModelStats(modelId);
-            Map<String, Object> map = entityAsMap(response);
-            List<Map<String, Object>> stats = (List<Map<String, Object>>) map.get("trained_model_stats");
-            assertThat(stats, hasSize(1));
-            var stat = stats.get(0);
-            var assignments = (List<Map<String, Object>>) XContentMapValues.extractValue("deployment_stats.nodes", stat);
-            assertThat(assignments, hasSize(1));
-            var assignment = assignments.get(0);
-            assertThat(
-                assignment.toString(),
-                ((Number) XContentMapValues.extractValue("per_deployment_memory_bytes", assignment)).longValue(),
-                equalTo(expectedPerDeploymentMemoryBytes)
-            );
-            assertThat(
-                assignment.toString(),
-                ((Number) XContentMapValues.extractValue("per_allocation_memory_bytes", assignment)).longValue(),
-                equalTo(expectedPerAllocationMemoryBytes)
-            );
-        }, 30, TimeUnit.SECONDS);
+        Response response = getTrainedModelStats(modelId);
+        Map<String, Object> map = entityAsMap(response);
+        List<Map<String, Object>> stats = (List<Map<String, Object>>) map.get("trained_model_stats");
+        assertThat(stats, hasSize(1));
+        var stat = stats.get(0);
+        Long expectedMemoryUsage = ByteSizeValue.ofMb(300).getBytes() + RAW_MODEL_SIZE + ByteSizeValue.ofMb(10).getBytes();
+        Integer actualMemoryUsage = (Integer) XContentMapValues.extractValue("model_size_stats.required_native_memory_bytes", stat);
+        assertThat(stat.toString(), actualMemoryUsage.toString(), equalTo(expectedMemoryUsage.toString()));
     }
 
-    private Response getTrainedModelStats(String modelId) throws IOException {
+    private Request trainedModelStatsRequest(String modelId) {
         Request request = new Request("GET", "/_ml/trained_models/" + modelId + "/_stats");
         request.setOptions(request.getOptions().toBuilder().setWarningsHandler(PERMISSIVE).build());
-        var response = client().performRequest(request);
-        assertOK(response);
-        return response;
+        return request;
+    }
+
+    private Response getTrainedModelStats(String modelId) throws Exception {
+        // Transient 404/503 while ML indices relocate or the plugin is still recovering during upgrade.
+        var responseHolder = new AtomicReference<Response>();
+        assertBusy(
+            () -> responseHolder.set(
+                performRequestRaisingAssertionOnTransientStatus(
+                    trainedModelStatsRequest(modelId),
+                    RestStatus.NOT_FOUND,
+                    RestStatus.SERVICE_UNAVAILABLE
+                )
+            ),
+            30,
+            TimeUnit.SECONDS
+        );
+        return responseHolder.get();
     }
 
     private void putModelDefinition(String modelId) throws IOException {

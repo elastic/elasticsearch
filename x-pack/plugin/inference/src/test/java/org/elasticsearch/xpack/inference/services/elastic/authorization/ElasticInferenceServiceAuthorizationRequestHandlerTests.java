@@ -8,7 +8,6 @@
 package org.elasticsearch.xpack.inference.services.elastic.authorization;
 
 import org.apache.hc.core5.http.HttpHeaders;
-import org.apache.logging.log4j.Logger;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.PlainActionFuture;
@@ -19,6 +18,8 @@ import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.features.FeatureService;
 import org.elasticsearch.inference.InferenceServiceResults;
 import org.elasticsearch.inference.TaskType;
+import org.elasticsearch.logging.LogManager;
+import org.elasticsearch.logging.Logger;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.http.MockRequest;
 import org.elasticsearch.test.http.MockResponse;
@@ -27,7 +28,7 @@ import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xcontent.XContentParseException;
 import org.elasticsearch.xpack.core.inference.regionpolicy.CspRegion;
 import org.elasticsearch.xpack.core.inference.regionpolicy.RegionPolicy;
-import org.elasticsearch.xpack.core.inference.results.ChatCompletionResults;
+import org.elasticsearch.xpack.core.inference.results.CompletionResults;
 import org.elasticsearch.xpack.inference.common.InferencePreferences;
 import org.elasticsearch.xpack.inference.common.InferencePreferencesCache;
 import org.elasticsearch.xpack.inference.external.http.HttpClientManager;
@@ -72,6 +73,7 @@ import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 public class ElasticInferenceServiceAuthorizationRequestHandlerTests extends ESTestCase {
+    private static final Logger esLogger = LogManager.getLogger(ElasticInferenceServiceAuthorizationRequestHandlerTests.class);
     private final MockWebServer webServer = new MockWebServer();
     private ThreadPool threadPool;
 
@@ -491,7 +493,7 @@ public class ElasticInferenceServiceAuthorizationRequestHandlerTests extends EST
         var authHandler = new ElasticInferenceServiceAuthorizationRequestHandler(
             eisGatewayUrl,
             threadPool,
-            logger,
+            esLogger,
             createNoopApplierFactory(),
             mockCcmFeature,
             mockCcmService,
@@ -728,7 +730,7 @@ public class ElasticInferenceServiceAuthorizationRequestHandlerTests extends EST
 
         doAnswer(invocationOnMock -> {
             ActionListener<InferenceServiceResults> listener = invocationOnMock.getArgument(4);
-            listener.onResponse(new ChatCompletionResults(List.of(new ChatCompletionResults.Result("awesome"))));
+            listener.onResponse(new CompletionResults(List.of(new CompletionResults.Result("awesome"))));
             return Void.TYPE;
         }).when(senderMock).sendWithoutQueuing(any(), any(), any(), any(), any());
 

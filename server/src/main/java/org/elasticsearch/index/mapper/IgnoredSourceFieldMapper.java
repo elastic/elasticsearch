@@ -13,7 +13,6 @@ import org.apache.lucene.document.StoredField;
 import org.apache.lucene.index.LeafReader;
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.util.BytesRef;
-import org.elasticsearch.Build;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
@@ -24,7 +23,6 @@ import org.elasticsearch.common.util.ByteUtils;
 import org.elasticsearch.common.util.FeatureFlag;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.core.Tuple;
-import org.elasticsearch.features.NodeFeature;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.IndexVersions;
@@ -72,14 +70,6 @@ public class IgnoredSourceFieldMapper extends MetadataFieldMapper {
     public static final String NAME = "_ignored_source";
 
     public static final TypeParser PARSER = new FixedTypeParser(context -> new IgnoredSourceFieldMapper(context.getIndexSettings()));
-
-    static final NodeFeature DONT_EXPAND_DOTS_IN_IGNORED_SOURCE = new NodeFeature("mapper.ignored_source.dont_expand_dots");
-    static final NodeFeature IGNORED_SOURCE_AS_TOP_LEVEL_METADATA_ARRAY_FIELD = new NodeFeature(
-        "mapper.ignored_source_as_top_level_metadata_array_field"
-    );
-    static final NodeFeature ALWAYS_STORE_OBJECT_ARRAYS_IN_NESTED_OBJECTS = new NodeFeature(
-        "mapper.ignored_source.always_store_object_arrays_in_nested"
-    );
 
     public static final FeatureFlag COALESCE_IGNORED_SOURCE_ENTRIES = new FeatureFlag("ignored_source_fields_per_entry");
 
@@ -237,7 +227,7 @@ public class IgnoredSourceFieldMapper extends MetadataFieldMapper {
     }
 
     @Override
-    public boolean supportsColumnarParse(IndexSettings indexSettings) {
+    protected boolean doSupportsColumnarParse(IndexSettings indexSettings) {
         // Per-field ignored source is produced only by field (non-metadata) mappers, none of which
         // support columnar parsing yet. postColumnarParse is therefore a no-op for the current
         // empty-doc-only columnar batch scope. When field mappers gain columnar support they will
@@ -290,8 +280,7 @@ public class IgnoredSourceFieldMapper extends MetadataFieldMapper {
             return new BytesRef(bytes);
         }
 
-        public static NameValue decode(Object field) {
-            BytesRef ref = (BytesRef) field;
+        public static NameValue decode(BytesRef ref) {
             byte[] bytes = ref.bytes;
             int off = ref.offset;
             int len = ref.length;
@@ -405,7 +394,11 @@ public class IgnoredSourceFieldMapper extends MetadataFieldMapper {
     ) throws IOException {
         NameValue nameValue = SingularIgnoredSourceEncoding.decode(value);
         if (nameValue.hasValue() == false) {
-            return null;
+            // A void placeholder (written by DocumentParserContext#createCopyToContext) carries no user data; its sole purpose is to
+            // suppress the field's doc-values loader during synthetic source reconstruction so that copy_to-copied values do not appear
+            // in _source. Dropping it would remove the suppression and let the destination field be rebuilt from doc values, leaking the
+            // copied value. The placeholder is always safe to keep: it contains nothing that FLS should hide.
+            return value;
         }
 
         if (XContentDataHelper.isEncodedObject(nameValue.value()) == false) {
@@ -467,7 +460,7 @@ public class IgnoredSourceFieldMapper extends MetadataFieldMapper {
                 }
                 Map<String, List<NameValue>> objectsWithIgnoredFields = new HashMap<>();
                 for (Object value : ignoredStoredValues) {
-                    NameValue nv = SingularIgnoredSourceEncoding.decode(value);
+                    NameValue nv = SingularIgnoredSourceEncoding.decode((BytesRef) value);
                     if (filter != null && filter.isPathFiltered(nv.name(), XContentDataHelper.isEncodedObject(nv.value()))) {
                         continue;
                     }
@@ -661,11 +654,13 @@ public class IgnoredSourceFieldMapper extends MetadataFieldMapper {
         IndexVersion indexCreatedVersion = indexSettings.getIndexVersionCreated();
         // we need TSDB doc values format to use binary doc values for ignored source, otherwise the source will be uncompressed
 
-        IndexVersion switchToDocValuesFormatVersion = Build.current().isSnapshot()
-            ? IndexVersions.IGNORED_SOURCE_AS_DOC_VALUES
-            : IndexVersions.IGNORED_SOURCE_AS_DOC_VALUES_NO_FF;
-
-        if (indexCreatedVersion.onOrAfter(switchToDocValuesFormatVersion) && indexSettings.useTimeSeriesDocValuesFormat()) {
+        // Use the GA (non-feature-flag) threshold for all builds. An earlier snapshot-only threshold
+        // (IGNORED_SOURCE_AS_DOC_VALUES = 9_078_0_00) was removed because it overlapped with the max
+        // index version of the 9.4.6 release (9_094_0_00), which wrote _ignored_source using stored
+        // fields. Using the snapshot threshold on a node that is upgrading from 9.4.6 caused a Lucene
+        // field-type conflict ("cannot change field _ignored_source from doc values type NONE to BINARY").
+        if (indexCreatedVersion.onOrAfter(IndexVersions.IGNORED_SOURCE_AS_DOC_VALUES_NO_FF)
+            && indexSettings.useTimeSeriesDocValuesFormat()) {
             return IgnoredSourceFormat.DOC_VALUES_IGNORED_SOURCE;
         }
 

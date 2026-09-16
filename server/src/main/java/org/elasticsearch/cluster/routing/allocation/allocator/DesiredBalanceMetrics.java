@@ -179,20 +179,25 @@ public class DesiredBalanceMetrics {
             "max latency for write load decider",
             "ms"
         );
-        meterRegistry.registerLongsGauge(
+        meterRegistry.registerLongsAsyncGauge(
             UNASSIGNED_SHARDS_METRIC_NAME,
             "Current number of unassigned shards",
             "{shard}",
             this::getUnassignedShardsMetrics
         );
-        meterRegistry.registerLongsGauge(TOTAL_SHARDS_METRIC_NAME, "Total number of shards", "{shard}", this::getTotalAllocationsMetrics);
-        meterRegistry.registerLongsGauge(
+        meterRegistry.registerLongsAsyncGauge(
+            TOTAL_SHARDS_METRIC_NAME,
+            "Total number of shards",
+            "{shard}",
+            this::getTotalAllocationsMetrics
+        );
+        meterRegistry.registerLongsAsyncGauge(
             UNDESIRED_ALLOCATION_COUNT_METRIC_NAME,
             "Total number of shards allocated on undesired nodes excluding shutting down nodes",
             "{shard}",
             this::getUndesiredAllocationsExcludingShuttingDownNodesMetrics
         );
-        meterRegistry.registerDoublesGauge(
+        meterRegistry.registerDoublesAsyncGauge(
             UNDESIRED_ALLOCATION_RATIO_METRIC_NAME,
             "Ratio of undesired allocations to shard count excluding shutting down nodes",
             "1",
@@ -236,62 +241,62 @@ public class DesiredBalanceMetrics {
             this::getCumulativeReconciliationTimeMillisMetrics
         );
 
-        meterRegistry.registerDoublesGauge(
+        meterRegistry.registerDoublesAsyncGauge(
             DESIRED_BALANCE_NODE_WEIGHT_METRIC_NAME,
             "Weight of nodes in the computed desired balance",
             "unit",
             this::getDesiredBalanceNodeWeightMetrics
         );
-        meterRegistry.registerDoublesGauge(
+        meterRegistry.registerDoublesAsyncGauge(
             DESIRED_BALANCE_NODE_WRITE_LOAD_METRIC_NAME,
             "Write load of nodes in the computed desired balance",
             "threads",
             this::getDesiredBalanceNodeWriteLoadMetrics
         );
-        meterRegistry.registerDoublesGauge(
+        meterRegistry.registerDoublesAsyncGauge(
             DESIRED_BALANCE_NODE_DISK_USAGE_METRIC_NAME,
             "Disk usage of nodes in the computed desired balance",
             "bytes",
             this::getDesiredBalanceNodeDiskUsageMetrics
         );
-        meterRegistry.registerLongsGauge(
+        meterRegistry.registerLongsAsyncGauge(
             DESIRED_BALANCE_NODE_SHARD_COUNT_METRIC_NAME,
             "Shard count of nodes in the computed desired balance",
             "unit",
             this::getDesiredBalanceNodeShardCountMetrics
         );
 
-        meterRegistry.registerDoublesGauge(
+        meterRegistry.registerDoublesAsyncGauge(
             CURRENT_NODE_WEIGHT_METRIC_NAME,
             "The weight of nodes based on the current allocation state",
             "unit",
             this::getCurrentNodeWeightMetrics
         );
-        meterRegistry.registerDoublesGauge(
+        meterRegistry.registerDoublesAsyncGauge(
             CURRENT_NODE_WRITE_LOAD_METRIC_NAME,
             "The current write load of nodes",
             "threads",
             this::getCurrentNodeWriteLoadMetrics
         );
-        meterRegistry.registerLongsGauge(
+        meterRegistry.registerLongsAsyncGauge(
             CURRENT_NODE_DISK_USAGE_METRIC_NAME,
             "The current disk usage of nodes",
             "bytes",
             this::getCurrentNodeDiskUsageMetrics
         );
-        meterRegistry.registerLongsGauge(
+        meterRegistry.registerLongsAsyncGauge(
             CURRENT_NODE_SHARD_COUNT_METRIC_NAME,
             "The current shard count of nodes",
             "unit",
             this::getCurrentNodeShardCountMetrics
         );
-        meterRegistry.registerLongsGauge(
+        meterRegistry.registerLongsAsyncGauge(
             CURRENT_NODE_FORECASTED_DISK_USAGE_METRIC_NAME,
             "The current forecasted disk usage of nodes",
             "bytes",
             this::getCurrentNodeForecastedDiskUsageMetrics
         );
-        meterRegistry.registerLongsGauge(
+        meterRegistry.registerLongsAsyncGauge(
             CURRENT_NODE_UNDESIRED_SHARD_COUNT_METRIC_NAME,
             "The current undesired shard count of nodes",
             "unit",

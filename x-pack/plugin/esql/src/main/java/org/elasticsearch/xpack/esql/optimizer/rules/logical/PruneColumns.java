@@ -23,15 +23,17 @@ import org.elasticsearch.xpack.esql.plan.logical.Aggregate;
 import org.elasticsearch.xpack.esql.plan.logical.EsRelation;
 import org.elasticsearch.xpack.esql.plan.logical.Eval;
 import org.elasticsearch.xpack.esql.plan.logical.ExternalRelation;
-import org.elasticsearch.xpack.esql.plan.logical.Fork;
 import org.elasticsearch.xpack.esql.plan.logical.Limit;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
+import org.elasticsearch.xpack.esql.plan.logical.MergePlan;
 import org.elasticsearch.xpack.esql.plan.logical.Project;
 import org.elasticsearch.xpack.esql.plan.logical.RegexExtract;
 import org.elasticsearch.xpack.esql.plan.logical.Sample;
 import org.elasticsearch.xpack.esql.plan.logical.UnaryPlan;
 import org.elasticsearch.xpack.esql.plan.logical.UnionAll;
+import org.elasticsearch.xpack.esql.plan.logical.inference.DenseVector;
 import org.elasticsearch.xpack.esql.plan.logical.join.InlineJoin;
+import org.elasticsearch.xpack.esql.plan.logical.join.MarkJoin;
 import org.elasticsearch.xpack.esql.plan.logical.local.LocalRelation;
 import org.elasticsearch.xpack.esql.plan.logical.local.LocalSupplier;
 import org.elasticsearch.xpack.esql.planner.PlannerUtils;
@@ -56,12 +58,12 @@ public final class PruneColumns extends Rule<LogicalPlan, LogicalPlan> {
     private static LogicalPlan pruneColumns(LogicalPlan plan, AttributeSet.Builder used, boolean inlineJoin) {
         // while going top-to-bottom (upstream)
         return plan.transformDownSkipBranch((p, skipBranch) -> {
-            // Note: It is NOT required to do anything special for binary plans like JOINs, except INLINE STATS. It is perfectly fine that
-            // transformDown descends first into the left side, adding all kinds of attributes to the `used` set, and then descends into
-            // the right side - even though the `used` set will contain stuff only used in the left hand side. That's because any attribute
-            // that is used in the left hand side must have been created in the left side as well. Even field attributes belonging to the
-            // same index fields will have different name ids in the left and right hand sides - as in the extreme example
-            // `FROM lookup_idx | LOOKUP JOIN lookup_idx ON key_field`.
+            // Note: It is NOT required to do anything special for binary plans like JOINs, except INLINE STATS and MARK JOIN. It is
+            // perfectly fine that transformDown descends first into the left side, adding all kinds of attributes to the `used` set, and
+            // then descends into the right side - even though the `used` set will contain stuff only used in the left hand side. That's
+            // because any attribute that is used in the left hand side must have been created in the left side as well. Even field
+            // attributes belonging to the same index fields will have different name ids in the left and right hand sides - as in the
+            // extreme example `FROM lookup_idx | LOOKUP JOIN lookup_idx ON key_field`.
 
             // TODO: revisit with every new command
             // skip nodes that simply pass the input through and use no references
@@ -77,19 +79,21 @@ public final class PruneColumns extends Rule<LogicalPlan, LogicalPlan> {
                 p = switch (p) {
                     case Aggregate agg -> pruneColumnsInAggregate(agg, used, inlineJoin);
                     case InlineJoin inj -> pruneColumnsInInlineJoin(inj, used, recheck);
+                    case MarkJoin markJoin -> pruneUnusedMarkJoin(markJoin, used, recheck);
                     case Eval eval -> pruneColumnsInEval(eval, used, recheck);
                     case Project project -> pruneColumnsInProject(project, used, recheck);
                     case EsRelation esr -> pruneColumnsInEsRelation(esr, used);
                     case ExternalRelation ext -> pruneColumnsInExternalRelation(ext, used);
-                    case Fork fork -> {
-                        // Skip descending into the Fork subtree: a true Fork handles its subplans internally in
-                        // pruneColumnsInFork, while UnionAll is left untouched. Using skipBranch (instead of a sticky
-                        // flag) ensures that pruning resumes for siblings outside the Fork, e.g. the right-hand side
-                        // of an enclosing InlineJoin.
+                    case MergePlan mergePlan -> {
+                        // Skip descending into the merge subtree: pruneColumnsInMergePlan handles Fork subplans
+                        // internally, while UnionAll is left untouched except for leaf unions. Using skipBranch
+                        // (instead of a sticky flag) ensures that pruning resumes for siblings outside the merge, e.g.
+                        // the right-hand side of an enclosing InlineJoin.
                         skipBranch.set(true);
-                        yield pruneColumnsInFork(fork, used);
+                        yield pruneColumnsInMergePlan(mergePlan, used);
                     }
                     case RegexExtract re -> pruneUnusedRegexExtract(re, used, recheck);
+                    case DenseVector dv -> pruneUnusedDenseVector(dv, used, recheck);
                     default -> p;
                 };
             } while (recheck.get());
@@ -156,6 +160,14 @@ public final class PruneColumns extends Rule<LogicalPlan, LogicalPlan> {
         return p;
     }
 
+    private static LogicalPlan pruneUnusedMarkJoin(MarkJoin markJoin, AttributeSet.Builder used, Holder<Boolean> recheck) {
+        if (used.contains(markJoin.markAttribute())) {
+            return markJoin;
+        }
+        recheck.set(true);
+        return markJoin.left();
+    }
+
     /*
      * InlineJoin updates the order of the output, so even if the right side is dropped, the groups need to be pulled to the end.
      * So we keep just the left side of the join (i.e. drop the right agg), but place a Project on top to keep the correct columns order.
@@ -196,13 +208,21 @@ public final class PruneColumns extends Rule<LogicalPlan, LogicalPlan> {
         return p;
     }
 
+    /**
+     * Prunes unreferenced attributes for the two index modes where {@code InsertFieldExtraction} doesn't already trim to the
+     * fields the query needs.
+     * <p>
+     * {@link IndexMode#LOOKUP}: the right-hand index of a LOOKUP JOIN extracts every field except the join key.
+     * <p>
+     * {@link IndexMode#TIME_SERIES}: a {@code TS} relation resolves all of the index's dimensions, so a wide metrics mapping carries
+     * hundreds of unreferenced attributes into the plan fragment shipped to every data node. Besides the wasted bandwidth, an
+     * unreferenced field drags its sub-fields along in {@code EsField#properties}, and a sub-field whose type conflicts across indices
+     * cannot be serialized (#152322). Rules that read dimensions run earlier in the analyzer, so anything they need is already referenced.
+     */
     private static LogicalPlan pruneColumnsInEsRelation(EsRelation esr, AttributeSet.Builder used) {
         LogicalPlan p = esr;
 
-        if (esr.indexMode() == IndexMode.LOOKUP) {
-            // Normally, pruning EsRelation has no effect because InsertFieldExtraction only extracts the required fields, anyway.
-            // However, InsertFieldExtraction can't be currently used in LOOKUP JOIN right index,
-            // it works differently as we extract all fields (other than the join key) that the EsRelation has.
+        if (esr.indexMode() == IndexMode.LOOKUP || esr.indexMode() == IndexMode.TIME_SERIES) {
             var remaining = pruneUnusedAndAddReferences(esr.output(), used);
             if (remaining != null) {
                 p = esr.withAttributes(remaining);
@@ -275,14 +295,14 @@ public final class PruneColumns extends Rule<LogicalPlan, LogicalPlan> {
         return ext.declaredReadSpec().idPath();
     }
 
-    // TODO: see ResolveUnmapped#patchFork comment
-    private static LogicalPlan pruneColumnsInFork(Fork fork, AttributeSet.Builder used) {
+    // TODO: see ResolveUnmapped#patchMergePlan comment
+    private static LogicalPlan pruneColumnsInMergePlan(MergePlan mergePlan, AttributeSet.Builder used) {
 
-        if (fork instanceof UnionAll unionAll) {
+        if (mergePlan instanceof UnionAll unionAll) {
             if (PushDownUtils.isLeafUnionAll(unionAll) == false) {
                 // Subquery-shape UnionAll: each branch's Project is pruned by the transformDown
                 // traversal when it reaches the branch; skip here to avoid double-pruning.
-                return fork;
+                return mergePlan;
             }
             // Direct-leaf UnionAll (heterogeneous FROM): prune ExternalRelation children so the
             // format reader only loads the columns actually needed. EsRelation children are left
@@ -299,35 +319,35 @@ public final class PruneColumns extends Rule<LogicalPlan, LogicalPlan> {
             return changed ? unionAll.replaceChildren(newChildren) : unionAll;
         }
 
-        // prune the output attributes of fork based on usage from the rest of the plan
-        boolean forkOutputChanged = false;
+        // prune the output attributes of the merge based on usage from the rest of the plan
+        boolean mergeOutputChanged = false;
         AttributeSet.Builder builder = AttributeSet.builder();
-        // if any of the fork outputs are used, keep them
+        // if any of the merge outputs are used, keep them
         // otherwise, prune them based on the rest of the plan's usage
-        for (var attr : fork.output()) {
+        for (var attr : mergePlan.output()) {
             // we should also ensure to keep any synthetic attributes around as those could still be used for internal processing
             if (attr.synthetic() || used.contains(attr)) {
                 builder.add(attr);
             } else {
-                forkOutputChanged = true;
+                mergeOutputChanged = true;
             }
         }
-        var prunedForkAttrs = forkOutputChanged ? builder.build().stream().toList() : fork.output();
-        // now that we have the pruned fork output attributes, we can proceed to apply pruning all children plan
-        var forkOutputNames = prunedForkAttrs.stream().map(NamedExpression::name).collect(Collectors.toSet());
+        var prunedMergeAttrs = mergeOutputChanged ? builder.build().stream().toList() : mergePlan.output();
+        // now that we have the pruned merge output attributes, we can proceed to apply pruning all children plan
+        var mergeOutputNames = prunedMergeAttrs.stream().map(NamedExpression::name).collect(Collectors.toSet());
         boolean subPlanChanged = false;
         List<LogicalPlan> newChildren = new ArrayList<>();
-        for (var subPlan : fork.children()) {
+        for (var subPlan : mergePlan.children()) {
             var usedAttrs = AttributeSet.builder();
             LogicalPlan newSubPlan;
             // if it's a local relation, just update the output attributes
             // and return early
             if (subPlan instanceof LocalRelation localRelation) {
-                var outputAttrs = localRelation.output().stream().filter(x -> forkOutputNames.contains(x.name())).toList();
+                var outputAttrs = localRelation.output().stream().filter(x -> mergeOutputNames.contains(x.name())).toList();
                 newSubPlan = new LocalRelation(localRelation.source(), outputAttrs, localRelation.supplier());
             } else {
                 // otherwise, we first prune the projections of the top-level Project of each subplan
-                subPlan.outputSet().stream().filter(x -> forkOutputNames.contains(x.name())).forEach(usedAttrs::add);
+                subPlan.outputSet().stream().filter(x -> mergeOutputNames.contains(x.name())).forEach(usedAttrs::add);
 
                 Holder<Boolean> projectVisited = new Holder<>(false);
                 newSubPlan = subPlan.transformDown(Project.class, p -> {
@@ -335,8 +355,8 @@ public final class PruneColumns extends Rule<LogicalPlan, LogicalPlan> {
                         return p;
                     }
                     projectVisited.set(true);
-                    // filter projections based on fork output attributes
-                    var prunedAttrs = p.projections().stream().filter(x -> forkOutputNames.contains(x.name())).toList();
+                    // filter projections based on merge output attributes
+                    var prunedAttrs = p.projections().stream().filter(x -> mergeOutputNames.contains(x.name())).toList();
                     return new Project(p.source(), p.child(), prunedAttrs);
                 });
                 newSubPlan = pruneColumns(newSubPlan, usedAttrs, false);
@@ -346,10 +366,10 @@ public final class PruneColumns extends Rule<LogicalPlan, LogicalPlan> {
             }
             newChildren.add(newSubPlan);
         }
-        if (subPlanChanged || forkOutputChanged) {
-            fork = fork.replaceSubPlansAndOutput(newChildren, prunedForkAttrs);
+        if (subPlanChanged || mergeOutputChanged) {
+            mergePlan = mergePlan.replaceSubPlansAndOutput(newChildren, prunedMergeAttrs);
         }
-        return fork;
+        return mergePlan;
     }
 
     /**
@@ -385,6 +405,35 @@ public final class PruneColumns extends Rule<LogicalPlan, LogicalPlan> {
         return p;
     }
 
+    /**
+     * Prunes a {@link DenseVector} down to the input fields whose generated {@code <field>_dense_vector} column is used
+     * downstream, avoiding wasted inference for embeddings that are dropped. The input fields and generated attributes are
+     * aligned 1:1, so both lists are filtered by the same surviving positions. If none of the generated columns are used, the
+     * whole node is removed.
+     */
+    private static LogicalPlan pruneUnusedDenseVector(DenseVector denseVector, AttributeSet.Builder used, Holder<Boolean> recheck) {
+        List<Integer> retained = retainedGeneratedIndices(denseVector.generatedAttributes(), used);
+
+        if (retained.size() == denseVector.generatedAttributes().size()) {
+            // every generated column is used; nothing to prune
+            return denseVector;
+        }
+
+        if (retained.isEmpty()) {
+            // no generated column is used; drop the node entirely
+            recheck.set(true);
+            return denseVector.child();
+        }
+
+        List<NamedExpression> prunedFields = new ArrayList<>(retained.size());
+        List<Attribute> prunedGeneratedFields = new ArrayList<>(retained.size());
+        for (int i : retained) {
+            prunedFields.add(denseVector.fields().get(i));
+            prunedGeneratedFields.add(denseVector.generatedAttributes().get(i));
+        }
+        return denseVector.withPrunedFields(prunedFields, prunedGeneratedFields);
+    }
+
     private static LogicalPlan emptyLocalRelation(UnaryPlan plan) {
         // create an empty local relation with no attributes
         return skipPlan(plan);
@@ -413,5 +462,24 @@ public final class PruneColumns extends Rule<LogicalPlan, LogicalPlan> {
         }
 
         return clone.size() != named.size() ? clone : null;
+    }
+
+    /**
+     * Returns the positions of {@code generatedAttributes} that are used downstream, preserving order.
+     * <p>
+     * Intended for inference commands whose generated columns are pure additive outputs (e.g. the
+     * {@code <field>_dense_vector} columns of {@code DENSE_VECTOR}, or the target field of {@code COMPLETION}):
+     * a caller can filter the node's parallel field lists by these indices, or treat an empty result as
+     * "nothing is used" and drop the node. Unlike {@link #pruneUnusedAndAddReferences}, this does not mutate
+     * {@code used}; the caller propagates the surviving node's own references.
+     */
+    private static List<Integer> retainedGeneratedIndices(List<? extends NamedExpression> generatedAttributes, AttributeSet.Builder used) {
+        List<Integer> retained = new ArrayList<>(generatedAttributes.size());
+        for (int i = 0; i < generatedAttributes.size(); i++) {
+            if (used.contains(generatedAttributes.get(i).toAttribute())) {
+                retained.add(i);
+            }
+        }
+        return retained;
     }
 }

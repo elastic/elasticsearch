@@ -1,0 +1,6 @@
+area: Search
+issues:
+ - 154748
+pr: 157203
+summary: Update diversify retriever to get diversification field embeddings
+type: bug

@@ -109,7 +109,6 @@ public class BufferingMetricExporter implements MetricExporter {
             EsExecutors.daemonThreadFactory(settings, "metrics_buffer_disk"),
             new EsAbortPolicy()
         );
-        refreshDiskStats();
     }
 
     @Override
@@ -260,6 +259,8 @@ public class BufferingMetricExporter implements MetricExporter {
 
         private static final String METRIC_PREFIX = "es.apm.metrics.disk_buffer.";
 
+        private static final LongGauge NOOP_LONG_GAUGE = MeterProvider.noop().get("noop").gaugeBuilder("noop").ofLongs().build();
+
         private final Supplier<MeterProvider> meterProviderSupplier;
 
         @Nullable
@@ -311,7 +312,9 @@ public class BufferingMetricExporter implements MetricExporter {
             var gauge = this.cachedFiles;
             if (gauge == null) {
                 gauge = longGauge("files", "Metric batches currently pending replay on disk", "1");
-                this.cachedFiles = gauge;
+                if (gauge != NOOP_LONG_GAUGE) {
+                    this.cachedFiles = gauge;
+                }
             }
             return gauge;
         }
@@ -320,7 +323,9 @@ public class BufferingMetricExporter implements MetricExporter {
             var gauge = this.cachedBytes;
             if (gauge == null) {
                 gauge = longGauge("bytes", "Total bytes currently used by the on-disk metric buffer", "By");
-                this.cachedBytes = gauge;
+                if (gauge != NOOP_LONG_GAUGE) {
+                    this.cachedBytes = gauge;
+                }
             }
             return gauge;
         }
@@ -335,8 +340,11 @@ public class BufferingMetricExporter implements MetricExporter {
         }
 
         private LongGauge longGauge(String suffix, String description, String unit) {
-            return meterProviderSupplier.get()
-                .get("elasticsearch")
+            MeterProvider provider = meterProviderSupplier.get();
+            if (provider == MeterProvider.noop()) {
+                return NOOP_LONG_GAUGE;
+            }
+            return provider.get("elasticsearch")
                 .gaugeBuilder(METRIC_PREFIX + suffix)
                 .ofLongs()
                 .setDescription(description)

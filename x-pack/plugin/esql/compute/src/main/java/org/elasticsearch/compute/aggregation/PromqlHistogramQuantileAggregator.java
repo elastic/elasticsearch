@@ -30,93 +30,69 @@ class PromqlHistogramQuantileAggregator {
         return "promql_histogram_quantile";
     }
 
-    public static PromqlHistogramQuantileStates.SingleState initSingle(DriverContext driverContext, double quantile, Warnings warnings) {
-        return new PromqlHistogramQuantileStates.SingleState(driverContext.breaker(), quantile, warnings);
+    public static PromqlHistogramStates.Quantile.SingleState initSingle(DriverContext driverContext, double quantile, Warnings warnings) {
+        return new PromqlHistogramStates.Quantile.SingleState(driverContext.breaker(), quantile, warnings);
     }
 
-    public static void combine(PromqlHistogramQuantileStates.SingleState state, double count, BytesRef upperBound) {
+    public static void combine(PromqlHistogramStates.Quantile.SingleState state, double count, BytesRef upperBound) {
         // The state parses the `le` keyword bound, skipping (and warning about) buckets whose label is not a number.
         state.add(upperBound, count);
     }
 
-    public static void combineIntermediate(PromqlHistogramQuantileStates.SingleState state, DoubleBlock buckets) {
-        if (buckets.isNull(0)) {
-            return;
-        }
-        state.addIntermediate(buckets, 0);
+    public static void combineIntermediate(PromqlHistogramStates.Quantile.SingleState state, DoubleBlock buckets) {
+        state.combineIntermediate(buckets);
     }
 
-    public static Block evaluateFinal(PromqlHistogramQuantileStates.SingleState state, DriverContext driverContext) {
+    public static Block evaluateFinal(PromqlHistogramStates.Quantile.SingleState state, DriverContext driverContext) {
         return state.evaluateFinal(driverContext);
     }
 
-    public static PromqlHistogramQuantileStates.GroupingState initGrouping(
+    public static PromqlHistogramStates.Quantile.GroupingState initGrouping(
         DriverContext driverContext,
         double quantile,
         Warnings warnings
     ) {
-        return new PromqlHistogramQuantileStates.GroupingState(driverContext.breaker(), driverContext.bigArrays(), quantile, warnings);
+        return new PromqlHistogramStates.Quantile.GroupingState(driverContext.breaker(), driverContext.bigArrays(), quantile, warnings);
     }
 
-    public static void combine(PromqlHistogramQuantileStates.GroupingState state, int groupId, double count, BytesRef upperBound) {
+    public static void combine(PromqlHistogramStates.Quantile.GroupingState state, int groupId, double count, BytesRef upperBound) {
         // The state parses the `le` keyword bound, skipping (and warning about) buckets whose label is not a number.
         state.add(groupId, upperBound, count);
     }
 
     public static void combineIntermediate(
-        PromqlHistogramQuantileStates.GroupingState state,
+        PromqlHistogramStates.Quantile.GroupingState state,
         int groupId,
         DoubleBlock buckets,
         int valuesPosition
     ) {
-        if (buckets.isNull(valuesPosition)) {
-            return;
-        }
-        state.addIntermediate(groupId, buckets, valuesPosition);
+        state.combineIntermediate(groupId, buckets, valuesPosition);
     }
 
     public static void combineIntermediate(
-        PromqlHistogramQuantileStates.GroupingState state,
+        PromqlHistogramStates.Quantile.GroupingState state,
         int positionOffset,
         IntVector groups,
         DoubleBlock buckets
     ) {
-        for (int groupPosition = 0; groupPosition < groups.getPositionCount(); groupPosition++) {
-            int valuesPosition = groupPosition + positionOffset;
-            if (buckets.isNull(valuesPosition)) {
-                continue;
-            }
-            state.addIntermediate(groups.getInt(groupPosition), buckets, valuesPosition);
-        }
+        state.combineIntermediate(positionOffset, groups, buckets);
     }
 
     public static void combineIntermediate(
-        PromqlHistogramQuantileStates.GroupingState state,
+        PromqlHistogramStates.Quantile.GroupingState state,
         int positionOffset,
         IntBlock groups,
         DoubleBlock buckets
     ) {
-        for (int groupPosition = 0; groupPosition < groups.getPositionCount(); groupPosition++) {
-            if (groups.isNull(groupPosition)) {
-                continue;
-            }
-            int valuesPosition = groupPosition + positionOffset;
-            if (buckets.isNull(valuesPosition)) {
-                continue;
-            }
-            int groupStart = groups.getFirstValueIndex(groupPosition);
-            int groupEnd = groupStart + groups.getValueCount(groupPosition);
-            for (int g = groupStart; g < groupEnd; g++) {
-                state.addIntermediate(groups.getInt(g), buckets, valuesPosition);
-            }
-        }
+        state.combineIntermediate(positionOffset, groups, buckets);
     }
 
     public static Block evaluateFinal(
-        PromqlHistogramQuantileStates.GroupingState state,
+        PromqlHistogramStates.Quantile.GroupingState state,
         IntVector selected,
         GroupingAggregatorEvaluationContext context
     ) {
         return state.evaluateFinal(selected, context.driverContext());
     }
+
 }

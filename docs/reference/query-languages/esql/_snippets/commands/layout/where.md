@@ -121,4 +121,6 @@ in a list of literals, fields or expressions:
 :::{include} ../../generated/x-pack-esql/operators/examples/in.md
 :::
 
+You can also use a subquery on the right-hand side of `IN` or `NOT IN` to filter rows against the results of another query. To learn more, refer to [Filter rows with IN subqueries](/reference/query-languages/esql/esql-in-subquery.md).
+
 For a complete list of all operators, refer to [Operators](/reference/query-languages/esql/esql-functions-operators.md#esql-operators-overview).

@@ -59,7 +59,7 @@ public class AnalyzerMetrics extends AbstractLifecycleComponent {
     @Override
     protected void doStart() {
         metrics.add(
-            registry.registerLongGauge(
+            registry.registerLongAsyncGauge(
                 UNIQUE_ANALYZERS_METRIC,
                 "unique cached analyzer instances on this node (one per distinct recipe)",
                 "1",
@@ -67,7 +67,7 @@ public class AnalyzerMetrics extends AbstractLifecycleComponent {
             )
         );
         metrics.add(
-            registry.registerLongGauge(
+            registry.registerLongAsyncGauge(
                 TOTAL_REFERENCES_METRIC,
                 "total references to cached analyzers across every index on this node (analyzer cache "
                     + "only; sharing factor = references / unique; 1.0 = no sharing, higher = more sharing)",
@@ -76,7 +76,7 @@ public class AnalyzerMetrics extends AbstractLifecycleComponent {
             )
         );
         metrics.add(
-            registry.registerLongGauge(
+            registry.registerLongAsyncGauge(
                 UNIQUE_NORMALIZERS_METRIC,
                 "unique cached normalizer instances on this node (sum of keyword and whitespace variants)",
                 "1",

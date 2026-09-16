@@ -9,9 +9,6 @@
 
 package org.elasticsearch.columnar.numeric;
 
-import org.apache.lucene.store.DataInput;
-import org.apache.lucene.store.DataOutput;
-
 import java.io.IOException;
 
 /**
@@ -56,7 +53,7 @@ public final class AlpDoubleTransform implements BlockTransform {
 
     /** {@inheritDoc} */
     @Override
-    public boolean tryEncode(long[] block, int valueCount, DataOutput params) throws IOException {
+    public boolean tryEncode(long[] block, int valueCount, MetadataWriter params) throws IOException {
         assert valueCount >= 1 : "valueCount must be at least 1";
         assert valueCount <= excPositions.length
             : "valueCount (" + valueCount + ") must not exceed blockSize (" + excPositions.length + ")";
@@ -113,13 +110,13 @@ public final class AlpDoubleTransform implements BlockTransform {
         return true;
     }
 
-    private void writeAlpBlock(final long[] block, final int valueCount, final int e, final int f, final DataOutput params)
+    private void writeAlpBlock(final long[] block, final int valueCount, final int e, final int f, final MetadataWriter params)
         throws IOException {
         final int excCount = AlpDoubleUtils.alpTransformBlock(block, valueCount, e, f, excPositions, excValues, null);
         writeAlpMetadata(excCount, e, f, params);
     }
 
-    private void writeAlpMetadata(final int excCount, final int e, final int f, final DataOutput params) throws IOException {
+    private void writeAlpMetadata(final int excCount, final int e, final int f, final MetadataWriter params) throws IOException {
         params.writeByte((byte) e);
         params.writeByte((byte) f);
         params.writeVInt(excCount);
@@ -131,7 +128,7 @@ public final class AlpDoubleTransform implements BlockTransform {
 
     /** {@inheritDoc} */
     @Override
-    public void decode(long[] block, int valueCount, DataInput params) throws IOException {
+    public void decode(long[] block, int valueCount, MetadataReader params) throws IOException {
         assert valueCount >= 1 : "valueCount must be at least 1";
         final int e = params.readByte() & 0xFF;
         final int f = params.readByte() & 0xFF;

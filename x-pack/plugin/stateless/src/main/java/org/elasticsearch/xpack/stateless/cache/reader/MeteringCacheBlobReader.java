@@ -47,19 +47,34 @@ public class MeteringCacheBlobReader implements CacheBlobReader {
     }
 
     /**
-     * Notified when a {@link MeteringInputStream} is closed, providing information
-     * about its consumption.
+     * Notified as bytes are read from the source stream (per-chunk) and once when the read is completed.
      */
     public interface ReadCompleteCallback {
         /**
-         * Notify that a stream was consumed
+         * Called as bytes are read from the metered stream, before they are written to the cache and before the
+         * SparseFileTracker advances. Used for byte-counter updates that must be visible to reader threads before
+         * they are unblocked.
          *
-         * @param bytesRead The number of bytes read
+         * @param bytesRead The number of bytes in this chunk
+         */
+        void onBytesRead(int bytesRead);
+
+        /**
+         * Notify that a stream was consumed.
+         * <p>
+         * Not called when no bytes were copied (totalBytesRead == 0)
+         *
+         * @param totalBytesRead Total bytes read
          * @param timeToReadNanos The time between the first byte being read and the stream being closed (in nanoseconds)
          */
-        void onReadCompleted(int bytesRead, long timeToReadNanos);
+        void onReadCompleted(int totalBytesRead, long timeToReadNanos);
     }
 
+    /**
+     * Counts bytes per-read, notifies {@link ReadCompleteCallback#onBytesRead} immediately on each chunk
+     * (before the SparseFileTracker advances), and fires {@link ReadCompleteCallback#onReadCompleted} with
+     * elapsed timing on close.
+     */
     private class MeteringInputStream extends FilterInputStream {
 
         private final long streamCreatedTimeNs;
@@ -75,7 +90,7 @@ public class MeteringCacheBlobReader implements CacheBlobReader {
         public int read() throws IOException {
             final int byteOfData = super.read();
             if (byteOfData != -1) {
-                totalBytesRead += 1;
+                notifyBytesRead(1);
             }
             return byteOfData;
         }
@@ -83,10 +98,19 @@ public class MeteringCacheBlobReader implements CacheBlobReader {
         @Override
         public int read(byte[] b, int off, int len) throws IOException {
             final int bytesRead = super.read(b, off, len);
-            if (bytesRead != -1) {
-                totalBytesRead += bytesRead;
+            if (bytesRead > 0) {
+                notifyBytesRead(bytesRead);
             }
             return bytesRead;
+        }
+
+        private void notifyBytesRead(int bytesRead) {
+            totalBytesRead += bytesRead;
+            try {
+                readCompleteCallback.onBytesRead(bytesRead);
+            } catch (Exception e) {
+                logger.debug("Error calling call-back", e);
+            }
         }
 
         @Override

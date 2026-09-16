@@ -7,8 +7,10 @@
 
 package org.elasticsearch.xpack.core.transform.transforms;
 
+import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.TransportVersion;
 import org.elasticsearch.action.ActionRequestValidationException;
+import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.cluster.SimpleDiffable;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -17,6 +19,7 @@ import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.util.FeatureFlag;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.search.crossproject.CrossProjectModeDecider;
 import org.elasticsearch.transport.RemoteClusterAware;
 import org.elasticsearch.xcontent.ConstructingObjectParser;
@@ -82,6 +85,18 @@ public final class TransformConfig implements SimpleDiffable<TransformConfig>, W
     public static final TransportVersion TRANSFORM_CLOUD_CREDENTIAL_ON_REQUEST = TransportVersion.fromName(
         "transform_cloud_credential_on_request"
     );
+
+    /**
+     * Gates {@code _force_rekeying} on {@link TransformConfigUpdate} (wire + presence on older nodes).
+     */
+    public static final TransportVersion TRANSFORM_FORCE_REKEYING = TransportVersion.fromName("transform_force_rekeying");
+
+    public static final String FORCE_REKEYING_REQUIRES_CPS_AND_CLOUD_AUTH_MESSAGE =
+        "_force_rekeying requires a cloud-authenticated caller and an environment that supports cross-project calls";
+
+    public static ElasticsearchStatusException forceRekeyingRequiresCpsAndCloudAuthException() {
+        return new ElasticsearchStatusException(FORCE_REKEYING_REQUIRES_CPS_AND_CLOUD_AUTH_MESSAGE, RestStatus.BAD_REQUEST);
+    }
 
     /** Specifies all the possible transform functions. */
     public enum Function {
@@ -336,6 +351,15 @@ public final class TransformConfig implements SimpleDiffable<TransformConfig>, W
 
     public SourceConfig getSource() {
         return source;
+    }
+
+    /**
+     * Returns IndicesOptions based on what security scope this transform is likely able to access.
+     * In CPS environments, if the transform has a UIAM cloud token, then we will likely have CPS-enabled IndicesOptions.
+     * In all other cases, we likely do not have CPS-enabled IndicesOptions.
+     */
+    public IndicesOptions getScopedIndicesOptions() {
+        return getSource().indicesOptions(credentialId != null);
     }
 
     public DestConfig getDestination() {

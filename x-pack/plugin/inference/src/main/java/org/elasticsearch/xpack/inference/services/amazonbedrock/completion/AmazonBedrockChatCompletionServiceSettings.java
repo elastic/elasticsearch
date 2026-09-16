@@ -10,10 +10,10 @@ package org.elasticsearch.xpack.inference.services.amazonbedrock.completion;
 import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.xcontent.XContentHelper;
-import org.elasticsearch.inference.ModelConfigurations;
 import org.elasticsearch.xcontent.ObjectParser;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentParserConfiguration;
+import org.elasticsearch.xpack.inference.common.amazon.AwsSecretSettings;
 import org.elasticsearch.xpack.inference.services.ConfigurationParseContext;
 import org.elasticsearch.xpack.inference.services.amazonbedrock.AmazonBedrockProvider;
 import org.elasticsearch.xpack.inference.services.amazonbedrock.AmazonBedrockServiceSettings;
@@ -50,13 +50,7 @@ public class AmazonBedrockChatCompletionServiceSettings extends AmazonBedrockSer
      * @return the parser
      */
     static ObjectParser<Builder, ConfigurationParseContext> createParser(boolean ignoreUnknownFields) {
-        ObjectParser<Builder, ConfigurationParseContext> parser = new ObjectParser<>(
-            ModelConfigurations.SERVICE_SETTINGS,
-            ignoreUnknownFields,
-            Builder::new
-        );
-        AmazonBedrockServiceSettings.declareCommonFields(parser);
-        return parser;
+        return AmazonBedrockServiceSettings.buildCommonParser(ignoreUnknownFields, Builder::new);
     }
 
     /**
@@ -79,14 +73,12 @@ public class AmazonBedrockChatCompletionServiceSettings extends AmazonBedrockSer
 
     /**
      * Parses an update request, which may only contain the mutable {@code rate_limit} field. Including any immutable field (such as
-     * {@code model}, {@code region} or {@code provider}) causes the strict parser to reject the request.
+     * {@code model}, {@code region} or {@code provider}) causes the strict parser to reject the request. {@code access_key} and
+     * {@code secret_key} are tolerated so that credential rotation can be performed in the same request; they are extracted by
+     * {@link AwsSecretSettings} and not passed through to the update.
      */
     private static class Update extends AmazonBedrockServiceSettings.CommonUpdate {
-        private static final ObjectParser<Update, Void> PARSER = new ObjectParser<>(ModelConfigurations.SERVICE_SETTINGS, Update::new);
-
-        static {
-            AmazonBedrockServiceSettings.declareCommonUpdatableFields(PARSER);
-        }
+        private static final ObjectParser<Update, Void> PARSER = AmazonBedrockServiceSettings.buildCommonUpdateParser(Update::new);
 
         public AmazonBedrockChatCompletionServiceSettings mergeInto(AmazonBedrockChatCompletionServiceSettings existing) {
             return new AmazonBedrockChatCompletionServiceSettings(

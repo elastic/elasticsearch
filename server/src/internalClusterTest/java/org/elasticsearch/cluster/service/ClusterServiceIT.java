@@ -350,20 +350,20 @@ public class ClusterServiceIT extends ESIntegTestCase {
         Set<String> controlSources = new HashSet<>(Arrays.asList("1", "2", "3", "4", "5", "6", "7", "8", "9", "10"));
         List<PendingClusterTask> pendingClusterTasks = clusterService.getMasterService().pendingTasks();
         assertThat(pendingClusterTasks.size(), greaterThanOrEqualTo(10));
-        assertThat(pendingClusterTasks.get(0).getSource().string(), equalTo("1"));
+        assertThat(pendingClusterTasks.get(0).getSource(), equalTo("1"));
         assertThat(pendingClusterTasks.get(0).isExecuting(), equalTo(true));
         for (PendingClusterTask task : pendingClusterTasks) {
-            controlSources.remove(task.getSource().string());
+            controlSources.remove(task.getSource());
         }
         assertTrue(controlSources.isEmpty());
 
         controlSources = new HashSet<>(Arrays.asList("1", "2", "3", "4", "5", "6", "7", "8", "9", "10"));
         PendingClusterTasksResponse response = getClusterPendingTasks(internalCluster().coordOnlyNodeClient());
         assertThat(response.pendingTasks().size(), greaterThanOrEqualTo(10));
-        assertThat(response.pendingTasks().get(0).getSource().string(), equalTo("1"));
+        assertThat(response.pendingTasks().get(0).getSource(), equalTo("1"));
         assertThat(response.pendingTasks().get(0).isExecuting(), equalTo(true));
         for (PendingClusterTask task : response.pendingTasks()) {
-            controlSources.remove(task.getSource().string());
+            controlSources.remove(task.getSource());
         }
         assertTrue(controlSources.isEmpty());
         block1.countDown();
@@ -416,7 +416,7 @@ public class ClusterServiceIT extends ESIntegTestCase {
             assertThat(pendingClusterTasks.size(), greaterThanOrEqualTo(5));
             controlSources = new HashSet<>(Arrays.asList("1", "2", "3", "4", "5"));
             for (PendingClusterTask task : pendingClusterTasks) {
-                controlSources.remove(task.getSource().string());
+                controlSources.remove(task.getSource());
             }
             assertTrue(controlSources.isEmpty());
 
@@ -424,7 +424,7 @@ public class ClusterServiceIT extends ESIntegTestCase {
             assertThat(response.pendingTasks().size(), greaterThanOrEqualTo(5));
             controlSources = new HashSet<>(Arrays.asList("1", "2", "3", "4", "5"));
             for (PendingClusterTask task : response.pendingTasks()) {
-                if (controlSources.remove(task.getSource().string())) {
+                if (controlSources.remove(task.getSource())) {
                     assertThat(task.getTimeInQueueInMillis(), greaterThan(0L));
                 }
             }

@@ -9,7 +9,6 @@
 
 package org.elasticsearch.nativeaccess;
 
-import org.elasticsearch.foreign.CloseableByteBuffer;
 import org.elasticsearch.test.ESTestCase;
 import org.hamcrest.Matchers;
 import org.junit.BeforeClass;
@@ -41,51 +40,54 @@ public class ZstdTests extends ESTestCase {
     }
 
     public void testCompressValidation() {
-        try (var src = nativeAccess.newConfinedBuffer(1000); var dst = nativeAccess.newConfinedBuffer(500)) {
-            var srcBuf = src.buffer();
-            var dstBuf = dst.buffer();
+        byte[] src = new byte[1000];
+        byte[] dst = new byte[500];
 
-            var npe1 = expectThrows(NullPointerException.class, () -> zstd.compress(null, src, 0));
-            assertThat(npe1.getMessage(), equalTo("Null destination buffer"));
-            var npe2 = expectThrows(NullPointerException.class, () -> zstd.compress(dst, null, 0));
-            assertThat(npe2.getMessage(), equalTo("Null source buffer"));
+        var npe1 = expectThrows(NullPointerException.class, () -> zstd.compress(null, 0, dst.length, src, 0, src.length, 0));
+        assertThat(npe1.getMessage(), equalTo("Null destination buffer"));
+        var npe2 = expectThrows(NullPointerException.class, () -> zstd.compress(dst, 0, dst.length, null, 0, src.length, 0));
+        assertThat(npe2.getMessage(), equalTo("Null source buffer"));
 
-            // dst capacity too low
-            for (int i = 0; i < srcBuf.remaining(); ++i) {
-                srcBuf.put(i, randomByte());
-            }
-            var e = expectThrows(IllegalArgumentException.class, () -> zstd.compress(dst, src, 0));
-            assertThat(e.getMessage(), equalTo("Destination buffer is too small"));
+        // dst capacity too low
+        for (int i = 0; i < src.length; ++i) {
+            src[i] = randomByte();
         }
+        var e = expectThrows(IllegalArgumentException.class, () -> zstd.compress(dst, 0, dst.length, src, 0, src.length, 0));
+        assertThat(e.getMessage(), equalTo("Destination buffer is too small"));
     }
 
     public void testDecompressValidation() {
-        try (
-            var original = nativeAccess.newConfinedBuffer(1000);
-            var compressed = nativeAccess.newConfinedBuffer(500);
-            var restored = nativeAccess.newConfinedBuffer(500)
-        ) {
-            var originalBuf = original.buffer();
-            var compressedBuf = compressed.buffer();
+        byte[] original = new byte[1000];
+        byte[] compressed = new byte[500];
+        byte[] restored = new byte[500];
 
-            var npe1 = expectThrows(NullPointerException.class, () -> zstd.decompress(null, original));
-            assertThat(npe1.getMessage(), equalTo("Null destination buffer"));
-            var npe2 = expectThrows(NullPointerException.class, () -> zstd.decompress(compressed, (CloseableByteBuffer) null));
-            assertThat(npe2.getMessage(), equalTo("Null source buffer"));
+        var npe1 = expectThrows(
+            NullPointerException.class,
+            () -> zstd.decompress(null, 0, compressed.length, original, 0, original.length)
+        );
+        assertThat(npe1.getMessage(), equalTo("Null destination buffer"));
+        var npe2 = expectThrows(
+            NullPointerException.class,
+            () -> zstd.decompress(compressed, 0, compressed.length, null, 0, original.length)
+        );
+        assertThat(npe2.getMessage(), equalTo("Null source buffer"));
 
-            // Invalid compressed format
-            for (int i = 0; i < originalBuf.remaining(); ++i) {
-                originalBuf.put(i, (byte) i);
-            }
-            var e = expectThrows(IllegalArgumentException.class, () -> zstd.decompress(compressed, original));
-            assertThat(e.getMessage(), equalTo("Unknown frame descriptor"));
-
-            int compressedLength = zstd.compress(compressed, original, 0);
-            compressedBuf.limit(compressedLength);
-            e = expectThrows(IllegalArgumentException.class, () -> zstd.decompress(restored, compressed));
-            assertThat(e.getMessage(), equalTo("Destination buffer is too small"));
-
+        // Invalid compressed format
+        for (int i = 0; i < original.length; ++i) {
+            original[i] = (byte) i;
         }
+        var e = expectThrows(
+            IllegalArgumentException.class,
+            () -> zstd.decompress(compressed, 0, compressed.length, original, 0, original.length)
+        );
+        assertThat(e.getMessage(), equalTo("Unknown frame descriptor"));
+
+        int compressedLength = zstd.compress(compressed, 0, compressed.length, original, 0, original.length, 0);
+        e = expectThrows(
+            IllegalArgumentException.class,
+            () -> zstd.decompress(restored, 0, restored.length, compressed, 0, compressedLength)
+        );
+        assertThat(e.getMessage(), equalTo("Destination buffer is too small"));
     }
 
     public void testDecompressMemorySegmentValidation() {
@@ -140,18 +142,9 @@ public class ZstdTests extends ESTestCase {
             data[i] = (byte) (i & 0x0F);
         }
 
-        byte[] compressedBytes;
-        try (
-            var original = nativeAccess.newConfinedBuffer(data.length);
-            var compressed = nativeAccess.newConfinedBuffer(zstd.compressBound(data.length))
-        ) {
-            original.buffer().put(0, data);
-            int compressedLength = zstd.compress(compressed, original, randomIntBetween(-3, 9));
-            compressedBytes = new byte[compressedLength];
-            for (int i = 0; i < compressedLength; i++) {
-                compressedBytes[i] = compressed.buffer().get(i);
-            }
-        }
+        byte[] compressedBuf = new byte[zstd.compressBound(data.length)];
+        int compressedLength = zstd.compress(compressedBuf, 0, compressedBuf.length, data, 0, data.length, randomIntBetween(-3, 9));
+        byte[] compressedBytes = Arrays.copyOf(compressedBuf, compressedLength);
 
         // Build large parent buffers and take slices that start at non-zero offsets in their
         // parents. The slices are what the API receives; their capacity is the slice window only.
@@ -229,19 +222,10 @@ public class ZstdTests extends ESTestCase {
      * of the buffer's current position), and the call must not modify either buffer's cursor.
      */
     private void doTestRoundtripWithExplicitOffset(byte[] data) {
-        // First produce a compressed payload using the existing CloseableByteBuffer API so we have known-good bytes.
-        byte[] compressedBytes;
-        try (
-            var original = nativeAccess.newConfinedBuffer(data.length);
-            var compressed = nativeAccess.newConfinedBuffer(zstd.compressBound(data.length))
-        ) {
-            original.buffer().put(0, data);
-            int compressedLength = zstd.compress(compressed, original, randomIntBetween(-3, 9));
-            compressedBytes = new byte[compressedLength];
-            for (int i = 0; i < compressedLength; i++) {
-                compressedBytes[i] = compressed.buffer().get(i);
-            }
-        }
+        // First produce a compressed payload using the heap byte[] compress overload so we have known-good bytes.
+        byte[] compressedBuf = new byte[zstd.compressBound(data.length)];
+        int compressedLength = zstd.compress(compressedBuf, 0, compressedBuf.length, data, 0, data.length, randomIntBetween(-3, 9));
+        byte[] compressedBytes = Arrays.copyOf(compressedBuf, compressedLength);
 
         // Place the compressed bytes at a non-zero offset in a larger direct buffer, similar to how parquet
         // hands a compressed page slice that starts inside a larger column-chunk buffer.
@@ -318,65 +302,61 @@ public class ZstdTests extends ESTestCase {
     }
 
     /**
-     * Compress with CloseableByteBuffer, then decompress using a MemorySegment source
-     * to exercise the {@link Zstd#decompress(MemorySegment, MemorySegment)} overload.
+     * Compress via the heap byte[] overload, then decompress into a direct-{@link ByteBuffer}-backed
+     * {@link MemorySegment} destination to exercise the {@link Zstd#decompress(MemorySegment, MemorySegment)}
+     * overload.
      */
     private void doTestRoundtripWithDirectByteBuffer(byte[] data) {
-        try (
-            var original = nativeAccess.newConfinedBuffer(data.length);
-            var compressed = nativeAccess.newConfinedBuffer(zstd.compressBound(data.length));
-            var restored = nativeAccess.newConfinedBuffer(data.length)
-        ) {
-            original.buffer().put(0, data);
-            int compressedLength = zstd.compress(compressed, original, randomIntBetween(-3, 9));
+        byte[] compressedBuf = new byte[zstd.compressBound(data.length)];
+        int compressedLength = zstd.compress(compressedBuf, 0, compressedBuf.length, data, 0, data.length, randomIntBetween(-3, 9));
+        byte[] compressedBytes = Arrays.copyOf(compressedBuf, compressedLength);
 
-            byte[] compressedBytes = new byte[compressedLength];
-            for (int i = 0; i < compressedLength; i++) {
-                compressedBytes[i] = compressed.buffer().get(i);
-            }
-
-            MemorySegment dstSegment = MemorySegment.ofBuffer(restored.buffer());
-            int decompressedLength = zstd.decompress(dstSegment, MemorySegment.ofArray(compressedBytes));
-            assertThat(restored.buffer(), equalTo(original.buffer()));
-            assertThat(decompressedLength, equalTo(data.length));
-        }
+        ByteBuffer restored = ByteBuffer.allocateDirect(data.length);
+        MemorySegment dstSegment = MemorySegment.ofBuffer(restored);
+        int decompressedLength = zstd.decompress(dstSegment, MemorySegment.ofArray(compressedBytes));
+        byte[] restoredBytes = new byte[data.length];
+        restored.get(0, restoredBytes);
+        assertArrayEquals(data, restoredBytes);
+        assertThat(decompressedLength, equalTo(data.length));
     }
 
     private void doTestRoundtrip(byte[] data) {
-        try (
-            var original = nativeAccess.newConfinedBuffer(data.length);
-            var compressed = nativeAccess.newConfinedBuffer(zstd.compressBound(data.length));
-            var restored = nativeAccess.newConfinedBuffer(data.length)
-        ) {
-            original.buffer().put(0, data);
-            int compressedLength = zstd.compress(compressed, original, randomIntBetween(-3, 9));
-            compressed.buffer().limit(compressedLength);
-            int decompressedLength = zstd.decompress(restored, compressed);
-            assertThat(restored.buffer(), equalTo(original.buffer()));
-            assertThat(decompressedLength, equalTo(data.length));
-        }
+        byte[] compressedBuf = new byte[zstd.compressBound(data.length)];
+        int compressedLength = zstd.compress(compressedBuf, 0, compressedBuf.length, data, 0, data.length, randomIntBetween(-3, 9));
+        byte[] restored = new byte[data.length];
+        int decompressedLength = zstd.decompress(restored, 0, restored.length, compressedBuf, 0, compressedLength);
+        assertArrayEquals(data, restored);
+        assertThat(decompressedLength, equalTo(data.length));
 
         // Now with non-zero offsets
         final int compressedOffset = randomIntBetween(1, 1000);
         final int decompressedOffset = randomIntBetween(1, 1000);
-        try (
-            var original = nativeAccess.newConfinedBuffer(decompressedOffset + data.length);
-            var compressed = nativeAccess.newConfinedBuffer(compressedOffset + zstd.compressBound(data.length));
-            var restored = nativeAccess.newConfinedBuffer(decompressedOffset + data.length)
-        ) {
-            original.buffer().put(decompressedOffset, data);
-            original.buffer().position(decompressedOffset);
-            compressed.buffer().position(compressedOffset);
-            int compressedLength = zstd.compress(compressed, original, randomIntBetween(-3, 9));
-            compressed.buffer().limit(compressedOffset + compressedLength);
-            restored.buffer().position(decompressedOffset);
-            int decompressedLength = zstd.decompress(restored, compressed);
-            assertThat(decompressedLength, equalTo(data.length));
-            assertThat(
-                restored.buffer().slice(decompressedOffset, data.length),
-                equalTo(original.buffer().slice(decompressedOffset, data.length))
-            );
-        }
+        byte[] original = new byte[decompressedOffset + data.length];
+        System.arraycopy(data, 0, original, decompressedOffset, data.length);
+        byte[] compressed = new byte[compressedOffset + zstd.compressBound(data.length)];
+        int compressedLength2 = zstd.compress(
+            compressed,
+            compressedOffset,
+            compressed.length - compressedOffset,
+            original,
+            decompressedOffset,
+            data.length,
+            randomIntBetween(-3, 9)
+        );
+        byte[] restored2 = new byte[decompressedOffset + data.length];
+        int decompressedLength2 = zstd.decompress(
+            restored2,
+            decompressedOffset,
+            data.length,
+            compressed,
+            compressedOffset,
+            compressedLength2
+        );
+        assertThat(decompressedLength2, equalTo(data.length));
+        assertThat(
+            Arrays.copyOfRange(restored2, decompressedOffset, decompressedOffset + data.length),
+            equalTo(Arrays.copyOfRange(original, decompressedOffset, decompressedOffset + data.length))
+        );
     }
 
     /**
@@ -601,6 +581,104 @@ public class ZstdTests extends ESTestCase {
         }
     }
 
+    /**
+     * Gate for the native-footprint accounting: 1000 open/decompress/close cycles must each return
+     * {@link Zstd#NATIVE_BYTES_IN_USE} to the pre-loop baseline, and the live total must never exceed
+     * ~2× a single stream's footprint (only one stream is alive at a time). A per-iteration leak in the
+     * charge/uncharge pair would drift the counter up across iterations and trip the peak assertion.
+     *
+     * <p>The footprint is not a constant: {@code accountedBytes()} reports the pre-window context at
+     * open and the steady-state context (staging buffers + libzstd window, sampled from
+     * {@code ZSTD_sizeof_DStream}) after the first {@code decompress} call allocates the back-reference
+     * window. The test asserts the counter tracks both phases and unwinds them symmetrically on close.
+     */
+    public void testDStreamAccountingReturnsToBaselineUnderLoop() {
+        byte[] data = new byte[64 * 1024];
+        for (int i = 0; i < data.length; i++) {
+            data[i] = (byte) (i & 0x0F);
+        }
+        byte[] compressed = compressBytes(data);
+
+        long baseline = Zstd.NATIVE_BYTES_IN_USE.sum();
+        long settled;
+        try (Zstd.DStream probe = zstd.newDStream()) {
+            long floor = probe.accountedBytes();
+            assertThat(floor, Matchers.greaterThan(0L));
+            // Before any decompress, a single live stream lifts the counter by its pre-window footprint.
+            assertThat(Zstd.NATIVE_BYTES_IN_USE.sum() - baseline, equalTo(floor));
+            // Draining allocates the back-reference window; the footprint settles to a value >= floor
+            // and the counter tracks the newly-sampled context size.
+            byte[] decompressed = new byte[data.length];
+            drainFullFrame(probe, compressed, decompressed);
+            assertArrayEquals(data, decompressed);
+            settled = probe.accountedBytes();
+            assertThat(settled, Matchers.greaterThanOrEqualTo(floor));
+            assertThat(Zstd.NATIVE_BYTES_IN_USE.sum() - baseline, equalTo(settled));
+        }
+        // Closing the probe drops the counter back to where we started.
+        assertThat(Zstd.NATIVE_BYTES_IN_USE.sum(), equalTo(baseline));
+
+        long peak = baseline;
+        for (int iter = 0; iter < 1000; iter++) {
+            try (Zstd.DStream dstream = zstd.newDStream()) {
+                byte[] decompressed = new byte[data.length];
+                drainFullFrame(dstream, compressed, decompressed);
+                assertArrayEquals(data, decompressed);
+                // Sample after draining so the peak reflects the settled (post-window) footprint.
+                peak = Math.max(peak, Zstd.NATIVE_BYTES_IN_USE.sum());
+            }
+            assertThat("iteration " + iter, Zstd.NATIVE_BYTES_IN_USE.sum(), equalTo(baseline));
+        }
+        // At most one stream is live at any moment, so the peak lift over baseline is a single
+        // footprint; the 2× bound leaves head-room without masking a real per-iteration leak.
+        assertThat(peak - baseline, Matchers.lessThanOrEqualTo(2 * settled));
+    }
+
+    /**
+     * A stream that is opened but never closed keeps its footprint charged: the accounting counter
+     * only moves on the explicit {@code newDStream()} / {@code close()} pair, encoding a close-or-leak
+     * contract. There is intentionally no {@code System.gc()} here — the shared arena has no
+     * {@code Cleaner}, so a GC cannot reclaim it and the adder would not move regardless; the test
+     * asserts the accounting contract, not native reclamation.
+     */
+    public void testDStreamAbandonedWithoutCloseStaysAccounted() {
+        long baseline = Zstd.NATIVE_BYTES_IN_USE.sum();
+        Zstd.DStream dstream = zstd.newDStream();
+        try {
+            long perStream = dstream.accountedBytes();
+            assertThat(perStream, Matchers.greaterThan(0L));
+            // Deliberately not closed inside the try — the reservation must remain visible.
+            assertThat(Zstd.NATIVE_BYTES_IN_USE.sum() - baseline, equalTo(perStream));
+        } finally {
+            // Always release before leaving so we do not leak native memory into sibling tests.
+            dstream.close();
+        }
+        assertThat(Zstd.NATIVE_BYTES_IN_USE.sum(), equalTo(baseline));
+    }
+
+    /**
+     * Drive {@code dstream} to fully decode {@code compressed} into {@code decompressed}, mirroring the
+     * production wrapper's chunked-refill loop (feed in {@code dStreamInSize} slices, drain the caller's
+     * array across multiple calls). Asserts the frame decodes completely.
+     */
+    private void drainFullFrame(Zstd.DStream dstream, byte[] compressed, byte[] decompressed) {
+        int chunk = zstd.dStreamInSize();
+        int srcConsumed = 0;
+        int dstPos = 0;
+        long hint = 1L;
+        while (srcConsumed < compressed.length || hint != 0L) {
+            int srcChunkLen = Math.min(chunk, compressed.length - srcConsumed);
+            hint = dstream.decompress(decompressed, dstPos, decompressed.length, compressed, srcConsumed, srcConsumed + srcChunkLen);
+            srcConsumed = dstream.lastSrcPos();
+            dstPos = dstream.lastDstPos();
+            if (srcConsumed >= compressed.length && hint == 0L) {
+                break;
+            }
+        }
+        assertThat("frame should be fully decoded", hint, equalTo(0L));
+        assertThat(dstPos, equalTo(decompressed.length));
+    }
+
     // ---------- One-shot heap byte[] overloads (Phase 2) ----------
     // The block API critical(true) downcalls used by PanamaZstd.decompressHeap / compressHeap.
     // Coverage here pins the contract that JdkZstdLibrary's heap overloads accept heap segments
@@ -709,23 +787,12 @@ public class ZstdTests extends ESTestCase {
     }
 
     /**
-     * Compress via the block API (the only path on this module's classpath) to get known-good zstd
-     * bytes for streaming-side decoder tests.
+     * Compress via the heap byte[] block API overload to get known-good zstd bytes for
+     * streaming-side decoder tests.
      */
     private byte[] compressBytes(byte[] data) {
-        try (
-            var original = nativeAccess.newConfinedBuffer(data.length);
-            var compressed = nativeAccess.newConfinedBuffer(zstd.compressBound(data.length))
-        ) {
-            if (data.length > 0) {
-                original.buffer().put(0, data);
-            }
-            int compressedLength = zstd.compress(compressed, original, 3);
-            byte[] out = new byte[compressedLength];
-            for (int i = 0; i < compressedLength; i++) {
-                out[i] = compressed.buffer().get(i);
-            }
-            return out;
-        }
+        byte[] compressed = new byte[zstd.compressBound(data.length)];
+        int compressedLength = zstd.compress(compressed, 0, compressed.length, data, 0, data.length, 3);
+        return Arrays.copyOf(compressed, compressedLength);
     }
 }

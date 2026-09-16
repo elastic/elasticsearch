@@ -42,9 +42,6 @@ import java.util.List;
  * {@code (bytesRefOrd, longKey)} into a stable group id. As soon as a page brings a non-vector key
  * column (i.e. nulls or multivalues are possible), it migrates to a {@link PackedValuesBlockHash} —
  * which has correct null/MV semantics — and replays existing groups so ordinals stay stable.
- *
- * <p>Modeled after {@link LongIntAdaptiveBlockHash}. The migration encoding is variable-width because
- * the {@code BYTES_REF} column has no fixed size; everything else is the same.
  */
 public final class LongBytesRefAdaptiveBlockHash extends AdaptiveBlockHash {
     private final int longChannel;
@@ -185,6 +182,44 @@ public final class LongBytesRefAdaptiveBlockHash extends AdaptiveBlockHash {
                         long longKey = longsVector.getLong(offset + i);
                         long ord = hashOrdToGroup(longLongHash.add(byteHash, longKey));
                         groupIdsBuilder.appendInt(i, Math.toIntExact(ord));
+                    }
+                    try (var groupIds = groupIdsBuilder.build()) {
+                        addInput.add(offset, groupIds);
+                    }
+                }
+                offset += batchSize;
+            }
+        }
+
+        @Override
+        public void addAfterLimitReached(Page page, GroupingAggregatorFunction.AddInput addInput) {
+            BytesRefVector bytesVector = bytesRefVector(page);
+            LongVector longsVector = longVector(page);
+            assert bytesVector != null && longsVector != null
+                : "prepareAddInput must migrate before calling addAfterLimitReached with non-vector keys";
+            int positionCount = longsVector.getPositionCount();
+            int offset = 0;
+            BytesRef key = new BytesRef();
+            while (offset < positionCount) {
+                final int batchSize = Math.min(batchIds.length, positionCount - offset);
+                try (var groupIdsBuilder = blockFactory.newIntBlockBuilder(batchSize)) {
+                    for (int i = 0; i < batchSize; i++) {
+                        bytesVector.getBytesRef(i + offset, key);
+                        long bytesId = bytesHash.hash.find(key);
+                        batchIds[i] = bytesId < 0 ? -1 : Math.toIntExact(bytesId + 1);
+                    }
+                    for (int i = 0; i < batchSize; i++) {
+                        int ord = batchIds[i];
+                        if (ord < 0) {
+                            groupIdsBuilder.appendNull();
+                            continue;
+                        }
+                        final long groupId = longLongHash.find(batchIds[i], longsVector.getLong(offset + i));
+                        if (groupId < 0) {
+                            groupIdsBuilder.appendNull();
+                        } else {
+                            groupIdsBuilder.appendInt(Math.toIntExact(groupId));
+                        }
                     }
                     try (var groupIds = groupIdsBuilder.build()) {
                         addInput.add(offset, groupIds);

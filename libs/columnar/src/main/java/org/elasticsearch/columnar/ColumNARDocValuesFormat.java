@@ -16,49 +16,114 @@ import org.apache.lucene.index.SegmentReadState;
 import org.apache.lucene.index.SegmentWriteState;
 import org.elasticsearch.columnar.numeric.NumericPipeline;
 import org.elasticsearch.columnar.numeric.NumericPipelineSelector;
+import org.elasticsearch.columnar.string.DictionaryPolicy;
+import org.elasticsearch.columnar.string.StringColumnOptions;
+import org.elasticsearch.columnar.string.StringColumnOptionsSelector;
 
 import java.io.IOException;
 
 /**
- * A binary Lucene {@link DocValuesFormat}: every field is a {@code BinaryDocValues} column tagged with a
- * {@link ColumnarFieldType} ({@link #TYPE_ATTRIBUTE}), served through this library's own range-query and
- * block-loader APIs. The typed doc-values shapes are rejected.
+ * A binary Lucene {@link DocValuesFormat}: every field is a {@code BinaryDocValues} column whose
+ * {@link ColumnarFieldType} is resolved by the injected {@link ColumnarFieldTypeSelector}, served through
+ * this library's own range-query and block-loader APIs. The typed doc-values shapes are rejected.
  *
- * <p>Pipeline selection is delegated to the injected {@link NumericPipelineSelector}. Callers that
- * need per-field encoding (e.g. ALP for doubles, SplitDelta for counters) supply a concrete
- * implementation at construction time. The no-arg SPI constructor uses the default pipeline for
- * every field, preserving backward-compatible behavior.
+ * <p>Pipeline selection is delegated to the injected {@link NumericPipelineSelector}, and the column type to
+ * the injected {@link ColumnarFieldTypeSelector}. Both are supplied by the caller rather than read from a
+ * {@link org.apache.lucene.index.FieldInfo} attribute, so the codec decision stays in the integration's
+ * wiring and never leaks into the mapping layer. The no-arg SPI constructor is read-only (the producer reads
+ * the type from column metadata); its selector fails fast if a write path ever reaches it.
  */
 public class ColumNARDocValuesFormat extends DocValuesFormat {
 
-    /** {@link org.apache.lucene.index.FieldInfo} attribute naming a field's {@link ColumnarFieldType}. The mapper sets it. */
-    public static final String TYPE_ATTRIBUTE = "columnar.type";
+    /**
+     * Type selector for the read-only SPI constructor. The producer reads the column type from the column
+     * metadata, so the write path never resolves a type through this constructor; if it does, fail fast
+     * rather than write a column of the wrong type.
+     */
+    private static final ColumnarFieldTypeSelector READ_ONLY_TYPE_SELECTOR = field -> {
+        throw new IllegalStateException("ColumNARDocValuesFormat built via the read-only SPI constructor cannot write fields");
+    };
 
     /** Smallest allowed block size. Must be a power of 2. */
     public static final int MIN_BLOCK_SIZE = 128;
 
-    /** Largest allowed block size. Caps O(blockSize) per-field allocations in the encoder. */
+    /**
+     * Largest allowed block size, in values. This caps the per-field allocations a column makes for one block —
+     * exactly, at {@code long[blockSize]}, for a numeric column. A string column's block buffer holds
+     * {@code blockSize} values, whose byte size is a property of the data rather than of this cap; bounding
+     * those bytes is what the byte-derived chunking in {@code docs/PLAN.md} is for.
+     */
     public static final int MAX_BLOCK_SIZE = 8192;
 
     /** Default block size used when none is specified. */
     public static final int DEFAULT_BLOCK_SIZE = MIN_BLOCK_SIZE;
 
-    static final String DATA_CODEC = "ColumNARNumericData";
-    static final String DATA_EXTENSION = "cnvd";
-    static final String META_CODEC = "ColumNARNumericMeta";
-    static final String META_EXTENSION = "cnvm";
+    static final String DATA_CODEC = "ColumNARData";
+    static final String DATA_EXTENSION = "cnd";
+    static final String META_CODEC = "ColumNARMeta";
+    static final String META_EXTENSION = "cnm";
+    static final String SKIP_CODEC = "ColumNARSkipIndex";
+    static final String SKIP_EXTENSION = "cns";
 
     private final NumericPipelineSelector pipelineSelector;
+    private final ColumnarFieldTypeSelector typeSelector;
     private final int blockSize;
+    private final StringColumnOptionsSelector stringSelector;
+
+    /** The bounds a string column's dictionary is chosen under when a field names none of its own. */
+    public static final DictionaryPolicy DEFAULT_DICTIONARY_POLICY = StringColumnOptions.DEFAULT_DICTIONARY;
 
     /**
-     * Constructs the format with a custom per-field pipeline selector and an explicit block size.
-     * The block size controls how many values are grouped into each encoded block; it must be a
-     * power of 2 between {@value #MIN_BLOCK_SIZE} and {@value #MAX_BLOCK_SIZE} inclusive.
-     *
-     * @throws IllegalArgumentException if {@code blockSize} is not a power of 2 in [{@value #MIN_BLOCK_SIZE}, {@value #MAX_BLOCK_SIZE}]
+     * SPI constructor. Read-only: it serves the producer, which reads each field's type from the column
+     * metadata. Its type selector fails fast if a write path ever reaches it.
      */
-    public ColumNARDocValuesFormat(NumericPipelineSelector pipelineSelector, int blockSize) {
+    public ColumNARDocValuesFormat() {
+        this((fieldName, type) -> NumericPipeline::defaultPipeline, READ_ONLY_TYPE_SELECTOR, DEFAULT_BLOCK_SIZE);
+    }
+
+    /** Constructs a format with a custom type selector, using the default pipeline and block size. */
+    public ColumNARDocValuesFormat(final ColumnarFieldTypeSelector typeSelector) {
+        this((fieldName, type) -> NumericPipeline::defaultPipeline, typeSelector, DEFAULT_BLOCK_SIZE);
+    }
+
+    /**
+     * Constructs a format with a custom pipeline selector, type selector, and block size.
+     * {@code blockSize} must be a power of 2 in [{@value #MIN_BLOCK_SIZE}, {@value #MAX_BLOCK_SIZE}].
+     */
+    public ColumNARDocValuesFormat(
+        final NumericPipelineSelector pipelineSelector,
+        final ColumnarFieldTypeSelector typeSelector,
+        int blockSize
+    ) {
+        this(pipelineSelector, typeSelector, blockSize, DEFAULT_DICTIONARY_POLICY);
+    }
+
+    /**
+     * Constructs a format with a custom pipeline selector, type selector, block size, and the bounds its
+     * string columns choose a dictionary under.
+     * {@code blockSize} must be a power of 2 in [{@value #MIN_BLOCK_SIZE}, {@value #MAX_BLOCK_SIZE}].
+     */
+    public ColumNARDocValuesFormat(
+        final NumericPipelineSelector pipelineSelector,
+        final ColumnarFieldTypeSelector typeSelector,
+        int blockSize,
+        final DictionaryPolicy dictionaryPolicy
+    ) {
+        this(
+            pipelineSelector,
+            typeSelector,
+            blockSize,
+            StringColumnOptionsSelector.always(StringColumnOptions.DEFAULT.withDictionary(dictionaryPolicy))
+        );
+    }
+
+    /** Every column is written as the selector for its kind says that field should be. */
+    public ColumNARDocValuesFormat(
+        final NumericPipelineSelector pipelineSelector,
+        final ColumnarFieldTypeSelector typeSelector,
+        int blockSize,
+        final StringColumnOptionsSelector stringSelector
+    ) {
         super(ColumnarFormat.NAME);
         if (blockSize < MIN_BLOCK_SIZE || blockSize > MAX_BLOCK_SIZE || (blockSize & (blockSize - 1)) != 0) {
             throw new IllegalArgumentException(
@@ -66,22 +131,14 @@ public class ColumNARDocValuesFormat extends DocValuesFormat {
             );
         }
         this.pipelineSelector = pipelineSelector;
+        this.typeSelector = typeSelector;
         this.blockSize = blockSize;
-    }
-
-    /** Constructs the format with a custom per-field pipeline selector and the default block size. */
-    public ColumNARDocValuesFormat(NumericPipelineSelector pipelineSelector) {
-        this(pipelineSelector, DEFAULT_BLOCK_SIZE);
-    }
-
-    /** SPI constructor. Uses the default pipeline for every field. */
-    public ColumNARDocValuesFormat() {
-        this((fieldName, type) -> NumericPipeline::defaultPipeline);
+        this.stringSelector = stringSelector;
     }
 
     @Override
     public DocValuesConsumer fieldsConsumer(SegmentWriteState state) throws IOException {
-        return new ColumNARDocValuesConsumer(state, pipelineSelector, blockSize);
+        return new ColumNARDocValuesConsumer(state, pipelineSelector, typeSelector, blockSize, stringSelector);
     }
 
     @Override

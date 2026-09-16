@@ -189,6 +189,7 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
 import java.util.function.Function;
+import java.util.function.Supplier;
 import java.util.regex.Pattern;
 import java.util.stream.Collectors;
 
@@ -278,6 +279,8 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
     private TestDataSource testAllMapping; // k8s metrics index with time-series fields
 
     private final Configuration config;
+    /** Supplies the transport version to analyze at for this run — {@code current} or a fresh historical one. */
+    private final Supplier<TransportVersion> minimumVersion;
     private PlannerSettings plannerSettings;
 
     private record TestDataSource(Map<String, EsField> mapping, EsIndex index, Analyzer analyzer, SearchStats stats) {
@@ -302,18 +305,36 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
 
     @ParametersFactory(argumentFormatting = PARAM_FORMATTING)
     public static List<Object[]> params() {
-        return settings().stream().map(t -> {
-            var settings = Settings.builder().loadFromMap(t.v2()).build();
-            return new Object[] { t.v1(), configuration(new QueryPragmas(settings)) };
-        }).toList();
+        List<Object[]> params = new ArrayList<>();
+        for (Tuple<String, Map<String, Object>> setting : settings()) {
+            var settings = Settings.builder().loadFromMap(setting.v2()).build();
+            for (VersionMode mode : minimumVersionModes()) {
+                params.add(new Object[] { setting.v1() + " " + mode.name(), configuration(new QueryPragmas(settings)), mode.version() });
+            }
+        }
+        return params;
+    }
+
+    private record VersionMode(String name, Supplier<TransportVersion> version) {}
+
+    /**
+     * The two runs of each test. {@code current} pins {@link TransportVersion#current()} so a version-gated plan change is
+     * exercised in its own PR; {@code historical} keeps the pre-existing per-build random version.
+     */
+    private static List<VersionMode> minimumVersionModes() {
+        return List.of(
+            new VersionMode("current", TransportVersion::current),
+            new VersionMode("historical", EsqlTestUtils::randomMinimumVersion)
+        );
     }
 
     private static List<Tuple<String, Map<String, Object>>> settings() {
-        return asList(new Tuple<>("default", Map.of()));
+        return List.of(new Tuple<>("default", Map.of()));
     }
 
-    public PhysicalPlanOptimizerTests(String name, Configuration config) {
+    public PhysicalPlanOptimizerTests(String name, Configuration config, Supplier<TransportVersion> minimumVersion) {
         this.config = config;
+        this.minimumVersion = minimumVersion;
     }
 
     @Before
@@ -390,6 +411,7 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
         Map<String, EsField> mapping = loadMapping(mappingFileName);
         EsIndex index = EsIndexGenerator.esIndex(indexName, mapping, Map.of(indexName, IndexMode.STANDARD));
         TestAnalyzer builder = analyzer().configuration(config).addIndex(index);
+        builder.minimumTransportVersion(minimumVersion.get());
         setupEnrichPolicies(builder);
         for (IndexResolution lookupIndex : lookupResolution.values()) {
             builder.addIndex(lookupIndex);
@@ -5765,6 +5787,63 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
     }
 
     /**
+     * Reproducer for https://github.com/elastic/elasticsearch/issues/149814.
+     * When {@code ST_CENTROID_AGG(location)} marks {@code location} for doc-values extraction, the
+     * {@code BinarySpatialFunction} scan in {@code SpatialDocValuesExtraction} also adds {@code city_location}
+     * to {@code foundAttributes} (because {@code ST_DISTANCE(location, city_location)} is a
+     * {@code BinarySpatialFunction} whose both {@code FieldAttribute} operands are eligible for doc-values).
+     * Both fields must therefore be extracted as {@code DOC_VALUES} and the {@code ST_DISTANCE} evaluator
+     * must use the {@code DocValuesAndDocValues} variant. Previously only {@code DocValuesAndSource} existed,
+     * so the right-hand {@code LongBlock} was incorrectly cast to {@code BytesRefBlock}, causing a
+     * {@code ClassCastException} at runtime.
+     */
+    public void testSpatialStDistanceBothFieldsDocValues() {
+        // AVG decomposes to SUM/COUNT + a final division EvalExec, so the physical plan has a
+        // ProjectExec -> EvalExec (division) -> LimitExec -> AggregateExec(FINAL) on top.
+        // Both location and city_location must be independently used by a spatial aggregation so that
+        // Phase 1 of SpatialDocValuesExtraction adds BOTH to foundAttributes. Only then does Phase 2
+        // call withDocValues(true, true) on ST_DISTANCE — the scenario that previously caused a crash.
+        var optimized = optimizedPlan(this.physicalPlan("""
+            FROM airports
+            | STATS centroid = ST_CENTROID_AGG(location), city_centroid = ST_CENTROID_AGG(city_location),
+                    avg_dist = AVG(ST_DISTANCE(location, city_location))
+            """, airports));
+
+        // Navigate past the AVG decomposition wrappers to the FINAL aggregation
+        var project = as(optimized, ProjectExec.class);
+        var evalDiv = as(project.child(), EvalExec.class);
+        var limit = as(evalDiv.child(), LimitExec.class);
+        var agg = as(limit.child(), AggregateExec.class);
+        assertThat("Outer aggregation is FINAL", agg.getMode(), equalTo(FINAL));
+        assertAggregation(agg, "centroid", SpatialCentroid.class, GEO_POINT, FieldExtractPreference.NONE);
+
+        var exchange = as(agg.child(), ExchangeExec.class);
+        agg = as(exchange.child(), AggregateExec.class);
+        assertThat("Aggregation is PARTIAL", agg.getMode(), equalTo(INITIAL));
+        assertAggregation(agg, "centroid", SpatialCentroid.class, GEO_POINT, FieldExtractPreference.DOC_VALUES);
+
+        // ST_DISTANCE(location, city_location) is pre-evaluated in an EvalExec before the aggregation.
+        // Both location and city_location must be extracted via doc-values because ST_DISTANCE is a
+        // BinarySpatialFunction whose both FieldAttribute operands get added to foundAttributes by the
+        // SpatialDocValuesExtraction rule. The DocValuesAndDocValues evaluator variant handles
+        // the resulting LongBlock+LongBlock case; without it a ClassCastException occurs at runtime.
+        var evalExec = as(agg.child(), EvalExec.class);
+        var fieldExtract = as(evalExec.child(), FieldExtractExec.class);
+        var dvNames = fieldExtract.docValuesAttributes().stream().map(Attribute::name).collect(Collectors.toSet());
+        assertThat("location extracted via doc-values", dvNames, hasItem("location"));
+        assertThat("city_location extracted via doc-values", dvNames, hasItem("city_location"));
+
+        // Verify that the ST_DISTANCE expression in the EvalExec has both leftDocValues and rightDocValues set.
+        // collectLeaves() skips ST_DISTANCE because it has children, so use forEachDown instead.
+        List<StDistance> stDistances = new ArrayList<>();
+        evalExec.fields().forEach(alias -> alias.forEachDown(StDistance.class, stDistances::add));
+        assertThat("ST_DISTANCE found in EvalExec fields", stDistances, is(not(empty())));
+        var stDist = stDistances.get(0);
+        assertTrue("ST_DISTANCE left field uses doc-values", stDist.leftDocValues());
+        assertTrue("ST_DISTANCE right field uses doc-values", stDist.rightDocValues());
+    }
+
+    /**
      * Before local optimizations:
      * <code>
      * LimitExec[1000[INTEGER]]
@@ -7921,7 +8000,13 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
         );
         var extract = as(project.child(), FieldExtractExec.class);
         assertThat(names(extract.attributesToExtract()), contains("abbrev", "city", "country", "name"));
-        var evalExec = as(extract.child(), EvalExec.class);
+        // The trailing sort keys 'scale' and 'loc' are not pushable, so the four-key sort is not fully coverable and the
+        // TopN is not pushed to the source. Pushing only the pushable 'distance, scalerank' prefix together with the limit
+        // would let Lucene truncate to five documents ordered by that prefix alone, dropping documents the full sort would
+        // rank into the top-five whenever the prefix ties (see PushTopNToSource). A local TopN therefore stays in the plan.
+        var topNChild = as(extract.child(), TopNExec.class);
+        assertThat(topNChild.order().size(), is(4));
+        var evalExec = as(topNChild.child(), EvalExec.class);
         var alias = as(evalExec.fields().get(0), Alias.class);
         assertThat(alias.name(), is("distance"));
         var stDistance = as(alias.child(), StDistance.class);
@@ -7930,23 +8015,9 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
         assertThat(names(extract.attributesToExtract()), contains("location", "scalerank"));
         var source = source(extract.child());
 
-        // Assert that the TopN(distance) is pushed down as geo-sort(location)
-        assertThat(source.limit(), is(topN.limit()));
-        Set<String> orderSet = orderAsSet(topN.order().subList(0, 2));
-        Set<String> sortsSet = sortsAsSet(source.sorts(), Map.of("location", "distance"));
-        assertThat(orderSet, is(sortsSet));
-
-        // Fine-grained checks on the pushed down sort
-        assertThat(source.limit(), is(l(5)));
-        assertThat(source.sorts().size(), is(2));
-        EsQueryExec.Sort sort = source.sorts().get(0);
-        assertThat(sort.direction(), is(Order.OrderDirection.ASC));
-        assertThat(name(sort.field()), is("location"));
-        assertThat(sort.sortBuilder(), isA(GeoDistanceSortBuilder.class));
-        sort = source.sorts().get(1);
-        assertThat(sort.direction(), is(Order.OrderDirection.ASC));
-        assertThat(name(sort.field()), is("scalerank"));
-        assertThat(sort.sortBuilder(), isA(FieldSortBuilder.class));
+        // The TopN is not pushed down: the source carries no sort or limit and only the WHERE filter is pushed.
+        assertThat(source.limit(), nullValue());
+        assertThat(source.sorts(), nullValue());
 
         // Fine-grained checks on the pushed down query
         var bool = as(source.query(), BoolQueryBuilder.class);
@@ -9855,12 +9926,13 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
                 QueryWarnings.EMIT
             ),
             null,  // OperatorFactoryRegistry - not needed for these tests
+            null,  // RemoteFetchService - not needed for these tests
             null,  // parallelWorkerExecutor - not needed for these tests
             0,     // esqlWorkerPoolSize - not needed for these tests
             MatcherWatchdog.noop()
         );
 
-        return planner.plan("test", FoldContext.small(), plannerSettings, plan, EmptyIndexedByShardId.instance());
+        return planner.plan("test", FoldContext.small(), plannerSettings, plan, EmptyIndexedByShardId.instance(), randomBoolean());
     }
 
     private List<Set<String>> findFieldNamesInLookupJoinDescription(LocalExecutionPlanner.LocalExecutionPlan physicalOperations) {
@@ -9969,7 +10041,7 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
             | limit %d by languages
             """, limit));
         Tuple<PhysicalPlan, PhysicalPlan> plans = PlannerUtils.breakPlanBetweenCoordinatorAndDataNode(plan, config);
-        var reductionPlan = ((PlannerUtils.ReducedPlan) PlannerUtils.reductionPlan(plans.v2())).plan();
+        var reductionPlan = ((PlannerUtils.TopNByReduction) PlannerUtils.reductionPlan(plans.v2())).plan();
         var topNBy = as(reductionPlan, TopNByExec.class);
         assertThat(as(topNBy.limitPerGroup(), Literal.class).value(), equalTo(limit));
         assertThat(topNBy.outputOrdering(), equalTo(GroupedTopNOperator.OutputOrdering.NOT_SORTED));

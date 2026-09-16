@@ -1,0 +1,5 @@
+area: Authorization
+issues: []
+pr: 156478
+summary: Grant built-in viewer/editor access to solution-neutral Entity Store v2 indices
+type: enhancement

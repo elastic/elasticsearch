@@ -123,7 +123,11 @@ public record TestTlsCertificate(X509Certificate certificate, PrivateKey private
             builder.addExtension(Extension.subjectAlternativeName, false, dnsSubjectAlternativeNames(dnsNames));
             builder.addExtension(Extension.basicConstraints, true, new BasicConstraints(false));
             builder.addExtension(Extension.keyUsage, true, new KeyUsage(KeyUsage.digitalSignature | KeyUsage.keyEncipherment));
-            builder.addExtension(Extension.extendedKeyUsage, false, new ExtendedKeyUsage(KeyPurposeId.id_kp_serverAuth));
+            builder.addExtension(
+                Extension.extendedKeyUsage,
+                false,
+                new ExtendedKeyUsage(new KeyPurposeId[] { KeyPurposeId.id_kp_serverAuth, KeyPurposeId.id_kp_clientAuth })
+            );
             return new TestTlsCertificate(
                 new JcaX509CertificateConverter().setProvider(provider)
                     .getCertificate(builder.build(new JcaContentSignerBuilder("SHA256withRSA").setProvider(provider).build(privateKey))),

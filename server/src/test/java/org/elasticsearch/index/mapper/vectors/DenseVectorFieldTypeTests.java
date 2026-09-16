@@ -144,7 +144,8 @@ public class DenseVectorFieldTypeTests extends FieldTypeTestCase {
                 randomBoolean(),
                 randomFrom(1, 2, 4),
                 randomBoolean(),
-                false
+                false,
+                DenseVectorFieldMapper.BBQIVFIndexOptions.QuantizationType.OSQ
             )
         );
 
@@ -450,7 +451,7 @@ public class DenseVectorFieldTypeTests extends FieldTypeTestCase {
             for (int i = 0; i < dims; i++) {
                 queryVector[i] = randomFloat();
             }
-            Query query = field.createIndexedExactKnnQuery(VectorData.fromFloats(queryVector), null);
+            Query query = field.createIndexedExactKnnQuery(VectorData.fromFloats(queryVector), null, null);
             assertThat(query, instanceOf(DenseVectorQuery.Floats.class));
         }
         {
@@ -469,7 +470,7 @@ public class DenseVectorFieldTypeTests extends FieldTypeTestCase {
             for (int i = 0; i < dims; i++) {
                 queryVector[i] = randomByte();
             }
-            Query query = field.createIndexedExactKnnQuery(VectorData.fromBytes(queryVector), null);
+            Query query = field.createIndexedExactKnnQuery(VectorData.fromBytes(queryVector), null, null);
             assertThat(query, instanceOf(DenseVectorQuery.Bytes.class));
         }
     }
@@ -507,7 +508,7 @@ public class DenseVectorFieldTypeTests extends FieldTypeTestCase {
         // The exact-knn entry point used by ExactKnnQueryBuilder/inner-hits still requires an indexed field.
         IllegalArgumentException requiresIndexed = expectThrows(
             IllegalArgumentException.class,
-            () -> field.createIndexedExactKnnQuery(VectorData.fromFloats(queryVector), null)
+            () -> field.createIndexedExactKnnQuery(VectorData.fromFloats(queryVector), null, null)
         );
         assertThat(requiresIndexed.getMessage(), containsString("its mapping must have [index] set to [true]"));
 
@@ -811,7 +812,7 @@ public class DenseVectorFieldTypeTests extends FieldTypeTestCase {
             } else {
                 ESKnnFloatVectorQuery knnFloatVectorQuery = (ESKnnFloatVectorQuery) knnQuery;
                 assertThat(knnFloatVectorQuery.getK(), is(100));
-                assertThat(knnFloatVectorQuery.kParam(), is(10));
+                assertThat(knnFloatVectorQuery.k(), is(10));
             }
         }
     }
@@ -897,7 +898,7 @@ public class DenseVectorFieldTypeTests extends FieldTypeTestCase {
         assertThat(rescoreKnnVectorQuery.k(), equalTo(10));
         Query innerQuery = rescoreKnnVectorQuery.innerQuery();
         if (innerQuery instanceof ESKnnFloatVectorQuery esKnnFloatVectorQuery) {
-            assertThat(esKnnFloatVectorQuery.kParam(), equalTo(20));
+            assertThat(esKnnFloatVectorQuery.k(), equalTo(20));
         }
     }
 
@@ -987,7 +988,7 @@ public class DenseVectorFieldTypeTests extends FieldTypeTestCase {
         ESKnnFloatVectorQuery knnQuery = (ESKnnFloatVectorQuery) innerQuery;
         assertThat("Unexpected total results", rescoreQuery.k(), equalTo(expectedResults));
         assertThat("Unexpected candidates", knnQuery.getK(), equalTo(expectedCandidates));
-        assertThat("Unexpected k parameter", knnQuery.kParam(), equalTo(expectedK));
+        assertThat("Unexpected k parameter", knnQuery.k(), equalTo(expectedK));
     }
 
     public void testBBQIVFUsesSlicedQueryForSingleSliceRouting() {
@@ -1161,7 +1162,8 @@ public class DenseVectorFieldTypeTests extends FieldTypeTestCase {
             false,
             1,
             true,
-            false
+            false,
+            DenseVectorFieldMapper.BBQIVFIndexOptions.QuantizationType.OSQ
         );
         return new DenseVectorFieldType(
             "f",

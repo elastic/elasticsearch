@@ -23,9 +23,7 @@ import org.apache.lucene.search.Scorer;
 import org.apache.lucene.search.Weight;
 import org.elasticsearch.common.document.DocumentField;
 import org.elasticsearch.common.lucene.search.Queries;
-import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.index.mapper.FieldMapper;
-import org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapper;
 import org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapper.DenseVectorFieldType;
 import org.elasticsearch.index.mapper.vectors.SparseVectorFieldMapper;
 import org.elasticsearch.index.query.SearchExecutionContext;
@@ -36,9 +34,6 @@ import org.elasticsearch.search.vectors.RescoreKnnVectorQuery;
 import org.elasticsearch.search.vectors.SparseVectorQueryWrapper;
 import org.elasticsearch.search.vectors.VectorData;
 import org.elasticsearch.search.vectors.VectorSimilarityQuery;
-import org.elasticsearch.xcontent.XContentParser;
-import org.elasticsearch.xcontent.XContentParserConfiguration;
-import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xpack.inference.mapper.OffsetSourceField;
 import org.elasticsearch.xpack.inference.mapper.OffsetSourceFieldMapper;
 import org.elasticsearch.xpack.inference.mapper.SemanticFieldMapper.SemanticFieldType;
@@ -183,15 +178,15 @@ public class SemanticTextChunkUtils {
 
             private void visitLeaf(Query query, Float similarity) {
                 if (query instanceof KnnFloatVectorQuery knnQuery) {
-                    queries.add(fieldType.createIndexedExactKnnQuery(VectorData.fromFloats(knnQuery.getTargetCopy()), similarity));
+                    queries.add(fieldType.createIndexedExactKnnQuery(VectorData.fromFloats(knnQuery.getTargetCopy()), similarity, null));
                 } else if (query instanceof KnnByteVectorQuery knnQuery) {
-                    queries.add(fieldType.createIndexedExactKnnQuery(VectorData.fromBytes(knnQuery.getTargetCopy()), similarity));
+                    queries.add(fieldType.createIndexedExactKnnQuery(VectorData.fromBytes(knnQuery.getTargetCopy()), similarity, null));
                 } else if (query instanceof MatchAllDocsQuery) {
                     queries.add(Queries.ALL_DOCS_INSTANCE);
                 } else if (query instanceof DenseVectorQuery.Floats floatsQuery) {
-                    queries.add(fieldType.createIndexedExactKnnQuery(VectorData.fromFloats(floatsQuery.getQuery()), similarity));
+                    queries.add(fieldType.createIndexedExactKnnQuery(VectorData.fromFloats(floatsQuery.getQuery()), similarity, null));
                 } else if (query instanceof IVFKnnFloatVectorQuery ivfQuery) {
-                    queries.add(fieldType.createIndexedExactKnnQuery(VectorData.fromFloats(ivfQuery.getQuery()), similarity));
+                    queries.add(fieldType.createIndexedExactKnnQuery(VectorData.fromFloats(ivfQuery.getQuery()), similarity, null));
                 } else if (query instanceof RescoreKnnVectorQuery rescoreQuery) {
                     visitLeaf(rescoreQuery.innerQuery(), similarity);
                 } else if (query instanceof VectorSimilarityQuery similarityQuery) {
@@ -238,26 +233,4 @@ public class SemanticTextChunkUtils {
         return queries;
     }
 
-    public static VectorData getTextEmbeddingVectorFromChunk(
-        SemanticTextField.Chunk chunk,
-        XContentType contentType,
-        DenseVectorFieldMapper.ElementType elementType
-    ) throws IOException {
-        XContentParser parser = XContentHelper.createParserNotCompressed(
-            XContentParserConfiguration.EMPTY,
-            chunk.rawEmbeddings(),
-            contentType
-        );
-
-        // forward to the start token
-        parser.nextToken();
-        VectorData parsedVector = VectorData.parseXContent(parser);
-        if (parsedVector.isFloat()
-            && (elementType == DenseVectorFieldMapper.ElementType.BIT || elementType == DenseVectorFieldMapper.ElementType.BYTE)) {
-            // the parsing created float elements, we need this to be bytes
-            parsedVector = new VectorData(parsedVector.asByteVector());
-        }
-
-        return parsedVector;
-    }
 }

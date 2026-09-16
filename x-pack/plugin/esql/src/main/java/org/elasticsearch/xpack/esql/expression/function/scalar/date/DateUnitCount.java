@@ -27,6 +27,7 @@ import org.elasticsearch.xpack.esql.expression.function.FunctionAppliesToLifecyc
 import org.elasticsearch.xpack.esql.expression.function.FunctionDefinition;
 import org.elasticsearch.xpack.esql.expression.function.FunctionInfo;
 import org.elasticsearch.xpack.esql.expression.function.Param;
+import org.elasticsearch.xpack.esql.expression.function.Signature;
 import org.elasticsearch.xpack.esql.expression.function.scalar.EsqlConfigurationFunction;
 import org.elasticsearch.xpack.esql.io.stream.PlanStreamInput;
 import org.elasticsearch.xpack.esql.plan.QuerySettings;
@@ -68,6 +69,7 @@ public class DateUnitCount extends EsqlConfigurationFunction implements AnyNullI
     @FunctionInfo(
         appliesTo = { @FunctionAppliesTo(lifeCycle = FunctionAppliesToLifecycle.GA) },
         returnType = "long",
+        signatures = { @Signature(params = { "STRING", "STRING", "date|date_nanos" }, returnType = "long") },
         briefSummary = "Counts how many smaller time units fit within a larger time unit for a date.",
         description = "Counts how many `to_unit` values are contained in a single `from_unit` period for `date`.",
         examples = @Example(

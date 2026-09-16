@@ -820,6 +820,9 @@ public class TransportService extends AbstractLifecycleComponent
      * remote node, but it could also be that the request timed out, or that the remote disconnected, or that there was some kind of failure
      * when sending the request or receiving the response. Callers must ensure that {@code handler} does not unnecessarily retain excessive
      * resources.
+     * <p>
+     * The listener is completed even if the network connection is silently dropped: Elasticsearch enables TCP keepalives on all transport
+     * connections by default so all such network disruptions are detected within bounded time.
      */
     @Override
     public <T extends TransportResponse> void sendRequest(
@@ -847,6 +850,9 @@ public class TransportService extends AbstractLifecycleComponent
      * remote node, but it could also be that the request timed out, or that the remote disconnected, or that there was some kind of failure
      * when sending the request or receiving the response. Callers must ensure that {@code handler} does not unnecessarily retain excessive
      * resources.
+     * <p>
+     * The listener is completed even if the network connection is silently dropped: Elasticsearch enables TCP keepalives on all transport
+     * connections by default so all such network disruptions are detected within bounded time.
      */
     public final <T extends TransportResponse> void sendRequest(
         final DiscoveryNode node,
@@ -916,6 +922,9 @@ public class TransportService extends AbstractLifecycleComponent
      * remote node, but it could also be that the request timed out, or that the remote disconnected, or that there was some kind of failure
      * when sending the request or receiving the response. Callers must ensure that {@code handler} does not unnecessarily retain excessive
      * resources.
+     * <p>
+     * The listener is completed even if the network connection is silently dropped: Elasticsearch enables TCP keepalives on all transport
+     * connections by default so all such network disruptions are detected within bounded time.
      *
      * @param connection the connection to send the request on
      * @param action     the name of the action
@@ -1010,6 +1019,9 @@ public class TransportService extends AbstractLifecycleComponent
      * remote node, but it could also be that the request timed out, or that the remote disconnected, or that there was some kind of failure
      * when sending the request or receiving the response. Callers must ensure that {@code handler} does not unnecessarily retain excessive
      * resources.
+     * <p>
+     * The listener is completed even if the network connection is silently dropped: Elasticsearch enables TCP keepalives on all transport
+     * connections by default so all such network disruptions are detected within bounded time.
      */
     public final <T extends TransportResponse> void sendChildRequest(
         final DiscoveryNode node,
@@ -1042,6 +1054,9 @@ public class TransportService extends AbstractLifecycleComponent
      * remote node, but it could also be that the request timed out, or that the remote disconnected, or that there was some kind of failure
      * when sending the request or receiving the response. Callers must ensure that {@code handler} does not unnecessarily retain excessive
      * resources.
+     * <p>
+     * The listener is completed even if the network connection is silently dropped: Elasticsearch enables TCP keepalives on all transport
+     * connections by default so all such network disruptions are detected within bounded time.
      */
     public <T extends TransportResponse> void sendChildRequest(
         final Transport.Connection connection,
@@ -1070,6 +1085,9 @@ public class TransportService extends AbstractLifecycleComponent
      * remote node, but it could also be that the request timed out, or that the remote disconnected, or that there was some kind of failure
      * when sending the request or receiving the response. Callers must ensure that {@code handler} does not unnecessarily retain excessive
      * resources.
+     * <p>
+     * The listener is completed even if the network connection is silently dropped: Elasticsearch enables TCP keepalives on all transport
+     * connections by default so all such network disruptions are detected within bounded time.
      */
     public <T extends TransportResponse> void sendChildRequest(
         final Transport.Connection connection,

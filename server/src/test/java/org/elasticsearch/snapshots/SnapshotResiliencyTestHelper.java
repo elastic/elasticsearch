@@ -128,6 +128,7 @@ import org.elasticsearch.indices.cluster.IndicesClusterStateService;
 import org.elasticsearch.indices.recovery.CompositeRecoverySchedulingListener;
 import org.elasticsearch.indices.recovery.PeerRecoverySourceService;
 import org.elasticsearch.indices.recovery.PeerRecoveryTargetService;
+import org.elasticsearch.indices.recovery.RecoveryFeatures;
 import org.elasticsearch.indices.recovery.RecoveryGateMonitor;
 import org.elasticsearch.indices.recovery.RecoveryMetricsCollector;
 import org.elasticsearch.indices.recovery.RecoverySchedulingListener;
@@ -418,6 +419,39 @@ public class SnapshotResiliencyTestHelper {
             TransportInterceptor createTransportInterceptor(DiscoveryNode node);
         }
 
+        // There is a deadlock condition where processPendingDeletes awaits on shard snapshots which may be scheduled
+        // after the processPendingDeletes task. In production these tasks run on different threadpools, and processPendingDeletes
+        // waits for 30 minutes. To simulate that here, we reschedule the processPendingDeletes task into the future each time we encounter
+        // it until it is the last task in the queue.
+        private Function<Runnable, Runnable> deferProcessPendingDeletes(Function<Runnable, Runnable> runnableWrapper) {
+            return runnable -> {
+                if (isProcessPendingDeletes(runnable) == false) {
+                    return runnableWrapper.apply(runnable);
+                }
+                final Runnable wrapped = runnableWrapper.apply(runnable);
+                return new Runnable() {
+                    @Override
+                    public void run() {
+                        if (deterministicTaskQueue.hasRunnableTasks()) {
+                            logger.debug("--> deferring {} because other DTQ tasks may hold shard locks", runnable);
+                            deterministicTaskQueue.scheduleAt(deterministicTaskQueue.getCurrentTimeMillis() + 1, this);
+                            return;
+                        }
+                        wrapped.run();
+                    }
+
+                    @Override
+                    public String toString() {
+                        return runnable.toString();
+                    }
+                };
+            };
+        }
+
+        private static boolean isProcessPendingDeletes(Runnable task) {
+            return task.toString().contains("processPendingDeletes[");
+        }
+
         public class TestClusterNode {
 
             protected final ProjectResolver projectResolver = TestProjectResolvers.DEFAULT_PROJECT_ONLY;
@@ -500,7 +534,9 @@ public class SnapshotResiliencyTestHelper {
                 this.environment = createEnvironment(node.getName(), tempDir, nodeSettings(node));
                 this.settings = environment.settings();
                 this.pluginsService = createPluginsService(settings, environment);
-                this.threadPool = deterministicTaskQueue.getThreadPool(runnable -> DeterministicTaskQueue.onNodeLog(this.node, runnable));
+                this.threadPool = deterministicTaskQueue.getThreadPool(
+                    deferProcessPendingDeletes(runnable -> DeterministicTaskQueue.onNodeLog(this.node, runnable))
+                );
                 this.masterService = new FakeThreadPoolMasterService(node.getName(), threadPool, deterministicTaskQueue::scheduleNow);
                 this.client = new NodeClient(settings, threadPool, projectResolver);
                 this.usageService = new UsageService();
@@ -659,7 +695,7 @@ public class SnapshotResiliencyTestHelper {
                     projectResolver,
                     clusterService,
                     RecoverySchedulingListener.NOOP,
-                    new RecoveryGateMonitor(List::of, threadPool)
+                    new RecoveryGateMonitor(List::of, threadPool, clusterService.getClusterSettings())
                 );
 
                 indicesService = new IndicesServiceBuilder().settings(settings)
@@ -720,11 +756,12 @@ public class SnapshotResiliencyTestHelper {
                     snapshotFilesProvider
                 );
 
-                final ActionFilters actionFilters = new ActionFilters(emptySet());
+                final ActionFilters actionFilters = ActionFilters.EMPTY;
                 final ActiveFetchPhaseTasks activeFetchPhaseTasks = new ActiveFetchPhaseTasks();
                 new TransportFetchPhaseResponseChunkAction(transportService, activeFetchPhaseTasks, namedWriteableRegistry);
                 Map<ActionType<?>, TransportAction<?, ?>> actions = new HashMap<>();
 
+                shardStateAction = new ShardStateAction(clusterService, transportService, allocationService, rerouteService, threadPool);
                 // Inject initialization from subclass which may be needed by initializations after this point.
                 doInit(actions, actionFilters);
 
@@ -736,7 +773,6 @@ public class SnapshotResiliencyTestHelper {
                     indicesService,
                     createSnapshotShardContextFactory()
                 );
-                shardStateAction = new ShardStateAction(clusterService, transportService, allocationService, rerouteService, threadPool);
                 nodeConnectionsService = new NodeConnectionsService(clusterService.getSettings(), threadPool, transportService);
                 actions.put(
                     TransportUpdateSnapshotStatusAction.TYPE,
@@ -909,7 +945,8 @@ public class SnapshotResiliencyTestHelper {
                     indexingMemoryLimits,
                     EmptySystemIndices.INSTANCE,
                     projectResolver,
-                    DocumentParsingProvider.EMPTY_INSTANCE
+                    DocumentParsingProvider.EMPTY_INSTANCE,
+                    bigArrays
                 );
                 actions.put(TransportShardBulkAction.TYPE, transportShardBulkAction);
                 final RestoreService restoreService = new RestoreService(
@@ -932,7 +969,13 @@ public class SnapshotResiliencyTestHelper {
                     mock(FileSettingsService.class),
                     threadPool,
                     false,
-                    IndexMetadataRestoreTransformer.NoOpRestoreTransformer.getInstance()
+                    IndexMetadataRestoreTransformer.NoOpRestoreTransformer.getInstance(),
+                    new FeatureService(List.of()) {
+                        @Override
+                        public boolean clusterHasFeature(ClusterState state, NodeFeature feature) {
+                            return RecoveryFeatures.RESTORE_OVER_OPEN_INDEX_RECREATES_INDEX_SERVICE.equals(feature);
+                        }
+                    }
                 );
                 actions.put(
                     TransportPutMappingAction.TYPE,

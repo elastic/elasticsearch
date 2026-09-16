@@ -9,8 +9,6 @@
 
 package org.elasticsearch.columnar.numeric;
 
-import org.apache.lucene.store.ByteArrayDataInput;
-import org.apache.lucene.store.ByteBuffersDataOutput;
 import org.apache.lucene.util.NumericUtils;
 import org.elasticsearch.test.ESTestCase;
 
@@ -96,11 +94,11 @@ public class AlpDoubleTransformTests extends ESTestCase {
         // NOTE: fresh stage so the cache is cold; hasNearConstantStride should fire.
         AlpDoubleTransform stage = freshStage();
         long[] work = block.clone();
-        ByteBuffersDataOutput params = new ByteBuffersDataOutput();
+        MetadataBuffer params = new MetadataBuffer();
         boolean fired = stage.tryEncode(work, BLOCK, params);
         if (fired) {
             // If it fired anyway, it must round-trip correctly.
-            stage.decode(work, BLOCK, new ByteArrayDataInput(params.toArrayCopy()));
+            stage.decode(work, BLOCK, DataInputMetadataReader.wrap(params));
             for (int i = 0; i < BLOCK; i++) {
                 assertEquals("round-trip failure at " + i, block[i], work[i]);
             }
@@ -150,7 +148,7 @@ public class AlpDoubleTransformTests extends ESTestCase {
         long[] block = new long[BLOCK];
         Arrays.fill(block, sortableLong);
         long[] original = block.clone();
-        ByteBuffersDataOutput params = new ByteBuffersDataOutput();
+        MetadataBuffer params = new MetadataBuffer();
         assertFalse(freshStage().tryEncode(block, BLOCK, params));
         assertArrayEquals(original, block);
         assertEquals(0L, params.size());
@@ -158,10 +156,10 @@ public class AlpDoubleTransformTests extends ESTestCase {
 
     private static void assertRoundTrip(AlpDoubleTransform stage, long[] original, int valueCount) throws IOException {
         long[] work = original.clone();
-        ByteBuffersDataOutput params = new ByteBuffersDataOutput();
+        MetadataBuffer params = new MetadataBuffer();
         boolean fired = stage.tryEncode(work, valueCount, params);
         assertTrue("AlpDoubleTransform must fire on this input", fired);
-        stage.decode(work, valueCount, new ByteArrayDataInput(params.toArrayCopy()));
+        stage.decode(work, valueCount, DataInputMetadataReader.wrap(params));
         for (int i = 0; i < valueCount; i++) {
             assertEquals("round-trip failure at position " + i, original[i], work[i]);
         }
@@ -169,10 +167,10 @@ public class AlpDoubleTransformTests extends ESTestCase {
 
     private static void assertRoundTripOrUnchanged(AlpDoubleTransform stage, long[] original, int valueCount) throws IOException {
         long[] work = original.clone();
-        ByteBuffersDataOutput params = new ByteBuffersDataOutput();
+        MetadataBuffer params = new MetadataBuffer();
         boolean fired = stage.tryEncode(work, valueCount, params);
         if (fired) {
-            stage.decode(work, valueCount, new ByteArrayDataInput(params.toArrayCopy()));
+            stage.decode(work, valueCount, DataInputMetadataReader.wrap(params));
             for (int i = 0; i < valueCount; i++) {
                 assertEquals("round-trip failure at position " + i, original[i], work[i]);
             }

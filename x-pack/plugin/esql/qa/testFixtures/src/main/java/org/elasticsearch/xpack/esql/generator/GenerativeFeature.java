@@ -39,5 +39,11 @@ public enum GenerativeFeature {
     /**
      * Start generated pipelines from {@code PROMQL}.
      */
-    PROMQL
+    PROMQL,
+
+    /**
+     * Generate {@code FROM <dataset>} queries against external parquet datasets registered via
+     * {@code PUT /_query/dataset/} using an in-process S3 fixture.
+     */
+    PARQUET_DATASET
 }

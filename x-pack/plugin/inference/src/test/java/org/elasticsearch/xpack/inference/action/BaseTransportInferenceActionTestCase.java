@@ -451,6 +451,10 @@ public abstract class BaseTransportInferenceActionTestCase<Request extends BaseI
             listenerAction.accept(ans.getArgument(3));
             return null;
         }).when(service).rerankInfer(any(), any(), any(), any());
+        doAnswer(ans -> {
+            listenerAction.accept(ans.getArgument(3));
+            return null;
+        }).when(service).documentExtractionInfer(any(), any(), any(), any());
         mockInferenceEndpointRegistry(taskType);
         when(serviceRegistry.getService(any())).thenReturn(Optional.of(service));
     }

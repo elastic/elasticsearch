@@ -346,6 +346,7 @@ public class Constants {
         "cluster:internal/xpack/inference/clear_oauth2_token_cache",
         "cluster:internal/xpack/inference/create_endpoints",
         "cluster:internal/xpack/inference/delete_endpoints",
+        "cluster:internal/xpack/inference/document_extraction",
         "cluster:internal/xpack/inference/embedding",
         "cluster:internal/xpack/inference/refresh_authorized_endpoints",
         "cluster:internal/xpack/inference/rerank",

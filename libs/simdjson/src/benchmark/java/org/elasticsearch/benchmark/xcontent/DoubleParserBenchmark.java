@@ -36,18 +36,18 @@ import java.util.concurrent.TimeUnit;
  * pre-computed (negative, digits, exponent) tuples, so only the double computation itself is
  * measured.
  *
- * <p>Parameterized by {@link #fastPathPercent}: the JIT's decision to inline
- * {@code computeDouble}'s fast path into its caller depends on how "hot" that fast-path branch
- * is judged to be at this call site (roughly, HotSpot applies its generous hot-method inline
- * budget, {@code -XX:FreqInlineSize}, only when the callee dominates the call site; otherwise it
- * falls back to the much smaller default, {@code -XX:MaxInlineSize}, which the fast-path method
- * no longer fits under). A benchmark built only from fast-path-eligible inputs (as an earlier
- * version of this file was) cannot see that: it always reports the best case. This version
- * interleaves fast-path-eligible numbers (few decimal digits, small exponent - e.g.
- * prices/percentages/metrics) with Eisel-Lemire-eligible ones (exponent magnitude past the fast
- * path's cutoff) from a single shared, shuffled array, so the *same call site* sees a
- * controllable mix and the reported cost reflects whichever inlining decision the JIT actually
- * makes for that mix - not just the monomorphic best case.
+ * <p>Parameterized by {@link #fastPathPercent}: whether the JIT inlines the (dispatch plus fast
+ * path) {@code computeDouble} method into its caller depends on how "hot" that call site is
+ * judged to be (roughly, HotSpot applies its generous hot-method inline budget,
+ * {@code -XX:FreqInlineSize}, only when the callee dominates the call site; otherwise it falls
+ * back to the much smaller default, {@code -XX:MaxInlineSize}, which {@code computeDouble} no
+ * longer fits under). A benchmark built only from fast-path-eligible inputs cannot see that: it
+ * always reports the best case. This benchmark instead interleaves fast-path-eligible numbers
+ * (few decimal digits, small exponent - e.g. prices/percentages/metrics) with
+ * Eisel-Lemire-eligible ones (exponent magnitude past the fast path's cutoff) from a single
+ * shared, shuffled array, so the *same call site* sees a controllable mix and the reported cost
+ * reflects whichever inlining decision the JIT actually makes for that mix - not just the
+ * monomorphic best case.
  *
  * <p>The {@code buffer} passed to {@code parse} is deliberately empty and never dereferenced for
  * either kind of input: {@code DoubleParser} only reads from it when {@code digitCount} exceeds

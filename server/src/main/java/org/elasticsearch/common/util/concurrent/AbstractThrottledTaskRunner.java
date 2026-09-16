@@ -15,7 +15,12 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.core.Releasable;
 import org.elasticsearch.core.Releasables;
 import org.elasticsearch.core.Strings;
+import org.elasticsearch.telemetry.metric.Instrument;
+import org.elasticsearch.telemetry.metric.LongWithAttributes;
+import org.elasticsearch.telemetry.metric.MeterRegistry;
 
+import java.util.ArrayList;
+import java.util.List;
 import java.util.Queue;
 import java.util.concurrent.Executor;
 import java.util.concurrent.atomic.AtomicBoolean;
@@ -27,6 +32,10 @@ import java.util.concurrent.atomic.AtomicInteger;
  */
 public class AbstractThrottledTaskRunner<T extends ActionListener<Releasable>> {
     private static final Logger logger = LogManager.getLogger(AbstractThrottledTaskRunner.class);
+
+    public static final String THROTTLED_TASK_RUNNER_METRIC_PREFIX = "es.throttled_task_runner.";
+    public static final String THROTTLED_TASK_RUNNER_METRIC_NAME_QUEUE = ".tasks.queue.size";
+    public static final String THROTTLED_TASK_RUNNER_METRIC_RUNNING = ".tasks.running.current";
 
     private final String taskRunnerName;
     // The max number of tasks that this runner will schedule to concurrently run on the executor.
@@ -49,6 +58,29 @@ public class AbstractThrottledTaskRunner<T extends ActionListener<Releasable>> {
 
     public String getTaskRunnerName() {
         return taskRunnerName;
+    }
+
+    /// Register metrics to get task-queue depth and currently running tasks.
+    public List<Instrument> setupMetrics(MeterRegistry meterRegistry, String name) {
+        var prefix = THROTTLED_TASK_RUNNER_METRIC_PREFIX + name;
+        var instruments = new ArrayList<Instrument>();
+        instruments.add(
+            meterRegistry.registerLongAsyncGauge(
+                prefix + THROTTLED_TASK_RUNNER_METRIC_NAME_QUEUE,
+                "number of tasks waiting in the queue for throttled task runner " + name,
+                "count",
+                () -> new LongWithAttributes(queuedTasks())
+            )
+        );
+        instruments.add(
+            meterRegistry.registerLongAsyncGauge(
+                prefix + THROTTLED_TASK_RUNNER_METRIC_RUNNING,
+                "number of tasks currently running (i.e., submitted to the underlying executor)" + name,
+                "count",
+                () -> new LongWithAttributes(runningTasks())
+            )
+        );
+        return List.copyOf(instruments);
     }
 
     /**

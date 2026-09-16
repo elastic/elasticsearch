@@ -194,7 +194,10 @@ public class InternalComposite extends InternalMultiBucketAggregation<InternalCo
     @Override
     protected AggregatorReducer getLeaderReducer(AggregationReduceContext reduceContext, int size) {
         return new AggregatorReducer() {
-            private final PriorityQueue<IteratorAndCurrent<InternalBucket>> pq = new PriorityQueue<>(size, (a, b) -> a.current().compareKey(b.current(), reverseMuls, missingOrders) < 0);
+            private final PriorityQueue<IteratorAndCurrent<InternalBucket>> pq = new PriorityQueue<>(
+                size,
+                (a, b) -> a.current().compareKey(b.current(), reverseMuls, missingOrders) < 0
+            );
             private boolean earlyTerminated = false;
 
             @Override

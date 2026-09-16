@@ -120,12 +120,12 @@ public class TimeSeriesIndexSearcher {
         }
 
         PriorityQueue<LeafWalker> queue = new PriorityQueue<>(searcher.getIndexReader().leaves().size(), (a, b) -> {
-if (timestampReverse) {
-                    return a.timestamp > b.timestamp;
-                } else {
-                    return a.timestamp < b.timestamp;
-                }
-            });
+            if (timestampReverse) {
+                return a.timestamp > b.timestamp;
+            } else {
+                return a.timestamp < b.timestamp;
+            }
+        });
 
         // The priority queue is filled for each TSID in order. When a walker moves
         // to the next TSID it is removed from the queue. Once the queue is empty,

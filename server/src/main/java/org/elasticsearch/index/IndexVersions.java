@@ -147,11 +147,17 @@ public class IndexVersions {
     public static final IndexVersion USE_SYNTHETIC_SOURCE_FOR_RECOVERY_BY_DEFAULT_BACKPORT = def(8_526_0_00, parseUnchecked("9.12.1"));
     public static final IndexVersion SYNTHETIC_SOURCE_STORE_ARRAYS_NATIVELY_BACKPORT_8_X = def(8_527_0_00, parseUnchecked("9.12.1"));
     public static final IndexVersion ADD_RESCORE_PARAMS_TO_QUANTIZED_VECTORS_BACKPORT_8_X = def(8_528_0_00, parseUnchecked("9.12.1"));
-    public static final IndexVersion RESCORE_PARAMS_ALLOW_ZERO_TO_QUANTIZED_VECTORS_BACKPORT_8_X = def(8_529_0_00, parseUnchecked("9.12.1"));
+    public static final IndexVersion RESCORE_PARAMS_ALLOW_ZERO_TO_QUANTIZED_VECTORS_BACKPORT_8_X = def(
+        8_529_0_00,
+        parseUnchecked("9.12.1")
+    );
     public static final IndexVersion DEFAULT_OVERSAMPLE_VALUE_FOR_BBQ_BACKPORT_8_X = def(8_530_0_00, parseUnchecked("9.12.1"));
     public static final IndexVersion SEMANTIC_TEXT_DEFAULTS_TO_BBQ_BACKPORT_8_X = def(8_531_0_00, parseUnchecked("9.12.1"));
     public static final IndexVersion INDEX_INT_SORT_INT_TYPE_8_19 = def(8_532_0_00, parseUnchecked("9.12.1"));
-    public static final IndexVersion MAPPER_TEXT_MATCH_ONLY_MULTI_FIELDS_DEFAULT_NOT_STORED_8_19 = def(8_533_0_00, parseUnchecked("9.12.1"));
+    public static final IndexVersion MAPPER_TEXT_MATCH_ONLY_MULTI_FIELDS_DEFAULT_NOT_STORED_8_19 = def(
+        8_533_0_00,
+        parseUnchecked("9.12.1")
+    );
     public static final IndexVersion UPGRADE_TO_LUCENE_9_12_2 = def(8_534_0_00, parseUnchecked("9.12.2"));
     public static final IndexVersion SPARSE_VECTOR_PRUNING_INDEX_OPTIONS_SUPPORT_BACKPORT_8_X = def(8_535_0_00, parseUnchecked("9.12.2"));
     public static final IndexVersion MATCH_ONLY_TEXT_STORED_AS_BYTES_BACKPORT_8_X = def(8_536_0_00, parseUnchecked("9.12.2"));

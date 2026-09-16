@@ -210,7 +210,10 @@ public class InternalIpPrefix extends InternalMultiBucketAggregation<InternalIpP
     @Override
     protected AggregatorReducer getLeaderReducer(AggregationReduceContext reduceContext, int size) {
         return new AggregatorReducer() {
-            private final PriorityQueue<IteratorAndCurrent<Bucket>> pq = new PriorityQueue<>(size, (a, b) -> a.current().key.compareTo(b.current().key) < 0);
+            private final PriorityQueue<IteratorAndCurrent<Bucket>> pq = new PriorityQueue<>(
+                size,
+                (a, b) -> a.current().key.compareTo(b.current().key) < 0
+            );
 
             @Override
             public void accept(InternalAggregation aggregation) {

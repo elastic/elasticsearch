@@ -151,10 +151,7 @@ public class RoutingFieldTypeTests extends FieldTypeTestCase {
     }
 
     public void testWildcardQueryDocValues() {
-        Query expected = new WildcardQuery(
-            new Term("_routing", new BytesRef("foo*")),
-            MultiTermQuery.DOC_VALUES_REWRITE
-        );
+        Query expected = new WildcardQuery(new Term("_routing", new BytesRef("foo*")), MultiTermQuery.DOC_VALUES_REWRITE);
         assertEquals(expected, RoutingFieldMapper.DOC_VALUES_FIELD_TYPE.wildcardQuery("foo*", null, false, MOCK_CONTEXT));
 
         ElasticsearchException ee = expectThrows(

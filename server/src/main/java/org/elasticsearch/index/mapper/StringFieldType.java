@@ -240,9 +240,7 @@ public abstract class StringFieldType extends TermBasedFieldType {
             if (caseInsensitive) {
                 query = method == null ? new CaseInsensitiveWildcardQuery(term) : new CaseInsensitiveWildcardQuery(term, false, method);
             } else {
-                query = method == null
-                    ? new WildcardQuery(term)
-                    : new WildcardQuery(term, method);
+                query = method == null ? new WildcardQuery(term) : new WildcardQuery(term, method);
             }
         }
         return query;

@@ -232,10 +232,7 @@ public class ColumnarStringAutomatonQueryTests extends ESTestCase {
     private static Query automatonFor(String pattern) {
         return new ColumnarStringAutomatonQuery(
             FIELD,
-            Operations.determinize(
-                WildcardQuery.toAutomaton(new Term(FIELD, pattern)),
-                Operations.DEFAULT_DETERMINIZE_WORK_LIMIT
-            ),
+            Operations.determinize(WildcardQuery.toAutomaton(new Term(FIELD, pattern)), Operations.DEFAULT_DETERMINIZE_WORK_LIMIT),
             "pattern=" + pattern,
             ScanBudget.UNLIMITED
         );
@@ -244,10 +241,7 @@ public class ColumnarStringAutomatonQueryTests extends ESTestCase {
     /** The documents whose value Lucene's automaton for the pattern accepts. */
     private static List<Integer> accepted(List<String> values, String pattern) {
         final ByteRunAutomaton automaton = new ByteRunAutomaton(
-            Operations.determinize(
-                WildcardQuery.toAutomaton(new Term(FIELD, pattern)),
-                Operations.DEFAULT_DETERMINIZE_WORK_LIMIT
-            )
+            Operations.determinize(WildcardQuery.toAutomaton(new Term(FIELD, pattern)), Operations.DEFAULT_DETERMINIZE_WORK_LIMIT)
         );
         final List<Integer> docs = new ArrayList<>();
         for (int d = 0; d < values.size(); d++) {

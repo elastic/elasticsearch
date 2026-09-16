@@ -781,14 +781,7 @@ public class QueryStringQueryParser extends QueryParser {
                 setAnalyzer(forceAnalyzer);
                 return super.getRegexpQuery(field, termStr);
             }
-            return currentFieldType.regexpQuery(
-                termStr,
-                RegExp.ALL,
-                0,
-                determinizeWorkLimit,
-                getMultiTermRewriteMethod(),
-                context
-            );
+            return currentFieldType.regexpQuery(termStr, RegExp.ALL, 0, determinizeWorkLimit, getMultiTermRewriteMethod(), context);
         } catch (RuntimeException e) {
             if (lenient) {
                 return newLenientFieldQuery(field, e);

@@ -9,8 +9,8 @@
 
 package org.elasticsearch.index.codec.vectors.diskbbq;
 
-import org.apache.lucene.util.IOIntConsumer;
 import org.apache.lucene.store.IndexOutput;
+import org.apache.lucene.util.IOIntConsumer;
 import org.elasticsearch.index.codec.vectors.OptimizedScalarQuantizer;
 
 import java.io.IOException;

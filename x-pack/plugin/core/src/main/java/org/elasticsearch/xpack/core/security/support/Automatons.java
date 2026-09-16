@@ -292,10 +292,7 @@ public final class Automatons {
                 );
             }
             String regex = pattern.substring(1, pattern.length() - 1);
-            return Operations.determinize(
-                new RegExp(regex, RegExp.ALL).toAutomaton(),
-                DEFAULT_DETERMINIZE_WORK_LIMIT
-            );
+            return Operations.determinize(new RegExp(regex, RegExp.ALL).toAutomaton(), DEFAULT_DETERMINIZE_WORK_LIMIT);
         } else if (pattern.equals("*")) {
             return MATCH_ALL;
         } else {

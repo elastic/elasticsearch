@@ -157,7 +157,10 @@ public class StringTermsAggregatorFromFilters extends AdaptingAggregator {
         TermsEnum terms = valuesSupplier.get().termsEnum();
         if (filters.getBuckets().size() > bucketCountThresholds.getShardSize()) {
             Comparator<Bucket> comparator = order.comparator();
-            PriorityQueue<OrdBucket> queue = new PriorityQueue<>(bucketCountThresholds.getShardSize(), (a, b) -> comparator.compare(a, b) > 0);
+            PriorityQueue<OrdBucket> queue = new PriorityQueue<>(
+                bucketCountThresholds.getShardSize(),
+                (a, b) -> comparator.compare(a, b) > 0
+            );
             OrdBucket spare = null;
             for (InternalFilters.InternalBucket b : filters.getBuckets()) {
                 if (b.getDocCount() < minDocCount) {

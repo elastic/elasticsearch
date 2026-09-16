@@ -67,14 +67,7 @@ class Lucene50SkipReader extends MultiLevelSkipListReader {
     private long lastDocPointer;
     private int lastPosBufferUpto;
 
-    Lucene50SkipReader(
-        int version,
-        IndexInput skipStream,
-        int maxSkipLevels,
-        boolean hasPos,
-        boolean hasOffsets,
-        boolean hasPayloads
-    ) {
+    Lucene50SkipReader(int version, IndexInput skipStream, int maxSkipLevels, boolean hasPos, boolean hasOffsets, boolean hasPayloads) {
         super(skipStream, maxSkipLevels, BLOCK_SIZE, 8);
         this.version = version;
         docPointer = new long[maxSkipLevels];

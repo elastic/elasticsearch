@@ -108,10 +108,7 @@ public final class ColumnarStringAutomatonQuery extends Query {
         }
         return new ColumnarStringAutomatonQuery(
             field,
-            Operations.determinize(
-                WildcardQuery.toAutomaton(new Term(field, pattern)),
-                Operations.DEFAULT_DETERMINIZE_WORK_LIMIT
-            ),
+            Operations.determinize(WildcardQuery.toAutomaton(new Term(field, pattern)), Operations.DEFAULT_DETERMINIZE_WORK_LIMIT),
             "pattern=" + pattern,
             budget
         );

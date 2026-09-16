@@ -19,11 +19,7 @@ import org.elasticsearch.test.index.IndexVersionUtils;
 public class OffsetSourceFieldTests extends ESTestCase {
     public void testBasics() throws Exception {
         Directory dir = newDirectory();
-        RandomIndexWriter writer = new RandomIndexWriter(
-            random(),
-            dir,
-            newIndexWriterConfig().setMergePolicy(newLogMergePolicy())
-        );
+        RandomIndexWriter writer = new RandomIndexWriter(random(), dir, newIndexWriterConfig().setMergePolicy(newLogMergePolicy()));
         Document doc = new Document();
         OffsetSourceField field1 = new OffsetSourceField("field1", "foo", 1, 10);
         doc.add(field1);
@@ -75,11 +71,7 @@ public class OffsetSourceFieldTests extends ESTestCase {
 
     public void testInputIndex() throws Exception {
         Directory dir = newDirectory();
-        RandomIndexWriter writer = new RandomIndexWriter(
-            random(),
-            dir,
-            newIndexWriterConfig().setMergePolicy(newLogMergePolicy())
-        );
+        RandomIndexWriter writer = new RandomIndexWriter(random(), dir, newIndexWriterConfig().setMergePolicy(newLogMergePolicy()));
 
         Document doc = new Document();
         OffsetSourceField field = new OffsetSourceField("field1", "foo", 0);
@@ -120,11 +112,7 @@ public class OffsetSourceFieldTests extends ESTestCase {
 
     public void testOffsetSentinel() throws Exception {
         Directory dir = newDirectory();
-        RandomIndexWriter writer = new RandomIndexWriter(
-            random(),
-            dir,
-            newIndexWriterConfig().setMergePolicy(newLogMergePolicy())
-        );
+        RandomIndexWriter writer = new RandomIndexWriter(random(), dir, newIndexWriterConfig().setMergePolicy(newLogMergePolicy()));
 
         // Write a doc via the offset-form path with (0, 0) offsets. Under pre-SEMANTIC_FIELD_TYPE indices this is a legitimate zero-length
         // span; under SEMANTIC_FIELD_TYPE and later this is the sentinel that flags the posting as carrying an inputIndex instead.

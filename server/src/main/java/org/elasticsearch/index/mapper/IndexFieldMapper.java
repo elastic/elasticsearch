@@ -138,10 +138,7 @@ public class IndexFieldMapper extends MetadataFieldMapper {
             CharacterRunAutomaton runAutomaton;
             try {
                 runAutomaton = new CharacterRunAutomaton(
-                    Operations.determinize(
-                        WildcardQuery.toAutomaton(new Term(null, value)),
-                        Operations.DEFAULT_DETERMINIZE_WORK_LIMIT
-                    )
+                    Operations.determinize(WildcardQuery.toAutomaton(new Term(null, value)), Operations.DEFAULT_DETERMINIZE_WORK_LIMIT)
                 );
             } catch (TooComplexToDeterminizeException e) {
                 throw new IllegalArgumentException("Pattern was too complex to determinize", e);

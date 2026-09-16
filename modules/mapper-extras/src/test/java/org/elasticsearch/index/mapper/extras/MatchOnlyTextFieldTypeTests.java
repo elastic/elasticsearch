@@ -619,9 +619,7 @@ public class MatchOnlyTextFieldTypeTests extends FieldTypeTestCase {
         // SortedSet DV, case-sensitive: WildcardQuery with DOC_VALUES_REWRITE
         assertThat(
             sortedSet.wildcardQuery("foo*", null, false, MOCK_CONTEXT),
-            Matchers.equalTo(
-                new WildcardQuery(new Term("field", "foo*"), MultiTermQuery.DOC_VALUES_REWRITE)
-            )
+            Matchers.equalTo(new WildcardQuery(new Term("field", "foo*"), MultiTermQuery.DOC_VALUES_REWRITE))
         );
 
         // SortedSet DV, case-insensitive: script-backed query

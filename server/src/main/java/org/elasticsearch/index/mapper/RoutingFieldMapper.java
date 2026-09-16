@@ -290,13 +290,7 @@ public class RoutingFieldMapper extends MetadataFieldMapper {
                     );
                     return new AutomatonQuery(term, dfa, false, MultiTermQuery.DOC_VALUES_REWRITE);
                 }
-                return new RegexpQuery(
-                    term,
-                    syntaxFlags,
-                    matchFlags,
-                    RegexpQuery.DEFAULT_PROVIDER,
-                    MultiTermQuery.DOC_VALUES_REWRITE
-                );
+                return new RegexpQuery(term, syntaxFlags, matchFlags, RegexpQuery.DEFAULT_PROVIDER, MultiTermQuery.DOC_VALUES_REWRITE);
             }
             return super.regexpQuery(value, syntaxFlags, matchFlags, maxDeterminizedStates, method, context);
         }

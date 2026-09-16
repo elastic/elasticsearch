@@ -106,7 +106,10 @@ public enum StringFormat {
         };
         // Without this a segment small enough is packed into a compound file, and the scan below finds no
         // doc-values files at all — a column that fits in one reads as though it cost nothing.
-        final IndexWriterConfig iwc = new IndexWriterConfig().setCodec(codec).setUseCompoundFile(false); // TODO: LUCENE11 merge may pack .cfs under Lucene's 64MB default; need a 0-byte CompoundFormat cutoff
+        final IndexWriterConfig iwc = new IndexWriterConfig().setCodec(codec).setUseCompoundFile(false); // TODO: LUCENE11 merge may pack
+                                                                                                         // .cfs under Lucene's 64MB
+                                                                                                         // default; need a 0-byte
+                                                                                                         // CompoundFormat cutoff
         // Merging adjacent segments only, so a column written in term order is still in term order once the
         // segments are one. The tiered policy merges whichever segments it likes and leaves the documents in
         // an order the values no longer follow, which is not what an index sorted by this field produces.
@@ -137,7 +140,10 @@ public enum StringFormat {
      * afterwards, and returns the bytes the doc values occupy.
      */
     long writeSegments(Directory directory, BytesRef[] values, int segmentSize, boolean merge) throws IOException {
-        final IndexWriterConfig iwc = new IndexWriterConfig().setCodec(codecFor()).setUseCompoundFile(false); // TODO: LUCENE11 merge may pack .cfs under Lucene's 64MB default; need a 0-byte CompoundFormat cutoff
+        final IndexWriterConfig iwc = new IndexWriterConfig().setCodec(codecFor()).setUseCompoundFile(false); // TODO: LUCENE11 merge may
+                                                                                                              // pack .cfs under Lucene's
+                                                                                                              // 64MB default; need a 0-byte
+                                                                                                              // CompoundFormat cutoff
         // Without a merge asked for, none is allowed: the log policy merges ten like-sized segments on its
         // own, so writing ten of them would quietly merge them and leave both the write being measured and
         // any merge measured afterwards describing something else entirely.
@@ -169,7 +175,10 @@ public enum StringFormat {
      */
     long mergeSegments(Directory directory) throws IOException {
         assert segmentCount(directory) > 1 : "nothing to merge: " + segmentCount(directory) + " segment(s)";
-        final IndexWriterConfig iwc = new IndexWriterConfig().setCodec(codecFor()).setUseCompoundFile(false); // TODO: LUCENE11 merge may pack .cfs under Lucene's 64MB default; need a 0-byte CompoundFormat cutoff
+        final IndexWriterConfig iwc = new IndexWriterConfig().setCodec(codecFor()).setUseCompoundFile(false); // TODO: LUCENE11 merge may
+                                                                                                              // pack .cfs under Lucene's
+                                                                                                              // 64MB default; need a 0-byte
+                                                                                                              // CompoundFormat cutoff
         iwc.setMergePolicy(new LogByteSizeMergePolicy());
         try (IndexWriter writer = new IndexWriter(directory, iwc)) {
             writer.forceMerge(1);
@@ -271,7 +280,10 @@ public enum StringFormat {
                 return dv;
             }
         };
-        final IndexWriterConfig iwc = new IndexWriterConfig().setCodec(codec).setUseCompoundFile(false); // TODO: LUCENE11 merge may pack .cfs under Lucene's 64MB default; need a 0-byte CompoundFormat cutoff
+        final IndexWriterConfig iwc = new IndexWriterConfig().setCodec(codec).setUseCompoundFile(false); // TODO: LUCENE11 merge may pack
+                                                                                                         // .cfs under Lucene's 64MB
+                                                                                                         // default; need a 0-byte
+                                                                                                         // CompoundFormat cutoff
         // Merging adjacent segments only, so a column written in term order is still in term order once the
         // segments are one. The tiered policy merges whichever segments it likes and leaves the documents in
         // an order the values no longer follow, which is not what an index sorted by this field produces.

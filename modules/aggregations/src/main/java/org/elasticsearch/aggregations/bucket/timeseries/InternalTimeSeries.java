@@ -174,7 +174,10 @@ public class InternalTimeSeries extends InternalMultiBucketAggregation<InternalT
 
     @Override
     protected AggregatorReducer getLeaderReducer(AggregationReduceContext reduceContext, int size) {
-        final PriorityQueue<IteratorAndCurrent<InternalBucket>> pq = new PriorityQueue<>(size, (a, b) -> a.current().key.compareTo(b.current().key) < 0);
+        final PriorityQueue<IteratorAndCurrent<InternalBucket>> pq = new PriorityQueue<>(
+            size,
+            (a, b) -> a.current().key.compareTo(b.current().key) < 0
+        );
         return new AggregatorReducer() {
             int initialCapacity = 0;
 

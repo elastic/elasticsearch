@@ -234,10 +234,7 @@ public class ScanningBinaryDocValuesAutomatonQueryTests extends ESTestCase {
                     String randomWildcard = randomFrom(randomValues).substring(0, 2) + "*";
                     IndexSearcher searcher = newSearcher(reader);
 
-                    Query baselineQuery = new WildcardQuery(
-                        new Term("baseline_field", randomWildcard),
-                        MultiTermQuery.DOC_VALUES_REWRITE
-                    );
+                    Query baselineQuery = new WildcardQuery(new Term("baseline_field", randomWildcard), MultiTermQuery.DOC_VALUES_REWRITE);
                     TopDocs baselineResults = searcher.search(baselineQuery, 32);
 
                     Query contenderQuery = ScanningBinaryDocValuesAutomatonQuery.forWildcard(

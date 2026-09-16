@@ -154,7 +154,10 @@ public abstract class AbstractInternalTerms<A extends AbstractInternalTerms<A, B
     private void reduceMergeSort(List<List<B>> bucketsList, BucketOrder thisReduceOrder, Consumer<DelayedBucket<B>> sink) {
         assert isKeyOrder(thisReduceOrder);
         final Comparator<Bucket> cmp = thisReduceOrder.comparator();
-        final PriorityQueue<IteratorAndCurrent<B>> pq = new PriorityQueue<>(bucketsList.size(), (a, b) -> cmp.compare(a.current(), b.current()) < 0);
+        final PriorityQueue<IteratorAndCurrent<B>> pq = new PriorityQueue<>(
+            bucketsList.size(),
+            (a, b) -> cmp.compare(a.current(), b.current()) < 0
+        );
         for (List<B> buckets : bucketsList) {
             pq.add(new IteratorAndCurrent<>(buckets.iterator()));
         }

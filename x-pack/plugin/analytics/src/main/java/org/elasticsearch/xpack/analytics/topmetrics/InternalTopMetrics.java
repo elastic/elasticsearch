@@ -122,7 +122,10 @@ public class InternalTopMetrics extends InternalMultiValueAggregation {
 
     @Override
     protected AggregatorReducer getLeaderReducer(AggregationReduceContext reduceContext, int size) {
-        final PriorityQueue<ReduceState> queue = new PriorityQueue<>(size, (lhs, rhs) -> sortOrder.reverseMul() * lhs.sortValue().compareTo(rhs.sortValue()) < 0);
+        final PriorityQueue<ReduceState> queue = new PriorityQueue<>(
+            size,
+            (lhs, rhs) -> sortOrder.reverseMul() * lhs.sortValue().compareTo(rhs.sortValue()) < 0
+        );
         return new AggregatorReducer() {
             @Override
             public void accept(InternalAggregation aggregation) {

@@ -400,7 +400,10 @@ public class InternalHistogram extends InternalMultiBucketAggregation<InternalHi
     @Override
     protected AggregatorReducer getLeaderReducer(AggregationReduceContext reduceContext, int size) {
         return new AggregatorReducer() {
-            final PriorityQueue<IteratorAndCurrent<Bucket>> pq = new PriorityQueue<>(size, (a, b) -> Double.compare(a.current().key, b.current().key) < 0);
+            final PriorityQueue<IteratorAndCurrent<Bucket>> pq = new PriorityQueue<>(
+                size,
+                (a, b) -> Double.compare(a.current().key, b.current().key) < 0
+            );
 
             @Override
             public void accept(InternalAggregation aggregation) {

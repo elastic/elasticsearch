@@ -511,7 +511,8 @@ public class CompositeValuesCollectorQueueTests extends AggregatorTestCase {
         }
 
         @Override
-        public void searchNearestVectors(String field, short[] target, KnnCollector knnCollector, AcceptDocs acceptDocs) throws IOException {
+        public void searchNearestVectors(String field, short[] target, KnnCollector knnCollector, AcceptDocs acceptDocs)
+            throws IOException {
 
         }
 

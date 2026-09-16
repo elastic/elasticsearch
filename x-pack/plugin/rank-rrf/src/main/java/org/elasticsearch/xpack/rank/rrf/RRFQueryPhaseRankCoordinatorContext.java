@@ -63,16 +63,16 @@ public class RRFQueryPhaseRankCoordinatorContext extends QueryPhaseRankCoordinat
                 for (int qi = 0; qi < queryCount; ++qi) {
                     final int fqi = qi;
                     queues.add(new PriorityQueue<>(rankWindowSize, (a, b) -> {
-float score1 = a.scores[fqi];
-                            float score2 = b.scores[fqi];
-                            if (score1 != score2) {
-                                return score1 < score2;
-                            }
-                            if (a.shardIndex != b.shardIndex) {
-                                return a.shardIndex > b.shardIndex;
-                            }
-                            return a.doc > b.doc;
-            }));
+                        float score1 = a.scores[fqi];
+                        float score2 = b.scores[fqi];
+                        if (score1 != score2) {
+                            return score1 < score2;
+                        }
+                        if (a.shardIndex != b.shardIndex) {
+                            return a.shardIndex > b.shardIndex;
+                        }
+                        return a.doc > b.doc;
+                    }));
                 }
             }
             assert queryCount == rrfRankShardResult.queryCount;

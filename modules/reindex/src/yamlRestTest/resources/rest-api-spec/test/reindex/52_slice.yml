@@ -1,0 +1,446 @@
+setup:
+  - requires:
+      cluster_features: ["index.slice_indexing"]
+      reason: "requires slice indexing support"
+
+---
+"Reindex a single source slice into a non-sliced index":
+  - do:
+      indices.create:
+        index: sliced_source
+        body:
+          settings:
+            index.slice.enabled: true
+  - do:
+      index:
+        index:  sliced_source
+        id:     "1"
+        slice:  tenant-a
+        body:   { "company": "cat" }
+  - do:
+      index:
+        index:  sliced_source
+        id:     "2"
+        slice:  tenant-b
+        body:   { "company": "dog" }
+  - do:
+      indices.refresh: {}
+
+  - do:
+      indices.create:
+        index: non_sliced_dest
+
+  - do:
+      reindex:
+        refresh: true
+        body:
+          source:
+            index: sliced_source
+            slice: tenant-a
+          dest:
+            index: non_sliced_dest
+  - match: {created: 1}
+  - match: {noops: 0}
+
+  - do:
+      search:
+        index: non_sliced_dest
+        body: { query: { match_all: {} } }
+  - match: { hits.total.value: 1 }
+  # The slice value is not persisted as routing on the reindexed document.
+  - is_false: hits.hits.0._routing
+
+---
+"Reindex all source slices with _all into a non-sliced index":
+  - do:
+      indices.create:
+        index: sliced_source_all
+        body:
+          settings:
+            index.slice.enabled: true
+  - do:
+      index:
+        index:  sliced_source_all
+        id:     "1"
+        slice:  tenant-a
+        body:   { "company": "cat" }
+  - do:
+      index:
+        index:  sliced_source_all
+        id:     "2"
+        slice:  tenant-b
+        body:   { "company": "dog" }
+  - do:
+      indices.refresh: {}
+
+  - do:
+      indices.create:
+        index: non_sliced_dest_all
+
+  - do:
+      reindex:
+        refresh: true
+        body:
+          source:
+            index: sliced_source_all
+            slice: _all
+          dest:
+            index: non_sliced_dest_all
+  - match: {created: 2}
+  - match: {noops: 0}
+
+  - do:
+      search:
+        index: non_sliced_dest_all
+        body: { query: { match_all: {} } }
+  - match: { hits.total.value: 2 }
+  # The slice values are not persisted as routing on the reindexed documents.
+  - is_false: hits.hits.0._routing
+  - is_false: hits.hits.1._routing
+
+---
+"Reindex a non-sliced index into a destination slice":
+  - do:
+      index:
+        index:  plain_source
+        id:     "1"
+        body:   { "company": "cat" }
+  - do:
+      index:
+        index:  plain_source
+        id:     "2"
+        body:   { "company": "dog" }
+  - do:
+      indices.refresh: {}
+
+  - do:
+      indices.create:
+        index: sliced_dest
+        body:
+          settings:
+            index.slice.enabled: true
+
+  - do:
+      reindex:
+        refresh: true
+        body:
+          source:
+            index: plain_source
+          dest:
+            index: sliced_dest
+            slice: tenant-a
+  - match: {created: 2}
+  - match: {noops: 0}
+
+  - do:
+      get:
+        index: sliced_dest
+        id:    "1"
+        slice: tenant-a
+  - match: { _slice: tenant-a }
+
+  - do:
+      get:
+        index: sliced_dest
+        id:    "2"
+        slice: tenant-a
+  - match: { _slice: tenant-a }
+
+---
+"Reindex a source slice into a different destination slice":
+  - do:
+      indices.create:
+        index: sliced_source_1
+        body:
+          settings:
+            index.slice.enabled: true
+  - do:
+      index:
+        index:  sliced_source_1
+        id:     "1"
+        slice:  tenant-a
+        body:   { "company": "cat" }
+  - do:
+      index:
+        index:  sliced_source_1
+        id:     "2"
+        slice:  tenant-b
+        body:   { "company": "dog" }
+  - do:
+      indices.refresh: {}
+
+  - do:
+      indices.create:
+        index: sliced_dest_1
+        body:
+          settings:
+            index.slice.enabled: true
+
+  - do:
+      reindex:
+        refresh: true
+        body:
+          source:
+            index: sliced_source_1
+            slice: tenant-a
+          dest:
+            index: sliced_dest_1
+            slice: tenant-b
+  - match: {created: 1}
+  - match: {noops: 0}
+
+  - do:
+      get:
+        index: sliced_dest_1
+        id:    "1"
+        slice: tenant-b
+  - match: { _slice: tenant-b }
+
+---
+"Reindex a source slice into a slice index preserving the slice when destination slice is omitted":
+  - do:
+      indices.create:
+        index: sliced_source_2
+        body:
+          settings:
+            index.slice.enabled: true
+  - do:
+      index:
+        index:  sliced_source_2
+        id:     "1"
+        slice:  tenant-a
+        body:   { "company": "cat" }
+  - do:
+      index:
+        index:  sliced_source_2
+        id:     "2"
+        slice:  tenant-a
+        body:   { "company": "dog" }
+  - do:
+      indices.refresh: {}
+
+  - do:
+      indices.create:
+        index: sliced_dest_2
+        body:
+          settings:
+            index.slice.enabled: true
+
+  - do:
+      reindex:
+        refresh: true
+        body:
+          source:
+            index: sliced_source_2
+            slice: tenant-a
+          dest:
+            index: sliced_dest_2
+  - match: {created: 2}
+  - match: {noops: 0}
+
+  - do:
+      get:
+        index: sliced_dest_2
+        id:    "1"
+        slice: tenant-a
+  - match: { _slice: tenant-a }
+
+  - do:
+      get:
+        index: sliced_dest_2
+        id:    "2"
+        slice: tenant-a
+  - match: { _slice: tenant-a }
+
+---
+"Reindex all source slices into a slice index preserving each slice when destination slice is omitted":
+  - do:
+      indices.create:
+        index: sliced_source_3
+        body:
+          settings:
+            index.slice.enabled: true
+  - do:
+      index:
+        index:  sliced_source_3
+        id:     "1"
+        slice:  tenant-a
+        body:   { "company": "cat" }
+  - do:
+      index:
+        index:  sliced_source_3
+        id:     "2"
+        slice:  tenant-b
+        body:   { "company": "dog" }
+  - do:
+      indices.refresh: {}
+
+  - do:
+      indices.create:
+        index: sliced_dest_3
+        body:
+          settings:
+            index.slice.enabled: true
+
+  - do:
+      reindex:
+        refresh: true
+        body:
+          source:
+            index: sliced_source_3
+            slice: _all
+          dest:
+            index: sliced_dest_3
+  - match: {created: 2}
+  - match: {noops: 0}
+
+  - do:
+      get:
+        index: sliced_dest_3
+        id:    "1"
+        slice: tenant-a
+  - match: { _slice: tenant-a }
+
+  - do:
+      get:
+        index: sliced_dest_3
+        id:    "2"
+        slice: tenant-b
+  - match: { _slice: tenant-b }
+
+---
+"Destination slice is rejected when the destination is not slice-enabled":
+  - do:
+      index:
+        index:  plain_source_reject
+        id:     "1"
+        body:   { "company": "cat" }
+  - do:
+      indices.refresh: {}
+
+  - do:
+      indices.create:
+        index: plain_dest_reject
+        body:
+          settings:
+            index.slice.enabled: false
+
+  - do:
+      catch: /is not allowed in/
+      reindex:
+        body:
+          source:
+            index: plain_source_reject
+          dest:
+            index: plain_dest_reject
+            slice: tenant-a
+
+---
+"Destination slice _all is rejected":
+  - do:
+      catch: bad_request
+      reindex:
+        body:
+          source:
+            index: some_source
+          dest:
+            index: some_dest
+            slice: _all
+
+---
+"Destination slice is required for a slice-enabled destination when the source is not read with slice":
+  - do:
+      index:
+        index:  plain_source_required
+        id:     "1"
+        body:   { "company": "cat" }
+  - do:
+      indices.refresh: {}
+
+  - do:
+      indices.create:
+        index: sliced_dest_required
+        body:
+          settings:
+            index.slice.enabled: true
+
+  - do:
+      catch: /is required in/
+      reindex:
+        body:
+          source:
+            index: plain_source_required
+          dest:
+            index: sliced_dest_required
+
+---
+"Reindex from an index with required routing into a destination slice is rejected":
+  - do:
+      indices.create:
+        index: routing_required_source
+        body:
+          mappings:
+            _routing:
+              required: true
+  - do:
+      index:
+        index:   routing_required_source
+        id:      "1"
+        routing: cat
+        body:    { "company": "cat" }
+  - do:
+      indices.refresh: {}
+
+  - do:
+      indices.create:
+        index: slice_dest_from_routing
+        body:
+          settings:
+            index.slice.enabled: true
+
+  - do:
+      catch: /requires \[routing\]/
+      reindex:
+        body:
+          source:
+            index: routing_required_source
+          dest:
+            index: slice_dest_from_routing
+            slice: tenant-a
+
+---
+"Reindex a source slice into a destination that requires routing is rejected":
+  - do:
+      indices.create:
+        index: slice_source_to_routing
+        body:
+          settings:
+            index.slice.enabled: true
+  - do:
+      index:
+        index:  slice_source_to_routing
+        id:     "1"
+        slice:  tenant-a
+        body:   { "company": "cat" }
+  - do:
+      indices.refresh: {}
+
+  - do:
+      indices.create:
+        index: routing_required_dest
+        body:
+          settings:
+            index.slice.enabled: false
+          mappings:
+            _routing:
+              required: true
+
+  - do:
+      catch: /requires \[routing\]/
+      reindex:
+        body:
+          source:
+            index: slice_source_to_routing
+            slice: tenant-a
+          dest:
+            index: routing_required_dest

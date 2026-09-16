@@ -92,7 +92,7 @@ public class ReindexValidator {
         final ProjectMetadata projectMetadata = projectResolver.getProjectMetadata(state);
         validateAgainstAliases(source, request.getDestination(), request.getRemoteInfo(), indexResolver, autoCreateIndex, projectMetadata);
         if (SliceIndexing.SLICE_FEATURE_FLAG.isEnabled()) {
-            validateDestinationSliceRouting(request, projectMetadata);
+            validateSliceRouting(request, projectMetadata);
         }
         SearchSourceBuilder searchSource = source.source();
         if (searchSource != null && searchSource.sorts() != null && searchSource.sorts().isEmpty() == false) {
@@ -100,12 +100,29 @@ public class ReindexValidator {
         }
     }
 
-    private void validateDestinationSliceRouting(ReindexRequest request, ProjectMetadata projectMetadata) {
+    /**
+     * Validates the interaction between the source {@code slice} (which slice of a slice-enabled source to read) and the destination
+     * {@code slice} (which slice every reindexed document is written to). A destination {@code slice} may be omitted for a slice-enabled
+     * destination as long as the source is read in slice mode: in that case each document preserves the slice it was read from.
+     */
+    private void validateSliceRouting(ReindexRequest request, ProjectMetadata projectMetadata) {
         final IndexRequest destination = request.getDestination();
         final String destinationIndex = destination.index();
         final boolean destinationSliceEnabled = isDestinationSliceEnabled(destination, destinationIndex, projectMetadata);
+        final boolean destSliceProvided = destination.isRoutingFromSlice();
+        final boolean sourceSliceMode = request.getSearchRequest().isRoutingFromSlice();
 
-        if (destinationSliceEnabled == false && destination.isRoutingFromSlice()) {
+        validateNoRequiredRoutingMixedWithSlices(
+            request,
+            projectMetadata,
+            destination,
+            destinationIndex,
+            destinationSliceEnabled,
+            destSliceProvided,
+            sourceSliceMode
+        );
+
+        if (destSliceProvided && destinationSliceEnabled == false) {
             throw new IllegalArgumentException(
                 "["
                     + SliceIndexing.PARAM_NAME
@@ -117,7 +134,7 @@ public class ReindexValidator {
             );
         }
         if (destinationSliceEnabled) {
-            if (destination.isRoutingFromSlice() == false && destination.routing() != null) {
+            if (destSliceProvided == false && destination.routing() != null) {
                 throw new IllegalArgumentException(
                     "[routing] is not allowed in [dest] when ["
                         + IndexSettings.SLICE_ENABLED.getKey()
@@ -128,12 +145,90 @@ public class ReindexValidator {
                         + "] instead"
                 );
             }
-            if (destination.routing() == null) {
+            // Omitting [slice] in [dest] only works when the source is read in slice mode, so each document can keep its source slice.
+            if (destSliceProvided == false && sourceSliceMode == false) {
                 throw new IllegalArgumentException(
-                    "[" + SliceIndexing.PARAM_NAME + "] is required in [dest] when [" + IndexSettings.SLICE_ENABLED.getKey() + "] is true"
+                    "["
+                        + SliceIndexing.PARAM_NAME
+                        + "] is required in [dest] when ["
+                        + IndexSettings.SLICE_ENABLED.getKey()
+                        + "] is true for destination ["
+                        + destinationIndex
+                        + "] unless the source is read with ["
+                        + SliceIndexing.PARAM_NAME
+                        + "]"
                 );
             }
         }
+    }
+
+    /**
+     * Slice-enabled indices and indices that require {@code routing} via an explicit {@code _routing: {required: true}} mapping are two
+     * distinct routing models that cannot be reconciled during reindex: the former routes documents by their {@code slice}, the latter by
+     * an arbitrary user-supplied {@code routing} value. When slices are involved on either side of the reindex, reject any participating
+     * non-slice index that requires routing rather than silently producing an unusable destination.
+     */
+    private void validateNoRequiredRoutingMixedWithSlices(
+        ReindexRequest request,
+        ProjectMetadata projectMetadata,
+        IndexRequest destination,
+        String destinationIndex,
+        boolean destinationSliceEnabled,
+        boolean destSliceProvided,
+        boolean sourceSliceMode
+    ) {
+        boolean anySourceSliceEnabled = false;
+        boolean sourceRequiresRouting = false;
+        // Remote sources are validated separately and their metadata is not available in the local cluster state.
+        if (request.getRemoteInfo() == null) {
+            for (Index index : indexResolver.concreteIndices(projectMetadata, request.getSearchRequest())) {
+                final IndexMetadata indexMetadata = projectMetadata.index(index);
+                if (indexMetadata == null) {
+                    continue;
+                }
+                if (IndexSettings.SLICE_ENABLED.get(indexMetadata.getSettings())) {
+                    anySourceSliceEnabled = true;
+                } else if (routingRequired(indexMetadata)) {
+                    sourceRequiresRouting = true;
+                }
+            }
+        }
+
+        final boolean slicesInvolved = sourceSliceMode || destSliceProvided || destinationSliceEnabled || anySourceSliceEnabled;
+        if (slicesInvolved == false) {
+            return;
+        }
+
+        if (sourceRequiresRouting) {
+            throw new IllegalArgumentException(
+                "reindex from an index that requires [routing] is not supported when a [slice] is involved; slice-enabled indices and "
+                    + "indices with required [routing] must not be mixed"
+            );
+        }
+
+        if (destinationSliceEnabled == false) {
+            final IndexMetadata destinationMetadata = existingDestinationMetadata(destination, destinationIndex, projectMetadata);
+            if (destinationMetadata != null && routingRequired(destinationMetadata)) {
+                throw new IllegalArgumentException(
+                    "reindex into destination ["
+                        + destinationIndex
+                        + "] that requires [routing] is not supported when a [slice] is involved; slice-enabled indices and indices with "
+                        + "required [routing] must not be mixed"
+                );
+            }
+        }
+    }
+
+    private static boolean routingRequired(IndexMetadata indexMetadata) {
+        return indexMetadata.mapping() != null && indexMetadata.mapping().routingRequired();
+    }
+
+    private IndexMetadata existingDestinationMetadata(IndexRequest destination, String destinationIndex, ProjectMetadata projectMetadata) {
+        if (autoCreateIndex.shouldAutoCreate(destinationIndex, projectMetadata)) {
+            return null;
+        }
+        final Index writeIndex = indexResolver.concreteWriteIndex(projectMetadata, destination);
+        return projectMetadata.index(writeIndex);
     }
 
     private boolean isDestinationSliceEnabled(IndexRequest destination, String destinationIndex, ProjectMetadata projectMetadata) {

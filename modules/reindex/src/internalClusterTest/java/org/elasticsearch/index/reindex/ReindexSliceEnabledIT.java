@@ -81,4 +81,68 @@ public class ReindexSliceEnabledIT extends ESIntegTestCase {
         assertThat(response.getCreated(), equalTo(1L));
         assertBusy(() -> assertHitCount(prepareSearch(destination).setSize(0), 1L));
     }
+
+    public void testReindexSelectsSingleSourceSlice() throws Exception {
+        assumeTrue("slice indexing feature flag must be enabled", SliceIndexing.SLICE_FEATURE_FLAG.isEnabled());
+        assumeTrue(
+            "reindex PIT search feature must be enabled on the cluster",
+            internalCluster().getCurrentMasterNodeInstance(FeatureService.class)
+                .clusterHasFeature(clusterService().state(), ReindexPlugin.REINDEX_PIT_SEARCH_FEATURE)
+        );
+
+        String source = "slice-source-multi";
+        String destination = "reindex-single-slice-destination";
+        assertAcked(
+            prepareCreate(source).setSettings(
+                Settings.builder().put("index.slice.enabled", true).put("number_of_shards", 1).put("number_of_replicas", 0)
+            ).get()
+        );
+        assertAcked(prepareCreate(destination).setSettings(Settings.builder().put("number_of_replicas", 0)).get());
+
+        client().index(new IndexRequest(source).id("1").routing("tenant-a").setRoutingFromSlice(true).source("value", "a")).get();
+        client().index(new IndexRequest(source).id("2").routing("tenant-b").setRoutingFromSlice(true).source("value", "b")).get();
+        indicesAdmin().prepareRefresh(source).get();
+
+        // Selecting a single source slice must only reindex the documents belonging to that slice.
+        ReindexRequest request = new ReindexRequest().setSourceIndices(source).setDestIndex(destination);
+        request.getSearchRequest().searchSlice("tenant-a");
+        BulkByPaginatedSearchResponse response = client().execute(ReindexAction.INSTANCE, request).actionGet();
+
+        assertThat(response.getSearchFailures(), empty());
+        assertThat(response.getBulkFailures(), empty());
+        assertThat(response.getCreated(), equalTo(1L));
+        assertBusy(() -> assertHitCount(prepareSearch(destination).setSize(0), 1L));
+    }
+
+    public void testReindexNonSlicedSourceIntoDestinationSlice() throws Exception {
+        assumeTrue("slice indexing feature flag must be enabled", SliceIndexing.SLICE_FEATURE_FLAG.isEnabled());
+        assumeTrue(
+            "reindex PIT search feature must be enabled on the cluster",
+            internalCluster().getCurrentMasterNodeInstance(FeatureService.class)
+                .clusterHasFeature(clusterService().state(), ReindexPlugin.REINDEX_PIT_SEARCH_FEATURE)
+        );
+
+        String source = "plain-source";
+        String destination = "slice-destination";
+        assertAcked(prepareCreate(source).setSettings(Settings.builder().put("number_of_replicas", 0)).get());
+        assertAcked(
+            prepareCreate(destination).setSettings(
+                Settings.builder().put("index.slice.enabled", true).put("number_of_shards", 1).put("number_of_replicas", 0)
+            ).get()
+        );
+
+        client().index(new IndexRequest(source).id("1").source("value", "a")).get();
+        client().index(new IndexRequest(source).id("2").source("value", "b")).get();
+        indicesAdmin().prepareRefresh(source).get();
+
+        // A destination [slice] routes every reindexed document to that slice.
+        ReindexRequest request = new ReindexRequest().setSourceIndices(source).setDestIndex(destination);
+        request.getDestination().routing("tenant-a").setRoutingFromSlice(true);
+        BulkByPaginatedSearchResponse response = client().execute(ReindexAction.INSTANCE, request).actionGet();
+
+        assertThat(response.getSearchFailures(), empty());
+        assertThat(response.getBulkFailures(), empty());
+        assertThat(response.getCreated(), equalTo(2L));
+        assertBusy(() -> assertHitCount(prepareSearch(destination).setSize(0), 2L));
+    }
 }

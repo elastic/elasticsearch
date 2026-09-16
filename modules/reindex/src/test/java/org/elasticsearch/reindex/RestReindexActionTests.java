@@ -90,6 +90,23 @@ public class RestReindexActionTests extends RestActionTestCase {
         assertTrue(request.getDestination().isRoutingFromSlice());
     }
 
+    public void testSourceSliceParsedWhenFeatureFlagEnabled() throws IOException {
+        assumeTrue("slice indexing feature flag must be enabled", SliceIndexing.SLICE_FEATURE_FLAG.isEnabled());
+        ReindexRequest request = action.buildRequest(buildRequestWithBody("""
+            {
+              "source": {
+                "index": "source",
+                "slice": "tenant-a"
+              },
+              "dest": {
+                "index": "dest"
+              }
+            }
+            """));
+        assertEquals("tenant-a", request.getSearchRequest().searchSlice());
+        assertTrue(request.getSearchRequest().isRoutingFromSlice());
+    }
+
     public void testDestSliceRejectedWhenFeatureFlagDisabled() throws IOException {
         assumeFalse("slice indexing feature flag must be disabled", SliceIndexing.SLICE_FEATURE_FLAG.isEnabled());
         IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> action.buildRequest(buildRequestWithBody("""

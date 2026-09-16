@@ -54,6 +54,7 @@ import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.features.FeatureService;
 import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.index.IndexSettings;
+import org.elasticsearch.index.SliceIndexing;
 import org.elasticsearch.index.VersionType;
 import org.elasticsearch.index.mapper.IdFieldMapper;
 import org.elasticsearch.index.reindex.BulkByPaginatedSearchResponse;
@@ -368,8 +369,10 @@ public class Reindexer {
         String[] indices = searchRequest.indices();
 
         // The routing and preference parameters can be set for a PIT request. However, scroll currently does not use these,
-        // so for parity we assert here in case that changes
-        assert searchRequest.routing() == null : "Routing is set in the search request, but is not being used when opening the PIT.";
+        // so for parity we assert here in case that changes. A source [slice] is the exception: it sets routing to scope the read to a
+        // slice and is forwarded to the PIT so the point-in-time is opened over the correct shards.
+        assert searchRequest.routing() == null || searchRequest.isRoutingFromSlice()
+            : "Routing is set in the search request, but is not being used when opening the PIT.";
         assert searchRequest.preference() == null : "Preference is set in the search request, but is not being used when opening the PIT.";
         assert searchRequest.allowPartialSearchResults() == null || searchRequest.allowPartialSearchResults() == false
             : "allow_partial_search_results must be false when opening a PIT to match scroll search behavior";
@@ -377,6 +380,9 @@ public class Reindexer {
         OpenPointInTimeRequest pitRequest = new OpenPointInTimeRequest(indices).indicesOptions(searchRequest.indicesOptions())
             .keepAlive(reindexSettings.pitKeepAlive())
             .allowPartialSearchResults(false);
+        if (searchRequest.isRoutingFromSlice()) {
+            pitRequest.searchSlice(searchRequest.searchSlice());
+        }
         if (searchRequest.getProjectRouting() != null) {
             pitRequest.projectRouting(searchRequest.getProjectRouting());
         }
@@ -972,6 +978,12 @@ public class Reindexer {
         private final Function<String, String> destinationIndexIdMapper;
 
         /**
+         * Whether the destination index (or the template that would create it) is slice-enabled. When {@code true} and no destination
+         * {@code slice} was provided, documents read in slice mode preserve the slice they were read from.
+         */
+        private final boolean destinationSliceEnabled;
+
+        /**
          * List of threads created by this process. Usually actions don't create threads in Elasticsearch. Instead they use the builtin
          * {@link ThreadPool}s. But reindex-from-remote uses Elasticsearch's {@link RestClient} which doesn't use the
          * {@linkplain ThreadPool}s because it uses httpasyncclient. It'd be a ton of trouble to work around creating those threads. So
@@ -1023,6 +1035,24 @@ public class Reindexer {
                 "reindex_bulk_batch"
             );
             this.destinationIndexIdMapper = destinationIndexMode(state).idTransformerForReindex();
+            this.destinationSliceEnabled = SliceIndexing.SLICE_FEATURE_FLAG.isEnabled() && destinationSliceEnabled(state);
+        }
+
+        private boolean destinationSliceEnabled(ProjectState state) {
+            ProjectMetadata projectMetadata = state.metadata();
+            IndexMetadata destMeta = projectMetadata.index(mainRequest.getDestination().index());
+            if (destMeta != null) {
+                return IndexSettings.SLICE_ENABLED.get(destMeta.getSettings());
+            }
+            String template = MetadataIndexTemplateService.findV2Template(projectMetadata, mainRequest.getDestination().index(), false);
+            if (template != null) {
+                return IndexSettings.SLICE_ENABLED.get(MetadataIndexTemplateService.resolveSettings(projectMetadata, template));
+            }
+            var v1Templates = MetadataIndexTemplateService.findV1Templates(projectMetadata, mainRequest.getDestination().index(), null);
+            if (v1Templates.isEmpty()) {
+                return false;
+            }
+            return IndexSettings.SLICE_ENABLED.get(MetadataIndexTemplateService.resolveSettings(v1Templates));
         }
 
         private IndexMode destinationIndexMode(ProjectState state) {
@@ -1198,7 +1228,28 @@ public class Reindexer {
          */
         @Override
         protected void copyRouting(RequestWrapper<?> request, String routing) {
-            String routingSpec = mainRequest.getDestination().routing();
+            final IndexRequest dest = mainRequest.getDestination();
+            // A destination [slice] routes every reindexed document to the given slice value.
+            if (dest.isRoutingFromSlice()) {
+                super.copyRouting(request, dest.routing());
+                request.setRoutingFromSlice(true);
+                return;
+            }
+            // When the source is read in slice mode and the user did not explicitly request a [routing] behavior, decide based on the
+            // destination: a slice-enabled destination preserves each document's source slice; a non-slice-enabled destination drops the
+            // slice value so it is not silently persisted as ordinary routing.
+            if (mainRequest.getSearchRequest().isRoutingFromSlice() && dest.routing() == null) {
+                if (destinationSliceEnabled) {
+                    super.copyRouting(request, routing);
+                    request.setRoutingFromSlice(true);
+                } else {
+                    super.copyRouting(request, null);
+                    request.setRoutingFromSlice(false);
+                }
+                return;
+            }
+            // Otherwise fall back to the standard [routing] handling. Slice provenance never applies on this path.
+            String routingSpec = dest.routing();
             if (routingSpec == null) {
                 super.copyRouting(request, routing);
                 // Prevent saying "routing from slice" on empty routing on write, as this is invalid
@@ -1206,14 +1257,14 @@ public class Reindexer {
                 return;
             }
             if (routingSpec.startsWith("=")) {
-                super.copyRouting(request, mainRequest.getDestination().routing().substring(1));
-                request.setRoutingFromSlice(mainRequest.getDestination().isRoutingFromSlice());
+                super.copyRouting(request, routingSpec.substring(1));
+                request.setRoutingFromSlice(false);
                 return;
             }
             switch (routingSpec) {
                 case "keep" -> {
                     super.copyRouting(request, routing);
-                    request.setRoutingFromSlice(mainRequest.getDestination().isRoutingFromSlice());
+                    request.setRoutingFromSlice(false);
                 }
                 case "discard" -> {
                     super.copyRouting(request, null);

@@ -13,7 +13,6 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.xcontent.XContentHelper;
-import org.elasticsearch.inference.ModelConfigurations;
 import org.elasticsearch.xcontent.ObjectParser;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentParserConfiguration;
@@ -60,13 +59,7 @@ public class CohereRerankServiceSettings extends FilteredXContentObject implemen
     );
 
     static ObjectParser<Builder, ConfigurationParseContext> createParser(boolean ignoreUnknownFields, ConfigurationParseContext context) {
-        ObjectParser<Builder, ConfigurationParseContext> parser = new ObjectParser<>(
-            ModelConfigurations.SERVICE_SETTINGS,
-            ignoreUnknownFields,
-            () -> new Builder(context)
-        );
-        CohereCommonServiceSettings.declareCommonFields(parser, context);
-        return parser;
+        return CohereCommonServiceSettings.buildCommonParser(ignoreUnknownFields, context, Builder::new);
     }
 
     /**
@@ -187,11 +180,7 @@ public class CohereRerankServiceSettings extends FilteredXContentObject implemen
 
     private static class Update extends CohereCommonServiceSettings.CommonUpdate {
 
-        private static final ObjectParser<Update, Void> PARSER = new ObjectParser<>(ModelConfigurations.SERVICE_SETTINGS, Update::new);
-
-        static {
-            CohereCommonServiceSettings.declareCommonUpdatableFields(PARSER);
-        }
+        private static final ObjectParser<Update, Void> PARSER = CohereCommonServiceSettings.buildCommonUpdateParser(Update::new);
 
         public CohereRerankServiceSettings mergeInto(CohereRerankServiceSettings existing) {
             return new CohereRerankServiceSettings(existing.commonSettings().update(this));

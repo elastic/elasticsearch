@@ -29,6 +29,7 @@ import org.elasticsearch.compute.lucene.query.LuceneOperator;
 import org.elasticsearch.compute.lucene.query.LuceneSliceQueue;
 import org.elasticsearch.compute.lucene.query.LuceneSourceOperator;
 import org.elasticsearch.compute.lucene.query.LuceneTopNSourceOperator;
+import org.elasticsearch.compute.lucene.query.MinCompetitiveQuery;
 import org.elasticsearch.compute.lucene.query.TimeSeriesSourceOperator;
 import org.elasticsearch.compute.lucene.read.ReadDimsOperator;
 import org.elasticsearch.compute.lucene.read.ValuesSourceReaderOperator;
@@ -75,6 +76,7 @@ import org.elasticsearch.search.internal.SearchContext;
 import org.elasticsearch.search.lookup.SourceFilter;
 import org.elasticsearch.search.sort.SortAndFormats;
 import org.elasticsearch.search.sort.SortBuilder;
+import org.elasticsearch.xpack.esql.action.EsqlCapabilities;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.FieldAttribute;
@@ -461,6 +463,7 @@ public class EsPhysicalOperationProviders extends AbstractPhysicalOperationProvi
             UNMAPPED_FIELD_TYPE.setStored(false);
             UNMAPPED_FIELD_TYPE.freeze();
         }
+        /** The one field this context pretends is mapped; any other name behaves exactly as on the context it wraps. */
         private final String fullFieldName;
 
         DefaultShardContextForUnmappedField(DefaultShardContext ctx, String fullFieldName) {
@@ -477,10 +480,68 @@ public class EsPhysicalOperationProviders extends AbstractPhysicalOperationProvi
             return name.equals(fullFieldName) || super.isMappedField(name);
         }
 
+        /**
+         * Whether this context creates a keyword type for {@code name}: only for {@link #fullFieldName}, and only where
+         * {@code resolvedType} - what the real mapping resolves for it - is null. Callers pass that in so the mapping is walked once;
+         * {@link #fieldType} is unusable here because it returns the fabricated type.
+         */
+        private boolean createsKeywordType(String name, @Nullable MappedFieldType resolvedType) {
+            return resolvedType == null && name.equals(fullFieldName);
+        }
+
+        // TODO: remove this override, createUnmappedFieldType and UNMAPPED_FIELD_TYPE once
+        // OPTIONAL_FIELDS_FIX_UNMAPPED_OBJECT_VALUE is ungated. While that capability is enabled, blockLoader below returns before
+        // super.blockLoader can consult this, so nothing reads the created type; with the capability disabled this is what keeps a
+        // release build dispatching KeywordFieldType's loaders exactly as it did before the fix, so it cannot go until the gate does.
         @Override
         public @Nullable MappedFieldType fieldType(String name) {
             var superResult = super.fieldType(name);
-            return superResult == null && name.equals(fullFieldName) ? createUnmappedFieldType(name, this) : superResult;
+            return createsKeywordType(name, superResult) ? createUnmappedFieldType(name, this) : superResult;
+        }
+
+        @Override
+        public BlockLoader blockLoader(
+            String name,
+            boolean asUnsupportedSource,
+            MappedFieldType.FieldExtractPreference fieldExtractPreference,
+            BlockLoaderFunctionConfig blockLoaderFunctionConfig,
+            org.elasticsearch.index.mapper.blockloader.Warnings warnings,
+            ByteSizeValue blockLoaderSizeOrdinals,
+            ByteSizeValue blockLoaderSizeScript
+        ) {
+            // The fabricated keyword type cannot load itself: both of KeywordFieldType#blockLoader's paths mangle an object value, so
+            // read _source directly - see UnmappedKeywordBlockLoader for the two broken paths and the issues (#156381, #156433).
+            // TODO: consider fixing FallbackSyntheticSourceBlockLoader instead of working around it here. Rejected for now because it
+            // only covers the synthetic-source half, and its constructor rejects the NO_IGNORED_SOURCE format stored source reports.
+            if (asUnsupportedSource == false
+                && EsqlCapabilities.Cap.OPTIONAL_FIELDS_FIX_UNMAPPED_OBJECT_VALUE.isEnabled()
+                && createsKeywordType(name, super.fieldType(name))) {
+                // Neither LOAD nor LOAD_ALL fuses a function into loading an unmapped field, and unmappedKeywordBlockLoader has
+                // nowhere to put one - so catch it here rather than let it be dropped and surface as a wrong value much later.
+                assert blockLoaderFunctionConfig == null
+                    : "cannot fuse [" + blockLoaderFunctionConfig + "] into loading unmapped field [" + name + "]";
+                return unmappedKeywordBlockLoader(name, this);
+            }
+            return super.blockLoader(
+                name,
+                asUnsupportedSource,
+                fieldExtractPreference,
+                blockLoaderFunctionConfig,
+                warnings,
+                blockLoaderSizeOrdinals,
+                blockLoaderSizeScript
+            );
+        }
+
+        /**
+         * Restrict the _source read to this field's own paths so a single unmapped reference does not force a full _source load
+         */
+        static BlockLoader unmappedKeywordBlockLoader(String name, DefaultShardContext context) {
+            Set<String> sourcePaths = context.ctx.isSourceEnabled() ? context.ctx.sourcePath(name) : Set.of();
+            // sourcePaths here is needed in this form to signal that _source should be loaded for individual fields, not the entire
+            // _source. It's a contract that FallbackSyntheticSourceBlockLoader has. An empty sourcePaths means
+            // StoredFieldsSpec.NEEDS_SOURCE is in effect, which triggers the entire _source loading.
+            return new UnmappedKeywordBlockLoader(name, sourcePaths, context.ctx.getIndexSettings().getIgnoredSourceFormat());
         }
 
         static MappedFieldType createUnmappedFieldType(String name, DefaultShardContext context) {
@@ -626,7 +687,8 @@ public class EsPhysicalOperationProviders extends AbstractPhysicalOperationProvi
                 scoring,
                 directoryBytesRead,
                 context.queryPragmas().minDocsPerSlice(LuceneSliceQueue.MIN_DOCS_PER_SLICE),
-                singleValueQueryWarnings
+                singleValueQueryWarnings,
+                planMinCompetitive(context.luceneMinCompetitivePilot().get())
             );
         }
         Layout.Builder layout = new Layout.Builder();
@@ -668,6 +730,23 @@ public class EsPhysicalOperationProviders extends AbstractPhysicalOperationProvi
             fieldInfos.add(new ValuesSourceReaderOperator.FieldInfo(fieldName, elementType, nullsFiltered, buildLoader));
         }
         return fieldInfos;
+    }
+
+    private MinCompetitiveQuery.Factory planMinCompetitive(@Nullable LuceneMinCompetitiveTimestampTopN pilot) {
+        if (pilot == null) {
+            return null;
+        }
+        MinCompetitiveQuery.BuildMinCompetitiveQuery buildMinCompetitiveQuery = (ctx, page) -> {
+            SearchExecutionContext executionContext = ((DefaultShardContext) ctx).ctx;
+            EsMinCompetitiveQueries minCompetitiveQueries = new EsMinCompetitiveQueries(
+                pilot.supplier(),
+                pilot.sortFieldName(),
+                executionContext
+            );
+            Query q = minCompetitiveQueries.buildMinCompetitiveQuery(page);
+            return q.rewrite(executionContext.searcher());
+        };
+        return new MinCompetitiveQuery.Factory(pilot.supplier(), buildMinCompetitiveQuery);
     }
 
     /**

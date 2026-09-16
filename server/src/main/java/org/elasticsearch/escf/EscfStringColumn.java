@@ -35,7 +35,7 @@ final class EscfStringColumn extends AbstractVarColumn {
     }
 
     @Override
-    Text getStringValue(int row) {
+    public Text getStringValue(int row) {
         BytesRef ref = getBinaryValue(row);
         return new Text(new XContentString.UTF8Bytes(ref.bytes, ref.offset, ref.length));
     }

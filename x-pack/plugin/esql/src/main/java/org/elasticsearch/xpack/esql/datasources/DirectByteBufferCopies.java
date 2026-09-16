@@ -10,7 +10,7 @@ package org.elasticsearch.xpack.esql.datasources;
 import java.nio.ByteBuffer;
 
 /**
- * Utilities for copying streaming {@link ByteBuffer} chunks into a pre-sized direct destination.
+ * Utilities for copying streaming {@link ByteBuffer} chunks into a pre-sized destination buffer.
  */
 public final class DirectByteBufferCopies {
 

@@ -27,4 +27,60 @@ public class StatelessMemoryMetricsServiceTestUtils {
     ) {
         return service.newUninitialisedShardMemoryMetrics(updateTimestampNanos);
     }
+
+    /// Calculates the shard heap estimate excluding postings and ignoring any self-reported overhead
+    /// even if the service is configured to use it
+    public static long estimateShardHeapUsageExcludingPostingsAndIgnoringSelfReportedOverheads(
+        StatelessMemoryMetricsService statelessMemoryMetricsService,
+        StatelessMemoryMetricsService.ShardMemoryMetrics shardMemoryMetrics
+    ) {
+        return statelessMemoryMetricsService.createShardHeapEstimator(
+            StatelessMemoryMetricsService.SelfReportedShardOverhead.DISABLE,
+            StatelessMemoryMetricsService.PostingsInEstimate.EXCLUDE
+        ).computeShardHeapUsage(shardMemoryMetrics);
+    }
+
+    /// Convenience method for computing the shard estimate including postings
+    /// and the current settings active on the [StatelessMemoryMetricsService]
+    public static ShardAndIndexHeapEstimate estimateHeapUsageIncludingPostings(
+        StatelessMemoryMetricsService statelessMemoryMetricsService,
+        StatelessMemoryMetricsService.ShardMemoryMetrics shardMemoryMetrics
+    ) {
+        return computeShardHeapEstimate(
+            statelessMemoryMetricsService,
+            shardMemoryMetrics,
+            StatelessMemoryMetricsService.PostingsInEstimate.INCLUDE
+        );
+    }
+
+    /// Convenience method for computing the shard estimate excluding postings
+    /// and the current settings active on the [StatelessMemoryMetricsService]
+    public static ShardAndIndexHeapEstimate estimateHeapUsageExcludingPostings(
+        StatelessMemoryMetricsService statelessMemoryMetricsService,
+        StatelessMemoryMetricsService.ShardMemoryMetrics shardMemoryMetrics
+    ) {
+        return computeShardHeapEstimate(
+            statelessMemoryMetricsService,
+            shardMemoryMetrics,
+            StatelessMemoryMetricsService.PostingsInEstimate.EXCLUDE
+        );
+    }
+
+    /// Convenience method for computing the shard estimate with the specified parameters
+    /// and the current settings active on the [StatelessMemoryMetricsService]
+    private static ShardAndIndexHeapEstimate computeShardHeapEstimate(
+        StatelessMemoryMetricsService statelessMemoryMetricsService,
+        StatelessMemoryMetricsService.ShardMemoryMetrics memoryMetrics,
+        StatelessMemoryMetricsService.PostingsInEstimate postingsInEstimate
+    ) {
+        ShardHeapEstimator shardHeapEstimator = statelessMemoryMetricsService.createShardHeapEstimator(postingsInEstimate);
+        return new ShardAndIndexHeapEstimate(
+            shardHeapEstimator.computeShardHeapUsage(memoryMetrics),
+            shardHeapEstimator.computeIndexHeapUsage(memoryMetrics)
+        );
+    }
+
+    public record ShardAndIndexHeapEstimate(long shardHeapEstimate, long indexHeapEstimate) {
+
+    }
 }

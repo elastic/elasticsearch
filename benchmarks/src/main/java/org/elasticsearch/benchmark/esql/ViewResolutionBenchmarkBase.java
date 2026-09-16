@@ -12,7 +12,7 @@ package org.elasticsearch.benchmark.esql;
 import org.elasticsearch.TransportVersion;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.PlainActionFuture;
-import org.elasticsearch.benchmark.Utils;
+import org.elasticsearch.benchmark.internal.BenchmarkLogging;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ProjectState;
@@ -61,7 +61,6 @@ import org.elasticsearch.xpack.esql.parser.EsqlParser;
 import org.elasticsearch.xpack.esql.parser.QueryParams;
 import org.elasticsearch.xpack.esql.plan.IndexPattern;
 import org.elasticsearch.xpack.esql.plan.ResolvedSettings;
-import org.elasticsearch.xpack.esql.plan.SettingsValidationContext;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.esql.plugin.QueryPragmas;
 import org.elasticsearch.xpack.esql.session.Configuration;
@@ -131,7 +130,7 @@ import static org.elasticsearch.xpack.esql.plan.QuerySettings.UNMAPPED_FIELDS;
 public abstract class ViewResolutionBenchmarkBase {
 
     static {
-        Utils.configureBenchmarkLogging();
+        BenchmarkLogging.configure();
     }
 
     protected abstract String getScenario();
@@ -155,11 +154,10 @@ public abstract class ViewResolutionBenchmarkBase {
 
         EsqlFunctionRegistry functionRegistry = new EsqlFunctionRegistry();
         InferenceSettings inferenceSettings = new InferenceSettings(Settings.EMPTY);
-        SettingsValidationContext validationCtx = new SettingsValidationContext(false, false);
         TransportVersion minimumVersion = TransportVersion.current();
 
         parser = new EsqlParser(new EsqlConfig(functionRegistry));
-        viewParser = (query, viewName) -> parser.parseView(query, new QueryParams(), validationCtx, inferenceSettings, viewName).plan();
+        viewParser = (query, viewName) -> parser.parseView(query, new QueryParams(), inferenceSettings, viewName).plan();
 
         LinkedHashMap<String, EsField> mapping = new LinkedHashMap<>();
         for (int i = 0; i < 5; i++) {

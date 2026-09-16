@@ -37,7 +37,7 @@ class SpatialCentroidShapeDocValuesAggregator extends CentroidShapeAggregator {
      * The centroid coordinates are weighted before being added to the state.
      */
     public static void combine(ShapeCentroidState current, @Position int p, DoubleBlock values) {
-        if (values.getValueCount(p) == 0) {
+        if (values.isNull(p)) {
             return;
         }
         int start = values.getFirstValueIndex(p);

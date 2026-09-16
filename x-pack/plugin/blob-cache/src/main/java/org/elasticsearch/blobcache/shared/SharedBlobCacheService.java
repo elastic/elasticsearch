@@ -2448,29 +2448,23 @@ public class SharedBlobCacheService<KeyType extends SharedBlobCacheService.KeyBa
             assert matchingEntries != null;
 
             var evictedCount = 0;
-            var nonZeroFrequencyEvictedCount = 0;
             if (matchingEntries.isEmpty() == false) {
                 final long afterLockNanoTime;
                 final long beforeLockNanoTime = relativeNanosProvider.getAsLong();
                 synchronized (SharedBlobCacheService.this) {
                     afterLockNanoTime = relativeNanosProvider.getAsLong();
                     for (LFUCacheEntry entry : matchingEntries) {
-                        int frequency = entry.freq;
                         boolean evicted = entry.chunk.forceEvict();
                         if (evicted && entry.chunk.volatileIO() != null) {
                             assert shardId == null || shardId.equals(entry.chunk.regionKey.file.shardId())
                                 : shardId + " != " + entry.chunk.regionKey.file.shardId();
                             unlinkAndRemoveForEviction(entry);
                             evictedCount++;
-                            if (frequency > 0) {
-                                nonZeroFrequencyEvictedCount++;
-                            }
                         }
                     }
                 }
                 blobCacheMetrics.recordLockAcquire(afterLockNanoTime - beforeLockNanoTime, ForceEvict);
             }
-            blobCacheMetrics.getEvictedCountNonZeroFrequency().incrementBy(nonZeroFrequencyEvictedCount);
             return evictedCount;
         }
 

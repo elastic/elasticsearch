@@ -97,7 +97,7 @@ public class DatafeedRunner {
         this.datafeedJobBuilder = Objects.requireNonNull(datafeedJobBuilder);
         this.autodetectProcessManager = Objects.requireNonNull(autodetectProcessManager);
         this.datafeedContextProvider = Objects.requireNonNull(datafeedContextProvider);
-        meterRegistry.registerLongGauge(
+        meterRegistry.registerLongAsyncGauge(
             "es.ml.datafeeds.cps.with_unavailable_projects.current",
             "Count of datafeeds running on this node whose last search cycle saw at least one skipped or unavailable linked project.",
             "datafeeds",

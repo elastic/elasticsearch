@@ -64,8 +64,7 @@ final class AzureStorageSettings {
     public static final AffixSetting<Integer> MAX_CONNECTIONS_SETTING = Setting.affixKeySetting(
         AZURE_CLIENT_PREFIX_KEY,
         "max_connections",
-        key -> Setting.intSetting(key, AzureClientProvider.MAX_OPEN_CONNECTIONS, 1, Property.NodeScope),
-        () -> ACCOUNT_SETTING
+        key -> Setting.intSetting(key, AzureClientProvider.MAX_OPEN_CONNECTIONS, 1, Property.NodeScope)
     );
 
     /** max_retries: Number of retries in case of Azure errors. Defaults to 3 (RequestRetryOptions). */

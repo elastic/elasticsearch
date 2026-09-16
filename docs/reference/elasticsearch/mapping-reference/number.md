@@ -116,6 +116,9 @@ The following parameters are accepted by numeric types:
 [`index`](/reference/elasticsearch/mapping-reference/mapping-index.md)
 :   Should the field be quickly searchable? Accepts `true` (default) and `false`. Numeric fields that only have [`doc_values`](/reference/elasticsearch/mapping-reference/doc-values.md) enabled can also be queried, albeit slower.
 
+`index_terms` {applies_to}`stack: ga 9.6` {applies_to}`serverless: ga`
+:   Index the field's values in an inverted index instead of a BKD tree. Accepts `true` or `false` (default). Only supported on `integer` and `long` fields. See [`index_terms`](#index-terms-mapping-param).
+
 [`meta`](/reference/elasticsearch/mapping-reference/mapping-field-meta.md)
 :   Metadata about the field.
 
@@ -163,6 +166,44 @@ The following parameters are accepted by numeric types:
 
     For a numeric time series metric, the `doc_values` parameter must be `true`. A numeric field can’t be both a time series dimension and a time series metric.
 
+
+
+## `index_terms` mapping parameter [index-terms-mapping-param]
+
+```{applies_to}
+stack: ga 9.6
+serverless: ga
+```
+
+By default, `integer` and `long` fields are indexed in a BKD tree, a structure optimized for [`range`](/reference/query-languages/query-dsl/query-dsl-range-query.md) queries. Setting `index_terms` to `true` indexes the values in an inverted index instead, which is optimized for matching documents against a set of exact values.
+
+Enable it on fields that are mostly used for set membership filtering rather than range filtering, such as identifiers that you filter against large lists of permitted values. Matching a large set of values against an inverted index requires a single pass over the terms dictionary, whereas a BKD tree has to be traversed repeatedly. `index_terms` is also what makes the [`bitmap_terms`](/reference/query-languages/query-dsl/query-dsl-bitmap-terms-query.md) query most efficient, which matches against a set of values encoded as a [roaring bitmap](https://roaringbitmap.org) and is designed for exactly this pattern.
+
+```console
+PUT my-index-000002
+{
+  "mappings": {
+    "properties": {
+      "customer_id": {
+        "type": "long",
+        "index_terms": true
+      }
+    }
+  }
+}
+```
+
+All queries that work on a regular numeric field keep working, over the full signed range of the type, negative values included:
+
+* [`term`](/reference/query-languages/query-dsl/query-dsl-term-query.md) and [`terms`](/reference/query-languages/query-dsl/query-dsl-terms-query.md) queries look the values up in the terms dictionary.
+* [`range`](/reference/query-languages/query-dsl/query-dsl-range-query.md) queries scan the terms dictionary rather than the BKD tree. Because the terms are encoded so that their byte order matches their numeric order, ranges still resolve correctly, but wide ranges are typically slower than they would be on a BKD tree.
+* Sorting, aggregations, and scripts read [`doc_values`](/reference/elasticsearch/mapping-reference/doc-values.md) and are unaffected.
+
+The following restrictions apply:
+
+* `index_terms` is only supported on `integer` and `long` fields.
+* It requires [`index`](/reference/elasticsearch/mapping-reference/mapping-index.md) to be `true`.
+* It cannot be changed after the field is created. To turn it on or off for an existing field, reindex into a new index.
 
 
 ## Parameters for `scaled_float` [scaled-float-params]

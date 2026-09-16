@@ -101,8 +101,7 @@ public final class BooleanArrayBlock extends AbstractArrayBlock implements Boole
         try (BooleanVector.FixedBuilder builder = blockFactory().newBooleanVectorFixedBuilder(getPositionCount())) {
             boolean hasMv = false;
             for (int p = 0; p < getPositionCount(); p++) {
-                builder.appendBoolean(switch (getValueCount(p)) {
-                    case 0 -> false;
+                builder.appendBoolean(isNull(p) ? false : switch (getValueCount(p)) {
                     case 1 -> getBoolean(getFirstValueIndex(p));
                     default -> {
                         hasMv = true;
@@ -160,15 +159,11 @@ public final class BooleanArrayBlock extends AbstractArrayBlock implements Boole
         try (BooleanBlock.Builder builder = blockFactory().newBooleanBlockBuilder(getPositionCount())) {
             // TODO if X-ArrayBlock used BooleanVector for it's null mask then we could shuffle references here.
             for (int p = 0; p < getPositionCount(); p++) {
-                if (false == mask.getBoolean(p)) {
+                if (false == mask.getBoolean(p) || isNull(p)) {
                     builder.appendNull();
                     continue;
                 }
                 int valueCount = getValueCount(p);
-                if (valueCount == 0) {
-                    builder.appendNull();
-                    continue;
-                }
                 int start = getFirstValueIndex(p);
                 if (valueCount == 1) {
                     builder.appendBoolean(getBoolean(start));

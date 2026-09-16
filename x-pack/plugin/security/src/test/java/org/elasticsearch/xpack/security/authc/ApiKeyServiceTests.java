@@ -11,6 +11,7 @@ import org.apache.logging.log4j.Level;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.lucene.search.TotalHits;
+import org.elasticsearch.ElasticsearchAuthenticationProcessingError;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.TransportVersion;
@@ -18,6 +19,7 @@ import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.DocWriteRequest;
 import org.elasticsearch.action.DocWriteResponse;
+import org.elasticsearch.action.NoShardAvailableActionException;
 import org.elasticsearch.action.bulk.BulkItemResponse;
 import org.elasticsearch.action.bulk.BulkRequest;
 import org.elasticsearch.action.bulk.BulkRequestBuilder;
@@ -63,6 +65,7 @@ import org.elasticsearch.index.get.GetResult;
 import org.elasticsearch.index.query.BoolQueryBuilder;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.index.shard.ShardId;
+import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.SearchHits;
 import org.elasticsearch.search.SearchResponseUtils;
@@ -77,6 +80,9 @@ import org.elasticsearch.test.XContentTestUtils;
 import org.elasticsearch.threadpool.FixedExecutorBuilder;
 import org.elasticsearch.threadpool.TestThreadPool;
 import org.elasticsearch.threadpool.ThreadPool;
+import org.elasticsearch.transport.ConnectTransportException;
+import org.elasticsearch.transport.NodeDisconnectedException;
+import org.elasticsearch.transport.RemoteTransportException;
 import org.elasticsearch.xcontent.NamedXContentRegistry;
 import org.elasticsearch.xcontent.ToXContent;
 import org.elasticsearch.xcontent.XContentBuilder;
@@ -1019,6 +1025,27 @@ public class ApiKeyServiceTests extends ESTestCase {
         final var ex = expectThrows(ExecutionException.class, listener::get);
         assertThat(ex.getCause(), instanceOf(IllegalArgumentException.class));
         assertThat(ex.getMessage(), containsString("authentication via API key not supported: only the owner user can update an API key"));
+    }
+
+    public void testBulkUpdateFailsIfAuthenticationIsCappedCloudSubject() {
+        final Settings settings = Settings.builder().put(XPackSettings.API_KEY_SERVICE_ENABLED_SETTING.getKey(), true).build();
+        final ApiKeyService service = createApiKeyService(settings);
+        final var limitedBy = AuthenticationTestHelper.randomCloudLimitedByRoleNames();
+        final Authentication authentication = randomFrom(
+            AuthenticationTestHelper.randomCloudApiKeyAuthentication(null, null, limitedBy),
+            AuthenticationTestHelper.randomCloudUserAuthentication(limitedBy),
+            AuthenticationTestHelper.randomCloudServiceAccountAuthentication(randomAlphanumericOfLength(20), limitedBy)
+        );
+
+        final PlainActionFuture<BulkUpdateApiKeyResponse> listener = new PlainActionFuture<>();
+        service.updateApiKeys(authentication, BulkUpdateApiKeyRequest.usingApiKeyIds("id"), Set.of(), listener);
+
+        final var ex = expectThrows(ExecutionException.class, listener::get);
+        assertThat(ex.getCause(), instanceOf(IllegalArgumentException.class));
+        assertThat(
+            ex.getMessage(),
+            containsString("updating elasticsearch api keys using a cloud subject with limited-by roles is not supported")
+        );
     }
 
     public void testCloneApiKeySuccess() throws Exception {
@@ -2741,6 +2768,43 @@ public class ApiKeyServiceTests extends ESTestCase {
         assertThat(authenticationResult.getMessage(), containsString("server is too busy to respond"));
     }
 
+    public void testAuthWillTerminateWith503IfBackendUnavailable() throws ExecutionException, InterruptedException {
+        final ApiKeyService service = createApiKeyService(Settings.EMPTY);
+        final List<Exception> backendUnavailableExceptions = List.of(
+            new NoShardAvailableActionException(new ShardId(SECURITY_MAIN_ALIAS, "_na_", 0), "no shard available"),
+            new ConnectTransportException(null, "node not reachable"),
+            new RemoteTransportException("remote", new NodeDisconnectedException(null, "disconnected"))
+        );
+        for (Exception backendUnavailableException : backendUnavailableExceptions) {
+            final AuthenticationResult<User> result = tryAuthenticateWithGetFailure(service, backendUnavailableException);
+            assertEquals(AuthenticationResult.Status.TERMINATE, result.getStatus());
+            assertThat(result.getException(), instanceOf(ElasticsearchAuthenticationProcessingError.class));
+            assertThat(((ElasticsearchAuthenticationProcessingError) result.getException()).status(), is(RestStatus.SERVICE_UNAVAILABLE));
+        }
+    }
+
+    public void testAuthWillContinueIfGetFailsWithUnexpectedException() throws ExecutionException, InterruptedException {
+        final AuthenticationResult<User> result = tryAuthenticateWithGetFailure(
+            createApiKeyService(Settings.EMPTY),
+            new RuntimeException("unexpected")
+        );
+        assertEquals(AuthenticationResult.Status.CONTINUE, result.getStatus());
+        assertThat(result.getMessage(), containsString("encountered a failure"));
+    }
+
+    private AuthenticationResult<User> tryAuthenticateWithGetFailure(ApiKeyService service, Exception failure) throws ExecutionException,
+        InterruptedException {
+        SecurityMocks.mockGetRequestException(client, failure);
+        final ApiKeyCredentials creds = getApiKeyCredentials(
+            randomAlphaOfLength(12),
+            randomAlphaOfLength(16),
+            randomFrom(ApiKey.Type.values())
+        );
+        final PlainActionFuture<AuthenticationResult<User>> future = new PlainActionFuture<>();
+        service.tryAuthenticate(threadPool.getThreadContext(), creds, future);
+        return future.get();
+    }
+
     public void testAuthWillTerminateIfHashingThreadPoolIsSaturated() throws IOException, ExecutionException, InterruptedException {
         final String apiKey = randomAlphaOfLength(16);
 
@@ -2862,6 +2926,25 @@ public class ApiKeyServiceTests extends ESTestCase {
         service.createApiKey(authentication, createCrossClusterApiKeyRequest, Set.of(), future);
         final IllegalArgumentException iae = expectThrows(IllegalArgumentException.class, future);
         assertThat(iae.getMessage(), equalTo("cross-cluster API keys cannot be created with a cloud API key"));
+    }
+
+    public void testCreationFailsIfAuthenticationIsCappedCloudSubject() {
+        final var limitedBy = AuthenticationTestHelper.randomCloudLimitedByRoleNames();
+        final Authentication authentication = randomFrom(
+            AuthenticationTestHelper.randomCloudServiceAccountAuthentication(randomAlphanumericOfLength(20), limitedBy),
+            AuthenticationTestHelper.randomCloudApiKeyAuthentication(null, null, limitedBy),
+            AuthenticationTestHelper.randomCloudUserAuthentication(limitedBy)
+        );
+        // REST only: a cloud API key creating a cross-cluster key is rejected by a dedicated check first
+        final CreateApiKeyRequest createApiKeyRequest = new CreateApiKeyRequest(randomAlphaOfLengthBetween(3, 8), null, null);
+        ApiKeyService service = createApiKeyService(Settings.EMPTY);
+        final PlainActionFuture<CreateApiKeyResponse> future = new PlainActionFuture<>();
+        service.createApiKey(authentication, createApiKeyRequest, Set.of(), future);
+        final IllegalArgumentException iae = expectThrows(IllegalArgumentException.class, future);
+        assertThat(
+            iae.getMessage(),
+            equalTo("creating elasticsearch api keys using a cloud subject with limited-by roles is not supported")
+        );
     }
 
     public void testCachedApiKeyValidationWillNotBeBlockedByUnCachedApiKey() throws IOException, ExecutionException, InterruptedException {

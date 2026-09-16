@@ -10,6 +10,7 @@
 package org.elasticsearch.indices.recovery;
 
 public enum FailureStrategy {
+    ABORT(false, false),
     RETRY(false, true),
     FAIL_SILENT(false, false),
     FAIL_SEND(true, false);

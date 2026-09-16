@@ -47,6 +47,10 @@ dependencies {
   runtimeOnly 'com.google.http-client:google-http-client-appengine:2.2.0'
   runtimeOnly 'com.google.http-client:google-http-client-jackson2:2.2.0'
   runtimeOnly "com.fasterxml.jackson.core:jackson-core:${versions.jackson}" // 2.18.3 in bom
+  implementation "com.fasterxml.jackson.core:jackson-databind:${versions.jackson}"
+  implementation "com.fasterxml.jackson.dataformat:jackson-dataformat-xml:${versions.jackson}"
+  runtimeOnly "com.fasterxml.jackson.datatype:jackson-datatype-jsr310:${versions.jackson}"
+  runtimeOnly "org.codehaus.woodstox:stax2-api:4.2.2"
   runtimeOnly 'com.google.api:gax-httpjson:2.83.0'
   runtimeOnly 'io.opencensus:opencensus-api:0.31.1'
   runtimeOnly 'io.opencensus:opencensus-contrib-http-util:0.31.1'
@@ -79,6 +83,8 @@ tasks.named("dependencyLicenses").configure {
   mapping from: /protobuf.*/, to: 'protobuf'
   mapping from: /proto-google.*/, to: 'proto-google'
   mapping from: /jackson.*/, to: 'jackson'
+  mapping from: /woodstox-core.*/, to: 'woodstox-core'
+  mapping from: /stax2-api.*/, to: 'stax2-api'
 }
 
 tasks.named("thirdPartyAudit").configure {
@@ -164,16 +170,6 @@ tasks.named("thirdPartyAudit").configure {
 
     // optional Conscrypt TLS provider referenced by gax
     'org.conscrypt.Conscrypt',
-
-    // Jackson classes referenced by GCS SDK's MultipartUploadClient model classes (not used without multipart)
-    'com.fasterxml.jackson.databind.DeserializationContext',
-    'com.fasterxml.jackson.databind.DeserializationFeature',
-    'com.fasterxml.jackson.databind.Module',
-    'com.fasterxml.jackson.databind.Module$SetupContext',
-    'com.fasterxml.jackson.databind.SerializerProvider',
-    'com.fasterxml.jackson.databind.deser.std.StdDeserializer',
-    'com.fasterxml.jackson.databind.ser.std.StdSerializer',
-    'com.fasterxml.jackson.dataformat.xml.XmlMapper',
 
     // grpc/proto stuff
     'com.google.api.gax.grpc.GrpcCallContext',

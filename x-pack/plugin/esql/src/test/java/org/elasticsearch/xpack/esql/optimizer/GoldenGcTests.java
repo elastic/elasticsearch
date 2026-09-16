@@ -127,10 +127,17 @@ public class GoldenGcTests extends ESTestCase {
             GoldenGc.removeDeclarations(source, "compact_multi_type_es_field"),
             equalTo(source.replace(".since(CompactMultiTypeEsField.CompactMultiTypeEsField)", ""))
         );
-        assertThat(
-            GoldenGc.removeDeclarations(source, "esql_sum_long_overflow_fix").contains("ESQL_SUM_LONG_OVERFLOW_FIX"),
-            equalTo(false)
-        );
+        assertFalse(GoldenGc.removeDeclarations(source, "esql_sum_long_overflow_fix").contains("ESQL_SUM_LONG_OVERFLOW_FIX"));
+    }
+
+    public void testShortTokenDoesNotNameAVersion() {
+        String source = """
+            builder("FROM a").since(Sum.FIX).run();
+            builder("FROM b").since(Foo.V2).run();
+            """;
+        assertThat(GoldenGc.removeDeclarations(source, "esql_sum_long_overflow_fix"), equalTo(source));
+        assertFalse(GoldenGc.mentions(source, "esql_sum_long_overflow_fix"));
+        assertFalse(GoldenGc.mentions(source, "ts_collapse_v2"));
     }
 
     public void testLeavesLookalikeConstantAloneButReportsIt() {

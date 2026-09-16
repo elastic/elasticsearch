@@ -27,14 +27,8 @@ import java.util.stream.Stream;
  */
 final class GoldenGc {
 
-    private GoldenGc() {}
-
-    /** What a repair pass did, so the runner can tell "already done" from "needs a human". */
-    enum Outcome {
-        REPAIRED,
-        ABSENT,
-        UNMATCHED
-    }
+    /** Shorter tokens ({@code FIX}, {@code V2}) end or contain version names by coincidence, not by naming them. */
+    private static final int MIN_NAMING_TOKEN_LENGTH = 6;
 
     /** A call with its argument; a comment trailing it on the same line goes with it. */
     private static final Pattern CALL = Pattern.compile(
@@ -116,7 +110,7 @@ final class GoldenGc {
         Matcher call = CALL.matcher(source);
         while (call.find()) {
             String token = lastSegment(call.group(1));
-            if (token.length() >= 6 && (token.contains(name) || name.contains(token))) {
+            if (token.length() >= MIN_NAMING_TOKEN_LENGTH && (token.contains(name) || name.contains(token))) {
                 return true;
             }
         }
@@ -142,7 +136,7 @@ final class GoldenGc {
             }
         }
         String name = normalize(versionName);
-        return token.length() >= 6 && (name.equals(token) || name.endsWith(token) || token.endsWith(name));
+        return token.length() >= MIN_NAMING_TOKEN_LENGTH && (name.equals(token) || name.endsWith(token) || token.endsWith(name));
     }
 
     private static String lastSegment(String argument) {

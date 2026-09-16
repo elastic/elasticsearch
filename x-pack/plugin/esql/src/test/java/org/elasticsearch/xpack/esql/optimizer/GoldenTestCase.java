@@ -93,6 +93,7 @@ import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
 import java.util.TreeMap;
+import java.util.concurrent.ConcurrentHashMap;
 import java.util.function.BiFunction;
 import java.util.function.Function;
 import java.util.regex.Matcher;
@@ -467,22 +468,29 @@ public abstract class GoldenTestCase extends ESTestCase {
         }
 
         /**
-         * Removes {@code versionName}'s declarations from the class's sources. Nothing changing is normal for the second mode of
-         * the same test; nothing changing while a declaration still resembles the name is a shape the rewrite refused, which
-         * only a human can settle.
+         * Removes {@code versionName}'s declarations from the class's sources. Nothing changing is accepted only when this run
+         * already rewrote one of these sources for the same version: the other mode of the same test, or a sibling class sharing
+         * the abstract parent that held the declaration. Anything else is a shape the rewrite refused, which only a human can
+         * settle.
          */
         private void repair(String versionName, String message) throws IOException {
             for (Path source : sourceFiles) {
                 if (Files.exists(source) && GoldenGc.removeDeclarations(source, versionName)) {
+                    REPAIRED_SOURCES.computeIfAbsent(versionName, n -> ConcurrentHashMap.newKeySet()).add(source);
                     logger.info("repaired: {}", message);
                     return;
                 }
+            }
+            Set<Path> repairedIn = REPAIRED_SOURCES.getOrDefault(versionName, Set.of());
+            if (sourceFiles.stream().anyMatch(repairedIn::contains)) {
+                return;
             }
             for (Path source : sourceFiles) {
                 if (Files.exists(source) && GoldenGc.mentions(Files.readString(source), versionName)) {
                     fail(message + " The repair could not rewrite the declaration in " + source + "; remove it by hand.");
                 }
             }
+            fail(message + " The repair found no declaration of [" + versionName + "] in " + sourceFiles + "; remove it by hand.");
         }
 
         /** A {@code since} at or below the compatibility floor no longer removes any coverage. */
@@ -685,7 +693,11 @@ public abstract class GoldenTestCase extends ESTestCase {
         .filter(TransportVersion::isCompatible)
         .toList();
 
-    private static final String GC_TASK = "./gradlew :x-pack:plugin:esql:goldenGc";
+    /** Sources this run rewrote, per version name; the task runs in one fork, so a later no-op on one of them is not a miss. */
+    private static final Map<String, Set<Path>> REPAIRED_SOURCES = new ConcurrentHashMap<>();
+
+    /** With mutes disabled so muted golden tests are repaired too, matching GoldenTestsReadme.MD. */
+    private static final String GC_TASK = "./gradlew :x-pack:plugin:esql:goldenGc -Dtests.mutes.enabled=false";
 
     private static boolean overwriteMode() {
         return System.getProperty("golden.overwrite") != null;

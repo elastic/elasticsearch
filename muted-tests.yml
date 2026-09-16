@@ -494,3 +494,6 @@ tests:
 - class: org.elasticsearch.xpack.transform.checkpoint.TransformGetCheckpointIT
   method: testGetCheckpointTimeoutExceeded
   issue: https://github.com/elastic/elasticsearch/issues/150934
+- class: org.elasticsearch.xpack.esql.ccq.MultiClusterSpecEnrichIT
+  method: test {csv-spec:enrich.enrichDecadesStats}
+  issue: https://github.com/elastic/elasticsearch/issues/159418

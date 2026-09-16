@@ -156,6 +156,8 @@ Runtime fields are different from unmapped fields. An unmapped field is a field 
 
 ## Full-text search [esql-limitations-full-text-search]
 
+### Position restriction on indexed fields [esql-limitations-full-text-search-position]
+
 One limitation of [full-text search](/reference/query-languages/esql/functions-operators/search-functions.md) is that it is necessary to use the search function,
 like [`MATCH`](/reference/query-languages/esql/functions-operators/search-functions/match.md),
 in a [`WHERE`](/reference/query-languages/esql/commands/where.md) command directly after the
@@ -197,6 +199,8 @@ and the `:` operator. Other search functions, such as
 still not supported after `INLINE STATS`. A `STATS` command before the search function still
 causes the query to fail, even if an `INLINE STATS` comes after it.
 
+### Runtime search on expressions [esql-limitations-full-text-search-expressions]
+
 {applies_to}`stack: preview 9.5` {applies_to}`serverless: preview`
 `MATCH` can also target an expression rather than an indexed field, for example a column
 produced by `EVAL` or `STATS`. It then evaluates by scanning the column's values row by row
@@ -232,6 +236,8 @@ the column is created, through
 `analyzer` option, and the query analyzer defaults to that values analyzer (`standard` when none is
 declared). Analyzer names must name a registered analyzer (prebuilt or plugin-contributed), not a
 per-index custom analyzer. On other expression types options are not supported.
+
+### Analyzer used for a runtime search [esql-limitations-full-text-search-analyzer]
 
 {applies_to}`stack: preview 9.6` {applies_to}`serverless: preview`
 An indexed `text` field is sometimes searched as an expression rather than through the index, and its values are
@@ -294,12 +300,16 @@ FROM books
 | WHERE MATCH(title, "Tolkien")
 ```
 
+### Scoring for a runtime search [esql-limitations-full-text-search-scoring]
+
 {applies_to}`stack: preview 9.6` {applies_to}`serverless: preview`
 When using `METADATA _score`, `MATCH` on an expression contributes to the relevance score:
 a row scores the `boost` option (1.0 by default) for each query term occurrence it matches
 (duplicate query terms each contribute separately), rather than BM25, as there are no index
 statistics for an expression. In earlier versions, `MATCH` on an expression does not contribute
 to the score.
+
+### Text fields without a search function [esql-limitations-full-text-search-keyword-fallback]
 
 Lastly, note that any queries on `text` fields that do not explicitly use the full-text functions,
 [`MATCH`](/reference/query-languages/esql/functions-operators/search-functions/match.md),

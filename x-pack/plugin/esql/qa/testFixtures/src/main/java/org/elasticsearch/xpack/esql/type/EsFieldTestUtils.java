@@ -141,7 +141,11 @@ public class EsFieldTestUtils {
         boolean hasDocValues = randomBoolean();
         boolean isAlias = randomBoolean();
         EsField.TimeSeriesFieldType tsType = randomFrom(EsField.TimeSeriesFieldType.values());
-        return new TextEsField(name, properties, hasDocValues, isAlias, tsType);
+        String analyzerName = null;
+        if (supportedOn == null || supportedOn.supports(TextEsField.FIELD_CAPS_INDEX_ANALYZER)) {
+            analyzerName = randomBoolean() ? null : randomAlphaOfLength(6);
+        }
+        return new TextEsField(name, properties, hasDocValues, isAlias, tsType, analyzerName);
     }
 
     public static PotentiallyUnmappedKeywordEsField randomPotentiallyUnmappedKeywordEsField(

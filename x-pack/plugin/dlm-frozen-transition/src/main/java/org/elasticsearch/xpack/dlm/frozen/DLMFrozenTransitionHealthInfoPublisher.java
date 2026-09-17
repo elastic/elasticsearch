@@ -30,7 +30,9 @@ import org.elasticsearch.index.Index;
 import org.elasticsearch.logging.Logger;
 import org.elasticsearch.repositories.RepositoriesService;
 
+import java.util.ArrayList;
 import java.util.Comparator;
+import java.util.EnumMap;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -53,7 +55,7 @@ public class DLMFrozenTransitionHealthInfoPublisher extends AbstractDLMPeriodicM
         Setting.Property.NodeScope
     );
 
-    // Caps the number of individual index entries sent to the health node in each publish cycle.
+    // Caps the number of individual index entries sent per transition state in each publish cycle.
     static final int MAX_INDICES_TO_PUBLISH = 100;
 
     private static final Logger logger = getLogger(DLMFrozenTransitionHealthInfoPublisher.class);
@@ -191,7 +193,8 @@ public class DLMFrozenTransitionHealthInfoPublisher extends AbstractDLMPeriodicM
             overdueIndices.sample(),
             overdueIndices.totalCount(),
             now,
-            getPollInterval().millis()
+            getPollInterval().millis(),
+            overdueIndices.countByState()
         );
     }
 
@@ -210,25 +213,43 @@ public class DLMFrozenTransitionHealthInfoPublisher extends AbstractDLMPeriodicM
     }
 
     /**
-     * Mutable accumulator for overdue indices. Tracks the total count independently of the sample, which is capped at
-     * {@link #MAX_INDICES_TO_PUBLISH}, so that callers can distinguish "no overdue indices" from "overdue indices that
-     * didn't fit in the sample".
+     * Mutable accumulator for overdue indices. Tracks the complete count and the complete per-state sample independently:
+     * up to {@link #MAX_INDICES_TO_PUBLISH} index names are collected per transition state, so every state with a non-zero count
+     * has example names available in the sample, regardless of the order in which indices are encountered.
      */
     private static final class OverdueIndices {
         private int totalCount;
-        private int sampledCount;
-        private final Map<ProjectId, Map<String, TransitionState>> sample = new HashMap<>();
+        private final Map<TransitionState, Integer> countByState = new EnumMap<>(TransitionState.class);
+        private final Map<TransitionState, Map<ProjectId, List<String>>> sampleByState = new EnumMap<>(TransitionState.class);
 
         void add(ProjectId projectId, String indexName, TransitionState state) {
             totalCount++;
-            if (sampledCount < MAX_INDICES_TO_PUBLISH) {
-                sample.computeIfAbsent(projectId, ignored -> new HashMap<>()).put(indexName, state);
-                sampledCount++;
+            int stateCount = countByState.merge(state, 1, Integer::sum);
+            if (stateCount <= MAX_INDICES_TO_PUBLISH) {
+                sampleByState.computeIfAbsent(state, ignored -> new HashMap<>())
+                    .computeIfAbsent(projectId, ignored -> new ArrayList<>())
+                    .add(indexName);
             }
         }
 
+        /**
+         * Returns the sample as a flat {@code Map<ProjectId, Map<String, TransitionState>>}, which is the wire format expected by
+         * {@link DlmFrozenTransitionsHealthInfo}. The map contains at most {@link #MAX_INDICES_TO_PUBLISH} entries per state.
+         */
         Map<ProjectId, Map<String, TransitionState>> sample() {
-            return sample;
+            Map<ProjectId, Map<String, TransitionState>> result = new HashMap<>();
+            sampleByState.forEach(
+                (state, byProject) -> byProject.forEach(
+                    (projectId, names) -> names.forEach(
+                        name -> result.computeIfAbsent(projectId, ignored -> new HashMap<>()).put(name, state)
+                    )
+                )
+            );
+            return result;
+        }
+
+        Map<TransitionState, Integer> countByState() {
+            return countByState;
         }
 
         int totalCount() {

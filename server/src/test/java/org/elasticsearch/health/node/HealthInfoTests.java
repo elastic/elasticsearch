@@ -18,6 +18,7 @@ import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.TransportVersionUtils;
 
 import java.io.IOException;
+import java.util.EnumMap;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.function.Supplier;
@@ -91,6 +92,53 @@ public class HealthInfoTests extends AbstractWireSerializingTestCase<HealthInfo>
         assertThat(copy.fileSettingsHealthInfo(), equalTo(distinctFileSettingsInfo));
     }
 
+    /**
+     * Verifies that when a {@link DlmFrozenTransitionsHealthInfo} is round-tripped through a transport version that predates
+     * {@code dlm_frozen_transitions_health_state_counts}, the counts are derived from the sample rather than read off the wire.
+     */
+    public void testOlderTransportVersionDerivesDlmFrozenCountsFromSample() throws IOException {
+        // Build a health info with a known sample so we can predict the derived counts.
+        ProjectId projectId = randomProjectIdOrDefault();
+        Map<ProjectId, Map<String, DlmFrozenTransitionsHealthInfo.TransitionState>> sample = Map.of(
+            projectId,
+            Map.of(
+                "index-a",
+                DlmFrozenTransitionsHealthInfo.TransitionState.UNMARKED,
+                "index-b",
+                DlmFrozenTransitionsHealthInfo.TransitionState.MARKED
+            )
+        );
+        Map<DlmFrozenTransitionsHealthInfo.TransitionState, Integer> counts = new EnumMap<>(
+            DlmFrozenTransitionsHealthInfo.TransitionState.class
+        );
+        counts.put(DlmFrozenTransitionsHealthInfo.TransitionState.UNMARKED, 1);
+        counts.put(DlmFrozenTransitionsHealthInfo.TransitionState.MARKED, 1);
+        DlmFrozenTransitionsHealthInfo original = new DlmFrozenTransitionsHealthInfo(
+            true,
+            true,
+            true,
+            sample,
+            2,
+            System.currentTimeMillis(),
+            60_000L,
+            counts
+        );
+
+        TransportVersion oldVersion = TransportVersionUtils.getPreviousVersion(
+            TransportVersion.fromName("dlm_frozen_transitions_health_state_counts")
+        );
+        DlmFrozenTransitionsHealthInfo copy = copyInstance(
+            original,
+            writableRegistry(),
+            (out, v) -> v.writeTo(out),
+            DlmFrozenTransitionsHealthInfo::readFrom,
+            oldVersion
+        );
+
+        // Counts must equal what can be derived from the capped sample.
+        assertThat(copy.overdueIndicesCountByState(), equalTo(counts));
+    }
+
     public static DiskHealthInfo randomDiskHealthInfo() {
         return randomBoolean()
             ? new DiskHealthInfo(randomFrom(HealthStatus.values()))
@@ -118,7 +166,9 @@ public class HealthInfoTests extends AbstractWireSerializingTestCase<HealthInfo>
             // by the wire round-trip test.
             randomIntBetween(0, 200),
             randomNonNegativeLong(),
-            randomNonNegativeLong()
+            randomNonNegativeLong(),
+            // generated independently of the sample so a swapped read/write order is caught by the wire round-trip test.
+            randomCountByState()
         );
     }
 
@@ -130,6 +180,14 @@ public class HealthInfoTests extends AbstractWireSerializingTestCase<HealthInfo>
                 randomProjectIdOrDefault(),
                 randomMap(0, 5, () -> tuple(randomAlphaOfLength(10), randomFrom(DlmFrozenTransitionsHealthInfo.TransitionState.values())))
             )
+        );
+    }
+
+    public static Map<DlmFrozenTransitionsHealthInfo.TransitionState, Integer> randomCountByState() {
+        return randomMap(
+            0,
+            DlmFrozenTransitionsHealthInfo.TransitionState.values().length,
+            () -> tuple(randomFrom(DlmFrozenTransitionsHealthInfo.TransitionState.values()), randomIntBetween(0, 200))
         );
     }
 

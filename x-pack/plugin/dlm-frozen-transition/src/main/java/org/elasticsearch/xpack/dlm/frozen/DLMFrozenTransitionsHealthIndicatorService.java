@@ -27,22 +27,27 @@ import java.util.HashMap;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.TreeMap;
 import java.util.function.LongSupplier;
 
 /**
  * Reports health for the DLM frozen-tier transition feature.
  *
- * <p>The master publishes a snapshot of the indices it considers <em>overdue</em>: past their {@code frozen_after} age
- * by more than the configured stuck threshold, and not yet transitioned. Each overdue index carries the transition
- * state it is stuck in ({@code UNMARKED}, {@code MARKED} or {@code QUEUED}). An index whose transition is actually
- * running is making progress, so the publisher leaves it out of the snapshot entirely.
+ * <p>The master publishes a snapshot containing: a complete count of overdue indices per {@link TransitionState}
+ * (in {@code overdueIndicesCountByState}); and a capped informational sample of up to
+ * {@code DLMFrozenTransitionHealthInfoPublisher.MAX_INDICES_TO_PUBLISH} index names per state (in {@code overdueIndices}).
+ * An overdue index is one that has passed its {@code frozen_after} age by more than the configured stuck threshold and
+ * has not yet completed its frozen-tier transition. Indices whose transition is already running are making progress and
+ * are excluded from both the counts and the sample.
  *
- * <p>Every overdue index in the snapshot is therefore a problem, and the indicator reports YELLOW whenever the
- * snapshot is not empty, whether transitions are enabled or not. {@code UNMARKED} means the data-stream lifecycle
- * service is not marking eligible indices as expected; it marks them independently of the
- * {@code dlm.frozen_transitions.enabled} setting, so a persistent {@code UNMARKED} backlog is unexpected in either
- * mode. {@code MARKED} and {@code QUEUED} indices are waiting on the transition executor, which will not drain them
- * while the feature is switched off. Only the diagnosis text differs between the two modes.
+ * <p>The indicator raises a {@link HealthStatus#YELLOW} diagnosis for each transition state whose count is greater than
+ * zero. The sample supplies example index names for diagnosis resources; the diagnosis is raised even when the sample
+ * contains fewer names than the count (as can happen with an older master during a rolling upgrade).
+ *
+ * <p>{@code UNMARKED} means the data-stream lifecycle service is not marking eligible indices as expected; it marks
+ * them independently of the {@code dlm.frozen_transitions.enabled} setting, so a persistent {@code UNMARKED} backlog
+ * is unexpected in either mode. {@code MARKED} and {@code QUEUED} indices are waiting on the transition executor,
+ * which will not drain them while the feature is switched off. Only the diagnosis text differs between the two modes.
  *
  * <p>The indicator also reports YELLOW when the frozen transition service is not running on the current master, but
  * only while transitions are enabled.
@@ -111,8 +116,7 @@ public class DLMFrozenTransitionsHealthIndicatorService implements HealthIndicat
     public static final Diagnosis.Definition MARKED_TRANSITIONS_NOT_STARTED_DIAGNOSIS_DEF = new Diagnosis.Definition(
         NAME,
         "marked_transitions_not_started",
-        "Some indices have been marked for conversion to the frozen tier but have not been submitted to the transition "
-            + "executor. ",
+        "Some indices have been marked for conversion to the frozen tier but have not been submitted to the transition executor. ",
         "Check the current master node's logs for errors related to the DLM frozen transition service. Check the current "
             + "status of the affected indices using the [GET /<affected_index_name>/_lifecycle/explain] API. Please replace "
             + "the <affected_index_name> in the API with the actual index name.",
@@ -122,8 +126,7 @@ public class DLMFrozenTransitionsHealthIndicatorService implements HealthIndicat
     public static final Diagnosis.Definition MARKED_TRANSITIONS_QUEUED_DIAGNOSIS_DEF = new Diagnosis.Definition(
         NAME,
         "marked_transitions_queued",
-        "Some indices have been submitted to the DLM frozen transition executor but have been waiting in its queue "
-            + "without starting.",
+        "Some indices have been submitted to the DLM frozen transition executor but have been waiting in its queue without starting.",
         "Inspect the [dlm_frozen_transition] thread pool for a saturated queue or rejected tasks using the "
             + "[GET /_cat/thread_pool/dlm_frozen_transition?v] API. Transitions queue when all transition threads are "
             + "busy; a persistently full queue means transitions are completing more slowly than indices are becoming "
@@ -187,16 +190,21 @@ public class DLMFrozenTransitionsHealthIndicatorService implements HealthIndicat
             );
         }
 
-        Map<TransitionState, List<String>> overdueByState = groupOverdueIndexNamesByState(info, supportsMultipleProjects);
+        // Sample names are used for diagnosis resources; diagnoses themselves are driven by the per-state counts so
+        // that a minority state is never crowded out of the sample by a majority state.
+        Map<TransitionState, List<String>> sampleNamesByState = groupOverdueIndexNamesByState(info, supportsMultipleProjects);
 
-        // Merge the per-state groups into per-definition groups. MARKED and QUEUED while disabled both resolve to
+        // Merge the per-state counts into per-definition groups. Walk TransitionState in ordinal order so the resulting
+        // LinkedHashMap has a deterministic iteration order. MARKED and QUEUED while disabled both resolve to
         // TRANSITIONS_DISABLED_DIAGNOSIS_DEF and are merged.
-        // Walk the EnumMap in ordinal order so the resulting LinkedHashMap has a deterministic iteration order.
         Map<Diagnosis.Definition, List<String>> byDefinition = new LinkedHashMap<>();
-        for (Map.Entry<TransitionState, List<String>> entry : overdueByState.entrySet()) {
-            Diagnosis.Definition def = diagnosisFor(entry.getKey(), transitionsEnabled, info.defaultRepositoryConfigured());
-            if (def != null) {
-                byDefinition.computeIfAbsent(def, ignored -> new ArrayList<>()).addAll(entry.getValue());
+        for (TransitionState state : TransitionState.values()) {
+            if (info.overdueIndicesCountByState().getOrDefault(state, 0) > 0) {
+                Diagnosis.Definition def = diagnosisFor(state, transitionsEnabled, info.defaultRepositoryConfigured());
+                if (def != null) {
+                    byDefinition.computeIfAbsent(def, ignored -> new ArrayList<>())
+                        .addAll(sampleNamesByState.getOrDefault(state, List.of()));
+                }
             }
         }
 
@@ -208,16 +216,14 @@ public class DLMFrozenTransitionsHealthIndicatorService implements HealthIndicat
         }
 
         List<Diagnosis> diagnoses = new ArrayList<>();
-        byDefinition.forEach(
-            (def, indexNames) -> diagnoses.add(
-                new Diagnosis(
-                    def,
-                    List.of(
-                        new Diagnosis.Resource(Diagnosis.Resource.Type.INDEX, indexNames.stream().limit(maxAffectedResourcesCount).toList())
-                    )
-                )
-            )
-        );
+        byDefinition.forEach((def, indexNames) -> {
+            List<Diagnosis.Resource> resources = indexNames.isEmpty()
+                ? null
+                : List.of(
+                    new Diagnosis.Resource(Diagnosis.Resource.Type.INDEX, indexNames.stream().limit(maxAffectedResourcesCount).toList())
+                );
+            diagnoses.add(new Diagnosis(def, resources));
+        });
 
         String symptom;
         if (diagnoses.size() > 1) {
@@ -255,7 +261,8 @@ public class DLMFrozenTransitionsHealthIndicatorService implements HealthIndicat
 
     /**
      * Groups the published sample of overdue indices by the state they are stuck in, resolving each to its display
-     * name. Names are sorted so that diagnosis resources and details are stable across calls.
+     * name. Names are sorted so that diagnosis resources and details are stable across calls. The sample supplies
+     * example names only; diagnoses are driven by {@link DlmFrozenTransitionsHealthInfo#overdueIndicesCountByState()}.
      */
     private static Map<TransitionState, List<String>> groupOverdueIndexNamesByState(
         DlmFrozenTransitionsHealthInfo info,
@@ -284,8 +291,14 @@ public class DLMFrozenTransitionsHealthIndicatorService implements HealthIndicat
         details.put("service_running", info.serviceRunning());
         details.put("default_repository_configured", info.defaultRepositoryConfigured());
         details.put("overdue_indices_count", info.totalOverdueIndicesCount());
+        if (info.overdueIndicesCountByState().isEmpty() == false) {
+            // Use a sorted map so the JSON output has a stable key order.
+            Map<String, Integer> countByStateForJson = new TreeMap<>();
+            info.overdueIndicesCountByState().forEach((state, count) -> countByStateForJson.put(state.toString(), count));
+            details.put("overdue_indices_count_by_state", countByStateForJson);
+        }
         if (info.overdueIndices().isEmpty() == false) {
-            details.put("overdue_indices", overdueIndexDetails(info, supportsMultipleProjects));
+            details.put("overdue_indices_sample", overdueIndexDetails(info, supportsMultipleProjects));
         }
         return new SimpleHealthIndicatorDetails(details);
     }

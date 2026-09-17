@@ -271,6 +271,7 @@ public class DLMFrozenTransitionHealthInfoPublisherTests extends ESTestCase {
             DlmFrozenTransitionsHealthInfo info = publisher.buildHealthInfo(clusterService.state());
             assertThat(info.totalOverdueIndicesCount(), is(0));
             assertThat(info.overdueIndices(), equalTo(Map.of()));
+            assertThat(info.overdueIndicesCountByState(), equalTo(Map.of()));
         } finally {
             task.blockUntil.countDown();
         }
@@ -302,11 +303,18 @@ public class DLMFrozenTransitionHealthInfoPublisherTests extends ESTestCase {
 
             DlmFrozenTransitionsHealthInfo info = publisher.buildHealthInfo(clusterService.state());
             assertThat(info.overdueIndices().get(projectId), equalTo(Map.of(markedIndex.getName(), TransitionState.QUEUED)));
+            assertThat(info.overdueIndicesCountByState(), equalTo(Map.of(TransitionState.QUEUED, 1)));
         } finally {
             fillerRelease.countDown();
         }
     }
 
+    /**
+     * Verifies that the per-state sample cap is enforced independently for each state. Adding more than
+     * {@link DLMFrozenTransitionHealthInfoPublisher#MAX_INDICES_TO_PUBLISH} unmarked indices plus one marked index
+     * must: cap the unmarked sample at {@code MAX_INDICES_TO_PUBLISH}; still include the marked index in the sample;
+     * and report accurate counts for both states.
+     */
     public void testMaxIndicesToPublishCapIsEnforced() {
         ProjectId projectId = randomProjectIdOrDefault();
         ProjectMetadata.Builder projectBuilder = ProjectMetadata.builder(projectId);
@@ -314,12 +322,29 @@ public class DLMFrozenTransitionHealthInfoPublisherTests extends ESTestCase {
         for (int i = 0; i < overLimit; i++) {
             addDataStreamWithFrozenLifecycle(projectBuilder, "cap-ds-" + i, oldIndexTime(), false, TimeValue.timeValueDays(30));
         }
+        // Add one marked index so we can confirm that a minority state is not crowded out.
+        Index markedIndex = addDataStreamWithFrozenLifecycle(
+            projectBuilder,
+            "marked-cap-ds",
+            oldIndexTime(),
+            true,
+            TimeValue.timeValueDays(30)
+        );
         setProjectState(projectBuilder);
 
         DlmFrozenTransitionsHealthInfo info = publisher.buildHealthInfo(clusterService.state());
-        assertThat(info.totalOverdueIndicesCount(), is(overLimit));
-        int sampledCount = info.overdueIndices().values().stream().mapToInt(Map::size).sum();
-        assertThat(sampledCount, is(DLMFrozenTransitionHealthInfoPublisher.MAX_INDICES_TO_PUBLISH));
+        assertThat(info.totalOverdueIndicesCount(), is(overLimit + 1));
+        assertThat(info.overdueIndicesCountByState(), equalTo(Map.of(TransitionState.UNMARKED, overLimit, TransitionState.MARKED, 1)));
+
+        int unmarkedSampledCount = (int) info.overdueIndices()
+            .values()
+            .stream()
+            .flatMap(m -> m.values().stream())
+            .filter(s -> s == TransitionState.UNMARKED)
+            .count();
+        assertThat(unmarkedSampledCount, is(DLMFrozenTransitionHealthInfoPublisher.MAX_INDICES_TO_PUBLISH));
+
+        assertThat(info.overdueIndices().get(projectId).get(markedIndex.getName()), is(TransitionState.MARKED));
     }
 
     public void testCompletedTransitionsAreSkipped() {

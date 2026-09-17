@@ -23,6 +23,7 @@ import org.elasticsearch.health.node.ProjectIndexName;
 import org.elasticsearch.test.ESTestCase;
 import org.junit.Before;
 
+import java.util.EnumMap;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -40,6 +41,7 @@ import static org.elasticsearch.xpack.dlm.frozen.DLMFrozenTransitionsHealthIndic
 import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.is;
+import static org.hamcrest.Matchers.nullValue;
 
 public class DLMFrozenTransitionsHealthIndicatorServiceTests extends ESTestCase {
 
@@ -191,7 +193,11 @@ public class DLMFrozenTransitionsHealthIndicatorServiceTests extends ESTestCase 
         HealthIndicatorResult result = service.calculate(
             true,
             100,
-            constructHealthInfo(healthy().overdue(randomProjectIdOrDefault(), "running-index", TransitionState.RUNNING).build())
+            constructHealthInfo(
+                healthy().count(TransitionState.RUNNING, 1)
+                    .overdue(randomProjectIdOrDefault(), "running-index", TransitionState.RUNNING)
+                    .build()
+            )
         );
         assertThat(result.status(), is(HealthStatus.GREEN));
         assertThat(result.impacts(), is(List.of()));
@@ -216,6 +222,8 @@ public class DLMFrozenTransitionsHealthIndicatorServiceTests extends ESTestCase 
             )
         );
         assertThat(Strings.toString(result.details()), containsString("\"overdue_indices_count\":1"));
+        assertThat(Strings.toString(result.details()), containsString("\"overdue_indices_count_by_state\""));
+        assertThat(Strings.toString(result.details()), containsString("\"overdue_indices_sample\""));
     }
 
     public void testYellowWithEligibleUnmarkedIndicesAndNoDefaultRepository() {
@@ -386,6 +394,38 @@ public class DLMFrozenTransitionsHealthIndicatorServiceTests extends ESTestCase 
         assertThat(Strings.toString(result.details()), containsString(expectedName2));
     }
 
+    /**
+     * Diagnosis is raised when the count for a state is greater than zero, even if the sample contains no entry for
+     * that state. This can happen when reading a snapshot from an older master during a rolling upgrade.
+     */
+    public void testDiagnosisRaisedFromCountWithoutSampleEntry() {
+        HealthIndicatorResult result = service.calculate(
+            true,
+            100,
+            constructHealthInfo(healthy().count(TransitionState.QUEUED, 5).build())
+        );
+        assertThat(result.status(), is(HealthStatus.YELLOW));
+        assertThat(result.diagnosisList().size(), is(1));
+        Diagnosis diagnosis = result.diagnosisList().get(0);
+        assertThat(diagnosis.definition(), is(MARKED_TRANSITIONS_QUEUED_DIAGNOSIS_DEF));
+        assertThat(diagnosis.affectedResources(), nullValue());
+    }
+
+    /**
+     * A sample entry does not raise a diagnosis when the count for that state is zero. Diagnoses are driven by counts,
+     * not by the presence of entries in the sample.
+     */
+    public void testSampleEntryWithoutCountRaisesNoDiagnosis() {
+        ProjectId projectId = randomProjectIdOrDefault();
+        // count has only UNMARKED, but sample also has a MARKED entry; MARKED must not raise a diagnosis.
+        InfoBuilder builder = healthy().count(TransitionState.UNMARKED, 1);
+        builder.sampleOnly(projectId, "should-not-diagnose", TransitionState.MARKED);
+        HealthIndicatorResult result = service.calculate(true, 100, constructHealthInfo(builder.build()));
+        assertThat(result.status(), is(HealthStatus.YELLOW));
+        assertThat(result.diagnosisList().size(), is(1));
+        assertThat(result.diagnosisList().get(0).definition(), is(ELIGIBLE_INDICES_UNMARKED_DIAGNOSIS_DEF));
+    }
+
     // --- helpers ---
 
     /**
@@ -397,6 +437,7 @@ public class DLMFrozenTransitionsHealthIndicatorServiceTests extends ESTestCase 
         private boolean serviceRunning = true;
         private boolean defaultRepositoryConfigured = true;
         private final Map<ProjectId, Map<String, TransitionState>> overdueIndices = new HashMap<>();
+        private final Map<TransitionState, Integer> countByState = new EnumMap<>(TransitionState.class);
         private int totalOverdueIndicesCount = 0;
         private long generatedAtMillis = now.get();
         private long publishIntervalMillis = PUBLISH_INTERVAL_MILLIS;
@@ -416,9 +457,23 @@ public class DLMFrozenTransitionsHealthIndicatorServiceTests extends ESTestCase 
             return this;
         }
 
+        /** Adds an index to both the sample and the per-state count. */
         InfoBuilder overdue(ProjectId projectId, String indexName, TransitionState state) {
             overdueIndices.computeIfAbsent(projectId, ignored -> new HashMap<>()).put(indexName, state);
+            countByState.merge(state, 1, Integer::sum);
             totalOverdueIndicesCount++;
+            return this;
+        }
+
+        /** Adds an index to the sample only, without incrementing the count. Used to verify that diagnoses are count-driven. */
+        InfoBuilder sampleOnly(ProjectId projectId, String indexName, TransitionState state) {
+            overdueIndices.computeIfAbsent(projectId, ignored -> new HashMap<>()).put(indexName, state);
+            return this;
+        }
+
+        /** Sets the count for a state without adding a sample entry. Used to verify that diagnoses are count-driven. */
+        InfoBuilder count(TransitionState state, int count) {
+            countByState.put(state, count);
             return this;
         }
 
@@ -435,7 +490,8 @@ public class DLMFrozenTransitionsHealthIndicatorServiceTests extends ESTestCase 
                 overdueIndices,
                 totalOverdueIndicesCount,
                 generatedAtMillis,
-                publishIntervalMillis
+                publishIntervalMillis,
+                countByState
             );
         }
     }

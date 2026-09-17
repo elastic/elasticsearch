@@ -1917,7 +1917,7 @@ public class SharedBlobCacheWarmingService {
 
             WarmBlobRegionTask(Type type, BlobFile blobFile, int region, ActionListener<Void> listener) {
                 super(type, warmingTaskNumber.getAndIncrement());
-                assert region >= 0: region;
+                assert region >= 0 : region;
                 this.blobFile = Objects.requireNonNull(blobFile);
                 this.region = region;
                 this.listener = listener;
@@ -1932,7 +1932,6 @@ public class SharedBlobCacheWarmingService {
                 assert warmingRun.type == Type.INDEXING_MERGE || warmingRun.type == Type.INDEXING_BCC_HEADER_PREWARM : warmingRun.type;
 
                 var releasedListener = ActionListener.releaseAfter(listener, releasable);
-
                 if (isCancelled()) {
                     releasedListener.onResponse(null);
                     return;

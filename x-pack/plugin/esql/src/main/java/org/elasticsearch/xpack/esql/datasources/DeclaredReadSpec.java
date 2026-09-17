@@ -143,8 +143,9 @@ public record DeclaredReadSpec(
     public void writeTo(StreamOutput out) throws IOException {
         out.writeMap(renames, StreamOutput::writeString, StreamOutput::writeString);
         // An optional string this version has no field for. A dataset answers METADATA _id as SQL NULL, so no
-        // declared column feeds it; dataset_declared_schema is on 9.5, so the slot stays for a mixed-version peer.
-        // TODO: remove the slot once 9.5 is out of the wire-compatibility window and no supported peer writes it.
+        // declared column feeds it, and the slot goes out empty. Both sides write it unconditionally from 9.5
+        // onward, so dropping it needs a new transport version gating read and write; 9.5 leaving the
+        // wire-compatibility window is not the trigger.
         out.writeOptionalString(null);
         out.writeMap(dateFormats, StreamOutput::writeString, StreamOutput::writeString);
         out.writeCollection(declaredTypeColumns, StreamOutput::writeString);

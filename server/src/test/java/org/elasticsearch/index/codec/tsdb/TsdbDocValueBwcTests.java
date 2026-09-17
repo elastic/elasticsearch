@@ -50,6 +50,7 @@ import org.hamcrest.Matchers;
 import java.io.IOException;
 import java.lang.reflect.Field;
 import java.util.Arrays;
+import java.util.HashMap;
 import java.util.Locale;
 import java.util.Map;
 import java.util.function.IntSupplier;
@@ -159,7 +160,16 @@ public class TsdbDocValueBwcTests extends ESTestCase {
         long baseTimestamp = 1704067200000L;
         int numRounds = 4 + random().nextInt(8);
         int numDocsPerRound = 64 + random().nextInt(128);
-        int numDocs = numRounds * numDocsPerRound;
+        // One extra doc per round for the oversized binary value; total includes both.
+        int numDocs = numRounds * (numDocsPerRound + 1);
+
+        // Threshold for the target format's block size; matches ES819 v3 and ES95 defaults. The old
+        // codec may have a smaller threshold (128 KB for ES819 v2), but the gate-rejection test only
+        // requires that the source block was created as a single-doc block and that addRawBlock falls
+        // back cleanly — we do not require the fast path to have fired.
+        final int oversizedBinaryTagLen = 512 * 1024 + 1024;
+        // Track which timestamps received an oversized binary_tag so assertions can verify exact bytes.
+        final Map<Long, String> oversizedByTimestamp = new HashMap<>();
 
         try (var dir = newDirectory()) {
             long counter1 = 0;
@@ -200,6 +210,20 @@ public class TsdbDocValueBwcTests extends ESTestCase {
                         }
                         iw.addDocument(d);
                     }
+                    // One extra oversized binary_tag doc per round. This causes maxLength >=
+                    // blockBytesThreshold to be satisfied, so the merge loop probes for a raw block
+                    // and calls addRawBlock. Because the source and target codecs differ in these BWC
+                    // tests (GROUPED_VINT→BITPACKING, NO_COMPRESS→compressed, or mismatched
+                    // enablePerBlockCompression), addRawBlock returns false and the merge must fall
+                    // back to the normal binaryValue()+addDoc() path without corrupting the result.
+                    String oversizedValue = randomAlphaOfLength(oversizedBinaryTagLen);
+                    long oversizedTs = timestamp++;
+                    oversizedByTimestamp.put(oversizedTs, oversizedValue);
+                    var od = new Document();
+                    od.add(new SortedDocValuesField(hostnameField, new BytesRef(String.format(Locale.ROOT, "host-%03d", numRounds - i))));
+                    od.add(new SortedNumericDocValuesField(timestampField, oversizedTs));
+                    od.add(new BinaryDocValuesField("binary_tag", new BytesRef(oversizedValue)));
+                    iw.addDocument(od);
                     iw.commit();
                 }
             }
@@ -258,8 +282,17 @@ public class TsdbDocValueBwcTests extends ESTestCase {
                         }
                     }
                     if (binaryDV.advanceExact(i)) {
-                        String actualBinary = binaryDV.binaryValue().utf8ToString();
-                        assertTrue("unexpected binary [" + actualBinary + "]", Arrays.binarySearch(tags, actualBinary) >= 0);
+                        BytesRef actualBinaryRef = binaryDV.binaryValue();
+                        if (oversizedByTimestamp.containsKey(timestamp)) {
+                            assertEquals(
+                                "oversized binary_tag value must round-trip before mixed-format merge",
+                                new BytesRef(oversizedByTimestamp.get(timestamp)),
+                                actualBinaryRef
+                            );
+                        } else {
+                            String actualBinary = actualBinaryRef.utf8ToString();
+                            assertTrue("unexpected binary [" + actualBinary + "]", Arrays.binarySearch(tags, actualBinary) >= 0);
+                        }
                     }
                 }
             }
@@ -326,8 +359,17 @@ public class TsdbDocValueBwcTests extends ESTestCase {
                             }
                         }
                         if (binaryDV.advanceExact(i)) {
-                            String actualBinary = binaryDV.binaryValue().utf8ToString();
-                            assertTrue("unexpected binary [" + actualBinary + "]", Arrays.binarySearch(tags, actualBinary) >= 0);
+                            BytesRef actualBinaryRef = binaryDV.binaryValue();
+                            if (oversizedByTimestamp.containsKey(timestamp)) {
+                                assertEquals(
+                                    "oversized binary_tag value must round-trip after mixed-format merge",
+                                    new BytesRef(oversizedByTimestamp.get(timestamp)),
+                                    actualBinaryRef
+                                );
+                            } else {
+                                String actualBinary = actualBinaryRef.utf8ToString();
+                                assertTrue("unexpected binary [" + actualBinary + "]", Arrays.binarySearch(tags, actualBinary) >= 0);
+                            }
                         }
                     }
                 }

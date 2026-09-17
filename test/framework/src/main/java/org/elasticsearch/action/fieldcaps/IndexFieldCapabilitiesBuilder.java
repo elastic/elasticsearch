@@ -27,6 +27,7 @@ public class IndexFieldCapabilitiesBuilder {
     private boolean isDimension;
     private @Nullable TimeSeriesParams.MetricType metricType;
     private Map<String, String> meta;
+    private @Nullable String indexAnalyzer;
 
     public IndexFieldCapabilitiesBuilder(String name, String type) {
         this.name = name;
@@ -73,6 +74,11 @@ public class IndexFieldCapabilitiesBuilder {
         return this;
     }
 
+    public IndexFieldCapabilitiesBuilder indexAnalyzer(@Nullable String indexAnalyzer) {
+        this.indexAnalyzer = indexAnalyzer;
+        return this;
+    }
+
     public IndexFieldCapabilities build() {
         return new IndexFieldCapabilities(
             name,
@@ -83,7 +89,8 @@ public class IndexFieldCapabilitiesBuilder {
             isInference,
             isDimension,
             metricType,
-            meta
+            meta,
+            indexAnalyzer
         );
     }
 }

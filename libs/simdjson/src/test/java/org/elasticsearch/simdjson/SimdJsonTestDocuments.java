@@ -88,7 +88,18 @@ public final class SimdJsonTestDocuments {
                 {"n":1e2}""", """
                 {"n":12.5}""", """
                 {"a":[0,9,10,99,100,1234567890,-5,-99]}""", """
-                {"a":[1.5,12.5]}"""
+                {"a":[1.5,12.5]}""",
+                // Integer digit-count boundary at 19 (long vs. BigInteger fallback): exactly 19
+                // digits fitting a signed long (both sign boundaries), 19 digits overflowing it
+                // (both sign boundaries), and 20+ digits (always BigInteger), and the same
+                // values as array elements.
+                """
+                {"n":9223372036854775807}""", """
+                {"n":-9223372036854775808}""", """
+                {"n":9223372036854775808}""", """
+                {"n":-9223372036854775809}""", """
+                {"n":99999999999999999999}""", """
+                {"a":[9223372036854775807,-9223372036854775808,9223372036854775808,-9223372036854775809,99999999999999999999]}""",
                 // DoubleParser code paths (see that class's own comments): fast path,
                 // Eisel-Lemire (main, round-to-even, underflow, overflow, subnormal), and the
                 // slow path (>19 significant digits).

@@ -1036,8 +1036,7 @@ public class SearchShardRecoveryWarmingTests extends ESTestCase {
             var warmingListener = service.searchRecoveryWarmingListener(
                 new SharedBlobCacheWarmingService.SearchRecoveryTimeout(
                     TimeValue.timeValueMillis(randomLongBetween(1, 100_000)),
-                    randomAlphaOfLength(10),
-                    false
+                    randomAlphaOfLength(10)
                 ),
                 () -> null,
                 randomMockIndexShard(),
@@ -1071,8 +1070,7 @@ public class SearchShardRecoveryWarmingTests extends ESTestCase {
             var warmingListener = service.searchRecoveryWarmingListener(
                 new SharedBlobCacheWarmingService.SearchRecoveryTimeout(
                     TimeValue.timeValueMillis(randomLongBetween(1, 100_000)),
-                    randomAlphaOfLength(10),
-                    false
+                    randomAlphaOfLength(10)
                 ),
                 () -> null,
                 randomMockIndexShard(),
@@ -1103,8 +1101,7 @@ public class SearchShardRecoveryWarmingTests extends ESTestCase {
                 resumeListener -> service.searchRecoveryWarmingListener(
                     new SharedBlobCacheWarmingService.SearchRecoveryTimeout(
                         TimeValue.timeValueMillis(randomLongBetween(1, 100_000)),
-                        randomAlphaOfLength(10),
-                        false
+                        randomAlphaOfLength(10)
                     ),
                     () -> null,
                     randomMockIndexShard(),
@@ -1217,7 +1214,7 @@ public class SearchShardRecoveryWarmingTests extends ESTestCase {
             final var service = newWarmingService(threadPool);
             final var resume = new PlainActionFuture<Void>();
             final var warmingListener = service.searchRecoveryWarmingListener(
-                new SharedBlobCacheWarmingService.SearchRecoveryTimeout(timeout, timeoutContext, false),
+                new SharedBlobCacheWarmingService.SearchRecoveryTimeout(timeout, timeoutContext),
                 () -> null,
                 mockIndexShard(TestShardRouting.newShardRouting(shardId, randomIdentifier(), true, STARTED)),
                 // the baseline is read when the listener is built, so only the 64mb warmed afterwards must be reported

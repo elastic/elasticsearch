@@ -107,8 +107,9 @@
             text:     de bruine vossen
             analyzer: my_snowball
     - length: { tokens: 2 }
-    - match:  { tokens.0.token: bruin }
-    - match:  { tokens.1.token: voss }
+    # Lucene 11 Dutch snowball is Kraaij-Pohlmann (was Porter-style)
+    - match:  { tokens.0.token: bruine }
+    - match:  { tokens.1.token: vos }
 
 ---
 "arabic":
@@ -426,7 +427,8 @@
             text:     lidstaten
             analyzer: dutch
     - length: { tokens: 1 }
-    - match:  { tokens.0.token: lidstat }
+    # Lucene 11 DutchAnalyzer uses Kraaij-Pohlmann (was Porter-style lidstat)
+    - match:  { tokens.0.token: lidstaat }
 
     - do:
         indices.analyze:
@@ -435,7 +437,7 @@
             text:     lidstaten
             analyzer: my_analyzer
     - length: { tokens: 1 }
-    - match:  { tokens.0.token: lidstat }
+    - match:  { tokens.0.token: lidstaat }
 
 ---
 "english":

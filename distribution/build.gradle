@@ -394,6 +394,7 @@ configure(subprojects.findAll { ['archives', 'packages'].contains(it.name) }) {
           serverLauncherSources = serverLauncherSources.plus(files(configurations.libsServerLauncherNativeAarch64))
         }
       }
+      String platformIncludePattern = os == null ? null : os + '-' + architecture + '/*'
       return [
         [relativeDir: '', source: configurations.libs],
         [relativeDir: 'java-version-checker', source: configurations.libsVersionChecker],
@@ -406,7 +407,7 @@ configure(subprojects.findAll { ['archives', 'packages'].contains(it.name) }) {
         [relativeDir: 'tools/keystore-cli', source: configurations.libsKeystoreCli],
         [relativeDir: 'tools/security-cli', source: configurations.libsSecurityCli],
         [relativeDir: 'tools/ansi-console', source: configurations.libsAnsiConsole],
-        [relativeDir: 'platform', source: configurations.libsNative, includePattern: os + '-' + architecture + '/*'],
+        [relativeDir: 'platform', source: configurations.libsNative, includePattern: platformIncludePattern],
         [relativeDir: 'entitlement-agent', source: configurations.libsEntitlementAgent],
         [relativeDir: 'entitlement-bridge', source: configurations.libsEntitlementBridge],
       ]

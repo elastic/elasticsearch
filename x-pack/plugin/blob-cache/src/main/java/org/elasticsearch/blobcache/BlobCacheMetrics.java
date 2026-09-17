@@ -35,6 +35,7 @@ public class BlobCacheMetrics {
     public static final String NON_LUCENE_EXTENSION_TO_RECORD = "other";
     public static final String NON_ES_EXECUTOR_TO_RECORD = "other";
     public static final String BLOB_CACHE_COUNT_OF_EVICTED_USED_REGIONS_TOTAL = "es.blob_cache.count_of_evicted_used_regions.total";
+    public static final String BLOB_CACHE_COUNT_OF_EVICTED_REGIONS_TOTAL = "es.blob_cache.count_of_evicted_regions.total";
     public static final String BLOB_CACHE_EVICTED_REGIONS_MAX_FREQ = "es.blob_cache.evicted_regions_max_freq.histogram";
     /**
      * Upper-inclusive bucket boundaries for the peak LFU frequency of evicted regions.
@@ -71,6 +72,7 @@ public class BlobCacheMetrics {
 
     private final LongCounter cacheMissCounter;
     private final LongCounter evictedCountNonZeroFrequency;
+    private final LongCounter totalEvictedCount;
     private final LongHistogram evictedRegionsMaxFreq;
     private final LongHistogram cacheMissLoadTimes;
     private final DoubleHistogram cachePopulationThroughput;
@@ -167,10 +169,15 @@ public class BlobCacheMetrics {
                     + "excludes forced evictions",
                 "entries"
             ),
+            meterRegistry.registerLongCounter(
+                BLOB_CACHE_COUNT_OF_EVICTED_REGIONS_TOTAL,
+                "The number of times a cache entry was evicted, irrespective of the frequency",
+                "entries"
+            ),
             meterRegistry.registerLongHistogram(
                 BLOB_CACHE_EVICTED_REGIONS_MAX_FREQ,
-                "The highest LFU frequency an evicted cache region reached during its lifetime, "
-                    + "including force-evictions; summing histogram counts recovers the total number of evicted regions",
+                "The highest LFU frequency an evicted cache region reached during its lifetime under LFU pressure, "
+                    + "excluding force-evictions",
                 "frequency",
                 EVICTED_REGION_MAX_FREQ_BUCKETS
             ),
@@ -266,6 +273,7 @@ public class BlobCacheMetrics {
     BlobCacheMetrics(
         LongCounter cacheMissCounter,
         LongCounter evictedCountNonZeroFrequency,
+        LongCounter totalEvictedCount,
         LongHistogram evictedRegionsMaxFreq,
         LongHistogram cacheMissLoadTimes,
         DoubleHistogram cachePopulationThroughput,
@@ -281,6 +289,7 @@ public class BlobCacheMetrics {
     ) {
         this.cacheMissCounter = cacheMissCounter;
         this.evictedCountNonZeroFrequency = evictedCountNonZeroFrequency;
+        this.totalEvictedCount = totalEvictedCount;
         this.evictedRegionsMaxFreq = evictedRegionsMaxFreq;
         this.cacheMissLoadTimes = cacheMissLoadTimes;
         this.cachePopulationThroughput = cachePopulationThroughput;
@@ -305,10 +314,14 @@ public class BlobCacheMetrics {
         return evictedCountNonZeroFrequency;
     }
 
+    public LongCounter getTotalEvictedCount() {
+        return totalEvictedCount;
+    }
+
     /**
-     * Record the highest LFU frequency an evicted region reached during its lifetime.
-     * Includes both LFU-pressure and force evictions. New regions start at frequency 1;
-     * decay and demote do not lower this peak.
+     * Record the highest LFU frequency an evicted region reached during its lifetime under LFU
+     * pressure. Excludes force evictions. New regions start at
+     * frequency 1; decay and demote do not lower this peak.
      */
     public void recordEvictedRegionMaxFreq(int maxFreq) {
         assert maxFreq >= 1 : maxFreq;

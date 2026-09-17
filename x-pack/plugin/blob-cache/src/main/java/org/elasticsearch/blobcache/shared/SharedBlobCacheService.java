@@ -1228,6 +1228,7 @@ public class SharedBlobCacheService<KeyType extends SharedBlobCacheService.KeyBa
             if (refCount() <= 1 && evict()) {
                 logger.trace("evicted {} with channel offset {}", regionKey, physicalStartOffset());
                 blobCacheService.evictCount.increment();
+                recordLfuPressureEviction();
                 decRef();
                 return true;
             }
@@ -1239,6 +1240,7 @@ public class SharedBlobCacheService<KeyType extends SharedBlobCacheService.KeyBa
             if (refCount() <= 1 && evict()) {
                 logger.trace("evicted and take {} with channel offset {}", regionKey, physicalStartOffset());
                 blobCacheService.evictCount.increment();
+                recordLfuPressureEviction();
                 return true;
             }
 
@@ -1250,10 +1252,16 @@ public class SharedBlobCacheService<KeyType extends SharedBlobCacheService.KeyBa
             if (evict()) {
                 logger.trace("force evicted {} with channel offset {}", regionKey, physicalStartOffset());
                 blobCacheService.evictCount.increment();
+                blobCacheService.blobCacheMetrics.getTotalEvictedCount().increment();
                 decRef();
                 return true;
             }
             return false;
+        }
+
+        private void recordLfuPressureEviction() {
+            blobCacheService.blobCacheMetrics.getTotalEvictedCount().increment();
+            blobCacheService.blobCacheMetrics.recordEvictedRegionMaxFreq(blobCacheService.maxReachedFreq(this));
         }
 
         // visible for tests
@@ -2285,10 +2293,6 @@ public class SharedBlobCacheService<KeyType extends SharedBlobCacheService.KeyBa
                     maxReachedFreq = freq;
                 }
             }
-
-            void recordEvictionMaxFreq() {
-                blobCacheMetrics.recordEvictedRegionMaxFreq(maxReachedFreq);
-            }
         }
 
         private final KeyMapping<ShardId, RegionKey<KeyType>, LFUCacheEntry> keyMapping = new KeyMapping<>();
@@ -2485,14 +2489,11 @@ public class SharedBlobCacheService<KeyType extends SharedBlobCacheService.KeyBa
                     afterLockNanoTime = relativeNanosProvider.getAsLong();
                     for (LFUCacheEntry entry : matchingEntries) {
                         boolean evicted = entry.chunk.forceEvict();
-                        if (evicted) {
-                            entry.recordEvictionMaxFreq();
-                            if (entry.chunk.volatileIO() != null) {
-                                assert shardId == null || shardId.equals(entry.chunk.regionKey.file.shardId())
-                                    : shardId + " != " + entry.chunk.regionKey.file.shardId();
-                                unlinkAndRemoveForEviction(entry);
-                                evictedCount++;
-                            }
+                        if (evicted && entry.chunk.volatileIO() != null) {
+                            assert shardId == null || shardId.equals(entry.chunk.regionKey.file.shardId())
+                                : shardId + " != " + entry.chunk.regionKey.file.shardId();
+                            unlinkAndRemoveForEviction(entry);
+                            evictedCount++;
                         }
                     }
                 }
@@ -2852,7 +2853,6 @@ public class SharedBlobCacheService<KeyType extends SharedBlobCacheService.KeyBa
 
                 boolean evicted = entry.chunk.tryEvictNoDecRef();
                 if (evicted) {
-                    entry.recordEvictionMaxFreq();
                     try {
                         SharedBytes.IO ioRef = entry.chunk.volatileIO();
                         if (ioRef != null) {
@@ -2946,13 +2946,10 @@ public class SharedBlobCacheService<KeyType extends SharedBlobCacheService.KeyBa
                     }
 
                     boolean evicted = entry.chunk.tryEvict();
-                    if (evicted) {
-                        entry.recordEvictionMaxFreq();
-                        if (entry.chunk.volatileIO() != null) {
-                            unlinkAndRemoveForEviction(entry);
-                            found = true;
-                            break;
-                        }
+                    if (evicted && entry.chunk.volatileIO() != null) {
+                        unlinkAndRemoveForEviction(entry);
+                        found = true;
+                        break;
                     }
                 }
             }

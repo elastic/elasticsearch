@@ -78,6 +78,7 @@ import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 import java.util.stream.Stream;
 
+import static org.elasticsearch.blobcache.BlobCacheMetrics.BLOB_CACHE_COUNT_OF_EVICTED_REGIONS_TOTAL;
 import static org.elasticsearch.blobcache.BlobCacheMetrics.BLOB_CACHE_COUNT_OF_EVICTED_USED_REGIONS_TOTAL;
 import static org.elasticsearch.blobcache.BlobCacheMetrics.BLOB_CACHE_EVICTED_REGIONS_MAX_FREQ;
 import static org.elasticsearch.blobcache.BlobCacheMetrics.BLOB_CACHE_EVICTION_SCANNED_ENTRIES;
@@ -168,7 +169,14 @@ public class SharedBlobCacheServiceTests extends ESTestCase {
             }
             assertEquals(3, cacheService.freeRegionCount());
             assertThat(region1.maxReachedFreq(), is(1));
-            // one eviction should be reflected in the telemetry for evicted regions' max freq
+            // one eviction should be reflected in the telemetry for total count of evicted regions
+            assertThat(
+                recordingMeterRegistry.getRecorder()
+                    .getMeasurements(InstrumentType.LONG_COUNTER, BLOB_CACHE_COUNT_OF_EVICTED_REGIONS_TOTAL)
+                    .size(),
+                is(1)
+            );
+            // LFU-style tryEvict also records the evicted region's max freq
             var evictedMaxFreq = recordingMeterRegistry.getRecorder()
                 .getMeasurements(InstrumentType.LONG_HISTOGRAM, BLOB_CACHE_EVICTED_REGIONS_MAX_FREQ);
             assertThat(evictedMaxFreq, hasSize(1));
@@ -204,7 +212,14 @@ public class SharedBlobCacheServiceTests extends ESTestCase {
                 assertTrue(tryEvict(region2));
             }
             assertEquals(5, cacheService.freeRegionCount());
-            // another 2 evictions should bump our evicted-regions histogram to 3 recordings, all at the initial freq
+            // another 2 evictions should bump our total evictions telemetry at 3
+            assertThat(
+                recordingMeterRegistry.getRecorder()
+                    .getMeasurements(InstrumentType.LONG_COUNTER, BLOB_CACHE_COUNT_OF_EVICTED_REGIONS_TOTAL)
+                    .size(),
+                is(3)
+            );
+            // and the LFU max-freq histogram to 3 recordings, all at the initial freq
             evictedMaxFreq = recordingMeterRegistry.getRecorder()
                 .getMeasurements(InstrumentType.LONG_HISTOGRAM, BLOB_CACHE_EVICTED_REGIONS_MAX_FREQ);
             assertThat(evictedMaxFreq, hasSize(3));
@@ -584,21 +599,15 @@ public class SharedBlobCacheServiceTests extends ESTestCase {
     }
 
     private static boolean tryEvict(CacheFileRegion<TestCacheKey> region1) {
-        final boolean result;
         if (randomBoolean()) {
-            result = region1.tryEvict();
+            return region1.tryEvict();
         } else {
-            result = region1.tryEvictNoDecRef();
+            boolean result = region1.tryEvictNoDecRef();
             if (result) {
                 region1.decRef();
             }
+            return result;
         }
-        if (result) {
-            // Production eviction records from LFUCacheEntry after a successful tryEvict/forceEvict.
-            // Tests call CacheFileRegion.tryEvict directly, so record here to keep the same metric.
-            region1.blobCacheService.getBlobCacheMetrics().recordEvictedRegionMaxFreq(region1.maxReachedFreq());
-        }
-        return result;
     }
 
     public void testAutoEviction() throws IOException {
@@ -750,11 +759,15 @@ public class SharedBlobCacheServiceTests extends ESTestCase {
                 .getMeasurements(InstrumentType.LONG_COUNTER, BLOB_CACHE_COUNT_OF_EVICTED_USED_REGIONS_TOTAL);
             assertEquals(expectedPressureEvictions, measurements.stream().mapToLong(Measurement::getLong).sum());
 
-            // One eviction per loop iteration (force or LFU-pressure). The max-freq histogram
-            // must count both kinds.
+            // Total eviction counter includes force and LFU-pressure evictions.
+            final List<Measurement> totalEvicted = recordingMeterRegistry.getRecorder()
+                .getMeasurements(InstrumentType.LONG_COUNTER, BLOB_CACHE_COUNT_OF_EVICTED_REGIONS_TOTAL);
+            assertEquals(operationCount, totalEvicted.stream().mapToLong(Measurement::getLong).sum());
+
+            // Max-freq histogram is LFU-pressure only (including freq 0), not force evictions.
             final List<Measurement> maxFreqMeasurements = recordingMeterRegistry.getRecorder()
                 .getMeasurements(InstrumentType.LONG_HISTOGRAM, BLOB_CACHE_EVICTED_REGIONS_MAX_FREQ);
-            assertThat(maxFreqMeasurements, hasSize(operationCount));
+            assertThat(maxFreqMeasurements, hasSize((int) expectedPressureEvictions));
             assertTrue(
                 "never-promoted regions record the insertion frequency",
                 maxFreqMeasurements.stream().allMatch(m -> m.getLong() == 1L)

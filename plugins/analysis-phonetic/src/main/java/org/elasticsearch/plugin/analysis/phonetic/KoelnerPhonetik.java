@@ -37,6 +37,14 @@ public class KoelnerPhonetik implements StringEncoder {
 
     private static final String[] POSTEL_VARIATIONS_PATTERNS = { "AUN", "OWN", "RB", "RW", "WSK", "RSK" };
     private static final String[] POSTEL_VARIATIONS_REPLACEMENTS = { "OWN", "AUN", "RW", "RB", "RSK", "WSK" };
+
+    // Each variation pattern match doubles the candidate list below, so the cap only takes effect once a
+    // single token contains this many non-overlapping pattern matches (log2(MAX_VARIATIONS)). No real name
+    // plausibly contains more than a couple of these rare pattern occurrences; this bound exists to stop a
+    // crafted token with many repeated pattern occurrences (e.g. "AUN" repeated) from growing the list
+    // exponentially and exhausting heap.
+    private static final int MAX_VARIATIONS = 16;
+
     private Pattern[] variationsPatterns;
     private boolean primary = false;
     private final Set<Character> csz = new HashSet<>(Arrays.asList('C', 'S', 'Z'));
@@ -167,14 +175,22 @@ public class KoelnerPhonetik implements StringEncoder {
             }
             if (substPos >= position) {
                 i--;
-                List<String> varNew = new ArrayList<>();
                 String prevPart = str.substring(position, substPos);
-                for (int ii = 0; ii < variations.size(); ii++) {
-                    String tmp = variations.get(ii);
-                    varNew.add(tmp.concat(prevPart + getReplacements()[i]));
+
+                // Fix the pre-branch size so the loop below only rewrites the existing entries, not the
+                // replacement variants just appended to varNew; growth is capped by skipping new branches
+                // once MAX_VARIATIONS is reached.
+                int sizeBeforeBranching = variations.size();
+                List<String> varNew = sizeBeforeBranching < MAX_VARIATIONS ? new ArrayList<>() : null;
+                for (int ii = 0; ii < sizeBeforeBranching; ii++) {
+                    if (varNew != null) {
+                        varNew.add(variations.get(ii).concat(prevPart + getReplacements()[i]));
+                    }
                     variations.set(ii, variations.get(ii) + prevPart + getPatterns()[i]);
                 }
-                variations.addAll(varNew);
+                if (varNew != null) {
+                    variations.addAll(varNew);
+                }
                 position = substPos + getPatterns()[i].length();
             } else {
                 for (int ii = 0; ii < variations.size(); ii++) {

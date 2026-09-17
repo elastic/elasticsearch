@@ -157,7 +157,8 @@ public class RepositoriesServiceTests extends ESTestCase {
             threadPool,
             client,
             List.of(),
-            SnapshotMetrics.NOOP
+            SnapshotMetrics.NOOP,
+            ShardSnapshotFilesObserver.NOOP
         );
 
         clusterService.start();

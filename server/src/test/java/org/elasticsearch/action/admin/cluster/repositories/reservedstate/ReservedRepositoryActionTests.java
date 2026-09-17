@@ -20,6 +20,7 @@ import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.repositories.RepositoriesService;
+import org.elasticsearch.repositories.ShardSnapshotFilesObserver;
 import org.elasticsearch.repositories.Repository;
 import org.elasticsearch.repositories.RepositoryException;
 import org.elasticsearch.repositories.RepositoryMissingException;
@@ -159,7 +160,8 @@ public class ReservedRepositoryActionTests extends ESTestCase {
                 threadPool,
                 mock(NodeClient.class),
                 null,
-                SnapshotMetrics.NOOP
+                SnapshotMetrics.NOOP,
+                ShardSnapshotFilesObserver.NOOP
             )
         );
 

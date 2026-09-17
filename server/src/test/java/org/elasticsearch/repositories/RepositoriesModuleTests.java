@@ -102,7 +102,8 @@ public class RepositoriesModuleTests extends ESTestCase {
             contentRegistry,
             recoverySettings,
             TelemetryProvider.NOOP,
-            SnapshotMetrics.NOOP
+            SnapshotMetrics.NOOP,
+            ShardSnapshotFilesObserver.NOOP
         );
     }
 
@@ -142,7 +143,8 @@ public class RepositoriesModuleTests extends ESTestCase {
                 contentRegistry,
                 recoverySettings,
                 TelemetryProvider.NOOP,
-                SnapshotMetrics.NOOP
+                SnapshotMetrics.NOOP,
+                ShardSnapshotFilesObserver.NOOP
             )
         );
 
@@ -169,7 +171,8 @@ public class RepositoriesModuleTests extends ESTestCase {
                 contentRegistry,
                 recoverySettings,
                 TelemetryProvider.NOOP,
-                SnapshotMetrics.NOOP
+                SnapshotMetrics.NOOP,
+                ShardSnapshotFilesObserver.NOOP
             )
         );
 
@@ -204,7 +207,8 @@ public class RepositoriesModuleTests extends ESTestCase {
                 contentRegistry,
                 recoverySettings,
                 TelemetryProvider.NOOP,
-                SnapshotMetrics.NOOP
+                SnapshotMetrics.NOOP,
+                ShardSnapshotFilesObserver.NOOP
             )
         );
 

@@ -102,6 +102,20 @@ public class BlobStoreIndexShardSnapshot implements ToXContentFragment {
         }
 
         /**
+         * Whether this file occupies space in the repository. Files small enough for their contents to be held in the shard snapshot
+         * metadata that references them are not written as blobs at all, so they cost nothing to store — see
+         * {@link StoreFileMetadata#hashEqualsContents()}.
+         * <p>
+         * Callers measuring what a shard's snapshots physically occupy must exclude these; callers measuring the logical size of a restored
+         * shard must include them.
+         *
+         * @return true if a blob was written for this file
+         */
+        public boolean isStoredAsBlob() {
+            return metadata.hashEqualsContents() == false;
+        }
+
+        /**
          * Returns part name if file is stored as multiple parts
          *
          * @param part part number

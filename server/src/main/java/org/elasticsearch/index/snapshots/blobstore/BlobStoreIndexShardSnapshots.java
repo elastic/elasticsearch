@@ -130,6 +130,69 @@ public class BlobStoreIndexShardSnapshots implements Iterable<SnapshotFiles>, To
         return this.shardSnapshots;
     }
 
+    /**
+     * The bytes this shard's snapshots physically occupy in the repository: the size of the deduplicated union of every file referenced by
+     * any snapshot of this shard.
+     * <p>
+     * This is not the sum of the snapshots' individual sizes. A file unchanged across many snapshots is stored once and referenced by all
+     * of them, so summing per-snapshot sizes would count it repeatedly. The deduplication has already been done — {@code files} holds
+     * each referenced file exactly once — so this is a straight sum over that map.
+     * <p>
+     * Differs from {@link BlobStoreIndexShardSnapshot#totalSize()} in two ways: that measures one snapshot rather than the union, and it
+     * measures logical size, including files held inline in metadata rather than written as blobs. Here those are excluded, because they
+     * occupy no repository space.
+     *
+     * @return total physical size in bytes, or zero if this shard has no snapshots
+     */
+    public long totalPhysicalSizeInBytes() {
+        long total = 0L;
+        for (FileInfo fileInfo : files.values()) {
+            if (fileInfo.isStoredAsBlob()) {
+                total += fileInfo.length();
+            }
+        }
+        return total;
+    }
+
+    /**
+     * The bytes physically occupied by the files that one named snapshot of this shard references.
+     * <p>
+     * Note this is what that snapshot <em>references</em>, not what it introduced: a file first uploaded by an earlier snapshot and still
+     * referenced by this one counts here. That is the quantity needed to answer "how much of the repository would remain if this were the
+     * only snapshot retained".
+     *
+     * @param snapshotName the snapshot name, as recorded in {@link SnapshotFiles#snapshot()}
+     * @return physical size in bytes, or zero if this shard has no files for that snapshot — which happens when the snapshot did not
+     *         capture this shard, whether because it failed or because the index did not exist yet
+     */
+    public long physicalSizeInBytesForSnapshot(String snapshotName) {
+        for (SnapshotFiles snapshotFiles : shardSnapshots) {
+            if (snapshotFiles.snapshot().equals(snapshotName)) {
+                long total = 0L;
+                for (FileInfo fileInfo : snapshotFiles.indexFiles()) {
+                    if (fileInfo.isStoredAsBlob()) {
+                        total += fileInfo.length();
+                    }
+                }
+                return total;
+            }
+        }
+        return 0L;
+    }
+
+    /**
+     * Whether the named snapshot captured this shard at all. Distinguishes "captured, and happens to be empty" from "not captured", which
+     * {@link #physicalSizeInBytesForSnapshot} alone cannot: both return zero.
+     */
+    public boolean containsSnapshot(String snapshotName) {
+        for (SnapshotFiles snapshotFiles : shardSnapshots) {
+            if (snapshotFiles.snapshot().equals(snapshotName)) {
+                return true;
+            }
+        }
+        return false;
+    }
+
     // index of Lucene file name to collection of file info in the repository
     // lazy computed because building this is map is rather expensive and only needed for the snapshot create operation
     private Map<String, Collection<FileInfo>> physicalFiles;

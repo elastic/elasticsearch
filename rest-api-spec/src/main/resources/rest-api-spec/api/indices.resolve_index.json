@@ -16,7 +16,8 @@
         {
           "path": "/_resolve/index/{name}",
           "methods": [
-            "GET"
+            "GET",
+            "POST"
           ],
           "parts": {
             "name": {
@@ -60,6 +61,10 @@
         ],
         "description": "Filter indices by index mode. Comma-separated list of IndexMode. Empty means no filter."
       }
+    },
+    "body": {
+      "description": "project_routing can also be set as part of the body",
+      "required": false
     }
   }
 }

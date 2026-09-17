@@ -49,12 +49,12 @@ public class TestUtils {
     private TestUtils() {}
 
     /** A {@link TimeProvider} with all methods returning {@code 0L}, for use in tests that do not exercise time-based bucketing. */
-    public static final TimeProvider NOOP_TIMER = SharedBlobCacheServiceTestUtils.NOOP_TIME_PROVIDER;
+    public static final TimeProvider NOOP_TIME_PROVIDER = SharedBlobCacheServiceTestUtils.NOOP_TIME_PROVIDER;
 
     /** A no-op {@link BlobCacheMetrics} for tests that do not exercise cache metrics. */
     public static final BlobCacheMetrics NOOP_BLOB_CACHE_METRICS = new BlobCacheMetrics(
         TelemetryProvider.NOOP.getMeterRegistry(),
-        NOOP_TIMER
+        NOOP_TIME_PROVIDER
     );
 
     /**
@@ -136,7 +136,7 @@ public class TestUtils {
             nodeEnvironment,
             settings,
             threadPool,
-            meterRegistry == null ? NOOP_BLOB_CACHE_METRICS : new BlobCacheMetrics(meterRegistry, NOOP_TIMER),
+            meterRegistry == null ? NOOP_BLOB_CACHE_METRICS : new BlobCacheMetrics(meterRegistry, NOOP_TIME_PROVIDER),
             clusterService,
             mockIndicesService(clusterService),
             new ThreadLocalDirectoryMetricHolder<>(BlobStoreCacheDirectoryMetrics::new)

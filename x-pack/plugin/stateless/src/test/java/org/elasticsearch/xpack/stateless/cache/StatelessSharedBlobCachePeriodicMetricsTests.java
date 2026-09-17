@@ -64,7 +64,7 @@ public class StatelessSharedBlobCachePeriodicMetricsTests extends ESTestCase {
                 settings,
                 taskQueue.getThreadPool(),
                 taskQueue.getThreadPool().executor(ThreadPool.Names.GENERIC),
-                new BlobCacheMetrics(recording, TestUtils.NOOP_TIMER)
+                new BlobCacheMetrics(recording, TestUtils.NOOP_TIME_PROVIDER)
             );
             var metrics = new StatelessSharedBlobCachePeriodicMetrics(
                 cacheService,
@@ -124,7 +124,7 @@ public class StatelessSharedBlobCachePeriodicMetricsTests extends ESTestCase {
                 settings,
                 taskQueue.getThreadPool(),
                 taskQueue.getThreadPool().executor(ThreadPool.Names.GENERIC),
-                new BlobCacheMetrics(recording, TestUtils.NOOP_TIMER)
+                new BlobCacheMetrics(recording, TestUtils.NOOP_TIME_PROVIDER)
             );
             var metrics = new StatelessSharedBlobCachePeriodicMetrics(
                 cacheService,
@@ -178,7 +178,7 @@ public class StatelessSharedBlobCachePeriodicMetricsTests extends ESTestCase {
                 settings,
                 taskQueue.getThreadPool(),
                 taskQueue.getThreadPool().executor(ThreadPool.Names.GENERIC),
-                new BlobCacheMetrics(recording, TestUtils.NOOP_TIMER),
+                new BlobCacheMetrics(recording, TestUtils.NOOP_TIME_PROVIDER),
                 countingPolicy
             );
             var metrics = new StatelessSharedBlobCachePeriodicMetrics(cacheService, clusterSettings, taskQueue.getThreadPool(), recording)
@@ -264,7 +264,7 @@ public class StatelessSharedBlobCachePeriodicMetricsTests extends ESTestCase {
                 settings,
                 taskQueue.getThreadPool(),
                 taskQueue.getThreadPool().executor(ThreadPool.Names.GENERIC),
-                new BlobCacheMetrics(recording, TestUtils.NOOP_TIMER),
+                new BlobCacheMetrics(recording, TestUtils.NOOP_TIME_PROVIDER),
                 countingPolicy
             );
             var metrics = new StatelessSharedBlobCachePeriodicMetrics(cacheService, clusterSettings, taskQueue.getThreadPool(), recording)
@@ -439,7 +439,7 @@ public class StatelessSharedBlobCachePeriodicMetricsTests extends ESTestCase {
                 settings,
                 taskQueue.getThreadPool(),
                 taskQueue.getThreadPool().executor(ThreadPool.Names.GENERIC),
-                new BlobCacheMetrics(recording, TestUtils.NOOP_TIMER),
+                new BlobCacheMetrics(recording, TestUtils.NOOP_TIME_PROVIDER),
                 evictionPolicy
             );
             var metrics = new StatelessSharedBlobCachePeriodicMetrics(

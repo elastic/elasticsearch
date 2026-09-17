@@ -4847,6 +4847,9 @@ public class SharedBlobCacheServiceTests extends ESTestCase {
                 "test"
             );
             // NOOP_TIME_PROVIDER reports now=0, so a positive backfilled timestamp is a negative age.
+            List<Measurement> readAges = recording.getRecorder().getMeasurements(InstrumentType.LONG_HISTOGRAM, BLOB_CACHE_READ_AGE);
+            assertThat(readAges, hasSize(1));
+            assertEquals(0L - backfill, readAges.getFirst().getLong());
             List<Measurement> missAges = recording.getRecorder().getMeasurements(InstrumentType.LONG_HISTOGRAM, BLOB_CACHE_MISS_AGE);
             assertThat(missAges, hasSize(1));
             assertEquals(0L - backfill, missAges.getFirst().getLong());

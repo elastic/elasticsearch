@@ -189,10 +189,11 @@ public class BlobCacheMetricsIT extends AbstractBlobCacheMetricsIntegTestCase {
         return plugin.getLongGaugeMeasurement(BLOB_CACHE_READ_TOTAL).getLast().getLong();
     }
 
-    /** Like {@link #collectReadTotal} but for {@code es.blob_cache.miss.total}. */
+    /**
+     * Returns the miss total from the most recent {@link #collectReadTotal} call on the same plugin.
+     * Must be called immediately after {@link #collectReadTotal} with no intervening meter mutation.
+     */
     private static long collectMissTotal(TestTelemetryPlugin plugin) {
-        plugin.resetMeter();
-        plugin.collect();
         return plugin.getLongGaugeMeasurement(BLOB_CACHE_MISS_TOTAL).getLast().getLong();
     }
 

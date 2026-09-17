@@ -81,7 +81,7 @@ import static org.elasticsearch.xpack.searchablesnapshots.AbstractSearchableSnap
 import static org.elasticsearch.xpack.searchablesnapshots.AbstractSearchableSnapshotsTestCase.randomIOContext;
 import static org.elasticsearch.xpack.searchablesnapshots.cache.common.TestUtils.pageAligned;
 import static org.elasticsearch.xpack.stateless.TestUtils.NOOP_BLOB_CACHE_METRICS;
-import static org.elasticsearch.xpack.stateless.TestUtils.NOOP_TIMER;
+import static org.elasticsearch.xpack.stateless.TestUtils.NOOP_TIME_PROVIDER;
 import static org.elasticsearch.xpack.stateless.TestUtils.newCacheService;
 import static org.elasticsearch.xpack.stateless.commits.BlobLocationTestUtils.createBlobFileRanges;
 import static org.elasticsearch.xpack.stateless.lucene.BlobStoreCacheDirectoryTestUtils.getCacheFile;
@@ -1524,7 +1524,7 @@ public class BlobCacheIndexInputTests extends ESIndexInputTestCase {
         );
 
         final RecordingMeterRegistry meterRegistry = new RecordingMeterRegistry();
-        final BlobCacheMetrics metrics = new BlobCacheMetrics(meterRegistry, NOOP_TIMER);
+        final BlobCacheMetrics metrics = new BlobCacheMetrics(meterRegistry, NOOP_TIME_PROVIDER);
         final CacheFileReader cacheFileReader = new CacheFileReader(
             cacheFile,
             cacheBlobReader,
@@ -1585,7 +1585,7 @@ public class BlobCacheIndexInputTests extends ESIndexInputTestCase {
         }).when(cacheFile).populate(any(), any(), any(), any(), anyString(), any(ActionListener.class));
 
         final RecordingMeterRegistry meterRegistry = new RecordingMeterRegistry();
-        final BlobCacheMetrics metrics = new BlobCacheMetrics(meterRegistry, NOOP_TIMER);
+        final BlobCacheMetrics metrics = new BlobCacheMetrics(meterRegistry, NOOP_TIME_PROVIDER);
         final CacheFileReader cacheFileReader = new CacheFileReader(
             cacheFile,
             cacheBlobReader,
@@ -1635,7 +1635,7 @@ public class BlobCacheIndexInputTests extends ESIndexInputTestCase {
         }).when(cacheFile).populate(any(), any(), any(), any(), anyString(), any(ActionListener.class));
 
         final RecordingMeterRegistry meterRegistry = new RecordingMeterRegistry();
-        final BlobCacheMetrics metrics = new BlobCacheMetrics(meterRegistry, NOOP_TIMER);
+        final BlobCacheMetrics metrics = new BlobCacheMetrics(meterRegistry, NOOP_TIME_PROVIDER);
         final CacheFileReader cacheFileReader = new CacheFileReader(
             cacheFile,
             cacheBlobReader,
@@ -1675,7 +1675,7 @@ public class BlobCacheIndexInputTests extends ESIndexInputTestCase {
         when(cacheFile.getLength()).thenReturn(fileLength);
 
         final RecordingMeterRegistry meterRegistry = new RecordingMeterRegistry();
-        final BlobCacheMetrics metrics = new BlobCacheMetrics(meterRegistry, NOOP_TIMER);
+        final BlobCacheMetrics metrics = new BlobCacheMetrics(meterRegistry, NOOP_TIME_PROVIDER);
         final CacheFileReader cacheFileReader = new CacheFileReader(
             cacheFile,
             cacheBlobReader,

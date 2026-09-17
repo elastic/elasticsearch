@@ -29,9 +29,7 @@ public class LoggerImplMappingTests extends ESTestCase {
     org.apache.logging.log4j.Logger log4jLogger = Mockito.mock(org.apache.logging.log4j.Logger.class);
     Logger esLogger = new LoggerImpl(log4jLogger);
 
-    ArgumentCaptor<org.apache.logging.log4j.util.Supplier<?>> msgSupplierCaptor = ArgumentCaptor.forClass(
-        org.apache.logging.log4j.util.Supplier.class
-    );
+    ArgumentCaptor<org.apache.logging.log4j.util.Supplier<?>> msgSupplierCaptor = ArgumentCaptor.forClass(Supplier.class);
     ArgumentCaptor<Throwable> exceptionCaptor = ArgumentCaptor.forClass(Throwable.class);
 
     RuntimeException thrown = new RuntimeException();

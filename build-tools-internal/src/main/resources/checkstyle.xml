@@ -68,6 +68,11 @@
 
     <!-- Unused imports are forbidden -->
     <module name="UnusedImports" />
+    <module name="org.elasticsearch.gradle.internal.checkstyle.UnnecessaryFullyQualifiedClassLiteralCheck">
+      <message
+          key="unnecessary.fully.qualified.class.literal"
+          value="Unnecessary fully qualified class literal ''{0}''; use imported type ''{1}''." />
+    </module>
     <module name="SuppressionCommentFilter">
       <property name="offCommentFormat" value="begin generated imports"/>
       <property name="onCommentFormat" value="end generated imports"/>

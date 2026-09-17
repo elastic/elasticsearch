@@ -216,6 +216,10 @@ The following settings are available for `s3` data sources:
 | Setting | Required | Description |
 |---|---|---|
 | `endpoint` | No | An explicit Amazon S3 endpoint override. Must be an absolute `https` URL naming an AWS S3 endpoint: a regional or global service endpoint such as `https://s3.us-east-1.amazonaws.com`, a FIPS or dual-stack variant of one, or an AWS VPC interface endpoint such as `https://bucket.vpce-0a1b2c3d.s3.us-east-1.vpce.amazonaws.com`. Every AWS partition is accepted. <br> Any other host is rejected when the data source is created, as is plain `http`, a value without a scheme, and a host the URL syntax does not allow (such as an underscore or a non-numeric port). Omit the setting to have the endpoint resolved from the region. {applies_to}`stack: experimental 9.6+` |
+
+::::{warning}
+A data source created before this restriction keeps working for queries, but updating it requires an `endpoint` that satisfies the rule above. Creating a data source replaces all of its settings, so a data source that names an unsupported endpoint cannot have any of its settings changed — including rotating its credentials — until the endpoint is changed to a supported one or the data source is recreated.
+::::
 | `addressing_style` {applies_to}`stack: experimental 9.6+` | No | URL addressing style. `auto` (default) uses path-style when `endpoint` is set and SDK-default otherwise. `path` always uses path-style. `virtual_hosted` lets the SDK decide. Use `virtual_hosted` for AWS FIPS, dual-stack, or VPC interface endpoints that require virtual-hosted addressing. |
 
 :::{note}

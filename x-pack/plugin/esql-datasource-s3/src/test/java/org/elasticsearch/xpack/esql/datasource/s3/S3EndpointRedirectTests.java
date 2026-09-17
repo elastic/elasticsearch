@@ -9,15 +9,19 @@ package org.elasticsearch.xpack.esql.datasource.s3;
 
 import com.sun.net.httpserver.HttpServer;
 
+import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.common.breaker.NoopCircuitBreaker;
 import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.xpack.esql.datasources.spi.DirectBufferFactory;
 import org.elasticsearch.xpack.esql.datasources.spi.StoragePath;
 
-import java.io.IOException;
 import java.net.InetAddress;
 import java.net.InetSocketAddress;
 import java.util.List;
 import java.util.Map;
+import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
 
 /**
@@ -29,8 +33,14 @@ import java.util.concurrent.atomic.AtomicInteger;
  * node to contact that host.
  *
  * <p>Two servers. The first stands in for the configured endpoint and answers every request with a
- * redirect to the second; the second counts the requests it receives. A read is then driven through the
- * provider and the second server's count must stay at zero.
+ * redirect to the second; the second counts the requests it receives. A request is then driven through
+ * the provider and the second server's count must stay at zero.
+ *
+ * <p>Both HTTP stacks are covered, because the provider builds two clients and they are different
+ * implementations: an Apache sync client for metadata calls such as {@code exists}, and a netty-nio async
+ * client used exclusively for the range reads that carry object data. Redirect handling is a property of
+ * each stack, so exercising one says nothing about the other, and the async one is the path that matters
+ * for moving bytes to a host nobody named.
  */
 @SuppressForbidden(reason = "an in-process HTTP server is the only way to return a redirect to the SDK's own client")
 public class S3EndpointRedirectTests extends ESTestCase {
@@ -38,20 +48,33 @@ public class S3EndpointRedirectTests extends ESTestCase {
     private static final String BUCKET = "test-bucket";
     private static final String KEY = "data/test.parquet";
 
-    public void testReadDoesNotFollowRedirectAwayFromTheEndpoint() throws Exception {
+    public void testSyncClientDoesNotFollowRedirectAwayFromTheEndpoint() throws Exception {
         for (int status : List.of(301, 302, 303, 307, 308)) {
-            assertRedirectNotFollowed(status, false);
+            assertRedirectNotFollowed(status, false, Driver.SYNC);
         }
     }
 
-    public void testReadDoesNotFollowAnS3CrossRegionRedirect() throws Exception {
-        // S3 answers a wrong-region request with 301 carrying x-amz-bucket-region, which the SDK's
-        // cross-region decorator understands. The provider enables that decorator only when no endpoint
-        // is configured, so with one set this must be inert too.
-        assertRedirectNotFollowed(301, true);
+    public void testAsyncReadDoesNotFollowRedirectAwayFromTheEndpoint() throws Exception {
+        // The range-read path: the one that carries object data.
+        for (int status : List.of(301, 302, 303, 307, 308)) {
+            assertRedirectNotFollowed(status, false, Driver.ASYNC_READ);
+        }
     }
 
-    private void assertRedirectNotFollowed(int status, boolean withBucketRegionHeader) throws Exception {
+    public void testNeitherClientFollowsAnS3CrossRegionRedirect() throws Exception {
+        // S3 answers a wrong-region request with 301 carrying x-amz-bucket-region, which the SDK's
+        // cross-region decorator understands. The provider enables that decorator only when no endpoint
+        // is configured, so with one set it must be inert on both stacks.
+        assertRedirectNotFollowed(301, true, Driver.SYNC);
+        assertRedirectNotFollowed(301, true, Driver.ASYNC_READ);
+    }
+
+    private enum Driver {
+        SYNC,
+        ASYNC_READ
+    }
+
+    private void assertRedirectNotFollowed(int status, boolean withBucketRegionHeader, Driver driver) throws Exception {
         AtomicInteger elsewhereHits = new AtomicInteger();
         HttpServer elsewhere = HttpServer.create(new InetSocketAddress(InetAddress.getLoopbackAddress(), 0), 0);
         elsewhere.createContext("/", exchange -> {
@@ -77,22 +100,35 @@ public class S3EndpointRedirectTests extends ESTestCase {
 
         try {
             S3Configuration config = S3Configuration.fromMap(Map.of("auth", "anonymous", "endpoint", "http://" + addressOf(redirector)));
+            StoragePath path = StoragePath.of("s3://" + BUCKET + "/" + KEY);
             try (S3StorageProvider provider = new S3StorageProvider(config)) {
                 try {
-                    provider.exists(StoragePath.of("s3://" + BUCKET + "/" + KEY));
-                } catch (IOException | RuntimeException expected) {
+                    if (driver == Driver.SYNC) {
+                        provider.exists(path);
+                    } else {
+                        readOneRange(provider, path);
+                    }
+                } catch (Exception expected) {
                     // The redirect is not a usable S3 response; failing is the correct outcome. What is
                     // under test is where the node went, not whether the read succeeded.
                 }
             }
             // Positive control. Without it a zero count at the second server would also be what a read
             // that never left the node looks like, and the assertion below would prove nothing.
-            assertTrue("the read never reached the configured endpoint, so this says nothing about redirects", redirectorHits.get() > 0);
-            assertEquals("a " + status + " redirect was followed to a host the endpoint setting never named", 0, elsewhereHits.get());
+            assertTrue(driver + ": the request never reached the configured endpoint, so this proves nothing", redirectorHits.get() > 0);
+            assertEquals(driver + ": a " + status + " redirect was followed to a host never named", 0, elsewhereHits.get());
         } finally {
             redirector.stop(0);
             elsewhere.stop(0);
         }
+    }
+
+    /** Drives one range read through the async client and waits for it to settle, however it settles. */
+    private static void readOneRange(S3StorageProvider provider, StoragePath path) throws Exception {
+        CountDownLatch done = new CountDownLatch(1);
+        DirectBufferFactory factory = DirectBufferFactory.forBreaker(new NoopCircuitBreaker("test"));
+        provider.newObject(path, 1024).readBytesAsync(0, 16, factory, Runnable::run, ActionListener.running(done::countDown));
+        assertTrue("the async read never settled", done.await(30, TimeUnit.SECONDS));
     }
 
     private static String addressOf(HttpServer server) {

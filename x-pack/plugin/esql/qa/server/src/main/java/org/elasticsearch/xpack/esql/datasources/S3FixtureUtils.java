@@ -269,10 +269,12 @@ public final class S3FixtureUtils {
 
     /**
      * The value to pass with it. {@link S3HttpFixture} binds {@code InetAddress.getLoopbackAddress()}, so
-     * both spellings of loopback cover every fixture without the fixture having to be in scope where the
-     * cluster is declared. A cluster that does not read from a fixture does not set this at all.
+     * every spelling of loopback covers every fixture without the fixture having to be in scope where the
+     * cluster is declared. {@code localhost} is included because a TLS fixture reports its address by
+     * hostname rather than by literal; no esql suite runs one today, and this is what stops the first one
+     * that does from failing here. A cluster that does not read from a fixture does not set this at all.
      */
-    public static final String LOOPBACK_ENDPOINT_HOSTS = "127.0.0.1,[::1]";
+    public static final String LOOPBACK_ENDPOINT_HOSTS = "127.0.0.1,[::1],localhost";
 
     /**
      * Extended S3HttpFixture that automatically loads test fixtures from resources.

@@ -72,8 +72,9 @@ public class S3EndpointCheckTests extends ESTestCase {
                 }
             }
         }
-        // Guards against the loop silently resolving nothing and the assertions never running.
-        assertTrue("expected the resolver to produce endpoints for every partition", checked >= 60);
+        // An exact count, not a floor: a combination that silently stopped resolving would otherwise drop
+        // out of the walk without anyone noticing.
+        assertEquals("the set of endpoints the resolver produces has changed", 68, checked);
     }
 
     public void testAcceptsGlobalAndVariantEndpoints() {
@@ -93,6 +94,61 @@ public class S3EndpointCheckTests extends ESTestCase {
         assertPermitted("https://accesspoint.vpce-0a1b2c3d.s3.eu-west-1.vpce.amazonaws.com", S3EndpointCheck.S3_SERVICE);
         assertPermitted("https://control.vpce-0a1b2c3d.s3.cn-north-1.vpce.amazonaws.com.cn", S3EndpointCheck.S3_SERVICE);
         assertPermitted("https://vpce-0a1b2c3d.sts.us-east-1.vpce.amazonaws.com", S3EndpointCheck.STS_SERVICE);
+    }
+
+    public void testRefusesHostsThatEndInAPartitionSuffixWithoutALabelBoundary() {
+        // The suffix test is anchored with a leading dot. Unanchored, these pass: eu-west-1xamazonaws.com
+        // is an ordinary registrable domain, so an attacker could hold a certificate for
+        // s3.eu-west-1xamazonaws.com and receive the node's token. The suffix-extension cases above do not
+        // cover this, because the label arithmetic refuses those for a second, independent reason; these
+        // are refused by the anchoring alone.
+        assertRefused("https://s3.eu-west-1xamazonaws.com", S3EndpointCheck.S3_SERVICE);
+        assertRefused("https://sts.eu-west-1xamazonaws.com", S3EndpointCheck.STS_SERVICE);
+        assertRefused("https://s3.us-east-1xapi.aws", S3EndpointCheck.S3_SERVICE);
+        assertRefused("https://s3.us-east-11amazonaws.com", S3EndpointCheck.S3_SERVICE);
+    }
+
+    public void testRefusesVpcFormsOutsideTheExactShape() {
+        // The interface-endpoint shape is [<prefix>.]vpce-<id>.<service>.<region>.vpce.<suffix>, with every
+        // part in a fixed position. An unpositioned scan for a (vpce-*, service) pair admits all of these.
+        assertRefused("https://vpce-0a1b.sts.anything.at.all.vpce.amazonaws.com", S3EndpointCheck.STS_SERVICE);
+        assertRefused("https://vpce-0a1b.sts.vpce.amazonaws.com", S3EndpointCheck.STS_SERVICE);
+        // An empty endpoint id never reaches the rule at all: URI.getHost() returns null for a label
+        // ending in a dash, so there is no guard for this in the rule and none is needed.
+        assertRefused("https://vpce-.sts.us-east-1.vpce.amazonaws.com", S3EndpointCheck.STS_SERVICE);
+        assertRefused("https://evil.vpce-0a1b.sts.evil.vpce.amazonaws.com", S3EndpointCheck.STS_SERVICE);
+        assertRefused("https://a.b.vpce-0a1b.s3.us-east-1.vpce.amazonaws.com", S3EndpointCheck.S3_SERVICE);
+        assertRefused("https://vpce-0a1b.s3.us-east-1.notvpce.amazonaws.com", S3EndpointCheck.S3_SERVICE);
+        // A trailing vpce label is not on its own a licence; the service must sit after the endpoint id.
+        assertRefused("https://vpce-0a1b.us-east-1.vpce.amazonaws.com", S3EndpointCheck.S3_SERVICE);
+        // A customer PrivateLink service id spells vpce-svc-<id>, which satisfies the vpce- test on its
+        // own. AWS puts it in the second position, where the service check already refuses it, so this
+        // synthetic first-position form is what pins the explicit exclusion.
+        assertRefused("https://vpce-svc-0c2d.s3.us-east-1.vpce.amazonaws.com", S3EndpointCheck.S3_SERVICE);
+    }
+
+    public void testRefusesUnknownServiceLabelsUnderAPartitionSuffix() {
+        // The leading label is an enumerated set plus two generated forms, not an open s3-/sts- prefix.
+        assertRefused("https://sts-evil.us-east-1.amazonaws.com", S3EndpointCheck.STS_SERVICE);
+        assertRefused("https://s3-evil.us-east-1.amazonaws.com", S3EndpointCheck.S3_SERVICE);
+        assertRefused("https://s3-notaregion.amazonaws.com", S3EndpointCheck.S3_SERVICE);
+        assertRefused("https://stsevil.us-east-1.amazonaws.com", S3EndpointCheck.STS_SERVICE);
+    }
+
+    public void testAcceptsDocumentedServiceLabelVariants() {
+        for (String host : List.of(
+            "https://s3-accesspoint.us-east-1.amazonaws.com",
+            "https://s3-accesspoint-fips.us-east-1.amazonaws.com",
+            "https://s3-object-lambda.us-east-1.amazonaws.com",
+            "https://s3-outposts.us-east-1.amazonaws.com",
+            "https://s3-control.us-east-1.amazonaws.com",
+            "https://s3-accelerate.amazonaws.com",
+            "https://s3-external-1.amazonaws.com",
+            // the historical dash-before-region spelling, still resolvable
+            "https://s3-us-west-2.amazonaws.com"
+        )) {
+            assertPermitted(host, S3EndpointCheck.S3_SERVICE);
+        }
     }
 
     public void testRefusesCustomerPublishedPrivateLinkService() {

@@ -43,6 +43,10 @@ class ExternalClusters {
             .setting("indices.breaker.request.limit", BREAKER_LIMIT_PERCENT + "%")
             // S3 client wiring — endpoint discovered at startup from the fixture rule.
             .setting("s3.client.default.endpoint", s3EndpointSupplier)
+            // This suite registers an s3 data source pointing at the loopback fixture. The S3 data source
+            // refuses an endpoint outside the AWS endpoints the product supports, so the fixture host is
+            // named on the test-only route; a released node ignores this property.
+            .systemProperty(S3FixtureUtils.ADDITIONAL_ENDPOINT_HOSTS_PROPERTY, S3FixtureUtils.LOOPBACK_ENDPOINT_HOSTS)
             .setting("s3.client.default.protocol", "http")
             .keystore("s3.client.default.access_key", S3FixtureUtils.ACCESS_KEY)
             .keystore("s3.client.default.secret_key", S3FixtureUtils.SECRET_KEY)

@@ -43,8 +43,6 @@ import org.apache.lucene.util.StringHelper;
 import org.apache.lucene.util.compress.LZ4;
 import org.apache.lucene.util.packed.DirectMonotonicWriter;
 import org.elasticsearch.core.IOUtils;
-import org.elasticsearch.logging.LogManager;
-import org.elasticsearch.logging.Logger;
 
 import java.io.Closeable;
 import java.io.IOException;
@@ -63,8 +61,6 @@ import static org.elasticsearch.index.codec.tsdb.DocValuesConsumerUtil.compatibl
  * code drives during segment write.
  */
 public abstract class AbstractTSDBDocValuesConsumer extends XDocValuesConsumer {
-
-    private static final Logger logger = LogManager.getLogger(AbstractTSDBDocValuesConsumer.class);
 
     /** Type tag written to meta for numeric doc values fields. */
     public static final byte NUMERIC = 0;
@@ -688,7 +684,9 @@ public abstract class AbstractTSDBDocValuesConsumer extends XDocValuesConsumer {
             long blockLenBytes = data.getFilePointer() - thisBlockStartPointer;
             blockMetaAcc.addDoc(1, blockLenBytes);
 
-            logger.trace(() -> "copied binary block of [" + raw.uncompressedLength() + "] uncompressed bytes verbatim");
+            if (state.infoStream.isEnabled("TS_DV")) {
+                state.infoStream.message("TS_DV", "copied binary block of [" + raw.uncompressedLength() + "] uncompressed bytes verbatim");
+            }
             return true;
         }
 

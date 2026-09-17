@@ -9,7 +9,6 @@
 
 package org.elasticsearch.index.codec.tsdb;
 
-import org.apache.logging.log4j.Level;
 import org.apache.lucene.codecs.Codec;
 import org.apache.lucene.codecs.DocValuesFormat;
 import org.apache.lucene.document.BinaryDocValuesField;
@@ -42,10 +41,10 @@ import org.apache.lucene.tests.index.BaseDocValuesFormatTestCase;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.FixedBitSet;
 import org.apache.lucene.util.IOFunction;
+import org.apache.lucene.util.PrintStreamInfoStream;
 import org.elasticsearch.cluster.metadata.DataStream;
 import org.elasticsearch.common.Randomness;
 import org.elasticsearch.common.logging.LogConfigurator;
-import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.util.CollectionUtils;
 import org.elasticsearch.index.codec.bwc.Elasticsearch900Lucene101Codec;
 import org.elasticsearch.index.codec.tsdb.AbstractTSDBDocValuesProducer.BaseDenseNumericValues;
@@ -57,9 +56,10 @@ import org.elasticsearch.index.mapper.BlockLoader.OptionalColumnAtATimeReader;
 import org.elasticsearch.index.mapper.TestBlock;
 import org.elasticsearch.index.mapper.blockloader.docvalues.CustomBinaryDocValuesReader;
 import org.elasticsearch.test.ESTestCase;
-import org.elasticsearch.test.MockLog;
 
+import java.io.ByteArrayOutputStream;
 import java.io.IOException;
+import java.io.PrintStream;
 import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -2968,12 +2968,11 @@ public abstract class AbstractTSDBDocValuesFormatTests extends BaseDocValuesForm
 
     /**
      * Verifies that a force merge of multiple index-sorted segments containing oversized binary
-     * values produces correct results, and that the verbatim-copy fast path actually fired when
-     * optimized merge is enabled.
+     * values produces correct results, and that the verbatim-copy fast path actually fired.
      *
-     * <p>The MockLog assertion on the TRACE line is the key observability check: zstd is
-     * deterministic at a fixed level, so a verbatim-copied and a re-compressed segment are
-     * byte-identical — we cannot observe the optimization from output bytes alone.
+     * <p>The InfoStream assertion is the key observability check: zstd is deterministic at a fixed
+     * level, so a verbatim-copied and a re-compressed segment are byte-identical — we cannot observe
+     * the optimization from output bytes alone.
      */
     public void testForceMergeWithOversizedBinaryValues() throws IOException {
         final int threshold = 512 * 1024;
@@ -2984,20 +2983,12 @@ public abstract class AbstractTSDBDocValuesFormatTests extends BaseDocValuesForm
         final int numSmall = randomIntBetween(5, 20);
         final int numSegments = randomIntBetween(2, 4);
 
-        // Use a codec with optimized merge always enabled so the verbatim-copy trace assertion
-        // fires unconditionally, regardless of how the subclass's main codec randomizes that flag.
+        // Use a codec with optimized merge always enabled so the InfoStream assertion fires
+        // unconditionally, regardless of how the subclass's main codec randomizes that flag.
+        var baos = new ByteArrayOutputStream();
         var config = getTimeSeriesIndexWriterConfig(HOSTNAME_FIELD, TIMESTAMP_FIELD, getCodecWithOptimizedMerge());
-        // This test class extends Lucene's BaseDocValuesFormatTestCase rather than ESTestCase, so
-        // the @TestLogging annotation is not processed. Enable TRACE programmatically instead, and
-        // restore the original level on exit, so the verbatim-copy log events reach the MockLog appender.
-        var log4jLogger = org.apache.logging.log4j.LogManager.getLogger(AbstractTSDBDocValuesConsumer.class);
-        var savedLevel = log4jLogger.getLevel();
-        Loggers.setLevel(log4jLogger, Level.TRACE);
-        try (
-            var dir = newDirectory();
-            var iw = new IndexWriter(dir, config);
-            var mockLog = MockLog.capture(AbstractTSDBDocValuesConsumer.class)
-        ) {
+        config.setInfoStream(new PrintStreamInfoStream(new PrintStream(baos, true, StandardCharsets.UTF_8)));
+        try (var dir = newDirectory(); var iw = new IndexWriter(dir, config)) {
             // Each segment gets some small values plus one oversized value. All segments share the
             // same hostname so that their timestamps interleave in sort order, which forces
             // needsIndexSort=true during the merge — required for the optimized merge path.
@@ -3026,18 +3017,6 @@ public abstract class AbstractTSDBDocValuesFormatTests extends BaseDocValuesForm
                 iw.commit();
             }
 
-            // Set the expectation before the merge so we catch the log event. The codec passed to
-            // this test always has optimized merge enabled (via getCodecWithOptimizedMerge()), so
-            // the verbatim-copy trace fires unconditionally.
-            mockLog.addExpectation(
-                new MockLog.SeenEventExpectation(
-                    "verbatim-copy trace log",
-                    AbstractTSDBDocValuesConsumer.class.getName(),
-                    Level.TRACE,
-                    "copied binary block of * verbatim"
-                )
-            );
-
             iw.forceMerge(1);
 
             // Check values round-trip.
@@ -3064,13 +3043,11 @@ public abstract class AbstractTSDBDocValuesFormatTests extends BaseDocValuesForm
                 }
                 assertTrue("sparse field should have values", sparseCount > 0);
             }
-
-            // The log assertion: the verbatim-copy trace must have fired at least once (one
-            // oversized single-doc block per source segment per field).
-            mockLog.assertAllExpectationsMatched();
-        } finally {
-            Loggers.setLevel(log4jLogger, savedLevel);
         }
+
+        // The InfoStream assertion: the verbatim-copy message must have fired at least once (one
+        // oversized single-doc block per source segment per field).
+        assertTrue("verbatim-copy must have fired during merge", baos.toString(StandardCharsets.UTF_8).contains("copied binary block of"));
     }
 
     /**

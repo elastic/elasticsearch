@@ -6,6 +6,7 @@
  */
 package org.elasticsearch.xpack.ql.optimizer;
 
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.ql.TestUtils;
 import org.elasticsearch.xpack.ql.expression.Alias;
@@ -38,6 +39,7 @@ import org.elasticsearch.xpack.ql.expression.predicate.operator.comparison.LessT
 import org.elasticsearch.xpack.ql.expression.predicate.operator.comparison.LessThanOrEqual;
 import org.elasticsearch.xpack.ql.expression.predicate.operator.comparison.NotEquals;
 import org.elasticsearch.xpack.ql.expression.predicate.operator.comparison.NullEquals;
+import org.elasticsearch.xpack.ql.expression.predicate.regex.AbstractStringPattern;
 import org.elasticsearch.xpack.ql.expression.predicate.regex.Like;
 import org.elasticsearch.xpack.ql.expression.predicate.regex.LikePattern;
 import org.elasticsearch.xpack.ql.expression.predicate.regex.RLike;
@@ -67,6 +69,7 @@ import java.time.ZoneId;
 import java.util.Collections;
 import java.util.List;
 import java.util.Set;
+import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Consumer;
 
 import static java.util.Arrays.asList;
@@ -96,6 +99,7 @@ import static org.elasticsearch.xpack.ql.type.DataTypes.DOUBLE;
 import static org.elasticsearch.xpack.ql.type.DataTypes.INTEGER;
 import static org.elasticsearch.xpack.ql.type.DataTypes.KEYWORD;
 import static org.hamcrest.Matchers.contains;
+import static org.hamcrest.Matchers.instanceOf;
 
 public class OptimizerRulesTests extends ESTestCase {
 
@@ -1455,6 +1459,30 @@ public class OptimizerRulesTests extends ESTestCase {
         assertEquals(IsNotNull.class, e.getClass());
         IsNotNull inn = (IsNotNull) e;
         assertEquals(fa, inn.field());
+    }
+
+    /**
+     * The rule is what a query reaches: it compiles the pattern to decide whether it matches everything or one value. A
+     * deep pattern must fail it as a client error, on a thread with a fixed, small stack so the overflow is certain.
+     */
+    public void testDeeplyNestedRLikeFailsAsClientError() throws Exception {
+        int depth = (AbstractStringPattern.MAX_PATTERN_LENGTH - 1) / 2;
+        RLikePattern pattern = new RLikePattern("(".repeat(depth) + "a" + ")".repeat(depth));
+        RLike l = new RLike(EMPTY, getFieldAttribute(), pattern);
+        AtomicReference<Throwable> thrown = new AtomicReference<>();
+        Thread thread = new Thread(null, () -> {
+            try {
+                new ReplaceRegexMatch().rule(l);
+            } catch (Throwable t) {
+                thrown.set(t);
+            }
+        }, "small-stack-regex", 256 * 1024);
+        thread.setDaemon(true);
+        thread.start();
+        thread.join(TimeValue.timeValueSeconds(30).millis());
+        assertFalse(thread.isAlive());
+        assertThat(thrown.get(), instanceOf(IllegalArgumentException.class));
+        assertEquals("Pattern nesting is too deep to evaluate", thrown.get().getMessage());
     }
 
     public void testExactMatchLike() throws Exception {

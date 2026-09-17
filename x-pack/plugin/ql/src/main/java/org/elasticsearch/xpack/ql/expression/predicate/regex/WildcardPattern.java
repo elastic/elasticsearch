@@ -37,7 +37,8 @@ public class WildcardPattern extends AbstractStringPattern {
     }
 
     @Override
-    public Automaton createAutomaton() {
+    protected Automaton doCreateAutomaton() {
+        checkLength(wildcard);
         return WildcardQuery.toAutomaton(new Term(null, wildcard), Operations.DEFAULT_DETERMINIZE_WORK_LIMIT);
     }
 

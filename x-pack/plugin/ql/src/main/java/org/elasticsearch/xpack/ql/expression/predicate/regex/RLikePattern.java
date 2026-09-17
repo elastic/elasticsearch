@@ -9,6 +9,8 @@ package org.elasticsearch.xpack.ql.expression.predicate.regex;
 import org.apache.lucene.util.automaton.Automaton;
 import org.apache.lucene.util.automaton.Operations;
 import org.apache.lucene.util.automaton.RegExp;
+import org.elasticsearch.lucene.search.cost.RegexpNfaRamEstimator;
+import org.elasticsearch.lucene.util.automaton.CircuitBreakingOperations;
 
 import java.util.Objects;
 
@@ -20,12 +22,23 @@ public class RLikePattern extends AbstractStringPattern {
         this.regexpPattern = regexpPattern;
     }
 
+    /**
+     * The NFA is built only after its estimated size fits the budget: a length limit alone does not bound it, since
+     * {@code [ab]{1000}{1000}{1000}} is 22 characters and about a billion states. The estimator walks the parse tree
+     * recursively, as the parser does, so both stay inside {@link #createAutomaton()}'s overflow guard.
+     */
     @Override
-    public Automaton createAutomaton() {
-        return Operations.determinize(
-            new RegExp(regexpPattern, RegExp.ALL | RegExp.DEPRECATED_COMPLEMENT).toAutomaton(),
-            Operations.DEFAULT_DETERMINIZE_WORK_LIMIT
-        );
+    protected Automaton doCreateAutomaton() {
+        checkLength(regexpPattern);
+        RegExp re;
+        try {
+            re = new RegExp(regexpPattern, RegExp.ALL | RegExp.DEPRECATED_COMPLEMENT);
+        } catch (NumberFormatException e) {
+            throw new IllegalArgumentException("Pattern repeat count is out of range", e);
+        }
+        AutomatonBudget budget = new AutomatonBudget();
+        budget.addEstimateBytesAndMaybeBreak(RegexpNfaRamEstimator.estimateRamBytes(re), "rlike");
+        return CircuitBreakingOperations.determinize(re.toAutomaton(), Operations.DEFAULT_DETERMINIZE_WORK_LIMIT, budget, "rlike");
     }
 
     @Override

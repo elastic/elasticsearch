@@ -86,6 +86,31 @@ public abstract class EqlRestTestCase extends RemoteClusterAwareEqlRestTestCase 
         deleteIndexWithProvisioningClient(defaultValidationIndexName);
     }
 
+    /**
+     * The {@code regex} operator compiles its pattern on the coordinator. A pattern too long for the {@code regexp} bound is
+     * refused before it is parsed; one that fits but would expand to a billion states is refused by the size estimate.
+     * Either way the node answers 400 instead of dying.
+     */
+    public void testUnboundedRegexPatternsAreRejected() throws Exception {
+        createIndex(defaultValidationIndexName, (String) null);
+        bulkIndex("""
+            {"index": {"_index": "%s", "_id": 1}}
+            {"event":{"category":"process"},"@timestamp":"2020-01-01T12:34:56Z"}
+            """.formatted(defaultValidationIndexName));
+        String deep = "(".repeat(5000) + "a" + ")".repeat(5000);
+        assertBadRequest(
+            "{\"query\": \"process where event.category regex \\\"" + deep + "\\\"\"}",
+            "Pattern length [10001] exceeds the allowed maximum of [1000]",
+            400
+        );
+        assertBadRequest(
+            "{\"query\": \"process where event.category regex \\\"[ab]{1000}{1000}{1000}\\\"\"}",
+            "Pattern is too large to compile",
+            400
+        );
+        deleteIndexWithProvisioningClient(defaultValidationIndexName);
+    }
+
     private void assertBadRequest(String query, String errorMessage, int errorCode) throws IOException {
         final String endpoint = "/" + indexPattern(defaultValidationIndexName) + "/_eql/search";
         Request request = new Request("GET", endpoint);

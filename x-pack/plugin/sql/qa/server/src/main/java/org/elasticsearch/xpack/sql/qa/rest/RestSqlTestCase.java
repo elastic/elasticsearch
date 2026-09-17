@@ -122,6 +122,37 @@ public abstract class RestSqlTestCase extends BaseRestSqlTestCase implements Err
         }
     }
 
+    /**
+     * A pattern hidden in a string literal bypasses the parser's expression-depth check. Compiling it used to overflow the
+     * stack on the coordinator and take the node down; a real node answers 400 here and is still up for the next test.
+     */
+    public void testDeeplyNestedRLikePatternIsRejected() throws IOException {
+        index("{\"test\":\"test\"}");
+        String mode = randomMode();
+        String deep = "(".repeat(5000) + "a" + ")".repeat(5000);
+        expectBadRequest(
+            () -> runSql(mode, "SELECT * FROM " + indexPattern("test") + " WHERE test RLIKE '" + deep + "'"),
+            containsString("Pattern length [10001] exceeds the allowed maximum of [1000]")
+        );
+        String deepWithinLength = "(".repeat(499) + "a" + ")".repeat(499);
+        Map<String, Object> result = runSql(
+            mode,
+            "SELECT * FROM " + indexPattern("test") + " WHERE test RLIKE '" + deepWithinLength + "'",
+            false
+        );
+        assertEquals(emptyList(), result.get("rows"));
+    }
+
+    /** 22 characters and about a billion NFA states; the estimate refuses it before the node allocates any of it. */
+    public void testHugeRLikePatternIsRejected() throws IOException {
+        index("{\"test\":\"test\"}");
+        String mode = randomMode();
+        expectBadRequest(
+            () -> runSql(mode, "SELECT * FROM " + indexPattern("test") + " WHERE test RLIKE '[ab]{1000}{1000}{1000}'"),
+            containsString("Pattern is too large to compile")
+        );
+    }
+
     public void testBasicQuery() throws IOException {
         index("{\"test\":\"test\"}", "{\"test\":\"test\"}");
 

@@ -11,6 +11,7 @@ import org.apache.lucene.store.Directory;
 import org.apache.lucene.store.FilterDirectory;
 import org.elasticsearch.blobcache.BlobCacheMetrics;
 import org.elasticsearch.blobcache.CachePopulationSource;
+import org.elasticsearch.blobcache.shared.SharedBlobCacheService;
 import org.elasticsearch.common.blobstore.BlobContainer;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.core.Nullable;
@@ -41,6 +42,14 @@ public class IndexBlobStoreCacheDirectory extends BlobStoreCacheDirectory {
         @Nullable LongFunction<BlobContainer> blobContainerFunction
     ) {
         super(cacheService, shardId, totalBytesRead, totalBytesWarmed, blobContainerFunction);
+    }
+
+    // The indexing tier does not fully support or use data timestamps on cache regions yet.
+    // Always returning UNKNOWN_TIMESTAMP keeps age-histogram metrics (read.age, miss.age)
+    // search-node-only without leaking indexing-tier reads into those distributions.
+    @Override
+    public long resolveRegionTimestampMillis(long rawMillis) {
+        return SharedBlobCacheService.UNKNOWN_TIMESTAMP;
     }
 
     @Override

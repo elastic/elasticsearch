@@ -3687,7 +3687,9 @@ public class VerifierTests extends AnalyzerTestCase {
                 "FROM test | WHERE KNN(vector, [0.1, 0.2, 0.3], {\"similarity_function\": \""
                     + metric.name().toLowerCase(Locale.ROOT)
                     + "\"})",
-                containsString("[KNN] option [similarity_function] is only supported when [vector] is a non-index-mapped field or expression")
+                containsString(
+                    "[KNN] option [similarity_function] is only supported when [vector] is a non-index-mapped field or expression"
+                )
             );
         }
 

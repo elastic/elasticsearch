@@ -185,11 +185,46 @@ public class ParquetLateMaterializationBreakerTests extends ESTestCase {
      * the cleanup path takes its reservation with it, which is silent in logs.
      */
     public void testBreakerTripLeavesNoOutstandingReservation() throws IOException {
-        byte[] parquetData = urlFileWithZeroMatchBatches();
+        assertNoBreakerLeaks(urlFileWithZeroMatchBatches());
+    }
 
+    /**
+     * The same accounting walk with a LIST column added to the projection. Two-phase I/O is
+     * already disabled by the in-memory {@link StorageObject} ({@code supportsNativeAsync()}
+     * returns {@code false}), so the single-phase late-materialization path is used regardless.
+     * The list column's role is different: columns with {@code maxRepLevel() > 0} never receive
+     * a {@link PageColumnReader} slot, so the Phase-3 loop falls through to the else-arm for
+     * {@code tags} — decode the full batch via {@code readColumnBlockNoCleanup}, then compact via
+     * {@link PageColumnReader#filterBlock}. A breaker trip inside that compaction must not strand
+     * the fully-decoded block's reservation — the block was never published to the caller's array,
+     * so only that arm can release it.
+     */
+    public void testBreakerTripWithListColumnLeavesNoOutstandingReservation() throws IOException {
+        int listCharges = assertNoBreakerLeaks(urlFileWithListColumnAndZeroMatchBatches());
+        // Pin: tags must contribute charges beyond what url alone produces; if this fails,
+        // the Phase-3 else-arm was not exercised (e.g. tags was dropped from the projection).
+        int urlOnlyCharges = countCharges(urlOnlyFile());
+        assertTrue(
+            "tags column must add breaker charges beyond the url-only baseline ("
+                + listCharges
+                + " vs "
+                + urlOnlyCharges
+                + "); Phase-3 else-arm may not have been exercised",
+            listCharges > urlOnlyCharges
+        );
+    }
+
+    /**
+     * Walks the failure point across every breaker charge the given data set makes and asserts the
+     * breaker returns to zero after each run, regardless of whether it threw.
+     *
+     * @return the total number of breaker charges a clean read makes
+     */
+    private int assertNoBreakerLeaks(byte[] parquetData) throws IOException {
         FailAtChargeBreaker counting = new FailAtChargeBreaker(-1);
         readToExhaustion(parquetData, counting);
         int totalCharges = counting.charges();
+        assertTrue("expected the read to charge the breaker at least once", totalCharges > 0);
 
         List<String> leaks = new ArrayList<>();
         for (int failAt = 1; failAt <= totalCharges; failAt++) {
@@ -207,10 +242,19 @@ public class ParquetLateMaterializationBreakerTests extends ESTestCase {
         assertTrue(
             "a finished read must return the breaker to zero, but "
                 + leaks.size()
+                + " of "
+                + totalCharges
                 + " charge points leaked: "
                 + leaks.subList(0, Math.min(5, leaks.size())),
             leaks.isEmpty()
         );
+        return totalCharges;
+    }
+
+    private int countCharges(byte[] parquetData) throws IOException {
+        FailAtChargeBreaker counting = new FailAtChargeBreaker(-1);
+        readToExhaustion(parquetData, counting);
+        return counting.charges();
     }
 
     /**
@@ -274,12 +318,69 @@ public class ParquetLateMaterializationBreakerTests extends ESTestCase {
         return writeParquet(schema, factory -> {
             List<Group> groups = new ArrayList<>(ROWS);
             for (int i = 0; i < ROWS; i++) {
-                boolean matches = i >= FIRST_MATCHING_ROW && i % 2 == 0;
-                String url = matches ? "https://www.google.com/search?q=" + i : "https://example.org/page?id=" + i;
-                groups.add(factory.newGroup().append("url", url).append("search_phrase", "phrase_" + i).append("counter", (long) i));
+                groups.add(
+                    factory.newGroup().append("url", urlForRow(i)).append("search_phrase", "phrase_" + i).append("counter", (long) i)
+                );
             }
             return groups;
         });
+    }
+
+    /**
+     * A minimal fixture for the Phase-3 else-arm: a {@code url} column (the predicate) and a
+     * {@code tags} LIST&lt;INT64&gt; column (standard 3-level encoding). {@code tags} has
+     * {@code maxRepLevel() > 0}, so it is excluded from {@link PageColumnReader} slot
+     * initialization; the Phase-3 loop therefore takes the else-arm for it — decode full batch,
+     * then compact via {@link PageColumnReader#filterBlock} — on every partially-matching batch.
+     */
+    private byte[] urlFileWithListColumnAndZeroMatchBatches() throws IOException {
+        MessageType schema = Types.buildMessage()
+            .required(BINARY)
+            .as(LogicalTypeAnnotation.stringType())
+            .named("url")
+            .optionalGroup()
+            .as(LogicalTypeAnnotation.listType())
+            .repeatedGroup()
+            .optional(INT64)
+            .named("element")
+            .named("list")
+            .named("tags")
+            .named("late_mat_list_breaker_test");
+
+        return writeParquet(schema, factory -> {
+            List<Group> groups = new ArrayList<>(ROWS);
+            for (int i = 0; i < ROWS; i++) {
+                Group group = factory.newGroup().append("url", urlForRow(i));
+                Group tags = group.addGroup("tags");
+                tags.addGroup("list").add("element", (long) i);
+                tags.addGroup("list").add("element", (long) i * 2);
+                groups.add(group);
+            }
+            return groups;
+        });
+    }
+
+    /**
+     * A single-column URL fixture used as a charge-count baseline. Any read that also decodes a
+     * second column (such as the list fixture) must charge the breaker more than this.
+     */
+    private byte[] urlOnlyFile() throws IOException {
+        MessageType schema = Types.buildMessage()
+            .required(BINARY)
+            .as(LogicalTypeAnnotation.stringType())
+            .named("url")
+            .named("late_mat_url_only");
+        return writeParquet(schema, factory -> {
+            List<Group> groups = new ArrayList<>(ROWS);
+            for (int i = 0; i < ROWS; i++) {
+                groups.add(factory.newGroup().append("url", urlForRow(i)));
+            }
+            return groups;
+        });
+    }
+
+    private static String urlForRow(int i) {
+        return i >= FIRST_MATCHING_ROW && i % 2 == 0 ? "https://www.google.com/search?q=" + i : "https://example.org/page?id=" + i;
     }
 
     @FunctionalInterface

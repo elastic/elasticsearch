@@ -1373,9 +1373,11 @@ public class ESVectorUtilTests extends BaseVectorizationTests {
 
         float[] expected = basicMatrixMultiply(a, b, m, k, n);
 
-        float[] scalar = defaultedProvider.getVectorUtilSupport().matrixMultiply(a, b, m, k, n);
+        float[] scalar = new float[m * n];
+        defaultedProvider.getVectorUtilSupport().matrixMultiply(a, b, m, k, n, scalar);
         assertArrayEquals(expected, scalar, 1e-3f);
-        float[] panama = panamaProvider.getVectorUtilSupport().matrixMultiply(a, b, m, k, n);
+        float[] panama = new float[m * n];
+        panamaProvider.getVectorUtilSupport().matrixMultiply(a, b, m, k, n, panama);
         assertArrayEquals(expected, panama, 1e-3f);
     }
 
@@ -1391,6 +1393,34 @@ public class ESVectorUtilTests extends BaseVectorizationTests {
             }
         }
         return c;
+    }
+
+    public void testMatrixVectorMultiply() {
+        int rows = randomIntBetween(2, 1024);
+        int cols = randomIntBetween(2, 1024);
+
+        float[] a = VectorTestUtils.randomFloatVector(rows * cols);
+        float[] v = VectorTestUtils.randomFloatVector(cols);
+
+        float[] expected = basicMatrixVectorMultiply(a, rows, cols, v);
+
+        float[] scalarResult = new float[rows];
+        defaultedProvider.getVectorUtilSupport().matrixVectorMultiply(a, rows, cols, v, scalarResult);
+        assertArrayEquals(expected, scalarResult, 1e-3f);
+        float[] panamaResult = new float[rows];
+        panamaProvider.getVectorUtilSupport().matrixVectorMultiply(a, rows, cols, v, panamaResult);
+        assertArrayEquals(expected, panamaResult, 1e-3f);
+    }
+
+    private static float[] basicMatrixVectorMultiply(float[] a, int rows, int cols, float[] v) {
+        float[] result = new float[rows];
+        for (int i = 0; i < rows; i++) {
+            int aBase = i * cols;
+            for (int j = 0; j < cols; j++) {
+                result[i] = Math.fma(a[aBase + j], v[j], result[i]);
+            }
+        }
+        return result;
     }
 
 }

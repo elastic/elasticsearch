@@ -76,6 +76,9 @@ public final class BidirectionalBatchExchangeServer extends BidirectionalBatchEx
     private volatile boolean driverStarted = false; // Whether driver has been started (client sent BatchExchangeStatusRequest)
     private ScheduledFuture<?> clientReadyTimeoutFuture; // Timeout for client to send BatchExchangeStatusRequest
     private ActionListener<BatchExchangeStatusResponse> batchExchangeStatusListener; // Listener to call when batch processing completes
+    private boolean profile;
+    private volatile long driverStartNanos;
+    private volatile long driverTookNanos;
     private final AtomicReference<Releasable> releasableRef = new AtomicReference<>(); // Releasable resources (shardContext, etc.) that
                                                                                        // should be closed when driver finishes or server
                                                                                        // closes
@@ -142,6 +145,22 @@ public final class BidirectionalBatchExchangeServer extends BidirectionalBatchEx
         Releasable releasable,
         ActionListener<Void> readyListener
     ) {
+        startWithOperators(driverContext, threadContext, intermediateOperators, clusterName, releasable, false, readyListener);
+    }
+
+    /**
+     * Start batch processing and optionally return a compact server-driver profile to the client.
+     */
+    public void startWithOperators(
+        DriverContext driverContext,
+        ThreadContext threadContext,
+        List<Operator> intermediateOperators,
+        String clusterName,
+        Releasable releasable,
+        boolean profile,
+        ActionListener<Void> readyListener
+    ) {
+        this.profile = profile;
         startBatchProcessing(driverContext, threadContext, intermediateOperators, clusterName, TimeValue.timeValueSeconds(1), releasable);
         remoteSinkReady.addListener(readyListener);
     }
@@ -262,6 +281,7 @@ public final class BidirectionalBatchExchangeServer extends BidirectionalBatchEx
         logger.debug("Client is ready, starting driver for exchangeId={}", serverToClientId);
         // driverFuture was already created in startBatchProcessing(), reuse it
         // The driver completion listener will handle both success and failure cases and reply
+        driverStartNanos = System.nanoTime();
         Driver.start(threadContext, executor, batchDriver, Driver.DEFAULT_MAX_ITERATIONS, createDriverCompletionListener());
         logger.debug("Server driver started");
     }
@@ -280,6 +300,7 @@ public final class BidirectionalBatchExchangeServer extends BidirectionalBatchEx
      */
     private ActionListener<Void> createDriverCompletionListener() {
         return ActionListener.wrap(ignored -> {
+            driverTookNanos = System.nanoTime() - driverStartNanos;
             logger.debug("Driver completion listener onResponse called (success) for exchangeId={}", serverToClientId);
             driverFuture.onResponse(null);
             logger.debug("Batch processing completed successfully for exchangeId={}", serverToClientId);
@@ -299,6 +320,7 @@ public final class BidirectionalBatchExchangeServer extends BidirectionalBatchEx
                 driverResponseRef.onResponse(null);
             }
         }, failure -> {
+            driverTookNanos = System.nanoTime() - driverStartNanos;
             logger.debug(
                 "Driver completion listener onFailure called for exchangeId={}, failure={}",
                 serverToClientId,
@@ -338,7 +360,10 @@ public final class BidirectionalBatchExchangeServer extends BidirectionalBatchEx
                     DriverCompletionInfo completionInfo = batchDriver != null
                         ? DriverCompletionInfo.excludingProfiles(List.of(batchDriver), 0L, false)
                         : DriverCompletionInfo.EMPTY;
-                    response = new BatchExchangeStatusResponse(completionInfo.bytesRead(), completionInfo.warnings());
+                    BatchExchangeStatusResponse.Profile driverProfile = profile && batchDriver != null
+                        ? BatchExchangeStatusResponse.Profile.from(batchDriver.profile(), driverTookNanos)
+                        : null;
+                    response = new BatchExchangeStatusResponse(completionInfo.bytesRead(), completionInfo.warnings(), driverProfile);
                 } else {
                     response = new BatchExchangeStatusResponse(failure);
                 }

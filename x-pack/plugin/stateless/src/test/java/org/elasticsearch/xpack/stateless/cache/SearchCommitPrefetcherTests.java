@@ -24,7 +24,6 @@ import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.store.ThreadLocalDirectoryMetricHolder;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.threadpool.ThreadPool;
-import org.elasticsearch.xpack.stateless.TestUtils;
 import org.elasticsearch.xpack.stateless.cache.SearchCommitPrefetcher.FileTimestampResolver;
 import org.elasticsearch.xpack.stateless.cache.reader.CacheBlobReader;
 import org.elasticsearch.xpack.stateless.commits.BatchedCompoundCommit;
@@ -310,7 +309,7 @@ public class SearchCommitPrefetcherTests extends ESTestCase {
                 settings,
                 clusterSettings,
                 threadPool,
-                TestUtils.NOOP_BLOB_CACHE_METRICS,
+                BlobCacheMetrics.NOOP,
                 new DefaultEvictionPolicy<FileCacheKey>(),
                 System::nanoTime,
                 EsExecutors.DIRECT_EXECUTOR_SERVICE,

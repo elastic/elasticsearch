@@ -22,7 +22,6 @@ import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.license.License;
 import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.license.internal.XPackLicenseStatus;
-import org.elasticsearch.telemetry.TelemetryProvider;
 import org.elasticsearch.telemetry.metric.MeterRegistry;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.stateless.cache.StatelessSharedBlobCacheService;
@@ -50,12 +49,6 @@ public class TestUtils {
 
     /** A {@link TimeProvider} with all methods returning {@code 0L}, for use in tests that do not exercise time-based bucketing. */
     public static final TimeProvider NOOP_TIME_PROVIDER = SharedBlobCacheServiceTestUtils.NOOP_TIME_PROVIDER;
-
-    /** A no-op {@link BlobCacheMetrics} for tests that do not exercise cache metrics. */
-    public static final BlobCacheMetrics NOOP_BLOB_CACHE_METRICS = new BlobCacheMetrics(
-        TelemetryProvider.NOOP.getMeterRegistry(),
-        NOOP_TIME_PROVIDER
-    );
 
     /**
      * A {@link FillCacheMemoryPressure} using {@code settings} (default: heap-relative) and no telemetry, for tests that do not
@@ -136,7 +129,7 @@ public class TestUtils {
             nodeEnvironment,
             settings,
             threadPool,
-            meterRegistry == null ? NOOP_BLOB_CACHE_METRICS : new BlobCacheMetrics(meterRegistry, NOOP_TIME_PROVIDER),
+            meterRegistry == null ? BlobCacheMetrics.NOOP : new BlobCacheMetrics(meterRegistry, NOOP_TIME_PROVIDER),
             clusterService,
             mockIndicesService(clusterService),
             new ThreadLocalDirectoryMetricHolder<>(BlobStoreCacheDirectoryMetrics::new)

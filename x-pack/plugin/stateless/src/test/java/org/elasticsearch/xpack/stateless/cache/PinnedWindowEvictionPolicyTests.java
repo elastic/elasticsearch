@@ -196,7 +196,7 @@ public class PinnedWindowEvictionPolicyTests extends ESTestCase {
                 environment,
                 settings,
                 taskQueue.getThreadPool(),
-                TestUtils.NOOP_BLOB_CACHE_METRICS,
+                BlobCacheMetrics.NOOP,
                 cacheClusterService,
                 mockIndicesService(cacheClusterService, oldShard, newShard),
                 new ThreadLocalDirectoryMetricHolder<>(BlobStoreCacheDirectoryMetrics::new)

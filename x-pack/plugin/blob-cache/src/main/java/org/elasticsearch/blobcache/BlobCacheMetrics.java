@@ -65,6 +65,29 @@ public class BlobCacheMetrics {
      */
     public static final String BLOB_CACHE_MISS_AGE = "es.blob_cache.miss.age.histogram";
 
+    private static final TimeProvider NOOP_PROVIDER = new TimeProvider() {
+        @Override
+        public long relativeTimeInMillis() {
+            return 0L;
+        }
+
+        @Override
+        public long relativeTimeInNanos() {
+            return 0L;
+        }
+
+        @Override
+        public long rawRelativeTimeInMillis() {
+            return 0L;
+        }
+
+        @Override
+        public long absoluteTimeInMillis() {
+            return 0L;
+        }
+    };
+    public static final BlobCacheMetrics NOOP = new BlobCacheMetrics(MeterRegistry.NOOP, NOOP_PROVIDER);
+
     private final LongCounter cacheMissCounter;
     private final LongCounter evictedCountNonZeroFrequency;
     private final LongCounter totalEvictedCount;

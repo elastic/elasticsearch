@@ -14,7 +14,6 @@ import org.elasticsearch.blobcache.common.ByteRange;
 import org.elasticsearch.blobcache.shared.SharedBytes;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.test.ESTestCase;
-import org.elasticsearch.xpack.stateless.TestUtils;
 import org.elasticsearch.xpack.stateless.cache.StatelessSharedBlobCacheService;
 import org.elasticsearch.xpack.stateless.cache.reader.CacheBlobReader;
 import org.elasticsearch.xpack.stateless.cache.reader.CacheFileReader;
@@ -139,7 +138,7 @@ public class BlobStoreCacheDirectoryHintTests extends ESTestCase {
             cacheFile,
             mock(CacheBlobReader.class),
             createBlobFileRanges(1L, 0L, 0, 1024),
-            TestUtils.NOOP_BLOB_CACHE_METRICS,
+            BlobCacheMetrics.NOOP,
             System::currentTimeMillis,
             REGION_SIZE,
             IOContext.DEFAULT.withHints(DataAccessHint.RANDOM),
@@ -161,7 +160,7 @@ public class BlobStoreCacheDirectoryHintTests extends ESTestCase {
             cacheFile,
             mock(CacheBlobReader.class),
             createBlobFileRanges(1L, 0L, 0, 1024),
-            TestUtils.NOOP_BLOB_CACHE_METRICS,
+            BlobCacheMetrics.NOOP,
             System::currentTimeMillis,
             REGION_SIZE,
             IOContext.DEFAULT.withHints(DataAccessHint.RANDOM),
@@ -188,7 +187,7 @@ public class BlobStoreCacheDirectoryHintTests extends ESTestCase {
             cacheFile,
             mock(CacheBlobReader.class),
             createBlobFileRanges(1L, 0L, 0, 500 * 1024 * 1024),
-            TestUtils.NOOP_BLOB_CACHE_METRICS,
+            BlobCacheMetrics.NOOP,
             System::currentTimeMillis,
             REGION_SIZE,
             IOContext.DEFAULT,
@@ -224,7 +223,7 @@ public class BlobStoreCacheDirectoryHintTests extends ESTestCase {
             cacheFile,
             mock(CacheBlobReader.class),
             createBlobFileRanges(1L, 0L, 0, 100 * 1024 * 1024),
-            TestUtils.NOOP_BLOB_CACHE_METRICS,
+            BlobCacheMetrics.NOOP,
             System::currentTimeMillis,
             REGION_SIZE,
             IOContext.DEFAULT,
@@ -256,7 +255,7 @@ public class BlobStoreCacheDirectoryHintTests extends ESTestCase {
             cacheFile,
             mock(CacheBlobReader.class),
             createBlobFileRanges(1L, 0L, 0, 100 * 1024 * 1024),
-            TestUtils.NOOP_BLOB_CACHE_METRICS,
+            BlobCacheMetrics.NOOP,
             System::currentTimeMillis,
             REGION_SIZE,
             IOContext.DEFAULT,
@@ -286,7 +285,7 @@ public class BlobStoreCacheDirectoryHintTests extends ESTestCase {
             cacheFile,
             mock(CacheBlobReader.class),
             createBlobFileRanges(1L, 0L, 0, 500 * 1024 * 1024),
-            TestUtils.NOOP_BLOB_CACHE_METRICS,
+            BlobCacheMetrics.NOOP,
             System::currentTimeMillis,
             REGION_SIZE,
             IOContext.DEFAULT,
@@ -323,7 +322,7 @@ public class BlobStoreCacheDirectoryHintTests extends ESTestCase {
             cacheFile,
             mock(CacheBlobReader.class),
             createBlobFileRanges(1L, 0L, 0, 500 * 1024 * 1024),
-            TestUtils.NOOP_BLOB_CACHE_METRICS,
+            BlobCacheMetrics.NOOP,
             System::currentTimeMillis,
             REGION_SIZE,
             IOContext.DEFAULT.withHints(DataAccessHint.RANDOM),
@@ -350,7 +349,7 @@ public class BlobStoreCacheDirectoryHintTests extends ESTestCase {
             cacheFile,
             mock(CacheBlobReader.class),
             createBlobFileRanges(1L, 0L, 0, 500 * 1024 * 1024),
-            TestUtils.NOOP_BLOB_CACHE_METRICS,
+            BlobCacheMetrics.NOOP,
             System::currentTimeMillis,
             REGION_SIZE,
             IOContext.DEFAULT,
@@ -388,7 +387,7 @@ public class BlobStoreCacheDirectoryHintTests extends ESTestCase {
             cacheFile,
             mock(CacheBlobReader.class),
             createBlobFileRanges(1L, 0L, 0, 500 * 1024 * 1024),
-            TestUtils.NOOP_BLOB_CACHE_METRICS,
+            BlobCacheMetrics.NOOP,
             System::currentTimeMillis,
             REGION_SIZE,
             IOContext.DEFAULT,
@@ -411,7 +410,7 @@ public class BlobStoreCacheDirectoryHintTests extends ESTestCase {
             cacheFile,
             mock(CacheBlobReader.class),
             createBlobFileRanges(1L, 0L, 0, 500 * 1024 * 1024),
-            TestUtils.NOOP_BLOB_CACHE_METRICS,
+            BlobCacheMetrics.NOOP,
             System::currentTimeMillis,
             REGION_SIZE,
             IOContext.DEFAULT,
@@ -445,7 +444,7 @@ public class BlobStoreCacheDirectoryHintTests extends ESTestCase {
             cacheFile,
             mock(CacheBlobReader.class),
             createBlobFileRanges(1L, 0L, 0, 2048),
-            TestUtils.NOOP_BLOB_CACHE_METRICS,
+            BlobCacheMetrics.NOOP,
             System::currentTimeMillis,
             REGION_SIZE,
             IOContext.DEFAULT,
@@ -473,7 +472,7 @@ public class BlobStoreCacheDirectoryHintTests extends ESTestCase {
             cacheFile,
             mock(CacheBlobReader.class),
             createBlobFileRanges(1L, 0L, 0, 1024),
-            TestUtils.NOOP_BLOB_CACHE_METRICS,
+            BlobCacheMetrics.NOOP,
             System::currentTimeMillis,
             REGION_SIZE,
             IOContext.DEFAULT.withHints(DataAccessHint.RANDOM),
@@ -497,7 +496,7 @@ public class BlobStoreCacheDirectoryHintTests extends ESTestCase {
             cacheFile,
             mock(CacheBlobReader.class),
             createBlobFileRanges(1L, 0L, 0, 1024),
-            TestUtils.NOOP_BLOB_CACHE_METRICS,
+            BlobCacheMetrics.NOOP,
             System::currentTimeMillis,
             true
         );
@@ -533,7 +532,7 @@ public class BlobStoreCacheDirectoryHintTests extends ESTestCase {
             cacheFile,
             mock(CacheBlobReader.class),
             createBlobFileRanges(1L, 0L, 0, 1024),
-            TestUtils.NOOP_BLOB_CACHE_METRICS,
+            BlobCacheMetrics.NOOP,
             System::currentTimeMillis,
             true
         );

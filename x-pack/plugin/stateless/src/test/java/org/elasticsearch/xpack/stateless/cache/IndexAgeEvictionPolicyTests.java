@@ -173,7 +173,7 @@ public class IndexAgeEvictionPolicyTests extends ESTestCase {
                 environment,
                 settings,
                 taskQueue.getThreadPool(),
-                TestUtils.NOOP_BLOB_CACHE_METRICS,
+                BlobCacheMetrics.NOOP,
                 clusterService,
                 indicesService,
                 new ThreadLocalDirectoryMetricHolder<>(BlobStoreCacheDirectoryMetrics::new)

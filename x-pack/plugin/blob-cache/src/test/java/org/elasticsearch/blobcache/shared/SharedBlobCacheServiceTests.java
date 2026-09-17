@@ -41,7 +41,6 @@ import org.elasticsearch.node.NodeRoleSettings;
 import org.elasticsearch.telemetry.InstrumentType;
 import org.elasticsearch.telemetry.Measurement;
 import org.elasticsearch.telemetry.RecordingMeterRegistry;
-import org.elasticsearch.telemetry.metric.MeterRegistry;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.threadpool.TestThreadPool;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -341,7 +340,7 @@ public class SharedBlobCacheServiceTests extends ESTestCase {
                 settings,
                 threadPool,
                 threadPool.executor(ThreadPool.Names.GENERIC),
-                new BlobCacheMetrics(MeterRegistry.NOOP, NOOP_TIME_PROVIDER)
+                BlobCacheMetrics.NOOP
             )
         ) {
             {
@@ -414,7 +413,7 @@ public class SharedBlobCacheServiceTests extends ESTestCase {
                 settings,
                 threadPool,
                 threadPool.executor(ThreadPool.Names.GENERIC),
-                new BlobCacheMetrics(MeterRegistry.NOOP, NOOP_TIME_PROVIDER)
+                BlobCacheMetrics.NOOP
             )
         ) {
             final var cacheKey = generateCacheKey();
@@ -616,7 +615,7 @@ public class SharedBlobCacheServiceTests extends ESTestCase {
                 settings,
                 taskQueue.getThreadPool(),
                 taskQueue.getThreadPool().executor(ThreadPool.Names.GENERIC),
-                new BlobCacheMetrics(MeterRegistry.NOOP, NOOP_TIME_PROVIDER)
+                BlobCacheMetrics.NOOP
             )
         ) {
             final var cacheKey = generateCacheKey();
@@ -661,7 +660,7 @@ public class SharedBlobCacheServiceTests extends ESTestCase {
                 settings,
                 taskQueue.getThreadPool(),
                 taskQueue.getThreadPool().executor(ThreadPool.Names.GENERIC),
-                new BlobCacheMetrics(MeterRegistry.NOOP, NOOP_TIME_PROVIDER)
+                BlobCacheMetrics.NOOP
             )
         ) {
             final var cacheKey1 = generateCacheKey();
@@ -767,7 +766,7 @@ public class SharedBlobCacheServiceTests extends ESTestCase {
                 settings,
                 taskQueue.getThreadPool(),
                 taskQueue.getThreadPool().executor(ThreadPool.Names.GENERIC),
-                new BlobCacheMetrics(MeterRegistry.NOOP, NOOP_TIME_PROVIDER)
+                BlobCacheMetrics.NOOP
             )
         ) {
             final var cacheKey1 = generateCacheKey();
@@ -805,7 +804,7 @@ public class SharedBlobCacheServiceTests extends ESTestCase {
                 settings,
                 taskQueue.getThreadPool(),
                 taskQueue.getThreadPool().executor(ThreadPool.Names.GENERIC),
-                new BlobCacheMetrics(MeterRegistry.NOOP, NOOP_TIME_PROVIDER)
+                BlobCacheMetrics.NOOP
             )
         ) {
             final var cacheKey1 = generateCacheKey();
@@ -845,7 +844,7 @@ public class SharedBlobCacheServiceTests extends ESTestCase {
                 settings,
                 taskQueue.getThreadPool(),
                 taskQueue.getThreadPool().executor(ThreadPool.Names.GENERIC),
-                new BlobCacheMetrics(MeterRegistry.NOOP, NOOP_TIME_PROVIDER)
+                BlobCacheMetrics.NOOP
             )
         ) {
             final ShardId shard1 = randomShardId();
@@ -897,7 +896,7 @@ public class SharedBlobCacheServiceTests extends ESTestCase {
                 settings,
                 taskQueue.getThreadPool(),
                 taskQueue.getThreadPool().executor(ThreadPool.Names.GENERIC),
-                new BlobCacheMetrics(MeterRegistry.NOOP, NOOP_TIME_PROVIDER)
+                BlobCacheMetrics.NOOP
             )
         ) {
             final ShardId protectedShard = randomShardId();
@@ -961,7 +960,7 @@ public class SharedBlobCacheServiceTests extends ESTestCase {
                 settings,
                 taskQueue.getThreadPool(),
                 taskQueue.getThreadPool().executor(ThreadPool.Names.GENERIC),
-                new BlobCacheMetrics(MeterRegistry.NOOP, NOOP_TIME_PROVIDER)
+                BlobCacheMetrics.NOOP
             )
         ) {
             for (var entry : regionCountPerShard.entrySet()) {
@@ -1002,7 +1001,7 @@ public class SharedBlobCacheServiceTests extends ESTestCase {
                 settings,
                 taskQueue.getThreadPool(),
                 taskQueue.getThreadPool().executor(ThreadPool.Names.GENERIC),
-                new BlobCacheMetrics(MeterRegistry.NOOP, NOOP_TIME_PROVIDER)
+                BlobCacheMetrics.NOOP
             )
         ) {
             final ShardId shard1 = randomShardId();
@@ -1056,7 +1055,7 @@ public class SharedBlobCacheServiceTests extends ESTestCase {
                 settings,
                 taskQueue.getThreadPool(),
                 taskQueue.getThreadPool().executor(ThreadPool.Names.GENERIC),
-                new BlobCacheMetrics(MeterRegistry.NOOP, NOOP_TIME_PROVIDER)
+                BlobCacheMetrics.NOOP
             )
         ) {
             final ShardId shard1 = randomShardId();
@@ -1331,7 +1330,7 @@ public class SharedBlobCacheServiceTests extends ESTestCase {
                 settings,
                 taskQueue.getThreadPool(),
                 taskQueue.getThreadPool().executor(ThreadPool.Names.GENERIC),
-                new BlobCacheMetrics(MeterRegistry.NOOP, NOOP_TIME_PROVIDER)
+                BlobCacheMetrics.NOOP
             )
         ) {
             var keys = new ArrayList<TestCacheKey>(numRegions);
@@ -1385,7 +1384,7 @@ public class SharedBlobCacheServiceTests extends ESTestCase {
                 settings,
                 taskQueue.getThreadPool(),
                 taskQueue.getThreadPool().executor(ThreadPool.Names.GENERIC),
-                new BlobCacheMetrics(MeterRegistry.NOOP, NOOP_TIME_PROVIDER)
+                BlobCacheMetrics.NOOP
             )
         ) {
             var keys = new ArrayList<TestCacheKey>(numRegions);
@@ -1438,7 +1437,7 @@ public class SharedBlobCacheServiceTests extends ESTestCase {
                 settings,
                 taskQueue.getThreadPool(),
                 taskQueue.getThreadPool().executor(ThreadPool.Names.GENERIC),
-                new BlobCacheMetrics(MeterRegistry.NOOP, NOOP_TIME_PROVIDER)
+                BlobCacheMetrics.NOOP
             )
         ) {
             var keys = new ArrayList<TestCacheKey>(numRegions);
@@ -1584,7 +1583,7 @@ public class SharedBlobCacheServiceTests extends ESTestCase {
                 settings,
                 threadPool,
                 threadPool.executor(ThreadPool.Names.GENERIC),
-                new BlobCacheMetrics(MeterRegistry.NOOP, NOOP_TIME_PROVIDER)
+                BlobCacheMetrics.NOOP
             )
         ) {
             CyclicBarrier ready = new CyclicBarrier(threads);
@@ -1817,7 +1816,7 @@ public class SharedBlobCacheServiceTests extends ESTestCase {
                 settings,
                 taskQueue.getThreadPool(),
                 taskQueue.getThreadPool().executor(ThreadPool.Names.GENERIC),
-                new BlobCacheMetrics(MeterRegistry.NOOP, NOOP_TIME_PROVIDER)
+                BlobCacheMetrics.NOOP
             )
         ) {
             assertEquals(val1.getBytes(), cacheService.getStats().size());
@@ -1835,7 +1834,7 @@ public class SharedBlobCacheServiceTests extends ESTestCase {
                 settings,
                 taskQueue.getThreadPool(),
                 taskQueue.getThreadPool().executor(ThreadPool.Names.GENERIC),
-                new BlobCacheMetrics(MeterRegistry.NOOP, NOOP_TIME_PROVIDER)
+                BlobCacheMetrics.NOOP
             )
         ) {
             assertEquals(val2.getBytes(), cacheService.getStats().size());
@@ -1861,7 +1860,7 @@ public class SharedBlobCacheServiceTests extends ESTestCase {
                 settings,
                 taskQueue.getThreadPool(),
                 taskQueue.getThreadPool().executor(ThreadPool.Names.GENERIC),
-                new BlobCacheMetrics(MeterRegistry.NOOP, NOOP_TIME_PROVIDER)
+                BlobCacheMetrics.NOOP
             )
         ) {
             final Map<TestCacheKey, CacheFileRegion<TestCacheKey>> cacheEntries = new HashMap<>();
@@ -2781,7 +2780,7 @@ public class SharedBlobCacheServiceTests extends ESTestCase {
                 settings,
                 threadPool,
                 threadPool.executor(ThreadPool.Names.GENERIC),
-                new BlobCacheMetrics(MeterRegistry.NOOP, NOOP_TIME_PROVIDER)
+                BlobCacheMetrics.NOOP
             )
         ) {
             {
@@ -2929,7 +2928,7 @@ public class SharedBlobCacheServiceTests extends ESTestCase {
                 settings,
                 threadPool,
                 threadPool.executor(ThreadPool.Names.GENERIC),
-                new BlobCacheMetrics(MeterRegistry.NOOP, NOOP_TIME_PROVIDER)
+                BlobCacheMetrics.NOOP
             )
         ) {
             {
@@ -3153,7 +3152,7 @@ public class SharedBlobCacheServiceTests extends ESTestCase {
                 settings,
                 threadPool,
                 threadPool.executor(ThreadPool.Names.GENERIC),
-                new BlobCacheMetrics(MeterRegistry.NOOP, NOOP_TIME_PROVIDER)
+                BlobCacheMetrics.NOOP
             )
         ) {
             {
@@ -3329,7 +3328,7 @@ public class SharedBlobCacheServiceTests extends ESTestCase {
                 settings,
                 threadPool,
                 threadPool.executor(ThreadPool.Names.GENERIC),
-                new BlobCacheMetrics(MeterRegistry.NOOP, NOOP_TIME_PROVIDER)
+                BlobCacheMetrics.NOOP
             )
         ) {
             {
@@ -3527,7 +3526,7 @@ public class SharedBlobCacheServiceTests extends ESTestCase {
                 settings,
                 taskQueue.getThreadPool(),
                 taskQueue.getThreadPool().executor(ThreadPool.Names.GENERIC),
-                new BlobCacheMetrics(MeterRegistry.NOOP, NOOP_TIME_PROVIDER)
+                BlobCacheMetrics.NOOP
             )
         ) {
             final var cacheKey = generateCacheKey();
@@ -3627,7 +3626,7 @@ public class SharedBlobCacheServiceTests extends ESTestCase {
                 settings,
                 taskQueue.getThreadPool(),
                 taskQueue.getThreadPool().executor(ThreadPool.Names.GENERIC),
-                new BlobCacheMetrics(MeterRegistry.NOOP, NOOP_TIME_PROVIDER)
+                BlobCacheMetrics.NOOP
             )
         ) {
             final var cacheKey = generateCacheKey();
@@ -3709,7 +3708,7 @@ public class SharedBlobCacheServiceTests extends ESTestCase {
                 settings,
                 taskQueue.getThreadPool(),
                 taskQueue.getThreadPool().executor(ThreadPool.Names.GENERIC),
-                new BlobCacheMetrics(MeterRegistry.NOOP, NOOP_TIME_PROVIDER),
+                BlobCacheMetrics.NOOP,
                 new DefaultEvictionPolicy<>()
             ) {
                 @Override
@@ -3752,7 +3751,7 @@ public class SharedBlobCacheServiceTests extends ESTestCase {
                 settings,
                 threadPool,
                 threadPool.executor(ThreadPool.Names.GENERIC),
-                new BlobCacheMetrics(MeterRegistry.NOOP, NOOP_TIME_PROVIDER)
+                BlobCacheMetrics.NOOP
             )
         ) {
             final var cacheKey = generateCacheKey();
@@ -3878,7 +3877,7 @@ public class SharedBlobCacheServiceTests extends ESTestCase {
                 settings,
                 taskQueue.getThreadPool(),
                 ioExecutor,
-                new BlobCacheMetrics(MeterRegistry.NOOP, NOOP_TIME_PROVIDER)
+                BlobCacheMetrics.NOOP
             )
         ) {
             final var cacheKey = generateCacheKey();
@@ -3952,7 +3951,7 @@ public class SharedBlobCacheServiceTests extends ESTestCase {
                 settings,
                 taskQueue.getThreadPool(),
                 ioExecutor,
-                new BlobCacheMetrics(MeterRegistry.NOOP, NOOP_TIME_PROVIDER)
+                BlobCacheMetrics.NOOP
             )
         ) {
             assertEquals(2, cacheService.freeRegionCount());
@@ -4028,7 +4027,7 @@ public class SharedBlobCacheServiceTests extends ESTestCase {
                 settings,
                 taskQueue.getThreadPool(),
                 EsExecutors.DIRECT_EXECUTOR_SERVICE,
-                new BlobCacheMetrics(MeterRegistry.NOOP, NOOP_TIME_PROVIDER)
+                BlobCacheMetrics.NOOP
             )
         ) {
             assertEquals(2, cacheService.freeRegionCount());
@@ -4102,7 +4101,7 @@ public class SharedBlobCacheServiceTests extends ESTestCase {
                 settings,
                 taskQueue.getThreadPool(),
                 taskQueue.getThreadPool().executor(ThreadPool.Names.GENERIC),
-                new BlobCacheMetrics(MeterRegistry.NOOP, NOOP_TIME_PROVIDER)
+                BlobCacheMetrics.NOOP
             )
         ) {
             final var cacheKey = generateCacheKey();
@@ -4145,7 +4144,7 @@ public class SharedBlobCacheServiceTests extends ESTestCase {
                 settings,
                 taskQueue.getThreadPool(),
                 ioExecutor,
-                new BlobCacheMetrics(MeterRegistry.NOOP, NOOP_TIME_PROVIDER)
+                BlobCacheMetrics.NOOP
             )
         ) {
             final var cacheKey = generateCacheKey();
@@ -4210,7 +4209,7 @@ public class SharedBlobCacheServiceTests extends ESTestCase {
                 settings,
                 taskQueue.getThreadPool(),
                 ioExecutor,
-                new BlobCacheMetrics(MeterRegistry.NOOP, NOOP_TIME_PROVIDER)
+                BlobCacheMetrics.NOOP
             )
         ) {
             final var cacheKey = generateCacheKey();
@@ -4287,7 +4286,7 @@ public class SharedBlobCacheServiceTests extends ESTestCase {
                 settings,
                 taskQueue.getThreadPool(),
                 ioExecutor,
-                new BlobCacheMetrics(MeterRegistry.NOOP, NOOP_TIME_PROVIDER)
+                BlobCacheMetrics.NOOP
             )
         ) {
             final var cacheKey = generateCacheKey();
@@ -4361,7 +4360,7 @@ public class SharedBlobCacheServiceTests extends ESTestCase {
                 settings,
                 taskQueue.getThreadPool(),
                 ioExecutor,
-                new BlobCacheMetrics(MeterRegistry.NOOP, NOOP_TIME_PROVIDER)
+                BlobCacheMetrics.NOOP
             )
         ) {
             final var cacheKey = generateCacheKey();
@@ -4424,7 +4423,7 @@ public class SharedBlobCacheServiceTests extends ESTestCase {
                 settings,
                 taskQueue.getThreadPool(),
                 ioExecutor,
-                new BlobCacheMetrics(MeterRegistry.NOOP, NOOP_TIME_PROVIDER)
+                BlobCacheMetrics.NOOP
             )
         ) {
             final var cacheKey = generateCacheKey();
@@ -4481,7 +4480,7 @@ public class SharedBlobCacheServiceTests extends ESTestCase {
                 settings,
                 taskQueue.getThreadPool(),
                 ioExecutor,
-                new BlobCacheMetrics(MeterRegistry.NOOP, NOOP_TIME_PROVIDER)
+                BlobCacheMetrics.NOOP
             )
         ) {
             final var cacheKey = generateCacheKey();
@@ -4548,7 +4547,7 @@ public class SharedBlobCacheServiceTests extends ESTestCase {
                 settings,
                 taskQueue.getThreadPool(),
                 ioExecutor,
-                new BlobCacheMetrics(MeterRegistry.NOOP, NOOP_TIME_PROVIDER)
+                BlobCacheMetrics.NOOP
             )
         ) {
             final var cacheKey = generateCacheKey();
@@ -4616,7 +4615,7 @@ public class SharedBlobCacheServiceTests extends ESTestCase {
                 settings,
                 taskQueue.getThreadPool(),
                 EsExecutors.DIRECT_EXECUTOR_SERVICE,
-                new BlobCacheMetrics(MeterRegistry.NOOP, NOOP_TIME_PROVIDER)
+                BlobCacheMetrics.NOOP
             )
         ) {
             final var cacheFile = cacheService.getCacheFile(
@@ -4661,7 +4660,7 @@ public class SharedBlobCacheServiceTests extends ESTestCase {
                 settings,
                 taskQueue.getThreadPool(),
                 EsExecutors.DIRECT_EXECUTOR_SERVICE,
-                new BlobCacheMetrics(MeterRegistry.NOOP, NOOP_TIME_PROVIDER)
+                BlobCacheMetrics.NOOP
             )
         ) {
             final var cacheKey = generateCacheKey();
@@ -4878,7 +4877,7 @@ public class SharedBlobCacheServiceTests extends ESTestCase {
                 settings,
                 taskQueue.getThreadPool(),
                 taskQueue.getThreadPool().executor(ThreadPool.Names.GENERIC),
-                new BlobCacheMetrics(MeterRegistry.NOOP, NOOP_TIME_PROVIDER)
+                BlobCacheMetrics.NOOP
             )
         ) {
             final var cacheKey = generateCacheKey();
@@ -4948,7 +4947,7 @@ public class SharedBlobCacheServiceTests extends ESTestCase {
                 settings,
                 taskQueue.getThreadPool(),
                 taskQueue.getThreadPool().executor(ThreadPool.Names.GENERIC),
-                new BlobCacheMetrics(MeterRegistry.NOOP, NOOP_TIME_PROVIDER)
+                BlobCacheMetrics.NOOP
             )
         ) {
             // Step 1: populate a region and set MADV_RANDOM via the fill handler (simulates .vec file)
@@ -5033,7 +5032,7 @@ public class SharedBlobCacheServiceTests extends ESTestCase {
                 settings,
                 taskQueue.getThreadPool(),
                 taskQueue.getThreadPool().executor(ThreadPool.Names.GENERIC),
-                new BlobCacheMetrics(MeterRegistry.NOOP, NOOP_TIME_PROVIDER)
+                BlobCacheMetrics.NOOP
             )
         ) {
             final var cacheKey = generateCacheKey();

@@ -341,7 +341,7 @@ public class CacheBlobReaderTests extends ESTestCase {
                             false
                         ),
                         new BlobFileRanges(getLastInternalLocation().getValue()),
-                        TestUtils.NOOP_BLOB_CACHE_METRICS,
+                        BlobCacheMetrics.NOOP,
                         System::currentTimeMillis,
                         true
                     ),
@@ -431,9 +431,7 @@ public class CacheBlobReaderTests extends ESTestCase {
                         nodeEnvironment,
                         settings,
                         threadPool,
-                        meterRegistry == null
-                            ? TestUtils.NOOP_BLOB_CACHE_METRICS
-                            : new BlobCacheMetrics(meterRegistry, TestUtils.NOOP_TIME_PROVIDER),
+                        meterRegistry == null ? BlobCacheMetrics.NOOP : new BlobCacheMetrics(meterRegistry, TestUtils.NOOP_TIME_PROVIDER),
                         clusterService,
                         TestUtils.mockIndicesService(clusterService),
                         new ThreadLocalDirectoryMetricHolder<>(BlobStoreCacheDirectoryMetrics::new)
@@ -770,7 +768,7 @@ public class CacheBlobReaderTests extends ESTestCase {
                 cacheFile,
                 cacheBlobReader,
                 new BlobFileRanges(internalLocation.getValue()),
-                TestUtils.NOOP_BLOB_CACHE_METRICS,
+                BlobCacheMetrics.NOOP,
                 System::currentTimeMillis,
                 true
             );

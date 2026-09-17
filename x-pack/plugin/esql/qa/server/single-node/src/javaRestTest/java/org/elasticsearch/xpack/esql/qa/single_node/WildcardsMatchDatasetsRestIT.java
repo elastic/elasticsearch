@@ -105,7 +105,10 @@ public class WildcardsMatchDatasetsRestIT extends ESRestTestCase {
 
         // On: the same wildcard now reaches the dataset and the query fails trying to read its resource. That failure
         // IS the proof of reach -- the bucket does not exist, which is exactly why it is unambiguous.
-        ResponseException ex = expectThrows(ResponseException.class, () -> query("SET wildcards_match_datasets = true; FROM lake_1* | LIMIT 1"));
+        ResponseException ex = expectThrows(
+            ResponseException.class,
+            () -> query("SET wildcards_match_datasets = true; FROM lake_1* | LIMIT 1")
+        );
         assertThat(ex.getResponse().getStatusLine().getStatusCode(), equalTo(400));
         String body = EntityUtils.toString(ex.getResponse().getEntity());
         assertThat(body, containsString("Failed to resolve external source [s3://bucket/1/*.csv]"));

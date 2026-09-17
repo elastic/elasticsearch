@@ -423,6 +423,24 @@ public final class ExternalSourceSettings {
         Setting.Property.NodeScope
     );
 
+    /**
+     * Allowlist of {@code host:port} patterns an external data source's endpoint may name, beside the AWS
+     * endpoints that are always permitted. Mirrors {@link #LOCAL_ALLOWED_PATHS} and {@code reindex.remote.whitelist}:
+     * the list is the enable, and the default — empty — permits nothing beyond AWS. An entry is a simple glob
+     * matched against the endpoint's host and port, so {@code 127.0.0.1:*} admits a fixture on any port.
+     * <p>
+     * The scheme is not matched, so an allowed entry may be reached over plain {@code http}. That is the point of
+     * the setting: the {@code https} requirement exists because a host rule rests on the certificate presented for
+     * a name, and an operator naming an exact host and port has made that judgement themselves.
+     * <p>
+     * This is a node-scope setting — only someone who can configure the node can widen what it reaches. Holding
+     * the privilege to manage data sources is not enough.
+     */
+    public static final Setting<List<String>> ALLOWED_ENDPOINT_HOSTS = Setting.stringListSetting(
+        "esql.external.allowed_endpoint_hosts",
+        Setting.Property.NodeScope
+    );
+
     public static List<Setting<?>> settings() {
         return List.of(
             MAX_CONCURRENT_REQUESTS,
@@ -438,7 +456,8 @@ public final class ExternalSourceSettings {
             FEDERATED_IDENTITY_ENABLED,
             FEDERATED_IDENTITY_ENABLED_OLD,
             LOCAL_ALLOWED_PATHS,
-            LOCAL_ALLOWED_PATHS_OLD
+            LOCAL_ALLOWED_PATHS_OLD,
+            ALLOWED_ENDPOINT_HOSTS
         );
     }
 }

@@ -9,7 +9,11 @@ package org.elasticsearch.xpack.esql.datasource.s3;
 
 import software.amazon.awssdk.core.SdkSystemSetting;
 
+import org.apache.lucene.util.automaton.Automata;
+import org.apache.lucene.util.automaton.CharacterRunAutomaton;
+import org.apache.lucene.util.automaton.Operations;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.regex.Regex;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.IOUtils;
 import org.elasticsearch.core.SuppressForbidden;
@@ -26,6 +30,7 @@ import org.elasticsearch.xpack.esql.datasources.spi.StorageProviderServices;
 
 import java.io.IOException;
 import java.time.Clock;
+import java.util.List;
 import java.util.Map;
 import java.util.Set;
 
@@ -166,6 +171,17 @@ public class S3DataSourcePlugin extends Plugin implements DataSourcePlugin {
 
     @Override
     public Map<String, DataSourceValidator> datasourceValidators(Settings settings) {
+        // Built once here rather than per validation: the setting is node-scope, so it cannot change
+        // underneath us. An empty list yields an automaton matching nothing, which is the default posture.
+        List<String> allowed = ExternalSourceSettings.ALLOWED_ENDPOINT_HOSTS.get(settings);
+        CharacterRunAutomaton allowedByOperator = new CharacterRunAutomaton(
+            allowed.isEmpty()
+                ? Automata.makeEmpty()
+                : Operations.determinize(
+                    Regex.simpleMatchToAutomaton(allowed.toArray(String[]::new)),
+                    Operations.DEFAULT_DETERMINIZE_WORK_LIMIT
+                )
+        );
         DataSourceValidator v = new FileDataSourceValidator("s3", S3Configuration::fromMap, supportedSchemes()).withAdditionalDatasetKeys(
             Set.of("region")
         )
@@ -178,7 +194,7 @@ public class S3DataSourcePlugin extends Plugin implements DataSourcePlugin {
             .withResourceCheck(S3ResourceCheck::validate)
             // The cast holds because this same builder is given S3Configuration::fromMap as its config
             // factory above, and the validator passes that factory's own product to the check.
-            .withDatasourceCheck((config, errors) -> S3EndpointCheck.validate((S3Configuration) config, errors));
+            .withDatasourceCheck((config, errors) -> S3EndpointCheck.validate((S3Configuration) config, allowedByOperator::run, errors));
         return Map.of(v.type(), v);
     }
 

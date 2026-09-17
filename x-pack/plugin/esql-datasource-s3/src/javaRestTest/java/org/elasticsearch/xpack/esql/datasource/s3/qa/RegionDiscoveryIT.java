@@ -68,6 +68,7 @@ public class RegionDiscoveryIT extends ESRestTestCase {
     );
 
     private static final ElasticsearchCluster cluster = ElasticsearchCluster.local()
+        .setting(SeedingS3HttpFixture.ALLOWED_ENDPOINT_HOSTS_SETTING, SeedingS3HttpFixture.LOOPBACK_ENDPOINT_HOSTS)
         .distribution(DistributionType.DEFAULT)
         .setting("xpack.security.enabled", "false")
         .setting("xpack.license.self_generated.type", "trial")

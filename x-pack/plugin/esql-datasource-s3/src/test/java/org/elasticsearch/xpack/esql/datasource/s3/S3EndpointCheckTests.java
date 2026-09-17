@@ -13,13 +13,13 @@ import software.amazon.awssdk.services.s3.endpoints.S3EndpointProvider;
 import software.amazon.awssdk.services.sts.endpoints.StsEndpointParams;
 import software.amazon.awssdk.services.sts.endpoints.StsEndpointProvider;
 
-import org.elasticsearch.Build;
 import org.elasticsearch.common.ValidationException;
 import org.elasticsearch.test.ESTestCase;
 
 import java.net.URI;
 import java.util.List;
 import java.util.Map;
+import java.util.function.Predicate;
 
 import static org.elasticsearch.xpack.esql.datasource.s3.S3EndpointCheck.S3_SERVICE;
 import static org.elasticsearch.xpack.esql.datasource.s3.S3EndpointCheck.STS_SERVICE;
@@ -215,37 +215,19 @@ public class S3EndpointCheckTests extends ESTestCase {
     /** A port does not change the host: {@link java.net.URI#getHost()} excludes it, and the docs allow one. */
     public void testValidateAcceptsAPermittedHostCarryingAPort() {
         ValidationException errors = new ValidationException();
-        S3EndpointCheck.validate(config("https://s3.us-east-1.amazonaws.com:9000"), errors);
+        S3EndpointCheck.validate(config("https://s3.us-east-1.amazonaws.com:9000"), ALLOW_NOTHING, errors);
         assertTrue(errors.validationErrors().toString(), errors.validationErrors().isEmpty());
     }
 
     public void testValidateRequiresHttps() {
         ValidationException errors = new ValidationException();
-        S3EndpointCheck.validate(config("http://s3.us-east-1.amazonaws.com"), errors);
-        assertThat(errors.validationErrors().toString(), containsString("must use https"));
-    }
-
-    /**
-     * The fixture allowance, which is the one branch that admits a non-AWS host. Driven through
-     * {@link S3EndpointCheck#validate} rather than {@code isPermittedHost}, because that is the only entry
-     * point that consults it. Both arms run on a snapshot build, which is what the unit suite is.
-     */
-    public void testAcceptsLoopbackFixtureHostsOnlyOnASnapshotBuild() {
-        assertTrue(Build.current().isSnapshot());
-        for (String endpoint : List.of("http://127.0.0.1:9000", "http://[::1]:9000", "http://localhost:9000")) {
-            ValidationException errors = new ValidationException();
-            S3EndpointCheck.validate(config(endpoint), errors);
-            assertTrue(endpoint + " -> " + errors.validationErrors(), errors.validationErrors().isEmpty());
-        }
-        // A private address is not loopback, so it stays refused even here.
-        ValidationException errors = new ValidationException();
-        S3EndpointCheck.validate(config("http://10.0.0.1:9000"), errors);
+        S3EndpointCheck.validate(config("http://s3.us-east-1.amazonaws.com"), ALLOW_NOTHING, errors);
         assertThat(errors.validationErrors().toString(), containsString("must use https"));
     }
 
     public void testValidateAcceptsAbsentEndpoints() {
         ValidationException errors = new ValidationException();
-        S3EndpointCheck.validate(S3Configuration.fromMap(Map.of("auth", "anonymous")), errors);
+        S3EndpointCheck.validate(S3Configuration.fromMap(Map.of("auth", "anonymous")), ALLOW_NOTHING, errors);
         assertTrue(errors.validationErrors().toString(), errors.validationErrors().isEmpty());
     }
 
@@ -257,6 +239,30 @@ public class S3EndpointCheckTests extends ESTestCase {
             return null;
         }
     }
+
+    /**
+     * The operator allowlist, which is the only route to a host that is not an AWS endpoint. An entry waives
+     * the AWS-host rule and the https requirement together, because the node's own configuration named it.
+     */
+    public void testOperatorAllowlistAdmitsExactlyWhatItNames() {
+        Predicate<String> loopback = hostAndPort -> hostAndPort.startsWith("127.0.0.1:");
+        ValidationException errors = new ValidationException();
+        S3EndpointCheck.validate(config("http://127.0.0.1:9000"), loopback, errors);
+        assertTrue(errors.validationErrors().toString(), errors.validationErrors().isEmpty());
+
+        // A host the allowlist does not name stays refused, allowlist or no allowlist.
+        errors = new ValidationException();
+        S3EndpointCheck.validate(config("http://10.0.0.1:9000"), loopback, errors);
+        assertThat(errors.validationErrors().toString(), containsString("must use https"));
+
+        // And with the default empty allowlist the same loopback value is refused.
+        errors = new ValidationException();
+        S3EndpointCheck.validate(config("http://127.0.0.1:9000"), ALLOW_NOTHING, errors);
+        assertThat(errors.validationErrors().toString(), containsString("must use https"));
+    }
+
+    /** The default posture: the list is the enable, and it is empty unless an operator sets it. */
+    private static final Predicate<String> ALLOW_NOTHING = hostAndPort -> false;
 
     private static S3Configuration config(String endpoint) {
         return S3Configuration.fromMap(Map.of("endpoint", endpoint, "auth", "anonymous"));

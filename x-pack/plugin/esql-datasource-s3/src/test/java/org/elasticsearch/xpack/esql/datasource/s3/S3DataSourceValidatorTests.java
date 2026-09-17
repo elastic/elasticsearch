@@ -36,7 +36,7 @@ public class S3DataSourceValidatorTests extends AbstractDataSourceValidatorTests
 
     private final DataSourceValidator validator = new FileDataSourceValidator("s3", S3Configuration::fromMap, Set.of("s3", "s3a", "s3n"))
         .withResourceCheck(S3ResourceCheck::validate)
-        .withDatasourceCheck((config, errors) -> S3EndpointCheck.validate((S3Configuration) config, errors));
+        .withDatasourceCheck((config, errors) -> S3EndpointCheck.validate((S3Configuration) config, hostAndPort -> false, errors));
 
     @Override
     protected DataSourceValidator validator() {
@@ -1123,7 +1123,7 @@ public class S3DataSourceValidatorTests extends AbstractDataSourceValidatorTests
     private static DataSourceValidator federatedValidator() {
         return new FileDataSourceValidator("s3", S3Configuration::fromMap, Set.of("s3", "s3a", "s3n")).withFederatedIdentityEnabled(
             () -> true
-        ).withDatasourceCheck((config, errors) -> S3EndpointCheck.validate((S3Configuration) config, errors));
+        ).withDatasourceCheck((config, errors) -> S3EndpointCheck.validate((S3Configuration) config, hostAndPort -> false, errors));
     }
 
     public void testValidateDatasourceRejectsThirdPartyStsEndpoint() {

@@ -12,10 +12,8 @@ import software.amazon.awssdk.regions.PartitionEndpointKey;
 import software.amazon.awssdk.regions.PartitionMetadata;
 import software.amazon.awssdk.regions.Region;
 
-import org.elasticsearch.Build;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.ValidationException;
-import org.elasticsearch.common.network.InetAddresses;
 
 import java.net.URI;
 import java.util.LinkedHashSet;
@@ -23,6 +21,7 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Set;
 import java.util.TreeSet;
+import java.util.function.Predicate;
 import java.util.regex.Pattern;
 
 /**
@@ -126,12 +125,18 @@ final class S3EndpointCheck {
      * Adds one error per refused value; does not throw. A blank or absent value is valid — the SDK then
      * resolves the endpoint from the region, which is confined by construction.
      */
-    static void validate(S3Configuration config, ValidationException errors) {
-        validateEndpoint(config.endpoint(), "endpoint", S3_SERVICE, errors);
-        validateEndpoint(config.stsEndpoint(), "sts_endpoint", STS_SERVICE, errors);
+    static void validate(S3Configuration config, Predicate<String> allowedByOperator, ValidationException errors) {
+        validateEndpoint(config.endpoint(), "endpoint", S3_SERVICE, allowedByOperator, errors);
+        validateEndpoint(config.stsEndpoint(), "sts_endpoint", STS_SERVICE, allowedByOperator, errors);
     }
 
-    private static void validateEndpoint(String value, String settingName, String service, ValidationException errors) {
+    private static void validateEndpoint(
+        String value,
+        String settingName,
+        String service,
+        Predicate<String> allowedByOperator,
+        ValidationException errors
+    ) {
         if (Strings.hasText(value) == false) {
             return;
         }
@@ -147,7 +152,9 @@ final class S3EndpointCheck {
             // Likewise unreachable: a value with no parseable host throws from the same place.
             return;
         }
-        if (isTestFixtureHost(uri.getHost())) {
+        if (allowedByOperator.test(hostAndPort(uri))) {
+            // Named by the node's own configuration, so the scheme is not examined either — see
+            // ExternalSourceSettings#ALLOWED_ENDPOINT_HOSTS.
             return;
         }
         if ("https".equalsIgnoreCase(uri.getScheme()) == false) {
@@ -169,6 +176,18 @@ final class S3EndpointCheck {
                     + "the endpoint resolved from the region"
             );
         }
+    }
+
+    /**
+     * The {@code host:port} the allowlist is matched against, with the scheme's default port supplied when the
+     * value carries none, so an entry never has to guess which spelling the user wrote.
+     */
+    private static String hostAndPort(URI uri) {
+        int port = uri.getPort();
+        if (port == -1) {
+            port = "http".equalsIgnoreCase(uri.getScheme()) ? 80 : 443;
+        }
+        return uri.getHost() + ":" + port;
     }
 
     /**
@@ -277,26 +296,6 @@ final class S3EndpointCheck {
             }
         }
         return false;
-    }
-
-    /**
-     * Whether this is an integration fixture rather than a real destination. Every object-store fixture in
-     * the repository binds a loopback address, and a snapshot build is the only build their suites run in,
-     * so this is what lets them keep reading without each cluster naming its fixture somewhere. It is dead
-     * code on a released node, which cannot reach a loopback service belonging to anyone but itself anyway.
-     *
-     * <p>An IP literal is recognised as loopback from the literal alone. The name {@code localhost} is
-     * accepted as well, because {@code S3HttpFixture} hands one out in place of a literal on its TLS branch
-     * on Windows; whether that name reaches a loopback destination is decided by the resolver, not here.
-     * Both arms are reachable only on a snapshot build.
-     */
-    private static boolean isTestFixtureHost(String host) {
-        if (Build.current().isSnapshot() == false) {
-            return false;
-        }
-        String literal = host.startsWith("[") && host.endsWith("]") ? host.substring(1, host.length() - 1) : host;
-        return "localhost".equalsIgnoreCase(host)
-            || (InetAddresses.isInetAddress(literal) && InetAddresses.forString(literal).isLoopbackAddress());
     }
 
 }

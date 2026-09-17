@@ -293,14 +293,16 @@ public class AbstractThrottledTaskRunnerTests extends ESTestCase {
         final var taskCanFinish = new CountDownLatch(1);
 
         final BlockingQueue<ActionListener<Releasable>> queue = ConcurrentCollections.newBlockingQueue();
+        final var registry = new RecordingMeterRegistry();
         final AbstractThrottledTaskRunner<ActionListener<Releasable>> taskRunner = new AbstractThrottledTaskRunner<>(
             runnerName,
             1,
             executor,
-            queue
+            queue,
+            registry,
+            runnerName,
+            () -> 0L
         );
-        final var registry = new RecordingMeterRegistry();
-        taskRunner.setupMetrics(registry, runnerName);
 
         // enqueue a single task and hold it there so we know it's running
         taskRunner.enqueueTask(new ActionListener<>() {
@@ -369,19 +371,19 @@ public class AbstractThrottledTaskRunnerTests extends ESTestCase {
         final var taskCanFinish = new CountDownLatch(1);
 
         final BlockingQueue<ActionListener<Releasable>> queue = ConcurrentCollections.newBlockingQueue();
+        final var registry = new RecordingMeterRegistry();
+        // we enqueue at 0ns and start running at 5_000_000ns, so we have 5ms latency
+        final long[] clockValues = { 0L, 5_000_000L };
+        final var clockIndex = new AtomicInteger();
         final AbstractThrottledTaskRunner<ActionListener<Releasable>> taskRunner = new AbstractThrottledTaskRunner<>(
             runnerName,
             1,
             executor,
-            queue
+            queue,
+            registry,
+            runnerName,
+            () -> clockValues[clockIndex.getAndIncrement()]
         );
-        final var registry = new RecordingMeterRegistry();
-        taskRunner.setupMetrics(registry, runnerName);
-
-        // we enqueue at 0ns and start running at 5_000_000ns, so we have 5ms latency
-        final long[] clockValues = { 0L, 5_000_000L };
-        final var clockIndex = new AtomicInteger();
-        taskRunner.setNanoClock(() -> clockValues[clockIndex.getAndIncrement()]);
 
         // enqueue a single task and hold it there so we know it's running
         taskRunner.enqueueTask(new ActionListener<>() {

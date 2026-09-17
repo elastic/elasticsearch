@@ -53,7 +53,7 @@ public class AbstractThrottledTaskRunner<T extends ActionListener<Releasable>> {
     @Nullable
     private volatile ExponentialBucketHistogram queueLatencyMillisHistogram;
 
-    private LongSupplier nanoClock = System::nanoTime;
+    private LongSupplier relativeTimeNanosProvider;
 
     private final String taskRunnerName;
     // The max number of tasks that this runner will schedule to concurrently run on the executor.
@@ -67,27 +67,35 @@ public class AbstractThrottledTaskRunner<T extends ActionListener<Releasable>> {
     private final Executor executor;
 
     public AbstractThrottledTaskRunner(final String name, final int maxRunningTasks, final Executor executor, final Queue<T> taskQueue) {
+        this(name, maxRunningTasks, executor, taskQueue, MeterRegistry.NOOP, "no_metrics", () -> 0L);
+
+    }
+
+    public AbstractThrottledTaskRunner(final String name, final int maxRunningTasks, final Executor executor, final Queue<T> taskQueue,
+                                       MeterRegistry meterRegistry,
+                                       String metricName,
+                                       LongSupplier relativeTimeNanosProvider) {
         assert maxRunningTasks > 0;
         this.taskRunnerName = name;
         this.maxRunningTasks = maxRunningTasks;
         this.executor = executor;
         this.tasks = taskQueue;
+
+        if (meterRegistry != MeterRegistry.NOOP) {
+            assert relativeTimeNanosProvider != null;
+            this.relativeTimeNanosProvider = relativeTimeNanosProvider;
+            this.queuedNanosByTask = new ConcurrentHashMap<>();
+            this.queueLatencyMillisHistogram = new ExponentialBucketHistogram(QUEUE_LATENCY_HISTOGRAM_BUCKETS);
+            setupMetrics(meterRegistry, metricName);
+        }
     }
 
     public String getTaskRunnerName() {
         return taskRunnerName;
     }
 
-    // package-private for testing
-    void setNanoClock(LongSupplier nanoClock) {
-        this.nanoClock = nanoClock;
-    }
-
-    /// Register metrics to get task-queue depth and currently running tasks, as well as a queue-latency histogram.
-    public List<Instrument> setupMetrics(MeterRegistry meterRegistry, String name) {
-        this.queuedNanosByTask = new ConcurrentHashMap<>();
-        this.queueLatencyMillisHistogram = new ExponentialBucketHistogram(QUEUE_LATENCY_HISTOGRAM_BUCKETS);
-
+    // register metrics to get task-queue depth and currently running tasks, as well as a queue-latency histogram
+    private List<Instrument> setupMetrics(MeterRegistry meterRegistry, String name) {
         var prefix = THROTTLED_TASK_RUNNER_METRIC_PREFIX + name;
 
         return List.of(
@@ -137,7 +145,7 @@ public class AbstractThrottledTaskRunner<T extends ActionListener<Releasable>> {
     public void enqueueTask(final T task) {
         logger.trace("[{}] enqueuing task {}", taskRunnerName, task);
         if (queuedNanosByTask != null) {
-            queuedNanosByTask.put(task, nanoClock.getAsLong());
+            queuedNanosByTask.put(task, relativeTimeNanosProvider.getAsLong());
         }
         tasks.add(task);
         // Try to run a task since now there is at least one in the queue. If the maxRunningTasks is
@@ -218,7 +226,7 @@ public class AbstractThrottledTaskRunner<T extends ActionListener<Releasable>> {
                     protected void doRun() {
                         if (queueStartNanos != null && queueLatencyMillisHistogram != null) {
                             queueLatencyMillisHistogram.addObservation(
-                                TimeUnit.NANOSECONDS.toMillis(nanoClock.getAsLong() - queueStartNanos)
+                                TimeUnit.NANOSECONDS.toMillis(relativeTimeNanosProvider.getAsLong() - queueStartNanos)
                             );
                         }
                         logger.trace("[{}] running task {}", taskRunnerName, task);
@@ -244,12 +252,12 @@ public class AbstractThrottledTaskRunner<T extends ActionListener<Releasable>> {
     }
 
     // exposed for testing
-    int runningTasks() {
+    final int runningTasks() {
         return runningTasks.get();
     }
 
     // exposed for testing
-    int queuedTasks() {
+    final int queuedTasks() {
         return tasks.size();
     }
 
@@ -269,7 +277,7 @@ public class AbstractThrottledTaskRunner<T extends ActionListener<Releasable>> {
                         Long queueStartNanos = queuedNanosByTask.remove(task);
                         if (queueStartNanos != null) {
                             queueLatencyMillisHistogram.addObservation(
-                                TimeUnit.NANOSECONDS.toMillis(nanoClock.getAsLong() - queueStartNanos)
+                                TimeUnit.NANOSECONDS.toMillis(relativeTimeNanosProvider.getAsLong() - queueStartNanos)
                             );
                         }
                     }

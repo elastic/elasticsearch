@@ -103,6 +103,64 @@ public class ColumnarPayloadSortedBinaryDocValuesTests extends ESTestCase {
         });
     }
 
+    /** A document holding one value is handed it straight off the column, and every document gets its own. */
+    public void testEveryDocumentReadsItsOwnValue() throws IOException {
+        final String[][] docs = { { "a" }, { "b" }, { null }, { "c" }, null, { "d" } };
+        withColumn(docs, values -> {
+            assertEquals(SortedBinaryDocValues.ValueMode.SINGLE_VALUED, values.getValueMode());
+            assertTrue(values.advanceExact(0));
+            assertEquals(new BytesRef("a"), values.nextValue());
+            assertTrue(values.advanceExact(1));
+            assertEquals(new BytesRef("b"), values.nextValue());
+            assertFalse(values.advanceExact(2));
+            assertTrue(values.advanceExact(3));
+            assertEquals(new BytesRef("c"), values.nextValue());
+            assertFalse(values.advanceExact(4));
+            assertTrue(values.advanceExact(5));
+            assertEquals(new BytesRef("d"), values.nextValue());
+        });
+    }
+
+    /** Reading a document twice gives the same value both times. */
+    public void testADocumentCanBeReadAgain() throws IOException {
+        withColumn(new String[][] { { "a" }, { "b" } }, values -> {
+            assertTrue(values.advanceExact(1));
+            assertEquals(new BytesRef("b"), values.nextValue());
+            assertTrue(values.advanceExact(1));
+            assertEquals(new BytesRef("b"), values.nextValue());
+        });
+    }
+
+    /** This surface sorts but does not deduplicate, so a repeated value comes back as many times as it was written. */
+    public void testDuplicatesAreKept() throws IOException {
+        withColumn(new String[][] { { "b", "a", "b" } }, values -> {
+            assertTrue(values.advanceExact(0));
+            assertEquals(3, values.docValueCount());
+            assertEquals(new BytesRef("a"), values.nextValue());
+            assertEquals(new BytesRef("b"), values.nextValue());
+            assertEquals(new BytesRef("b"), values.nextValue());
+        });
+    }
+
+    /** Counting one document and reading the next, back and forth, over a column holding both shapes. */
+    public void testCountingAndReadingInterleaved() throws IOException {
+        withColumn(new String[][] { { "b", "a" }, { "c" }, { "e", null, "d" }, { "f" } }, values -> {
+            assertTrue(values.advanceExact(0));
+            assertEquals(2, values.docValueCount());
+            assertTrue(values.advanceExact(1));
+            assertEquals(new BytesRef("c"), values.nextValue());
+            assertTrue(values.advanceExact(2));
+            assertEquals(2, values.docValueCount());
+            assertEquals(new BytesRef("d"), values.nextValue());
+            assertEquals(new BytesRef("e"), values.nextValue());
+            assertTrue(values.advanceExact(3));
+            assertEquals(new BytesRef("f"), values.nextValue());
+            assertTrue(values.advanceExact(0));
+            assertEquals(new BytesRef("a"), values.nextValue());
+            assertEquals(new BytesRef("b"), values.nextValue());
+        });
+    }
+
     private interface Check {
         void check(SortedBinaryDocValues values) throws IOException;
     }

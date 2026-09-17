@@ -82,6 +82,16 @@ public final class ColumnarStringBinaryDocValues extends BinaryDocValues impleme
     }
 
     @Override
+    public int slotCount() throws IOException {
+        return Math.toIntExact(reader.valueCount(iterator.rank()));
+    }
+
+    @Override
+    public BytesRef slotAt(int slot) throws IOException {
+        return reader.valueAt(reader.firstValueAddress(iterator.rank()) + slot);
+    }
+
+    @Override
     public int nonNullValues(BytesRef dst) throws IOException {
         final int rank = iterator.rank();
         final long first = reader.firstValueAddress(rank);

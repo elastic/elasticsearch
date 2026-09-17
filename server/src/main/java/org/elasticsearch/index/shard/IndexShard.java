@@ -4804,9 +4804,24 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
             if (location == pendingRefreshLocation.get()) {
                 // This method may be called from many different threads including transport_worker threads and
                 // a refresh can be a costly operation, so we should fork to a refresh thread to be safe:
-                threadPool.executor(ThreadPool.Names.REFRESH).execute(() -> {
-                    if (location == pendingRefreshLocation.get()) {
-                        getEngine().maybeRefresh("ensure-shard-search-active", new PlainActionFuture<>());
+                threadPool.executor(ThreadPool.Names.REFRESH).execute(new AbstractRunnable() {
+                    @Override
+                    public void onFailure(Exception e) {
+                        // the shard can close while this task sits in the refresh queue, leaving nothing to refresh
+                        handleRefreshException(e);
+                    }
+
+                    @Override
+                    public void onRejection(Exception e) {
+                        assert false : "refresh thread pool uses an unbounded queue";
+                        // safe to drop: the registered listener still fires on the next refresh or on shard close
+                    }
+
+                    @Override
+                    protected void doRun() {
+                        if (location == pendingRefreshLocation.get()) {
+                            getEngine().maybeRefresh("ensure-shard-search-active", ActionListener.noop());
+                        }
                     }
                 });
             }

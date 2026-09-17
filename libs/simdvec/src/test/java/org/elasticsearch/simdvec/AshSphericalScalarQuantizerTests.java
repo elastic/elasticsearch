@@ -121,7 +121,8 @@ public class AshSphericalScalarQuantizerTests extends ESTestCase {
         int n = randomIntBetween(2, 5);
         float[] batchInput = randomGaussianVector(n * d);
 
-        AshSphericalScalarQuantizer.QuantizeResult batch = ssq.encode(batchInput, n, d);
+        AshSphericalScalarQuantizer.QuantizeResult batch = new AshSphericalScalarQuantizer.QuantizeResult(n, d);
+        ssq.encode(batchInput, n, d, batch);
         assertEquals(n * d, batch.centeredCodes().length);
         assertEquals(n, batch.codeNorms().length);
 
@@ -136,7 +137,8 @@ public class AshSphericalScalarQuantizerTests extends ESTestCase {
 
     public void testEmptyInput() {
         AshSphericalScalarQuantizer ssq = quantizerFactory.apply(2);
-        AshSphericalScalarQuantizer.QuantizeResult result = ssq.encode(new float[0], 0, 16);
+        AshSphericalScalarQuantizer.QuantizeResult result = new AshSphericalScalarQuantizer.QuantizeResult(0, 16);
+        ssq.encode(new float[0], 0, 16, result);
         assertEquals(0, result.centeredCodes().length);
         assertEquals(0, result.codeNorms().length);
     }

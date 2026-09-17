@@ -33,7 +33,8 @@ public class AsymmetricHashingQuantizerTests extends ESTestCase {
         // Procrustes of a random matrix should return orthogonal matrix (R^T R = I)
         int k = 5;
         float[] m = AshUtils.randomGaussians(random(), k * k);
-        float[] r = AshUtils.procrustes(m, k);
+        float[] r = new float[k * k];
+        AshUtils.procrustes(m, k, r);
         // Check R^T R ~= I
         for (int i = 0; i < k; i++) {
             for (int j = 0; j < k; j++) {

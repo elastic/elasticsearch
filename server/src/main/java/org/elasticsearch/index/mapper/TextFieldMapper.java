@@ -58,6 +58,9 @@ import org.apache.lucene.util.automaton.Automata;
 import org.apache.lucene.util.automaton.Automaton;
 import org.apache.lucene.util.automaton.Operations;
 import org.elasticsearch.ElasticsearchException;
+import org.elasticsearch.columnar.string.DictionaryPolicy;
+import org.elasticsearch.columnar.string.StringBinaryPayload;
+import org.elasticsearch.columnar.string.StringColumnOptions;
 import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.common.lucene.search.AutomatonQueries;
 import org.elasticsearch.common.lucene.search.MultiPhrasePrefixQuery;
@@ -80,6 +83,7 @@ import org.elasticsearch.index.analysis.AnalyzerScope;
 import org.elasticsearch.index.analysis.ElasticsearchAnalyzerWrapper;
 import org.elasticsearch.index.analysis.IndexAnalyzers;
 import org.elasticsearch.index.analysis.NamedAnalyzer;
+import org.elasticsearch.index.codec.columnar.ColumnarDocValuesFormatSelector;
 import org.elasticsearch.index.fielddata.FieldData;
 import org.elasticsearch.index.fielddata.FieldDataContext;
 import org.elasticsearch.index.fielddata.IndexFieldData;
@@ -480,7 +484,10 @@ public final class TextFieldMapper extends FieldMapper {
                     usesBinaryDocValuesForFallbackFields,
                     usesBinaryDocValues(),
                     docValuesParameters.getValue(),
-                    arrayOrderBinaryDocValues
+                    arrayOrderBinaryDocValues,
+                    // Gated as a keyword field is: the codec stores the column, so the column is written in the
+                    // payload it reads.
+                    usesBinaryDocValues() && ColumnarDocValuesFormatSelector.useColumnarCodec(indexSettings)
                 );
                 if (fieldData.getValue()) {
                     ft.setFielddata(true, freqFilter.getValue());
@@ -562,8 +569,8 @@ public final class TextFieldMapper extends FieldMapper {
                 docValuesParameters.getValue().multiValue(),
                 this
             );
-            // High-cardinality (binary doc values) text fields in strict columnar mode store their values in document order directly in the
-            // binary doc values (ArrayOrderInlineNull) instead of recording a sidecar .offsets field.
+            // High-cardinality (binary doc values) text fields in strict columnar mode keep array order in their
+            // own binary doc values instead of recording a sidecar .offsets field.
             if (offsetsFieldName != null && usesBinaryDocValues() && indexSettings.getMode().isStrictColumnar()) {
                 this.arrayOrderBinaryDocValues = true;
                 this.offsetsFieldName = null;
@@ -781,6 +788,8 @@ public final class TextFieldMapper extends FieldMapper {
         private final DocValuesParameter.Values docValuesParams;
         // Whether the (high-cardinality) binary doc values store their values in document order with inline nulls (ArrayOrderInlineNull).
         private final boolean useArrayOrderBinaryDocValues;
+        // Whether the binary doc values are written as the ColumNAR codec's payload rather than either other framing.
+        private final boolean useColumnarPayload;
 
         /**
          * In some configurations text fields use a sub-keyword field to provide
@@ -805,7 +814,8 @@ public final class TextFieldMapper extends FieldMapper {
             boolean usesBinaryDocValuesForFallbackFields,
             boolean usesBinaryDocValues,
             DocValuesParameter.Values docValuesParams,
-            boolean useArrayOrderBinaryDocValues
+            boolean useArrayOrderBinaryDocValues,
+            boolean useColumnarPayload
         ) {
             super(name, IndexType.terms(indexed, hasDocValues), stored, tsi, meta, isSyntheticSource, isWithinMultiField);
             this.fielddata = false;
@@ -818,6 +828,7 @@ public final class TextFieldMapper extends FieldMapper {
             this.usesBinaryDocValues = usesBinaryDocValues;
             this.docValuesParams = docValuesParams;
             this.useArrayOrderBinaryDocValues = useArrayOrderBinaryDocValues;
+            this.useColumnarPayload = useColumnarPayload;
         }
 
         public TextFieldType(
@@ -848,6 +859,7 @@ public final class TextFieldMapper extends FieldMapper {
                 false,
                 false,
                 null,
+                false,
                 false
             );
         }
@@ -871,6 +883,7 @@ public final class TextFieldMapper extends FieldMapper {
             this.usesBinaryDocValues = false;
             this.docValuesParams = null;
             this.useArrayOrderBinaryDocValues = false;
+            this.useColumnarPayload = false;
         }
 
         public TextFieldType(String name, boolean isSyntheticSource, boolean isWithinMultiField) {
@@ -924,11 +937,16 @@ public final class TextFieldMapper extends FieldMapper {
             return useArrayOrderBinaryDocValues;
         }
 
-        /**
-         * Which framing a doc-values query has to decode for this field. A text field is never routed to the ColumNAR
-         * codec, so {@link BinaryDocValuesFormat#COLUMNAR_PAYLOAD} is not among the answers.
-         */
+        /** Whether this field's values are written as the ColumNAR codec's payload. */
+        public boolean usesColumnarPayload() {
+            return useColumnarPayload;
+        }
+
+        /** Which framing a doc-values query has to decode for this field. */
         private BinaryDocValuesFormat binaryFormat() {
+            if (useColumnarPayload) {
+                return BinaryDocValuesFormat.COLUMNAR_PAYLOAD;
+            }
             return useArrayOrderBinaryDocValues ? BinaryDocValuesFormat.ARRAY_ORDER_INLINE_NULL : BinaryDocValuesFormat.SEPARATE_COUNT;
         }
 
@@ -1404,7 +1422,9 @@ public final class TextFieldMapper extends FieldMapper {
             // Check if we can load from doc values
             if (hasDocValues()) {
                 if (usesBinaryDocValues()) {
-                    if (docValuesParams != null && docValuesParams.multiValue() == false) {
+                    // A columnar field carries its count in the blob even when single-valued, so it never takes
+                    // the bare-value reader.
+                    if (useColumnarPayload == false && docValuesParams != null && docValuesParams.multiValue() == false) {
                         return new BytesRefsFromBinaryBlockLoader(name());
                     }
                     return new BytesRefsFromBinaryMultiSeparateCountBlockLoader(name(), binaryFormat());
@@ -1655,6 +1675,7 @@ public final class TextFieldMapper extends FieldMapper {
                 false,
                 false,
                 null,
+                false,
                 false
             );
         }
@@ -1824,7 +1845,23 @@ public final class TextFieldMapper extends FieldMapper {
 
     @Override
     public boolean storesArrayValuesInOrder() {
-        return fieldType().usesArrayOrderBinaryDocValues();
+        return fieldType().usesArrayOrderBinaryDocValues() || fieldType().usesColumnarPayload();
+    }
+
+    @Override
+    public void recordEmptyArrayInOrder(LuceneDocument doc) {
+        if (fieldType().usesColumnarPayload()) {
+            ColumnarBinaryDocValuesField.recordEmptyArray(doc, fieldType().name());
+        } else {
+            super.recordEmptyArrayInOrder(doc);
+        }
+    }
+
+    @Override
+    public StringColumnOptions columnarStringOptions() {
+        // Text values are long and mostly all different, so surveying for a dictionary reads the column only to
+        // conclude that nothing repeats often enough to name.
+        return fieldType().usesColumnarPayload() ? StringColumnOptions.DEFAULT.withDictionary(DictionaryPolicy.NONE) : null;
     }
 
     @Override
@@ -1870,7 +1907,9 @@ public final class TextFieldMapper extends FieldMapper {
     @Override
     protected boolean doSupportsColumnarParse(IndexSettings indexSettings) {
         return fieldType().usesBinaryDocValues()
-            && (fieldType().usesArrayOrderBinaryDocValues() || docValuesParameters.multiValue() == false)
+            && (fieldType().usesColumnarPayload()
+                || fieldType().usesArrayOrderBinaryDocValues()
+                || docValuesParameters.multiValue() == false)
             && prefixFieldInfo == null
             && phraseFieldInfo == null
             && copyTo().copyToFields().isEmpty();
@@ -1898,7 +1937,7 @@ public final class TextFieldMapper extends FieldMapper {
         final boolean emitTerms = fieldType.indexOptions() != IndexOptions.NONE;
         final boolean emitDvs = docValuesParameters.enabled();
         if (emitTerms || emitDvs) {
-            if (fieldType().usesArrayOrderBinaryDocValues()) {
+            if (fieldType().usesColumnarPayload() || fieldType().usesArrayOrderBinaryDocValues()) {
                 mapColumnBatchArrayOrder(ctx, source, emitTerms, emitDvs);
             } else {
                 mapColumnBatchSingleValue(ctx, source, emitTerms, emitDvs);
@@ -1910,13 +1949,16 @@ public final class TextFieldMapper extends FieldMapper {
         final int docCount = ctx.docCount();
 
         final ObjectTupleCursor<BytesRef> cursor = EscfColumnTransforms.utf8Cursor(source, false);
+        // A columnar field's payload carries its own count, so it needs no companion column.
+        final boolean columnar = fieldType().usesColumnarPayload();
         try (
             EscfColumnBuilder terms = emitTerms ? mergeStringColumn(ctx.recycler()) : null;
             EscfColumnBuilder binaryDvs = emitDvs ? mergeStringColumn(ctx.recycler()) : null;
-            EscfColumnBuilder dvCounts = emitDvs ? mergeLongColumn(ctx.recycler()) : null
+            EscfColumnBuilder dvCounts = emitDvs && columnar == false ? mergeLongColumn(ctx.recycler()) : null
         ) {
             int currentDoc = -1;
-            final BytesRefBuilder docBlob = emitDvs ? new BytesRefBuilder() : null;
+            final BytesRefBuilder docBlob = emitDvs && columnar == false ? new BytesRefBuilder() : null;
+            final StringBinaryPayload.Builder payload = emitDvs && columnar ? new StringBinaryPayload.Builder() : null;
             int pos = 0;
             int docSlotCount = 0;
             int lastValueLength = 0;
@@ -1926,10 +1968,18 @@ public final class TextFieldMapper extends FieldMapper {
                 final int nextDoc = cursor.nextDoc();
                 if (nextDoc != currentDoc) {
                     if (binaryDvs != null && docSlotCount > 0) {
-                        dvCounts.setLong(currentDoc, docSlotCount);
-                        if (hasNonNull) {
-                            final int length = docSlotCount == 1 ? lastValueLength : pos;
-                            binaryDvs.setString(currentDoc, docBlob.bytes(), pos - length, length);
+                        if (columnar) {
+                            // An all-null document is a payload like any other, which is why no companion count
+                            // column is emitted alongside.
+                            final BytesRef blob = payload.build();
+                            binaryDvs.setString(currentDoc, blob.bytes, blob.offset, blob.length);
+                            payload.reset();
+                        } else {
+                            dvCounts.setLong(currentDoc, docSlotCount);
+                            if (hasNonNull) {
+                                final int length = docSlotCount == 1 ? lastValueLength : pos;
+                                binaryDvs.setString(currentDoc, docBlob.bytes(), pos - length, length);
+                            }
                         }
                         pos = 0;
                         docSlotCount = 0;
@@ -1945,7 +1995,11 @@ public final class TextFieldMapper extends FieldMapper {
 
                 if (value == null) {
                     if (binaryDvs != null) {
-                        pos = MultiValuedBinaryDocValuesField.ArrayOrderInlineNull.appendSlot(docBlob, pos, null);
+                        if (columnar) {
+                            payload.appendSlot(null);
+                        } else {
+                            pos = MultiValuedBinaryDocValuesField.ArrayOrderInlineNull.appendSlot(docBlob, pos, null);
+                        }
                         docSlotCount++;
                     }
                     continue;
@@ -1955,7 +2009,11 @@ public final class TextFieldMapper extends FieldMapper {
                     terms.setString(currentDoc, value);
                 }
                 if (binaryDvs != null) {
-                    pos = MultiValuedBinaryDocValuesField.ArrayOrderInlineNull.appendSlot(docBlob, pos, value);
+                    if (columnar) {
+                        payload.appendSlot(value);
+                    } else {
+                        pos = MultiValuedBinaryDocValuesField.ArrayOrderInlineNull.appendSlot(docBlob, pos, value);
+                    }
                     lastValueLength = value.length;
                     docSlotCount++;
                     hasNonNull = true;
@@ -2043,7 +2101,9 @@ public final class TextFieldMapper extends FieldMapper {
 
         if (value == null) {
             // Record the null slot so synthetic source can rebuild the array with its nulls in the original positions (columnar mode).
-            if (fieldType().usesArrayOrderBinaryDocValues()) {
+            if (fieldType().usesColumnarPayload()) {
+                ColumnarBinaryDocValuesField.recordNull(context.doc(), fieldType().name());
+            } else if (fieldType().usesArrayOrderBinaryDocValues()) {
                 MultiValuedBinaryDocValuesField.ArrayOrderInlineNull.recordNull(context.doc(), fieldType().name());
             } else if (recordOffsets) {
                 context.getOffSetContext().recordNull(offsetsFieldName);
@@ -2053,7 +2113,25 @@ public final class TextFieldMapper extends FieldMapper {
 
         if (docValuesParameters.enabled()) {
             BytesRef binaryValue = new BytesRef(value);
-            if (fieldType().usesArrayOrderBinaryDocValues()) {
+            if (fieldType().usesColumnarPayload()) {
+                // The ColumNAR codec splits a document's values apart, so the count travels in the blob; see
+                // ColumnarBinaryDocValuesField. Array order is kept, so the slots are collected unsorted.
+                if (context.isPartOfArray() == false) {
+                    ColumnarBinaryDocValuesField.recordSingleValue(
+                        context.doc(),
+                        fieldType().name(),
+                        binaryValue,
+                        MultiValuedBinaryDocValuesField.ValueOrdering.UNSORTED
+                    );
+                } else {
+                    ColumnarBinaryDocValuesField.recordValue(
+                        context.doc(),
+                        fieldType().name(),
+                        binaryValue,
+                        MultiValuedBinaryDocValuesField.ValueOrdering.UNSORTED
+                    );
+                }
+            } else if (fieldType().usesArrayOrderBinaryDocValues()) {
                 // In-order path: write the value into the field's own binary doc-values column directly, in document order with nulls. The
                 // BytesRef built from the String above already owns a fresh byte[], so no defensive copy is needed.
                 if (context.isPartOfArray() == false) {
@@ -2385,7 +2463,9 @@ public final class TextFieldMapper extends FieldMapper {
     private CompositeSyntheticFieldLoader syntheticFieldLoaderFromDocValues() {
         var layers = new ArrayList<CompositeSyntheticFieldLoader.Layer>();
         if (fieldType().usesBinaryDocValues()) {
-            if (fieldType().usesArrayOrderBinaryDocValues()) {
+            if (fieldType().usesColumnarPayload()) {
+                layers.add(new ColumnarPayloadBinaryDocValuesSyntheticFieldLoaderLayer(fieldType().name()));
+            } else if (fieldType().usesArrayOrderBinaryDocValues()) {
                 // Columnar mode (high cardinality): reconstruct array order, duplicates and null positions from the in-order binary blob.
                 layers.add(new ArrayOrderBinaryDocValuesSyntheticFieldLoaderLayer(fieldType().name()));
             } else {

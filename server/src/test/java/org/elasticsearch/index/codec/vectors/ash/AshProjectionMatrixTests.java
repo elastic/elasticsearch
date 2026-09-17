@@ -33,7 +33,7 @@ public class AshProjectionMatrixTests extends ESTestCase {
     public void testSerializationRoundtrip() throws IOException {
         int originalDim = randomIntBetween(4, 100);
         int nDims = randomIntBetween(2, originalDim);
-        float[] wT = randomMatrix(originalDim, nDims);
+        float[] wT = AshUtils.randomGaussians(random(), originalDim * nDims);
 
         AshProjectionMatrix original = new AshProjectionMatrix(wT, originalDim, nDims);
 
@@ -47,7 +47,7 @@ public class AshProjectionMatrixTests extends ESTestCase {
     public void testByteSizeMatchesActualSerialized() throws IOException {
         int originalDim = randomIntBetween(4, 50);
         int nDims = randomIntBetween(2, originalDim);
-        float[] wT = randomMatrix(originalDim, nDims);
+        float[] wT = AshUtils.randomGaussians(random(), originalDim * nDims);
 
         AshProjectionMatrix pm = new AshProjectionMatrix(wT, originalDim, nDims);
 
@@ -77,13 +77,5 @@ public class AshProjectionMatrixTests extends ESTestCase {
         }
         ByteBuffersIndexInput in = new ByteBuffersIndexInput(dataOut.toDataInput(), "test");
         return AshProjectionMatrix.read(in);
-    }
-
-    private float[] randomMatrix(int rows, int cols) {
-        float[] m = new float[rows * cols];
-        for (int i = 0; i < rows * cols; i++) {
-            m[i] = (float) random().nextGaussian();
-        }
-        return m;
     }
 }

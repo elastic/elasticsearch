@@ -49,6 +49,7 @@ import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcke
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.TEST_CFG;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.getValuesList;
 import static org.elasticsearch.xpack.esql.action.EsqlQueryRequest.syncEsqlQueryRequest;
+import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 
 /**
  * Every field type, every construct the translator attempts and every bool context, each filter run against a mapped
@@ -273,12 +274,38 @@ public class ExternalDatasetRequestFilterSweepIT extends AbstractExternalDataSou
      */
     public void testRandomFilters() {
         List<String> failures = new ArrayList<>();
-        int iterations = 150;
+        // Scales with the test multiplier, so a nightly run goes deeper than a local one. AbstractQueryTestCase uses 20
+        // random queries per test and the ES|QL generative suite 100, so this is already the generous end of precedent.
+        int iterations = scaledRandomIntBetween(150, 400);
+        int translatedInFull = 0;
+        int droppedSomething = 0;
+        int discriminating = 0;
         for (int i = 0; i < iterations; i++) {
             QueryBuilder filter = randomFilter(3);
-            check("random filter " + i, filter, failures);
+            if (fullyTranslates(filter)) {
+                translatedInFull++;
+            } else {
+                droppedSomething++;
+            }
+            if (check("random filter " + i, filter, failures)) {
+                discriminating++;
+            }
         }
         assertNoFailures(failures);
+        // The draw is only worth running if it is a mix. All-translatable never exercises dropping, all-dropped never
+        // exercises the equality half of the oracle, and a filter that selects every row or no row cannot show either.
+        String mix = iterations
+            + " filters: "
+            + translatedInFull
+            + " translated in full, "
+            + droppedSomething
+            + " with a dropped clause, "
+            + discriminating
+            + " selecting part of the data";
+        int floor = iterations / 10;
+        assertThat("too few filters translated in full — " + mix, translatedInFull, greaterThanOrEqualTo(floor));
+        assertThat("too few filters had a clause dropped — " + mix, droppedSomething, greaterThanOrEqualTo(floor));
+        assertThat("too few filters selected part of the data — " + mix, discriminating, greaterThanOrEqualTo(floor));
     }
 
     private QueryBuilder randomFilter(int depth) {

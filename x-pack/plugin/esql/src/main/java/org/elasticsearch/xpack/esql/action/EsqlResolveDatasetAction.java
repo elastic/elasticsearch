@@ -123,7 +123,10 @@ public class EsqlResolveDatasetAction extends TransportLocalProjectMetadataActio
          */
         public Request(TimeValue masterTimeout, String[] rawPatterns, boolean datasetWildcards) {
             super(masterTimeout);
-            this.indices = rawPatterns;
+            // With dataset_wildcards off a wildcard reaches no dataset, so it must not reach the security filter
+            // either: the filter expands it, and ViewAndDatasetDlsFlsRequestInterceptor then rejects the request over
+            // a DLS/FLS dataset this request will never read. rawPatterns keeps the full user-typed list.
+            this.indices = datasetWildcards ? rawPatterns : DatasetRewriter.exactPatterns(rawPatterns);
             this.rawPatterns = rawPatterns;
             this.datasetWildcards = datasetWildcards;
         }

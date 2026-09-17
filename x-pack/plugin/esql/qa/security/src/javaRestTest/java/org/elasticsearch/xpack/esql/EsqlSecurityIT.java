@@ -129,6 +129,7 @@ public class EsqlSecurityIT extends ESRestTestCase {
         .user("ds_dataset_query_dls", "x-pack-test-password", "ds_dataset_query_dls", false)
         .user("ds_dataset_query_fls", "x-pack-test-password", "ds_dataset_query_fls", false)
         .user("ds_dataset_query_partial", "x-pack-test-password", "ds_dataset_query_partial", false)
+        .user("ds_dataset_query_ok_plus_dls", "x-pack-test-password", "ds_dataset_query_ok_plus_dls", false)
         .build();
 
     @Override
@@ -2977,6 +2978,46 @@ public class EsqlSecurityIT extends ESRestTestCase {
         } finally {
             deleteDatasetAsAdmin(namedExactly);
             deleteDatasetAsAdmin(wildcardOnly);
+        }
+    }
+
+    /**
+     * A wildcard that reaches no dataset must not drag one through authorization either. With
+     * {@code dataset_wildcards} off, {@code FROM ok_ds, dls_*} reads only {@code ok_ds}, so the DLS grant covering
+     * {@code dls_*} is irrelevant to this query and must not reject it.
+     * <p>
+     * Before the request withheld its wildcards from the security filter, the filter expanded {@code dls_*} to the
+     * DLS-carrying dataset and {@code ViewAndDatasetDlsFlsRequestInterceptor} answered 403 for a dataset the rewrite
+     * would never read. Reported by julian-elastic on elastic/elasticsearch#154987. The assertion is the exactly-named
+     * dataset's own resource: reaching it proves the query got past authorization and narrowed to the right name.
+     */
+    public void testMixedExactAndDlsWildcardIsNotRejectedWhenDatasetWildcardsOff() throws IOException {
+        assumeTrue("data_sources REST API not supported by cluster", dataSourcesApiSupported());
+        ensureSecurityItDatasourcesForTests();
+        final String suffix = randomAlphaOfLength(6).toLowerCase(Locale.ROOT);
+        final String ok = createSecurityItDatasetAsAdmin(
+            "security_it_ds_ok_" + suffix,
+            "s3://security-it-denied-bucket/ok-" + suffix + "/*.parquet"
+        );
+        final String dls = createSecurityItDatasetAsAdmin(
+            "security_it_ds_dls_" + suffix,
+            "s3://security-it-denied-bucket/dls-" + suffix + "/*.parquet"
+        );
+        try {
+            ResponseException ex = expectThrows(
+                ResponseException.class,
+                () -> runESQLCommand("ds_dataset_query_ok_plus_dls", "FROM " + ok + ",security_it_ds_dls_* | STATS COUNT(*)")
+            );
+            assertThat(
+                "the DLS dataset is only reachable through the wildcard, which reaches nothing at this default",
+                ex.getResponse().getStatusLine().getStatusCode(),
+                equalTo(HttpStatus.SC_BAD_REQUEST)
+            );
+            assertThat(ex.getMessage(), not(containsString("document or field level security")));
+            assertThat(ex.getMessage(), containsString("ok-" + suffix));
+        } finally {
+            deleteDatasetAsAdmin(ok);
+            deleteDatasetAsAdmin(dls);
         }
     }
 

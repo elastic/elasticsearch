@@ -404,6 +404,25 @@ public final class DatasetRewriter {
         return exact;
     }
 
+    /**
+     * The FROM parts that name something exactly — no wildcard, no exclusion — in their original text, date math
+     * left unresolved so the resolver and the security filter evaluate it as they would for any other request.
+     * <p>
+     * With {@code dataset_wildcards} off these are the only parts that can reach a dataset, so they are also the
+     * only parts that should reach the security filter: expanding a wildcard there lets
+     * {@code ViewAndDatasetDlsFlsRequestInterceptor} reject the whole request over a DLS/FLS dataset this request
+     * will never read.
+     */
+    public static String[] exactPatterns(String[] patterns) {
+        List<String> exact = new ArrayList<>(patterns.length);
+        for (String pattern : patterns) {
+            if (isWildcardOrExclusion(pattern) == false) {
+                exact.add(pattern);
+            }
+        }
+        return exact.toArray(String[]::new);
+    }
+
     /** A FROM part that contributes no exact name: empty, an exclusion ({@code -x}), or a wildcard. */
     private static boolean isWildcardOrExclusion(String pattern) {
         return pattern.isEmpty() || pattern.charAt(0) == '-' || Regex.isSimpleMatchPattern(pattern);

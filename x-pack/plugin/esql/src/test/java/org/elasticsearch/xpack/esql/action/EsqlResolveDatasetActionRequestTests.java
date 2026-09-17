@@ -49,6 +49,23 @@ public class EsqlResolveDatasetActionRequestTests extends ESTestCase {
         assertThat("rawPatterns is unaffected by indices() narrowing", request.rawPatterns(), arrayContaining("logs_*", "-logs_test"));
     }
 
+    public void testWildcardsAreWithheldFromTheSecurityFilterWhenDatasetWildcardsIsOff() {
+        // With the setting off a wildcard reaches no dataset, so it must not reach the security filter either: the
+        // filter expands it and ViewAndDatasetDlsFlsRequestInterceptor then rejects the whole request over a DLS/FLS
+        // dataset this request will never read. Only the exactly-named parts go out; rawPatterns keeps the full list.
+        var off = new EsqlResolveDatasetAction.Request(TEST_REQUEST_TIMEOUT, new String[] { "ok_ds", "logs_*" }, false);
+        assertThat(off.indices(), arrayContaining("ok_ds"));
+        assertThat(off.rawPatterns(), arrayContaining("ok_ds", "logs_*"));
+
+        // An exclusion contributes no exact name either.
+        var excluded = new EsqlResolveDatasetAction.Request(TEST_REQUEST_TIMEOUT, new String[] { "ok_ds", "-logs_a" }, false);
+        assertThat(excluded.indices(), arrayContaining("ok_ds"));
+
+        // With the setting on the wildcard is meant to reach datasets, so the full list goes to the filter.
+        var on = new EsqlResolveDatasetAction.Request(TEST_REQUEST_TIMEOUT, new String[] { "ok_ds", "logs_*" }, true);
+        assertThat(on.indices(), arrayContaining("ok_ds", "logs_*"));
+    }
+
     public void testUnavailableTargetsAreLenient() {
         // Lenient options: the security filter silently narrows an unauthorized concrete dataset to nothing rather than
         // throwing a 403 (which would be an existence oracle). The explicit-unauthorized → Unknown index (400) is

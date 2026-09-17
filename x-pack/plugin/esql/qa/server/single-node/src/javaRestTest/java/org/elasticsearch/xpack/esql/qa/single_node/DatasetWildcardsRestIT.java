@@ -94,7 +94,7 @@ public class DatasetWildcardsRestIT extends ESRestTestCase {
 
     public void testWildcardReachesDatasetOnlyWhenSettingIsOn() throws IOException {
         // lake_1* matches exactly one dataset and no index, so this pins REACH itself rather than any downstream
-        // threshold: the branch cap is nowhere near, and elastic/esql-planning#1732 raising that cap cannot affect it.
+        // threshold: the branch cap is nowhere near, and raising it could not affect this case.
 
         // Off (the default): the wildcard matches nothing at all, so the query succeeds with no rows. The dataset was
         // never reached -- had it been, resolving its object-storage resource would have failed the query.

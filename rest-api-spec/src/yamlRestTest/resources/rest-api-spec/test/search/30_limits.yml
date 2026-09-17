@@ -174,7 +174,7 @@ setup:
       reason: include/exclude regex length is bounded by index.max_regex_length since 9.6
 
   - do:
-      catch: /The length of regex \[1001\] used in the \[include\] of an aggregation has exceeded the allowed maximum of \[1000\]\. This maximum can be set by changing the \[index.max_regex_length\] index level setting\./
+      catch: bad_request
       search:
         rest_total_hits_as_int: true
         index: test_1
@@ -185,9 +185,11 @@ setup:
               terms:
                 field: foo.keyword
                 include: "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+  - match:
+      error.root_cause.0.reason: /The\slength\sof\sregex\s\[1001\]\sused\sin\sthe\s\[include\]\sof\san\saggregation\shas\sexceeded\sthe\sallowed\smaximum\sof\s\[1000\]\.\sThis\smaximum\scan\sbe\sset\sby\schanging\sthe\s\[index\.max_regex_length\]\sindex\slevel\ssetting\..*/
 
   - do:
-      catch: /The length of regex \[1001\] used in the \[exclude\] of an aggregation has exceeded the allowed maximum of \[1000\]/
+      catch: bad_request
       search:
         rest_total_hits_as_int: true
         index: test_1
@@ -198,6 +200,8 @@ setup:
               terms:
                 field: foo.keyword
                 exclude: "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+  - match:
+      error.root_cause.0.reason: /The\slength\sof\sregex\s\[1001\]\sused\sin\sthe\s\[exclude\]\sof\san\saggregation\shas\sexceeded\sthe\sallowed\smaximum\sof\s\[1000\].*/
 
 ---
 "Prefix length limit":
@@ -283,7 +287,7 @@ setup:
         body: { foo: bar }
 
   - do:
-      catch: /The length of regex \[21\] used in the \[include\] of an aggregation has exceeded the allowed maximum of \[20\]/
+      catch: bad_request
       search:
         rest_total_hits_as_int: true
         index: test_short_regex
@@ -294,6 +298,8 @@ setup:
               terms:
                 field: foo
                 include: "aaaaaaaaaaaaaaaaaaaaa"
+  - match:
+      error.root_cause.0.reason: /The\slength\sof\sregex\s\[21\]\sused\sin\sthe\s\[include\]\sof\san\saggregation\shas\sexceeded\sthe\sallowed\smaximum\sof\s\[20\].*/
 
   - do:
       search:

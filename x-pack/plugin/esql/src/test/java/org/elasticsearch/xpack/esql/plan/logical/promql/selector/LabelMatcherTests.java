@@ -11,6 +11,7 @@ import org.apache.lucene.util.automaton.Operations;
 import org.apache.lucene.util.automaton.TooComplexToDeterminizeException;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.xpack.esql.core.expression.FoldContext;
 import org.elasticsearch.xpack.esql.plan.logical.promql.selector.LabelMatcher.Matcher;
 
 import java.util.List;
@@ -116,6 +117,17 @@ public class LabelMatcherTests extends ESTestCase {
         assertFalse(Operations.run(matcher.automaton(), "dev-local"));
         assertTrue(Operations.run(matcher.automaton(), "prod"));
         assertTrue(Operations.run(matcher.automaton(), "staging"));
+    }
+
+    /**
+     * 22 characters that expand to about a billion NFA states: the build budget must refuse the pattern before any of it is
+     * allocated, in a single-value and in a multi-value matcher alike. Building it would exhaust the test JVM.
+     */
+    public void testHugeRegexIsRefusedBeforeItIsBuilt() {
+        LabelMatcher single = new LabelMatcher("l", "[ab]{1000}{1000}{1000}", Matcher.REG);
+        expectThrows(FoldContext.FoldTooMuchMemoryException.class, single::automaton);
+        LabelMatcher multi = new LabelMatcher("l", List.of("a", "[ab]{1000}{1000}{1000}"), Matcher.NREG);
+        expectThrows(FoldContext.FoldTooMuchMemoryException.class, multi::automaton);
     }
 
     public void testMatchesEmpty() {

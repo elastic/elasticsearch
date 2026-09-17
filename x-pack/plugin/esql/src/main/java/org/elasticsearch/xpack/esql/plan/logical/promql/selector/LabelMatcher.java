@@ -12,13 +12,19 @@ import org.apache.lucene.util.automaton.Automaton;
 import org.apache.lucene.util.automaton.Operations;
 import org.apache.lucene.util.automaton.RegExp;
 import org.apache.lucene.util.automaton.TooComplexToDeterminizeException;
+import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.IndexSettings;
+import org.elasticsearch.lucene.search.cost.RegexpNfaRamEstimator;
+import org.elasticsearch.lucene.util.automaton.CircuitBreakingOperations;
 import org.elasticsearch.lucene.util.automaton.MinimizationOperations;
+import org.elasticsearch.xpack.esql.core.expression.FoldContext;
 import org.elasticsearch.xpack.esql.core.tree.Node;
 import org.elasticsearch.xpack.esql.core.tree.NodeStringMapper;
 import org.elasticsearch.xpack.esql.core.tree.NodeStringRenderable;
+import org.elasticsearch.xpack.esql.core.tree.Source;
 
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Objects;
 
@@ -152,30 +158,59 @@ public class LabelMatcher implements NodeStringRenderable {
         return automaton;
     }
 
+    private static final String BREAKER_LABEL = "promql_label_matcher";
+
     private Automaton buildAutomaton() {
-        Automaton result;
-        if (isMultiValue() && matcher.isRegex() == false) {
-            // Multi-value exact match: union of all literal values
-            List<Automaton> automata = values.stream().map(Automata::makeString).toList();
-            result = Operations.union(automata);
-        } else if (isMultiValue()) {
-            // Multi-value regex: union of all regex patterns
-            List<Automaton> automata = values.stream().map(this::regexAutomaton).toList();
-            result = Operations.union(automata);
-        } else {
-            // Single value
-            String v = getFirstValue();
-            result = matcher.isRegex() ? regexAutomaton(v) : Automata.makeString(v);
+        // Matchers are built while parsing, before any request breaker exists, so each build is bounded the way constant
+        // folding is: by a fresh fold budget, held only while the automaton is built. A length limit alone does not bound
+        // the heap: [ab]{1000}{1000}{1000} is 22 characters and about a billion NFA states.
+        CircuitBreaker breaker = FoldContext.small().circuitBreakerView(Source.EMPTY);
+        long held = 0;
+        try {
+            Automaton result;
+            if (isMultiValue() && matcher.isRegex() == false) {
+                // Multi-value exact match: union of all literal values
+                List<Automaton> automata = values.stream().map(Automata::makeString).toList();
+                result = Operations.union(automata);
+            } else if (isMultiValue()) {
+                // Multi-value regex: union of all regex patterns
+                List<Automaton> automata = new ArrayList<>(values.size());
+                for (String value : values) {
+                    Automaton automaton = regexAutomaton(value, breaker);
+                    held += hold(automaton, breaker);
+                    automata.add(automaton);
+                }
+                result = Operations.union(automata);
+            } else {
+                // Single value
+                String v = getFirstValue();
+                result = matcher.isRegex() ? regexAutomaton(v, breaker) : Automata.makeString(v);
+            }
+            held += hold(result, breaker);
+            result = CircuitBreakingOperations.determinize(result, Operations.DEFAULT_DETERMINIZE_WORK_LIMIT, breaker, BREAKER_LABEL);
+            held += hold(result, breaker);
+            // minimize and complement each work on copies of a DFA already held above
+            long copies = 3 * result.ramBytesUsed();
+            breaker.addEstimateBytesAndMaybeBreak(copies, BREAKER_LABEL);
+            held += copies;
+            result = MinimizationOperations.minimize(result, Operations.DEFAULT_DETERMINIZE_WORK_LIMIT);
+            // negate if needed
+            if (matcher == NEQ || matcher == NREG) {
+                result = Operations.complement(result, Operations.DEFAULT_DETERMINIZE_WORK_LIMIT);
+            }
+            return result;
+        } finally {
+            breaker.addWithoutBreaking(-held);
         }
-        result = MinimizationOperations.minimize(result, Operations.DEFAULT_DETERMINIZE_WORK_LIMIT);
-        // negate if needed
-        if (matcher == NEQ || matcher == NREG) {
-            result = Operations.complement(result, Operations.DEFAULT_DETERMINIZE_WORK_LIMIT);
-        }
-        return result;
     }
 
-    private Automaton regexAutomaton(String regex) {
+    private static long hold(Automaton automaton, CircuitBreaker breaker) {
+        long bytes = automaton.ramBytesUsed();
+        breaker.addEstimateBytesAndMaybeBreak(bytes, BREAKER_LABEL);
+        return bytes;
+    }
+
+    private Automaton regexAutomaton(String regex, CircuitBreaker breaker) {
         if (regex.length() > maxRegexLength) {
             throw new IllegalArgumentException(
                 "The length of regex ["
@@ -185,10 +220,19 @@ public class LabelMatcher implements NodeStringRenderable {
                     + "]"
             );
         }
+        RegExp re;
         try {
-            return new RegExp(regex).toAutomaton();
+            re = new RegExp(regex);
         } catch (IllegalArgumentException ex) {
             throw new IllegalArgumentException("Cannot parse regex " + regex, ex);
+        }
+        // The NFA is built with its estimated peak reserved, as the regexp query does; the budget refuses it before any of it exists.
+        long reservation = RegexpNfaRamEstimator.estimateRamBytes(re);
+        breaker.addEstimateBytesAndMaybeBreak(reservation, BREAKER_LABEL);
+        try {
+            return re.toAutomaton();
+        } finally {
+            breaker.addWithoutBreaking(-reservation);
         }
     }
 

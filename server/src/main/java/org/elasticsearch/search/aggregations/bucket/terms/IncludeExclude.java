@@ -13,6 +13,7 @@ import com.carrotsearch.hppc.BitMixer;
 import org.apache.lucene.index.SortedSetDocValues;
 import org.apache.lucene.index.Terms;
 import org.apache.lucene.index.TermsEnum;
+import org.apache.lucene.util.Accountable;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.LongBitSet;
 import org.apache.lucene.util.NumericUtils;
@@ -37,6 +38,7 @@ import org.elasticsearch.lucene.search.cost.AutomatonQueryCostEstimator;
 import org.elasticsearch.lucene.search.cost.RegexpNfaRamEstimator;
 import org.elasticsearch.lucene.util.automaton.CircuitBreakingOperations;
 import org.elasticsearch.search.DocValueFormat;
+import org.elasticsearch.search.aggregations.support.AggregationContext;
 import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xcontent.ToXContentFragment;
 import org.elasticsearch.xcontent.XContentBuilder;
@@ -201,7 +203,7 @@ public class IncludeExclude implements Writeable, ToXContentFragment {
     }
 
     // Only used for the 'map' execution mode (ie. scripts)
-    public abstract static class StringFilter extends Filter {
+    public abstract static class StringFilter extends Filter implements Accountable {
         public abstract boolean accept(BytesRef value);
     }
 
@@ -209,6 +211,11 @@ public class IncludeExclude implements Writeable, ToXContentFragment {
         @Override
         public boolean accept(BytesRef value) {
             return Math.floorMod(StringHelper.murmurhash3_x86_32(value, HASH_PARTITIONING_SEED), incNumPartitions) == incZeroBasedPartition;
+        }
+
+        @Override
+        public long ramBytesUsed() {
+            return 0;
         }
     }
 
@@ -240,6 +247,12 @@ public class IncludeExclude implements Writeable, ToXContentFragment {
             }
 
             return invalids == null || invalids.contains(value) == false;
+        }
+
+        /** The compiled pattern, kept for the request's lifetime; the value sets are the request's own. */
+        @Override
+        public long ramBytesUsed() {
+            return runAutomaton == null ? 0 : runAutomaton.ramBytesUsed();
         }
     }
 
@@ -542,10 +555,19 @@ public class IncludeExclude implements Writeable, ToXContentFragment {
         }
         checkRegexLength(include, INCLUDE_FIELD, maxRegexLength);
         checkRegexLength(exclude, EXCLUDE_FIELD, maxRegexLength);
+        // Each step's build is charged by the step; each result stays on the heap until the final DFA replaces it, so its
+        // size is held here across the later steps.
+        long held = 0;
         try {
             Automaton a = include != null ? compile(include, INCLUDE_FIELD, breaker) : Automata.makeAnyString();
+            held += hold(a, breaker);
             if (exclude != null) {
-                a = minus(a, determinize(compile(exclude, EXCLUDE_FIELD, breaker), breaker), breaker);
+                Automaton excludeNfa = compile(exclude, EXCLUDE_FIELD, breaker);
+                held += hold(excludeNfa, breaker);
+                Automaton excluded = determinize(excludeNfa, breaker);
+                held += hold(excluded, breaker);
+                a = CircuitBreakingOperations.minus(a, excluded, breaker, ChildMemoryCircuitBreaker.CATEGORY_REGEXP);
+                held += hold(a, breaker);
             }
             return determinize(a, breaker);
         } catch (TooComplexToDeterminizeException e) {
@@ -553,35 +575,15 @@ public class IncludeExclude implements Writeable, ToXContentFragment {
                 "The regex used in the [include] or [exclude] of an aggregation is too complex to determinize",
                 e
             );
+        } finally {
+            breaker.addWithoutBreaking(-held, ChildMemoryCircuitBreaker.CATEGORY_REGEXP);
         }
     }
 
-    /**
-     * Heap reserved per reachable state of the include/exclude product, before {@code Operations.minus} builds it.
-     * Measured as the bytes allocated on the calling thread during {@code minus}, divided by include states times
-     * exclude states, over a corpus of realistic and adversarial pairs: dense products (a short pattern against an
-     * exclude that determinizes to thousands of states) cost 540 to 1,450 bytes per product state, sparse ones
-     * (two chains, two long alternations) 10 to 30. Density is unknowable before the build, so this covers the densest
-     * pair with margin and over-reserves sparse pairs for the duration of one build. The pair that exhausted a 512 MB
-     * heap in that measurement, {@code [ab]{1000}{5}} against {@code (a|b)*b(a|b){10}}, reserves 20 GB and is refused.
-     */
-    static final long PRODUCT_STATE_BYTES = 2048;
-    static final long PRODUCT_RESERVATION_FLOOR_BYTES = 64 * 1024;
-
-    /**
-     * {@code Operations.minus} intersects {@code a} with the complement of {@code excluded}: a product construction over
-     * both automata with no accounting of its own, whose reachable states are bounded by include states times exclude
-     * states. Reserve {@link #PRODUCT_STATE_BYTES} for each before running it.
-     */
-    private static Automaton minus(Automaton a, Automaton excluded, CircuitBreaker breaker) {
-        long reservation;
-        try {
-            long productStates = Math.multiplyExact((long) a.getNumStates(), excluded.getNumStates());
-            reservation = Math.max(PRODUCT_RESERVATION_FLOOR_BYTES, Math.multiplyExact(productStates, PRODUCT_STATE_BYTES));
-        } catch (ArithmeticException e) {
-            reservation = Long.MAX_VALUE;
-        }
-        return reserving(reservation, breaker, () -> Operations.minus(a, excluded, Operations.DEFAULT_DETERMINIZE_WORK_LIMIT));
+    private static long hold(Automaton a, CircuitBreaker breaker) {
+        long bytes = a.ramBytesUsed();
+        breaker.addEstimateBytesAndMaybeBreak(bytes, ChildMemoryCircuitBreaker.CATEGORY_REGEXP);
+        return bytes;
     }
 
     private static Automaton determinize(Automaton a, CircuitBreaker breaker) {
@@ -685,6 +687,16 @@ public class IncludeExclude implements Writeable, ToXContentFragment {
         return new SetAndRegexStringFilter(format, maxRegexLength, breaker);
     }
 
+    /**
+     * As {@link #convertToStringFilter(DocValueFormat, int, CircuitBreaker)} with the index's limit and the request breaker,
+     * and charges the compiled pattern the filter keeps for the rest of the request; the context releases it with the search.
+     */
+    public StringFilter convertToStringFilter(DocValueFormat format, AggregationContext context) {
+        StringFilter filter = convertToStringFilter(format, context.getIndexSettings().getMaxRegexLength(), context.breaker());
+        context.addCircuitBreakerMemory(filter.ramBytesUsed(), ChildMemoryCircuitBreaker.CATEGORY_REGEXP);
+        return filter;
+    }
+
     private static SortedSet<BytesRef> parseForDocValues(SortedSet<BytesRef> endUserFormattedValues, DocValueFormat format) {
         SortedSet<BytesRef> result = endUserFormattedValues;
         if (endUserFormattedValues != null) {
@@ -708,6 +720,14 @@ public class IncludeExclude implements Writeable, ToXContentFragment {
         }
 
         return new SetAndRegexOrdinalsFilter(format, maxRegexLength, breaker);
+    }
+
+    /**
+     * As {@link #convertToOrdinalsFilter(DocValueFormat, int, CircuitBreaker)} with the index's limit and the request breaker.
+     * Nothing is charged past the build: the compiled pattern is dropped once the accepted ordinals are computed.
+     */
+    public OrdinalsFilter convertToOrdinalsFilter(DocValueFormat format, AggregationContext context) {
+        return convertToOrdinalsFilter(format, context.getIndexSettings().getMaxRegexLength(), context.breaker());
     }
 
     public LongFilter convertToLongFilter(DocValueFormat format) {

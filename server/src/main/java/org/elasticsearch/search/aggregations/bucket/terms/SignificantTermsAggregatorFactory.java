@@ -348,7 +348,7 @@ public class SignificantTermsAggregatorFactory extends ValuesSourceAggregatorFac
 
                 final IncludeExclude.StringFilter filter = includeExclude == null
                     ? null
-                    : includeExclude.convertToStringFilter(format, context.getIndexSettings().getMaxRegexLength(), context.breaker());
+                    : includeExclude.convertToStringFilter(format, context);
                 return new MapStringTermsAggregator(
                     name,
                     factories,

@@ -406,11 +406,7 @@ public class TermsAggregatorFactory extends ValuesSourceAggregatorFactory {
             ) throws IOException {
                 IncludeExclude.StringFilter filter = includeExclude == null
                     ? null
-                    : includeExclude.convertToStringFilter(
-                        valuesSourceConfig.format(),
-                        context.getIndexSettings().getMaxRegexLength(),
-                        context.breaker()
-                    );
+                    : includeExclude.convertToStringFilter(valuesSourceConfig.format(), context);
                 return new MapStringTermsAggregator(
                     name,
                     factories,

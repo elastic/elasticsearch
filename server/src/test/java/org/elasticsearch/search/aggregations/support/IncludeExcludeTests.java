@@ -471,34 +471,61 @@ public class IncludeExcludeTests extends ESTestCase {
     }
 
     /**
-     * Two patterns that each compile cheaply but whose {@code minus} is a product of the two: the product must be reserved on
-     * the breaker before it is built, so it trips on a small limit and succeeds, with everything released, on a large one.
+     * Two patterns that each compile cheaply but whose {@code minus} is a product of the two, dense because the exclude is a
+     * class of many separate ranges: every product state carries one transition per range. The build is charged as it
+     * grows, so it trips a small limit and succeeds, with everything released, on a large one.
      */
     public void testExcludeProductIsChargedToTheBreaker() {
-        IncludeExclude inexcl = new IncludeExclude("[ab]{300}", "[ab]{300}", null, null);
+        StringBuilder ranges = new StringBuilder("[");
+        for (int i = 0; i < 100; i++) {
+            ranges.append((char) (0x100 + 2 * i));
+        }
+        ranges.append(']');
+        IncludeExclude inexcl = new IncludeExclude(".*x.{10}", ranges + "*\u0100" + ranges + "{6}", null, null);
+        CircuitBreaker small = newLimitedBreaker(ByteSizeValue.ofMb(4));
         expectThrows(
             CircuitBreakingException.class,
-            () -> inexcl.convertToStringFilter(DocValueFormat.RAW, DEFAULT_MAX_REGEX_LENGTH, newLimitedBreaker(ByteSizeValue.ofMb(1)))
+            () -> inexcl.convertToStringFilter(DocValueFormat.RAW, DEFAULT_MAX_REGEX_LENGTH, small)
         );
+        assertEquals("every reservation is released on failure", 0L, small.getUsed());
         CircuitBreaker roomy = newLimitedBreaker(ByteSizeValue.ofGb(1));
         StringFilter filter = inexcl.convertToStringFilter(DocValueFormat.RAW, DEFAULT_MAX_REGEX_LENGTH, roomy);
-        assertFalse("every 300-letter string is excluded again", filter.accept(new BytesRef("a".repeat(300))));
+        assertTrue(filter.accept(new BytesRef("x0123456789")));
+        assertFalse(
+            "excluded: seven class characters after the marker",
+            filter.accept(new BytesRef("x\u0100\u0200\u0200\u0200\u0200\u0200\u0200"))
+        );
         assertEquals("every reservation is released after the build", 0L, roomy.getUsed());
     }
 
     /**
-     * The pair that exhausted a 512 MB heap while {@link IncludeExclude#PRODUCT_STATE_BYTES} was measured: both patterns pass
-     * the length check and compile within the determinize limit, and only the product is huge. It must be refused before it
-     * is built; building it here would exhaust the test JVM too.
+     * Both patterns pass the length check and compile within the determinize limit; only the product is huge (it exhausted
+     * a 512 MB heap when measured). The breaker must stop the build long before that.
      */
     public void testExcludeProductThatExhaustsTheHeapIsRefused() {
         IncludeExclude inexcl = new IncludeExclude("[ab]{1000}{5}", "(a|b)*b(a|b){10}", null, null);
-        CircuitBreaker breaker = newLimitedBreaker(ByteSizeValue.ofGb(1));
+        CircuitBreaker breaker = newLimitedBreaker(ByteSizeValue.ofMb(64));
         expectThrows(
             CircuitBreakingException.class,
             () -> inexcl.convertToStringFilter(DocValueFormat.RAW, DEFAULT_MAX_REGEX_LENGTH, breaker)
         );
         assertEquals("every reservation is released on failure", 0L, breaker.getUsed());
+    }
+
+    /** The compiled pattern outlives the build, so the filter reports it for the request-lifetime charge. */
+    public void testStringFilterReportsItsRetainedAutomaton() {
+        StringFilter regex = new IncludeExclude("a.*", null, null, null).convertToStringFilter(
+            DocValueFormat.RAW,
+            DEFAULT_MAX_REGEX_LENGTH,
+            BREAKER
+        );
+        assertTrue(regex.ramBytesUsed() > 0);
+        StringFilter exact = new IncludeExclude(null, null, new TreeSet<>(Set.of(newBytesRef("a"))), null).convertToStringFilter(
+            DocValueFormat.RAW,
+            DEFAULT_MAX_REGEX_LENGTH,
+            BREAKER
+        );
+        assertEquals(0L, exact.ramBytesUsed());
     }
 
     public void testTooComplexRegexIsAClientError() {

@@ -18,7 +18,6 @@ import org.apache.lucene.search.LongValues;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.LongBitSet;
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
@@ -28,6 +27,7 @@ import org.elasticsearch.index.fielddata.SortedBinaryDocValues;
 import org.elasticsearch.index.fielddata.SortedNumericLongValues;
 import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.aggregations.bucket.terms.IncludeExclude;
+import org.elasticsearch.search.aggregations.support.AggregationContext;
 import org.elasticsearch.search.aggregations.support.ValuesSource;
 import org.elasticsearch.search.aggregations.support.ValuesSource.Bytes;
 import org.elasticsearch.search.aggregations.support.ValuesSource.Numeric;
@@ -56,8 +56,7 @@ public abstract class ItemSetMapReduceValueSource {
             IncludeExclude includeExclude,
             AbstractItemSetMapReducer.OrdinalOptimization ordinalOptimization,
             Optional<LeafReaderContext> ctx,
-            int maxRegexLength,
-            CircuitBreaker breaker
+            AggregationContext context
         ) throws IOException;
     }
 
@@ -350,8 +349,7 @@ public abstract class ItemSetMapReduceValueSource {
             IncludeExclude includeExclude,
             AbstractItemSetMapReducer.OrdinalOptimization ordinalOptimization,
             Optional<LeafReaderContext> ctx,
-            int maxRegexLength,
-            CircuitBreaker breaker
+            AggregationContext context
         ) throws IOException {
             super(config, id, ValueFormatter.BYTES_REF);
 
@@ -364,14 +362,14 @@ public abstract class ItemSetMapReduceValueSource {
                 this.executionStrategy = new GlobalOrdinalsStrategy(
                     getField(),
                     (Bytes.WithOrdinals) config.getValuesSource(),
-                    includeExclude == null ? null : includeExclude.convertToOrdinalsFilter(config.format(), maxRegexLength, breaker),
+                    includeExclude == null ? null : includeExclude.convertToOrdinalsFilter(config.format(), context),
                     ctx.get()
                 );
             } else {
                 this.executionStrategy = new MapStrategy(
                     getField(),
                     (Bytes) config.getValuesSource(),
-                    includeExclude == null ? null : includeExclude.convertToStringFilter(config.format(), maxRegexLength, breaker)
+                    includeExclude == null ? null : includeExclude.convertToStringFilter(config.format(), context)
                 );
             }
         }
@@ -402,8 +400,7 @@ public abstract class ItemSetMapReduceValueSource {
             IncludeExclude includeExclude,
             AbstractItemSetMapReducer.OrdinalOptimization unusedOrdinalOptimization,
             Optional<LeafReaderContext> unusedCtx,
-            int unusedMaxRegexLength,
-            CircuitBreaker unusedBreaker
+            AggregationContext unusedContext
         ) {
             super(config, id, ValueFormatter.LONG);
             this.source = (Numeric) config.getValuesSource();

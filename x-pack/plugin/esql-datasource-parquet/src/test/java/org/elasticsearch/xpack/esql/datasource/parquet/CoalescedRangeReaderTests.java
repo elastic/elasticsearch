@@ -9,6 +9,7 @@ package org.elasticsearch.xpack.esql.datasource.parquet;
 
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.common.breaker.CircuitBreaker;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.util.LimitedBreaker;
 import org.elasticsearch.core.Releasable;
@@ -16,6 +17,7 @@ import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.esql.datasource.parquet.CoalescedRangeReader.ByteRange;
 import org.elasticsearch.xpack.esql.datasource.parquet.CoalescedRangeReader.CoalescedRangeResult;
 import org.elasticsearch.xpack.esql.datasource.parquet.CoalescedRangeReader.MergedRange;
+import org.elasticsearch.xpack.esql.datasources.cache.FooterByteCache;
 import org.elasticsearch.xpack.esql.datasources.spi.DirectBufferFactory;
 import org.elasticsearch.xpack.esql.datasources.spi.DirectReadBuffer;
 import org.elasticsearch.xpack.esql.datasources.spi.StorageObject;
@@ -680,6 +682,329 @@ public class CoalescedRangeReaderTests extends ESTestCase {
         } finally {
             executor.shutdown();
             assertTrue(executor.awaitTermination(10, TimeUnit.SECONDS));
+        }
+    }
+
+    public void testFooterCacheHitSkipsAsyncGetAndCopiesBytes() throws Exception {
+        byte[] data = sequentialBytes(4096);
+        CountingStorage counting = new CountingStorage(data);
+        FooterByteCache cache = footerCache();
+        cache.put(FooterByteCache.Key.keyFor(counting), data);
+
+        List<ByteRange> ranges = List.of(new ByteRange(0, 100), new ByteRange(200, 50));
+        CoalescedRangeResult result = awaitCoalesced(counting, ranges, cache);
+        try {
+            assertEquals(0, counting.asyncGets.get());
+            assertRangeEquals(data, result.ranges().get(new ByteRange(0, 100)), 0, 100);
+            assertRangeEquals(data, result.ranges().get(new ByteRange(200, 50)), 200, 50);
+        } finally {
+            result.release().close();
+        }
+    }
+
+    public void testFooterCacheHitSyncSkipsReadBytes() throws Exception {
+        byte[] data = sequentialBytes(2048);
+        CountingStorage counting = new CountingStorage(data);
+        FooterByteCache cache = footerCache();
+        cache.put(FooterByteCache.Key.keyFor(counting), data);
+
+        CoalescedRangeResult result = CoalescedRangeReader.readCoalescedSync(
+            counting,
+            List.of(new ByteRange(10, 20)),
+            0,
+            breaker,
+            null,
+            cache
+        );
+        try {
+            assertEquals(0, counting.syncGets.get());
+            assertRangeEquals(data, result.ranges().get(new ByteRange(10, 20)), 10, 20);
+        } finally {
+            result.release().close();
+        }
+    }
+
+    public void testFooterCacheSuffixMissStillGets() throws Exception {
+        byte[] data = sequentialBytes(100 * 1024);
+        CountingStorage counting = new CountingStorage(data);
+        FooterByteCache cache = footerCache();
+        int tail = 64 * 1024;
+        cache.put(FooterByteCache.Key.keyFor(counting), java.util.Arrays.copyOfRange(data, data.length - tail, data.length));
+
+        CoalescedRangeResult miss = awaitCoalesced(counting, List.of(new ByteRange(0, 100)), cache);
+        try {
+            assertEquals(1, counting.asyncGets.get());
+            assertRangeEquals(data, miss.ranges().get(new ByteRange(0, 100)), 0, 100);
+        } finally {
+            miss.release().close();
+        }
+
+        counting.asyncGets.set(0);
+        CoalescedRangeResult hit = awaitCoalesced(counting, List.of(new ByteRange(data.length - 50, 50)), cache);
+        try {
+            assertEquals(0, counting.asyncGets.get());
+            assertRangeEquals(data, hit.ranges().get(new ByteRange(data.length - 50, 50)), data.length - 50, 50);
+        } finally {
+            hit.release().close();
+        }
+    }
+
+    public void testFooterCacheEvictionForcesGet() throws Exception {
+        byte[] data = sequentialBytes(256);
+        CountingStorage counting = new CountingStorage(data);
+        FooterByteCache cache = FooterByteCache.fromSettings(Settings.builder().put("esql.external.cache.footer.size", "1kb").build());
+        FooterByteCache.Key key = FooterByteCache.Key.keyFor(counting);
+        cache.put(key, data);
+        assertNotNull(cache.get(key));
+        for (int i = 0; i < 16; i++) {
+            cache.put(new FooterByteCache.Key("memory://other-" + i + ".parquet", 256), sequentialBytes(256));
+        }
+        assertNull(cache.get(key));
+
+        CoalescedRangeResult result = awaitCoalesced(counting, List.of(new ByteRange(0, 32)), cache);
+        try {
+            assertEquals(1, counting.asyncGets.get());
+            assertRangeEquals(data, result.ranges().get(new ByteRange(0, 32)), 0, 32);
+        } finally {
+            result.release().close();
+        }
+    }
+
+    public void testFooterCacheHitDoesNotChargeWatermark() throws Exception {
+        byte[] data = sequentialBytes(512);
+        CountingStorage counting = new CountingStorage(data);
+        FooterByteCache cache = footerCache();
+        cache.put(FooterByteCache.Key.keyFor(counting), data);
+        ParquetIoWatermark watermark = new ParquetIoWatermark(1_000_000);
+
+        CoalescedRangeResult result = awaitCoalesced(counting, List.of(new ByteRange(0, 64)), cache, watermark);
+        try {
+            assertEquals(0, counting.asyncGets.get());
+            assertEquals(0L, watermark.used());
+            assertTrue(breaker.getUsed() > 0);
+        } finally {
+            result.release().close();
+        }
+        assertEquals(0L, breaker.getUsed());
+    }
+
+    public void testFooterCacheHitCopyDoesNotAliasLruArray() throws Exception {
+        byte[] data = sequentialBytes(128);
+        CountingStorage counting = new CountingStorage(data);
+        FooterByteCache cache = footerCache();
+        byte[] cached = data.clone();
+        cache.put(FooterByteCache.Key.keyFor(counting), cached);
+
+        CoalescedRangeResult result = awaitCoalesced(counting, List.of(new ByteRange(0, 8)), cache);
+        try {
+            cached[0] = (byte) 0x7F;
+            ByteBuffer delivered = result.ranges().get(new ByteRange(0, 8));
+            assertEquals(data[0], delivered.get(delivered.position()));
+        } finally {
+            result.release().close();
+        }
+    }
+
+    public void testFooterCacheHitCompletesOnExecutorNotInline() throws Exception {
+        byte[] data = sequentialBytes(64);
+        CountingStorage counting = new CountingStorage(data);
+        FooterByteCache cache = footerCache();
+        cache.put(FooterByteCache.Key.keyFor(counting), data);
+
+        List<Runnable> queued = new ArrayList<>();
+        CountDownLatch latch = new CountDownLatch(1);
+        AtomicReference<CoalescedRangeResult> resultRef = new AtomicReference<>();
+        AtomicReference<Exception> failureRef = new AtomicReference<>();
+        CoalescedRangeReader.readCoalesced(
+            counting,
+            List.of(new ByteRange(0, 16)),
+            0,
+            breaker,
+            null,
+            null,
+            cache,
+            queued::add,
+            new ActionListener<>() {
+                @Override
+                public void onResponse(CoalescedRangeResult result) {
+                    resultRef.set(result);
+                    latch.countDown();
+                }
+
+                @Override
+                public void onFailure(Exception e) {
+                    failureRef.set(e);
+                    latch.countDown();
+                }
+            }
+        );
+        assertNull(resultRef.get());
+        assertEquals(1, queued.size());
+        queued.getFirst().run();
+        assertTrue(latch.await(5, TimeUnit.SECONDS));
+        assertNull(failureRef.get());
+        try {
+            assertEquals(0, counting.asyncGets.get());
+            assertEquals(16, resultRef.get().ranges().get(new ByteRange(0, 16)).remaining());
+        } finally {
+            resultRef.get().release().close();
+        }
+    }
+
+    public void testFooterCacheHitUsesFileAbsoluteOffsetForRangeView() throws Exception {
+        byte[] file = sequentialBytes(1000);
+        int viewStart = 900;
+        CountingStorage counting = new CountingStorage(file) {
+            @Override
+            public long length() {
+                return 100;
+            }
+
+            @Override
+            public long lengthForFooterCacheKey() {
+                return file.length;
+            }
+
+            @Override
+            public long offsetForFooterCache(long position) {
+                return viewStart + position;
+            }
+        };
+        FooterByteCache cache = footerCache();
+        cache.put(FooterByteCache.Key.keyFor(counting), java.util.Arrays.copyOfRange(file, viewStart, file.length));
+
+        CoalescedRangeResult result = awaitCoalesced(counting, List.of(new ByteRange(0, 40)), cache);
+        try {
+            assertEquals(0, counting.asyncGets.get());
+            assertRangeEquals(file, result.ranges().get(new ByteRange(0, 40)), viewStart, 40);
+        } finally {
+            result.release().close();
+        }
+    }
+
+    private static FooterByteCache footerCache() {
+        return FooterByteCache.fromSettings(Settings.EMPTY);
+    }
+
+    private static byte[] sequentialBytes(int length) {
+        byte[] data = new byte[length];
+        for (int i = 0; i < length; i++) {
+            data[i] = (byte) (i & 0xFF);
+        }
+        return data;
+    }
+
+    private static void assertRangeEquals(byte[] data, ByteBuffer buf, int offset, int length) {
+        assertNotNull(buf);
+        assertEquals(length, buf.remaining());
+        for (int i = 0; i < length; i++) {
+            assertEquals(data[offset + i], buf.get(buf.position() + i));
+        }
+    }
+
+    private CoalescedRangeResult awaitCoalesced(StorageObject storageObject, List<ByteRange> ranges, FooterByteCache cache)
+        throws Exception {
+        return awaitCoalesced(storageObject, ranges, cache, null);
+    }
+
+    private CoalescedRangeResult awaitCoalesced(
+        StorageObject storageObject,
+        List<ByteRange> ranges,
+        FooterByteCache cache,
+        ParquetIoWatermark watermark
+    ) throws Exception {
+        CountDownLatch latch = new CountDownLatch(1);
+        AtomicReference<CoalescedRangeResult> resultRef = new AtomicReference<>();
+        AtomicReference<Exception> failureRef = new AtomicReference<>();
+        CoalescedRangeReader.readCoalesced(
+            storageObject,
+            ranges,
+            0,
+            breaker,
+            watermark,
+            null,
+            cache,
+            Runnable::run,
+            new ActionListener<>() {
+                @Override
+                public void onResponse(CoalescedRangeResult result) {
+                    resultRef.set(result);
+                    latch.countDown();
+                }
+
+                @Override
+                public void onFailure(Exception e) {
+                    failureRef.set(e);
+                    latch.countDown();
+                }
+            }
+        );
+        assertTrue(latch.await(5, TimeUnit.SECONDS));
+        assertNull(failureRef.get());
+        assertNotNull(resultRef.get());
+        return resultRef.get();
+    }
+
+    private static class CountingStorage implements StorageObject {
+        private final byte[] data;
+        final AtomicInteger asyncGets = new AtomicInteger();
+        final AtomicInteger syncGets = new AtomicInteger();
+
+        CountingStorage(byte[] data) {
+            this.data = data;
+        }
+
+        @Override
+        public InputStream newStream() {
+            return new ByteArrayInputStream(data);
+        }
+
+        @Override
+        public InputStream newStream(long position, long length) {
+            return new ByteArrayInputStream(data, (int) position, (int) length);
+        }
+
+        @Override
+        public int readBytes(long position, ByteBuffer target) {
+            syncGets.incrementAndGet();
+            int toCopy = Math.min(target.remaining(), data.length - (int) position);
+            if (toCopy <= 0) {
+                return -1;
+            }
+            target.put(data, (int) position, toCopy);
+            return toCopy;
+        }
+
+        @Override
+        public void readBytesAsync(
+            long position,
+            long length,
+            DirectBufferFactory factory,
+            Executor executor,
+            ActionListener<DirectReadBuffer> listener
+        ) {
+            asyncGets.incrementAndGet();
+            StorageObject.super.readBytesAsync(position, length, factory, executor, listener);
+        }
+
+        @Override
+        public long length() {
+            return data.length;
+        }
+
+        @Override
+        public Instant lastModified() {
+            return Instant.EPOCH;
+        }
+
+        @Override
+        public boolean exists() {
+            return true;
+        }
+
+        @Override
+        public StoragePath path() {
+            return StoragePath.of("memory://footer-cache.parquet");
         }
     }
 }

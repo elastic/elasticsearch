@@ -14,11 +14,11 @@ import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
 import org.elasticsearch.index.codec.vectors.BFloat16;
 import org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapper.ElementType;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.xcontent.XContentString;
 
 import java.nio.ByteBuffer;
 import java.nio.ByteOrder;
 import java.util.ArrayList;
-import java.util.Arrays;
 import java.util.Base64;
 import java.util.HexFormat;
 import java.util.List;
@@ -33,20 +33,35 @@ import static org.hamcrest.Matchers.instanceOf;
 /**
  * Unit tests for {@link DecodedVector}, covering every element type and every supported encoding
  * format (hex and the base64 variants) as well as error paths for wrong dimensions and invalid input.
+ * Each test runs against both the {@code String} and {@code UTF8Bytes} overloads of {@link DecodedVector#decode}.
  */
 public class DecodedVectorTests extends ESTestCase {
     /** Max error from a round-trip through bfloat16 (half an ulp) for the [-1, +1) values randomFloatVector produces. */
     private static final float BFLOAT16_DELTA = 0x1p-9f;
 
+    /** Which input form to test. */
+    private enum InputKind {
+        STRING,
+        UTF8_BYTES
+    }
+
     @ParametersFactory
     public static Iterable<Object[]> parameters() {
-        return Arrays.stream(ElementType.values()).map(e -> new Object[] { e }).toList();
+        List<Object[]> params = new ArrayList<>();
+        for (ElementType elementType : ElementType.values()) {
+            for (InputKind inputKind : InputKind.values()) {
+                params.add(new Object[] { elementType, inputKind });
+            }
+        }
+        return params;
     }
 
     private final ElementType elementType;
+    private final InputKind inputKind;
 
-    public DecodedVectorTests(ElementType elementType) {
+    public DecodedVectorTests(ElementType elementType, InputKind inputKind) {
         this.elementType = elementType;
+        this.inputKind = inputKind;
     }
 
     /**
@@ -74,7 +89,7 @@ public class DecodedVectorTests extends ESTestCase {
             hex = hex.toUpperCase(Locale.ROOT);
         }
 
-        DecodedVector decoded = DecodedVector.decode(hex, elementType, dims);
+        DecodedVector decoded = decode(hex, dims);
         assertByteVector(decoded, raw);
         assertEquals(Base64.getEncoder().encodeToString(raw), decoded.toBase64());
     }
@@ -89,10 +104,7 @@ public class DecodedVectorTests extends ESTestCase {
         byte[] raw = randomByteVector(vectorLength);
         String hex = HexFormat.of().formatHex(raw);
 
-        IllegalArgumentException ex = expectThrows(
-            IllegalArgumentException.class,
-            () -> DecodedVector.decode(hex, elementType, dims, false)
-        );
+        IllegalArgumentException ex = expectThrows(IllegalArgumentException.class, () -> decode(hex, dims, false));
         assertThat(ex.getMessage(), containsString("failed to decode vector: value must contain a valid Base64-encoded"));
     }
 
@@ -118,7 +130,7 @@ public class DecodedVectorTests extends ESTestCase {
         byte[] raw = randomByteArrayOfLength(wrongLength);
         String hex = HexFormat.of().formatHex(raw);
 
-        IllegalArgumentException ex = expectThrows(IllegalArgumentException.class, () -> DecodedVector.decode(hex, elementType, dims));
+        IllegalArgumentException ex = expectThrows(IllegalArgumentException.class, () -> decode(hex, dims));
         assertThat(ex.getMessage(), containsString("dimensions [" + elementType.dims(wrongLength) + "]"));
         assertThat(ex.getMessage(), containsString("] than the expected [" + dims + "]"));
     }
@@ -136,7 +148,7 @@ public class DecodedVectorTests extends ESTestCase {
         raw[0] = (byte) 0xFF;
         String encoded = Base64.getEncoder().encodeToString(raw);
 
-        IllegalArgumentException ex = expectThrows(IllegalArgumentException.class, () -> DecodedVector.decode(encoded, elementType, dims));
+        IllegalArgumentException ex = expectThrows(IllegalArgumentException.class, () -> decode(encoded, dims));
         String expectedTypeWord = switch (elementType) {
             case BYTE, BIT -> "byte";
             case FLOAT, BFLOAT16 -> "float or bfloat16";
@@ -153,13 +165,10 @@ public class DecodedVectorTests extends ESTestCase {
         int dims = randomDims();
         String invalid = "not-valid-base64!!!";
 
-        IllegalArgumentException ex3 = expectThrows(IllegalArgumentException.class, () -> DecodedVector.decode(invalid, elementType, dims));
+        IllegalArgumentException ex3 = expectThrows(IllegalArgumentException.class, () -> decode(invalid, dims));
         assertThat(ex3.getMessage(), containsString("value must be a valid base64 or hex string"));
 
-        IllegalArgumentException ex4 = expectThrows(
-            IllegalArgumentException.class,
-            () -> DecodedVector.decode(invalid, elementType, dims, false)
-        );
+        IllegalArgumentException ex4 = expectThrows(IllegalArgumentException.class, () -> decode(invalid, dims, false));
         assertThat(ex4.getMessage(), containsString("value must be a valid base64 string"));
     }
 
@@ -180,7 +189,7 @@ public class DecodedVectorTests extends ESTestCase {
                 byte[] raw = randomByteVector(elementType.vectorLength(dims));
                 String encoded = Base64.getEncoder().encodeToString(raw);
 
-                DecodedVector decoded = DecodedVector.decode(encoded, elementType, dims);
+                DecodedVector decoded = decode(encoded, dims);
 
                 assertByteVector(decoded, raw);
                 assertEquals(form.name(), encoded, decoded.toBase64());
@@ -190,7 +199,7 @@ public class DecodedVectorTests extends ESTestCase {
                 byte[] bytes = floatsToBigEndianBytes(floats);
                 String encoded = Base64.getEncoder().encodeToString(bytes);
 
-                DecodedVector decoded = DecodedVector.decode(encoded, elementType, dims);
+                DecodedVector decoded = decode(encoded, dims);
 
                 assertThat(decoded, instanceOf(DecodedVector.EncodedFloatVector.class));
                 assertFloatVector(decoded, floats, 0f);
@@ -202,7 +211,7 @@ public class DecodedVectorTests extends ESTestCase {
                 BFloat16.floatToBFloat16(floats, 0, bf16Bytes, 0, dims, ByteOrder.BIG_ENDIAN);
                 String encoded = Base64.getEncoder().encodeToString(bf16Bytes);
 
-                DecodedVector decoded = DecodedVector.decode(encoded, elementType, dims);
+                DecodedVector decoded = decode(encoded, dims);
 
                 assertThat(decoded, instanceOf(DecodedVector.FloatVector.class));
                 assertFloatVector(decoded, floats, BFLOAT16_DELTA);
@@ -213,6 +222,27 @@ public class DecodedVectorTests extends ESTestCase {
                 assertEquals(form.name(), Base64.getEncoder().encodeToString(floatsToBigEndianBytes(widened)), decoded.toBase64());
             }
         }
+    }
+
+    private DecodedVector decode(String encoded, int dims) {
+        return decode(encoded, dims, true);
+    }
+
+    private DecodedVector decode(String encoded, int dims, boolean parseHex) {
+        return switch (inputKind) {
+            case STRING -> DecodedVector.decode(encoded, elementType, dims, parseHex);
+            case UTF8_BYTES -> {
+                byte[] encodedBytes = encoded.getBytes(java.nio.charset.StandardCharsets.UTF_8);
+                // Randomly embed the payload inside a larger array to exercise non-zero offset paths,
+                // since optimizedText().bytes() normally returns a slice with offset != 0.
+                int leading = randomIntBetween(0, 4);
+                int trailing = randomIntBetween(0, 4);
+                byte[] padded = new byte[leading + encodedBytes.length + trailing];
+                System.arraycopy(encodedBytes, 0, padded, leading, encodedBytes.length);
+                XContentString.UTF8Bytes utf8 = new XContentString.UTF8Bytes(padded, leading, encodedBytes.length);
+                yield DecodedVector.decode(utf8, elementType, dims, parseHex);
+            }
+        };
     }
 
     private static void assertByteVector(DecodedVector decoded, byte[] expectedBytes) {

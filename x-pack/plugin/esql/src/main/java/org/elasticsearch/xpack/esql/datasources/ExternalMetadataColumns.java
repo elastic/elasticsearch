@@ -15,6 +15,7 @@ import org.elasticsearch.xpack.esql.action.EsqlCapabilities;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.expression.ExternalMetadataAttribute;
 import org.elasticsearch.xpack.esql.core.expression.MetadataAttribute;
+import org.elasticsearch.xpack.esql.core.expression.RelationClass;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 
 import java.util.Collections;
@@ -54,6 +55,8 @@ public final class ExternalMetadataColumns {
     public static final String TSID = MetadataAttribute.TSID_FIELD;
     public static final String SIZE = MetadataAttribute.SIZE;
     public static final String SLICE = SliceIndexing.FIELD_NAME;
+    public static final String CLASS = MetadataAttribute.RELATION_CLASS;
+    public static final String NAME = MetadataAttribute.RELATION_NAME;
 
     /**
      * Names of standard metadata columns that are materialised by the producer-side
@@ -77,6 +80,8 @@ public final class ExternalMetadataColumns {
         names.add(INDEX_MODE);
         names.add(TSID);
         names.add(SIZE);
+        names.add(CLASS);
+        names.add(NAME);
         // _tier is snapshot-only in MetadataAttribute.ATTRIBUTES_MAP; gate matches.
         if (EsqlCapabilities.Cap.METADATA_TIER_FIELD.isEnabled()) {
             names.add(DataTierFieldMapper.NAME);
@@ -141,10 +146,12 @@ public final class ExternalMetadataColumns {
      * {@link #PER_FILE_CONSTANT_NAMES}. The map is suitable for merging into a partition-value map
      * consumed by {@link VirtualColumnIterator}. Values are:
      * <ul>
-     *     <li>{@code _index} — {@code datasetName} when known, otherwise {@code null}
-     *         (bare-glob {@code FROM} queries have no dataset identity).</li>
+     *     <li>{@code _index} and {@code _name} — {@code datasetName} when known, otherwise
+     *         {@code null} (bare-glob {@code FROM} queries have no dataset identity).</li>
+     *     <li>{@code _class} — always {@code "dataset"}.</li>
+     *     <li>{@code _score} — always {@code 0.0}: no query ranks a dataset row.</li>
      *     <li>Every other name in the set — {@code null}. They are not addressable on external
-     *         data (no relevance scoring, no per-row {@code _ignored} list, etc.).</li>
+     *         data (no document identity, no per-row {@code _ignored} list, etc.).</li>
      * </ul>
      * The values depend only on the dataset name; nothing here is derived from the file. The
      * result is meant to overlay onto the partition-value map so {@link VirtualColumnIterator}
@@ -162,6 +169,10 @@ public final class ExternalMetadataColumns {
     private static Object perFileValue(String name, @Nullable String datasetName) {
         return switch (name) {
             case INDEX -> datasetName != null ? new BytesRef(datasetName) : null;
+            // Every ES relation answers what kind it is and what it is called. A dataset is a
+            // dataset whether or not the query named one; the name is unknown for a bare glob.
+            case CLASS -> new BytesRef(RelationClass.DATASET.value());
+            case NAME -> datasetName != null ? new BytesRef(datasetName) : null;
             // No query ranks a dataset row, so there is no relevance to report. Zero rather than NULL:
             // the value is the absence of ranking, which is what an unranked row scores.
             case SCORE -> 0.0;

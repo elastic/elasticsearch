@@ -248,10 +248,9 @@ public final class ValueStream {
                 return;
             }
             // Which layout is smaller is decided after compression, so an uncompressed byte count cannot
-            // choose between them. Lengths that are all the same pack to a run a compressor takes out and
-            // leave the values contiguous; interleaved they are a literal apiece, in a stream that may not
-            // compress at all. Lengths that differ repeat together with their value as one pattern and are
-            // kept beside it, up to the mean length where the measured shapes turn over.
+            // choose between them. A block of a single length is packed whatever its mean: its lengths
+            // then cost a run a compressor takes out. Lengths that differ stay beside their values, up to
+            // the mean length where the measured shapes turn over.
             int min = Integer.MAX_VALUE;
             int max = 0;
             for (int i = 0; i < pendingCount; i++) {

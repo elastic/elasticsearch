@@ -573,7 +573,8 @@ configure(subprojects.findAll { ['archives', 'packages'].contains(it.name) }) {
             }
             if (executablePattern) {
               eachFile {
-                if (org.apache.tools.ant.types.selectors.SelectorUtils.matchPath(executablePattern, it.relativePath.pathString)) {
+                if (org.apache.tools.ant.types.selectors.SelectorUtils.matchPath(executablePattern, it.relativePath.pathString)
+                  || org.apache.tools.ant.types.selectors.SelectorUtils.matchPath(executablePattern, it.name)) {
                   it.permissions.unix(0755)
                 }
               }

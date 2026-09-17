@@ -77,6 +77,12 @@ public abstract class AbstractDiversifyingChildrenIVFKnnSlicedVectorQueryTestCas
         doc.add(SortedDocValuesField.indexedField(RoutingFieldMapper.NAME, sliceId));
     }
 
+    protected static SortField routingSliceSortField() {
+        SortField sf = new SortField(RoutingFieldMapper.NAME, SortField.Type.STRING);
+        sf.setMissingValue(SortField.STRING_LAST);
+        return sf;
+    }
+
     @Before
     public void setUpSlicedFormat() throws Exception {
         format = new ESNextDiskBBQVectorsFormat(128, 4, RoutingFieldMapper.NAME);
@@ -85,7 +91,7 @@ public abstract class AbstractDiversifyingChildrenIVFKnnSlicedVectorQueryTestCas
     protected IndexWriterConfig slicedIndexWriterConfig() {
         return newIndexWriterConfig().setCodec(TestUtil.alwaysKnnVectorsFormat(format))
             .setMergePolicy(newMergePolicy(random(), false))
-            .setIndexSort(new Sort(new SortField(RoutingFieldMapper.NAME, SortField.Type.STRING)))
+            .setIndexSort(new Sort(routingSliceSortField()))
             .setParentField(Engine.ROOT_DOC_FIELD_NAME);
     }
 
@@ -235,7 +241,7 @@ public abstract class AbstractDiversifyingChildrenIVFKnnSlicedVectorQueryTestCas
     public void testSkewedIndex() throws IOException {
         try (Directory d = newDirectory()) {
             IndexWriterConfig iwc = new IndexWriterConfig().setCodec(TestUtil.alwaysKnnVectorsFormat(format))
-                .setIndexSort(new Sort(new SortField(RoutingFieldMapper.NAME, SortField.Type.STRING)))
+                .setIndexSort(new Sort(routingSliceSortField()))
                 .setParentField(Engine.ROOT_DOC_FIELD_NAME);
             try (IndexWriter w = new IndexWriter(d, iwc)) {
                 int r = 0;
@@ -323,7 +329,7 @@ public abstract class AbstractDiversifyingChildrenIVFKnnSlicedVectorQueryTestCas
         String filterMiss = "miss";
         String docIdField = "_doc_id";
         IndexWriterConfig iwc = newIndexWriterConfig();
-        iwc.setIndexSort(new Sort(new SortField(RoutingFieldMapper.NAME, SortField.Type.STRING)));
+        iwc.setIndexSort(new Sort(routingSliceSortField()));
         iwc.setCodec(TestUtil.alwaysKnnVectorsFormat(format));
         iwc.setMergePolicy(newMergePolicy(random(), false));
         iwc.setParentField(Engine.ROOT_DOC_FIELD_NAME);

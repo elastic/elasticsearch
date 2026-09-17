@@ -188,6 +188,17 @@ public final class AsymmetricHashingQuantizer {
         return new VectorAndNorm(centroidProjected, centroidNormSq);
     }
 
+    private static final ThreadLocal<float[]> XLATENT_ARRAY = new ThreadLocal<>();
+
+    private static float[] getXLatentArray(int length) {
+        float[] array = XLATENT_ARRAY.get();
+        if (array == null || array.length != length) {
+            array = new float[length];
+            XLATENT_ARRAY.set(array);
+        }
+        return array;
+    }
+
     /**
      * Fast single-vector encoding using precomputed centroid values and transposed W.
      * This avoids recomputing centroid @ W and ||centroid||^2 for every vector in a posting list.
@@ -203,10 +214,11 @@ public final class AsymmetricHashingQuantizer {
         int nDims = wT.length / originalDim;
 
         // Center and compute norm
-        var centered = centralizeVector(vector, centroid);
+        VectorAndNorm centered = centralizeVector(vector, centroid);
 
         // Project using transposed W
-        float[] xLatent = ESVectorUtil.matrixVectorMultiply(wT, nDims, originalDim, centered.vector());
+        float[] xLatent = getXLatentArray(nDims);
+        ESVectorUtil.matrixVectorMultiply(wT, nDims, originalDim, centered.vector(), xLatent);
 
         // Quantize
         AshSphericalScalarQuantizer.SingleQuantizeResult qr = quantizer.encodeOne(xLatent);
@@ -233,7 +245,7 @@ public final class AsymmetricHashingQuantizer {
     private float[] learnedTraining(float[] xTraining, int nTraining, int originalDim, int nDims) {
         // PCA initialization: extract top nDims right singular vectors as columns (originalDim x nDims)
         // This is much faster than full SVD when nDims << originalDim
-        float[] p = SvdUtil.topKRightSingularVectors(xTraining, nTraining, originalDim, nDims, seed);
+        float[] p = AshUtils.topKRightSingularVectors(xTraining, nTraining, originalDim, nDims, seed);
 
         // Project training data: X_ld = xTraining @ P (nTraining x nDims)
         float[] xLd = ESVectorUtil.matrixMultiply(xTraining, p, nTraining, originalDim, nDims);
@@ -242,19 +254,22 @@ public final class AsymmetricHashingQuantizer {
         float[] xLdT = ESVectorUtil.transposeMatrix(xLd, nTraining, nDims);
 
         // Initialize random M (nDims x nDims)
-        float[] m = SvdUtil.randomGaussians(new Random(seed), nDims * nDims);
+        float[] m = AshUtils.randomGaussians(new Random(seed), nDims * nDims);
 
         // Iterative Procrustes
-        float[] r = null;
+        float[] r = new float[nDims * nDims];
+        float[] xTransformed = new float[nTraining * nDims];
+        AshSphericalScalarQuantizer.QuantizeResult qr = new AshSphericalScalarQuantizer.QuantizeResult(nTraining, nDims);
+
         for (int epoch = 0; epoch <= nTrainingIterations; epoch++) {
             // R = procrustes(M)
-            r = SvdUtil.procrustes(m, nDims);
+            AshUtils.procrustes(m, nDims, r);
 
             if (epoch < nTrainingIterations) {
                 // X_transformed = X_ld @ R (nTraining x nDims)
-                float[] xTransformed = ESVectorUtil.matrixMultiply(xLd, r, nTraining, nDims, nDims);
+                ESVectorUtil.matrixMultiply(xLd, r, nTraining, nDims, nDims, xTransformed);
                 // Quantize
-                AshSphericalScalarQuantizer.QuantizeResult qr = quantizer.encode(xTransformed, nTraining, nDims);
+                quantizer.encode(xTransformed, nTraining, nDims, qr);
                 float[] xEnc = qr.centeredCodes();
                 float[] codeNorms = qr.codeNorms();
                 // Normalize encoded: xEnc[i] /= codeNorms[i]
@@ -268,7 +283,7 @@ public final class AsymmetricHashingQuantizer {
                     }
                 }
                 // M = X_ld^T @ X_enc (nDims x nDims) — uses pre-transposed X_ld for sequential access
-                m = ESVectorUtil.matrixMultiply(xLdT, xEnc, nDims, nTraining, nDims);
+                ESVectorUtil.matrixMultiply(xLdT, xEnc, nDims, nTraining, nDims, m);
             }
         }
 
@@ -277,9 +292,10 @@ public final class AsymmetricHashingQuantizer {
     }
 
     private float[] randomOrthogonal(int originalDim, int nDims) {
-        float[] q = SvdUtil.randomGaussians(new Random(seed), originalDim * nDims);
-        SvdUtil.qrOrthogonalize(q, originalDim, nDims);
-        return q;
+        // qrOrthogonalize orthonormalizes rows, so it produces W^T (nDims x originalDim)
+        float[] qT = AshUtils.randomGaussians(new Random(seed), originalDim * nDims);
+        AshUtils.qrOrthogonalize(qT, originalDim, nDims);
+        return ESVectorUtil.transposeMatrix(qT, nDims, originalDim);
     }
 
     /**

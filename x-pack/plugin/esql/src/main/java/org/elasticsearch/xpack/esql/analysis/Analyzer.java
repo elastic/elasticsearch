@@ -4515,19 +4515,43 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
         /**
          * Collect all conversion functions in the plan that convert the unionAll outputs to a different type,
          * the keys are the name of the old/existing attributes in the unionAll output, the values are all the conversion functions.
+         * <p>
+         * Stops collecting when an {@link Aggregate} lies between the conversion and the {@code UnionAll}:
+         * grouping keys preserve their identifiers through an aggregation, so a conversion sitting above the
+         * aggregation would falsely match a union output attribute by name and id even though it reads
+         * aggregate output rather than a union branch column. The sibling rule {@link ResolveUnionTypes}
+         * carries the same guard via its {@code isAfterAggregate} flag.
          */
         private static Map<String, Set<AbstractConvertFunction>> collectConvertFunctions(UnionAll unionAll, LogicalPlan plan) {
-            Map<String, Set<AbstractConvertFunction>> convertFunctions = new HashMap<>();
-            plan.forEachExpressionDown(AbstractConvertFunction.class, f -> {
-                if (f.field() instanceof Attribute attr) {
-                    // get the attribute from the UnionAll output by name and id
-                    unionAll.output()
-                        .stream()
-                        .filter(a -> a.name().equals(attr.name()) && a.id() == attr.id())
-                        .findFirst()
-                        .ifPresent(unionAllAttr -> convertFunctions.computeIfAbsent(attr.name(), k -> new HashSet<>()).add(f));
+            // Walking upward from the UnionAll (rather than top-down over the whole tree) guarantees we only
+            // visit plan nodes on the direct path from the UnionAll to the root, and we stop at the first Aggregate.
+            Map<LogicalPlan, LogicalPlan> parentOf = new HashMap<>();
+            plan.forEachDown(LogicalPlan.class, p -> {
+                for (LogicalPlan child : p.children()) {
+                    parentOf.put(child, p);
                 }
             });
+
+            Map<String, Set<AbstractConvertFunction>> convertFunctions = new HashMap<>();
+            LogicalPlan current = parentOf.get(unionAll);
+            while (current != null) {
+                current.forEachExpression(AbstractConvertFunction.class, f -> {
+                    if (f.field() instanceof Attribute attr) {
+                        // get the attribute from the UnionAll output by name and id
+                        unionAll.output()
+                            .stream()
+                            .filter(a -> a.name().equals(attr.name()) && a.id() == attr.id())
+                            .findFirst()
+                            .ifPresent(unionAllAttr -> convertFunctions.computeIfAbsent(attr.name(), k -> new HashSet<>()).add(f));
+                    }
+                });
+                if (current instanceof Aggregate) {
+                    // Parent plans see aggregate output, not union branch columns, even when a grouping key
+                    // preserves the same name and id. Stop here, as ResolveUnionTypes does for its isAfterAggregate guard.
+                    break;
+                }
+                current = parentOf.get(current);
+            }
             return convertFunctions;
         }
 

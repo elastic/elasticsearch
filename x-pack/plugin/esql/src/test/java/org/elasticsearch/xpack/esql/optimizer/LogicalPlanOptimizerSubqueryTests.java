@@ -81,6 +81,25 @@ public class LogicalPlanOptimizerSubqueryTests extends AbstractLogicalPlanOptimi
         assertThat(err, containsString("[KQL] function cannot be used after FROM (FROM hash_algorithms), k8s-downsampled"));
     }
 
+    /**
+     * Verifies that a type conversion over a grouping key sitting above an {@link org.elasticsearch.xpack.esql.plan.logical.Aggregate}
+     * is NOT pushed into the {@code UnionAll} branches. The conversion reads from aggregate output, not
+     * from union branch columns; pushing it down would produce a synthetic reference unreachable from the
+     * consumer ({@code IllegalStateException} from {@code PlanConsistencyChecker}).
+     * Plan-shape assertions for the EVAL consumer live in {@code LogicalPlanOptimizerSubqueryGoldenTests}.
+     */
+    public void testConvertGroupKeyAfterStatsDoesNotThrow() {
+        for (String suffix : List.of(
+            "| EVAL g = TO_STRING(gender)",
+            "| WHERE TO_STRING(gender) == \"M\"",
+            "| STATS c = COUNT(TO_STRING(gender))"
+        )) {
+            String query = "FROM (FROM test), (FROM test) | STATS max_salary = MAX(salary) BY gender " + suffix;
+            LogicalPlan plan = defaultAnalyzer().query(query);
+            optimize(plan); // must not throw IllegalStateException
+        }
+    }
+
     private String error(String query) {
         return error(analyzer().addIndex("test", "mapping-full_text_search.json"), query);
     }

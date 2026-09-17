@@ -14,6 +14,7 @@ import org.elasticsearch.cluster.metadata.MappingMetadata;
 import org.elasticsearch.core.Booleans;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.index.IndexService;
+import org.elasticsearch.index.analysis.AnalysisRegistry;
 import org.elasticsearch.index.analysis.NamedAnalyzer;
 import org.elasticsearch.index.engine.Engine;
 import org.elasticsearch.index.mapper.MappedFieldType;
@@ -40,6 +41,7 @@ import java.util.Collections;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.Set;
+import java.util.TreeSet;
 import java.util.function.Predicate;
 
 /**
@@ -133,7 +135,16 @@ class FieldCapabilitiesFetcher {
         final MappingMetadata mapping = indexService.getMetadata().mapping();
         String indexMappingHash;
         if (includeEmptyFields || enableFieldHasValue == false) {
-            indexMappingHash = mapping != null ? mapping.getSha256() + indexMode : null;
+            if (mapping == null) {
+                indexMappingHash = null;
+            } else {
+                indexMappingHash = mapping.getSha256() + indexMode;
+                // mapping hash omits index.analysis; mix in configured analyzer names
+                Set<String> configuredAnalyzers = configuredAnalyzerNames(searchExecutionContext);
+                if (configuredAnalyzers.isEmpty() == false) {
+                    indexMappingHash += configuredAnalyzers;
+                }
+            }
         } else {
             // even if the mapping is the same if we return only fields with values we need
             // to make sure that we consider all the shard-mappings pair, that is why we
@@ -188,6 +199,7 @@ class FieldCapabilitiesFetcher {
         boolean isTimeSeriesIndex = context.getIndexSettings().getTimestampBounds() != null;
         MappingLookup mappingLookup = context.getMappingLookup();
         Set<String> inferenceFieldNames = mappingLookup.inferenceFields().keySet();
+        Set<String> configuredAnalyzerNames = configuredAnalyzerNames(context);
         var fieldInfos = indexShard.getFieldInfos();
         includeEmptyFields = includeEmptyFields || enableFieldHasValue == false;
         Map<String, IndexFieldCapabilities> responseMap = new HashMap<>();
@@ -211,7 +223,7 @@ class FieldCapabilitiesFetcher {
                     isTimeSeriesIndex ? ft.isDimension() : false,
                     isTimeSeriesIndex ? ft.getMetricType() : null,
                     ft.meta(),
-                    indexAnalyzerName(mappingLookup, ft)
+                    indexAnalyzerName(mappingLookup, ft, configuredAnalyzerNames)
                 );
                 responseMap.put(field, fieldCap);
             } else {
@@ -257,14 +269,31 @@ class FieldCapabilitiesFetcher {
     /**
      * Name of the analyzer a text field is indexed with, or {@code null} for anything that is not text.
      * ES|QL HIGHLIGHT re-analyzes field values on the coordinator, so it cannot look this up from a shard.
+     *
+     * <p>A name bound under {@code index.analysis} (in {@code configuredAnalyzerNames}) is index-local, even
+     * when it collides with a built-in name such as {@code english}: the coordinator only resolves node-level
+     * analyzers by name, so it would build a different analyzer than this index. Drop the name in that case so
+     * HIGHLIGHT falls back to {@code standard}, as it already does for any index-local analyzer it cannot rebuild.
      */
     @Nullable
-    private static String indexAnalyzerName(MappingLookup mappingLookup, MappedFieldType ft) {
+    private static String indexAnalyzerName(MappingLookup mappingLookup, MappedFieldType ft, Set<String> configuredAnalyzerNames) {
         if (TextFieldMapper.CONTENT_TYPE.equals(ft.familyTypeName()) == false) {
             return null;
         }
         NamedAnalyzer analyzer = mappingLookup.indexAnalyzer(ft.name(), unused -> null);
-        return analyzer == null ? null : analyzer.name();
+        if (analyzer == null) {
+            return null;
+        }
+        String name = analyzer.name();
+        return configuredAnalyzerNames.contains(name) ? null : name;
+    }
+
+    /**
+     * Analyzer names bound under {@code index.analysis.analyzer} for this index, sorted for a deterministic
+     * dedup signature. Empty when the index defines no custom analyzers, which is the common case.
+     */
+    private static Set<String> configuredAnalyzerNames(SearchExecutionContext context) {
+        return new TreeSet<>(context.getIndexSettings().getSettings().getGroups(AnalysisRegistry.INDEX_ANALYSIS_ANALYZER).keySet());
     }
 
     private static boolean checkIncludeParents(String[] filters) {

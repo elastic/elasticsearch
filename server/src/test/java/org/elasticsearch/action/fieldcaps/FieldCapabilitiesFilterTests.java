@@ -9,9 +9,14 @@
 
 package org.elasticsearch.action.fieldcaps;
 
+import org.apache.lucene.analysis.standard.StandardAnalyzer;
 import org.apache.lucene.index.FieldInfos;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.index.IndexSettings;
+import org.elasticsearch.index.analysis.AnalyzerScope;
+import org.elasticsearch.index.analysis.IndexAnalyzers;
+import org.elasticsearch.index.analysis.NamedAnalyzer;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.mapper.MapperServiceTestCase;
 import org.elasticsearch.index.query.SearchExecutionContext;
@@ -336,6 +341,52 @@ public class FieldCapabilitiesFilterTests extends MapperServiceTestCase {
         assertNull(
             "attributes.foo must not be synthesized as an implicit object under a subobjects:false passthrough mapper",
             response.get("attributes.foo")
+        );
+    }
+
+    public void testIndexLocalAnalyzerNameIsDropped() throws IOException {
+        // "english" is redefined under index.analysis, so it is index-local: a coordinator resolving the
+        // name would build a different node-level "english". Field-caps must not advertise the name, while a
+        // field on the built-in default analyzer keeps its name.
+        Settings settings = Settings.builder()
+            .put("index.analysis.analyzer.english.type", "custom")
+            .put("index.analysis.analyzer.english.tokenizer", "standard")
+            .build();
+        MapperService mapperService = createMapperService(settings, """
+            { "_doc" : {
+              "properties" : {
+                "local" : { "type" : "text", "analyzer" : "english" },
+                "plain" : { "type" : "text" }
+              }
+            } }
+            """);
+        SearchExecutionContext sec = createSearchExecutionContext(mapperService);
+
+        Map<String, IndexFieldCapabilities> response = FieldCapabilitiesFetcher.retrieveFieldCaps(
+            sec,
+            s -> true,
+            Strings.EMPTY_ARRAY,
+            Strings.EMPTY_ARRAY,
+            FieldPredicate.ACCEPT_ALL,
+            getMockIndexShard(),
+            true
+        );
+
+        assertNull(response.get("local").indexAnalyzer());
+        assertEquals("default", response.get("plain").indexAnalyzer());
+    }
+
+    @Override
+    protected IndexAnalyzers createIndexAnalyzers(IndexSettings indexSettings) {
+        // Register "english" so a field mapped analyzer:english resolves in this harness; the colliding
+        // index.analysis definition that makes it index-local lives in the index settings instead.
+        return IndexAnalyzers.of(
+            Map.of(
+                "default",
+                new NamedAnalyzer("default", AnalyzerScope.INDEX, new StandardAnalyzer()),
+                "english",
+                new NamedAnalyzer("english", AnalyzerScope.INDEX, new StandardAnalyzer())
+            )
         );
     }
 

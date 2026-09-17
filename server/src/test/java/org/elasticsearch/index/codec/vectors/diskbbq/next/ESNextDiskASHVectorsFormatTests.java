@@ -246,7 +246,9 @@ public class ESNextDiskASHVectorsFormatTests extends ESBaseKnnVectorsFormatTestC
         int dimensions = random().nextInt(12, 128);
         ESNextDiskASHVectorsFormat localFormat = ashSlicedFormat(sliceField);
         IndexWriterConfig iwc = newIndexWriterConfig();
-        iwc.setIndexSort(new Sort(new SortField(sliceField, SortField.Type.STRING)));
+        SortField sliceSortField = new SortField(sliceField, SortField.Type.STRING);
+        sliceSortField.setMissingValue(SortField.STRING_LAST);
+        iwc.setIndexSort(new Sort(sliceSortField));
         iwc.setCodec(TestUtil.alwaysKnnVectorsFormat(localFormat));
         iwc.setMergePolicy(NoMergePolicy.INSTANCE);
         try (Directory dir = newDirectory(); IndexWriter w = new IndexWriter(dir, iwc)) {
@@ -303,7 +305,9 @@ public class ESNextDiskASHVectorsFormatTests extends ESBaseKnnVectorsFormatTestC
         int dimensions = random().nextInt(12, 128);
         ESNextDiskASHVectorsFormat localFormat = ashSlicedFormat(sliceField);
         IndexWriterConfig iwc = newIndexWriterConfig();
-        iwc.setIndexSort(new Sort(new SortField(sliceField, SortField.Type.STRING)));
+        SortField sliceSortField = new SortField(sliceField, SortField.Type.STRING);
+        sliceSortField.setMissingValue(SortField.STRING_LAST);
+        iwc.setIndexSort(new Sort(sliceSortField));
         iwc.setCodec(TestUtil.alwaysKnnVectorsFormat(localFormat));
         try (Directory dir = newDirectory(); IndexWriter w = new IndexWriter(dir, iwc)) {
             for (int slice = 0; slice < slices; slice++) {
@@ -370,7 +374,9 @@ public class ESNextDiskASHVectorsFormatTests extends ESBaseKnnVectorsFormatTestC
         boolean[] docHasVector = new boolean[numDocs];
         boolean[] docFilterMatch = new boolean[numDocs];
         IndexWriterConfig iwc = newIndexWriterConfig();
-        iwc.setIndexSort(new Sort(new SortField(sliceField, SortField.Type.STRING)));
+        SortField sliceSortField = new SortField(sliceField, SortField.Type.STRING);
+        sliceSortField.setMissingValue(SortField.STRING_LAST);
+        iwc.setIndexSort(new Sort(sliceSortField));
         iwc.setCodec(TestUtil.alwaysKnnVectorsFormat(localFormat));
         try (Directory dir = newDirectory(); IndexWriter w = new IndexWriter(dir, iwc)) {
             for (int i = 0; i < numDocs; i++) {

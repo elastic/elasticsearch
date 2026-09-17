@@ -379,7 +379,7 @@ public class TransportEsqlQueryAction extends HandledTransportAction<EsqlQueryRe
         // async-query uses EsqlQueryTask, so pull the EsqlExecutionInfo out of the task
         // sync query uses CancellableTask which does not have EsqlExecutionInfo, so create one
         EsqlExecutionInfo executionInfo = getOrCreateExecutionInfo(task, request);
-        PlanRunner planRunner = (plan, configuration, foldCtx, planTimeProfile, resultListener) -> computeService.execute(
+        PlanRunner planRunner = (role, plan, configuration, foldCtx, planTimeProfile, resultListener) -> computeService.execute(
             sessionId,
             (CancellableTask) task,
             flags,
@@ -444,7 +444,7 @@ public class TransportEsqlQueryAction extends HandledTransportAction<EsqlQueryRe
         return qp != null && (qp.splitsScanned() > 0 || qp.externalWarmAggregates() > 0);
     }
 
-    private void collectMetrics(Result result) {
+    void collectMetrics(Result result) {
         // Currently, the metrics are only collected when the query has federated sources, since we are not planning
         // to do any per-query billing otherwise, so no point in collecting the metrics.
         if (metricsCollector.equals(QueryMetricsListener.NOOP) || hasExternalSources(result) == false) {
@@ -477,7 +477,7 @@ public class TransportEsqlQueryAction extends HandledTransportAction<EsqlQueryRe
         }
     }
 
-    private void recordCCSTelemetry(Task task, EsqlExecutionInfo executionInfo, EsqlQueryRequest request, @Nullable Exception exception) {
+    void recordCCSTelemetry(Task task, EsqlExecutionInfo executionInfo, EsqlQueryRequest request, @Nullable Exception exception) {
         if (executionInfo.isCrossClusterSearch() == false
             && executionInfo.includeExecutionMetadata() != EsqlExecutionInfo.IncludeExecutionMetadata.ALWAYS) {
             return;
@@ -752,5 +752,25 @@ public class TransportEsqlQueryAction extends HandledTransportAction<EsqlQueryRe
 
     public LookupFromIndexService getLookupFromIndexService() {
         return lookupFromIndexService;
+    }
+
+    public ComputeService computeService() {
+        return computeService;
+    }
+
+    public TransportActionServices services() {
+        return services;
+    }
+
+    public EnrichPolicyResolver enrichPolicyResolver() {
+        return enrichPolicyResolver;
+    }
+
+    public DatasetResolver datasetResolver() {
+        return datasetResolver;
+    }
+
+    public ActivityLogger<EsqlLogContext> activityLogger() {
+        return activityLogger;
     }
 }

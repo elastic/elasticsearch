@@ -394,7 +394,7 @@ public class SharedBlobCacheWarmingService {
      */
     public static final Setting<Integer> WARM_BYTE_RANGE_PER_FILE_CONCURRENCY_SETTING = Setting.intSetting(
         "stateless.blob_cache_warming.warm_byte_range_per_file_concurrency",
-        1,
+        4,
         1,
         Setting.Property.NodeScope,
         Setting.Property.Dynamic

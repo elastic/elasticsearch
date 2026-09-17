@@ -21,34 +21,34 @@ import java.util.List;
 import java.util.stream.LongStream;
 
 /**
- * Grouping tests for the PromQL-only lenient {@code max} aggregator, {@link MaxDoubleLenientAggregator}.
+ * Grouping tests for the PromQL-only non-finite {@code max} aggregator, {@link MaxNonFiniteDoubleAggregator}.
  * <p>
  *     Applies IEEE-754/Prometheus non-finite semantics per group: {@code NaN} values are skipped whenever a
  *     non-{@code NaN} value is present (so a group is {@code NaN} only when all of its values are {@code NaN}),
  *     while {@code ±Infinity} participate as ordinary ordered values. A group with no values at all remains
  *     {@code null}. The random {@link #simpleInput} mixes in {@code NaN} and {@code ±Infinity} so the full
- *     multi-mode grouping matrix asserts the lenient reduction, and the dedicated single-group tests below pin
+ *     multi-mode grouping matrix asserts the non-finite reduction, and the dedicated single-group tests below pin
  *     the all-{@code NaN} / all-{@code Infinity} / mixed corner cases.
  * </p>
  */
-public class MaxDoubleLenientGroupingAggregatorFunctionTests extends GroupingAggregatorFunctionTestCase {
+public class MaxNonFiniteDoubleGroupingAggregatorFunctionTests extends GroupingAggregatorFunctionTestCase {
 
     @Override
     protected SourceOperator simpleInput(BlockFactory blockFactory, int end) {
         return new LongDoubleTupleBlockSourceOperator(
             blockFactory,
-            LongStream.range(0, end).mapToObj(l -> Tuple.tuple(randomLongBetween(0, 4), randomLenientDouble()))
+            LongStream.range(0, end).mapToObj(l -> Tuple.tuple(randomLongBetween(0, 4), randomMaybeNonFiniteDouble()))
         );
     }
 
     @Override
     protected AggregatorFunctionSupplier aggregatorFunction() {
-        return new MaxDoubleLenientAggregatorFunctionSupplier();
+        return new MaxNonFiniteDoubleAggregatorFunctionSupplier();
     }
 
     @Override
     protected String expectedDescriptionOfAggregator() {
-        return "max_double of lenients";
+        return "max_non_finite of doubles";
     }
 
     @Override
@@ -59,7 +59,7 @@ public class MaxDoubleLenientGroupingAggregatorFunctionTests extends GroupingAgg
             return;
         }
         assertFalse(result.isNull(position));
-        assertEquals(lenientMax(values), ((DoubleBlock) result).getDouble(position), 0.0);
+        assertEquals(nonFiniteMax(values), ((DoubleBlock) result).getDouble(position), 0.0);
     }
 
     public void testAllNaNProducesNaN() {
@@ -104,7 +104,7 @@ public class MaxDoubleLenientGroupingAggregatorFunctionTests extends GroupingAgg
         assertTrue(found);
     }
 
-    private double randomLenientDouble() {
+    private double randomMaybeNonFiniteDouble() {
         if (randomIntBetween(0, 7) == 0) {
             return randomFrom(Double.NaN, Double.POSITIVE_INFINITY, Double.NEGATIVE_INFINITY);
         }
@@ -112,12 +112,12 @@ public class MaxDoubleLenientGroupingAggregatorFunctionTests extends GroupingAgg
     }
 
     /**
-     * Reference reduction mirroring {@link MaxDoubleLenientAggregator#combine}: fold the values, seeded with
+     * Reference reduction mirroring {@link MaxNonFiniteDoubleAggregator#combine}: fold the values, seeded with
      * {@code NaN}, keeping the running value unless the incoming one is strictly greater (which skips {@code NaN}
      * once a real value has been adopted). The result is order-independent, matching how the aggregator merges
      * across pages and partial states.
      */
-    private static double lenientMax(double[] values) {
+    private static double nonFiniteMax(double[] values) {
         double acc = Double.NaN;
         for (double v : values) {
             acc = Double.isNaN(acc) || acc < v ? v : acc;

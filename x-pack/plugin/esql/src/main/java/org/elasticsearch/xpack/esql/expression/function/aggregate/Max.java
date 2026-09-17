@@ -15,10 +15,10 @@ import org.elasticsearch.compute.aggregation.AggregatorFunctionSupplier;
 import org.elasticsearch.compute.aggregation.MaxBooleanAggregatorFunctionSupplier;
 import org.elasticsearch.compute.aggregation.MaxBytesRefAggregatorFunctionSupplier;
 import org.elasticsearch.compute.aggregation.MaxDoubleAggregatorFunctionSupplier;
-import org.elasticsearch.compute.aggregation.MaxDoubleLenientAggregatorFunctionSupplier;
 import org.elasticsearch.compute.aggregation.MaxIntAggregatorFunctionSupplier;
 import org.elasticsearch.compute.aggregation.MaxIpAggregatorFunctionSupplier;
 import org.elasticsearch.compute.aggregation.MaxLongAggregatorFunctionSupplier;
+import org.elasticsearch.compute.aggregation.MaxNonFiniteDoubleAggregatorFunctionSupplier;
 import org.elasticsearch.compute.data.AggregateMetricDoubleBlockBuilder;
 import org.elasticsearch.compute.data.HistogramBlock;
 import org.elasticsearch.xpack.esql.EsqlIllegalArgumentException;
@@ -239,9 +239,9 @@ public class Max extends AggregateFunction
     @Override
     public final AggregatorFunctionSupplier supplier() {
         DataType type = field().dataType();
-        // The PromQL value column is always a double, so only the double path has a lenient (non-finite) variant.
+        // The PromQL value column is always a double, so only the double path has a non-finite variant.
         if (allowNonFinite && type == DataType.DOUBLE) {
-            return new MaxDoubleLenientAggregatorFunctionSupplier();
+            return new MaxNonFiniteDoubleAggregatorFunctionSupplier();
         }
         if (SUPPLIERS.containsKey(type) == false) {
             // If the type checking did its job, this should never happen

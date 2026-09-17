@@ -24,10 +24,10 @@ import org.elasticsearch.compute.data.arrow.DoubleArrowBufVector;
 import org.elasticsearch.compute.operator.DriverContext;
 
 /**
- * {@link AggregatorFunction} implementation for {@link MinDoubleLenientAggregator}.
+ * {@link AggregatorFunction} implementation for {@link MinNonFiniteDoubleAggregator}.
  * This class is generated. Edit {@code AggregatorImplementer} instead.
  */
-public final class MinDoubleLenientAggregatorFunction implements AggregatorFunction {
+public final class MinNonFiniteDoubleAggregatorFunction implements AggregatorFunction {
   private static final List<IntermediateStateDesc> INTERMEDIATE_STATE_DESC = List.of(
       new IntermediateStateDesc("min", ElementType.DOUBLE),
       new IntermediateStateDesc("seen", ElementType.BOOLEAN)  );
@@ -38,10 +38,10 @@ public final class MinDoubleLenientAggregatorFunction implements AggregatorFunct
 
   private final List<Integer> channels;
 
-  MinDoubleLenientAggregatorFunction(DriverContext driverContext, List<Integer> channels) {
+  MinNonFiniteDoubleAggregatorFunction(DriverContext driverContext, List<Integer> channels) {
     this.driverContext = driverContext;
     this.channels = channels;
-    this.state = new DoubleState(MinDoubleLenientAggregator.init());
+    this.state = new DoubleState(MinNonFiniteDoubleAggregator.init());
   }
 
   public static List<IntermediateStateDesc> intermediateStateDesc() {
@@ -114,7 +114,7 @@ public final class MinDoubleLenientAggregatorFunction implements AggregatorFunct
       state.seen(true);
       for (int valuesPosition = 0; valuesPosition < specialized.getPositionCount(); valuesPosition++) {
         double vValue = specialized.getDouble(valuesPosition);
-        state.doubleValue(MinDoubleLenientAggregator.combine(state.doubleValue(), vValue));
+        state.doubleValue(MinNonFiniteDoubleAggregator.combine(state.doubleValue(), vValue));
       }
       return;
     }
@@ -125,7 +125,7 @@ public final class MinDoubleLenientAggregatorFunction implements AggregatorFunct
       double bulkAcc = state.doubleValue();
       for (int p = 0; p < bulkCount; p++) {
         double vValue = bulkSegment.getAtIndex(ValueLayout.JAVA_DOUBLE_UNALIGNED, p);
-        bulkAcc = MinDoubleLenientAggregator.combine(bulkAcc, vValue);
+        bulkAcc = MinNonFiniteDoubleAggregator.combine(bulkAcc, vValue);
       }
       state.doubleValue(bulkAcc);
       state.seen(true);
@@ -136,14 +136,14 @@ public final class MinDoubleLenientAggregatorFunction implements AggregatorFunct
       state.seen(true);
       for (int valuesPosition = 0; valuesPosition < specialized.getPositionCount(); valuesPosition++) {
         double vValue = specialized.getDouble(valuesPosition);
-        state.doubleValue(MinDoubleLenientAggregator.combine(state.doubleValue(), vValue));
+        state.doubleValue(MinNonFiniteDoubleAggregator.combine(state.doubleValue(), vValue));
       }
       return;
     }
     state.seen(true);
     for (int valuesPosition = 0; valuesPosition < vVector.getPositionCount(); valuesPosition++) {
       double vValue = vVector.getDouble(valuesPosition);
-      state.doubleValue(MinDoubleLenientAggregator.combine(state.doubleValue(), vValue));
+      state.doubleValue(MinNonFiniteDoubleAggregator.combine(state.doubleValue(), vValue));
     }
   }
 
@@ -156,7 +156,7 @@ public final class MinDoubleLenientAggregatorFunction implements AggregatorFunct
           continue;
         }
         double vValue = specialized.getDouble(valuesPosition);
-        state.doubleValue(MinDoubleLenientAggregator.combine(state.doubleValue(), vValue));
+        state.doubleValue(MinNonFiniteDoubleAggregator.combine(state.doubleValue(), vValue));
       }
       return;
     }
@@ -170,7 +170,7 @@ public final class MinDoubleLenientAggregatorFunction implements AggregatorFunct
           continue;
         }
         double vValue = bulkSegment.getAtIndex(ValueLayout.JAVA_DOUBLE_UNALIGNED, p);
-        bulkAcc = MinDoubleLenientAggregator.combine(bulkAcc, vValue);
+        bulkAcc = MinNonFiniteDoubleAggregator.combine(bulkAcc, vValue);
       }
       state.doubleValue(bulkAcc);
       state.seen(true);
@@ -184,7 +184,7 @@ public final class MinDoubleLenientAggregatorFunction implements AggregatorFunct
           continue;
         }
         double vValue = specialized.getDouble(valuesPosition);
-        state.doubleValue(MinDoubleLenientAggregator.combine(state.doubleValue(), vValue));
+        state.doubleValue(MinNonFiniteDoubleAggregator.combine(state.doubleValue(), vValue));
       }
       return;
     }
@@ -194,7 +194,7 @@ public final class MinDoubleLenientAggregatorFunction implements AggregatorFunct
         continue;
       }
       double vValue = vVector.getDouble(valuesPosition);
-      state.doubleValue(MinDoubleLenientAggregator.combine(state.doubleValue(), vValue));
+      state.doubleValue(MinNonFiniteDoubleAggregator.combine(state.doubleValue(), vValue));
     }
   }
 
@@ -209,7 +209,7 @@ public final class MinDoubleLenientAggregatorFunction implements AggregatorFunct
       int vEnd = vStart + vValueCount;
       for (int vOffset = vStart; vOffset < vEnd; vOffset++) {
         double vValue = vBlock.getDouble(vOffset);
-        state.doubleValue(MinDoubleLenientAggregator.combine(state.doubleValue(), vValue));
+        state.doubleValue(MinNonFiniteDoubleAggregator.combine(state.doubleValue(), vValue));
       }
     }
   }
@@ -228,7 +228,7 @@ public final class MinDoubleLenientAggregatorFunction implements AggregatorFunct
       int vEnd = vStart + vValueCount;
       for (int vOffset = vStart; vOffset < vEnd; vOffset++) {
         double vValue = vBlock.getDouble(vOffset);
-        state.doubleValue(MinDoubleLenientAggregator.combine(state.doubleValue(), vValue));
+        state.doubleValue(MinNonFiniteDoubleAggregator.combine(state.doubleValue(), vValue));
       }
     }
   }
@@ -268,7 +268,7 @@ public final class MinDoubleLenientAggregatorFunction implements AggregatorFunct
     BooleanVector seen = ((BooleanBlock) seenUncast).asVector();
     assert seen.getPositionCount() == 1;
     if (seen.getBoolean(0)) {
-      state.doubleValue(MinDoubleLenientAggregator.combine(state.doubleValue(), min.getDouble(0)));
+      state.doubleValue(MinNonFiniteDoubleAggregator.combine(state.doubleValue(), min.getDouble(0)));
       state.seen(true);
     }
   }

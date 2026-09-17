@@ -22,12 +22,12 @@ import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.operator.DriverContext;
 
 /**
- * {@link GroupingAggregatorFunction} implementation for {@link MinDoubleLenientAggregator}.
+ * {@link GroupingAggregatorFunction} implementation for {@link MaxNonFiniteDoubleAggregator}.
  * This class is generated. Edit {@code GroupingAggregatorImplementer} instead.
  */
-public final class MinDoubleLenientGroupingAggregatorFunction implements GroupingAggregatorFunction {
+public final class MaxNonFiniteDoubleGroupingAggregatorFunction implements GroupingAggregatorFunction {
   private static final List<IntermediateStateDesc> INTERMEDIATE_STATE_DESC = List.of(
-      new IntermediateStateDesc("min", ElementType.DOUBLE),
+      new IntermediateStateDesc("max", ElementType.DOUBLE),
       new IntermediateStateDesc("seen", ElementType.BOOLEAN)  );
 
   private final DoubleArrayState state;
@@ -36,9 +36,10 @@ public final class MinDoubleLenientGroupingAggregatorFunction implements Groupin
 
   private final DriverContext driverContext;
 
-  MinDoubleLenientGroupingAggregatorFunction(List<Integer> channels, DriverContext driverContext) {
+  MaxNonFiniteDoubleGroupingAggregatorFunction(List<Integer> channels,
+      DriverContext driverContext) {
     this.channels = channels;
-    this.state = new DoubleArrayState(driverContext.bigArrays(), driverContext.breaker(), MinDoubleLenientAggregator.init());
+    this.state = new DoubleArrayState(driverContext.bigArrays(), driverContext.breaker(), MaxNonFiniteDoubleAggregator.init());
     this.driverContext = driverContext;
   }
 
@@ -127,7 +128,7 @@ public final class MinDoubleLenientGroupingAggregatorFunction implements Groupin
         int vEnd = vStart + vBlock.getValueCount(valuesPosition);
         for (int vOffset = vStart; vOffset < vEnd; vOffset++) {
           double vValue = vBlock.getDouble(vOffset);
-          state.set(groupId, MinDoubleLenientAggregator.combine(state.getOrDefault(groupId), vValue));
+          state.set(groupId, MaxNonFiniteDoubleAggregator.combine(state.getOrDefault(groupId), vValue));
         }
       }
     }
@@ -144,7 +145,7 @@ public final class MinDoubleLenientGroupingAggregatorFunction implements Groupin
       for (int g = groupStart; g < groupEnd; g++) {
         int groupId = groups.getInt(g);
         double vValue = vVector.getDouble(valuesPosition);
-        state.set(groupId, MinDoubleLenientAggregator.combine(state.getOrDefault(groupId), vValue));
+        state.set(groupId, MaxNonFiniteDoubleAggregator.combine(state.getOrDefault(groupId), vValue));
       }
     }
   }
@@ -152,8 +153,8 @@ public final class MinDoubleLenientGroupingAggregatorFunction implements Groupin
   @Override
   public void addIntermediateInput(int positionOffset, IntArrayBlock groups, Page page) {
     assert channels.size() == intermediateBlockCount();
-    Block minUncast = page.getBlock(channels.get(0));
-    if (minUncast.areAllValuesNull()) {
+    Block maxUncast = page.getBlock(channels.get(0));
+    if (maxUncast.areAllValuesNull()) {
       /*
        * All values are null so we can skip processing this block.
        * NOTE: Microbenchmarks point to long sequences of ConstantNullBlocks
@@ -165,7 +166,7 @@ public final class MinDoubleLenientGroupingAggregatorFunction implements Groupin
        */
       return;
     }
-    DoubleVector min = ((DoubleBlock) minUncast).asVector();
+    DoubleVector max = ((DoubleBlock) maxUncast).asVector();
     Block seenUncast = page.getBlock(channels.get(1));
     if (seenUncast.areAllValuesNull()) {
       /*
@@ -180,7 +181,7 @@ public final class MinDoubleLenientGroupingAggregatorFunction implements Groupin
       return;
     }
     BooleanVector seen = ((BooleanBlock) seenUncast).asVector();
-    assert min.getPositionCount() == seen.getPositionCount();
+    assert max.getPositionCount() == seen.getPositionCount();
     for (int groupPosition = 0; groupPosition < groups.getPositionCount(); groupPosition++) {
       if (groups.isNull(groupPosition)) {
         continue;
@@ -191,7 +192,7 @@ public final class MinDoubleLenientGroupingAggregatorFunction implements Groupin
         int groupId = groups.getInt(g);
         int valuesPosition = groupPosition + positionOffset;
         if (seen.getBoolean(valuesPosition)) {
-          state.set(groupId, MinDoubleLenientAggregator.combine(state.getOrDefault(groupId), min.getDouble(valuesPosition)));
+          state.set(groupId, MaxNonFiniteDoubleAggregator.combine(state.getOrDefault(groupId), max.getDouble(valuesPosition)));
         }
       }
     }
@@ -214,7 +215,7 @@ public final class MinDoubleLenientGroupingAggregatorFunction implements Groupin
         int vEnd = vStart + vBlock.getValueCount(valuesPosition);
         for (int vOffset = vStart; vOffset < vEnd; vOffset++) {
           double vValue = vBlock.getDouble(vOffset);
-          state.set(groupId, MinDoubleLenientAggregator.combine(state.getOrDefault(groupId), vValue));
+          state.set(groupId, MaxNonFiniteDoubleAggregator.combine(state.getOrDefault(groupId), vValue));
         }
       }
     }
@@ -231,7 +232,7 @@ public final class MinDoubleLenientGroupingAggregatorFunction implements Groupin
       for (int g = groupStart; g < groupEnd; g++) {
         int groupId = groups.getInt(g);
         double vValue = vVector.getDouble(valuesPosition);
-        state.set(groupId, MinDoubleLenientAggregator.combine(state.getOrDefault(groupId), vValue));
+        state.set(groupId, MaxNonFiniteDoubleAggregator.combine(state.getOrDefault(groupId), vValue));
       }
     }
   }
@@ -239,8 +240,8 @@ public final class MinDoubleLenientGroupingAggregatorFunction implements Groupin
   @Override
   public void addIntermediateInput(int positionOffset, IntBigArrayBlock groups, Page page) {
     assert channels.size() == intermediateBlockCount();
-    Block minUncast = page.getBlock(channels.get(0));
-    if (minUncast.areAllValuesNull()) {
+    Block maxUncast = page.getBlock(channels.get(0));
+    if (maxUncast.areAllValuesNull()) {
       /*
        * All values are null so we can skip processing this block.
        * NOTE: Microbenchmarks point to long sequences of ConstantNullBlocks
@@ -252,7 +253,7 @@ public final class MinDoubleLenientGroupingAggregatorFunction implements Groupin
        */
       return;
     }
-    DoubleVector min = ((DoubleBlock) minUncast).asVector();
+    DoubleVector max = ((DoubleBlock) maxUncast).asVector();
     Block seenUncast = page.getBlock(channels.get(1));
     if (seenUncast.areAllValuesNull()) {
       /*
@@ -267,7 +268,7 @@ public final class MinDoubleLenientGroupingAggregatorFunction implements Groupin
       return;
     }
     BooleanVector seen = ((BooleanBlock) seenUncast).asVector();
-    assert min.getPositionCount() == seen.getPositionCount();
+    assert max.getPositionCount() == seen.getPositionCount();
     for (int groupPosition = 0; groupPosition < groups.getPositionCount(); groupPosition++) {
       if (groups.isNull(groupPosition)) {
         continue;
@@ -278,7 +279,7 @@ public final class MinDoubleLenientGroupingAggregatorFunction implements Groupin
         int groupId = groups.getInt(g);
         int valuesPosition = groupPosition + positionOffset;
         if (seen.getBoolean(valuesPosition)) {
-          state.set(groupId, MinDoubleLenientAggregator.combine(state.getOrDefault(groupId), min.getDouble(valuesPosition)));
+          state.set(groupId, MaxNonFiniteDoubleAggregator.combine(state.getOrDefault(groupId), max.getDouble(valuesPosition)));
         }
       }
     }
@@ -295,7 +296,7 @@ public final class MinDoubleLenientGroupingAggregatorFunction implements Groupin
       int vEnd = vStart + vBlock.getValueCount(valuesPosition);
       for (int vOffset = vStart; vOffset < vEnd; vOffset++) {
         double vValue = vBlock.getDouble(vOffset);
-        state.set(groupId, MinDoubleLenientAggregator.combine(state.getOrDefault(groupId), vValue));
+        state.set(groupId, MaxNonFiniteDoubleAggregator.combine(state.getOrDefault(groupId), vValue));
       }
     }
   }
@@ -305,15 +306,15 @@ public final class MinDoubleLenientGroupingAggregatorFunction implements Groupin
       int valuesPosition = groupPosition + positionOffset;
       int groupId = groups.getInt(groupPosition);
       double vValue = vVector.getDouble(valuesPosition);
-      state.set(groupId, MinDoubleLenientAggregator.combine(state.getOrDefault(groupId), vValue));
+      state.set(groupId, MaxNonFiniteDoubleAggregator.combine(state.getOrDefault(groupId), vValue));
     }
   }
 
   @Override
   public void addIntermediateInput(int positionOffset, IntVector groups, Page page) {
     assert channels.size() == intermediateBlockCount();
-    Block minUncast = page.getBlock(channels.get(0));
-    if (minUncast.areAllValuesNull()) {
+    Block maxUncast = page.getBlock(channels.get(0));
+    if (maxUncast.areAllValuesNull()) {
       /*
        * All values are null so we can skip processing this block.
        * NOTE: Microbenchmarks point to long sequences of ConstantNullBlocks
@@ -325,7 +326,7 @@ public final class MinDoubleLenientGroupingAggregatorFunction implements Groupin
        */
       return;
     }
-    DoubleVector min = ((DoubleBlock) minUncast).asVector();
+    DoubleVector max = ((DoubleBlock) maxUncast).asVector();
     Block seenUncast = page.getBlock(channels.get(1));
     if (seenUncast.areAllValuesNull()) {
       /*
@@ -340,12 +341,12 @@ public final class MinDoubleLenientGroupingAggregatorFunction implements Groupin
       return;
     }
     BooleanVector seen = ((BooleanBlock) seenUncast).asVector();
-    assert min.getPositionCount() == seen.getPositionCount();
+    assert max.getPositionCount() == seen.getPositionCount();
     for (int groupPosition = 0; groupPosition < groups.getPositionCount(); groupPosition++) {
       int groupId = groups.getInt(groupPosition);
       int valuesPosition = groupPosition + positionOffset;
       if (seen.getBoolean(valuesPosition)) {
-        state.set(groupId, MinDoubleLenientAggregator.combine(state.getOrDefault(groupId), min.getDouble(valuesPosition)));
+        state.set(groupId, MaxNonFiniteDoubleAggregator.combine(state.getOrDefault(groupId), max.getDouble(valuesPosition)));
       }
     }
   }

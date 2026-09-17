@@ -22,8 +22,8 @@ public class MinSerializationTests extends AbstractExpressionSerializationTests<
      * the two forms; this covers both.
      */
     public void testAllowNonFiniteSurvivesCurrentVersionRoundTrip() throws IOException {
-        Min lenient = new Min(randomSource(), randomChild(), randomChild(), randomChild(), true);
-        assertTrue(copyInstance(lenient).allowNonFinite());
+        Min nonFinite = new Min(randomSource(), randomChild(), randomChild(), randomChild(), true);
+        assertTrue(copyInstance(nonFinite).allowNonFinite());
 
         Min strict = new Min(randomSource(), randomChild(), randomChild(), randomChild(), false);
         assertFalse(copyInstance(strict).allowNonFinite());

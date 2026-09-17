@@ -22,63 +22,66 @@ import java.util.stream.LongStream;
 import static org.hamcrest.Matchers.hasSize;
 
 /**
- * Tests for the PromQL-only lenient {@code min} aggregator, {@link MinDoubleLenientAggregator}.
+ * Tests for the PromQL-only non-finite {@code max} aggregator, {@link MaxNonFiniteDoubleAggregator}.
  * <p>
- *     Unlike the strict {@code min} aggregator, this one applies IEEE-754/Prometheus non-finite semantics:
+ *     Unlike the strict {@code max} aggregator, this one applies IEEE-754/Prometheus non-finite semantics:
  *     {@code NaN} inputs are skipped whenever a non-{@code NaN} value is present (so the result is {@code NaN}
  *     only when every input is {@code NaN}), while {@code ±Infinity} participate as ordinary ordered values.
  *     The random {@link #simpleInput} deliberately mixes in {@code NaN} and {@code ±Infinity} so that the whole
- *     inherited {@code SINGLE / INITIAL / INTERMEDIATE / FINAL} matrix asserts the lenient reduction, and the
+ *     inherited {@code SINGLE / INITIAL / INTERMEDIATE / FINAL} matrix asserts the non-finite reduction, and the
  *     dedicated tests below pin the specific all-{@code NaN} / all-{@code Infinity} / mixed corner cases.
  * </p>
  */
-public class MinDoubleLenientAggregatorFunctionTests extends AggregatorFunctionTestCase {
+public class MaxNonFiniteDoubleAggregatorFunctionTests extends AggregatorFunctionTestCase {
     @Override
     protected SourceOperator simpleInput(BlockFactory blockFactory, int size) {
-        return new SequenceDoubleBlockSourceOperator(blockFactory, LongStream.range(0, size).mapToDouble(l -> randomLenientDouble()));
+        return new SequenceDoubleBlockSourceOperator(
+            blockFactory,
+            LongStream.range(0, size).mapToDouble(l -> randomMaybeNonFiniteDouble())
+        );
     }
 
     @Override
     protected AggregatorFunctionSupplier aggregatorFunction() {
-        return new MinDoubleLenientAggregatorFunctionSupplier();
+        return new MaxNonFiniteDoubleAggregatorFunctionSupplier();
     }
 
     @Override
     protected String expectedDescriptionOfAggregator() {
-        return "min_double of lenients";
+        return "max_non_finite of doubles";
     }
 
     @Override
-    protected void assertSimpleOutput(List<Page> input, Block result) {
-        double min = lenientMin(input.stream().flatMapToDouble(p -> allDoubles(p.getBlock(0))));
-        assertEquals(min, ((DoubleBlock) result).getDouble(0), 0.0);
+    public void assertSimpleOutput(List<Page> input, Block result) {
+        double max = nonFiniteMax(input.stream().flatMapToDouble(p -> allDoubles(p.getBlock(0))));
+        assertEquals(max, ((DoubleBlock) result).getDouble(0), 0.0);
     }
 
     public void testAllNaNProducesNaN() {
-        assertLenientMin(List.of(Double.NaN, Double.NaN, Double.NaN), Double.NaN);
+        assertNonFiniteMax(List.of(Double.NaN, Double.NaN, Double.NaN), Double.NaN);
     }
 
     public void testNaNSkippedWhenFinitePresent() {
-        assertLenientMin(List.of(Double.NaN, 3.0, Double.NaN, 1.0), 1.0);
+        assertNonFiniteMax(List.of(Double.NaN, 3.0, Double.NaN, 1.0), 3.0);
     }
 
-    public void testAllPositiveInfinity() {
-        assertLenientMin(List.of(Double.POSITIVE_INFINITY, Double.POSITIVE_INFINITY), Double.POSITIVE_INFINITY);
+    public void testAllNegativeInfinity() {
+        assertNonFiniteMax(List.of(Double.NEGATIVE_INFINITY, Double.NEGATIVE_INFINITY), Double.NEGATIVE_INFINITY);
     }
 
-    public void testPositiveInfinityAmongFinite() {
-        assertLenientMin(List.of(Double.POSITIVE_INFINITY, 5.0, 3.0), 3.0);
+    public void testNegativeInfinityAmongFinite() {
+        assertNonFiniteMax(List.of(Double.NEGATIVE_INFINITY, -5.0, -3.0), -3.0);
     }
 
-    public void testNegativeInfinityDominates() {
-        assertLenientMin(List.of(2.0, Double.NEGATIVE_INFINITY, Double.NaN, -100.0), Double.NEGATIVE_INFINITY);
+    public void testPositiveInfinityDominates() {
+        assertNonFiniteMax(List.of(-2.0, Double.POSITIVE_INFINITY, Double.NaN, 100.0), Double.POSITIVE_INFINITY);
     }
 
     public void testMixedInfinities() {
-        assertLenientMin(List.of(Double.NEGATIVE_INFINITY, Double.POSITIVE_INFINITY, Double.NaN), Double.NEGATIVE_INFINITY);
+        assertNonFiniteMax(List.of(Double.NEGATIVE_INFINITY, Double.POSITIVE_INFINITY, Double.NaN), Double.POSITIVE_INFINITY);
     }
 
-    private void assertLenientMin(List<Double> values, double expected) {
+    private void assertNonFiniteMax(List<Double> values, double expected) {
         var runner = new TestDriverRunner().builder(driverContext());
         runner.input(new SequenceDoubleBlockSourceOperator(runner.blockFactory(), values));
         List<Page> results = runner.run(simple());
@@ -88,7 +91,7 @@ public class MinDoubleLenientAggregatorFunctionTests extends AggregatorFunctionT
         assertEquals(expected, ((DoubleBlock) result).getDouble(0), 0.0);
     }
 
-    private double randomLenientDouble() {
+    private double randomMaybeNonFiniteDouble() {
         if (randomIntBetween(0, 7) == 0) {
             return randomFrom(Double.NaN, Double.POSITIVE_INFINITY, Double.NEGATIVE_INFINITY);
         }
@@ -96,12 +99,12 @@ public class MinDoubleLenientAggregatorFunctionTests extends AggregatorFunctionT
     }
 
     /**
-     * Reference reduction mirroring {@link MinDoubleLenientAggregator#combine}: fold the values, seeded with
-     * {@code NaN}, keeping the running value unless the incoming one is strictly smaller (which skips {@code NaN}
+     * Reference reduction mirroring {@link MaxNonFiniteDoubleAggregator#combine}: fold the values, seeded with
+     * {@code NaN}, keeping the running value unless the incoming one is strictly greater (which skips {@code NaN}
      * once a real value has been adopted). The result is order-independent, matching how the aggregator merges
      * across pages and partial states.
      */
-    private static double lenientMin(DoubleStream values) {
-        return values.reduce(Double.NaN, (acc, v) -> Double.isNaN(acc) || acc > v ? v : acc);
+    private static double nonFiniteMax(DoubleStream values) {
+        return values.reduce(Double.NaN, (acc, v) -> Double.isNaN(acc) || acc < v ? v : acc);
     }
 }

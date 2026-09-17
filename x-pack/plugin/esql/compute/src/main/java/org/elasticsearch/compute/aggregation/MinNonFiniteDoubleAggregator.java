@@ -21,7 +21,7 @@ import org.elasticsearch.compute.ann.IntermediateState;
  */
 @Aggregator({ @IntermediateState(name = "min", type = "DOUBLE"), @IntermediateState(name = "seen", type = "BOOLEAN") })
 @GroupingAggregator
-class MinDoubleLenientAggregator {
+class MinNonFiniteDoubleAggregator {
 
     public static double init() {
         return Double.NaN;

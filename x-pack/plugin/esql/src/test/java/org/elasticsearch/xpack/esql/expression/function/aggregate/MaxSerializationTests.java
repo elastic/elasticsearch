@@ -22,8 +22,8 @@ public class MaxSerializationTests extends AbstractExpressionSerializationTests<
      * the two forms; this covers both.
      */
     public void testAllowNonFiniteSurvivesCurrentVersionRoundTrip() throws IOException {
-        Max lenient = new Max(randomSource(), randomChild(), randomChild(), randomChild(), true);
-        assertTrue(copyInstance(lenient).allowNonFinite());
+        Max nonFinite = new Max(randomSource(), randomChild(), randomChild(), randomChild(), true);
+        assertTrue(copyInstance(nonFinite).allowNonFinite());
 
         Max strict = new Max(randomSource(), randomChild(), randomChild(), randomChild(), false);
         assertFalse(copyInstance(strict).allowNonFinite());

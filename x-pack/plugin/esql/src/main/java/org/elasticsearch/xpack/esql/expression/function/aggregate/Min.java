@@ -15,10 +15,10 @@ import org.elasticsearch.compute.aggregation.AggregatorFunctionSupplier;
 import org.elasticsearch.compute.aggregation.MinBooleanAggregatorFunctionSupplier;
 import org.elasticsearch.compute.aggregation.MinBytesRefAggregatorFunctionSupplier;
 import org.elasticsearch.compute.aggregation.MinDoubleAggregatorFunctionSupplier;
-import org.elasticsearch.compute.aggregation.MinDoubleLenientAggregatorFunctionSupplier;
 import org.elasticsearch.compute.aggregation.MinIntAggregatorFunctionSupplier;
 import org.elasticsearch.compute.aggregation.MinIpAggregatorFunctionSupplier;
 import org.elasticsearch.compute.aggregation.MinLongAggregatorFunctionSupplier;
+import org.elasticsearch.compute.aggregation.MinNonFiniteDoubleAggregatorFunctionSupplier;
 import org.elasticsearch.compute.data.AggregateMetricDoubleBlockBuilder;
 import org.elasticsearch.compute.data.HistogramBlock;
 import org.elasticsearch.xpack.esql.EsqlIllegalArgumentException;
@@ -239,9 +239,9 @@ public class Min extends AggregateFunction
     @Override
     public final AggregatorFunctionSupplier supplier() {
         DataType type = field().dataType();
-        // The PromQL value column is always a double, so only the double path has a lenient (non-finite) variant.
+        // The PromQL value column is always a double, so only the double path has a non-finite variant.
         if (allowNonFinite && type == DataType.DOUBLE) {
-            return new MinDoubleLenientAggregatorFunctionSupplier();
+            return new MinNonFiniteDoubleAggregatorFunctionSupplier();
         }
         if (SUPPLIERS.containsKey(type) == false) {
             // If the type checking did its job, this should never happen

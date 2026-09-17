@@ -426,13 +426,13 @@ public class PromqlPlanFunctionCallTests extends AbstractPromqlPlanOptimizerTest
     }
 
     /**
-     * PromQL arithmetic is translated to the non-finite-preserving (lenient) operators; native ES|QL EVAL uses the
+     * PromQL arithmetic is translated to the non-finite-preserving operators; native ES|QL EVAL uses the
      * strict variants. The two must not be mixed: a PromQL {@code / 0} keeps {@code ±Inf}/{@code NaN}, while the same
      * native division is rejected.
      */
-    public void testLenientNonFiniteMathIsPromqlOnly() {
+    public void testNonFiniteMathIsPromqlOnly() {
         LogicalPlan nativeEval = optimizedPlan("FROM test | EVAL x = salary / emp_no");
-        assertThat(lenientNonFiniteExpressions(nativeEval), empty());
+        assertThat(nonFiniteExpressions(nativeEval), empty());
         List<Div> nativeDivs = new ArrayList<>();
         nativeEval.forEachExpressionDown(Div.class, nativeDivs::add);
         assertThat(nativeDivs, not(empty()));
@@ -442,30 +442,30 @@ public class PromqlPlanFunctionCallTests extends AbstractPromqlPlanOptimizerTest
         List<Div> promqlDivs = new ArrayList<>();
         promql.forEachExpressionDown(Div.class, promqlDivs::add);
         assertThat(promqlDivs, not(empty()));
-        assertTrue("PromQL Div must be lenient", promqlDivs.stream().anyMatch(NonFiniteSupport::allowNonFinite));
+        assertTrue("PromQL Div must allow non-finite results", promqlDivs.stream().anyMatch(NonFiniteSupport::allowNonFinite));
 
-        // Native ES|QL STATS MAX / MIN stay strict: they introduce no lenient (non-finite-preserving) expression.
-        assertThat(lenientNonFiniteExpressions(optimizedPlan("FROM test | STATS m = MAX(salary)")), empty());
-        assertThat(lenientNonFiniteExpressions(optimizedPlan("FROM test | STATS m = MIN(salary)")), empty());
+        // Native ES|QL STATS MAX / MIN stay strict: they introduce no non-finite-preserving expression.
+        assertThat(nonFiniteExpressions(optimizedPlan("FROM test | STATS m = MAX(salary)")), empty());
+        assertThat(nonFiniteExpressions(optimizedPlan("FROM test | STATS m = MIN(salary)")), empty());
 
-        // The PromQL translation of max / min produces the lenient variants.
+        // The PromQL translation of max / min produces the non-finite variants.
         assertThat(
-            lenientNonFiniteExpressions(planPromql("PROMQL index=k8s step=1h result=(max(sum by (cluster) (network.cost)))")),
+            nonFiniteExpressions(planPromql("PROMQL index=k8s step=1h result=(max(sum by (cluster) (network.cost)))")),
             not(empty())
         );
         assertThat(
-            lenientNonFiniteExpressions(planPromql("PROMQL index=k8s step=1h result=(min(sum by (cluster) (network.cost)))")),
+            nonFiniteExpressions(planPromql("PROMQL index=k8s step=1h result=(min(sum by (cluster) (network.cost)))")),
             not(empty())
         );
     }
 
-    private static List<Expression> lenientNonFiniteExpressions(LogicalPlan plan) {
-        List<Expression> lenient = new ArrayList<>();
+    private static List<Expression> nonFiniteExpressions(LogicalPlan plan) {
+        List<Expression> nonFiniteExpressions = new ArrayList<>();
         plan.forEachExpressionDown(Expression.class, e -> {
             if (e instanceof NonFiniteSupport nonFinite && nonFinite.allowNonFinite()) {
-                lenient.add(e);
+                nonFiniteExpressions.add(e);
             }
         });
-        return lenient;
+        return nonFiniteExpressions;
     }
 }

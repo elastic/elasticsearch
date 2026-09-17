@@ -11,37 +11,37 @@ import java.util.List;
 import org.elasticsearch.compute.operator.DriverContext;
 
 /**
- * {@link AggregatorFunctionSupplier} implementation for {@link MaxDoubleLenientAggregator}.
+ * {@link AggregatorFunctionSupplier} implementation for {@link MinNonFiniteDoubleAggregator}.
  * This class is generated. Edit {@code AggregatorFunctionSupplierImplementer} instead.
  */
-public final class MaxDoubleLenientAggregatorFunctionSupplier implements AggregatorFunctionSupplier {
-  public MaxDoubleLenientAggregatorFunctionSupplier() {
+public final class MinNonFiniteDoubleAggregatorFunctionSupplier implements AggregatorFunctionSupplier {
+  public MinNonFiniteDoubleAggregatorFunctionSupplier() {
   }
 
   @Override
   public List<IntermediateStateDesc> nonGroupingIntermediateStateDesc() {
-    return MaxDoubleLenientAggregatorFunction.intermediateStateDesc();
+    return MinNonFiniteDoubleAggregatorFunction.intermediateStateDesc();
   }
 
   @Override
   public List<IntermediateStateDesc> groupingIntermediateStateDesc() {
-    return MaxDoubleLenientGroupingAggregatorFunction.intermediateStateDesc();
+    return MinNonFiniteDoubleGroupingAggregatorFunction.intermediateStateDesc();
   }
 
   @Override
-  public MaxDoubleLenientAggregatorFunction aggregator(DriverContext driverContext,
+  public MinNonFiniteDoubleAggregatorFunction aggregator(DriverContext driverContext,
       List<Integer> channels) {
-    return new MaxDoubleLenientAggregatorFunction(driverContext, channels);
+    return new MinNonFiniteDoubleAggregatorFunction(driverContext, channels);
   }
 
   @Override
-  public MaxDoubleLenientGroupingAggregatorFunction groupingAggregator(DriverContext driverContext,
-      List<Integer> channels) {
-    return new MaxDoubleLenientGroupingAggregatorFunction(channels, driverContext);
+  public MinNonFiniteDoubleGroupingAggregatorFunction groupingAggregator(
+      DriverContext driverContext, List<Integer> channels) {
+    return new MinNonFiniteDoubleGroupingAggregatorFunction(channels, driverContext);
   }
 
   @Override
   public String describe() {
-    return "max_double of lenients";
+    return "min_non_finite of doubles";
   }
 }

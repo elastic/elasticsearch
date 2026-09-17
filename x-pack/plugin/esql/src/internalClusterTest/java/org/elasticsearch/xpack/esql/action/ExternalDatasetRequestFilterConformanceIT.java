@@ -28,18 +28,23 @@ import java.time.Duration;
 import java.time.Instant;
 import java.time.format.DateTimeFormatter;
 import java.util.Collection;
+import java.util.HashMap;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
+import java.util.function.IntPredicate;
+import java.util.stream.IntStream;
 
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.getValuesList;
 import static org.elasticsearch.xpack.esql.action.EsqlQueryRequest.syncEsqlQueryRequest;
+import static org.hamcrest.Matchers.allOf;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.hasItems;
+import static org.hamcrest.Matchers.lessThan;
 
 /**
  * The out-of-band request {@code filter} is applied to an external dataset by translating the Query DSL into ES|QL
@@ -85,6 +90,23 @@ public class ExternalDatasetRequestFilterConformanceIT extends AbstractExternalD
         return "t" + (i % 4); // t0..t3
     }
 
+    // Sparse columns: a value on most rows, absent on the rest, so "has a value" selects part of the data.
+    private static boolean hasRating(int i) {
+        return i % 5 != 0;
+    }
+
+    private static int rating(int i) {
+        return (i * 7) % 100;
+    }
+
+    private static boolean hasNick(int i) {
+        return i % 3 != 0;
+    }
+
+    private static String nick(int i) {
+        return "n" + i;
+    }
+
     private static long bytes(int i) {
         return i * 1000L;
     }
@@ -118,18 +140,35 @@ public class ExternalDatasetRequestFilterConformanceIT extends AbstractExternalD
                     "ts",
                     "type=date",
                     "label",
+                    "type=keyword",
+                    "rating",
+                    "type=integer",
+                    "nick",
                     "type=keyword"
                 )
         );
         for (int i = 0; i < ROWS; i++) {
-            client().prepareIndex(INDEX)
-                .setSource("id", i, "status", status(i), "tags", tag(i), "bytes", bytes(i), "ts", ts(i), "label", label(i))
-                .get();
+            Map<String, Object> source = new HashMap<>();
+            source.put("id", i);
+            source.put("status", status(i));
+            source.put("tags", tag(i));
+            source.put("bytes", bytes(i));
+            source.put("ts", ts(i));
+            source.put("label", label(i));
+            if (hasRating(i)) {
+                source.put("rating", rating(i));
+            }
+            if (hasNick(i)) {
+                source.put("nick", nick(i));
+            }
+            client().prepareIndex(INDEX).setSource(source).get();
         }
         client().admin().indices().prepareRefresh(INDEX).get();
 
         // The dataset: identical rows as a strict declared-schema CSV, types matching the index mapping exactly.
-        StringBuilder csv = new StringBuilder("id:integer,status:integer,tags:keyword,bytes:long,ts:date,label:keyword\n");
+        StringBuilder csv = new StringBuilder(
+            "id:integer,status:integer,tags:keyword,bytes:long,ts:date,label:keyword,rating:integer,nick:keyword\n"
+        );
         for (int i = 0; i < ROWS; i++) {
             csv.append(i)
                 .append(',')
@@ -142,11 +181,21 @@ public class ExternalDatasetRequestFilterConformanceIT extends AbstractExternalD
                 .append(ts(i))
                 .append(',')
                 .append(label(i))
+                .append(',')
+                .append(hasRating(i) ? String.valueOf(rating(i)) : "")
+                .append(',')
+                .append(hasNick(i) ? nick(i) : "")
                 .append('\n');
         }
         Path csvFile = createTempDir().resolve("conformance.csv");
         Files.writeString(csvFile, csv.toString(), StandardCharsets.UTF_8);
-        dataset = registerStrictDataset("conf_ds", StoragePath.fileUri(csvFile), declaredColumns(), Map.of("format", "csv"));
+        dataset = registerStrictDataset(
+            "conf_ds",
+            StoragePath.fileUri(csvFile),
+            declaredColumns(),
+            // A blank cell is null, so a sparse column has genuinely missing values rather than empty strings.
+            Map.of("format", "csv", "null_value", "")
+        );
     }
 
     private static LinkedHashMap<String, DatasetFieldMapping> declaredColumns() {
@@ -157,6 +206,8 @@ public class ExternalDatasetRequestFilterConformanceIT extends AbstractExternalD
         properties.put("bytes", new DatasetFieldMapping("long", null));
         properties.put("ts", new DatasetFieldMapping("date", null));
         properties.put("label", new DatasetFieldMapping("keyword", null));
+        properties.put("rating", new DatasetFieldMapping("integer", null));
+        properties.put("nick", new DatasetFieldMapping("keyword", null));
         return properties;
     }
 
@@ -396,6 +447,83 @@ public class ExternalDatasetRequestFilterConformanceIT extends AbstractExternalD
         // Must not throw; rows matching status=300 must be returned.
         List<Object> ids = selectedIds(dataset, filter);
         assertThat("filter on must=300 must return rows", ids.isEmpty(), equalTo(false));
+    }
+
+    // ---- A range with neither bound: the index answers it as exists, so the dataset must too ----
+
+    private static List<Object> idsWhere(IntPredicate row) {
+        return IntStream.range(0, ROWS).filter(row).<Object>mapToObj(i -> i).toList();
+    }
+
+    /**
+     * Positive control for every case below: each sparse column really is sparse on both sides. If a blank CSV cell read
+     * as an empty string or zero instead of null, the dataset would report a value on every row and the parity cases
+     * would be comparing against the wrong thing without noticing.
+     */
+    public void testSparseColumnsAreGenuinelySparseOnBothSides() {
+        List<Object> withRating = idsWhere(ExternalDatasetRequestFilterConformanceIT::hasRating);
+        List<Object> withNick = idsWhere(ExternalDatasetRequestFilterConformanceIT::hasNick);
+        assertThat("rating must be present on some rows but not all", withRating.size(), allOf(greaterThan(0), lessThan(ROWS)));
+        assertThat("nick must be present on some rows but not all", withNick.size(), allOf(greaterThan(0), lessThan(ROWS)));
+        assertEquals(withRating, selectedIds(INDEX, QueryBuilders.existsQuery("rating")));
+        assertEquals(withRating, selectedIds(dataset, QueryBuilders.existsQuery("rating")));
+        assertEquals(withNick, selectedIds(INDEX, QueryBuilders.existsQuery("nick")));
+        assertEquals(withNick, selectedIds(dataset, QueryBuilders.existsQuery("nick")));
+    }
+
+    /**
+     * The case that returned fewer rows than the index: negating a bound-less range. The index selects the rows lacking
+     * the field; translating the range as a tautology selected none. Checked against the known answer as well as
+     * against the index, so the two cannot pass by being wrong the same way.
+     */
+    public void testMustNotRangeWithNoBoundsSelectsTheRowsLackingTheField() {
+        List<Object> lackingRating = idsWhere(i -> hasRating(i) == false);
+        QueryBuilder filter = QueryBuilders.boolQuery().mustNot(QueryBuilders.rangeQuery("rating"));
+        assertEquals(lackingRating, selectedIds(INDEX, filter));
+        assertEquals(lackingRating, selectedIds(dataset, filter));
+
+        List<Object> lackingNick = idsWhere(i -> hasNick(i) == false);
+        QueryBuilder onKeyword = QueryBuilders.boolQuery().mustNot(QueryBuilders.rangeQuery("nick"));
+        assertEquals(lackingNick, selectedIds(INDEX, onKeyword));
+        assertEquals(lackingNick, selectedIds(dataset, onKeyword));
+    }
+
+    /** Every column type, sparse, fully populated and missing, as a bare clause, under must_not and under filter. */
+    public void testRangeWithNoBoundsAgreesOnEveryColumn() {
+        for (String field : List.of("rating", "nick", "id", "status", "tags", "bytes", "ts", "label", "nope")) {
+            assertSelectsSameRows(QueryBuilders.rangeQuery(field));
+            assertSelectsSameRows(QueryBuilders.boolQuery().mustNot(QueryBuilders.rangeQuery(field)));
+            assertSelectsSameRows(QueryBuilders.boolQuery().filter(QueryBuilders.rangeQuery(field)));
+        }
+    }
+
+    /**
+     * Options that only shape bounds do not change what a bound-less range means: the index checks for missing bounds
+     * before it reads any of them. A time_zone in particular must not make the clause untranslatable — dropping it would
+     * widen a plain range from "has a value" to every row.
+     */
+    public void testRangeOptionsWithoutBoundsStillMeanExists() {
+        assertSelectsSameRows(QueryBuilders.rangeQuery("rating").timeZone("+01:00"));
+        assertSelectsSameRows(QueryBuilders.boolQuery().mustNot(QueryBuilders.rangeQuery("rating").timeZone("+01:00")));
+        assertSelectsSameRows(QueryBuilders.rangeQuery("rating").includeLower(false).includeUpper(false));
+        assertSelectsSameRows(QueryBuilders.boolQuery().mustNot(QueryBuilders.rangeQuery("nick").includeLower(false)));
+        assertSelectsSameRows(QueryBuilders.rangeQuery("ts").format("yyyy-MM-dd"));
+        assertSelectsSameRows(QueryBuilders.boolQuery().mustNot(QueryBuilders.rangeQuery("ts").format("yyyy-MM-dd")));
+    }
+
+    /** Inside larger bools: beside a must, nested under must_not, as a required should arm, and against another sparse column. */
+    public void testRangeWithNoBoundsInsideLargerBools() {
+        assertSelectsSameRows(
+            QueryBuilders.boolQuery().must(QueryBuilders.termQuery("status", 300)).mustNot(QueryBuilders.rangeQuery("rating"))
+        );
+        assertSelectsSameRows(QueryBuilders.boolQuery().mustNot(QueryBuilders.boolQuery().must(QueryBuilders.rangeQuery("rating"))));
+        assertSelectsSameRows(
+            QueryBuilders.boolQuery().should(QueryBuilders.rangeQuery("rating")).should(QueryBuilders.termQuery("status", 200))
+        );
+        assertSelectsSameRows(QueryBuilders.boolQuery().must(QueryBuilders.rangeQuery("nick")).mustNot(QueryBuilders.rangeQuery("rating")));
+        assertSelectsSameRows(
+            QueryBuilders.boolQuery().mustNot(QueryBuilders.rangeQuery("rating")).mustNot(QueryBuilders.rangeQuery("nick"))
+        );
     }
 
     // ---- REST layer tests: the policy a request actually gets, through the HTTP parsing path ----

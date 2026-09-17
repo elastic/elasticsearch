@@ -243,9 +243,7 @@ public class StatelessMemoryMetricsServiceTests extends ESTestCase {
 
         /**
          * Metric override that will supply the {@code initialMappingSize} for the first snapshot() call and then {@code updatedMappingSize}
-         * for any subsequent calls. Helpful to prove snapshots of the shard metrics are not altered by subsequent updates.
-         * @param initialMappingSize
-         * @param updatedMappingSize
+         * for any subsequent calls. Helpful to prove subsequent updates do not alter snapshots of the shard metrics.
          */
     private static class UpdatingOnSnapshotShardMemoryMetrics extends StatelessMemoryMetricsService.ShardMemoryMetrics {
 

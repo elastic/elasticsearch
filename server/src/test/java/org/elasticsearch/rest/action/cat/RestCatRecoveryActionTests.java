@@ -149,6 +149,7 @@ public class RestCatRecoveryActionTests extends ESTestCase {
             "local_retries",
             "priority",
             "gate",
+            "blocked_for_millis",
             "source_host",
             "source_node",
             "target_host",
@@ -171,6 +172,7 @@ public class RestCatRecoveryActionTests extends ESTestCase {
         List<Object> actualHeaders = table.getHeaders().stream().map(cell -> cell.value).toList();
         assertThat(actualHeaders, equalTo(expectedHeaders));
         assertThat(table.getHeaderMap().get("gate").attr.get("alias"), equalTo("g"));
+        assertThat(table.getHeaderMap().get("blocked_for_millis").attr.get("alias"), equalTo("bf"));
 
         assertThat(table.getRows().size(), equalTo(successfulShards));
 
@@ -191,6 +193,7 @@ public class RestCatRecoveryActionTests extends ESTestCase {
                 state.getLocalRetries(),
                 state.getRecoveryPriority().name().toLowerCase(Locale.ROOT),
                 blockedByGate == null ? "n/a" : blockedByGate,
+                blockedByGate == null ? "n/a" : recoveryInfo.blockedForMillis(),
                 state.getSourceNode() == null ? "n/a" : state.getSourceNode().getHostName(),
                 state.getSourceNode() == null ? "n/a" : state.getSourceNode().getName(),
                 state.getTargetNode().getHostName(),

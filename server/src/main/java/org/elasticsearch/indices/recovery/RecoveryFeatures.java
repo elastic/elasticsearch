@@ -27,6 +27,9 @@ public class RecoveryFeatures implements FeatureSpecification {
         "indices.recovery.recovery_local_retry_count"
     );
 
+    /// Test-only node feature indicating that `GET /_cat/recovery` includes the blocking recovery gate and blocked duration.
+    private static final NodeFeature CAT_RECOVERY_INCLUDES_GATE_NODE_FEATURE = new NodeFeature("indices.recovery.cat_recovery_gate");
+
     /// A master must not publish an in-place restore over an open index until every relevant data node supports this feature.
     public static final NodeFeature RESTORE_OVER_OPEN_INDEX_RECREATES_INDEX_SERVICE = new NodeFeature(
         "indices.recovery.restore_over_open_index_recreates_index_service"
@@ -39,6 +42,10 @@ public class RecoveryFeatures implements FeatureSpecification {
 
     @Override
     public Set<NodeFeature> getTestFeatures() {
-        return Set.of(RECOVERY_APIS_INCLUDE_PRIORITY_NODE_FEATURE, RECOVERY_APIS_INCLUDE_LOCAL_RETRY_COUNT_NODE_FEATURE);
+        return Set.of(
+            RECOVERY_APIS_INCLUDE_PRIORITY_NODE_FEATURE,
+            RECOVERY_APIS_INCLUDE_LOCAL_RETRY_COUNT_NODE_FEATURE,
+            CAT_RECOVERY_INCLUDES_GATE_NODE_FEATURE
+        );
     }
 }

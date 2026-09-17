@@ -40,6 +40,7 @@ import org.apache.lucene.index.VectorEncoding;
 import org.apache.lucene.search.VectorScorer;
 import org.apache.lucene.store.IndexOutput;
 import org.apache.lucene.util.ArrayUtil;
+import org.apache.lucene.util.IOFunction;
 import org.apache.lucene.util.MathUtil;
 import org.apache.lucene.util.RamUsageEstimator;
 import org.elasticsearch.core.IOUtils;
@@ -62,12 +63,29 @@ public final class ES93BFloat16FlatVectorsWriter extends FlatVectorsWriter {
     private final SegmentWriteState segmentWriteState;
     private final IndexOutput meta, vectorData;
 
-    private final List<FieldWriter<?>> fields = new ArrayList<>();
+    private record FieldData(FlatFieldVectorsWriter<?> fieldWriter, FieldInfo fieldInfo) {}
+
+    private final List<FieldData> fields = new ArrayList<>();
+    private final IOFunction<FieldInfo, FlatFieldVectorsWriter<?>> fieldWriterFactory;
     private boolean finished;
 
     public ES93BFloat16FlatVectorsWriter(SegmentWriteState state, FlatVectorsScorer scorer) throws IOException {
+        this(state, scorer, FieldWriter::create);
+    }
+
+    /**
+     * Constructs a writer whose per-field vector storage comes from {@code fieldWriterFactory}, consulted on
+     * every {@link #addField(FieldInfo)}. The factory is used for indexing only; merges write straight to the
+     * new segment through {@link #mergeOneFlatVectorField} and never see it.
+     */
+    public ES93BFloat16FlatVectorsWriter(
+        SegmentWriteState state,
+        FlatVectorsScorer scorer,
+        IOFunction<FieldInfo, FlatFieldVectorsWriter<?>> fieldWriterFactory
+    ) throws IOException {
         super(scorer);
         segmentWriteState = state;
+        this.fieldWriterFactory = fieldWriterFactory;
         String metaFileName = IndexFileNames.segmentFileName(
             state.segmentInfo.name,
             state.segmentSuffix,
@@ -106,20 +124,20 @@ public final class ES93BFloat16FlatVectorsWriter extends FlatVectorsWriter {
 
     @Override
     public FlatFieldVectorsWriter<?> addField(FieldInfo fieldInfo) throws IOException {
-        FieldWriter<?> newField = FieldWriter.create(fieldInfo);
-        fields.add(newField);
+        FlatFieldVectorsWriter<?> newField = fieldWriterFactory.apply(fieldInfo);
+        fields.add(new FieldData(newField, fieldInfo));
         return newField;
     }
 
     @Override
     public void flush(int maxDoc, Sorter.DocMap sortMap) throws IOException {
-        for (FieldWriter<?> field : fields) {
+        for (FieldData field : fields) {
             if (sortMap == null) {
-                writeField(field, maxDoc);
+                writeField(field.fieldWriter(), field.fieldInfo(), maxDoc);
             } else {
-                writeSortingField(field, maxDoc, sortMap);
+                writeSortingField(field.fieldWriter(), field.fieldInfo(), maxDoc, sortMap);
             }
-            field.finish();
+            field.fieldWriter().finish();
         }
     }
 
@@ -142,8 +160,8 @@ public final class ES93BFloat16FlatVectorsWriter extends FlatVectorsWriter {
     @Override
     public long ramBytesUsed() {
         long total = SHALLOW_RAM_BYTES_USED;
-        for (FieldWriter<?> field : fields) {
-            total += field.ramBytesUsed();
+        for (FieldData field : fields) {
+            total += field.fieldWriter().ramBytesUsed();
         }
         return total;
     }
@@ -154,51 +172,50 @@ public final class ES93BFloat16FlatVectorsWriter extends FlatVectorsWriter {
         return out.alignFilePointer(bestAlignment);
     }
 
-    private void writeField(FieldWriter<?> fieldData, int maxDoc) throws IOException {
+    private void writeField(FlatFieldVectorsWriter<?> fieldWriter, FieldInfo fieldInfo, int maxDoc) throws IOException {
         // write vector values
-        long vectorDataOffset = alignVectorData(vectorData, fieldData.dim);
-        switch (fieldData.fieldInfo.getVectorEncoding()) {
-            case FLOAT32 -> writeBFloat16Vectors(fieldData);
-            case BYTE -> throw new IllegalStateException(
-                "Incorrect encoding for field " + fieldData.fieldInfo.name + ": " + VectorEncoding.BYTE
-            );
+        int dim = fieldInfo.getVectorDimension();
+        long vectorDataOffset = alignVectorData(vectorData, dim);
+        switch (fieldInfo.getVectorEncoding()) {
+            case FLOAT32 -> writeBFloat16Vectors(fieldWriter, dim);
+            case BYTE -> throw new IllegalStateException("Incorrect encoding for field " + fieldInfo.name + ": " + VectorEncoding.BYTE);
         }
         long vectorDataLength = vectorData.getFilePointer() - vectorDataOffset;
 
-        writeMeta(fieldData.fieldInfo, maxDoc, vectorDataOffset, vectorDataLength, fieldData.docsWithField);
+        writeMeta(fieldInfo, maxDoc, vectorDataOffset, vectorDataLength, fieldWriter.getDocsWithFieldSet());
     }
 
-    private void writeBFloat16Vectors(FieldWriter<?> fieldData) throws IOException {
-        byte[] buffer = new byte[fieldData.dim * BFloat16.BYTES];
-        for (Object v : fieldData.vectors) {
+    private void writeBFloat16Vectors(FlatFieldVectorsWriter<?> fieldWriter, int dim) throws IOException {
+        byte[] buffer = new byte[dim * BFloat16.BYTES];
+        for (Object v : fieldWriter.getVectors()) {
             BFloat16.floatToBFloat16((float[]) v, buffer);
             vectorData.writeBytes(buffer, buffer.length);
         }
     }
 
-    private void writeSortingField(FieldWriter<?> fieldData, int maxDoc, Sorter.DocMap sortMap) throws IOException {
-        final int[] ordMap = new int[fieldData.docsWithField.cardinality()]; // new ord to old ord
+    private void writeSortingField(FlatFieldVectorsWriter<?> fieldWriter, FieldInfo fieldInfo, int maxDoc, Sorter.DocMap sortMap)
+        throws IOException {
+        DocsWithFieldSet docsWithField = fieldWriter.getDocsWithFieldSet();
+        final int[] ordMap = new int[docsWithField.cardinality()]; // new ord to old ord
 
         DocsWithFieldSet newDocsWithField = new DocsWithFieldSet();
-        mapOldOrdToNewOrd(fieldData.docsWithField, sortMap, null, ordMap, newDocsWithField);
+        mapOldOrdToNewOrd(docsWithField, sortMap, null, ordMap, newDocsWithField);
 
         // write vector values
-        long vectorDataOffset = switch (fieldData.fieldInfo.getVectorEncoding()) {
-            case FLOAT32 -> writeSortedBFloat16Vectors(fieldData, ordMap);
-            case BYTE -> throw new IllegalStateException(
-                "Incorrect encoding for field " + fieldData.fieldInfo.name + ": " + VectorEncoding.BYTE
-            );
+        long vectorDataOffset = switch (fieldInfo.getVectorEncoding()) {
+            case FLOAT32 -> writeSortedBFloat16Vectors(fieldWriter, fieldInfo.getVectorDimension(), ordMap);
+            case BYTE -> throw new IllegalStateException("Incorrect encoding for field " + fieldInfo.name + ": " + VectorEncoding.BYTE);
         };
         long vectorDataLength = vectorData.getFilePointer() - vectorDataOffset;
 
-        writeMeta(fieldData.fieldInfo, maxDoc, vectorDataOffset, vectorDataLength, newDocsWithField);
+        writeMeta(fieldInfo, maxDoc, vectorDataOffset, vectorDataLength, newDocsWithField);
     }
 
-    private long writeSortedBFloat16Vectors(FieldWriter<?> fieldData, int[] ordMap) throws IOException {
-        long vectorDataOffset = alignVectorData(vectorData, fieldData.dim);
-        byte[] buffer = new byte[fieldData.dim * BFloat16.BYTES];
+    private long writeSortedBFloat16Vectors(FlatFieldVectorsWriter<?> fieldWriter, int dim, int[] ordMap) throws IOException {
+        long vectorDataOffset = alignVectorData(vectorData, dim);
+        byte[] buffer = new byte[dim * BFloat16.BYTES];
         for (int ordinal : ordMap) {
-            float[] vector = (float[]) fieldData.vectors.get(ordinal);
+            float[] vector = (float[]) fieldWriter.getVectors().get(ordinal);
             BFloat16.floatToBFloat16(vector, buffer);
             vectorData.writeBytes(buffer, buffer.length);
         }
@@ -435,7 +452,6 @@ public final class ES93BFloat16FlatVectorsWriter extends FlatVectorsWriter {
     private abstract static class FieldWriter<T> extends FlatFieldVectorsWriter<T> {
         private static final long SHALLOW_RAM_BYTES_USED = RamUsageEstimator.shallowSizeOfInstance(FieldWriter.class);
         private final FieldInfo fieldInfo;
-        private final int dim;
         private final DocsWithFieldSet docsWithField;
         private final List<T> vectors;
         private boolean finished;
@@ -458,7 +474,6 @@ public final class ES93BFloat16FlatVectorsWriter extends FlatVectorsWriter {
         FieldWriter(FieldInfo fieldInfo) {
             super();
             this.fieldInfo = fieldInfo;
-            this.dim = fieldInfo.getVectorDimension();
             this.docsWithField = new DocsWithFieldSet();
             vectors = new ArrayList<>();
         }

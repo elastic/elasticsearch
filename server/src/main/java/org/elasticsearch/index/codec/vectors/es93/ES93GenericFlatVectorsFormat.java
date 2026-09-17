@@ -12,11 +12,13 @@ package org.elasticsearch.index.codec.vectors.es93;
 import org.apache.lucene.codecs.hnsw.FlatVectorsReader;
 import org.apache.lucene.codecs.hnsw.FlatVectorsScorer;
 import org.apache.lucene.codecs.hnsw.FlatVectorsWriter;
+import org.apache.lucene.codecs.lucene99.Lucene99FlatVectorsWriter;
 import org.apache.lucene.index.SegmentReadState;
 import org.apache.lucene.index.SegmentWriteState;
 import org.elasticsearch.index.codec.vectors.AbstractFlatVectorsFormat;
 import org.elasticsearch.index.codec.vectors.DirectIOCapableFlatVectorsFormat;
 import org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapper;
+import org.elasticsearch.simdvec.ESVectorizationProvider;
 
 import java.io.IOException;
 import java.util.Map;
@@ -35,6 +37,14 @@ public class ES93GenericFlatVectorsFormat extends AbstractFlatVectorsFormat {
     public static final int VERSION_START = 0;
     public static final int VERSION_CURRENT = VERSION_START;
 
+    /**
+     * Buffer raw vectors off-heap while the segment is written, so graph construction scores them
+     * through the native scorers rather than copying out of an on-heap list. Enabled only where those
+     * scorers exist: without them, scoring the off-heap store copies each vector back onto the heap on
+     * every comparison, which is slower than buffering on-heap in the first place.
+     */
+    static final boolean OFF_HEAP_BUFFERING = ESVectorizationProvider.getInstance().getVectorScorerFactory().usesNative();
+
     private static final GenericFormatMetaInformation META = new GenericFormatMetaInformation(
         VECTOR_FORMAT_INFO_EXTENSION,
         META_CODEC_NAME,
@@ -45,6 +55,23 @@ public class ES93GenericFlatVectorsFormat extends AbstractFlatVectorsFormat {
     private static final DirectIOCapableFlatVectorsFormat defaultVectorFormat = new DirectIOCapableLucene99FlatVectorsFormat(
         ES93GenericFlatVectorScorer.INSTANCE
     );
+
+    /**
+     * A write-side-only variant of {@link #defaultVectorFormat} that buffers vectors in native memory
+     * ({@link ES93FlatFieldVectorsWriter}) instead of an on-heap list.
+     *
+     * <p>It produces the same files as {@link #defaultVectorFormat} and deliberately inherits its
+     * {@code getName()}. It therefore must not be added to {@link #supportedFormats}.
+     */
+    private static final DirectIOCapableFlatVectorsFormat offHeapBufferedDefaultVectorFormat = new DirectIOCapableLucene99FlatVectorsFormat(
+        ES93GenericFlatVectorScorer.INSTANCE
+    ) {
+        @Override
+        public FlatVectorsWriter fieldsWriter(SegmentWriteState state) throws IOException {
+            return new Lucene99FlatVectorsWriter(state, flatVectorsScorer(), ES93FlatFieldVectorsWriter::create);
+        }
+    };
+
     private static final DirectIOCapableFlatVectorsFormat bitVectorFormat = new DirectIOCapableLucene99FlatVectorsFormat(
         ES93FlatBitVectorScorer.INSTANCE
     ) {
@@ -55,6 +82,19 @@ public class ES93GenericFlatVectorsFormat extends AbstractFlatVectorsFormat {
     };
     private static final DirectIOCapableFlatVectorsFormat bfloat16VectorFormat = new ES93BFloat16FlatVectorsFormat(
         ES93GenericFlatVectorScorer.INSTANCE
+    );
+
+    /**
+     * A write-side-only variant of {@link #bfloat16VectorFormat} that buffers vectors in native memory
+     * ({@link ES93FlatFieldVectorsWriter}) instead of an on-heap list. Vectors are buffered as float32 and
+     * truncated to bfloat16 at write-out, so graph construction scores them at full precision.
+     *
+     * <p>It produces the same files as {@link #bfloat16VectorFormat} and deliberately inherits its
+     * {@code getName()}. It therefore must not be added to {@link #supportedFormats}.
+     */
+    private static final DirectIOCapableFlatVectorsFormat offHeapBufferedBFloat16VectorFormat = new ES93BFloat16FlatVectorsFormat(
+        ES93GenericFlatVectorScorer.INSTANCE,
+        ES93FlatFieldVectorsWriter::create
     );
 
     private static final Map<String, DirectIOCapableFlatVectorsFormat> supportedFormats = Map.of(
@@ -74,11 +114,22 @@ public class ES93GenericFlatVectorsFormat extends AbstractFlatVectorsFormat {
     }
 
     public ES93GenericFlatVectorsFormat(DenseVectorFieldMapper.ElementType elementType, boolean useDirectIO) {
+        this(elementType, useDirectIO, false);
+    }
+
+    /**
+     * Variant that can buffer FLOAT32, BYTE and BFLOAT16 vectors in native memory while the segment is
+     * written, see {@link #offHeapBufferedDefaultVectorFormat} and
+     * {@link #offHeapBufferedBFloat16VectorFormat}. Off-heap buffering requires that each buffered vector is
+     * read at most once, and never mutated in place, by the enclosing format's write path; it is ignored for
+     * BIT.
+     */
+    public ES93GenericFlatVectorsFormat(DenseVectorFieldMapper.ElementType elementType, boolean useDirectIO, boolean offHeapBuffering) {
         super(NAME);
         writeFormat = switch (elementType) {
-            case FLOAT, BYTE -> defaultVectorFormat;
+            case FLOAT, BYTE -> offHeapBuffering ? offHeapBufferedDefaultVectorFormat : defaultVectorFormat;
             case BIT -> bitVectorFormat;
-            case BFLOAT16 -> bfloat16VectorFormat;
+            case BFLOAT16 -> offHeapBuffering ? offHeapBufferedBFloat16VectorFormat : bfloat16VectorFormat;
         };
         this.useDirectIO = useDirectIO;
     }

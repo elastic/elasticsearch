@@ -40,7 +40,7 @@ public class ES93FlatVectorFormat extends KnnVectorsFormat {
      */
     public ES93FlatVectorFormat() {
         super(NAME);
-        format = new ES93GenericFlatVectorsFormat();
+        format = new ES93GenericFlatVectorsFormat(DenseVectorFieldMapper.ElementType.FLOAT, false);
     }
 
     public ES93FlatVectorFormat(DenseVectorFieldMapper.ElementType elementType) {

@@ -352,8 +352,9 @@ public class ParquetFormatReader implements RangeAwareFormatReader, NoConfigForm
         for (ColumnDescriptor desc : schema.getColumns()) {
             String[] path = desc.getPath();
             // Non-top-level names are matched against the flattener's logical leaf name (which stops
-            // at an enclosing LIST/MAP group) rather than the raw descriptor path, so a struct-nested
-            // list leaf (answers.text -> answers.text.list.element) resolves instead of returning null.
+            // at an enclosing LIST/MAP/VARIANT group) rather than the raw descriptor path, so a
+            // struct-nested list leaf (answers.text -> answers.text.list.element) resolves instead of
+            // returning null.
             if (isTopLevel ? (path.length > 0 && path[0].equals(columnName)) : logicalLeafName(schema, path).equals(columnName)) {
                 descriptor = desc;
                 break;
@@ -2862,9 +2863,9 @@ public class ParquetFormatReader implements RangeAwareFormatReader, NoConfigForm
         for (ColumnDescriptor desc : projectedSchema.getColumns()) {
             String[] path = desc.getPath();
             descByDottedPath.put(String.join(".", path), desc);
-            // A LIST/MAP leaf reached through a STRUCT (e.g. answers.text.list.element) is surfaced
-            // by the flattener at its parent dotted path (answers.text); register that logical name
-            // too so the attribute binds to its descriptor instead of being dropped as absent.
+            // A LIST/MAP/VARIANT leaf reached through a STRUCT (e.g. answers.text.list.element) is
+            // surfaced by the flattener at its parent dotted path (answers.text); register that logical
+            // name too so the attribute binds to its descriptor instead of being dropped as absent.
             descByDottedPath.putIfAbsent(logicalLeafName(projectedSchema, path), desc);
             if (path.length > 0 && topLevelNames.contains(path[0])) {
                 descByTopLevel.putIfAbsent(path[0], desc);

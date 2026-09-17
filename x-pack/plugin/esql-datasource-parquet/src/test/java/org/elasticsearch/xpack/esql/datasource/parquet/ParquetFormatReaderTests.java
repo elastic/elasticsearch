@@ -778,6 +778,14 @@ public class ParquetFormatReaderTests extends ESTestCase {
         assertNull("no folded variant max in split stats", stats.get("_stats.columns.var.max"));
         assertNull("no folded variant null_count in split stats", stats.get("_stats.columns.var.null_count"));
         assertNull("no folded variant size in split stats", stats.get("_stats.columns.var.size_bytes"));
+        // Nothing under the variant may be published either. Asserting on the folded "var" keys alone would
+        // pass on a fully pre-fix tree, where the leaves keep their own distinct names
+        // (_stats.columns.var.metadata.size_bytes) and so trip none of the assertions above.
+        assertEquals(
+            "no variant-descended leaf may publish split stats",
+            Set.of(),
+            stats.keySet().stream().filter(k -> k.startsWith("_stats.columns.var")).collect(Collectors.toSet())
+        );
         // The sibling scalar still publishes its real per-split stats.
         assertEquals(0L, stats.get("_stats.columns.id.min"));
         assertEquals(2L, stats.get("_stats.columns.id.max"));

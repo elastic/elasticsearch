@@ -96,8 +96,8 @@ public class ParquetTestingIT extends ESRestTestCase {
      * <ul>
      *   <li>Encrypted files ({@code *.parquet.encrypted}, {@code aes256/})</li>
      *   <li>Variant encodings ({@code variant/}, {@code shredded_variant/}) -- except the two
-    *       {@code shredded_variant/} files listed in {@link #UNSUPPORTED_DATA_FILES}, which pin that a
-    *       VARIANT column resolves to {@code unsupported} rather than to its binary internals</li>
+     *       {@code shredded_variant/} files listed in {@link #UNSUPPORTED_DATA_FILES}, which pin that a
+     *       VARIANT column resolves to {@code unsupported} rather than to its binary internals</li>
      *   <li>Geospatial types ({@code geospatial/*.parquet})</li>
      *   <li>Non-parquet files ({@code bloom_filter.bin}, {@code bloom_filter.xxhash.bin})</li>
      *   <li>{@code large_string_map.brotli.parquet} -- 2GB+, too large for CI</li>

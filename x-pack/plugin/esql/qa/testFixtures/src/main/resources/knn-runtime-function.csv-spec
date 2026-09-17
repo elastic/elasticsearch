@@ -188,7 +188,7 @@ id:integer | label:keyword | _score:double
 ;
 
 
-// KNN with vector_similarity option = l2_norm (euclidean distance) and a threshold of 50.
+// KNN with similarity_function option = l2_norm (euclidean distance) and a threshold of 50.
 // Euclidean distances from [64,0,0] and score (1 / (1 + d²)) computation:
 
 //   id=0: 0                     -> score 1.0
@@ -202,12 +202,12 @@ id:integer | label:keyword | _score:double
 
 knnRuntimeWithL2NormSimilarityAndThreshold
 required_capability: knn_runtime_field
-required_capability: fn_knn_runtime_vector_similarity
+required_capability: fn_knn_runtime_similarity_function
 pragma: knn_runtime_field=true
 
 FROM knn_hex_vectors METADATA _score
 | EVAL dv = to_dense_vector(emb_hex)
-| WHERE knn(dv, [64, 0, 0], {"vector_similarity": "l2_norm", "similarity": 50.0})
+| WHERE knn(dv, [64, 0, 0], {"similarity_function": "l2_norm", "similarity": 50.0})
 | SORT id ASC
 | KEEP id, _score
 | LIMIT 10
@@ -223,15 +223,15 @@ id:integer | _score:double
 // a per-row warning and is excluded; the result is empty.
 knnRuntimeWithDotProductSimilarityRejectsNonUnitVectors
 required_capability: knn_runtime_field
-required_capability: fn_knn_runtime_vector_similarity
+required_capability: fn_knn_runtime_similarity_function
 pragma: knn_runtime_field=true
 
 ROW dv = to_dense_vector([2.0, 0.0, 0.0])
-| WHERE knn(dv, [1.0, 0.0, 0.0], {"vector_similarity": "dot_product"})
+| WHERE knn(dv, [1.0, 0.0, 0.0], {"similarity_function": "dot_product"})
 | KEEP dv
 | LIMIT 10
 ;
-warning:Line 2:9: evaluation of [knn(dv, [1.0, 0.0, 0.0], {\"vector_similarity\": \"dot_product\"})] failed, treating result as null. Only first 20 failures recorded.
+warning:Line 2:9: evaluation of [knn(dv, [1.0, 0.0, 0.0], {\"similarity_function\": \"dot_product\"})] failed, treating result as null. Only first 20 failures recorded.
 warning:Line 2:9: java.lang.IllegalArgumentException: dot_product requires unit-length vectors but encountered magnitude [2.0]
 
 dv:dense_vector

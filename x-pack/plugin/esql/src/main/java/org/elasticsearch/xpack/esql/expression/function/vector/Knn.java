@@ -94,7 +94,7 @@ public class Knn extends SingleFieldFullTextFunction
         .ternaryConfig(Knn::new)
         // Snapshot-only, matching the pragma that enables KNN's runtime search in the first place.
         .snapshotCapabilities("runtime_anywhere")
-        .snapshotCapabilities("runtime_vector_similarity")
+        .snapshotCapabilities("runtime_similarity_function")
         .name("knn");
 
     private final Integer implicitK;
@@ -111,13 +111,13 @@ public class Knn extends SingleFieldFullTextFunction
      * documented as a function named parameter yet because runtime knn, the only path that accepts it, is snapshot
      * only; add the {@code @MapParam.MapParamEntry} for it when that path is released.
      */
-    public static final String VECTOR_SIMILARITY_METRIC_OPTION = "vector_similarity";
+    public static final String SIMILARITY_FUNCTION_OPTION = "similarity_function";
 
     public static final Map<String, DataType> ALLOWED_OPTIONS = Map.ofEntries(
         entry(K_FIELD.getPreferredName(), INTEGER),
         entry(MIN_CANDIDATES_OPTION, INTEGER),
         entry(VECTOR_SIMILARITY_FIELD.getPreferredName(), FLOAT),
-        entry(VECTOR_SIMILARITY_METRIC_OPTION, KEYWORD),
+        entry(SIMILARITY_FUNCTION_OPTION, KEYWORD),
         entry(VISIT_PERCENTAGE_FIELD.getPreferredName(), FLOAT),
         entry(BOOST_FIELD.getPreferredName(), FLOAT),
         entry(KnnQuery.RESCORE_OVERSAMPLE_FIELD, FLOAT)
@@ -308,7 +308,7 @@ public class Knn extends SingleFieldFullTextFunction
     }
 
     /**
-     * Beyond the type checks every option gets, the {@code vector_similarity} value has to name one of the
+     * Beyond the type checks every option gets, the {@code similarity_function} value has to name one of the
      * {@link VectorSimilarityMetric}s. Whether the option is allowed here at all depends on the plan rather than on
      * the option itself, so that part is checked in {@link #fieldVerifier}.
      */
@@ -318,13 +318,13 @@ public class Knn extends SingleFieldFullTextFunction
             return TypeResolution.TYPE_RESOLVED;
         }
         return Options.resolve(options(), source(), THIRD, getAllowedOptions(), opts -> {
-            String metric = BytesRefs.toString(opts.get(VECTOR_SIMILARITY_METRIC_OPTION));
+            String metric = BytesRefs.toString(opts.get(SIMILARITY_FUNCTION_OPTION));
             if (metric != null && VectorSimilarityMetric.fromOptionValue(metric) == null) {
                 throw new InvalidArgumentException(
                     format(
                         null,
                         "Invalid option [{}] in [{}], expected one of {}",
-                        VECTOR_SIMILARITY_METRIC_OPTION,
+                        SIMILARITY_FUNCTION_OPTION,
                         sourceText(),
                         VectorSimilarityMetric.optionValues()
                     )
@@ -343,13 +343,13 @@ public class Knn extends SingleFieldFullTextFunction
     ) {
         super.fieldVerifier(plan, function, field, analysisRegistry, failures);
         if (false == isRuntimeSearch()) {
-            if (options() != null && queryOptions().get(VECTOR_SIMILARITY_METRIC_OPTION) != null) {
+            if (options() != null && queryOptions().get(SIMILARITY_FUNCTION_OPTION) != null) {
                 failures.add(
                     Failure.fail(
                         options(),
                         "[KNN] option [{}] is only supported when [{}] is a non-index-mapped field or expression; "
                             + "an indexed field is compared with the similarity declared in its mapping",
-                        VECTOR_SIMILARITY_METRIC_OPTION,
+                        SIMILARITY_FUNCTION_OPTION,
                         field.sourceText()
                     )
                 );
@@ -488,13 +488,13 @@ public class Knn extends SingleFieldFullTextFunction
 
     /**
      * The vector similarity metric used for runtime search path, defaulting to cosine when the
-     * {@code vector_similarity} option is absent.
+     * {@code similarity_function} option is absent.
      */
     private VectorSimilarityMetric similarityMetric() {
         if (options() == null) {
             return VectorSimilarityMetric.COSINE;
         }
-        String metric = BytesRefs.toString(queryOptions().get(VECTOR_SIMILARITY_METRIC_OPTION));
+        String metric = BytesRefs.toString(queryOptions().get(SIMILARITY_FUNCTION_OPTION));
         return metric == null ? VectorSimilarityMetric.COSINE : VectorSimilarityMetric.fromOptionValue(metric);
     }
 

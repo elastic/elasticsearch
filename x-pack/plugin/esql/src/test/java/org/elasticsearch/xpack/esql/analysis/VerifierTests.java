@@ -3668,7 +3668,7 @@ public class VerifierTests extends AnalyzerTestCase {
         checkOptionDataTypes(
             Knn.ALLOWED_OPTIONS,
             "FROM test | WHERE KNN(vector, [0.1, 0.2, 0.3], {\"%s\": %s})",
-            Set.of(Knn.VECTOR_SIMILARITY_METRIC_OPTION)
+            Set.of(Knn.SIMILARITY_FUNCTION_OPTION)
         );
         if (EsqlCapabilities.Cap.KQL_FUNCTION_OPTIONS.isEnabled()) {
             checkOptionDataTypes(Kql.ALLOWED_OPTIONS, "FROM test | WHERE KQL(\"title: Jean\", {\"%s\": %s})");

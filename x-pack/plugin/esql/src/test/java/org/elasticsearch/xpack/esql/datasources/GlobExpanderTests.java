@@ -36,13 +36,13 @@ public class GlobExpanderTests extends ESTestCase {
     /** No partition settings: the default, which resolves to AUTO and behaves as Hive detection did. */
     private static final Map<String, Object> HIVE_ON = Map.of();
 
-    /** The legacy switch that turns partition detection off, now folded into Strategy.NONE. */
-    private static final Map<String, Object> HIVE_OFF = Map.of(PartitionConfig.CONFIG_PARTITIONING_HIVE, "false");
+    /** Detection disabled via the canonical setting. */
+    private static final Map<String, Object> HIVE_OFF = Map.of(PartitionConfig.CONFIG_PARTITIONING_DETECTION, "none");
 
-    /** Hive off, and every exclusion off. Directory placeholder keys are still skipped regardless. */
+    /** Detection disabled, and every exclusion off. Directory placeholder keys are still skipped regardless. */
     private static final Map<String, Object> NO_EXCLUSION = Map.of(
-        PartitionConfig.CONFIG_PARTITIONING_HIVE,
-        "false",
+        PartitionConfig.CONFIG_PARTITIONING_DETECTION,
+        "none",
         ExclusionConfig.CONFIG_FILE_EXCLUSIONS,
         List.of()
     );
@@ -220,9 +220,12 @@ public class GlobExpanderTests extends ESTestCase {
         assertEquals("s3://bucket/data/file1.parquet", result.path(0).toString());
         assertEquals("s3://bucket/data/file2.parquet", result.path(1).toString());
 
-        assertWarnings(
-            "1 of 3 objects matching the resource under [s3://bucket/data/] was excluded by the [file_exclusions] "
-                + "dataset setting, for example [_SUCCESS] which matched entry [**/_*]"
+        assertEquals(
+            List.of(
+                "1 of 3 objects matching the resource under [s3://bucket/data/] was excluded by the [file_exclusions] "
+                    + "dataset setting, for example [_SUCCESS] which matched entry [**/_*]"
+            ),
+            result.listingWarnings()
         );
     }
 
@@ -242,9 +245,12 @@ public class GlobExpanderTests extends ESTestCase {
         assertEquals(1, result.fileCount());
         assertEquals("s3://bucket/data/file1.parquet", result.path(0).toString());
 
-        assertWarnings(
-            "1 of 2 objects matching the resource under [s3://bucket/data/] was excluded by the [file_exclusions] "
-                + "dataset setting, for example [.part-r-00001.parquet.crc] which matched entry [**/.*]"
+        assertEquals(
+            List.of(
+                "1 of 2 objects matching the resource under [s3://bucket/data/] was excluded by the [file_exclusions] "
+                    + "dataset setting, for example [.part-r-00001.parquet.crc] which matched entry [**/.*]"
+            ),
+            result.listingWarnings()
         );
     }
 
@@ -261,9 +267,12 @@ public class GlobExpanderTests extends ESTestCase {
         assertEquals(1, result.fileCount());
         assertEquals("s3://bucket/data/file1.parquet", result.path(0).toString());
 
-        assertWarnings(
-            "1 of 2 objects matching the resource under [s3://bucket/data/] was excluded by the [file_exclusions] "
-                + "dataset setting, for example [_metadata] which matched entry [**/_*]"
+        assertEquals(
+            List.of(
+                "1 of 2 objects matching the resource under [s3://bucket/data/] was excluded by the [file_exclusions] "
+                    + "dataset setting, for example [_metadata] which matched entry [**/_*]"
+            ),
+            result.listingWarnings()
         );
     }
 
@@ -315,9 +324,12 @@ public class GlobExpanderTests extends ESTestCase {
         assertEquals("only the data file survives", 1, result.fileCount());
         assertEquals("s3://bucket/data/file1.parquet", result.path(0).toString());
 
-        assertWarnings(
-            "1 of 2 objects matching the resource under [s3://bucket/data/] was excluded by the [file_exclusions] "
-                + "dataset setting, for example [_delta_log/00000000000000000001.json] which matched entry [**/_delta_log/**]"
+        assertEquals(
+            List.of(
+                "1 of 2 objects matching the resource under [s3://bucket/data/] was excluded by the [file_exclusions] "
+                    + "dataset setting, for example [_delta_log/00000000000000000001.json] which matched entry [**/_delta_log/**]"
+            ),
+            result.listingWarnings()
         );
     }
 
@@ -336,9 +348,12 @@ public class GlobExpanderTests extends ESTestCase {
         assertEquals("only the data file survives", 1, result.fileCount());
         assertEquals("s3://bucket/data/file1.parquet", result.path(0).toString());
 
-        assertWarnings(
-            "1 of 2 objects matching the resource under [s3://bucket/data/] was excluded by the [file_exclusions] "
-                + "dataset setting, for example [_temporary/task_0/part.parquet] which matched entry [**/_temporary/**]"
+        assertEquals(
+            List.of(
+                "1 of 2 objects matching the resource under [s3://bucket/data/] was excluded by the [file_exclusions] "
+                    + "dataset setting, for example [_temporary/task_0/part.parquet] which matched entry [**/_temporary/**]"
+            ),
+            result.listingWarnings()
         );
     }
 
@@ -362,9 +377,12 @@ public class GlobExpanderTests extends ESTestCase {
         assertEquals("s3://bucket/data/file1.parquet", result.path(0).toString());
         assertEquals("s3://bucket/data/file2.parquet", result.path(1).toString());
 
-        assertWarnings(
-            "2 of 4 objects matching the resource under [s3://bucket/data/] were excluded by the [file_exclusions] "
-                + "dataset setting, for example [_SUCCESS] which matched entry [**/_*]"
+        assertEquals(
+            List.of(
+                "2 of 4 objects matching the resource under [s3://bucket/data/] were excluded by the [file_exclusions] "
+                    + "dataset setting, for example [_SUCCESS] which matched entry [**/_*]"
+            ),
+            result.listingWarnings()
         );
     }
 
@@ -402,9 +420,12 @@ public class GlobExpanderTests extends ESTestCase {
         assertEquals("the partition directory survives; only the marker inside it is dropped", 1, result.fileCount());
         assertEquals("s3://bucket/data/_dept=alpha/part1.csv", result.path(0).toString());
 
-        assertWarnings(
-            "1 of 2 objects matching the resource under [s3://bucket/data/] was excluded by the [file_exclusions] "
-                + "dataset setting, for example [_dept=alpha/_SUCCESS] which matched entry [**/_*]"
+        assertEquals(
+            List.of(
+                "1 of 2 objects matching the resource under [s3://bucket/data/] was excluded by the [file_exclusions] "
+                    + "dataset setting, for example [_dept=alpha/_SUCCESS] which matched entry [**/_*]"
+            ),
+            result.listingWarnings()
         );
     }
 
@@ -428,9 +449,12 @@ public class GlobExpanderTests extends ESTestCase {
         assertEquals("s3://bucket/logs/year=2024/part-0.parquet", result.path(0).toString());
         assertEquals("a non-empty result must not trigger the rewrite fallback re-list", 1, provider.listCallCount);
 
-        assertWarnings(
-            "1 of 2 objects matching the resource under [s3://bucket/logs/year=2024/] was excluded by the [file_exclusions] "
-                + "dataset setting, for example [_SUCCESS] which matched entry [**/_*]"
+        assertEquals(
+            List.of(
+                "1 of 2 objects matching the resource under [s3://bucket/logs/year=2024/] was excluded by the [file_exclusions] "
+                    + "dataset setting, for example [_SUCCESS] which matched entry [**/_*]"
+            ),
+            result.listingWarnings()
         );
     }
 
@@ -687,9 +711,14 @@ public class GlobExpanderTests extends ESTestCase {
             GlobExpander.listingCacheDiscriminator(pattern, null, Map.of("schema_resolution", "union_by_name"))
         );
         assertEquals(
-            "FFW name+asc is the same listing order as UBN, so the keys match",
-            GlobExpander.listingCacheDiscriminator(pattern, null, ffw(FileOrderConfig.CONFIG_FILE_SORT_BY, "name")),
+            "omitted schema_resolution is effective FFW list+asc, same listing as explicit FFW with no knobs",
+            GlobExpander.listingCacheDiscriminator(pattern, null, ffw()),
             GlobExpander.listingCacheDiscriminator(pattern, null, Map.of())
+        );
+        assertNotEquals(
+            "omitted config must not share UBN's name-asc listing key",
+            GlobExpander.listingCacheDiscriminator(pattern, null, Map.of()),
+            GlobExpander.listingCacheDiscriminator(pattern, null, Map.of("schema_resolution", "union_by_name"))
         );
     }
 
@@ -878,6 +907,34 @@ public class GlobExpanderTests extends ESTestCase {
         PartitionConfig config = new PartitionConfig(PartitionConfig.Strategy.TEMPLATE, "{year}/{month}/{day}");
         String rewritten = GlobExpander.rewriteGlobWithHints("s3://bucket/*/*/*/*.parquet", hints, config);
         assertEquals("s3://bucket/2024/*/15/*.parquet", rewritten);
+    }
+
+    public void testRewriteGlobLiteralIsPinned() {
+        var hints = List.of(hint("year", PartitionFilterHintExtractor.Operator.EQUALS, 2024));
+        PartitionConfig config = new PartitionConfig(PartitionConfig.Strategy.TEMPLATE, "{year}/junk/{month}");
+        String rewritten = GlobExpander.rewriteGlobWithHints("s3://bucket/*/*/*/*.parquet", hints, config);
+        assertEquals("s3://bucket/2024/junk/*/*.parquet", rewritten);
+    }
+
+    public void testRewriteGlobSpelledLeadingLiteralStillRewrites() {
+        var hints = List.of(hint("year", PartitionFilterHintExtractor.Operator.EQUALS, 2024));
+        PartitionConfig config = new PartitionConfig(PartitionConfig.Strategy.TEMPLATE, "logs/{year}/{month}");
+        String rewritten = GlobExpander.rewriteGlobWithHints("s3://bucket/logs/*/*/*.parquet", hints, config);
+        assertEquals("s3://bucket/logs/2024/*/*.parquet", rewritten);
+    }
+
+    public void testRewriteGlobDoesNotTreatALeadingStarAsALiteral() {
+        var hints = List.of(hint("year", PartitionFilterHintExtractor.Operator.EQUALS, 2024));
+        PartitionConfig config = new PartitionConfig(PartitionConfig.Strategy.TEMPLATE, "logs/{year}/{month}");
+        String rewritten = GlobExpander.rewriteGlobWithHints("s3://bucket/*/logs/*/*/*.parquet", hints, config);
+        assertEquals("s3://bucket/*/logs/2024/*/*.parquet", rewritten);
+    }
+
+    public void testRewriteGlobDeclinesWhenTheBucketIsNotAPathSlot() {
+        var hints = List.of(hint("year", PartitionFilterHintExtractor.Operator.EQUALS, 2024));
+        PartitionConfig config = new PartitionConfig(PartitionConfig.Strategy.TEMPLATE, "logs/{year}/{month}");
+        String pattern = "s3://logs/*/*/*.parquet";
+        assertEquals(pattern, GlobExpander.rewriteGlobWithHints(pattern, hints, config));
     }
 
     public void testExpandGlobWithPartitionConfig() throws IOException {
@@ -1507,9 +1564,12 @@ public class GlobExpanderTests extends ESTestCase {
         assertEquals("default exclusions: only the data file survives", 1, withExclusion.fileCount());
         assertEquals("empty exclusion list: _SUCCESS included", 2, withoutExclusion.fileCount());
 
-        assertWarnings(
-            "1 of 2 objects matching the resource under [s3://bucket/data/] was excluded by the [file_exclusions] "
-                + "dataset setting, for example [_SUCCESS] which matched entry [**/_*]"
+        assertEquals(
+            List.of(
+                "1 of 2 objects matching the resource under [s3://bucket/data/] was excluded by the [file_exclusions] "
+                    + "dataset setting, for example [_SUCCESS] which matched entry [**/_*]"
+            ),
+            withExclusion.listingWarnings()
         );
     }
 
@@ -1529,9 +1589,12 @@ public class GlobExpanderTests extends ESTestCase {
         FileList raw = GlobExpander.expand("s3://bucket/data/*", provider, null, NO_EXCLUSION, MAX, MAX);
         assertEquals("empty exclusion list: _SUCCESS must be present", 2, raw.fileCount());
 
-        assertWarnings(
-            "1 of 2 objects matching the resource under [s3://bucket/data/] was excluded by the [file_exclusions] "
-                + "dataset setting, for example [_SUCCESS] which matched entry [**/_*]"
+        assertEquals(
+            List.of(
+                "1 of 2 objects matching the resource under [s3://bucket/data/] was excluded by the [file_exclusions] "
+                    + "dataset setting, for example [_SUCCESS] which matched entry [**/_*]"
+            ),
+            excluded.listingWarnings()
         );
     }
 
@@ -1558,11 +1621,14 @@ public class GlobExpanderTests extends ESTestCase {
         assertTrue(names.contains("s3://bucket/a/file1.parquet"));
         assertTrue(names.contains("s3://bucket/b/file2.parquet"));
 
-        assertWarnings(
-            "1 of 2 objects matching the resource under [s3://bucket/a/] was excluded by the [file_exclusions] "
-                + "dataset setting, for example [_SUCCESS] which matched entry [**/_*]",
-            "1 of 2 objects matching the resource under [s3://bucket/b/] was excluded by the [file_exclusions] "
-                + "dataset setting, for example [.part-r-00001.parquet.crc] which matched entry [**/.*]"
+        assertEquals(
+            List.of(
+                "1 of 2 objects matching the resource under [s3://bucket/a/] was excluded by the [file_exclusions] "
+                    + "dataset setting, for example [_SUCCESS] which matched entry [**/_*]",
+                "1 of 2 objects matching the resource under [s3://bucket/b/] was excluded by the [file_exclusions] "
+                    + "dataset setting, for example [.part-r-00001.parquet.crc] which matched entry [**/.*]"
+            ),
+            result.listingWarnings()
         );
     }
 
@@ -1645,7 +1711,7 @@ public class GlobExpanderTests extends ESTestCase {
             GlobExpander.listingCacheDiscriminator(keyed, year2025, HIVE_ON)
         );
 
-        // hive_partitioning gates the rewrite and selects the partition metadata carried by the cached listing.
+        // partition_detection:none disables the rewrite and selects the partition metadata carried by the cached listing.
         assertNotEquals(unhintedKeyed, GlobExpander.listingCacheDiscriminator(keyed, null, HIVE_OFF));
 
         var fileName = List.of(hint(FileMetadataColumns.NAME, PartitionFilterHintExtractor.Operator.EQUALS, "a.parquet"));
@@ -2234,9 +2300,12 @@ public class GlobExpanderTests extends ESTestCase {
         FileList result = GlobExpander.expandGlob("s3://bucket/data/**", new StubProvider(listing), null, HIVE_OFF);
 
         assertEquals("both data files survive", 2, result.fileCount());
-        assertWarnings(
-            "2 of 4 objects matching the resource under [s3://bucket/data/] were excluded by the [file_exclusions] "
-                + "dataset setting, for example [_SUCCESS] which matched entry [**/_*]"
+        assertEquals(
+            List.of(
+                "2 of 4 objects matching the resource under [s3://bucket/data/] were excluded by the [file_exclusions] "
+                    + "dataset setting, for example [_SUCCESS] which matched entry [**/_*]"
+            ),
+            result.listingWarnings()
         );
     }
 
@@ -2254,11 +2323,10 @@ public class GlobExpanderTests extends ESTestCase {
     }
 
     /**
-     * The cache loader uses {@link GlobExpander#expandAndCompact} which must attach the exclusion text
-     * without emitting it, so a later {@link GlobExpander#replayExclusionWarnings} does not double-warn
-     * on a miss.
+     * The cache loader uses {@link GlobExpander#expandAndCompact}; the exclusion text rides on the listing it returns,
+     * so a cache hit carries exactly what the miss did and nothing is written to headers here.
      */
-    public void testExpandAndCompactDefersExclusionWarningUntilReplay() throws IOException {
+    public void testExpandAndCompactCarriesExclusionWarningOnTheListing() throws IOException {
         List<StorageEntry> listing = List.of(entry("s3://bucket/data/_SUCCESS", 0), entry("s3://bucket/data/file.parquet", 100));
         String pattern = "s3://bucket/data/*";
         String warning = "1 of 2 objects matching the resource under [s3://bucket/data/] was excluded by the [file_exclusions] "
@@ -2266,10 +2334,32 @@ public class GlobExpanderTests extends ESTestCase {
 
         FileList compacted = GlobExpander.expandAndCompact(pattern, new StubProvider(listing), null, HIVE_OFF, StoragePath.of(pattern));
         assertEquals(1, compacted.fileCount());
-        assertEquals(List.of(warning), compacted.exclusionWarnings());
-        ensureNoWarnings();
 
-        GlobExpander.replayExclusionWarnings(compacted);
-        assertWarnings(warning);
+        assertEquals(List.of(warning), compacted.listingWarnings());
+    }
+
+    public void testExpandBracesKeepingWildcards() {
+        assertEquals(List.of("*.parquet"), GlobExpander.expandBracesKeepingWildcards("*.parquet"));
+        assertEquals(List.of("*.parquet", "*.csv"), GlobExpander.expandBracesKeepingWildcards("*.{parquet,csv}"));
+        assertEquals(List.of("a.csv", "b.csv"), GlobExpander.expandBracesKeepingWildcards("{a,b}.csv"));
+        assertEquals(List.of("hits.csv.gz"), GlobExpander.expandBracesKeepingWildcards("hits.csv.gz"));
+        assertEquals(List.of("*"), GlobExpander.expandBracesKeepingWildcards("*"));
+        assertEquals(List.of("file{a,b"), GlobExpander.expandBracesKeepingWildcards("file{a,b"));
+    }
+
+    /** A partition column renamed off a reserved name is a listing notice too, so it rides the listing like an exclusion. */
+    public void testPartitionRenameNoticeRidesTheListing() throws IOException {
+        StubProvider provider = new StubProvider(List.of(entry("s3://bucket/data/_index=alpha/file1.parquet", 100)));
+
+        FileList result = GlobExpander.expandGlob("s3://bucket/data/*/*.parquet", provider, null, Map.of("hive_partitioning", true));
+
+        assertEquals(1, result.fileCount());
+        assertEquals(
+            List.of(
+                "Partition columns shadowing reserved metadata names were renamed; reference them by the _partition.* name.",
+                "partition column [_index] surfaced as [_partition._index]"
+            ),
+            result.listingWarnings()
+        );
     }
 }

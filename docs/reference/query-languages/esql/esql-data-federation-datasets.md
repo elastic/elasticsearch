@@ -22,7 +22,13 @@ Federated data sources can read the following file formats:
 :::{include} _snippets/data-federation/supported-file-formats.md
 :::
 
-The format is detected automatically from the file extension. You can override this in the [dataset settings](#common-settings).
+Datasets should be scoped to a single file format. The format is inferred from the resource **pattern** when that pattern implies exactly one registered format — for example `**/*.parquet`, `_schema.parquet,events/**/*.parquet`, or `a.csv,b.csv.gz` (compression is not a second type). Extensionless prefixes (`hits/*`, `s3://dir1/,s3://dir2/`) and mixed patterns (`a.parquet,b.csv`, `*.{parquet,csv}`) require the [`format`](#common-settings) setting, or split the files into separate datasets. If your bucket contains a mix of file types, use the [resource pattern](esql-data-federation-patterns.md) to narrow the dataset to one format, for example `**/*.parquet`.
+
+If you need to query files of different formats from the same bucket, create a separate dataset for each. Ideally, all files in a dataset also share the same schema. When they differ, the [`schema_resolution`](#schema-merge-strategies) setting controls how differences are reconciled.
+
+:::{important}
+When set, the `format` setting selects the reader for every file the resource pattern matches. Unrecognized extensions (for example `.log.gz`) are still read with that reader. An object whose name maps to a **different registered** format than the dataset is rejected; the query does not skip the file or return garbled rows.
+:::
 
 ### Text formats
 
@@ -74,7 +80,7 @@ Click **Add dataset** to open a flyout where you define the dataset:
 - **Name**: a unique name for use in queries. Names must be lowercase and cannot begin with `-`, `_`, or `+`. A dataset cannot share a name with any existing index, data stream, alias, or view.
 - **Description**: an optional description.
 - **Resource**: the URI and glob pattern that selects the files to read. Refer to [resource patterns](esql-data-federation-patterns.md) for the pattern language.
-- **Format**: the file format. This selection is required in the {{kib}} UI. The API can omit `settings.format` to auto-detect it from the file extension. Refer to [supported file formats](#supported-file-formats).
+- **Format**: the file format. This selection is required in the {{kib}} UI. The API can omit `settings.format` when the resource pattern implies exactly one format. Extensionless or mixed patterns require `format`. Refer to [supported file formats](#supported-file-formats).
 
 To configure how the format is read, expand **Advanced settings**. Refer to [dataset settings](#dataset-settings).
 
@@ -135,6 +141,16 @@ curl -X PUT "${ELASTICSEARCH_URL}/_query/dataset/access_logs" \
 :::
 
 ::::
+
+:::{note}
+{applies_to}`stack: experimental 9.6+` Setting values are checked when the dataset is registered, not only when it
+is first queried. A malformed value, such as a multi-character `delimiter`, an unknown `encoding`, or a
+`segment_size` below the minimum, is rejected with a `400` error that identifies the setting.
+
+Datasets registered before this validation was introduced are not validated, so they keep
+working even if they contain invalid values. Replacing one of these datasets triggers validation, and you must correct
+any invalid values in the replacement request.
+:::
 
 :::{tip}
 After creating a dataset, you can check the field mappings that {{es}} inferred from your files. Refer to [check field mappings](esql-data-federation-quickstart.md#check-field-mappings) in the quickstart for a hands-on example.
@@ -266,9 +282,11 @@ The following settings apply to all file-based data sources:
 
 | Setting | Default | Description |
 |---|---|---|
-| `format` | Auto-detect from extension | Override format detection. Valid values: `"parquet"`, `"csv"`, `"tsv"`, `"ndjson"`. |
-| `partition_detection` | `auto` | Partition detection mode. Valid values: `"auto"`, `"hive"`, `"none"`. |
-| `schema_resolution` | `union_by_name` | How schemas are reconciled across multiple files. Valid values: `"first_file_wins"`, `"strict"`, `"union_by_name"`. Refer to [schema merge strategies](#schema-merge-strategies). |
+| `format` | Inferred from the resource pattern when that pattern implies exactly one format; otherwise required | Override or supply format detection. Valid values: `"parquet"`, `"csv"`, `"tsv"`, `"ndjson"`. Required for extensionless prefixes and mixed patterns. Forces unrecognized extensions through this reader, but rejects objects that map to a different registered format. |
+| `region` (S3 only) | Auto-detected | The AWS region of the bucket, for example `eu-central-1`. Omit it for standard AWS S3 — the SDK redirects automatically. Set it explicitly when using a custom `endpoint` override (such as MinIO or Scaleway) to skip the `HeadBucket` probe that discovers the region on the first request; once discovered the region is cached for the lifetime of the data source, so setting it is an optimization, not a requirement. |
+| `partition_detection` | `auto` | Partition detection mode. Valid values: `"auto"`, `"hive"`, `"template"`, `"none"`. `auto` (default) tries Hive `key=value` directory names first; if a `partition_path` is also set, falls back to the template for paths that do not use `key=value`. `hive` reads `key=value` directory names only and rejects `partition_path`. `template` uses `partition_path` to name partition columns and is rejected without it. `none` disables partition detection entirely. Refer to [brace groups and partition placeholders](esql-data-federation-patterns.md#brace-groups-and-partition-placeholders). |
+| `partition_path` | (none) | Template naming partition columns for paths that do not use `key=value` directories. Use `{column}` placeholders to label each partition path segment: for example, `{year}/{month}` extracts `year` and `month` columns from a two-level path. Setting `partition_path` without an explicit `partition_detection` leaves detection on `auto`, which tries Hive first and falls back to the template — a valid and common configuration. `partition_path` is rejected with `partition_detection: hive` or `none`. Refer to [brace groups and partition placeholders](esql-data-federation-patterns.md#brace-groups-and-partition-placeholders). |
+| `schema_resolution` | `first_file_wins` | How schemas are reconciled across multiple files. Valid values: `"first_file_wins"`, `"strict"`, `"union_by_name"`. New datasets that omit this setting store `"first_file_wins"`. Existing datasets created before `"first_file_wins"` became the default continue to use `"union_by_name"` when the setting is absent. Refer to [schema merge strategies](#schema-merge-strategies). |
 | `error_mode` | `fail_fast` | How malformed rows are handled. Valid values: `"fail_fast"`, `"skip_row"`, `"null_field"`. For Parquet, `skip_row` fills affected columns with null instead of skipping the entire row. For CSV, TSV, and NDJSON, `null_field` fills only individual value failures with null. Rows whose structure cannot be parsed (for example, an unparsable JSON line or a malformed CSV row) are still dropped. |
 | `max_errors` | unbounded | Maximum malformed rows allowed before the query fails. Ignored when `error_mode` is `fail_fast`. |
 | `max_error_ratio` | `0.0` | Fraction of malformed rows allowed (0.0–1.0). Ignored when `error_mode` is `fail_fast`. |
@@ -276,8 +294,10 @@ The following settings apply to all file-based data sources:
 | `split_probe_window` | `256kb` | The number of bytes a search for a record boundary can read while dividing files into splits. A dataset with records that are larger than this value is cut into fewer splits than the `target_split_size`. In this case, reads occur with less parallelism because a search that does not reach the end of a record finds no boundary to split at. Raise the value for a dataset with long records, within the budget in the note that follows. The setting applies to NDJSON and to CSV and TSV without quoting or escaping. Quoted or escaped records cannot be searched at a fixed offset, so those files are scanned sequentially and bounded by `external_max_record_size`, as it is dividing a split further across the threads of one node. Values below about `136kb` are read in full by every search, since finishing a window that small costs less than opening another connection. |
 | `max_split_probes` | `1000` | The maximum number of record-boundary searches a query can perform, which bounds how many splits its files are cut into. A searched file yields one split more than the searches spent on it. A file too small to search is read as a single whole-file split. A scan asking for more splits than this setting value is read at a wider split size than `target_split_size` requests. Raise it to get the requested split size on a very large scan. The highest accepted value is `10000`. |
 | `file_exclusions` {applies_to}`stack: experimental 9.6+` | `["**/_*", "**/.*", "**/_temporary/**", "**/_delta_log/**"]` | Patterns naming objects to drop from wildcard discovery, written in the same [pattern language](esql-data-federation-patterns.md) as `resource` and matched against the object's path relative to the listing prefix. The default skips file names beginning with `_` or `.` and the contents of `_temporary` and `_delta_log` directories. Refer to [excluding non-data objects](#excluding-non-data-objects). |
-| `file_sort_by` {applies_to}`stack: experimental 9.6+` | `list` (when `first_file_wins`) | What to order files by before taking the first-file-wins schema. Valid values: `"list"`, `"name"`, `"mtime"`. Only valid with `"schema_resolution": "first_file_wins"`. Refer to [first-file-wins file order](#first-file-wins-file-order). |
-| `file_order` {applies_to}`stack: experimental 9.6+` | `asc` (when `first_file_wins`) | Sort direction for `file_sort_by`. Valid values: `"asc"`, `"desc"`. Always applied; `"list"` + `"desc"` reverses declaration or listing order. Only valid with `"schema_resolution": "first_file_wins"`. |
+| `file_sort_by` {applies_to}`stack: experimental 9.6+` | `list` (when `first_file_wins`) | How files are ordered before the schema is taken from the first file. Valid values: `"list"`, `"name"`, `"mtime"`. This setting is valid when the effective value of `schema_resolution` is `"first_file_wins"`, including for a new dataset or a `FROM EXTERNAL` query that omits `schema_resolution`. Refer to [first-file-wins file order](#first-file-wins-file-order). |
+| `file_order` {applies_to}`stack: experimental 9.6+` | `asc` (when `first_file_wins`) | Sort direction for `file_sort_by`. Valid values: `"asc"`, `"desc"`. The sort direction also applies when `file_sort_by` is `"list"`; `"desc"` reverses the declaration or listing order. This setting is valid when the effective value of `schema_resolution` is `"first_file_wins"`. |
+
+% hive_partitioning intentionally omitted — being deprecated to a warn-only no-op in https://github.com/elastic/esql-planning/issues/1881
 
 :::{note}
 `max_split_probes` and `split_probe_window` are independent. The first defines how many record-boundary searches a query runs. The second defines how many bytes each one reads. Their product is the bytes a query can read while searching, which cannot exceed 4 GB. With the default values, it is 1000 searches of `256kb`, or around 250 MB. Size the window from the dataset's longest record and the count from the number of splits the scan needs. Lower one of them if the pair is rejected. The budget covers searches at fixed offsets: a sequentially scanned file (quoted or escaped CSV and TSV) is bounded by `external_max_record_size` rather than by either key.
@@ -370,20 +390,22 @@ setting can bring them back.
 
 | Setting | Default (CSV / TSV) | Description |
 |---|---|---|
-| `delimiter` | `,` / `\t` | The field separator. |
-| `mode` | `quoted` / `plain` | A preset bundling quoting and escaping into one choice. Valid values: `"quoted"`, `"escaped"`, `"plain"`. |
-| `header_row` | `true` | Whether the first row names the columns. |
+| `delimiter` | `,` / `\t` | The field separator. <br> Must be a single character (or one of `\t`, `\n`, `\r`, `\\`). {applies_to}`stack: experimental 9.6+` |
+| `mode` | `quoted` / `plain` | A preset bundling quoting and escaping into one choice. Valid values: `"quoted"`, `"escaped"`, `"plain"`. <br> Using `mode: escaped` with an explicit `quote` setting is rejected at registration time, because it silently turns quoting on and disables the escaped-mode decode. {applies_to}`stack: experimental 9.6+` |
+| `header_row` | `true` | Whether the first non-comment, non-blank record names the columns. Applied after `skip_rows`. |
+| `skip_rows` | `0` | Number of leading content records to discard per file, after gzip unwrap, on the first split only. Blank and comment lines are not counted. Applied before `header_row`. Maximum `1000`. |
 | `null_value` | `""` (empty) | The token read as null (for example `NULL`, `NA`, `\N`). |
 | `encoding` | `UTF-8` | The file's character encoding. |
 
-**Advanced:**
+A file that starts with two prose lines then `state,ip,user_agent` is read with `"skip_rows": 2` and `"header_row": true`. Blank lines and lines that begin with the `comment` prefix (default `//`) are skipped without counting toward `skip_rows`. A `//` preamble with `"skip_rows": 0` is still skipped via `comment`.
 
-% schema_sample_size (default 20000) hidden until https://github.com/elastic/elasticsearch/issues/155636 is resolved
+**Advanced:**
 
 | Setting | Default (CSV / TSV) | Description |
 |---|---|---|
-| `quote` | `"` / none | The quote character, or `"none"` to turn quoting off. An explicit value overrides the `mode` preset. |
-| `escape` | `\` / none | The escape character, or `"none"` to turn escaping off. An explicit value overrides the `mode` preset. |
+| `schema_sample_size` {applies_to}`stack: experimental 9.6+` | `20000` | Rows sampled to infer the schema. Determines whether sparse or late-appearing fields get a column. |
+| `quote` | `"` / none | The quote character, or `"none"` to turn quoting off. An explicit value overrides the `mode` preset. <br> Must be a single character (or one of `\t`, `\n`, `\r`, `\\`). {applies_to}`stack: experimental 9.6+` |
+| `escape` | `\` / none | The escape character, or `"none"` to turn escaping off. An explicit value overrides the `mode` preset. <br> Must be a single character (or one of `\t`, `\n`, `\r`, `\\`). {applies_to}`stack: experimental 9.6+` |
 | `comment` | `//` | Lines beginning with this prefix are skipped. |
 | `column_prefix` | `col` | Prefix for generated column names when `header_row` is `false`. |
 | `datetime_format` | ISO-8601 | The pattern used to parse date and time values. |
@@ -393,11 +415,13 @@ setting can bring them back.
 
 ### NDJSON settings
 
-% **Commonly changed:** table hidden — schema_sample_size was the only row.
-% Restore when https://github.com/elastic/elasticsearch/issues/155636 is resolved:
-% | Setting | Default | Description |
-% |---|---|---|
-% | `schema_sample_size` | `20000` | Lines sampled to infer the schema. Determines whether sparse or late-appearing fields get a column. |
+**Commonly changed:**
+
+| Setting | Default | Description |
+|---|---|---|
+| `schema_sample_size` {applies_to}`stack: experimental 9.6+` | `20000` | Lines sampled to infer the schema. Determines whether sparse or late-appearing fields get a column. |
+
+**Advanced:**
 
 | Setting | Default | Description |
 |---|---|---|
@@ -419,8 +443,9 @@ Because federated data does not live in {{es}}, the system discovers schemas bef
 
 When a dataset spans multiple files, the files might have different schemas. Set `schema_resolution` in the dataset's `settings` object to choose a strategy:
 
-- `union_by_name` (default): Merges schemas from all files by column name. Types are widened where possible: when two files disagree with no common type, the column falls back to `keyword` and the response carries a warning suggesting `strict` if you want the conflict to fail instead. `union_by_name` never fails on a type conflict. This is safer when files can vary, at the cost of reading and merging more file metadata.
-- `first_file_wins`: After files are discovered, they are ordered and the schema is taken from **the first file in that order**. Later files are assumed to match. This is typically faster, but schema differences in later files can cause query errors or values to be read under the wrong assumptions. Use [`file_sort_by`](#first-file-wins-file-order) and [`file_order`](#first-file-wins-file-order) to choose that first file. Those settings are rejected on `union_by_name` and `strict`.
+- `first_file_wins` (default for new datasets and for `FROM EXTERNAL` queries that omit the setting from `WITH`): After files are discovered, they are ordered, and the schema is taken from **the first file in that order**. Later files are read using that schema. For Parquet datasets with the same schema in every file, schema discovery reads only one footer. If a later Parquet file has a physical type that cannot be read as the corresponding type in the first file, {{es}} returns null values for that column and issues a warning. For CSV, TSV, and NDJSON, `error_mode` determines how parse and decode failures are handled according to the `fail_fast`, `skip_row`, or `null_field` setting. It does not apply to this Parquet type mismatch. Use [`file_sort_by`](#first-file-wins-file-order) and [`file_order`](#first-file-wins-file-order) to choose the first file. {applies_to}`stack: experimental 9.6+`
+`file_sort_by` and `file_order` are rejected when `schema_resolution` is explicitly set to `union_by_name` or `strict`. When a PUT request for a new dataset omits `schema_resolution`, the dataset stores `"first_file_wins"`. A subsequent GET request therefore includes the setting, and `file_sort_by` is valid. A PUT request that replaces a legacy dataset is a full replacement and also stores `"first_file_wins"` when `schema_resolution` is omitted.
+- `union_by_name`: Merges schemas from all files by column name. Columns that exist in some files but not others are filled with nulls. Types are widened where possible: when two files define the same column with incompatible types, the column type defaults to `keyword`. If you want type conflicts to produce an error, use `strict` instead. This is safer when files can vary, at the cost of reading and merging more file metadata. Existing datasets created before `first_file_wins` became the default continue to use `union_by_name` when no `schema_resolution` value is stored.
 - `strict`: Requires every file to have the same schema, apart from nullability, and returns an error when they differ. Use this when schema drift must fail explicitly.
 
 ### First-file-wins file order
@@ -429,7 +454,7 @@ When a dataset spans multiple files, the files might have different schemas. Set
 stack: experimental 9.6+
 ```
 
-`file_sort_by` and `file_order` apply only when `schema_resolution` is `first_file_wins`. The dataset API and query `WITH` clause reject them on `union_by_name` and `strict`.
+`file_sort_by` and `file_order` apply when the effective value of `schema_resolution` is `first_file_wins`, including for a new dataset or a `FROM EXTERNAL` query that omits `schema_resolution`. The dataset API and the query `WITH` clause reject these settings when `schema_resolution` is explicitly set to `union_by_name` or `strict`.
 
 After files are discovered (glob, comma list, or mix), they are ordered, then the schema is taken from **the first file in that order**.
 

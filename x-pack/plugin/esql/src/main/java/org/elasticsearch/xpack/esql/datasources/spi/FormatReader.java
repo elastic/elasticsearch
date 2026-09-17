@@ -11,6 +11,7 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.operator.CloseableIterator;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
+import org.elasticsearch.xpack.esql.datasources.ExternalReadCounters;
 
 import java.io.Closeable;
 import java.io.IOException;
@@ -25,7 +26,7 @@ import java.util.concurrent.Executor;
  * <p>
  * Simple formats: implement only {@link #read(StorageObject, FormatReadContext)} (sync) -
  * async wrapping is automatic.
- * Async-capable formats: override {@link #readAsync(StorageObject, FormatReadContext, Executor, ActionListener)}
+ * Async-capable formats: override {@link #readAsync(StorageObject, FormatReadContext, Executor, ExternalReadCounters, ActionListener)}
  * for native async behavior.
  * <p>
  * The output is ESQL's native Page format rather than Arrow to avoid
@@ -57,9 +58,17 @@ public interface FormatReader extends Closeable {
         UNION_BY_NAME;
 
         /**
+         * Stored / query {@code schema_resolution} token for this strategy
+         * ({@code first_file_wins}, {@code union_by_name}, {@code strict}).
+         */
+        public String configName() {
+            return name().toLowerCase(Locale.ROOT);
+        }
+
+        /**
          * Case-insensitive parse of a {@code schema_resolution} option value. This is the single
          * definition of valid strategy names, shared by the query path
-         * ({@code ExternalSourceResolver.parseSchemaResolution}) and the dataset CRUD validator so
+         * ({@code ExternalSourceResolver.effectiveSchemaResolution}) and the dataset CRUD validator so
          * the two cannot diverge.
          *
          * @throws IllegalArgumentException if {@code value} is not a recognised strategy
@@ -77,28 +86,21 @@ public interface FormatReader extends Closeable {
     }
 
     /**
-     * Cluster-wide default schema resolution strategy when a query does not specify one.
+     * Cluster-wide default schema resolution when a query or new dataset PUT omits the key.
      * <p>
-     * This is the single source of truth: it is consulted both by this SPI's
-     * {@link #defaultSchemaResolution()} and by {@code ExternalSourceResolver.parseSchemaResolution}
-     * when no {@code schema_resolution} key is present in the per-query config. The format
-     * detected at glob-expansion time is not yet known when the resolver decides whether to
-     * take the read-all-and-reconcile path versus the FFW fast path, so there is no format
-     * dispatch here today; if per-format defaults become desirable in the future the resolver
-     * will need to peek at the first listed file's format first, and this constant becomes the
-     * fallback only.
+     * This is the single source of truth for <em>omitted</em> config: {@code ExternalSourceResolver}
+     * {@code effectiveSchemaResolution}, listing order, and a new PUT that materializes the stored
+     * key all consult it. {@code first_file_wins} is the default so homogeneous Parquet lakes take
+     * the O(1) footer path without a setting. A cluster-state document that predates this default
+     * still hydrates as {@link SchemaResolution#UNION_BY_NAME} at query time
+     * ({@code ExternalSourceResolver.effectivePersistedSchemaResolution}); that fallback is not this
+     * constant.
+     * <p>
+     * The format detected at glob-expansion time is not yet known when the resolver decides whether
+     * to take the read-all-and-reconcile path versus the FFW fast path, so there is no per-format
+     * dispatch here.
      */
-    SchemaResolution DEFAULT_SCHEMA_RESOLUTION = SchemaResolution.UNION_BY_NAME;
-
-    /**
-     * Returns the cluster-wide default schema resolution for this reader. Format implementations
-     * may override this to advertise a different preferred default, but the resolver does not
-     * consult it today (see {@link #DEFAULT_SCHEMA_RESOLUTION} for the rationale). Override is
-     * effectively informational until that wiring exists.
-     */
-    default SchemaResolution defaultSchemaResolution() {
-        return DEFAULT_SCHEMA_RESOLUTION;
-    }
+    SchemaResolution DEFAULT_SCHEMA_RESOLUTION = SchemaResolution.FIRST_FILE_WINS;
 
     /**
      * Returns the default error policy for this format. The base default is {@link ErrorPolicy#STRICT}
@@ -159,17 +161,22 @@ public interface FormatReader extends Closeable {
      * Asynchronously reads data from the given storage object using the provided context.
      * <p>
      * The default wraps the synchronous {@link #read(StorageObject, FormatReadContext)} in the
-     * provided executor. Formats with native async support should override this.
+     * provided executor and records off-thread CPU in {@code readCounters}. Formats with native
+     * async support should override this and call {@code readCounters.meteredCpu()}
+     * on their async thread wrapping the read but before calling {@code listener.onResponse()}, or
+     * use {@code readCounters.add()} to account for the CPU time spent in the async read off-thread.
      */
     default void readAsync(
         StorageObject object,
         FormatReadContext context,
         Executor executor,
+        ExternalReadCounters readCounters,
         ActionListener<CloseableIterator<Page>> listener
     ) {
         executor.execute(() -> {
             try {
-                listener.onResponse(read(object, context));
+                CloseableIterator<Page> pages = readCounters.meteredCpu(() -> read(object, context), false);
+                listener.onResponse(pages);
             } catch (Exception e) {
                 listener.onFailure(e);
             }
@@ -207,6 +214,17 @@ public interface FormatReader extends Closeable {
      * for unknown-key rejection at planning time.
      */
     Configured<FormatReader> withConfigTrackingConsumedKeys(Map<String, Object> config);
+
+    /**
+     * Notices about the configuration itself, decided while {@link #withConfigTrackingConsumedKeys(Map)} parsed it (a
+     * CSV {@code mode} that a {@code quote} override silently undoes). They describe the dataset's options, not any
+     * file, so the resolver raises them once per path rather than per file; a file's own notices ride
+     * {@link SourceMetadata#warnings()} instead. Empty on the unconfigured prototype and for readers with nothing to
+     * say.
+     */
+    default List<String> configWarnings() {
+        return List.of();
+    }
 
     /**
      * Returns a format reader configured with the given pushed filter from the optimizer.

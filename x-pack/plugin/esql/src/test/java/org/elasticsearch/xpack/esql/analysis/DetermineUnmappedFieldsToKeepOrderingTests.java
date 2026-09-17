@@ -9,6 +9,7 @@ package org.elasticsearch.xpack.esql.analysis;
 
 import org.elasticsearch.xpack.esql.EsqlTestUtils;
 import org.elasticsearch.xpack.esql.TestAnalyzer;
+import org.elasticsearch.xpack.esql.VersionMode;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.expression.Expressions;
 import org.elasticsearch.xpack.esql.core.expression.ReferenceAttribute;
@@ -25,6 +26,10 @@ import static org.hamcrest.Matchers.notNullValue;
 import static org.hamcrest.Matchers.nullValue;
 
 public class DetermineUnmappedFieldsToKeepOrderingTests extends AnalyzerUnmappedTestBase {
+
+    public DetermineUnmappedFieldsToKeepOrderingTests(VersionMode versionMode) {
+        super(versionMode);
+    }
 
     /** An explicit term still beats a wildcard and keeps its written position, because the real KEEP resolver decides. */
     public void testKeepOrderingHonouredForDiscoveredFields() {
@@ -130,7 +135,43 @@ public class DetermineUnmappedFieldsToKeepOrderingTests extends AnalyzerUnmapped
         assertThat(withoutLoadAll.lastAnalyzer().unmappedFieldsOrdering(), nullValue());
     }
 
-    private static List<String> orderFor(String query, String... discovered) {
+    public void testForkPlacesDiscoveredFieldsAfterForkColumn() {
+        assertThat(
+            orderFor("FROM test | FORK (WHERE true) (WHERE true)", "unmapped.a"),
+            equalTo(
+                List.of(
+                    "_meta_field",
+                    "emp_no",
+                    "first_name",
+                    "gender",
+                    "hire_date",
+                    "job",
+                    "job.raw",
+                    "languages",
+                    "last_name",
+                    "long_noidx",
+                    "salary",
+                    "_fork",
+                    "unmapped.a"
+                )
+            )
+        );
+    }
+
+    public void testForkKeepAfterForkOrdersUnmappedWildcardBeforeLaterWildcard() {
+        assertThat(
+            orderFor("FROM test | FORK (WHERE true) (WHERE true) | KEEP _fork, emp_no, unmapped*, zz*", "unmapped.a", "zz_code"),
+            equalTo(List.of("_fork", "emp_no", "unmapped.a", "zz_code"))
+        );
+    }
+
+    public void testForkPatternLessKeepInEveryBranchHasNoOrdering() {
+        TestAnalyzer analyzer = test();
+        analyzer.statement(setUnmappedLoadAll("FROM test | FORK (KEEP emp_no) (KEEP first_name)"));
+        assertThat(analyzer.lastAnalyzer().unmappedFieldsOrdering(), nullValue());
+    }
+
+    private List<String> orderFor(String query, String... discovered) {
         TestAnalyzer analyzer = test();
         analyzer.statement(setUnmappedLoadAll(query));
         UnmappedFieldsOrdering ordering = analyzer.lastAnalyzer().unmappedFieldsOrdering();

@@ -1725,15 +1725,6 @@ public class StatelessCommitService extends AbstractLifecycleComponent implement
             return currentVirtualBcc;
         }
 
-        @Nullable
-        public VirtualBatchedCompoundCommit getCurrentOrPendingUploadVirtualBcc() {
-            var virtualBcc = getCurrentVirtualBcc();
-            if (virtualBcc == null) {
-                virtualBcc = getMaxPendingUploadBcc().orElse(null);
-            }
-            return virtualBcc;
-        }
-
         /**
          * Get the current {@link VirtualBatchedCompoundCommit}, or one of the {@link VirtualBatchedCompoundCommit} that are being
          * uploaded. Else, return null.
@@ -1819,6 +1810,14 @@ public class StatelessCommitService extends AbstractLifecycleComponent implement
                 .stream()
                 .filter(pendingVbcc -> pendingVbcc.commit().getPrimaryTermAndGeneration().generation() < generation)
                 .max(Comparator.comparingLong(pendingVbcc -> pendingVbcc.getPrimaryTermAndGeneration().generation()))
+                .map(PendingUploadVirtualBatchCompoundCommit::commit);
+        }
+
+        private Optional<VirtualBatchedCompoundCommit> getMaxPendingUploadBccBelowMaxGenerationToUpload() {
+            return pendingUploadBccGenerations.values()
+                .stream()
+                .filter(pending -> pauseUpload(pending.getPrimaryTermAndGeneration().generation()) == false)
+                .max(Comparator.comparing(PendingUploadVirtualBatchCompoundCommit::getPrimaryTermAndGeneration))
                 .map(PendingUploadVirtualBatchCompoundCommit::commit);
         }
 
@@ -3026,6 +3025,29 @@ public class StatelessCommitService extends AbstractLifecycleComponent implement
             assert success || isDeleted || commitReference.getPrimaryTermAndGeneration().generation() < uploadedGenerationNotified.get();
         }
 
+        /// The newest VBCC that may be handed to a recovering search shard, or `null` if there is none.
+        ///
+        /// A VBCC whose upload is paused by an in-progress relocation handoff will never reach the object store: the
+        /// shard transitions `RELOCATING` -> `CLOSED` and [#close()] discards it without uploading. The relocation target
+        /// then recovers at `maxGenerationToUpload` and reuses that generation for a commit of its own, with a different
+        /// internal layout, under the same blob name and the same shared-cache key (a relocation does not bump the
+        /// primary term). A search shard holding the source's commit would apply the source's byte offsets to the
+        /// target's blob and read corrupt data, so such a VBCC must never be exposed.
+        ///
+        /// Pending VBCCs at or below `maxGenerationToUpload` do still upload, because the handoff waits for them and
+        /// uploads are ordered by generation, so they remain exposable and are preferred over the last uploaded BCC.
+        ///
+        /// Note: an equivalent check on the new-commit-notification path can be found in `commitAfterRelocationStarted`
+        /// within [StatelessCommitService#onCommitCreation].
+        @Nullable
+        private VirtualBatchedCompoundCommit getLatestVirtualBccForUnpromotableRecovery() {
+            final var virtualBcc = getCurrentVirtualBcc();
+            if (virtualBcc != null && pauseUpload(virtualBcc.getPrimaryTermAndGeneration().generation()) == false) {
+                return virtualBcc;
+            }
+            return getMaxPendingUploadBccBelowMaxGenerationToUpload().orElse(null);
+        }
+
         /**
          * Register commit used by unpromotable, returning the commit to use by the unpromotable.
          */
@@ -3092,29 +3114,35 @@ public class StatelessCommitService extends AbstractLifecycleComponent implement
             registerVirtualBccForUnpromotableRecovery(Set.of(nodeId), availableBcc, listener);
         }
 
-        /**
-         * Register the virtual batched compound commit as the commit to use for the unpromotable shard recovery.
-         * <p>
-         * If a VBCC exists at the time this method is called, then the latest appended commit of that VBCC is retrieved to compute a list
-         * of referenced BCCs to retain during the recovery. The method then tries to register the {@code nodeId} for every referenced BCC
-         * (using {@link #registerUnpromoteableCommitRefs(Set, BlobReference)}). If that works a registration response is returned to the
-         * listener, with the latest uploaded BCC term/generation and a compound commit to use from the VBCC. Otherwise the method retries.
-         *
-         * @param nodeIds      a set containing the search shard's node id
-         * @param availableBcc a commit that is uploaded/available, but not necessarily yet in latestUploadedBcc
-         * @param listener     the listener to receive the {@link RegisterCommitResponse}
-         */
+        /// Register the virtual batched compound commit as the commit to use for the unpromotable shard recovery.
+        ///
+        /// If a VBCC that can be exposed to search shards exists at the time this method is called (see
+        /// [#getLatestVirtualBccForUnpromotableRecovery()]), then the latest appended commit of that VBCC is retrieved to compute a
+        /// list of referenced BCCs to retain during the recovery. The method then tries to register the `nodeId` for every referenced
+        /// BCC (using [#registerUnpromoteableCommitRefs(Set, BlobReference)]). If that works a registration response is returned to the
+        /// listener, with the latest uploaded BCC term/generation and a compound commit to use from the VBCC. Otherwise the method
+        /// retries.
+        ///
+        /// @param nodeIds      a set containing the search shard's node id
+        /// @param availableBcc a commit that is uploaded/available, but not necessarily yet in latestUploadedBcc
+        /// @param listener     the listener to receive the [RegisterCommitResponse]
         private void registerVirtualBccForUnpromotableRecovery(
             Set<String> nodeIds,
             AbstractBatchedCompoundCommit availableBcc,
             ActionListener<RegisterCommitResponse> listener
         ) {
             while (true) {
-                var virtual = getCurrentOrPendingUploadVirtualBcc();
+                var virtual = getLatestVirtualBccForUnpromotableRecovery();
                 if (virtual == null || isClosed()) {
                     break;
                 }
                 final var virtualPrimaryTermAndGeneration = virtual.getPrimaryTermAndGeneration();
+                assert virtual.getMaxGeneration() <= maxGenerationToUpload
+                    : shardId
+                        + " provided unpromotable recovery registration vbcc "
+                        + virtualPrimaryTermAndGeneration
+                        + " greater than maxGenerationToUpload="
+                        + maxGenerationToUpload;
                 final var virtualPendingCompoundCommit = virtual.getLastPendingCompoundCommit();
                 final var virtualCompoundCommit = virtualPendingCompoundCommit.getStatelessCompoundCommit();
 

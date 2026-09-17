@@ -18,6 +18,7 @@ import org.elasticsearch.compute.expression.ExpressionEvaluator;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.xpack.esql.core.expression.AnyNullIsNull;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
+import org.elasticsearch.xpack.esql.core.expression.FoldContext;
 import org.elasticsearch.xpack.esql.core.expression.Literal;
 import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
 import org.elasticsearch.xpack.esql.core.tree.Source;
@@ -31,6 +32,7 @@ import org.elasticsearch.xpack.esql.expression.function.Param;
 import org.elasticsearch.xpack.esql.expression.function.Signature;
 import org.elasticsearch.xpack.esql.expression.function.grouping.Bucket;
 import org.elasticsearch.xpack.esql.expression.function.scalar.EsqlConfigurationFunction;
+import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.EsqlBinaryComparison;
 import org.elasticsearch.xpack.esql.io.stream.PlanStreamInput;
 import org.elasticsearch.xpack.esql.plan.QuerySettings;
 import org.elasticsearch.xpack.esql.session.Configuration;
@@ -210,6 +212,43 @@ public class DateTrunc extends EsqlConfigurationFunction implements AnyNullIsNul
             return new Literal(source, processDateNanos(parsed.epoch(), rounding), DATE_NANOS);
         }
         return new Literal(source, processDatetime(parsed.epoch(), rounding), DATETIME);
+    }
+
+    /**
+     * Invert {@code DATE_TRUNC(interval, field) op literal} into field-vs-literal inequalities.
+     * Interval must already be a foldable {@code Period}/{@code Duration} (quoted strings are
+     * cast after analysis). Returns {@code null} to leave the comparison unchanged.
+     */
+    static Expression tryRewriteComparison(DateTrunc trunc, EsqlBinaryComparison cmp, FoldContext ctx) {
+        Expression field = DateFunctionLiterals.datetimeField(trunc.field());
+        if (field == null) {
+            return null;
+        }
+        if (trunc.interval().foldable() == false) {
+            return null;
+        }
+        Object interval = trunc.interval().fold(ctx);
+        if (interval instanceof Period == false && interval instanceof Duration == false) {
+            return null;
+        }
+        ZoneId zone = trunc.zoneId();
+        Long literalEpoch = DateFunctionLiterals.foldDateToFieldEpoch(cmp.right(), field.dataType(), zone, ctx);
+        if (literalEpoch == null) {
+            return null;
+        }
+        Rounding.Prepared rounding = createRounding(interval, zone, null, null);
+        long literalMillis = DateFunctionLiterals.toMillis(literalEpoch, field.dataType());
+        long startMillis = rounding.round(literalMillis);
+        long nextMillis = rounding.nextRoundingValue(startMillis);
+        long startEpoch = DateFunctionLiterals.toFieldEpoch(startMillis, field.dataType());
+        long nextEpoch = DateFunctionLiterals.toFieldEpoch(nextMillis, field.dataType());
+        return DateFunctionComparisonRewriter.rewriteComparisonBounds(
+            cmp,
+            field,
+            DateFunctionComparisonRewriter.boundLiteral(cmp, startEpoch, field.dataType()),
+            DateFunctionComparisonRewriter.boundLiteral(cmp, nextEpoch, field.dataType()),
+            startEpoch == literalEpoch
+        );
     }
 
     public static Rounding.Prepared createRounding(final Object interval, final ZoneId timeZone, Long min, Long max) {

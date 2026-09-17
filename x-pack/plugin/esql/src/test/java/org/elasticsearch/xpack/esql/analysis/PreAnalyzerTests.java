@@ -19,6 +19,7 @@ import java.util.stream.Collectors;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.TEST_FUNCTION_REGISTRY;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.TEST_PARSER;
 import static org.hamcrest.Matchers.containsInAnyOrder;
+import static org.hamcrest.Matchers.equalTo;
 
 public class PreAnalyzerTests extends ESTestCase {
 
@@ -107,6 +108,40 @@ public class PreAnalyzerTests extends ESTestCase {
             registeredInferenceFunctions,
             preAnalysisInferenceFunctions
         );
+    }
+
+    /**
+     * PromQL groups every series by all of its labels, so the field-caps request must resolve every dimension the index
+     * has, not just the ones the query names. This is the only shape that sets the flag.
+     */
+    public void testPromqlRequiresAllDimensionFields() {
+        assertRequiresAllDimensionFields("PROMQL index=k8s step=1m (avg(network.bytes_in))", true);
+    }
+
+    /**
+     * {@code WITHOUT} reads the surviving dimensions off the shard through the {@code _timeseries} packed-dimension loader,
+     * keyed by the excluded dimension names. It never enumerates the dimensions at plan time, so it does not need field-caps
+     * to resolve every dimension.
+     */
+    public void testTsWithoutGroupingDoesNotRequireAllDimensionFields() {
+        assertRequiresAllDimensionFields("TS k8s | STATS total_cost = sum(network.cost) BY WITHOUT(pod)", false);
+    }
+
+    /**
+     * A plain over-time aggregation names the fields it needs (the metric and any explicit grouping dimension), so it does
+     * not force resolving dimensions the query never mentions.
+     */
+    public void testBareTsOverTimeAggregateDoesNotRequireAllDimensionFields() {
+        assertRequiresAllDimensionFields("TS k8s | STATS max(rate(network.total_bytes_in)) BY cluster", false);
+    }
+
+    public void testFromDoesNotRequireAllDimensionFields() {
+        assertRequiresAllDimensionFields("FROM k8s | STATS count(*) BY cluster", false);
+    }
+
+    private static void assertRequiresAllDimensionFields(String query, boolean expected) {
+        PreAnalyzer.PreAnalysis preAnalysis = new PreAnalyzer().preAnalyze(TEST_PARSER.parseQuery(query));
+        assertThat(preAnalysis.requiresAllDimensionFields(), equalTo(expected));
     }
 
     private void assertCollectInferenceIds(PreAnalyzer preAnalyzer, String query, List<String> expectedInferenceIds) {

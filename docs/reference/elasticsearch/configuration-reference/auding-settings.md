@@ -64,11 +64,18 @@ $$$xpack-sa-lf-events-emit-request$$$
 
     The default value is `false`, so request bodies are not printed.
 
+    {applies_to}`stack: ga 9.4` Request bodies are emitted as the `request.body` audit event attribute, except bodies that cannot be represented as JSON (currently requests with a `Content-Type` of `application/x-protobuf`), which are emitted base64-encoded as the `request.raw_body` attribute instead.
+
     ::::{important}
     Be advised that sensitive data may be audited in plain text when including the request body in audit events, even though all the security APIs, such as those that change the user’s password, have the credentials filtered out when audited.
+
+    When `Content-Type` is `application/x-protobuf` (for example OTLP or Prometheus remote-write), the payload is captured verbatim as `request.raw_body`. Base64 encoding is a transport format rather than obfuscation, and such payloads commonly contain tenant identifiers, request headers, or other application-layer data.
     ::::
 
+$$$xpack-sa-lf-events-max-request-body-size$$$
 
+`xpack.security.audit.logfile.events.max_request_body_size` ![logo cloud](https://doc-icons.s3.us-east-2.amazonaws.com/logo_cloud.svg "Supported on Elastic Cloud Hosted")
+:   ([Dynamic](docs-content://deploy-manage/stack-settings.md#dynamic-cluster-setting)) Maximum rendered body size (in characters) that can be included in audit events when [`xpack.security.audit.logfile.events.emit_request_body`](#xpack-sa-lf-events-emit-request) is `true`. The limit is applied to the representation that is written to the audit log (the JSON representation of the request body for `request.body`, or the base64-encoded form for `request.raw_body`), so it correctly accounts for formats that expand when rendered. Requests whose rendered body exceeds this limit are rejected with HTTP 413 (Request Entity Too Large), ensuring the audit log is always a complete record of accepted requests. The default value is `2147483647b` (`Integer.MAX_VALUE`). A value of `0` removes the limit entirely. Lower this value on nodes with limited available memory as needed.
 
 ## Local Node Info Settings [node-audit-settings]
 

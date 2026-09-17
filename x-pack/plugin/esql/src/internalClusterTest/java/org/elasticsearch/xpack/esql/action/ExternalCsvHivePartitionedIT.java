@@ -78,10 +78,14 @@ public class ExternalCsvHivePartitionedIT extends AbstractExternalDataSourceIT {
     }
 
     /**
-     * Same fixture, queries with explicit {@code partition_path} key, asserting that
-     * {@code partition_path} is accepted by the coordinator-key validator (was also missing
-     * from COORDINATOR_KEYS before this fix). The primary assertion is that the query does
-     * not fail with "unknown option [partition_path]".
+     * Same fixture, with an explicit {@code partition_path}. This template names NO columns — the detector matches a
+     * path segment in full, so {@code year={year}} is not a placeholder. With no {@code partition_detection} the
+     * strategy is AUTO, which tries Hive first, so the dataset keeps the {@code year}/{@code month} columns it had
+     * before the setting reached the read path.
+     *
+     * <p>It previously asserted only that the query did not fail with "unknown option [partition_path]". An
+     * acceptance assertion cannot tell an applied template from an unapplied one, so it passed while the setting
+     * was unread. It now asserts the resulting columns.
      */
     public void testPartitionPathValidatesAndParses() throws Exception {
         Path root = createTempDir().resolve("template_csv");
@@ -92,9 +96,41 @@ public class ExternalCsvHivePartitionedIT extends AbstractExternalDataSourceIT {
         String dataset = registerDataset("template_csv", glob, Map.of("partition_path", "year={year}/month={month}/*.csv"));
         String query = "FROM " + dataset + " | LIMIT 1";
 
-        // Primary assertion: query does not throw "unknown option [partition_path]".
         try (var response = run(syncEsqlQueryRequest(query))) {
-            assertThat("expect at least 1 column", response.columns().size(), greaterThanOrEqualTo(1));
+            List<String> columnNames = response.columns().stream().map(c -> c.name()).collect(Collectors.toList());
+            assertThat("the data columns must still be read", columnNames, hasItem("id"));
+            // The template names no columns, so AUTO falls through to Hive detection -- the same columns this
+            // dataset produced before partition_path reached the read path.
+            assertThat("the Hive-derived year must still appear", columnNames, hasItem("year"));
+            assertThat("and the Hive-derived month", columnNames, hasItem("month"));
+        }
+    }
+
+    /**
+     * The documented opt-out against a colliding layout: with {@code partition_detection: none} nothing is derived
+     * from the path, so the PHYSICAL {@code year} (1999) is read rather than the directory's 2024, and no shadow
+     * warning is emitted. This is the end-to-end form of the defect: the setting was inert, so the substitution happened regardless of
+     * what the user asked for.
+     */
+    public void testDetectionNoneReadsThePhysicalColumnOnACollidingLayout() throws Exception {
+        Path root = createTempDir().resolve("hive_collision_none_csv");
+        writeCollisionCsvFiles(root);
+
+        @SuppressWarnings("checkstyle:EmptyJavadoc") // checkstyle thinks this is Javadoc
+        String glob = StoragePath.fileUri(root) + "/**/*.csv";
+        String dataset = registerDataset("hive_collision_none_csv", glob, Map.of("partition_detection", "none"));
+
+        String query = "FROM " + dataset + " | KEEP id, year, value | LIMIT 5";
+        try (var response = run(syncEsqlQueryRequest(query))) {
+            List<String> columnNames = response.columns().stream().map(c -> c.name()).collect(Collectors.toList());
+            int yearIdx = columnNames.indexOf("year");
+            assertThat("the physical year column must be readable", yearIdx, greaterThanOrEqualTo(0));
+
+            List<List<Object>> rows = getValuesList(response);
+            assertThat("expect the rows from the data file", rows.size(), greaterThanOrEqualTo(2));
+            for (List<Object> row : rows) {
+                assertThat("partition_detection:none reads the file's own 1999, not the path's 2024", row.get(yearIdx), is(1999));
+            }
         }
     }
 

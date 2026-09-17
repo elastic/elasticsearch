@@ -72,10 +72,9 @@ tasks.named("forbiddenPatterns").configure {
 
 tasks.named('forbiddenApisTest').configure {
   //we are using jdk-internal instead of jdk-non-portable to allow for com.sun.net.httpserver.* usage
-  modifyBundledSignatures { signatures ->
-    signatures -= 'jdk-non-portable'
-    signatures += 'jdk-internal'
-    signatures
+  configureBundledSignaturesFromDefaults {
+    remove 'jdk-non-portable'
+    add 'jdk-internal'
   }
 }
 

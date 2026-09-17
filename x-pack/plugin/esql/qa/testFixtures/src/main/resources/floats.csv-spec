@@ -245,6 +245,7 @@ row a = [1.1, 2.1, 2.1] | eval da = mv_dedupe(a);
 
 mvSliceEmp
 required_capability: mv_sort
+skip_columnar: MV_SLICE uses positional indexing; columnar mode returns MV values in source order rather than sorted doc-values order
 request_stored: skip
 
 from employees

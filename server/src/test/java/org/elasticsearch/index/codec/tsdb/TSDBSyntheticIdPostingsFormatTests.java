@@ -504,7 +504,8 @@ public class TSDBSyntheticIdPostingsFormatTests extends ESTestCase {
     }
 
     public void testSoftUpdateResolvesEveryIdAcrossSegments() throws IOException {
-        runTest((writer, parser) -> {
+        // We rely on skippers being enabled
+        runTest(false, (writer, parser) -> {
             final int routing = randomNonNegativeInt();
             // Matches the failing shard: ~7000 docs over consecutive milliseconds, 4 time series, flushed in irregular batches
             final int totalToIndex = randomIntBetween(5000, 8000);
@@ -565,7 +566,8 @@ public class TSDBSyntheticIdPostingsFormatTests extends ESTestCase {
     }
 
     public void testSeekCeilWithTimestampAboveTsidMaxAcrossSkipperBlocks() throws IOException {
-        runTest((writer, parser) -> {
+        // We rely on skippers being enabled
+        runTest(false, (writer, parser) -> {
             var segment = indexMultiBlockSegment(writer, parser);
             try (var reader = DirectoryReader.open(writer)) {
                 assertThat(reader.leaves(), hasSize(1));
@@ -589,8 +591,41 @@ public class TSDBSyntheticIdPostingsFormatTests extends ESTestCase {
         });
     }
 
+    public void testGetMinAndGetMax() throws IOException {
+        // Reproduces the node crash observed during a serverless primary-shard relocation. On the relocation target,
+        // IndexEngine#prewarmIdLookups calls Terms#getMax() on the _id field. Lucene's default getMax() drills into the
+        // terms with incomplete probe keys via seekCeil(). When a probe's _tsid matches an indexed one,
+        // SyntheticIdTermsEnum#seekCeil used to call extractTimestampFromSyntheticId() on the probe, whose trailing
+        // 8 bytes are not a real (Long.MAX_VALUE - timestamp) delta, so the decoded delta is negative and tripped
+        // `assert timestamp >= 0`. The uncaught-exception handler turned that into a node exit.
+        runTest(false, (writer, parser) -> {
+            indexMultiBlockSegment(writer, parser);
+            try (var reader = DirectoryReader.open(writer)) {
+                assertThat(reader.leaves(), hasSize(1));
+                var terms = reader.leaves().getFirst().reader().terms(IdFieldMapper.NAME);
+                assertNotNull(terms);
+
+                BytesRef expectedMin = null;
+                BytesRef expectedMax = null;
+                var iter = terms.iterator();
+                for (BytesRef term = iter.next(); term != null; term = iter.next()) {
+                    if (expectedMin == null) {
+                        expectedMin = BytesRef.deepCopyOf(term);
+                    }
+                    expectedMax = BytesRef.deepCopyOf(term);
+                }
+                assertThat(expectedMin, notNullValue());
+                assertThat(expectedMax, notNullValue());
+
+                assertThat(terms.getMin(), equalTo(expectedMin));
+                assertThat(terms.getMax(), equalTo(expectedMax));
+            }
+        });
+    }
+
     public void testSortedDeleteTermsResolveAcrossSkipperBlocks() throws IOException {
-        runTest((writer, parser) -> {
+        // We rely on skippers being enabled
+        runTest(false, (writer, parser) -> {
             var segment = indexMultiBlockSegment(writer, parser);
             var deletes = new ArrayList<>(segment.ids());
             deletes.add(segment.idInTimestampGap());
@@ -612,6 +647,7 @@ public class TSDBSyntheticIdPostingsFormatTests extends ESTestCase {
 
     public void testConcurrentSeekExactRandomDirectory() throws IOException {
         final var directory = newDirectory();
+        // Synthetic _id terms report docFreq/totalTermFreq as 0 (postings are synthesized), which CheckIndex rejects.
         directory.setCheckIndexOnClose(false);
         doTestConcurrentSeekExact(directory);
     }
@@ -665,6 +701,7 @@ public class TSDBSyntheticIdPostingsFormatTests extends ESTestCase {
      */
     public static void runTestWithRandomDocs(CheckedBiConsumer<IndexWriter, TreeMap<BytesRef, Doc>, IOException> test) throws IOException {
         final var directory = newDirectory();
+        // Synthetic _id terms report docFreq/totalTermFreq as 0 (postings are synthesized), which CheckIndex rejects.
         directory.setCheckIndexOnClose(false);
         runTestWithRandomDocs(directory, test);
     }
@@ -750,18 +787,28 @@ public class TSDBSyntheticIdPostingsFormatTests extends ESTestCase {
      * best way to stay close to the default options of time-series indices, while keeping it light enough for unit tests.
      */
     private static void runTest(CheckedBiConsumer<IndexWriter, TestDocParser, IOException> test) throws IOException {
-        final var directory = newDirectory();
-        // Checking the index on close requires to support Terms#getMin()/getMax() methods on invalid (or incomplete) terms, something
-        // that is not supported in TSDBSyntheticIdFieldsProducer today.
-        //
-        // TODO would be nice to enable check-index-on-close
-        directory.setCheckIndexOnClose(false);
-        runTest(directory, test);
+        runTest(rarely(), test);
     }
 
     private static void runTest(Directory directory, CheckedBiConsumer<IndexWriter, TestDocParser, IOException> test) throws IOException {
+        runTest(rarely(), directory, test);
+    }
+
+    private static void runTest(boolean disableSkippers, CheckedBiConsumer<IndexWriter, TestDocParser, IOException> test)
+        throws IOException {
+        final var directory = newDirectory();
+        // Synthetic _id terms report docFreq/totalTermFreq as 0 (postings are synthesized), which CheckIndex rejects.
+        directory.setCheckIndexOnClose(false);
+        runTest(disableSkippers, directory, test);
+    }
+
+    private static void runTest(
+        boolean disableSkippers,
+        Directory directory,
+        CheckedBiConsumer<IndexWriter, TestDocParser, IOException> test
+    ) throws IOException {
         final var indexName = randomIdentifier();
-        final var indexSettings = buildIndexSettings(indexName);
+        final var indexSettings = buildIndexSettings(indexName, disableSkippers);
         final var mapperService = buildMapperService(indexSettings);
         final var documentParser = buildDocumentParser(mapperService);
 
@@ -788,12 +835,12 @@ public class TSDBSyntheticIdPostingsFormatTests extends ESTestCase {
     /**
      * Builds time-series index settings.
      */
-    private static IndexSettings buildIndexSettings(final String indexName) {
+    private static IndexSettings buildIndexSettings(final String indexName, boolean disableSkippers) {
         final List<String> dimensions = List.of("hostname", "metric.field", "_metric_names_hash");
         var settings = indexSettings(IndexVersion.current(), 1, 0).put(IndexSettings.SYNTHETIC_ID.getKey(), true)
             .put(IndexSettings.MODE.getKey(), IndexMode.TIME_SERIES.getName())
             .putList(IndexMetadata.INDEX_DIMENSIONS.getKey(), dimensions);
-        if (rarely()) {
+        if (disableSkippers) {
             settings.put(IndexSettings.USE_DOC_VALUES_SKIPPER.getKey(), false);
         }
         return new IndexSettings(IndexMetadata.builder(indexName).settings(settings.build()).putMapping("""

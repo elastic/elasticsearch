@@ -199,6 +199,7 @@ public abstract class EsqlSpecTestCase extends ESRestTestCase {
     public void setup() throws IOException {
         assumeTrue("test clusters were broken", testClustersOk);
         INGEST.protectedBlock(() -> {
+            ensureRemoteClustersConnected();
             // Inference endpoints must be created before ingesting any datasets that rely on them (mapping of inference_id)
             // If multiple clusters are used, only create endpoints on the local cluster if it supports the inference test service.
             createInferenceEndpointsIfSupported();
@@ -211,6 +212,14 @@ public abstract class EsqlSpecTestCase extends ESRestTestCase {
                 this::clusterHasCapability,
                 indicesToLoad()
             );
+            // wait until the newly created indices are ready to search
+            ensureHealth(client(), "", request -> {
+                request.addParameter("wait_for_status", "yellow");
+                request.addParameter("wait_for_no_initializing_shards", "true");
+                request.addParameter("wait_for_no_relocating_shards", "true");
+                request.addParameter("timeout", "60s");
+                request.addParameter("level", "shards");
+            });
             return null;
         });
         // Views can be created before or after ingest, since index resolution is currently only done on the combined query.
@@ -235,6 +244,12 @@ public abstract class EsqlSpecTestCase extends ESRestTestCase {
             VIEWS.reset();
         }
     }
+
+    /**
+     * Hook, run once per JVM at the start of data ingestion, for suites that need a remote cluster to be connected before
+     * any data load or query is issued.
+     */
+    protected void ensureRemoteClustersConnected() throws Exception {}
 
     public boolean logResults() {
         return false;

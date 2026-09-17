@@ -1,0 +1,117 @@
+// Pins that the `partition_detection`, `partition_path` and `hive_partitioning` dataset settings select the
+// partition detector on the read path, end to end over a real storage backend.
+//
+// A csv-spec has no error channel, so only the promises expressible as a result table live here; the promises whose
+// fulfilment is an absence — suppressed partition metadata — or a cache-identity property are pinned in
+// PartitionDetectionSettingTests instead.
+//
+// Fixtures:
+//   {{employees_hive}}         hive-partitioned/lang=*/              partition key `lang`, payload column `languages`
+//   {{employees_hive_shadow}}  hive-partitioned-shadow/languages=*/  partition key COLLIDES with payload `languages`
+
+hiveDetectionOnByDefault
+required_capability: dataset_in_from_command
+dataset: employees_hive: "{{employees_hive}}"
+
+FROM employees_hive
+| STATS count = COUNT(*) BY lang
+| SORT lang NULLS LAST;
+
+count:long | lang:integer
+15         | 1
+19         | 2
+17         | 3
+18         | 4
+21         | 5
+10         | null
+;
+
+// ---------------------------------------------------------------------------------------------------------
+// The legacy switch. It now resolves through the same PartitionConfig as everything else (folded to
+// Strategy.NONE), so it must keep behaving exactly as it always has.
+// ---------------------------------------------------------------------------------------------------------
+
+hivePartitioningFalseTurnsDetectionOff
+required_capability: dataset_in_from_command
+dataset: employees_hive_detection_off: "{{employees_hive}}" WITH {"hive_partitioning": "false"}
+
+FROM employees_hive_detection_off
+| STATS count = COUNT(*);
+
+count:long
+100
+;
+
+// ---------------------------------------------------------------------------------------------------------
+// A `partition_path` template names the partition column. If the setting stops reaching the read path the Hive
+// detector runs instead, the template is dropped, and this fails with `Unknown column [bucket]`.
+//
+// The expected `lang=__HIVE_DEFAULT_PARTITION__` is deliberate: template detection binds the literal directory name,
+// and the Hive null sentinel is a Hive-writer convention that only the Hive detector interprets.
+// ---------------------------------------------------------------------------------------------------------
+
+templateStrategyNamesTheColumnFromTheTemplate
+required_capability: dataset_in_from_command
+dataset: employees_hive_template: "{{employees_hive}}" WITH {"partition_detection": "template", "partition_path": "{bucket}"}
+
+FROM employees_hive_template
+| STATS count = COUNT(*) BY bucket
+| SORT bucket;
+
+count:long | bucket:keyword
+15         | lang=1
+19         | lang=2
+17         | lang=3
+18         | lang=4
+21         | lang=5
+10         | lang=__HIVE_DEFAULT_PARTITION__
+;
+
+// ---------------------------------------------------------------------------------------------------------
+// Silent column substitution on a colliding layout: the directory key `languages` is also a real column inside the
+// parquet files. The path-derived value wins and the physical column is hidden (Spark/DuckDB semantics), and the
+// response warns. The warning now points at `partition_detection: none`, which is the setting that actually
+// switches it off.
+// ---------------------------------------------------------------------------------------------------------
+
+shadowedColumnSubstitutionAndWarning
+required_capability: dataset_in_from_command
+dataset: employees_hive_shadow_ds: "{{employees_hive_shadow}}"
+
+FROM employees_hive_shadow_ds
+| STATS count = COUNT(*) BY languages
+| SORT languages NULLS LAST;
+
+warningRegex:.*one or more physical columns are shadowed by same-named Hive partition keys.*Set partition_detection to none to read the physical column instead.*
+warningRegex:.*physical column \[languages\] is shadowed by a same-named Hive partition key.*
+
+count:long | languages:integer
+15         | 1
+19         | 2
+17         | 3
+18         | 4
+21         | 5
+10         | null
+;
+
+// ---------------------------------------------------------------------------------------------------------
+// The documented opt-out stops the substitution: with `partition_detection: none` nothing is path-derived, so the
+// physical column is read and no shadow warning is emitted.
+// ---------------------------------------------------------------------------------------------------------
+
+noneStopsTheColumnSubstitution
+required_capability: dataset_in_from_command
+dataset: employees_hive_shadow_none: "{{employees_hive_shadow}}" WITH {"partition_detection": "none"}
+
+FROM employees_hive_shadow_none
+| STATS count = COUNT(*) BY languages
+| SORT languages NULLS LAST;
+
+count:long | languages:integer
+15         | 1
+19         | 2
+17         | 3
+18         | 4
+21         | 5
+10         | null
+;

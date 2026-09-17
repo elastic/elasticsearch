@@ -134,5 +134,4 @@ public class Ai21ChatCompletionServiceSettings extends FilteredXContentObject im
     public int hashCode() {
         return Objects.hash(modelId, rateLimitSettings);
     }
-
 }

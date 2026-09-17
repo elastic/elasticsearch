@@ -10,6 +10,7 @@ package org.elasticsearch.xpack.esql.datasources;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.PathUtils;
 import org.elasticsearch.core.SuppressForbidden;
+import org.elasticsearch.xpack.esql.datasources.glob.GlobExpander;
 import org.elasticsearch.xpack.esql.datasources.spi.StoragePath;
 
 import java.nio.file.Path;
@@ -102,6 +103,14 @@ public class LocalFileAccess {
      * @throws IllegalArgumentException if the path is rejected
      */
     public void check(StoragePath path) {
+        // A comma-separated multi-file listing (e.g. file:///a.csv,file:///b.csv) is not one filesystem path: parsing
+        // the whole string as a single Path fails on filesystems that reject when a separator carries an embedded segment,
+        // e.g. ':' on Windows.
+        var segments = GlobExpander.commaSegments(path.toString());
+        if (segments.size() > 1) {
+            segments.stream().map(StoragePath::of).forEach(this::check);
+            return;
+        }
         if ("file".equalsIgnoreCase(path.scheme()) == false) {
             return;
         }

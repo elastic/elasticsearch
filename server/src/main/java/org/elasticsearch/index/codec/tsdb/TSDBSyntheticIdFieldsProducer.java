@@ -86,6 +86,34 @@ public class TSDBSyntheticIdFieldsProducer extends FieldsProducer {
             }
 
             @Override
+            public BytesRef getMin() throws IOException {
+                // Prefer an explicit min over the default Terms#getMin walk so bloom-filter wrappers that
+                // delegate here (and checkIndex / relocation prewarm) never rely on incomplete seekCeil probes.
+                var docValues = new TSDBSyntheticIdDocValuesHolder(fieldInfos, docValuesProducer);
+                for (int doc = 0; doc < maxDocs; doc++) {
+                    if (docValues.hasTsIdDocValue(doc)) {
+                        return docValues.docSyntheticId(doc);
+                    }
+                }
+                return null;
+            }
+
+            @Override
+            public BytesRef getMax() throws IOException {
+                // Documents are sorted by _tsid ascending then @timestamp descending, so the last document
+                // with a _tsid holds the lexicographically largest synthetic _id. Override the default
+                // Terms#getMax binary search: its incomplete probe keys are not valid synthetic ids and
+                // trip extractTimestampFromSyntheticId when seekCeil matches a _tsid.
+                var docValues = new TSDBSyntheticIdDocValuesHolder(fieldInfos, docValuesProducer);
+                for (int doc = maxDocs - 1; doc >= 0; doc--) {
+                    if (docValues.hasTsIdDocValue(doc)) {
+                        return docValues.docSyntheticId(doc);
+                    }
+                }
+                return null;
+            }
+
+            @Override
             public int getDocCount() {
                 return maxDocs; // All docs have a synthetic id
             }

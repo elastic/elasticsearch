@@ -32,6 +32,7 @@ import org.elasticsearch.http.HttpServerTransport;
 import org.elasticsearch.indices.ExecutorSelector;
 import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.indices.breaker.CircuitBreakerService;
+import org.elasticsearch.node.internal.TerminationHandler;
 import org.elasticsearch.plugins.MockPluginsService;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.plugins.PluginsLoader;
@@ -276,6 +277,20 @@ public class MockNode extends Node {
             } else {
                 return new MockHttpTransport();
             }
+        }
+
+        @Override
+        ShutdownPrepareService newShutdownPrepareService(
+            PluginsService pluginsService,
+            Settings settings,
+            HttpServerTransport httpServerTransport,
+            TransportService transportService,
+            TerminationHandler terminationHandler
+        ) {
+            if (pluginsService.filterPlugins(ListenableShutdownPrepareService.TestPlugin.class).findAny().isPresent()) {
+                return new ListenableShutdownPrepareService(settings, httpServerTransport, transportService, terminationHandler);
+            }
+            return super.newShutdownPrepareService(pluginsService, settings, httpServerTransport, transportService, terminationHandler);
         }
     }
 

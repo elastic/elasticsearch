@@ -47,19 +47,22 @@ x-pack/plugin/otel-data/src/main/java/org/elasticsearch/xpack/oteldata/otlp @ela
 x-pack/plugin/otel-data/src/test/java/org/elasticsearch/xpack/oteldata/otlp @elastic/es-storage-engine
 x-pack/plugin/otel-data/src/javaRestTest/java/org/elasticsearch/xpack/oteldata/otlp @elastic/es-storage-engine
 
-# Delivery
-gradle @elastic/es-delivery
-build-conventions @elastic/es-delivery
-build-tools @elastic/es-delivery
-build-tools-internal @elastic/es-delivery
-.buildkite @elastic/es-delivery
-.ci @elastic/es-delivery
-.idea @elastic/es-delivery
-distribution/src @elastic/es-delivery
-distribution/packages/src @elastic/es-delivery
-distribution/docker/src @elastic/es-delivery
-
 # Core/Infra
+gradle @elastic/es-core-infra
+# ignore verification metadata
+gradle/verification-metadata.xml
+build-conventions @elastic/es-core-infra
+build-tools @elastic/es-core-infra
+build-tools-internal @elastic/es-core-infra
+# ignore shared version properties
+build-tools-internal/version.properties
+.buildkite @elastic/es-core-infra
+.ci @elastic/es-core-infra
+.idea @elastic/es-core-infra
+distribution/src @elastic/es-core-infra
+distribution/packages/src @elastic/es-core-infra
+distribution/docker/src @elastic/es-core-infra
+
 distribution/tools @elastic/es-core-infra
 libs/entitlement @elastic/es-core-infra
 libs/logging @elastic/es-core-infra

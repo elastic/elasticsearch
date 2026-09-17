@@ -1373,9 +1373,11 @@ public class ESVectorUtilTests extends BaseVectorizationTests {
 
         float[] expected = basicMatrixMultiply(a, b, m, k, n);
 
-        float[] scalar = defaultedProvider.getVectorUtilSupport().matrixMultiply(a, b, m, k, n);
+        float[] scalar = new float[m * n];
+        defaultedProvider.getVectorUtilSupport().matrixMultiply(a, b, m, k, n, scalar);
         assertArrayEquals(expected, scalar, 1e-3f);
-        float[] panama = panamaProvider.getVectorUtilSupport().matrixMultiply(a, b, m, k, n);
+        float[] panama = new float[m * n];
+        panamaProvider.getVectorUtilSupport().matrixMultiply(a, b, m, k, n, panama);
         assertArrayEquals(expected, panama, 1e-3f);
     }
 

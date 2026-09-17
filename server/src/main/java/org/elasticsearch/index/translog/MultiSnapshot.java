@@ -9,12 +9,15 @@
 
 package org.elasticsearch.index.translog;
 
+import org.elasticsearch.index.engine.IndexOperationBatch;
 import org.elasticsearch.index.seqno.CountedBitSet;
 import org.elasticsearch.index.seqno.SequenceNumbers;
 
 import java.io.Closeable;
 import java.io.IOException;
+import java.util.ArrayDeque;
 import java.util.Arrays;
+import java.util.Deque;
 import java.util.HashMap;
 import java.util.Map;
 
@@ -29,6 +32,8 @@ final class MultiSnapshot implements Translog.Snapshot {
     private final Closeable onClose;
     private int index;
     private final SeqNoSet seenSeqNo;
+    // Only used by next(): exploded operations of the most recently returned batch record.
+    private final Deque<Translog.Operation> pendingExploded = new ArrayDeque<>();
 
     /**
      * Creates a new point in time snapshot of the given snapshots. Those snapshots are always iterated in-order.
@@ -54,15 +59,50 @@ final class MultiSnapshot implements Translog.Snapshot {
 
     @Override
     public Translog.Operation next() throws IOException {
+        final Translog.Operation pending = pendingExploded.pollFirst();
+        if (pending != null) {
+            return pending;
+        }
+        Translog.Record record;
+        while ((record = nextRecord()) != null) {
+            if (record instanceof Translog.Operation op) {
+                return op;
+            }
+            // overridden rows are already excluded from the exploded operations
+            pendingExploded.addAll(((IndexOperationBatch.TranslogRecord) record).explode());
+            final Translog.Operation first = pendingExploded.pollFirst();
+            if (first != null) {
+                return first;
+            }
+        }
+        return null;
+    }
+
+    /**
+     * Generations are read newest first, so a seqNo seen before belongs to a newer write that overrides
+     * this one. A batch record is returned whole with its overridden rows marked skipped; the rows it
+     * does replay are registered as seen before it is returned.
+     */
+    @Override
+    public Translog.Record nextRecord() throws IOException {
         // TODO: Read translog forward in 9.0+
         for (; index >= 0; index--) {
             final TranslogSnapshot current = translogs[index];
-            Translog.Operation op;
-            while ((op = current.next()) != null) {
-                if (op.seqNo() == SequenceNumbers.UNASSIGNED_SEQ_NO || seenSeqNo.getAndSet(op.seqNo()) == false) {
-                    return op;
-                } else {
+            Translog.Record record;
+            while ((record = current.nextRecord()) != null) {
+                if (record instanceof Translog.Operation op) {
+                    if (op.seqNo() == SequenceNumbers.UNASSIGNED_SEQ_NO || seenSeqNo.getAndSet(op.seqNo()) == false) {
+                        return op;
+                    }
                     overriddenOperations++;
+                    continue;
+                }
+                final IndexOperationBatch.TranslogRecord batch = (IndexOperationBatch.TranslogRecord) record;
+                // filterRows tests each replayed row exactly once, so getAndSet both registers and filters
+                final IndexOperationBatch.TranslogRecord kept = batch.filterRows(seqNo -> seenSeqNo.getAndSet(seqNo) == false);
+                overriddenOperations += batch.replayCount() - (kept == null ? 0 : kept.replayCount());
+                if (kept != null) {
+                    return kept;
                 }
             }
         }

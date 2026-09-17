@@ -17,7 +17,6 @@ import java.io.IOException;
 import java.nio.ByteBuffer;
 import java.util.ArrayDeque;
 import java.util.Deque;
-import java.util.List;
 
 final class TranslogSnapshot extends BaseTranslogReader {
 
@@ -30,8 +29,8 @@ final class TranslogSnapshot extends BaseTranslogReader {
     private int skippedOperations;
     private int readOperations;
     private BufferedChecksumStreamInput reuse;
-    // When the most recently read record was a batch, its exploded ops are buffered here
-    // and emitted one-by-one by subsequent next() calls before reading the next on-disk record.
+    // Only used by next(): when the most recently read record was a batch, its exploded ops are
+    // buffered here and emitted one-by-one before reading the next on-disk record.
     private final Deque<Translog.Operation> pendingExploded;
 
     /**
@@ -63,43 +62,62 @@ final class TranslogSnapshot extends BaseTranslogReader {
         return checkpoint;
     }
 
-    public Translog.Operation next() throws IOException {
+    /**
+     * Reads the next on-disk record, dropping operations trimmed above the checkpoint. A batch record is
+     * returned whole; its trimmed rows are marked skipped via
+     * {@link IndexOperationBatch.TranslogRecord#filterRows} and a record whose rows are all trimmed is
+     * dropped like a trimmed operation.
+     */
+    public Translog.Record nextRecord() throws IOException {
         while (readOperations < totalOperations) {
-            final Translog.Operation operation = nextOperation();
-            if (operation == null) {
-                continue;
+            final int opSize = readSize(reusableBuffer, position);
+            reuse = checksummedStream(reusableBuffer, position, opSize, reuse);
+            final Translog.Record record = readRecord(reuse);
+            position += opSize;
+            if (record instanceof Translog.Operation op) {
+                readOperations++;
+                if (isTrimmed(op.seqNo())) {
+                    skippedOperations++;
+                    continue;
+                }
+                return op;
             }
-            if (operation.seqNo() <= checkpoint.trimmedAboveSeqNo || checkpoint.trimmedAboveSeqNo == SequenceNumbers.UNASSIGNED_SEQ_NO) {
-                return operation;
+            // A batch record contributed its seqNo-consuming row count to operationCounter (and hence to totalOperations).
+            final IndexOperationBatch.TranslogRecord batch = (IndexOperationBatch.TranslogRecord) record;
+            readOperations += batch.operationCount();
+            final IndexOperationBatch.TranslogRecord kept = batch.filterRows(seqNo -> isTrimmed(seqNo) == false);
+            skippedOperations += batch.operationCount() - (kept == null ? 0 : kept.replayCount());
+            if (kept != null) {
+                return kept;
             }
-            skippedOperations++;
         }
         reuse = null; // release buffer, it may be large and is no longer needed
         return null;
     }
 
-    private Translog.Operation nextOperation() throws IOException {
+    public Translog.Operation next() throws IOException {
         // First drain any pending exploded ops from a previously-read batch record.
-        Translog.Operation pending = pendingExploded.pollFirst();
+        final Translog.Operation pending = pendingExploded.pollFirst();
         if (pending != null) {
-            readOperations++;
             return pending;
         }
-        final int opSize = readSize(reusableBuffer, position);
-        reuse = checksummedStream(reusableBuffer, position, opSize, reuse);
-        final Translog.Record record = readRecord(reuse);
-        position += opSize;
-        if (record instanceof Translog.Operation op) {
-            readOperations++;
-            return op;
+        Translog.Record record;
+        while ((record = nextRecord()) != null) {
+            if (record instanceof Translog.Operation op) {
+                return op;
+            }
+            // skipped rows are already excluded from the exploded operations
+            pendingExploded.addAll(((IndexOperationBatch.TranslogRecord) record).explode());
+            final Translog.Operation first = pendingExploded.pollFirst();
+            if (first != null) {
+                return first;
+            }
         }
-        // A batch record contributed its replayable row count to operationCounter (and hence to
-        // totalOperations). Explode and queue them; the next loop iteration will emit one and
-        // bump readOperations.
-        final IndexOperationBatch.TranslogRecord batch = (IndexOperationBatch.TranslogRecord) record;
-        final List<Translog.Operation> exploded = batch.explode();
-        pendingExploded.addAll(exploded);
         return null;
+    }
+
+    private boolean isTrimmed(long seqNo) {
+        return checkpoint.trimmedAboveSeqNo != SequenceNumbers.UNASSIGNED_SEQ_NO && seqNo > checkpoint.trimmedAboveSeqNo;
     }
 
     public long sizeInBytes() {

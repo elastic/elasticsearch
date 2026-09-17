@@ -383,9 +383,9 @@ public class CaseExtraTests extends ESTestCase {
 
     /**
      * Nested {@code CASE} used to recurse in {@link Case#fold(FoldContext)} until
-     * the JVM threw {@link StackOverflowError}. The type is randomized: temporal
-     * types have always been folded by hand, the rest used to fold through an
-     * evaluator, and both recursed.
+     * the JVM threw {@link StackOverflowError}. The type is randomized: types with no
+     * evaluator have always been folded by hand, the rest used to fold through one, and
+     * both recursed.
      */
     public void testDeeplyNestedFoldDoesNotStackOverflow() {
         boolean nestInTrueBranch = randomBoolean();
@@ -505,11 +505,11 @@ public class CaseExtraTests extends ESTestCase {
     }
 
     /**
-     * Temporal {@code CASE} has no evaluator and has never warned about a multivalued
-     * condition. {@link ESTestCase} fails the test if a warning is raised and not
-     * asserted, so not asserting one is the assertion.
+     * A {@code CASE} whose type has no evaluator, {@code DATE_PERIOD} here, has never warned
+     * about a multivalued condition. {@link ESTestCase} fails the test if a warning is raised
+     * and not asserted, so not asserting one is the assertion.
      */
-    public void testTemporalFoldDoesNotWarnOnMultivalueCondition() {
+    public void testFoldWithoutEvaluatorDoesNotWarnOnMultivalueCondition() {
         Period taken = Period.ofDays(randomIntBetween(1, 20));
         Period unused = randomValueOtherThan(taken, () -> Period.ofDays(randomIntBetween(1, 20)));
         Case c = resolvedCase(

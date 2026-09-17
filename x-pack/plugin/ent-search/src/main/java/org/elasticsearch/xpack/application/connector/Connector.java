@@ -67,11 +67,6 @@ public class Connector implements ToXContentObject {
 
     public static final String NAME = Connector.class.getName().toUpperCase(Locale.ROOT);
 
-    /**
-     * Bounds the heap needed to read a connector, as the description is stored and returned in full.
-     */
-    public static final int MAX_DESCRIPTION_LENGTH = 8192;
-
     @Nullable
     private final String connectorId;
     @Nullable

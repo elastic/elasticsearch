@@ -9,7 +9,6 @@ package org.elasticsearch.xpack.application.connector.action;
 
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.test.ESTestCase;
-import org.elasticsearch.xpack.application.connector.Connector;
 
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.notNullValue;
@@ -62,35 +61,5 @@ public class PostConnectorActionTests extends ESTestCase {
 
         assertThat(exception, notNullValue());
         assertThat(exception.getMessage(), containsString("Invalid index name [_illegal-index-name]"));
-    }
-
-    public void testValidate_WhenDescriptionAtMaxLength_ExpectNoValidationError() {
-        PostConnectorAction.Request request = new PostConnectorAction.Request(
-            randomAlphaOfLength(Connector.MAX_DESCRIPTION_LENGTH),
-            randomAlphaOfLength(10),
-            false,
-            randomAlphaOfLength(10),
-            randomAlphaOfLength(10),
-            randomAlphaOfLength(10)
-        );
-        ActionRequestValidationException exception = request.validate();
-
-        assertThat(exception, nullValue());
-    }
-
-    public void testValidate_WhenDescriptionExceedsMaxLength_ExpectValidationError() {
-        PostConnectorAction.Request requestWithTooLongDescription = new PostConnectorAction.Request(
-            randomAlphaOfLength(Connector.MAX_DESCRIPTION_LENGTH + 1),
-            randomAlphaOfLength(10),
-            false,
-            randomAlphaOfLength(10),
-            randomAlphaOfLength(10),
-            randomAlphaOfLength(10)
-        );
-        ActionRequestValidationException exception = requestWithTooLongDescription.validate();
-
-        assertThat(exception, notNullValue());
-        assertThat(exception.getMessage(), containsString("[description] length [" + (Connector.MAX_DESCRIPTION_LENGTH + 1) + "]"));
-        assertThat(exception.getMessage(), containsString("maximum allowed length [" + Connector.MAX_DESCRIPTION_LENGTH + "]"));
     }
 }

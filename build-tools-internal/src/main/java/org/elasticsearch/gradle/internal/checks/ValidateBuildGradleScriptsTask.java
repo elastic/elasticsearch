@@ -102,7 +102,9 @@ public abstract class ValidateBuildGradleScriptsTask extends DefaultTask {
         if (problems.isEmpty() == false) {
             throw problemReporter.throwing(
                 new GradleException(
-                    "Found invalid build.gradle script validation results:" + System.lineSeparator() + String.join(System.lineSeparator(), violations)
+                    "Found invalid build.gradle script validation results:"
+                        + System.lineSeparator()
+                        + String.join(System.lineSeparator(), violations)
                 ),
                 problems
             );
@@ -204,7 +206,9 @@ public abstract class ValidateBuildGradleScriptsTask extends DefaultTask {
                             "The validateBuildGradleScripts baseline entry no longer matches any violation. Baselines must shrink as scripts are cleaned up."
                         )
                         .fileLocation(rootBuildFile.getAbsolutePath())
-                        .solution("Remove the stale baseline entry from the validateBuildGradleScripts task configuration in the root build.gradle file.")
+                        .solution(
+                            "Remove the stale baseline entry from the validateBuildGradleScripts task configuration in the root build.gradle file."
+                        )
                 )
             );
         }
@@ -220,9 +224,7 @@ public abstract class ValidateBuildGradleScriptsTask extends DefaultTask {
             for (String path : paths) {
                 String trimmedPath = path.trim();
                 if (trimmedPath.isEmpty()) {
-                    throw new GradleException(
-                        String.format(Locale.ROOT, "Baseline path for rule [%s] must not be blank", trimmedRuleId)
-                    );
+                    throw new GradleException(String.format(Locale.ROOT, "Baseline path for rule [%s] must not be blank", trimmedRuleId));
                 }
                 entries.add(new BaselineEntry(trimmedRuleId, trimmedPath));
             }

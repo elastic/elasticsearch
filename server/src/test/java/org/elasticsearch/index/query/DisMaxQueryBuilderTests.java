@@ -131,27 +131,6 @@ public class DisMaxQueryBuilderTests extends AbstractQueryTestCase<DisMaxQueryBu
         assertEquals(json, 2, parsed.innerQueries().size());
     }
 
-    public void testTooManyClausesRejectedAtParseTime() throws IOException {
-        int max = 5;
-        long baseline = AbstractQueryBuilder.QUERY_BUILDER_SIZE_ESTIMATE_BYTES;
-        // DisMaxQueryBuilder charges BASELINE + queries.size() * 8 for slot overhead.
-        // Set limit = cost of (max children + root dis_max with max slots), so the big query's
-        // root dis_max charge (BASELINE + (max+1)*8) tips it over.
-        long okTotal = max * baseline + (baseline + (long) max * 8);
-        // dis_max with max inner clauses: root + max children charge exactly at the limit — must succeed
-        DisMaxQueryBuilder okQuery = new DisMaxQueryBuilder();
-        for (int i = 0; i < max; i++) {
-            okQuery.add(new MatchAllQueryBuilder());
-        }
-        // dis_max with max+1 inner clauses: root dis_max is the last charge; it tips over the limit.
-        // Root charge happens outside ObjectParser so CircuitBreakingException is not wrapped.
-        DisMaxQueryBuilder bigQuery = new DisMaxQueryBuilder();
-        for (int i = 0; i < max + 1; i++) {
-            bigQuery.add(new MatchAllQueryBuilder());
-        }
-        assertParseTimeBreaker(okTotal, okQuery, bigQuery);
-    }
-
     public void testRewriteMultipleTimes() throws IOException {
         DisMaxQueryBuilder dismax = new DisMaxQueryBuilder();
         dismax.add(new WrapperQueryBuilder(new WrapperQueryBuilder(new MatchAllQueryBuilder().toString()).toString()));

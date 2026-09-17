@@ -83,8 +83,8 @@ public class ExecutableSearchInput extends ExecutableInput<SearchInput, SearchIn
             logger.trace("[{}] running query for [{}] [{}]", ctx.id(), ctx.watch().id(), request.getSearchSource().utf8ToString());
         }
 
-        SearchRequest searchRequest = searchTemplateService.toSearchRequest(request);
         ClientHelper.assertNoAuthorizationHeader(ctx.watch().status().getHeaders());
+        SearchRequest searchRequest = searchTemplateService.toSearchRequest(request);
         // Use PlainActionFuture so the cleanup fires at actual search completion,
         // not merely when actionGet(timeout) stops waiting.
         PlainActionFuture<SearchResponse> future = new PlainActionFuture<>();
@@ -94,11 +94,18 @@ public class ExecutableSearchInput extends ExecutableInput<SearchInput, SearchIn
             client,
             TransportSearchAction.TYPE,
             searchRequest,
-            ActionListener.runAfter(future, () -> {
-                if (searchRequest.source() != null) searchRequest.source().close();
-            })
+            ActionListener.runAfter(ActionListener.wrap(r -> {
+                r.mustIncRef();
+                future.onResponse(r);
+            }, future::onFailure), () -> { if (searchRequest.source() != null) searchRequest.source().close(); })
         );
-        final SearchResponse response = future.actionGet(timeout);
+        final SearchResponse response;
+        try {
+            response = future.actionGet(timeout);
+        } catch (Exception e) {
+            if (searchRequest.source() != null) searchRequest.source().close();
+            throw e;
+        }
         try {
             if (logger.isDebugEnabled()) {
                 logger.debug("[{}] found [{}] hits", ctx.id(), response.getHits().getTotalHits().value());

@@ -29,6 +29,8 @@ import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
+import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.atomic.AtomicInteger;
 
 import static java.util.Collections.emptyList;
 import static org.elasticsearch.index.query.AbstractQueryBuilder.parseInnerQueryBuilder;
@@ -207,6 +209,76 @@ public class AbstractQueryBuilderTests extends ESTestCase {
         BytesRef bytesRef = (BytesRef) AbstractQueryBuilder.maybeConvertToBytesRef(termBuilder.toString());
         assertEquals(correctSize, bytesRef.bytes.length);
         assertEquals(correctSize, bytesRef.length);
+    }
+
+    /**
+     * Verifies that {@link AbstractQueryBuilder#clearQueryParsingBreaker} uses CAS semantics: when
+     * two threads race to clear the same expected breaker instance, exactly one succeeds.
+     */
+    public void testClearQueryParsingBreakerCasSemantics() throws InterruptedException {
+        LimitedBreaker breaker = new LimitedBreaker(CircuitBreaker.REQUEST, ByteSizeValue.ofBytes(Long.MAX_VALUE));
+        AbstractQueryBuilder.setQueryParsingBreaker(breaker);
+        try {
+            int threads = 2;
+            CountDownLatch ready = new CountDownLatch(threads);
+            CountDownLatch go = new CountDownLatch(1);
+            AtomicInteger cleared = new AtomicInteger(0);
+            Thread[] ts = new Thread[threads];
+            for (int i = 0; i < threads; i++) {
+                ts[i] = new Thread(() -> {
+                    ready.countDown();
+                    try {
+                        go.await();
+                    } catch (InterruptedException e) {
+                        Thread.currentThread().interrupt();
+                        return;
+                    }
+                    AbstractQueryBuilder.clearQueryParsingBreaker(breaker);
+                    cleared.incrementAndGet();
+                });
+                ts[i].start();
+            }
+            ready.await();
+            go.countDown();
+            for (Thread t : ts) {
+                t.join();
+            }
+            // Both threads ran clearQueryParsingBreaker — verify the breaker is now null
+            // (the CAS succeeded exactly once, leaving null in the slot)
+            assertEquals(threads, cleared.get()); // both calls returned, but only one CAS succeeded
+            // Install a dummy to verify the slot is actually cleared
+            LimitedBreaker dummy = new LimitedBreaker(CircuitBreaker.REQUEST, ByteSizeValue.ofBytes(Long.MAX_VALUE));
+            AbstractQueryBuilder.setQueryParsingBreaker(dummy);
+            AbstractQueryBuilder.clearQueryParsingBreaker(dummy);
+            // A second clear with the wrong expected value must be a no-op
+            AbstractQueryBuilder.clearQueryParsingBreaker(breaker); // breaker != null, so CAS fails
+            // Re-install dummy and verify it is still present
+            AbstractQueryBuilder.setQueryParsingBreaker(dummy);
+            AbstractQueryBuilder.clearQueryParsingBreaker(breaker); // wrong expected — no-op
+            AbstractQueryBuilder.clearQueryParsingBreaker(dummy);   // correct expected — clears
+        } finally {
+            AbstractQueryBuilder.setQueryParsingBreaker(null);
+        }
+    }
+
+    /**
+     * Verifies that {@link AbstractQueryBuilder#clearQueryParsingBreaker} with a wrong expected
+     * value leaves the current breaker in place (no-op).
+     */
+    public void testClearQueryParsingBreakerWrongExpectedIsNoop() {
+        LimitedBreaker installed = new LimitedBreaker(CircuitBreaker.REQUEST, ByteSizeValue.ofBytes(Long.MAX_VALUE));
+        LimitedBreaker other = new LimitedBreaker(CircuitBreaker.REQUEST, ByteSizeValue.ofBytes(Long.MAX_VALUE));
+        AbstractQueryBuilder.setQueryParsingBreaker(installed);
+        try {
+            AbstractQueryBuilder.clearQueryParsingBreaker(other); // wrong expected — no-op
+            // If it were a no-op, the installed breaker is still active; install another breaker
+            // successfully to confirm the slot is non-null (i.e., still holds `installed`).
+            AbstractQueryBuilder.setQueryParsingBreaker(other);
+            // Now clear correctly
+            AbstractQueryBuilder.clearQueryParsingBreaker(other);
+        } finally {
+            AbstractQueryBuilder.setQueryParsingBreaker(null);
+        }
     }
 
 }

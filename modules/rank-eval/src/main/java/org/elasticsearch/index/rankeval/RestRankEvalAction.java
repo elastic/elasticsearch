@@ -117,11 +117,11 @@ public class RestRankEvalAction extends BaseRestHandler {
 
             @Override
             public void accept(RestChannel channel) throws Exception {
-                dispatched = true;
                 // ActionListener.runAfter covers action-filter rejection: if a filter calls
                 // listener.onFailure before doExecute runs, Guard 1/2 there never fire, so we
                 // release parse-time breaker charges here on both success and failure paths.
                 // SearchSourceBuilder.close() is idempotent, so double-closing with Guard 2 is safe.
+                dispatched = true;
                 client.execute(
                     RankEvalPlugin.ACTION,
                     rankEvalRequest,

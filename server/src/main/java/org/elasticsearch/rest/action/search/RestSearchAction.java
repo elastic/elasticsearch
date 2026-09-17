@@ -156,7 +156,6 @@ public class RestSearchAction extends BaseRestHandler {
 
             @Override
             public void accept(RestChannel channel) {
-                dispatched = true;
                 RestCancellableNodeClient cancelClient = new RestCancellableNodeClient(client, request.getHttpChannel());
                 var params = serializationParams(searchRequest, channel.request());
                 ActionListener<SearchResponse> completionListener = RestActions.wrapWithSearchMetricsHeader(
@@ -164,6 +163,7 @@ public class RestSearchAction extends BaseRestHandler {
                     SearchResponse::getDirectoryMetrics,
                     new RestRefCountedChunkedToXContentListener<>(channel, params)
                 );
+                dispatched = true;
                 cancelClient.execute(
                     TransportSearchAction.TYPE,
                     searchRequest,

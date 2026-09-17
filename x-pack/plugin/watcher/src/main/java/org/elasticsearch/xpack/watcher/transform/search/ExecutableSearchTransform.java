@@ -68,11 +68,18 @@ public class ExecutableSearchTransform extends ExecutableTransform<SearchTransfo
                 client,
                 TransportSearchAction.TYPE,
                 searchRequest,
-                ActionListener.runAfter(future, () -> {
-                    if (searchRequest.source() != null) searchRequest.source().close();
-                })
+                ActionListener.runAfter(ActionListener.wrap(r -> {
+                    r.mustIncRef();
+                    future.onResponse(r);
+                }, future::onFailure), () -> { if (searchRequest.source() != null) searchRequest.source().close(); })
             );
-            SearchResponse resp = future.actionGet(timeout);
+            final SearchResponse resp;
+            try {
+                resp = future.actionGet(timeout);
+            } catch (Exception e) {
+                if (searchRequest.source() != null) searchRequest.source().close();
+                throw e;
+            }
             try {
                 final Params params;
                 if (request.isRestTotalHitsAsint()) {

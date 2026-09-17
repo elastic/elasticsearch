@@ -118,7 +118,6 @@ public final class RestSubmitAsyncSearchAction extends BaseRestHandler {
 
             @Override
             public void accept(RestChannel channel) throws Exception {
-                dispatched = true;
                 RestCancellableNodeClient cancelClient = new RestCancellableNodeClient(client, request.getHttpChannel());
                 ActionListener<AsyncSearchResponse> completionListener = new RestRefCountedChunkedToXContentListener<>(channel) {
                     @Override
@@ -126,6 +125,7 @@ public final class RestSubmitAsyncSearchAction extends BaseRestHandler {
                         return asyncSearchResponse.status();
                     }
                 };
+                dispatched = true;
                 cancelClient.execute(
                     SubmitAsyncSearchAction.INSTANCE,
                     submit,

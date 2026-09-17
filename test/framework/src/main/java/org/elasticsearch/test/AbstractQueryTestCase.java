@@ -492,6 +492,79 @@ public abstract class AbstractQueryTestCase<QB extends AbstractQueryBuilder<QB>>
     }
 
     /**
+     * Whether this subclass should participate in the self-computed breaker estimate test.
+     * Return {@code false} only when {@link #createTestQueryBuilder()} produces a builder with no
+     * meaningful parse-time charge (e.g. builders that wrap pre-constructed objects and skip
+     * {@code parseXContent} entirely).
+     */
+    protected boolean supportsParseTimeBreakerSelfTest() {
+        return true;
+    }
+
+    /**
+     * Verifies that the query builder under test charges the parse-time circuit breaker.
+     * <p>
+     * Measures the actual charge {@code T} by parsing one {@link #createTestQueryBuilder()} under an
+     * unlimited {@link LimitedBreaker}, then:
+     * <ul>
+     *   <li>Asserts {@code T > 0}.</li>
+     *   <li>Re-parses at {@code limit = T} — must succeed for JSON and SMILE.</li>
+     *   <li>Re-parses at {@code limit = T - 1} — must trip {@link CircuitBreakingException}.</li>
+     *   <li>Asserts the breaker returns to zero after each parse.</li>
+     * </ul>
+     */
+    public void testSelfComputedBreakerEstimate() throws IOException {
+        assumeTrue("query builder skips parse-time breaker self-test", supportsParseTimeBreakerSelfTest());
+        QB builder = createTestQueryBuilder();
+
+        // Step 1: measure actual charge T with an effectively unlimited breaker
+        long chargeT;
+        LimitedBreaker measuringBreaker = new LimitedBreaker(CircuitBreaker.REQUEST, ByteSizeValue.ofBytes(Long.MAX_VALUE));
+        AbstractQueryBuilder.setQueryParsingBreaker(measuringBreaker);
+        try {
+            BytesReference bytes = XContentHelper.toXContent(builder, XContentType.JSON, false);
+            try (XContentParser parser = createParser(XContentType.JSON.xContent(), bytes)) {
+                parseQuery(parser);
+            }
+            chargeT = measuringBreaker.getUsed();
+            assertEquals("breaker not released after measurement parse", 0L, measuringBreaker.getUsed());
+        } finally {
+            AbstractQueryBuilder.setQueryParsingBreaker(null);
+        }
+        assertTrue("expected parse-time charge > 0 for " + builder.getName(), chargeT > 0);
+
+        // Step 2: re-parse at exactly T — must succeed
+        LimitedBreaker exactBreaker = new LimitedBreaker(CircuitBreaker.REQUEST, ByteSizeValue.ofBytes(chargeT));
+        AbstractQueryBuilder.setQueryParsingBreaker(exactBreaker);
+        try {
+            for (XContentType type : new XContentType[] { XContentType.JSON, XContentType.SMILE }) {
+                BytesReference bytes = XContentHelper.toXContent(builder, type, false);
+                try (XContentParser parser = createParser(type.xContent(), bytes)) {
+                    parseQuery(parser);
+                }
+                assertEquals("breaker not released after exact-limit parse", 0L, exactBreaker.getUsed());
+            }
+        } finally {
+            AbstractQueryBuilder.setQueryParsingBreaker(null);
+        }
+
+        // Step 3: re-parse at T-1 — must trip
+        LimitedBreaker tightBreaker = new LimitedBreaker(CircuitBreaker.REQUEST, ByteSizeValue.ofBytes(chargeT - 1));
+        AbstractQueryBuilder.setQueryParsingBreaker(tightBreaker);
+        try {
+            for (XContentType type : new XContentType[] { XContentType.JSON, XContentType.SMILE }) {
+                BytesReference bytes = XContentHelper.toXContent(builder, type, false);
+                try (XContentParser parser = createParser(type.xContent(), bytes)) {
+                    expectThrows(CircuitBreakingException.class, () -> parseQuery(parser));
+                }
+                assertEquals("breaker not released after tight-limit parse", 0L, tightBreaker.getUsed());
+            }
+        } finally {
+            AbstractQueryBuilder.setQueryParsingBreaker(null);
+        }
+    }
+
+    /**
      * Whether the queries produced by this builder are expected to be cacheable.
      */
     protected boolean builderGeneratesCacheableQueries() {

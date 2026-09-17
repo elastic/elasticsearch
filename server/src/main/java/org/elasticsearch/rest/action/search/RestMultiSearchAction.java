@@ -103,8 +103,8 @@ public class RestMultiSearchAction extends BaseRestHandler {
 
             @Override
             public void accept(RestChannel channel) throws Exception {
-                dispatched = true;
                 final RestCancellableNodeClient cancellableClient = new RestCancellableNodeClient(client, request.getHttpChannel());
+                dispatched = true;
                 cancellableClient.execute(
                     TransportMultiSearchAction.TYPE,
                     multiSearchRequest,

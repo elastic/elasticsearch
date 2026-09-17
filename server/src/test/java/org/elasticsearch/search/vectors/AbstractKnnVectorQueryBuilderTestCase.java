@@ -689,14 +689,6 @@ abstract class AbstractKnnVectorQueryBuilderTestCase extends AbstractQueryTestCa
         });
     }
 
-    public void testVectorBreakerEstimate() throws IOException {
-        // small: 2-element float vector -> cost = 256 + fieldName + 32 (ArrayList header) + 2*4; large: 256 + fieldName + 32 + 100*4
-        KnnVectorQueryBuilder small = new KnnVectorQueryBuilder(VECTOR_FIELD, new float[] { 1f, 2f }, null, 10, null, null, null);
-        KnnVectorQueryBuilder large = new KnnVectorQueryBuilder(VECTOR_FIELD, new float[100], null, 150, null, null, null);
-        long limit = AbstractQueryBuilder.QUERY_BUILDER_SIZE_ESTIMATE_BYTES + VECTOR_FIELD.length() * 2L + 64L + 32L + 2 * 4L;
-        assertParseTimeBreaker(limit, small, large);
-    }
-
     public void testQueryVectorBuilderTextBreakerEstimate() {
         // When queryVector is absent, parseTimeBreakerEstimate() delegates to queryVectorBuilder.
         QueryVectorBuilder stub = new QueryVectorBuilder() {

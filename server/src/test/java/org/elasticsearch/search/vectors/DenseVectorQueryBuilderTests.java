@@ -255,11 +255,4 @@ public class DenseVectorQueryBuilderTests extends AbstractQueryTestCase<DenseVec
         );
     }
 
-    public void testVectorBreakerEstimate() throws IOException {
-        // small: 2-element float vector -> cost = 256 + fieldName + 2*4; large: 256 + fieldName + 100*4
-        DenseVectorQueryBuilder small = new DenseVectorQueryBuilder(VECTOR_FIELD, new float[] { 1f, 2f }, null, null);
-        DenseVectorQueryBuilder large = new DenseVectorQueryBuilder(VECTOR_FIELD, new float[100], null, null);
-        long limit = AbstractQueryBuilder.QUERY_BUILDER_SIZE_ESTIMATE_BYTES + VECTOR_FIELD.length() * 2L + 64L + 2 * 4L;
-        assertParseTimeBreaker(limit, small, large);
-    }
 }

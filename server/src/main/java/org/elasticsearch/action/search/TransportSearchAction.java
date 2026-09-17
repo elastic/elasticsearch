@@ -335,7 +335,7 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
         final String target = requestedIndices.length == 0
             ? concreteLocalIndicesMetadata.keySet().stream().map(Index::getName).collect(Collectors.joining(","))
             : Strings.arrayToCommaDelimitedString(requestedIndices);
-        final String resolvedRouting = SliceIndexing.validateAndResolveSliceRoutingRequirement(
+        SliceIndexing.validateAndResolveSliceRoutingRequirement(
             anySliceEnabled,
             fromSlice,
             searchRequest.routing(),
@@ -344,12 +344,6 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
             target,
             hasRemoteIndices
         );
-        if (searchRequest.pointInTimeBuilder() != null) {
-            // Slice tenant filtering for PIT is applied via ShardSearchRequest.sliceRouting(), not request routing.
-            searchRequest.routing((String) null);
-        } else {
-            searchRequest.routing(resolvedRouting);
-        }
         return requestedSlice;
     }
 
@@ -706,7 +700,6 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
                         rewritten.indicesOptions(),
                         rewritten.preference(),
                         rewritten.routing(),
-                        rewritten.searchSlice(),
                         rewritten.isRoutingFromSlice(),
                         rewritten.source() != null ? rewritten.source().query() : null,
                         Objects.requireNonNullElse(rewritten.allowPartialSearchResults(), searchService.defaultAllowPartialSearchResults()),
@@ -844,11 +837,7 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
         OpenPointInTimeRequest pitReq = new OpenPointInTimeRequest(indices).indicesOptions(request.indicesOptions())
             .preference(request.preference())
             .keepAlive(TimeValue.timeValueMillis(keepAliveMillis));
-        if (request.searchSlice() != null) {
-            pitReq.searchSlice(request.searchSlice());
-        } else {
-            pitReq.routing(request.routing());
-        }
+        pitReq.routing(request.routing()).setRoutingFromSlice(request.isRoutingFromSlice());
         pitReq.projectRouting(request.getProjectRouting());
 
         client.execute(TransportOpenPointInTimeAction.TYPE, pitReq, listener);
@@ -1445,7 +1434,6 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
         IndicesOptions originalIdxOpts,
         String preference,
         String routing,
-        String searchSlice,
         boolean routingFromSlice,
         QueryBuilder query,
         boolean allowPartialResults,
@@ -1539,7 +1527,6 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
                         searchShardsIdxOpts,
                         query,
                         routing,
-                        searchSlice,
                         routingFromSlice,
                         preference,
                         allowPartialResults,
@@ -1559,12 +1546,11 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
                     ClusterSearchShardsRequest searchShardsRequest = new ClusterSearchShardsRequest(
                         MasterNodeRequest.INFINITE_MASTER_NODE_TIMEOUT,
                         indices
-                    ).indicesOptions(searchShardsIdxOpts).local(true).preference(preference);
-                    if (routingFromSlice) {
-                        searchShardsRequest.searchSlice(searchSlice);
-                    } else {
-                        searchShardsRequest.routing(routing);
-                    }
+                    ).indicesOptions(searchShardsIdxOpts)
+                        .local(true)
+                        .preference(preference)
+                        .routing(routing)
+                        .setRoutingFromSlice(routingFromSlice);
 
                     searchShardsRequest.setParentTask(parentTaskId);
                     transportService.sendRequest(

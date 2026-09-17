@@ -9,15 +9,24 @@ package org.elasticsearch.xpack.esql.plan.logical;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.compute.data.ElementType;
+import org.elasticsearch.xpack.esql.EsqlIllegalArgumentException;
+import org.elasticsearch.xpack.esql.capabilities.PostOptimizationVerificationAware;
+import org.elasticsearch.xpack.esql.common.Failures;
 import org.elasticsearch.xpack.esql.core.capabilities.Resolvables;
+import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
+import org.elasticsearch.xpack.esql.core.expression.FoldContext;
 import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.io.stream.PlanStreamInput;
+import org.elasticsearch.xpack.esql.planner.PlannerUtils;
 
 import java.io.IOException;
 import java.util.List;
 import java.util.Objects;
+
+import static org.elasticsearch.xpack.esql.common.Failure.fail;
 
 /**
  * Retains a ratio of series using Prometheus-compatible hash sampling: each series is kept or
@@ -29,7 +38,7 @@ import java.util.Objects;
  * to data nodes is a possible follow-up; it is not needed for PromQL compliance since the
  * hashed subset is identical wherever it is computed.
  */
-public class LimitRatioBy extends UnaryPlan implements PipelineBreaker {
+public class LimitRatioBy extends UnaryPlan implements PipelineBreaker, PostOptimizationVerificationAware {
     public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(
         LogicalPlan.class,
         "LimitRatioBy",
@@ -101,6 +110,44 @@ public class LimitRatioBy extends UnaryPlan implements PipelineBreaker {
     @Override
     public boolean expressionsResolved() {
         return ratio.resolved() && fieldKey.resolved() && Resolvables.resolved(groupings);
+    }
+
+    /**
+     * Validates the translator-built node with source context, so malformed plans fail here with a
+     * clear error instead of deep in execution planning: the ratio must be a numeric literal and
+     * the field key must be a resolved keyword attribute of the input.
+     */
+    @Override
+    public void postOptimizationVerification(Failures failures) {
+        Object folded = ratio.foldable() ? ratio.fold(FoldContext.small()) : null;
+        if (folded instanceof Number number) {
+            if (Double.isNaN(number.doubleValue())) {
+                failures.add(fail(ratio, "LIMIT RATIO BY ratio must not be NaN"));
+            }
+        } else {
+            failures.add(fail(ratio, "LIMIT RATIO BY ratio must be a numeric literal, got [{}]", folded));
+        }
+        if (fieldKey instanceof Attribute key) {
+            if (child().output().stream().noneMatch(a -> a.id().equals(key.id()))) {
+                failures.add(fail(key, "LIMIT RATIO BY field key [{}] is not produced by its input", key.name()));
+            } else if (isBytesRefKey(key) == false) {
+                failures.add(fail(key, "LIMIT RATIO BY field key must be a keyword, got [{}]", key.dataType().typeName()));
+            }
+        } else {
+            failures.add(fail(fieldKey, "LIMIT RATIO BY field key must be an attribute"));
+        }
+    }
+
+    /**
+     * Mirrors the planner's channel requirement: only key types extracted as {@code BytesRef} blocks
+     * are hashable. Unmappable types fail the check instead of throwing.
+     */
+    private static boolean isBytesRefKey(Attribute key) {
+        try {
+            return PlannerUtils.toElementType(key.dataType()) == ElementType.BYTES_REF;
+        } catch (EsqlIllegalArgumentException e) {
+            return false;
+        }
     }
 
     @Override

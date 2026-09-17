@@ -2486,23 +2486,12 @@ public class LocalExecutionPlanner {
 
     private PhysicalOperation planLimitRatioBy(LimitRatioByExec limitRatioBy, LocalExecutionPlannerContext context) {
         PhysicalOperation source = plan(limitRatioBy.child(), context);
-        Object folded = limitRatioBy.ratio().fold(context.foldCtx);
-        double ratioValue;
-        if (folded instanceof Number number) {
-            ratioValue = number.doubleValue();
-        } else {
-            throw new EsqlIllegalArgumentException("LIMIT RATIO BY ratio must be a numeric literal, got [{}]", folded);
-        }
-        // Any double is a valid ratio: like Prometheus, out-of-range values clamp naturally
-        // (r > 1 keeps everything, r < -1 keeps everything via the complement branch)
-        // and NaN keeps nothing, so no validation is needed here. Non-numeric and non-literal
-        // ratios are rejected at analysis time.
+        // The ratio and field key are validated up front: at analysis (ResolvePromqlFunctions) for user
+        // input and by post-optimization verification (LimitRatioBy) for translator output. Planning only
+        // resolves the already-validated key to its channel.
+        double ratioValue = ((Number) limitRatioBy.ratio().fold(context.foldCtx)).doubleValue();
         Layout layout = source.layout;
-        int fieldChannel = getAttributeChannel(limitRatioBy.fieldKey(), layout, "LIMIT RATIO BY field key must be an attribute");
-        DataType keyType = layout.inverse().get(fieldChannel).type();
-        if (PlannerUtils.toElementType(keyType) != ElementType.BYTES_REF) {
-            throw new EsqlIllegalArgumentException("LIMIT RATIO BY requires the field key to be a keyword, got [{}]", keyType);
-        }
+        int fieldChannel = layout.get(((Attribute) limitRatioBy.fieldKey()).id()).channel();
         return source.with(new HashRatioLimitOperator.Factory(ratioValue, fieldChannel), source.layout);
     }
 

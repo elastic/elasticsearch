@@ -3662,7 +3662,7 @@ public class VerifierTests extends AnalyzerTestCase {
         checkOptionDataTypes(Match.ALLOWED_OPTIONS, "FROM test | WHERE match(title, \"Jean\", {\"%s\": %s})");
         checkOptionDataTypes(QueryString.ALLOWED_OPTIONS, "FROM test | WHERE QSTR(\"title: Jean\", {\"%s\": %s})");
         checkOptionDataTypes(MatchPhrase.ALLOWED_OPTIONS, "FROM test | WHERE MATCH_PHRASE(title, \"Jean\", {\"%s\": %s})");
-        // vector_similarity is left out: it only accepts the names of the similarity metrics, and only when knn
+        // similarity_function is left out: it only accepts the names of the similarity metrics, and only when knn
         // runs on a runtime expression, so a random keyword on an indexed field is an error rather than a success.
         // testKnnVectorSimilarityOption covers it instead.
         checkOptionDataTypes(
@@ -3676,7 +3676,7 @@ public class VerifierTests extends AnalyzerTestCase {
     }
 
     /**
-     * The {@code vector_similarity} option overrides the metric knn compares vectors with, but only on the runtime
+     * The {@code similarity_function} option specifies the metric knn compares vectors with, but only on the runtime
      * search path - an indexed field is compared with the similarity from its mapping, so accepting the option
      * there would silently ignore it. The accepted values are the {@link VectorSimilarityMetric} names; the runtime
      * path itself is covered by knn-runtime-function.csv-spec, which can turn the pragma gating it on.
@@ -3684,18 +3684,18 @@ public class VerifierTests extends AnalyzerTestCase {
     public void testKnnVectorSimilarityOption() {
         for (VectorSimilarityMetric metric : VectorSimilarityMetric.values()) {
             fullText().error(
-                "FROM test | WHERE KNN(vector, [0.1, 0.2, 0.3], {\"vector_similarity\": \""
+                "FROM test | WHERE KNN(vector, [0.1, 0.2, 0.3], {\"similarity_function\": \""
                     + metric.name().toLowerCase(Locale.ROOT)
                     + "\"})",
-                containsString("[KNN] option [vector_similarity] is only supported when [vector] is a non-index-mapped field or expression")
+                containsString("[KNN] option [similarity_function] is only supported when [vector] is a non-index-mapped field or expression")
             );
         }
 
         // An unknown metric fails on the option value itself, before the plan is ever verified
         fullText().error(
-            "FROM test | WHERE KNN(vector, [0.1, 0.2, 0.3], {\"vector_similarity\": \"v_cosine\"})",
+            "FROM test | WHERE KNN(vector, [0.1, 0.2, 0.3], {\"similarity_function\": \"v_cosine\"})",
             allOf(
-                containsString("Invalid option [vector_similarity]"),
+                containsString("Invalid option [similarity_function]"),
                 containsString("expected one of [cosine, dot_product, l2_norm, max_inner_product]")
             )
         );

@@ -38,9 +38,9 @@ import java.util.function.Consumer;
  * drivers there, and that node's response headers reach the client only by chance, so a read-time notice written
  * straight to {@link HeaderWarning} from a driver thread is still lost (elastic/esql-planning#1837). Read paths
  * therefore relay to a sink that ends in {@code DriverContext#addWarning}, the channel
- * {@code DriverCompletionInfo} carries back for the coordinator to emit. Direct {@link HeaderWarning} writes
- * remain right for plan-time work — schema resolution, split discovery — which already runs on the coordinator's
- * own request thread.
+ * {@code DriverCompletionInfo} carries back for the coordinator to emit. Plan-time work has the same problem in a
+ * different coat: schema resolution runs on the metadata-read executor, so {@code ExternalSourceResolver} buffers
+ * its notices onto the resolution rather than writing headers there.
  * <p>
  * Callers working against an {@link ErrorPolicy} should use {@link #of(ErrorPolicy, String)} (or the
  * sink-aware {@link #of(ErrorPolicy, String, Consumer)}) to obtain either a live collector or the
@@ -97,9 +97,8 @@ public class SkipWarnings {
 
     private final String summary;
     /**
-     * Where emitted messages go. {@code null} (the default) preserves the original direct-to-
-     * {@link HeaderWarning} behavior, which is only safe on a thread whose response headers are
-     * actually collected into the client response.
+     * Where emitted messages go. {@code null} preserves the direct-to-{@link HeaderWarning} write, which only reaches
+     * the client from the request thread; read paths never are, so they always supply a sink.
      */
     @Nullable
     private final Consumer<String> sink;
@@ -117,8 +116,10 @@ public class SkipWarnings {
 
     /**
      * @param sink when non-{@code null}, every emitted message is handed to this consumer instead of
-     *             {@link HeaderWarning#addWarning(String, Object...)}. Use this on any code path whose
-     *             {@link #add(String)} calls may run off the request/driver thread.
+     *             {@link HeaderWarning#addWarning(String, Object...)}. Every read path must supply one that ends in
+     *             {@code DriverContext#addWarning}: reader and driver threads alike have response headers that never
+     *             reach the client (see {@code FormatReadContext#informationalWarningSink}). {@code null} is for
+     *             plan-time callers on the request thread, and for tests.
      */
     public SkipWarnings(String summary, @Nullable Consumer<String> sink) {
         this.summary = summary;

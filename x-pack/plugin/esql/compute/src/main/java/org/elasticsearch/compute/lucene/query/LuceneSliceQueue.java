@@ -461,13 +461,16 @@ public final class LuceneSliceQueue {
          * <p>Aims for {@code taskConcurrency} slices: {@code desiredSliceSize} =
          * {@code clamp(totalDocs / taskConcurrency, minDocsPerSlice, MAX_DOCS_PER_SLICE)}. {@code minDocsPerSlice}
          * defaults to {@link #MIN_DOCS_PER_SLICE} but may be lowered per query (via the {@code min_docs_per_slice}
-         * pragma) so small-index tests can still exercise multi-slice partitioning. {@code maxSegmentsPerSlice}
-         * scales with {@code totalSegments / taskConcurrency} (with a {@link #MAX_SEGMENTS_PER_SLICE} floor) so
-         * that a heavily fragmented index doesn't force a slice count well above the chosen parallelism.
+         * pragma) so small-index tests can still exercise multi-slice partitioning. The slice target is also capped
+         * at {@code totalDocs / minDocsPerSlice} so a multi-segment index whose total doc count is below the floor
+         * collapses to a single slice — otherwise {@link #balancedBinPack} would open one bin per segment.
+         * {@code maxSegmentsPerSlice} scales with {@code totalSegments / sliceTarget} (with a
+         * {@link #MAX_SEGMENTS_PER_SLICE} floor) so that a heavily fragmented index doesn't force a slice count well
+         * above the chosen parallelism.
          *
          * <p>When the largest unguarded segment is within ~1.5× of {@code desiredSliceSize}, every
-         * non-guarded leaf can be kept whole; we then balance leaves across {@code taskConcurrency}
-         * slices via worst-fit-decreasing bin packing (preserving segment boundaries) instead of
+         * non-guarded leaf can be kept whole; we then balance leaves across the capped slice target
+         * via worst-fit-decreasing bin packing (preserving segment boundaries) instead of
          * splitting segments through {@link AdaptivePartitioner}.
          *
          * <p>If the supplied {@link LeafSplitGuard} marks a leaf as "keep whole" for the supplied
@@ -494,6 +497,11 @@ public final class LuceneSliceQueue {
                     MAX_DOCS_PER_SLICE,
                     Math.max(minDocsPerSlice, Math.ceilDiv(totalDocCount, taskConcurrency))
                 );
+                // Cap parallelism so each slice still carries ~minDocsPerSlice docs. Without this,
+                // balancedBinPack would open one bin per segment (up to taskConcurrency) even when
+                // totalDocs ≪ minDocsPerSlice — over-splitting tiny multi-segment indices.
+                int maxSlicesByDocs = Math.max(1, totalDocCount / Math.max(1, minDocsPerSlice));
+                int sliceTarget = Math.min(taskConcurrency, maxSlicesByDocs);
                 Set<LeafReaderContext> keepWhole = wholeLeaves(leaves, weight, guard);
                 int largestUnguarded = 0;
                 for (LeafReaderContext leaf : leaves) {
@@ -502,9 +510,9 @@ public final class LuceneSliceQueue {
                     }
                 }
                 if (2L * largestUnguarded <= 3L * desiredSliceSize) {
-                    return balancedBinPack(leaves, keepWhole, taskConcurrency);
+                    return balancedBinPack(leaves, keepWhole, sliceTarget);
                 }
-                int maxSegmentsPerSlice = Math.max(MAX_SEGMENTS_PER_SLICE, Math.ceilDiv(leaves.size(), taskConcurrency));
+                int maxSegmentsPerSlice = Math.max(MAX_SEGMENTS_PER_SLICE, Math.ceilDiv(leaves.size(), sliceTarget));
                 return new AdaptivePartitioner(desiredSliceSize, maxSegmentsPerSlice).partition(leaves, keepWhole);
             }
         },

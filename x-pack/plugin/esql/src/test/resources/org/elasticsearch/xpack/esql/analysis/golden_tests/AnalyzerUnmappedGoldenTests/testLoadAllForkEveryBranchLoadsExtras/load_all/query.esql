@@ -1,0 +1,3 @@
+SET unmapped_fields="LOAD_ALL"; FROM employees
+| FORK (WHERE emp_no > 10)
+       (WHERE salary > 50000)

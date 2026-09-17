@@ -47,10 +47,17 @@ public record SchemaCacheKey(
     // widen/narrow the inferred type for borderline columns.
     // - column_prefix: only changes column NAMES (when header_row=false), but names are part
     // of the schema.
+    // - skip_rows: drops leading content records on the first split, so the inferred header and
+    // sampled rows change (and a leftover preamble would leak into later splits if the cap were
+    // raised past the first-split window).
     // - error_mode / max_errors / max_error_ratio: change which rows survive and which cells are
     // null-filled, so captured row and column null counts must not be shared across policies.
     // - schema_resolution: changes multi-file schema merge (FFW vs UNION_BY_NAME) and therefore
     // which per-file stats are aggregated for aggregate pushdown.
+    // - file_sort_by / file_order: FFW donor is listing.path(0). The dataset-aggregate COUNT key
+    // uses the file-set fingerprint (order-blind) plus formatConfig, so two FFW queries over the
+    // same files with different donors must not share one memoized COUNT. file_exclusions stays
+    // out: it changes the fingerprint.
     // - mode: quoted/escaped/plain changes record boundaries (row counts), null-ness (\N) and
     // values on the same bytes, so neither schemas nor captured stats may cross modes.
     // - multi_value_syntax: brackets selects the bracket-aware record scanner (newlines inside
@@ -65,7 +72,6 @@ public record SchemaCacheKey(
         "multi_value_syntax",
         "encoding",
         "datetime_format",
-        "hive_partitioning",
         "partition_detection",
         "partition_path",
         "format",
@@ -83,7 +89,9 @@ public record SchemaCacheKey(
         "error_mode",
         "max_errors",
         "max_error_ratio",
-        "schema_resolution"
+        "schema_resolution",
+        "file_sort_by",
+        "file_order"
     );
 
     private static final Set<String> CREDENTIAL_PARAMS = Set.of(
@@ -111,12 +119,13 @@ public record SchemaCacheKey(
     }
 
     /**
-     * Reserved {@code formatType} suffix namespace: extension detection ({@code detectFormatType})
-     * derives {@code formatType} from a file name's last dot, so for any sane object name a
-     * {@code '#'}-suffixed formatType is minted only by an explicit factory. (A pathological object name
-     * literally containing {@code '#dataset-agg'} would collide on the suffix, but a per-file key carries a
-     * null {@code fileSetFingerprint} so it can never equal a dataset key - the only cost is that one file
-     * losing its warm enrichment, a miss, never a wrong answer.) Two members exist:
+     * Reserved {@code formatType} suffix namespace: the happy path is the registry format name
+     * ({@code parquet}, {@code csv}), which never contains {@code '#'}. Resolve failure still
+     * last-dot-falls-back, so a {@code '#'}-suffixed formatType is normally minted only by an
+     * explicit factory. A fallback suffix that {@code endsWith} {@link #DATASET_AGGREGATE_MARKER}
+     * would make {@link #isDatasetAggregate()} true on a per-file key, but a per-file key carries a
+     * null {@code fileSetFingerprint} so it can never equal a dataset key - the only cost is that
+     * one file losing its warm enrichment, a miss, never a wrong answer. Two members exist:
      * {@link #STRICT_DECLARED_SCHEMA_MARKER} (per-file entries on the strict-declared warm rail, which
      * the reconcile's contribution matching MUST still reach) and {@link #DATASET_AGGREGATE_MARKER}
      * (dataset-level aggregate entries, which contribution matching must NEVER reach - enforced in

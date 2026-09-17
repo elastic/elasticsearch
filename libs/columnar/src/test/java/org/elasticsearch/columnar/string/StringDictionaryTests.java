@@ -10,11 +10,18 @@
 package org.elasticsearch.columnar.string;
 
 import org.apache.lucene.search.DocIdSetIterator;
+import org.apache.lucene.store.Directory;
+import org.apache.lucene.store.IOContext;
+import org.apache.lucene.store.IndexOutput;
 import org.apache.lucene.util.BytesRef;
+import org.elasticsearch.columnar.FormatVersion;
 import org.elasticsearch.columnar.substrate.ColumnIterator;
+import org.elasticsearch.columnar.substrate.ColumnarCodecUtil;
 
 import java.io.IOException;
 import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.Collections;
 import java.util.List;
 
 import static org.elasticsearch.columnar.ColumnarTestUtils.randomValidBlockSize;
@@ -78,6 +85,99 @@ public class StringDictionaryTests extends ColumnarStringTestCase {
             assertEquals("layout", StringColumnLayout.DICTIONARY, metadata.layout());
             assertEquals("one ordinal per distinct term", terms.length, dictionaryOf(metadata).dictionarySize());
             assertEveryValueReadsBack(docValues, reader);
+        });
+    }
+
+    /**
+     * A column mostly made of nulls whose values are all one of a handful of terms. A null is named by a
+     * reserved ordinal rather than by a dictionary entry, so it is no part of what a dictionary could
+     * cover — and a column whose every actual value the dictionary names should take one however many of
+     * its slots hold nothing.
+     */
+    public void testNullSlotsDoNotCostTheDictionary() throws IOException {
+        final String[] terms = { "DEBUG", "ERROR", "INFO", "TRACE", "WARN" };
+        final BytesRef[][] docSlots = new BytesRef[between(500, 3000)][];
+        for (int d = 0; d < docSlots.length; d++) {
+            // Four slots in five hold nothing, which is well past the coverage the policy asks for if the
+            // nulls are counted against it.
+            docSlots[d] = new BytesRef[] { d % 5 == 0 ? new BytesRef(terms[(d / 5) % terms.length]) : null };
+        }
+        withColumn(docSlots, randomValidBlockSize(), randomChunkCodec(), randomTargetChunkBytes(), ROOMY, (metadata, reader) -> {
+            assertTrue("expected null slots", metadata.hasNullSlots());
+            assertEquals("layout", StringColumnLayout.DICTIONARY, metadata.layout());
+            assertEquals("one ordinal per distinct term", terms.length, dictionaryOf(metadata).dictionarySize());
+            assertFalse("nothing should have escaped", dictionaryOf(metadata).hasEscapes());
+            for (int d = 0; d < docSlots.length; d++) {
+                assertEquals("doc [" + d + "]", docSlots[d][0], reader.valueAt(reader.firstValueAddress(d)));
+            }
+        });
+    }
+
+    /**
+     * What the ordinal space is, stated rather than assumed. Several places size a table over the terms and
+     * rely on the escape marker landing one past its end — {@code ordinalMap} on the merge path turns an
+     * escape away by letting it index off the end of an array sized for the terms. That only works while the
+     * reserved ordinals sit exactly where they do, and nothing about the arithmetic says so out loud.
+     */
+    public void testTheOrdinalSpaceIsWhatEveryTableIsSizedAgainst() throws IOException {
+        final String[] terms = { "DEBUG", "ERROR", "INFO", "TRACE", "WARN" };
+        final BytesRef[][] docSlots = new BytesRef[between(400, 1200)][];
+        for (int d = 0; d < docSlots.length; d++) {
+            docSlots[d] = new BytesRef[] { switch (d % 11) {
+                // Rare enough to escape a dictionary built from what the column repeats.
+                case 5 -> new BytesRef("escaped-" + d);
+                case 7 -> null;
+                default -> new BytesRef(terms[d % terms.length]);
+            } };
+        }
+        withColumn(docSlots, randomValidBlockSize(), randomChunkCodec(), randomTargetChunkBytes(), ROOMY, (metadata, reader) -> {
+            final StringColumnMetadata.Dictionary dictionary = dictionaryOf(metadata);
+            final DictionaryStringColumnReader column = (DictionaryStringColumnReader) reader;
+            assertTrue("expected values to have escaped", dictionary.hasEscapes());
+            assertTrue("expected null slots", metadata.hasNullSlots());
+
+            // A null sorts below every term, and the escape marker sits one past the last of them, so the
+            // terms are exactly the ordinals in between and a table sized over them ends at the marker.
+            assertTrue(
+                "the null is below the first term",
+                StringColumnMetadata.Dictionary.NULL_ORDINAL < StringColumnMetadata.Dictionary.FIRST_TERM_ORDINAL
+            );
+            assertEquals(
+                "the escape marker is one past the last term",
+                dictionary.dictionarySize() + StringColumnMetadata.Dictionary.FIRST_TERM_ORDINAL,
+                dictionary.escapeOrdinal()
+            );
+            assertEquals("and the reader agrees", dictionary.escapeOrdinal(), column.escapeOrdinal());
+
+            // Every ordinal the column actually stores is a term's, the null's, or the marker's - nothing else.
+            int nulls = 0;
+            int escapes = 0;
+            int named = 0;
+            for (int d = 0; d < docSlots.length; d++) {
+                final int ordinal = column.ordinalAt(reader.firstValueAddress(d));
+                final BytesRef value = reader.valueAt(reader.firstValueAddress(d));
+                if (ordinal == StringColumnMetadata.Dictionary.NULL_ORDINAL) {
+                    assertNull("doc [" + d + "] takes the null ordinal", value);
+                    nulls++;
+                } else if (ordinal == dictionary.escapeOrdinal()) {
+                    assertNotNull("doc [" + d + "] escaped", value);
+                    escapes++;
+                } else {
+                    assertTrue(
+                        "doc [" + d + "] ordinal " + ordinal + " is in term space",
+                        ordinal >= StringColumnMetadata.Dictionary.FIRST_TERM_ORDINAL && ordinal < dictionary.escapeOrdinal()
+                    );
+                    assertEquals("doc [" + d + "] resolves through its term", value, column.termAt(ordinal, new BytesRef()));
+                    named++;
+                }
+                assertEquals("doc [" + d + "]", docSlots[d][0], value);
+            }
+            assertEquals("every slot accounted for", docSlots.length, nulls + escapes + named);
+            assertThat("some slot took each of the three", nulls, greaterThan(0));
+            assertThat("some slot escaped", escapes, greaterThan(0));
+            assertThat("some slot was named", named, greaterThan(0));
+            assertEquals("the escape count is what the column recorded", escapes, (int) reader.escapeCount());
+            assertEquals("the null count is what the column recorded", nulls, (int) reader.numNullSlots());
         });
     }
 
@@ -348,6 +448,55 @@ public class StringDictionaryTests extends ColumnarStringTestCase {
         });
     }
 
+    /**
+     * Escaped values resolved out of the order they are stored in. Where an escaped value's bytes are is
+     * counted forward from the value answered before it when that one is nearer, and from the start of its
+     * block otherwise, so asking for an address below the last one is the only thing that takes the second
+     * path. A miscount there returns another value's bytes rather than failing, which is the kind of wrong
+     * nothing downstream would notice.
+     */
+    public void testEscapesResolvedOutOfOrder() throws IOException {
+        final int block = StringColumnWriter.ESCAPE_RANK_BLOCK;
+        final int size = block * 4;
+        final int[] escapeAt = { 3, block - 2, block + 5, 2 * block + 1, 3 * block, size - 2 };
+        final BytesRef[] docValues = withEscapesAt(size, escapeAt);
+        withDictionary(docValues, (metadata, reader) -> {
+            final DictionaryStringColumnReader dictionary = (DictionaryStringColumnReader) reader;
+            final BytesRef scratch = new BytesRef();
+            // Every document has a value here, so a document's rank is its value's address.
+            final List<Integer> descending = new ArrayList<>();
+            for (int at : escapeAt) {
+                descending.add(at);
+            }
+            Collections.reverse(descending);
+            for (int at : descending) {
+                assertEquals(
+                    "escape at " + at + " resolved descending",
+                    docValues[at].utf8ToString(),
+                    dictionary.resolveEscape(reader.firstValueAddress(at), scratch).utf8ToString()
+                );
+            }
+            // And interleaved, so the cursor sits behind the address as often as ahead of it.
+            for (int i = 0; i < escapeAt.length; i++) {
+                final int at = escapeAt[i % 2 == 0 ? escapeAt.length - 1 - i / 2 : i / 2];
+                assertEquals(
+                    "escape at " + at + " resolved out of order",
+                    docValues[at].utf8ToString(),
+                    dictionary.resolveEscape(reader.firstValueAddress(at), scratch).utf8ToString()
+                );
+            }
+            // Asking twice for the same address must not move the answer either.
+            for (int at : escapeAt) {
+                dictionary.resolveEscape(reader.firstValueAddress(at), scratch);
+                assertEquals(
+                    "escape at " + at + " resolved twice",
+                    docValues[at].utf8ToString(),
+                    dictionary.resolveEscape(reader.firstValueAddress(at), scratch).utf8ToString()
+                );
+            }
+        });
+    }
+
     /** Every value in one block escaping, so a later block's base is offset by a whole block of them. */
     public void testAWholeBlockEscapes() throws IOException {
         final int block = StringColumnWriter.ESCAPE_RANK_BLOCK;
@@ -406,6 +555,140 @@ public class StringDictionaryTests extends ColumnarStringTestCase {
             docValues[at] = new BytesRef("escape-" + at);
         }
         return docValues;
+    }
+
+    /**
+     * A multi-valued column that takes the dictionary. How a document's slots are found is decided apart from
+     * how its values are named, so both have to hold at once: the ordinals address slots one-for-one while the
+     * value-address table addresses documents, and a null slot is named like any other value while the
+     * null-slot table is what still tells it from the empty term beside it.
+     */
+    public void testMultiValuedColumnTakesTheDictionary() throws IOException {
+        final String[] terms = { "alpha", "bravo", "charlie", "" };
+        final BytesRef[][] docSlots = new BytesRef[between(400, 1200)][];
+        for (int d = 0; d < docSlots.length; d++) {
+            final BytesRef[] slots = new BytesRef[between(1, 5)];
+            for (int s = 0; s < slots.length; s++) {
+                // A null now and then, and a value the dictionary will not name now and then, so the two
+                // ways a slot leaves the ordinals both happen alongside multi-valued documents.
+                if (slots.length > 1 && d % 11 == s) {
+                    continue;
+                }
+                slots[s] = d % 17 == s ? new BytesRef("escape-" + d + "-" + s) : new BytesRef(terms[(d + s) % terms.length]);
+            }
+            if (slots.length == 1 && slots[0] == null) {
+                slots[0] = new BytesRef(terms[d % terms.length]);
+            }
+            docSlots[d] = slots;
+        }
+        withColumn(docSlots, randomValidBlockSize(), randomChunkCodec(), randomTargetChunkBytes(), ROOMY, (metadata, reader) -> {
+            assertTrue("expected a dictionary", reader.hasDictionary());
+            assertTrue("expected a multi-valued column", metadata.multiValued());
+            assertEquals("numValues counts slots", numValues(docSlots), reader.numValues());
+            assertEquals("null slots recorded", numNullSlots(docSlots), metadata.numNullSlots());
+
+            final ColumnIterator iterator = reader.iterator();
+            int seen = 0;
+            for (int doc = iterator.nextDoc(); doc != DocIdSetIterator.NO_MORE_DOCS; doc = iterator.nextDoc()) {
+                final int rank = iterator.rank();
+                assertEquals("slot count at doc " + doc, docSlots[doc].length, reader.valueCount(rank));
+                final long first = reader.firstValueAddress(rank);
+                for (int slot = 0; slot < docSlots[doc].length; slot++) {
+                    final long address = first + slot;
+                    if (docSlots[doc][slot] == null) {
+                        assertTrue("doc " + doc + " slot " + slot + " is null", reader.isNullSlot(address));
+                    } else {
+                        assertFalse("doc " + doc + " slot " + slot + " is a value", reader.isNullSlot(address));
+                        assertEquals("doc " + doc + " slot " + slot, docSlots[doc][slot], reader.valueAt(address));
+                    }
+                }
+                seen++;
+            }
+            assertEquals("documents with a value", numDocsWithField(docSlots), seen);
+        });
+    }
+
+    /**
+     * A merge hands the writer the vocabulary its inputs recorded, so it does not survey again. A column told
+     * to keep no dictionary ignores that too: the policy decides, not whether a vocabulary happens to be in
+     * hand, and the merged column comes out plain with nothing recorded for the next merge to read.
+     */
+    public void testNoDictionaryIgnoresAVocabularyHandedToIt() throws IOException {
+        final BytesRef[] docValues = new BytesRef[2000];
+        final List<BytesRef> terms = new ArrayList<>();
+        for (int i = 0; i < 16; i++) {
+            terms.add(new BytesRef("term-" + i));
+        }
+        for (int i = 0; i < docValues.length; i++) {
+            docValues[i] = terms.get(i % terms.size());
+        }
+        Collections.sort(terms);
+        final long[] counts = new long[terms.size()];
+        Arrays.fill(counts, docValues.length / terms.size());
+        // What a merge would hand over: every term of the column, covering all of it.
+        final Vocabulary.Terms known = Vocabulary.known(terms, columnBytes(docValues), 1.0, counts);
+
+        final byte[] segmentId = new byte[16];
+        random().nextBytes(segmentId);
+        try (Directory dir = newDirectory()) {
+            final BytesRef[][] docSlots = singleValued(docValues);
+            final StringColumnMetadata metadata;
+            try (IndexOutput out = dir.createOutput("column.cnd", IOContext.DEFAULT)) {
+                ColumnarCodecUtil.writeHeader(out, "ColumNARStringData", FormatVersion.CURRENT, segmentId, "");
+                metadata = StringColumnWriter.write(
+                    docSlots.length,
+                    numDocsWithField(docSlots),
+                    numValues(docSlots),
+                    numNullSlots(docSlots),
+                    () -> cursor(docSlots),
+                    randomValidBlockSize(),
+                    randomChunkCodec(),
+                    randomTargetChunkBytes(),
+                    randomTargetChunkBytes(),
+                    StringColumnOptions.DEFAULT_COMPRESSED_ORDINAL_BLOCK_SIZE,
+                    StringColumnOptions.DEFAULT_SLOT_COUNTS_BLOCK_SIZE,
+                    DictionaryPolicy.NONE,
+                    known,
+                    dir,
+                    IOContext.DEFAULT,
+                    out
+                );
+                ColumnarCodecUtil.writeFooter(out);
+            }
+            assertEquals("a vocabulary in hand does not make a dictionary", StringColumnLayout.PLAIN, metadata.layout());
+            assertFalse("nothing recorded for the next merge", metadata.hasSummary());
+        }
+    }
+
+    private static long columnBytes(BytesRef[] docValues) {
+        long bytes = 0;
+        for (BytesRef value : docValues) {
+            bytes += value == null ? 0 : value.length;
+        }
+        return bytes;
+    }
+
+    /**
+     * A column told to keep no dictionary neither surveys for one nor records what a survey would have found.
+     * The summary exists so a merge can work out a vocabulary without reading the values again; a field that
+     * will never be given one has nothing to record and nothing to read back.
+     */
+    public void testNoDictionaryMeansNoSurveyAndNoSummary() throws IOException {
+        final BytesRef[] docValues = new BytesRef[2000];
+        for (int i = 0; i < docValues.length; i++) {
+            // Repetitive enough that a dictionary would be kept if one were asked for.
+            docValues[i] = new BytesRef("term-" + (i % 16));
+        }
+        withColumn(singleValued(docValues), randomValidBlockSize(), randomChunkCodec(), randomTargetChunkBytes(), (metadata, reader) -> {
+            assertEquals("no dictionary was asked for", StringColumnLayout.PLAIN, metadata.layout());
+            assertFalse("nothing to record for a merge to read", metadata.hasSummary());
+            assertNull("no summary", metadata.summary());
+            assertEveryValueReadsBack(docValues, reader);
+        });
+        // The same values under a policy that does want one, so the shape is known to be worth naming.
+        withDictionary(docValues, (metadata, reader) -> {
+            assertEquals("the same values take a dictionary when one is asked for", StringColumnLayout.DICTIONARY, metadata.layout());
+        });
     }
 
     private void withDictionary(final BytesRef[] docValues, final ColumnCheck check) throws IOException {

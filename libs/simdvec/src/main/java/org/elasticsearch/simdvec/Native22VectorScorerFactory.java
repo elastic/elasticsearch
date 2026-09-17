@@ -34,7 +34,9 @@ import org.elasticsearch.simdvec.internal.Int8VectorScorer;
 import org.elasticsearch.simdvec.internal.Int8VectorScorerSupplier;
 import org.elasticsearch.simdvec.internal.MemorySegmentES92NativeInt7VectorsScorer;
 import org.elasticsearch.simdvec.internal.PanamaFlatVectorScorer;
+import org.elasticsearch.simdvec.internal.vectorization.ESNextAshBBQVectorsScorer;
 import org.elasticsearch.simdvec.internal.vectorization.MemorySegmentES940OSQVectorsScorer;
+import org.elasticsearch.simdvec.internal.vectorization.NativeBBQDotProduct;
 import org.elasticsearch.simdvec.internal.vectorization.NativeBinaryQuantizedVectorScorer;
 import org.elasticsearch.simdvec.internal.vectorization.PanamaAshSphericalScalarQuantizer;
 import org.elasticsearch.simdvec.internal.vectorization.PanamaOptimizedScalarQuantization;
@@ -68,14 +70,13 @@ final class Native22VectorScorerFactory implements VectorScorerFactory {
     ) throws IOException {
         // native scorers might still use panama for some things, so check panama is ok
         // this is true for all modern CPUs anyway
-        if (PanamaVectorConstants.ENABLE_INTEGER_VECTORS && ES940OSQVectorsScorer.supportsQuantization(queryBits, indexBits)) {
+        if (PanamaVectorConstants.ENABLE_INTEGER_VECTORS && ES940OSQVectorsScorer.supportsQuantization(indexBits, queryBits)) {
             IndexInput unwrappedInput = FilterIndexInput.unwrapOnlyTest(input);
             unwrappedInput = MemorySegmentAccessInputAccess.unwrap(unwrappedInput);
             if (IndexInputUtils.canUseSegmentSlices(unwrappedInput)) {
                 return MemorySegmentES940OSQVectorsScorer.usingNative(
                     unwrappedInput,
-                    queryBits,
-                    indexBits,
+                    new BBQEncoding(indexBits, queryBits),
                     dimension,
                     dataLength,
                     bulkSize,
@@ -83,7 +84,7 @@ final class Native22VectorScorerFactory implements VectorScorerFactory {
                 );
             }
         }
-        return new ES940OSQVectorsScorer(input, queryBits, indexBits, dimension, dataLength, bulkSize, bitEncoding);
+        return new ES940OSQVectorsScorer(input, new BBQEncoding(indexBits, queryBits), dimension, dataLength, bulkSize, bitEncoding);
     }
 
     @Override
@@ -105,7 +106,11 @@ final class Native22VectorScorerFactory implements VectorScorerFactory {
     @Override
     public AshScorer<byte[]> newESNextAshIntegerVectorsScorer(IndexInput input, int nDims, int bitsPerDim, int queryBitsPerDim)
         throws IOException {
-        return new PanamaVectorScorerFactory().newESNextAshIntegerVectorsScorer(input, nDims, bitsPerDim, queryBitsPerDim);
+        IndexInput unwrappedInput = FilterIndexInput.unwrapOnlyTest(input);
+        unwrappedInput = MemorySegmentAccessInputAccess.unwrap(unwrappedInput);
+        return new ESNextAshBBQVectorsScorer(
+            NativeBBQDotProduct.create(unwrappedInput, nDims, new BBQEncoding(bitsPerDim, queryBitsPerDim))
+        );
     }
 
     @Override

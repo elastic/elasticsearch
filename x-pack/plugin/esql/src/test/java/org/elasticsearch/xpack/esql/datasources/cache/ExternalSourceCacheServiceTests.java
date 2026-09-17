@@ -25,6 +25,7 @@ import org.elasticsearch.xpack.esql.datasources.PartitionMetadata;
 import org.elasticsearch.xpack.esql.datasources.SourceStatisticsSerializer;
 import org.elasticsearch.xpack.esql.datasources.SplitStats;
 import org.elasticsearch.xpack.esql.datasources.StorageEntry;
+import org.elasticsearch.xpack.esql.datasources.WarningSinks;
 import org.elasticsearch.xpack.esql.datasources.glob.GlobExpander;
 import org.elasticsearch.xpack.esql.datasources.spi.FileList;
 import org.elasticsearch.xpack.esql.datasources.spi.StoragePath;
@@ -46,8 +47,6 @@ import static org.hamcrest.Matchers.lessThan;
 
 public class ExternalSourceCacheServiceTests extends ESTestCase {
     private static final Map<String, Object> HIVE_ON = Map.of();
-
-    private static final Map<String, Object> HIVE_OFF = Map.of("hive_partitioning", "false");
 
     private static Settings defaultSettings() {
         return Settings.builder()
@@ -585,6 +584,32 @@ public class ExternalSourceCacheServiceTests extends ESTestCase {
         assertTrue(nullField.formatConfig().contains("error_mode=null_field"));
         assertTrue(skipRow.formatConfig().contains("error_mode=skip_row"));
         assertTrue(unionByName.formatConfig().contains("schema_resolution=union_by_name"));
+    }
+
+    public void testSchemaCacheKeySeparatesFileSortByAndFileOrder() {
+        SchemaCacheKey ffw = SchemaCacheKey.build(
+            "s3://b/f.csv",
+            1000L,
+            ".csv",
+            Map.of("format", "csv", "schema_resolution", "first_file_wins")
+        );
+        SchemaCacheKey mtimeDesc = SchemaCacheKey.build(
+            "s3://b/f.csv",
+            1000L,
+            ".csv",
+            Map.of("format", "csv", "schema_resolution", "first_file_wins", "file_sort_by", "mtime", "file_order", "desc")
+        );
+        SchemaCacheKey nameAsc = SchemaCacheKey.build(
+            "s3://b/f.csv",
+            1000L,
+            ".csv",
+            Map.of("format", "csv", "schema_resolution", "first_file_wins", "file_sort_by", "name")
+        );
+        assertNotEquals(ffw.formatConfig(), mtimeDesc.formatConfig());
+        assertNotEquals(mtimeDesc.formatConfig(), nameAsc.formatConfig());
+        assertTrue(mtimeDesc.formatConfig().contains("file_sort_by=mtime"));
+        assertTrue(mtimeDesc.formatConfig().contains("file_order=desc"));
+        assertTrue(nameAsc.formatConfig().contains("file_sort_by=name"));
     }
 
     /**
@@ -2769,7 +2794,7 @@ public class ExternalSourceCacheServiceTests extends ESTestCase {
 
         // Detect partitions the way production does, so the fixture exercises the real typing and
         // percent-decoding rather than the on-disk spelling a hand-built PartitionMetadata would carry.
-        PartitionMetadata pm = HivePartitionDetector.INSTANCE.detect(entries);
+        PartitionMetadata pm = HivePartitionDetector.INSTANCE.detect(entries, WarningSinks.FAILING);
         return GlobExpander.fileListOf(entries, "s3://bucket/data/*" + "*/*.parquet", pm);
     }
 }

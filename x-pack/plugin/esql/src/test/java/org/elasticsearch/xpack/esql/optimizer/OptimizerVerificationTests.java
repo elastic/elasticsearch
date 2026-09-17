@@ -10,24 +10,33 @@ package org.elasticsearch.xpack.esql.optimizer;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.lucene.BytesRefs;
 import org.elasticsearch.xpack.core.enrich.EnrichPolicy;
+import org.elasticsearch.xpack.esql.TestAnalyzer;
 import org.elasticsearch.xpack.esql.VerificationException;
 import org.elasticsearch.xpack.esql.action.EsqlCapabilities;
+import org.elasticsearch.xpack.esql.core.expression.FieldAttribute;
 import org.elasticsearch.xpack.esql.core.expression.Literal;
 import org.elasticsearch.xpack.esql.core.type.DataType;
+import org.elasticsearch.xpack.esql.expression.function.fulltext.SingleFieldFullTextFunction;
 import org.elasticsearch.xpack.esql.expression.function.scalar.string.StartsWith;
 import org.elasticsearch.xpack.esql.expression.function.scalar.string.regex.RLike;
 import org.elasticsearch.xpack.esql.expression.predicate.logical.Not;
 import org.elasticsearch.xpack.esql.expression.predicate.nulls.IsNotNull;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.Equals;
+import org.elasticsearch.xpack.esql.plan.logical.Aggregate;
 import org.elasticsearch.xpack.esql.plan.logical.Enrich;
 import org.elasticsearch.xpack.esql.plan.logical.Eval;
 import org.elasticsearch.xpack.esql.plan.logical.Filter;
+import org.elasticsearch.xpack.esql.plan.logical.Highlight;
+import org.elasticsearch.xpack.esql.plan.logical.InlineStats;
 import org.elasticsearch.xpack.esql.plan.logical.Limit;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
+import org.elasticsearch.xpack.esql.plan.logical.join.InlineJoin;
 import org.elasticsearch.xpack.esql.plan.logical.local.LocalRelation;
 
+import java.util.ArrayList;
+import java.util.List;
+
 import static org.elasticsearch.xpack.core.enrich.EnrichPolicy.MATCH_TYPE;
-import static org.elasticsearch.xpack.esql.EsqlTestUtils.analyzer;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.as;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.singleValue;
 import static org.elasticsearch.xpack.esql.action.EsqlCapabilities.Cap.INLINE_STATS;
@@ -36,10 +45,16 @@ import static org.elasticsearch.xpack.esql.analysis.AnalyzerExternalTests.extern
 import static org.elasticsearch.xpack.esql.analysis.AnalyzerTestUtils.EMBEDDING_INFERENCE_ID;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.is;
+import static org.hamcrest.Matchers.not;
 
 public class OptimizerVerificationTests extends AbstractLogicalPlanOptimizerTests {
+
+    public OptimizerVerificationTests(VersionMode versionMode) {
+        super(versionMode);
+    }
 
     /**
      * A cast to keyword (`::keyword`) produces a foldable string pattern. {@code 12::keyword} folds to the
@@ -72,6 +87,220 @@ public class OptimizerVerificationTests extends AbstractLogicalPlanOptimizerTest
         assumeTrue("requires like_rlike_constant_expression", EsqlCapabilities.Cap.LIKE_RLIKE_CONSTANT_EXPRESSION.isEnabled());
         var err = error(defaultAnalyzer().query("from test | where first_name like last_name::keyword"));
         assertThat(err, containsString("[LIKE] pattern must be a constant"));
+    }
+
+    /**
+     * Whether a full-text function is a runtime search is not stable across planning phases. Here {@code name} is a
+     * {@code ReferenceAttribute} when the plan is analyzed, so the positional check lets it past the LIMIT, but
+     * {@code PushDownAndCombineFilters} then pushes the filter past the RENAME and substitutes the underlying
+     * {@code FieldAttribute}, turning it back into an index-backed search that still sits above the LIMIT. The
+     * post-optimization re-run has to catch what the post-analysis pass let through.
+     */
+    public void testRuntimeFullTextRejectedAfterLimitWhenRenamePushesDownToField() {
+        var err = error(defaultAnalyzer().query("from test | limit 5 | rename first_name as name | where match(name, \"Meditation\")"));
+        assertThat(err, containsString("[MATCH] function cannot be used after LIMIT"));
+    }
+
+    /**
+     * A hybrid-search FORK: retrieve lexically in one branch, by a structured filter in the other, and merge. The
+     * top-N in each branch is deliberate - it is a pipeline breaker, which is what stops
+     * {@code PushDownFiltersIntoFork} moving a following filter into the branches and leaves it searching the
+     * merged column.
+     */
+    private static final String HYBRID_FORK = """
+        FROM test
+        | FORK (WHERE match(title, "fox") | SORT id | LIMIT 5)
+               (WHERE category == 1       | SORT id | LIMIT 5)
+        """;
+
+    /**
+     * A FORK output column merges the values of every branch, so it is no longer index-backed and a runtime search
+     * analyzes it with the standard analyzer. Where the column comes from a mapped {@code text} field, that
+     * substitution silently ignores the field's own analyzer, so it is rejected rather than answered wrongly.
+     * <p>
+     * Whether the substitution happens at all is decided by push-down: {@code PushDownFiltersIntoFork} moves the
+     * filter into the branches when at least one of them has no pipeline breaker, which restores an index-backed
+     * search. The top-N in each branch of {@link #HYBRID_FORK} is what keeps the filter above the merge.
+     */
+    public void testRuntimeTextSearchRejectedAfterForkOnMappedTextField() {
+        assertThat(
+            error(fullTextAnalyzer().query(HYBRID_FORK + "| KEEP title | WHERE match(title, \"data\")")),
+            containsString("[MATCH] function cannot search column [title] after FORK")
+        );
+        assertThat(
+            error(fullTextAnalyzer().query(HYBRID_FORK + "| KEEP title | WHERE match_phrase(title, \"data\")")),
+            containsString("[MatchPhrase] function cannot search column [title] after FORK")
+        );
+        assertThat(
+            error(fullTextAnalyzer().query(HYBRID_FORK + "| KEEP title | WHERE title : \"data\"")),
+            containsString("[:] operator cannot search column [title] after FORK")
+        );
+    }
+
+    public void testRuntimeTextSearchAfterForkPointsAtTheAnalyzerDeclaration() {
+        var err = error(fullTextAnalyzer().query(HYBRID_FORK + "| KEEP title | WHERE match(title, \"data\")"));
+        assertThat(err, containsString("merged column is not index-backed"));
+        assertThat(err, containsString("[standard]"));
+        // both ways out are named: searching the branches works whatever the field's type, declaring an analyzer
+        // only makes sense for one that has one
+        assertThat(err, containsString("Search [title] in the FORK branches instead"));
+        assertThat(err, containsString("TO_TEXT(title, {\"analyzer\": ...})"));
+    }
+
+    public void testIndexBackedTextSearchStillAllowedAfterFork() {
+        // the same two strategies without their top-N: no pipeline breaker, so the filter is pushed into the
+        // branches and each one still searches the index
+        optimize(fullTextAnalyzer().query("""
+            FROM test
+            | FORK (WHERE match(title, "fox"))
+                   (WHERE category == 1)
+            | KEEP title
+            | WHERE match(title, "data")
+            """));
+    }
+
+    public void testRuntimeKeywordSearchAllowedAfterFork() {
+        // a keyword column is not analyzed, so there is no mapping analyzer for the merge to lose
+        optimize(fullTextAnalyzer().query(HYBRID_FORK + "| KEEP tags | WHERE match(tags, \"data\")"));
+    }
+
+    public void testRuntimeTextSearchAllowedAfterForkWithDeclaredValuesAnalyzer() {
+        // TO_TEXT declares the values analyzer, so nothing is substituted silently. It is rejected on an
+        // index-mapped field but allowed here, because after FORK the column is no longer index-mapped.
+        optimize(
+            fullTextAnalyzer().query(
+                HYBRID_FORK + "| EVAL t = to_text(title, {\"analyzer\": \"whitespace\"}) " + "| WHERE match(t, \"data\")"
+            )
+        );
+    }
+
+    public void testRuntimeTextSearchAllowedAfterForkWhenNoBranchIsIndexBacked() {
+        // indistinguishable from the rejected shape by type and declared analyzer - TEXT, none - so only the
+        // absence of a mapped field behind either branch can tell them apart
+        optimize(fullTextAnalyzer().query("""
+            FROM test
+            | FORK (WHERE match(title, "fox") | SORT id | LIMIT 5 | EVAL strategy = to_text("lexical"))
+                   (WHERE category == 1     | SORT id | LIMIT 5 | EVAL strategy = to_text("filtered"))
+            | WHERE match(strategy, "lexical")
+            """));
+    }
+
+    public void testRuntimeTextSearchRejectedAfterForkThroughRename() {
+        var err = error(fullTextAnalyzer().query("""
+            FROM test
+            | FORK (WHERE match(body, "fox") | SORT id | LIMIT 5 | RENAME title AS heading)
+                   (WHERE category == 1      | SORT id | LIMIT 5 | RENAME title AS heading)
+            | WHERE match(heading, "data")
+            """));
+        assertThat(err, containsString("[MATCH] function cannot search column [heading] after FORK"));
+        // the merged column is [heading], but inside the branches the field is still called [title]
+        assertThat(err, containsString("Search [title] in the FORK branches instead"));
+        assertThat(err, containsString("TO_TEXT(heading, {\"analyzer\": ...})"));
+    }
+
+    public void testRuntimeTextSearchRejectedAfterForkWhenOnlyOneBranchIsIndexBacked() {
+        // only the lexical branch supplies the mapped field; the other computes the column outright
+        var err = error(fullTextAnalyzer().query("""
+            FROM test
+            | FORK (WHERE match(body, "fox") | SORT id | LIMIT 5)
+                   (WHERE category == 1      | SORT id | LIMIT 5 | EVAL title = to_text("untitled"))
+            | KEEP title
+            | WHERE match(title, "data")
+            """));
+        assertThat(err, containsString("[MATCH] function cannot search column [title] after FORK"));
+    }
+
+    public void testRuntimeTextSearchRejectedAfterForkDespiteSearchAnalyzerOption() {
+        // the MATCH analyzer option covers the query string only; the per-row values still fall back to standard
+        var err = error(
+            fullTextAnalyzer().query(HYBRID_FORK + "| KEEP title | WHERE match(title, \"data\", {\"analyzer\": \"whitespace\"})")
+        );
+        assertThat(err, containsString("[MATCH] function cannot search column [title] after FORK"));
+    }
+
+    public void testRuntimeTextSearchStillAllowedAfterMvExpand() {
+        optimize(fullTextAnalyzer().query("FROM test | MV_EXPAND title | WHERE match(title, \"data\")"));
+    }
+
+    /**
+     * A subquery union merges columns exactly as {@code FORK} does, but it does not share {@code FORK}'s exposure to
+     * the analyzer substitution, because {@code PushDownFilterAndLimitIntoUnionAll} pushes the filter into every
+     * branch unconditionally - there is no pipeline-breaker bail-out like {@code PushDownFiltersIntoFork}'s. Pushed
+     * this far, the filter lands positioned after each branch's own {@code SORT ... | LIMIT ...} (folded into a
+     * {@code TopN}), which is rejected for the same reason a plain, non-union query in that shape would be: an
+     * index-backed search cannot run after a command that has already reduced or reordered the rows. That rejection
+     * is itself the proof that no search here ever reaches a merged column: the filter is relocated into the
+     * branch, not left merged above the union, before either of those two questions - position, then analyzer - is
+     * even asked.
+     */
+    public void testRuntimeTextSearchAfterUnionAllReachesTheBranches() {
+        assumeTrue("requires subquery_in_from_command", EsqlCapabilities.Cap.SUBQUERY_IN_FROM_COMMAND.isEnabled());
+        var err = error(fullTextAnalyzer().query("""
+            FROM (FROM test | WHERE category == 1 | SORT id | LIMIT 5),
+                 (FROM test | WHERE category == 2 | SORT id | LIMIT 5)
+            | WHERE match(title, "data")
+            """));
+        assertThat(err, containsString("[MATCH] function cannot be used after SORT and LIMIT"));
+    }
+
+    /**
+     * Companion to {@link #testRuntimeTextSearchAfterUnionAllReachesTheBranches}: without a pipeline breaker in
+     * either branch, the same push-down lands the filter as an ordinary index-backed search per branch - not a
+     * runtime search on a merged column - so the query succeeds.
+     */
+    public void testRuntimeTextSearchAfterUnionAllWithoutBreakerReachesTheBranches() {
+        assumeTrue("requires subquery_in_from_command", EsqlCapabilities.Cap.SUBQUERY_IN_FROM_COMMAND.isEnabled());
+        var plan = optimize(fullTextAnalyzer().query("""
+            FROM (FROM test | WHERE category == 1),
+                 (FROM test | WHERE category == 2)
+            | WHERE match(title, "data")
+            """));
+
+        List<SingleFieldFullTextFunction> searches = new ArrayList<>();
+        plan.forEachDown(Filter.class, f -> f.condition().forEachDown(SingleFieldFullTextFunction.class, searches::add));
+        assertThat(searches, hasSize(2));
+        for (SingleFieldFullTextFunction search : searches) {
+            assertThat(search.isRuntimeSearch(), is(false));
+            assertThat(search.field(), instanceOf(FieldAttribute.class));
+        }
+    }
+
+    public void testRuntimeTextSearchRejectedAfterForkNestedInSubqueryBranch() {
+        assumeTrue("requires subquery_in_from_command", EsqlCapabilities.Cap.SUBQUERY_IN_FROM_COMMAND.isEnabled());
+        var err = error(fullTextAnalyzer().query("""
+            FROM (FROM test | FORK (WHERE match(title, "fox") | SORT id | LIMIT 5)
+                                   (WHERE category == 1       | SORT id | LIMIT 5)),
+                 (FROM test | WHERE category == 2 | SORT id | LIMIT 5)
+            | WHERE match(title, "data")
+            """));
+        assertThat(err, containsString("[MATCH] function cannot search column [title] after FORK"));
+    }
+
+    public void testRuntimeTextSearchRejectedAfterForkThroughCast() {
+        // a cast does not detach the column from the field behind it, so it is not a way around the restriction
+        var err = error(fullTextAnalyzer().query(HYBRID_FORK + "| KEEP title | WHERE match(title::keyword, \"data\")"));
+        assertThat(err, containsString("[MATCH] function cannot search column [title] after FORK"));
+    }
+
+    public void testRuntimeTextSearchAllowedAfterForkWhenBranchesMvExpand() {
+        // MV_EXPAND already made the column non-indexed inside the branch, so no branch hands the merge a mapped
+        // field and this stays the pre-existing MV_EXPAND behaviour rather than becoming a FORK rejection
+        optimize(fullTextAnalyzer().query("""
+            FROM test
+            | FORK (WHERE match(body, "fox") | MV_EXPAND title | SORT id | LIMIT 5)
+                   (WHERE category == 1      | MV_EXPAND title | SORT id | LIMIT 5)
+            | WHERE match(title, "data")
+            """));
+    }
+
+    public void testHighlightAfterForkIsNotRestricted() {
+        // HIGHLIGHT holds full-text functions too, but it analyzes row by row through a MemoryIndex whether or not
+        // a FORK precedes it, so the restriction must not reach it even in the shape that blocks push-down
+        optimize(fullTextAnalyzer().minimumTransportVersion(Highlight.ESQL_HIGHLIGHT).query(HYBRID_FORK + "| HIGHLIGHT \"data\" ON title"));
+    }
+
+    private TestAnalyzer fullTextAnalyzer() {
+        return analyzerWithEnrichPolicies().addIndex("test", "mapping-full_text_search.json");
     }
 
     private String error(LogicalPlan plan) {
@@ -499,6 +728,47 @@ public class OptimizerVerificationTests extends AbstractLogicalPlanOptimizerTest
             2:3: Unbounded SORT not supported yet [SORT languages] please add a LIMIT
             line 3:3: MV_EXPAND [MV_EXPAND languages] cannot yet have an unbounded SORT [SORT languages] before it: either move the SORT \
             after it, or add a LIMIT after the SORT"""));
+    }
+
+    /**
+     * The full-text verifier runs twice: on the analyzed plan, where INLINE STATS is an {@link InlineStats}, and again on the
+     * optimized plan, where {@code SubstituteSurrogatePlans} has turned it into an {@link InlineJoin}. The two node types never
+     * coexist, so the verifier has to recognize the aggregate under either shape or a query would pass one phase and fail the
+     * other. These queries reach {@code optimize} only if the analyzer accepted them, and {@code optimize} itself throws if the
+     * post-optimization verifier rejects them.
+     */
+    public void testFullTextFunctionAfterInlineStatsAgreesAcrossVerificationPhases() {
+        assumeTrue("INLINE STATS must be enabled", INLINE_STATS.isEnabled());
+
+        var plan = optimize(defaultAnalyzer().query("""
+            FROM test
+            | INLINE STATS a = MAX(salary) BY gender
+            | WHERE MATCH(first_name, "Anna")
+            """));
+
+        assertThat(plan.anyMatch(p -> p instanceof InlineStats), is(false));
+        assertThat(plan.anyMatch(p -> p instanceof InlineJoin), is(true));
+    }
+
+    /**
+     * An aggregate expression is rewritten by {@code ReplaceAggregateAggExpressionWithEval} into an Eval over the Aggregate, so
+     * the Aggregate is no longer the root of the InlineJoin's right-hand side. The verifier has to search the whole subtree.
+     */
+    public void testFullTextFunctionAfterInlineStatsWithAggregateExpression() {
+        assumeTrue("INLINE STATS must be enabled", INLINE_STATS.isEnabled());
+
+        var plan = optimize(defaultAnalyzer().query("""
+            FROM test
+            | INLINE STATS a = MAX(salary) + 1 BY gender
+            | WHERE MATCH(first_name, "Anna")
+            """));
+
+        var inlineJoins = plan.collect(p -> p instanceof InlineJoin);
+        assertThat(inlineJoins, hasSize(1));
+        var right = ((InlineJoin) inlineJoins.getFirst()).right();
+        // the Aggregate sits below an Eval/Project rather than at the root of the right-hand side
+        assertThat(right, not(instanceOf(Aggregate.class)));
+        assertThat(right.anyMatch(p -> p instanceof Aggregate), is(true));
     }
 
     public void testDanglingOrderByInInlineStats() {

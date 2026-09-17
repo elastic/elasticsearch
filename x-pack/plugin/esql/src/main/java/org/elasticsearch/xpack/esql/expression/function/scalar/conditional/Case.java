@@ -60,6 +60,8 @@ public final class Case extends EsqlScalarFunction {
         .capabilities("flattened")
         .name("case");
 
+    private static final String MULTIVALUE_CONDITION_MESSAGE = "CASE expects a single-valued boolean";
+
     record Condition(Expression condition, Expression value) {
         ConditionEvaluatorSupplier toEvaluator(ToEvaluator toEvaluator) {
             return new ConditionEvaluatorSupplier(condition.source(), toEvaluator.apply(condition), toEvaluator.apply(value));
@@ -273,50 +275,61 @@ public final class Case extends EsqlScalarFunction {
 
     @Override
     public boolean foldable() {
-        Deque<Expression> pending = new ArrayDeque<>();
-        pending.push(this);
-        while (pending.isEmpty() == false) {
-            Expression remaining = pending.pop();
-            if (remaining instanceof Case current) {
-                boolean takenLiteralTrue = false;
-                for (Condition condition : current.conditions) {
-                    if (condition.condition.foldable() == false) {
-                        return false;
-                    }
-                    /* Given the current condition is foldable,
-                        if we have already folded the condition into a Literal
-                            If True, Case is foldable if the value is foldable
-                            If False, Case is foldable if the rest of the conditions are foldable
-                        Otherwise
-                            if the value is foldable and the rest of the conditions are foldable, Case is foldable
-                     */
-                    if (condition.condition instanceof Literal literal) {
-                        if (Boolean.TRUE.equals(literal.value())) {
-                            // The condition is literally TRUE, so only the matching value needs to be foldable.
-                            pending.push(condition.value);
-                            takenLiteralTrue = true;
-                            break;
-                        } else {
-                            continue;
-                        }
-                    }
-                    pending.push(condition.value);
+        // Nested CASE values are walked here rather than recursed into, so a deep
+        // CASE(true, CASE(true, ...), ...) cannot overflow the stack.
+        Deque<Case> nested = null;
+        Case current = this;
+        while (current != null) {
+            Expression takenValue = null;
+            for (Condition condition : current.conditions) {
+                if (condition.condition.foldable() == false) {
+                    return false;
                 }
-                if (takenLiteralTrue == false) {
-                    pending.push(current.elseValue);
+                /* Given the current condition is foldable,
+                    if we have already folded the condition into a Literal
+                        If True, Case is foldable if the value is foldable
+                        If False, Case is foldable if the rest of the conditions are foldable
+                    Otherwise
+                        if the value is foldable and the rest of the conditions are foldable, Case is foldable
+                 */
+                if (condition.condition instanceof Literal literal) {
+                    if (Boolean.TRUE.equals(literal.value())) {
+                        // The condition is literally TRUE, so only the matching value needs to be foldable.
+                        takenValue = condition.value;
+                        break;
+                    } else {
+                        continue;
+                    }
                 }
-            } else if (remaining.foldable() == false) {
+                if (condition.value instanceof Case c) {
+                    nested = defer(nested, c);
+                } else if (condition.value.foldable() == false) {
+                    return false;
+                }
+            }
+            Expression last = takenValue == null ? current.elseValue : takenValue;
+            if (last instanceof Case c) {
+                nested = defer(nested, c);
+            } else if (last.foldable() == false) {
                 return false;
             }
+            current = nested == null || nested.isEmpty() ? null : nested.pop();
         }
         return true;
+    }
+
+    private static Deque<Case> defer(Deque<Case> nested, Case c) {
+        if (nested == null) {
+            nested = new ArrayDeque<>();
+        }
+        nested.push(c);
+        return nested;
     }
 
     @Override
     public Object fold(FoldContext ctx) {
         // Walk nested CASE along the taken branch so CASE(true, CASE(true, ...), ...)
-        // cannot overflow the stack. Conditions that are not Boolean.TRUE — including
-        // multivalued ones — are skipped, matching the evaluator.
+        // cannot overflow the stack.
         Expression remaining = this;
         while (remaining instanceof Case current) {
             remaining = takenBranch(ctx, current);
@@ -324,41 +337,47 @@ public final class Case extends EsqlScalarFunction {
         return remaining.fold(ctx);
     }
 
-    private static boolean isTemporal(Expression expression) {
-        DataType type = expression.dataType();
+    /**
+     * {@link PlannerUtils#toElementType} rejects these types, so they can't go in a
+     * {@link Block} and there is no evaluator to fold them with.
+     */
+    private static boolean hasNoEvaluator(Case c) {
+        DataType type = c.dataType();
         return type == DataType.DATE_PERIOD || type == DataType.TIME_DURATION;
     }
 
     private static Expression takenBranch(FoldContext ctx, Case current) {
         for (Condition condition : current.conditions) {
             Object folded = condition.condition.fold(ctx);
+            if (folded instanceof List<?> values) {
+                if (values.size() > 1) {
+                    // Multivalued conditions are false. Folding builds no evaluator, so the
+                    // warning CaseLazyEvaluator#eval would have raised has to come from here.
+                    if (hasNoEvaluator(current) == false) {
+                        warnMultivaluedCondition(condition.condition);
+                    }
+                    continue;
+                }
+                // One value is single valued, which is how the evaluator reads it out of the Block.
+                folded = values.isEmpty() ? null : values.getFirst();
+            }
             if (Boolean.TRUE.equals(folded)) {
                 return condition.value;
-            }
-            /*
-             * Multivalue conditions become false. The evaluator is what used to
-             * emit the warning; temporal CASE has no evaluator so it still skips
-             * this (see the TODO that predated the nested-fold fix).
-             */
-            if (isTemporal(current) == false && folded instanceof List<?> values && values.size() > 1) {
-                warnMultivaluedCondition(condition.condition);
             }
         }
         return current.elseValue;
     }
 
+    /**
+     * Raise the warnings {@link Warnings#registerException} would raise for a multivalued
+     * condition. Built from {@link Warnings} so the text can't drift from the evaluator's.
+     * Written straight to the thread context because folding has no {@link DriverContext}
+     * to collect them, which is what {@code EvaluatorMapper#fold} does with its warnings too.
+     */
     private static void warnMultivaluedCondition(Expression condition) {
         Source source = condition.source();
-        String location = source.viewName() == null
-            ? format("Line {}:{}: ", source.lineNumber(), source.columnNumber())
-            : format("Line {}:{} (in view [{}]): ", source.lineNumber(), source.columnNumber(), source.viewName());
-        HeaderWarning.addWarning(
-            "{}evaluation of [{}] failed, treating result as false. Only first {} failures recorded.",
-            location,
-            source.text(),
-            20
-        );
-        HeaderWarning.addWarning("{}java.lang.IllegalArgumentException: CASE expects a single-valued boolean", location);
+        HeaderWarning.addWarning(Warnings.firstTreatedAsFalseWarning(source));
+        HeaderWarning.addWarning(Warnings.exceptionWarning(source, IllegalArgumentException.class, MULTIVALUE_CONDITION_MESSAGE));
     }
 
     /**
@@ -499,7 +518,7 @@ public final class Case extends EsqlScalarFunction {
         }
 
         public void registerMultivalue() {
-            conditionWarnings.registerException(new IllegalArgumentException("CASE expects a single-valued boolean"));
+            conditionWarnings.registerException(new IllegalArgumentException(MULTIVALUE_CONDITION_MESSAGE));
         }
 
         public long baseRamBytesUsed() {

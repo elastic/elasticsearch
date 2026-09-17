@@ -18,6 +18,8 @@ import static org.elasticsearch.common.logging.LoggerMessageFormat.format;
 public class Warnings {
     static final int MAX_ADDED_WARNINGS = 20;
 
+    private static final String TREATED_AS_FALSE = "evaluation of [{}] failed, treating result as false";
+
     public static final Warnings NOOP_WARNINGS = new Warnings(null, -1, -2, null, "", "") {
         @Override
         public void registerException(Exception exception) {
@@ -53,7 +55,44 @@ public class Warnings {
      * @return A warnings collector object
      */
     public static Warnings createWarningsTreatedAsFalse(DriverContext driverContext, WarningSourceLocation source) {
-        return createWarnings(driverContext, source, "evaluation of [{}] failed, treating result as false");
+        return createWarnings(driverContext, source, TREATED_AS_FALSE);
+    }
+
+    /**
+     * The header announcing that failures at {@code source} are treated as {@code false}, as
+     * {@link #createWarningsTreatedAsFalse} would emit before the first {@link #registerException}.
+     * <p>
+     *     This and {@link #exceptionWarning} exist for callers that have to raise these warnings
+     *     without a {@link DriverContext} to collect them, so that the text they produce stays
+     *     identical to the evaluator's.
+     * </p>
+     */
+    public static String firstTreatedAsFalseWarning(WarningSourceLocation source) {
+        return firstExceptionWarning(locationPrefix(source), source.text(), TREATED_AS_FALSE);
+    }
+
+    /**
+     * The warning reporting one failure at {@code source}, as {@link #registerException} would emit it.
+     */
+    public static String exceptionWarning(WarningSourceLocation source, Class<? extends Exception> exceptionClass, String message) {
+        return locationPrefix(source) + exceptionClass.getName() + ": " + message;
+    }
+
+    private static String locationPrefix(WarningSourceLocation source) {
+        return locationPrefix(source.lineNumber(), source.columnNumber(), source.viewName());
+    }
+
+    /**
+     * Every warning has to carry this, since the headers are deduplicated.
+     */
+    private static String locationPrefix(int lineNumber, int columnNumber, String viewName) {
+        return viewName == null
+            ? format("Line {}:{}: ", lineNumber, columnNumber)
+            : format("Line {}:{} (in view [{}]): ", lineNumber, columnNumber, viewName);
+    }
+
+    private static String firstExceptionWarning(String location, String sourceText, String first) {
+        return format(null, "{}" + first + ". Only first {} failures recorded.", location, sourceText, MAX_ADDED_WARNINGS);
     }
 
     /**
@@ -97,20 +136,13 @@ public class Warnings {
         String firstExceptionWarning
     ) {
         this.driverContext = driverContext;
+        this.location = locationPrefix(lineNumber, columnNumber, viewName);
         if (viewName == null) {
-            this.location = format("Line {}:{}: ", lineNumber, columnNumber);
             this.nonExceptionWarningPrefix = format("Line {}:{} [{}]: ", lineNumber, columnNumber, sourceText);
         } else {
-            this.location = format("Line {}:{} (in view [{}]): ", lineNumber, columnNumber, viewName);
             this.nonExceptionWarningPrefix = format("Line {}:{} [{}] (in view [{}]): ", lineNumber, columnNumber, sourceText, viewName);
         }
-        this.firstExceptionWarning = format(
-            null,
-            "{}" + firstExceptionWarning + ". Only first {} failures recorded.",
-            location,
-            sourceText,
-            MAX_ADDED_WARNINGS
-        );
+        this.firstExceptionWarning = firstExceptionWarning(location, sourceText, firstExceptionWarning);
     }
 
     public void registerException(Exception exception) {

@@ -115,15 +115,7 @@ public final class SimdJsonTestDocuments {
         docs.add("{\"longEsc\":\"" + "a".repeat(150) + "\\n" + "a".repeat(50) + "\"}");
         docs.add("{\"longRaw\":\"" + "a".repeat(150) + "café" + "a".repeat(50) + "\"}");
         docs.add("{\"arrLong\":[\"" + "a".repeat(200) + "\",\"" + "b".repeat(100) + "\\t" + "c".repeat(80) + "\"]}");
-        docs.add(
-            "{\"objArrLong\":[{\"a\":\""
-                + "a".repeat(200)
-                + "\",\"b\":\""
-                + "b".repeat(120)
-                + "\\n"
-                + "b".repeat(60)
-                + "\"}]}"
-        );
+        docs.add("{\"objArrLong\":[{\"a\":\"" + "a".repeat(200) + "\",\"b\":\"" + "b".repeat(120) + "\\n" + "b".repeat(60) + "\"}]}");
         return List.copyOf(docs);
     }
 }

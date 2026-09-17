@@ -430,6 +430,11 @@ public interface FormatReader extends Closeable {
      * Returns a typed snapshot of format-reader I/O counters, or {@code null} when the reader
      * tracks none. The snapshot is folded into the {@code format_reader} field of the
      * external-source operator status.
+     * <p>
+     * A reader whose snapshot is non-null <b>must</b> also implement {@link InstrumentedFormatReader}
+     * so the operator factory can mint a fresh counter struct per driver. Every wither on such a
+     * reader must share the parent's struct; only {@link InstrumentedFormatReader#withFreshCounters()}
+     * allocates a new one.
      */
     default FormatReaderStatus statusSnapshot() {
         return null;

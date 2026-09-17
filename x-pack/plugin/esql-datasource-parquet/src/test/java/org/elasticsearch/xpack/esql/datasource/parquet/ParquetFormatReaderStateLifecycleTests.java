@@ -5,115 +5,101 @@
  * 2.0.
  */
 
-package org.elasticsearch.xpack.esql.datasource.ndjson;
+package org.elasticsearch.xpack.esql.datasource.parquet;
 
+import org.apache.parquet.filter2.compat.FilterCompat;
 import org.elasticsearch.common.breaker.NoopCircuitBreaker;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.test.ESTestCase;
-import org.elasticsearch.xpack.esql.core.expression.ReferenceAttribute;
-import org.elasticsearch.xpack.esql.core.tree.Source;
-import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.datasources.spi.Configured;
 import org.elasticsearch.xpack.esql.datasources.spi.FormatReader;
 
 import java.lang.reflect.Field;
 import java.lang.reflect.Method;
 import java.lang.reflect.Modifier;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.TreeSet;
 
 /**
- * The lifecycle gate over {@link NdJsonFormatReader}'s mutable state. The invariant: every ordinary wither
- * preserves the parent's counter struct; {@link NdJsonFormatReader#withFreshCounters()} is the only method that
- * mints a fresh one, and the operator factory calls it once per {@code get(DriverContext)}. Isolation between
- * operators is at {@code withFreshCounters()}, not at the individual wither seam.
+ * Lifecycle gate over {@link ParquetFormatReader}'s mutable state. Invariant: every ordinary wither preserves the
+ * parent's counter struct; {@link ParquetFormatReader#withFreshCounters()} is the only method that mints a fresh one,
+ * and the operator factory calls it once per {@code get(DriverContext)}. Isolation between operators is at
+ * {@code withFreshCounters()}, not at the individual wither seam.
  * <p>
- * The behavioural pins in {@link NdJsonFormatReaderStatusSnapshotTests} guard each KNOWN wither. This class guards
- * the ENUMERATION: a new wither, or a new instance field, added without deciding its lifecycle fails here rather
- * than depending on someone remembering to add a pin. Mirrors {@code CsvFormatReaderRecognizedKeysTests} (every
- * consumed key must be classified) and {@code StatsInvalidationScopeTests} (every stats key must declare its
- * invalidation scope and fold behaviour).
+ * The behavioural pins in {@link ParquetReaderStatusTests} guard each known wither. This class guards the ENUMERATION:
+ * a new wither or instance field added without deciding its lifecycle fails here rather than depending on someone
+ * remembering to add a pin.
  */
 @SuppressForbidden(reason = "reflection over declared fields and withers is the point: an undeclared one must not slip past the gate")
-public class NdJsonFormatReaderStateLifecycleTests extends ESTestCase {
+public class ParquetFormatReaderStateLifecycleTests extends ESTestCase {
 
     private static final BlockFactory BLOCK_FACTORY = BlockFactory.builder(BigArrays.NON_RECYCLING_INSTANCE)
         .breaker(new NoopCircuitBreaker("noop"))
         .build();
 
     /**
-     * Instance fields that carry no cross-instance mutable state: value-immutable, or never written after
-     * construction and never written during a read. A new field must be added here or to
-     * {@link #SHARED_MUTABLE_FIELDS} — an unclassified field fails the gate.
+     * Instance fields that carry no cross-instance mutable state. {@code codecFactory} qualifies because every copy
+     * creates its own instance via the field initializer; it is stateless across files and never reconfigured after
+     * construction.
      */
     private static final Set<String> IMMUTABLE_OR_CONFIG_FIELDS = Set.of(
+        "parsedFooters",
+        "footerBytes",
+        "maxFooterReadBytes",
+        "ioWatermark",
         "blockFactory",
-        "settings",
-        "resolvedSchema",
-        "schemaSampleSize",
-        "segmentSizeBytes",
-        "datetimeFormatter",
+        "pushedFilter",
+        "pushedExpressions",
+        "forceBaselinePath",
+        "optimizedReader",
+        "dynamicThreshold",
         "declaredDateFormats",
-        "canonicalConfig",
-        "readConfig"
+        "declaredTypeColumns",
+        "codecFactory"
     );
 
-    /**
-     * Internally mutable fields written during reads. Every wither must declare (in {@link #WITHER_LIFECYCLE})
-     * whether its copy shares or forks EACH of these, and the declaration is executed below.
-     */
+    /** Internally mutable fields written during reads. Every wither must declare its behaviour for each of these. */
     private static final Set<String> SHARED_MUTABLE_FIELDS = Set.of("counters");
 
-    /**
-     * What a wither's copy does with the shared-mutable state.
-     */
     private enum WitherLifecycle {
         /**
-         * Mints a fresh counter struct: only {@link NdJsonFormatReader#withFreshCounters()} should declare this.
-         * The operator factory calls it once per {@code get(DriverContext)} so each operator gets an isolated scope.
+         * Mints a fresh counter struct. Only {@link ParquetFormatReader#withFreshCounters()} should declare this;
+         * the operator factory calls it once per {@code get(DriverContext)} so each parallel driver owns isolated counters.
          */
         OPERATOR_MINT_FORKS,
         /**
-         * Shares the parent's counter struct (i.e. passes {@code counters} through the copy constructor). ALL
-         * ordinary withers — per-query and per-file alike — must declare this. Isolation is not at the wither
-         * seam; it is at {@link NdJsonFormatReader#withFreshCounters()} (see OPERATOR_MINT_FORKS).
+         * Shares the parent's counter struct (passes {@code counters} through the copy constructor). ALL ordinary
+         * withers — per-query and per-file alike — must declare this. Isolation is not at the wither seam; it is at
+         * {@link ParquetFormatReader#withFreshCounters()}.
          */
         SHARES_COUNTERS,
         /** SPI default that returns {@code this}: no copy, so no counter decision needed. */
         IDENTITY_NO_COPY
     }
 
-    private static final Map<String, WitherLifecycle> WITHER_LIFECYCLE = Map.of(
-        "withFreshCounters",
-        WitherLifecycle.OPERATOR_MINT_FORKS,
-        "withConfig",
-        WitherLifecycle.SHARES_COUNTERS,
-        "withConfigTrackingConsumedKeys",
-        WitherLifecycle.SHARES_COUNTERS,
-        "withSchema",
-        WitherLifecycle.SHARES_COUNTERS,
-        "withDeclaredDateFormats",
-        WitherLifecycle.SHARES_COUNTERS,
-        "withReadConfig",
-        WitherLifecycle.SHARES_COUNTERS,
-        "withPushedFilter",
-        WitherLifecycle.IDENTITY_NO_COPY,
-        "withDeclaredTypeColumns",
-        WitherLifecycle.IDENTITY_NO_COPY,
-        "withDeclaredProvenanceBinding",
-        WitherLifecycle.IDENTITY_NO_COPY
+    private static final Map<String, WitherLifecycle> WITHER_LIFECYCLE = Map.ofEntries(
+        Map.entry("withFreshCounters", WitherLifecycle.OPERATOR_MINT_FORKS),
+        Map.entry("withPushedFilter", WitherLifecycle.SHARES_COUNTERS),
+        Map.entry("withDynamicThreshold", WitherLifecycle.SHARES_COUNTERS),
+        Map.entry("withDeclaredDateFormats", WitherLifecycle.SHARES_COUNTERS),
+        Map.entry("withDeclaredTypeColumns", WitherLifecycle.SHARES_COUNTERS),
+        Map.entry("withConfigTrackingConsumedKeys", WitherLifecycle.IDENTITY_NO_COPY),
+        Map.entry("withConfig", WitherLifecycle.IDENTITY_NO_COPY),
+        Map.entry("withSchema", WitherLifecycle.IDENTITY_NO_COPY),
+        Map.entry("withDeclaredProvenanceBinding", WitherLifecycle.IDENTITY_NO_COPY),
+        Map.entry("withReadConfig", WitherLifecycle.IDENTITY_NO_COPY)
     );
 
-    /** Every declared instance field must be classified: immutable/config, or shared-mutable. */
     public void testEveryInstanceFieldIsClassified() {
         Set<String> unclassified = new TreeSet<>();
         Set<String> stale = new TreeSet<>();
         Set<String> seen = new TreeSet<>();
-        for (Field f : NdJsonFormatReader.class.getDeclaredFields()) {
+        for (Field f : ParquetFormatReader.class.getDeclaredFields()) {
             if (Modifier.isStatic(f.getModifiers()) || f.isSynthetic()) {
                 continue;
             }
@@ -146,10 +132,6 @@ public class NdJsonFormatReaderStateLifecycleTests extends ESTestCase {
         assertTrue("stale classified field(s) " + stale + ": the reader no longer declares them", stale.isEmpty());
     }
 
-    /**
-     * Every wither reachable on the reader — overridden or inherited SPI default — must declare a lifecycle.
-     * A new wither (or a new override of a default) fails here until its seam is decided.
-     */
     public void testEveryWitherDeclaresALifecycle() {
         Set<String> undeclared = new TreeSet<>();
         Set<String> found = new TreeSet<>();
@@ -173,14 +155,8 @@ public class NdJsonFormatReaderStateLifecycleTests extends ESTestCase {
         assertTrue("stale WITHER_LIFECYCLE entr(ies) " + stale + ": no such wither on the reader any more", stale.isEmpty());
     }
 
-    /**
-     * The declaration, executed. Each wither is invoked on a live reader and the copy's shared-mutable fields are
-     * compared BY IDENTITY against the receiver's: a fork that should share (telemetry goes quiet) and a share
-     * that should fork (concurrent queries mix) both fail. An overridden SPI default that starts copying fails the
-     * IDENTITY_NO_COPY assertion, which forces the new copy's lifecycle to be declared.
-     */
     public void testWitherCopiesHonourTheDeclaredLifecycle() throws Exception {
-        NdJsonFormatReader receiver = new NdJsonFormatReader(null, BLOCK_FACTORY);
+        ParquetFormatReader receiver = new ParquetFormatReader(BLOCK_FACTORY);
         for (Method m : witherMethods()) {
             WitherLifecycle lifecycle = WITHER_LIFECYCLE.get(m.getName());
             assertNotNull("undeclared wither [" + m.getName() + "] — testEveryWitherDeclaresALifecycle reports these", lifecycle);
@@ -211,7 +187,6 @@ public class NdJsonFormatReaderStateLifecycleTests extends ESTestCase {
                             fieldOf(product, field)
                         );
                     }
-                    // Two mints on the same base must each produce an independent struct.
                     Object sibling = unwrap(m.invoke(receiver, sampleArgsFor(m.getName())));
                     for (String field : SHARED_MUTABLE_FIELDS) {
                         assertNotSame(
@@ -243,19 +218,9 @@ public class NdJsonFormatReaderStateLifecycleTests extends ESTestCase {
         }
     }
 
-    /**
-     * Pins the documented pass-through: an empty config returns the reader itself, so the "sibling configured
-     * readers must not share" guarantee holds only for non-empty configs. If this ever changes, the lifecycle
-     * declarations above must be revisited.
-     */
-    public void testEmptyConfigReturnsTheSameInstance() {
-        NdJsonFormatReader receiver = new NdJsonFormatReader(null, BLOCK_FACTORY);
-        assertSame(receiver, receiver.withConfigTrackingConsumedKeys(Map.of()).value());
-    }
-
     private static List<Method> witherMethods() {
-        List<Method> methods = new java.util.ArrayList<>();
-        for (Method m : NdJsonFormatReader.class.getMethods()) {
+        List<Method> methods = new ArrayList<>();
+        for (Method m : ParquetFormatReader.class.getMethods()) {
             if (m.isBridge() || m.isSynthetic()) {
                 continue;
             }
@@ -285,13 +250,16 @@ public class NdJsonFormatReaderStateLifecycleTests extends ESTestCase {
     private static Object[] sampleArgsFor(String wither) {
         return switch (wither) {
             case "withFreshCounters" -> new Object[0];
-            case "withConfig", "withConfigTrackingConsumedKeys" -> new Object[] { Map.of("schema_sample_size", 64) };
-            case "withSchema" -> new Object[] { List.of(new ReferenceAttribute(Source.EMPTY, null, "a", DataType.LONG)) };
-            case "withDeclaredDateFormats" -> new Object[] { Map.of("b", "yyyy-MM-dd") };
-            case "withReadConfig" -> new Object[] { "0123456789abcdef0123456789abcdef" };
-            case "withPushedFilter" -> new Object[] { new Object() };
-            case "withDeclaredTypeColumns" -> new Object[] { Set.of("a") };
-            case "withDeclaredProvenanceBinding" -> new Object[] { true };
+            // FilterCompat.NOOP is a FilterCompat.Filter instance; passes the instanceof branch and always creates a copy.
+            case "withPushedFilter" -> new Object[] { FilterCompat.NOOP };
+            // null is accepted by withDynamicThreshold and always produces a copy (no identity shortcut).
+            case "withDynamicThreshold" -> new Object[] { null };
+            case "withDeclaredDateFormats" -> new Object[] { Map.of("x", "yyyy-MM-dd") };
+            case "withDeclaredTypeColumns" -> new Object[] { Set.of("x") };
+            case "withConfigTrackingConsumedKeys", "withConfig" -> new Object[] { Map.of() };
+            case "withSchema" -> new Object[] { List.of() };
+            case "withDeclaredProvenanceBinding" -> new Object[] { false };
+            case "withReadConfig" -> new Object[] { "" };
             default -> throw new AssertionError("update sampleArgsFor() for new wither: " + wither);
         };
     }

@@ -78,6 +78,7 @@ import org.elasticsearch.xpack.esql.datasources.spi.ErrorPolicy;
 import org.elasticsearch.xpack.esql.datasources.spi.FilterPushdownSupport;
 import org.elasticsearch.xpack.esql.datasources.spi.FormatReadContext;
 import org.elasticsearch.xpack.esql.datasources.spi.FormatReader;
+import org.elasticsearch.xpack.esql.datasources.spi.InstrumentedFormatReader;
 import org.elasticsearch.xpack.esql.datasources.spi.NoConfigFormatReader;
 import org.elasticsearch.xpack.esql.datasources.spi.PassThroughRowPositionStrategy;
 import org.elasticsearch.xpack.esql.datasources.spi.RangeAwareFormatReader;
@@ -89,7 +90,6 @@ import org.elasticsearch.xpack.esql.datasources.spi.SkipWarnings;
 import org.elasticsearch.xpack.esql.datasources.spi.SourceMetadata;
 import org.elasticsearch.xpack.esql.datasources.spi.SourceStatistics;
 import org.elasticsearch.xpack.esql.datasources.spi.StorageObject;
-import org.elasticsearch.xpack.esql.datasources.spi.ThreadCpuTimer;
 import org.elasticsearch.xpack.esql.type.EsqlDataTypeConverter;
 
 import java.io.IOException;
@@ -129,7 +129,13 @@ import java.util.function.IntConsumer;
  *   <li>Direct conversion from Parquet to ESQL blocks</li>
  * </ul>
  */
-public class ParquetFormatReader implements RangeAwareFormatReader, NoConfigFormatReader, ColumnExtractorAware, DynamicThresholdAware {
+public class ParquetFormatReader
+    implements
+        RangeAwareFormatReader,
+        NoConfigFormatReader,
+        ColumnExtractorAware,
+        DynamicThresholdAware,
+        InstrumentedFormatReader {
 
     private static final Logger logger = LogManager.getLogger(ParquetFormatReader.class);
 
@@ -174,11 +180,11 @@ public class ParquetFormatReader implements RangeAwareFormatReader, NoConfigForm
     // Shared across all iterators created by this reader: holds lazy decompressor instances and
     // pays the per-codec init cost once. The factory is stateless across files/row groups.
     private final PlainCompressionCodecFactory codecFactory = new PlainCompressionCodecFactory();
-    // Mutable reader-level counters surfaced as a Map<String, Object> via {@link #statusSnapshot()}
-    // and folded into AsyncExternalSourceOperator.Status.formatReader by the carrier. Per-reader
-    // (one ParquetFormatReader instance owns one counter struct), incremented by each read /
-    // readRange invocation that flows through this reader.
-    private final ParquetReaderCounters counters = new ParquetReaderCounters();
+    // Reader-level counters surfaced via {@link #statusSnapshot()} and folded into the
+    // operator status {@code format_reader} section. Shared across all wither-derived copies:
+    // every {@code with*} method forwards this field so the base reader's snapshot observes
+    // everything any derived copy recorded. Only {@link #withFreshCounters()} mints a new struct.
+    private final ParquetReaderCounters counters;
 
     static final long DEFAULT_ROW_GROUP_MACRO_SPLIT_TARGET_BYTES = 32L * 1024 * 1024;
 
@@ -447,6 +453,47 @@ public class ParquetFormatReader implements RangeAwareFormatReader, NoConfigForm
         ParquetIoWatermark ioWatermark,
         int maxFooterReadBytes
     ) {
+        this(
+            blockFactory,
+            pushedFilter,
+            pushedExpressions,
+            forceBaselinePath,
+            optimizedReader,
+            dynamicThreshold,
+            declaredDateFormats,
+            declaredTypeColumns,
+            footerBytes,
+            parsedFooters,
+            ioWatermark,
+            maxFooterReadBytes,
+            null
+        );
+    }
+
+    /**
+     * Primary copy constructor: preserves all fields and either shares ({@code sharedCounters != null})
+     * or mints ({@code sharedCounters == null}) a counter struct. Every {@code with*} wither passes
+     * {@code this.counters} here so the base reader's snapshot observes everything any fork recorded.
+     * Only {@link #withFreshCounters()} passes {@code null} to allocate a fresh struct.
+     * <p>
+     * The node-shared footer caches and I/O watermark are always forwarded — never reallocated per
+     * copy — so the per-operator mint does not multiply their heap footprint.
+     */
+    private ParquetFormatReader(
+        BlockFactory blockFactory,
+        FilterCompat.Filter pushedFilter,
+        ParquetPushedExpressions pushedExpressions,
+        boolean forceBaselinePath,
+        boolean optimizedReader,
+        DynamicThreshold dynamicThreshold,
+        Map<String, String> declaredDateFormats,
+        Set<String> declaredTypeColumns,
+        FooterByteCache footerBytes,
+        ParsedFooterCache<ParquetMetadata> parsedFooters,
+        ParquetIoWatermark ioWatermark,
+        int maxFooterReadBytes,
+        @Nullable ParquetReaderCounters sharedCounters
+    ) {
         this.blockFactory = blockFactory;
         this.pushedFilter = pushedFilter;
         this.pushedExpressions = pushedExpressions;
@@ -462,15 +509,20 @@ public class ParquetFormatReader implements RangeAwareFormatReader, NoConfigForm
         }
         this.ioWatermark = ioWatermark;
         this.maxFooterReadBytes = maxFooterReadBytes;
+        this.counters = sharedCounters != null ? sharedCounters : new ParquetReaderCounters();
     }
 
     /**
-     * A copy identical to this reader that shares its footer caches but starts fresh
-     * instrumentation counters. Test-only: models the production pattern where the registry's
-     * root reader and its derived copies share one cache, while letting tests assert the
-     * hit/miss counts of one consumer in isolation.
+     * Returns a copy of this reader backed by a fresh {@link ParquetReaderCounters} struct while
+     * sharing all node-scoped caches (footer caches, I/O watermark). Called once per
+     * {@code AsyncExternalSourceOperatorFactory.get(DriverContext)} invocation so each parallel
+     * driver accumulates into its own counter, while the node-wide cache budget is unchanged.
+     * <p>
+     * This is the <em>only</em> place a new counter struct is allocated for a derived reader;
+     * every other {@code with*} wither forwards {@code this.counters}.
      */
-    ParquetFormatReader copySharingCachesForTests() {
+    @Override
+    public ParquetFormatReader withFreshCounters() {
         return new ParquetFormatReader(
             blockFactory,
             pushedFilter,
@@ -483,7 +535,8 @@ public class ParquetFormatReader implements RangeAwareFormatReader, NoConfigForm
             footerBytes,
             parsedFooters,
             ioWatermark,
-            maxFooterReadBytes
+            maxFooterReadBytes,
+            null
         );
     }
 
@@ -505,7 +558,8 @@ public class ParquetFormatReader implements RangeAwareFormatReader, NoConfigForm
             footerBytes,
             parsedFooters,
             ioWatermark,
-            maxFooterReadBytes
+            maxFooterReadBytes,
+            counters
         );
     }
 
@@ -527,7 +581,8 @@ public class ParquetFormatReader implements RangeAwareFormatReader, NoConfigForm
                 footerBytes,
                 parsedFooters,
                 ioWatermark,
-                maxFooterReadBytes
+                maxFooterReadBytes,
+                counters
             );
         }
         if (pushedFilter instanceof FilterCompat.Filter filter) {
@@ -543,7 +598,8 @@ public class ParquetFormatReader implements RangeAwareFormatReader, NoConfigForm
                 footerBytes,
                 parsedFooters,
                 ioWatermark,
-                maxFooterReadBytes
+                maxFooterReadBytes,
+                counters
             );
         }
         if (pushedFilter instanceof ParquetPushedExpressions exprs) {
@@ -559,7 +615,8 @@ public class ParquetFormatReader implements RangeAwareFormatReader, NoConfigForm
                 footerBytes,
                 parsedFooters,
                 ioWatermark,
-                maxFooterReadBytes
+                maxFooterReadBytes,
+                counters
             );
         }
         return this;
@@ -579,7 +636,8 @@ public class ParquetFormatReader implements RangeAwareFormatReader, NoConfigForm
             footerBytes,
             parsedFooters,
             ioWatermark,
-            maxFooterReadBytes
+            maxFooterReadBytes,
+            counters
         );
     }
 
@@ -607,7 +665,8 @@ public class ParquetFormatReader implements RangeAwareFormatReader, NoConfigForm
             footerBytes,
             parsedFooters,
             ioWatermark,
-            maxFooterReadBytes
+            maxFooterReadBytes,
+            counters
         );
     }
 
@@ -636,7 +695,8 @@ public class ParquetFormatReader implements RangeAwareFormatReader, NoConfigForm
             footerBytes,
             parsedFooters,
             ioWatermark,
-            maxFooterReadBytes
+            maxFooterReadBytes,
+            counters
         );
     }
 
@@ -657,7 +717,8 @@ public class ParquetFormatReader implements RangeAwareFormatReader, NoConfigForm
             footerBytes,
             parsedFooters,
             watermark,
-            maxFooterReadBytes
+            maxFooterReadBytes,
+            counters
         );
     }
 
@@ -1700,56 +1761,42 @@ public class ParquetFormatReader implements RangeAwareFormatReader, NoConfigForm
 
     @Override
     public CloseableIterator<Page> read(StorageObject object, FormatReadContext context) throws IOException {
-        long startNanos = System.nanoTime();
-        long startCpuNanos = ThreadCpuTimer.currentNanos();
-        try {
-            // The synthetic {@link ColumnExtractor#ROW_POSITION_COLUMN} flows through the regular
-            // read path: {@link #buildProjectedAttributes} types it as LONG and {@link #buildColumnInfos}
-            // recognises the slot, so the iterator emits per-row file-global identities the same way
-            // it emits any other column. Pushed filters, late materialization, page skipping, and
-            // row-group skipping all stay on — each surviving row carries its identity, and the
-            // matching extractor binds those identities back to the file's full footer.
-            ParquetStorageObjectAdapter parquetInputFile = new ParquetStorageObjectAdapter(
-                object,
-                footerBytes,
-                blockFactory.breaker(),
-                ioWatermark
-            );
-            long footerStartNanos = System.nanoTime();
-            ParquetFileReader reader = openParquetFileCached(object, parquetInputFile, readOptionsBuilder().build());
-            counters.addFooterRead(System.nanoTime() - footerStartNanos, sizeOrZero(object), reader.getFooter().getBlocks().size());
-            return buildIterator(
-                object,
-                parquetInputFile,
-                reader,
-                context.projectedColumns(),
-                context.batchSize(),
-                context.rowLimit(),
-                context.readSchema(),
-                // For full-file reads the iterator's footer is the file's footer; the deferred
-                // extractor scopes itself to the same set of row groups. {@link #readRange} below
-                // threads the unranged footer separately so the extractor can address rows in the
-                // file's full address space even on a range-restricted scan.
-                reader.getFooter(),
-                // Full-file reads need no per-block file-global offset override — the iterator's
-                // own row-group ordering already matches the file footer.
-                null,
-                filter -> openParquetFileCached(object, parquetInputFile, readOptionsBuilder().withRecordFilter(filter).build()),
-                resolveErrorPolicy(context.errorPolicy()),
-                context.informationalWarningSink(),
-                context.sharedErrorBudget()
-            );
-        } finally {
-            // This covers only the synchronous open/setup phase (footer, row-group filtering,
-            // index/dictionary/bloom prefetch dispatch). The returned iterator's own hasNext()/
-            // next() time its row-group transitions and per-page decode separately (see
-            // ParquetColumnIterator / OptimizedParquetColumnIterator), accumulating into the same
-            // counter so read_nanos covers the reader's full producer-thread lifecycle.
-            if (startCpuNanos >= 0) {
-                counters.addTotalReadCpuNanos(ThreadCpuTimer.elapsedNanos(startCpuNanos));
-            }
-            counters.addTotalReadNanos(System.nanoTime() - startNanos);
-        }
+        // The synthetic {@link ColumnExtractor#ROW_POSITION_COLUMN} flows through the regular
+        // read path: {@link #buildProjectedAttributes} types it as LONG and {@link #buildColumnInfos}
+        // recognises the slot, so the iterator emits per-row file-global identities the same way
+        // it emits any other column. Pushed filters, late materialization, page skipping, and
+        // row-group skipping all stay on — each surviving row carries its identity, and the
+        // matching extractor binds those identities back to the file's full footer.
+        ParquetStorageObjectAdapter parquetInputFile = new ParquetStorageObjectAdapter(
+            object,
+            footerBytes,
+            blockFactory.breaker(),
+            ioWatermark
+        );
+        long footerStartNanos = System.nanoTime();
+        ParquetFileReader reader = openParquetFileCached(object, parquetInputFile, readOptionsBuilder().build());
+        counters.addFooterRead(System.nanoTime() - footerStartNanos, sizeOrZero(object), reader.getFooter().getBlocks().size());
+        return buildIterator(
+            object,
+            parquetInputFile,
+            reader,
+            context.projectedColumns(),
+            context.batchSize(),
+            context.rowLimit(),
+            context.readSchema(),
+            // For full-file reads the iterator's footer is the file's footer; the deferred
+            // extractor scopes itself to the same set of row groups. {@link #readRange} below
+            // threads the unranged footer separately so the extractor can address rows in the
+            // file's full address space even on a range-restricted scan.
+            reader.getFooter(),
+            // Full-file reads need no per-block file-global offset override — the iterator's
+            // own row-group ordering already matches the file footer.
+            null,
+            filter -> openParquetFileCached(object, parquetInputFile, readOptionsBuilder().withRecordFilter(filter).build()),
+            resolveErrorPolicy(context.errorPolicy()),
+            context.informationalWarningSink(),
+            context.sharedErrorBudget()
+        );
     }
 
     @Override

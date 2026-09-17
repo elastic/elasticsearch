@@ -25,6 +25,7 @@ import org.elasticsearch.xpack.esql.datasources.spi.Configured;
 import org.elasticsearch.xpack.esql.datasources.spi.ErrorPolicy;
 import org.elasticsearch.xpack.esql.datasources.spi.FormatReadContext;
 import org.elasticsearch.xpack.esql.datasources.spi.FormatReader;
+import org.elasticsearch.xpack.esql.datasources.spi.InstrumentedFormatReader;
 import org.elasticsearch.xpack.esql.datasources.spi.PassThroughRowPositionStrategy;
 import org.elasticsearch.xpack.esql.datasources.spi.RecordSplitter;
 import org.elasticsearch.xpack.esql.datasources.spi.RowPositionStrategy;
@@ -52,7 +53,7 @@ import java.util.Set;
  * FormatReader implementation for NDJSON files.
  * Implements {@link SegmentableFormatReader} for intra-file parallel parsing.
  */
-public class NdJsonFormatReader implements SegmentableFormatReader {
+public class NdJsonFormatReader implements SegmentableFormatReader, InstrumentedFormatReader {
 
     private static final Logger logger = LogManager.getLogger(NdJsonFormatReader.class);
     private static final NdJsonRecordSplitter DEFAULT_RECORD_SPLITTER = new NdJsonRecordSplitter(
@@ -119,14 +120,12 @@ public class NdJsonFormatReader implements SegmentableFormatReader {
      * contributions, never interpreted.
      */
     private final String readConfig;
-    // Mutable reader-level counters surfaced as a Map<String, Object> via {@link #statusSnapshot()};
-    // shared across the parallel {@link NdJsonPageDecoder} segments spawned by {@link #read}.
-    //
-    // Sharing these across a wither is scoped deliberately, because the chain's root is the node-lifetime
-    // singleton {@link org.elasticsearch.xpack.esql.datasources.FormatReaderRegistry} hands out per format.
-    // Every wither ABOVE the per-query snapshot reader takes fresh counters ({@code null} here), or all concurrent
-    // queries on this node would accumulate into one set. Only {@link #withReadConfig}, which runs per file BELOW
-    // the reader the status envelope snapshots, shares its parent's.
+    // Reader-level counters surfaced via {@link #statusSnapshot()} and folded into the operator
+    // status {@code format_reader} section. Shared across the parallel {@link NdJsonPageDecoder}
+    // segments spawned by {@link #read}, and across all wither-derived copies: every {@code with*}
+    // method forwards this field so the base reader's snapshot observes everything any derived copy
+    // recorded. Only {@link #withFreshCounters()} mints a new struct; that call happens once per
+    // operator in {@code AsyncExternalSourceOperatorFactory.get(DriverContext)}.
     private final NdJsonReaderCounters counters;
 
     public NdJsonFormatReader(Settings settings, BlockFactory blockFactory, List<Attribute> resolvedSchema) {
@@ -173,7 +172,7 @@ public class NdJsonFormatReader implements SegmentableFormatReader {
             canonicalConfig,
             declaredDateFormats,
             readConfig,
-            null
+            counters
         );
     }
 
@@ -182,6 +181,9 @@ public class NdJsonFormatReader implements SegmentableFormatReader {
         if (newReadConfig == null || newReadConfig.equals(readConfig)) {
             return this;
         }
+        // Shares this reader's counters: every wither propagates the same struct so the base reader's
+        // statusSnapshot() observes reads from any derived copy. The mint (fresh struct) happens only
+        // once per operator in AsyncExternalSourceOperatorFactory.get(DriverContext).
         return new NdJsonFormatReader(
             settings,
             blockFactory,
@@ -192,9 +194,6 @@ public class NdJsonFormatReader implements SegmentableFormatReader {
             canonicalConfig,
             declaredDateFormats,
             newReadConfig,
-            // The one wither that shares (see the field): this runs at the per-file seam, so a copy with fresh
-            // counters would accumulate where nobody reads. The CSV twin had that defect and it surfaced as a
-            // zero read time in query metrics.
             counters
         );
     }
@@ -213,6 +212,30 @@ public class NdJsonFormatReader implements SegmentableFormatReader {
             datetimeFormatter,
             canonicalConfig,
             physicalNameToPattern,
+            readConfig,
+            counters
+        );
+    }
+
+    /**
+     * Returns a copy of this reader backed by a fresh {@link NdJsonReaderCounters} struct while
+     * preserving all other fields. Called once per {@code AsyncExternalSourceOperatorFactory.get(DriverContext)}
+     * invocation so each parallel driver accumulates into its own counter.
+     * <p>
+     * This is the <em>only</em> place a new counter struct is allocated for a derived reader;
+     * every other {@code with*} wither forwards {@code this.counters}.
+     */
+    @Override
+    public NdJsonFormatReader withFreshCounters() {
+        return new NdJsonFormatReader(
+            settings,
+            blockFactory,
+            resolvedSchema,
+            schemaSampleSize,
+            segmentSizeBytes,
+            datetimeFormatter,
+            canonicalConfig,
+            declaredDateFormats,
             readConfig,
             null
         );
@@ -241,7 +264,7 @@ public class NdJsonFormatReader implements SegmentableFormatReader {
             canon,
             declaredDateFormats,
             readConfig,
-            null
+            counters
         );
         return Configured.fromKnownSubset(result, config, RECOGNIZED_KEYS);
     }

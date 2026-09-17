@@ -743,7 +743,7 @@ public class ParquetFormatReaderTests extends ESTestCase {
             ParquetMetadata seeded = reader.parsedFooterForTests(key);
             assertNotNull("async tail parse must seed the parsed-footer cache", seeded);
             // Cache-sharing copy so footer_cache_misses starts at 0 while the caches carry over.
-            ParquetFormatReader phase2 = reader.copySharingCachesForTests();
+            ParquetFormatReader phase2 = reader.withFreshCounters();
             phase2.discoverSplitRanges(asyncObject);
             assertSame("Phase-2 loadFooter must reuse the Phase-1 instance", seeded, phase2.parsedFooterForTests(key));
             assertEquals(0, phase2.statusSnapshot().footerCacheMisses());
@@ -1151,8 +1151,11 @@ public class ParquetFormatReaderTests extends ESTestCase {
             root.footerByteCacheForTests(),
             derived.footerByteCacheForTests()
         );
+        // Derived readers now share the root's counter struct, so the root's initial miss is visible here.
+        assertEquals("derived copy shares the root's counter struct", 1, derived.statusSnapshot().footerCacheMisses());
         derived.discoverSplitRanges(file);
-        assertEquals("derived copy must hit the root's parsed-footer cache", 0, derived.statusSnapshot().footerCacheMisses());
+        // After the derived read, the miss count is unchanged (cache was hit), and a hit was recorded.
+        assertEquals("derived copy must hit the root's parsed-footer cache", 1, derived.statusSnapshot().footerCacheMisses());
         assertEquals(1, derived.statusSnapshot().footerCacheHits());
     }
 
@@ -1204,7 +1207,7 @@ public class ParquetFormatReaderTests extends ESTestCase {
                 metadataAsyncDirect(phase1, file);
             }
             assertEquals("Phase-1 seed must not count as a loadFooter miss", 0, phase1.statusSnapshot().footerCacheMisses());
-            ParquetFormatReader phase2 = phase1.copySharingCachesForTests();
+            ParquetFormatReader phase2 = phase1.withFreshCounters();
             for (StorageObject file : files) {
                 phase2.discoverSplitRanges(file);
             }
@@ -1292,7 +1295,7 @@ public class ParquetFormatReaderTests extends ESTestCase {
         for (StorageObject file : files) {
             metadataAsyncDirect(phase1Last, file);
         }
-        ParquetFormatReader lastWindow = phase1Last.copySharingCachesForTests();
+        ParquetFormatReader lastWindow = phase1Last.withFreshCounters();
         for (int i = n - window; i < n; i++) {
             lastWindow.discoverSplitRanges(files.get(i));
         }
@@ -1303,7 +1306,7 @@ public class ParquetFormatReaderTests extends ESTestCase {
         for (StorageObject file : files) {
             metadataAsyncDirect(phase1First, file);
         }
-        ParquetFormatReader firstWindow = phase1First.copySharingCachesForTests();
+        ParquetFormatReader firstWindow = phase1First.withFreshCounters();
         for (int i = 0; i < window; i++) {
             firstWindow.discoverSplitRanges(files.get(i));
         }
@@ -2303,6 +2306,41 @@ public class ParquetFormatReaderTests extends ESTestCase {
             assertThat(pages, greaterThan(0));
             assertThat(reader.statusSnapshot().rowsEmitted(), greaterThan(0L));
         }
+    }
+
+    /**
+     * Pins the operator-mint isolation half of elastic/esql-planning#1803: {@code factory.get()}
+     * calls {@link ParquetFormatReader#withFreshCounters()} once per operator, so two mints from the
+     * same registry base own independent counter structs. Sibling-parity with
+     * {@code CsvFormatReaderStatusSnapshotTests#testSiblingQueryReadersDoNotShareCounters}.
+     */
+    public void testSiblingQueryReadersDoNotShareCounters() throws Exception {
+        MessageType schema = Types.buildMessage().required(PrimitiveType.PrimitiveTypeName.INT32).named("count").named("test_schema");
+
+        byte[] parquetData = createParquetFile(schema, factory -> {
+            Group group1 = factory.newGroup();
+            group1.add("count", 100);
+            Group group2 = factory.newGroup();
+            group2.add("count", 200);
+            Group group3 = factory.newGroup();
+            group3.add("count", 300);
+            return List.of(group1, group2, group3);
+        });
+        StorageObject storageObject = createStorageObject(parquetData);
+
+        ParquetFormatReader base = new ParquetFormatReader(blockFactory);
+        ParquetFormatReader first = base.withFreshCounters();
+        ParquetFormatReader second = base.withFreshCounters();
+
+        try (CloseableIterator<Page> iterator = first.read(storageObject, null, 10)) {
+            while (iterator.hasNext()) {
+                iterator.next().releaseBlocks();
+            }
+        }
+
+        assertTrue("the minted reader that read must report its own work", first.statusSnapshot().rowsEmitted() > 0);
+        assertEquals("a sibling minted reader must not see it", 0L, second.statusSnapshot().rowsEmitted());
+        assertEquals("nor may it reach the registry's shared reader", 0L, base.statusSnapshot().rowsEmitted());
     }
 
     public void testReadFloatColumn() throws Exception {

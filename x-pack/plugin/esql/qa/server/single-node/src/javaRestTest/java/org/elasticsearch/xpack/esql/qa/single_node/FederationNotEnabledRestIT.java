@@ -57,13 +57,16 @@ public class FederationNotEnabledRestIT extends AbstractFederationUnavailableRes
      */
     public void testFederationSettingsAreStillUpdatableOverRest() throws IOException {
         Request update = new Request("PUT", "/_cluster/settings");
-        update.setJsonEntity(Strings.format("""
-            {"persistent": {"%s": true, "%s": 42, "%s": 2000000, "%s": 7}}""",
-            FEDERATED_IDENTITY,
-            MAX_DISCOVERED_FILES,
-            MAX_LISTED_OBJECTS,
-            MAX_DATA_SOURCES
-        ));
+        update.setJsonEntity(
+            Strings.format(
+                """
+                    {"persistent": {"%s": true, "%s": 42, "%s": 2000000, "%s": 7}}""",
+                FEDERATED_IDENTITY,
+                MAX_DISCOVERED_FILES,
+                MAX_LISTED_OBJECTS,
+                MAX_DATA_SOURCES
+            )
+        );
         Response response = client().performRequest(update);
         assertThat(response.getStatusLine().getStatusCode(), equalTo(200));
 

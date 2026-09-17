@@ -60,7 +60,8 @@ public class ParquetFormatReaderStateLifecycleTests extends ESTestCase {
         "dynamicThreshold",
         "declaredDateFormats",
         "declaredTypeColumns",
-        "codecFactory"
+        "codecFactory",
+        "heapBufferPool"
     );
 
     /** Internally mutable fields written during reads. Every wither must declare its behaviour for each of these. */

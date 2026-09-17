@@ -262,11 +262,71 @@ public class FixtureDimensionsTests extends ESTestCase {
         assertThat("its value is not a constant, so nothing may inject it", d.directiveSettings(varied), equalTo(Map.of()));
     }
 
-    /** A fixture-bound dimension with a directive key is a mis-declaration: no injector would read it. */
-    public void testANonDirectiveDimensionWithADirectiveKeyIsRejected() {
+    /**
+     * A data-source setting is not a dataset setting, and the separation is the point: these travel on
+     * {@code PUT /_query/data_source} and the dataset validator rejects them as unknown keys. Before the
+     * bind existed the key routing sent anything it did not recognise to the directive map, so this
+     * dimension's key would have been emitted into the dataset body.
+     */
+    public void testADataSourceDimensionTravelsUnderItsOwnKeyAndNotTheDirectiveOne() {
+        FixtureDimensions d = FixtureDimensions.parse(declaration(withDataSourceDimension()));
+
+        assertThat(d.binds("endpoint"), equalTo("data_source"));
+        assertThat(d.dataSourceKey("endpoint"), equalTo("endpoint"));
+        assertThat("a data-source key is not a directive key", d.directiveKey("endpoint"), nullValue());
+
+        Map<String, String> vector = new LinkedHashMap<>(Map.of("format", "csv", "error_mode", "fail_fast", "endpoint", "custom"));
+        assertThat(d.dataSourceSettings(vector), equalTo(Map.of("endpoint", "custom")));
+        assertThat("the dataset body must not carry it", d.directiveSettings(vector), equalTo(Map.of()));
+    }
+
+    /** Omission is the default on this side too, exactly as it is for a directive slot. */
+    public void testDataSourceSettingsOmitSlotsAtTheirDefault() {
+        FixtureDimensions d = FixtureDimensions.parse(declaration(withDataSourceDimension()));
+        Map<String, String> baseline = new LinkedHashMap<>(Map.of("format", "csv", "error_mode", "fail_fast", "endpoint", "default"));
+        assertThat(d.dataSourceSettings(baseline), equalTo(Map.of()));
+    }
+
+    /**
+     * The seam decides whether a suite can express the cell. A suite that registers no data source of its
+     * own cannot, and saying so is what keeps the cell out of the crossing rather than into it as a
+     * silent pass.
+     */
+    public void testTheDataSourceCellIsServedOnlyByTheDataSourceSeam() {
+        FixtureDimensions d = FixtureDimensions.parse(declaration(withDataSourceDimension()));
+        assertThat(d.seamServes("endpoint", "custom", "csv", Set.of(FixtureDimensions.Seam.DATA_SOURCE)), equalTo(true));
+        assertThat(d.seamServes("endpoint", "custom", "csv", Set.of(FixtureDimensions.Seam.DIRECTIVE)), equalTo(false));
+    }
+
+    /** A declaration carrying one data-source-bound dimension alongside the well-formed pair. */
+    private static String[] withDataSourceDimension() {
+        return new String[] {
+            "dimension.format.values = csv, parquet",
+            "dimension.format.default = csv",
+            "dimension.format.binds = fixture",
+            "dimension.error_mode.values = fail_fast, skip_row",
+            "dimension.error_mode.default = fail_fast",
+            "dimension.error_mode.binds = directive",
+            "dimension.error_mode.key = error_mode",
+            "dimension.endpoint.values = default, custom",
+            "dimension.endpoint.default = default",
+            "dimension.endpoint.binds = data_source",
+            "dimension.endpoint.key = endpoint",
+            "pair.error_mode.format = interacting",
+            "pair.endpoint.format = interacting",
+            "pair.endpoint.error_mode = interacting" };
+    }
+
+    /**
+     * A key under a bind that carries none is dead text: nothing would ever read it. The rejection is the
+     * point rather than the filing -- such a key used to be accepted and quietly kept as a directive key,
+     * so a mis-declaration became a setting on every dataset instead of a failure to parse.
+     */
+    public void testAKeyOnABindThatCarriesNoneIsRejected() {
         String[] lines = ArrayUtils.append(wellFormed(), "dimension.format.key = format");
         Exception e = expectThrows(IllegalStateException.class, () -> FixtureDimensions.parse(declaration(lines)));
         assertThat(e.getMessage(), containsString("binds as [fixture]"));
+        assertThat(e.getMessage(), containsString("carries no key"));
     }
 
     /** A value mapping naming a value the dimension does not declare is dead text that never fires. */

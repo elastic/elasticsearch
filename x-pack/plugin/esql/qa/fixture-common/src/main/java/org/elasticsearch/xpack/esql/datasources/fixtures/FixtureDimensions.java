@@ -144,9 +144,30 @@ public final class FixtureDimensions {
      *
      * <p>{@code fixture} writes bytes, {@code resolver} changes how those bytes are asked for,
      * {@code directive} and {@code pragma} travel with the query, {@code backend} selects where the data
-     * lives, and {@code cluster} needs a differently-configured node.
+     * lives, and {@code cluster} needs a differently-configured node. {@code data_source} is a setting on
+     * the data source rather than the dataset -- a different registration, validated by a different
+     * component, which is why it cannot share the directive bind.
      */
-    public static final Set<String> BINDS = Set.of("fixture", "resolver", "directive", "pragma", "backend", "cluster", "cluster_setting");
+    public static final Set<String> BINDS = Set.of(
+        "fixture",
+        "resolver",
+        "directive",
+        "pragma",
+        "backend",
+        "cluster",
+        "cluster_setting",
+        "data_source"
+    );
+
+    /**
+     * The binds whose value travels under a declared {@code key}.
+     *
+     * <p>Named as a set rather than spelled out at each site, because the routing, the validation and
+     * the seam all have to agree about it. They did not: the routing was an if/else that sent anything
+     * it did not recognise to the directive map, so a bind added here without a branch there became a
+     * dataset setting silently.
+     */
+    static final Set<String> KEY_CARRYING_BINDS = Set.of("directive", "pragma", "cluster_setting", "data_source");
 
     /**
      * Lazy, deliberately. An eager static field runs {@link #load()} the moment anything on the
@@ -163,13 +184,11 @@ public final class FixtureDimensions {
     private final Map<String, String> defaultByName;
     private final Map<String, Set<String>> appliesToByName;
     private final Map<String, String> bindsByName;
-    private final Map<String, String> directiveKeyByName;
+    private final Map<String, Map<String, String>> keysByBind;
     private final Map<String, Map<String, String>> settingValuesByName;
     private final Map<String, String> derivedByName;
     private final Map<String, Map<String, String>> derivedValuesByName;
     private final Map<String, String> readKeyByName;
-    private final Map<String, String> pragmaKeyByName;
-    private final Map<String, String> clusterSettingKeyByName;
     private final Map<String, Map<String, String>> formatDefaultsByName;
     private final Map<String, Map<String, String>> backendByName;
     private final Map<String, Map<String, String>> extensionByName;
@@ -185,13 +204,11 @@ public final class FixtureDimensions {
         Map<String, String> defaultByName,
         Map<String, Set<String>> appliesToByName,
         Map<String, String> bindsByName,
-        Map<String, String> directiveKeyByName,
+        Map<String, Map<String, String>> keysByBind,
         Map<String, Map<String, String>> settingValuesByName,
         Map<String, String> derivedByName,
         Map<String, Map<String, String>> derivedValuesByName,
         Map<String, String> readKeyByName,
-        Map<String, String> pragmaKeyByName,
-        Map<String, String> clusterSettingKeyByName,
         Map<String, Map<String, String>> formatDefaultsByName,
         Map<String, Map<String, String>> backendByName,
         Map<String, Map<String, String>> extensionByName,
@@ -206,13 +223,11 @@ public final class FixtureDimensions {
         this.defaultByName = Map.copyOf(defaultByName);
         this.appliesToByName = Map.copyOf(appliesToByName);
         this.bindsByName = Map.copyOf(bindsByName);
-        this.directiveKeyByName = Map.copyOf(directiveKeyByName);
+        this.keysByBind = Map.copyOf(keysByBind);
         this.settingValuesByName = Map.copyOf(settingValuesByName);
         this.derivedByName = Map.copyOf(derivedByName);
         this.derivedValuesByName = Map.copyOf(derivedValuesByName);
         this.readKeyByName = Map.copyOf(readKeyByName);
-        this.pragmaKeyByName = Map.copyOf(pragmaKeyByName);
-        this.clusterSettingKeyByName = Map.copyOf(clusterSettingKeyByName);
         this.formatDefaultsByName = Map.copyOf(formatDefaultsByName);
         this.backendByName = Map.copyOf(backendByName);
         this.extensionByName = Map.copyOf(extensionByName);
@@ -223,9 +238,32 @@ public final class FixtureDimensions {
         this.verdicts = Map.copyOf(verdicts);
     }
 
+    /**
+     * The key a dimension travels under for one bind, or null when it declares none under that bind.
+     *
+     * <p>One lookup behind every public key accessor. They were three parallel maps, which meant adding
+     * a bind meant adding a field, a constructor parameter and an accessor that could each be forgotten
+     * separately -- and the routing that filled them defaulted to the directive map, so forgetting one
+     * was silent rather than loud.
+     */
+    private String keyFor(String bind, String dimension) {
+        return keysByBind.getOrDefault(bind, Map.of()).get(dimension);
+    }
+
     /** The {@code WITH} key a directive-bound dimension travels under, or null when its value is derived. */
     public String directiveKey(String dimension) {
-        return directiveKeyByName.get(dimension);
+        return keyFor("directive", dimension);
+    }
+
+    /**
+     * The data-source setting a {@code data_source}-bound dimension travels under, or null.
+     *
+     * <p>Kept apart from {@link #directiveKey} for the reason every other bind is: these are settings on
+     * {@code PUT /_query/data_source}, validated by the provider's own configuration rather than by the
+     * dataset validator, and a data-source key emitted into a dataset's settings is rejected as unknown.
+     */
+    public String dataSourceKey(String dimension) {
+        return keyFor("data_source", dimension);
     }
 
     /**
@@ -291,7 +329,7 @@ public final class FixtureDimensions {
      * generated vector counts, and inject an unknown key into every dataset's WITH clause.
      */
     public String pragmaKey(String dimension) {
-        return pragmaKeyByName.get(dimension);
+        return keyFor("pragma", dimension);
     }
 
     /**
@@ -304,7 +342,7 @@ public final class FixtureDimensions {
      * need a cluster per value, which is the `cluster` seam's problem, not this one.
      */
     public String clusterSettingKey(String dimension) {
-        return clusterSettingKeyByName.get(dimension);
+        return keyFor("cluster_setting", dimension);
     }
 
     /**
@@ -505,10 +543,25 @@ public final class FixtureDimensions {
      * {@link #derivedFrom} names what it needs.
      */
     public Map<String, String> directiveSettings(Map<String, String> vector) {
+        return settingsFor("directive", vector);
+    }
+
+    /**
+     * The settings a vector pins on the DATA SOURCE rather than the dataset.
+     *
+     * <p>A separate map because they are a separate request: the dataset's settings go to
+     * {@code PUT /_query/dataset} and these to {@code PUT /_query/data_source}. Merging them would put
+     * a credential key in a dataset body, where the validator rejects it as unknown.
+     */
+    public Map<String, String> dataSourceSettings(Map<String, String> vector) {
+        return settingsFor("data_source", vector);
+    }
+
+    private Map<String, String> settingsFor(String bind, Map<String, String> vector) {
         Map<String, String> out = new LinkedHashMap<>();
         for (Map.Entry<String, String> slot : vector.entrySet()) {
             String dimension = slot.getKey();
-            String key = directiveKeyByName.get(dimension);
+            String key = keyFor(bind, dimension);
             if (key == null || slot.getValue().equals(defaultValue(dimension))) {
                 continue;
             }
@@ -552,14 +605,12 @@ public final class FixtureDimensions {
         Map<String, String> defaults = new LinkedHashMap<>();
         Map<String, Set<String>> appliesTo = new LinkedHashMap<>();
         Map<String, String> binds = new LinkedHashMap<>();
-        Map<String, String> directiveKeys = new LinkedHashMap<>();
+        Map<String, Map<String, String>> keysByBind = new LinkedHashMap<>();
         Map<String, Map<String, String>> directiveValues = new LinkedHashMap<>();
         Map<String, String> derived = new LinkedHashMap<>();
         Map<String, Map<String, String>> derivedValues = new LinkedHashMap<>();
         Map<String, String> readKeys = new LinkedHashMap<>();
         Map<String, String> declaredKeys = new LinkedHashMap<>();
-        Map<String, String> pragmaKeys = new LinkedHashMap<>();
-        Map<String, String> clusterSettingKeys = new LinkedHashMap<>();
         Map<String, Map<String, String>> formatDefaults = new LinkedHashMap<>();
         Map<String, Map<String, String>> backends = new LinkedHashMap<>();
         Map<String, Map<String, String>> extensions = new LinkedHashMap<>();
@@ -698,20 +749,27 @@ public final class FixtureDimensions {
         }
 
         // A declared `key` means different things depending on how the dimension binds, and the
-        // difference is load-bearing: a pragma key reaching directiveKeyByName would make distribution
+        // difference is load-bearing: a pragma key reaching the directive map would make distribution
         // look directive-expressible, change the per-format vector counts, and inject an unknown
         // setting into every dataset WITH clause.
+        //
+        // Keyed by the bind rather than branched on it. The branch had a directive fallback, so a bind
+        // with no arm of its own became a dataset setting silently -- the same misroute the paragraph
+        // above exists to prevent, reached by forgetting a branch instead of by declaring the wrong key.
         for (Map.Entry<String, String> declared : declaredKeys.entrySet()) {
             String owner = declared.getKey();
-            if ("pragma".equals(binds.get(owner))) {
-                pragmaKeys.put(owner, declared.getValue());
-            } else if ("cluster_setting".equals(binds.get(owner))) {
-                // Same reason the pragma key is kept apart: routed into directiveKeyByName it would make a
-                // cluster setting look directive-expressible and inject an unknown key into every WITH clause.
-                clusterSettingKeys.put(owner, declared.getValue());
-            } else {
-                directiveKeys.put(owner, declared.getValue());
+            String bind = binds.get(owner);
+            if (KEY_CARRYING_BINDS.contains(bind) == false) {
+                throw new IllegalStateException(
+                    "dimension ["
+                        + owner
+                        + "] declares a key but binds as ["
+                        + bind
+                        + "], which carries no key; expected one of "
+                        + new TreeSet<>(KEY_CARRYING_BINDS)
+                );
             }
+            keysByBind.computeIfAbsent(bind, b -> new LinkedHashMap<>()).put(owner, declared.getValue());
         }
 
         List<String> names = new ArrayList<>(values.keySet());
@@ -744,7 +802,7 @@ public final class FixtureDimensions {
             // becomes there. Without one of these a vector cannot be turned into a query, and the
             // omission would show up as a suite that silently runs its default everywhere.
             boolean isDirective = "directive".equals(binds.get(name));
-            boolean hasKey = directiveKeys.containsKey(name);
+            boolean hasKey = keysByBind.getOrDefault("directive", Map.of()).containsKey(name);
             boolean isDerived = derived.containsKey(name);
             if (isDirective && hasKey == false && isDerived == false) {
                 throw new IllegalStateException(
@@ -975,13 +1033,11 @@ public final class FixtureDimensions {
             defaults,
             appliesTo,
             binds,
-            directiveKeys,
+            keysByBind,
             directiveValues,
             derived,
             derivedValues,
             readKeys,
-            pragmaKeys,
-            clusterSettingKeys,
             formatDefaults,
             backends,
             extensions,
@@ -1407,7 +1463,9 @@ public final class FixtureDimensions {
         /** Fixed at cluster construction -- a topology cannot change between cases. */
         CLUSTER,
         /** A DYNAMIC cluster setting: updatable around a single case, and put back after. */
-        CLUSTER_SETTING
+        CLUSTER_SETTING,
+        /** A setting on the data source's own registration, not the dataset's. */
+        DATA_SOURCE
     }
 
     /**
@@ -1461,11 +1519,14 @@ public final class FixtureDimensions {
     public boolean seamServes(String dimension, String value, String format, Set<Seam> seams) {
         return switch (binds(dimension)) {
             case "directive" -> seams.contains(Seam.DIRECTIVE)
-                && directiveKeyByName.containsKey(dimension)
+                && directiveKey(dimension) != null
                 && derivedFromForValue(dimension, value) == null;
             case "fixture" -> seams.contains(Seam.FIXTURE) && FixtureCapabilities.renders(dimension, value, format);
             // A pragma needs no fixture and no cluster -- only a suite that carries it onto the query.
-            case "pragma" -> seams.contains(Seam.PRAGMA) && pragmaKeyByName.containsKey(dimension);
+            case "pragma" -> seams.contains(Seam.PRAGMA) && pragmaKey(dimension) != null;
+            // A data-source setting needs no fixture: it travels on the data source's own registration,
+            // so a suite that registers one can serve the cell whatever the bytes look like.
+            case "data_source" -> seams.contains(Seam.DATA_SOURCE) && dataSourceKey(dimension) != null;
             // The remaining seams reject until their own wiring lands; the contract already carries a
             // typed reason for every cell they would otherwise have to serve.
             // The resolver seam is wired for the shapes a standalone template can express; a value with

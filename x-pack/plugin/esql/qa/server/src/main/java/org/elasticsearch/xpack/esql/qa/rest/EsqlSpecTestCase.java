@@ -146,7 +146,7 @@ public abstract class EsqlSpecTestCase extends ESRestTestCase {
 
     private static class Protected {
         private final String description;
-        private volatile boolean completed = false;
+        private volatile Boolean completed = null;
         private volatile boolean started = false;
         private volatile Throwable failure = null;
 
@@ -155,13 +155,13 @@ public abstract class EsqlSpecTestCase extends ESRestTestCase {
         }
 
         private void protectedBlock(Callable<Void> callable) {
-            if (completed) {
+            if (completed != null && completed) {
                 LOGGER.debug("Skipping [{}]: already completed", description);
                 return;
             }
             // In case tests get run in parallel, we ensure only one setup is run, and other tests wait for this
             synchronized (this) {
-                if (completed) {
+                if (completed != null && completed) {
                     LOGGER.debug("Skipping [{}]: already completed", description);
                     return;
                 }
@@ -186,7 +186,7 @@ public abstract class EsqlSpecTestCase extends ESRestTestCase {
         }
 
         private boolean wasCompleted() {
-            return completed;
+            return completed != null && completed;
         }
 
         private synchronized void reset() {

@@ -79,7 +79,9 @@
  *
  * <p>Both paths respect the {@code esql.external.max_glob_expansion} cluster setting (default 100)
  * which caps the number of expanded candidates from brace/range groups before falling back to listing,
- * and the {@code esql.external.max_discovered_files} setting which caps total discovered files.
+ * and the {@code esql.external.max_discovered_files} setting which caps files kept after listing
+ * filters ({@code _file.*}). The listing path also respects {@code esql.external.max_listed_objects}
+ * (default 1,000,000), which caps objects visited during listing, including non-matches and exclusions.
  *
  * @see org.elasticsearch.xpack.esql.datasources.glob.GlobExpander
  * @see org.elasticsearch.xpack.esql.datasources.glob.BraceExpander

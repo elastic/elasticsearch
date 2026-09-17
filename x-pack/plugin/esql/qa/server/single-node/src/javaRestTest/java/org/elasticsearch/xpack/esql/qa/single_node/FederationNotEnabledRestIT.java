@@ -36,6 +36,7 @@ public class FederationNotEnabledRestIT extends AbstractFederationUnavailableRes
 
     private static final String FEDERATED_IDENTITY = ExternalSourceSettings.FEDERATED_IDENTITY_ENABLED.getKey();
     private static final String MAX_DISCOVERED_FILES = ExternalSourceSettings.MAX_DISCOVERED_FILES.getKey();
+    private static final String MAX_LISTED_OBJECTS = ExternalSourceSettings.MAX_LISTED_OBJECTS.getKey();
     private static final String MAX_DATA_SOURCES = DataSourceService.MAX_DATA_SOURCES_COUNT_SETTING.getKey();
 
     @ClassRule
@@ -57,7 +58,12 @@ public class FederationNotEnabledRestIT extends AbstractFederationUnavailableRes
     public void testFederationSettingsAreStillUpdatableOverRest() throws IOException {
         Request update = new Request("PUT", "/_cluster/settings");
         update.setJsonEntity(Strings.format("""
-            {"persistent": {"%s": true, "%s": 42, "%s": 7}}""", FEDERATED_IDENTITY, MAX_DISCOVERED_FILES, MAX_DATA_SOURCES));
+            {"persistent": {"%s": true, "%s": 42, "%s": 2000000, "%s": 7}}""",
+            FEDERATED_IDENTITY,
+            MAX_DISCOVERED_FILES,
+            MAX_LISTED_OBJECTS,
+            MAX_DATA_SOURCES
+        ));
         Response response = client().performRequest(update);
         assertThat(response.getStatusLine().getStatusCode(), equalTo(200));
 
@@ -67,6 +73,7 @@ public class FederationNotEnabledRestIT extends AbstractFederationUnavailableRes
         Map<String, Object> persistent = (Map<String, Object>) entityAsMap(client().performRequest(get)).get("persistent");
         assertThat(persistent, hasEntry(FEDERATED_IDENTITY, "true"));
         assertThat(persistent, hasEntry(MAX_DISCOVERED_FILES, "42"));
+        assertThat(persistent, hasEntry(MAX_LISTED_OBJECTS, "2000000"));
         assertThat(persistent, hasEntry(MAX_DATA_SOURCES, "7"));
     }
 }

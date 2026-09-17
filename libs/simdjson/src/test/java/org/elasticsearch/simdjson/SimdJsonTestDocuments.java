@@ -69,7 +69,49 @@ public final class SimdJsonTestDocuments {
                 {"first":1,"ab":2}""", """
                 {"first":1,"abcdefg":2}""", """
                 {"first":1,"abcdefgh":2}""", """
-                {"first":1,"abcdefghi":2}"""
+                {"first":1,"abcdefghi":2}""",
+                // Integer digit-count boundaries (1, 2, and 3+ digits; positive, negative, and
+                // zero; short mantissa immediately followed by '.'/'e'), and the same values as
+                // array elements.
+                """
+                {"n":0}""", """
+                {"n":9}""", """
+                {"n":-5}""", """
+                {"n":-0}""", """
+                {"n":10}""", """
+                {"n":99}""", """
+                {"n":-99}""", """
+                {"n":100}""", """
+                {"n":1234567890}""", """
+                {"n":9876543210}""", """
+                {"n":1.5}""", """
+                {"n":1e2}""", """
+                {"n":12.5}""", """
+                {"a":[0,9,10,99,100,1234567890,-5,-99]}""", """
+                {"a":[1.5,12.5]}""",
+                // Integer digit-count boundary at 19 (long vs. BigInteger fallback): exactly 19
+                // digits fitting a signed long (both sign boundaries), 19 digits overflowing it
+                // (both sign boundaries), and 20+ digits (always BigInteger), and the same
+                // values as array elements.
+                """
+                {"n":9223372036854775807}""", """
+                {"n":-9223372036854775808}""", """
+                {"n":9223372036854775808}""", """
+                {"n":-9223372036854775809}""", """
+                {"n":99999999999999999999}""", """
+                {"a":[9223372036854775807,-9223372036854775808,9223372036854775808,-9223372036854775809,99999999999999999999]}""",
+                // DoubleParser code paths (see that class's own comments): fast path,
+                // Eisel-Lemire (main, round-to-even, underflow, overflow, subnormal), and the
+                // slow path (>19 significant digits).
+                """
+                {"d":1e22}""", """
+                {"d":1e23}""", """
+                {"d":9007199254740993e0}""", """
+                {"d":1e-400}""", """
+                {"d":-1e400}""", """
+                {"d":5e-324}""", """
+                {"d":2.2250738585072013e-308}""", """
+                {"d":100000000000000000000.000000}"""
         );
         // end::noformat
         for (int nameLen = 1; nameLen <= 20; nameLen++) {

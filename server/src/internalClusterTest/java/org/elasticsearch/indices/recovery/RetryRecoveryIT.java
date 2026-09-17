@@ -9,11 +9,17 @@
 
 package org.elasticsearch.indices.recovery;
 
+import org.apache.lucene.store.AlreadyClosedException;
+import org.apache.lucene.store.FilterDirectory;
+import org.apache.lucene.store.IOContext;
+import org.apache.lucene.store.IndexOutput;
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.admin.cluster.reroute.ClusterRerouteUtils;
 import org.elasticsearch.action.admin.indices.ResizeIndexTestUtils;
 import org.elasticsearch.action.admin.indices.shrink.ResizeType;
 import org.elasticsearch.cluster.health.ClusterHealthStatus;
 import org.elasticsearch.cluster.routing.ShardRouting;
+import org.elasticsearch.cluster.routing.allocation.command.AllocateStalePrimaryAllocationCommand;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
@@ -32,12 +38,14 @@ import org.elasticsearch.test.junit.annotations.TestLogging;
 import org.elasticsearch.test.transport.MockTransportService;
 import org.junit.After;
 
+import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.List;
 import java.util.Set;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.Semaphore;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
 
@@ -525,6 +533,97 @@ public class RetryRecoveryIT extends AbstractIndexRecoveryIntegTestCase {
         }
     }
 
+    public void testRetryOnAlreadyClosedExceptionDuringCreateEmptyFromEmptyStore() {
+        String node = internalCluster().startNode();
+        String indexName = randomIndexName();
+
+        MockTransportService transportService = MockTransportService.getInstance(node);
+        try {
+            failTestIfReceiveShardFailure(transportService);
+
+            RetryRecoveryTestPlugin.armDirectoryAce();
+
+            // Recover from empty store; Store.createEmpty hits a one-shot AlreadyClosedException
+            createIndex(indexName, indexSettings(1, 0).build());
+
+            ensureGreen(indexName);
+            assertThat(RetryRecoveryTestPlugin.recoveryCounter.get(), equalTo(2));
+        } finally {
+            transportService.clearAllRules();
+        }
+    }
+
+    public void testRetryOnAlreadyClosedExceptionDuringAddIndicesFromLocalShards() {
+        String node = internalCluster().startNode();
+        final var sourceIndexName = randomIndexName();
+        final var targetIndexName = randomIndexName();
+
+        createIndex(sourceIndexName, indexSettings(1, 0).build());
+        indexDoc(sourceIndexName, "1", "f", randomAlphaOfLength(10));
+        flush(sourceIndexName);
+        ensureGreen(sourceIndexName);
+
+        // Required for clone
+        updateIndexSettings(Settings.builder().put("index.blocks.write", true), sourceIndexName);
+
+        MockTransportService transportService = MockTransportService.getInstance(node);
+        try {
+            failTestIfReceiveShardFailure(transportService);
+
+            RetryRecoveryTestPlugin.reset();
+            RetryRecoveryTestPlugin.armDirectoryAce();
+
+            // Recover from local shards; addIndices' temporary IndexWriter hits ACE once
+            ResizeIndexTestUtils.executeResize(ResizeType.CLONE, sourceIndexName, targetIndexName, indexSettings(1, 0));
+
+            ensureGreen(sourceIndexName);
+            ensureGreen(targetIndexName);
+            assertThat(RetryRecoveryTestPlugin.recoveryCounter.get(), equalTo(2));
+        } finally {
+            transportService.clearAllRules();
+        }
+    }
+
+    public void testRetryOnAlreadyClosedExceptionDuringBootstrapNewHistoryFromExistingStore() throws Exception {
+        internalCluster().startMasterOnlyNode();
+        String node1 = internalCluster().startNode();
+        final var indexName = randomIndexName();
+
+        createIndex(indexName, indexSettings(1, 1).build());
+        indexDoc(indexName, "1", "f", randomAlphaOfLength(10));
+        flush(indexName);
+        String node2 = internalCluster().startNode();
+        ensureGreen(indexName);
+
+        Settings node1DataPathSettings = internalCluster().dataPathSettings(node1);
+        internalCluster().stopNode(node1);
+
+        // Index on node2 so node1's copy becomes stale in the master's in-sync set
+        indexDoc(indexName, "2", "f", randomAlphaOfLength(10));
+        flush(indexName);
+        internalCluster().stopNode(node2);
+
+        node1 = internalCluster().startNode(node1DataPathSettings);
+        // Only one data node remains; drop replicas so allocate_stale_primary can go green
+        updateIndexSettings(Settings.builder().put("index.number_of_replicas", 0), indexName);
+
+        MockTransportService transportService = MockTransportService.getInstance(node1);
+        try {
+            failTestIfReceiveShardFailure(transportService);
+
+            RetryRecoveryTestPlugin.reset();
+            RetryRecoveryTestPlugin.armDirectoryAce();
+
+            // Force stale primary → bootstrapNewHistory temporary IndexWriter hits ACE once
+            ClusterRerouteUtils.reroute(client(), new AllocateStalePrimaryAllocationCommand(indexName, 0, node1, true));
+
+            ensureGreen(indexName);
+            assertThat(RetryRecoveryTestPlugin.recoveryCounter.get(), equalTo(2));
+        } finally {
+            transportService.clearAllRules();
+        }
+    }
+
     public void testRetryOnFailureOnRecoveryFromEmptyStoreRaceWithIndexDeletion() throws Exception {
         String node = internalCluster().startNode();
         String indexName = randomIndexName();
@@ -958,10 +1057,12 @@ public class RetryRecoveryIT extends AbstractIndexRecoveryIntegTestCase {
     /// - Count number of recovery attempts [recoveryCounter]
     /// - Inject failures into recover path through [IndexEventListener] and [failureTarget] + [FailureTarget]
     /// - Concurrency control by injecting [Gate]s on shard creation/recovery path through [IndexEventListener]
+    /// - Inject a one-shot [AlreadyClosedException] from the Lucene Directory during temporary IndexWriter use
     /// - Set indices.recovery.local_retry=true
     public static class RetryRecoveryTestPlugin extends Plugin {
         private static final AtomicReference<FailureTarget> failureTarget = new AtomicReference<>(null);
         private static final AtomicInteger recoveryCounter = new AtomicInteger();
+        private static final AtomicBoolean throwAceOnCreateOutput = new AtomicBoolean();
 
         // Gates in the order they are invoked
         private static final Gate beforeIndexShardCreatedGate = new Gate("beforeIndexShardCreateGate");
@@ -982,6 +1083,7 @@ public class RetryRecoveryIT extends AbstractIndexRecoveryIntegTestCase {
         public static void reset() {
             failureTarget.set(null);
             recoveryCounter.set(0);
+            throwAceOnCreateOutput.set(false);
             allGates.forEach(Gate::reset);
         }
 
@@ -990,6 +1092,12 @@ public class RetryRecoveryIT extends AbstractIndexRecoveryIntegTestCase {
         /// exception when it reaches the [FailureTarget]
         public static void armRandomFailure() {
             failureTarget.set(randomFrom(FailureTarget.values()));
+        }
+
+        /// Arm the Directory wrapper so the next [IndexOutput] create throws [AlreadyClosedException].
+        /// Used to fail temporary IndexWriters used in StoreRecovery once, then allow retry to succeed.
+        public static void armDirectoryAce() {
+            throwAceOnCreateOutput.set(true);
         }
 
         /// Returns a [Gate] that sits at some random point before the currently armed [FailureTarget].
@@ -1022,6 +1130,15 @@ public class RetryRecoveryIT extends AbstractIndexRecoveryIntegTestCase {
 
         @Override
         public void onIndexModule(IndexModule indexModule) {
+            indexModule.setDirectoryWrapper((directory, shardRouting) -> new FilterDirectory(directory) {
+                @Override
+                public IndexOutput createOutput(String name, IOContext context) throws IOException {
+                    if (throwAceOnCreateOutput.compareAndSet(true, false)) {
+                        throw new AlreadyClosedException("test createEmpty ACE");
+                    }
+                    return super.createOutput(name, context);
+                }
+            });
             indexModule.addIndexEventListener(new IndexEventListener() {
 
                 @Override

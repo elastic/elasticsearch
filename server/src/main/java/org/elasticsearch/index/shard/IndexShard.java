@@ -3984,7 +3984,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
                 final FailureStrategy failureStrategy;
                 if (ExceptionsHelper.unwrap(e, IndexShardClosedException.class, IndexShardStartedException.class) != null) {
                     failureStrategy = ABORT;
-                } else if (ExceptionsHelper.unwrap(e, RecoveryCancelledException.class, AlreadyClosedException.class) != null) {
+                } else if (ExceptionsHelper.unwrap(e, RecoveryCancelledException.class) != null) {
                     failureStrategy = FAIL_SILENT;
                 } else {
                     failureStrategy = RETRY;

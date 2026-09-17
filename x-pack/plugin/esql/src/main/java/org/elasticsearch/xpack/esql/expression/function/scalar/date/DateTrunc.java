@@ -18,6 +18,7 @@ import org.elasticsearch.compute.expression.ExpressionEvaluator;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.xpack.esql.core.expression.AnyNullIsNull;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
+import org.elasticsearch.xpack.esql.core.expression.Literal;
 import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
@@ -180,6 +181,35 @@ public class DateTrunc extends EsqlConfigurationFunction implements AnyNullIsNul
     @Override
     public boolean foldable() {
         return interval.foldable() && timestampField.foldable();
+    }
+
+    /**
+     * Fold an all-literal call without constructing a {@code DateTrunc} node. Listing runs
+     * before ImplicitCasting, so KEYWORD ISO datetimes are parsed here. Returns {@code null}
+     * when the call cannot be folded; does not call {@code dataType()} on unresolved children.
+     * {@code source} is the unresolved call being replaced.
+     */
+    static Literal tryFoldLiterals(Source source, List<Expression> args, Configuration configuration) {
+        Literal[] literals = DateFunctionLiterals.literalArgs(args, 2);
+        if (literals == null) {
+            return null;
+        }
+        Object interval = literals[0].value();
+        // Quoted DATE_TRUNC("1 year", ...) is still KEYWORD/BytesRef until ImplicitCasting.
+        // Listing does not parse string intervals; only parser-built Period/Duration literals fold.
+        if (interval instanceof Period == false && interval instanceof Duration == false) {
+            return null;
+        }
+        ZoneId zone = DateFunctionLiterals.zoneId(configuration);
+        DateFunctionLiterals.ParsedDate parsed = DateFunctionLiterals.parseDateLiteral(literals[1], zone);
+        if (parsed == null) {
+            return null;
+        }
+        Rounding.Prepared rounding = createRounding(interval, zone, null, null);
+        if (parsed.nanos()) {
+            return new Literal(source, processDateNanos(parsed.epoch(), rounding), DATE_NANOS);
+        }
+        return new Literal(source, processDatetime(parsed.epoch(), rounding), DATETIME);
     }
 
     public static Rounding.Prepared createRounding(final Object interval, final ZoneId timeZone, Long min, Long max) {

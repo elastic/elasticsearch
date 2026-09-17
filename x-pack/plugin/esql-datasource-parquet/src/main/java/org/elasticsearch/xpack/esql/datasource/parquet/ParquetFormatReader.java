@@ -9,7 +9,6 @@ package org.elasticsearch.xpack.esql.datasource.parquet;
 
 import org.apache.lucene.util.BytesRef;
 import org.apache.parquet.ParquetReadOptions;
-import org.apache.parquet.bytes.HeapByteBufferAllocator;
 import org.apache.parquet.column.ColumnDescriptor;
 import org.apache.parquet.column.ColumnReader;
 import org.apache.parquet.column.impl.ColumnReadStoreImpl;
@@ -166,6 +165,13 @@ public class ParquetFormatReader
      * reader the same way as the footer caches, so concurrent queries compete for one budget.
      */
     private final ParquetIoWatermark ioWatermark;
+
+    /**
+     * Node-wide pool of parquet-mr heap {@code ByteBuffer}s. Shared by derived readers the same
+     * way as {@link #ioWatermark}, so sequential file opens reuse arrays instead of churning a
+     * file-count-scaled trail of dead heap buffers into the parent breaker.
+     */
+    private final PoolingHeapByteBufferAllocator heapBufferPool;
 
     private final BlockFactory blockFactory;
     private final FilterCompat.Filter pushedFilter;
@@ -391,6 +397,7 @@ public class ParquetFormatReader
             FooterByteCache.fromSettings(settings),
             ParsedFooterCache.fromSettings(settings, ParquetFormatReader::estimateFooterWeightBytes),
             ParquetIoWatermark.forHeap(),
+            PoolingHeapByteBufferAllocator.forHeap(),
             MAX_FOOTER_READ_BYTES
         );
     }
@@ -414,6 +421,7 @@ public class ParquetFormatReader
             FooterByteCache.fromSettings(Settings.EMPTY),
             ParsedFooterCache.fromSettings(Settings.EMPTY, ParquetFormatReader::estimateFooterWeightBytes),
             ParquetIoWatermark.forHeap(),
+            PoolingHeapByteBufferAllocator.forHeap(),
             MAX_FOOTER_READ_BYTES
         );
     }
@@ -435,6 +443,7 @@ public class ParquetFormatReader
             FooterByteCache.fromSettings(Settings.EMPTY),
             ParsedFooterCache.fromSettings(Settings.EMPTY, ParquetFormatReader::estimateFooterWeightBytes),
             ParquetIoWatermark.forHeap(),
+            PoolingHeapByteBufferAllocator.forHeap(),
             maxFooterReadBytes
         );
     }
@@ -451,6 +460,7 @@ public class ParquetFormatReader
         FooterByteCache footerBytes,
         ParsedFooterCache<ParquetMetadata> parsedFooters,
         ParquetIoWatermark ioWatermark,
+        PoolingHeapByteBufferAllocator heapBufferPool,
         int maxFooterReadBytes
     ) {
         this(
@@ -465,6 +475,7 @@ public class ParquetFormatReader
             footerBytes,
             parsedFooters,
             ioWatermark,
+            heapBufferPool,
             maxFooterReadBytes,
             null
         );
@@ -491,6 +502,7 @@ public class ParquetFormatReader
         FooterByteCache footerBytes,
         ParsedFooterCache<ParquetMetadata> parsedFooters,
         ParquetIoWatermark ioWatermark,
+        PoolingHeapByteBufferAllocator heapBufferPool,
         int maxFooterReadBytes,
         @Nullable ParquetReaderCounters sharedCounters
     ) {
@@ -508,6 +520,10 @@ public class ParquetFormatReader
             throw new IllegalArgumentException("ioWatermark");
         }
         this.ioWatermark = ioWatermark;
+        if (heapBufferPool == null) {
+            throw new IllegalArgumentException("heapBufferPool");
+        }
+        this.heapBufferPool = heapBufferPool;
         this.maxFooterReadBytes = maxFooterReadBytes;
         this.counters = sharedCounters != null ? sharedCounters : new ParquetReaderCounters();
     }
@@ -535,6 +551,7 @@ public class ParquetFormatReader
             footerBytes,
             parsedFooters,
             ioWatermark,
+            heapBufferPool,
             maxFooterReadBytes,
             null
         );
@@ -558,6 +575,7 @@ public class ParquetFormatReader
             footerBytes,
             parsedFooters,
             ioWatermark,
+            heapBufferPool,
             maxFooterReadBytes,
             counters
         );
@@ -581,6 +599,7 @@ public class ParquetFormatReader
                 footerBytes,
                 parsedFooters,
                 ioWatermark,
+                heapBufferPool,
                 maxFooterReadBytes,
                 counters
             );
@@ -598,6 +617,7 @@ public class ParquetFormatReader
                 footerBytes,
                 parsedFooters,
                 ioWatermark,
+                heapBufferPool,
                 maxFooterReadBytes,
                 counters
             );
@@ -615,6 +635,7 @@ public class ParquetFormatReader
                 footerBytes,
                 parsedFooters,
                 ioWatermark,
+                heapBufferPool,
                 maxFooterReadBytes,
                 counters
             );
@@ -636,6 +657,7 @@ public class ParquetFormatReader
             footerBytes,
             parsedFooters,
             ioWatermark,
+            heapBufferPool,
             maxFooterReadBytes,
             counters
         );
@@ -665,6 +687,7 @@ public class ParquetFormatReader
             footerBytes,
             parsedFooters,
             ioWatermark,
+            heapBufferPool,
             maxFooterReadBytes,
             counters
         );
@@ -695,6 +718,7 @@ public class ParquetFormatReader
             footerBytes,
             parsedFooters,
             ioWatermark,
+            heapBufferPool,
             maxFooterReadBytes,
             counters
         );
@@ -717,6 +741,7 @@ public class ParquetFormatReader
             footerBytes,
             parsedFooters,
             watermark,
+            heapBufferPool,
             maxFooterReadBytes,
             counters
         );
@@ -724,6 +749,32 @@ public class ParquetFormatReader
 
     ParquetIoWatermark ioWatermark() {
         return ioWatermark;
+    }
+
+    /**
+     * Test-only: share a heap-buffer pool across readers so reuse and cap can be asserted with a
+     * tiny limit. Production readers keep the heap-derived instance from the root constructor.
+     */
+    ParquetFormatReader withHeapBufferPool(PoolingHeapByteBufferAllocator pool) {
+        return new ParquetFormatReader(
+            blockFactory,
+            pushedFilter,
+            pushedExpressions,
+            forceBaselinePath,
+            optimizedReader,
+            dynamicThreshold,
+            declaredDateFormats,
+            declaredTypeColumns,
+            footerBytes,
+            parsedFooters,
+            ioWatermark,
+            pool,
+            maxFooterReadBytes
+        );
+    }
+
+    PoolingHeapByteBufferAllocator heapBufferPool() {
+        return heapBufferPool;
     }
 
     @Override
@@ -822,8 +873,10 @@ public class ParquetFormatReader
         // direct delegate returns the breaker charge but leaves the memory to a Cleaner -- reclamation
         // becomes a function of GC frequency, which a large heap starves. Nothing reads these buffers
         // natively either: they are footers and dictionary-page copies, both copied to the heap next step.
+        // The heap delegate is a node-wide capped pool so sequential file opens reuse arrays instead of
+        // leaving a file-count-scaled trail of dead byte[] for the parent breaker.
         var breaker = LocalCircuitBreaker.forAsyncIo(blockFactory.breaker());
-        var allocator = new CircuitBreakerByteBufferAllocator(new HeapByteBufferAllocator(), breaker);
+        var allocator = new CircuitBreakerByteBufferAllocator(heapBufferPool, breaker);
         return PlainParquetReadOptions.builder(codecFactory).withAllocator(allocator);
     }
 
@@ -1289,7 +1342,9 @@ public class ParquetFormatReader
      * offered to the cache best-effort after a successful parse so a later split-discovery pass can
      * reuse them, but correctness never depends on that. Callers of this listener seed
      * {@link #parsedFooters} after a successful metadata convert or range extract. {@code release}
-     * uncharges the GET (or the heap copy) after parse, success or failure.
+     * uncharges the GET (or the heap copy) after parse, success or failure, and always before
+     * {@code listener} is notified so a parse-time {@link CircuitBreakingException} cannot complete
+     * with leftover request-breaker charge.
      */
     private void parseTailOnExecutor(
         StorageObject object,
@@ -1300,30 +1355,19 @@ public class ParquetFormatReader
         Executor executor,
         ActionListener<ParquetMetadata> listener
     ) {
+        ActionListener<ParquetMetadata> released = ActionListener.releaseBefore(release, listener);
         try {
             executor.execute(() -> {
-                boolean closed = false;
                 try {
                     ParquetMetadata footer = parseParsedFooterFromTail(object, length, tailBytes);
                     footerBytes.put(cacheKey, tailBytes);
-                    release.close();
-                    closed = true;
-                    listener.onResponse(footer);
+                    released.onResponse(footer);
                 } catch (Exception e) {
-                    listener.onFailure(e);
-                } finally {
-                    if (closed == false) {
-                        release.close();
-                    }
+                    released.onFailure(e);
                 }
             });
         } catch (Exception e) {
-            try {
-                release.close();
-            } catch (Exception closeEx) {
-                e.addSuppressed(closeEx);
-            }
-            listener.onFailure(e);
+            released.onFailure(e);
         }
     }
 
@@ -3408,7 +3452,7 @@ public class ParquetFormatReader
                     skipWarnings = new SkipWarnings(
                         "Parquet file ["
                             + fileLocation
-                            + "] has columns whose on-disk type is incompatible with the planner type; "
+                            + "] has columns whose on-disk type is incompatible with planner type; "
                             + "they are returned as null",
                         warningSink
                     );

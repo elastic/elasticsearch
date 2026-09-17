@@ -1062,14 +1062,6 @@ public class SharedBlobCacheService<KeyType extends SharedBlobCacheService.KeyBa
         return -1;
     }
 
-    // used by tests
-    int maxReachedFreq(CacheFileRegion<KeyType> cacheFileRegion) {
-        if (cache instanceof LFUCache lfuCache) {
-            return lfuCache.maxReachedFreq(cacheFileRegion);
-        }
-        return -1;
-    }
-
     @Override
     public void close() {
         cache.close();
@@ -1168,6 +1160,10 @@ public class SharedBlobCacheService<KeyType extends SharedBlobCacheService.KeyBa
         // if it's unknown (temporarily or inexistent). Written at construction and then possibly backfilled away from
         // BACKFILL_IN_PROGRESS_TIMESTAMP to a real (non-sentinel) value via #backfillTimestampFromBackfillInProgress.
         private volatile long timestampMillis;
+        // Highest LFU frequency this region has been promoted to during its lifetime. Starts at 1
+        // (the insertion frequency). Decay and demote lower current freq but must not lower this peak.
+        // Written under the SharedBlobCacheService monitor (promote); no extra volatility.
+        private int maxReachedFreq = 1;
         // io can be null when not init'ed or after evict/take
         // io does not need volatile access on the read path, since it goes from null to a single value (and then possbily back to null).
         // "cache.get" never returns a `CacheFileRegion` without checking the value is non-null (with a volatile read, ensuring the value is
@@ -1261,12 +1257,19 @@ public class SharedBlobCacheService<KeyType extends SharedBlobCacheService.KeyBa
 
         private void recordLfuPressureEviction() {
             blobCacheService.blobCacheMetrics.getTotalEvictedCount().increment();
-            blobCacheService.blobCacheMetrics.recordEvictedRegionMaxFreq(blobCacheService.maxReachedFreq(this));
+            blobCacheService.blobCacheMetrics.recordEvictedRegionMaxFreq(maxReachedFreq);
+        }
+
+        void maybeUpdateMaxReachedFreq(int freq) {
+            assert Thread.holdsLock(blobCacheService) : "must hold lock when updating peak freq";
+            if (freq > maxReachedFreq) {
+                maxReachedFreq = freq;
+            }
         }
 
         // visible for tests
         int maxReachedFreq() {
-            return blobCacheService.maxReachedFreq(this);
+            return maxReachedFreq;
         }
 
         @Override
@@ -2262,10 +2265,6 @@ public class SharedBlobCacheService<KeyType extends SharedBlobCacheService.KeyBa
             LFUCacheEntry prev;
             LFUCacheEntry next;
             int freq;
-            // Highest LFU frequency this entry has been promoted to during its lifetime. Starts at 1
-            // (the insertion frequency). Decay and demote lower current freq but must not lower this peak.
-            // Written under the SharedBlobCacheService monitor (promote and eviction); no extra volatility.
-            int maxReachedFreq;
             volatile long lastAccessedEpoch;
 
             LFUCacheEntry(CacheFileRegion<KeyType> chunk, long lastAccessed) {
@@ -2277,20 +2276,12 @@ public class SharedBlobCacheService<KeyType extends SharedBlobCacheService.KeyBa
                 // seems ok for now, since if it were to get evicted soon, the decays done would ensure we have more level 1
                 // entries eventually and thus such an entry would (after some decays) be able to survive in the cache.
                 this.freq = 1;
-                this.maxReachedFreq = 1;
             }
 
             void touch() {
                 long now = epoch.get();
                 if (now > lastAccessedEpoch) {
                     maybePromote(now, this);
-                }
-            }
-
-            void maybeUpdateMaxReachedFreq() {
-                assert Thread.holdsLock(SharedBlobCacheService.this) : "must hold lock when updating peak freq";
-                if (freq > maxReachedFreq) {
-                    maxReachedFreq = freq;
                 }
             }
         }
@@ -2338,10 +2329,6 @@ public class SharedBlobCacheService<KeyType extends SharedBlobCacheService.KeyBa
         // used by tests
         int getFreq(CacheFileRegion<KeyType> cacheFileRegion) {
             return keyMapping.get(cacheFileRegion.regionKey.file().shardId(), cacheFileRegion.regionKey).freq;
-        }
-
-        int maxReachedFreq(CacheFileRegion<KeyType> cacheFileRegion) {
-            return keyMapping.get(cacheFileRegion.regionKey.file().shardId(), cacheFileRegion.regionKey).maxReachedFreq;
         }
 
         @Override
@@ -2697,7 +2684,7 @@ public class SharedBlobCacheService<KeyType extends SharedBlobCacheService.KeyBa
                     unlink(entry);
                     // go 2 up per epoch, allowing us to decay 1 every epoch.
                     entry.freq = Math.min(entry.freq + 2, maxFreq - 1);
-                    entry.maybeUpdateMaxReachedFreq();
+                    entry.chunk.maybeUpdateMaxReachedFreq(entry.freq);
                     entry.lastAccessedEpoch = epoch;
                     pushEntryToBack(entry);
                 }

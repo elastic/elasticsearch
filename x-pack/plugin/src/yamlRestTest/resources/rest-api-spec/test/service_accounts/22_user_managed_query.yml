@@ -1,0 +1,469 @@
+---
+setup:
+  - skip:
+      features: headers
+
+  - requires:
+      capabilities:
+        - method: POST
+          path: /_security/_query/service
+          capabilities: [user_managed_service_accounts]
+      test_runner_features: capabilities
+      reason: "User-managed service accounts are unavailable in multi-project clusters"
+
+  - do:
+      cluster.health:
+        wait_for_status: yellow
+
+  - do:
+      security.put_role:
+        name: "query_sa_monitor"
+        body: >
+          {
+            "cluster": ["monitor"]
+          }
+
+  - do:
+      security.put_role:
+        name: "query_sa_api_key"
+        body: >
+          {
+            "cluster": ["manage_own_api_key"]
+          }
+
+  - do:
+      security.put_role:
+        name: "query_sa_reader"
+        body: >
+          {
+            "cluster": ["read_security"]
+          }
+
+  - do:
+      security.put_role:
+        name: "query_sa_manager"
+        body: >
+          {
+            "cluster": ["manage_service_account"]
+          }
+
+  - do:
+      security.put_user:
+        username: "sa_reader"
+        body: >
+          {
+            "password": "x-pack-test-password",
+            "roles": ["query_sa_reader"]
+          }
+
+  - do:
+      security.put_user:
+        username: "sa_manager"
+        body: >
+          {
+            "password": "x-pack-test-password",
+            "roles": ["query_sa_manager"]
+          }
+
+  - do:
+      security.put_user:
+        username: "sa_nobody"
+        body: >
+          {
+            "password": "x-pack-test-password",
+            "roles": ["query_sa_monitor"]
+          }
+
+  - do:
+      security.put_user_managed_service_account:
+        namespace: apps
+        service: worker_1
+        body: >
+          {
+            "roles": ["query_sa_monitor"],
+            "enabled": true
+          }
+
+  - do:
+      security.put_user_managed_service_account:
+        namespace: apps
+        service: worker_2
+        body: >
+          {
+            "roles": ["query_sa_monitor", "query_sa_api_key"],
+            "enabled": false
+          }
+
+  - do:
+      security.put_user_managed_service_account:
+        namespace: batch
+        service: nightly_job
+        body: >
+          {
+            "roles": ["query_sa_api_key"],
+            "enabled": true
+          }
+
+---
+teardown:
+  - do:
+      security.delete_user_managed_service_account:
+        namespace: apps
+        service: worker_1
+        force: true
+        ignore: 404
+
+  - do:
+      security.delete_user_managed_service_account:
+        namespace: apps
+        service: worker_2
+        force: true
+        ignore: 404
+
+  - do:
+      security.delete_user_managed_service_account:
+        namespace: batch
+        service: nightly_job
+        force: true
+        ignore: 404
+
+  - do:
+      security.delete_user:
+        username: "sa_reader"
+        ignore: 404
+
+  - do:
+      security.delete_user:
+        username: "sa_manager"
+        ignore: 404
+
+  - do:
+      security.delete_user:
+        username: "sa_nobody"
+        ignore: 404
+
+  - do:
+      security.delete_role:
+        name: "query_sa_monitor"
+        ignore: 404
+
+  - do:
+      security.delete_role:
+        name: "query_sa_api_key"
+        ignore: 404
+
+  - do:
+      security.delete_role:
+        name: "query_sa_reader"
+        ignore: 404
+
+  - do:
+      security.delete_role:
+        name: "query_sa_manager"
+        ignore: 404
+
+---
+"Test query without a body returns every user-managed account and no built-in ones":
+  - do:
+      security.query_service_accounts: {}
+  - match: { total: 3 }
+  - match: { count: 3 }
+  - length: { service_accounts: 3 }
+  - match: { service_accounts.0.type: user_managed }
+  - match: { service_accounts.1.type: user_managed }
+  - match: { service_accounts.2.type: user_managed }
+
+  # Built-in accounts are listed by the get API but live outside the security index, so a query never reports them.
+  - do:
+      security.query_service_accounts:
+        body: >
+          {
+            "query": { "prefix": { "username": "elastic/" } }
+          }
+  - match: { total: 0 }
+  - match: { count: 0 }
+  - length: { service_accounts: 0 }
+
+---
+"Test query by exact username":
+  - do:
+      security.query_service_accounts:
+        body: >
+          {
+            "query": { "term": { "username": "apps/worker_2" } }
+          }
+  - match: { total: 1 }
+  - match: { count: 1 }
+  - match:
+      service_accounts.0:
+        username: "apps/worker_2"
+        type: user_managed
+        roles: ["query_sa_api_key", "query_sa_monitor"]
+        enabled: false
+
+---
+"Test query a namespace by prefix":
+  - do:
+      security.query_service_accounts:
+        body: >
+          {
+            "query": { "prefix": { "username": "apps/" } },
+            "sort": ["username"]
+          }
+  - match: { total: 2 }
+  - match: { count: 2 }
+  - match: { service_accounts.0.username: "apps/worker_1" }
+  - match: { service_accounts.0._sort: ["apps/worker_1"] }
+  - match: { service_accounts.1.username: "apps/worker_2" }
+  - match: { service_accounts.1._sort: ["apps/worker_2"] }
+
+---
+"Test query by role and by enabled":
+  - do:
+      security.query_service_accounts:
+        body: >
+          {
+            "query": { "terms": { "roles": ["query_sa_api_key"] } },
+            "sort": ["username"]
+          }
+  - match: { total: 2 }
+  - match: { service_accounts.0.username: "apps/worker_2" }
+  - match: { service_accounts.1.username: "batch/nightly_job" }
+
+  - do:
+      security.query_service_accounts:
+        body: >
+          {
+            "query": {
+              "bool": {
+                "filter": [
+                  { "term": { "roles": "query_sa_monitor" } },
+                  { "term": { "enabled": true } }
+                ]
+              }
+            }
+          }
+  - match: { total: 1 }
+  - match: { service_accounts.0.username: "apps/worker_1" }
+
+  - do:
+      security.query_service_accounts:
+        body: >
+          {
+            "query": { "term": { "enabled": false } }
+          }
+  - match: { total: 1 }
+  - match: { service_accounts.0.username: "apps/worker_2" }
+
+---
+"Test query that matches no account returns an empty result":
+  - do:
+      security.query_service_accounts:
+        body: >
+          {
+            "query": { "term": { "username": "apps/worker_3" } }
+          }
+  - match: { total: 0 }
+  - match: { count: 0 }
+  - length: { service_accounts: 0 }
+
+  - do:
+      security.query_service_accounts:
+        body: >
+          {
+            "query": { "term": { "roles": "no_such_role" } }
+          }
+  - match: { total: 0 }
+  - match: { count: 0 }
+  - length: { service_accounts: 0 }
+
+  # The only batch/ account is enabled.
+  - do:
+      security.query_service_accounts:
+        body: >
+          {
+            "query": {
+              "bool": {
+                "filter": [
+                  { "prefix": { "username": "batch/" } },
+                  { "term": { "enabled": false } }
+                ]
+              }
+            }
+          }
+  - match: { total: 0 }
+  - match: { count: 0 }
+  - length: { service_accounts: 0 }
+
+  # Each clause matches an account on its own (apps/worker_1 exists, apps/worker_2 is disabled); only the
+  # conjunction is empty.
+  - do:
+      security.query_service_accounts:
+        body: >
+          {
+            "query": {
+              "bool": {
+                "filter": [
+                  { "term": { "username": "apps/worker_1" } },
+                  { "term": { "enabled": false } }
+                ]
+              }
+            }
+          }
+  - match: { total: 0 }
+  - match: { count: 0 }
+  - length: { service_accounts: 0 }
+
+---
+"Test pagination with from and size and with search_after":
+  - do:
+      security.query_service_accounts:
+        body: >
+          {
+            "sort": [ { "username": { "order": "desc" } } ],
+            "from": 1,
+            "size": 1
+          }
+  - match: { total: 3 }
+  - match: { count: 1 }
+  - match: { service_accounts.0.username: "apps/worker_2" }
+
+  - do:
+      security.query_service_accounts:
+        body: >
+          {
+            "sort": ["username"],
+            "size": 2
+          }
+  - match: { total: 3 }
+  - match: { count: 2 }
+  - match: { service_accounts.0.username: "apps/worker_1" }
+  - match: { service_accounts.1.username: "apps/worker_2" }
+  - match: { service_accounts.1._sort: ["apps/worker_2"] }
+  - set: { service_accounts.1._sort.0: last_username }
+
+  - do:
+      security.query_service_accounts:
+        body: >
+          {
+            "sort": ["username"],
+            "size": 2,
+            "search_after": [ "${last_username}" ]
+          }
+  - match: { total: 3 }
+  - match: { count: 1 }
+  - match: { service_accounts.0.username: "batch/nightly_job" }
+
+---
+"Test search_after without a sort or with mismatched sort values is rejected":
+  - do:
+      catch: bad_request
+      security.query_service_accounts:
+        body: >
+          {
+            "search_after": [ "apps/worker_1" ]
+          }
+  - match: { error.root_cause.0.type: illegal_argument_exception }
+  - match: { error.root_cause.0.reason: "Sort must contain at least one field." }
+
+  - do:
+      catch: bad_request
+      security.query_service_accounts:
+        body: >
+          {
+            "sort": ["username"],
+            "search_after": [ "apps/worker_1", true ]
+          }
+  - match: { error.root_cause.0.type: illegal_argument_exception }
+  - match: { error.root_cause.0.reason: "search_after has 2 value(s) but sort has 1." }
+
+  - do:
+      catch: bad_request
+      security.query_service_accounts:
+        body: >
+          {
+            "sort": ["enabled"],
+            "search_after": [ "not-a-boolean" ]
+          }
+  - match: { error.root_cause.0.type: illegal_argument_exception }
+
+---
+"Test query on a field or with a query type outside the allowlist is rejected":
+  - do:
+      catch: bad_request
+      security.query_service_accounts:
+        body: >
+          {
+            "query": { "term": { "doc_type": "service_account" } }
+          }
+  - match: { error.type: illegal_argument_exception }
+  - match: { error.reason: "Field [doc_type] is not allowed for querying or aggregation" }
+
+  - do:
+      catch: bad_request
+      security.query_service_accounts:
+        body: >
+          {
+            "query": { "term": { "password": "x" } }
+          }
+  - match: { error.type: illegal_argument_exception }
+
+  - do:
+      catch: bad_request
+      security.query_service_accounts:
+        body: >
+          {
+            "query": { "regexp": { "username": "apps/.*" } }
+          }
+  - match: { error.type: illegal_argument_exception }
+  - match: { error.reason: "Query type [regexp] is not currently supported in this context" }
+
+  - do:
+      catch: bad_request
+      security.query_service_accounts:
+        body: >
+          {
+            "sort": ["version"]
+          }
+  - match: { error.type: illegal_argument_exception }
+  - match: { error.reason: "Field [version] is not allowed for querying or aggregation" }
+
+  - do:
+      catch: bad_request
+      security.query_service_accounts:
+        body: >
+          {
+            "from": -1
+          }
+  - match: { error.type: action_request_validation_exception }
+
+---
+"Test read_security and manage_service_account can query, other privileges cannot":
+  - do:
+      headers:
+        Authorization: "Basic c2FfcmVhZGVyOngtcGFjay10ZXN0LXBhc3N3b3Jk" # sa_reader
+      security.query_service_accounts:
+        body: >
+          {
+            "query": { "term": { "username": "apps/worker_1" } }
+          }
+  - match: { total: 1 }
+  - match: { service_accounts.0.username: "apps/worker_1" }
+
+  # The same reach as the get API, which already reports user-managed accounts to this privilege.
+  - do:
+      headers:
+        Authorization: "Basic c2FfbWFuYWdlcjp4LXBhY2stdGVzdC1wYXNzd29yZA==" # sa_manager
+      security.query_service_accounts:
+        body: >
+          {
+            "query": { "term": { "username": "apps/worker_1" } }
+          }
+  - match: { total: 1 }
+  - match: { service_accounts.0.username: "apps/worker_1" }
+
+  - do:
+      catch: forbidden
+      headers:
+        Authorization: "Basic c2Ffbm9ib2R5OngtcGFjay10ZXN0LXBhc3N3b3Jk" # sa_nobody
+      security.query_service_accounts: {}

@@ -22,7 +22,6 @@ import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.plugins.PluginsService;
-import org.elasticsearch.repositories.blobstore.BlobStoreRepository;
 import org.elasticsearch.snapshots.mockstore.MockRepository;
 import org.elasticsearch.telemetry.Measurement;
 import org.elasticsearch.telemetry.TelemetryProvider;
@@ -364,6 +363,8 @@ public class BlobCacheMetricsIT extends AbstractBlobCacheMetricsIntegTestCase {
      */
     public void testTimestampAgeBuckets() throws Exception {
         startMasterAndIndexNode();
+        final String searchNode = startSearchNode();
+        ensureStableCluster(2);
 
         // Capture "now" once. Every per-bucket timestamp is derived from this reference so that
         // test-execution wall-clock drift cannot push a timestamp across a bucket boundary.
@@ -398,19 +399,13 @@ public class BlobCacheMetricsIT extends AbstractBlobCacheMetricsIntegTestCase {
         populateIndex(otherIndexName);
         flush(otherIndexName);
 
-        // Start the search node. All indices were created with 1 replica, so the search node
-        // recovers every shard immediately. SynchronousWarmingPlugin ensures warming completes
-        // before recovery finishes, so by the time ensureGreen returns the cache is fully
-        // pre-populated and there is no concurrency between background prefetch and our
-        // evict-then-search assertions below.
-        final String searchNode = startSearchNode();
-        ensureStableCluster(2);
         final List<String> allIndices = new ArrayList<>();
         for (BucketCase c : cases) {
             allIndices.add(c.indexName());
         }
         allIndices.add(otherIndexName);
         ensureGreen(allIndices.toArray(String[]::new));
+        // Wait that there is nothing going on, like warming, before we clear the cache and start measuring.
         final var searchThreadPool = internalCluster().getInstance(ThreadPool.class, searchNode);
         assertBusy(() -> {
             for (ThreadPoolStats.Stats stat : searchThreadPool.stats()) {

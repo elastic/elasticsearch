@@ -11,7 +11,7 @@ package org.elasticsearch.action.search;
 
 import org.elasticsearch.core.TimeValue;
 
-import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.List;
 
 /**
@@ -55,8 +55,9 @@ public enum TimeRangeBucket {
     }
 
     /**
-     * Explicit upper-inclusive histogram bucket boundaries matching these thresholds.
-     * {@link #OlderThan14Days} is the implicit overflow bucket and is omitted.
+     * Explicit upper-inclusive histogram bucket boundaries matching every threshold,
+     * including {@link #OlderThan14Days} ({@code Long.MAX_VALUE}), so implementations
+     * without an implicit overflow bucket still have a last bucket.
      */
     public static List<Long> histogramBoundaries() {
         return HISTOGRAM_BOUNDARIES;
@@ -75,10 +76,6 @@ public enum TimeRangeBucket {
     }
 
     private static List<Long> buildHistogramBoundaries() {
-        List<Long> boundaries = new ArrayList<>(VALUES.length - 1);
-        for (int i = 0; i < VALUES.length - 1; i++) {
-            boundaries.add(VALUES[i].millis);
-        }
-        return List.copyOf(boundaries);
+        return Arrays.stream(VALUES).map(TimeRangeBucket::millis).toList();
     }
 }

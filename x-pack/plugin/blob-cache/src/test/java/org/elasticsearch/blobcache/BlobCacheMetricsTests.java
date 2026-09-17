@@ -40,6 +40,7 @@ import static org.hamcrest.Matchers.closeTo;
 import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.empty;
+import static org.hamcrest.Matchers.hasItem;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.is;
 
@@ -225,17 +226,36 @@ public class BlobCacheMetricsTests extends ESTestCase {
 
     public void testAgeHistogramRecordsThresholdAges() {
         long now = fakeNowMillis.get();
-        for (long boundary : TimeRangeBucket.histogramBoundaries()) {
+        // Skip OlderThan14Days (Long.MAX_VALUE): now - MAX_VALUE overflows. That last bucket is
+        // covered by testAgesOlderThan14DaysLandInLastHistogramBucket.
+        List<Long> finiteBounds = TimeRangeBucket.histogramBoundaries()
+            .stream()
+            .filter(boundary -> boundary != TimeRangeBucket.OlderThan14Days.millis())
+            .toList();
+        for (long boundary : finiteBounds) {
             metrics.recordRead(now - boundary);
         }
         List<Long> recorded = ageMeasurements(BLOB_CACHE_READ_AGE).stream().map(Measurement::getLong).toList();
-        assertEquals(TimeRangeBucket.histogramBoundaries(), recorded);
+        assertEquals(finiteBounds, recorded);
+    }
 
-        metrics.recordRead(now - TimeValue.timeValueDays(14).getMillis() - 1);
-        metrics.recordRead(now - TimeValue.timeValueDays(365).getMillis());
-        recorded = ageMeasurements(BLOB_CACHE_READ_AGE).stream().map(Measurement::getLong).toList();
-        assertEquals(TimeValue.timeValueDays(14).getMillis() + 1, recorded.get(recorded.size() - 2).longValue());
-        assertEquals(TimeValue.timeValueDays(365).getMillis(), recorded.getLast().longValue());
+    public void testAgesOlderThan14DaysLandInLastHistogramBucket() {
+        assertThat(TimeRangeBucket.histogramBoundaries(), hasItem(TimeRangeBucket.OlderThan14Days.millis()));
+        assertEquals(Arrays.stream(TimeRangeBucket.values()).map(TimeRangeBucket::millis).toList(), TimeRangeBucket.histogramBoundaries());
+
+        long now = fakeNowMillis.get();
+        long justOver14Days = TimeValue.timeValueDays(14).getMillis() + 1;
+        long oneYear = TimeValue.timeValueDays(365).getMillis();
+        assertEquals(TimeRangeBucket.OlderThan14Days.label(), TimeRangeBucket.resolve(justOver14Days));
+        assertEquals(TimeRangeBucket.OlderThan14Days.label(), TimeRangeBucket.resolve(oneYear));
+        assertTrue(justOver14Days > TimeRangeBucket.FourteenDays.millis());
+        assertTrue(justOver14Days <= TimeRangeBucket.OlderThan14Days.millis());
+        assertTrue(oneYear <= TimeRangeBucket.OlderThan14Days.millis());
+
+        metrics.recordRead(now - justOver14Days);
+        metrics.recordMiss(now - oneYear);
+        assertThat(ageMeasurements(BLOB_CACHE_READ_AGE).stream().map(Measurement::getLong).toList(), contains(justOver14Days));
+        assertThat(ageMeasurements(BLOB_CACHE_MISS_AGE).stream().map(Measurement::getLong).toList(), contains(oneYear));
     }
 
     public void testFutureDatedTimestampRecordsNegativeAge() {

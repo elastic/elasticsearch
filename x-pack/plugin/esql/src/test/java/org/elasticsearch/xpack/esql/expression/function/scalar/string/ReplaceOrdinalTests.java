@@ -57,6 +57,9 @@ import static org.hamcrest.Matchers.instanceOf;
  *   <li>If a dictionary entry would overflow {@code MAX_BYTES_REF_RESULT_SIZE}, the evaluator falls
  *       back to per-row evaluation and emits the same warning shape as the legacy path.</li>
  * </ul>
+ * <p>
+ * The {@code testPerRow*} methods below also cover the page-scoped memoization cache in the per-row
+ * fallback, using a plain (non-ordinal) {@link BytesRefBlock} input.
  */
 public class ReplaceOrdinalTests extends ESTestCase {
 
@@ -147,6 +150,133 @@ public class ReplaceOrdinalTests extends ESTestCase {
         }
     }
 
+    /** Plain (non-ordinal) input with heavy repetition must match the plain reference row-for-row. */
+    public void testPerRowMemoizationMatchesReferenceOnPlainBlock() {
+        String regex = "^https?://(?:www\\.)?([^/]+)/.*$";
+        String newStr = "$1";
+        String[] pool = {
+            "https://www.example.com/path?x=1",
+            "http://other.example.org/a/b/c",
+            "https://third.example.net/",
+            "not-a-url-at-all",
+            "https://singleton.example.io/only/once" };
+        int[] rowToPool = { 0, 0, 0, 0, 1, 2, 3, 1, 3, 4, 0, 2 };
+
+        try (Block result = runReplacePlainBlock(pool, rowToPool, regex, newStr)) {
+            assertThat(result, instanceOf(BytesRefBlock.class));
+            BytesRefBlock bb = (BytesRefBlock) result;
+            BytesRef scratch = new BytesRef();
+            for (int p = 0; p < rowToPool.length; p++) {
+                String expected = pool[rowToPool[p]].replaceAll(regex, newStr);
+                assertThat("row " + p, bb.getBytesRef(p, scratch).utf8ToString(), equalTo(expected));
+            }
+        }
+    }
+
+    /** A repeated failing value must fail independently on every occurrence, not just the first. */
+    public void testPerRowMemoizationDoesNotSuppressRepeatedFailures() {
+        int oversizeLen = (int) (ScalarFunction.MAX_BYTES_REF_RESULT_SIZE / 10);
+        String oversize = "a".repeat(oversizeLen);
+        String regex = ".";
+        String newStr = oversize;
+        String[] pool = { "abc", oversize };
+        int[] rowToPool = { 1, 0, 1, 0, 1, 0 }; // oversize value, non-adjacent, 3 times
+
+        try (Block result = runReplacePlainBlock(pool, rowToPool, regex, newStr)) {
+            for (int p = 0; p < rowToPool.length; p++) {
+                if (rowToPool[p] == 1) {
+                    assertTrue("row " + p + " (oversize) must be null", result.isNull(p));
+                } else {
+                    assertFalse("row " + p + " (small) must not be null", result.isNull(p));
+                }
+            }
+            assertDriverWarnings(
+                "Line -1:-1: evaluation of [] failed, treating result as null. Only first 20 failures recorded.",
+                "Line -1:-1: java.lang.IllegalArgumentException: "
+                    + "Creating strings with more than ["
+                    + ScalarFunction.MAX_BYTES_REF_RESULT_SIZE
+                    + "] bytes is not supported"
+            );
+        }
+    }
+
+    /** Nulls and multi-value rows must bypass the cache, same as the legacy per-row path. */
+    public void testPerRowMemoizationHandlesNullsAndMultivalues() {
+        String regex = "^https?://([^/]+)/.*$";
+        String newStr = "$1";
+        try (
+            Block result = runReplacePlainBlockWithNullsAndMultivalues(
+                new String[] { "https://a.example.com/x", null, "https://a.example.com/x", MULTIVALUE_SENTINEL, "https://a.example.com/x" },
+                regex,
+                newStr
+            )
+        ) {
+            BytesRefBlock bb = (BytesRefBlock) result;
+            BytesRef scratch = new BytesRef();
+            assertThat(bb.getBytesRef(0, scratch).utf8ToString(), equalTo("a.example.com"));
+            assertTrue("null input row must stay null", result.isNull(1));
+            assertThat(bb.getBytesRef(2, scratch).utf8ToString(), equalTo("a.example.com"));
+            assertTrue("multi-value row must be null with a warning", result.isNull(3));
+            assertThat(bb.getBytesRef(4, scratch).utf8ToString(), equalTo("a.example.com"));
+            assertDriverWarnings(
+                "Line -1:-1: evaluation of [] failed, treating result as null. Only first 20 failures recorded.",
+                "Line -1:-1: java.lang.IllegalArgumentException: single-value function encountered multi-value"
+            );
+        }
+    }
+
+    /** A value recurring across a null, multi-value, or failing gap must still produce the right result. */
+    public void testPerRowMemoizationReusesLastSuccessAcrossGaps() {
+        String regex = "^https?://([^/]+)/.*$";
+        String newStr = "$1";
+        int oversizeLen = (int) (ScalarFunction.MAX_BYTES_REF_RESULT_SIZE / 10);
+        String oversizeRegex = ".";
+        String oversizeNewStr = "a".repeat(oversizeLen);
+
+        // rows 0/2: same value across a null gap; rows 3/5: same value across a multi-value gap
+        try (
+            Block result = runReplacePlainBlockWithNullsAndMultivalues(
+                new String[] {
+                    "https://a.example.com/x",
+                    null,
+                    "https://a.example.com/x",
+                    "https://b.example.com/y",
+                    MULTIVALUE_SENTINEL,
+                    "https://b.example.com/y" },
+                regex,
+                newStr
+            )
+        ) {
+            BytesRefBlock bb = (BytesRefBlock) result;
+            BytesRef scratch = new BytesRef();
+            assertThat(bb.getBytesRef(0, scratch).utf8ToString(), equalTo("a.example.com"));
+            assertTrue(result.isNull(1));
+            assertThat("value recurring across a null gap", bb.getBytesRef(2, scratch).utf8ToString(), equalTo("a.example.com"));
+            assertThat(bb.getBytesRef(3, scratch).utf8ToString(), equalTo("b.example.com"));
+            assertTrue(result.isNull(4));
+            assertThat("value recurring across a multi-value gap", bb.getBytesRef(5, scratch).utf8ToString(), equalTo("b.example.com"));
+        }
+
+        // row 0 succeeds, row 1 fails, row 2 repeats row 0, row 3 repeats row 1's failing value
+        try (
+            Block result = runReplacePlainBlock(new String[] { "abc", oversizeNewStr }, new int[] { 0, 1, 0, 1 }, oversizeRegex, oversizeNewStr)
+        ) {
+            BytesRefBlock bb = (BytesRefBlock) result;
+            BytesRef scratch = new BytesRef();
+            String expectedSuccess = "abc".replaceAll(oversizeRegex, oversizeNewStr);
+            assertThat("row 0 (succeeds)", bb.getBytesRef(0, scratch).utf8ToString(), equalTo(expectedSuccess));
+            assertTrue("row 1 (oversize, fails)", result.isNull(1));
+            assertThat(
+                "row 2 (repeat of row 0's value across the failure)",
+                bb.getBytesRef(2, scratch).utf8ToString(),
+                equalTo(expectedSuccess)
+            );
+            assertTrue("row 3 (repeat of row 1's failing value)", result.isNull(3));
+        }
+    }
+
+    private static final String MULTIVALUE_SENTINEL = "__MULTIVALUE__";
+
     private Block runReplace(String[] dictionary, int[] ordinals, String regex, String newStr) {
         Integer[] boxed = new Integer[ordinals.length];
         for (int i = 0; i < ordinals.length; i++) {
@@ -158,6 +288,57 @@ public class ReplaceOrdinalTests extends ESTestCase {
     private Block runReplaceWithNulls(String[] dictionary, Integer[] ordinals, String regex, String newStr) {
         DriverContext ctx = driverContext();
         OrdinalBytesRefBlock strBlock = buildOrdinalBlock(ctx.blockFactory(), dictionary, ordinals);
+        ExpressionEvaluator.Factory factory = AbstractScalarFunctionTestCase.evaluator(
+            new Replace(
+                Source.EMPTY,
+                field("text", DataType.KEYWORD),
+                new Literal(Source.EMPTY, new BytesRef(regex), DataType.KEYWORD),
+                new Literal(Source.EMPTY, new BytesRef(newStr), DataType.KEYWORD)
+            )
+        );
+        try (ExpressionEvaluator eval = factory.get(ctx)) {
+            Page page = new Page(strBlock);
+            try {
+                return eval.eval(page);
+            } finally {
+                page.releaseBlocks();
+            }
+        }
+    }
+
+    /** Builds a plain {@link BytesRefBlock} (never an {@link OrdinalBytesRefBlock}), forcing the per-row path. */
+    private Block runReplacePlainBlock(String[] pool, int[] rowToPool, String regex, String newStr) {
+        String[] values = new String[rowToPool.length];
+        for (int i = 0; i < rowToPool.length; i++) {
+            values[i] = pool[rowToPool[i]];
+        }
+        return runReplacePlainBlockValues(values, regex, newStr);
+    }
+
+    private Block runReplacePlainBlockWithNullsAndMultivalues(String[] values, String regex, String newStr) {
+        return runReplacePlainBlockValues(values, regex, newStr);
+    }
+
+    private Block runReplacePlainBlockValues(String[] values, String regex, String newStr) {
+        DriverContext ctx = driverContext();
+        BytesRefBlock strBlock = null;
+        try (BytesRefBlock.Builder builder = ctx.blockFactory().newBytesRefBlockBuilder(values.length)) {
+            for (String value : values) {
+                if (value == null) {
+                    builder.appendNull();
+                } else if (value.equals(MULTIVALUE_SENTINEL)) {
+                    builder.beginPositionEntry();
+                    builder.appendBytesRef(new BytesRef("a"));
+                    builder.appendBytesRef(new BytesRef("b"));
+                    builder.endPositionEntry();
+                } else {
+                    builder.appendBytesRef(new BytesRef(value));
+                }
+            }
+            strBlock = builder.build();
+        }
+        assertThat("test helper must build a plain (non-ordinal) block", strBlock.asOrdinals(), equalTo(null));
+
         ExpressionEvaluator.Factory factory = AbstractScalarFunctionTestCase.evaluator(
             new Replace(
                 Source.EMPTY,

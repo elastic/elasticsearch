@@ -21,6 +21,8 @@ import org.elasticsearch.compute.operator.Warnings;
 import org.elasticsearch.core.Releasables;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 
+import java.util.HashMap;
+import java.util.Map;
 import java.util.regex.Pattern;
 
 /**
@@ -137,14 +139,36 @@ final class ReplaceConstantOrdinalEvaluator implements ExpressionEvaluator {
         }
     }
 
+
+    // Rows to sample before giving up on a mostly-distinct page.
+    static final int MIN_SAMPLE_BEFORE_DISABLING = 64;
+
     /**
-     * Per-row fallback. Mirrors the loop emitted by the {@code @Evaluator}-generated
-     * {@code ReplaceConstantEvaluator} so behavior — nulls, multi-value warnings, and per-row exception
-     * handling — matches the legacy path exactly.
+     * Per-row fallback: used when the input isn't a dense, single-valued {@link OrdinalBytesRefBlock}
+     * (e.g. after a {@code WHERE} filter), or when the dictionary path bails on an oversized entry.
+     * <p>
+     * Memoizes in two tiers: a free last-success check (catches adjacent/near-adjacent duplicates) and
+     * a page-scoped {@link HashMap} (catches other repeats). The map is discarded when this method
+     * returns — no cross-page cache. If a page looks mostly distinct, caching is disabled for the rest
+     * of that page to avoid regressing the no-repeats case.
+     * <p>
+     * Failures from {@link Replace#process} are never cached, so a repeated failing value still warns on
+     * every occurrence.
      */
     private Block evalPerRow(int positionCount, BytesRefBlock strBlock) {
         try (BytesRefBlock.Builder result = driverContext.blockFactory().newBytesRefBlockBuilder(positionCount)) {
-            BytesRef strScratch = new BytesRef();
+            // `cur`/`prev` ping-pong between two buffers so `prev` (last successful value) is never
+            // clobbered by the next fetch. Updated together, only on success.
+            BytesRef bufA = new BytesRef();
+            BytesRef bufB = new BytesRef();
+            BytesRef cur = bufA;
+            BytesRef prev = null;
+            BytesRef prevResult = null;
+
+            Map<BytesRef, BytesRef> cache = null;
+            boolean cacheEnabled = true;
+            int rowsSeen = 0; // value-bearing rows seen so far (excludes null/multi-value rows)
+
             position: for (int p = 0; p < positionCount; p++) {
                 switch (strBlock.getValueCount(p)) {
                     case 0:
@@ -157,13 +181,42 @@ final class ReplaceConstantOrdinalEvaluator implements ExpressionEvaluator {
                         result.appendNull();
                         continue position;
                 }
-                BytesRef strVal = strBlock.getBytesRef(strBlock.getFirstValueIndex(p), strScratch);
-                try {
-                    result.appendBytesRef(Replace.process(strVal, regex, literalPrefix, newStr));
-                } catch (IllegalArgumentException e) {
-                    warnings().registerException(e);
-                    result.appendNull();
+                cur = strBlock.getBytesRef(strBlock.getFirstValueIndex(p), cur);
+                rowsSeen++;
+                if (prev != null && prev.bytesEquals(cur)) {
+                    result.appendBytesRef(prevResult);
+                    continue position;
                 }
+
+                BytesRef cached = (cacheEnabled && cache != null) ? cache.get(cur) : null;
+                BytesRef replaced;
+                if (cached != null) {
+                    replaced = cached;
+                } else {
+                    try {
+                        replaced = Replace.process(cur, regex, literalPrefix, newStr);
+                    } catch (IllegalArgumentException e) {
+                        warnings().registerException(e);
+                        result.appendNull();
+                        continue position; // don't cache failures; a repeat retries and re-warns
+                    }
+                    if (cacheEnabled) {
+                        if (cache == null) {
+                            cache = new HashMap<>();
+                        }
+                        cache.put(BytesRef.deepCopyOf(cur), BytesRef.deepCopyOf(replaced));
+                        if (rowsSeen >= MIN_SAMPLE_BEFORE_DISABLING && cache.size() * 2 >= rowsSeen) {
+                            cacheEnabled = false; // mostly distinct: give up for the rest of this page
+                        }
+                    }
+                }
+                result.appendBytesRef(replaced);
+
+                // swap buffers: cur becomes prev
+                BytesRef nextCur = (cur == bufA) ? bufB : bufA;
+                prev = cur;
+                prevResult = replaced;
+                cur = nextCur;
             }
             return result.build();
         }

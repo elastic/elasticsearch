@@ -1101,4 +1101,150 @@ public class FixtureDimensionsTests extends ESTestCase {
         logger.info(out.toString());
         assertThat(groups, not(hasItem(Set.of())));
     }
+
+    /** A tier named by a system property that matches nothing must fail, not silently select a battery. */
+    public void testAnUnknownTierIsRejected() {
+        Exception e = expectThrows(IllegalArgumentException.class, () -> FixtureDimensions.Tier.parse("weekly"));
+        assertThat(e.getMessage(), containsString("unknown tier [weekly]"));
+    }
+
+    /**
+     * A char-valued slot names a character. A spelling longer than one is a declaration that renders one
+     * byte and announces another, which produces bytes that parse cleanly and mean something else.
+     */
+    public void testAMultiCharacterSpellingForACharValuedSlotIsRejected() {
+        String[] lines = ArrayUtils.append(wellFormed(), "dimension.error_mode.value.skip_row = ;;");
+        FixtureDimensions d = FixtureDimensions.parse(declaration(lines));
+        Exception e = expectThrows(IllegalStateException.class, () -> d.charValue("error_mode", "skip_row"));
+        assertThat(e.getMessage(), containsString("not one character"));
+    }
+
+    /** The escape survives Properties and the contract parser's trim, so it still reaches the writer. */
+    public void testTheTabEscapeDecodesToARealTab() {
+        String[] lines = ArrayUtils.append(wellFormed(), "dimension.error_mode.value.skip_row = \\t");
+        assertThat(FixtureDimensions.parse(declaration(lines)).charValue("error_mode", "skip_row"), equalTo('\t'));
+    }
+
+    /** A cluster setting is applied around the query, so it is collected apart from the dataset settings. */
+    public void testClusterSettingsCarryOnlyClusterBoundSlotsOffTheirDefault() {
+        String[] lines = new String[] {
+            "dimension.format.values = csv, parquet",
+            "dimension.format.default = csv",
+            "dimension.format.binds = fixture",
+            "dimension.error_mode.values = fail_fast, skip_row",
+            "dimension.error_mode.default = fail_fast",
+            "dimension.error_mode.binds = directive",
+            "dimension.error_mode.key = error_mode",
+            "dimension.cache.values = on, off",
+            "dimension.cache.default = on",
+            "dimension.cache.binds = cluster_setting",
+            "dimension.cache.key = esql.external.cache.enabled",
+            "pair.error_mode.format = interacting",
+            "pair.cache.format = interacting",
+            "pair.cache.error_mode = interacting" };
+        FixtureDimensions d = FixtureDimensions.parse(declaration(lines));
+        Map<String, String> off = new LinkedHashMap<>(Map.of("format", "csv", "error_mode", "fail_fast", "cache", "off"));
+        assertThat(d.clusterSettings(off, "csv"), equalTo(Map.of("esql.external.cache.enabled", "off")));
+        assertThat("the dataset body must not carry it", d.directiveSettings(off), equalTo(Map.of()));
+
+        Map<String, String> on = new LinkedHashMap<>(Map.of("format", "csv", "error_mode", "fail_fast", "cache", "on"));
+        assertThat("omission is the default here too", d.clusterSettings(on, "csv"), equalTo(Map.of()));
+    }
+
+    /** A key with no dot names no dimension, so nothing would ever read it. */
+    public void testAMalformedDimensionKeyIsRejected() {
+        String[] lines = ArrayUtils.append(wellFormed(), "dimension.nodot = x");
+        Exception e = expectThrows(IllegalStateException.class, () -> FixtureDimensions.parse(declaration(lines)));
+        assertThat(e.getMessage(), containsString("malformed dimension key"));
+    }
+
+    /**
+     * A disjoint pair blamed on a defect claims a fix is owed. Without the issue there is nothing to close
+     * the entry when the defect is fixed, so it outlives its reason and keeps cutting cells silently.
+     */
+    public void testADisjointPairBlamedOnADefectMustCiteIt() {
+        String[] uncited = ArrayUtils.append(wellFormed(), "pair.error_mode.format.value_disjoint.why = bug: it breaks sometimes");
+        Exception e = expectThrows(IllegalStateException.class, () -> FixtureDimensions.parse(declaration(uncited)));
+        assertThat(e.getMessage(), containsString("cites no issue"));
+
+        String[] cited = ArrayUtils.append(
+            wellFormed(),
+            "pair.error_mode.format.value_disjoint.why = bug: elastic/esql-planning#1 it breaks sometimes"
+        );
+        assertThat(
+            "the same reason carrying its issue is accepted",
+            FixtureDimensions.parse(declaration(cited)).names(),
+            equalTo(List.of("error_mode", "format"))
+        );
+    }
+
+    /** A dimension with no default has no baseline, so every generated vector would be off an unknown one. */
+    public void testADimensionWithoutADefaultIsRejected() {
+        String[] lines = new String[] {
+            "dimension.format.values = csv, parquet",
+            "dimension.format.default = csv",
+            "dimension.format.binds = fixture",
+            "dimension.error_mode.values = fail_fast, skip_row",
+            "dimension.error_mode.binds = directive",
+            "dimension.error_mode.key = error_mode",
+            "pair.error_mode.format = interacting" };
+        Exception e = expectThrows(IllegalStateException.class, () -> FixtureDimensions.parse(declaration(lines)));
+        assertThat(e.getMessage(), containsString("declares no default"));
+    }
+
+    /** A derived value naming a dimension or a value that does not exist is dead text that never fires. */
+    public void testDerivedValuesMustNameSomethingDeclared() {
+        String[] unknownDimension = ArrayUtils.append(wellFormed(), "dimension.ghost.derived.x = something");
+        assertThat(
+            expectThrows(IllegalStateException.class, () -> FixtureDimensions.parse(declaration(unknownDimension))).getMessage(),
+            containsString("unknown dimension [ghost]")
+        );
+        String[] unknownValue = ArrayUtils.append(wellFormed(), "dimension.error_mode.derived.nope = something");
+        assertThat(
+            expectThrows(IllegalStateException.class, () -> FixtureDimensions.parse(declaration(unknownValue))).getMessage(),
+            containsString("names a value the dimension does not declare")
+        );
+    }
+
+    /** A value mapping for a dimension that does not exist would silently never be applied. */
+    public void testAValueMappingForAnUnknownDimensionIsRejected() {
+        String[] lines = ArrayUtils.append(wellFormed(), "dimension.ghost.value.x = y");
+        Exception e = expectThrows(IllegalStateException.class, () -> FixtureDimensions.parse(declaration(lines)));
+        assertThat(e.getMessage(), containsString("unknown dimension [ghost]"));
+    }
+
+    /**
+     * A value_disjoint entry removes cells, and a removal nothing ever reports missing is the failure this
+     * contract exists to prevent -- so every part of it has to name something real.
+     */
+    public void testAMalformedValueDisjointEntryIsRejected() {
+        String[] notAPair = ArrayUtils.append(wellFormed(), "pair.error_mode.value_disjoint = skip_row:csv");
+        assertThat(
+            expectThrows(IllegalStateException.class, () -> FixtureDimensions.parse(declaration(notAPair))).getMessage(),
+            containsString("malformed value_disjoint pair")
+        );
+        String[] notAColonPair = ArrayUtils.append(
+            ArrayUtils.append(wellFormed(), "pair.error_mode.format.value_disjoint = skip_row"),
+            "pair.error_mode.format.value_disjoint.why = rule: they cannot coexist"
+        );
+        assertThat(
+            expectThrows(IllegalStateException.class, () -> FixtureDimensions.parse(declaration(notAColonPair))).getMessage(),
+            containsString("is not <value>:<value>")
+        );
+        String[] undeclared = ArrayUtils.append(
+            ArrayUtils.append(wellFormed(), "pair.error_mode.format.value_disjoint = skip_row:orc"),
+            "pair.error_mode.format.value_disjoint.why = rule: they cannot coexist"
+        );
+        assertThat(
+            expectThrows(IllegalStateException.class, () -> FixtureDimensions.parse(declaration(undeclared))).getMessage(),
+            containsString("names undeclared value")
+        );
+    }
+
+    /** A per-format default outside the dimension's own values makes that format's baseline a fiction. */
+    public void testAPerFormatDefaultOutsideItsValuesIsRejected() {
+        String[] lines = ArrayUtils.append(wellFormed(), "dimension.error_mode.default.parquet = nope");
+        Exception e = expectThrows(IllegalStateException.class, () -> FixtureDimensions.parse(declaration(lines)));
+        assertThat(e.getMessage(), containsString("is not one of the dimension's values"));
+    }
 }

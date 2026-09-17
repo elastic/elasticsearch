@@ -119,6 +119,18 @@ public final class FixtureMatrix {
         return new FixtureMatrix(props);
     }
 
+    /**
+     * Builds a matrix from a declaration held in memory.
+     *
+     * <p>For the cases the real file does not carry and should not be made to carry -- a missing codec
+     * list, a dataset with no declared padding -- whose handling is a throw that no test could otherwise
+     * reach. Deliberately not a second way to load the real declaration: {@link #get} is that, and a
+     * caller passing the real properties here would be asserting against a copy of it.
+     */
+    static FixtureMatrix parse(Properties declaration) {
+        return new FixtureMatrix(declaration);
+    }
+
     private final Map<String, List<String>> specPatterns;
     private final Properties declaration;
 

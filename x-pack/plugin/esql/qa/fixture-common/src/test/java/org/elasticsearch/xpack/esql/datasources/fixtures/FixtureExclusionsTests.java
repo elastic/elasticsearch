@@ -230,4 +230,106 @@ public class FixtureExclusionsTests extends ESTestCase {
         assertThat("this test proves nothing if no exclusion is qualified", qualified, greaterThan(0));
         assertThat("qualifiers naming something undeclared match no vector and protect nothing", bad, empty());
     }
+
+    /** With no suites list nothing can be attributed to a suite, so every entry would apply to nothing. */
+    public void testAMissingSuitesListIsRejected() {
+        Exception e = expectThrows(IllegalStateException.class, () -> FixtureExclusions.parse(new Properties()));
+        assertThat(e.getMessage(), containsString("must declare a 'suites' list"));
+    }
+
+    /**
+     * An unrecognised key used to be skipped, which made a misspelling read as an absent declaration --
+     * the exclusion simply did not happen, and nothing said so.
+     */
+    public void testAnUnknownKeyIsRejectedRatherThanSkipped() {
+        Properties p = declared();
+        p.setProperty("reasons.typo", "rule: a misspelt reason prefix");
+        Exception e = expectThrows(IllegalStateException.class, () -> FixtureExclusions.parse(p));
+        assertThat(e.getMessage(), containsString("expected 'suites', 'reason.<name>' or 'exclude.<suite>.<spec>.<case>'"));
+    }
+
+    /**
+     * The spec segment is required because case names are not unique across spec files: a key without it
+     * silences every same-named case, which is a wider exclusion than anyone wrote down.
+     */
+    public void testAnExclusionKeyMustNameBothSpecAndCase() {
+        Properties noDot = declared();
+        noDot.setProperty("exclude.csv", "rule: no suite segment");
+        assertThat(
+            expectThrows(IllegalStateException.class, () -> FixtureExclusions.parse(noDot)).getMessage(),
+            containsString("expected exclude.<suite>.<caseName>")
+        );
+
+        Properties noSpec = declared();
+        noSpec.setProperty("exclude.csv.someCase", "rule: no spec segment");
+        assertThat(
+            expectThrows(IllegalStateException.class, () -> FixtureExclusions.parse(noSpec)).getMessage(),
+            containsString("The spec segment is required")
+        );
+    }
+
+    /** A suite absent from the declared list is a typo, and its entries would silence nothing. */
+    public void testAnExclusionForAnUndeclaredSuiteIsRejected() {
+        Properties p = declared();
+        p.setProperty("exclude.ghost.some-spec.someCase", "rule: names a suite nobody declared");
+        Exception e = expectThrows(IllegalStateException.class, () -> FixtureExclusions.parse(p));
+        assertThat(e.getMessage(), containsString("phantom suite"));
+    }
+
+    /**
+     * Every exclusion says whether a fix is owed. A bug is a debt the entry outlives if nobody records it
+     * as one; a rule is something the suite cannot express and never will.
+     */
+    public void testAnExclusionMustCarryATypedReason() {
+        Properties noKind = declared();
+        noKind.setProperty("exclude.csv.some-spec.someCase", "it just fails");
+        assertThat(
+            expectThrows(IllegalStateException.class, () -> FixtureExclusions.parse(noKind)).getMessage(),
+            containsString("has no kind")
+        );
+
+        Properties badKind = declared();
+        badKind.setProperty("exclude.csv.some-spec.someCase", "flaky: sometimes red");
+        assertThat(
+            expectThrows(IllegalStateException.class, () -> FixtureExclusions.parse(badKind)).getMessage(),
+            containsString("expected 'bug' or 'rule'")
+        );
+
+        Properties noReason = declared();
+        noReason.setProperty("exclude.csv.some-spec.someCase", "bug:");
+        assertThat(
+            expectThrows(IllegalStateException.class, () -> FixtureExclusions.parse(noReason)).getMessage(),
+            containsString("states a kind but no reason")
+        );
+    }
+
+    /** A shared reason that resolves to nothing leaves the entry with no reason at all. */
+    public void testAnUnresolvedSharedReasonIsRejected() {
+        Properties p = declared();
+        p.setProperty("exclude.csv.some-spec.someCase", "bug: @nosuch");
+        Exception e = expectThrows(IllegalStateException.class, () -> FixtureExclusions.parse(p));
+        assertThat(e.getMessage(), containsString("references shared reason [@nosuch]"));
+    }
+
+    /** One defect disables several cases, so the paragraph is written once and referenced. */
+    public void testASharedReasonIsResolvedForEveryEntryThatReferencesIt() {
+        Properties p = declared();
+        p.setProperty("reason.shared", "the reader truncates the delimiter, elastic/esql-planning#1");
+        p.setProperty("exclude.csv.some-spec.caseOne", "bug: @shared");
+        p.setProperty("exclude.csv.some-spec.caseTwo", "bug: @shared");
+        FixtureExclusions exclusions = FixtureExclusions.parse(p);
+        int seen = 0;
+        for (FixtureExclusions.Exclusion e : exclusions.forSuite("csv")) {
+            assertThat(e.reason(), containsString("the reader truncates the delimiter"));
+            seen++;
+        }
+        assertThat("both entries resolve the shared paragraph", seen, equalTo(2));
+    }
+
+    /** A declaration with a suites list and nothing else. */
+    private static Properties declared() {
+        Properties p = new Properties();
+        p.setProperty("suites", "csv, tsv");
+        return p;
+    }
 }

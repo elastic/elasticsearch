@@ -10,6 +10,8 @@ package org.elasticsearch.xpack.esql.datasources.fixtures;
 import org.elasticsearch.test.ESTestCase;
 
 import java.util.List;
+import java.util.Properties;
+import java.util.Set;
 
 import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.containsString;
@@ -119,5 +121,101 @@ public class FixtureMatrixTests extends ESTestCase {
 
     public void testSplitPartsIsPositive() {
         assertTrue("a split layout must produce at least two files", FixtureMatrix.get().splitParts() > 1);
+    }
+
+    /**
+     * The codec list a text suite crosses, and the one value that is not the same in both builds. bz2 and
+     * bz are snapshot-only, so a release build that offered them would generate fixtures its own
+     * distribution cannot read.
+     */
+    public void testSnapshotOnlyTextCodecsAreWithheldFromAReleaseBuild() {
+        FixtureMatrix matrix = FixtureMatrix.get();
+        assertThat(matrix.textCodecs(true), equalTo(List.of("gz", "zst", "zstd", "bz2", "bz")));
+        assertThat(matrix.textCodecs(false), equalTo(List.of("gz", "zst", "zstd")));
+        assertThat(matrix.textCodecFormats("csv", false), equalTo(List.of("csv.gz", "csv.zst", "csv.zstd")));
+    }
+
+    /** A suite may narrow the parquet codec set; one that does not gets the whole declared list. */
+    public void testAParquetSuiteOverrideNarrowsTheCodecSet() {
+        FixtureMatrix matrix = FixtureMatrix.get();
+        assertThat(matrix.parquetCodecs("parquet-compressed-multifile"), equalTo(List.of("gzip", "zstd")));
+        assertThat(matrix.parquetCodecs("parquet"), equalTo(List.of("snappy", "gzip", "zstd", "lz4_raw")));
+    }
+
+    /**
+     * Padding is per format, not per dataset: only csv reads the authored bytes, so the same template is
+     * padded on csv and not on the formats re-rendered from it.
+     */
+    public void testPaddingIsDeclaredPerDatasetAndOnlyAppliesToCsv() {
+        FixtureMatrix matrix = FixtureMatrix.get();
+        assertThat(matrix.paddedForTemplate("employees", "csv"), equalTo(true));
+        assertThat(matrix.paddedForTemplate("employees", "tsv"), equalTo(false));
+        assertThat(matrix.paddedForTemplate("web_logs", "csv"), equalTo(false));
+    }
+
+    /** A standalone template is its own dataset, and carries that dataset's declared write dialect. */
+    public void testAStandaloneTemplateResolvesToItselfAndItsDialect() {
+        FixtureMatrix matrix = FixtureMatrix.get();
+        assertThat(matrix.datasetForTemplate("employees"), equalTo("employees"));
+        assertThat(matrix.writeDialectForTemplate("employees"), equalTo("brackets"));
+        assertThat(matrix.writeDialectForTemplate("web_logs"), equalTo("none"));
+    }
+
+    /** An unrecognised key is silently mis-parsed by one of the file's two readers, so it is refused. */
+    public void testAnUnrecognisedKeyIsRejected() {
+        Properties declaration = minimalDeclaration();
+        declaration.setProperty("dataset.employees.colour", "blue");
+        Exception e = expectThrows(IllegalStateException.class, () -> FixtureMatrix.parse(declaration));
+        assertThat(e.getMessage(), containsString("dataset.employees.colour"));
+        assertThat(e.getMessage(), containsString("fixture-matrix.gradle"));
+    }
+
+    /**
+     * A codec list the declaration does not carry is a missing decision rather than an empty set: an
+     * empty list would silently cross nothing and report green.
+     */
+    public void testAMissingCodecListIsRefusedRatherThanReadAsEmpty() {
+        FixtureMatrix matrix = FixtureMatrix.parse(minimalDeclaration());
+        assertThat(expectThrows(IllegalStateException.class, () -> matrix.textCodecs(true)).getMessage(), containsString("codec.text"));
+        assertThat(
+            expectThrows(IllegalStateException.class, () -> matrix.parquetCodecs("parquet")).getMessage(),
+            containsString("codec.parquet")
+        );
+    }
+
+    /**
+     * Padding and write dialect decide how a fixture is written and read. Guessing either wrong produces
+     * bytes that parse cleanly and mean something else, so an undeclared dataset is refused.
+     */
+    public void testAnUndeclaredDatasetRefusesToGuessItsPaddingOrDialect() {
+        Properties declaration = minimalDeclaration();
+        declaration.setProperty("dataset.employees", "csv");
+        declaration.setProperty("dataset.employees.reason", "rule: the other formats cannot represent it");
+        FixtureMatrix matrix = FixtureMatrix.parse(declaration);
+        assertThat(
+            expectThrows(IllegalStateException.class, () -> matrix.paddedForTemplate("employees", "csv")).getMessage(),
+            containsString("employees")
+        );
+        assertThat(
+            expectThrows(IllegalStateException.class, () -> matrix.writeDialectForTemplate("employees")).getMessage(),
+            containsString("write_dialect")
+        );
+    }
+
+    /** A suite that declares no spec exclusions excludes nothing, rather than failing to look. */
+    public void testASuiteWithNoDeclaredExclusionsExcludesNothing() {
+        assertThat(FixtureMatrix.parse(minimalDeclaration()).excludedSpecs("csv"), equalTo(Set.of()));
+    }
+
+    /**
+     * The least a declaration can say and still be one. Every key here is required by the constructor, so
+     * a test that omits one fails on that rather than on what it meant to check.
+     */
+    private static Properties minimalDeclaration() {
+        Properties declaration = new Properties();
+        declaration.setProperty("formats", "csv");
+        declaration.setProperty("layout.split.parts", "2");
+        declaration.setProperty("layout.standalone.dir", "standalone");
+        return declaration;
     }
 }

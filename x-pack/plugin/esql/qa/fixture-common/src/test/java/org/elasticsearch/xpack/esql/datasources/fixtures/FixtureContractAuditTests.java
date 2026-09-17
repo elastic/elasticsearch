@@ -10,10 +10,14 @@ package org.elasticsearch.xpack.esql.datasources.fixtures;
 import org.elasticsearch.common.util.ArrayUtils;
 import org.elasticsearch.test.ESTestCase;
 
+import java.io.IOException;
+import java.nio.file.Files;
+import java.nio.file.Path;
 import java.util.List;
 import java.util.Properties;
 import java.util.Set;
 
+import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasItem;
 import static org.hamcrest.Matchers.not;
@@ -97,5 +101,34 @@ public class FixtureContractAuditTests extends ESTestCase {
         List<FixtureContractAudit.Cell> cells = FixtureContractAudit.audit(FixtureDimensions.get());
         assertThat(FixtureContractAudit.violatingDimensions(cells), equalTo(Set.of()));
         assertThat("the contract is not empty", cells.isEmpty(), equalTo(false));
+    }
+
+    /**
+     * The gradle task passes exactly one path. Anything else is a miswired task rather than a bad
+     * contract, and it has to say so rather than write a report somewhere nobody looks.
+     */
+    public void testTheAuditRefusesAnythingButOneArgument() {
+        Exception none = expectThrows(IllegalArgumentException.class, () -> FixtureContractAudit.main(new String[0]));
+        assertThat(none.getMessage(), containsString("usage: FixtureContractAudit <reportFile>"));
+        Exception two = expectThrows(IllegalArgumentException.class, () -> FixtureContractAudit.main(new String[] { "a", "b" }));
+        assertThat(two.getMessage(), containsString("usage: FixtureContractAudit <reportFile>"));
+    }
+
+    /**
+     * The report is the audit's only output on a clean contract, so a run that wrote nothing would pass
+     * precommit while telling the reader nothing about what was checked. Asserting the counts line keeps
+     * the report from silently becoming a header with no body.
+     */
+    public void testTheAuditWritesAReportCountingEveryCell() throws IOException {
+        Path report = createTempDir().resolve("nested").resolve("contract.txt");
+        FixtureContractAudit.main(new String[] { report.toString() });
+
+        assertThat("the parent directory is created rather than assumed", Files.exists(report), equalTo(true));
+        String written = Files.readString(report);
+        assertThat(written, containsString("dimension contract audit"));
+        assertThat(written, containsString("Every (dimension, value, format) cell off its effective default."));
+
+        int cells = FixtureContractAudit.audit(FixtureDimensions.get()).size();
+        assertThat(written, containsString("cells=" + cells + "  violations=0"));
     }
 }

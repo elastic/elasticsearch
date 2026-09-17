@@ -763,7 +763,8 @@ public class Knn extends SingleFieldFullTextFunction
     /**
      * Evaluator factory for runtime KNN scoring (double result): normalizes the vector similarity value to the unit interval
      * and applies boost.
-     * We intentionally do not check for unit length here, because the {@link #runtimeFilterForDotProduct(int, FloatBlock, float[], Float, float[]) filter evaluator}
+     * We intentionally do not check for unit length here, because
+     * {@link #runtimeFilterForDotProduct(int, FloatBlock, float[], Float, float[]) filter evaluator}
      * should have already done that for DOT_PRODUCT.
      */
     @Evaluator(extraName = "RuntimeScore", allNullsIsNull = false, warnExceptions = { IllegalArgumentException.class })

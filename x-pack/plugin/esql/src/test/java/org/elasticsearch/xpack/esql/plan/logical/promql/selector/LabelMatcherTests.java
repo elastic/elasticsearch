@@ -130,6 +130,22 @@ public class LabelMatcherTests extends ESTestCase {
         expectThrows(FoldContext.FoldTooMuchMemoryException.class, multi::automaton);
     }
 
+    /**
+     * A pattern under the length bound whose DFA is small but whose minimization tables are not: 20,000 states times 200
+     * alphabet points. The tables must be charged before they are built. The budget is 5% of the heap, so this only
+     * demonstrates the refusal on a test-sized heap.
+     */
+    public void testMinimizationTablesAreChargedBeforeTheyAreBuilt() {
+        assumeTrue("the fold budget is a heap ratio", Runtime.getRuntime().maxMemory() < 4L * 1024 * 1024 * 1024);
+        StringBuilder ranges = new StringBuilder("[");
+        for (int i = 0; i < 100; i++) {
+            ranges.append((char) (0x100 + 2 * i));
+        }
+        ranges.append(']');
+        LabelMatcher matcher = new LabelMatcher("l", ranges + "a{20000}", Matcher.REG);
+        expectThrows(FoldContext.FoldTooMuchMemoryException.class, matcher::automaton);
+    }
+
     public void testMatchesEmpty() {
         LabelMatcher empty = new LabelMatcher("label", "", Matcher.EQ);
         assertTrue(empty.matchesEmpty());

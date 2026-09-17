@@ -159,6 +159,10 @@ public class LabelMatcher implements NodeStringRenderable {
     }
 
     private static final String BREAKER_LABEL = "promql_label_matcher";
+    /** Three table references, one reverse-edge entry and its share of the list that holds it, per state and alphabet point. */
+    private static final long MINIMIZE_BYTES_PER_CELL = 64;
+    /** The per-state partition set, split block and bit sets. */
+    private static final long MINIMIZE_BYTES_PER_STATE = 128;
 
     private Automaton buildAutomaton() {
         // Matchers are built while parsing, before any request breaker exists, so each build is bounded the way constant
@@ -189,10 +193,12 @@ public class LabelMatcher implements NodeStringRenderable {
             held += hold(result, breaker);
             result = CircuitBreakingOperations.determinize(result, Operations.DEFAULT_DETERMINIZE_WORK_LIMIT, breaker, BREAKER_LABEL);
             held += hold(result, breaker);
-            // minimize and complement each work on copies of a DFA already held above
-            long copies = 3 * result.ramBytesUsed();
-            breaker.addEstimateBytesAndMaybeBreak(copies, BREAKER_LABEL);
-            held += copies;
+            // Hopcroft minimization builds three states-by-alphabet tables plus a reverse-edge list per cell, far larger than
+            // the DFA itself; complement then totalizes and copies it. Charge both before either runs.
+            long tables = (long) result.getNumStates() * result.getStartPoints().length * MINIMIZE_BYTES_PER_CELL + (long) result
+                .getNumStates() * MINIMIZE_BYTES_PER_STATE + 3 * result.ramBytesUsed();
+            breaker.addEstimateBytesAndMaybeBreak(tables, BREAKER_LABEL);
+            held += tables;
             result = MinimizationOperations.minimize(result, Operations.DEFAULT_DETERMINIZE_WORK_LIMIT);
             // negate if needed
             if (matcher == NEQ || matcher == NREG) {

@@ -35,7 +35,6 @@ import static org.elasticsearch.common.util.concurrent.AbstractThrottledTaskRunn
 import static org.elasticsearch.common.util.concurrent.AbstractThrottledTaskRunner.THROTTLED_TASK_RUNNER_METRIC_NAME_RUNNING;
 import static org.elasticsearch.common.util.concurrent.AbstractThrottledTaskRunner.THROTTLED_TASK_RUNNER_METRIC_PREFIX;
 import static org.hamcrest.Matchers.equalTo;
-import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.lessThanOrEqualTo;
 
 public class AbstractThrottledTaskRunnerTests extends ESTestCase {
@@ -406,11 +405,11 @@ public class AbstractThrottledTaskRunnerTests extends ESTestCase {
         taskCanFinish.countDown();
         assertNoRunningTasks(taskRunner);
 
-        // collect metrics: 5ms latency (falls in bucket [4,8), so upper bound 8)
         registry.getRecorder().collect();
-        var histMeasurements = registry.getRecorder().getMeasurements(InstrumentType.LONG_ASYNC_GAUGE, queueLatencyMetric);
-        assertThat(histMeasurements, hasSize(3));
-        histMeasurements.forEach(m -> assertThat(m.getLong(), equalTo(8L)));
+        assertThat(
+            registry.getRecorder().getMeasurements(InstrumentType.LONG_HISTOGRAM, queueLatencyMetric),
+            RecordingMeterRegistry.measures(5L)
+        );
     }
 
     private void assertNoRunningTasks(AbstractThrottledTaskRunner<?> taskRunner) {

@@ -12,18 +12,14 @@ package org.elasticsearch.common.util.concurrent;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.common.metrics.ExponentialBucketHistogram;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.Releasable;
 import org.elasticsearch.core.Releasables;
 import org.elasticsearch.core.Strings;
-import org.elasticsearch.telemetry.metric.Instrument;
+import org.elasticsearch.telemetry.metric.LongHistogram;
 import org.elasticsearch.telemetry.metric.LongWithAttributes;
 import org.elasticsearch.telemetry.metric.MeterRegistry;
 
-import java.util.Arrays;
-import java.util.List;
-import java.util.Map;
 import java.util.Queue;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.Executor;
@@ -44,14 +40,10 @@ public class AbstractThrottledTaskRunner<T extends ActionListener<Releasable>> {
     public static final String THROTTLED_TASK_RUNNER_METRIC_NAME_RUNNING = ".tasks.running.current";
     public static final String THROTTLED_TASK_RUNNER_METRIC_NAME_QUEUE_TIME = ".tasks.queue_latency.histogram";
 
-    // 20 buckets means the upper bound on the largest bound bucket will be 2^18 ms (~= 4 minutes 20 seconds)
-    private static final int QUEUE_LATENCY_HISTOGRAM_BUCKETS = 20;
-    private static final int[] LATENCY_PERCENTILES_TO_REPORT = { 50, 90, 99 };
-
     @Nullable
     private volatile ConcurrentHashMap<T, Long> queuedNanosByTask;
     @Nullable
-    private volatile ExponentialBucketHistogram queueLatencyMillisHistogram;
+    private volatile LongHistogram queueLatencyMillisHistogram;
 
     private LongSupplier relativeTimeNanosProvider;
 
@@ -70,11 +62,16 @@ public class AbstractThrottledTaskRunner<T extends ActionListener<Releasable>> {
         this(name, maxRunningTasks, executor, taskQueue, MeterRegistry.NOOP, "no_metrics", () -> 0L);
 
     }
-
-    public AbstractThrottledTaskRunner(final String name, final int maxRunningTasks, final Executor executor, final Queue<T> taskQueue,
-                                       MeterRegistry meterRegistry,
-                                       String metricName,
-                                       LongSupplier relativeTimeNanosProvider) {
+    
+    public AbstractThrottledTaskRunner(
+        final String name,
+        final int maxRunningTasks,
+        final Executor executor,
+        final Queue<T> taskQueue,
+        MeterRegistry meterRegistry,
+        String metricName,
+        LongSupplier relativeTimeNanosProvider
+    ) {
         assert maxRunningTasks > 0;
         this.taskRunnerName = name;
         this.maxRunningTasks = maxRunningTasks;
@@ -85,7 +82,6 @@ public class AbstractThrottledTaskRunner<T extends ActionListener<Releasable>> {
             assert relativeTimeNanosProvider != null;
             this.relativeTimeNanosProvider = relativeTimeNanosProvider;
             this.queuedNanosByTask = new ConcurrentHashMap<>();
-            this.queueLatencyMillisHistogram = new ExponentialBucketHistogram(QUEUE_LATENCY_HISTOGRAM_BUCKETS);
             setupMetrics(meterRegistry, metricName);
         }
     }
@@ -95,41 +91,25 @@ public class AbstractThrottledTaskRunner<T extends ActionListener<Releasable>> {
     }
 
     // register metrics to get task-queue depth and currently running tasks, as well as a queue-latency histogram
-    private List<Instrument> setupMetrics(MeterRegistry meterRegistry, String name) {
+    private void setupMetrics(MeterRegistry meterRegistry, String name) {
         var prefix = THROTTLED_TASK_RUNNER_METRIC_PREFIX + name;
 
-        return List.of(
-            meterRegistry.registerLongsAsyncGauge(
-                prefix + THROTTLED_TASK_RUNNER_METRIC_NAME_QUEUE_TIME,
-                "time tasks spent in the queue for throttled task runner " + name,
-                "milliseconds",
-                () -> {
-                    long[] snapshot = queueLatencyMillisHistogram.getSnapshot();
-                    int[] bucketUpperBounds = queueLatencyMillisHistogram.calculateBucketUpperBounds();
-                    List<LongWithAttributes> metricValues = Arrays.stream(LATENCY_PERCENTILES_TO_REPORT)
-                        .mapToObj(
-                            percentile -> new LongWithAttributes(
-                                queueLatencyMillisHistogram.getPercentile(percentile / 100f, snapshot, bucketUpperBounds),
-                                Map.of("percentile", String.valueOf(percentile))
-                            )
-                        )
-                        .toList();
-                    queueLatencyMillisHistogram.clear();
-                    return metricValues;
-                }
-            ),
-            meterRegistry.registerLongAsyncGauge(
-                prefix + THROTTLED_TASK_RUNNER_METRIC_NAME_QUEUE,
-                "number of tasks waiting in the queue for throttled task runner " + name,
-                "count",
-                () -> new LongWithAttributes(queuedTasks())
-            ),
-            meterRegistry.registerLongAsyncGauge(
-                prefix + THROTTLED_TASK_RUNNER_METRIC_NAME_RUNNING,
-                "number of tasks currently running (i.e., submitted to the underlying executor) for throttled task runner " + name,
-                "count",
-                () -> new LongWithAttributes(runningTasks())
-            )
+        this.queueLatencyMillisHistogram = meterRegistry.registerLongHistogram(
+            prefix + THROTTLED_TASK_RUNNER_METRIC_NAME_QUEUE_TIME,
+            "time tasks spent in the queue for throttled task runner " + name,
+            "milliseconds"
+        );
+        meterRegistry.registerLongAsyncGauge(
+            prefix + THROTTLED_TASK_RUNNER_METRIC_NAME_QUEUE,
+            "number of tasks waiting in the queue for throttled task runner " + name,
+            "count",
+            () -> new LongWithAttributes(queuedTasks())
+        );
+        meterRegistry.registerLongAsyncGauge(
+            prefix + THROTTLED_TASK_RUNNER_METRIC_NAME_RUNNING,
+            "number of tasks currently running (i.e., submitted to the underlying executor) for throttled task runner " + name,
+            "count",
+            () -> new LongWithAttributes(runningTasks())
         );
     }
 
@@ -225,7 +205,7 @@ public class AbstractThrottledTaskRunner<T extends ActionListener<Releasable>> {
                     @Override
                     protected void doRun() {
                         if (queueStartNanos != null && queueLatencyMillisHistogram != null) {
-                            queueLatencyMillisHistogram.addObservation(
+                            queueLatencyMillisHistogram.record(
                                 TimeUnit.NANOSECONDS.toMillis(relativeTimeNanosProvider.getAsLong() - queueStartNanos)
                             );
                         }
@@ -276,7 +256,7 @@ public class AbstractThrottledTaskRunner<T extends ActionListener<Releasable>> {
                     if (queuedNanosByTask != null && queueLatencyMillisHistogram != null) {
                         Long queueStartNanos = queuedNanosByTask.remove(task);
                         if (queueStartNanos != null) {
-                            queueLatencyMillisHistogram.addObservation(
+                            queueLatencyMillisHistogram.record(
                                 TimeUnit.NANOSECONDS.toMillis(relativeTimeNanosProvider.getAsLong() - queueStartNanos)
                             );
                         }

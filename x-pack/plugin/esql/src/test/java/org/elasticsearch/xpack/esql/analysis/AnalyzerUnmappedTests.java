@@ -1585,18 +1585,7 @@ public class AnalyzerUnmappedTests extends AnalyzerUnmappedTestBase {
 
     public void testLoadAllSubqueryMappedConflictStaysUnsupported() {
         assumeTrue("Requires subquery in FROM command support", EsqlCapabilities.Cap.SUBQUERY_IN_FROM_COMMAND.isEnabled());
-        Map<String, EsField> mapping = new LinkedHashMap<>(loadMapping("mapping-sample_data.json"));
-        mapping.put("client_ip", new EsField("client_ip", DataType.KEYWORD, Map.of(), true, EsField.TimeSeriesFieldType.NONE));
-        TestAnalyzer a = analyzer().addSampleData()
-            .addIndex(
-                new EsIndex(
-                    "sample_data_str",
-                    mapping,
-                    Map.of("sample_data_str", new IndexProperties(IndexMode.STANDARD, 0)),
-                    Map.of(),
-                    Map.of()
-                )
-            );
+        TestAnalyzer a = sampleDataAndSampleDataStr();
         for (String query : List.of(
             "FROM (FROM sample_data_str), (FROM sample_data)",
             "FROM (FROM sample_data_str METADATA _source), (FROM sample_data METADATA _source)"
@@ -1606,6 +1595,49 @@ public class AnalyzerUnmappedTests extends AnalyzerUnmappedTestBase {
             assertThat(query, clientIp, instanceOf(UnsupportedAttribute.class));
             assertThat(query, ((UnsupportedAttribute) clientIp).originalTypes(), equalTo(List.of("keyword", "ip")));
         }
+    }
+
+    public void testLoadAllSubqueryDropIpMappingLeavesKeywordClientIp() {
+        assertThat(clientIpAfterDroppingOneMappedBranch("", " | DROP client_ip").dataType(), equalTo(DataType.KEYWORD));
+    }
+
+    public void testLoadAllSubqueryDropKeywordMappingLeavesIpClientIp() {
+        assertThat(clientIpAfterDroppingOneMappedBranch(" | DROP client_ip", "").dataType(), equalTo(DataType.IP));
+    }
+
+    public void testLoadAllSubqueryDropClientIpInEveryBranchIsUnknownColumn() {
+        sampleDataAndSampleDataStr().statementError(setUnmappedLoadAll("""
+            FROM (FROM sample_data_str METADATA _index | DROP client_ip), (FROM sample_data METADATA _index | DROP client_ip)
+            | KEEP client_ip, _index
+            """), containsString("Unknown column [client_ip]"));
+    }
+
+    private Attribute clientIpAfterDroppingOneMappedBranch(String sampleDataStrSuffix, String sampleDataSuffix) {
+        LogicalPlan plan = sampleDataAndSampleDataStr().statement(
+            setUnmappedLoadAll(
+                "FROM (FROM sample_data_str METADATA _index"
+                    + sampleDataStrSuffix
+                    + "), (FROM sample_data METADATA _index"
+                    + sampleDataSuffix
+                    + ")\n| KEEP client_ip, _index"
+            )
+        );
+        return EsqlTestUtils.singleValue(plan.output().stream().filter(attr -> attr.name().equals("client_ip")).toList());
+    }
+
+    private TestAnalyzer sampleDataAndSampleDataStr() {
+        Map<String, EsField> mapping = new LinkedHashMap<>(loadMapping("mapping-sample_data.json"));
+        mapping.put("client_ip", new EsField("client_ip", DataType.KEYWORD, Map.of(), true, EsField.TimeSeriesFieldType.NONE));
+        return analyzer().addSampleData()
+            .addIndex(
+                new EsIndex(
+                    "sample_data_str",
+                    mapping,
+                    Map.of("sample_data_str", new IndexProperties(IndexMode.STANDARD, 0)),
+                    Map.of(),
+                    Map.of()
+                )
+            );
     }
 
     public void testLoadAllSubqueryNonLoadableWarns() {
@@ -1688,6 +1720,16 @@ public class AnalyzerUnmappedTests extends AnalyzerUnmappedTestBase {
             | DROP event_duration, unmapped.nested
             | SORT @timestamp, unmapped.nested
             """), containsString("Unknown column [unmapped.nested]"));
+    }
+
+    public void testLoadAllSubqueryDropInEveryBranchOuterEvalIsUnknownColumn() {
+        partialMappingTest().statementError(setUnmappedLoadAll("""
+            FROM (FROM partial_mapping_sample_data | WHERE message == "42" | DROP unmapped_message),
+                 (FROM partial_mapping_sample_data | WHERE message == "Connected to 10.1.0.1!" | DROP unmapped_message)
+            | EVAL upper = TO_UPPER(unmapped_message)
+            | KEEP messag*, unmapped_mess*, upper
+            | SORT message
+            """), containsString("Unknown column [unmapped_message]"));
     }
 
     // nullify is allowed with PromQL (unlike load), but a field after the collapsing aggregate still fails.

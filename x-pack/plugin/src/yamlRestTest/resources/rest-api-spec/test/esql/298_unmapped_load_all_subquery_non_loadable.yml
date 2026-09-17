@@ -51,7 +51,6 @@ setup:
       warnings:
         - "Field [tx] of type [aggregate_metric_double] is unmapped in some indices and has no implicit conversion from KEYWORD, so it will not be loaded from _source; values will be null in those indices"
       esql.query:
-        allow_partial_results: false
         body:
           query: 'SET unmapped_fields="LOAD_ALL"; FROM (FROM idx1 METADATA _index), (FROM idx2 METADATA _index) | KEEP _index, tx | SORT _index'
   - match: { values: [ [ "idx1", { "min": 1.0, "max": 3.0, "sum": 10.1, "value_count": 5 } ], [ "idx2", null ] ] }
@@ -72,7 +71,6 @@ setup:
       warnings:
         - "Field [txt] of type [text] is unmapped in some indices and has no implicit conversion from KEYWORD, so it will not be loaded from _source; values will be null in those indices"
       esql.query:
-        allow_partial_results: false
         body:
           query: 'SET unmapped_fields="LOAD_ALL"; FROM (FROM idx1), (FROM idx2 | KEEP txt), (FROM idx2) | KEEP txt | SORT txt NULLS LAST'
   - match: { values: [ [ "mapped" ], [ null ], [ null ] ] }

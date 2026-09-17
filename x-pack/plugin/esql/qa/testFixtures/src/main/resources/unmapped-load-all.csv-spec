@@ -1883,6 +1883,62 @@ client_ip:unsupported
 null
 ;
 
+// DROP the ip mapping; the union type is the remaining keyword mapping. Dropped-branch rows are null.
+loadAllSubqueryDropIpMappingLeavesKeywordClientIp
+required_capability: optional_fields_load_all_subqueries
+required_capability: subquery_in_from_command
+
+SET unmapped_fields="LOAD_ALL"\;
+FROM (FROM sample_data_str METADATA _index), (FROM sample_data METADATA _index | DROP client_ip)
+| KEEP client_ip, _index
+;
+ignoreOrder:true
+
+client_ip:keyword | _index:keyword
+172.21.2.162      | sample_data_str
+172.21.2.113      | sample_data_str
+172.21.0.5        | sample_data_str
+172.21.3.15       | sample_data_str
+172.21.3.15       | sample_data_str
+172.21.3.15       | sample_data_str
+172.21.3.15       | sample_data_str
+null              | sample_data
+null              | sample_data
+null              | sample_data
+null              | sample_data
+null              | sample_data
+null              | sample_data
+null              | sample_data
+;
+
+// DROP the keyword mapping; the union type is the remaining ip mapping. Dropped-branch rows are null.
+loadAllSubqueryDropKeywordMappingLeavesIpClientIp
+required_capability: optional_fields_load_all_subqueries
+required_capability: subquery_in_from_command
+
+SET unmapped_fields="LOAD_ALL"\;
+FROM (FROM sample_data_str METADATA _index | DROP client_ip), (FROM sample_data METADATA _index)
+| KEEP client_ip, _index
+;
+ignoreOrder:true
+
+client_ip:ip | _index:keyword
+172.21.2.162 | sample_data
+172.21.2.113 | sample_data
+172.21.0.5   | sample_data
+172.21.3.15  | sample_data
+172.21.3.15  | sample_data
+172.21.3.15  | sample_data
+172.21.3.15  | sample_data
+null         | sample_data_str
+null         | sample_data_str
+null         | sample_data_str
+null         | sample_data_str
+null         | sample_data_str
+null         | sample_data_str
+null         | sample_data_str
+;
+
 // KEEP * admits every name, so it must not stop the branch from reading a sibling-mapped column: 14, not the 7 mapped rows alone.
 loadAllSubqueryKeepStarBranchStillLoadsMappedSibling
 required_capability: optional_fields_load_all_subqueries
@@ -2461,7 +2517,7 @@ null                        | 11
 null                        | 11
 ;
 
-loadAllSubqueryOuterEvalFunctionMaterializesAllBranches
+loadAllSubqueryOuterEvalToUpper
 required_capability: optional_fields_load_all_subqueries
 required_capability: subquery_in_from_command
 
@@ -2478,7 +2534,7 @@ message:keyword        | unmapped_message:keyword   | upper:keyword
 Connected to 10.1.0.1! | Disconnected from 10.1.0.1 | DISCONNECTED FROM 10.1.0.1
 ;
 
-loadAllSubqueryOuterWhereMaterializesAllBranches
+loadAllSubqueryOuterWhereUnmappedMessage
 required_capability: optional_fields_load_all_subqueries
 required_capability: subquery_in_from_command
 
@@ -2629,6 +2685,22 @@ message:keyword        | renamed:keyword
 Connected to 10.1.0.1! | null
 ;
 
+loadAllSubqueryRenameInEveryBranchToDifferentNames
+required_capability: optional_fields_load_all_subqueries
+required_capability: subquery_in_from_command
+
+SET unmapped_fields="LOAD_ALL"\;
+FROM (FROM partial_mapping_sample_data | WHERE message == "42" | RENAME unmapped_message AS renamed),
+     (FROM partial_mapping_sample_data | WHERE message == "Connected to 10.1.0.1!" | RENAME unmapped_message AS renamed2)
+| KEEP message, renamed*
+| SORT message
+;
+
+message:keyword        | renamed:keyword | renamed2:keyword
+42                     | 43              | null
+Connected to 10.1.0.1! | null            | Disconnected from 10.1.0.1
+;
+
 loadAllSubqueryStatsInOneBranchNullFillsOuterReference
 required_capability: optional_fields_load_all_subqueries
 required_capability: subquery_in_from_command
@@ -2651,13 +2723,13 @@ required_capability: subquery_in_from_command
 
 SET unmapped_fields="LOAD_ALL"\;
 FROM (FROM partial_mapping_sample_data | EVAL dur_plus = unmapped_event_duration::LONG + 1 | WHERE message == "42" OR message == "Connected to 10.1.0.1!")
-| KEEP message, unmapped_event_duration, dur_plus
+| KEEP message, unmapped*, dur_plus
 | SORT message
 ;
 
-message:keyword        | unmapped_event_duration:keyword | dur_plus:long
-42                     | 1232383                         | 1232384
-Connected to 10.1.0.1! | 1756468                         | 1756469
+message:keyword        | unmapped_event_duration:keyword | unmapped.nested:keyword | unmapped_message:keyword   | dur_plus:long
+42                     | 1232383                         | e                       | 43                         | 1232384
+Connected to 10.1.0.1! | 1756468                         | a                       | Disconnected from 10.1.0.1 | 1756469
 ;
 
 loadAllSubqueryNoKeepExpandsUnmappedFields

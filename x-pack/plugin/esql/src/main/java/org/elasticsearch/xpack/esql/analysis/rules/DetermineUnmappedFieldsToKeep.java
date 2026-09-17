@@ -83,6 +83,12 @@ public class DetermineUnmappedFieldsToKeep extends ParameterizedRule<LogicalPlan
         if (context.unmappedResolution().loadsAllUnmappedFields() == false) {
             return plan;
         }
+        // Finish Analysis still runs if Resolution left names unresolved (DROP hid a field the outer query
+        // still mentions). output() on those projections throws UnresolvedException; skip so the Verifier
+        // can report Unknown column.
+        if (plan.resolved() == false) {
+            return plan;
+        }
         UnmappedFieldsPattern pattern = computeUnmappedFieldsToKeep(plan);
         LogicalPlan result;
         if (plan.anyMatch(p -> p instanceof MergePlan) == false) {

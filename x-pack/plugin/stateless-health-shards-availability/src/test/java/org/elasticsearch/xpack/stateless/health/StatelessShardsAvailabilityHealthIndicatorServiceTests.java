@@ -430,8 +430,8 @@ public class StatelessShardsAvailabilityHealthIndicatorServiceTests extends ESTe
             IndexRoutingTable indexRouting = perProjectRouting.get();
             final var indexMetadata = IndexMetadata.builder(indexRouting.getIndex().getName())
                 .settings(Settings.builder().put(IndexMetadata.SETTING_VERSION_CREATED, IndexVersion.current()).build())
-                .numberOfShards(1)
-                .numberOfReplicas(indexRouting.size() - 1)
+                .numberOfShards(indexRouting.size())
+                .numberOfReplicas(indexRouting.shard(0).size() - 1)
                 .build();
             metadata.put(ProjectMetadata.builder(projectId).put(indexMetadata, false).build());
             globalRouting.put(projectId, RoutingTable.builder().add(indexRouting).build());

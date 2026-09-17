@@ -18,6 +18,7 @@ import org.elasticsearch.common.xcontent.support.XContentMapValues;
 import org.elasticsearch.core.Strings;
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
+import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.test.cluster.ElasticsearchCluster;
 import org.elasticsearch.test.rest.RestTestLegacyFeatures;
 import org.junit.ClassRule;
@@ -28,6 +29,7 @@ import java.util.Base64;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicReference;
 import java.util.stream.Collectors;
 
 import static org.elasticsearch.client.WarningsHandler.PERMISSIVE;
@@ -191,12 +193,27 @@ public class MlAssignmentPlannerUpgradeIT extends AbstractXpackRollingUpgradeTes
         assertThat(stat.toString(), actualMemoryUsage.toString(), equalTo(expectedMemoryUsage.toString()));
     }
 
-    private Response getTrainedModelStats(String modelId) throws IOException {
+    private Request trainedModelStatsRequest(String modelId) {
         Request request = new Request("GET", "/_ml/trained_models/" + modelId + "/_stats");
         request.setOptions(request.getOptions().toBuilder().setWarningsHandler(PERMISSIVE).build());
-        var response = client().performRequest(request);
-        assertOK(response);
-        return response;
+        return request;
+    }
+
+    private Response getTrainedModelStats(String modelId) throws Exception {
+        // Transient 404/503 while ML indices relocate or the plugin is still recovering during upgrade.
+        var responseHolder = new AtomicReference<Response>();
+        assertBusy(
+            () -> responseHolder.set(
+                performRequestRaisingAssertionOnTransientStatus(
+                    trainedModelStatsRequest(modelId),
+                    RestStatus.NOT_FOUND,
+                    RestStatus.SERVICE_UNAVAILABLE
+                )
+            ),
+            30,
+            TimeUnit.SECONDS
+        );
+        return responseHolder.get();
     }
 
     private Response infer(String input, String modelId) throws IOException {

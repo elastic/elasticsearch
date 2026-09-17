@@ -1162,7 +1162,8 @@ public class SharedBlobCacheService<KeyType extends SharedBlobCacheService.KeyBa
         private volatile long timestampMillis;
         // Highest LFU frequency this region has been promoted to during its lifetime. Starts at 1
         // (the insertion frequency). Decay and demote lower current freq but must not lower this peak.
-        // Written under the SharedBlobCacheService monitor (promote); no extra volatility.
+        // Written and read under the SharedBlobCacheService monitor (promote / tryEvict / tryEvictNoDecRef);
+        // no extra volatility needed.
         private int maxReachedFreq = 1;
         // io can be null when not init'ed or after evict/take
         // io does not need volatile access on the read path, since it goes from null to a single value (and then possbily back to null).
@@ -1256,6 +1257,7 @@ public class SharedBlobCacheService<KeyType extends SharedBlobCacheService.KeyBa
         }
 
         private void recordLfuPressureEviction() {
+            assert Thread.holdsLock(blobCacheService) : "must hold lock when reading peak freq";
             blobCacheService.blobCacheMetrics.getTotalEvictedCount().increment();
             blobCacheService.blobCacheMetrics.recordEvictedRegionMaxFreq(maxReachedFreq);
         }

@@ -23,14 +23,11 @@ import org.apache.lucene.index.MergePolicy;
 import org.apache.lucene.index.NoMergePolicy;
 import org.apache.lucene.index.SegmentReader;
 import org.apache.lucene.store.Directory;
-import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.columnar.string.ColumnarStringBinaryDocValues;
 import org.elasticsearch.columnar.string.StringColumnReader;
 import org.elasticsearch.test.ESTestCase;
 
 import java.io.IOException;
-import java.util.ArrayList;
-import java.util.List;
 import java.util.Random;
 import java.util.Set;
 
@@ -55,7 +52,7 @@ public class StringColumnMergeFootprintTests extends ESTestCase {
     public void testTermsRepeatingAcrossSegmentsAreNamedAfterMerge() throws IOException {
         try (Directory dir = newDirectory()) {
             flushSegments(dir, tailTerms());
-            assertSegmentsSummarizeOnlyTheHeadTerm(dir);
+            assertSegmentsArePlain(dir);
             forceMerge(dir);
             assertMergedColumnNamesEveryTerm(dir);
         }
@@ -75,15 +72,11 @@ public class StringColumnMergeFootprintTests extends ESTestCase {
         }
     }
 
-    private static void assertSegmentsSummarizeOnlyTheHeadTerm(Directory dir) throws IOException {
+    private static void assertSegmentsArePlain(Directory dir) throws IOException {
         try (DirectoryReader reader = DirectoryReader.open(dir)) {
             assertEquals("segments before the merge", SEGMENTS, reader.leaves().size());
             for (LeafReaderContext leaf : reader.leaves()) {
-                final StringColumnReader column = column(leaf.reader());
-                assertFalse("the head term covers too few bytes for a segment dictionary", column.hasDictionary());
-                final Summary summary = Summary.of(column);
-                assertEquals("a tail term seen once is left out of the summary", List.of(new BytesRef(HEAD_TERM)), summary.terms());
-                assertEquals(List.of((long) TAIL_TERMS), summary.counts());
+                assertFalse("the head term covers too few bytes for a segment dictionary", column(leaf.reader()).hasDictionary());
             }
         }
     }
@@ -161,15 +154,5 @@ public class StringColumnMergeFootprintTests extends ESTestCase {
             }
         }
         return bytes;
-    }
-
-    private record Summary(List<BytesRef> terms, List<Long> counts) {
-
-        static Summary of(StringColumnReader column) throws IOException {
-            final List<BytesRef> terms = new ArrayList<>();
-            final List<Long> counts = new ArrayList<>();
-            column.readSummary(terms, counts);
-            return new Summary(terms, counts);
-        }
     }
 }

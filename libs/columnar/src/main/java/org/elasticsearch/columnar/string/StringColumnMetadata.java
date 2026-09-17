@@ -85,22 +85,11 @@ public sealed interface StringColumnMetadata extends ColumnMetadata permits Stri
 
     boolean valuesSorted();
 
-    /** What the column recorded of the terms it holds most, or null when it recorded nothing. */
-    Summary summary();
-
     /** Which layout the column takes, as written on disk. */
     StringColumnLayout layout();
 
-    /** The same column, with what it surveyed recorded beside it. */
-    StringColumnMetadata withSummary(Summary summary);
-
     /** Writes what this layout has, after the fields both layouts share. */
     void writeBody(DataOutput out) throws IOException;
-
-    /** Whether this column recorded what it surveyed. */
-    default boolean hasSummary() {
-        return summary() != null;
-    }
 
     /** True when at least one document has more than one slot. */
     default boolean multiValued() {
@@ -120,19 +109,6 @@ public sealed interface StringColumnMetadata extends ColumnMetadata permits Stri
     default boolean hasNullSlots() {
         return numNullSlots() > 0;
     }
-
-    /**
-     * What a column records of the terms it holds most, so a merge can work out a vocabulary from its
-     * inputs instead of reading their values again. The counts are the survey's, and so are lower bounds.
-     *
-     * <p>A dictionary column's summary terms are its dictionary; only the counts are written beside it.
-     *
-     * @param terms        the summarised terms in term order, or null when they are the dictionary
-     * @param countsOffset where the counts, one vlong per term, begin
-     * @param countsLength how many bytes they occupy
-     * @param numValues    the values the survey saw, which the counts are a share of
-     */
-    record Summary(ValueStream.Metadata terms, long countsOffset, long countsLength, long numValues) {}
 
     /**
      * A column that stores its values as they were written.
@@ -158,30 +134,12 @@ public sealed interface StringColumnMetadata extends ColumnMetadata permits Stri
         MonotonicWriter.Table nullSlots,
         ValueStream.Metadata values,
         boolean valuesSorted,
-        boolean valuesWorthNaming,
-        Summary summary
+        boolean valuesWorthNaming
     ) implements StringColumnMetadata {
 
         @Override
         public StringColumnLayout layout() {
             return StringColumnLayout.PLAIN;
-        }
-
-        @Override
-        public Plain withSummary(Summary summary) {
-            return new Plain(
-                iterator,
-                numDocsWithField,
-                numValues,
-                numNullSlots,
-                valueBytes,
-                addressing,
-                nullSlots,
-                values,
-                valuesSorted,
-                valuesWorthNaming,
-                summary
-            );
         }
 
         @Override
@@ -222,8 +180,7 @@ public sealed interface StringColumnMetadata extends ColumnMetadata permits Stri
         ValueStream.Metadata escapes,
         MonotonicWriter.Table escapeRanks,
         int dictionarySize,
-        boolean valuesSorted,
-        Summary summary
+        boolean valuesSorted
     ) implements StringColumnMetadata {
 
         @Override
@@ -245,25 +202,6 @@ public sealed interface StringColumnMetadata extends ColumnMetadata permits Stri
         /** The ordinal marking a value no term names, one past the last term. */
         public int escapeOrdinal() {
             return dictionarySize + FIRST_TERM_ORDINAL;
-        }
-
-        @Override
-        public Dictionary withSummary(Summary summary) {
-            return new Dictionary(
-                iterator,
-                numDocsWithField,
-                numValues,
-                numNullSlots,
-                valueBytes,
-                addressing,
-                dictionary,
-                ordinals,
-                escapes,
-                escapeRanks,
-                dictionarySize,
-                valuesSorted,
-                summary
-            );
         }
 
         @Override
@@ -304,8 +242,7 @@ public sealed interface StringColumnMetadata extends ColumnMetadata permits Stri
             nullSlots,
             values,
             valuesSorted,
-            valuesWorthNaming,
-            null
+            valuesWorthNaming
         );
     }
 
@@ -336,8 +273,7 @@ public sealed interface StringColumnMetadata extends ColumnMetadata permits Stri
             escapes,
             escapeRanks,
             dictionarySize,
-            valuesSorted,
-            null
+            valuesSorted
         );
     }
 
@@ -360,18 +296,6 @@ public sealed interface StringColumnMetadata extends ColumnMetadata permits Stri
         }
         out.writeByte(layout().id());
         writeBody(out);
-        final Summary summary = summary();
-        out.writeByte((byte) (summary == null ? 0 : 1));
-        if (summary != null) {
-            // A dictionary column's summary terms are its dictionary, so only the counts are written.
-            out.writeByte((byte) (summary.terms() == null ? 0 : 1));
-            if (summary.terms() != null) {
-                summary.terms().writeTo(out);
-            }
-            out.writeVLong(summary.countsOffset());
-            out.writeVLong(summary.countsLength());
-            out.writeVLong(summary.numValues());
-        }
     }
 
     /**
@@ -398,7 +322,7 @@ public sealed interface StringColumnMetadata extends ColumnMetadata permits Stri
         boolean valuesSorted = in.readByte() == SORTED;
         SlotAddressing addressing = numValues != numDocsWithField ? SlotAddressing.readFrom(in) : SlotAddressing.NONE;
         StringColumnLayout layout = StringColumnLayout.fromId(in.readByte());
-        final StringColumnMetadata column = switch (layout) {
+        return switch (layout) {
             case PLAIN -> {
                 final ValueStream.Metadata values = ValueStream.Metadata.readFrom(in);
                 final boolean valuesWorthNaming = in.readByte() != 0;
@@ -437,11 +361,6 @@ public sealed interface StringColumnMetadata extends ColumnMetadata permits Stri
                 );
             }
         };
-        if (in.readByte() == 0) {
-            return column;
-        }
-        final ValueStream.Metadata summaryTerms = in.readByte() == 0 ? null : ValueStream.Metadata.readFrom(in);
-        return column.withSummary(new Summary(summaryTerms, in.readVLong(), in.readVLong(), in.readVLong()));
     }
 
     private static void writeTable(DataOutput out, MonotonicWriter.Table table) throws IOException {

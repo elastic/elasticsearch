@@ -280,11 +280,7 @@ final class ColumNARDocValuesConsumer extends DocValuesConsumer {
         enum Source {
             /** Taken from the segments' own dictionaries, which name every value between them. */
             DICTIONARY_UNION,
-            /**
-             * The segments' dictionaries do not cover the merged column, so its values are surveyed as a flush surveys them. The
-             * segments' summaries are not summed instead: each lists only the terms that repeated within its own segment, so a
-             * term that repeats only across segments would be missing from the sum and escape in the merged column.
-             */
+            /** The segments' dictionaries do not cover the merged column, so its values are surveyed as a flush surveys them. */
             SURVEY
         }
     }

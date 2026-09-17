@@ -128,29 +128,19 @@ public final class StringColumnWriter {
             surveyed = known != null ? known : Vocabulary.survey(cursors.get(), policy);
             // Coverage is a lower bound, so a column admitted here covers at least as much as it claims.
             if (surveyed != null && policy.worthKeeping(surveyed.coverage(), surveyed.dictionaryBytes(), surveyed.columnBytes())) {
-                return withSummary(
-                    writeDictionary(
-                        iterator,
-                        numDocsWithField,
-                        numValues,
-                        numNullSlots,
-                        cursors,
-                        surveyed,
-                        surveyed.columnBytes(),
-                        valuesPerBlock,
-                        chunkCodec,
-                        targetChunkBytes,
-                        compressedOrdinalBlockSize,
-                        slotCountsBlockSize,
-                        directory,
-                        context,
-                        data
-                    ),
-                    surveyed,
+                return writeDictionary(
+                    iterator,
+                    numDocsWithField,
                     numValues,
+                    numNullSlots,
+                    cursors,
+                    surveyed,
+                    surveyed.columnBytes(),
                     valuesPerBlock,
                     chunkCodec,
                     targetChunkBytes,
+                    compressedOrdinalBlockSize,
+                    slotCountsBlockSize,
                     directory,
                     context,
                     data
@@ -231,80 +221,17 @@ public final class StringColumnWriter {
             addressing = slots.finish(valueAddress, data);
             nullSlotTable = nullSlots.finish(data);
         }
-        return withSummary(
-            StringColumnMetadata.plain(
-                iterator,
-                numDocsWithField,
-                numValues,
-                numNullSlots,
-                addressing,
-                nullSlotTable,
-                written,
-                sorted,
-                valuesWorthNaming
-            ),
-            surveyed,
+        return StringColumnMetadata.plain(
+            iterator,
+            numDocsWithField,
             numValues,
-            valuesPerBlock,
-            chunkCodec,
-            targetChunkBytes,
-            directory,
-            context,
-            data
+            numNullSlots,
+            addressing,
+            nullSlotTable,
+            written,
+            sorted,
+            valuesWorthNaming
         );
-    }
-
-    /**
-     * Records the terms the survey found and how often it saw them, so a merge can work out a vocabulary
-     * without reading this segment's values again. A column that stayed plain keeps one too: the survey
-     * already ran, and the segment it merges into may be worth a dictionary where this one was not.
-     *
-     * <p>A dictionary column's terms are already on disk as its dictionary, so only the counts are added.
-     */
-    private static StringColumnMetadata withSummary(
-        StringColumnMetadata metadata,
-        Vocabulary.Terms vocabulary,
-        long numValues,
-        int valuesPerBlock,
-        ChunkCodec chunkCodec,
-        int targetChunkBytes,
-        Directory directory,
-        IOContext context,
-        IndexOutput data
-    ) throws IOException {
-        if (vocabulary == null || vocabulary.counted() == false || vocabulary.size() == 0) {
-            return metadata;
-        }
-        final int size = vocabulary.size();
-        ValueStream.Metadata terms = null;
-        if (metadata instanceof StringColumnMetadata.Dictionary column) {
-            assert column.dictionarySize() == size : column.dictionarySize() + " != " + size;
-        } else {
-            final BytesRef term = new BytesRef();
-            try (
-                ValueStream.Writer writer = new ValueStream.Writer(
-                    chunkCodec,
-                    targetChunkBytes,
-                    valuesPerBlock,
-                    size,
-                    directory,
-                    context,
-                    data.getName(),
-                    data
-                )
-            ) {
-                for (int ordinal = 0; ordinal < size; ordinal++) {
-                    vocabulary.terms().get(vocabulary.sortedIds()[ordinal], term);
-                    writer.add(term);
-                }
-                terms = writer.finish();
-            }
-        }
-        final long countsOffset = data.getFilePointer();
-        for (int ordinal = 0; ordinal < size; ordinal++) {
-            data.writeVLong(vocabulary.countOf(ordinal));
-        }
-        return metadata.withSummary(new StringColumnMetadata.Summary(terms, countsOffset, data.getFilePointer() - countsOffset, numValues));
     }
 
     /**

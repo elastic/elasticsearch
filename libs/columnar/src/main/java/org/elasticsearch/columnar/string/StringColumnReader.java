@@ -22,7 +22,6 @@ import org.elasticsearch.simdvec.ESVectorUtil;
 
 import java.io.IOException;
 import java.util.Arrays;
-import java.util.List;
 import java.util.function.Predicate;
 
 /**
@@ -57,9 +56,6 @@ public abstract sealed class StringColumnReader permits PlainStringColumnReader,
      */
     /** Null when the slots are in step with the documents, so a rank is its own value address. */
     private final SlotAddressReader addresses;
-
-    /** Held so a summary can be read on demand; a merge reads it, an ordinary search never does. */
-    protected final IndexInput data;
 
     /** Carried across page reads, which arrive in document order; see {@link #ranksOfAll}. */
     private ColumnIterator pageIterator;
@@ -106,7 +102,6 @@ public abstract sealed class StringColumnReader permits PlainStringColumnReader,
 
     StringColumnReader(StringColumnMetadata meta, IndexInput data, int blockSize) throws IOException {
         this.meta = meta;
-        this.data = data;
         this.blockSize = blockSize;
         this.iteratorReader = new ColumnIteratorReader(meta.iterator(), data);
         this.addresses = meta.hasValueAddresses() ? new SlotAddressReader(meta.addressing(), meta.numDocsWithField(), data) : null;
@@ -206,48 +201,6 @@ public abstract sealed class StringColumnReader permits PlainStringColumnReader,
      * {@link #isNullSlot} remains for a caller that wants the question without the bytes.
      */
     public abstract BytesRef valueAt(long valueAddress) throws IOException;
-
-    /** Whether this column recorded what it surveyed, so a merge need not read its values again. */
-    public boolean hasSummary() {
-        return meta.hasSummary();
-    }
-
-    /** The values the summary's counts are a share of. */
-    public long summaryValues() {
-        return meta.hasSummary() ? meta.summary().numValues() : 0;
-    }
-
-    /**
-     * The summarised terms and how often each was seen. The counts are the survey's and so are lower
-     * bounds, which is what makes a vocabulary combined from several of them under-state its coverage
-     * rather than over-state it.
-     */
-    public void readSummary(List<BytesRef> terms, List<Long> counts) throws IOException {
-        final StringColumnMetadata.Summary summary = meta.summary();
-        final ValueStream.Reader source = summary.terms() == null ? summarisedTerms() : summary.terms().open(data);
-        final int size = summary.terms() == null ? summarisedTermCount() : Math.toIntExact(summary.terms().numValues());
-        final BytesRef term = new BytesRef();
-        for (int ordinal = 0; ordinal < size; ordinal++) {
-            source.get(ordinal, term);
-            terms.add(BytesRef.deepCopyOf(term));
-        }
-        // Cloned rather than read in place: the caller's own reads are interleaved with these.
-        final IndexInput in = data.clone();
-        in.seek(summary.countsOffset());
-        for (int ordinal = 0; ordinal < size; ordinal++) {
-            counts.add(in.readVLong());
-        }
-    }
-
-    /** What a summary that stored no terms of its own is read from, which only a dictionary column has. */
-    protected ValueStream.Reader summarisedTerms() {
-        return null;
-    }
-
-    /** How many terms {@link #summarisedTerms} holds. */
-    protected int summarisedTermCount() {
-        return 0;
-    }
 
     /** How many terms the dictionary holds, or zero on a column that stores its values. */
     public int dictionarySize() {

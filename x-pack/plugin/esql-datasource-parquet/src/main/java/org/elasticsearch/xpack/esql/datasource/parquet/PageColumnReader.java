@@ -45,6 +45,7 @@ import java.nio.ByteOrder;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
+import java.util.function.Consumer;
 import java.util.function.IntConsumer;
 
 /**
@@ -105,9 +106,12 @@ final class PageColumnReader implements Releasable {
     private final ColumnDescriptor descriptor;
     private final ColumnInfo info;
     private final RowRanges rowRanges;
-    /** Per-value declared-coercion failure sink ({@code null} = strict); see the 5-arg constructor. */
+    /** Per-value declared-coercion failure sink ({@code null} = strict); see the 6-arg constructor. */
     @Nullable
     private final SkipWarnings coercionWarnings;
+    /** Relay for unconditional read-time notices that must survive execution away from the coordinator. */
+    @Nullable
+    private final Consumer<String> informationalWarningSink;
     /**
      * Per-batch row-drop sink for {@code skip_row} mode ({@code null} = not in skip_row mode).
      * Positions reported are relative to the current batch (0-based within {@link #readBatch}'s
@@ -164,26 +168,30 @@ final class PageColumnReader implements Releasable {
     private long pendingPrejumped;
 
     PageColumnReader(PageReader pageReader, ColumnDescriptor descriptor, ColumnInfo info, RowRanges rowRanges) {
-        this(pageReader, descriptor, info, rowRanges, null);
+        this(pageReader, descriptor, info, rowRanges, null, null);
     }
 
     /**
      * @param coercionWarnings sink for per-value declared-coercion failures (nulled cell +
      *                         response Warning header), shared across the read so the warning cap
      *                         is per read. {@code null} = strict: a coercion failure propagates.
+     * @param informationalWarningSink relay for unconditional read-time notices, or {@code null} to emit directly
+     *                                 to the current thread's response headers
      */
     PageColumnReader(
         PageReader pageReader,
         ColumnDescriptor descriptor,
         ColumnInfo info,
         RowRanges rowRanges,
-        @Nullable SkipWarnings coercionWarnings
+        @Nullable SkipWarnings coercionWarnings,
+        @Nullable Consumer<String> informationalWarningSink
     ) {
         this.pageReader = pageReader;
         this.descriptor = descriptor;
         this.info = info;
         this.rowRanges = rowRanges;
         this.coercionWarnings = coercionWarnings;
+        this.informationalWarningSink = informationalWarningSink;
         this.maxDefLevel = descriptor.getMaxDefinitionLevel();
         this.columnExhausted = false;
         this.rowPositionInRowGroup = 0;
@@ -278,10 +286,12 @@ final class PageColumnReader implements Releasable {
 
     /**
      * Filters a block to retain only the positions specified by {@code positions}.
-     * Takes ownership of {@code source}: the source block is closed after filtering
-     * and the caller owns the returned block.
+     * On success the source block is closed and the caller owns the returned block. On failure
+     * ownership stays with the caller — {@code readBatchFiltered} and the late-materialization
+     * call sites rely on this to release the source themselves.
      *
-     * @param source        the block to filter; ownership is transferred to this method
+     * @param source        the block to filter; ownership transfers on success only — if this method
+     *                       throws, the caller still owns {@code source} and must release it
      * @param positions     the positions to retain (ascending, no duplicates)
      * @param survivorCount the number of valid entries in {@code positions}
      * @param blockFactory  the factory used to create replacement blocks
@@ -292,8 +302,12 @@ final class PageColumnReader implements Releasable {
             return source;
         }
         if (survivorCount == 0) {
+            // Allocate before consuming the source: newConstantNullBlock charges the breaker and can
+            // throw, and if it does the caller must still own source exactly once. Closing first
+            // leaves a released block in the caller's array for its cleanup path to release again.
+            Block empty = blockFactory.newConstantNullBlock(0);
             source.close();
-            return blockFactory.newConstantNullBlock(0);
+            return empty;
         }
         if (positions.length != survivorCount) {
             positions = Arrays.copyOf(positions, survivorCount);
@@ -330,7 +344,7 @@ final class PageColumnReader implements Releasable {
             // never saw the reference.
             return filterBlock(full, survivorPositions, survivorCount, blockFactory);
         } catch (RuntimeException e) {
-            Releasables.closeExpectNoException(full);
+            ParquetReadFailures.closePreservingCause(e, full);
             throw e;
         }
     }
@@ -430,7 +444,7 @@ final class PageColumnReader implements Releasable {
             return BlockChunks.concat(chunks, blockFactory);
         } catch (RuntimeException e) {
             for (Block chunk : chunks) {
-                Releasables.closeExpectNoException(chunk);
+                ParquetReadFailures.closePreservingCause(e, chunk);
             }
             throw e;
         }
@@ -1297,11 +1311,15 @@ final class PageColumnReader implements Releasable {
                 remaining -= fromPage;
             }
             if (builder != null) {
-                return builder.build();
+                Block result = builder.build();
+                Releasables.closeExpectNoException(builder);
+                builder = null;
+                return result;
             }
             return blockFactory.newConstantBytesRefBlockWith(constant == null ? new BytesRef() : constant, produced);
-        } finally {
-            Releasables.closeExpectNoException(builder);
+        } catch (Throwable e) {
+            ParquetReadFailures.closePreservingCause(e, builder);
+            throw e;
         }
     }
 
@@ -1339,14 +1357,18 @@ final class PageColumnReader implements Releasable {
                 return blockFactory.newConstantNullBlock(produced);
             }
             if (builder != null) {
-                return builder.build();
+                Block result = builder.build();
+                Releasables.closeExpectNoException(builder);
+                builder = null;
+                return result;
             }
             assert produced == 0;
             try (var empty = blockFactory.newBytesRefBlockBuilder(0)) {
                 return empty.build();
             }
-        } finally {
-            Releasables.closeExpectNoException(builder);
+        } catch (Throwable e) {
+            ParquetReadFailures.closePreservingCause(e, builder);
+            throw e;
         }
     }
 
@@ -1483,17 +1505,13 @@ final class PageColumnReader implements Releasable {
         }
         IntBlock ordinalsBlock = null;
         BytesRefVector dictVector = null;
-        boolean success = false;
         try {
             ordinalsBlock = buildOrdinalsBlock(ordinals, nulls, produced, blockFactory);
             dictVector = buildDictionaryVector(dict, blockFactory);
-            OrdinalBytesRefBlock result = new OrdinalBytesRefBlock(ordinalsBlock, dictVector);
-            success = true;
-            return result;
-        } finally {
-            if (success == false) {
-                Releasables.closeExpectNoException(ordinalsBlock, dictVector);
-            }
+            return new OrdinalBytesRefBlock(ordinalsBlock, dictVector);
+        } catch (Throwable e) {
+            ParquetReadFailures.closePreservingCause(e, ordinalsBlock, dictVector);
+            throw e;
         }
     }
 
@@ -1644,18 +1662,24 @@ final class PageColumnReader implements Releasable {
             if (combinedNulls != null && combinedNulls.isEmpty() == false) {
                 Block allNull = ConstantBlockDetection.tryAllNull(combinedNulls.toBitSet(), filled, blockFactory);
                 if (allNull != null) {
+                    Releasables.closeExpectNoException(builder);
+                    builder = null;
                     return allNull;
                 }
             }
             if (builder != null) {
-                return builder.build();
+                Block result = builder.build();
+                Releasables.closeExpectNoException(builder);
+                builder = null;
+                return result;
             }
             assert filled == 0;
             try (var empty = blockFactory.newBytesRefBlockBuilder(0)) {
                 return empty.build();
             }
-        } finally {
-            Releasables.closeExpectNoException(builder);
+        } catch (Throwable e) {
+            ParquetReadFailures.closePreservingCause(e, builder);
+            throw e;
         }
     }
 
@@ -1800,7 +1824,7 @@ final class PageColumnReader implements Releasable {
                 if (needsShrinking(produced, maxRows)) values = Arrays.copyOf(values, produced);
                 return blockFactory.newLongArrayVector(values, produced).asBlock();
             }
-            ParquetColumnDecoding.warnTimestampOutOfRange(info);
+            ParquetColumnDecoding.warnTimestampOutOfRange(info, informationalWarningSink);
             Block allNull = ConstantBlockDetection.tryAllNull(overflow.toBitSet(), produced, blockFactory);
             if (allNull != null) {
                 return allNull;
@@ -1829,7 +1853,7 @@ final class PageColumnReader implements Releasable {
         }
         boolean anyOverflow = scaleDateNanosMasked(values, produced, micros, nulls);
         if (anyOverflow) {
-            ParquetColumnDecoding.warnTimestampOutOfRange(info);
+            ParquetColumnDecoding.warnTimestampOutOfRange(info, informationalWarningSink);
         }
         if (nulls.isEmpty()) {
             Block constant = ConstantBlockDetection.tryConstantLong(values, produced, blockFactory);

@@ -76,4 +76,50 @@ public class ApiKeyUserRoleDescriptorResolverTests extends ESTestCase {
         assertThat(future.actionGet(), equalTo(Set.of()));
         verify(rolesStore, never()).getRoleDescriptors(any(), any());
     }
+
+    public void testRejectsCappedCloudSubject() {
+        final CompositeRolesStore rolesStore = mock(CompositeRolesStore.class);
+        final ApiKeyUserRoleDescriptorResolver resolver = new ApiKeyUserRoleDescriptorResolver(rolesStore, NamedXContentRegistry.EMPTY);
+        final var limitedBy = AuthenticationTestHelper.randomCloudLimitedByRoleNames();
+        final Authentication authentication = randomFrom(
+            AuthenticationTestHelper.randomCloudApiKeyAuthentication(null, null, limitedBy),
+            AuthenticationTestHelper.randomCloudUserAuthentication(limitedBy),
+            AuthenticationTestHelper.randomCloudServiceAccountAuthentication(randomAlphanumericOfLength(20), limitedBy)
+        );
+
+        final PlainActionFuture<Set<RoleDescriptor>> future = new PlainActionFuture<>();
+        resolver.resolveUserRoleDescriptors(authentication, future);
+
+        final IllegalArgumentException iae = expectThrows(IllegalArgumentException.class, future::actionGet);
+        assertThat(
+            iae.getMessage(),
+            equalTo("creating or updating elasticsearch api keys using a cloud subject with limited-by roles is not supported")
+        );
+        verify(rolesStore, never()).getRoleDescriptors(any(), any());
+    }
+
+    @SuppressWarnings("unchecked")
+    public void testGetRoleDescriptorsForUncappedCloudSubject() {
+        final CompositeRolesStore rolesStore = mock(CompositeRolesStore.class);
+        final ApiKeyUserRoleDescriptorResolver resolver = new ApiKeyUserRoleDescriptorResolver(rolesStore, NamedXContentRegistry.EMPTY);
+        final Authentication authentication = randomFrom(
+            AuthenticationTestHelper.randomCloudApiKeyAuthentication(),
+            AuthenticationTestHelper.randomCloudUserAuthentication(null),
+            AuthenticationTestHelper.randomCloudServiceAccountAuthentication(randomAlphanumericOfLength(20), null)
+        );
+        final Set<RoleDescriptor> roleDescriptors = Set.of(
+            new RoleDescriptor(randomAlphaOfLengthBetween(3, 8), generateRandomStringArray(3, 6, false), null, null)
+        );
+
+        doAnswer(inv -> {
+            ActionListener<Set<RoleDescriptor>> listener = (ActionListener<Set<RoleDescriptor>>) inv.getArguments()[1];
+            listener.onResponse(roleDescriptors);
+            return null;
+        }).when(rolesStore).getRoleDescriptors(any(Subject.class), any(ActionListener.class));
+
+        final PlainActionFuture<Set<RoleDescriptor>> future = new PlainActionFuture<>();
+        resolver.resolveUserRoleDescriptors(authentication, future);
+
+        assertThat(future.actionGet(), equalTo(roleDescriptors));
+    }
 }

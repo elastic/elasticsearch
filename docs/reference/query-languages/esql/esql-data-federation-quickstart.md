@@ -37,7 +37,7 @@ These steps walk you through registering a data source, creating a dataset, and 
 :::::::{stepper}
 
 ::::::{step} Register a data source
-A data source defines the connection to an external storage system, including its type, region, and credentials. Once registered, any number of datasets can reference it.
+A data source defines the connection to an external storage system, including its type, endpoint, and credentials. Once registered, any number of datasets can reference it.
 
 This example registers a data source that points at a public S3 bucket with anonymous access.
 
@@ -51,7 +51,6 @@ PUT /_query/data_source/ookla_speedtest
 {
   "type": "s3",
   "settings": {
-    "region": "us-east-1",
     "auth": "anonymous" <1>
   }
 }
@@ -70,7 +69,6 @@ curl -X PUT "${ELASTICSEARCH_URL}/_query/data_source/ookla_speedtest" \
   -d '{
   "type": "s3",
   "settings": {
-    "region": "us-east-1",
     "auth": "anonymous"
   }
 }'
@@ -85,9 +83,8 @@ A successful request returns `{"acknowledged": true}`.
 2. On the **Data sources** tab, click **Connect data source**.
 3. Set **Data source type** to **Amazon S3**.
 4. Enter `ookla_speedtest` as the **Name**.
-5. Set **Region** to `us-east-1`.
-6. Under **Authentication**, from the **Preferred method** menu, select **Anonymous**.
-7. Click **Connect**.
+5. Under **Authentication**, from the **Preferred method** menu, select **Anonymous**.
+6. Click **Connect**.
 :::
 
 ::::
@@ -114,7 +111,7 @@ curl -X GET "${ELASTICSEARCH_URL}/_query/data_source/ookla_speedtest" \
 
 :::{tab-item} UI
 :sync: ui
-The new data source appears on the **Data sources** tab, showing its type and region:
+The new data source appears on the **Data sources** tab:
 
 :::{image} images/data-federation/data-sources-list.png
 :alt: The Data sources tab listing the ookla_speedtest data source
@@ -674,7 +671,6 @@ PUT /_query/data_source/my_s3_logs
   "type": "s3",
   "description": "Production logs bucket",
   "settings": {
-    "region": "us-east-1",
     "auth": "static_credentials",
     "access_key": "<AWS_ACCESS_KEY_ID>",
     "secret_key": "<AWS_SECRET_ACCESS_KEY>"

@@ -39,6 +39,7 @@ public class EsqlQueryProfile implements Writeable, ToXContentFragment {
     public static final String INFERENCE_RESOLUTION = "inference_resolution";
     public static final String ANALYSIS = "analysis";
     public static final String SPLIT_DISCOVERY = "split_discovery_nanos";
+    public static final String SPLIT_DISCOVERY_CPU = "split_discovery_cpu_nanos";
 
     /** Time elapsed since start of query till the final result rendering */
     private final TimeSpanMarker totalMarker;
@@ -69,6 +70,8 @@ public class EsqlQueryProfile implements Writeable, ToXContentFragment {
     private final AtomicLong bytesScanned;
     /** Time elapsed discovering external splits (external source footer/metadata reads) */
     private final AtomicLong splitDiscoveryNanos;
+    /** CPU time (nanoseconds) spent discovering external splits; excludes IO wait. */
+    private final AtomicLong splitDiscoveryCpuNanos;
     /** The query-level unmapped field resolution mode. */
     private volatile UnmappedResolution unmappedResolution;
     /**
@@ -95,9 +98,10 @@ public class EsqlQueryProfile implements Writeable, ToXContentFragment {
         "esql_external_warm_aggregate_profile"
     );
     private static final TransportVersion ESQL_SPLIT_DISCOVERY_PROFILE = TransportVersion.fromName("esql_split_discovery_profile");
+    private static final TransportVersion ESQL_SPLIT_DISCOVERY_CPU_PROFILE = TransportVersion.fromName("esql_split_discovery_cpu_nanos");
 
     public EsqlQueryProfile() {
-        this(null, null, null, null, null, null, null, null, null, null, 0, 0, 0, 0L, UnmappedResolution.DEFAULT, 0, 0L);
+        this(null, null, null, null, null, null, null, null, null, null, 0, 0, 0, 0L, UnmappedResolution.DEFAULT, 0, 0L, 0L);
     }
 
     // For testing
@@ -118,7 +122,8 @@ public class EsqlQueryProfile implements Writeable, ToXContentFragment {
         long bytesScanned,
         UnmappedResolution unmappedResolution,
         int externalWarmAggregates,
-        long splitDiscoveryNanos
+        long splitDiscoveryNanos,
+        long splitDiscoveryCpuNanos
     ) {
         this.totalMarker = new TimeSpanMarker(QUERY, true, query);
         this.planningMarker = new TimeSpanMarker(PLANNING, false, planning);
@@ -137,6 +142,7 @@ public class EsqlQueryProfile implements Writeable, ToXContentFragment {
         this.unmappedResolution = unmappedResolution;
         this.externalWarmAggregates = new AtomicInteger(externalWarmAggregates);
         this.splitDiscoveryNanos = new AtomicLong(splitDiscoveryNanos);
+        this.splitDiscoveryCpuNanos = new AtomicLong(splitDiscoveryCpuNanos);
     }
 
     public static EsqlQueryProfile readFrom(StreamInput in) throws IOException {
@@ -190,6 +196,10 @@ public class EsqlQueryProfile implements Writeable, ToXContentFragment {
         if (in.getTransportVersion().supports(ESQL_SPLIT_DISCOVERY_PROFILE)) {
             splitDiscoveryNanos = in.readVLong();
         }
+        long splitDiscoveryCpuNanos = 0L;
+        if (in.getTransportVersion().supports(ESQL_SPLIT_DISCOVERY_CPU_PROFILE)) {
+            splitDiscoveryCpuNanos = in.readVLong();
+        }
         return new EsqlQueryProfile(
             query,
             planning,
@@ -207,7 +217,8 @@ public class EsqlQueryProfile implements Writeable, ToXContentFragment {
             bytesScanned,
             unmappedResolution,
             externalWarmAggregates,
-            splitDiscoveryNanos
+            splitDiscoveryNanos,
+            splitDiscoveryCpuNanos
         );
     }
 
@@ -256,6 +267,9 @@ public class EsqlQueryProfile implements Writeable, ToXContentFragment {
         if (out.getTransportVersion().supports(ESQL_SPLIT_DISCOVERY_PROFILE)) {
             out.writeVLong(splitDiscoveryNanos.get());
         }
+        if (out.getTransportVersion().supports(ESQL_SPLIT_DISCOVERY_CPU_PROFILE)) {
+            out.writeVLong(splitDiscoveryCpuNanos.get());
+        }
     }
 
     @Override
@@ -273,6 +287,7 @@ public class EsqlQueryProfile implements Writeable, ToXContentFragment {
             && Objects.equals(inferenceResolutionMarker, that.inferenceResolutionMarker)
             && Objects.equals(analysisMarker, that.analysisMarker)
             && splitDiscoveryNanos.get() == that.splitDiscoveryNanos.get()
+            && splitDiscoveryCpuNanos.get() == that.splitDiscoveryCpuNanos.get()
             && Objects.equals(fieldCapsCalls.get(), that.fieldCapsCalls.get())
             && filesScanned.get() == that.filesScanned.get()
             && splitsScanned.get() == that.splitsScanned.get()
@@ -295,6 +310,7 @@ public class EsqlQueryProfile implements Writeable, ToXContentFragment {
             inferenceResolutionMarker,
             analysisMarker,
             splitDiscoveryNanos.get(),
+            splitDiscoveryCpuNanos.get(),
             fieldCapsCalls.get(),
             filesScanned.get(),
             splitsScanned.get(),
@@ -329,6 +345,8 @@ public class EsqlQueryProfile implements Writeable, ToXContentFragment {
             + analysisMarker
             + ", splitDiscoveryNanos="
             + splitDiscoveryNanos.get()
+            + ", splitDiscoveryCpuNanos="
+            + splitDiscoveryCpuNanos.get()
             + ", fieldCapsCalls="
             + fieldCapsCalls.get()
             + ", filesScanned="
@@ -475,6 +493,15 @@ public class EsqlQueryProfile implements Writeable, ToXContentFragment {
         splitDiscoveryNanos.addAndGet(nanos);
     }
 
+    public long splitDiscoveryCpuNanos() {
+        return splitDiscoveryCpuNanos.get();
+    }
+
+    /** Add CPU time spent discovering splits (excludes IO wait). */
+    public void addSplitDiscoveryCpuNanos(long nanos) {
+        splitDiscoveryCpuNanos.addAndGet(nanos);
+    }
+
     public Collection<TimeSpanMarker> timeSpanMarkers() {
         return List.of(
             totalMarker,
@@ -541,6 +568,10 @@ public class EsqlQueryProfile implements Writeable, ToXContentFragment {
         long splitDiscovery = splitDiscoveryNanos.get();
         if (splitDiscovery > 0) {
             builder.field(SPLIT_DISCOVERY, splitDiscovery);
+        }
+        long splitDiscoveryCpu = splitDiscoveryCpuNanos.get();
+        if (splitDiscoveryCpu > 0) {
+            builder.field(SPLIT_DISCOVERY_CPU, splitDiscoveryCpu);
         }
         return builder;
     }

@@ -533,7 +533,7 @@ public class TrainedModelAssignmentNodeServiceTests extends ESTestCase {
         ArgumentCaptor<UpdateTrainedModelAssignmentRoutingInfoAction.Request> requestCapture = ArgumentCaptor.forClass(
             UpdateTrainedModelAssignmentRoutingInfoAction.Request.class
         );
-        verify(deploymentManager, never()).stopAfterCompletingPendingWork(any(), any());
+        verify(deploymentManager, never()).stopAfterCompletingPendingWork(any());
         verify(trainedModelAssignmentService, times(1)).updateModelAssignmentState(requestCapture.capture(), any());
         UpdateTrainedModelAssignmentRoutingInfoAction.Request request = requestCapture.getValue();
         assertThat(request.getNodeId(), equalTo(NODE_ID));

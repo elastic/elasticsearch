@@ -39,16 +39,19 @@ public final class AllocationEstimators {
     private AllocationEstimators() {}
 
     /**
-     * Heap cost of a freshly allocated {@link String} holding {@code chars} UTF-16 characters: the {@code String} object plus
-     * its backing array, {@link AllocSizes#STRING_CONCAT_RESULT_OVERHEAD} for the fixed part plus 2 bytes per char. A negative
-     * length (from an out-of-range argument the real call will reject) costs just the overhead.
+     * Allowance in characters per {@code String.format} argument or {@code String.join} element, whose rendered length is not
+     * knowable.
      */
-    /** Allowance per {@code String.format} argument or {@code String.join} element, whose rendered length is not knowable. */
     private static final long FORMAT_CHARACTERS_PER_ARGUMENT = 256;
 
     /** Element count assumed for a {@code String.join} over an iterable that cannot be sized without consuming it. */
     private static final long UNKNOWN_ELEMENT_COUNT = 16;
 
+    /**
+     * Heap cost of a freshly allocated {@link String} holding {@code chars} UTF-16 characters: the {@code String} object plus
+     * its backing array, {@link AllocSizes#STRING_CONCAT_RESULT_OVERHEAD} for the fixed part plus 2 bytes per char. A negative
+     * length (from an out-of-range argument the real call will reject) costs just the overhead.
+     */
     private static long newStringBytes(long chars) {
         return AllocSizes.STRING_CONCAT_RESULT_OVERHEAD + AllocSizes.mulSat(2L, Math.max(0L, chars));
     }
@@ -355,7 +358,7 @@ public final class AllocationEstimators {
      * a generous allowance per argument.
      */
     public static long formatBytes(String format, Object[] args) {
-        return newStringBytes(format.length() + FORMAT_BYTES_PER_ARGUMENT * (args == null ? 0L : args.length));
+        return newStringBytes(format.length() + FORMAT_CHARACTERS_PER_ARGUMENT * (args == null ? 0L : args.length));
     }
 
     /** Cost of {@code String.format} with an explicit locale, which does not change the size. */
@@ -373,12 +376,8 @@ public final class AllocationEstimators {
     public static long joinBytes(CharSequence delimiter, Iterable<?> elements) {
         long count = elements instanceof Collection<?> collection ? collection.size() : UNKNOWN_ELEMENT_COUNT;
 
-        return newStringBytes(
-            AllocSizes.addSat(
-                AllocSizes.mulSat(count, FORMAT_BYTES_PER_ARGUMENT),
-                AllocSizes.mulSat(Math.max(0L, count - 1), delimiter.length())
-            )
-        );
+        // count and delimiter.length() are both int-sized, so neither product nor their sum can overflow a long.
+        return newStringBytes(count * FORMAT_CHARACTERS_PER_ARGUMENT + Math.max(0L, count - 1) * delimiter.length());
     }
 
     /** Cost of {@code StringBuilder.substring(begin)}: a new String from {@code begin} to the end. */

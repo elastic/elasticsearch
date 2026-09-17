@@ -12,6 +12,8 @@ package org.elasticsearch.painless;
 import java.util.List;
 import java.util.Locale;
 
+import static org.hamcrest.Matchers.greaterThan;
+
 /**
  * End-to-end tests for the {@code String} {@code @allocates} estimators (concat, substring, toCharArray, case mapping,
  * trim): each charges its result's byte cost, computed from the receiver/argument lengths, before the allocating call runs.
@@ -58,10 +60,19 @@ public class AllocationStringEstimatorTests extends AllocationTestCase {
     }
 
     public void testStringBuilderSubstringCharged() {
-        long builder = allocatedBytes("StringBuilder b = new StringBuilder(); return \"x\";");
-        long withSubstring = allocatedBytes("StringBuilder b = new StringBuilder(); b.substring(0); return \"x\";");
+        long builder = allocatedBytes("StringBuilder b = new StringBuilder(); b.append(\"hello\"); return \"x\";");
+        long withSubstring = allocatedBytes("StringBuilder b = new StringBuilder(); b.append(\"hello\"); b.substring(2); return \"x\";");
 
-        assertEquals(AllocationEstimators.substringBytes(new StringBuilder(), 0), withSubstring - builder);
+        assertEquals(AllocationEstimators.substringBytes(new StringBuilder("hello"), 2), withSubstring - builder);
+        assertThat(withSubstring - builder, greaterThan(0L));
+    }
+
+    public void testStringBufferSubstringCharged() {
+        long buffer = allocatedBytes("StringBuffer b = new StringBuffer(); b.append(\"hello\"); return \"x\";");
+        long withSubstring = allocatedBytes("StringBuffer b = new StringBuffer(); b.append(\"hello\"); b.substring(2); return \"x\";");
+
+        assertEquals(AllocationEstimators.substringBytes(new StringBuffer("hello"), 2), withSubstring - buffer);
+        assertThat(withSubstring - buffer, greaterThan(0L));
     }
 
     public void testStringBuilderSubstringRangeCharged() {

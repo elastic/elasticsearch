@@ -19,6 +19,7 @@ import org.apache.lucene.document.NumericDocValuesField;
 import org.apache.lucene.document.SortedDocValuesField;
 import org.apache.lucene.document.SortedNumericDocValuesField;
 import org.apache.lucene.document.SortedSetDocValuesField;
+import org.apache.lucene.index.BinaryDocValues;
 import org.apache.lucene.index.DirectoryReader;
 import org.apache.lucene.index.DocValues;
 import org.apache.lucene.index.IndexWriter;
@@ -49,12 +50,15 @@ import org.hamcrest.Matchers;
 
 import java.io.IOException;
 import java.lang.reflect.Field;
+import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.function.IntSupplier;
 
 import static org.elasticsearch.index.codec.tsdb.es819.ES819TSDBDocValuesFormatTests.TestES819TSDBDocValuesFormatVersion0;
+import static org.elasticsearch.index.codec.tsdb.es819.ES819TSDBDocValuesFormatTests.binaryBlockThresholdFormat;
 import static org.hamcrest.Matchers.equalTo;
 
 public class TsdbDocValueBwcTests extends ESTestCase {
@@ -94,6 +98,70 @@ public class TsdbDocValueBwcTests extends ESTestCase {
             new ES819TSDBDocValuesFormat(BinaryDVCompressionMode.COMPRESSED_ZSTD_LEVEL_1, randomBoolean())
         );
         testMixedIndex(oldCodec, newCodec, this::assertVersion819, this::assertVersion819);
+    }
+
+    /**
+     * A segment written before large binary values were split over multiple blocks holds blocks larger than the block bytes
+     * threshold, with every block's offsets ending at its physical length. That is the same layout the writer produces for values
+     * that fit the threshold it was given, so writing with a large threshold and then merging with a small one exercises reading
+     * and merging pre-split segments alongside segments that do split values.
+     */
+    public void testMixedIndexBinaryBlockThresholds() throws Exception {
+        final int blockBytesThreshold = randomIntBetween(64, 1024);
+        // Large enough that no value written by the first writer is split.
+        final var oldCodec = TestUtil.alwaysDocValuesFormat(binaryBlockThresholdFormat(1 << 20, 8096, randomBoolean()));
+        final var newCodec = TestUtil.alwaysDocValuesFormat(
+            binaryBlockThresholdFormat(blockBytesThreshold, randomIntBetween(1, 64), randomBoolean())
+        );
+
+        final int numDocsPerWriter = randomIntBetween(2, 50);
+        final List<String> values = new ArrayList<>();
+        try (var dir = newDirectory()) {
+            for (Codec codec : List.of(oldCodec, newCodec)) {
+                var config = new IndexWriterConfig();
+                config.setCodec(codec);
+                config.setMergePolicy(NoMergePolicy.INSTANCE);
+                try (var iw = new IndexWriter(dir, config)) {
+                    for (int i = 0; i < numDocsPerWriter; i++) {
+                        // Values are over the small threshold but under the large one, so the same value is split by one writer
+                        // and written as a single oversized block by the other.
+                        final String value = randomAlphaOfLength(randomIntBetween(blockBytesThreshold + 1, 8 * blockBytesThreshold));
+                        values.add(value);
+                        var d = new Document();
+                        d.add(new BinaryDocValuesField("binary", new BytesRef(value)));
+                        iw.addDocument(d);
+                        if (randomInt(10) == 0) {
+                            iw.commit();
+                        }
+                    }
+                }
+            }
+
+            // Before merging: each segment is read by the reader of the format that wrote it.
+            try (var reader = DirectoryReader.open(dir)) {
+                assertBinaryValues(MultiDocValues.getBinaryValues(reader, "binary"), values);
+            }
+
+            // Merging reads the pre-split segments through the current reader and rewrites them with splitting.
+            var mergeConfig = new IndexWriterConfig();
+            mergeConfig.setCodec(newCodec);
+            mergeConfig.setMergePolicy(new LogByteSizeMergePolicy());
+            try (var iw = new IndexWriter(dir, mergeConfig)) {
+                iw.forceMerge(1);
+                try (var reader = DirectoryReader.open(iw)) {
+                    assertEquals(1, reader.leaves().size());
+                    assertBinaryValues(MultiDocValues.getBinaryValues(reader, "binary"), values);
+                }
+            }
+        }
+    }
+
+    private static void assertBinaryValues(BinaryDocValues binaryDV, List<String> expected) throws IOException {
+        assertNotNull(binaryDV);
+        for (int i = 0; i < expected.size(); i++) {
+            assertTrue("no value for doc " + i, binaryDV.advanceExact(i));
+            assertEquals("value of doc " + i, expected.get(i), binaryDV.binaryValue().utf8ToString());
+        }
     }
 
     public void testMixedIndex816To900Lucene101() throws Exception {

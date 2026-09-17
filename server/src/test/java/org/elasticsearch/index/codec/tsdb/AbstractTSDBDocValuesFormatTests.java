@@ -12,10 +12,12 @@ package org.elasticsearch.index.codec.tsdb;
 import org.apache.lucene.codecs.DocValuesFormat;
 import org.apache.lucene.document.BinaryDocValuesField;
 import org.apache.lucene.document.Document;
+import org.apache.lucene.document.Field;
 import org.apache.lucene.document.NumericDocValuesField;
 import org.apache.lucene.document.SortedDocValuesField;
 import org.apache.lucene.document.SortedNumericDocValuesField;
 import org.apache.lucene.document.SortedSetDocValuesField;
+import org.apache.lucene.document.StringField;
 import org.apache.lucene.index.BinaryDocValues;
 import org.apache.lucene.index.DirectoryReader;
 import org.apache.lucene.index.DocValues;
@@ -26,6 +28,7 @@ import org.apache.lucene.index.LeafReader;
 import org.apache.lucene.index.LogByteSizeMergePolicy;
 import org.apache.lucene.index.NumericDocValues;
 import org.apache.lucene.index.SortedDocValues;
+import org.apache.lucene.index.Term;
 import org.apache.lucene.search.BooleanClause;
 import org.apache.lucene.search.BooleanQuery;
 import org.apache.lucene.search.DocIdSetIterator;
@@ -37,6 +40,7 @@ import org.apache.lucene.search.SortedNumericSortField;
 import org.apache.lucene.search.SortedSetSortField;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.tests.index.BaseDocValuesFormatTestCase;
+import org.apache.lucene.tests.util.TestUtil;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.FixedBitSet;
 import org.apache.lucene.util.IOFunction;
@@ -47,6 +51,7 @@ import org.elasticsearch.common.util.CollectionUtils;
 import org.elasticsearch.index.codec.bwc.Elasticsearch900Lucene101Codec;
 import org.elasticsearch.index.codec.tsdb.AbstractTSDBDocValuesProducer.BaseDenseNumericValues;
 import org.elasticsearch.index.codec.tsdb.AbstractTSDBDocValuesProducer.BaseSortedDocValues;
+import org.elasticsearch.index.codec.tsdb.AbstractTSDBDocValuesProducer.DenseBinaryDocValues;
 import org.elasticsearch.index.codec.tsdb.AbstractTSDBDocValuesProducer.TSDBBinaryDocValues;
 import org.elasticsearch.index.mapper.BinaryFieldMapper.CustomBinaryDocValuesField;
 import org.elasticsearch.index.mapper.BlockLoader;
@@ -60,9 +65,11 @@ import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
+import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Locale;
+import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
 import java.util.function.Consumer;
@@ -77,8 +84,11 @@ import static org.elasticsearch.test.ESTestCase.randomFrom;
 import static org.elasticsearch.test.ESTestCase.randomIntBetween;
 import static org.elasticsearch.test.ESTestCase.randomLong;
 import static org.elasticsearch.test.ESTestCase.randomLongBetween;
+import static org.elasticsearch.test.ESTestCase.randomSubsetOf;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.instanceOf;
+import static org.hamcrest.Matchers.lessThan;
 
 /**
  * Shared test suite for TSDB doc values formats. Tests all five doc value types (numeric,
@@ -149,6 +159,16 @@ public abstract class AbstractTSDBDocValuesFormatTests extends BaseDocValuesForm
         }
         return (BaseSortedDocValues) sortedDocValues;
     }
+
+    /**
+     * Creates the doc values format under test with compressed binary doc values and the given binary block thresholds, so
+     * that tests can use thresholds small enough to split values over many blocks.
+     */
+    protected abstract DocValuesFormat getFormatWithBinaryBlockThresholds(
+        int blockBytesThreshold,
+        int blockCountThreshold,
+        boolean enablePerBlockCompression
+    );
 
     public void testBlockWiseBinary() throws Exception {
         boolean sparse = randomBoolean();
@@ -223,6 +243,392 @@ public abstract class AbstractTSDBDocValuesFormatTests extends BaseDocValuesForm
         }
 
         assertBinaryValues(binaryValues);
+    }
+
+    /**
+     * Reads lengths and values from the same doc values instance. Reading a length only loads a block's offsets, so a value read
+     * that follows it on the same instance must still load the block's bytes, including the continuation blocks of a split value.
+     */
+    public void testInterleavedLengthAndValueReads() throws IOException {
+        final int blockBytesThreshold = randomIntBetween(64, 1024);
+        final DocValuesFormat format = getFormatWithBinaryBlockThresholds(blockBytesThreshold, randomIntBetween(1, 64), randomBoolean());
+
+        final int numDocs = randomIntBetween(2, 200);
+        final String[] values = new String[numDocs];
+        for (int i = 0; i < numDocs; i++) {
+            values[i] = randomSplitTestValue(blockBytesThreshold, "needle-0123456789", i == 0 || i == numDocs - 1);
+        }
+
+        final IndexWriterConfig config = new IndexWriterConfig();
+        config.setCodec(TestUtil.alwaysDocValuesFormat(format));
+        config.setMergePolicy(new LogByteSizeMergePolicy());
+        try (Directory dir = newDirectory(); IndexWriter writer = new IndexWriter(dir, config)) {
+            for (int i = 0; i < numDocs; i++) {
+                final Document doc = new Document();
+                doc.add(new BinaryDocValuesField("dense", new BytesRef(values[i])));
+                writer.addDocument(doc);
+            }
+            writer.forceMerge(1);
+
+            try (DirectoryReader reader = DirectoryReader.open(writer)) {
+                final LeafReader leaf = reader.leaves().getFirst().reader();
+
+                // per doc, on one instance: length first, then the value from the same block
+                final var dv = (DenseBinaryDocValues) getTSDBBinaryValues(leaf, "dense");
+                for (int i = 0; i < numDocs; i++) {
+                    assertTrue(dv.advanceExact(i));
+                    assertEquals("length of doc " + i, values[i].length(), dv.getLength());
+                    assertEquals("value of doc " + i, values[i], dv.binaryValue().utf8ToString());
+                }
+
+                // bulk, on one instance: lengths first, then the values for the same docs
+                final var bulkDV = getTSDBBinaryValues(leaf, "dense");
+                final var factory = TestBlock.factory();
+                final var docs = TestBlock.docs(IntStream.range(0, numDocs).toArray());
+                final var lengths = (TestBlock) bulkDV.tryReadLength(factory, docs, 0, false);
+                final var block = (TestBlock) bulkDV.tryRead(factory, docs, 0, false, null, false, false);
+                assertNotNull(lengths);
+                assertNotNull(block);
+                for (int i = 0; i < numDocs; i++) {
+                    assertEquals("length of doc " + i, values[i].length(), (int) lengths.get(i));
+                    assertEquals("value of doc " + i, values[i], ((BytesRef) block.get(i)).utf8ToString());
+                }
+            }
+        }
+    }
+
+    /**
+     * Uses a small binary block bytes threshold so that values larger than the threshold are split over a head block and
+     * zero-doc continuation blocks, and checks every read path of the compressed binary doc values against the indexed values.
+     */
+    public void testBinaryValuesSplitOverMultipleBlocks() throws IOException {
+        final int blockBytesThreshold = randomIntBetween(64, 1024);
+        final DocValuesFormat format = getFormatWithBinaryBlockThresholds(blockBytesThreshold, randomIntBetween(1, 64), randomBoolean());
+
+        // Contains a digit so it never occurs by chance in the alphabetic filler.
+        final String needle = "needle-0123456789";
+        final int numDocs = randomIntBetween(1, 300);
+        final String[] denseValues = new String[numDocs];
+        final String[] sparseValues = new String[numDocs];
+        for (int i = 0; i < numDocs; i++) {
+            denseValues[i] = randomSplitTestValue(blockBytesThreshold, needle, i == 0 || i == numDocs - 1);
+            sparseValues[i] = randomBoolean() ? randomSplitTestValue(blockBytesThreshold, needle, false) : null;
+        }
+
+        final IndexWriterConfig config = new IndexWriterConfig();
+        config.setCodec(TestUtil.alwaysDocValuesFormat(format));
+        config.setMergePolicy(new LogByteSizeMergePolicy());
+        try (Directory dir = newDirectory(); IndexWriter writer = new IndexWriter(dir, config)) {
+            for (int i = 0; i < numDocs; i++) {
+                final Document doc = new Document();
+                doc.add(new BinaryDocValuesField("dense", new BytesRef(denseValues[i])));
+                if (sparseValues[i] != null) {
+                    doc.add(new BinaryDocValuesField("sparse", new BytesRef(sparseValues[i])));
+                }
+                writer.addDocument(doc);
+                if (random().nextInt(50) == 0) {
+                    writer.commit();
+                }
+            }
+            writer.forceMerge(1);
+
+            try (DirectoryReader reader = DirectoryReader.open(writer)) {
+                assertEquals(1, reader.leaves().size());
+                final LeafReader leaf = reader.leaves().getFirst().reader();
+                assertEquals(numDocs, leaf.maxDoc());
+
+                // doc-at-a-time reads, skipping random docs
+                final var denseDV = getTSDBBinaryValues(leaf, "dense");
+                final var sparseDV = leaf.getBinaryDocValues("sparse");
+                for (int i = 0; i < numDocs; i++) {
+                    if (randomBoolean()) {
+                        continue;
+                    }
+                    assertTrue(denseDV.advanceExact(i));
+                    assertEquals(denseValues[i], denseDV.binaryValue().utf8ToString());
+                    // reading the same doc twice must return the same value
+                    assertEquals(denseValues[i], denseDV.binaryValue().utf8ToString());
+                    if (sparseDV != null) {
+                        assertEquals(sparseValues[i] != null, sparseDV.advanceExact(i));
+                        if (sparseValues[i] != null) {
+                            assertEquals(sparseValues[i], sparseDV.binaryValue().utf8ToString());
+                        }
+                    }
+                }
+
+                // bulk reads of contiguous doc ranges
+                final var factory = TestBlock.factory();
+                for (int from = 0; from < numDocs;) {
+                    final int to = from + randomIntBetween(1, numDocs - from);
+                    final var docs = TestBlock.docs(IntStream.range(from, to).toArray());
+                    final var valuesBlock = (TestBlock) getTSDBBinaryValues(leaf, "dense").tryRead(
+                        factory,
+                        docs,
+                        0,
+                        false,
+                        null,
+                        false,
+                        false
+                    );
+                    assertNotNull(valuesBlock);
+                    assertEquals(to - from, valuesBlock.size());
+                    final var lengthsBlock = (TestBlock) getTSDBBinaryValues(leaf, "dense").tryReadLength(factory, docs, 0, false);
+                    assertNotNull(lengthsBlock);
+                    assertEquals(to - from, lengthsBlock.size());
+                    for (int i = from; i < to; i++) {
+                        assertEquals(denseValues[i], ((BytesRef) valuesBlock.get(i - from)).utf8ToString());
+                        assertEquals(denseValues[i].length(), (int) lengthsBlock.get(i - from));
+                    }
+                    from = to;
+                }
+
+                // predicate iterators, with a split value as the term-equality target
+                final String target = denseValues[0];
+                assertThat("target must be a split value", target.length(), greaterThan(blockBytesThreshold));
+                final Set<Integer> expectedLength = new HashSet<>();
+                final Set<Integer> expectedContains = new HashSet<>();
+                final Set<Integer> expectedEqual = new HashSet<>();
+                for (int i = 0; i < numDocs; i++) {
+                    if (denseValues[i].length() == target.length()) {
+                        expectedLength.add(i);
+                    }
+                    if (denseValues[i].contains(needle)) {
+                        expectedContains.add(i);
+                    }
+                    if (denseValues[i].equals(target)) {
+                        expectedEqual.add(i);
+                    }
+                }
+                assertEquals(expectedLength, collectDocs(getTSDBBinaryValues(leaf, "dense").tryLengthIterator(target.length())));
+                assertEquals(expectedContains, collectDocs(getTSDBBinaryValues(leaf, "dense").tryContainsIterator(new BytesRef(needle))));
+                assertEquals(expectedEqual, collectDocs(getTSDBBinaryValues(leaf, "dense").tryTermEqualIterator(new BytesRef(target))));
+
+                // the same predicates driven by advance() and docIDRunEnd() rather than nextDoc()
+                assertIteratorAdvance(getTSDBBinaryValues(leaf, "dense").tryLengthIterator(target.length()), expectedLength, numDocs);
+                assertIteratorAdvance(
+                    getTSDBBinaryValues(leaf, "dense").tryContainsIterator(new BytesRef(needle)),
+                    expectedContains,
+                    numDocs
+                );
+                assertIteratorAdvance(
+                    getTSDBBinaryValues(leaf, "dense").tryTermEqualIterator(new BytesRef(target)),
+                    expectedEqual,
+                    numDocs
+                );
+            }
+        }
+    }
+
+    /**
+     * Merges segments holding split values while documents move: the index sort reverses them and deletions shift the doc ids.
+     * The value of a split doc must follow it to its new doc id.
+     */
+    public void testSplitValuesSurviveReorderingMerge() throws IOException {
+        final int blockBytesThreshold = randomIntBetween(64, 1024);
+        final DocValuesFormat format = getFormatWithBinaryBlockThresholds(blockBytesThreshold, randomIntBetween(1, 64), randomBoolean());
+
+        final int numDocs = randomIntBetween(10, 200);
+        final Map<Long, String> valuesById = new HashMap<>();
+        for (long id = 0; id < numDocs; id++) {
+            valuesById.put(id, randomSplitTestValue(blockBytesThreshold, "needle-0123456789", id == 0 || id == numDocs - 1));
+        }
+
+        final IndexWriterConfig config = new IndexWriterConfig();
+        config.setCodec(TestUtil.alwaysDocValuesFormat(format));
+        config.setMergePolicy(new LogByteSizeMergePolicy());
+        // Sort descending, so merging reverses the order the documents were indexed in.
+        config.setIndexSort(new Sort(new SortedNumericSortField("id", SortField.Type.LONG, true)));
+        try (Directory dir = newDirectory(); IndexWriter writer = new IndexWriter(dir, config)) {
+            for (long id = 0; id < numDocs; id++) {
+                final Document doc = new Document();
+                doc.add(new StringField("id_term", Long.toString(id), Field.Store.NO));
+                doc.add(new SortedNumericDocValuesField("id", id));
+                doc.add(new BinaryDocValuesField("binary", new BytesRef(valuesById.get(id))));
+                writer.addDocument(doc);
+                if (random().nextInt(20) == 0) {
+                    writer.commit();
+                }
+            }
+
+            // Delete a few documents, including split ones, so the remaining docs shift.
+            final List<Long> deleted = randomSubsetOf(randomIntBetween(1, numDocs / 2), valuesById.keySet());
+            for (long id : deleted) {
+                writer.deleteDocuments(new Term("id_term", Long.toString(id)));
+                valuesById.remove(id);
+            }
+            writer.forceMerge(1);
+
+            try (DirectoryReader reader = DirectoryReader.open(writer)) {
+                assertEquals(1, reader.leaves().size());
+                final LeafReader leaf = reader.leaves().getFirst().reader();
+                assertEquals(valuesById.size(), leaf.maxDoc());
+
+                final var idDV = leaf.getSortedNumericDocValues("id");
+                final var binaryDV = getTSDBBinaryValues(leaf, "binary");
+                long previousId = Long.MAX_VALUE;
+                for (int doc = 0; doc < leaf.maxDoc(); doc++) {
+                    assertTrue(idDV.advanceExact(doc));
+                    final long id = idDV.nextValue();
+                    assertThat("index sort must order docs by descending id", id, lessThan(previousId));
+                    previousId = id;
+
+                    assertTrue(binaryDV.advanceExact(doc));
+                    assertEquals("value of id " + id, valuesById.get(id), binaryDV.binaryValue().utf8ToString());
+                }
+            }
+        }
+    }
+
+    /**
+     * Multi-valued binary doc values encode all of a document's values into one blob, which the block loader decodes back into
+     * several values. Such a blob crosses the block bytes threshold too, so it gets split like any other oversized value.
+     */
+    public void testSplitMultiValuedBinaryValues() throws IOException {
+        final int blockBytesThreshold = randomIntBetween(64, 1024);
+        final DocValuesFormat format = getFormatWithBinaryBlockThresholds(blockBytesThreshold, randomIntBetween(1, 64), randomBoolean());
+
+        final int numDocs = randomIntBetween(2, 100);
+        final List<List<String>> values = new ArrayList<>();
+        for (int i = 0; i < numDocs; i++) {
+            // Enough values that the encoded blob of at least the first and last doc exceeds the threshold.
+            final boolean large = i == 0 || i == numDocs - 1 || randomBoolean();
+            final int numValues = large ? randomIntBetween(2, 8) : 1;
+            final List<String> docValues = new ArrayList<>();
+            for (int v = 0; v < numValues; v++) {
+                docValues.add(randomAlphaOfLength(large ? randomIntBetween(blockBytesThreshold / 2, 2 * blockBytesThreshold) : 8));
+            }
+            // The encoding sorts and deduplicates the values, so expect them in that order.
+            docValues.sort(null);
+            values.add(docValues.stream().distinct().toList());
+        }
+
+        final IndexWriterConfig config = new IndexWriterConfig();
+        config.setCodec(TestUtil.alwaysDocValuesFormat(format));
+        config.setMergePolicy(new LogByteSizeMergePolicy());
+        try (Directory dir = newDirectory(); IndexWriter writer = new IndexWriter(dir, config)) {
+            for (int i = 0; i < numDocs; i++) {
+                final Document doc = new Document();
+                CustomBinaryDocValuesField field = null;
+                for (String value : values.get(i)) {
+                    final byte[] bytes = value.getBytes(StandardCharsets.UTF_8);
+                    if (field == null) {
+                        field = new CustomBinaryDocValuesField("binary", bytes);
+                    } else {
+                        field.add(bytes);
+                    }
+                }
+                doc.add(field);
+                writer.addDocument(doc);
+            }
+            writer.forceMerge(1);
+
+            try (DirectoryReader reader = DirectoryReader.open(writer)) {
+                final LeafReader leaf = reader.leaves().getFirst().reader();
+
+                // doc at a time, decoded the way the block loader decodes it
+                final var binaryDV = getTSDBBinaryValues(leaf, "binary");
+                final var cdvReader = new CustomBinaryDocValuesReader();
+                for (int i = 0; i < numDocs; i++) {
+                    assertTrue(binaryDV.advanceExact(i));
+                    final List<String> actual = new ArrayList<>();
+                    cdvReader.read(binaryDV.binaryValue(), collectingBytesRefBuilder(actual));
+                    assertEquals("values of doc " + i, values.get(i), actual);
+                }
+
+                // bulk, through the multi-valued path of tryRead
+                final var block = (TestBlock) getTSDBBinaryValues(leaf, "binary").tryRead(
+                    TestBlock.factory(),
+                    TestBlock.docs(IntStream.range(0, numDocs).toArray()),
+                    0,
+                    false,
+                    null,
+                    false,
+                    true
+                );
+                assertNotNull(block);
+                assertEquals(numDocs, block.size());
+                for (int i = 0; i < numDocs; i++) {
+                    assertEquals("values of doc " + i, values.get(i), asStrings(block.get(i)));
+                }
+            }
+        }
+    }
+
+    /** Collects the values a {@link CustomBinaryDocValuesReader} decodes into {@code collected}. */
+    private static BlockLoader.BytesRefBuilder collectingBytesRefBuilder(List<String> collected) {
+        return new BytesRefBuilderStub() {
+            @Override
+            public BlockLoader.BytesRefBuilder appendBytesRef(BytesRef value) {
+                collected.add(value.utf8ToString());
+                return this;
+            }
+        };
+    }
+
+    /** The values of one position of a {@link TestBlock}, which holds either a single value or a list of them. */
+    private static List<String> asStrings(Object blockValue) {
+        if (blockValue instanceof List<?> list) {
+            return list.stream().map(value -> ((BytesRef) value).utf8ToString()).toList();
+        }
+        return List.of(((BytesRef) blockValue).utf8ToString());
+    }
+
+    /**
+     * Walks a predicate iterator with {@link DocIdSetIterator#advance}, checking that it lands on the expected docs and that every
+     * doc in a run reported by {@link DocIdSetIterator#docIDRunEnd()} matches.
+     */
+    private static void assertIteratorAdvance(DocIdSetIterator iterator, Set<Integer> expected, int numDocs) throws IOException {
+        assertNotNull(iterator);
+        final Set<Integer> actual = new HashSet<>();
+        for (int target = 0; target < numDocs;) {
+            final int doc = iterator.advance(target);
+            if (doc == DocIdSetIterator.NO_MORE_DOCS) {
+                break;
+            }
+            assertTrue("iterator returned unexpected doc " + doc, expected.contains(doc));
+            actual.add(doc);
+
+            final int runEnd = iterator.docIDRunEnd();
+            assertThat("docIDRunEnd must be past the current doc", runEnd, greaterThan(doc));
+            for (int d = doc; d < runEnd; d++) {
+                assertTrue("doc " + d + " in run [" + doc + ", " + runEnd + ") should match", expected.contains(d));
+                actual.add(d);
+            }
+            target = runEnd;
+        }
+        assertEquals("iterator should return exactly the matching docs", expected, actual);
+        assertEquals(DocIdSetIterator.NO_MORE_DOCS, iterator.advance(numDocs));
+    }
+
+    /**
+     * Returns a value that is either small, close to the block bytes threshold, or several times larger than it. Large values
+     * may contain {@code needle} across a block boundary.
+     */
+    private static String randomSplitTestValue(int blockBytesThreshold, String needle, boolean forceLarge) {
+        final int kind = forceLarge ? 2 : randomIntBetween(0, 2);
+        final int length = switch (kind) {
+            case 0 -> randomIntBetween(0, blockBytesThreshold / 4);
+            case 1 -> randomIntBetween(blockBytesThreshold - 2, blockBytesThreshold + 2);
+            case 2 -> randomIntBetween(blockBytesThreshold + 1, 10 * blockBytesThreshold);
+            default -> throw new AssertionError("unexpected kind [" + kind + "]");
+        };
+        final StringBuilder value = new StringBuilder(randomAlphaOfLength(length));
+        if (length > needle.length() && randomBoolean()) {
+            // place the needle so that it crosses a multiple of the threshold if possible
+            int boundary = (length / blockBytesThreshold) * blockBytesThreshold;
+            int start = Math.clamp(boundary - needle.length() / 2, 0, length - needle.length());
+            value.replace(start, start + needle.length(), needle);
+        }
+        return value.toString();
+    }
+
+    private static Set<Integer> collectDocs(DocIdSetIterator iterator) throws IOException {
+        assertNotNull(iterator);
+        final Set<Integer> docs = new HashSet<>();
+        for (int doc = iterator.nextDoc(); doc != DocIdSetIterator.NO_MORE_DOCS; doc = iterator.nextDoc()) {
+            docs.add(doc);
+        }
+        return docs;
     }
 
     void assertBinaryValues(List<String> binaryValues) throws Exception {

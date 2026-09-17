@@ -39,6 +39,7 @@ import org.elasticsearch.index.codec.bwc.Elasticsearch93Lucene104Codec;
 import org.elasticsearch.index.codec.tsdb.AbstractTSDBDocValuesFormatTests;
 import org.elasticsearch.index.codec.tsdb.AbstractTSDBDocValuesProducer.BaseSortedDocValues;
 import org.elasticsearch.index.codec.tsdb.BinaryDVCompressionMode;
+import org.elasticsearch.index.codec.tsdb.DocOffsetsCodec;
 import org.elasticsearch.index.codec.tsdb.ES87TSDBDocValuesFormatTests;
 import org.elasticsearch.index.codec.tsdb.TSDBDocValuesTestUtil;
 import org.elasticsearch.index.mapper.BlockLoader;
@@ -108,6 +109,40 @@ public class ES819TSDBDocValuesFormatTests extends AbstractTSDBDocValuesFormatTe
     @Override
     protected Codec getCodec() {
         return codec;
+    }
+
+    @Override
+    protected DocValuesFormat getFormatWithBinaryBlockThresholds(
+        int blockBytesThreshold,
+        int blockCountThreshold,
+        boolean enablePerBlockCompression
+    ) {
+        return binaryBlockThresholdFormat(blockBytesThreshold, blockCountThreshold, enablePerBlockCompression);
+    }
+
+    /**
+     * An ES819 format with the given binary doc values block thresholds. Segments are read back through the SPI-registered format
+     * for the codec name, so the doc offsets codec must match the one that format uses: GROUPED_VINT for ES819TSDB and BITPACKING
+     * for ES8193TSDB.
+     */
+    public static DocValuesFormat binaryBlockThresholdFormat(
+        int blockBytesThreshold,
+        int blockCountThreshold,
+        boolean enablePerBlockCompression
+    ) {
+        final boolean version3 = randomBoolean();
+        return new ES819TSDBDocValuesFormat(
+            version3 ? ES819Version3TSDBDocValuesFormat.CODEC_NAME : ES819TSDBDocValuesFormat.CODEC_NAME,
+            ES819TSDBDocValuesFormat.DEFAULT_SKIP_INDEX_INTERVAL_SIZE,
+            ES819TSDBDocValuesFormat.ORDINAL_RANGE_ENCODING_MIN_DOC_PER_ORDINAL,
+            randomBoolean(),
+            BinaryDVCompressionMode.COMPRESSED_ZSTD_LEVEL_1,
+            enablePerBlockCompression,
+            NUMERIC_BLOCK_SHIFT,
+            version3 ? DocOffsetsCodec.BITPACKING : DocOffsetsCodec.GROUPED_VINT,
+            blockBytesThreshold,
+            blockCountThreshold
+        );
     }
 
     public void testBinaryCompressionEnabled() {

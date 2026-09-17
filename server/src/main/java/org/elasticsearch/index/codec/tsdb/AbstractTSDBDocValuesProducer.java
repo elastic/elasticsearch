@@ -612,6 +612,14 @@ public abstract class AbstractTSDBDocValuesProducer extends DocValuesProducer {
         private BytesRef uncompressedBytesRef;
         private long startDocNumForBlock = -1;
         private long limitDocNumForBlock = -1;
+        // The blocks the two buffers currently hold. Offsets and values are loaded independently — reading a length or walking a
+        // predicate iterator loads offsets only — so a value read cannot assume the value bytes of its block are loaded.
+        private long offsetsBlockId = -1;
+        private long valuesBlockId = -1;
+        // Physical length of the block whose offsets were loaded last; smaller than the logical length for a split value
+        private int physicalBlockLength;
+        // Lazily allocated scratch space to decompress the continuation blocks of a split value into
+        private BytesRef continuationScratch;
         private final Decompressor decompressor;
         private final DocOffsetsCodec.Decoder docOffsetsDecoder;
 
@@ -640,10 +648,13 @@ public abstract class AbstractTSDBDocValuesProducer extends DocValuesProducer {
 
             var header = BinaryDVCompressionMode.BlockHeader.fromByte(compressedData.readByte());
             int uncompressedBlockLength = compressedData.readVInt();
+            physicalBlockLength = uncompressedBlockLength;
+            offsetsBlockId = blockId;
 
             if (uncompressedBlockLength == 0) {
                 Arrays.fill(uncompressedDocStarts, 0);
             } else {
+                assert numDocsInBlock > 0 : "continuation block [" + blockId + "] must not be loaded directly";
                 docOffsetsDecoder.decode(uncompressedDocStarts, numDocsInBlock, compressedData);
             }
 
@@ -652,7 +663,7 @@ public abstract class AbstractTSDBDocValuesProducer extends DocValuesProducer {
 
         private void decompressBlock(long blockId, int numDocsInBlock) throws IOException {
             var header = decompressOffsets(blockId, numDocsInBlock);
-            decompressValues(header.isCompressed(), numDocsInBlock);
+            decompressValues(blockId, header.isCompressed(), numDocsInBlock);
         }
 
         /**
@@ -660,8 +671,12 @@ public abstract class AbstractTSDBDocValuesProducer extends DocValuesProducer {
          * {@link #decompressOffsets}. Precondition: {@code compressedData} is still positioned
          * immediately after that block's encoded offsets — no intervening seek or read on this
          * decoder since the offsets were loaded.
+         * <p>
+         * A value larger than the writer's block bytes threshold is split over a head block, which holds the doc and
+         * its logical offsets, and zero-doc continuation blocks that follow it. For such a head block the logical length
+         * exceeds the physical length and the remaining bytes are read from the continuation blocks.
          */
-        private void decompressValues(boolean compressed, int numDocsInBlock) throws IOException {
+        private void decompressValues(long blockId, boolean compressed, int numDocsInBlock) throws IOException {
             int uncompressedBlockLength = uncompressedDocStarts[numDocsInBlock];
             if (uncompressedBlock == null || uncompressedBlock.length < uncompressedBlockLength) {
                 // Size to the block we actually read, capped at the segment max, so one outlier block does not force every
@@ -674,10 +689,64 @@ public abstract class AbstractTSDBDocValuesProducer extends DocValuesProducer {
             uncompressedBytesRef.offset = 0;
             uncompressedBytesRef.length = uncompressedBlock.length;
 
+            final int headLength = physicalBlockLength;
+            if (headLength > uncompressedBlockLength) {
+                throw new CorruptIndexException(
+                    "block [" + blockId + "] holds [" + headLength + "] bytes but its offsets end at [" + uncompressedBlockLength + "]",
+                    compressedData
+                );
+            }
+            // The buffer holds no complete block until every byte below has been read into it.
+            valuesBlockId = -1;
             if (compressed) {
-                decompressor.decompress(compressedData, uncompressedBlockLength, 0, uncompressedBlockLength, uncompressedBytesRef);
+                decompressor.decompress(compressedData, headLength, 0, headLength, uncompressedBytesRef);
             } else {
-                compressedData.readBytes(uncompressedBlock, 0, uncompressedBlockLength);
+                compressedData.readBytes(uncompressedBlock, 0, headLength);
+            }
+            if (headLength < uncompressedBlockLength) {
+                readContinuationBlocks(blockId, headLength, uncompressedBlockLength);
+            }
+            valuesBlockId = blockId;
+        }
+
+        /**
+         * Appends the bytes of the continuation blocks that follow the head block {@code blockId} to
+         * {@link #uncompressedBlock}, starting at {@code pos}, until {@code end} bytes are available.
+         */
+        private void readContinuationBlocks(long blockId, int pos, int end) throws IOException {
+            assert docOffsets.get(blockId + 1) - docOffsets.get(blockId) == 1 : "a split value must be the only doc in its head block";
+            for (long continuationId = blockId + 1; pos < end; continuationId++) {
+                if (docOffsets.get(continuationId) != docOffsets.get(continuationId + 1)) {
+                    throw new CorruptIndexException(
+                        "expected continuation block [" + continuationId + "] of split value in block [" + blockId + "] to hold no docs",
+                        compressedData
+                    );
+                }
+                compressedData.seek(addresses.get(continuationId));
+                var header = BinaryDVCompressionMode.BlockHeader.fromByte(compressedData.readByte());
+                int length = compressedData.readVInt();
+                if (length == 0 || pos + length > end) {
+                    throw new CorruptIndexException(
+                        "continuation block ["
+                            + continuationId
+                            + "] of ["
+                            + length
+                            + "] bytes does not fit split value of ["
+                            + end
+                            + "] bytes",
+                        compressedData
+                    );
+                }
+                if (header.isCompressed()) {
+                    if (continuationScratch == null) {
+                        continuationScratch = new BytesRef();
+                    }
+                    decompressor.decompress(compressedData, length, 0, length, continuationScratch);
+                    System.arraycopy(continuationScratch.bytes, continuationScratch.offset, uncompressedBlock, pos, length);
+                } else {
+                    compressedData.readBytes(uncompressedBlock, pos, length);
+                }
+                pos += length;
             }
         }
 
@@ -686,11 +755,7 @@ public abstract class AbstractTSDBDocValuesProducer extends DocValuesProducer {
                 return lastBlockId;
             }
 
-            long index = docOffsets.binarySearch(lastBlockId + 1, numBlocks, docNumber);
-            if (index < 0) {
-                index = -2 - index;
-            }
-            assert index < numBlocks : "invalid range " + index + " for doc " + docNumber + " in numBlocks " + numBlocks;
+            long index = findBlock(docNumber, numBlocks, lastBlockId + 1);
 
             startDocNumForBlock = docOffsets.get(index);
             limitDocNumForBlock = docOffsets.get(index + 1);
@@ -722,10 +787,10 @@ public abstract class AbstractTSDBDocValuesProducer extends DocValuesProducer {
             int idxInBlock = (int) (docNumber - startDocNumForBlock);
             assert idxInBlock >= 0 && idxInBlock < numDocsInBlock : outOfBlock(docNumber, idxInBlock, numDocsInBlock);
 
-            if (blockId != lastBlockId) {
+            if (blockId != valuesBlockId) {
                 decompressBlock(blockId, numDocsInBlock);
-                lastBlockId = blockId;
             }
+            lastBlockId = blockId;
 
             int start = uncompressedDocStarts[idxInBlock];
             int end = uncompressedDocStarts[idxInBlock + 1];
@@ -741,10 +806,10 @@ public abstract class AbstractTSDBDocValuesProducer extends DocValuesProducer {
             int idxInBlock = (int) (docNumber - startDocNumForBlock);
             assert idxInBlock >= 0 && idxInBlock < numDocsInBlock : outOfBlock(docNumber, idxInBlock, numDocsInBlock);
 
-            if (blockId != lastBlockId) {
+            if (blockId != offsetsBlockId) {
                 decompressOffsets(blockId, numDocsInBlock);
-                lastBlockId = blockId;
             }
+            lastBlockId = blockId;
 
             int start = uncompressedDocStarts[idxInBlock];
             int end = uncompressedDocStarts[idxInBlock + 1];
@@ -788,6 +853,9 @@ public abstract class AbstractTSDBDocValuesProducer extends DocValuesProducer {
                     blockStart = (int) docOffsets.get(blockId);
                     blockEnd = (int) docOffsets.get(blockId + 1);
                     loadBlock(blockId, blockEnd - blockStart);
+                } else if (blockNeedsReload(blockId)) {
+                    // Another reader on this decoder has loaded a different block into the buffers this iterator reads from.
+                    loadBlock(blockId, blockEnd - blockStart);
                 }
                 return matchesInBlock(doc - blockStart);
             }
@@ -798,6 +866,9 @@ public abstract class AbstractTSDBDocValuesProducer extends DocValuesProducer {
              * {@link #decompressBlock}.
              */
             abstract void loadBlock(long blockId, int numDocsInBlock) throws IOException;
+
+            /** Whether the buffers this iterator reads from no longer hold {@code blockId}. */
+            abstract boolean blockNeedsReload(long blockId);
 
             /** Per-doc predicate evaluated against the currently-loaded block. */
             abstract boolean matchesInBlock(int idxInBlock) throws IOException;
@@ -812,6 +883,11 @@ public abstract class AbstractTSDBDocValuesProducer extends DocValuesProducer {
                 @Override
                 void loadBlock(long blockId, int numDocsInBlock) throws IOException {
                     decompressOffsets(blockId, numDocsInBlock);
+                }
+
+                @Override
+                boolean blockNeedsReload(long blockId) {
+                    return offsetsBlockId != blockId;
                 }
 
                 @Override
@@ -836,6 +912,11 @@ public abstract class AbstractTSDBDocValuesProducer extends DocValuesProducer {
                 @Override
                 void loadBlock(long blockId, int numDocsInBlock) throws IOException {
                     decompressBlock(blockId, numDocsInBlock);
+                }
+
+                @Override
+                boolean blockNeedsReload(long blockId) {
+                    return valuesBlockId != blockId;
                 }
 
                 @Override
@@ -871,16 +952,20 @@ public abstract class AbstractTSDBDocValuesProducer extends DocValuesProducer {
          */
         DocIdSetIterator termEqualTwoPhase(int numBlocks, BytesRef term, int leafMaxDoc) {
             return TwoPhaseIterator.asDocIdSetIterator(new BlockAwareTwoPhase(DocIdSetIterator.all(leafMaxDoc), numBlocks) {
-                private boolean valuesLoaded;
-                private boolean blockCompressed;
+                private long loadedBlockId;
                 private int blockNumDocs;
 
                 @Override
                 void loadBlock(long blockId, int numDocsInBlock) throws IOException {
                     // Offsets only — value bytes are decompressed on demand in matchesInBlock.
-                    blockCompressed = decompressOffsets(blockId, numDocsInBlock).isCompressed();
+                    decompressOffsets(blockId, numDocsInBlock);
+                    loadedBlockId = blockId;
                     blockNumDocs = numDocsInBlock;
-                    valuesLoaded = false;
+                }
+
+                @Override
+                boolean blockNeedsReload(long blockId) {
+                    return offsetsBlockId != blockId;
                 }
 
                 @Override
@@ -890,11 +975,10 @@ public abstract class AbstractTSDBDocValuesProducer extends DocValuesProducer {
                     if (length != term.length) {
                         return false; // rejected on offsets alone — value bytes never touched
                     }
-                    if (valuesLoaded == false) {
-                        // First length-match in this block: decompress values now. compressedData is
-                        // still positioned immediately after this block's encoded offsets.
-                        decompressValues(blockCompressed, blockNumDocs);
-                        valuesLoaded = true;
+                    if (valuesBlockId != loadedBlockId) {
+                        // First length-match in this block: decompress its values now. Blocks where no doc has the term's
+                        // length never get here and pay only for their offsets.
+                        decompressBlock(loadedBlockId, blockNumDocs);
                     }
                     return Arrays.equals(uncompressedBlock, offset, offset + length, term.bytes, term.offset, term.offset + term.length);
                 }
@@ -912,7 +996,13 @@ public abstract class AbstractTSDBDocValuesProducer extends DocValuesProducer {
             throws IOException {
             final long firstBlockId = findBlock(firstDocId, numBlocks, lastBlockId == -1 ? 0 : lastBlockId);
             final long endBlockId = findBlock(lastDocId, numBlocks, firstBlockId);
-            final int bufferSize = computeMultipleBlockBufferSize(firstBlockId, endBlockId);
+            // If the last doc holds a split value, its continuation blocks count towards the required buffer size too.
+            long endContinuationBlockId = endBlockId;
+            while (endContinuationBlockId + 1 < numBlocks
+                && docOffsets.get(endContinuationBlockId + 1) == docOffsets.get(endContinuationBlockId + 2)) {
+                endContinuationBlockId++;
+            }
+            final int bufferSize = computeMultipleBlockBufferSize(firstBlockId, endContinuationBlockId);
 
             int offsetBufferIndex = 0;
             final int[] offsetBuffer = new int[count + 1];
@@ -923,7 +1013,11 @@ public abstract class AbstractTSDBDocValuesProducer extends DocValuesProducer {
                 int blockStartDocId = (int) docOffsets.get(blockId);
                 int blockEndDocId = (int) docOffsets.get(blockId + 1);
                 int numDocsInBlock = blockEndDocId - blockStartDocId;
-                if (blockId != lastBlockId) {
+                if (numDocsInBlock == 0) {
+                    // continuation block of a split value, already joined when its head block was decompressed
+                    continue;
+                }
+                if (blockId != valuesBlockId) {
                     decompressBlock(blockId, numDocsInBlock);
                 }
 
@@ -955,12 +1049,35 @@ public abstract class AbstractTSDBDocValuesProducer extends DocValuesProducer {
         }
 
         long findBlock(int docNumber, int numBlocks, long fromIndex) {
-            long index = docOffsets.binarySearch(fromIndex, numBlocks, docNumber);
-            if (index < 0) {
-                index = -2 - index;
+            if (fromIndex > 0 && docOffsets.get(fromIndex) > docNumber) {
+                // The caller's hint is past the doc: the previous read on this decoder left off further ahead, for instance a bulk
+                // read of lengths before a bulk read of values. The hint only narrows the search, so fall back to the full range.
+                fromIndex = 0;
             }
+            long index = findBlock(docOffsets, docNumber, numBlocks, fromIndex);
             assert index < numBlocks : "invalid range " + index + " for doc " + docNumber + " in numBlocks " + numBlocks;
             return index;
+        }
+
+        /**
+         * Returns the last block in {@code [fromIndex, numBlocks)} whose first doc is at or before {@code docNumber}, which is the
+         * block the doc's value starts in. The continuation blocks of a split value hold no docs and therefore share their start
+         * with the next block, so an exact-match binary search could land on any of them; this search never returns one.
+         * Returns {@code fromIndex - 1} if the first block in the range starts after {@code docNumber}.
+         */
+        static long findBlock(LongValues blockDocStarts, int docNumber, int numBlocks, long fromIndex) {
+            // find the first index in [fromIndex, numBlocks] whose block starts after docNumber
+            long lo = fromIndex;
+            long hi = numBlocks;
+            while (lo <= hi) {
+                long mid = (lo + hi) >>> 1;
+                if (blockDocStarts.get(mid) <= docNumber) {
+                    lo = mid + 1;
+                } else {
+                    hi = mid - 1;
+                }
+            }
+            return lo - 1;
         }
 
         int computeMultipleBlockBufferSize(long firstBlockId, long lastBlockId) throws IOException {

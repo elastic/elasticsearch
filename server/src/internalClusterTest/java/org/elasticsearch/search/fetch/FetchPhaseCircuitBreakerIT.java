@@ -14,6 +14,7 @@ import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.action.index.IndexRequestBuilder;
 import org.elasticsearch.action.search.ClosePointInTimeRequest;
 import org.elasticsearch.action.search.OpenPointInTimeRequest;
+import org.elasticsearch.action.search.SearchRequestBuilder;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.search.SearchScrollRequest;
 import org.elasticsearch.action.search.TransportClosePointInTimeAction;
@@ -29,10 +30,13 @@ import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.script.MockScriptPlugin;
 import org.elasticsearch.script.Script;
 import org.elasticsearch.script.ScriptType;
+import org.elasticsearch.search.aggregations.AggregationBuilders;
 import org.elasticsearch.search.builder.PointInTimeBuilder;
+import org.elasticsearch.search.fetch.subphase.FetchSourceContext;
 import org.elasticsearch.search.rank.FieldBasedRerankerIT;
 import org.elasticsearch.search.sort.SortOrder;
 import org.elasticsearch.test.ESIntegTestCase;
+import org.elasticsearch.xcontent.XContentBuilder;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -42,12 +46,14 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.atomic.AtomicInteger;
+import java.util.function.Consumer;
 import java.util.function.Function;
 
 import static org.elasticsearch.index.query.QueryBuilders.matchAllQuery;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertNoFailuresAndResponse;
 import static org.elasticsearch.xcontent.XContentFactory.jsonBuilder;
+import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.lessThanOrEqualTo;
@@ -64,6 +70,11 @@ public class FetchPhaseCircuitBreakerIT extends ESIntegTestCase {
     private static final String SORT_FIELD = "sort_field";
     private static final String LARGE_LIST_SCRIPT = "build_large_list";
     private static final int LARGE_LIST_ENTRIES = 5_000;
+
+    // Many short values make the retained DocumentField graph far larger than its wire size, so a breaker
+    // limit can sit between the two and separate field accounting from the later serialization charge.
+    private static final String MANY_VALUES_FIELD = "many_values";
+    private static final int MANY_VALUES_COUNT = 5_000;
 
     private static final String FAIL_AFTER_FIRST_CALL_SCRIPT = "fail_after_first_call";
     private static final AtomicInteger FAIL_AFTER_FIRST_CALL_COUNT = new AtomicInteger(0);
@@ -497,6 +508,160 @@ public class FetchPhaseCircuitBreakerIT extends ESIntegTestCase {
         });
     }
 
+    public void testCircuitBreakerTripsOnRetrievedFieldsWithoutSource() throws Exception {
+        // With _source off, the retained DocumentField values are the whole fetch footprint. All three retrieval
+        // APIs share one cluster and index here: the fixture is expensive and each search trips independently.
+        String dataNode = startDataNode("2mb");
+        String coordinatorNode = internalCluster().startCoordinatingOnlyNode(Settings.EMPTY);
+        assertThat(internalCluster().size(), equalTo(2));
+
+        createIndexForTest(
+            INDEX,
+            Settings.builder().put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1).put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0).build()
+        );
+        populateIndex(INDEX, 25, 10, MANY_VALUES_COUNT);
+        ensureSearchable(INDEX);
+
+        // FetchDocValuesPhase appends into fields another sub-phase may own, so only a per-hit charge covers it
+        Map<String, Consumer<SearchRequestBuilder>> retrievalModes = Map.of(
+            "fields",
+            search -> search.addFetchField(MANY_VALUES_FIELD),
+            "docvalue_fields",
+            search -> search.addDocValueField(MANY_VALUES_FIELD),
+            "stored_fields",
+            search -> search.storedFields(MANY_VALUES_FIELD)
+        );
+
+        for (Map.Entry<String, Consumer<SearchRequestBuilder>> mode : retrievalModes.entrySet()) {
+            long breakerBeforeSearch = getRequestBreakerUsed(dataNode);
+
+            SearchRequestBuilder search = client(coordinatorNode).prepareSearch(INDEX)
+                .setQuery(matchAllQuery())
+                .setFetchSource(false)
+                .setSize(20);
+            mode.getValue().accept(search);
+
+            Exception exception = expectThrows(Exception.class, search::get);
+            Throwable breaking = ExceptionsHelper.unwrap(exception, CircuitBreakingException.class);
+            assertThat("Should contain CircuitBreakingException for " + mode.getKey(), breaking, notNullValue());
+            assertThat(
+                "Circuit breaking should map to 429 TOO_MANY_REQUESTS for " + mode.getKey(),
+                ExceptionsHelper.status(exception),
+                equalTo(RestStatus.TOO_MANY_REQUESTS)
+            );
+            assertThat(
+                "the retained field values must be what tripped the breaker for " + mode.getKey(),
+                breaking.getMessage(),
+                containsString("fetch[fields]")
+            );
+
+            assertBusy(
+                () -> assertThat(
+                    "Circuit breaker should be released after the tripped " + mode.getKey() + " fetch",
+                    getRequestBreakerUsed(dataNode),
+                    lessThanOrEqualTo(breakerBeforeSearch)
+                )
+            );
+        }
+    }
+
+    public void testCircuitBreakerTripsOnTopHitsFields() throws Exception {
+        // top_hits runs its own fetch with the aggregator's byte checker instead of the batched one, so the
+        // document fields it retains are charged per hit under "<agg [...]>" rather than fetch[fields].
+        String dataNode = startDataNode("2mb");
+        String coordinatorNode = internalCluster().startCoordinatingOnlyNode(Settings.EMPTY);
+        assertThat(internalCluster().size(), equalTo(2));
+
+        createIndexForTest(
+            INDEX,
+            Settings.builder().put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1).put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0).build()
+        );
+        populateIndex(INDEX, 25, 10, MANY_VALUES_COUNT);
+        ensureSearchable(INDEX);
+
+        long breakerBeforeSearch = getRequestBreakerUsed(dataNode);
+
+        Exception exception = expectThrows(
+            Exception.class,
+            () -> client(coordinatorNode).prepareSearch(INDEX)
+                .setQuery(matchAllQuery())
+                .setSize(0)
+                .addAggregation(
+                    AggregationBuilders.terms("by_keyword")
+                        .field("keyword")
+                        .subAggregation(
+                            AggregationBuilders.topHits("hits")
+                                .size(5)
+                                .fetchSource(FetchSourceContext.DO_NOT_FETCH_SOURCE)
+                                .fetchField(MANY_VALUES_FIELD)
+                        )
+                )
+                .get()
+        );
+
+        assertThat(
+            "Should contain CircuitBreakingException",
+            ExceptionsHelper.unwrap(exception, CircuitBreakingException.class),
+            notNullValue()
+        );
+        assertThat(
+            "Circuit breaking should map to 429 TOO_MANY_REQUESTS",
+            ExceptionsHelper.status(exception),
+            equalTo(RestStatus.TOO_MANY_REQUESTS)
+        );
+        // The label is the top_hits aggregator's name, and appears whether the child or the parent breaker trips
+        assertThat(
+            "the top_hits document fields must be what tripped the breaker",
+            ExceptionsHelper.unwrap(exception, CircuitBreakingException.class).getMessage(),
+            containsString("<agg [hits]>")
+        );
+
+        assertBusy(
+            () -> assertThat(
+                "Circuit breaker should be released after the tripped top_hits fetch",
+                getRequestBreakerUsed(dataNode),
+                lessThanOrEqualTo(breakerBeforeSearch)
+            )
+        );
+    }
+
+    public void testFieldsBytesReleasedAfterSearch() throws Exception {
+        String dataNode = startDataNode("100mb");
+        String coordinatorNode = internalCluster().startCoordinatingOnlyNode(Settings.EMPTY);
+        assertThat(internalCluster().size(), equalTo(2));
+
+        createIndexForTest(
+            INDEX,
+            Settings.builder().put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1).put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0).build()
+        );
+        populateIndex(INDEX, 50, 10_000);
+        ensureSearchable(INDEX);
+
+        long breakerBeforeSearch = getRequestBreakerUsed(dataNode);
+
+        assertNoFailuresAndResponse(
+            client(coordinatorNode).prepareSearch(INDEX)
+                .setQuery(matchAllQuery())
+                .setFetchSource(false)
+                .addFetchField("large_text_1")
+                .storedFields("text")
+                .setSize(20),
+            response -> {
+                assertThat(response.getHits().getHits().length, equalTo(20));
+                assertThat(response.getHits().getHits()[0].getFields().get("large_text_1"), notNullValue());
+                assertThat(response.getHits().getHits()[0].getFields().get("text"), notNullValue());
+            }
+        );
+
+        assertBusy(
+            () -> assertThat(
+                "Circuit breaker should be released after a fields/stored_fields search completes",
+                getRequestBreakerUsed(dataNode),
+                lessThanOrEqualTo(breakerBeforeSearch)
+            )
+        );
+    }
+
     public void testCircuitBreakerTripsOnScrollFetch() throws Exception {
         String dataNode = startDataNode("50kb");
         String coordinatorNode = internalCluster().startCoordinatingOnlyNode(Settings.EMPTY);
@@ -564,8 +729,7 @@ public class FetchPhaseCircuitBreakerIT extends ESIntegTestCase {
 
         long breakerBeforeSearch = getRequestBreakerUsed(dataNode);
 
-        // The rank feature phase reuses the fetch phase but never requests _source, so a script_field is
-        // the only way to charge the request breaker on this path.
+        // This path never requests _source, so only what sub-phases retain on the hit is charged.
         Script largeScript = new Script(ScriptType.INLINE, MockScriptPlugin.NAME, LARGE_LIST_SCRIPT, Collections.emptyMap());
 
         assertNoFailuresAndResponse(
@@ -614,26 +778,35 @@ public class FetchPhaseCircuitBreakerIT extends ESIntegTestCase {
                     "large_text_2",
                     "type=text,store=false",
                     "keyword",
-                    "type=keyword"
+                    "type=keyword",
+                    MANY_VALUES_FIELD,
+                    "type=keyword,store=true"
                 )
         );
     }
 
     private void populateIndex(String indexName, int nDocs, int textSize) throws IOException {
+        populateIndex(indexName, nDocs, textSize, 0);
+    }
+
+    // MANY_VALUES_FIELD is opt-in: indexing that many terms per document is slow enough to matter.
+    private void populateIndex(String indexName, int nDocs, int textSize, int manyValuesCount) throws IOException {
         List<IndexRequestBuilder> builders = new ArrayList<>();
         for (int i = 0; i < nDocs; i++) {
-            builders.add(
-                prepareIndex(indexName).setId(Integer.toString(i))
-                    .setSource(
-                        jsonBuilder().startObject()
-                            .field(SORT_FIELD, i)
-                            .field("text", "document " + i)
-                            .field("large_text_1", Strings.repeat("large content field 1 ", textSize))
-                            .field("large_text_2", Strings.repeat("large content field 2 ", textSize))
-                            .field("keyword", "value" + (i % 10))
-                            .endObject()
-                    )
-            );
+            XContentBuilder source = jsonBuilder().startObject()
+                .field(SORT_FIELD, i)
+                .field("text", "document " + i)
+                .field("large_text_1", Strings.repeat("large content field 1 ", textSize))
+                .field("large_text_2", Strings.repeat("large content field 2 ", textSize))
+                .field("keyword", "value" + (i % 10));
+            if (manyValuesCount > 0) {
+                List<String> manyValues = new ArrayList<>(manyValuesCount);
+                for (int v = 0; v < manyValuesCount; v++) {
+                    manyValues.add("v" + i + "-" + v);
+                }
+                source.field(MANY_VALUES_FIELD, manyValues);
+            }
+            builders.add(prepareIndex(indexName).setId(Integer.toString(i)).setSource(source.endObject()));
         }
         indexRandom(true, builders);
     }

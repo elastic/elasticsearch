@@ -12,6 +12,7 @@ import org.elasticsearch.action.support.ContextPreservingActionListener;
 import org.elasticsearch.cluster.metadata.DatasetFieldMapping;
 import org.elasticsearch.cluster.metadata.DatasetMapping;
 import org.elasticsearch.common.breaker.CircuitBreakingException;
+import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.common.util.concurrent.EsRejectedExecutionException;
@@ -75,6 +76,7 @@ import java.util.concurrent.atomic.AtomicReference;
 import java.util.concurrent.atomic.AtomicReferenceArray;
 import java.util.function.BooleanSupplier;
 import java.util.function.Consumer;
+import java.util.function.IntSupplier;
 import java.util.function.Predicate;
 import java.util.function.Supplier;
 
@@ -173,6 +175,16 @@ public class ExternalSourceResolver {
     private final Executor executor;
     private final DataSourceModule dataSourceModule;
     private final Settings settings;
+    /**
+     * Kept-files, brace-expansion, and LIST-walk caps. Production wires these to
+     * {@code ClusterSettings.initializeAndWatchIfRegistered} so a persistent cluster update is visible
+     * on the next expand ({@code initializeAndWatch} throws when federation is unregistered). Null
+     * constructor args fall back to {@code Setting.get(settings)}, the node/yml snapshot tests already
+     * pass in.
+     */
+    private final IntSupplier maxDiscoveredFiles;
+    private final IntSupplier maxGlobExpansion;
+    private final IntSupplier maxListedObjects;
     private final ExternalSourceCacheService cacheService;
     /** Node telemetry sink, taken from the module ({@link ExternalSourceMetrics#NOOP} when no module is wired, e.g. tests). */
     private final ExternalSourceMetrics metrics;
@@ -316,12 +328,52 @@ public class ExternalSourceResolver {
         return executor;
     }
 
+    /** Live {@link ExternalSourceSettings#MAX_DISCOVERED_FILES} cap. Visible for wiring tests. */
+    public int maxDiscoveredFiles() {
+        return maxDiscoveredFiles.getAsInt();
+    }
+
+    /** Live {@link ExternalSourceSettings#MAX_GLOB_EXPANSION} cap. Visible for wiring tests. */
+    public int maxGlobExpansion() {
+        return maxGlobExpansion.getAsInt();
+    }
+
+    /** Live {@link ExternalSourceSettings#MAX_LISTED_OBJECTS} cap. Visible for wiring tests. */
+    public int maxListedObjects() {
+        return maxListedObjects.getAsInt();
+    }
+
     public ExternalSourceResolver(Executor executor, DataSourceModule dataSourceModule) {
         this(executor, dataSourceModule, Settings.EMPTY, null);
     }
 
     public ExternalSourceResolver(Executor executor, DataSourceModule dataSourceModule, Settings settings) {
         this(executor, dataSourceModule, settings, null);
+    }
+
+    /**
+     * Test and plugin wiring that supplies live listing caps. {@code null} suppliers read {@code settings}.
+     */
+    public ExternalSourceResolver(
+        Executor executor,
+        DataSourceModule dataSourceModule,
+        Settings settings,
+        @Nullable IntSupplier maxDiscoveredFiles,
+        @Nullable IntSupplier maxGlobExpansion,
+        @Nullable IntSupplier maxListedObjects
+    ) {
+        this(
+            executor,
+            dataSourceModule,
+            settings,
+            null,
+            null,
+            DEFAULT_METADATA_READ_CONCURRENCY,
+            null,
+            maxDiscoveredFiles,
+            maxGlobExpansion,
+            maxListedObjects
+        );
     }
 
     public ExternalSourceResolver(
@@ -393,12 +445,38 @@ public class ExternalSourceResolver {
         int metadataReadConcurrency,
         @Nullable ThreadContext threadContext
     ) {
+        this(executor, dataSourceModule, settings, cacheService, isCancelled, metadataReadConcurrency, threadContext, null, null, null);
+    }
+
+    /**
+     * @param maxDiscoveredFiles live {@link ExternalSourceSettings#MAX_DISCOVERED_FILES} cap; {@code null} reads
+     *            {@code settings}
+     * @param maxGlobExpansion live {@link ExternalSourceSettings#MAX_GLOB_EXPANSION} cap; {@code null} reads
+     *            {@code settings}
+     * @param maxListedObjects live {@link ExternalSourceSettings#MAX_LISTED_OBJECTS} cap; {@code null} reads
+     *            {@code settings}
+     */
+    public ExternalSourceResolver(
+        Executor executor,
+        DataSourceModule dataSourceModule,
+        Settings settings,
+        @Nullable ExternalSourceCacheService cacheService,
+        @Nullable BooleanSupplier isCancelled,
+        int metadataReadConcurrency,
+        @Nullable ThreadContext threadContext,
+        @Nullable IntSupplier maxDiscoveredFiles,
+        @Nullable IntSupplier maxGlobExpansion,
+        @Nullable IntSupplier maxListedObjects
+    ) {
         if (metadataReadConcurrency < 1) {
             throw new IllegalArgumentException("metadataReadConcurrency must be >= 1, got: " + metadataReadConcurrency);
         }
         this.executor = executor;
         this.dataSourceModule = dataSourceModule;
         this.settings = settings;
+        this.maxDiscoveredFiles = capOrSettings(maxDiscoveredFiles, ExternalSourceSettings.MAX_DISCOVERED_FILES, settings);
+        this.maxGlobExpansion = capOrSettings(maxGlobExpansion, ExternalSourceSettings.MAX_GLOB_EXPANSION, settings);
+        this.maxListedObjects = capOrSettings(maxListedObjects, ExternalSourceSettings.MAX_LISTED_OBJECTS, settings);
         this.cacheService = cacheService;
         this.isCancelled = isCancelled;
         this.metrics = dataSourceModule == null ? ExternalSourceMetrics.NOOP : dataSourceModule.externalSourceMetrics();
@@ -411,14 +489,18 @@ public class ExternalSourceResolver {
         );
     }
 
+    private static IntSupplier capOrSettings(@Nullable IntSupplier supplied, Setting<Integer> setting, Settings settings) {
+        return supplied != null ? supplied : () -> setting.get(settings);
+    }
+
     /**
      * Publishes one discovery pass (wall time + the discovered file count and estimated byte total) to node
      * telemetry. Best-effort: {@link ExternalSourceMetrics#recordDiscovery} self-guards, so an instrumentation
      * failure never fails resolution.
      */
-    private void recordDiscovery(FileList list, long startNanos, String scheme) {
+    private void recordDiscovery(FileList list, long startNanos, String scheme, FormatReader.SchemaResolution schemaResolution) {
         long durationMs = (System.nanoTime() - startNanos) / 1_000_000;
-        metrics.recordDiscovery(durationMs, list.fileCount(), list.estimatedBytes(), scheme);
+        metrics.recordDiscovery(durationMs, list.fileCount(), list.estimatedBytes(), scheme, schemaResolution);
     }
 
     /** Records one failed discovery/resolution attempt. Best-effort ({@link ExternalSourceMetrics#recordDiscoveryFailure} self-guards). */
@@ -887,7 +969,7 @@ public class ExternalSourceResolver {
         // returns it when the anchor read is issued; cachedResolveSingleSourceAsync /
         // resolveSingleSourceAsync re-borrow and must not capture this provider.
         try {
-            FormatReader.SchemaResolution schemaResolution = parseSchemaResolution(config);
+            FormatReader.SchemaResolution schemaResolution = effectiveSchemaResolution(config);
             boolean cacheable = isCacheable(provider);
 
             String datasetFormat = appliesFileDatasetFormat(path, config) ? fileDatasetFormat(path, config) : null;
@@ -898,7 +980,7 @@ public class ExternalSourceResolver {
                 listener.onResponse(resolveStrictMultiFile(path, storagePath, provider, hints, fileConfig, declaredMapping));
                 return;
             }
-            FileList listing = listAndRecord(path, storagePath, provider, hints, fileConfig, cacheable);
+            FileList listing = listAndRecord(path, storagePath, provider, hints, fileConfig, schemaResolution, cacheable);
             if (listing.fileCount() == 0) {
                 throw noFilesMatched(path, listing);
             }
@@ -1286,6 +1368,7 @@ public class ExternalSourceResolver {
         StorageProvider provider,
         @Nullable List<PartitionFilterHintExtractor.PartitionFilterHint> hints,
         Map<String, Object> config,
+        FormatReader.SchemaResolution schemaResolution,
         boolean cacheable
     ) throws Exception {
         long discoveryStartNanos = System.nanoTime();
@@ -1293,7 +1376,7 @@ public class ExternalSourceResolver {
             ? cachedListing(path, storagePath, provider, hints, config)
             : expandAndCompact(path, provider, hints, config, storagePath);
         pendingListingWarnings.addAll(listing.listingWarnings());
-        recordDiscovery(listing, discoveryStartNanos, storagePath.scheme());
+        recordDiscovery(listing, discoveryStartNanos, storagePath.scheme(), schemaResolution);
         return listing;
     }
 
@@ -1320,9 +1403,16 @@ public class ExternalSourceResolver {
         Map<String, Object> config,
         StoragePath storagePath
     ) throws Exception {
-        int maxDiscoveredFiles = ExternalSourceSettings.MAX_DISCOVERED_FILES.get(settings);
-        int maxGlobExpansion = ExternalSourceSettings.MAX_GLOB_EXPANSION.get(settings);
-        return GlobExpander.expandAndCompact(path, provider, hints, config, storagePath, maxDiscoveredFiles, maxGlobExpansion);
+        return GlobExpander.expandAndCompact(
+            path,
+            provider,
+            hints,
+            config,
+            storagePath,
+            maxDiscoveredFiles.getAsInt(),
+            maxGlobExpansion.getAsInt(),
+            maxListedObjects.getAsInt()
+        );
     }
 
     /**
@@ -1347,7 +1437,12 @@ public class ExternalSourceResolver {
             // intentional raw config: only reads partition-filter keys, not auth/connection params from _datasource
             GlobExpander.listingCacheDiscriminator(path, hints, config)
         );
-        return cacheService.getOrComputeListing(listingKey, k -> expandAndCompact(path, provider, hints, config, storagePath));
+        FileList listing = cacheService.getOrComputeListing(listingKey, k -> expandAndCompact(path, provider, hints, config, storagePath));
+        // Caps are not part of the listing key: a raise must keep hitting. A later drop still has
+        // to fail closed, or a cached FileList computed under a looser cap would bypass the setting
+        // until TTL. Expand already checked; this re-check is for the hit path.
+        GlobExpander.checkDiscoveredFilesLimit(listing.fileCount(), maxDiscoveredFiles.getAsInt());
+        return listing;
     }
 
     /**
@@ -2352,7 +2447,7 @@ public class ExternalSourceResolver {
         if (GlobExpander.isMultiFile(sourcePath) == false) {
             return false;
         }
-        if (parseSchemaResolution(config) != FormatReader.SchemaResolution.FIRST_FILE_WINS) {
+        if (effectiveSchemaResolution(config) != FormatReader.SchemaResolution.FIRST_FILE_WINS) {
             return false;
         }
         SchemaProvenance provenance = declaredReadSpec == null ? SchemaProvenance.INFERRED : declaredReadSpec.provenance();
@@ -2624,13 +2719,33 @@ public class ExternalSourceResolver {
         };
     }
 
-    static FormatReader.SchemaResolution parseSchemaResolution(@Nullable Map<String, Object> config) {
+    /**
+     * Effective schema resolution for a query or {@code FROM EXTERNAL} config. An explicit
+     * {@code schema_resolution} key wins; otherwise {@link FormatReader#DEFAULT_SCHEMA_RESOLUTION}
+     * ({@code first_file_wins}).
+     */
+    public static FormatReader.SchemaResolution effectiveSchemaResolution(@Nullable Map<String, Object> config) {
+        return parseSchemaResolution(config, FormatReader.DEFAULT_SCHEMA_RESOLUTION);
+    }
+
+    /**
+     * Effective schema resolution for a stored dataset document. An explicit key wins; a cluster-state
+     * document that predates persisting the key hydrates as {@link FormatReader.SchemaResolution#UNION_BY_NAME}.
+     */
+    public static FormatReader.SchemaResolution effectivePersistedSchemaResolution(@Nullable Map<String, Object> datasetSettings) {
+        return parseSchemaResolution(datasetSettings, FormatReader.SchemaResolution.UNION_BY_NAME);
+    }
+
+    private static FormatReader.SchemaResolution parseSchemaResolution(
+        @Nullable Map<String, Object> config,
+        FormatReader.SchemaResolution whenMissing
+    ) {
         if (config == null) {
-            return FormatReader.DEFAULT_SCHEMA_RESOLUTION;
+            return whenMissing;
         }
         Object value = config.get(CONFIG_SCHEMA_RESOLUTION);
         if (value == null) {
-            return FormatReader.DEFAULT_SCHEMA_RESOLUTION;
+            return whenMissing;
         }
         return FormatReader.SchemaResolution.parse(value.toString());
     }
@@ -3464,16 +3579,22 @@ public class ExternalSourceResolver {
         // strict resolutions are not invisible in the discovery telemetry (mirrors resolveMultiFileSource).
         long discoveryStartNanos = System.nanoTime();
         if (path.indexOf(',') >= 0) {
-            int maxDiscoveredFiles = ExternalSourceSettings.MAX_DISCOVERED_FILES.get(settings);
-            int maxGlobExpansion = ExternalSourceSettings.MAX_GLOB_EXPANSION.get(settings);
-            listing = GlobExpander.expand(path, provider, hints, config, maxDiscoveredFiles, maxGlobExpansion);
+            listing = GlobExpander.expand(
+                path,
+                provider,
+                hints,
+                config,
+                maxDiscoveredFiles.getAsInt(),
+                maxGlobExpansion.getAsInt(),
+                maxListedObjects.getAsInt()
+            );
         } else if (isCacheable(provider)) {
             listing = cachedListing(path, storagePath, provider, hints, config);
         } else {
             listing = expandAndCompact(path, provider, hints, config, storagePath);
         }
         pendingListingWarnings.addAll(listing.listingWarnings());
-        recordDiscovery(listing, discoveryStartNanos, storagePath.scheme());
+        recordDiscovery(listing, discoveryStartNanos, storagePath.scheme(), effectiveSchemaResolution(config));
         if (listing.fileCount() == 0) {
             throw noFilesMatched(path, listing);
         }

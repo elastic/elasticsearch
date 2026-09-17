@@ -39,7 +39,6 @@ public class StatelessMemoryMetricsServiceTestUtils {
         StatelessMemoryMetricsService statelessMemoryMetricsService,
         StatelessMemoryMetricsService.ShardMemoryMetrics memoryMetrics
     ) {
-        ShardHeapEstimator shardHeapEstimator = statelessMemoryMetricsService.createShardHeapEstimator();
-        return shardHeapEstimator.computeShardHeapUsage(memoryMetrics);
+        return statelessMemoryMetricsService.createShardHeapEstimator().computeShardHeapUsage(memoryMetrics);
     }
 }

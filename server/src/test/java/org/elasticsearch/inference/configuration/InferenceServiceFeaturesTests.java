@@ -169,7 +169,7 @@ public class InferenceServiceFeaturesTests extends AbstractBWCSerializationTestC
      * plus a type with an entirely different shape, and both round trip through the same code path.
      */
     public void testFromXContent_MixesFeatureTypesWithDifferentShapes() throws IOException {
-        var json = """
+        var json = Strings.format("""
             {
               "non_streaming_chat": {
                 "supported": true
@@ -178,7 +178,7 @@ public class InferenceServiceFeaturesTests extends AbstractBWCSerializationTestC
                 "detail": "%s"
               }
             }
-            """.formatted(TEST_FEATURE_DETAIL);
+            """, TEST_FEATURE_DETAIL);
 
         var expected = InferenceServiceFeatures.of(NonStreamingChatFeature.SUPPORTED_INSTANCE, new TestFeature(TEST_FEATURE_DETAIL));
 

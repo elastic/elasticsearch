@@ -45,11 +45,14 @@ import java.util.Map;
 import java.util.Set;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
+import java.util.stream.IntStream;
 import java.util.stream.Stream;
 
 import static org.elasticsearch.cluster.node.DiscoveryNode.DISCOVERY_NODE_COMPARATOR;
 import static org.elasticsearch.common.util.CollectionUtils.concatLists;
 import static org.elasticsearch.common.util.CollectionUtils.limitSize;
+import static org.elasticsearch.common.util.CollectionUtils.appendToCopy;
+import static org.elasticsearch.common.util.CollectionUtils.concatLists;
 import static org.elasticsearch.health.HealthStatus.GREEN;
 import static org.elasticsearch.health.HealthStatus.UNKNOWN;
 import static org.elasticsearch.health.HealthStatus.YELLOW;

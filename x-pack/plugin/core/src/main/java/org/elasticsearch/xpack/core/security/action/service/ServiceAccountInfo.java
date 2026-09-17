@@ -113,6 +113,16 @@ public sealed interface ServiceAccountInfo extends Writeable, ToXContent {
     @Override
     default XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject(principal());
+        innerToXContent(builder, params);
+        return builder.endObject();
+    }
+
+    /**
+     * Renders the account's type and privileges, but not its principal, into an object the caller has already
+     * opened. For a response that keys accounts by principal, or one that carries the principal as a field alongside
+     * these and so must not repeat it in the key.
+     */
+    default XContentBuilder innerToXContent(XContentBuilder builder, Params params) throws IOException {
         builder.field("type", type().value());
         switch (this) {
             case BuiltIn builtIn -> {
@@ -124,6 +134,6 @@ public sealed interface ServiceAccountInfo extends Writeable, ToXContent {
                 builder.field("enabled", userManaged.enabled());
             }
         }
-        return builder.endObject();
+        return builder;
     }
 }

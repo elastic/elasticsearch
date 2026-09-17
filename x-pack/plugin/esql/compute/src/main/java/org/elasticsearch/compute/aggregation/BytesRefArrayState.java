@@ -523,7 +523,11 @@ public final class BytesRefArrayState implements GroupingAggregatorState, Releas
 
     BytesRefSequence partitionValues(GroupingAggregatorFunction.PartitionedState source, int partition) {
         if (source instanceof FlatBytesRefPartitionedState flat) {
-            return new BytesRefSequence.Flat(flat.partitionData[partition], flat.partitionOffsets[partition], flat.partitionCounts[partition]);
+            return new BytesRefSequence.Flat(
+                flat.partitionData[partition],
+                flat.partitionOffsets[partition],
+                flat.partitionCounts[partition]
+            );
         }
         final PagedBytesRefPartitionedState paged = (PagedBytesRefPartitionedState) source;
         return new BytesRefSequence.Paged(paged.partitionArrays[partition]);

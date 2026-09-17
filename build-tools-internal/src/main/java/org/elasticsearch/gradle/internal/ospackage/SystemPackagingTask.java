@@ -391,7 +391,7 @@ public abstract class SystemPackagingTask extends DefaultTask {
         Set<String> parentDirectories = new LinkedHashSet<>();
         // explicit directory entries first: deb creates missing parent directories implicitly on
         // first use, which would otherwise win over an explicitly declared entry for the same path
-        for (Directory directory : getDirectories().get()) {
+        for (Directory directory : getDirectories().getOrElse(List.of())) {
             int mode = directory.setgid() ? directory.permissions() | 02000 : directory.permissions();
             String user = directory.user() != null ? directory.user() : getUser().getOrNull();
             String group = directory.permissionGroup() != null ? directory.permissionGroup() : getPermissionGroup().getOrNull();
@@ -419,8 +419,14 @@ public abstract class SystemPackagingTask extends DefaultTask {
             } else if (root.isFile()) {
                 String name = content.getRename().getOrElse(root.getName());
                 String path = into + "/" + name;
-                int mode = PackagingUtils.getUnixPermission(content.getFileMode().getOrElse(0644), root);
-                writer.addFile(path, root, mode, user, group, fileTypeFlags);
+                File parent = root.getAbsoluteFile().getParentFile();
+                String linkTarget = parent == null ? null : PackagingUtils.relativeLinkTarget(parent.toPath(), root);
+                if (linkTarget != null) {
+                    writer.addLink(path, linkTarget);
+                } else {
+                    int mode = PackagingUtils.getUnixPermission(content.getFileMode().getOrElse(0644), root);
+                    writer.addFile(path, root, mode, user, group, fileTypeFlags);
+                }
                 registerParentDirectories(content, path, parentDirectories);
             }
         }

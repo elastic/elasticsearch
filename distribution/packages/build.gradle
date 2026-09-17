@@ -73,6 +73,23 @@ import java.util.regex.Pattern
   }
 }
 
+def addPackageContentMapping(def packageTask, Object source, String path, Integer mode, boolean rpm, String ownedParents, Closure extraConfig = null) {
+  packageTask.from(source) {
+    into path
+    if (mode != null) {
+      fileMode mode
+    }
+    if (rpm) {
+      ownParentDirectories ownedParents
+    }
+    if (extraConfig != null) {
+      Closure contentConfig = extraConfig.rehydrate(delegate, extraConfig.owner, extraConfig.thisObject)
+      contentConfig.resolveStrategy = Closure.DELEGATE_FIRST
+      contentConfig.call()
+    }
+  }
+}
+
 // Common configuration that is package dependent. This can't be shared with the archive
 // distributions since we have different templated files that need to be consumed and the
 // packaging tasks declare their content as source-tree mappings rather than copy specs.
@@ -144,99 +161,50 @@ def commonPackageConfig(String type, String architecture) {
     // every intermediate directory below /usr/share/elasticsearch is registered as package
     // owned on rpm so it is removed on uninstallation; deb creates them implicitly
     String ownedParents = '/usr/share/elasticsearch'
+    def packageTask = delegate
 
-    from("${packagingFiles}-bin") {
-      into '/usr/share/elasticsearch/bin'
-      fileMode 0755
-      if (rpm) {
-        ownParentDirectories ownedParents
-      }
-    }
-    from("${packagingFiles}/systemd/systemd-entrypoint") {
-      into '/usr/share/elasticsearch/bin'
-      fileMode 0755
-      if (rpm) {
-        ownParentDirectories ownedParents
-      }
-    }
-    from(layout.settingsDirectory.file('README.asciidoc').asFile) {
-      into '/usr/share/elasticsearch'
-      fileMode 0644
-    }
-    from(packagingNoticeFile) {
-      into '/usr/share/elasticsearch'
-      fileMode 0644
-    }
-    packagingLibMappings('linux', architecture).each { mapping ->
-      from(mapping.source) {
-        into "/usr/share/elasticsearch/lib${mapping.dir ? '/' + mapping.dir : ''}"
-        fileMode 0644
+    addPackageContentMapping(packageTask, "${packagingFiles}-bin", '/usr/share/elasticsearch/bin', 0755, rpm, ownedParents)
+    addPackageContentMapping(packageTask, "${packagingFiles}/systemd/systemd-entrypoint", '/usr/share/elasticsearch/bin', 0755, rpm, ownedParents)
+    addPackageContentMapping(packageTask, layout.settingsDirectory.file('README.asciidoc').asFile, '/usr/share/elasticsearch', 0644, false, ownedParents)
+    addPackageContentMapping(packageTask, packagingNoticeFile, '/usr/share/elasticsearch', 0644, false, ownedParents)
+    libContentMappings('linux', architecture).each { mapping ->
+      addPackageContentMapping(
+        packageTask,
+        mapping.source,
+        "/usr/share/elasticsearch/lib${mapping.relativeDir ? '/' + mapping.relativeDir : ''}",
+        0644,
+        rpm,
+        ownedParents,
+      ) {
         if (mapping.executablePattern) {
           filePermissions(mapping.executablePattern, 0755)
         }
         if (mapping.includePattern) {
           include mapping.includePattern
         }
-        if (rpm) {
-          ownParentDirectories ownedParents
-        }
       }
     }
 
-    // modules; bin files within modules, wherever they are, should be executable
-    List<String> excludePlatforms = ['linux-x86_64', 'linux-aarch64', 'windows-x86_64', 'darwin-x86_64', 'darwin-aarch64']
-    // the ML platform dir uses the x86_64 nomenclature
-    excludePlatforms.remove('linux-' + (architecture == 'x64' ? 'x86_64' : architecture))
-    def moduleMetadata = { content ->
-      content.fileMode 0644
-      content.filePermissions('**/bin/*', 0755)
-      excludePlatforms.each { platform -> content.exclude("**/platform/${platform}/**") }
-      if (rpm) {
-        content.ownParentDirectories(ownedParents)
+    moduleContentMappings('linux', architecture, true).each { mapping ->
+      addPackageContentMapping(packageTask, mapping.source, '/usr/share/elasticsearch/modules', 0644, rpm, ownedParents) {
+        mapping.excludes.each { exclude(it) }
+        mapping.executablePatterns.each { filePermissions(it, 0755) }
       }
-    }
-    from(packagingDefaultModulesDir) {
-      into '/usr/share/elasticsearch/modules'
-      // geo registers the geo_shape mapper that is overridden by
-      // the geo_shape mapper registered in the x-pack-spatial plugin
-      exclude '**/geo/**'
-      moduleMetadata(it)
-    }
-    if (buildParams.snapshotBuild) {
-      from(packagingExternalTestModulesDir) {
-        into '/usr/share/elasticsearch/modules'
-        moduleMetadata(it)
-      }
-    }
-    from(packagingSystemdModulesDir) {
-      into '/usr/share/elasticsearch/modules'
-      moduleMetadata(it)
     }
 
-    from(jdks."bundled_linux_${architecture}") {
-      into '/usr/share/elasticsearch/jdk'
-      exclude 'demo/**'
-      exclude '**/src.zip'
-      fileMode 0644
-      filePermissions('**/bin/*', 0755)
-      filePermissions('**/jspawnhelper', 0755)
-      if (rpm) {
-        ownParentDirectories ownedParents
-      }
+    def jdkMapping = jdkContentMapping(project, 'linux', architecture)
+    addPackageContentMapping(packageTask, jdkMapping.source, '/usr/share/elasticsearch/jdk', 0644, rpm, ownedParents) {
+      jdkMapping.excludes.each { exclude(it) }
+      jdkMapping.executablePatterns.each { filePermissions(it, 0755) }
     }
 
     // license files
     if (type == 'deb') {
-      from("${packagingFiles}/copyright") {
-        into '/usr/share/doc/elasticsearch'
-        fileMode 0644
-      }
+      addPackageContentMapping(packageTask, "${packagingFiles}/copyright", '/usr/share/doc/elasticsearch', 0644, false, ownedParents)
     } else {
       assert type == 'rpm'
-      from(layout.settingsDirectory.file('licenses/ELASTIC-LICENSE-2.0.txt').asFile) {
-        into '/usr/share/elasticsearch'
+      addPackageContentMapping(packageTask, layout.settingsDirectory.file('licenses/ELASTIC-LICENSE-2.0.txt').asFile, '/usr/share/elasticsearch', 0644, false, ownedParents) {
         rename 'LICENSE.txt'
-        fileMode 0644
       }
     }
 
@@ -263,26 +231,17 @@ def commonPackageConfig(String type, String architecture) {
 
     String envFile = expansionsForDistribution(type, false)['path.env']
     configurationFile envFile
-    from("${packagingFiles}/env/elasticsearch") {
-      into new File(envFile).getParent()
-      fileMode 0660
+    addPackageContentMapping(packageTask, "${packagingFiles}/env/elasticsearch", new File(envFile).getParent(), 0660, false, ownedParents) {
       permissionGroup 'elasticsearch'
       fileType Directive.RPMFILE_CONFIG | Directive.RPMFILE_NOREPLACE
     }
 
     // ========= systemd =========
-    from("${packagingFiles}/systemd/elasticsearch.conf") {
-      into '/usr/lib/tmpfiles.d'
-      fileMode 0644
-    }
-    from("${packagingFiles}/systemd/elasticsearch.service") {
-      into '/usr/lib/systemd/system'
-      fileMode 0644
+    addPackageContentMapping(packageTask, "${packagingFiles}/systemd/elasticsearch.conf", '/usr/lib/tmpfiles.d', 0644, false, ownedParents)
+    addPackageContentMapping(packageTask, "${packagingFiles}/systemd/elasticsearch.service", '/usr/lib/systemd/system', 0644, false, ownedParents) {
       fileType Directive.RPMFILE_CONFIG | Directive.RPMFILE_NOREPLACE
     }
-    from("${packagingFiles}/systemd/sysctl/elasticsearch.conf") {
-      into '/usr/lib/sysctl.d'
-      fileMode 0644
+    addPackageContentMapping(packageTask, "${packagingFiles}/systemd/sysctl/elasticsearch.conf", '/usr/lib/sysctl.d', 0644, false, ownedParents) {
       fileType Directive.RPMFILE_CONFIG | Directive.RPMFILE_NOREPLACE
     }
 
@@ -313,10 +272,7 @@ Closure commonDebConfig(String architecture) {
     requires 'adduser'
     requires('coreutils', '8.4', Flags.GREATER | Flags.EQUAL)
 
-    from('src/deb/lintian/elasticsearch') {
-      into '/usr/share/lintian/overrides'
-      fileMode 0644
-    }
+    addPackageContentMapping(delegate, 'src/deb/lintian/elasticsearch', '/usr/share/lintian/overrides', 0644, false, null)
   }
 }
 

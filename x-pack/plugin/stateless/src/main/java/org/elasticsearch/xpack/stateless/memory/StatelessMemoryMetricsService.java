@@ -645,7 +645,7 @@ public class StatelessMemoryMetricsService implements ClusterStateListener {
      * Sums {@link IndexMetadata#ramBytesUsed()} across projects, counting each shared
      * {@link MappingMetadata} instance once. Expected to stay below {@link #INDEX_MEMORY_OVERHEAD} per index for typical configurations.
      */
-    private static long estimateIndexMetadataHeapBytes(Metadata metadata) {
+    static long estimateIndexMetadataHeapBytes(Metadata metadata) {
         long total = 0;
         Set<MappingMetadata> seenMappings = Collections.newSetFromMap(new IdentityHashMap<>(metadata.getTotalNumberOfIndices()));
         for (IndexMetadata indexMetadata : metadata.indicesAllProjects()) {

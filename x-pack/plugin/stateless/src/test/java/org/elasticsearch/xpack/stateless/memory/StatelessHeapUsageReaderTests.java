@@ -9,15 +9,19 @@ package org.elasticsearch.xpack.stateless.memory;
 
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.action.support.replication.ClusterStateCreationUtils;
-import org.elasticsearch.cluster.ClusterChangedEvent;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.EstimatedHeapUsageStats;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.test.ClusterServiceUtils;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.threadpool.TestThreadPool;
+import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.stateless.StatelessPlugin;
+import org.junit.After;
+import org.junit.Before;
 
 import java.util.Set;
 import java.util.stream.Collectors;
@@ -27,34 +31,49 @@ import static org.elasticsearch.indices.ShardLimitValidator.SETTING_CLUSTER_MAX_
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.sameInstance;
 import static org.mockito.Mockito.mock;
-import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 public class StatelessHeapUsageReaderTests extends ESTestCase {
 
+    private ThreadPool threadPool;
+    private ClusterService clusterService;
+
+    @Before
+    public void startClusterService() {
+        threadPool = new TestThreadPool(getTestName());
+        clusterService = ClusterServiceUtils.createClusterService(threadPool, new ClusterSettings(Settings.EMPTY, allSettings()));
+    }
+
+    @After
+    public void stopClusterService() {
+        clusterService.close();
+        terminate(threadPool);
+    }
+
     public void testCollectEstimatedHeapUsageReadsRealServiceUsingPluginClusterState() {
-        ClusterService clusterService = mock(ClusterService.class);
-        ClusterState clusterState = ClusterStateCreationUtils.state(randomIdentifier(), 2, 1);
-        when(clusterService.getClusterSettings()).thenReturn(new ClusterSettings(Settings.EMPTY, allSettings()));
         StatelessMemoryMetricsService memoryMetricsService = new StatelessMemoryMetricsService(() -> 1L, clusterService);
-        memoryMetricsService.clusterChanged(new ClusterChangedEvent("init", clusterState, ClusterState.EMPTY_STATE));
-        EstimatedHeapUsageStats expectedStats = memoryMetricsService.getEstimatedHeapUsageStats(clusterState);
-        StatelessHeapUsageReader reader = new StatelessHeapUsageReader(createPlugin(memoryMetricsService, clusterState));
+        clusterService.addListener(memoryMetricsService);
+        ClusterServiceUtils.setState(clusterService, ClusterStateCreationUtils.state(randomIdentifier(), 2, 1));
+
+        EstimatedHeapUsageStats expectedStats = memoryMetricsService.getEstimatedHeapUsageStats(clusterService.state());
+        StatelessHeapUsageReader reader = new StatelessHeapUsageReader(createPlugin(memoryMetricsService));
 
         assertThat(invokeCollect(reader), equalTo(expectedStats));
     }
 
-    public void testCollectEstimatedHeapUsagePropagatesFailures() throws Exception {
-        ClusterState clusterState = mock(ClusterState.class);
+    public void testCollectEstimatedHeapUsagePropagatesFailures() {
         IllegalStateException failure = new IllegalStateException("simulated estimated heap usage failure");
-        StatelessMemoryMetricsService memoryMetricsService = mock(StatelessMemoryMetricsService.class);
-        when(memoryMetricsService.getEstimatedHeapUsageStats(clusterState)).thenThrow(failure);
-        StatelessHeapUsageReader reader = new StatelessHeapUsageReader(createPlugin(memoryMetricsService, clusterState));
+        StatelessMemoryMetricsService memoryMetricsService = new StatelessMemoryMetricsService(() -> 1L, clusterService) {
+            @Override
+            public EstimatedHeapUsageStats getEstimatedHeapUsageStats(ClusterState clusterState) {
+                throw failure;
+            }
+        };
+        StatelessHeapUsageReader reader = new StatelessHeapUsageReader(createPlugin(memoryMetricsService));
 
         PlainActionFuture<EstimatedHeapUsageStats> future = new PlainActionFuture<>();
         reader.collectEstimatedHeapUsage(future);
         assertThat(expectThrows(Exception.class, future::get).getCause(), sameInstance(failure));
-        verify(memoryMetricsService).getEstimatedHeapUsageStats(clusterState);
     }
 
     private static EstimatedHeapUsageStats invokeCollect(StatelessHeapUsageReader reader) {
@@ -63,10 +82,8 @@ public class StatelessHeapUsageReaderTests extends ESTestCase {
         return safeGet(future);
     }
 
-    private static StatelessPlugin createPlugin(StatelessMemoryMetricsService memoryMetricsService, ClusterState clusterState) {
+    private StatelessPlugin createPlugin(StatelessMemoryMetricsService memoryMetricsService) {
         StatelessPlugin plugin = mock(StatelessPlugin.class);
-        ClusterService clusterService = mock(ClusterService.class);
-        when(clusterService.state()).thenReturn(clusterState);
         when(plugin.getClusterService()).thenReturn(clusterService);
         when(plugin.getStatelessMemoryMetricsService()).thenReturn(memoryMetricsService);
         return plugin;

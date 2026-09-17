@@ -491,62 +491,40 @@ public final class TranslatePromqlToEsqlPlan extends AnalyzerRules.Parameterized
          */
         private LogicalPlan emitLimitRatioBy(AcrossSeriesReduction reduction, IntermediateResult table, List<String> partitions) {
             ReductionGrouping grouping = reductionGrouping(reduction, table, partitions);
-            LogicalPlan plan = grouping.plan();
-            Expression fieldKey = plan.output().stream().filter(MetadataAttribute::isTimeSeriesAttribute).findFirst().orElse(null);
-            if (fieldKey == null) {
-                // The input was already aggregated (for example limit_ratio over sum by): its rows are groups,
-                // not series, so they carry no _timeseries. Their identity is the finest packing, which the
-                // surrounding translation also uses to tell result series apart (vector matching, roots).
-                // Packings hold only dimensions, never the step, so the identity is stable across steps.
+            // The sampling key is the groupings without the step bucket: the concrete grouping columns
+            // from below. At series grain that is the _timeseries blob; over an aggregated input the rows
+            // are groups, so their own grain labels are the key (for example pod groups for limit_ratio
+            // over sum by, even when the outer reduction is bare). With no key columns every row shares
+            // one identity, so a single-series result is kept or dropped deterministically.
+            List<Expression> key = new ArrayList<>(grouping.groupings());
+            Attribute series = grouping.plan().output().stream().filter(MetadataAttribute::isTimeSeriesAttribute).findFirst().orElse(null);
+            if (series != null) {
+                addIfMissing(key, series);
+            } else {
+                // No series blob: the rows are groups. Their identity is the concrete grouping
+                // underneath -- packed label sets when the header packs labels away (for example
+                // sum without), else the grain label columns. Packings hold only dimensions, never
+                // the step, so the identity is stable across steps.
                 for (Set<String> skip : finestFirst(table.header().skips())) {
                     Attribute packing = table.packed(skip);
                     if (packing != null) {
-                        fieldKey = packing;
-                        break;
+                        addIfMissing(key, packing);
                     }
                 }
+                for (String label : table.header().labels()) {
+                    Attribute carrier = table.label(label);
+                    // Guaranteed by emitRegroup, which resolves every header label (null-filling missing ones).
+                    assert carrier != null : "invariant: grouping label [" + label + "] must be carried by the input";
+                    addIfMissing(key, carrier);
+                }
             }
-            if (fieldKey == null) {
-                // No packing either (for example limit_ratio over an ungrouped sum): synthesize a stable
-                // per-row identity from the input's grouping carriers instead; with no carriers every row
-                // shares one identity, so the whole single-series result is kept or dropped
-                // deterministically, like Prometheus hashing the empty label set.
-                Alias key = new Alias(reduction.source(), FIELD_KEY_ATTRIBUTE, fieldKeyValue(reduction.source(), table));
-                plan = new Eval(cmd.source(), plan, List.of(key));
-                fieldKey = key.toAttribute();
-            }
-            return new LimitRatioBy(reduction.source(), plan, reduction.parameters().getFirst(), grouping.groupings(), fieldKey);
+            return new LimitRatioBy(reduction.source(), grouping.plan(), reduction.parameters().getFirst(), key);
         }
 
-        /**
-         * Internal-only name for the synthesized {@link LimitRatioBy} field key. It must not match
-         * {@code _timeseries}: a fake packed column would change vector-matching and output handling downstream,
-         * while this key is only ever hashed locally by the ratio filter.
-         */
-        private static final String FIELD_KEY_ATTRIBUTE = "$$field_key";
-
-        /**
-         * A stable per-row identity over the input table's own grain labels, mirroring {@code label_join}
-         * value semantics: each label value is coalesced to {@code ""} and parts are joined by a fixed
-         * separator. The input's labels -- not the outer reduction's partitions -- define the grain: for
-         * {@code limit_ratio} over {@code sum by (pod)} the rows are pod groups even when the outer
-         * reduction is bare. With no labels every row shares one identity, so the whole single-series
-         * result is kept or dropped deterministically, like Prometheus hashing the empty label set.
-         */
-        private Expression fieldKeyValue(Source source, IntermediateResult table) {
-            List<Expression> parts = new ArrayList<>();
-            Literal separator = Literal.keyword(source, "|");
-            for (String label : table.header().labels()) {
-                if (parts.isEmpty() == false) {
-                    parts.add(separator);
-                }
-                parts.add(sourceLabelValue(source, table, label));
+        private static void addIfMissing(List<Expression> key, Attribute carrier) {
+            if (key.stream().noneMatch(e -> e instanceof Attribute a && a.id().equals(carrier.id()))) {
+                key.add(carrier);
             }
-            return switch (parts.size()) {
-                case 0 -> Literal.keyword(source, "");
-                case 1 -> parts.getFirst();
-                default -> new Concat(source, parts.getFirst(), parts.subList(1, parts.size()));
-            };
         }
 
         /**

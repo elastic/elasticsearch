@@ -22,6 +22,8 @@ import org.elasticsearch.xpack.esql.plan.logical.LimitRatioBy;
 import org.elasticsearch.xpack.esql.plan.logical.PipelineBreaker;
 import org.junit.Before;
 
+import java.util.List;
+
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.as;
 import static org.hamcrest.Matchers.closeTo;
 import static org.hamcrest.Matchers.containsString;
@@ -42,20 +44,30 @@ public class PromqlPlanLimitRatioTests extends AbstractPromqlPlanOptimizerTests 
 
     /**
      * {@code limit_ratio} over an aggregate samples result series, not raw series: the input rows are
-     * groups carrying no {@code _timeseries}, so the series key must be the group packing -- a real
-     * column -- and never a constant (a constant key would keep or drop every group together).
+     * groups carrying no {@code _timeseries}, so the sampling key is the concrete group columns from
+     * below (here {@code pod}) appended to the groupings -- no synthesized key, no extra plan node.
      */
-    public void testLimitRatioOverAggregateUsesGroupCarriersAsFieldKey() {
+    public void testLimitRatioOverAggregateKeysOnGroupColumns() {
         var plan = logicalOptimizerWithLatestVersion.optimize(
             planPromql("PROMQL index=k8s step=1h result=(limit_ratio(0.5, sum by (pod) (network.total_bytes_in{cluster=\"prod\"})))", false)
         );
 
         var node = as(plan.collect(LimitRatioBy.class).get(0), LimitRatioBy.class);
-        assertThat(node.fieldKey().foldable(), equalTo(false));
-        assertThat(node.child().output(), hasItem((Attribute) node.fieldKey()));
-        var eval = as(node.child(), org.elasticsearch.xpack.esql.plan.logical.Eval.class);
-        assertThat(eval.fields().size(), equalTo(1));
-        assertThat(eval.fields().get(0).child().foldable(), equalTo(false));
+        assertThat(node.groupings().size(), equalTo(2));
+        Attribute pod = as(node.groupings().get(1), Attribute.class);
+        assertThat(pod.name(), equalTo("pod"));
+        assertThat(node.child().output().stream().map(Attribute::id).toList(), hasItem(pod.id()));
+    }
+
+    /**
+     * At series grain the sampling key is the {@code _timeseries} blob appended to the groupings.
+     */
+    public void testLimitRatioBareKeysOnTimeseries() {
+        var node = limitRatioByNode();
+        assertThat(node.groupings().size(), equalTo(2));
+        Attribute key = as(node.groupings().get(1), Attribute.class);
+        assertThat(MetadataAttribute.isTimeSeriesAttribute(key), equalTo(true));
+        assertThat(node.child().output().stream().map(Attribute::id).toList(), hasItem(key.id()));
     }
 
     public void testLimitRatioProducesLimitRatioBy() {
@@ -187,8 +199,7 @@ public class PromqlPlanLimitRatioTests extends AbstractPromqlPlanOptimizerTests 
             node.source(),
             node.child(),
             new Literal(node.source(), new BytesRef("0.5"), DataType.KEYWORD),
-            node.groupings(),
-            node.fieldKey()
+            node.groupings()
         );
         var failures = new Failures();
         bad.postOptimizationVerification(failures);
@@ -198,27 +209,20 @@ public class PromqlPlanLimitRatioTests extends AbstractPromqlPlanOptimizerTests 
 
     public void testLimitRatioVerificationRejectsNaNRatio() {
         var node = limitRatioByNode();
-        var bad = new LimitRatioBy(
-            node.source(),
-            node.child(),
-            new Literal(node.source(), Double.NaN, DataType.DOUBLE),
-            node.groupings(),
-            node.fieldKey()
-        );
+        var bad = new LimitRatioBy(node.source(), node.child(), new Literal(node.source(), Double.NaN, DataType.DOUBLE), node.groupings());
         var failures = new Failures();
         bad.postOptimizationVerification(failures);
         assertThat(failures.hasFailures(), equalTo(true));
         assertThat(failures.toString(), containsString("must not be NaN"));
     }
 
-    public void testLimitRatioVerificationRejectsNonAttributeFieldKey() {
+    public void testLimitRatioVerificationRejectsNonAttributeKeyCarrier() {
         var node = limitRatioByNode();
         var bad = new LimitRatioBy(
             node.source(),
             node.child(),
             node.ratio(),
-            node.groupings(),
-            new Literal(node.source(), new BytesRef("key"), DataType.KEYWORD)
+            List.of(node.groupings().get(0), new Literal(node.source(), new BytesRef("key"), DataType.KEYWORD))
         );
         var failures = new Failures();
         bad.postOptimizationVerification(failures);
@@ -226,34 +230,18 @@ public class PromqlPlanLimitRatioTests extends AbstractPromqlPlanOptimizerTests 
         assertThat(failures.toString(), containsString("must be an attribute"));
     }
 
-    public void testLimitRatioVerificationRejectsUnresolvableFieldKey() {
+    public void testLimitRatioVerificationRejectsUnresolvableKeyCarrier() {
         var node = limitRatioByNode();
         var bad = new LimitRatioBy(
             node.source(),
             node.child(),
             node.ratio(),
-            node.groupings(),
-            new ReferenceAttribute(node.source(), "missing", DataType.KEYWORD)
+            List.of(node.groupings().get(0), new ReferenceAttribute(node.source(), "missing", DataType.KEYWORD))
         );
         var failures = new Failures();
         bad.postOptimizationVerification(failures);
         assertThat(failures.hasFailures(), equalTo(true));
         assertThat(failures.toString(), containsString("is not produced by its input"));
-    }
-
-    public void testLimitRatioVerificationRejectsNonKeywordFieldKey() {
-        var node = limitRatioByNode();
-        Attribute step = node.child()
-            .output()
-            .stream()
-            .filter(a -> a.name().equals("step"))
-            .findFirst()
-            .orElseThrow(() -> new AssertionError("expected a step column"));
-        var bad = new LimitRatioBy(node.source(), node.child(), node.ratio(), node.groupings(), step);
-        var failures = new Failures();
-        bad.postOptimizationVerification(failures);
-        assertThat(failures.hasFailures(), equalTo(true));
-        assertThat(failures.toString(), containsString("must be a keyword"));
     }
 
     private LimitRatioBy limitRatioByNode() {

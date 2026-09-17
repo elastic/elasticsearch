@@ -2486,13 +2486,22 @@ public class LocalExecutionPlanner {
 
     private PhysicalOperation planLimitRatioBy(LimitRatioByExec limitRatioBy, LocalExecutionPlannerContext context) {
         PhysicalOperation source = plan(limitRatioBy.child(), context);
-        // The ratio and field key are validated up front: at analysis (ResolvePromqlFunctions) for user
+        // The ratio and key carriers are validated up front: at analysis (ResolvePromqlFunctions) for user
         // input and by post-optimization verification (LimitRatioBy) for translator output. Planning only
-        // resolves the already-validated key to its channel.
+        // resolves the already-validated key channels: the groupings without the leading step bucket.
         double ratioValue = ((Number) limitRatioBy.ratio().fold(context.foldCtx)).doubleValue();
         Layout layout = source.layout;
-        int fieldChannel = layout.get(((Attribute) limitRatioBy.fieldKey()).id()).channel();
-        return source.with(new HashRatioLimitOperator.Factory(ratioValue, fieldChannel), source.layout);
+        List<Integer> keyChannels = limitRatioBy.groupings()
+            .subList(1, limitRatioBy.groupings().size())
+            .stream()
+            .map(g -> getAttributeChannel(g, layout, "LIMIT RATIO BY expression must be an attribute"))
+            .toList();
+        List<Layout.ChannelSet> inverse = layout.inverse();
+        List<ElementType> elementTypes = new ArrayList<>(layout.numberOfChannels());
+        for (int channel = 0; channel < inverse.size(); channel++) {
+            elementTypes.add(PlannerUtils.toElementType(inverse.get(channel).type()));
+        }
+        return source.with(new HashRatioLimitOperator.Factory(ratioValue, keyChannels, elementTypes), source.layout);
     }
 
     private PhysicalOperation planMvExpand(MvExpandExec mvExpandExec, LocalExecutionPlannerContext context) {

@@ -24,7 +24,7 @@ public class LimitRatioByExecSerializationTests extends AbstractPhysicalPlanSeri
         PhysicalPlan child = randomChild(depth);
         Expression ratio = randomRatio();
         List<Expression> groupings = randomGroupings();
-        return new LimitRatioByExec(source, child, ratio, groupings, randomFieldKey());
+        return new LimitRatioByExec(source, child, ratio, groupings);
     }
 
     @Override
@@ -37,15 +37,13 @@ public class LimitRatioByExecSerializationTests extends AbstractPhysicalPlanSeri
         PhysicalPlan child = instance.child();
         Expression ratio = instance.ratio();
         List<Expression> groupings = instance.groupings();
-        Expression fieldKey = instance.fieldKey();
-        switch (between(0, 3)) {
+        switch (between(0, 2)) {
             case 0 -> child = randomValueOtherThan(child, () -> randomChild(0));
             case 1 -> ratio = randomValueOtherThan(ratio, LimitRatioByExecSerializationTests::randomRatio);
             case 2 -> groupings = randomValueOtherThan(groupings, LimitRatioByExecSerializationTests::randomGroupings);
-            case 3 -> fieldKey = randomValueOtherThan(fieldKey, LimitRatioByExecSerializationTests::randomFieldKey);
             default -> throw new AssertionError("Unexpected case");
         }
-        return new LimitRatioByExec(instance.source(), child, ratio, groupings, fieldKey);
+        return new LimitRatioByExec(instance.source(), child, ratio, groupings);
     }
 
     @Override
@@ -59,9 +57,5 @@ public class LimitRatioByExecSerializationTests extends AbstractPhysicalPlanSeri
 
     private static List<Expression> randomGroupings() {
         return randomList(1, 3, () -> createFieldAttribute(0, false));
-    }
-
-    private static Expression randomFieldKey() {
-        return createFieldAttribute(0, false);
     }
 }

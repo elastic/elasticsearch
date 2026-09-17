@@ -7,14 +7,14 @@
 
 package org.elasticsearch.compute.operator;
 
-import org.apache.lucene.util.BytesRef;
+import org.elasticsearch.common.bytes.PagedBytesBuilder;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.ElementType;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.test.BlockTestUtils;
-import org.elasticsearch.compute.test.CannedSourceOperator;
 import org.elasticsearch.compute.test.OperatorTestCase;
+import org.elasticsearch.compute.test.operator.blocksource.SequenceLongBlockSourceOperator;
 import org.hamcrest.Matcher;
 
 import java.util.ArrayList;
@@ -22,6 +22,7 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.stream.LongStream;
 
 import static org.elasticsearch.test.MapMatcher.assertMap;
 import static org.elasticsearch.test.MapMatcher.matchesMap;
@@ -34,39 +35,28 @@ public class HashRatioLimitOperatorTests extends OperatorTestCase {
 
     @Override
     protected HashRatioLimitOperator.Factory simple(SimpleOptions options) {
-        return new HashRatioLimitOperator.Factory(0.5, 0);
+        return new HashRatioLimitOperator.Factory(0.5, List.of(0), List.of(ElementType.LONG));
     }
 
     @Override
     protected SourceOperator simpleInput(BlockFactory blockFactory, int size) {
-        List<Page> pages = new ArrayList<>();
-        int remaining = size;
-        while (remaining > 0) {
-            int count = Math.min(remaining, 100);
-            List<Object> ids = new ArrayList<>(count);
-            for (int i = 0; i < count; i++) {
-                ids.add(new BytesRef(randomAlphaOfLength(8)));
-            }
-            pages.add(new Page(BlockTestUtils.asBlock(blockFactory, ElementType.BYTES_REF, ids)));
-            remaining -= count;
-        }
-        return new CannedSourceOperator(pages.iterator());
+        return new SequenceLongBlockSourceOperator(blockFactory, LongStream.range(0, size));
     }
 
     @Override
     protected Matcher<String> expectedDescriptionOfSimple() {
-        return equalTo("HashRatioLimitOperator[ratio=0.5, fieldChannel=0]");
+        return equalTo("HashRatioLimitOperator[ratio=0.5, keyChannels=[0]]");
     }
 
     @Override
     protected Matcher<String> expectedToStringOfSimple() {
-        return equalTo("HashRatioLimitOperator[ratio=0.5, fieldChannel=0]");
+        return equalTo("HashRatioLimitOperator[ratio=0.5, keyChannels=[0]]");
     }
 
     @Override
     protected void assertSimpleOutput(List<Page> input, List<Page> results) {
-        Set<BytesRef> inputIds = idsOf(input);
-        Set<BytesRef> outputIds = idsOf(results);
+        Set<Long> inputIds = idsOf(input);
+        Set<Long> outputIds = idsOf(results);
         // The operator only filters: every emitted id was an input id.
         assertThat(outputIds.stream().allMatch(inputIds::contains), equalTo(true));
         assertThat(outputIds.size(), lessThanOrEqualTo(inputIds.size()));
@@ -78,8 +68,8 @@ public class HashRatioLimitOperatorTests extends OperatorTestCase {
     public void testRatioZeroDropsAll() {
         DriverContext ctx = driverContext();
         BlockFactory blockFactory = ctx.blockFactory();
-        try (HashRatioLimitOperator op = new HashRatioLimitOperator(0.0, 0)) {
-            Page p = page(blockFactory, "a", "b", "c");
+        try (HashRatioLimitOperator op = op(0.0, blockFactory, new int[] { 0 })) {
+            Page p = new Page(BlockTestUtils.asBlock(blockFactory, ElementType.LONG, List.of(1L, 2L, 3L)));
             op.addInput(p);
             assertThat(op.getOutput(), nullValue());
 
@@ -93,21 +83,21 @@ public class HashRatioLimitOperatorTests extends OperatorTestCase {
      * ratio=1.0 keeps every row; the page passes through without copying blocks.
      */
     public void testRatioOneKeepsAll() {
-        assertKeepsExactly(1.0, ids("a", "b", "c", "d"));
+        assertKeepsExactly(1.0, List.of(1L, 2L, 3L, 4L));
     }
 
     /**
      * Ratios above one keep every row.
      */
     public void testRatioGreaterThanOneKeepsAll() {
-        assertKeepsExactly(2.0, ids("a", "b", "c"));
+        assertKeepsExactly(2.0, List.of(1L, 2L, 3L));
     }
 
     /**
      * ratio=-1.0 keeps everything via the inverted branch.
      */
     public void testNegativeOneKeepsAll() {
-        assertKeepsExactly(-1.0, ids("a", "b", "c"));
+        assertKeepsExactly(-1.0, List.of(1L, 2L, 3L));
     }
 
     /**
@@ -116,8 +106,8 @@ public class HashRatioLimitOperatorTests extends OperatorTestCase {
     public void testNaNKeepsNothing() {
         DriverContext ctx = driverContext();
         BlockFactory blockFactory = ctx.blockFactory();
-        try (HashRatioLimitOperator op = new HashRatioLimitOperator(Double.NaN, 0)) {
-            op.addInput(page(blockFactory, "a", "b", "c"));
+        try (HashRatioLimitOperator op = op(Double.NaN, blockFactory, new int[] { 0 })) {
+            op.addInput(new Page(BlockTestUtils.asBlock(blockFactory, ElementType.LONG, List.of(1L, 2L, 3L))));
             assertThat(op.getOutput(), nullValue());
         }
     }
@@ -128,20 +118,16 @@ public class HashRatioLimitOperatorTests extends OperatorTestCase {
      * specific hash values.
      */
     public void testNegativeRatioKeepsComplement() {
-        List<String> names = new ArrayList<>();
-        for (int i = 0; i < 50; i++) {
-            names.add("series-" + i);
-        }
-        Set<BytesRef> positive = keptIds(0.5, names);
-        Set<BytesRef> negative = keptIds(-0.5, names);
-        Set<BytesRef> all = new HashSet<>();
-        names.forEach(n -> all.add(new BytesRef(n)));
+        List<Long> ids = LongStream.range(0, 50).boxed().toList();
+        Set<Long> positive = keptIds(0.5, ids);
+        Set<Long> negative = keptIds(-0.5, ids);
+        Set<Long> all = new HashSet<>(ids);
 
-        Set<BytesRef> union = new HashSet<>(positive);
+        Set<Long> union = new HashSet<>(positive);
         union.addAll(negative);
         assertThat(union, equalTo(all));
 
-        Set<BytesRef> intersection = new HashSet<>(positive);
+        Set<Long> intersection = new HashSet<>(positive);
         intersection.retainAll(negative);
         assertThat(intersection.isEmpty(), equalTo(true));
 
@@ -150,21 +136,21 @@ public class HashRatioLimitOperatorTests extends OperatorTestCase {
     }
 
     /**
-     * The kept subset depends only on the field key, so the same id is kept or dropped
+     * The kept subset depends only on the key, so the same values are kept or dropped
      * identically on every page, however pages are partitioned or ordered.
      */
-    public void testSameIdDecidedIdenticallyAcrossPages() {
+    public void testSameKeyDecidedIdenticallyAcrossPages() {
         DriverContext ctx = driverContext();
         BlockFactory blockFactory = ctx.blockFactory();
-        try (HashRatioLimitOperator op = new HashRatioLimitOperator(0.5, 0)) {
-            for (String id : List.of("alpha", "beta", "gamma", "delta")) {
-                op.addInput(page(blockFactory, id));
+        try (HashRatioLimitOperator op = op(0.5, blockFactory, new int[] { 0 })) {
+            for (long id : List.of(11L, 22L, 33L, 44L)) {
+                op.addInput(new Page(BlockTestUtils.asBlock(blockFactory, ElementType.LONG, List.of(id))));
                 Page out1 = op.getOutput();
                 boolean kept1 = out1 != null;
                 if (out1 != null) {
                     out1.releaseBlocks();
                 }
-                op.addInput(page(blockFactory, id));
+                op.addInput(new Page(BlockTestUtils.asBlock(blockFactory, ElementType.LONG, List.of(id))));
                 Page out2 = op.getOutput();
                 boolean kept2 = out2 != null;
                 if (out2 != null) {
@@ -176,16 +162,29 @@ public class HashRatioLimitOperatorTests extends OperatorTestCase {
     }
 
     /**
-     * Over many distinct ids roughly the requested fraction is kept.
+     * Over many distinct keys roughly the requested fraction is kept.
      */
     public void testRoughlyHalfKept() {
-        List<String> names = new ArrayList<>();
-        for (int i = 0; i < 2000; i++) {
-            names.add("series-" + i);
-        }
-        int kept = keptIds(0.5, names).size();
+        List<Long> ids = LongStream.range(0, 2000).boxed().toList();
+        int kept = keptIds(0.5, ids).size();
         assertThat(kept, greaterThanOrEqualTo(800));
         assertThat(kept, lessThanOrEqualTo(1200));
+    }
+
+    /**
+     * Multiple key channels combine into one identity: the decision is deterministic per key
+     * tuple and a proper subset is kept.
+     */
+    public void testMultipleKeyChannels() {
+        DriverContext ctx = driverContext();
+        BlockFactory blockFactory = ctx.blockFactory();
+        List<Long> first = LongStream.range(0, 100).boxed().toList();
+        List<Long> second = LongStream.range(0, 100).map(i -> i % 7).boxed().toList();
+        Set<List<Long>> firstRun = keptTuples(0.5, blockFactory, first, second);
+        Set<List<Long>> secondRun = keptTuples(0.5, blockFactory, first, second);
+        assertThat(secondRun, equalTo(firstRun));
+        assertThat(firstRun.isEmpty(), equalTo(false));
+        assertThat(firstRun.size(), lessThanOrEqualTo(100));
     }
 
     /**
@@ -193,15 +192,15 @@ public class HashRatioLimitOperatorTests extends OperatorTestCase {
      * itself is total; callers needing stricter validation reject such ratios before planning.
      */
     public void testKeepPredicateEdges() {
-        BytesRef id = new BytesRef("series-1");
-        assertThat(HashRatioLimitOperator.keep(Double.NaN, id), equalTo(false));
-        assertThat(HashRatioLimitOperator.keep(Double.POSITIVE_INFINITY, id), equalTo(true));
-        assertThat(HashRatioLimitOperator.keep(Double.NEGATIVE_INFINITY, id), equalTo(true));
-        assertThat(HashRatioLimitOperator.keep(-0.0, id), equalTo(false));
-        assertThat(HashRatioLimitOperator.keep(2.0, id), equalTo(true));
-        assertThat(HashRatioLimitOperator.keep(-2.0, id), equalTo(true));
-        assertThat(HashRatioLimitOperator.keep(0.0, id), equalTo(false));
-        assertThat(HashRatioLimitOperator.keep(1.0, id), equalTo(true));
+        int hash = 0x12345678;
+        assertThat(HashRatioLimitOperator.keep(Double.NaN, hash), equalTo(false));
+        assertThat(HashRatioLimitOperator.keep(Double.POSITIVE_INFINITY, hash), equalTo(true));
+        assertThat(HashRatioLimitOperator.keep(Double.NEGATIVE_INFINITY, hash), equalTo(true));
+        assertThat(HashRatioLimitOperator.keep(-0.0, hash), equalTo(false));
+        assertThat(HashRatioLimitOperator.keep(2.0, hash), equalTo(true));
+        assertThat(HashRatioLimitOperator.keep(-2.0, hash), equalTo(true));
+        assertThat(HashRatioLimitOperator.keep(0.0, hash), equalTo(false));
+        assertThat(HashRatioLimitOperator.keep(1.0, hash), equalTo(true));
     }
 
     public void testStatus() {
@@ -213,7 +212,7 @@ public class HashRatioLimitOperatorTests extends OperatorTestCase {
             assertThat(status.rowsReceived(), equalTo(0L));
             assertThat(status.rowsEmitted(), equalTo(0L));
 
-            Page p = page(blockFactory, "a", "b");
+            Page p = new Page(BlockTestUtils.asBlock(blockFactory, ElementType.LONG, List.of(1L, 2L)));
             op.addInput(p);
             Page output = op.getOutput();
             int emitted;
@@ -232,6 +231,32 @@ public class HashRatioLimitOperatorTests extends OperatorTestCase {
         }
     }
 
+    /**
+     * Pages with an extra non-key channel pass through with the channel preserved.
+     */
+    public void testNonKeyChannelsPreserved() {
+        DriverContext ctx = driverContext();
+        BlockFactory blockFactory = ctx.blockFactory();
+        try (HashRatioLimitOperator op = op(0.5, blockFactory, new int[] { 0 })) {
+            Page p = new Page(
+                BlockTestUtils.asBlock(blockFactory, ElementType.LONG, List.of(1L, 2L, 3L, 4L)),
+                BlockTestUtils.asBlock(blockFactory, ElementType.LONG, List.of(10L, 20L, 30L, 40L))
+            );
+            op.addInput(p);
+            Page out = op.getOutput();
+            try {
+                if (out != null) {
+                    assertThat(out.getBlockCount(), equalTo(2));
+                    assertThat(idsOf(List.of(out)).size(), lessThanOrEqualTo(4));
+                }
+            } finally {
+                if (out != null) {
+                    out.releaseBlocks();
+                }
+            }
+        }
+    }
+
     @Override
     protected void assertStatus(Map<String, Object> map, List<Page> input, List<Page> output) {
         var emittedRows = output.stream().mapToInt(Page::getPositionCount).sum();
@@ -246,25 +271,15 @@ public class HashRatioLimitOperatorTests extends OperatorTestCase {
         );
     }
 
-    private void assertKeepsExactly(double ratio, List<String> names) {
-        DriverContext ctx = driverContext();
-        BlockFactory blockFactory = ctx.blockFactory();
-        try (HashRatioLimitOperator op = new HashRatioLimitOperator(ratio, 0)) {
-            op.addInput(page(blockFactory, names.toArray(new String[0])));
-            Page out = op.getOutput();
-            try {
-                assertThat(out.getPositionCount(), equalTo(names.size()));
-            } finally {
-                out.releaseBlocks();
-            }
-        }
+    private void assertKeepsExactly(double ratio, List<Long> ids) {
+        assertThat(keptIds(ratio, ids), equalTo(new HashSet<>(ids)));
     }
 
-    private Set<BytesRef> keptIds(double ratio, List<String> names) {
+    private Set<Long> keptIds(double ratio, List<Long> ids) {
         DriverContext ctx = driverContext();
         BlockFactory blockFactory = ctx.blockFactory();
-        try (HashRatioLimitOperator op = new HashRatioLimitOperator(ratio, 0)) {
-            op.addInput(page(blockFactory, names.toArray(new String[0])));
+        try (HashRatioLimitOperator op = op(ratio, blockFactory, new int[] { 0 })) {
+            op.addInput(new Page(BlockTestUtils.asBlock(blockFactory, ElementType.LONG, ids.stream().map(o -> (Object) o).toList())));
             Page out = op.getOutput();
             try {
                 if (out == null) {
@@ -279,28 +294,60 @@ public class HashRatioLimitOperatorTests extends OperatorTestCase {
         }
     }
 
-    private static Set<BytesRef> idsOf(List<Page> pages) {
-        Set<BytesRef> ids = new HashSet<>();
+    private Set<List<Long>> keptTuples(double ratio, BlockFactory blockFactory, List<Long> first, List<Long> second) {
+        try (HashRatioLimitOperator op = op(ratio, blockFactory, new int[] { 0, 1 })) {
+            op.addInput(
+                new Page(
+                    BlockTestUtils.asBlock(blockFactory, ElementType.LONG, first.stream().map(o -> (Object) o).toList()),
+                    BlockTestUtils.asBlock(blockFactory, ElementType.LONG, second.stream().map(o -> (Object) o).toList())
+                )
+            );
+            Page out = op.getOutput();
+            try {
+                Set<List<Long>> kept = new HashSet<>();
+                if (out != null) {
+                    List<Object> col0 = new ArrayList<>();
+                    List<Object> col1 = new ArrayList<>();
+                    BlockTestUtils.readInto(col0, out.getBlock(0));
+                    BlockTestUtils.readInto(col1, out.getBlock(1));
+                    for (int i = 0; i < col0.size(); i++) {
+                        kept.add(List.of((Long) col0.get(i), (Long) col1.get(i)));
+                    }
+                }
+                return kept;
+            } finally {
+                if (out != null) {
+                    out.releaseBlocks();
+                }
+            }
+        }
+    }
+
+    private static Set<Long> idsOf(List<Page> pages) {
+        Set<Long> ids = new HashSet<>();
         for (Page page : pages) {
             Block block = page.getBlock(0);
             List<Object> values = new ArrayList<>();
             BlockTestUtils.readInto(values, block);
             for (Object value : values) {
-                ids.add((BytesRef) value);
+                ids.add((Long) value);
             }
         }
         return ids;
     }
 
-    private static Page page(BlockFactory blockFactory, String... ids) {
-        List<Object> values = new ArrayList<>(ids.length);
-        for (String id : ids) {
-            values.add(new BytesRef(id));
+    private static HashRatioLimitOperator op(double ratio, BlockFactory blockFactory, int[] keyChannels) {
+        List<ElementType> types = new java.util.ArrayList<>();
+        for (int i = 0; i < keyChannels.length; i++) {
+            types.add(ElementType.LONG);
         }
-        return new Page(BlockTestUtils.asBlock(blockFactory, ElementType.BYTES_REF, values));
-    }
-
-    private static List<String> ids(String... ids) {
-        return List.of(ids);
+        return new HashRatioLimitOperator(
+            ratio,
+            new GroupKeyEncoder(
+                keyChannels,
+                types,
+                new PagedBytesBuilder(blockFactory.bigArrays().recycler(), blockFactory.breaker(), "group-key-encoder", 64)
+            )
+        );
     }
 }

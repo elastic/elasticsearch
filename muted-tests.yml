@@ -782,3 +782,5 @@ tests:
 - class: org.elasticsearch.xpack.stateless.reshard.StatelessReshardIT
   method: testTargetWillTransitionToSplitIfSearchShardsActiveTimesOut
   issue: https://github.com/elastic/elasticsearch/issues/159556
+- class: org.elasticsearch.backwards.MixedClusterClientYamlTestSuiteIT
+  issue: https://github.com/elastic/elasticsearch/issues/159560

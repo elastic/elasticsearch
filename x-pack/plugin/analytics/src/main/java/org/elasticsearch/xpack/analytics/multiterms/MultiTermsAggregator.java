@@ -25,6 +25,7 @@ import org.elasticsearch.common.util.ObjectArray;
 import org.elasticsearch.common.util.ObjectArrayPriorityQueue;
 import org.elasticsearch.core.Releasables;
 import org.elasticsearch.index.fielddata.FieldData;
+import org.elasticsearch.index.fielddata.ValueDeduplicator;
 import org.elasticsearch.index.fielddata.SortableBinaryDocValues;
 import org.elasticsearch.index.fielddata.SortedNumericDoubleValues;
 import org.elasticsearch.index.fielddata.SortedNumericLongValues;
@@ -505,19 +506,19 @@ class MultiTermsAggregator extends DeferableBucketAggregator {
         }
 
         private TermValues getValues(SortableBinaryDocValues values) {
+            final ValueDeduplicator duplicates = new ValueDeduplicator(values);
             return doc -> {
                 if (values.advanceExact(doc)) {
                     final int valuesCount = values.docValueCount();
                     final List<Object> objects = new ArrayList<>(valuesCount);
                     // SortableBinaryDocValues don't guarantee uniqueness so we
                     // need to take care of dups
-                    previous.clear();
+                    duplicates.reset(valuesCount);
                     for (int i = 0; i < valuesCount; ++i) {
                         final BytesRef bytes = values.nextValue();
-                        if (i > 0 && previous.get().equals(bytes)) {
+                        if (duplicates.seen(bytes)) {
                             continue;
                         }
-                        previous.copyBytes(bytes);
                         objects.add(BytesRef.deepCopyOf(bytes));
                     }
                     return objects;

@@ -16,9 +16,12 @@ import org.elasticsearch.core.Nullable;
 import java.io.IOException;
 
 /**
- * A list of per-document binary values, sorted
- * according to {@link BytesRef#compareTo(BytesRef)}.
- * There might be dups however.
+ * A list of per-document binary values, in the order {@link #getValueOrder()} reports.
+ *
+ * <p>Most fields sort their values as they are written, so {@link ValueOrder#SORTED} is the default and what
+ * a caller gets unless a field says otherwise. A field that keeps the order its values were given in reports
+ * {@link ValueOrder#ARRAY}, and a caller that needs the values ordered has to order them itself. There might
+ * be dups either way.
  */
 // TODO: Should it expose a count (current approach) or return null when there are no more values?
 public abstract class SortableBinaryDocValues {
@@ -77,6 +80,13 @@ public abstract class SortableBinaryDocValues {
     }
 
     /**
+     * The order {@link #nextValue()} hands a document's values back in.
+     */
+    public ValueOrder getValueOrder() {
+        return ValueOrder.SORTED;
+    }
+
+    /**
      * Describes the sparsity of the values for a field.
      */
     public enum Sparsity {
@@ -111,6 +121,28 @@ public abstract class SortableBinaryDocValues {
          * The per-document value mode is unknown.
          */
         UNKNOWN
+
+    }
+
+    /**
+     * The order a document's values come back in.
+     *
+     * <p>Which one a field uses is settled when its values are written, so nothing is ordered on the way out:
+     * a field is either written sorted or read back the way it was given.
+     */
+    public enum ValueOrder {
+
+        /**
+         * Ascending by {@link BytesRef#compareTo(BytesRef)}, duplicates possible. Callers may rely on a
+         * document's values arriving in that order - taking the first as the smallest, comparing neighbours
+         * to find duplicates, or advancing through sorted ranges without restarting.
+         */
+        SORTED,
+        /**
+         * The order the values were given in, which is how the ColumNAR payload stores every field it holds -
+         * not a choice a field makes. Callers that need an order have to establish it themselves.
+         */
+        ARRAY
 
     }
 }

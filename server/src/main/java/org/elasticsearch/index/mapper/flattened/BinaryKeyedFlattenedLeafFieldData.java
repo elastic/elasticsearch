@@ -82,7 +82,8 @@ public final class BinaryKeyedFlattenedLeafFieldData implements LeafFieldData {
     /**
      * Returns key-filtered view on the provided SortableBinaryDocValues, for use by block loaders.
      */
-    static SortableBinaryDocValues getKeyFilteredSortedBinaryDocValues(MultiValuedSortableBinaryDocValues dv, String key) throws IOException {
+    static SortableBinaryDocValues getKeyFilteredSortedBinaryDocValues(MultiValuedSortableBinaryDocValues dv, String key)
+        throws IOException {
         return new KeyedFlattenedBinaryDocValues(new BytesRef(key), dv);
     }
 

@@ -299,8 +299,19 @@ public enum MultiValueMode implements Writeable {
         }
 
         @Override
-        protected BytesRef pick(SortableBinaryDocValues values) throws IOException {
-            return values.nextValue();
+        protected BytesRef pick(SortableBinaryDocValues values, BytesRefBuilder scratch) throws IOException {
+            if (values.getValueOrder() == SortableBinaryDocValues.ValueOrder.SORTED) {
+                return values.nextValue();
+            }
+            final int count = values.docValueCount();
+            scratch.copyBytes(values.nextValue());
+            for (int i = 1; i < count; ++i) {
+                final BytesRef next = values.nextValue();
+                if (next.compareTo(scratch.get()) < 0) {
+                    scratch.copyBytes(next);
+                }
+            }
+            return scratch.get();
         }
 
         @Override
@@ -438,12 +449,22 @@ public enum MultiValueMode implements Writeable {
         }
 
         @Override
-        protected BytesRef pick(SortableBinaryDocValues values) throws IOException {
-            int count = values.docValueCount();
-            for (int i = 0; i < count - 1; ++i) {
-                values.nextValue();
+        protected BytesRef pick(SortableBinaryDocValues values, BytesRefBuilder scratch) throws IOException {
+            final int count = values.docValueCount();
+            if (values.getValueOrder() == SortableBinaryDocValues.ValueOrder.SORTED) {
+                for (int i = 0; i < count - 1; ++i) {
+                    values.nextValue();
+                }
+                return values.nextValue();
             }
-            return values.nextValue();
+            scratch.copyBytes(values.nextValue());
+            for (int i = 1; i < count; ++i) {
+                final BytesRef next = values.nextValue();
+                if (next.compareTo(scratch.get()) > 0) {
+                    scratch.copyBytes(next);
+                }
+            }
+            return scratch.get();
         }
 
         @Override
@@ -751,12 +772,13 @@ public enum MultiValueMode implements Writeable {
         } else {
             return new AbstractBinaryDocValues() {
 
+                private final BytesRefBuilder scratch = new BytesRefBuilder();
                 private BytesRef value;
 
                 @Override
                 public boolean advanceExact(int target) throws IOException {
                     if (values.advanceExact(target)) {
-                        value = pick(values);
+                        value = pick(values, scratch);
                         return true;
                     }
                     value = missingValue;
@@ -771,7 +793,17 @@ public enum MultiValueMode implements Writeable {
         }
     }
 
-    protected BytesRef pick(SortableBinaryDocValues values) throws IOException {
+    /**
+     * The value this mode selects out of a document's values.
+     *
+     * <p>A document whose values arrive sorted is answered from its first or last value. One read back in
+     * {@link SortableBinaryDocValues.ValueOrder#ARRAY} order is scanned, which costs what reading the document
+     * costs and no more.
+     *
+     * <p>{@code scratch} is the caller's, and is where a scan builds its answer - the value found has to be copied
+     * because reading on can invalidate it.
+     */
+    protected BytesRef pick(SortableBinaryDocValues values, BytesRefBuilder scratch) throws IOException {
         throw new IllegalArgumentException("Unsupported sort mode: " + this);
     }
 

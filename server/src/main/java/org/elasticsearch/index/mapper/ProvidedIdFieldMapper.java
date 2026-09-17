@@ -300,6 +300,11 @@ public class ProvidedIdFieldMapper extends IdFieldMapper {
                         public ValueMode getValueMode() {
                             return inValues.getValueMode();
                         }
+
+                        @Override
+                        public ValueOrder getValueOrder() {
+                            return inValues.getValueOrder();
+                        }
                     };
                 }
             };

@@ -59,15 +59,10 @@ public interface StringColumnSource {
     int nonNullValueCount() throws IOException;
 
     /**
-     * How many slots the document these values are positioned on holds, the null ones included.
-     */
-    int slotCount() throws IOException;
-
-    /**
      * The value in one slot of the document these values are positioned on, or {@code null} when that slot is null.
      *
-     * <p>Handed over where the column holds it, so nothing is copied. The returned {@link BytesRef} is only valid
-     * until the next call.
+     * <p>Handed over where the column holds it, so nothing is copied, which is what lets a caller read a document
+     * through rather than assemble it. The returned {@link BytesRef} is only valid until the next call.
      */
     BytesRef slotAt(int slot) throws IOException;
 }

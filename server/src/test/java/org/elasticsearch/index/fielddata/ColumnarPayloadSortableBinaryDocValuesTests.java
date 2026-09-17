@@ -88,18 +88,40 @@ public class ColumnarPayloadSortableBinaryDocValuesTests extends ESTestCase {
         });
     }
 
-    /** The values are still there once something asks for them, sorted, after a count that did not. */
+    /** The values are still there once something asks for them, after a count that did not. */
     public void testValuesSurviveACountThatDidNotReadThem() throws IOException {
         withColumn(new String[][] { { "b", "a" }, { "d", null, "c" } }, values -> {
             assertTrue(values.advanceExact(0));
             assertEquals(2, values.docValueCount());
             assertTrue(values.advanceExact(1));
             assertEquals(2, values.docValueCount());
-            assertEquals(new BytesRef("c"), values.nextValue());
             assertEquals(new BytesRef("d"), values.nextValue());
+            assertEquals(new BytesRef("c"), values.nextValue());
+            assertTrue(values.advanceExact(0));
+            assertEquals(new BytesRef("b"), values.nextValue());
+            assertEquals(new BytesRef("a"), values.nextValue());
+        });
+    }
+
+    /** Nothing is put in order on the way out: the slots come back as the column holds them. */
+    public void testValuesComeBackInTheOrderTheyWereWritten() throws IOException {
+        withColumn(new String[][] { { "c", "a", "b" } }, values -> {
+            assertEquals(SortableBinaryDocValues.ValueOrder.ARRAY, values.getValueOrder());
+            assertTrue(values.advanceExact(0));
+            assertEquals(3, values.docValueCount());
+            assertEquals(new BytesRef("c"), values.nextValue());
+            assertEquals(new BytesRef("a"), values.nextValue());
+            assertEquals(new BytesRef("b"), values.nextValue());
+        });
+    }
+
+    /** Values that happen to have been written ascending are handed back as they are, like any others. */
+    public void testValuesWrittenAscendingComeBackAscending() throws IOException {
+        withColumn(new String[][] { { "a", "b", "c" } }, values -> {
             assertTrue(values.advanceExact(0));
             assertEquals(new BytesRef("a"), values.nextValue());
             assertEquals(new BytesRef("b"), values.nextValue());
+            assertEquals(new BytesRef("c"), values.nextValue());
         });
     }
 
@@ -131,13 +153,13 @@ public class ColumnarPayloadSortableBinaryDocValuesTests extends ESTestCase {
         });
     }
 
-    /** This surface sorts but does not deduplicate, so a repeated value comes back as many times as it was written. */
+    /** This surface does not deduplicate, so a repeated value comes back as many times as it was written. */
     public void testDuplicatesAreKept() throws IOException {
         withColumn(new String[][] { { "b", "a", "b" } }, values -> {
             assertTrue(values.advanceExact(0));
             assertEquals(3, values.docValueCount());
-            assertEquals(new BytesRef("a"), values.nextValue());
             assertEquals(new BytesRef("b"), values.nextValue());
+            assertEquals(new BytesRef("a"), values.nextValue());
             assertEquals(new BytesRef("b"), values.nextValue());
         });
     }
@@ -151,13 +173,13 @@ public class ColumnarPayloadSortableBinaryDocValuesTests extends ESTestCase {
             assertEquals(new BytesRef("c"), values.nextValue());
             assertTrue(values.advanceExact(2));
             assertEquals(2, values.docValueCount());
-            assertEquals(new BytesRef("d"), values.nextValue());
             assertEquals(new BytesRef("e"), values.nextValue());
+            assertEquals(new BytesRef("d"), values.nextValue());
             assertTrue(values.advanceExact(3));
             assertEquals(new BytesRef("f"), values.nextValue());
             assertTrue(values.advanceExact(0));
-            assertEquals(new BytesRef("a"), values.nextValue());
             assertEquals(new BytesRef("b"), values.nextValue());
+            assertEquals(new BytesRef("a"), values.nextValue());
         });
     }
 

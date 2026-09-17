@@ -85,8 +85,8 @@ public class DLMFrozenTransitionsHealthIndicatorService implements HealthIndicat
         NAME,
         "service_not_running",
         "The DLM frozen transition service is not running on the current master node.",
-        "Check the current master node's logs for errors related to the DLM frozen transition service. A master "
-            + "failover may resolve the issue.",
+        "Check the current master node's logs for errors related to the DLM frozen transition service. Restarting "
+            + "the master may resolve the issue.",
         HELP_URL
     );
 
@@ -112,7 +112,7 @@ public class DLMFrozenTransitionsHealthIndicatorService implements HealthIndicat
         NAME,
         "marked_transitions_not_started",
         "Some indices have been marked for conversion to the frozen tier but have not been submitted to the transition "
-            + "executor. The data stream lifecycle explain API reports these indices with a [frozen_transition_status] of [marked].",
+            + "executor. ",
         "Check the current master node's logs for errors related to the DLM frozen transition service. Check the current "
             + "status of the affected indices using the [GET /<affected_index_name>/_lifecycle/explain] API. Please replace "
             + "the <affected_index_name> in the API with the actual index name.",
@@ -123,8 +123,7 @@ public class DLMFrozenTransitionsHealthIndicatorService implements HealthIndicat
         NAME,
         "marked_transitions_queued",
         "Some indices have been submitted to the DLM frozen transition executor but have been waiting in its queue "
-            + "without starting. The data stream lifecycle explain API reports these indices with a "
-            + "[frozen_transition_status] of [queued].",
+            + "without starting.",
         "Inspect the [dlm_frozen_transition] thread pool for a saturated queue or rejected tasks using the "
             + "[GET /_cat/thread_pool/dlm_frozen_transition?v] API. Transitions queue when all transition threads are "
             + "busy; a persistently full queue means transitions are completing more slowly than indices are becoming "

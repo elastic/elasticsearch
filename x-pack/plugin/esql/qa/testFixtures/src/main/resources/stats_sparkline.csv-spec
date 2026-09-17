@@ -309,6 +309,21 @@ emp_no:integer | t:keyword
 10010          | null
 ;
 
+sparklineWithCompanionOnEmptyInput
+required_capability: fn_sparkline_from_partial_empty_input
+FROM employees
+| WHERE emp_no == -1
+| STATS t = TOP(NOW(), 3, "desc"),
+        s = SPARKLINE(COUNT(*), hire_date, 20, "1985-01-01T00:00:00Z", "1985-12-31T00:00:00Z"),
+        c = COUNT(*),
+        m = MIN(gender),
+        sum = SUM(salary)
+;
+
+t:datetime | s:long                               | c:long | m:keyword | sum:long
+null       | [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0] | 0      | null      | null
+;
+
 sparklineComplexWithGroupingMapped
 required_capability: fn_sparkline_nested
 FROM employees

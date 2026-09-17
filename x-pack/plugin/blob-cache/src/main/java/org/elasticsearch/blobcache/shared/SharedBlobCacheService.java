@@ -1602,7 +1602,6 @@ public class SharedBlobCacheService<KeyType extends SharedBlobCacheService.KeyBa
         private final KeyType cacheKey;
         private final long length;
         private final CacheMissHandler cacheMissMetricHandler;
-        // Stamped onto newly allocated CacheFileRegions. Hits/misses use the region's timestamp, which may later be backfilled.
         private final long timestampMillis;
         private CacheEntry<CacheFileRegion<KeyType>> lastAccessedRegion;
 

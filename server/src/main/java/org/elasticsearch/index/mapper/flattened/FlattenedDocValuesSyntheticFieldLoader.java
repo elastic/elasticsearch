@@ -324,9 +324,10 @@ class FlattenedDocValuesSyntheticFieldLoader implements SourceLoader.SyntheticFi
     }
 
     /**
-     * An abstraction over different Lucene doc values formats ({@link SortedSetDocValues} and {@link SortableBinaryDocValues}) that provides
-     * a uniform way to position on a document and read its keyed values. This allows the rest of the loader to work with keyed doc values
-     * without caring about the underlying storage format.
+     * An abstraction over different Lucene doc values formats ({@link SortedSetDocValues} and
+     * {@link SortableBinaryDocValues}) that provides a uniform way to position on a document and read its keyed
+     * values. This allows the rest of the loader to work with keyed doc values without caring about the underlying
+     * storage format.
      */
     interface FlattenedDocValues extends DocValuesLoader {
         boolean advanceToDoc(int docId) throws IOException;

@@ -143,14 +143,26 @@ public abstract class RestSqlTestCase extends BaseRestSqlTestCase implements Err
         assertEquals(emptyList(), result.get("rows"));
     }
 
-    /** 22 characters and about a billion NFA states; the estimate refuses it before the node allocates any of it. */
+    /**
+     * Short patterns whose NFA is enormous: nested repeats of a finite atom, and repeats of something that accepts the empty
+     * string, whose concatenation is quadratic. The estimate refuses each before the node allocates any of it.
+     */
     public void testHugeRLikePatternIsRejected() throws IOException {
         index("{\"test\":\"test\"}");
         String mode = randomMode();
-        expectBadRequest(
-            () -> runSql(mode, "SELECT * FROM " + indexPattern("test") + " WHERE test RLIKE '[ab]{1000}{1000}{1000}'"),
-            containsString("Pattern is too large to compile")
+        for (String pattern : new String[] { "[ab]{1000}{1000}{1000}", "(.*){100}{100}", "<0-999999999>{1000}{50}" }) {
+            expectBadRequest(
+                () -> runSql(mode, "SELECT * FROM " + indexPattern("test") + " WHERE test RLIKE '" + pattern + "'"),
+                containsString("Pattern is too large to compile")
+            );
+        }
+        // the LIKE form of the same quadratic concatenation stays within the budget at the length limit
+        Map<String, Object> result = runSql(
+            mode,
+            "SELECT * FROM " + indexPattern("test") + " WHERE test LIKE '" + "%".repeat(1000) + "'",
+            false
         );
+        assertEquals(singletonList(singletonList("test")), result.get("rows"));
     }
 
     public void testBasicQuery() throws IOException {

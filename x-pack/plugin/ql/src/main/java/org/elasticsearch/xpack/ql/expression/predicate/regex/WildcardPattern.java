@@ -6,10 +6,7 @@
  */
 package org.elasticsearch.xpack.ql.expression.predicate.regex;
 
-import org.apache.lucene.index.Term;
-import org.apache.lucene.search.WildcardQuery;
 import org.apache.lucene.util.automaton.Automaton;
-import org.apache.lucene.util.automaton.Operations;
 import org.elasticsearch.xpack.ql.util.StringUtils;
 
 import java.util.Objects;
@@ -38,8 +35,7 @@ public class WildcardPattern extends AbstractStringPattern {
 
     @Override
     protected Automaton doCreateAutomaton() {
-        checkLength(wildcard);
-        return WildcardQuery.toAutomaton(new Term(null, wildcard), Operations.DEFAULT_DETERMINIZE_WORK_LIMIT);
+        return compileWildcard(wildcard);
     }
 
     @Override

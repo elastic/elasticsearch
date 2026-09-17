@@ -8,11 +8,18 @@ package org.elasticsearch.xpack.ql.expression.predicate.regex;
 
 import org.apache.lucene.util.IntsRef;
 import org.apache.lucene.util.UnicodeUtil;
+import org.apache.lucene.util.automaton.Automata;
 import org.apache.lucene.util.automaton.Automaton;
 import org.apache.lucene.util.automaton.Operations;
 import org.apache.lucene.util.automaton.TooComplexToDeterminizeException;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.IndexSettings;
+import org.elasticsearch.lucene.search.cost.RegexpNfaRamEstimator;
+import org.elasticsearch.lucene.util.automaton.CircuitBreakingOperations;
+import org.elasticsearch.xpack.ql.InvalidArgumentException;
+
+import java.util.ArrayList;
+import java.util.List;
 
 public abstract class AbstractStringPattern implements StringPattern {
 
@@ -32,9 +39,9 @@ public abstract class AbstractStringPattern implements StringPattern {
         try {
             return doCreateAutomaton();
         } catch (TooComplexToDeterminizeException e) {
-            throw new IllegalArgumentException("Pattern was too complex to determinize", e);
+            throw new InvalidArgumentException(e, "Pattern was too complex to determinize");
         } catch (StackOverflowError e) {
-            throw new IllegalArgumentException("Pattern nesting is too deep to evaluate");
+            throw new InvalidArgumentException("Pattern nesting is too deep to evaluate");
         }
     }
 
@@ -43,10 +50,45 @@ public abstract class AbstractStringPattern implements StringPattern {
     /** A pattern longer than the {@code regexp} query would accept is rejected before anything is parsed or built. */
     protected static void checkLength(String pattern) {
         if (pattern.length() > MAX_PATTERN_LENGTH) {
-            throw new IllegalArgumentException(
+            throw new InvalidArgumentException(
                 "Pattern length [" + pattern.length() + "] exceeds the allowed maximum of [" + MAX_PATTERN_LENGTH + "]"
             );
         }
+    }
+
+    /**
+     * {@code WildcardQuery.toAutomaton} with its size estimated first and its determinization charged: a run of {@code *}
+     * concatenates automata that accept the empty string, which is quadratic in transitions like a nested regex repeat.
+     */
+    protected static Automaton compileWildcard(String wildcard) {
+        checkLength(wildcard);
+        AutomatonBudget budget = new AutomatonBudget();
+        budget.addEstimateBytesAndMaybeBreak(RegexpNfaRamEstimator.estimateWildcardRamBytes(wildcard), "wildcard");
+        List<Automaton> automata = new ArrayList<>();
+        for (int i = 0; i < wildcard.length();) {
+            int c = wildcard.codePointAt(i);
+            i += Character.charCount(c);
+            switch (c) {
+                case '*' -> automata.add(Automata.makeAnyString());
+                case '?' -> automata.add(Automata.makeAnyChar());
+                case '\\' -> {
+                    if (i < wildcard.length()) {
+                        int escaped = wildcard.codePointAt(i);
+                        i += Character.charCount(escaped);
+                        automata.add(Automata.makeChar(escaped));
+                    } else {
+                        automata.add(Automata.makeChar(c));
+                    }
+                }
+                default -> automata.add(Automata.makeChar(c));
+            }
+        }
+        return CircuitBreakingOperations.determinize(
+            Operations.concatenate(automata),
+            Operations.DEFAULT_DETERMINIZE_WORK_LIMIT,
+            budget,
+            "wildcard"
+        );
     }
 
     private Automaton automaton() {

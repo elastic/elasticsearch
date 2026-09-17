@@ -9,6 +9,7 @@ package org.elasticsearch.xpack.ql.expression.predicate.regex;
 import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.breaker.CircuitBreakingException;
 import org.elasticsearch.common.unit.MemorySizeValue;
+import org.elasticsearch.xpack.ql.InvalidArgumentException;
 
 /**
  * Bounds one pattern compilation to a fixed share of the heap. The optimizer has no request breaker to charge: it runs
@@ -26,7 +27,7 @@ final class AutomatonBudget implements CircuitBreaker {
     @Override
     public void addEstimateBytesAndMaybeBreak(long bytes, String label) throws CircuitBreakingException {
         if (used + bytes > LIMIT) {
-            throw new IllegalArgumentException(
+            throw new InvalidArgumentException(
                 "Pattern is too large to compile: it needs [" + (used + bytes) + "] bytes, the limit is [" + LIMIT + "]"
             );
         }

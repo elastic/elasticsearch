@@ -103,11 +103,13 @@ public abstract class EqlRestTestCase extends RemoteClusterAwareEqlRestTestCase 
             "Pattern length [10001] exceeds the allowed maximum of [1000]",
             400
         );
-        assertBadRequest(
-            "{\"query\": \"process where event.category regex \\\"[ab]{1000}{1000}{1000}\\\"\"}",
-            "Pattern is too large to compile",
-            400
-        );
+        for (String pattern : new String[] { "[ab]{1000}{1000}{1000}", "(.*){100}{100}" }) {
+            assertBadRequest(
+                "{\"query\": \"process where event.category regex \\\"" + pattern + "\\\"\"}",
+                "Pattern is too large to compile",
+                400
+            );
+        }
         deleteIndexWithProvisioningClient(defaultValidationIndexName);
     }
 

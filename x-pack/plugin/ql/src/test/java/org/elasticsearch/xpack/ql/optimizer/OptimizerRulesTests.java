@@ -8,6 +8,7 @@ package org.elasticsearch.xpack.ql.optimizer;
 
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.xpack.ql.InvalidArgumentException;
 import org.elasticsearch.xpack.ql.TestUtils;
 import org.elasticsearch.xpack.ql.expression.Alias;
 import org.elasticsearch.xpack.ql.expression.Expression;
@@ -1481,7 +1482,7 @@ public class OptimizerRulesTests extends ESTestCase {
         thread.start();
         thread.join(TimeValue.timeValueSeconds(30).millis());
         assertFalse(thread.isAlive());
-        assertThat(thrown.get(), instanceOf(IllegalArgumentException.class));
+        assertThat(thrown.get(), instanceOf(InvalidArgumentException.class));
         assertEquals("Pattern nesting is too deep to evaluate", thrown.get().getMessage());
     }
 

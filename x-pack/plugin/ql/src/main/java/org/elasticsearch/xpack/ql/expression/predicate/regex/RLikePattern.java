@@ -11,6 +11,7 @@ import org.apache.lucene.util.automaton.Operations;
 import org.apache.lucene.util.automaton.RegExp;
 import org.elasticsearch.lucene.search.cost.RegexpNfaRamEstimator;
 import org.elasticsearch.lucene.util.automaton.CircuitBreakingOperations;
+import org.elasticsearch.xpack.ql.InvalidArgumentException;
 
 import java.util.Objects;
 
@@ -34,7 +35,7 @@ public class RLikePattern extends AbstractStringPattern {
         try {
             re = new RegExp(regexpPattern, RegExp.ALL | RegExp.DEPRECATED_COMPLEMENT);
         } catch (NumberFormatException e) {
-            throw new IllegalArgumentException("Pattern repeat count is out of range", e);
+            throw new InvalidArgumentException(e, "Pattern repeat count is out of range");
         }
         AutomatonBudget budget = new AutomatonBudget();
         budget.addEstimateBytesAndMaybeBreak(RegexpNfaRamEstimator.estimateRamBytes(re), "rlike");

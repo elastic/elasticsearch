@@ -10,6 +10,7 @@ package org.elasticsearch.xpack.ql.expression.predicate.regex;
 import org.apache.lucene.util.automaton.TooComplexToDeterminizeException;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.xpack.ql.InvalidArgumentException;
 import org.elasticsearch.xpack.ql.util.StringUtils;
 
 import java.util.concurrent.atomic.AtomicReference;
@@ -106,7 +107,7 @@ public class StringPatternTests extends ESTestCase {
     }
 
     public void testTooComplexRegexIsAClientError() {
-        IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> rlike("(a|b)*a(a|b){30}").createAutomaton());
+        InvalidArgumentException e = expectThrows(InvalidArgumentException.class, () -> rlike("(a|b)*a(a|b){30}").createAutomaton());
         assertEquals("Pattern was too complex to determinize", e.getMessage());
         assertThat(e.getCause(), instanceOf(TooComplexToDeterminizeException.class));
     }
@@ -116,12 +117,33 @@ public class StringPatternTests extends ESTestCase {
      * would exhaust the test JVM, so the test also proves the refusal precedes the build.
      */
     public void testHugeRegexIsRefusedBeforeItIsBuilt() {
-        IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> rlike("[ab]{1000}{1000}{1000}").createAutomaton());
+        InvalidArgumentException e = expectThrows(InvalidArgumentException.class, () -> rlike("[ab]{1000}{1000}{1000}").createAutomaton());
         assertThat(e.getMessage(), containsString("Pattern is too large to compile"));
     }
 
+    /**
+     * Fourteen characters whose NFA has fifty million transitions: a repeat of something that accepts the empty string is
+     * quadratic, and a state count alone admits it. The estimate must refuse it before the build.
+     */
+    public void testNullableRepeatIsRefusedBeforeItIsBuilt() {
+        for (String regex : new String[] { "(.*){100}{100}", "(a*){60}{60}", "<0-999999999>{1000}{50}" }) {
+            InvalidArgumentException e = expectThrows(InvalidArgumentException.class, () -> rlike(regex).createAutomaton());
+            assertThat(regex, e.getMessage(), containsString("Pattern is too large to compile"));
+        }
+    }
+
+    /**
+     * A run of {@code %} is the LIKE form of the same quadratic concatenation; within the length limit it stays under the
+     * budget and compiles, so the limit is what bounds LIKE and the budget only backs it up.
+     */
+    public void testLongWildcardRunCompilesWithinTheLengthLimit() {
+        assertTrue(like("%".repeat(AbstractStringPattern.MAX_PATTERN_LENGTH), '0').matchesAll());
+        assertFalse(like("%a%b%", '0').matchesAll());
+        assertEquals("a", new WildcardPattern("a").exactMatch());
+    }
+
     public void testRepeatCountOutOfRangeIsAClientError() {
-        IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> rlike("a{99999999999}").createAutomaton());
+        InvalidArgumentException e = expectThrows(InvalidArgumentException.class, () -> rlike("a{99999999999}").createAutomaton());
         assertEquals("Pattern repeat count is out of range", e.getMessage());
     }
 
@@ -131,7 +153,7 @@ public class StringPatternTests extends ESTestCase {
             rlike(tooLong),
             like(tooLong, '0'),
             new WildcardPattern(tooLong) }) {
-            IllegalArgumentException e = expectThrows(IllegalArgumentException.class, pattern::createAutomaton);
+            InvalidArgumentException e = expectThrows(InvalidArgumentException.class, pattern::createAutomaton);
             assertThat(e.getMessage(), containsString("Pattern length [" + tooLong.length() + "] exceeds the allowed maximum"));
         }
         String atLimit = "a".repeat(AbstractStringPattern.MAX_PATTERN_LENGTH);
@@ -157,7 +179,7 @@ public class StringPatternTests extends ESTestCase {
             throw new AssertionError(e);
         }
         assertFalse("pattern compilation did not finish", thread.isAlive());
-        assertThat(thrown.get(), instanceOf(IllegalArgumentException.class));
+        assertThat(thrown.get(), instanceOf(InvalidArgumentException.class));
         assertEquals(expectedMessage, thrown.get().getMessage());
     }
 }

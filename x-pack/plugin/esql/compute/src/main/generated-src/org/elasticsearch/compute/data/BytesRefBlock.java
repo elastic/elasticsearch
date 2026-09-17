@@ -178,7 +178,13 @@ public sealed interface BytesRefBlock extends Block permits BytesRefArrayBlock, 
                     final int valueCount = in.readVInt();
                     builder.beginPositionEntry();
                     for (int valueIndex = 0; valueIndex < valueCount; valueIndex++) {
-                        builder.appendBytesRef(in.readBytesRef());
+                        int length = in.readArraySize();
+                        in.blockFactory().adjustBreaker(length);
+                        try {
+                            builder.appendBytesRef(in.readBytesRef(length));
+                        } finally {
+                            in.blockFactory().adjustBreaker(-length);
+                        }
                     }
                     builder.endPositionEntry();
                 }

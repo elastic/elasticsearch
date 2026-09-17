@@ -230,8 +230,13 @@ $if(BytesRef)$
      * fields from {@code _source}.
      */
     public static long ramBytesEstimated(BytesRef value, long overestimateThreshold, double overestimateFactor) {
-        long valueBytes = RamUsageEstimator.alignObjectSize(RamUsageEstimator.NUM_BYTES_ARRAY_HEADER + value.length);
-        if (value.length > overestimateThreshold) {
+        return ramBytesEstimated(value.length, overestimateThreshold, overestimateFactor);
+    }
+
+    /** Same estimate from the value's length alone, for charging the breaker before the value is allocated. */
+    public static long ramBytesEstimated(int valueLength, long overestimateThreshold, double overestimateFactor) {
+        long valueBytes = RamUsageEstimator.alignObjectSize(RamUsageEstimator.NUM_BYTES_ARRAY_HEADER + valueLength);
+        if (valueLength > overestimateThreshold) {
             valueBytes = Math.round(valueBytes * overestimateFactor);
         }
         return BASE_RAM_BYTES_USED + valueBytes;

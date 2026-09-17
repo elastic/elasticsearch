@@ -97,6 +97,16 @@ public class AuditUtilTests extends ESTestCase {
         assertThat(AuditUtil.restRequestContent(request, 0, null), containsString("Invalid Format"));
     }
 
+    public void testRestRequestContentInvalidBodyTruncatedInsideUtf8Character() {
+        // The cap slices the raw bytes; a slice ending mid-character must not fail to decode.
+        RestRequest request = new FakeRestRequest.Builder(xContentRegistry()).withContent(
+            new BytesArray("key: [\uD83D\uDE00".getBytes(StandardCharsets.UTF_8)),
+            XContentType.YAML
+        ).build();
+        String rendered = AuditUtil.restRequestContent(request, 7, "setting.key");
+        assertThat(rendered, containsString("Invalid Format: key: ["));
+    }
+
     private static byte[] buildSmileBytes(int fields, String keyPrefix, String valuePrefix) throws Exception {
         try (XContentBuilder smileBuilder = XContentFactory.smileBuilder()) {
             smileBuilder.startObject();

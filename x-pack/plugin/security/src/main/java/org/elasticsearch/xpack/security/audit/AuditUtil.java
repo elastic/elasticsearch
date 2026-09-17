@@ -6,6 +6,7 @@
  */
 package org.elasticsearch.xpack.security.audit;
 
+import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.action.IndicesRequest;
 import org.elasticsearch.common.Randomness;
@@ -21,6 +22,7 @@ import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.transport.TransportRequest;
 import org.elasticsearch.xcontent.XContentType;
 
+import java.nio.charset.StandardCharsets;
 import java.util.Arrays;
 import java.util.Base64;
 import java.util.HashSet;
@@ -65,10 +67,16 @@ public class AuditUtil {
             } catch (Exception e) {
                 logger.warn(() -> Strings.format("failed to read body of REST request [%s] for auditing", request.uri()), e);
                 BytesReference capped = maxBytes > 0 && content.length() > maxBytes ? content.slice(0, maxBytes) : content;
-                return "Invalid Format: " + capped.utf8ToString();
+                return "Invalid Format: " + lenientUtf8ToString(capped);
             }
         }
         return "";
+    }
+
+    // BytesReference#utf8ToString does not validate and throws on a truncated character; Java's decoder replaces malformed input.
+    private static String lenientUtf8ToString(BytesReference bytes) {
+        BytesRef ref = bytes.toBytesRef();
+        return new String(ref.bytes, ref.offset, ref.length, StandardCharsets.UTF_8);
     }
 
     /**

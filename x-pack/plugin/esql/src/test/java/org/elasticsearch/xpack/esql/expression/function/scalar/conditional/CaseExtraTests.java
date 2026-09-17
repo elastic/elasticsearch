@@ -390,7 +390,7 @@ public class CaseExtraTests extends ESTestCase {
     public void testDeeplyNestedFoldDoesNotStackOverflow() {
         boolean nestInTrueBranch = randomBoolean();
         FoldedCaseValues values = randomFoldedCaseValues();
-        Expression nested = nestCases(10_000, values.expected, values.unused, booleanLiteral(nestInTrueBranch), nestInTrueBranch);
+        Expression nested = nestCases(10_000, values.expected, values.unused, nestInTrueBranch);
         assertTrue(nested.foldable());
         assertThat(nested.fold(FoldContext.small()), equalTo(values.expected.value()));
     }
@@ -498,8 +498,8 @@ public class CaseExtraTests extends ESTestCase {
             int unused = randomValueOtherThan(taken, ESTestCase::randomInt);
             Case c = resolvedCase(new Literal(Source.synthetic("cond"), shape, DataType.BOOLEAN), intLiteral(taken), intLiteral(unused));
             EvaluatedCase evaluated = evaluate(c);
-            String condition = "condition [" + shape + "]";
-            assertThat(condition, c.fold(FoldContext.small()), equalTo(evaluated.value()));
+            String message = "condition [" + shape + "]";
+            assertThat(message, c.fold(FoldContext.small()), equalTo(evaluated.value()));
             assertWarnings(evaluated.warnings().toArray(String[]::new));
         }
     }
@@ -522,8 +522,8 @@ public class CaseExtraTests extends ESTestCase {
     }
 
     /**
-     * Parser-depth nested {@code CASE} with mixed true/false branches and foldable
-     * non-literal conditions such as {@code 123 == 123}.
+     * Parser-depth nested {@code CASE} with mixed true/false branches and conditions that are
+     * plain booleans, foldable non-literals such as {@code 123 == 123}, and one value lists.
      */
     public void testNestedFoldAtMaxExpressionDepthWithMixedConditions() {
         FoldedCaseValues values = randomFoldedCaseValues();
@@ -552,11 +552,24 @@ public class CaseExtraTests extends ESTestCase {
         Expression nested = nestCasesWithMixedConditions(values);
         Case withField = resolvedCase(randomEquals(randomBoolean()), nested, field("f", nested.dataType()));
         assertFalse(withField.foldable());
-        assertThat(withField.foldable(), equalTo(foldableRecursively(withField)));
+        assertFalse(foldableRecursively(withField));
     }
 
     /**
-     * The recursive {@code foldable} that {@link Case} had before it was made iterative.
+     * Mirrors {@code Case#isTrue}, so the recursive references below differ from {@link Case}
+     * only in how they walk the tree, which is what they are here to check. Whether this rule
+     * is the right one is {@link #testFoldMatchesEvaluatorForEveryConditionShape}'s job, and it
+     * uses the evaluator rather than a copy of it.
+     */
+    private static boolean isTrueCondition(Object value) {
+        if (value instanceof List<?> values) {
+            return values.size() == 1 && Boolean.TRUE.equals(values.getFirst());
+        }
+        return Boolean.TRUE.equals(value);
+    }
+
+    /**
+     * A recursive {@code foldable}, in the shape {@link Case} had before it was made iterative.
      */
     private static boolean foldableRecursively(Expression expression) {
         if (expression instanceof Case c) {
@@ -567,7 +580,7 @@ public class CaseExtraTests extends ESTestCase {
                     return false;
                 }
                 if (condition instanceof Literal literal) {
-                    if (Boolean.TRUE.equals(literal.value())) {
+                    if (isTrueCondition(literal.value())) {
                         return foldableRecursively(children.get(i + 1));
                     }
                     continue;
@@ -583,13 +596,13 @@ public class CaseExtraTests extends ESTestCase {
     }
 
     /**
-     * The recursive {@code fold} that {@link Case} had before it was made iterative.
+     * A recursive {@code fold}, in the shape {@link Case} had before it was made iterative.
      */
     private static Object foldRecursively(Expression expression, FoldContext ctx) {
         if (expression instanceof Case c) {
             List<Expression> children = c.children();
             for (int i = 0; i + 1 < children.size(); i += 2) {
-                if (Boolean.TRUE.equals(children.get(i).fold(ctx))) {
+                if (isTrueCondition(children.get(i).fold(ctx))) {
                     return foldRecursively(children.get(i + 1), ctx);
                 }
             }
@@ -635,7 +648,13 @@ public class CaseExtraTests extends ESTestCase {
         Expression nested = values.expected;
         for (int i = 0; i < ExpressionBuilder.MAX_EXPRESSION_DEPTH; i++) {
             boolean nestInTrueBranch = randomBoolean();
-            Expression condition = randomBoolean() ? booleanLiteral(nestInTrueBranch) : randomEquals(nestInTrueBranch);
+            Expression condition = switch (randomInt(2)) {
+                case 0 -> booleanLiteral(nestInTrueBranch);
+                case 1 -> randomEquals(nestInTrueBranch);
+                // Single valued, so it picks a branch like a plain boolean and raises no warning.
+                case 2 -> listCondition(nestInTrueBranch);
+                default -> throw new AssertionError("randomInt(2) returns 0 to 2");
+            };
             nested = nestInTrueBranch ? resolvedCase(condition, nested, values.unused) : resolvedCase(condition, values.unused, nested);
         }
         return nested;
@@ -697,7 +716,8 @@ public class CaseExtraTests extends ESTestCase {
         );
     }
 
-    private static Expression nestCases(int depth, Expression leaf, Expression unused, Expression condition, boolean nestInTrueBranch) {
+    private static Expression nestCases(int depth, Expression leaf, Expression unused, boolean nestInTrueBranch) {
+        Literal condition = booleanLiteral(nestInTrueBranch);
         Expression nested = leaf;
         for (int i = 0; i < depth; i++) {
             nested = nestInTrueBranch ? resolvedCase(condition, nested, unused) : resolvedCase(condition, unused, nested);

@@ -71,7 +71,6 @@ import org.elasticsearch.xpack.esql.core.type.InvalidMappedTsField;
 import org.elasticsearch.xpack.esql.core.type.MissingEsField;
 import org.elasticsearch.xpack.esql.core.type.MultiTypeEsField;
 import org.elasticsearch.xpack.esql.core.type.PotentiallyUnmappedKeywordEsField;
-import org.elasticsearch.xpack.esql.core.type.PotentiallyUnmappedNonLoadableEsField;
 import org.elasticsearch.xpack.esql.core.type.PotentiallyUnmappedSingleTypeEsField;
 import org.elasticsearch.xpack.esql.core.type.TypeConflictedField;
 import org.elasticsearch.xpack.esql.core.type.UnionTypeEsField;
@@ -1832,8 +1831,8 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
                     // Conflict resolution:
                     // PUNKs (potentially Unmapped Non-Keywords) resolution is somewhat similar to the multi-index case.
                     // If a field is mapped to a type with an implicit cast from KEYWORD in one branch, we apply the cast to
-                    // the unmapped field in the other branch. If there's no available implicit cast, we use a
-                    // PotentiallyUnmappedNonLoadableEsField, which null-fills and is warned about, the same as the multi-index path.
+                    // the unmapped field in the other branch. If there's no available implicit cast, null-fill with EVAL
+                    // (same as a missing union column) and warn if the field is observed, matching the multi-index path.
                     FieldAttribute mapped = mappedSiblingField(attr);
                     if (mergePlan instanceof UnionAll
                         && unmappedResolution.loadsAllUnmappedFields()
@@ -1841,19 +1840,13 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
                         && mapped != null) {
                         FieldAttribute loaded = unmappedKeyword(attr);
                         AbstractConvertFunction cast = implicitCastFromKeyword(mapped.dataType(), loaded, context.configuration());
-                        toLoad.add(
-                            cast != null
-                                ? loaded
-                                : new FieldAttribute(
-                                    source,
-                                    mapped.parentName(),
-                                    mapped.qualifier(),
-                                    mapped.name(),
-                                    new PotentiallyUnmappedNonLoadableEsField(mapped.field())
-                                )
-                        );
-                        if (cast != null && cast.isNoop() == false) {
-                            aliases.add(new Alias(source, attr.name(), cast));
+                        if (cast != null) {
+                            toLoad.add(loaded);
+                            if (cast.isNoop() == false) {
+                                aliases.add(new Alias(source, attr.name(), cast));
+                            }
+                        } else {
+                            aliases.add(nullFillNonLoadable(source, mapped, context));
                         }
                         continue;
                     }
@@ -1878,34 +1871,30 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
                     aliases.add(new Alias(source, attr.name(), new Literal(source, null, attrType)));
                 }
 
-                List<FieldAttribute> replacements = mergePlan instanceof UnionAll && unmappedResolution.loadsAllUnmappedFields()
-                    ? markExplicitlyLoadedUnmappedNonLoadable(logicalPlan, outputUnion, context.configuration())
-                    : List.of();
+                // KEEP/mention already loaded this field as keyword; overlay null when the sibling type has no cast from keyword.
+                if (mergePlan instanceof UnionAll && unmappedResolution.loadsAllUnmappedFields()) {
+                    for (Attribute attr : outputUnion) {
+                        FieldAttribute mapped = mappedSiblingField(attr);
+                        if (mapped == null) {
+                            continue;
+                        }
+                        FieldAttribute punk = findPunkFieldWithName(logicalPlan, mapped.name());
+                        if (punk != null && implicitCastFromKeyword(mapped.dataType(), punk, context.configuration()) == null) {
+                            aliases.add(nullFillNonLoadable(source, mapped, context));
+                        }
+                    }
+                }
 
-                Map<String, FieldAttribute> replacementsByName = replacements.stream()
-                    .collect(Collectors.toMap(FieldAttribute::name, fa -> fa));
                 // materialize the unmapped fields in this branch's own source relation so they surface in its output
-                if (toLoad.isEmpty() == false || replacementsByName.isEmpty() == false) {
+                if (toLoad.isEmpty() == false) {
                     LogicalPlan withLoaded = logicalPlan.transformUp(EsRelation.class, esr -> {
                         if (esr.indexMode() == IndexMode.LOOKUP) {
                             return esr;
                         }
-                        List<Attribute> attrs = replaceFieldsByName(esr.output(), replacementsByName);
-                        Set<String> existingNames = new HashSet<>(Expressions.names(attrs));
+                        Set<String> existingNames = new HashSet<>(Expressions.names(esr.output()));
                         List<FieldAttribute> newFields = toLoad.stream().filter(field -> existingNames.add(field.name())).toList();
-                        if (attrs == esr.output()) {
-                            return esr.withAdditionalAttributes(newFields);
-                        }
-                        attrs.addAll(newFields);
-                        return esr.withAttributes(attrs);
+                        return esr.withAdditionalAttributes(newFields);
                     });
-                    // KEEP/Project still holds the PUNK; swap it everywhere so the union type is the sibling's, not keyword.
-                    if (replacementsByName.isEmpty() == false) {
-                        withLoaded = withLoaded.transformUp(p -> p.transformExpressionsOnly(FieldAttribute.class, fa -> {
-                            FieldAttribute replacement = replacementsByName.get(fa.name());
-                            return replacement != null && fa.field() instanceof PotentiallyUnmappedKeywordEsField ? replacement : fa;
-                        }));
-                    }
                     // mark changed only if the relation gained fields, else the fixed-point iteration never terminates
                     if (withLoaded != logicalPlan) {
                         logicalPlan = withLoaded;
@@ -1976,27 +1965,13 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
             return unionAll instanceof UnionAll && outputColumns.isEmpty() && subquery.output().equals(NO_FIELDS);
         }
 
-        /**
-         * When this branch already read an unmapped field from {@code _source} as keyword (KEEP/mention) and a sibling maps it as a
-         * type with no cast from keyword, mark it non-loadable so the unmapped rows null-fill (and the analyzer warns). A sibling type
-         * that does have a cast needs nothing here: {@code ResolveUnionTypesInUnionAll} reconciles those.
-         */
-        private static List<FieldAttribute> markExplicitlyLoadedUnmappedNonLoadable(
-            LogicalPlan logicalPlan,
-            List<Attribute> outputUnion,
-            Configuration configuration
-        ) {
-            List<FieldAttribute> nonLoadableReplacements = new ArrayList<>();
-            for (Attribute attr : outputUnion) {
-                FieldAttribute mapped = mappedSiblingField(attr);
-                if (mapped != null) {
-                    FieldAttribute punk = findPunkFieldWithName(logicalPlan, mapped.name());
-                    if (punk != null && implicitCastFromKeyword(mapped.dataType(), punk, configuration) == null) {
-                        nonLoadableReplacements.add(punk.withField(new PotentiallyUnmappedNonLoadableEsField(mapped.field())));
-                    }
-                }
+        private static Alias nullFillNonLoadable(Source source, FieldAttribute mapped, AnalyzerContext context) {
+            DataType type = mapped.dataType();
+            context.subqueryNonLoadableNullFills().put(mapped.name(), type.typeName());
+            if (type.isCounter()) {
+                type = type.noCounter();
             }
-            return nonLoadableReplacements;
+            return new Alias(source, mapped.name(), new Literal(source, null, type));
         }
 
         private static @Nullable FieldAttribute mappedSiblingField(Attribute attr) {
@@ -2037,21 +2012,6 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
                 }
             }
             return null;
-        }
-
-        private static List<Attribute> replaceFieldsByName(List<Attribute> attrs, Map<String, FieldAttribute> replacements) {
-            if (replacements.isEmpty()) {
-                return attrs;
-            }
-            List<Attribute> replaced = new ArrayList<>(attrs.size());
-            boolean changed = false;
-            for (Attribute attr : attrs) {
-                FieldAttribute replacement = replacements.get(attr.name());
-                var hasReplacement = replacement != null;
-                replaced.add(hasReplacement ? replacement : attr);
-                changed |= hasReplacement;
-            }
-            return changed ? replaced : attrs;
         }
 
         /**
@@ -3993,16 +3953,19 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
                 if (observedFields.contains(fa) == false || warned.contains(fa.id())) {
                     return;
                 }
-                DataType mappedType = switch (fa.field()) {
-                    case PotentiallyUnmappedSingleTypeEsField punk -> punk.mappedField().getDataType();
-                    case PotentiallyUnmappedNonLoadableEsField ignored -> fa.dataType();
-                    default -> null;
-                };
-                if (mappedType != null) {
+                if (fa.field() instanceof PotentiallyUnmappedSingleTypeEsField punk) {
                     warned.add(fa.id());
-                    context.deferredHeaderWarnings().add(nonLoadablePunkWarning(fa.name(), mappedType.typeName()));
+                    context.deferredHeaderWarnings().add(nonLoadablePunkWarning(fa.name(), punk.mappedField().getDataType().typeName()));
                 }
             });
+
+            Set<String> observedNames = new HashSet<>();
+            observedFields.forEach(a -> observedNames.add(a.name()));
+            for (var e : context.subqueryNonLoadableNullFills().entrySet()) {
+                if (observedNames.contains(e.getKey())) {
+                    context.deferredHeaderWarnings().add(nonLoadablePunkWarning(e.getKey(), e.getValue()));
+                }
+            }
         }
 
         private static LogicalPlan planWithoutSyntheticAttributes(LogicalPlan plan) {

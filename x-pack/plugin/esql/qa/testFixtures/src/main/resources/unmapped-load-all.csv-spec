@@ -2220,7 +2220,7 @@ null                     | null         | 5033754             | null            
 null                     | null         | 1756466             | null                   | null                  | null                    | null                            | null
 ;
 
-// Mapped index first so the union type is aggregate_metric_double; the KEEP on the unmapped index becomes a non-loadable marker.
+// Mapped index first so the union type is aggregate_metric_double.
 loadAllSubqueryKeepAmdLoadsOnUnmappedSibling
 required_capability: optional_fields_load_all_subqueries
 required_capability: subquery_in_from_command

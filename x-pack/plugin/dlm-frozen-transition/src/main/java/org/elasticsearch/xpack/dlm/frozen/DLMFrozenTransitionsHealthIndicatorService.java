@@ -111,8 +111,7 @@ public class DLMFrozenTransitionsHealthIndicatorService implements HealthIndicat
     public static final Diagnosis.Definition MARKED_TRANSITIONS_NOT_STARTED_DIAGNOSIS_DEF = new Diagnosis.Definition(
         NAME,
         "marked_transitions_not_started",
-        "Some indices have been marked for conversion to the frozen tier but have not been submitted to the transition "
-            + "executor. ",
+        "Some indices have been marked for conversion to the frozen tier but have not been submitted to the transition " + "executor. ",
         "Check the current master node's logs for errors related to the DLM frozen transition service. Check the current "
             + "status of the affected indices using the [GET /<affected_index_name>/_lifecycle/explain] API. Please replace "
             + "the <affected_index_name> in the API with the actual index name.",
@@ -122,8 +121,7 @@ public class DLMFrozenTransitionsHealthIndicatorService implements HealthIndicat
     public static final Diagnosis.Definition MARKED_TRANSITIONS_QUEUED_DIAGNOSIS_DEF = new Diagnosis.Definition(
         NAME,
         "marked_transitions_queued",
-        "Some indices have been submitted to the DLM frozen transition executor but have been waiting in its queue "
-            + "without starting.",
+        "Some indices have been submitted to the DLM frozen transition executor but have been waiting in its queue " + "without starting.",
         "Inspect the [dlm_frozen_transition] thread pool for a saturated queue or rejected tasks using the "
             + "[GET /_cat/thread_pool/dlm_frozen_transition?v] API. Transitions queue when all transition threads are "
             + "busy; a persistently full queue means transitions are completing more slowly than indices are becoming "

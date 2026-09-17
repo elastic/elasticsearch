@@ -89,6 +89,8 @@ public class ConnectorIndexService {
 
     public static final String CONNECTOR_INDEX_NAME = ConnectorTemplateRegistry.CONNECTOR_INDEX_NAME_PATTERN;
 
+    private static final String[] LIST_EXCLUDED_SOURCE_FIELDS = new String[] { Connector.CONFIGURATION_FIELD.getPreferredName() };
+
     /**
      * @param client A client for executing actions on the connector index
      */
@@ -330,7 +332,9 @@ public class ConnectorIndexService {
             final SearchSourceBuilder source = new SearchSourceBuilder().from(from)
                 .size(size)
                 .query(buildListQuery(indexNames, connectorNames, serviceTypes, searchQuery, includeDeleted))
-                .fetchSource(true)
+                // The configuration can hold large and sensitive values, and this endpoint returns a full page of connectors at once.
+                // It is available via the get connector endpoint, which reads a single document.
+                .fetchSource(null, LIST_EXCLUDED_SOURCE_FIELDS)
                 .sort(Connector.INDEX_NAME_FIELD.getPreferredName(), SortOrder.ASC);
             final SearchRequest req = new SearchRequest(CONNECTOR_INDEX_NAME).source(source);
             clientWithOrigin.search(req, new ActionListener<>() {
@@ -1245,8 +1249,6 @@ public class ConnectorIndexService {
     }
 
     private static ConnectorSearchResult hitToConnector(SearchHit searchHit) {
-
-        // todo: don't return sensitive data from configuration in list endpoint
 
         return new ConnectorSearchResult.Builder().setId(searchHit.getId())
             .setResultBytes(searchHit.getSourceRef())

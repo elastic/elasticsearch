@@ -67,6 +67,13 @@ public class Connector implements ToXContentObject {
 
     public static final String NAME = Connector.class.getName().toUpperCase(Locale.ROOT);
 
+    /**
+     * Upper bound on the length of the connector description, which is a short human-readable text displayed in the UI.
+     * Connector documents are read in full by the list and get APIs, so an unbounded description allows a client with
+     * connector management privileges to exhaust the node heap by storing arbitrarily large descriptions.
+     */
+    public static final int MAX_DESCRIPTION_LENGTH = 8192;
+
     @Nullable
     private final String connectorId;
     @Nullable

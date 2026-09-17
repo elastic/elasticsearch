@@ -82,6 +82,8 @@ public class UpdateConnectorNameAction {
                 );
             }
 
+            validationException = validateDescription(description, validationException);
+
             return validationException;
         }
 

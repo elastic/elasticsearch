@@ -15,13 +15,10 @@ import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.notNullValue;
 import static org.hamcrest.Matchers.nullValue;
 
-public class PostConnectorActionTests extends ESTestCase {
+public class UpdateConnectorNameActionTests extends ESTestCase {
 
-    public void testValidate_WhenConnectorIdAndIndexNamePresent_ExpectNoValidationError() {
-        PostConnectorAction.Request request = new PostConnectorAction.Request(
-            randomAlphaOfLength(10),
-            randomAlphaOfLength(10),
-            false,
+    public void testValidate_WhenNameAndDescriptionPresent_ExpectNoValidationError() {
+        UpdateConnectorNameAction.Request request = new UpdateConnectorNameAction.Request(
             randomAlphaOfLength(10),
             randomAlphaOfLength(10),
             randomAlphaOfLength(10)
@@ -31,47 +28,35 @@ public class PostConnectorActionTests extends ESTestCase {
         assertThat(exception, nullValue());
     }
 
-    public void testValidate_WrongIndexNamePresentForManagedConnector_ExpectValidationError() {
-        PostConnectorAction.Request requestWithIllegalIndexName = new PostConnectorAction.Request(
-            randomAlphaOfLength(10),
-            "wrong-prefix-" + randomAlphaOfLength(10),
-            true,
-            randomAlphaOfLength(10),
+    public void testValidate_WhenConnectorIdIsEmpty_ExpectValidationError() {
+        UpdateConnectorNameAction.Request requestWithEmptyConnectorId = new UpdateConnectorNameAction.Request(
+            "",
             randomAlphaOfLength(10),
             randomAlphaOfLength(10)
         );
-        ActionRequestValidationException exception = requestWithIllegalIndexName.validate();
+        ActionRequestValidationException exception = requestWithEmptyConnectorId.validate();
 
         assertThat(exception, notNullValue());
-        assertThat(
-            exception.getMessage(),
-            containsString("Index attached to an Elastic-managed connector must start with the prefix: [content-]")
-        );
+        assertThat(exception.getMessage(), containsString("[connector_id] cannot be [null] or [\"\"]"));
     }
 
-    public void testValidate_WhenMalformedIndexName_ExpectValidationError() {
-        PostConnectorAction.Request requestWithMissingConnectorId = new PostConnectorAction.Request(
+    public void testValidate_WhenNameAndDescriptionAreNull_ExpectValidationError() {
+        UpdateConnectorNameAction.Request requestWithMissingFields = new UpdateConnectorNameAction.Request(
             randomAlphaOfLength(10),
-            "_illegal-index-name",
-            randomBoolean(),
-            randomAlphaOfLength(10),
-            randomAlphaOfLength(10),
-            randomAlphaOfLength(10)
+            null,
+            null
         );
-        ActionRequestValidationException exception = requestWithMissingConnectorId.validate();
+        ActionRequestValidationException exception = requestWithMissingFields.validate();
 
         assertThat(exception, notNullValue());
-        assertThat(exception.getMessage(), containsString("Invalid index name [_illegal-index-name]"));
+        assertThat(exception.getMessage(), containsString("[name] and [description] cannot both be [null]"));
     }
 
     public void testValidate_WhenDescriptionAtMaxLength_ExpectNoValidationError() {
-        PostConnectorAction.Request request = new PostConnectorAction.Request(
-            randomAlphaOfLength(Connector.MAX_DESCRIPTION_LENGTH),
-            randomAlphaOfLength(10),
-            false,
+        UpdateConnectorNameAction.Request request = new UpdateConnectorNameAction.Request(
             randomAlphaOfLength(10),
             randomAlphaOfLength(10),
-            randomAlphaOfLength(10)
+            randomAlphaOfLength(Connector.MAX_DESCRIPTION_LENGTH)
         );
         ActionRequestValidationException exception = request.validate();
 
@@ -79,13 +64,10 @@ public class PostConnectorActionTests extends ESTestCase {
     }
 
     public void testValidate_WhenDescriptionExceedsMaxLength_ExpectValidationError() {
-        PostConnectorAction.Request requestWithTooLongDescription = new PostConnectorAction.Request(
-            randomAlphaOfLength(Connector.MAX_DESCRIPTION_LENGTH + 1),
-            randomAlphaOfLength(10),
-            false,
+        UpdateConnectorNameAction.Request requestWithTooLongDescription = new UpdateConnectorNameAction.Request(
             randomAlphaOfLength(10),
             randomAlphaOfLength(10),
-            randomAlphaOfLength(10)
+            randomAlphaOfLength(Connector.MAX_DESCRIPTION_LENGTH + 1)
         );
         ActionRequestValidationException exception = requestWithTooLongDescription.validate();
 

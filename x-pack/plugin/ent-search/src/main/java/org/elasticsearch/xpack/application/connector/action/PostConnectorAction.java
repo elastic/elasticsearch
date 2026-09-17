@@ -127,6 +127,8 @@ public class PostConnectorAction {
 
             validationException = validateIndexName(indexName, validationException);
 
+            validationException = validateDescription(description, validationException);
+
             if (Boolean.TRUE.equals(isNative)) {
                 validationException = validateManagedConnectorIndexPrefix(indexName, validationException);
             }

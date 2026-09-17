@@ -12,6 +12,7 @@ import org.elasticsearch.action.UntypedActionRequest;
 import org.elasticsearch.cluster.metadata.MetadataCreateIndexService;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.indices.InvalidIndexNameException;
+import org.elasticsearch.xpack.application.connector.Connector;
 
 import java.io.IOException;
 
@@ -69,6 +70,28 @@ public abstract class ConnectorActionRequest extends UntypedActionRequest {
                     + "] is invalid. Index attached to an Elastic-managed connector must start with the prefix: ["
                     + MANAGED_CONNECTOR_INDEX_PREFIX
                     + "]",
+                validationException
+            );
+        }
+        return validationException;
+    }
+
+    /**
+     * Validates that the given description does not exceed {@link Connector#MAX_DESCRIPTION_LENGTH}. Connector documents are
+     * returned in full by the get connector API, so an oversized description can exhaust the node heap when connectors are read.
+     *
+     * @param description         The description to validate. If null, no validation is performed.
+     * @param validationException The exception to accumulate validation errors.
+     * @return The updated or original {@code validationException} with any new validation errors added, if the description is too long.
+     */
+    public ActionRequestValidationException validateDescription(String description, ActionRequestValidationException validationException) {
+        if (description != null && description.length() > Connector.MAX_DESCRIPTION_LENGTH) {
+            return addValidationError(
+                "[description] length ["
+                    + description.length()
+                    + "] exceeds the maximum allowed length ["
+                    + Connector.MAX_DESCRIPTION_LENGTH
+                    + "].",
                 validationException
             );
         }

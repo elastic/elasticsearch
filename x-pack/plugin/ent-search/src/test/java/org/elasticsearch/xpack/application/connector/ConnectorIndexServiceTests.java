@@ -67,6 +67,7 @@ import static org.elasticsearch.xpack.application.connector.ConnectorTestUtils.r
 import static org.hamcrest.CoreMatchers.anyOf;
 import static org.hamcrest.CoreMatchers.equalTo;
 import static org.hamcrest.CoreMatchers.not;
+import static org.hamcrest.Matchers.hasKey;
 
 public class ConnectorIndexServiceTests extends ESSingleNodeTestCase {
 
@@ -103,6 +104,24 @@ public class ConnectorIndexServiceTests extends ESSingleNodeTestCase {
 
         Connector indexedConnector = awaitGetConnector(resp.getId());
         assertThat(resp.getId(), equalTo(indexedConnector.getConnectorId()));
+    }
+
+    public void testListConnectors_expectConfigurationToBeExcludedFromResults() throws Exception {
+        Connector connector = ConnectorTestUtils.getRandomConnector();
+        String connectorId = randomUUID();
+        awaitCreateConnector(connectorId, connector);
+        indexConnectorConfiguration(connectorId, connector.getConfiguration());
+
+        ConnectorIndexService.ConnectorResult listResult = awaitListConnector(0, 100, null, null, null, null);
+
+        assertThat(listResult.totalResults(), equalTo(1L));
+
+        Map<String, Object> listedConnector = listResult.connectors().get(0).getResultMap();
+        assertThat(listedConnector, not(hasKey(Connector.CONFIGURATION_FIELD.getPreferredName())));
+        assertThat(listedConnector, hasKey(Connector.INDEX_NAME_FIELD.getPreferredName()));
+
+        // The configuration is only excluded from the list endpoint, it is still returned when reading a single connector
+        assertThat(awaitGetConnector(connectorId).getConfiguration().keySet(), equalTo(connector.getConfiguration().keySet()));
     }
 
     public void testDeleteConnector_expectSoftDeletionSingle() throws Exception {

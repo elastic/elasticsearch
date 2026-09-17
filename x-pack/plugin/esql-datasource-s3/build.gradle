@@ -89,6 +89,9 @@ dependencies {
   runtimeOnly "software.amazon.awssdk:protocol-core:${versions.awsv2sdk}"
   runtimeOnly "software.amazon.awssdk:third-party-jackson-core:${versions.awsv2sdk}"
 
+  // The endpoint-resolver SPI is runtimeOnly for the plugin itself, but S3EndpointCheckTests calls the
+  // resolvers directly to derive the endpoints the constraint must accept, so it needs them at compile time.
+  testImplementation "software.amazon.awssdk:endpoints-spi:${versions.awsv2sdk}"
   testImplementation project(':test:framework')
   testImplementation "io.netty:netty-transport:${versions.netty}"
   testImplementation project(xpackModule('esql:qa:testFixtures'))

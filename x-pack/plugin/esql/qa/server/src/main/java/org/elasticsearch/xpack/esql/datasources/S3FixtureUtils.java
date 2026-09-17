@@ -259,6 +259,22 @@ public final class S3FixtureUtils {
     }
 
     /**
+     * Name of the node system property naming extra permitted S3 endpoint hosts. The S3 data source refuses
+     * an {@code endpoint} outside the AWS endpoints the product supports, so a cluster reading from a local
+     * fixture has to name that fixture's host here. Defined by {@code S3EndpointCheck} in the
+     * esql-datasource-s3 plugin and repeated as a literal because these qa modules do not depend on it;
+     * {@code S3EndpointCheckTests} pins the spelling on the other side.
+     */
+    public static final String ADDITIONAL_ENDPOINT_HOSTS_PROPERTY = "org.elasticsearch.xpack.esql.datasource.s3.additionalEndpointHosts";
+
+    /**
+     * The value to pass with it. {@link S3HttpFixture} binds {@code InetAddress.getLoopbackAddress()}, so
+     * both spellings of loopback cover every fixture without the fixture having to be in scope where the
+     * cluster is declared. A cluster that does not read from a fixture does not set this at all.
+     */
+    public static final String LOOPBACK_ENDPOINT_HOSTS = "127.0.0.1,[::1]";
+
+    /**
      * Extended S3HttpFixture that automatically loads test fixtures from resources.
      * This fixture provides an in-memory S3-compatible endpoint for integration tests.
      */

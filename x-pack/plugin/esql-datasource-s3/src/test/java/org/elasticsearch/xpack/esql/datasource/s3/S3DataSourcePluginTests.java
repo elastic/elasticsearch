@@ -9,6 +9,7 @@ package org.elasticsearch.xpack.esql.datasource.s3;
 
 import software.amazon.awssdk.core.SdkSystemSetting;
 
+import org.elasticsearch.common.ValidationException;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.env.Environment;
@@ -16,6 +17,7 @@ import org.elasticsearch.env.TestEnvironment;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.watcher.ResourceWatcherService;
 import org.elasticsearch.xpack.esql.datasources.spi.DataSourceTelemetryVocabulary.Type;
+import org.elasticsearch.xpack.esql.datasources.spi.DataSourceValidator;
 import org.elasticsearch.xpack.esql.datasources.spi.StorageProviderFactory;
 import org.elasticsearch.xpack.esql.datasources.spi.StorageProviderServices;
 import org.junit.Before;
@@ -24,6 +26,7 @@ import java.io.IOException;
 import java.util.Map;
 import java.util.Set;
 
+import static org.hamcrest.Matchers.containsString;
 import static org.mockito.Mockito.mock;
 import static software.amazon.awssdk.core.SdkSystemSetting.AWS_CONTAINER_AUTHORIZATION_TOKEN_FILE;
 import static software.amazon.awssdk.core.SdkSystemSetting.AWS_WEB_IDENTITY_TOKEN_FILE;
@@ -90,6 +93,23 @@ public class S3DataSourcePluginTests extends ESTestCase {
             for (String scheme : plugin.supportedSchemes()) {
                 assertSame(Type.fromTypeId(typeId), Type.fromScheme(scheme));
             }
+        }
+    }
+
+    public void testRegisteredValidatorConstrainsTheEndpoint() {
+        // S3DataSourceValidatorTests builds its own validator, so it cannot notice the plugin dropping the
+        // endpoint constraint from the one it actually registers. This asserts on the registered instance.
+        try (S3DataSourcePlugin plugin = new S3DataSourcePlugin()) {
+            DataSourceValidator validator = plugin.datasourceValidators(Settings.EMPTY).get("s3");
+            var e = expectThrows(
+                ValidationException.class,
+                () -> validator.validateDatasource(Map.of("endpoint", "https://minio.example.com:9000", "auth", "anonymous"))
+            );
+            assertThat(e.getMessage(), containsString("not a supported AWS S3 endpoint"));
+            var accepted = validator.validateDatasource(Map.of("endpoint", "https://s3.us-east-1.amazonaws.com", "auth", "anonymous"));
+            assertEquals("https://s3.us-east-1.amazonaws.com", accepted.get("endpoint").nonSecretValue());
+        } catch (IOException e) {
+            throw new AssertionError(e);
         }
     }
 

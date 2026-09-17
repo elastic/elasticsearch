@@ -180,6 +180,11 @@ public class FileDataSourceValidator implements DataSourceValidator {
     private final FileDataSourceConfiguration.AuthMode fixedAuthMode;
     private final BiConsumer<String, ValidationException> resourceCheck;
     /**
+     * Provider-specific validation over the parsed data-source configuration, run on a PUT only.
+     * Supplied by the plugin via {@link #withDatasourceCheck}; a no-op when the plugin supplies none.
+     */
+    private final BiConsumer<DataSourceConfiguration, ValidationException> datasourceCheck;
+    /**
      * Storage-provider-specific keys accepted on a dataset PUT, beyond the shared {@link #DATASET_FIELDS}. Supplied
      * by the plugin via {@link #withAdditionalDatasetKeys} so that provider-specific keys (e.g. S3's {@code region})
      * are accepted without widening the base set that every file-based source shares.
@@ -196,7 +201,20 @@ public class FileDataSourceValidator implements DataSourceValidator {
         BiFunction<Map<String, Object>, Set<String>, DataSourceConfiguration> configFactory,
         Set<String> supportedSchemes
     ) {
-        this(type, configFactory, supportedSchemes, null, () -> false, () -> false, null, null, (r, e) -> {}, Set.of(), Map.of());
+        this(
+            type,
+            configFactory,
+            supportedSchemes,
+            null,
+            () -> false,
+            () -> false,
+            null,
+            null,
+            (r, e) -> {},
+            (c, e) -> {},
+            Set.of(),
+            Map.of()
+        );
     }
 
     private FileDataSourceValidator(
@@ -209,6 +227,7 @@ public class FileDataSourceValidator implements DataSourceValidator {
         @Nullable FormatReaderRegistry formatReaderRegistry,
         @Nullable FileDataSourceConfiguration.AuthMode fixedAuthMode,
         BiConsumer<String, ValidationException> resourceCheck,
+        BiConsumer<DataSourceConfiguration, ValidationException> datasourceCheck,
         Set<String> additionalDatasetKeys,
         Map<String, String> deprecatedDatasourceKeys
     ) {
@@ -221,6 +240,7 @@ public class FileDataSourceValidator implements DataSourceValidator {
         this.formatReaderRegistry = formatReaderRegistry;
         this.fixedAuthMode = fixedAuthMode;
         this.resourceCheck = resourceCheck;
+        this.datasourceCheck = datasourceCheck;
         this.additionalDatasetKeys = additionalDatasetKeys;
         this.deprecatedDatasourceKeys = deprecatedDatasourceKeys;
     }
@@ -243,6 +263,7 @@ public class FileDataSourceValidator implements DataSourceValidator {
             formatReaderRegistry,
             fixedAuthMode,
             resourceCheck,
+            datasourceCheck,
             additionalDatasetKeys,
             deprecatedDatasourceKeys
         );
@@ -264,6 +285,7 @@ public class FileDataSourceValidator implements DataSourceValidator {
             registry,
             fixedAuthMode,
             resourceCheck,
+            datasourceCheck,
             additionalDatasetKeys,
             deprecatedDatasourceKeys
         );
@@ -287,6 +309,7 @@ public class FileDataSourceValidator implements DataSourceValidator {
             formatReaderRegistry,
             fixedAuthMode,
             resourceCheck,
+            datasourceCheck,
             additionalDatasetKeys,
             deprecatedDatasourceKeys
         );
@@ -308,6 +331,7 @@ public class FileDataSourceValidator implements DataSourceValidator {
             formatReaderRegistry,
             fixedAuthMode,
             resourceCheck,
+            datasourceCheck,
             additionalDatasetKeys,
             deprecatedDatasourceKeys
         );
@@ -328,6 +352,7 @@ public class FileDataSourceValidator implements DataSourceValidator {
             formatReaderRegistry,
             mode,
             resourceCheck,
+            datasourceCheck,
             additionalDatasetKeys,
             deprecatedDatasourceKeys
         );
@@ -350,6 +375,37 @@ public class FileDataSourceValidator implements DataSourceValidator {
             formatReaderRegistry,
             fixedAuthMode,
             check,
+            datasourceCheck,
+            additionalDatasetKeys,
+            deprecatedDatasourceKeys
+        );
+    }
+
+    /**
+     * Returns a new validator that runs {@code check} against the parsed data-source configuration on a PUT,
+     * after the configuration has been accepted by its own field-level validation. The check receives the
+     * configuration and the accumulating {@link ValidationException}; it should call
+     * {@link ValidationException#addValidationError} for each problem it finds.
+     *
+     * <p>This is the seam for per-type policy over settings that the configuration object itself must keep
+     * accepting. A rule placed in a configuration's own {@code validateSettings} runs inside the constructor,
+     * so it refuses a stored configuration on every read as well as on a PUT; a rule placed here refuses a
+     * value at registration while leaving an already-stored configuration readable.
+     *
+     * <p>Precedent for the shape: {@link #withResourceCheck(BiConsumer)}.
+     */
+    public FileDataSourceValidator withDatasourceCheck(BiConsumer<DataSourceConfiguration, ValidationException> check) {
+        return new FileDataSourceValidator(
+            type,
+            configFactory,
+            supportedSchemes,
+            formatConfigKeyResolver,
+            managedIdentityEnabled,
+            federatedIdentityEnabled,
+            formatReaderRegistry,
+            fixedAuthMode,
+            resourceCheck,
+            check,
             additionalDatasetKeys,
             deprecatedDatasourceKeys
         );
@@ -371,6 +427,7 @@ public class FileDataSourceValidator implements DataSourceValidator {
             formatReaderRegistry,
             fixedAuthMode,
             resourceCheck,
+            datasourceCheck,
             Set.copyOf(keys),
             deprecatedDatasourceKeys
         );
@@ -394,6 +451,7 @@ public class FileDataSourceValidator implements DataSourceValidator {
             formatReaderRegistry,
             fixedAuthMode,
             resourceCheck,
+            datasourceCheck,
             additionalDatasetKeys,
             Map.copyOf(merged)
         );
@@ -476,6 +534,11 @@ public class FileDataSourceValidator implements DataSourceValidator {
         }
         if (isFederatedIdentityUsed(config) && federatedIdentityEnabled.getAsBoolean() == false) {
             throw new ValidationException().addValidationError(FEDERATED_IDENTITY_DISABLED_MESSAGE);
+        }
+        if (config != null) {
+            ValidationException errors = new ValidationException();
+            datasourceCheck.accept(config, errors);
+            errors.throwIfValidationErrorsExist();
         }
         warnDeprecatedDatasourceKeys(datasourceSettings);
         return config != null ? config.toStoredSettings() : Map.of();

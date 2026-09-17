@@ -35,7 +35,8 @@ import static org.mockito.Mockito.when;
 public class S3DataSourceValidatorTests extends AbstractDataSourceValidatorTests {
 
     private final DataSourceValidator validator = new FileDataSourceValidator("s3", S3Configuration::fromMap, Set.of("s3", "s3a", "s3n"))
-        .withResourceCheck(S3ResourceCheck::validate);
+        .withResourceCheck(S3ResourceCheck::validate)
+        .withDatasourceCheck((config, errors) -> S3EndpointCheck.validate((S3Configuration) config, errors));
 
     @Override
     protected DataSourceValidator validator() {
@@ -1031,14 +1032,71 @@ public class S3DataSourceValidatorTests extends AbstractDataSourceValidatorTests
         assertThat(e.getMessage(), containsString("must be an absolute http"));
     }
 
-    public void testValidateDatasourceAcceptsHttpEndpoint() {
-        var result = validator.validateDatasource(Map.of("endpoint", "http://s3-proxy.example.com", "auth", "anonymous"));
-        assertEquals("http://s3-proxy.example.com", result.get("endpoint").nonSecretValue());
+    public void testValidateDatasourceRejectsHttpEndpoint() {
+        // A host rule rests on the certificate presented for that name, so plain http is refused even when
+        // the host itself would be permitted.
+        var e = expectThrows(
+            ValidationException.class,
+            () -> validator.validateDatasource(Map.of("endpoint", "http://s3.us-east-1.amazonaws.com", "auth", "anonymous"))
+        );
+        assertThat(e.getMessage(), containsString("must use https"));
     }
 
-    public void testValidateDatasourceAcceptsHttpsEndpoint() {
-        var result = validator.validateDatasource(Map.of("endpoint", "https://s3-proxy.example.com:9000", "auth", "anonymous"));
-        assertEquals("https://s3-proxy.example.com:9000", result.get("endpoint").nonSecretValue());
+    public void testValidateDatasourceRejectsThirdPartyEndpoint() {
+        var e = expectThrows(
+            ValidationException.class,
+            () -> validator.validateDatasource(Map.of("endpoint", "https://s3-proxy.example.com:9000", "auth", "anonymous"))
+        );
+        assertThat(e.getMessage(), containsString("endpoint [https://s3-proxy.example.com:9000]"));
+        assertThat(e.getMessage(), containsString("not a supported AWS S3 endpoint"));
+    }
+
+    public void testValidateDatasourceAcceptsAwsS3Endpoint() {
+        var result = validator.validateDatasource(Map.of("endpoint", "https://s3.us-east-1.amazonaws.com", "auth", "anonymous"));
+        assertEquals("https://s3.us-east-1.amazonaws.com", result.get("endpoint").nonSecretValue());
+    }
+
+    public void testValidateDatasourceAcceptsEndpointsInEveryPartition() {
+        // More than one partition, so a rule written against a single literal suffix cannot pass.
+        for (String endpoint : List.of(
+            "https://s3.eu-west-1.amazonaws.com",
+            "https://s3.cn-north-1.amazonaws.com.cn",
+            "https://s3.us-gov-west-1.amazonaws.com",
+            "https://s3.us-iso-east-1.c2s.ic.gov",
+            "https://s3.us-isob-east-1.sc2s.sgov.gov",
+            "https://s3.eu-isoe-west-1.cloud.adc-e.uk",
+            "https://s3.us-isof-south-1.csp.hci.ic.gov",
+            "https://s3.eusc-de-east-1.amazonaws.eu",
+            "https://s3-fips.us-east-1.amazonaws.com",
+            "https://s3.dualstack.us-east-1.amazonaws.com"
+        )) {
+            var result = validator.validateDatasource(Map.of("endpoint", endpoint, "auth", "anonymous"));
+            assertEquals(endpoint, result.get("endpoint").nonSecretValue());
+        }
+    }
+
+    public void testValidateDatasourceAcceptsVpcInterfaceEndpoint() {
+        // AWS PrivateLink is the one destination a customer cannot reach any other way.
+        String endpoint = "https://bucket.vpce-0a1b2c3d4e5f.s3.us-east-1.vpce.amazonaws.com";
+        var result = validator.validateDatasource(Map.of("endpoint", endpoint, "auth", "anonymous"));
+        assertEquals(endpoint, result.get("endpoint").nonSecretValue());
+    }
+
+    public void testValidateDatasourceRejectsEndpointSpellingAttacks() {
+        for (String endpoint : List.of(
+            "https://s3.us-east-1.amazonaws.com@evil.example.com/",
+            "https://s3.us-east-1.amazonaws.com.evil.example.com",
+            "https://evil.example.com#.s3.us-east-1.amazonaws.com",
+            "https://evil.example.com?x=.s3.us-east-1.amazonaws.com",
+            "https://169.254.169.254",
+            "https://[::ffff:169.254.169.254]"
+        )) {
+            var e = expectThrows(
+                ValidationException.class,
+                () -> validator.validateDatasource(Map.of("endpoint", endpoint, "auth", "anonymous"))
+            );
+            assertThat(e.getMessage(), containsString("endpoint [" + endpoint + "]"));
+        }
     }
 
     public void testValidateDatasourceAbsentEndpointAccepted() {
@@ -1086,9 +1144,9 @@ public class S3DataSourceValidatorTests extends AbstractDataSourceValidatorTests
     }
 
     public void testValidateDatasourceAcceptsUppercaseSchemeEndpoint() {
-        // URI schemes are case-insensitive (RFC 3986) and HTTP:// works at query time today.
-        var result = validator.validateDatasource(Map.of("endpoint", "HTTP://s3-proxy.example.com", "auth", "anonymous"));
-        assertEquals("HTTP://s3-proxy.example.com", result.get("endpoint").nonSecretValue());
+        // URI schemes are case-insensitive (RFC 3986), and the host normalises to lower case before matching.
+        var result = validator.validateDatasource(Map.of("endpoint", "HTTPS://S3.US-EAST-1.AMAZONAWS.COM", "auth", "anonymous"));
+        assertEquals("HTTPS://S3.US-EAST-1.AMAZONAWS.COM", result.get("endpoint").nonSecretValue());
     }
 
     public void testValidateDatasourceRejectsInvalidStsEndpoint() {
@@ -1105,10 +1163,44 @@ public class S3DataSourceValidatorTests extends AbstractDataSourceValidatorTests
         assertThat(e.getMessage(), containsString("must be an absolute http"));
     }
 
+    private static DataSourceValidator federatedValidator() {
+        return new FileDataSourceValidator("s3", S3Configuration::fromMap, Set.of("s3", "s3a", "s3n")).withFederatedIdentityEnabled(
+            () -> true
+        ).withDatasourceCheck((config, errors) -> S3EndpointCheck.validate((S3Configuration) config, errors));
+    }
+
+    public void testValidateDatasourceRejectsThirdPartyStsEndpoint() {
+        // sts_endpoint receives the node's own OIDC token as the whole credential, so a host outside AWS
+        // is a credential disclosure rather than a misrouted read.
+        var e = expectThrows(
+            ValidationException.class,
+            () -> federatedValidator().validateDatasource(
+                Map.of("role_arn", "arn:aws:iam::123456789012:role/example", "sts_endpoint", "https://attacker.example.com")
+            )
+        );
+        assertThat(e.getMessage(), containsString("sts_endpoint [https://attacker.example.com]"));
+        assertThat(e.getMessage(), containsString("not a supported AWS STS endpoint"));
+    }
+
+    public void testValidateDatasourceRejectsS3HostAsStsEndpoint() {
+        // A bucket anyone can create answers on a name carrying the sts- prefix under amazonaws.com; the
+        // label after the service label is s3 rather than a region, which is what refuses it.
+        var e = expectThrows(
+            ValidationException.class,
+            () -> federatedValidator().validateDatasource(
+                Map.of(
+                    "role_arn",
+                    "arn:aws:iam::123456789012:role/example",
+                    "sts_endpoint",
+                    "https://sts-anything.s3.us-east-1.amazonaws.com"
+                )
+            )
+        );
+        assertThat(e.getMessage(), containsString("not a supported AWS STS endpoint"));
+    }
+
     public void testValidateDatasourceAcceptsValidStsEndpoint() {
-        var federatedValidator = new FileDataSourceValidator("s3", S3Configuration::fromMap, Set.of("s3", "s3a", "s3n"))
-            .withFederatedIdentityEnabled(() -> true);
-        var result = federatedValidator.validateDatasource(
+        var result = federatedValidator().validateDatasource(
             Map.of("role_arn", "arn:aws:iam::123456789012:role/example", "sts_endpoint", "https://sts.us-east-1.amazonaws.com")
         );
         assertEquals("https://sts.us-east-1.amazonaws.com", result.get("sts_endpoint").nonSecretValue());
@@ -1267,6 +1359,24 @@ public class S3DataSourceValidatorTests extends AbstractDataSourceValidatorTests
         assertThat(e.getMessage(), not(containsString("does not accept an ARN")));
     }
 
+    public void testValidateDatasetRejectsDirectoryBucket() {
+        // An S3 Express directory bucket moves the destination to an s3express-<az> host from the bucket
+        // name alone, so no endpoint setting can confine it. Refused here, beside the MRAP refusal.
+        var e = expectThrows(
+            ValidationException.class,
+            () -> validator.validateDataset(Map.of(), "s3://mybucket--use1-az4--x-s3/data/f.parquet", Map.of())
+        );
+        assertThat(e.getMessage(), containsString("looks like an S3 Express directory bucket, which is not supported"));
+        assertThat(e.getMessage(), not(containsString("does not accept an ARN")));
+    }
+
+    public void testValidateDatasetAcceptsBucketNamesThatMerelyResembleDirectoryBuckets() {
+        // The SDK keys off the exact --x-s3 suffix: mybucket--use1-az4--x-s3-suffix resolves to the ordinary
+        // regional host, so refusing it would take away a legitimate bucket name.
+        validator.validateDataset(Map.of(), "s3://mybucket--use1-az4--x-s3-suffix/data/f.parquet", Map.of());
+        validator.validateDataset(Map.of(), "s3://my-x-s3/data/f.parquet", Map.of());
+    }
+
     public void testValidateDatasetRejectsEmptyLocation() {
         // s3:// matches the scheme check but names no bucket. Must fail as an incomplete location,
         // not as "cannot determine a format" — that message is for a complete URI whose pattern
@@ -1380,10 +1490,6 @@ public class S3DataSourceValidatorTests extends AbstractDataSourceValidatorTests
 
     public void testValidateDatasetOutpostsAlias() {
         assertNotNull(validator.validateDataset(Map.of(), "s3://my-access-po-o01ac--op-s3/data/f.parquet", Map.of()));
-    }
-
-    public void testValidateDatasetExpressDirectoryBucket() {
-        assertNotNull(validator.validateDataset(Map.of(), "s3://my-bucket--use1-az4--x-s3/data/f.parquet", Map.of()));
     }
 
     public void testValidateDatasetDottedBucketName() {

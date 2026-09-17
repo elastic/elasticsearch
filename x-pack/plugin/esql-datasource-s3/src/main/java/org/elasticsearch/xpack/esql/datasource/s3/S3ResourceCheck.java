@@ -15,7 +15,7 @@ import java.util.Locale;
  * Provider-specific resource validation for S3 URIs, invoked at {@code PUT /_query/dataset} time
  * via {@link org.elasticsearch.xpack.esql.datasources.spi.FileDataSourceValidator#withResourceCheck}.
  *
- * <p>Three forms of resource URI are syntactically invalid for S3 but pass the scheme check:
+ * <p>Four forms of resource URI are not usable by this product but pass the scheme check:
  * <ul>
  *   <li><b>Empty location</b> — {@code s3://} with no bucket (and therefore no key). The scheme
  *       matches, but the URI is not an object location.</li>
@@ -23,6 +23,8 @@ import java.util.Locale;
  *       endpoint instead.</li>
  *   <li><b>ARN resources</b> — S3 does not accept ARNs as bucket identifiers in standard SDK calls;
  *       the user must use a bucket name or an access-point alias.</li>
+ *   <li><b>S3 Express directory buckets</b> — not supported; the {@code --x-s3} bucket-name suffix alone
+ *       moves the request to an {@code s3express-<az>} host, which no endpoint setting can constrain.</li>
  * </ul>
  *
  * <p>Parsing is done on the raw resource string. {@code StoragePath.of} must not be called here
@@ -35,11 +37,20 @@ class S3ResourceCheck {
     static final String MRAP_MESSAGE_PREFIX = "[resource] looks like a multi-region access point, which is not supported, but was [";
     static final String ARN_MESSAGE_PREFIX = "[resource] does not accept an ARN but was [";
     static final String ARN_MESSAGE_SUFFIX = "]. Use a bucket name, or an access point alias if the bucket is behind an access point.";
+    static final String EXPRESS_MESSAGE_PREFIX = "[resource] looks like an S3 Express directory bucket, which is not supported, but was [";
+
+    /**
+     * Suffix that makes a bucket name a directory bucket. The SDK keys off this exact spelling: a bucket
+     * named {@code mybucket--use1-az4--x-s3} resolves to an {@code s3express-<az>} host rather than the
+     * regional S3 host, while {@code mybucket--use1-az4--x-s3-suffix} resolves to the ordinary one.
+     */
+    private static final String DIRECTORY_BUCKET_SUFFIX = "--x-s3";
 
     private S3ResourceCheck() {}
 
     /**
-     * Validates that {@code resource} names a bucket (not an empty location, ARN, or MRAP).
+     * Validates that {@code resource} names an ordinary bucket (not an empty location, ARN, MRAP, or
+     * directory bucket).
      * Adds a {@link ValidationException} error for each problem found; does not throw.
      *
      * <p>Empty authority is rejected first: {@code s3://} matches the scheme check but is not an
@@ -81,7 +92,15 @@ class S3ResourceCheck {
             return;
         }
 
-        // 2. Generic ARN check.
+        // 2. S3 Express directory buckets: refused because the bucket name alone moves the destination to a
+        // different host family, so the endpoint constraint in S3EndpointCheck cannot confine them. Sits beside
+        // the MRAP refusal because it is the same kind of rule — a bucket spelling this product does not support.
+        if (authorityLower.endsWith(DIRECTORY_BUCKET_SUFFIX)) {
+            errors.addValidationError(EXPRESS_MESSAGE_PREFIX + resource + "].");
+            return;
+        }
+
+        // 3. Generic ARN check.
         if (authorityLower.startsWith("arn:")) {
             errors.addValidationError(ARN_MESSAGE_PREFIX + resource + ARN_MESSAGE_SUFFIX);
         }

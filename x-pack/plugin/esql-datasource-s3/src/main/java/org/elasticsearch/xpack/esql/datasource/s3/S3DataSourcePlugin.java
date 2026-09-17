@@ -175,7 +175,12 @@ public class S3DataSourcePlugin extends Plugin implements DataSourcePlugin {
                     + "set [region] on the dataset instead, or [sts_region] for the STS endpoint region on a federated source, "
                     + "or omit it to have the bucket region detected automatically"
             )
-            .withResourceCheck(S3ResourceCheck::validate);
+            .withResourceCheck(S3ResourceCheck::validate)
+            // endpoint and sts_endpoint stay declared fields — a stored configuration must keep parsing —
+            // but a PUT may only name an AWS endpoint this product supports. The rule sits here rather than
+            // in S3Configuration.validateSettings because that runs inside the configuration's constructor,
+            // which would make an already-stored data source unreadable rather than merely unsettable.
+            .withDatasourceCheck((config, errors) -> S3EndpointCheck.validate((S3Configuration) config, errors));
         return Map.of(v.type(), v);
     }
 

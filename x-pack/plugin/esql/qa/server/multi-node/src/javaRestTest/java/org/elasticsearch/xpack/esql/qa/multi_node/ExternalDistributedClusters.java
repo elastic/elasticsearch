@@ -11,6 +11,7 @@ import org.elasticsearch.test.cluster.ElasticsearchCluster;
 import org.elasticsearch.test.cluster.FeatureFlag;
 import org.elasticsearch.xpack.esql.datasources.Federation;
 import org.elasticsearch.xpack.esql.datasources.FixtureUtils;
+import org.elasticsearch.xpack.esql.datasources.S3FixtureUtils;
 
 import java.util.function.Supplier;
 
@@ -53,6 +54,9 @@ public class ExternalDistributedClusters {
                 FixtureUtils.pathRepoRootForIcebergFixtures(ExternalDistributedClusters.class)
             );
             spec.setting("s3.client.default.endpoint", s3EndpointSupplier);
+            // The S3 data source refuses an endpoint outside AWS, so name the loopback fixture host on the
+            // test-only route.
+            spec.systemProperty(S3FixtureUtils.ADDITIONAL_ENDPOINT_HOSTS_PROPERTY, S3FixtureUtils.LOOPBACK_ENDPOINT_HOSTS);
             spec.keystore("s3.client.default.access_key", ACCESS_KEY);
             spec.keystore("s3.client.default.secret_key", SECRET_KEY);
             spec.setting("s3.client.default.protocol", "http");

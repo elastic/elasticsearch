@@ -670,11 +670,19 @@ public class HashAggregationOperator implements Operator {
     }
 
     private boolean shouldEmitPartitionedPartialOutput() {
-        return partitionedPartialOutput
-            && (blockHash.numKeys() >= partitioningRowThreshold // have many keys in this batch
-                || emittedPartitionedOutput // once partitioned, always partitioned
-                || (finished && blockHash.numKeys() >= partialEmitKeysThreshold) // last batch but many keys so emit partitioned instead
-            );
+        if (partitionedPartialOutput == false) {
+            return false;
+        }
+        // Once partitioned, keep subsequent output partitioned.
+        if (emittedPartitionedOutput) {
+            return true;
+        }
+        // Partition when the current batch reaches the threshold.
+        if (blockHash.numKeys() >= partitioningRowThreshold) {
+            return true;
+        }
+        // For the final batch, partition at 75% of the threshold.
+        return finished && blockHash.numKeys() >= Math.toIntExact((partitioningRowThreshold * 3L + 3L) / 4L);
     }
 
     /**

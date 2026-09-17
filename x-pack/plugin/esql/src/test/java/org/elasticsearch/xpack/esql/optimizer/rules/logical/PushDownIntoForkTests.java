@@ -38,6 +38,10 @@ import static org.hamcrest.Matchers.is;
 // @TestLogging(value = "org.elasticsearch.xpack.esql:TRACE", reason = "debug")
 public class PushDownIntoForkTests extends AbstractLogicalPlanOptimizerTests {
 
+    public PushDownIntoForkTests(VersionMode versionMode) {
+        super(versionMode);
+    }
+
     /**
      * {@snippet lang="text":
      * TopN[[Order[emp_no{r}#18,ASC,LAST]],10[INTEGER],false]

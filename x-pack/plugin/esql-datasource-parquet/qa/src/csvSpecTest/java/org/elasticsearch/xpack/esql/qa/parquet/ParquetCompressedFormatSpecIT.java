@@ -32,7 +32,7 @@ import java.util.List;
  * corresponding codec and placed into codec-specific directories
  * ({@code standalone-snappy/}, {@code standalone-gzip/}, etc.).
  * This class runs two csv-spec files across four codecs and exceeds
- * {@link EsqlSpecTestCase}'s 10-minute suite budget.
+ * {@link EsqlSpecTestCase}'s 20-minute suite budget.
  */
 @TimeoutSuite(millis = 60 * TimeUnits.MINUTE)
 @ThreadLeakFilters(filters = { TestClustersThreadFilter.class, AzureReactorThreadFilter.class })

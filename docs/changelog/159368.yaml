@@ -1,0 +1,5 @@
+area: Infra/Core
+issues: []
+pr: 159368
+summary: Bump bundled JDK to 27
+type: upgrade

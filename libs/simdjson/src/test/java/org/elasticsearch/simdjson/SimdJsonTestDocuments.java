@@ -69,7 +69,19 @@ public final class SimdJsonTestDocuments {
                 {"first":1,"ab":2}""", """
                 {"first":1,"abcdefg":2}""", """
                 {"first":1,"abcdefgh":2}""", """
-                {"first":1,"abcdefghi":2}"""
+                {"first":1,"abcdefghi":2}""",
+                // DoubleParser code paths (see that class's own comments): fast path,
+                // Eisel-Lemire (main, round-to-even, underflow, overflow, subnormal), and the
+                // slow path (>19 significant digits).
+                """
+                {"d":1e22}""", """
+                {"d":1e23}""", """
+                {"d":9007199254740993e0}""", """
+                {"d":1e-400}""", """
+                {"d":-1e400}""", """
+                {"d":5e-324}""", """
+                {"d":2.2250738585072013e-308}""", """
+                {"d":100000000000000000000.000000}"""
         );
         // end::noformat
         for (int nameLen = 1; nameLen <= 20; nameLen++) {

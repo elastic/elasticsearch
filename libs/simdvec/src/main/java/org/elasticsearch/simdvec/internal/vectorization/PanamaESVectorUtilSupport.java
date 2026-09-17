@@ -2430,31 +2430,29 @@ public sealed class PanamaESVectorUtilSupport implements ESVectorUtilSupport per
     }
 
     @Override
-    public float[] matrixMultiply(float[] a, float[] b, int m, int k, int n) {
-        float[] c = new float[m * n];
-        multiplyAccumulate(a, k, 1, b, c, m, k, n);
-        return c;
+    public void matrixMultiply(float[] a, float[] b, int m, int k, int n, float[] result) {
+        multiply(a, k, b, result, m, k, n);
     }
 
     /**
      * Panama version of matrix multiply, but operating on 4x[vector width] tiles of C cells
-     * with a 1x[vector width] tile for the row tail and scalar column tails for overflow
+     * with a 1x[vector width] tile for the row tail and scalar column tails for overflow.
      */
-    private static void multiplyAccumulate(float[] a, int aRowStride, int aInnerStride, float[] b, float[] c, int cRows, int inner, int n) {
+    private static void multiply(float[] a, int aRowStride, float[] b, float[] c, int cRows, int inner, int n) {
         int i = 0;
         for (; i + 4 <= cRows; i += 4) {
-            multiplyTile4(a, aRowStride, aInnerStride, b, c, i, inner, n);
+            multiplyTile4(a, aRowStride, b, c, i, inner, n);
         }
         // row tail
         for (; i < cRows; i++) {
-            multiplyTile1(a, aRowStride, aInnerStride, b, c, i, inner, n);
+            multiplyTile1(a, aRowStride, b, c, i, inner, n);
         }
     }
 
     /**
      * Fills four rows of C, one vector of columns at a time
      */
-    private static void multiplyTile4(float[] a, int aRowStride, int aInnerStride, float[] b, float[] c, int i, int inner, int n) {
+    private static void multiplyTile4(float[] a, int aRowStride, float[] b, float[] c, int i, int inner, int n) {
         final int a0 = i * aRowStride;
         final int a1 = a0 + aRowStride;
         final int a2 = a0 + aRowStride * 2;
@@ -2472,12 +2470,11 @@ public sealed class PanamaESVectorUtilSupport implements ESVectorUtilSupport per
             FloatVector acc2 = FloatVector.zero(FLOAT_SPECIES);
             FloatVector acc3 = FloatVector.zero(FLOAT_SPECIES);
             for (int l = 0; l < inner; l++) {
-                int aOffset = l * aInnerStride;
                 FloatVector bv = FloatVector.fromArray(FLOAT_SPECIES, b, l * n + j);
-                acc0 = fma(FloatVector.broadcast(FLOAT_SPECIES, a[a0 + aOffset]), bv, acc0);
-                acc1 = fma(FloatVector.broadcast(FLOAT_SPECIES, a[a1 + aOffset]), bv, acc1);
-                acc2 = fma(FloatVector.broadcast(FLOAT_SPECIES, a[a2 + aOffset]), bv, acc2);
-                acc3 = fma(FloatVector.broadcast(FLOAT_SPECIES, a[a3 + aOffset]), bv, acc3);
+                acc0 = fma(FloatVector.broadcast(FLOAT_SPECIES, a[a0 + l]), bv, acc0);
+                acc1 = fma(FloatVector.broadcast(FLOAT_SPECIES, a[a1 + l]), bv, acc1);
+                acc2 = fma(FloatVector.broadcast(FLOAT_SPECIES, a[a2 + l]), bv, acc2);
+                acc3 = fma(FloatVector.broadcast(FLOAT_SPECIES, a[a3 + l]), bv, acc3);
             }
             acc0.intoArray(c, c0 + j);
             acc1.intoArray(c, c1 + j);
@@ -2485,27 +2482,27 @@ public sealed class PanamaESVectorUtilSupport implements ESVectorUtilSupport per
             acc3.intoArray(c, c3 + j);
         }
 
-        // column tail, groups of 4 rows
-        if (j < n) {
+        // Column tail, groups of 4 rows
+        for (; j < n; j++) {
+            float s0 = 0;
+            float s1 = 0;
+            float s2 = 0;
+            float s3 = 0;
             for (int l = 0; l < inner; l++) {
-                int aOffset = l * aInnerStride;
-                int bBase = l * n;
-                float a0v = a[a0 + aOffset];
-                float a1v = a[a1 + aOffset];
-                float a2v = a[a2 + aOffset];
-                float a3v = a[a3 + aOffset];
-                for (int jj = j; jj < n; jj++) {
-                    float bv = b[bBase + jj];
-                    c[c0 + jj] = fma(a0v, bv, c[c0 + jj]);
-                    c[c1 + jj] = fma(a1v, bv, c[c1 + jj]);
-                    c[c2 + jj] = fma(a2v, bv, c[c2 + jj]);
-                    c[c3 + jj] = fma(a3v, bv, c[c3 + jj]);
-                }
+                float bv = b[l * n + j];
+                s0 = fma(a[a0 + l], bv, s0);
+                s1 = fma(a[a1 + l], bv, s1);
+                s2 = fma(a[a2 + l], bv, s2);
+                s3 = fma(a[a3 + l], bv, s3);
             }
+            c[c0 + j] = s0;
+            c[c1 + j] = s1;
+            c[c2 + j] = s2;
+            c[c3 + j] = s3;
         }
     }
 
-    private static void multiplyTile1(float[] a, int aRowStride, int aInnerStride, float[] b, float[] c, int i, int inner, int n) {
+    private static void multiplyTile1(float[] a, int aRowStride, float[] b, float[] c, int i, int inner, int n) {
         final int aBase = i * aRowStride;
         final int cBase = i * n;
 
@@ -2515,20 +2512,18 @@ public sealed class PanamaESVectorUtilSupport implements ESVectorUtilSupport per
             FloatVector acc = FloatVector.zero(FLOAT_SPECIES);
             for (int l = 0; l < inner; l++) {
                 FloatVector bv = FloatVector.fromArray(FLOAT_SPECIES, b, l * n + j);
-                acc = fma(FloatVector.broadcast(FLOAT_SPECIES, a[aBase + l * aInnerStride]), bv, acc);
+                acc = fma(FloatVector.broadcast(FLOAT_SPECIES, a[aBase + l]), bv, acc);
             }
             acc.intoArray(c, cBase + j);
         }
 
         // column tail
-        if (j < n) {
+        for (; j < n; j++) {
+            float s = 0;
             for (int l = 0; l < inner; l++) {
-                int bBase = l * n;
-                float av = a[aBase + l * aInnerStride];
-                for (int jj = j; jj < n; jj++) {
-                    c[cBase + jj] = fma(av, b[bBase + jj], c[cBase + jj]);
-                }
+                s = fma(a[aBase + l], b[l * n + j], s);
             }
+            c[cBase + j] = s;
         }
     }
 

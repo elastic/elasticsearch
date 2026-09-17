@@ -362,17 +362,26 @@ public final class SimdJsonDirectWalker {
     // ------------------------------------------------------------------
     // Number parsing
     // ------------------------------------------------------------------
+    //
+    // Design note: the SWAR word/mask decode below (subtract 0x30 from each byte, then mask
+    // off the non-digit ones) and the digit-scanning loop built on it are the same logic in
+    // all four of handleNumber, handleNumberNearBufferEnd, handleArrayNumber, and
+    // handleArrayNumberNearBufferEnd, but each keeps its own copy inline rather than calling a
+    // shared helper. That's deliberate: on this hot path, a separate callee can independently
+    // reach its own standalone JIT compilation before its caller does, and then get
+    // permanently excluded from inlining ("already compiled into a big method"). Keeping the
+    // logic in the caller's own bytecode avoids that compilation-order race. handleFloatingPoint
+    // and the *LargeNumber BigInteger fallbacks stay as real (cold, rarely-hit) calls since
+    // they're not on this hot path.
 
     private void handleNumber(byte[] buffer, int idx, String fieldName, JsonDocumentHandler handler) {
         boolean negative = buffer[idx] == '-';
         int pos = negative ? idx + 1 : idx;
 
         if (pos > buffer.length - 8) {
-            // Tail of the buffer: too close to the end for the unconditional 8-byte load below
-            // to stay in bounds (see "No trailing padding required" on SimdJsonParser). Rare in
-            // practice - only the last few bytes of a batch - handleNumberGeneral's own scalar
-            // tail handles it correctly, just without the fast path's head start.
-            handleNumberGeneral(buffer, idx, pos, negative, fieldName, handler);
+            // Too close to the buffer end for the unconditional 8-byte load below; see
+            // handleNumberNearBufferEnd's Javadoc.
+            handleNumberNearBufferEnd(buffer, idx, pos, negative, fieldName, handler);
             return;
         }
 
@@ -408,13 +417,8 @@ public final class SimdJsonDirectWalker {
         }
 
         // General path, kept inline here (not factored into a helper) so it can reuse the
-        // word/mask already loaded above as this SWAR loop's first iteration. See the long
-        // comment on handleNumberGeneral below for why this must be a real method body here
-        // and not a call: a separate callee on this hot path can independently reach its own
-        // standalone JIT compilation before this method does, and then get excluded from
-        // inlining ("already compiled into a big method") - inlining the body removes that
-        // race. handleFloatingPoint and finishNumberSlow stay as real (cold, rarely-hit) calls
-        // since they're not on this hot path.
+        // word/mask already loaded above as this SWAR loop's first iteration, and to help the
+        // JIT make better inlining decisions - see the design note above.
         long digits = 0;
         int digitStart = pos;
 
@@ -446,7 +450,7 @@ public final class SimdJsonDirectWalker {
 
         int digitCount = pos - digitStart;
         if (digitCount == 0 || digitCount >= 19) {
-            finishNumberSlow(buffer, idx, pos, negative, fieldName, handler, digits, digitCount);
+            handleLargeNumber(buffer, idx, pos, negative, fieldName, handler, digits, digitCount);
             return;
         }
 
@@ -465,9 +469,16 @@ public final class SimdJsonDirectWalker {
      *  {@link #handleNumber}, except that its first SWAR iteration loads {@code pos}'s word
      *  itself, guarded by the loop bound, rather than reusing an already-loaded word. Rare in
      *  practice - only the last few bytes of a batch - so unlike that hot path, a real method
-     *  call here (and its own calls to {@link #handleFloatingPoint}/{@link #finishNumberSlow})
+     *  call here (and its own calls to {@link #handleFloatingPoint}/{@link #handleLargeNumber})
      *  is not a concern. */
-    private void handleNumberGeneral(byte[] buffer, int idx, int pos, boolean negative, String fieldName, JsonDocumentHandler handler) {
+    private void handleNumberNearBufferEnd(
+        byte[] buffer,
+        int idx,
+        int pos,
+        boolean negative,
+        String fieldName,
+        JsonDocumentHandler handler
+    ) {
         long digits = 0;
         int digitStart = pos;
         int loopBound = buffer.length - 8;
@@ -497,7 +508,7 @@ public final class SimdJsonDirectWalker {
 
         int digitCount = pos - digitStart;
         if (digitCount == 0 || digitCount >= 19) {
-            finishNumberSlow(buffer, idx, pos, negative, fieldName, handler, digits, digitCount);
+            handleLargeNumber(buffer, idx, pos, negative, fieldName, handler, digits, digitCount);
             return;
         }
 
@@ -506,7 +517,14 @@ public final class SimdJsonDirectWalker {
         handler.longField(fieldName, val, fitsInt, buffer, idx, pos - idx);
     }
 
-    private void finishNumberSlow(
+    /**
+     * Reached only for {@code digitCount == 0} (no digits at all - an invalid number, e.g. a
+     * lone {@code -}) or {@code digitCount >= 19}: a 19-digit value may still fit in a signed
+     * long (the common case), but could also overflow it (either because it has 20+ digits, or
+     * because it has exactly 19 but exceeds {@code Long.MAX_VALUE}/{@code Long.MIN_VALUE}), in
+     * which case it's re-parsed as a {@link BigInteger}.
+     */
+    private void handleLargeNumber(
         byte[] buffer,
         int idx,
         int pos,
@@ -612,7 +630,7 @@ public final class SimdJsonDirectWalker {
 
         if (pos > buffer.length - 8) {
             // See the identical guard in handleNumber above.
-            handleArrayNumberGeneral(buffer, idx, pos, negative, handler);
+            handleArrayNumberNearBufferEnd(buffer, idx, pos, negative, handler);
             return;
         }
 
@@ -640,8 +658,8 @@ public final class SimdJsonDirectWalker {
             }
         }
 
-        // General path, inlined directly here rather than a separate method; see the long
-        // comment on handleNumber's equivalent above for why.
+        // General path, kept inline here (not factored into a helper) to help the JIT make
+        // better inlining decisions - see the design note on handleNumber's equivalent above.
         long digits = 0;
         int digitStart = pos;
 
@@ -673,7 +691,7 @@ public final class SimdJsonDirectWalker {
 
         int digitCount = pos - digitStart;
         if (digitCount >= 19) {
-            finishArrayNumberSlow(buffer, idx, pos, negative, handler, digits, digitCount);
+            handleArrayLargeNumber(buffer, idx, pos, negative, handler, digits, digitCount);
             return;
         }
 
@@ -681,9 +699,8 @@ public final class SimdJsonDirectWalker {
         handler.arrayElemLong(val, val >= Integer.MIN_VALUE && val <= Integer.MAX_VALUE);
     }
 
-    /** Safe fallback used only when {@code pos} is too close to the end of {@code buffer}; see
-     *  {@link #handleNumberGeneral}. */
-    private void handleArrayNumberGeneral(byte[] buffer, int idx, int pos, boolean negative, JsonDocumentHandler handler) {
+    /** Safe fallback used only when {@code pos} is too close to the end of {@code buffer}; see {@link #handleNumberNearBufferEnd}. */
+    private void handleArrayNumberNearBufferEnd(byte[] buffer, int idx, int pos, boolean negative, JsonDocumentHandler handler) {
         long digits = 0;
         int digitStart = pos;
         int loopBound = buffer.length - 8;
@@ -710,7 +727,7 @@ public final class SimdJsonDirectWalker {
 
         int digitCount = pos - digitStart;
         if (digitCount >= 19) {
-            finishArrayNumberSlow(buffer, idx, pos, negative, handler, digits, digitCount);
+            handleArrayLargeNumber(buffer, idx, pos, negative, handler, digits, digitCount);
             return;
         }
 
@@ -767,9 +784,13 @@ public final class SimdJsonDirectWalker {
         handler.arrayElemDouble(val, (double) fval == val);
     }
 
-    // Cold: only 19+ digit integers reach here (BigInteger fallback, or overflow back into a
-    // valid long range).
-    private void finishArrayNumberSlow(
+    /**
+     * Reached only for {@code digitCount >= 19}: a 19-digit value may still fit in a signed
+     * long (the common case), but could also overflow it (either because it has 20+ digits, or
+     * because it has exactly 19 but exceeds {@code Long.MAX_VALUE}/{@code Long.MIN_VALUE}), in
+     * which case it's re-parsed as a {@link BigInteger}.
+     */
+    private void handleArrayLargeNumber(
         byte[] buffer,
         int idx,
         int pos,

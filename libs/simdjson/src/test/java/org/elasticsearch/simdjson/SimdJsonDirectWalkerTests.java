@@ -290,6 +290,51 @@ public class SimdJsonDirectWalkerTests extends SimdJsonTestCase {
         assertTrue(events.get(2).startsWith("arrayElemDouble(12.5,"));
     }
 
+    // ---- Digit-count boundary at 19 (handleLargeNumber: long vs. BigInteger fallback) ----
+
+    // 19 digits fits a signed long (both sign boundaries).
+    public void testNineteenDigitFieldFitsLong() {
+        assertEquals(List.of("long(n=" + Long.MAX_VALUE + ",fitsInt=false)"), walkJson("{\"n\":" + Long.MAX_VALUE + "}"));
+        assertEquals(List.of("long(n=" + Long.MIN_VALUE + ",fitsInt=false)"), walkJson("{\"n\":" + Long.MIN_VALUE + "}"));
+    }
+
+    // 19+ digits that overflow a signed long fall back to BigInteger.
+    public void testLargeDigitFieldOverflowsToBigInteger() {
+        assertEquals(
+            "Long.MAX_VALUE + 1: 19 digits, positive, overflows a signed long",
+            List.of("bigInteger(n=9223372036854775808)"),
+            walkJson("{\"n\":9223372036854775808}")
+        );
+        assertEquals(
+            "Long.MIN_VALUE - 1: 19 digits, negative, overflows a signed long",
+            List.of("bigInteger(n=-9223372036854775809)"),
+            walkJson("{\"n\":-9223372036854775809}")
+        );
+        assertEquals(
+            "20 digits: always BigInteger regardless of value",
+            List.of("bigInteger(n=99999999999999999999)"),
+            walkJson("{\"n\":99999999999999999999}")
+        );
+    }
+
+    // Same digitCount-at-19 boundaries as array elements.
+    public void testDigitCountNineteenBoundaryArrayElements() {
+        assertEquals(
+            List.of(
+                "startArray(a)",
+                "arrayElemLong(" + Long.MAX_VALUE + ",fitsInt=false)",
+                "arrayElemLong(" + Long.MIN_VALUE + ",fitsInt=false)",
+                "arrayElemBigInteger(9223372036854775808)",
+                "arrayElemBigInteger(-9223372036854775809)",
+                "arrayElemBigInteger(99999999999999999999)",
+                "endArray()"
+            ),
+            walkJson(
+                "{\"a\":[" + Long.MAX_VALUE + "," + Long.MIN_VALUE + ",9223372036854775808,-9223372036854775809,99999999999999999999]}"
+            )
+        );
+    }
+
     public void testNegativeDouble() {
         List<String> events = walkJson("{\"n\":-3.14}");
         assertEquals(1, events.size());

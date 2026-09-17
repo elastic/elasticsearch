@@ -83,6 +83,7 @@ import org.elasticsearch.xpack.esql.datasources.DatasetResolver;
 import org.elasticsearch.xpack.esql.datasources.ExternalSourceResolution;
 import org.elasticsearch.xpack.esql.datasources.ExternalSourceResolver;
 import org.elasticsearch.xpack.esql.datasources.ExternalStatsRequirementExtractor;
+import org.elasticsearch.xpack.esql.datasources.FoldDateFunctionFiltersForListing;
 import org.elasticsearch.xpack.esql.datasources.PartitionFilterHintExtractor;
 import org.elasticsearch.xpack.esql.datasources.SourceStatisticsSerializer;
 import org.elasticsearch.xpack.esql.datasources.cache.ExternalSourceCacheService;
@@ -1699,7 +1700,7 @@ public class EsqlSession {
                     ExternalSourceResolution resolution = preAnalysisResult.externalSourceResolution();
                     externalSourceWarnings = resolution == null ? List.of() : resolution.warnings();
                     return preAnalysisResult;
-                }))
+                }), configuration, functionRegistry)
             )
             .<PreAnalysisResult>andThen((l, r) -> {
                 // Do not update PreAnalysisResult.minimumTransportVersion, that's already been determined during main index resolution.
@@ -1931,6 +1932,8 @@ public class EsqlSession {
      * Resolve external sources (Iceberg tables/Parquet files) if present in the query.
      * This runs in parallel with other resolution steps to avoid blocking.
      * Extracts partition filter hints from the WHERE clause for partition-aware glob rewriting.
+     * Date-function folding for listing is applied to a copy of Filter conditions only; the
+     * session plan stays unresolved for analysis.
      */
     // package-private static so EsqlSessionTests can drive the wiring with a capturing
     // ExternalSourceResolver and assert that the computed pathsRequiringStats set is forwarded.
@@ -1939,7 +1942,9 @@ public class EsqlSession {
         LogicalPlan plan,
         PreAnalyzer.PreAnalysis preAnalysis,
         PreAnalysisResult result,
-        ActionListener<PreAnalysisResult> listener
+        ActionListener<PreAnalysisResult> listener,
+        Configuration configuration,
+        EsqlFunctionRegistry functionRegistry
     ) {
         if (preAnalysis.icebergPaths().isEmpty()) {
             listener.onResponse(result);
@@ -1949,7 +1954,8 @@ public class EsqlSession {
         Map<String, Map<String, Object>> pathConfigs = extractExternalConfigs(plan);
         Map<String, DatasetMapping> declaredMappings = extractDeclaredMappings(plan);
 
-        var filterHints = PartitionFilterHintExtractor.extract(plan);
+        LogicalPlan listingPlan = FoldDateFunctionFiltersForListing.fold(plan, configuration, functionRegistry);
+        var filterHints = PartitionFilterHintExtractor.extract(listingPlan);
 
         // Always non-null (empty when no ungrouped aggregate is present). A non-null set switches the
         // resolver to selective eager stats: only the listed paths read every file's footer at

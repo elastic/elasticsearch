@@ -96,7 +96,7 @@ public class S3DataSourcePluginTests extends ESTestCase {
         }
     }
 
-    public void testRegisteredValidatorConstrainsTheEndpoint() {
+    public void testRegisteredValidatorConstrainsTheEndpoint() throws IOException {
         // S3DataSourceValidatorTests builds its own validator, so it cannot notice the plugin dropping the
         // endpoint constraint from the one it actually registers. This asserts on the registered instance.
         try (S3DataSourcePlugin plugin = new S3DataSourcePlugin()) {
@@ -108,8 +108,6 @@ public class S3DataSourcePluginTests extends ESTestCase {
             assertThat(e.getMessage(), containsString("not a supported AWS S3 endpoint"));
             var accepted = validator.validateDatasource(Map.of("endpoint", "https://s3.us-east-1.amazonaws.com", "auth", "anonymous"));
             assertEquals("https://s3.us-east-1.amazonaws.com", accepted.get("endpoint").nonSecretValue());
-        } catch (IOException e) {
-            throw new AssertionError(e);
         }
     }
 

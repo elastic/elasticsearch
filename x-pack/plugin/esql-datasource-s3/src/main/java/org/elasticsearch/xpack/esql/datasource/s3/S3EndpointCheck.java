@@ -139,11 +139,12 @@ final class S3EndpointCheck {
         try {
             uri = URI.create(value);
         } catch (IllegalArgumentException e) {
-            // The shared URL check has already recorded a parse failure on this value.
+            // Unreachable in practice: the shared URL check throws on a value this would reject, from
+            // S3Configuration.validateSettings, before the configuration object this runs on exists.
             return;
         }
         if (uri.getHost() == null) {
-            // Likewise: a value with no parseable host is already refused for being a malformed URL.
+            // Likewise unreachable: a value with no parseable host throws from the same place.
             return;
         }
         if (isTestFixtureHost(uri.getHost())) {
@@ -230,6 +231,12 @@ final class S3EndpointCheck {
      * immediately after the endpoint id is what separates an AWS-operated interface endpoint from a
      * customer-published PrivateLink service, whose label there is {@code vpce-svc-<id>} — a spelling that
      * satisfies the {@code vpce-} test too, so position rejects it rather than the prefix.
+     *
+     * <p>The comparison is against the bare service name, so an interface endpoint for one of the other S3
+     * service labels — {@code s3-outposts}, say — is refused even though that label is accepted in a service
+     * endpoint. That is deliberate rather than an oversight: no source of truth here establishes what AWS
+     * serves for those, and refusing a form nobody has confirmed is the direction that cannot admit a host
+     * we did not mean to reach.
      */
     private static boolean isVpcInterfaceEndpoint(String[] labels, String service) {
         // <id>.<service>.<region>.vpce, optionally preceded by one label such as bucket/accesspoint/control.

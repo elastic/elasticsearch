@@ -41,9 +41,10 @@ public class S3EndpointCheckTests extends ESTestCase {
     );
 
     /**
-     * Asks the SDK's own resolver where each region, FIPS and dual-stack combination in all eight AWS
-     * partitions resolves to, and requires the rule to accept every one. A rule written against a single
-     * literal suffix cannot pass, and a partition the SDK gains is covered without editing this file.
+     * Asks the SDK's own resolver where each FIPS and dual-stack combination resolves to, over one region
+     * per partition plus three more in {@code aws}, and requires the rule to accept every one. Every
+     * partition is covered; a further region inside one adds no host shape the rule treats differently.
+     * A rule written against a single literal suffix cannot pass.
      */
     public void testAcceptsEveryEndpointTheResolverProduces() {
         int checked = 0;
@@ -74,8 +75,11 @@ public class S3EndpointCheckTests extends ESTestCase {
             "s3-accesspoint.us-east-1.amazonaws.com",
             "s3-accesspoint-fips.us-east-1.amazonaws.com",
             "s3-object-lambda.us-east-1.amazonaws.com",
+            "s3-object-lambda-fips.us-east-1.amazonaws.com",
             "s3-outposts.us-east-1.amazonaws.com",
+            "s3-outposts-fips.us-east-1.amazonaws.com",
             "s3-control.us-east-1.amazonaws.com",
+            "s3-control-fips.us-east-1.amazonaws.com",
             "s3-accelerate.amazonaws.com",
             "s3-external-1.amazonaws.com",
             "s3-us-west-2.amazonaws.com",
@@ -201,8 +205,18 @@ public class S3EndpointCheckTests extends ESTestCase {
             "vpce-0a1b.ec2.us-east-1.vpce.amazonaws.com",
             "a.b.vpce-0a1b.s3.us-east-1.vpce.amazonaws.com",
             "vpce-0a1b.s3.us-east-1.notvpce.amazonaws.com",
-            "vpce-0a1b.us-east-1.vpce.amazonaws.com"
+            "vpce-0a1b.us-east-1.vpce.amazonaws.com",
+            // The region requirement on the S3 arm. Every case above is refused for a second reason as
+            // well, so without this one the requirement is pinned only by its STS counterpart.
+            "vpce-0a1b.s3.notaregion.vpce.amazonaws.com"
         );
+    }
+
+    /** A port does not change the host: {@link java.net.URI#getHost()} excludes it, and the docs allow one. */
+    public void testValidateAcceptsAPermittedHostCarryingAPort() {
+        ValidationException errors = new ValidationException();
+        S3EndpointCheck.validate(config("https://s3.us-east-1.amazonaws.com:9000"), errors);
+        assertTrue(errors.validationErrors().toString(), errors.validationErrors().isEmpty());
     }
 
     public void testValidateRequiresHttps() {

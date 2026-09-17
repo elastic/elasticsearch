@@ -67,8 +67,11 @@ public final class MetadataAttribute extends TypedAttribute {
         // Searchable field added by the mapper-size plugin.
         // See https://www.elastic.co/docs/reference/elasticsearch/plugins/mapper-size-usage
         entries.add(Map.entry(SIZE, new MetadataAttributeConfiguration(DataType.INTEGER, true)));
-        // Not searchable: no Lucene field backs either name on an index, so a filter on them must not
-        // be pushed down. Both are synthesised per relation.
+        // Not searchable: no Lucene field backs either name on an index. Nothing actually consults this
+        // for them, because MaterializeRelationClassAndName replaces both attributes with references over
+        // an Eval during logical optimization, long before LucenePushdownPredicates -- the only reader of
+        // this flag -- runs. That rule is what keeps a filter on either name off the shards. False is both
+        // the honest value for a field no index stores and the safe one if the rule is ever skipped.
         entries.add(Map.entry(RELATION_CLASS, new MetadataAttributeConfiguration(DataType.KEYWORD, false)));
         entries.add(Map.entry(RELATION_NAME, new MetadataAttributeConfiguration(DataType.KEYWORD, false)));
         if (EsqlCapabilities.Cap.METADATA_TIER_FIELD.isEnabled()) {

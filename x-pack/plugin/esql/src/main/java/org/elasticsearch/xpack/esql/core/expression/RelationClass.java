@@ -11,9 +11,15 @@ package org.elasticsearch.xpack.esql.core.expression;
  * The kind of ES relation a row came from, as answered by {@link MetadataAttribute#RELATION_CLASS}.
  * <p>
  * Closed by construction: a relation kind maps to exactly one constant here, and there is no way to
- * spell a fourth value or misspell one of these three. Every producer — the index path, the view
- * path and the external-dataset reader — answers with one of these rather than a string literal of
- * its own, so the value a user sees cannot drift between them.
+ * spell a fourth value or misspell one of these three. A relation picks its kind by implementing the
+ * matching {@code ClassifiedAs} nested interface rather than answering with a string literal of its
+ * own, so the value a user sees cannot drift between relation kinds.
+ * <p>
+ * {@link #VIEW} has no relation to attach to: view resolution expands a view into the relations it
+ * reads, so by execution there is no view left to ask. The question does not arise today either --
+ * a view accepts no metadata column at all, {@code _index} included -- so nothing can request
+ * {@code _class} of one. The value is declared because it is part of the column's contract, not
+ * because anything answers it.
  * <p>
  * The wire value is lower-case and is part of the query contract: it appears in query results and in
  * {@code WHERE _class == "..."} predicates, so it must not change once released.

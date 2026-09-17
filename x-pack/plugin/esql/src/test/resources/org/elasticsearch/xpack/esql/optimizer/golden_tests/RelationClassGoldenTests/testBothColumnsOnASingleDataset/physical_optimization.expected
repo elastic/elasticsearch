@@ -1,0 +1,8 @@
+ProjectExec[[emp_no{r}#0, _class{r}#1, _name{r}#2]]
+\_EvalExec[[dataset[KEYWORD] AS _class#1, class_a[KEYWORD] AS _name#2]]
+  \_LimitExec[1000[INTEGER],null]
+    \_ExchangeExec[[emp_no{r}#0],false]
+      \_FragmentExec[filter=null, estimatedRowSize=0, reducer=[], fragment=[<>
+Project[[emp_no{r}#0]]
+\_Limit[1000[INTEGER],false,false]
+  \_ExternalRelation[s3://bucket/class_a.parquet][parquet][emp_no{r}#0]<>]]

@@ -61,7 +61,7 @@ import java.util.Set;
  * carries all necessary information for the operator factory to create the appropriate
  * source operator via the SPI.
  */
-public class ExternalRelation extends LeafPlan implements ExecutesOn.Coordinator {
+public class ExternalRelation extends LeafPlan implements ExecutesOn.Coordinator, ClassifiedAs.Dataset {
 
     private static final TransportVersion ESQL_EXTERNAL_SOURCE_READ_SCHEMA = TransportVersion.fromName("esql_external_source_read_schema");
     private static final TransportVersion ESQL_EXTERNAL_DATASET_NAME = TransportVersion.fromName("esql_external_dataset_name");

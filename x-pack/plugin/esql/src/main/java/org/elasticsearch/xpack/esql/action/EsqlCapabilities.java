@@ -3773,9 +3773,9 @@ public class EsqlCapabilities {
 
         /**
          * Support for the {@code _class} and {@code _name} metadata fields, which every ES relation
-         * answers: {@code _class} is the kind of relation the row came from ("index" / "dataset" /
-         * "view") and {@code _name} is that relation's own name. Enables
-         * {@code FROM <relation> METADATA _class, _name}.
+         * answers: {@code _class} is the kind of relation the row came from and {@code _name} is that
+         * relation's own name. Enables {@code FROM <relation> METADATA _class, _name} on an index and on a
+         * dataset; a view accepts no metadata column at all, so neither reaches one.
          */
         METADATA_CLASS_AND_NAME,
 

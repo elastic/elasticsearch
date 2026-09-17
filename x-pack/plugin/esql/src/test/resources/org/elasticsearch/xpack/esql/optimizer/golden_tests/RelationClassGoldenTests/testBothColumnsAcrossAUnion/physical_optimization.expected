@@ -1,0 +1,15 @@
+ProjectExec[[emp_no{r}#0, _class{xm}#1, _name{xm}#2]]
+\_LimitExec[1000[INTEGER],null]
+  \_MergeExec[[emp_no{r}#0, salary{r}#3, dept{r}#4, _class{xm}#1, _name{xm}#2]]
+    |_ExchangeExec[[emp_no{r}#5, salary{r}#6, dept{r}#7, _class{r}#8, _name{r}#9],false]
+    | \_FragmentExec[filter=null, estimatedRowSize=0, reducer=[], fragment=[<>
+Project[[emp_no{r}#5, salary{r}#6, dept{r}#7, _class{r}#8, _name{r}#9]]
+\_Project[[emp_no{r}#5, salary{r}#6, dept{r}#7, _class{r}#8, _name{r}#9]]
+  \_Eval[[dataset[KEYWORD] AS _class#8, class_a[KEYWORD] AS _name#9]]
+    \_ExternalRelation[s3://bucket/class_a.parquet][parquet][emp_no{r}#5, salary{r}#6, dept{r}#7]<>]]
+    \_ExchangeExec[[emp_no{r}#10, salary{r}#11, dept{r}#12, _class{r}#13, _name{r}#14],false]
+      \_FragmentExec[filter=null, estimatedRowSize=0, reducer=[], fragment=[<>
+Project[[emp_no{r}#10, salary{r}#11, dept{r}#12, _class{r}#13, _name{r}#14]]
+\_Project[[emp_no{r}#10, salary{r}#11, dept{r}#12, _class{r}#13, _name{r}#14]]
+  \_Eval[[dataset[KEYWORD] AS _class#13, class_b[KEYWORD] AS _name#14]]
+    \_ExternalRelation[s3://bucket/class_b.parquet][parquet][emp_no{r}#10, salary{r}#11, dept{r}#12]<>]]

@@ -67,7 +67,7 @@ import static org.hamcrest.Matchers.notNullValue;
  * End-to-end test for the {@code dlm_frozen_transitions} health indicator: verifies that an index eligible for
  * frozen-tier conversion but unable to be marked (because no default snapshot repository is configured) turns the
  * indicator YELLOW with the {@code eligible_indices_unmarked_no_default_repository} diagnosis, and that once the default repository is
- * configured and the transition completes, the indicator returns to GREEN.
+ * configured and the transition is under way, the indicator returns to GREEN.
  */
 @ESIntegTestCase.ClusterScope(scope = TEST, numDataNodes = 0, supportsDedicatedMasters = false, numClientNodes = 0)
 public class DLMFrozenTransitionHealthIT extends ESIntegTestCase {
@@ -248,7 +248,8 @@ public class DLMFrozenTransitionHealthIT extends ESIntegTestCase {
         );
         updateClusterSettings(Settings.builder().put(RepositoriesService.DEFAULT_REPOSITORY_SETTING.getKey(), REPO_NAME));
 
-        // --- Once the transition completes, the indicator must go back to GREEN ---
+        // --- Once the index is marked and its transition is under way, the indicator must go back to GREEN.
+        // A running transition is not reported as overdue, so GREEN can arrive before the transition finishes. ---
         assertBusy(() -> {
             GetHealthAction.Response healthResponse = client().execute(
                 GetHealthAction.INSTANCE,
@@ -259,6 +260,6 @@ public class DLMFrozenTransitionHealthIT extends ESIntegTestCase {
             assertEquals(0, ((SimpleHealthIndicatorDetails) indicator.details()).details().get("overdue_indices_count"));
         }, 60, TimeUnit.SECONDS);
 
-        logger.info("--> confirmed dlm_frozen_transitions indicator returned to GREEN once the transition completed");
+        logger.info("--> confirmed dlm_frozen_transitions indicator returned to GREEN once the transition was under way");
     }
 }

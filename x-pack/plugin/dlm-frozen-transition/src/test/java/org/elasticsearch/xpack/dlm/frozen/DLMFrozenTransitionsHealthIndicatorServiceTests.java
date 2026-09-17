@@ -73,11 +73,10 @@ public class DLMFrozenTransitionsHealthIndicatorServiceTests extends ESTestCase 
     }
 
     /**
-     * {@code MARKED} is the expected steady state while transitions are disabled. The data-stream lifecycle service
-     * marks eligible indices regardless of the {@code dlm.frozen_transitions.enabled} setting, and the executor
-     * simply will not pick them up. This is not a problem the operator needs to act on.
+     * A {@code MARKED} index is waiting on the transition executor, which will not drain it while the feature is
+     * switched off. It is overdue, so it is reported as a problem just like any other state.
      */
-    public void testGreenWhenDisabledWithOnlyMarkedIndices() {
+    public void testYellowWhenDisabledWithMarkedIndices() {
         HealthIndicatorResult result = service.calculate(
             true,
             100,
@@ -85,10 +84,17 @@ public class DLMFrozenTransitionsHealthIndicatorServiceTests extends ESTestCase 
                 healthy().transitionsEnabled(false).overdue(randomProjectIdOrDefault(), "marked-index", TransitionState.MARKED).build()
             )
         );
-        assertThat(result.status(), is(HealthStatus.GREEN));
-        assertThat(result.impacts(), is(List.of()));
-        assertThat(result.diagnosisList(), is(List.of()));
-        assertThat(result.symptom(), containsString("disabled"));
+        assertThat(result.status(), is(HealthStatus.YELLOW));
+        assertThat(result.impacts(), is(FROZEN_TRANSITION_BLOCKED_IMPACT));
+        assertThat(
+            result.diagnosisList(),
+            containsInAnyOrder(
+                new Diagnosis(
+                    TRANSITIONS_DISABLED_DIAGNOSIS_DEF,
+                    List.of(new Diagnosis.Resource(Diagnosis.Resource.Type.INDEX, List.of("marked-index")))
+                )
+            )
+        );
     }
 
     /**
@@ -96,16 +102,11 @@ public class DLMFrozenTransitionsHealthIndicatorServiceTests extends ESTestCase 
      * scheduled scan exits without submitting work; health snapshots are published by an independent scheduler.
      * A stopped transition scheduler is therefore not actionable until transitions are re-enabled.
      */
-    public void testGreenWhenDisabledWithMarkedIndicesAndServiceNotRunning() {
+    public void testGreenWhenDisabledAndServiceNotRunning() {
         HealthIndicatorResult result = service.calculate(
             true,
             100,
-            constructHealthInfo(
-                healthy().transitionsEnabled(false)
-                    .serviceRunning(false)
-                    .overdue(randomProjectIdOrDefault(), "marked-index", TransitionState.MARKED)
-                    .build()
-            )
+            constructHealthInfo(healthy().transitionsEnabled(false).serviceRunning(false).build())
         );
         assertThat(result.status(), is(HealthStatus.GREEN));
         assertThat(result.impacts(), is(List.of()));
@@ -143,19 +144,18 @@ public class DLMFrozenTransitionsHealthIndicatorServiceTests extends ESTestCase 
     }
 
     /**
-     * {@code QUEUED} and {@code RUNNING} transitions are in-flight work that disabling the feature cannot cancel.
-     * Both map to the same {@code transitions_disabled} diagnosis and their index names are merged into one resource
-     * list.
+     * While disabled, {@code MARKED} and {@code QUEUED} both map to the same {@code transitions_disabled} diagnosis,
+     * so their index names are merged into one resource list and the symptom reports a single issue.
      */
-    public void testYellowWhenDisabledWithQueuedAndRunningIndices() {
+    public void testYellowWhenDisabledWithMarkedAndQueuedIndices() {
         ProjectId projectId = randomProjectIdOrDefault();
         HealthIndicatorResult result = service.calculate(
             true,
             100,
             constructHealthInfo(
                 healthy().transitionsEnabled(false)
+                    .overdue(projectId, "marked-index", TransitionState.MARKED)
                     .overdue(projectId, "queued-index", TransitionState.QUEUED)
-                    .overdue(projectId, "running-index", TransitionState.RUNNING)
                     .build()
             )
         );
@@ -165,7 +165,7 @@ public class DLMFrozenTransitionsHealthIndicatorServiceTests extends ESTestCase 
         assertThat(result.diagnosisList().size(), is(1));
         Diagnosis diagnosis = result.diagnosisList().get(0);
         assertThat(diagnosis.definition(), is(TRANSITIONS_DISABLED_DIAGNOSIS_DEF));
-        assertThat(diagnosis.affectedResources().get(0).getValues(), containsInAnyOrder("queued-index", "running-index"));
+        assertThat(diagnosis.affectedResources().get(0).getValues(), containsInAnyOrder("marked-index", "queued-index"));
     }
 
     public void testYellowWhenServiceNotRunning() {
@@ -183,8 +183,9 @@ public class DLMFrozenTransitionsHealthIndicatorServiceTests extends ESTestCase 
     }
 
     /**
-     * An overdue index whose transition is actually running is making progress. It is worth reporting in the details,
-     * but it is not a problem the operator can act on, so it must not raise a diagnosis or turn the indicator YELLOW.
+     * A current master never publishes an overdue index whose transition is already running. A master on an older
+     * version still can, so the indicator must keep tolerating it: a running transition is making progress, so it
+     * belongs in the details but must not raise a diagnosis or turn the indicator YELLOW.
      */
     public void testGreenWhenOverdueIndicesAreOnlyRunning() {
         HealthIndicatorResult result = service.calculate(
@@ -278,15 +279,13 @@ public class DLMFrozenTransitionsHealthIndicatorServiceTests extends ESTestCase 
     }
 
     /**
-     * A running overdue index alongside genuinely stuck ones must not add a fourth diagnosis, so the symptom still
-     * reports three issues.
+     * While enabled, each stuck state has its own diagnosis, so three stuck indices produce three diagnoses.
      */
     public void testMultipleConditionsProduceMultipleDiagnoses() {
         ProjectId projectId = randomProjectIdOrDefault();
         DlmFrozenTransitionsHealthInfo info = healthy().overdue(projectId, "eligible-index", TransitionState.UNMARKED)
             .overdue(projectId, "stalled-index", TransitionState.MARKED)
             .overdue(projectId, "queued-index", TransitionState.QUEUED)
-            .overdue(projectId, "running-index", TransitionState.RUNNING)
             .build();
         HealthIndicatorResult result = service.calculate(true, 100, constructHealthInfo(info));
         assertThat(result.status(), is(HealthStatus.YELLOW));

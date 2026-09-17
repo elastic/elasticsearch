@@ -34,26 +34,18 @@ import java.util.function.LongSupplier;
  *
  * <p>The master publishes a snapshot of the indices it considers <em>overdue</em>: past their {@code frozen_after} age
  * by more than the configured stuck threshold, and not yet transitioned. Each overdue index carries the transition
- * state it is stuck in ({@code UNMARKED}, {@code MARKED}, {@code QUEUED} or {@code RUNNING}).
+ * state it is stuck in ({@code UNMARKED}, {@code MARKED} or {@code QUEUED}). An index whose transition is actually
+ * running is making progress, so the publisher leaves it out of the snapshot entirely.
  *
- * <p>While transitions are enabled, the indicator reports YELLOW when the frozen transition service is not running on
- * the current master, or when an overdue index is stuck in {@code UNMARKED}, {@code MARKED} or {@code QUEUED}. An
- * overdue index in {@code RUNNING} is making progress, so it is reported in the details but raises no diagnosis and
- * does not affect the status.
+ * <p>Every overdue index in the snapshot is therefore a problem, and the indicator reports YELLOW whenever the
+ * snapshot is not empty, whether transitions are enabled or not. {@code UNMARKED} means the data-stream lifecycle
+ * service is not marking eligible indices as expected; it marks them independently of the
+ * {@code dlm.frozen_transitions.enabled} setting, so a persistent {@code UNMARKED} backlog is unexpected in either
+ * mode. {@code MARKED} and {@code QUEUED} indices are waiting on the transition executor, which will not drain them
+ * while the feature is switched off. Only the diagnosis text differs between the two modes.
  *
- * <p>While transitions are disabled, the indicator reports YELLOW when any overdue index is in a state other than
- * {@code MARKED}. {@code UNMARKED} indices are still a problem: the data-stream lifecycle service marks eligible
- * indices independently of the {@code dlm.frozen_transitions.enabled} setting, so a persistent {@code UNMARKED}
- * backlog is unexpected in either mode. {@code QUEUED} and {@code RUNNING} transitions are in-flight work that the
- * operator's setting change cannot cancel; they must complete before the cluster is idle. Only {@code MARKED} is
- * healthy while disabled: the index has been flagged for conversion, the executor will not pick it up, and that is
- * exactly the expected steady state for a cluster with the feature switched off.
- *
- * <p>The publisher collects non-{@code MARKED} and {@code MARKED} indices in separate internal buckets, then merges
- * them into a single sample capped at {@link DLMFrozenTransitionHealthInfoPublisher#MAX_INDICES_TO_PUBLISH} total,
- * with non-{@code MARKED} entries placed first. A flood of {@code MARKED} indices can therefore never displace a
- * non-{@code MARKED} index from the final sample. This indicator trusts that guarantee: if no non-{@code MARKED}
- * indices appear in the sample, none exist.
+ * <p>The indicator also reports YELLOW when the frozen transition service is not running on the current master, but
+ * only while transitions are enabled.
  *
  * <p>Indicator reports UNKNOWN when the health snapshot is older than {@link #STALE_AFTER_PUBLISH_INTERVALS} times the
  * publisher's configured interval, which indicates that publishing has stopped.
@@ -82,8 +74,9 @@ public class DLMFrozenTransitionsHealthIndicatorService implements HealthIndicat
     public static final Diagnosis.Definition TRANSITIONS_DISABLED_DIAGNOSIS_DEF = new Diagnosis.Definition(
         NAME,
         "transitions_disabled",
-        "DLM frozen transitions are disabled, but some indices have frozen-tier transitions that are queued or in progress.",
-        "Wait for queued and running frozen transitions to complete. If they remain overdue, inspect the "
+        "DLM frozen transitions are disabled, but some overdue indices are marked or queued for a frozen-tier transition.",
+        "Re-enable transitions with the [dlm.frozen_transitions.enabled] cluster setting so that marked indices can "
+            + "transition. Queued transitions complete on their own. If they remain overdue, inspect the "
             + "[dlm_frozen_transition] thread pool and the current master node's logs.",
         HELP_URL
     );
@@ -197,8 +190,8 @@ public class DLMFrozenTransitionsHealthIndicatorService implements HealthIndicat
 
         Map<TransitionState, List<String>> overdueByState = groupOverdueIndexNamesByState(info, supportsMultipleProjects);
 
-        // Merge the per-state groups into per-definition groups. MARKED while disabled resolves to null (healthy),
-        // QUEUED and RUNNING while disabled both resolve to TRANSITIONS_DISABLED_DIAGNOSIS_DEF and are merged.
+        // Merge the per-state groups into per-definition groups. MARKED and QUEUED while disabled both resolve to
+        // TRANSITIONS_DISABLED_DIAGNOSIS_DEF and are merged.
         // Walk the EnumMap in ordinal order so the resulting LinkedHashMap has a deterministic iteration order.
         Map<Diagnosis.Definition, List<String>> byDefinition = new LinkedHashMap<>();
         for (Map.Entry<TransitionState, List<String>> entry : overdueByState.entrySet()) {
@@ -239,14 +232,10 @@ public class DLMFrozenTransitionsHealthIndicatorService implements HealthIndicat
     /**
      * The diagnosis to raise for overdue indices stuck in the given state, or {@code null} if the state warrants none.
      *
-     * <p>While transitions are enabled: {@code RUNNING} is making progress, so it is informational only ({@code null}).
-     * {@code MARKED} means the executor has not picked the index up yet; {@code QUEUED} means it is waiting for a
-     * thread.
-     *
-     * <p>While transitions are disabled: {@code MARKED} is the expected steady state — the data-stream lifecycle
-     * service marks indices regardless of the enabled setting, and the executor simply will not pick them up. Every
-     * other state is actionable: {@code UNMARKED} means the lifecycle service is not marking as expected; {@code QUEUED}
-     * and {@code RUNNING} are in-flight work that cannot be cancelled by disabling the feature.
+     * <p>{@code UNMARKED} means the data-stream lifecycle service has not marked the index for conversion, which is
+     * unexpected in either mode. {@code MARKED} means the executor has not picked the index up yet, and {@code QUEUED}
+     * means it is waiting for a thread; while transitions are disabled both are waiting on a feature that is switched
+     * off, so they share the {@code transitions_disabled} diagnosis.
      */
     private static Diagnosis.Definition diagnosisFor(
         TransitionState state,
@@ -257,9 +246,11 @@ public class DLMFrozenTransitionsHealthIndicatorService implements HealthIndicat
             case UNMARKED -> defaultRepositoryConfigured
                 ? ELIGIBLE_INDICES_UNMARKED_DIAGNOSIS_DEF
                 : ELIGIBLE_INDICES_UNMARKED_NO_REPOSITORY_DIAGNOSIS_DEF;
-            case MARKED -> transitionsEnabled ? MARKED_TRANSITIONS_NOT_STARTED_DIAGNOSIS_DEF : null;
+            case MARKED -> transitionsEnabled ? MARKED_TRANSITIONS_NOT_STARTED_DIAGNOSIS_DEF : TRANSITIONS_DISABLED_DIAGNOSIS_DEF;
             case QUEUED -> transitionsEnabled ? MARKED_TRANSITIONS_QUEUED_DIAGNOSIS_DEF : TRANSITIONS_DISABLED_DIAGNOSIS_DEF;
-            case RUNNING -> transitionsEnabled ? null : TRANSITIONS_DISABLED_DIAGNOSIS_DEF;
+            // A current master never publishes running indices. One running an older version still can, and a running
+            // transition is making progress, so it raises no diagnosis.
+            case RUNNING -> null;
         };
     }
 

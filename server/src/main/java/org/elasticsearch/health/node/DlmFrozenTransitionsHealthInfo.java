@@ -34,15 +34,12 @@ import java.util.stream.Collectors;
  * @param overdueIndices              A sample of overdue indices, keyed by project then index name, that are past their
  *                                    {@code frozen_after} age by more than the configured stuck threshold and have not
  *                                    completed their frozen-tier transition, together with their current transition
- *                                    state. The publisher collects non-{@code MARKED} and {@code MARKED} indices in
- *                                    separate internal buckets and merges them into a single result capped at
- *                                    {@code DLMFrozenTransitionHealthInfoPublisher.MAX_INDICES_TO_PUBLISH} total,
- *                                    with non-{@code MARKED} entries placed first. Non-{@code MARKED} indices are
- *                                    therefore guaranteed to appear whenever they exist, regardless of how many
- *                                    {@code MARKED} indices are present. {@code totalOverdueIndicesCount} may exceed
- *                                    the number of entries here.
- * @param totalOverdueIndicesCount    The total number of overdue indices found across all projects, regardless of
- *                                    whether they fit in either bucket of {@code overdueIndices}.
+ *                                    state. Indices whose transition is already running are making progress and are
+ *                                    not reported at all. The sample is capped at
+ *                                    {@code DLMFrozenTransitionHealthInfoPublisher.MAX_INDICES_TO_PUBLISH} entries,
+ *                                    so {@code totalOverdueIndicesCount} may exceed the number of entries here.
+ * @param totalOverdueIndicesCount    The total number of reported overdue indices found across all projects,
+ *                                    regardless of whether they fit in the {@code overdueIndices} sample.
  * @param generatedAtMillis           Epoch-millisecond timestamp at which the master built this snapshot. Used to
  *                                    detect stale data (e.g. after a master failover before the new master has
  *                                    published its first snapshot).

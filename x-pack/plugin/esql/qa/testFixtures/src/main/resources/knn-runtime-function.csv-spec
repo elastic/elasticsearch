@@ -187,29 +187,19 @@ id:integer | label:keyword | _score:double
 3          | xy            | 0.8535534143447876
 ;
 
-// Test 8: the vector_similarity option replaces the default cosine metric. Hamming counts differing bits over
-// the byte encoding of each dimension and is normalized into the fraction of the 24 bits that match:
-//   id=0 [64,0,0]     0 bits differ  -> 24/24 = 1.0
-//   id=1 [0,64,0]     2 bits differ  -> 22/24
-//   id=2 [0,0,64]     2 bits differ  -> 22/24
-//   id=3 [45,45,0]    9 bits differ  -> 15/24
-//   id=4 [57,29,0]    9 bits differ  -> 15/24
-//   id=5 [32,39,39]  10 bits differ  -> 14/24
-knnRuntimeWithHammingSimilarity
-// Test 8: the vector_similarity option selects l2_norm (euclidean distance). Score is 1 / (1 + d²):
-//   id=0 [64,0,0]    d=0      -> 1.0
-//   id=4 [57,29,0]   d≈29.83  -> 1/(1+890) ≈ 0.001122
-//   id=3 [45,45,0]   d≈48.08  -> 1/(1+2881) ≈ 0.000347 (wait, that's wrong - let me recompute)
-// Euclidean distances from [64,0,0]:
+
+// KNN with vector_similarity option = l2_norm (euclidean distance) and a threshold of 50.
+// Euclidean distances from [64,0,0] and score (1 / (1 + d²)) computation:
+
 //   id=0: 0                     -> score 1.0
-//   id=4: sqrt((57-64)²+29²)=sqrt(49+841)=sqrt(890)≈29.83 -> score 1/(1+890) ≈ 0.001122
-//   id=3: sqrt((45-64)²+45²)=sqrt(361+2025)=sqrt(2386)≈48.85 -> score 1/(1+2386) ≈ 0.000419
-//   id=5: sqrt((32-64)²+39²+39²)=sqrt(1024+1521+1521)=sqrt(4066)≈63.77 -> score 1/(1+4066) ≈ 0.000246
 //   id=1: sqrt(64²+64²)=sqrt(8192)≈90.51 -> score 1/(1+8192) ≈ 0.000122
 //   id=2: same as id=1
-knnRuntimeWithL2NormSimilarity
-// Test 8: a non-default metric is propagated to both the filter and scorer. With l2_norm, the similarity threshold
-// is a maximum Euclidean distance and the score is 1 / (1 + d²). A threshold of 50 keeps ids 0, 3, and 4.
+//   id=3: sqrt((45-64)²+45²)=sqrt(361+2025)=sqrt(2386)≈48.85 -> score 1/(1+2386) ≈ 0.000419
+//   id=4: sqrt((57-64)²+29²)=sqrt(49+841)=sqrt(890)≈29.83 -> score 1/(1+890) ≈ 0.001122
+//   id=5: sqrt((32-64)²+39²+39²)=sqrt(1024+1521+1521)=sqrt(4066)≈63.77 -> score 1/(1+4066) ≈ 0.000246
+
+// Similarity threshold of 50 keeps ids 0, 3, and 4.
+
 knnRuntimeWithL2NormSimilarityAndThreshold
 required_capability: knn_runtime_field
 required_capability: fn_knn_runtime_vector_similarity
@@ -229,7 +219,7 @@ id:integer | _score:double
 4          | 1.122334395865555E-3
 ;
 
-// Test 9: dot_product requires unit-length vectors. A field vector with squared magnitude != 1 triggers
+// dot_product requires unit-length vectors. A field vector with squared magnitude != 1.0 triggers
 // a per-row warning and is excluded; the result is empty.
 knnRuntimeWithDotProductSimilarityRejectsNonUnitVectors
 required_capability: knn_runtime_field

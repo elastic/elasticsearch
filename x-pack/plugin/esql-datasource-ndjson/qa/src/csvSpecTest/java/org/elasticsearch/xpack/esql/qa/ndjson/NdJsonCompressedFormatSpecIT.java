@@ -47,7 +47,7 @@ public class NdJsonCompressedFormatSpecIT extends AbstractNdJsonExternalSpecTest
         "strictFilterAndSort",
         "strictSalaryStats",
         "strictAggregateByGender",
-        "ubnCount",
+        "omittedCount",
         "ubnExplicitCount",
         "readAllEmployeesMultiFile",
         "multiFileDistinctFileCount",

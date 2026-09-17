@@ -26,7 +26,8 @@ import java.util.Set;
  * donor. These two knobs are that order: what to sort by, and which direction. They are illegal on
  * {@code union_by_name} and {@code strict} — those strategies already merge or compare every file, and
  * file order must not change their column set. Registration and query {@code WITH} both reject the
- * knobs unless {@code schema_resolution} is {@code first_file_wins}.
+ * knobs unless the <em>effective</em> schema resolution is {@code first_file_wins} (an omitted key
+ * on EXTERNAL / a new PUT counts; explicit {@code union_by_name} and {@code strict} do not).
  *
  * <p>When first-file-wins is on and the knobs are omitted, the listing is left in discovery order
  * ({@code list} + {@code asc}): a comma-separated resource keeps declaration order, a glob keeps the
@@ -98,8 +99,9 @@ public record FileOrderConfig(SortBy sortBy, Order order) {
     }
 
     /**
-     * Listing order for one expansion. First-file-wins uses the knobs (default {@code list}/{@code asc});
-     * every other resolution, including an omitted {@code schema_resolution}, uses name-ascending.
+     * Listing order for one expansion. First-file-wins (including an omitted {@code schema_resolution},
+     * which is the query/EXTERNAL default) uses the knobs (default {@code list}/{@code asc});
+     * explicit union-by-name and strict use name-ascending.
      * Rejects the knobs when they are not legal, so a query {@code WITH} cannot silently ignore them.
      */
     public static FileOrderConfig forListing(@Nullable Map<String, Object> config) {
@@ -124,8 +126,8 @@ public record FileOrderConfig(SortBy sortBy, Order order) {
     }
 
     /**
-     * Registration-time and query-time check. The knobs are only legal with
-     * {@code schema_resolution = first_file_wins}; unknown values are named with the allowed lists.
+     * Registration-time and query-time check. The knobs are only legal when effective schema
+     * resolution is {@code first_file_wins}; unknown values are named with the allowed lists.
      */
     public static void validate(@Nullable Map<String, Object> config) {
         if (config == null || config.isEmpty()) {
@@ -141,22 +143,15 @@ public record FileOrderConfig(SortBy sortBy, Order order) {
                     + CONFIG_FILE_SORT_BY
                     + "] and ["
                     + CONFIG_FILE_ORDER
-                    + "] are only valid with \"schema_resolution\": \"first_file_wins\""
+                    + "] are only valid when effective schema resolution is first_file_wins"
             );
         }
         fromConfig(config);
     }
 
     private static boolean firstFileWins(@Nullable Map<String, Object> config) {
-        if (config == null) {
-            return false;
-        }
-        Object value = config.get(ExternalSourceResolver.CONFIG_SCHEMA_RESOLUTION);
-        if (value == null) {
-            return false;
-        }
         try {
-            return FormatReader.SchemaResolution.parse(value.toString()) == FormatReader.SchemaResolution.FIRST_FILE_WINS;
+            return ExternalSourceResolver.effectiveSchemaResolution(config) == FormatReader.SchemaResolution.FIRST_FILE_WINS;
         } catch (IllegalArgumentException e) {
             return false;
         }

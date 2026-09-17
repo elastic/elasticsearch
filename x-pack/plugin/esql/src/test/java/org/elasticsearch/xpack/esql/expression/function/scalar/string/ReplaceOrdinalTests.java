@@ -259,7 +259,12 @@ public class ReplaceOrdinalTests extends ESTestCase {
 
         // row 0 succeeds, row 1 fails, row 2 repeats row 0, row 3 repeats row 1's failing value
         try (
-            Block result = runReplacePlainBlock(new String[] { "abc", oversizeNewStr }, new int[] { 0, 1, 0, 1 }, oversizeRegex, oversizeNewStr)
+            Block result = runReplacePlainBlock(
+                new String[] { "abc", oversizeNewStr },
+                new int[] { 0, 1, 0, 1 },
+                oversizeRegex,
+                oversizeNewStr
+            )
         ) {
             BytesRefBlock bb = (BytesRefBlock) result;
             BytesRef scratch = new BytesRef();

@@ -139,7 +139,6 @@ final class ReplaceConstantOrdinalEvaluator implements ExpressionEvaluator {
         }
     }
 
-
     // Rows to sample before giving up on a mostly-distinct page.
     static final int MIN_SAMPLE_BEFORE_DISABLING = 64;
 

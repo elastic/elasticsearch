@@ -37,35 +37,9 @@ import static java.nio.charset.StandardCharsets.UTF_8;
  * string-copy loop it drives in {@code StringParser.doParseString}, without the surrounding ESCF
  * encoding machinery that {@code SimdJsonParserBenchmark} exercises.
  *
- * <h2>Why this benchmark exists</h2>
- *
- * <p>Profiling a real clickbench-shaped bulk indexing benchmark (PR 159462) showed the single
- * biggest CPU cost in the write-path threads is {@code ByteVector.intoArray} inside
- * {@code StringParser.doParseString} — the fast-path bulk copy of a quote/escape-free string
- * chunk. That method's own source did not change in that PR; only its caller,
- * {@code walkObject}, did (every {@code handler.xxxField(fieldName, ...)} call became a
- * {@code dispatchXxxField(field, handler, ...)} indirection carrying a {@code ResolvedFieldName}
- * instead of a bare {@code String}). Growing the caller can shift C2's inlining/compilation
- * decisions for the whole hot region — including a completely unrelated callee — independent of
- * any change to that callee's own bytecode. This benchmark exists to reproduce that interaction
- * in isolation and cheaply, by running only {@code walkObject} with a no-op handler over
- * string-heavy documents, so it can be compared across commits/branches without the noise of a
- * full bulk-indexing macrobenchmark.
- *
- * <h2>Document shape</h2>
- *
- * <p>Six long (~80 byte) string fields, mimicking clickbench's {@code URL}/{@code Referer}/
- * {@code Title}/{@code UserAgent}-style free text columns, plus a few short numeric fields for
- * realism. {@code escapePercent} controls what fraction of string values contain a {@code \n}
- * near the middle, forcing the escape path instead of the pure vectorized fast path, so both
- * branches of {@code doParseString} can be measured. The field name set is identical and repeated
- * across every document (the common case once a schema has stabilized), so the field name table
- * freezes after the first document and every subsequent lookup is a warm cache hit.
- *
  * <p><strong>Running.</strong>
  * <pre>{@code
- * ./gradlew :libs:simdjson:benchmark --args "StringFieldParsingBenchmark \
- *   -rf json -rff build/jmh-result.json"
+ * ./gradlew :libs:simdjson:benchmark --args "StringFieldParsingBenchmark"
  *
  * # To inspect C2's inlining decision for the walkObject -> StringParser call chain:
  * ./gradlew :libs:simdjson:benchmark --args "StringFieldParsingBenchmark -f 1 -wi 3 -i 1 \

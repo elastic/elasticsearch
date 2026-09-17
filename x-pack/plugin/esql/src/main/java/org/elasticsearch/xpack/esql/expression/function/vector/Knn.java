@@ -80,6 +80,7 @@ import static org.elasticsearch.xpack.esql.core.type.DataType.INTEGER;
 import static org.elasticsearch.xpack.esql.core.type.DataType.KEYWORD;
 import static org.elasticsearch.xpack.esql.core.type.DataType.NULL;
 import static org.elasticsearch.xpack.esql.core.type.DataType.TEXT;
+import static org.elasticsearch.xpack.esql.expression.function.vector.VectorSimilarityMetric.DOT_PRODUCT;
 
 public class Knn extends SingleFieldFullTextFunction
     implements
@@ -402,7 +403,7 @@ public class Knn extends SingleFieldFullTextFunction
                 )
             );
         }
-        if (similarityMetric() == VectorSimilarityMetric.DOT_PRODUCT && VectorUtil.isUnitVector(vector) == false) {
+        if (similarityMetric() == DOT_PRODUCT && VectorUtil.isUnitVector(vector) == false) {
             failures.add(
                 Failure.fail(
                     query(),
@@ -431,12 +432,11 @@ public class Knn extends SingleFieldFullTextFunction
         float[] queryVector = queryAsFloats();
         Float similarityThreshold = similarityThresholdOption();
         VectorSimilarityMetric metric = similarityMetric();
-        if (metric == VectorSimilarityMetric.DOT_PRODUCT) {
-            return new KnnRuntimeFilterUnitVectorEvaluator.Factory(
+        if (metric == DOT_PRODUCT) {
+            return new KnnRuntimeFilterForDotProductEvaluator.Factory(
                 source(),
                 toEvaluator.apply(field()),
                 queryVector,
-                metric,
                 similarityThreshold,
                 // Allocate a scratch buffer whenever we will actually read the field vector: either to compare against
                 // the threshold or to validate unit length for DOT_PRODUCT.
@@ -731,12 +731,11 @@ public class Knn extends SingleFieldFullTextFunction
      * Same as {@link #runtimeFilter(int, FloatBlock, float[], VectorSimilarityMetric, Float, float[])} above,
      * but also checks that the field vector is unit length for DOT_PRODUCT.
      */
-    @Evaluator(extraName = "RuntimeFilterUnitVector", allNullsIsNull = false, warnExceptions = { IllegalArgumentException.class })
-    static boolean runtimeFilterUnitVector(
+    @Evaluator(extraName = "RuntimeFilterForDotProduct", allNullsIsNull = false, warnExceptions = { IllegalArgumentException.class })
+    static boolean runtimeFilterForDotProduct(
         @Position int position,
         FloatBlock fieldBlock,
         @Fixed float[] queryVector,
-        @Fixed VectorSimilarityMetric similarityMetric,
         @Fixed @Nullable Float similarityThreshold,
         @Fixed(includeInToString = false, scope = Fixed.Scope.THREAD_LOCAL) float[] scratchVector
     ) {
@@ -757,14 +756,14 @@ public class Knn extends SingleFieldFullTextFunction
         if (similarityThreshold == null) {
             return true;
         }
-        float similarity = similarityMetric.calculateSimilarity(scratchVector, queryVector);
-        return similarityMetric.normalizeToRelevanceScore(similarity) >= similarityMetric.normalizeToRelevanceScore(similarityThreshold);
+        float similarity = DOT_PRODUCT.calculateSimilarity(scratchVector, queryVector);
+        return DOT_PRODUCT.normalizeToRelevanceScore(similarity) >= DOT_PRODUCT.normalizeToRelevanceScore(similarityThreshold);
     }
 
     /**
      * Evaluator factory for runtime KNN scoring (double result): normalizes the vector similarity value to the unit interval
      * and applies boost.
-     * We intentionally do not check for unit length here, because the {@link #runtimeFilterUnitVector(int, FloatBlock, float[], VectorSimilarityMetric, Float, float[]) filter evaluator}
+     * We intentionally do not check for unit length here, because the {@link #runtimeFilterForDotProduct(int, FloatBlock, float[], Float, float[]) filter evaluator}
      * should have already done that for DOT_PRODUCT.
      */
     @Evaluator(extraName = "RuntimeScore", allNullsIsNull = false, warnExceptions = { IllegalArgumentException.class })

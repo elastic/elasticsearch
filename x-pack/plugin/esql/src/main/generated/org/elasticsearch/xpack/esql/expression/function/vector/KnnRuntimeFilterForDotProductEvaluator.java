@@ -24,16 +24,14 @@ import org.elasticsearch.xpack.esql.core.tree.Source;
  * {@link ExpressionEvaluator} implementation for {@link Knn}.
  * This class is generated. Edit {@code EvaluatorImplementer} instead.
  */
-public final class KnnRuntimeFilterUnitVectorEvaluator implements ExpressionEvaluator {
-  private static final long BASE_RAM_BYTES_USED = RamUsageEstimator.shallowSizeOfInstance(KnnRuntimeFilterUnitVectorEvaluator.class);
+public final class KnnRuntimeFilterForDotProductEvaluator implements ExpressionEvaluator {
+  private static final long BASE_RAM_BYTES_USED = RamUsageEstimator.shallowSizeOfInstance(KnnRuntimeFilterForDotProductEvaluator.class);
 
   private final Source source;
 
   private final ExpressionEvaluator fieldBlock;
 
   private final float[] queryVector;
-
-  private final VectorSimilarityMetric similarityMetric;
 
   private final Float similarityThreshold;
 
@@ -43,13 +41,12 @@ public final class KnnRuntimeFilterUnitVectorEvaluator implements ExpressionEval
 
   private Warnings warnings;
 
-  public KnnRuntimeFilterUnitVectorEvaluator(Source source, ExpressionEvaluator fieldBlock,
-      float[] queryVector, VectorSimilarityMetric similarityMetric, Float similarityThreshold,
-      float[] scratchVector, DriverContext driverContext) {
+  public KnnRuntimeFilterForDotProductEvaluator(Source source, ExpressionEvaluator fieldBlock,
+      float[] queryVector, Float similarityThreshold, float[] scratchVector,
+      DriverContext driverContext) {
     this.source = source;
     this.fieldBlock = fieldBlock;
     this.queryVector = queryVector;
-    this.similarityMetric = similarityMetric;
     this.similarityThreshold = similarityThreshold;
     this.scratchVector = scratchVector;
     this.driverContext = driverContext;
@@ -73,7 +70,7 @@ public final class KnnRuntimeFilterUnitVectorEvaluator implements ExpressionEval
     try(BooleanBlock.Builder result = driverContext.blockFactory().newBooleanBlockBuilder(positionCount)) {
       position: for (int p = 0; p < positionCount; p++) {
         try {
-          result.appendBoolean(Knn.runtimeFilterUnitVector(p, fieldBlockBlock, this.queryVector, this.similarityMetric, this.similarityThreshold, this.scratchVector));
+          result.appendBoolean(Knn.runtimeFilterForDotProduct(p, fieldBlockBlock, this.queryVector, this.similarityThreshold, this.scratchVector));
         } catch (IllegalArgumentException e) {
           warnings().registerException(e);
           result.appendNull();
@@ -85,7 +82,7 @@ public final class KnnRuntimeFilterUnitVectorEvaluator implements ExpressionEval
 
   @Override
   public String toString() {
-    return "KnnRuntimeFilterUnitVectorEvaluator[" + "fieldBlock=" + fieldBlock + ", queryVector=" + queryVector + ", similarityMetric=" + similarityMetric + ", similarityThreshold=" + similarityThreshold + "]";
+    return "KnnRuntimeFilterForDotProductEvaluator[" + "fieldBlock=" + fieldBlock + ", queryVector=" + queryVector + ", similarityThreshold=" + similarityThreshold + "]";
   }
 
   @Override
@@ -107,31 +104,27 @@ public final class KnnRuntimeFilterUnitVectorEvaluator implements ExpressionEval
 
     private final float[] queryVector;
 
-    private final VectorSimilarityMetric similarityMetric;
-
     private final Float similarityThreshold;
 
     private final Function<DriverContext, float[]> scratchVector;
 
     public Factory(Source source, ExpressionEvaluator.Factory fieldBlock, float[] queryVector,
-        VectorSimilarityMetric similarityMetric, Float similarityThreshold,
-        Function<DriverContext, float[]> scratchVector) {
+        Float similarityThreshold, Function<DriverContext, float[]> scratchVector) {
       this.source = source;
       this.fieldBlock = fieldBlock;
       this.queryVector = queryVector;
-      this.similarityMetric = similarityMetric;
       this.similarityThreshold = similarityThreshold;
       this.scratchVector = scratchVector;
     }
 
     @Override
-    public KnnRuntimeFilterUnitVectorEvaluator get(DriverContext context) {
-      return new KnnRuntimeFilterUnitVectorEvaluator(source, fieldBlock.get(context), queryVector, similarityMetric, similarityThreshold, scratchVector.apply(context), context);
+    public KnnRuntimeFilterForDotProductEvaluator get(DriverContext context) {
+      return new KnnRuntimeFilterForDotProductEvaluator(source, fieldBlock.get(context), queryVector, similarityThreshold, scratchVector.apply(context), context);
     }
 
     @Override
     public String toString() {
-      return "KnnRuntimeFilterUnitVectorEvaluator[" + "fieldBlock=" + fieldBlock + ", queryVector=" + queryVector + ", similarityMetric=" + similarityMetric + ", similarityThreshold=" + similarityThreshold + "]";
+      return "KnnRuntimeFilterForDotProductEvaluator[" + "fieldBlock=" + fieldBlock + ", queryVector=" + queryVector + ", similarityThreshold=" + similarityThreshold + "]";
     }
   }
 }

@@ -80,9 +80,9 @@ public class KnnRuntimeTests extends ESTestCase {
     public void testRuntimeFilterUnitVector() {
         float[] queryVector = new float[] { 1.0f, 0.0f };
         try (FloatBlock fieldBlock = vectorBlock(new float[] { 99.0f }, new float[] { 0.8f, 0.6f }, new float[] { 0.0f, 1.0f })) {
-            assertTrue(Knn.runtimeFilterUnitVector(1, fieldBlock, queryVector, VectorSimilarityMetric.DOT_PRODUCT, 0.8f, new float[2]));
-            assertFalse(Knn.runtimeFilterUnitVector(2, fieldBlock, queryVector, VectorSimilarityMetric.DOT_PRODUCT, 0.8f, new float[2]));
-            assertTrue(Knn.runtimeFilterUnitVector(1, fieldBlock, queryVector, VectorSimilarityMetric.DOT_PRODUCT, null, new float[2]));
+            assertTrue(Knn.runtimeFilterForDotProduct(1, fieldBlock, queryVector, 0.8f, new float[2]));
+            assertFalse(Knn.runtimeFilterForDotProduct(2, fieldBlock, queryVector, 0.8f, new float[2]));
+            assertTrue(Knn.runtimeFilterForDotProduct(1, fieldBlock, queryVector, null, new float[2]));
         }
     }
 
@@ -90,11 +90,10 @@ public class KnnRuntimeTests extends ESTestCase {
         try (FloatBlock fieldBlock = vectorBlock(new float[] { 2.0f, 0.0f })) {
             IllegalArgumentException error = expectThrows(
                 IllegalArgumentException.class,
-                () -> Knn.runtimeFilterUnitVector(
+                () -> Knn.runtimeFilterForDotProduct(
                     0,
                     fieldBlock,
                     new float[] { 1.0f, 0.0f },
-                    VectorSimilarityMetric.DOT_PRODUCT,
                     null,
                     new float[2]
                 )
@@ -106,11 +105,10 @@ public class KnnRuntimeTests extends ESTestCase {
     public void testRuntimeFilterUnitVectorHandlesNullAndDimensionMismatch() {
         try (FloatBlock fieldBlock = vectorBlock((float[]) null)) {
             assertFalse(
-                Knn.runtimeFilterUnitVector(
+                Knn.runtimeFilterForDotProduct(
                     0,
                     fieldBlock,
                     new float[] { 1.0f, 0.0f },
-                    VectorSimilarityMetric.DOT_PRODUCT,
                     null,
                     new float[2]
                 )
@@ -120,11 +118,10 @@ public class KnnRuntimeTests extends ESTestCase {
         try (FloatBlock fieldBlock = vectorBlock(new float[] { 1.0f })) {
             IllegalArgumentException error = expectThrows(
                 IllegalArgumentException.class,
-                () -> Knn.runtimeFilterUnitVector(
+                () -> Knn.runtimeFilterForDotProduct(
                     0,
                     fieldBlock,
                     new float[] { 1.0f, 0.0f },
-                    VectorSimilarityMetric.DOT_PRODUCT,
                     null,
                     new float[2]
                 )
@@ -159,7 +156,7 @@ public class KnnRuntimeTests extends ESTestCase {
             if (metric == VectorSimilarityMetric.DOT_PRODUCT) {
                 assertEquals(
                     expected,
-                    Knn.runtimeFilterUnitVector(1, fieldBlock, queryVector, metric, threshold, new float[queryVector.length])
+                    Knn.runtimeFilterForDotProduct(1, fieldBlock, queryVector, threshold, new float[queryVector.length])
                 );
             } else {
                 assertEquals(expected, Knn.runtimeFilter(1, fieldBlock, queryVector, metric, threshold, new float[queryVector.length]));

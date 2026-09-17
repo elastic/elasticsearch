@@ -526,6 +526,19 @@ public class ExternalDatasetRequestFilterConformanceIT extends AbstractExternalD
         );
     }
 
+    /**
+     * A bound whose Java type is not a range type (a boolean), on a field neither source has. The translator types a
+     * one-bound literal from the Java value and a two-bound literal from the missing field, and skips the resolution
+     * check for a missing field, so this is where an unresolved leaf could reach the planner and fail the query.
+     */
+    public void testMissingFieldRangeWithNonRangeTypedBoundDoesNotFail() {
+        assertSelectsSameRows(QueryBuilders.rangeQuery("nope").gte(true));
+        assertSelectsSameRows(QueryBuilders.rangeQuery("nope").lte(false));
+        assertSelectsSameRows(QueryBuilders.rangeQuery("nope").gte(true).lte(false));
+        assertSelectsSameRows(QueryBuilders.boolQuery().mustNot(QueryBuilders.rangeQuery("nope").gte(true)));
+        assertSelectsSameRows(QueryBuilders.termQuery("nope", true));
+    }
+
     // ---- REST layer tests: the policy a request actually gets, through the HTTP parsing path ----
 
     /**

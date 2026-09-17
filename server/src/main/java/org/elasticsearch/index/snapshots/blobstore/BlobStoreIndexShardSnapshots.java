@@ -139,8 +139,8 @@ public class BlobStoreIndexShardSnapshots implements Iterable<SnapshotFiles>, To
      * each referenced file exactly once — so this is a straight sum over that map.
      * <p>
      * Differs from {@link BlobStoreIndexShardSnapshot#totalSize()} in two ways: that measures one snapshot rather than the union, and it
-     * measures logical size, including files held inline in metadata rather than written as blobs. Here those are excluded, because they
-     * occupy no repository space.
+     * measures logical size, including files whose contents are held inline in metadata rather than written as data blobs. Those are
+     * excluded here — not because they cost nothing, but because their bytes are in the metadata blobs, which this does not measure.
      *
      * @return total physical size in bytes, or zero if this shard has no snapshots
      */

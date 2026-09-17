@@ -1,0 +1,6 @@
+area: Search
+issues:
+ - 159328
+pr: 159648
+summary: Account for document field memory in the request circuit breaker
+type: bug

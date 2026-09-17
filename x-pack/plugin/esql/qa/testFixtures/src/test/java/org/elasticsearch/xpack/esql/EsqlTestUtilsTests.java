@@ -20,7 +20,9 @@ import java.util.Set;
 import java.util.jar.JarEntry;
 import java.util.jar.JarOutputStream;
 
+import static org.hamcrest.Matchers.allOf;
 import static org.hamcrest.Matchers.containsString;
+import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
 
 public class EsqlTestUtilsTests extends ESTestCase {
@@ -35,19 +37,25 @@ public class EsqlTestUtilsTests extends ESTestCase {
         writeResource(root.resolve("datasources/deeper"), "not-immediate.csv-spec");
 
         assertThat(
-            resourceNames(EsqlTestUtils.classpathResources("/*.csv-spec", List.of(root))),
+            resourceNames(EsqlTestUtils.classpathResources(List.of("/*.csv-spec"), List.of(root))),
             equalTo(List.of("root-a.csv-spec", "root-b.csv-spec"))
         );
         assertThat(
-            resourceNames(EsqlTestUtils.classpathResources("/datasources/*.csv-spec", List.of(root))),
+            resourceNames(EsqlTestUtils.classpathResources(List.of("/datasources/*.csv-spec"), List.of(root))),
             equalTo(List.of("nested-a.csv-spec", "nested-b.csv-spec"))
         );
         assertThat(
-            resourceNames(EsqlTestUtils.classpathResources("/datasources/nested-b.csv-spec", List.of(root))),
+            resourceNames(EsqlTestUtils.classpathResources(List.of("/datasources/nested-b.csv-spec"), List.of(root))),
             equalTo(List.of("nested-b.csv-spec"))
         );
-        assertTrue(EsqlTestUtils.classpathResources("/missing/*.csv-spec", List.of(root)).isEmpty());
-        assertTrue(EsqlTestUtils.classpathResources("/datasources/no-match*.csv-spec", List.of(root)).isEmpty());
+        assertThat(EsqlTestUtils.classpathResources(List.of("/missing/*.csv-spec"), List.of(root)), empty());
+        assertThat(EsqlTestUtils.classpathResources(List.of("/datasources/no-match*.csv-spec"), List.of(root)), empty());
+        assertThat(
+            resourceNames(
+                EsqlTestUtils.classpathResources(List.of("/datasources/*-a.csv-spec", "/datasources/*-b.csv-spec"), List.of(root))
+            ),
+            equalTo(List.of("nested-a.csv-spec", "nested-b.csv-spec"))
+        );
     }
 
     public void testClasspathResourcesFromJarAreSortedAndNonRecursive() throws Exception {
@@ -60,14 +68,17 @@ public class EsqlTestUtilsTests extends ESTestCase {
         }
 
         assertThat(
-            resourceNames(EsqlTestUtils.classpathResources("/datasources/*.csv-spec", List.of(jar))),
+            resourceNames(EsqlTestUtils.classpathResources(List.of("/datasources/*.csv-spec"), List.of(jar))),
             equalTo(List.of("nested-a.csv-spec", "nested-b.csv-spec"))
         );
         assertThat(
-            resourceNames(EsqlTestUtils.classpathResources("/datasources/nested-a.csv-spec", List.of(jar))),
+            resourceNames(EsqlTestUtils.classpathResources(List.of("/datasources/nested-a.csv-spec"), List.of(jar))),
             equalTo(List.of("nested-a.csv-spec"))
         );
-        assertThat(resourceNames(EsqlTestUtils.classpathResources("/*.csv-spec", List.of(jar))), equalTo(List.of("root.csv-spec")));
+        assertThat(
+            resourceNames(EsqlTestUtils.classpathResources(List.of("/*.csv-spec"), List.of(jar))),
+            equalTo(List.of("root.csv-spec"))
+        );
     }
 
     public void testClasspathResourcesRejectDuplicateLogicalPathsWithBothOrigins() throws Exception {
@@ -76,13 +87,15 @@ public class EsqlTestUtilsTests extends ESTestCase {
         writeResource(first.resolve("datasources"), "duplicate.csv-spec");
         writeResource(second.resolve("datasources"), "duplicate.csv-spec");
 
-        IllegalStateException e = expectThrows(
+        expectThrows(
             IllegalStateException.class,
-            () -> EsqlTestUtils.classpathResources("/datasources/*.csv-spec", List.of(first, second))
+            allOf(
+                containsString("datasources/duplicate.csv-spec"),
+                containsString(first.toAbsolutePath().normalize().toString()),
+                containsString(second.toAbsolutePath().normalize().toString())
+            ),
+            () -> EsqlTestUtils.classpathResources(List.of("/datasources/*.csv-spec"), List.of(first, second))
         );
-        assertThat(e.getMessage(), containsString("datasources/duplicate.csv-spec"));
-        assertThat(e.getMessage(), containsString(first.toAbsolutePath().normalize().toString()));
-        assertThat(e.getMessage(), containsString(second.toAbsolutePath().normalize().toString()));
     }
 
     public void testPathAndNameSplitsAtDirectoryBoundary() {

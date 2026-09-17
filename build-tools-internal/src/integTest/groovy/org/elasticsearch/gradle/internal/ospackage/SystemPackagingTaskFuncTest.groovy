@@ -20,6 +20,8 @@ import org.redline_rpm.Scanner
 import org.redline_rpm.header.Header
 import spock.lang.IgnoreIf
 
+import java.util.regex.Pattern
+
 import java.nio.channels.Channels
 import java.nio.charset.StandardCharsets
 import java.nio.file.Files
@@ -64,6 +66,11 @@ class SystemPackagingTaskFuncTest extends AbstractJavaGradleFuncTest {
         file('files/conf/sub/nested.conf') << "nested: value\n"
         file('files/lib/real.txt') << "real content\n"
         file('scripts/custom-postinst') << "# custom post-install hook\necho custom postinst\n"
+        file('scripts/rpm-preinst') << "#!/bin/bash -e\necho preinstall\n"
+        file('scripts/rpm-postinst') << "#!/bin/bash\necho postinstall\n"
+        file('scripts/rpm-prerm') << "echo preuninstall\n"
+        file('scripts/rpm-postrm') << "#!/bin/sh\necho postuninstall\n"
+        file('scripts/rpm-posttrans') << "echo posttrans\n"
         Path link = file('files/lib/link.txt').toPath()
         Files.deleteIfExists(link)
         Files.createSymbolicLink(link, Path.of('real.txt'))
@@ -71,6 +78,7 @@ class SystemPackagingTaskFuncTest extends AbstractJavaGradleFuncTest {
         buildFile << """
         import org.elasticsearch.gradle.internal.ospackage.deb.Deb
         import org.elasticsearch.gradle.internal.ospackage.rpm.Rpm
+        import org.redline_rpm.header.Os
         import org.redline_rpm.payload.Directive
 
         plugins {
@@ -160,6 +168,33 @@ class SystemPackagingTaskFuncTest extends AbstractJavaGradleFuncTest {
             customFields.put('License', 'Test-License')
             postInstall file('scripts/custom-postinst')
         }
+
+        tasks.register('buildDebWithDirectSymlinkSource', Deb) {
+            configure(commonConfig('1.2.3'))
+            archiveFileName = 'test-pkg-with-direct-symlink_1.2.3_all.deb'
+            arch = 'all'
+            packageGroup = 'test'
+            customFields.put('License', 'Test-License')
+            from(file('files/lib/link.txt')) {
+                into '/opt/test/lib'
+                rename 'direct-link.txt'
+            }
+        }
+
+        tasks.register('buildRpmWithScripts', Rpm) {
+            configure(commonConfig('1.2.3'))
+            archiveFileName = 'test-pkg-with-scripts-1.2.3.noarch.rpm'
+            arch = 'NOARCH'
+            os = Os.LINUX
+            release = '7'
+            packageGroup = 'Application/Test'
+            license = 'Test License'
+            preInstall file('scripts/rpm-preinst')
+            postInstall file('scripts/rpm-postinst')
+            preUninstall file('scripts/rpm-prerm')
+            postUninstall file('scripts/rpm-postrm')
+            postTrans file('scripts/rpm-posttrans')
+        }
         """
     }
 
@@ -228,6 +263,20 @@ class SystemPackagingTaskFuncTest extends AbstractJavaGradleFuncTest {
         entries['/opt/test/lib/link.txt'].linkName == 'real.txt'
     }
 
+    def "preserves direct file symlink sources as deb link entries"() {
+        when:
+        def result = gradleRunner('buildDebWithDirectSymlinkSource').build()
+
+        then:
+        result.task(':buildDebWithDirectSymlinkSource').outcome == TaskOutcome.SUCCESS
+
+        def deb = file('build/dists/test-pkg-with-direct-symlink_1.2.3_all.deb')
+        deb.exists()
+        def entries = readDebDataEntries(deb)
+        entries['/opt/test/lib/direct-link.txt'].isSymbolicLink()
+        entries['/opt/test/lib/direct-link.txt'].linkName == 'real.txt'
+    }
+
     def "adds a bash shebang to explicit deb maintainer scripts when missing"() {
         when:
         def result = gradleRunner('buildDebWithExplicitPostinst').build()
@@ -241,6 +290,52 @@ class SystemPackagingTaskFuncTest extends AbstractJavaGradleFuncTest {
         postinst.startsWith('#!/bin/bash -e\n')
         postinst.contains('# custom post-install hook')
         postinst.contains('echo custom postinst')
+    }
+
+    def "rewrites rpm maintainer scripts with a single shebang and standard defines"() {
+        when:
+        def result = gradleRunner('buildRpmWithScripts').build()
+
+        then:
+        result.task(':buildRpmWithScripts').outcome == TaskOutcome.SUCCESS
+
+        def rpm = file('build/dists/test-pkg-with-scripts-1.2.3.noarch.rpm')
+        rpm.exists()
+        def header = readRpmHeader(rpm)
+
+        String preInstallScript = headerValue(header, 'PREINSCRIPT')
+        preInstallScript.startsWith('#!/bin/bash -e\n')
+        countOccurrences(preInstallScript, '#!') == 1
+        preInstallScript.contains('RPM_ARCH=noarch')
+        preInstallScript.contains('RPM_OS=linux')
+        preInstallScript.contains('RPM_PACKAGE_NAME=test-pkg')
+        preInstallScript.contains('RPM_PACKAGE_VERSION=1.2.3')
+        preInstallScript.contains('RPM_PACKAGE_RELEASE=7')
+        preInstallScript.contains('echo preinstall')
+        headerValues(header, 'PREINPROG') == ['/bin/bash -e']
+
+        String postInstallScript = headerValue(header, 'POSTINSCRIPT')
+        postInstallScript.startsWith('#!/bin/bash\n')
+        countOccurrences(postInstallScript, '#!') == 1
+        postInstallScript.contains('echo postinstall')
+        headerValues(header, 'POSTINPROG') == ['/bin/bash']
+
+        String preUninstallScript = headerValue(header, 'PREUNSCRIPT')
+        preUninstallScript.startsWith(' RPM_ARCH=noarch \n')
+        preUninstallScript.contains('echo preuninstall')
+        headerValues(header, 'PREUNPROG') == ['/bin/sh']
+
+        String postUninstallScript = headerValue(header, 'POSTUNSCRIPT')
+        postUninstallScript.startsWith('#!/bin/sh\n')
+        countOccurrences(postUninstallScript, '#!') == 1
+        postUninstallScript.contains('echo postuninstall')
+        headerValues(header, 'POSTUNPROG') == ['/bin/sh']
+
+        String postTransScript = headerValue(header, 'POSTTRANSSCRIPT')
+        postTransScript.startsWith(' RPM_ARCH=noarch \n')
+        postTransScript.contains('RPM_PACKAGE_RELEASE=7')
+        postTransScript.contains('echo posttrans')
+        headerValues(header, 'POSTTRANSPROG') == ['/bin/sh']
     }
 
     def "normalizes qualified project versions for package metadata"() {
@@ -272,6 +367,15 @@ class SystemPackagingTaskFuncTest extends AbstractJavaGradleFuncTest {
     private static List headerValues(Header header, String tagName) {
         def entry = header.getEntry(Header.HeaderTag.valueOf(tagName))
         entry == null ? [] : (entry.values as List)
+    }
+
+    private static String headerValue(Header header, String tagName) {
+        List values = headerValues(header, tagName)
+        values.isEmpty() ? null : values[0]
+    }
+
+    private static int countOccurrences(String input, String needle) {
+        Pattern.compile(Pattern.quote(needle)).matcher(input).results().count()
     }
 
     private static Map<String, Map> rpmFiles(Header header) {

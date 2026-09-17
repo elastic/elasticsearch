@@ -369,15 +369,24 @@ public final class Case extends EsqlScalarFunction {
     }
 
     /**
-     * Raise the warnings {@link Warnings#registerException} would raise for a multivalued
-     * condition. Built from {@link Warnings} so the text can't drift from the evaluator's.
-     * Written straight to the thread context because folding has no {@link DriverContext}
-     * to collect them, which is what {@code EvaluatorMapper#fold} does with its warnings too.
+     * The two warnings {@link Warnings#registerException} raises for a multivalued condition.
+     * Folding has no {@link DriverContext} to collect them, so they go straight to the response
+     * headers, like {@code SpatialGridFunction#foldWarningConsumer}. Keep this in step with
+     * {@link Warnings}, including the 20 from its {@code MAX_ADDED_WARNINGS}, or a folded CASE
+     * warns differently from an evaluated one.
      */
     private static void warnMultivaluedCondition(Expression condition) {
         Source source = condition.source();
-        HeaderWarning.addWarning(Warnings.firstTreatedAsFalseWarning(source));
-        HeaderWarning.addWarning(Warnings.exceptionWarning(source, IllegalArgumentException.class, MULTIVALUE_CONDITION_MESSAGE));
+        String location = source.viewName() == null
+            ? format("Line {}:{}: ", source.lineNumber(), source.columnNumber())
+            : format("Line {}:{} (in view [{}]): ", source.lineNumber(), source.columnNumber(), source.viewName());
+        HeaderWarning.addWarning(
+            "{}evaluation of [{}] failed, treating result as false. Only first {} failures recorded.",
+            location,
+            source.text(),
+            20
+        );
+        HeaderWarning.addWarning(location + IllegalArgumentException.class.getName() + ": " + MULTIVALUE_CONDITION_MESSAGE);
     }
 
     /**

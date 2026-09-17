@@ -33,6 +33,7 @@ import org.junit.After;
 import java.time.Duration;
 import java.time.Period;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
 import java.util.function.Function;
@@ -434,7 +435,7 @@ public class CaseExtraTests extends ESTestCase {
         Case c = resolvedCase(listCondition(condition), intLiteral(taken), intLiteral(unused));
         int expected = condition ? taken : unused;
         assertTrue(c.foldable());
-        assertThat(evaluate(c), equalTo(expected));
+        assertThat(evaluate(c).value(), equalTo(expected));
         assertThat(c.fold(FoldContext.small()), equalTo(expected));
     }
 
@@ -442,9 +443,41 @@ public class CaseExtraTests extends ESTestCase {
         int taken = randomInt();
         int unused = randomValueOtherThan(taken, ESTestCase::randomInt);
         Case c = resolvedCase(listCondition(true, true), intLiteral(taken), intLiteral(unused));
-        assertThat(evaluate(c), equalTo(unused));
+        assertThat(evaluate(c).value(), equalTo(unused));
         assertThat(c.fold(FoldContext.small()), equalTo(unused));
         assertMultivalueConditionWarnings();
+    }
+
+    /**
+     * The evaluator and {@code fold} are two implementations of the same rules for a
+     * condition, so sweep every shape a folded condition can take and require they agree
+     * on the value and on the warnings. The evaluator is the oracle.
+     * <p>
+     *     An empty list is left out because there is no oracle for it: {@code
+     *     BlockUtils.fromListRow} reads {@code listVal.get(0)}, so the evaluator cannot
+     *     answer. {@code fold} treats it as false.
+     * </p>
+     */
+    public void testFoldMatchesEvaluatorForEveryConditionShape() {
+        for (Object shape : Arrays.asList(
+            null,
+            true,
+            false,
+            List.of(true),
+            List.of(false),
+            List.of(true, true),
+            List.of(false, false),
+            List.of(true, false),
+            List.of(false, true)
+        )) {
+            int taken = randomInt();
+            int unused = randomValueOtherThan(taken, ESTestCase::randomInt);
+            Case c = resolvedCase(new Literal(Source.synthetic("cond"), shape, DataType.BOOLEAN), intLiteral(taken), intLiteral(unused));
+            EvaluatedCase evaluated = evaluate(c);
+            String condition = "condition [" + shape + "]";
+            assertThat(condition, c.fold(FoldContext.small()), equalTo(evaluated.value()));
+            assertWarnings(evaluated.warnings().toArray(String[]::new));
+        }
     }
 
     /**
@@ -541,7 +574,9 @@ public class CaseExtraTests extends ESTestCase {
         return expression.fold(ctx);
     }
 
-    private Object evaluate(Case caseExpr) {
+    private record EvaluatedCase(Object value, List<String> warnings) {}
+
+    private EvaluatedCase evaluate(Case caseExpr) {
         DriverContext driverContext = driverContext();
         EvaluatorMapper.ToEvaluator toEvaluator = new EvaluatorMapper.ToEvaluator() {
             @Override
@@ -555,11 +590,14 @@ public class CaseExtraTests extends ESTestCase {
             }
         };
         Page page = new Page(driverContext.blockFactory().newConstantIntBlockWith(0, 1));
+        Object value;
         try (ExpressionEvaluator evaluator = caseExpr.toEvaluator(toEvaluator).get(driverContext); Block block = evaluator.eval(page)) {
-            return toJavaObject(block, 0);
+            value = toJavaObject(block, 0);
         } finally {
             page.releaseBlocks();
         }
+        driverContext.finish();
+        return new EvaluatedCase(value, driverContext.warnings());
     }
 
     private void assertMultivalueConditionWarnings() {

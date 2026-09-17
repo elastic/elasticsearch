@@ -14,10 +14,18 @@ import org.elasticsearch.xpack.esql.datasources.spi.PassThroughRowPositionStrate
 
 import java.util.Map;
 
+import static org.hamcrest.Matchers.containsString;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
 public class FileSourceFactoryErrorPolicyTests extends ESTestCase {
+
+    /**
+     * Warning emitted by {@link FileSourceFactory#resolveErrorPolicy} when a budget key is present
+     * but no {@code error_mode} was named. Pinned here so test breakage names the user-visible string.
+     */
+    static final String BARE_BUDGET_INFERENCE_WARNING =
+        "[max_errors] or [max_error_ratio] was set without [error_mode]; [skip_row] is in effect — [fail_fast] is not";
 
     public void testResolveMaxErrorsFromConfig() {
         FormatReader reader = mock(FormatReader.class);
@@ -28,6 +36,7 @@ public class FileSourceFactoryErrorPolicyTests extends ESTestCase {
         assertEquals(100, policy.maxErrors());
         assertEquals(ErrorPolicy.Mode.SKIP_ROW, policy.mode());
         assertTrue(policy.logErrors());
+        assertWarnings(BARE_BUDGET_INFERENCE_WARNING);
     }
 
     public void testResolveMaxErrorRatioFromConfig() {
@@ -39,6 +48,7 @@ public class FileSourceFactoryErrorPolicyTests extends ESTestCase {
         assertEquals(Long.MAX_VALUE, policy.maxErrors());
         assertEquals(0.1, policy.maxErrorRatio(), 0.001);
         assertTrue(policy.logErrors());
+        assertWarnings(BARE_BUDGET_INFERENCE_WARNING);
     }
 
     public void testResolveBothMaxErrorsAndRatio() {
@@ -49,6 +59,7 @@ public class FileSourceFactoryErrorPolicyTests extends ESTestCase {
         ErrorPolicy policy = FileSourceFactory.resolveErrorPolicy(Map.of("max_errors", "50", "max_error_ratio", "0.2"), reader);
         assertEquals(50, policy.maxErrors());
         assertEquals(0.2, policy.maxErrorRatio(), 0.001);
+        assertWarnings(BARE_BUDGET_INFERENCE_WARNING);
     }
 
     public void testResolveZeroMaxErrors() {
@@ -59,6 +70,7 @@ public class FileSourceFactoryErrorPolicyTests extends ESTestCase {
         ErrorPolicy policy = FileSourceFactory.resolveErrorPolicy(Map.of("max_errors", "0"), reader);
         assertEquals(0, policy.maxErrors());
         assertEquals(ErrorPolicy.Mode.SKIP_ROW, policy.mode());
+        assertWarnings(BARE_BUDGET_INFERENCE_WARNING);
     }
 
     public void testResolveFallsBackToFormatDefault() {
@@ -89,6 +101,8 @@ public class FileSourceFactoryErrorPolicyTests extends ESTestCase {
             IllegalArgumentException.class,
             () -> FileSourceFactory.resolveErrorPolicy(Map.of("max_errors", "not_a_number"), reader)
         );
+        // bare budget is detected before number parsing, so the warning fires even when parsing later fails
+        assertWarnings(BARE_BUDGET_INFERENCE_WARNING);
     }
 
     public void testResolveInvalidMaxErrorRatio() {
@@ -100,6 +114,7 @@ public class FileSourceFactoryErrorPolicyTests extends ESTestCase {
             IllegalArgumentException.class,
             () -> FileSourceFactory.resolveErrorPolicy(Map.of("max_error_ratio", "not_a_number"), reader)
         );
+        assertWarnings(BARE_BUDGET_INFERENCE_WARNING);
     }
 
     public void testResolveNullFieldMode() {
@@ -137,14 +152,19 @@ public class FileSourceFactoryErrorPolicyTests extends ESTestCase {
         when(reader.rowPositionStrategy()).thenReturn(PassThroughRowPositionStrategy.INSTANCE);
         when(reader.defaultErrorPolicy()).thenReturn(ErrorPolicy.STRICT);
 
-        expectThrows(
+        IllegalArgumentException ex1 = expectThrows(
             IllegalArgumentException.class,
             () -> FileSourceFactory.resolveErrorPolicy(Map.of("error_mode", "fail_fast", "max_errors", "10"), reader)
         );
-        expectThrows(
+        assertThat(ex1.getMessage(), containsString("cannot be used with"));
+        assertThat(ex1.getMessage(), containsString("fail_fast"));
+
+        IllegalArgumentException ex2 = expectThrows(
             IllegalArgumentException.class,
             () -> FileSourceFactory.resolveErrorPolicy(Map.of("error_mode", "fail_fast", "max_error_ratio", "0.1"), reader)
         );
+        assertThat(ex2.getMessage(), containsString("cannot be used with"));
+        assertThat(ex2.getMessage(), containsString("fail_fast"));
     }
 
     public void testResolveInvalidErrorMode() {
@@ -195,9 +215,11 @@ public class FileSourceFactoryErrorPolicyTests extends ESTestCase {
 
         ErrorPolicy withCount = FileSourceFactory.resolveErrorPolicy(Map.of("max_errors", "10"), reader);
         assertTrue(withCount.logErrors());
+        assertWarnings(BARE_BUDGET_INFERENCE_WARNING);
 
         ErrorPolicy withRatio = FileSourceFactory.resolveErrorPolicy(Map.of("max_error_ratio", "0.05"), reader);
         assertTrue(withRatio.logErrors());
+        assertWarnings(BARE_BUDGET_INFERENCE_WARNING);
     }
 
     public void testLogErrorsDisabledWhenBudgetIsUnlimited() {

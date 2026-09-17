@@ -697,9 +697,25 @@ final class FileSourceFactory implements ExternalSourceFactory {
         return physical;
     }
 
-    /** Delegates to {@link ErrorPolicy#forReader(Map, FormatReader)}, the one resolution the plan-time rules use too.
-     *  Kept here so existing call sites and tests do not have to change. */
+    /**
+     * Delegates to {@link ErrorPolicy#forReader(Map, FormatReader)}, the one resolution the plan-time rules use too.
+     * Kept here so existing call sites and tests do not have to change.
+     * <p>
+     * Emits a {@code Warning} response header when the config carries a budget ({@code max_errors} or
+     * {@code max_error_ratio}) without an explicit {@code error_mode}, so that callers of datasets stored
+     * before registration started refusing bare budgets learn which mode is actually in effect.
+     */
     static ErrorPolicy resolveErrorPolicy(Map<String, Object> config, FormatReader format) {
+        if (config != null
+            && (config.containsKey(ErrorPolicy.CONFIG_MAX_ERRORS) || config.containsKey(ErrorPolicy.CONFIG_MAX_ERROR_RATIO))
+            && config.get(ErrorPolicy.CONFIG_ERROR_MODE) == null) {
+            HeaderWarning.addWarning(
+                "[{}] or [{}] was set without [{}]; [skip_row] is in effect — [fail_fast] is not",
+                ErrorPolicy.CONFIG_MAX_ERRORS,
+                ErrorPolicy.CONFIG_MAX_ERROR_RATIO,
+                ErrorPolicy.CONFIG_ERROR_MODE
+            );
+        }
         return ErrorPolicy.forReader(config, format);
     }
 

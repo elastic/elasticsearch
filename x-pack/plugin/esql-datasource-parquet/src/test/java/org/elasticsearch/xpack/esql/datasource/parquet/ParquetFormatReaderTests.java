@@ -794,7 +794,7 @@ public class ParquetFormatReaderTests extends ESTestCase {
             assertEquals(1, asyncReadCount.get());
             int rows = drainAllRows(reader, asyncObject);
             assertEquals(1, rows);
-            assertThat("body past the 64KiB tail must still GET", asyncReadCount.get(), greaterThan(1));
+            assertEquals("metadata plus one coalesced data GET", 2, asyncReadCount.get());
         } finally {
             probePool.shutdownNow();
         }
@@ -815,7 +815,7 @@ public class ParquetFormatReaderTests extends ESTestCase {
             reader.footerByteCacheForTests().invalidateAll();
             int rows = drainAllRows(reader, asyncObject);
             assertEquals(1, rows);
-            assertThat(asyncReadCount.get(), greaterThan(1));
+            assertEquals("metadata GET plus scan GET after eviction", 2, asyncReadCount.get());
         } finally {
             probePool.shutdownNow();
         }

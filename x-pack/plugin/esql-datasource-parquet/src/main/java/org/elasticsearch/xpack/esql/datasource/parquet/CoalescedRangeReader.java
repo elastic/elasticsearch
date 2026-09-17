@@ -13,6 +13,8 @@ import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.Releasable;
 import org.elasticsearch.core.Releasables;
+import org.elasticsearch.logging.LogManager;
+import org.elasticsearch.logging.Logger;
 import org.elasticsearch.xpack.esql.datasources.cache.FooterByteCache;
 import org.elasticsearch.xpack.esql.datasources.spi.DirectBufferFactory;
 import org.elasticsearch.xpack.esql.datasources.spi.DirectReadBuffer;
@@ -39,6 +41,8 @@ import java.util.concurrent.atomic.AtomicReference;
  * remote requests (e.g., S3 GETs) by merging nearby byte ranges and issuing them concurrently.
  */
 final class CoalescedRangeReader {
+
+    private static final Logger logger = LogManager.getLogger(CoalescedRangeReader.class);
 
     static final long DEFAULT_MAX_COALESCE_GAP = 1024 * 1024;
 
@@ -421,6 +425,7 @@ final class CoalescedRangeReader {
             key = FooterByteCache.Key.keyFor(storageObject);
             fileAbsOffset = storageObject.offsetForFooterCache(mr.offset());
         } catch (Exception e) {
+            logger.debug("footer cache lookup skipped", e);
             return null;
         }
         byte[] cached = footerBytes.get(key);

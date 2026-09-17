@@ -12,7 +12,6 @@ import org.elasticsearch.rest.BaseRestHandler;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.Scope;
 import org.elasticsearch.rest.ServerlessScope;
-import org.elasticsearch.rest.action.RestCancellableNodeClient;
 import org.elasticsearch.rest.action.RestToXContentListener;
 import org.elasticsearch.xpack.esql.datasources.EsqlDataSourcesCapabilities;
 
@@ -51,11 +50,7 @@ public class RestTestDataSourceConnectionAction extends BaseRestHandler {
     @Override
     protected RestChannelConsumer prepareRequest(RestRequest request, NodeClient client) throws IOException {
         final TestDataSourceConnectionAction.Request req = TestDataSourceConnectionAction.Request.fromXContent(request.contentParser());
-        return channel -> new RestCancellableNodeClient(client, request.getHttpChannel()).execute(
-            TestDataSourceConnectionAction.INSTANCE,
-            req,
-            new RestToXContentListener<>(channel)
-        );
+        return channel -> client.execute(TestDataSourceConnectionAction.INSTANCE, req, new RestToXContentListener<>(channel));
     }
 
     @Override

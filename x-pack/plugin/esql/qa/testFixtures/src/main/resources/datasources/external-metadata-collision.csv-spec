@@ -7,6 +7,7 @@
 
 physicalMetadataNames
 required_capability: dataset_in_from_command
+required_capability: external_source_metadata_wins_over_physical_column
 dataset: md_collision: "{{md_collision}}"
 
 FROM md_collision
@@ -44,6 +45,7 @@ row_no:integer | _id:keyword | _index:keyword | _version:long | _source:_source 
 
 scoreFilterUsesPhysical
 required_capability: dataset_in_from_command
+required_capability: external_source_metadata_wins_over_physical_column
 dataset: md_collision: "{{md_collision}}"
 
 FROM md_collision

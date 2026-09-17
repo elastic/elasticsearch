@@ -101,8 +101,6 @@ FROM access_logs METADATA _file.path, _file.name, _file.size
 
 When a name in the `METADATA` clause also exists as a file column, the engine-generated value is used and the file column of the same name is dropped. A warning names the shadowed column. Rename the file column in the dataset mapping to keep both values. Without `METADATA`, the file column is used as an ordinary data column. After the drop, `KEEP *` does not surface the name: metadata columns are virtual and omitted from star expansion. The synthesized `_source` document also omits the shadowed field. If that name is the dataset's `_id.path` stamp source and `METADATA _id` is also requested, the file column stays so the reader can stamp `_id`; it is not replaced by the engine value.
 
-The `EXTERNAL` command synthesizes a `METADATA` clause for `_file.path`, `_file.name`, `_file.directory`, `_file.size`, and `_file.modified` on every query. A physical column of one of those names is therefore dropped from the default output rather than replaced. `KEEP _file.size` returns the storage stat.
-
 ## Use search functions
 
 [Search functions](/reference/query-languages/esql/functions-operators/search-functions.md) can filter dataset rows by evaluating the query against values read from the files. This runtime search does not use an inverted index. When using `METADATA _score`, `MATCH` and `MATCH_PHRASE` on dataset rows contribute to the relevance score based on the `boost` option and the query terms matched — not BM25, as there are no index statistics for a dataset. {applies_to}`stack: preview 9.6` In earlier versions, dataset rows do not contribute to `_score`.

@@ -31,10 +31,11 @@
 # Surface trigger vars at pipeline level so env() in step `if` conditions can
 # see them on API-triggered builds.
 env:
-  WORKFLOW:       "${WORKFLOW:-}"
-  ISSUE_URL:      "${ISSUE_URL:-}"
-  PR_URL:         "${PR_URL:-}"
-  ARCHIMEDES_REF: "${ARCHIMEDES_REF:-}"
+  WORKFLOW:                "${WORKFLOW:-}"
+  ISSUE_URL:               "${ISSUE_URL:-}"
+  PR_URL:                  "${PR_URL:-}"
+  ARCHIMEDES_REF:          "${ARCHIMEDES_REF:-}"
+  ARCHIMEDES_TRIAGE_MODE:  "${ARCHIMEDES_TRIAGE_MODE:-}"
 
 steps:
   # ── Run archimedes ───────────────────────────────────────────────────────────

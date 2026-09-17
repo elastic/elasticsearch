@@ -3,4 +3,4 @@ issues:
  - 158426
 pr: 159554
 summary: Auto-stop datafeed after consecutive extraction failures
-type: enhancement
+type: bug

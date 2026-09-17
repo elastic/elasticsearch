@@ -886,9 +886,7 @@ public class CsvTestsDataLoader {
     public static void deleteViews(RestClient client) throws IOException {
         if (clusterSupportsViews(client)) {
             logger.debug("Deleting views");
-            for (var view : VIEW_CONFIGS.values()) {
-                deleteView(client, view.name);
-            }
+            deleteViews(client, VIEW_CONFIGS.keySet());
         } else {
             logger.info("Skipping deleting views as the cluster does not support views");
         }
@@ -1026,15 +1024,15 @@ public class CsvTestsDataLoader {
         }
     }
 
-    private static void deleteView(RestClient client, String viewName) throws IOException {
+    private static void deleteViews(RestClient client, Set<String> viewNames) throws IOException {
         final Set<Integer> ignoredDeleteStatusCodes = Set.of(400, 404, 405, 410, 500, 503);
         try {
-            client.performRequest(new Request("DELETE", "/_query/view/" + viewName));
+            client.performRequest(new Request("DELETE", "/_query/view/" + String.join(",", viewNames)));
         } catch (ResponseException e) {
             // On older servers the view listing succeeds when it should not, so we get here when we should not, hence the 400 and 500.
             // 503 (master_not_discovered_exception) is transient and can occur in BWC mixed-cluster tests after node restarts.
             if (ignoredDeleteStatusCodes.contains(e.getResponse().getStatusLine().getStatusCode()) == false) {
-                logger.info("View delete error: {}", e.getMessage());
+                logger.info("Views delete error: {}", e.getMessage());
                 throw e;
             }
         }

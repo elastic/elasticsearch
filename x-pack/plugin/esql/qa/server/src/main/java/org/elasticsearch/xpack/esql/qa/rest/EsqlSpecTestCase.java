@@ -185,6 +185,10 @@ public abstract class EsqlSpecTestCase extends ESRestTestCase {
             }
         }
 
+        private boolean wasCompleted() {
+            return completed;
+        }
+
         private synchronized void reset() {
             completed = false;
             started = false;
@@ -240,7 +244,7 @@ public abstract class EsqlSpecTestCase extends ESRestTestCase {
                     supportsViews()
                 );
             }
-        } else {
+        } else if (VIEWS.wasCompleted()) {
             deleteViews(adminClient());
             VIEWS.reset();
         }

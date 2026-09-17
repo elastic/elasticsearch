@@ -693,6 +693,7 @@ foo;bar;baz | "baz"
 ;
 
 mvLastKeywordField
+skip_columnar: MV functions (MV_CONCAT, MV_LAST, MV_SLICE, MV_ZIP) are sensitive to MV ordering; columnar mode returns values in source order
 request_stored: skip
 FROM employees
 | WHERE emp_no == 10001
@@ -997,6 +998,7 @@ ROW a=[10, 9, 8]
 ;
 
 mvConcatFromEmployees
+skip_columnar: MV functions (MV_CONCAT, MV_LAST, MV_SLICE, MV_ZIP) are sensitive to MV ordering; columnar mode returns values in source order
 request_stored: skip
 FROM employees
 | WHERE emp_no < 10010
@@ -1018,6 +1020,7 @@ emp_no:integer | joined:keyword
 ;
 
 mvConcatFieldDelimiter
+skip_columnar: MV functions (MV_CONCAT, MV_LAST, MV_SLICE, MV_ZIP) are sensitive to MV ordering; columnar mode returns values in source order
 request_stored: skip
 FROM employees
 | WHERE emp_no < 10010
@@ -1077,6 +1080,7 @@ a:keyword            | a1:keyword
 
 mvSliceEmp
 required_capability: mv_sort
+skip_columnar: MV functions (MV_CONCAT, MV_LAST, MV_SLICE, MV_ZIP) are sensitive to MV ordering; columnar mode returns values in source order
 request_stored: skip
 
 from employees
@@ -1111,6 +1115,7 @@ a:keyword | b:keyword | c:keyword
 
 mvZipEmp
 required_capability: mv_sort
+skip_columnar: MV functions (MV_CONCAT, MV_LAST, MV_SLICE, MV_ZIP) are sensitive to MV ordering; columnar mode returns values in source order
 request_stored: skip
 
 from employees

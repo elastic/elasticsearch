@@ -52,7 +52,7 @@ final class EscfUnionColumn extends EscfColumn {
     }
 
     @Override
-    boolean getBooleanValue(int row) {
+    public boolean getBooleanValue(int row) {
         byte t = byteAt(typeVec, row);
         if (t == SourceValueType.TRUE) {
             return true;
@@ -64,42 +64,42 @@ final class EscfUnionColumn extends EscfColumn {
     }
 
     @Override
-    int getIntValue(int row) {
+    public int getIntValue(int row) {
         // INT values are stored as 4 bytes in the UNION column, so this reads directly rather than
         // narrowing getLongValue() as the base class does. Caller must have checked typeByteForPresent.
         return data.getIntLE(intAt(offsets, row));
     }
 
     @Override
-    float getFloatValue(int row) {
+    public float getFloatValue(int row) {
         // FLOAT values are stored as 4 raw bytes (bit-identical IEEE 754), not as a narrowed double.
         // Caller must have checked typeByteForPresent.
         return Float.intBitsToFloat(data.getIntLE(intAt(offsets, row)));
     }
 
     @Override
-    long getLongValue(int row) {
+    public long getLongValue(int row) {
         return data.getLongLE(intAt(offsets, row));
     }
 
     @Override
-    double getDoubleValue(int row) {
+    public double getDoubleValue(int row) {
         return Double.longBitsToDouble(data.getLongLE(intAt(offsets, row)));
     }
 
     @Override
-    Text getStringValue(int row) {
+    public Text getStringValue(int row) {
         BytesRef ref = value(row);
         return new Text(new XContentString.UTF8Bytes(ref.bytes, ref.offset, ref.length));
     }
 
     @Override
-    BytesRef getBinaryValue(int row) {
+    public BytesRef getBinaryValue(int row) {
         return value(row);
     }
 
     @Override
-    ArrayReader getArrayValue(int row) {
+    public ArrayReader getArrayValue(int row) {
         boolean fixed = byteAt(typeVec, row) == SourceValueType.FIXED_ARRAY;
         // InlineArrayReader takes a byte[]; materialise this one value's bytes (zero-copy when contiguous).
         BytesRef ref = value(row);
@@ -107,7 +107,7 @@ final class EscfUnionColumn extends EscfColumn {
     }
 
     @Override
-    KeyValueReader getKeyValue(int row) {
+    public KeyValueReader getKeyValue(int row) {
         // KeyValueReader takes a byte[]; materialise this one value's bytes (zero-copy when contiguous).
         BytesRef ref = value(row);
         return new KeyValueReader(ref.bytes, ref.offset, ref.length);

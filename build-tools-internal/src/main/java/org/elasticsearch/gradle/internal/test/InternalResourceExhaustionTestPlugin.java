@@ -24,14 +24,13 @@ import static org.elasticsearch.gradle.internal.test.rest.RestTestUtil.registerT
 
 /**
  * Adds a {@code resourceExhaustionTest} source set for tests that require a heap-constrained
- * cluster and must not share a JVM with other test suites.
+ * cluster and must run in an isolated JVM.
  *
- * <p>Each test class runs in its own forked JVM ({@code forkEvery = 1}) with only one class
- * running at a time ({@code maxParallelForks = 1}), preventing concurrent resource-constrained
- * clusters from competing for system memory.
+ * <p>Each test class runs in its own forked JVM ({@code forkEvery = 1}) so that heap state
+ * from one resource-exhaustion test cannot affect another.
  *
- * <p>The {@code :test:resource-exhaustion-framework} and {@code :test:test-clusters} projects
- * are automatically added to the source set's implementation classpath.
+ * <p>The {@code :test:test-clusters} project is automatically added to the source set's
+ * implementation classpath.
  */
 public class InternalResourceExhaustionTestPlugin implements Plugin<Project> {
 
@@ -43,14 +42,6 @@ public class InternalResourceExhaustionTestPlugin implements Plugin<Project> {
 
         SourceSetContainer sourceSets = project.getExtensions().getByType(SourceSetContainer.class);
         SourceSet sourceSet = sourceSets.create(SOURCE_SET_NAME);
-
-        if (project.findProject(":test:resource-exhaustion-framework") != null) {
-            project.getDependencies()
-                .add(
-                    sourceSet.getImplementationConfigurationName(),
-                    project.getDependencies().project(Map.of("path", ":test:resource-exhaustion-framework"))
-                );
-        }
 
         if (project.findProject(":test:test-clusters") != null) {
             project.getDependencies()
@@ -65,8 +56,6 @@ public class InternalResourceExhaustionTestPlugin implements Plugin<Project> {
         testTask.configure(task -> {
             // Each class runs in its own JVM so heap-constrained clusters are fully isolated.
             task.setForkEvery(1L);
-            // Only one resource-exhaustion cluster at a time to avoid memory pressure in CI.
-            task.setMaxParallelForks(1);
         });
 
         project.getTasks().named(JavaBasePlugin.CHECK_TASK_NAME).configure(check -> check.dependsOn(testTask));

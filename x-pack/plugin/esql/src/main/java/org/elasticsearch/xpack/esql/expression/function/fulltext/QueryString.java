@@ -171,7 +171,7 @@ public class QueryString extends FullTextFunction implements OptionalArgument, C
                     name = "analyzer",
                     type = "keyword",
                     valueHint = { "standard" },
-                    description = "Analyzer used to convert the text in the query value into token. "
+                    description = "Analyzer used to convert the text in the query value into tokens. "
                         + "Defaults to the index-time analyzer mapped for the default_field."
                 ),
                 @MapParam.MapParamEntry(

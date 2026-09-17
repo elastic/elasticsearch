@@ -39,11 +39,12 @@ public class UploadQueueControllerServiceIT extends AbstractStatelessPluginInteg
                 // Enable throttling
                 .put(UploadQueueControllerService.STATELESS_UPLOAD_QUEUE_CONTROLLER_INDEXING_THROTTLING_ENABLED.getKey(), true)
                 // Always throttle.
-                .put(UploadQueueControllerService.STATELESS_UPLOAD_QUEUE_CONTROLLER_INDEX_THROTTLE_THRESHOLD.getKey(), TimeValue.ZERO)
+                .put(
+                    UploadQueueControllerService.STATELESS_UPLOAD_QUEUE_CONTROLLER_INDEX_THROTTLE_THRESHOLD.getKey(),
+                    TimeValue.timeValueMillis(1)
+                )
                 .put(UploadQueueControllerService.STATELESS_UPLOAD_QUEUE_CONTROLLER_INDEX_THROTTLE_COOLDOWN.getKey(), TimeValue.ZERO)
                 .put(StatelessCommitService.STATELESS_UPLOAD_MAX_SIZE.getKey(), ByteSizeValue.ofBytes(1))
-                // Force the throughput to be very low to get artificially large queue and observe throttling.
-                .put(StatelessCommitService.STATELESS_UPLOAD_AVERAGE_THROUGHPUT_INITIAL_VALUE.getKey(), ByteSizeValue.ofBytes(1))
                 // Disable caching of time values to make sure we make progress every time UploadQueueControllerService#runNow() is called.
                 .put(ThreadPool.ESTIMATED_TIME_INTERVAL_SETTING.getKey(), TimeValue.ZERO)
                 // Block indexing completely on throttle to observe it reliably.
@@ -78,11 +79,13 @@ public class UploadQueueControllerServiceIT extends AbstractStatelessPluginInteg
         refresh(indexName);
         safeAwait(uploadStarted);
 
-        // Now we need to build sufficient backlog.
-        var statelessCommitService = internalCluster().getInstance(StatelessCommitService.class, indexNode);
-        while (statelessCommitService.getShardCommitStats().iterator().next().pendingUploadBytes() < ByteSizeValue.ofMb(1).getBytes()) {
-            indexDocs(indexName, 1000);
-            refresh(indexName);
+        // Since the threshold for pending commit age is so low, we should pretty much immediately start throttling.
+        // But let's sync with node time to avoid flakiness.
+        var threadPool = internalCluster().getInstance(ThreadPool.class, indexNode);
+        var currentTime = threadPool.relativeTimeInMillis();
+
+        while (threadPool.relativeTimeInMillis() <= currentTime) {
+            safeSleep(10);
         }
 
         var uploadQueueControllerService = internalCluster().getInstance(UploadQueueControllerService.class, indexNode);
@@ -113,11 +116,12 @@ public class UploadQueueControllerServiceIT extends AbstractStatelessPluginInteg
                 // We run it on demand.
                 .put(UploadQueueControllerService.STATELESS_UPLOAD_QUEUE_CONTROLLER_ENABLED.getKey(), false)
                 // Always throttle.
-                .put(UploadQueueControllerService.STATELESS_UPLOAD_QUEUE_CONTROLLER_INDEX_THROTTLE_THRESHOLD.getKey(), TimeValue.ZERO)
+                .put(
+                    UploadQueueControllerService.STATELESS_UPLOAD_QUEUE_CONTROLLER_INDEX_THROTTLE_THRESHOLD.getKey(),
+                    TimeValue.timeValueMillis(1)
+                )
                 .put(UploadQueueControllerService.STATELESS_UPLOAD_QUEUE_CONTROLLER_INDEX_THROTTLE_COOLDOWN.getKey(), TimeValue.ZERO)
                 .put(StatelessCommitService.STATELESS_UPLOAD_MAX_SIZE.getKey(), ByteSizeValue.ofBytes(1))
-                // Force the throughput to be very low to get artificially large queue and observe throttling.
-                .put(StatelessCommitService.STATELESS_UPLOAD_AVERAGE_THROUGHPUT_INITIAL_VALUE.getKey(), ByteSizeValue.ofBytes(1))
                 // Disable caching of time values to make sure we make progress every time UploadQueueControllerService#runNow() is called.
                 .put(ThreadPool.ESTIMATED_TIME_INTERVAL_SETTING.getKey(), TimeValue.ZERO)
                 .build()
@@ -150,11 +154,13 @@ public class UploadQueueControllerServiceIT extends AbstractStatelessPluginInteg
         refresh(indexName);
         safeAwait(uploadStarted);
 
-        // Now we need to build sufficient backlog.
-        var statelessCommitService = internalCluster().getInstance(StatelessCommitService.class, indexNode);
-        while (statelessCommitService.getShardCommitStats().iterator().next().pendingUploadBytes() < ByteSizeValue.ofMb(1).getBytes()) {
-            indexDocs(indexName, 1000);
-            refresh(indexName);
+        // Since the threshold for pending commit age is so low, we should pretty much immediately start throttling.
+        // But let's sync with node time to avoid flakiness.
+        var threadPool = internalCluster().getInstance(ThreadPool.class, indexNode);
+        var currentTime = threadPool.relativeTimeInMillis();
+
+        while (threadPool.relativeTimeInMillis() <= currentTime) {
+            safeSleep(10);
         }
 
         var uploadQueueControllerService = internalCluster().getInstance(UploadQueueControllerService.class, indexNode);
@@ -173,6 +179,12 @@ public class UploadQueueControllerServiceIT extends AbstractStatelessPluginInteg
         );
         assertEquals(1, activateThrottleCounterMeasurements.size());
         assertEquals(1, activateThrottleCounterMeasurements.get(0).getLong());
+
+        // See UploadQueueControllerService.ThrottleCalculator.
+        var ageOfTheOldestCommit = metricsPlugin.getLongHistogramMeasurement("es.stateless.upload_queue.oldest_commit_age.histogram");
+        assertEquals(1, ageOfTheOldestCommit.size());
+        // It's in seconds so in this test it's always 0.
+        assertEquals(0, ageOfTheOldestCommit.get(0).getLong());
 
         // Wait for all pending commits to finish uploading.
         flush(indexName);

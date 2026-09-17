@@ -363,6 +363,49 @@ public class LibraryProcessorTests extends ProcessorTestCase {
     }
 
     /**
+     * {@code @LibrarySpecification(system = true)} with an empty {@code name} must fail compilation —
+     * there is no OS-resolved library to load with {@code System.loadLibrary} without a name.
+     */
+    public void testSystemTrueWithEmptyNameFailsCompilation() {
+        String source = """
+            package test;
+            import org.elasticsearch.foreign.LibrarySpecification;
+            import org.elasticsearch.foreign.Function;
+            @LibrarySpecification(system = true)
+            public interface MyLib {
+                @Function("native_fn")
+                int fn(int x);
+            }
+            """;
+
+        CompilationResult result = compile("test.MyLib", source);
+
+        assertFalse("Expected compilation to fail when system = true with an empty name", result.success());
+        boolean hasError = result.errors().stream().anyMatch(msg -> msg.contains("system requires a non-empty name"));
+        assertTrue("Expected error about system requiring a non-empty name but got: " + result.errors(), hasError);
+    }
+
+    /**
+     * {@code @LibrarySpecification(system = true)} with a non-empty {@code name} compiles cleanly.
+     */
+    public void testSystemTrueWithNameCompilesClean() {
+        String source = """
+            package test;
+            import org.elasticsearch.foreign.LibrarySpecification;
+            import org.elasticsearch.foreign.Function;
+            @LibrarySpecification(name = "sysvvv", system = true)
+            public interface MyLib {
+                @Function("native_fn")
+                int fn(int x);
+            }
+            """;
+
+        CompilationResult result = compile("test.MyLib", source);
+
+        assertTrue("Expected compilation to succeed but got errors: " + result.errors(), result.success());
+    }
+
+    /**
      * {@code @CaptureSystemError} names a single error channel, but {@code errno} and {@code GetLastError}
      * are distinct: a library reachable on both a POSIX platform and Windows cannot resolve which one
      * to capture, so this must be a compile error. Here the library leaves any POSIX platform (Darwin

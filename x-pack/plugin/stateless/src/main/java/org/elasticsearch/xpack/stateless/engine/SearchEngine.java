@@ -507,7 +507,6 @@ public class SearchEngine extends Engine {
             notification.clusterStateVersion()
         );
         var ccTermAndGen = notification.compoundCommit().primaryTermAndGeneration();
-        searchDirectory.updateLatestUploadedBcc(notification.latestUploadedBatchedCompoundCommitTermAndGen());
         searchDirectory.updateLatestCommitInfo(ccTermAndGen, notification.nodeId());
 
         SubscribableListener
@@ -517,6 +516,11 @@ public class SearchEngine extends Engine {
             // cache space and requests.
             .<Void>newForked(l -> maybePreFetchLatestCommit(notification, l))
             .<Void>andThen(l -> {
+                // Update the tracker only after the foreground prefetch completes so that
+                // isUploaded=true is never observable before the shared blob cache is populated.
+                // For background prefetch this andThen fires almost immediately (the prefetch is
+                // async), so the window is negligible; for foreground prefetch it closes entirely.
+                searchDirectory.updateLatestUploadedBcc(notification.latestUploadedBatchedCompoundCommitTermAndGen());
                 if (addOrExecuteSegmentGenerationListener(ccTermAndGen, l.map(g -> null))) {
                     commitNotifications.add(notification);
                     if (pendingCommitNotifications.incrementAndGet() == 1) {
@@ -1046,6 +1050,16 @@ public class SearchEngine extends Engine {
         Function<Searcher, Searcher> searcherWrapper
     ) {
         return getFromSearcher(get, acquireSearcher("get", SearcherScope.EXTERNAL, splitShardCountSummary, searcherWrapper), false);
+    }
+
+    @Override
+    public GetResult getForUpdate(
+        Get get,
+        MappingLookup mappingLookup,
+        DocumentParser documentParser,
+        Function<Searcher, Searcher> searcherWrapper
+    ) {
+        throw unsupportedException();
     }
 
     @Override
@@ -1689,7 +1703,7 @@ public class SearchEngine extends Engine {
     private class RelocatedPITReaderTracker implements Closeable {
 
         private final Set<RelocatedPITReader> trackedReaders = new HashSet<>();
-        private boolean closed = false;
+        private boolean trackerClosed = false;
 
         RelocatedPITReaderTracker() {}
 
@@ -1702,17 +1716,30 @@ public class SearchEngine extends Engine {
                 // waiting for the shard to transition to STARTED. If the shard is never started
                 // (e.g. recovery fails), no searcher is ever acquired.
                 private SearcherSupplier delegate = null;
-                private boolean closed = false;
+                private boolean supplierClosed = false;
 
                 @Override
                 protected synchronized void doClose() {
-                    closed = true;
-                    IOUtils.closeWhileHandlingException(delegate);
+                    supplierClosed = true;
+                    if (delegate != null) {
+                        IOUtils.closeWhileHandlingException(delegate);
+                    } else {
+                        // The lazy delegate (the real searcher) was never acquired.
+                        // Its storeRef and PITCommitHandle are still owned by the RelocatedPITReader
+                        // in trackedReaders — remove and close it now so those resources are not
+                        // held until engine close.
+                        synchronized (RelocatedPITReaderTracker.this) {
+                            if (trackerClosed == false) {
+                                trackedReaders.remove(relocatedPITReader);
+                                IOUtils.closeWhileHandlingException(relocatedPITReader);
+                            }
+                        }
+                    }
                 }
 
                 @Override
                 protected synchronized Searcher acquireSearcherInternal(String source) {
-                    if (closed) {
+                    if (supplierClosed) {
                         throw new AlreadyClosedException("SearcherSupplier was closed");
                     }
 
@@ -1770,17 +1797,17 @@ public class SearchEngine extends Engine {
 
         private void ensureOpen() {
             assert Thread.holdsLock(this);
-            if (closed) {
+            if (trackerClosed) {
                 throw new AlreadyClosedException("RelocatedPITReaderTracker is closed");
             }
         }
 
         @Override
         public synchronized void close() {
-            if (closed) {
+            if (trackerClosed) {
                 return;
             }
-            closed = true;
+            trackerClosed = true;
             IOUtils.closeWhileHandlingException(trackedReaders);
         }
     }

@@ -12,7 +12,7 @@ import org.elasticsearch.xcontent.XContentFactory;
 import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xcontent.XContentParserConfiguration;
 import org.elasticsearch.xcontent.XContentType;
-import org.elasticsearch.xpack.core.inference.results.ChatCompletionResults;
+import org.elasticsearch.xpack.core.inference.results.CompletionResults;
 import org.elasticsearch.xpack.inference.external.http.HttpResult;
 import org.elasticsearch.xpack.inference.external.request.OutboundRequest;
 
@@ -76,7 +76,7 @@ public class CohereCompletionResponseEntity {
      * </pre>
      */
 
-    public static ChatCompletionResults fromResponse(OutboundRequest outboundRequest, HttpResult response) throws IOException {
+    public static CompletionResults fromResponse(OutboundRequest outboundRequest, HttpResult response) throws IOException {
         var parserConfig = XContentParserConfiguration.EMPTY.withDeprecationHandler(LoggingDeprecationHandler.INSTANCE);
 
         try (XContentParser jsonParser = XContentFactory.xContent(XContentType.JSON).createParser(parserConfig, response.body())) {
@@ -91,7 +91,7 @@ public class CohereCompletionResponseEntity {
             ensureExpectedToken(XContentParser.Token.VALUE_STRING, contentToken, jsonParser);
             String content = jsonParser.text();
 
-            return new ChatCompletionResults(List.of(new ChatCompletionResults.Result(content)));
+            return new CompletionResults(List.of(new CompletionResults.Result(content)));
         }
     }
 }

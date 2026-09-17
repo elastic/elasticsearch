@@ -482,8 +482,11 @@ public class HighlightOperator extends AbstractPageMappingOperator {
         }
 
         private void loadRowText(int row, BytesRef scratch) {
-            int valueCount = values.getValueCount(row);
-            rowText = valueCount == 0 ? null : joinValues(values, row, valueCount, scratch);
+            if (values.isNull(row)) {
+                rowText = null;
+                return;
+            }
+            rowText = joinValues(values, row, values.getValueCount(row), scratch);
         }
 
         @Override

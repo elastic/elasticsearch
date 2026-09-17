@@ -1,0 +1,2 @@
+    FROM all_types
+    | WHERE mv_in_range(double, 0.0, 1.0, {"include_lower": false, "include_upper": false})

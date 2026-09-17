@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.esql.analysis;
 
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.cluster.metadata.DataSourceReference;
 import org.elasticsearch.cluster.metadata.Dataset;
 import org.elasticsearch.cluster.metadata.ProjectId;
@@ -16,6 +17,7 @@ import org.elasticsearch.common.lucene.BytesRefs;
 import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.indices.TestIndexNameExpressionResolver;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.test.TransportVersionUtils;
 import org.elasticsearch.xpack.esql.TestAnalyzer;
 import org.elasticsearch.xpack.esql.VerificationException;
 import org.elasticsearch.xpack.esql.action.EsqlCapabilities;
@@ -35,7 +37,9 @@ import org.elasticsearch.xpack.esql.datasources.metadata.DataSource;
 import org.elasticsearch.xpack.esql.datasources.metadata.DataSourceMetadata;
 import org.elasticsearch.xpack.esql.datasources.spi.FileList;
 import org.elasticsearch.xpack.esql.expression.Order;
+import org.elasticsearch.xpack.esql.expression.function.aggregate.PackDimsAgg;
 import org.elasticsearch.xpack.esql.expression.function.fulltext.Match;
+import org.elasticsearch.xpack.esql.expression.function.scalar.convert.AbstractConvertFunction;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.GreaterThan;
 import org.elasticsearch.xpack.esql.index.EsIndex;
 import org.elasticsearch.xpack.esql.index.IndexProperties;
@@ -691,6 +695,37 @@ public class AnalyzerSubqueryTests extends ESTestCase {
         assertUnsupportedAttribute(xAttr, "x", List.of(INTEGER.esType(), KEYWORD.esType()));
     }
 
+    /**
+     * The same conversion applied twice to the same union output attribute (e.g. twice in one WHERE) must analyze:
+     * {@code ResolveUnionTypesInUnionAll} dedupes the equal converts into a single pushed-down alias and must replace
+     * <em>every</em> equal occurrence in the plan with the union output's new attribute. Matching occurrences by identity
+     * instead used to leave the second one behind, re-pushing a fresh alias on every Resolution pass until the rule
+     * execution limit — see elasticsearch-serverless#7693.
+     */
+    public void testSameConversionTwiceOverSubqueryUnion() {
+        LogicalPlan plan = analyzer().addSampleData().query("""
+            FROM (FROM sample_data), (FROM sample_data)
+            | WHERE TO_STRING(client_ip) IS NOT NULL AND NOT TO_STRING(client_ip) == "L2"
+            | LIMIT 5
+            """);
+
+        List<Filter> filters = new ArrayList<>();
+        plan.forEachDown(Filter.class, filters::add);
+        assertThat(filters, hasSize(1));
+        Filter filter = filters.getFirst();
+        // Both conversions have been pushed below the union and replaced with one shared synthetic attribute.
+        filter.condition()
+            .forEachDown(AbstractConvertFunction.class, convert -> fail("conversion left unreplaced above the subquery union: " + convert));
+        List<Attribute> converted = new ArrayList<>();
+        filter.condition().forEachDown(Attribute.class, attribute -> {
+            if (attribute.name().contains("converted_to")) {
+                converted.add(attribute);
+            }
+        });
+        assertThat(converted, hasSize(2));
+        assertEquals(converted.get(0).id(), converted.get(1).id());
+    }
+
     /*
      * Limit[1000[INTEGER],false,false]
      * \_Project[[!client_ip]]
@@ -969,7 +1004,10 @@ public class AnalyzerSubqueryTests extends ESTestCase {
      *             \_EsRelation[sample_data][@timestamp{f}#2349, client_ip{f}#2350, event_durati..]
      */
     public void testTSSubqueryWithConflictingTypesInUnionAll() {
-        LogicalPlan plan = analyzer().addK8sDownsampled().addSampleData().query("""
+        TransportVersion minVersion = randomBoolean()
+            ? TransportVersionUtils.randomVersionNotSupporting(PackDimsAgg.PACK_DIMS_AGG_VERSION)
+            : TransportVersionUtils.randomVersionSupporting(PackDimsAgg.PACK_DIMS_AGG_VERSION);
+        LogicalPlan plan = analyzer().minimumTransportVersion(minVersion).addK8sDownsampled().addSampleData().query("""
             FROM (TS k8s | STATS m = max(rate(network.total_bytes_in)) BY cluster),
               (FROM sample_data | EVAL m = "abc")
             """);
@@ -995,16 +1033,22 @@ public class AnalyzerSubqueryTests extends ESTestCase {
         Eval tsNullSampleFields = as(tsNullM.child(), Eval.class);
         assertEquals(4, tsNullSampleFields.fields().size());
         Subquery tsSubquery = as(tsNullSampleFields.child(), Subquery.class);
-        // The TS STATS BY clause is expanded: Project -> UnpackDims -> Aggregate -> PackDims -> TimeSeriesAggregate
         Project tsInnerProject = as(tsSubquery.child(), Project.class);
         UnpackDims tsUnpack = as(tsInnerProject.child(), UnpackDims.class);
         assertEquals(1, tsUnpack.dims().size());
         Aggregate tsOuterAggregate = as(tsUnpack.child(), Aggregate.class);
         assertFalse(tsOuterAggregate instanceof TimeSeriesAggregate);
         assertEquals(1, tsOuterAggregate.groupings().size());
-        PackDims tsPack = as(tsOuterAggregate.child(), PackDims.class);
-        assertEquals(1, tsPack.dims().size());
-        TimeSeriesAggregate tsAggregate = as(tsPack.child(), TimeSeriesAggregate.class);
+        TimeSeriesAggregate tsAggregate;
+        if (minVersion.supports(PackDimsAgg.PACK_DIMS_AGG_VERSION)) {
+            // PackDims is folded into TimeSeriesAggregate as a PackDimsAgg
+            tsAggregate = as(tsOuterAggregate.child(), TimeSeriesAggregate.class);
+            assertTrue(tsAggregate.aggregates().stream().anyMatch(agg -> agg instanceof Alias a && a.child() instanceof PackDimsAgg));
+        } else {
+            PackDims tsPack = as(tsOuterAggregate.child(), PackDims.class);
+            assertEquals(1, tsPack.dims().size());
+            tsAggregate = as(tsPack.child(), TimeSeriesAggregate.class);
+        }
         EsRelation tsRelation = as(tsAggregate.child(), EsRelation.class);
         assertEquals("k8s", tsRelation.indexPattern());
         assertEquals(IndexMode.TIME_SERIES, tsRelation.indexMode());
@@ -1066,7 +1110,10 @@ public class AnalyzerSubqueryTests extends ESTestCase {
      *                     \_EsRelation[sample_data][@timestamp{f}#38, client_ip{f}#39, event_duration{f..]
      */
     public void testTSSubqueryWithConflictingTypesAndExplicitCast() {
-        LogicalPlan plan = analyzer().addK8sDownsampled().addSampleData().query("""
+        TransportVersion minVersion = randomBoolean()
+            ? TransportVersionUtils.randomVersionNotSupporting(PackDimsAgg.PACK_DIMS_AGG_VERSION)
+            : TransportVersionUtils.randomVersionSupporting(PackDimsAgg.PACK_DIMS_AGG_VERSION);
+        LogicalPlan plan = analyzer().minimumTransportVersion(minVersion).addK8sDownsampled().addSampleData().query("""
             FROM (TS k8s | STATS m = max(rate(network.total_bytes_in)) BY cluster),
               (FROM sample_data | EVAL m = "abc")
             | EVAL m = m::string
@@ -1112,15 +1159,21 @@ public class AnalyzerSubqueryTests extends ESTestCase {
         Eval tsNullSampleFields = as(tsCastEval.child(), Eval.class);
         assertEquals(4, tsNullSampleFields.fields().size());
         Subquery tsSubquery = as(tsNullSampleFields.child(), Subquery.class);
-        // The TS STATS BY clause is expanded: Project -> UnpackDims -> Aggregate -> PackDims -> TimeSeriesAggregate
         Project tsInnerProject = as(tsSubquery.child(), Project.class);
         UnpackDims tsUnpack = as(tsInnerProject.child(), UnpackDims.class);
         assertEquals(1, tsUnpack.dims().size());
         Aggregate tsOuterAggregate = as(tsUnpack.child(), Aggregate.class);
         assertFalse(tsOuterAggregate instanceof TimeSeriesAggregate);
-        PackDims tsPack = as(tsOuterAggregate.child(), PackDims.class);
-        assertEquals(1, tsPack.dims().size());
-        TimeSeriesAggregate tsAggregate = as(tsPack.child(), TimeSeriesAggregate.class);
+        TimeSeriesAggregate tsAggregate;
+        if (minVersion.supports(PackDimsAgg.PACK_DIMS_AGG_VERSION)) {
+            // PackDims is folded into TimeSeriesAggregate as a PackDimsAgg
+            tsAggregate = as(tsOuterAggregate.child(), TimeSeriesAggregate.class);
+            assertTrue(tsAggregate.aggregates().stream().anyMatch(agg -> agg instanceof Alias a && a.child() instanceof PackDimsAgg));
+        } else {
+            PackDims tsPack = as(tsOuterAggregate.child(), PackDims.class);
+            assertEquals(1, tsPack.dims().size());
+            tsAggregate = as(tsPack.child(), TimeSeriesAggregate.class);
+        }
         EsRelation tsRelation = as(tsAggregate.child(), EsRelation.class);
         assertEquals("k8s", tsRelation.indexPattern());
         assertEquals(IndexMode.TIME_SERIES, tsRelation.indexMode());

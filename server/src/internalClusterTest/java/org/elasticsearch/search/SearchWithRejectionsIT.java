@@ -14,7 +14,6 @@ import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.search.SearchType;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.EsRejectedExecutionException;
-import org.elasticsearch.common.util.concurrent.StoppableExecutorServiceWrapper;
 import org.elasticsearch.core.Releasable;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.test.ESIntegTestCase;
@@ -108,6 +107,7 @@ public class SearchWithRejectionsIT extends ESIntegTestCase {
                 assertThat(ExceptionsHelper.unwrap(e, EsRejectedExecutionException.class), notNullValue());
             }
 
+            assertSearchPoolRecovered(primaryThreadPool);
             assertBusyOpenContexts("test-scroll", 1L);
 
             assertBusy(() -> {
@@ -162,42 +162,62 @@ public class SearchWithRejectionsIT extends ESIntegTestCase {
         final CountDownLatch block = new CountDownLatch(1);
         final int threads = threadPool.info(ThreadPool.Names.SEARCH).getMax();
         final CountDownLatch started = new CountDownLatch(threads);
-        // Stoppable wrapper lets try-with-resources own the ExecutorService without shutting down the
-        // node-owned SEARCH pool (shutdown/close are no-ops). Tasks keep running on the real executor
-        // until the returned releasable counts down {@code block}.
-        try (ExecutorService searchExecutor = new StoppableExecutorServiceWrapper(threadPool.executor(ThreadPool.Names.SEARCH))) {
-            try {
-                AtomicInteger submitted = new AtomicInteger();
-                // Submit one execution per thread, plus enough to block all queue slots
-                int executions = threads + SEARCH_QUEUE_SIZE;
-                assertBusy(() -> {
-                    int toSubmit = executions - submitted.get();
-                    for (int i = 0; i < toSubmit; ++i) {
-                        try {
-                            searchExecutor.execute(() -> {
-                                started.countDown();
-                                awaitQuietly(block);
-                            });
-                            submitted.incrementAndGet();
-                        } catch (EsRejectedExecutionException e) {
-                            // one of the search threads was already in use by some transient thing, we'll try resubmitting
-                        }
+        final ExecutorService searchExecutor = threadPool.executor(ThreadPool.Names.SEARCH);
+        try {
+            // Claim the worker threads first, while nothing of ours is queued and a transient occupant can still drain.
+            // Rejection means a foreign task holds worker and queue slot, so retry; claimed keeps the threads already taken.
+            AtomicInteger claimed = new AtomicInteger();
+            assertBusy(() -> {
+                while (claimed.get() < threads) {
+                    try {
+                        searchExecutor.execute(() -> {
+                            started.countDown();
+                            awaitQuietly(block);
+                        });
+                    } catch (EsRejectedExecutionException e) {
+                        throw new AssertionError("claimed " + claimed.get() + " of " + threads + " SEARCH threads", e);
                     }
-                    assertThat("Could not saturate the search thread pool and queue", submitted.get(), equalTo(executions));
-                });
-                safeAwait(started);
-                expectThrows(EsRejectedExecutionException.class, () -> searchExecutor.execute(() -> {}));
-            } catch (Throwable t) {
-                // The cluster is shared by the whole suite, so never leave SEARCH threads blocked on a setup failure.
-                block.countDown();
-                throw new AssertionError("failed to saturate SEARCH pool", t);
-            }
-            return () -> {
-                if (block.getCount() > 0) {
-                    block.countDown();
+                    claimed.incrementAndGet();
                 }
-            };
+            }, 30, TimeUnit.SECONDS);
+            safeAwait(started);
+            // Workers are parked now, so the queue cannot drain: a rejection means it is already full.
+            for (int i = 0; i < SEARCH_QUEUE_SIZE; i++) {
+                try {
+                    searchExecutor.execute(() -> {});
+                } catch (EsRejectedExecutionException e) {
+                    break;
+                }
+            }
+            expectThrows(EsRejectedExecutionException.class, () -> searchExecutor.execute(() -> {}));
+        } catch (Throwable t) {
+            // The cluster is shared by the whole suite, so never leave SEARCH threads blocked on a setup failure.
+            block.countDown();
+            throw new AssertionError("failed to saturate SEARCH pool", t);
         }
+        return () -> {
+            if (block.getCount() > 0) {
+                block.countDown();
+            }
+        };
+    }
+
+    /**
+     * Asserts that the SEARCH pool runs work again. Threads left parked by {@link #blockSearchThreadPool} would not fail
+     * here but stall everything after it, surfacing much later as a suite timeout, so check it while it is still cheap
+     * to attribute.
+     */
+    private void assertSearchPoolRecovered(ThreadPool threadPool) throws Exception {
+        final CountDownLatch ran = new CountDownLatch(1);
+        assertBusy(() -> {
+            try {
+                threadPool.executor(ThreadPool.Names.SEARCH).execute(ran::countDown);
+            } catch (EsRejectedExecutionException e) {
+                // The queue may still hold tasks the freed workers have not drained yet.
+                throw new AssertionError("SEARCH pool still rejecting after unblocking", e);
+            }
+        }, 30, TimeUnit.SECONDS);
+        safeAwait(ran);
     }
 
     private void assertBusyOpenContexts(String index, long expected) throws Exception {

@@ -7,12 +7,9 @@
 
 package org.elasticsearch.xpack.stateless.commits;
 
-import org.elasticsearch.common.ExponentiallyWeightedMovingAverage;
 import org.elasticsearch.common.unit.ByteSizeUnit;
-import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.telemetry.TelemetryProvider;
 import org.elasticsearch.telemetry.metric.DoubleHistogram;
-import org.elasticsearch.telemetry.metric.DoubleWithAttributes;
 import org.elasticsearch.telemetry.metric.LongCounter;
 import org.elasticsearch.telemetry.metric.LongHistogram;
 import org.elasticsearch.xpack.stateless.commits.StatelessCompoundCommit.TimestampFieldValueRange;
@@ -30,7 +27,6 @@ public class BccUploadMetrics {
     static final String BCC_ELAPSED_TIME_BEFORE_FREEZE_HISTOGRAM_METRIC = "es.bcc.elapsed_time_before_freeze.histogram";
     static final String BCC_TIMESTAMP_RANGE_HISTOGRAM_METRIC = "es.bcc.timestamp_range.histogram";
     static final String BCC_MISSING_TIMESTAMP_METRIC = "es.bcc.missing_timestamp.total";
-    static final String BCC_AVERAGE_COMMIT_UPLOAD_THROUGHPUT_METRIC = "es.bcc.average_upload_throughput.current";
     public static final String BCC_SIZE_ATTRIBUTE_KEY = "es_bcc_size";
 
     private final LongHistogram bccSizeInMegabytesHistogram;
@@ -38,13 +34,8 @@ public class BccUploadMetrics {
     private final LongHistogram bccAgeHistogram;
     private final DoubleHistogram bccTimestampRangeHistogram;
     private final LongCounter bccMissingTimestampCounter;
-    /// `alpha` determines how much older data points influence the average, a value of 1 means that the mean is equal
-    /// to the latest data point.
-    /// We use a slight recency biased value.
-    private final ExponentiallyWeightedMovingAverage commitUploadThroughputMiBSec;
 
-    public BccUploadMetrics(final TelemetryProvider telemetryProvider, final ByteSizeValue initialThroughput) {
-        this.commitUploadThroughputMiBSec = new ExponentiallyWeightedMovingAverage(0.6, initialThroughput.getBytes());
+    public BccUploadMetrics(final TelemetryProvider telemetryProvider) {
         final var meterRegistry = telemetryProvider.getMeterRegistry();
         this.bccSizeInMegabytesHistogram = meterRegistry.registerLongHistogram(
             BCC_TOTAL_SIZE_HISTOGRAM_METRIC,
@@ -74,12 +65,6 @@ public class BccUploadMetrics {
             "Number of uploaded batched compound commits where none of the compound commits have a @timestamp range",
             "count"
         );
-        meterRegistry.registerDoubleAsyncGauge(
-            BCC_AVERAGE_COMMIT_UPLOAD_THROUGHPUT_METRIC,
-            "moving average of batch compound commit upload throughput",
-            "MiB/s",
-            () -> new DoubleWithAttributes(commitUploadThroughputMiBSec.getAverage())
-        );
     }
 
     /// Records all BCC upload metrics: size, number of commits, age before freeze, and timestamp range.
@@ -91,15 +76,6 @@ public class BccUploadMetrics {
             spanMinutes -> bccTimestampRangeHistogram.record(spanMinutes, Map.of(BCC_SIZE_ATTRIBUTE_KEY, bccSizeBucket(totalSizeInBytes))),
             bccMissingTimestampCounter::increment
         );
-    }
-
-    /// Updates the moving average with a new upload throughput sample.
-    public void recordUploadThroughput(final double throughputMiBPerSec) {
-        commitUploadThroughputMiBSec.addValue(throughputMiBPerSec);
-    }
-
-    public double getAverageUploadThroughputMiBSec() {
-        return commitUploadThroughputMiBSec.getAverage();
     }
 
     public static String bccSizeBucket(final long totalSizeBytes) {

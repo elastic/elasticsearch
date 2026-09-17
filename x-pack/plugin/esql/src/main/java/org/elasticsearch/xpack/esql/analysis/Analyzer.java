@@ -1968,10 +1968,7 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
         private static Alias nullFillNonLoadable(Source source, FieldAttribute mapped, AnalyzerContext context) {
             DataType type = mapped.dataType();
             context.subqueryNonLoadableNullFills().put(mapped.name(), type.typeName());
-            if (type.isCounter()) {
-                type = type.noCounter();
-            }
-            return new Alias(source, mapped.name(), new Literal(source, null, type));
+            return new Alias(source, mapped.name(), new Literal(source, null, type.noCounter()));
         }
 
         private static @Nullable FieldAttribute mappedSiblingField(Attribute attr) {
@@ -3959,8 +3956,7 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
                 }
             });
 
-            Set<String> observedNames = new HashSet<>();
-            observedFields.forEach(a -> observedNames.add(a.name()));
+            Set<String> observedNames = observedFields.stream().map(NamedExpression::name).collect(Collectors.toSet());
             for (var e : context.subqueryNonLoadableNullFills().entrySet()) {
                 if (observedNames.contains(e.getKey())) {
                     context.deferredHeaderWarnings().add(nonLoadablePunkWarning(e.getKey(), e.getValue()));

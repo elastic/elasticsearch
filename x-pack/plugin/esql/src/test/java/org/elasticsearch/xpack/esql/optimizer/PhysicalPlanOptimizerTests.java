@@ -113,6 +113,7 @@ import org.elasticsearch.xpack.esql.index.IndexProperties;
 import org.elasticsearch.xpack.esql.index.IndexResolution;
 import org.elasticsearch.xpack.esql.optimizer.rules.physical.ProjectAwayColumns;
 import org.elasticsearch.xpack.esql.parser.ParsingException;
+import org.elasticsearch.xpack.esql.plan.QuerySettings;
 import org.elasticsearch.xpack.esql.plan.logical.Aggregate;
 import org.elasticsearch.xpack.esql.plan.logical.Enrich;
 import org.elasticsearch.xpack.esql.plan.logical.EsRelation;
@@ -173,7 +174,6 @@ import org.elasticsearch.xpack.esql.querydsl.query.EqualsSyntheticSourceDelegate
 import org.elasticsearch.xpack.esql.querydsl.query.SingleValueQuery;
 import org.elasticsearch.xpack.esql.querydsl.query.SpatialRelatesQuery;
 import org.elasticsearch.xpack.esql.rule.RuleExecutor;
-import org.elasticsearch.xpack.esql.plan.QuerySettings;
 import org.elasticsearch.xpack.esql.session.Configuration;
 import org.elasticsearch.xpack.esql.session.ConfigurationBuilder;
 import org.elasticsearch.xpack.esql.session.Versioned;
@@ -10695,15 +10695,10 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
 
     public void testPushInvertedDateExtractYearEqualsNonUtc() {
         Configuration ny = new ConfigurationBuilder(config).setting(QuerySettings.TIME_ZONE, ZoneId.of("America/New_York")).build();
-        assertHireDateYearRangePushed(
-            """
-                FROM test
-                | WHERE DATE_EXTRACT("year", hire_date) == 1986
-                """,
-            "1986-01-01T05:00:00.000Z",
-            "1987-01-01T05:00:00.000Z",
-            testDataWithConfig(ny)
-        );
+        assertHireDateYearRangePushed("""
+            FROM test
+            | WHERE DATE_EXTRACT("year", hire_date) == 1986
+            """, "1986-01-01T05:00:00.000Z", "1987-01-01T05:00:00.000Z", testDataWithConfig(ny));
     }
 
     private void assertHireDateYearRangePushed(String query, String start, String end) {

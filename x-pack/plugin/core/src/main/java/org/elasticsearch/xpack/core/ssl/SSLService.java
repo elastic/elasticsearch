@@ -6,11 +6,9 @@
  */
 package org.elasticsearch.xpack.core.ssl;
 
+import org.apache.hc.client5.http.ssl.DefaultHostnameVerifier;
+import org.apache.hc.client5.http.ssl.NoopHostnameVerifier;
 import org.apache.hc.core5.http.nio.ssl.TlsStrategy;
-import org.apache.http.conn.ssl.DefaultHostnameVerifier;
-import org.apache.http.conn.ssl.NoopHostnameVerifier;
-import org.apache.http.conn.ssl.SSLConnectionSocketFactory;
-import org.apache.http.nio.conn.ssl.SSLIOSessionStrategy;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.ElasticsearchException;
@@ -273,24 +271,6 @@ public class SSLService {
             throw new IllegalArgumentException(Strings.format("No SSL configuration for context name [%s]", profileName));
         }
         return sslContextHolder(configuration);
-    }
-
-    /**
-     * Create a new {@link SSLIOSessionStrategy} based on the provided settings. The settings are used to identify the SSL configuration
-     * that should be used to create the context.
-     *
-     * @param settingsToUse the settings used to identify the ssl configuration, typically under a *.ssl. prefix. An empty settings will
-     *                      return a context created from the default configuration
-     * @return Never {@code null}.
-     * @deprecated This method will fail if the SSL configuration uses a {@link org.elasticsearch.common.settings.SecureSetting} but the
-     * {@link org.elasticsearch.common.settings.SecureSettings} have been closed. Use {@link #profile(String)}
-     * and {@link SslProfile#ioSessionStrategy()}
-     * (Deprecated, but not removed because monitoring uses dynamic SSL settings)
-     */
-    @Deprecated
-    public SSLIOSessionStrategy sslIOSessionStrategy(Settings settingsToUse) {
-        SslConfiguration config = sslConfiguration(settingsToUse);
-        return SSLIOSessionStrategyBuilder.INSTANCE.build(config, sslContext(config));
     }
 
     /**
@@ -805,16 +785,6 @@ public class SSLService {
             } else {
                 return NoopHostnameVerifier.INSTANCE;
             }
-        }
-
-        @Override
-        public SSLConnectionSocketFactory connectionSocketFactory() {
-            return new SSLConnectionSocketFactory(socketFactory(), hostnameVerifier());
-        }
-
-        @Override
-        public SSLIOSessionStrategy ioSessionStrategy() {
-            return SSLIOSessionStrategyBuilder.INSTANCE.build(this.sslConfiguration, context);
         }
 
         @Override

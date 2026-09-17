@@ -179,9 +179,11 @@ public class SSLErrorMessageCertificateVerificationTests extends ESTestCase {
     private RestClient buildRestClient(SSLService sslService, MockWebServer webServer) {
         final SslProfile profile = sslService.profile(HTTP_CLIENT_SSL);
         final HttpHost httpHost = new HttpHost(webServer.getHostName(), webServer.getPort(), "https");
-        return RestClient.builder(httpHost)
-            .setHttpClientConfigCallback(client -> client.setSSLStrategy(profile.ioSessionStrategy()))
-            .build();
+        return RestClient.builder(httpHost).setHttpClientConfigCallback(client -> {
+            client.setSSLContext(profile.sslContext());
+            client.setSSLHostnameVerifier(profile.hostnameVerifier());
+            return client;
+        }).build();
     }
 
     /**

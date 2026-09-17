@@ -103,8 +103,8 @@ public final class ViewRequestFilterRewriter {
      * planner and this rewriter cannot disagree about it.
      *
      * <p>Returns {@code false} for a filter that matches every document. Kibana sends an empty filter rather than omitting the field
-     * when no filtering is wanted, and {@link #applyRequestFilterToViewBranches} would translate such a filter to {@link Literal#TRUE} and drop it
-     * as a no-op — so without this check those requests would suppress view compaction in order to install nothing.
+     * when no filtering is wanted, and {@link #applyRequestFilterToViewBranches} would translate such a filter to {@link Literal#TRUE}
+     * and drop it as a no-op — so without this check those requests would suppress view compaction in order to install nothing.
      *
      * <p>The test is syntactic, so it needs neither a {@link Configuration} nor an output schema and can run before either exists.
      * It is deliberately <em>narrower</em> than the translator's notion of a no-op: a {@code should} group or a {@code must_not} counts

@@ -481,6 +481,13 @@ public class ExternalSourceResolverTests extends ESTestCase {
             List<String> dataNames = resolvedSchema.stream().limit(expectedDataNames.size()).map(Attribute::name).toList();
             assertEquals("[" + strategy + "] resolved data column names", expectedDataNames, dataNames);
         }
+
+        ExternalSourceResolution omitted = resolveMultiFileWithConfig("s3://bucket/data/*.parquet", schemasByPath, listing, Map.of());
+        ExternalSourceResolution.ResolvedSource omittedResolved = omitted.resolvedSource("s3://bucket/data/*.parquet");
+        List<String> omittedNames = omittedResolved.metadata().schema().stream().map(Attribute::name).toList();
+        assertEquals("omitted schema_resolution must match first_file_wins width", 2, omittedNames.size());
+        assertEquals("omitted schema_resolution must match first_file_wins columns", List.of("emp_no", "name"), omittedNames);
+        assertFalse("omitted config must drop later-file extra columns", omittedNames.contains("extra"));
     }
 
     /**
@@ -2884,28 +2891,20 @@ public class ExternalSourceResolverTests extends ESTestCase {
     // ===== Default schema resolution strategy =====
 
     /**
-     * Both the SPI default ({@link FormatReader#defaultSchemaResolution()}) and the resolver's
-     * config-parse fallback ({@code parseSchemaResolution(null/missing)}) must derive from the
-     * same constant — keeping them in lockstep is the whole point of
-     * {@link FormatReader#DEFAULT_SCHEMA_RESOLUTION}. This test catches a drift between the two
-     * (which previously had to be kept in sync by convention).
+     * Query/FROM EXTERNAL omit-key fallback ({@code effectiveSchemaResolution(null/missing)})
+     * must equal {@link FormatReader#DEFAULT_SCHEMA_RESOLUTION}.
      */
     public void testDefaultSchemaResolutionIsSingleSourceOfTruth() {
-        FormatReader reader = new StubFormatReader(Map.of());
-        assertEquals(
-            "SPI default must equal the FormatReader.DEFAULT_SCHEMA_RESOLUTION constant",
-            FormatReader.DEFAULT_SCHEMA_RESOLUTION,
-            reader.defaultSchemaResolution()
-        );
+        assertEquals(FormatReader.SchemaResolution.FIRST_FILE_WINS, FormatReader.DEFAULT_SCHEMA_RESOLUTION);
         assertEquals(
             "Resolver's null-config fallback must equal the FormatReader.DEFAULT_SCHEMA_RESOLUTION constant",
             FormatReader.DEFAULT_SCHEMA_RESOLUTION,
-            ExternalSourceResolver.parseSchemaResolution(null)
+            ExternalSourceResolver.effectiveSchemaResolution(null)
         );
         assertEquals(
             "Resolver's missing-key fallback must equal the FormatReader.DEFAULT_SCHEMA_RESOLUTION constant",
             FormatReader.DEFAULT_SCHEMA_RESOLUTION,
-            ExternalSourceResolver.parseSchemaResolution(Map.of())
+            ExternalSourceResolver.effectiveSchemaResolution(Map.of())
         );
     }
 
@@ -3026,7 +3025,7 @@ public class ExternalSourceResolverTests extends ESTestCase {
      * and {@code STRICT} alongside the {@code FIRST_FILE_WINS} fast path: the coordinator schema is
      * data-only with the partition column appended, and every per-file mapping is data-only width and
      * non-identity. A regression in the recomputed mapping width or a dropped/added cast would fail
-     * here even though {@link #testPartitionColumnConflictPartitionWins} (default {@code UNION_BY_NAME})
+     * here even though {@link #testPartitionColumnConflictPartitionWins} (omitted key = first_file_wins)
      * only checks the coordinator schema and the warning.
      */
     public void testCollisionSchemaMapDropsPhysicalColumnPerStrategy() throws Exception {
@@ -5694,7 +5693,8 @@ public class ExternalSourceResolverTests extends ESTestCase {
      * even when the resolver executor is a single thread, and must never exceed it. A synchronous /
      * thread-per-read resolver pinned to one thread could only ever have one read in flight; observing
      * a max in-flight equal to the permit count therefore proves both the permit bound and that the
-     * pool thread is released across the (simulated) network read.
+     * pool thread is released across the (simulated) network read. Pinned to {@code union_by_name}:
+     * omitted config is {@code first_file_wins} and only reads the anchor footer.
      */
     public void testAsyncFanOutRespectsPermitBoundBeyondResolverThreads() throws Exception {
         int permits = 4;
@@ -5715,7 +5715,15 @@ public class ExternalSourceResolverTests extends ESTestCase {
         AsyncStubFormatReader reader = new AsyncStubFormatReader(schemasByPath, readPool, gate, permits, null);
         try {
             String glob = "s3://bucket/data/*.parquet";
-            ExternalSourceResolution resolution = resolveWithAsyncReader(glob, schemasByPath, listing, reader, resolverExecutor, permits);
+            ExternalSourceResolution resolution = resolveWithAsyncReader(
+                glob,
+                schemasByPath,
+                listing,
+                reader,
+                resolverExecutor,
+                permits,
+                Map.of("schema_resolution", "union_by_name")
+            );
 
             assertNotNull(resolution.resolvedSource(glob));
             assertEquals("max in-flight reads must equal the permit count", permits, reader.maxInFlight.get());
@@ -5928,12 +5936,24 @@ public class ExternalSourceResolverTests extends ESTestCase {
         Executor resolverExecutor,
         int permits
     ) {
+        return resolveWithAsyncReader(glob, schemasByPath, listing, reader, resolverExecutor, permits, Map.of());
+    }
+
+    private ExternalSourceResolution resolveWithAsyncReader(
+        String glob,
+        Map<String, List<Attribute>> schemasByPath,
+        List<StorageEntry> listing,
+        FormatReader reader,
+        Executor resolverExecutor,
+        int permits,
+        Map<String, Object> config
+    ) {
         Map<String, List<StorageEntry>> listingsByPrefix = new HashMap<>();
         StoragePath sp = StoragePath.of(glob);
         listingsByPrefix.put(sp.patternPrefix().toString(), listing);
         ExternalSourceResolver resolver = createResolverWithAsyncReader(schemasByPath, listingsByPrefix, reader, resolverExecutor, permits);
         PlainActionFuture<ExternalSourceResolution> future = new PlainActionFuture<>();
-        resolver.resolve(List.of(glob), Map.of(glob, new HashMap<>()), future);
+        resolver.resolve(List.of(glob), Map.of(glob, new HashMap<>(config)), future);
         return future.actionGet(30, TimeUnit.SECONDS);
     }
 

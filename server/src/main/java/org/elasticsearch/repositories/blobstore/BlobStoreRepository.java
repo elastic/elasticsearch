@@ -3538,14 +3538,16 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
     }
 
     /**
-     * Passes a shard's updated snapshots to the observer. The caller has already completed successfully, so a failing observer must not be
-     * allowed to change that outcome.
-     */
-    /**
      * The snapshots surviving a deletion, ordered by when they were taken. Computed once per deletion rather than per shard: the ordering
      * is a property of the repository, and a deletion can touch a hundred thousand shards.
+     * <p>
+     * Public because a caller deciding what a repository held at its earliest retained point has to order the snapshots the same way this
+     * does. Two callers sorting by different notions of "oldest" would disagree about the repository's baseline.
+     *
+     * @param beingDeleted snapshots to leave out, for use mid-deletion when {@code repositoryData} still lists them. Pass an empty
+     *                     collection to order everything the repository currently holds.
      */
-    private static List<SnapshotId> retainedSnapshotsOldestFirst(RepositoryData repositoryData, Collection<SnapshotId> beingDeleted) {
+    public static List<SnapshotId> retainedSnapshotsOldestFirst(RepositoryData repositoryData, Collection<SnapshotId> beingDeleted) {
         final var deleted = Set.copyOf(beingDeleted);
         return repositoryData.getSnapshotIds()
             .stream()
@@ -3554,6 +3556,10 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
             .toList();
     }
 
+    /**
+     * Passes a shard's updated snapshots to the observer. The caller has already completed successfully, so a failing observer must not be
+     * allowed to change that outcome.
+     */
     private void notifyShardSnapshotFilesUpdated(
         IndexId indexId,
         int shardId,

@@ -16,6 +16,7 @@ import org.elasticsearch.xpack.esql.core.expression.AttributeMap;
 import org.elasticsearch.xpack.esql.core.expression.AttributeSet;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.Expressions;
+import org.elasticsearch.xpack.esql.core.expression.FieldAttribute;
 import org.elasticsearch.xpack.esql.core.expression.FoldContext;
 import org.elasticsearch.xpack.esql.core.expression.Literal;
 import org.elasticsearch.xpack.esql.core.expression.MapExpression;
@@ -23,6 +24,7 @@ import org.elasticsearch.xpack.esql.core.expression.MetadataAttribute;
 import org.elasticsearch.xpack.esql.core.expression.NamedExpression;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
+import org.elasticsearch.xpack.esql.core.type.TextEsField;
 import org.elasticsearch.xpack.esql.expression.function.fulltext.FullTextFunction;
 import org.elasticsearch.xpack.esql.expression.function.fulltext.Kql;
 import org.elasticsearch.xpack.esql.expression.function.fulltext.Match;
@@ -46,6 +48,7 @@ import java.util.Map;
 import java.util.Set;
 
 import static org.elasticsearch.index.query.MatchQueryBuilder.ANALYZER_FIELD;
+import static org.elasticsearch.index.query.QueryStringQueryBuilder.QUOTE_ANALYZER_FIELD;
 
 /** Analysis-time helpers for implicit HIGHLIGHT query and field lists. */
 public final class HighlightSupport {
@@ -66,13 +69,21 @@ public final class HighlightSupport {
 
     /** The leaf's {@code analyzer} option, or {@code null} if absent, not foldable, or unsupported on that leaf type. */
     private static String analyzerNameOf(Expression fullTextLeaf) {
+        // MATCH, MATCH_PHRASE, and QSTR have an analyzer option. KQL does not. Other leaves (KNN) return null
+        // and verifyQueryStructure reports the error.
         Expression options = switch (fullTextLeaf) {
             case SingleFieldFullTextFunction single -> single.options();
             case QueryString queryString -> queryString.options();
-            case Kql kql -> kql.options();
             default -> null;
         };
         return foldedOption(options, ANALYZER_FIELD.getPreferredName());
+    }
+
+    private static String quoteAnalyzerNameOf(Expression fullTextLeaf) {
+        if (fullTextLeaf instanceof QueryString queryString) {
+            return foldedOption(queryString.options(), QUOTE_ANALYZER_FIELD.getPreferredName());
+        }
+        return null;
     }
 
     /** The folded string value of option {@code name} in {@code options}, or {@code null} if absent or not a foldable constant. */
@@ -87,6 +98,24 @@ public final class HighlightSupport {
     }
 
     /**
+     * Analyzer names the runtime context must resolve for this query.
+     * {@code quote_analyzer} is always included. The query builder keeps that option, so the name has to resolve.
+     * Leaf {@code analyzer} options are included only when {@code includeLeafAnalyzers} is true, because WITH
+     * {@code analyzer} strips them. Names on leaves outside ON are included so the option is validated before
+     * the field lookup.
+     */
+    public static Set<String> analyzerNamesOf(Expression query, boolean includeLeafAnalyzers) {
+        Set<String> names = new LinkedHashSet<>();
+        query.forEachDown(FullTextFunction.class, leaf -> {
+            if (includeLeafAnalyzers) {
+                addIfPresent(names, analyzerNameOf(leaf));
+            }
+            addIfPresent(names, quoteAnalyzerNameOf(leaf));
+        });
+        return names;
+    }
+
+    /**
      * Analyzer every named full-text leaf agrees on, or {@code null} if none name one or they disagree.
      * Unlabeled leaves do not constrain the result. Disagreement is reported by {@link #requireUniformAnalyzer}.
      */
@@ -97,12 +126,13 @@ public final class HighlightSupport {
 
     /**
      * Unique non-standard values analyzer on {@code fields}, or {@code null} when every field omits one (or names
-     * {@code standard}). Mixed names throw.
+     * {@code standard}). Mixed names throw. Mapping {@link TextEsField#analyzerName} and {@code TO_TEXT} declarations
+     * both count.
      */
     public static @Nullable String valuesAnalyzerName(List<? extends NamedExpression> fields) {
         Set<String> names = new LinkedHashSet<>();
         for (NamedExpression field : fields) {
-            names.add(canonicalAnalyzerName(AnalyzedTextExpression.valuesAnalyzerOf(field)));
+            names.add(canonicalAnalyzerName(valuesAnalyzerOfField(field)));
         }
         if (names.size() > 1) {
             throw new IllegalArgumentException("HIGHLIGHT ON fields use different values analyzers " + names + "; they must be the same");
@@ -175,19 +205,33 @@ public final class HighlightSupport {
         );
     }
 
+    private static String valuesAnalyzerOfField(NamedExpression field) {
+        String declared = AnalyzedTextExpression.valuesAnalyzerOf(field);
+        if (declared != null) {
+            return declared;
+        }
+        if (field instanceof FieldAttribute fa && fa.field() instanceof TextEsField text) {
+            return text.analyzerName();
+        }
+        return null;
+    }
+
     private static String canonicalAnalyzerName(@Nullable String name) {
-        return name == null || AnalyzedTextExpression.STANDARD_ANALYZER.equals(name) ? AnalyzedTextExpression.STANDARD_ANALYZER : name;
+        return name == null || AnalyzedTextExpression.STANDARD_ANALYZER.equals(name) || "default".equals(name)
+            ? AnalyzedTextExpression.STANDARD_ANALYZER
+            : name;
     }
 
     private static LinkedHashSet<String> namedLeafAnalyzers(Expression query) {
         LinkedHashSet<String> names = new LinkedHashSet<>();
-        query.forEachDown(FullTextFunction.class, leaf -> {
-            String analyzer = analyzerNameOf(leaf);
-            if (analyzer != null) {
-                names.add(analyzer);
-            }
-        });
+        query.forEachDown(FullTextFunction.class, leaf -> addIfPresent(names, analyzerNameOf(leaf)));
         return names;
+    }
+
+    private static void addIfPresent(Set<String> names, String name) {
+        if (name != null) {
+            names.add(name);
+        }
     }
 
     /**

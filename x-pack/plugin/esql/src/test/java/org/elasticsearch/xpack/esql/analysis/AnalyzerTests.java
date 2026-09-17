@@ -6699,22 +6699,51 @@ public class AnalyzerTests extends AnalyzerTestCase {
         assertTrue(highlight.implicitQuery());
     }
 
-    public void testHighlightHandlesAnalyzerOnWherePredicates() {
+    /**
+     * An implicit HIGHLIGHT does not copy a WHERE analyzer into WITH options. Covers one leaf, disagreeing
+     * leaves on different fields, two analyzers on the same field, and leaves in separate WHERE commands.
+     */
+    public void testHighlightNeverSynthesizesLeafAnalyzerIntoOptions() {
         assumeHighlightImplicitQueryAndFieldsEnabled();
-        Highlight singleLeaf = soleHighlight(supportsHighlight(basic()).query("""
-            FROM test
-            | WHERE MATCH(first_name, "x", {"analyzer": "standard"})
-            | HIGHLIGHT ON first_name
-            """));
-        assertTrue(singleLeaf.implicitQuery());
+        for (String query : List.of(
+            "FROM test | WHERE MATCH(first_name, \"x\", {\"analyzer\": \"standard\"}) | HIGHLIGHT ON first_name",
+            "FROM test | WHERE MATCH(first_name, \"x\", {\"analyzer\": \"whitespace\"}) | HIGHLIGHT",
+            "FROM test | WHERE MATCH(first_name, \"x\", {\"analyzer\": \"whitespace\"})"
+                + " AND MATCH(last_name, \"y\", {\"analyzer\": \"simple\"}) | HIGHLIGHT",
+            "FROM test | WHERE MATCH(first_name, \"x\", {\"analyzer\": \"whitespace\"})"
+                + " OR MATCH(first_name, \"y\", {\"analyzer\": \"simple\"}) | HIGHLIGHT",
+            "FROM test | WHERE MATCH(first_name, \"x\", {\"analyzer\": \"whitespace\"})"
+                + " | WHERE MATCH(last_name, \"y\", {\"analyzer\": \"simple\"}) | HIGHLIGHT ON first_name"
+        )) {
+            Highlight highlight = soleHighlight(supportsHighlight(basic()).query(query));
+            assertTrue(query, highlight.implicitQuery());
+            assertNull(query, highlight.options());
+        }
+    }
 
-        Highlight unpoisoned = soleHighlight(supportsHighlight(basic()).query("""
+    public void testHighlightAnalyzerOnUnsupportedShapeDoesNotBorrow() {
+        assumeHighlightImplicitQueryAndFieldsEnabled();
+        Highlight highlight = soleHighlight(supportsHighlight(basic()).query("""
             FROM test
-            | WHERE MATCH(first_name, "x") AND NOT MATCH(last_name, "y", {"analyzer": "standard"})
+            | WHERE MATCH(first_name, "x") AND NOT MATCH(last_name, "y", {"analyzer": "whitespace"})
             | HIGHLIGHT ON first_name
             """));
-        assertThat(unpoisoned.query(), instanceOf(Match.class));
-        assertTrue(unpoisoned.implicitQuery());
+        assertThat(highlight.query(), instanceOf(Match.class));
+        assertTrue(highlight.implicitQuery());
+        assertNull(highlight.options());
+    }
+
+    public void testHighlightCarriesMappingAnalyzerName() {
+        assumeHighlightImplicitQueryAndFieldsEnabled();
+        Highlight highlight = soleHighlight(
+            supportsHighlight(analyzer().addIndex("books_english", "mapping-books_english.json")).query(
+                "FROM books_english | HIGHLIGHT \"ring\" ON title"
+            )
+        );
+        FieldAttribute title = as(highlight.fields().getFirst(), FieldAttribute.class);
+        assertThat(title.field(), instanceOf(TextEsField.class));
+        assertThat(((TextEsField) title.field()).analyzerName(), equalTo("english"));
+        assertNull(highlight.options());
     }
 
     public void testHighlightImplicitQueryPassesDocPreservingCommands() {

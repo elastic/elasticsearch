@@ -14,10 +14,13 @@ import org.elasticsearch.cluster.metadata.MappingMetadata;
 import org.elasticsearch.core.Booleans;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.index.IndexService;
+import org.elasticsearch.index.analysis.NamedAnalyzer;
 import org.elasticsearch.index.engine.Engine;
 import org.elasticsearch.index.mapper.MappedFieldType;
+import org.elasticsearch.index.mapper.MappingLookup;
 import org.elasticsearch.index.mapper.ObjectMapper;
 import org.elasticsearch.index.mapper.RuntimeField;
+import org.elasticsearch.index.mapper.TextFieldMapper;
 import org.elasticsearch.index.query.MatchAllQueryBuilder;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.SearchExecutionContext;
@@ -183,11 +186,12 @@ class FieldCapabilitiesFetcher {
 
         Predicate<MappedFieldType> filter = buildFilter(filters, types, context);
         boolean isTimeSeriesIndex = context.getIndexSettings().getTimestampBounds() != null;
-        Set<String> inferenceFieldNames = context.getMappingLookup().inferenceFields().keySet();
+        MappingLookup mappingLookup = context.getMappingLookup();
+        Set<String> inferenceFieldNames = mappingLookup.inferenceFields().keySet();
         var fieldInfos = indexShard.getFieldInfos();
         includeEmptyFields = includeEmptyFields || enableFieldHasValue == false;
         Map<String, IndexFieldCapabilities> responseMap = new HashMap<>();
-        Map<String, ObjectMapper> objectMappers = context.getMappingLookup().objectMappers();
+        Map<String, ObjectMapper> objectMappers = mappingLookup.objectMappers();
         for (Map.Entry<String, MappedFieldType> entry : context.getAllFields()) {
             final String field = entry.getKey();
             MappedFieldType ft = entry.getValue();
@@ -206,7 +210,8 @@ class FieldCapabilitiesFetcher {
                     inferenceFieldNames.contains(field),
                     isTimeSeriesIndex ? ft.isDimension() : false,
                     isTimeSeriesIndex ? ft.getMetricType() : null,
-                    ft.meta()
+                    ft.meta(),
+                    indexAnalyzerName(mappingLookup, ft)
                 );
                 responseMap.put(field, fieldCap);
             } else {
@@ -237,7 +242,8 @@ class FieldCapabilitiesFetcher {
                             false,
                             false,
                             null,
-                            Map.of()
+                            Map.of(),
+                            null
                         );
                         responseMap.put(parentField, fieldCap);
                     }
@@ -246,6 +252,19 @@ class FieldCapabilitiesFetcher {
             }
         }
         return responseMap;
+    }
+
+    /**
+     * Name of the analyzer a text field is indexed with, or {@code null} for anything that is not text.
+     * ES|QL HIGHLIGHT re-analyzes field values on the coordinator, so it cannot look this up from a shard.
+     */
+    @Nullable
+    private static String indexAnalyzerName(MappingLookup mappingLookup, MappedFieldType ft) {
+        if (TextFieldMapper.CONTENT_TYPE.equals(ft.familyTypeName()) == false) {
+            return null;
+        }
+        NamedAnalyzer analyzer = mappingLookup.indexAnalyzer(ft.name(), unused -> null);
+        return analyzer == null ? null : analyzer.name();
     }
 
     private static boolean checkIncludeParents(String[] filters) {

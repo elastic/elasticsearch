@@ -119,7 +119,7 @@ public class PlannerUtils {
     // TODO: Move analyzer verification into a shared helper that HIGHLIGHT, TOP_SNIPPETS, MATCH, and MATCH_PHRASE can use.
     // FullTextFunction may be the right place for it.
     @Nullable
-    public static Analyzer resolveAnalyzer(@Nullable String analyzerName, @Nullable AnalysisRegistry analysisRegistry) {
+    public static NamedAnalyzer resolveAnalyzer(@Nullable String analyzerName, @Nullable AnalysisRegistry analysisRegistry) {
         if (analyzerName == null) {
             return null;
         }
@@ -135,13 +135,13 @@ public class PlannerUtils {
         if (analyzer == null) {
             throw new InvalidArgumentException("[{}] is not a registered analyzer", analyzerName);
         }
-        if (analyzer instanceof NamedAnalyzer == false) {
-            // Node-level plugin analyzers (AnalysisPlugin#getAnalyzers) resolve to bare Lucene analyzers: the registry
-            // bakes the text-field position increment gap only into prebuilt analyzers. Wrap them the way index
-            // mappings do, so multi-value analysis keeps the gap the same analyzer would have on a mapped field.
-            analyzer = new NamedAnalyzer(analyzerName, AnalyzerScope.GLOBAL, analyzer, TextFieldMapper.Defaults.POSITION_INCREMENT_GAP);
+        if (analyzer instanceof NamedAnalyzer named) {
+            return named;
         }
-        return analyzer;
+        // AnalysisPlugin#getAnalyzers returns a bare Lucene Analyzer. The registry only puts the text-field
+        // position increment gap on prebuilt NamedAnalyzers. Wrap the same way index mappings do so multi-value
+        // analysis keeps that gap.
+        return new NamedAnalyzer(analyzerName, AnalyzerScope.GLOBAL, analyzer, TextFieldMapper.Defaults.POSITION_INCREMENT_GAP);
     }
 
     /**

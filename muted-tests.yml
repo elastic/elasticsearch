@@ -586,9 +586,6 @@ tests:
 - class: org.elasticsearch.xpack.stateless.reshard.StatelessReshardMixedOperationsIT
   method: testMixedOperationsDuringSplit
   issue: https://github.com/elastic/elasticsearch/issues/157847
-- class: org.elasticsearch.xpack.esql.qa.mixed.MixedClusterEsqlOldCoordinatorSpecDenseVectorIT
-  method: test {csv-spec:dense_vector.limitByDenseVectorN2}
-  issue: https://github.com/elastic/elasticsearch/issues/157875
 - class: org.elasticsearch.xpack.esql.optimizer.promql.PromqlGoldenTests
   method: testBinaryWithDifferentSelectors {current}
   issue: https://github.com/elastic/elasticsearch/issues/157912
@@ -750,9 +747,6 @@ tests:
 - class: org.elasticsearch.index.store.FieldInfoCachingDirectoryTests
   method: testWeakReferenceReclaimsCanonical
   issue: https://github.com/elastic/elasticsearch/issues/159154
-- class: org.elasticsearch.xpack.esql.qa.mixed.MixedClusterEsqlCurrentCoordinatorSpecDenseVectorIT
-  method: test {csv-spec:dense_vector.limitByDenseVectorN2}
-  issue: https://github.com/elastic/elasticsearch/issues/159460
 - class: org.elasticsearch.datastreams.lifecycle.DataStreamLifecycleServiceIT
   method: testErrorRecordingOnRollover
   issue: https://github.com/elastic/elasticsearch/issues/159525

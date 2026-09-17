@@ -41,8 +41,9 @@ import java.util.Set;
  * hint (typically a data-column filter), and at the first level no pending hint matches — whether a pending hint
  * is a deeper partition key or a data column is unknowable without listing every level in between, and
  * {@code WHERE <partition> AND <data column>} is the everyday shape, so the walk never descends speculatively.
- * Survivors are finished with one recursive listing each, but only when something was pruned and they fit what
- * remains of {@link #MAX_DIRECTORY_LISTINGS}; otherwise one flat listing is cheaper.
+ * Survivors are finished with one recursive listing each, but only when something was pruned, the survivor
+ * count is within {@link #MAX_FINISH_SURVIVORS}, and they fit what remains of {@link #MAX_DIRECTORY_LISTINGS};
+ * otherwise one flat listing is cheaper.
  *
  * <p><b>Trust boundary.</b> Pruning on {@code year} is sound only if {@code year} really is a partition column, and
  * the walk cannot see inside pruned folders. The caller must therefore verify that every {@link
@@ -56,8 +57,8 @@ final class PartitionPruningWalk {
 
     /**
      * Ceiling on listings in one walk (per-directory and survivor-finishing alike). The walk pays one LIST round
-     * trip per directory where the flat listing pays one per ~1000 objects, so this cap does not make a misguided
-     * walk as cheap as flat — it bounds the damage to a fixed number of requests, once, before the flat fallback.
+     * trip per directory, which is more expensive per object than the flat listing's one round trip per ~1000
+     * objects; this cap bounds the number of requests before the flat fallback, not the total cost.
      * 512 fits realistic Hive trees with a leading-key filter (tens to low hundreds of listings).
      */
     static final int MAX_DIRECTORY_LISTINGS = 512;
@@ -69,6 +70,14 @@ final class PartitionPruningWalk {
      * over ~27 years of days); anything wider is the many-children shape where lazy flat listing is the right tool.
      */
     static final int MAX_LISTED_CHILDREN = 10_000;
+
+    /**
+     * Maximum number of surviving directories that {@link #finishSurvivors} will enumerate individually. Each
+     * survivor costs one recursive listing (one round trip per ~1000 objects); beyond this threshold a single flat
+     * listing of the whole prefix is cheaper. 4 is chosen so that the walk's finish never costs more than the flat
+     * listing for datasets up to ~4000 objects (the typical S3 page size is 1000, so 4 survivors ≈ 4 pages ≈ flat).
+     */
+    static final int MAX_FINISH_SURVIVORS = 4;
 
     private PartitionPruningWalk() {}
 
@@ -158,6 +167,10 @@ final class PartitionPruningWalk {
             List<String> shapedKeys = new ArrayList<>();
             List<String> shapedValues = new ArrayList<>();
             List<StoragePath> next = new ArrayList<>();
+            // Direct files found in dirs at this level. Deferred until we know which path we take: if this
+            // level is unhinted and finishSurvivors lists each parent dir recursively, addRecursively would
+            // re-enumerate the same files, causing a double-count. We commit them only on the normal path.
+            List<StorageEntry> levelFiles = new ArrayList<>();
             for (StoragePath dir : dirs) {
                 listings++;
                 StorageChildren children = provider.listChildren(dir, MAX_LISTED_CHILDREN);
@@ -167,7 +180,7 @@ final class PartitionPruningWalk {
                 for (StorageEntry file : children.files()) {
                     // A glob-matching file at a folder level breaks Hive detection; the caller's validation then
                     // rejects the walk.
-                    collector.add(file);
+                    levelFiles.add(file);
                 }
                 for (StoragePath sub : children.directories()) {
                     String key = PartitionValueMatcher.folderKey(sub.objectName());
@@ -257,8 +270,13 @@ final class PartitionPruningWalk {
                 // Some level already pruned, but this one matches no pending hint. Whether a pending hint is a
                 // deeper partition key or a data column is unknowable without listing every level in between — a
                 // LIST per directory — and `WHERE <partition> AND <data column>` is the everyday shape. Keep the
-                // pruning already done and finish here.
-                return finishSurvivors(collector, provider, next, prunedColumns, listings, inferColumnTypes(seenValues));
+                // pruning already done and finish by recursively listing each surviving PARENT dir (dirs), not each
+                // child (next): listing the parent once enumerates the same files with one round trip instead of N.
+                return finishSurvivors(collector, provider, dirs, prunedColumns, listings, inferColumnTypes(seenValues));
+            }
+            // Commit direct files now that we know finishSurvivors won't re-enumerate them.
+            for (StorageEntry file : levelFiles) {
+                collector.add(file);
             }
             anyLevelHinted = true;
             dirs = next;
@@ -311,8 +329,8 @@ final class PartitionPruningWalk {
 
     /**
      * Ends a walk whose remaining subtrees no hint can narrow: one recursive listing per survivor, but only when
-     * something was pruned and the survivors fit the remaining budget — otherwise {@code null}, since one flat
-     * listing enumerates the same files.
+     * something was pruned, the survivor count is within {@link #MAX_FINISH_SURVIVORS}, and they fit the remaining
+     * budget — otherwise {@code null}, since one flat listing enumerates the same files more cheaply.
      */
     @Nullable
     private static WalkResult finishSurvivors(
@@ -323,7 +341,7 @@ final class PartitionPruningWalk {
         int listings,
         Map<String, DataType> columnFullTypes
     ) throws IOException {
-        if (prunedColumns.isEmpty() || dirs.size() > MAX_DIRECTORY_LISTINGS - listings) {
+        if (prunedColumns.isEmpty() || dirs.size() > MAX_FINISH_SURVIVORS || dirs.size() > MAX_DIRECTORY_LISTINGS - listings) {
             return null;
         }
         for (StoragePath dir : dirs) {

@@ -20,12 +20,12 @@ import java.util.List;
  * The one comparison of a partition value against a filter literal, shared by the two layers that prune by it:
  * {@link FileSplitProvider} (files) and the listing walk in {@code GlobExpander} (folders). A folder skipped at
  * listing time is unrecoverable downstream, so where the layers cannot be proven to agree, the walk must not
- * prune. Sharing this code covers the comparator; the LITERAL is the remaining gap — the analyzer implicitly
- * casts string literals for some column types (boolean among them), so the read layer may compare a cast value
- * where a pre-resolution hint still holds the raw string. Hence the kind guard: a hint whose literal's kind
- * (number/boolean/text) differs from the typed folder value's is undecidable, never an exclusion.
- * {@link #matchesFolders} is the listing entry point; evaluation is three-valued, and "cannot decide" (a NULL
- * partition, a kind mismatch) always means keep.
+ * prune. Sharing this comparator removes one source of divergence, but the LITERAL may still differ between the
+ * layers — the analyzer implicitly casts string literals for some column types (boolean among them), so the read
+ * layer compares a cast value where a pre-resolution hint still holds the raw string. The kind guard bridges
+ * this gap: a hint whose literal's kind (number/boolean/text) differs from the typed folder value's is
+ * undecidable, never an exclusion. {@link #matchesFolders} is the listing entry point; evaluation is
+ * three-valued, and "cannot decide" (a NULL partition, a kind mismatch) always means keep.
  */
 public final class PartitionValueMatcher {
 

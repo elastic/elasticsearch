@@ -2520,7 +2520,10 @@ public class GlobExpanderTests extends ESTestCase {
     /**
      * The walk stops at the first level no pending hint matches: whether {@code day} is a deeper partition key or a
      * data column is unknowable without listing every level in between, and speculating costs a LIST per directory.
-     * {@code year} still prunes; {@code day} is left to the read layer; the LIST count stays bounded.
+     * {@code year} still prunes; {@code day} is left to the read layer; the LIST count stays bounded. Crucially, the
+     * surviving PARENT dir ({@code year=2025/}) is finished with one recursive listing rather than finishing each
+     * child ({@code month=01/}, {@code month=06/}) individually — the parent already covers the same files with one
+     * round trip instead of N.
      */
     public void testGlobstarStopsDescendingAtUnhintedLevel() throws IOException {
         List<StorageEntry> entries = new ArrayList<>();
@@ -2549,16 +2552,17 @@ public class GlobExpanderTests extends ESTestCase {
             provider.childListedPrefixes
         );
         assertEquals(
-            "survivors finished with one recursive listing each",
-            List.of("s3://bucket/data/year=2025/month=01/", "s3://bucket/data/year=2025/month=06/"),
+            "the surviving parent dir is finished with one recursive listing, not one per month child",
+            List.of("s3://bucket/data/year=2025/"),
             provider.listedPrefixes
         );
     }
 
     /**
      * The everyday shape — a partition filter AND a data-column filter — must cost the same LIST requests as the
-     * partition filter alone plus one probe: the data column keeps a hint pending forever, and before the
-     * stop-at-unhinted-level rule that meant a LIST per directory of the whole kept subtree.
+     * partition filter alone plus one probe: the data column keeps a hint pending forever, and the walk stops at the
+     * first level no hint matches. The surviving parent ({@code year=2025/}) is finished with one recursive listing
+     * instead of one per month child, so adding a data-column filter never inflates the LIST count.
      */
     public void testGlobstarPartitionPlusDataColumnFilterStaysCheap() throws IOException {
         TreeStubProvider provider = hiveTree();
@@ -2578,7 +2582,40 @@ public class GlobExpanderTests extends ESTestCase {
             List.of("s3://bucket/data/", "s3://bucket/data/year=2025/", "s3://bucket/data/year=2024/"),
             provider.childListedPrefixes
         );
-        assertEquals(List.of("s3://bucket/data/year=2025/month=01/", "s3://bucket/data/year=2025/month=06/"), provider.listedPrefixes);
+        // One recursive listing of the surviving parent, not one per month child.
+        assertEquals(List.of("s3://bucket/data/year=2025/"), provider.listedPrefixes);
+    }
+
+    /**
+     * A file sitting directly inside the surviving year dir ({@code year=2025/f.parquet}, no month subdirectory)
+     * must appear exactly once in the result when the data-column hint ({@code status}) keeps a hint pending and
+     * the unhinted-level path is taken. Before the fix, {@code listChildren(year=2025/)} added {@code f.parquet}
+     * to the collector immediately, and then {@code finishSurvivors} called {@code addRecursively(year=2025/)},
+     * which added it a second time — causing a double-count that passed walk validation (single-level partitions
+     * are valid Hive layouts). The fix defers the direct-file add until we know we are NOT going to call
+     * {@code finishSurvivors(dirs)}.
+     */
+    public void testGlobstarUnhintedLevelDoesNotDoubleCountDirectFiles() throws IOException {
+        // Single-level partition: files live directly inside year= dirs, no month subdirectory.
+        List<StorageEntry> entries = new ArrayList<>();
+        entries.add(entry("s3://bucket/data/year=2025/f.parquet", 100));
+        entries.add(entry("s3://bucket/data/year=2024/f.parquet", 100)); // pruned by year==2025 hint
+        TreeStubProvider provider = new TreeStubProvider(entries);
+        // status is a data-column hint, keeping `pending` non-empty so the walk descends into year=2025/
+        // before realising there are no partition subdirs — triggering the unhinted-level path.
+        var hints = List.of(
+            hint("year", PartitionFilterHintExtractor.Operator.EQUALS, 2025),
+            hint("status", PartitionFilterHintExtractor.Operator.EQUALS, "ok")
+        );
+
+        FileList result = GlobExpander.expand("s3://bucket/data/**", provider, hints, HIVE_ON, MAX, MAX);
+
+        assertEquals(
+            "year=2025/f.parquet must appear exactly once: listChildren and addRecursively both see it, "
+                + "but only addRecursively's copy must land in the result",
+            1,
+            result.fileCount()
+        );
     }
 
     /** The LIST request counts esql-planning#1173 asks for: equality prunes with one probe and one survivor chain. */
@@ -2624,6 +2661,28 @@ public class GlobExpanderTests extends ESTestCase {
 
         assertEquals(List.of("s3://bucket/data/"), provider.childListedPrefixes);
         assertEquals(List.of("s3://bucket/data/year=2024/", "s3://bucket/data/year=2025/"), provider.listedPrefixes);
+    }
+
+    /**
+     * When a range filter keeps more surviving dirs than {@code MAX_FINISH_SURVIVORS}, the walk withdraws to the
+     * flat listing: N individual recursive listings would exceed the flat listing's cost. Here 6 of 10 year dirs
+     * survive {@code year >= 2020}, which is above the threshold, so the walk falls back and the flat listing
+     * returns all 10 files (the row filter prunes at read time).
+     */
+    public void testGlobstarManySurvivorsFallBackToFlatListing() throws IOException {
+        List<StorageEntry> entries = new ArrayList<>();
+        for (int year = 2016; year <= 2025; year++) {
+            entries.add(entry("s3://bucket/data/year=" + year + "/a.parquet", 100));
+        }
+        TreeStubProvider provider = new TreeStubProvider(entries);
+        var hints = List.of(hint("year", PartitionFilterHintExtractor.Operator.GREATER_THAN_OR_EQUAL, 2020));
+
+        FileList result = GlobExpander.expand("s3://bucket/data/**", provider, hints, HIVE_ON, MAX, MAX);
+
+        assertEquals("flat listing returns all files; row filter prunes at read time", 10, result.fileCount());
+        // Walk probed the root level, found 6 survivors (above MAX_FINISH_SURVIVORS), withdrew to flat.
+        assertEquals(List.of("s3://bucket/data/"), provider.childListedPrefixes);
+        assertEquals(List.of("s3://bucket/data/"), provider.listedPrefixes);
     }
 
     /**
@@ -2713,9 +2772,12 @@ public class GlobExpanderTests extends ESTestCase {
 
         assertEquals(List.of("s3://bucket/data/year=2025/b.parquet"), paths(result));
         assertFalse("year=2024 must not be enumerated", provider.enumeratedFiles.stream().anyMatch(p -> p.contains("year=2024")));
-        assertWarnings(
-            "1 of 2 objects matching the resource under [s3://bucket/data/] was excluded by the [file_exclusions] "
-                + "dataset setting, for example [_temporary/x.parquet] which matched entry [**/_temporary/**]"
+        assertEquals(
+            List.of(
+                "1 of 2 objects matching the resource under [s3://bucket/data/] was excluded by the [file_exclusions] "
+                    + "dataset setting, for example [_temporary/x.parquet] which matched entry [**/_temporary/**]"
+            ),
+            result.listingWarnings()
         );
     }
 

@@ -2,7 +2,7 @@
   "comment" : "PromQL function definition for Kibana. See https://prometheus.io/docs/prometheus/latest/querying/functions/",
   "type" : "across_series_reduction",
   "name" : "limit_ratio",
-  "description" : "Returns a ratio `r` of elements from the input vector in storage order, keeping their full label set.",
+  "description" : "Returns a ratio `r` of the series from the input vector, keeping their full label set.",
   "signatures" : [
     {
       "params" : [
@@ -10,7 +10,7 @@
           "name" : "r",
           "type" : "scalar",
           "optional" : false,
-          "description" : "Ratio value (0 ≤ r ≤ 1)."
+          "description" : "Ratio of series to keep (-1 ≤ r ≤ 1); the absolute value selects the share, a negative r inverts the selection."
         },
         {
           "name" : "v",

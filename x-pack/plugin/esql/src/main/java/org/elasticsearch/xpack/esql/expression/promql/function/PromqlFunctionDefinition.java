@@ -309,7 +309,11 @@ public final class PromqlFunctionDefinition {
     public static final PromqlParamInfo SCALAR = PromqlParamInfo.child("s", PromqlDataType.SCALAR, "Scalar value.");
     public static final PromqlParamInfo QUANTILE = PromqlParamInfo.of("φ", PromqlDataType.SCALAR, "Quantile value (0 ≤ φ ≤ 1).");
     public static final PromqlParamInfo K = PromqlParamInfo.of("k", PromqlDataType.SCALAR, "Number of series to keep.");
-    public static final PromqlParamInfo RATIO = PromqlParamInfo.of("r", PromqlDataType.SCALAR, "Ratio value (0 ≤ r ≤ 1).");
+    public static final PromqlParamInfo RATIO = PromqlParamInfo.of(
+        "r",
+        PromqlDataType.SCALAR,
+        "Ratio of series to keep (-1 ≤ r ≤ 1); the absolute value selects the share, " + "a negative r inverts the selection."
+    );
     public static final PromqlParamInfo TO_NEAREST = PromqlParamInfo.optional(
         "to_nearest",
         PromqlDataType.SCALAR,

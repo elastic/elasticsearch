@@ -1,14 +1,23 @@
 // Tests for the PromQL limit_ratio() function.
 //
-// limit_ratio(r, v) returns ceil(r * N) arbitrary elements from N series, preserving full label
-// identity. Selection uses a streaming Bresenham counter: a row is accepted when
-//   ratio * (total + 1) > accepted
-// giving ceil(r * N) rows in storage (tsid) order with no buffering.
+// limit_ratio(r, v) keeps each series iff its sampling offset is below r, like Prometheus.
+// The offset is derived from a hash of the series identity, so the kept subset is stable
+// across steps, runs, and shards: a series kept at one step is kept at every step.
+// The absolute value of r selects the share; a negative r inverts the selection, keeping
+// offsets at or above 1 + r. So keeps(-x) is exactly the complement of keeps(1-x): the
+// r=0.5 / r=-0.5 pair below partitions the input.
+// Out-of-range ratios need no clamping (r > 1 and r < -1 keep everything), r=0 keeps nothing,
+// and NaN is rejected.
 //
-// The k8s prod cluster has three pods in tsid order: pod=one (947), pod=two (10277),
-// pod=three (9969). All expected values are derived from the acceptance formula above.
+// The hashed bytes are our internal series id, not the Prometheus label serialization, so the
+// exact kept subset below is implementation-defined; what matters is that it is stable and that
+// the negative pair partitions the input exactly. Over an aggregated input (limit_ratio over
+// sum by) rows are groups rather than series, so the identity is synthesized from the grouping
+// values.
+//
+// The k8s prod cluster has three pods: pod=one (947), pod=two (10277), pod=three (9969).
 
-// r=1.0: shortcut path; every series is accepted unconditionally.
+// r=1.0: every series is kept unconditionally.
 limit_ratio_r_one
 required_capability: promql_command_v0
 required_capability: promql_limit_ratio
@@ -22,7 +31,7 @@ result:double | step:datetime            | _timeseries:keyword
 10277.0       | 2024-05-10T01:00:00.000Z | "{""cluster"":""prod"",""pod"":""two"",""region"":[""eu"",""us""]}"
 ;
 
-// r=0.0: 0.0 * (total+1) = 0 which is never > accepted (>= 0), so no row is accepted.
+// r=0.0: no offset is below 0.0, so no series is kept.
 limit_ratio_r_zero
 required_capability: promql_command_v0
 required_capability: promql_limit_ratio
@@ -33,43 +42,36 @@ PROMQL index=k8s step=1h result=(limit_ratio(0.0, network.total_bytes_in{cluster
 result:double | step:datetime | _timeseries:keyword
 ;
 
-// r=0.5, 3 prod series: Bresenham trace
-//   pod=one:   0.5*(0+1)=0.5 > 0 -> ACCEPT  (total=1, accepted=1)
-//   pod=two:   0.5*(1+1)=1.0 > 1? no -> SKIP (total=2, accepted=1)
-//   pod=three: 0.5*(2+1)=1.5 > 1 -> ACCEPT  (total=3, accepted=2)
-// Result: pod=one (947) and pod=three (9969).
+// r=0.75 over the 3 prod series keeps a hash-determined subset (stable across runs).
 limit_ratio_bare
 required_capability: promql_command_v0
 required_capability: promql_limit_ratio
 required_capability: fix_promql_time_bucket_v2
-PROMQL index=k8s step=1h result=(limit_ratio(0.5, network.total_bytes_in{cluster="prod"}))
+PROMQL index=k8s step=1h result=(limit_ratio(0.75, network.total_bytes_in{cluster="prod"}))
 | SORT result;
 
 result:double | step:datetime            | _timeseries:keyword
 947.0         | 2024-05-10T01:00:00.000Z | "{""cluster"":""prod"",""pod"":""one"",""region"":[""eu"",""us""]}"
-9969.0        | 2024-05-10T01:00:00.000Z | "{""cluster"":""prod"",""pod"":""three"",""region"":[""eu"",""us""]}"
 ;
 
-// r=0.5 evaluated per step.
-// step 00:20: only pod=three has samples in the 5-min window; 1 series -> ceil(0.5)=1, accepted.
-// step 00:25: pod=one and pod=two have samples; 2 series:
-//   pod=one:  0.5*(0+1)=0.5 > 0 -> ACCEPT
-//   pod=two:  0.5*(1+1)=1.0 > 1? no -> SKIP
+// r=0.75 evaluated per step: each step keeps the bare-case subset intersected with the series
+// present at that step. This is the cross-step stability property: kept series do not change
+// between steps.
+// step 00:20: only pod=three has samples; it is not in the bare subset, so nothing is kept.
+// step 00:25: pod=one and pod=two have samples; only pod=one is in the bare subset.
 limit_ratio_multi_step
 required_capability: promql_command_v0
 required_capability: promql_limit_ratio
 required_capability: fix_promql_time_bucket_v2
 required_capability: fix_tstep_bucket_rounding
-PROMQL index=k8s step=5m start="2024-05-10T00:20:00.000Z" end="2024-05-10T00:25:00.000Z" result=(limit_ratio(0.5, network.total_bytes_in{cluster="prod"}))
+PROMQL index=k8s step=5m start="2024-05-10T00:20:00.000Z" end="2024-05-10T00:25:00.000Z" result=(limit_ratio(0.75, network.total_bytes_in{cluster="prod"}))
 | SORT step, result;
 
 result:double | step:datetime            | _timeseries:keyword
-9969.0        | 2024-05-10T00:20:00.000Z | "{""cluster"":""prod"",""pod"":""three"",""region"":[""eu"",""us""]}"
 947.0         | 2024-05-10T00:25:00.000Z | "{""cluster"":""prod"",""pod"":""one"",""region"":[""eu"",""us""]}"
 ;
 
-// `by (pod)` partitions the ratio across all clusters. r=1.0 returns every series in each group,
-// making the result independent of storage order. Full identity is preserved.
+// `by (pod)` with r=1.0 returns every series; full identity is preserved.
 limit_ratio_by_grouping
 required_capability: promql_command_v0
 required_capability: promql_limit_ratio
@@ -89,11 +91,8 @@ result:double | step:datetime            | _timeseries:keyword
 10797.0       | 2024-05-10T01:00:00.000Z | "{""cluster"":""qa"",""pod"":""three""}"
 ;
 
-// `by (pod)` with a fractional ratio applies Bresenham sampling within each pod group.
-// Each pod has 3 series (one per cluster), so ceil(0.5 * 3) = 2 are kept per pod.
-// Within each pod the 1st and 3rd series in storage order are kept and the 2nd is skipped,
-// mirroring the bare limit_ratio_bare trace (keep 1st and 3rd of 3).
-// Expected rows assume per-pod storage order prod, staging, qa (middle staging series skipped).
+// `by (pod)` with r=0.5 samples each series by its own hash; `by` is a membership no-op
+// like in Prometheus. Together with the r=-0.5 case below this partitions all 9 series.
 limit_ratio_by_pod_fractional
 required_capability: promql_command_v0
 required_capability: promql_limit_ratio
@@ -102,17 +101,32 @@ PROMQL index=k8s step=1h result=(limit_ratio(0.5, network.total_bytes_in) by (po
 | SORT result;
 
 result:double | step:datetime            | _timeseries:keyword
+7403.0        | 2024-05-10T01:00:00.000Z | "{""cluster"":""staging"",""pod"":""three"",""region"":""us""}"
+10797.0       | 2024-05-10T01:00:00.000Z | "{""cluster"":""qa"",""pod"":""three""}"
+;
+
+// r=-0.5 keeps exactly the complement of the r=0.5 case above: every series appears in
+// exactly one of the two results.
+limit_ratio_by_pod_negative
+required_capability: promql_command_v0
+required_capability: promql_limit_ratio
+required_capability: fix_promql_time_bucket_v2
+PROMQL index=k8s step=1h result=(limit_ratio(-0.5, network.total_bytes_in) by (pod))
+| SORT result;
+
+result:double | step:datetime            | _timeseries:keyword
 947.0         | 2024-05-10T01:00:00.000Z | "{""cluster"":""prod"",""pod"":""one"",""region"":[""eu"",""us""]}"
+5187.0        | 2024-05-10T01:00:00.000Z | "{""cluster"":""staging"",""pod"":""two"",""region"":""us""}"
+6637.0        | 2024-05-10T01:00:00.000Z | "{""cluster"":""staging"",""pod"":""one"",""region"":""us""}"
 7286.0        | 2024-05-10T01:00:00.000Z | "{""cluster"":""qa"",""pod"":""one""}"
 8568.0        | 2024-05-10T01:00:00.000Z | "{""cluster"":""qa"",""pod"":""two""}"
 9969.0        | 2024-05-10T01:00:00.000Z | "{""cluster"":""prod"",""pod"":""three"",""region"":[""eu"",""us""]}"
 10277.0       | 2024-05-10T01:00:00.000Z | "{""cluster"":""prod"",""pod"":""two"",""region"":[""eu"",""us""]}"
-10797.0       | 2024-05-10T01:00:00.000Z | "{""cluster"":""qa"",""pod"":""three""}"
 ;
 
 // limit_ratio over an already-aggregated vector (sum by pod), mirroring limitk_over_sum_by.
-// The inner sum collapses the 3 prod pods to one row per pod; the outer ratio keeps
-// ceil(0.5 * 3) = 2 of those 3 rows (1st and 3rd in storage order: pod=one and pod=three).
+// The inner sum collapses the 3 prod pods to one row per pod; those rows are groups rather
+// than series, so the identity is synthesized from the pod value and the ratio samples pods.
 limit_ratio_over_sum_by
 required_capability: promql_command_v0
 required_capability: promql_limit_ratio
@@ -122,6 +136,25 @@ PROMQL index=k8s step=1h result=(limit_ratio(0.5, sum by (pod) (network.total_by
 | SORT result;
 
 result:double | step:datetime            | pod:keyword
-947.0         | 2024-05-10T01:00:00.000Z | one
 9969.0        | 2024-05-10T01:00:00.000Z | three
+10277.0       | 2024-05-10T01:00:00.000Z | two
+;
+
+// limit_ratio over a `without` aggregation: the inner groups carry no _timeseries either, and their
+// grain lives in packings rather than label columns, so the series key is the group packing.
+limit_ratio_over_sum_without
+required_capability: promql_command_v0
+required_capability: promql_limit_ratio
+required_capability: fix_promql_topk_over_aggregate
+required_capability: fix_promql_time_bucket_v2
+PROMQL index=k8s step=1h result=(limit_ratio(0.5, sum without (cluster) (network.total_bytes_in)))
+| SORT result;
+
+result:double | step:datetime            | _timeseries:keyword
+947.0         | 2024-05-10T01:00:00.000Z | "{""pod"":""one"",""region"":[""eu"",""us""]}"
+5187.0        | 2024-05-10T01:00:00.000Z | "{""pod"":""two"",""region"":""us""}"
+6637.0        | 2024-05-10T01:00:00.000Z | "{""pod"":""one"",""region"":""us""}"
+7286.0        | 2024-05-10T01:00:00.000Z | "{""pod"":""one""}"
+7403.0        | 2024-05-10T01:00:00.000Z | "{""pod"":""three"",""region"":""us""}"
+10277.0       | 2024-05-10T01:00:00.000Z | "{""pod"":""two"",""region"":[""eu"",""us""]}"
 ;

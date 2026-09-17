@@ -101,21 +101,20 @@ public class PromqlBuiltinFunctionDefinitions {
         .name("limitk");
 
     /**
-     * {@code limit_ratio(r, v)} retains exactly {@code ceil(r * N)} of N rows per group using
-     * Bresenham-style streaming sampling. Selection is O(groups) state with no buffering.
+     * {@code limit_ratio(r, v)} keeps each series iff its series-identity hash falls below {@code r},
+     * like Prometheus. The kept subset is stable across steps, runs, and shards; no per-group state.
      */
     public static final PromqlFunctionDefinition LIMIT_RATIO = PromqlFunctionDefinition.def()
         .acrossSeriesBinaryRatioReduce(PromqlFunctionDefinition.RATIO)
         .counterSupport(PromqlFunctionDefinition.CounterSupport.SUPPORTED)
-        .description("Returns a ratio `r` of elements from the input vector in storage order, keeping their full label set.")
+        .description("Returns a ratio `r` of the series from the input vector, keeping their full label set.")
         .example("limit_ratio(0.5, http_requests_total)")
         .stack(PromqlFunctionDefinition.STACK_GA_9_6)
         .differenceFromPrometheus(
-            "Elements are selected in storage-arrival order rather than by hashing series labels, so the kept subset "
-                + "can change when a series is missing at a step, whereas Prometheus keeps a series iff "
-                + "`hash(its labels) < r`. The ratio is applied independently within each `by` group, whereas "
-                + "`by` is effectively a no-op in Prometheus. Negative and non-finite ratios are rejected; "
-                + "a `without` grouping clause is not yet supported."
+            "Series are kept by hashing our internal series id rather than the Prometheus label serialization, "
+                + "so the kept subset has the same statistical properties but is generally a different subset than "
+                + "the one Prometheus keeps. `by` is a membership no-op as in Prometheus. "
+                + "A `without` grouping clause is not yet supported."
         )
         .name("limit_ratio");
 

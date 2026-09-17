@@ -20,15 +20,16 @@ import java.util.List;
 import java.util.Objects;
 
 /**
- * Retains a ratio of rows per group using Bresenham-style streaming sampling.
- * For {@code limit_ratio(r, v)}, exactly {@code ceil(r * N)} of N rows are kept per group,
- * in arrival order, with O(groups) state and no buffering.
+ * Retains a ratio of series using Prometheus-compatible hash sampling: each series is kept or
+ * dropped by hashing its series identity, so the kept subset is stable across steps, runs, and
+ * shards. The keep/drop decision is per-series stateless, unlike a count-based limit.
  * <p>
- * Runs on the coordinator only: unlike a fixed {@code LIMIT N BY}, a ratio limit cannot be
- * pushed down to data nodes (per-shard {@code ceil(r * N_local)} followed by a coordinator
- * {@code ceil(r * N_combined)} would under-count), so it requires the global per-group view.
+ * Like the other reductions ({@code TopNBy}) this is a {@link PipelineBreaker}: it runs on the
+ * coordinator after the per-series rows are collected. Pushing the stateless filter itself down
+ * to data nodes is a possible follow-up; it is not needed for PromQL compliance since the
+ * hashed subset is identical wherever it is computed.
  */
-public class LimitRatioBy extends UnaryPlan implements PipelineBreaker, ExecutesOn.Coordinator {
+public class LimitRatioBy extends UnaryPlan implements PipelineBreaker {
     public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(
         LogicalPlan.class,
         "LimitRatioBy",
@@ -37,11 +38,18 @@ public class LimitRatioBy extends UnaryPlan implements PipelineBreaker, Executes
 
     private final Expression ratio;
     private final List<Expression> groupings;
+    /**
+     * The per-row series identity the hash filter samples on: the {@code _timeseries} attribute
+     * when the input is at series grain, otherwise a translator-synthesized key (for example over
+     * an aggregated input whose rows are groups, not series).
+     */
+    private final Expression seriesKey;
 
-    public LimitRatioBy(Source source, LogicalPlan child, Expression ratio, List<Expression> groupings) {
+    public LimitRatioBy(Source source, LogicalPlan child, Expression ratio, List<Expression> groupings, Expression seriesKey) {
         super(source, child);
         this.ratio = ratio;
         this.groupings = groupings;
+        this.seriesKey = seriesKey;
     }
 
     private LimitRatioBy(StreamInput in) throws IOException {
@@ -49,7 +57,8 @@ public class LimitRatioBy extends UnaryPlan implements PipelineBreaker, Executes
             Source.readFrom((PlanStreamInput) in),
             in.readNamedWriteable(LogicalPlan.class),
             in.readNamedWriteable(Expression.class),
-            in.readNamedWriteableCollectionAsList(Expression.class)
+            in.readNamedWriteableCollectionAsList(Expression.class),
+            in.readNamedWriteable(Expression.class)
         );
     }
 
@@ -59,6 +68,7 @@ public class LimitRatioBy extends UnaryPlan implements PipelineBreaker, Executes
         out.writeNamedWriteable(child());
         out.writeNamedWriteable(ratio());
         out.writeNamedWriteableCollection(groupings());
+        out.writeNamedWriteable(seriesKey());
     }
 
     @Override
@@ -68,12 +78,12 @@ public class LimitRatioBy extends UnaryPlan implements PipelineBreaker, Executes
 
     @Override
     protected NodeInfo<LimitRatioBy> info() {
-        return NodeInfo.create(this, LimitRatioBy::new, child(), ratio, groupings);
+        return NodeInfo.create(this, LimitRatioBy::new, child(), ratio, groupings, seriesKey);
     }
 
     @Override
     public LimitRatioBy replaceChild(LogicalPlan newChild) {
-        return new LimitRatioBy(source(), newChild, ratio, groupings);
+        return new LimitRatioBy(source(), newChild, ratio, groupings, seriesKey);
     }
 
     public Expression ratio() {
@@ -84,14 +94,18 @@ public class LimitRatioBy extends UnaryPlan implements PipelineBreaker, Executes
         return groupings;
     }
 
+    public Expression seriesKey() {
+        return seriesKey;
+    }
+
     @Override
     public boolean expressionsResolved() {
-        return ratio.resolved() && Resolvables.resolved(groupings);
+        return ratio.resolved() && seriesKey.resolved() && Resolvables.resolved(groupings);
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(ratio, child(), groupings);
+        return Objects.hash(ratio, child(), groupings, seriesKey);
     }
 
     @Override
@@ -103,6 +117,9 @@ public class LimitRatioBy extends UnaryPlan implements PipelineBreaker, Executes
             return false;
         }
         LimitRatioBy other = (LimitRatioBy) obj;
-        return Objects.equals(ratio, other.ratio) && Objects.equals(child(), other.child()) && Objects.equals(groupings, other.groupings);
+        return Objects.equals(ratio, other.ratio)
+            && Objects.equals(child(), other.child())
+            && Objects.equals(groupings, other.groupings)
+            && Objects.equals(seriesKey, other.seriesKey);
     }
 }

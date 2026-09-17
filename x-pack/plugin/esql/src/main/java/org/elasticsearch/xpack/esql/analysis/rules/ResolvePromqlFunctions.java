@@ -274,24 +274,18 @@ public class ResolvePromqlFunctions extends ParameterizedAnalyzerRule<PromqlComm
         if (ratio.foldable() == false) {
             throw new VerificationException(List.of(Failure.fail(unresolved, "expected literal ratio in call to function [{}]", name)));
         }
+        // Any numeric literal is accepted, except NaN which Prometheus rejects: like Prometheus,
+        // out-of-range ratios need no clamping (r > 1 and r < -1 keep everything) and negative
+        // ratios keep the inverted selection (offsets at or above 1 + r).
         Object folded = ratio.fold(FoldContext.small());
-        if (folded instanceof Number number) {
-            double value = number.doubleValue();
-            if (Double.isFinite(value) == false) {
-                throw new VerificationException(
-                    List.of(Failure.fail(unresolved, "ratio in call to function [{}] must be finite, got [{}]", name, value))
-                );
-            }
-            if (value < 0.0) {
-                throw new VerificationException(
-                    List.of(Failure.fail(unresolved, "negative ratio in call to function [{}] is not supported, got [{}]", name, value))
-                );
-            }
-            return;
+        if (folded instanceof Number number && Double.isNaN(number.doubleValue())) {
+            throw new VerificationException(List.of(Failure.fail(unresolved, "ratio in call to function [{}] must not be NaN", name)));
         }
-        throw new VerificationException(
-            List.of(Failure.fail(unresolved, "expected numeric ratio in call to function [{}], got [{}]", name, folded))
-        );
+        if (folded instanceof Number == false) {
+            throw new VerificationException(
+                List.of(Failure.fail(unresolved, "expected numeric ratio in call to function [{}], got [{}]", name, folded))
+            );
+        }
     }
 
     /**

@@ -188,7 +188,13 @@ public class Mapper {
 
         if (unary instanceof LimitRatioBy limitRatioBy) {
             mappedChild = addExchangeForFragment(limitRatioBy, mappedChild);
-            return new LimitRatioByExec(limitRatioBy.source(), mappedChild, limitRatioBy.ratio(), limitRatioBy.groupings());
+            return new LimitRatioByExec(
+                limitRatioBy.source(),
+                mappedChild,
+                limitRatioBy.ratio(),
+                limitRatioBy.groupings(),
+                limitRatioBy.seriesKey()
+            );
         }
 
         if (unary instanceof TopN topN) {

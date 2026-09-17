@@ -14,7 +14,7 @@
 **Parameters**
 
 `r` (`scalar`)
-:   Ratio value (0 ≤ r ≤ 1).
+:   Ratio of series to keep (-1 ≤ r ≤ 1); the absolute value selects the share, a negative r inverts the selection.
 
 `v` (`instant_vector`)
 :   Instant vector input.
@@ -27,4 +27,4 @@ limit_ratio(0.5, http_requests_total)
 
 **Differences from Prometheus**
 
-Elements are selected in storage-arrival order rather than by hashing series labels, so the kept subset can change when a series is missing at a step, whereas Prometheus keeps a series iff `hash(its labels) < r`. The ratio is applied independently within each `by` group, whereas `by` is effectively a no-op in Prometheus. Negative and non-finite ratios are rejected; a `without` grouping clause is not yet supported.
+Series are kept by hashing our internal series id rather than the Prometheus label serialization, so the kept subset has the same statistical properties but is generally a different subset than the one Prometheus keeps. `by` is a membership no-op as in Prometheus. A `without` grouping clause is not yet supported.

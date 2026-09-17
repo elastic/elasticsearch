@@ -14,11 +14,13 @@ import org.elasticsearch.xpack.esql.core.expression.FoldContext;
 import org.elasticsearch.xpack.esql.core.expression.MetadataAttribute;
 import org.elasticsearch.xpack.esql.plan.logical.ExecutesOn;
 import org.elasticsearch.xpack.esql.plan.logical.LimitRatioBy;
+import org.elasticsearch.xpack.esql.plan.logical.PipelineBreaker;
 import org.junit.Before;
 
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.as;
 import static org.hamcrest.Matchers.closeTo;
 import static org.hamcrest.Matchers.containsString;
+import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasItem;
 import static org.hamcrest.Matchers.instanceOf;
 
@@ -31,6 +33,24 @@ public class PromqlPlanLimitRatioTests extends AbstractPromqlPlanOptimizerTests 
     @Before
     public void assumeLimitRatioEnabled() {
         assumeTrue("Requires PROMQL_LIMIT_RATIO capability", EsqlCapabilities.Cap.PROMQL_LIMIT_RATIO.isEnabled());
+    }
+
+    /**
+     * {@code limit_ratio} over an aggregate samples result series, not raw series: the input rows are
+     * groups carrying no {@code _timeseries}, so the series key must be the group packing -- a real
+     * column -- and never a constant (a constant key would keep or drop every group together).
+     */
+    public void testLimitRatioOverAggregateUsesGroupCarriersAsSeriesKey() {
+        var plan = logicalOptimizerWithLatestVersion.optimize(
+            planPromql("PROMQL index=k8s step=1h result=(limit_ratio(0.5, sum by (pod) (network.total_bytes_in{cluster=\"prod\"})))", false)
+        );
+
+        var node = as(plan.collect(LimitRatioBy.class).get(0), LimitRatioBy.class);
+        assertThat(node.seriesKey().foldable(), equalTo(false));
+        assertThat(node.child().output(), hasItem((Attribute) node.seriesKey()));
+        var eval = as(node.child(), org.elasticsearch.xpack.esql.plan.logical.Eval.class);
+        assertThat(eval.fields().size(), equalTo(1));
+        assertThat(eval.fields().get(0).child().foldable(), equalTo(false));
     }
 
     public void testLimitRatioProducesLimitRatioBy() {
@@ -85,40 +105,53 @@ public class PromqlPlanLimitRatioTests extends AbstractPromqlPlanOptimizerTests 
     }
 
     /**
-     * A ratio limit needs the global per-group view: per-shard {@code ceil(r * N_local)} followed by a
-     * coordinator {@code ceil(r * N_combined)} would under-count, so the node must run on the coordinator only.
+     * Like the other reductions ({@code TopNBy}) the node is a {@link PipelineBreaker} running on the
+     * coordinator after collection, but the hash predicate itself is per-series stateless: it needs no
+     * global per-group view, so unlike before it must not claim {@link ExecutesOn.Coordinator}.
      */
-    public void testLimitRatioRunsOnCoordinatorOnly() {
+    public void testLimitRatioPlacedLikeTopK() {
         var plan = logicalOptimizerWithLatestVersion.optimize(
             planPromql("PROMQL index=k8s step=1h result=(limit_ratio(0.5, network.bytes_in))", false)
         );
 
         var node = as(plan.collect(LimitRatioBy.class).get(0), LimitRatioBy.class);
-        assertThat(node, instanceOf(ExecutesOn.Coordinator.class));
+        assertThat(node, instanceOf(PipelineBreaker.class));
+        assertThat(node instanceof ExecutesOn.Coordinator, equalTo(false));
     }
 
-    public void testLimitRatioNegativeRejected() {
-        var e = expectThrows(
-            VerificationException.class,
-            () -> planPromql("PROMQL index=k8s step=1h result=(limit_ratio(-0.5, network.bytes_in))", true)
+    /**
+     * Like Prometheus, a negative ratio is accepted and keeps the complement subset
+     * (offsets at or above {@code 1 + r}).
+     */
+    public void testLimitRatioNegativeAcceptedAsComplement() {
+        var plan = logicalOptimizerWithLatestVersion.optimize(
+            planPromql("PROMQL index=k8s step=1h result=(limit_ratio(-0.5, network.bytes_in))", false)
         );
-        assertThat(e.getMessage(), containsString("negative ratio"));
+
+        var node = as(plan.collect(LimitRatioBy.class).get(0), LimitRatioBy.class);
+        assertThat(((Number) node.ratio().fold(FoldContext.small())).doubleValue(), closeTo(-0.5, 1e-10));
     }
 
+    /**
+     * Like Prometheus, NaN ratios are rejected; infinite ratios clamp naturally (+Inf keeps everything).
+     */
     public void testLimitRatioNaNRejected() {
         var e = expectThrows(
             VerificationException.class,
             () -> planPromql("PROMQL index=k8s step=1h result=(limit_ratio(nan, network.bytes_in))", true)
         );
-        assertThat(e.getMessage(), containsString("must be finite"));
+        assertThat(e.getMessage(), containsString("must not be NaN"));
     }
 
-    public void testLimitRatioInfiniteRejected() {
-        var e = expectThrows(
-            VerificationException.class,
-            () -> planPromql("PROMQL index=k8s step=1h result=(limit_ratio(Inf, network.bytes_in))", true)
+    /**
+     * Like Prometheus, infinite ratios are accepted and clamp naturally (+Inf keeps everything).
+     */
+    public void testLimitRatioInfiniteAccepted() {
+        var plan = logicalOptimizerWithLatestVersion.optimize(
+            planPromql("PROMQL index=k8s step=1h result=(limit_ratio(Inf, network.bytes_in))", false)
         );
-        assertThat(e.getMessage(), containsString("must be finite"));
+
+        assertThat(plan.collect(LimitRatioBy.class).get(0), instanceOf(LimitRatioBy.class));
     }
 
     public void testLimitRatioStringRejected() {

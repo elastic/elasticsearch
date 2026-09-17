@@ -41,8 +41,8 @@ import org.elasticsearch.compute.operator.DriverContext;
 import org.elasticsearch.compute.operator.EvalOperator.EvalOperatorFactory;
 import org.elasticsearch.compute.operator.FilterOperator.FilterOperatorFactory;
 import org.elasticsearch.compute.operator.GroupedLimitOperator;
-import org.elasticsearch.compute.operator.GroupedRatioLimitOperator;
 import org.elasticsearch.compute.operator.HashAggregationOperator;
+import org.elasticsearch.compute.operator.HashRatioLimitOperator;
 import org.elasticsearch.compute.operator.HighlightConfig;
 import org.elasticsearch.compute.operator.HighlightOperator;
 import org.elasticsearch.compute.operator.InsertEmptyBucketsOperator;
@@ -2493,23 +2493,17 @@ public class LocalExecutionPlanner {
         } else {
             throw new EsqlIllegalArgumentException("LIMIT RATIO BY ratio must be a numeric literal, got [{}]", folded);
         }
-        if (Double.isFinite(ratioValue) == false) {
-            throw new EsqlIllegalArgumentException("LIMIT RATIO BY ratio must be finite, got [{}]", ratioValue);
-        }
-        if (ratioValue < 0.0) {
-            throw new EsqlIllegalArgumentException("LIMIT RATIO BY ratio must not be negative, got [{}]", ratioValue);
-        }
+        // Any double is a valid ratio: like Prometheus, out-of-range values clamp naturally
+        // (r > 1 keeps everything, r < -1 keeps everything via the complement branch)
+        // and NaN keeps nothing, so no validation is needed here. Non-numeric and non-literal
+        // ratios are rejected at analysis time.
         Layout layout = source.layout;
-        List<Integer> groupKeys = limitRatioBy.groupings()
-            .stream()
-            .map(g -> getAttributeChannel(g, layout, "LIMIT RATIO BY expression must be an attribute"))
-            .toList();
-        List<Layout.ChannelSet> inverse = layout.inverse();
-        List<ElementType> elementTypes = new ArrayList<>(layout.numberOfChannels());
-        for (int channel = 0; channel < inverse.size(); channel++) {
-            elementTypes.add(PlannerUtils.toElementType(inverse.get(channel).type()));
+        int seriesChannel = getAttributeChannel(limitRatioBy.seriesKey(), layout, "LIMIT RATIO BY series key must be an attribute");
+        DataType keyType = layout.inverse().get(seriesChannel).type();
+        if (PlannerUtils.toElementType(keyType) != ElementType.BYTES_REF) {
+            throw new EsqlIllegalArgumentException("LIMIT RATIO BY requires the series key to be a keyword, got [{}]", keyType);
         }
-        return source.with(new GroupedRatioLimitOperator.Factory(ratioValue, groupKeys, elementTypes), source.layout);
+        return source.with(new HashRatioLimitOperator.Factory(ratioValue, seriesChannel), source.layout);
     }
 
     private PhysicalOperation planMvExpand(MvExpandExec mvExpandExec, LocalExecutionPlannerContext context) {

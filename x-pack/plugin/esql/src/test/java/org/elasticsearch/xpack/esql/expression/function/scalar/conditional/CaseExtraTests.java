@@ -439,6 +439,30 @@ public class CaseExtraTests extends ESTestCase {
         assertThat(c.fold(FoldContext.small()), equalTo(expected));
     }
 
+    /**
+     * {@code foldable} has to agree with {@code fold} about a one value list. If it says a CASE
+     * is foldable when the branch {@code fold} takes is not, the optimizer folds an expression
+     * that {@code fold} then cannot handle.
+     */
+    public void testSingleValuedListConditionFoldableMatchesTakenBranch() {
+        int value = randomInt();
+        assertFalse(resolvedCase(listCondition(true), field("f", DataType.INTEGER), intLiteral(value)).foldable());
+
+        Case takesTheLiteral = resolvedCase(listCondition(true), intLiteral(value), field("f", DataType.INTEGER));
+        assertTrue(takesTheLiteral.foldable());
+        assertThat(takesTheLiteral.fold(FoldContext.small()), equalTo(value));
+    }
+
+    public void testPartialFoldSingleValuedListCondition() {
+        Case c = new Case(
+            Source.synthetic("case"),
+            new Literal(Source.EMPTY, List.of(true), DataType.BOOLEAN),
+            List.of(field("first", DataType.LONG), field("last", DataType.LONG))
+        );
+        assertThat(c.foldable(), equalTo(false));
+        assertThat(c.partiallyFold(FoldContext.small()), equalToIgnoringIds(field("first", DataType.LONG)));
+    }
+
     public void testMultivaluedListConditionMatchesEvaluator() {
         int taken = randomInt();
         int unused = randomValueOtherThan(taken, ESTestCase::randomInt);

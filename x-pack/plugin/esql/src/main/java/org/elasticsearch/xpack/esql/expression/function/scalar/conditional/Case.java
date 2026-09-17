@@ -293,7 +293,7 @@ public final class Case extends EsqlScalarFunction {
                         if the value is foldable and the rest of the conditions are foldable, Case is foldable
                  */
                 if (condition.condition instanceof Literal literal) {
-                    if (Boolean.TRUE.equals(literal.value())) {
+                    if (isTrue(literal.value())) {
                         // The condition is literally TRUE, so only the matching value needs to be foldable.
                         takenValue = condition.value;
                         break;
@@ -346,22 +346,27 @@ public final class Case extends EsqlScalarFunction {
         return type == DataType.DATE_PERIOD || type == DataType.TIME_DURATION;
     }
 
+    /**
+     * Is this the {@code true} the evaluator sees? {@code CaseLazyEvaluator#eval} reads the value
+     * out of the Block, so a one value list is single valued and counts, while more than one is
+     * multivalued and is treated as false.
+     */
+    private static boolean isTrue(Object value) {
+        if (value instanceof List<?> values) {
+            return values.size() == 1 && Boolean.TRUE.equals(values.getFirst());
+        }
+        return Boolean.TRUE.equals(value);
+    }
+
     private static Expression takenBranch(FoldContext ctx, Case current) {
         for (Condition condition : current.conditions) {
             Object folded = condition.condition.fold(ctx);
-            if (folded instanceof List<?> values) {
-                if (values.size() > 1) {
-                    // Multivalued conditions are false. Folding builds no evaluator, so the
-                    // warning CaseLazyEvaluator#eval would have raised has to come from here.
-                    if (hasNoEvaluator(current) == false) {
-                        warnMultivaluedCondition(condition.condition);
-                    }
-                    continue;
-                }
-                // One value is single valued, which is how the evaluator reads it out of the Block.
-                folded = values.isEmpty() ? null : values.getFirst();
+            if (folded instanceof List<?> values && values.size() > 1 && hasNoEvaluator(current) == false) {
+                // Folding builds no evaluator, so the warning CaseLazyEvaluator#eval would have
+                // raised for a multivalued condition has to come from here.
+                warnMultivaluedCondition(condition.condition);
             }
-            if (Boolean.TRUE.equals(folded)) {
+            if (isTrue(folded)) {
                 return condition.value;
             }
         }
@@ -417,10 +422,10 @@ public final class Case extends EsqlScalarFunction {
                 continue;
             }
             modified = true;
-            if (Boolean.TRUE.equals(condition.condition.fold(ctx))) {
+            if (isTrue(condition.condition.fold(ctx))) {
                 /*
                  * `fold` can make four things here:
-                 * 1. `TRUE`
+                 * 1. `TRUE`, or a one element list holding it, which is single valued
                  * 2. `FALSE`
                  * 3. null
                  * 4. A list with more than one `TRUE` or `FALSE` in it.

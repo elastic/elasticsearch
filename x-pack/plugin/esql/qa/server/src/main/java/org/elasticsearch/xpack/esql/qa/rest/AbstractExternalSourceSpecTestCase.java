@@ -195,10 +195,7 @@ public abstract class AbstractExternalSourceSpecTestCase extends EsqlSpecTestCas
     }
 
     private static List<Object[]> readBaseSpecTests(String... specPatterns) throws Exception {
-        List<URL> urls = new ArrayList<>();
-        for (String pattern : specPatterns) {
-            urls.addAll(classpathResources(pattern));
-        }
+        List<URL> urls = classpathResources(specPatterns);
         if (urls.isEmpty()) {
             throw new IllegalStateException("No csv-spec files found for patterns: " + List.of(specPatterns));
         }

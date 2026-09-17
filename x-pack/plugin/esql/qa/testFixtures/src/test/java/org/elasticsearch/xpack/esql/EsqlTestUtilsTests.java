@@ -7,8 +7,8 @@
 
 package org.elasticsearch.xpack.esql;
 
-import org.elasticsearch.core.Tuple;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.xpack.esql.EsqlTestUtils.PathAndName;
 
 import java.io.IOException;
 import java.net.URL;
@@ -86,8 +86,8 @@ public class EsqlTestUtilsTests extends ESTestCase {
     }
 
     public void testPathAndNameSplitsAtDirectoryBoundary() {
-        assertThat(EsqlTestUtils.pathAndName("datasources/file.csv-spec"), equalTo(new Tuple<>("datasources", "file.csv-spec")));
-        assertThat(EsqlTestUtils.pathAndName("file.csv-spec"), equalTo(new Tuple<>("", "file.csv-spec")));
+        assertThat(PathAndName.from("datasources/file.csv-spec"), equalTo(new PathAndName("datasources", "file.csv-spec")));
+        assertThat(PathAndName.from("file.csv-spec"), equalTo(new PathAndName("", "file.csv-spec")));
     }
 
     private static void writeResource(Path directory, String name) throws IOException {
@@ -102,7 +102,7 @@ public class EsqlTestUtilsTests extends ESTestCase {
     }
 
     private static List<String> resourceNames(List<URL> resources) {
-        return resources.stream().map(url -> EsqlTestUtils.pathAndName(url.getPath()).v2()).toList();
+        return resources.stream().map(url -> EsqlTestUtils.PathAndName.from(url.getPath()).name()).toList();
     }
 
     public void testPromQL() {

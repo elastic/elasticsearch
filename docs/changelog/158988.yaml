@@ -1,5 +1,7 @@
 pr: 158988
-summary: "`_id`, `_version` and `_source` on a dataset bind and return null, and `mappings._id` is refused"
+summary: "Dataset metadata columns answer what they name: `_id`, `_version` and `_source`\
+  \ bind and return null, `_score` is zero, `mappings._id` is refused, and every relation\
+  \ answers the new `_class` and `_name`"
 area: ES|QL
 type: enhancement
 issues: []

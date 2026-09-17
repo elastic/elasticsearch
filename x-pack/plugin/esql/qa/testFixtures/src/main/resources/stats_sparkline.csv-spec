@@ -295,6 +295,20 @@ s:long | t:null
 1      | null
 ;
 
+withCompanionAggAndNullGroupKey
+required_capability: fn_sparkline_from_partial_null_keys
+FROM employees
+| WHERE emp_no == 10001 OR emp_no == 10010
+| STATS t = MIN(gender), s = SPARKLINE(COUNT(*), hire_date, 10, "1985-01-01T00:00:00Z", "2000-01-01T00:00:00Z") BY emp_no
+| KEEP emp_no, t
+| SORT emp_no
+;
+
+emp_no:integer | t:keyword
+10001          | M
+10010          | null
+;
+
 sparklineComplexWithGroupingMapped
 required_capability: fn_sparkline_nested
 FROM employees

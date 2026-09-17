@@ -96,7 +96,8 @@ public class Sparkline extends AggregateFunction implements AggregateMetricDoubl
             "null_alongside", // Fix for null aggs (e.g. COUNT_DISTINCT(null)) paired with SPARKLINE
             "reject_mv", // Rejects multi-valued aggregates (TOP, SAMPLE, VALUES) as first argument
             "duplicate_surrogates", // Fix for surrogate aggs appearing both inside and outside SPARKLINE
-            "nested" // Fix for more SPARKLINE nested in another expression
+            "nested", // Fix for more SPARKLINE nested in another expression
+            "from_partial_null_keys" // Enable group-id tracking when FromPartial merges nullable keys
         )
         .name("sparkline");
 

@@ -131,4 +131,68 @@ public class FixtureContractAuditTests extends ESTestCase {
         int cells = FixtureContractAudit.audit(FixtureDimensions.get()).size();
         assertThat(written, containsString("cells=" + cells + "  violations=0"));
     }
+
+    /**
+     * A cell that is neither reachable nor licensed fails the build, and the report names it. Driven by a
+     * declaration that has such a cell, because the real one does not and the point of the gate is that it
+     * never will.
+     */
+    public void testAViolatingCellFailsTheAuditAndIsNamedInTheReport() throws IOException {
+        FixtureDimensions dimensions = FixtureDimensions.parse(
+            declaration(
+                "dimension.format.values = csv, parquet",
+                "dimension.format.default = csv",
+                "dimension.format.binds = fixture",
+                "dimension.error_mode.values = fail_fast, skip_row",
+                "dimension.error_mode.default = fail_fast",
+                "dimension.error_mode.binds = backend",
+                "pair.error_mode.format = interacting"
+            )
+        );
+        Path report = createTempDir().resolve("contract.txt");
+
+        Exception e = expectThrows(IllegalStateException.class, () -> FixtureContractAudit.run(dimensions, noExclusions(), report));
+        assertThat(e.getMessage(), containsString("dimension contract audit failed with"));
+        assertThat(e.getMessage(), containsString("error_mode=skip_row"));
+
+        assertThat("the report is written before the failure, so the reader can see what failed", Files.exists(report), equalTo(true));
+        assertThat(Files.readString(report), containsString("error_mode"));
+    }
+
+    /**
+     * The exclusions are held to the contract's own standard: an exclusion blaming a defect has to name
+     * the filed issue, or nothing closes the exclusion when the defect is fixed.
+     */
+    public void testAnExclusionBlamingAnUncitedDefectFailsTheAudit() throws IOException {
+        Properties exclusions = new Properties();
+        exclusions.setProperty("suites", "csv");
+        exclusions.setProperty("exclude.csv.some-spec.someCase", "bug: the reader truncates the delimiter");
+        Path report = createTempDir().resolve("contract.txt");
+
+        Exception e = expectThrows(
+            IllegalStateException.class,
+            () -> FixtureContractAudit.run(FixtureDimensions.get(), FixtureExclusions.parse(exclusions), report)
+        );
+        assertThat(e.getMessage(), containsString("claim a defect with no filed issue"));
+        assertThat(e.getMessage(), containsString("csv.someCase"));
+        assertThat(Files.readString(report), containsString("UNCITED-BUG"));
+    }
+
+    /** The same exclusion carrying its issue passes, so the citation is what the gate is checking. */
+    public void testACitedDefectIsAccepted() throws IOException {
+        Properties exclusions = new Properties();
+        exclusions.setProperty("suites", "csv");
+        exclusions.setProperty("exclude.csv.some-spec.someCase", "bug: elastic/esql-planning#1 the reader truncates it");
+        Path report = createTempDir().resolve("contract.txt");
+
+        FixtureContractAudit.run(FixtureDimensions.get(), FixtureExclusions.parse(exclusions), report);
+        assertThat(Files.readString(report), not(containsString("UNCITED-BUG")));
+    }
+
+    private static FixtureExclusions noExclusions() {
+        Properties props = new Properties();
+        props.setProperty("suites", "csv");
+        return FixtureExclusions.parse(props);
+    }
+
 }

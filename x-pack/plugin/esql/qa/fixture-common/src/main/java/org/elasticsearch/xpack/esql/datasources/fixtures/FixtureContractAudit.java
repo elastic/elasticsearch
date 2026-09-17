@@ -57,8 +57,19 @@ public final class FixtureContractAudit {
         if (args.length != 1) {
             throw new IllegalArgumentException("usage: FixtureContractAudit <reportFile>");
         }
-        Path report = Path.of(args[0]);
-        List<Cell> cells = audit(FixtureDimensions.get());
+        run(FixtureDimensions.get(), FixtureExclusions.get(), Path.of(args[0]));
+    }
+
+    /**
+     * Writes the report and then fails on what it found.
+     *
+     * <p>Takes its declaration and exclusions rather than reading the singletons, so the failing halves --
+     * a violated cell, an exclusion blaming an uncited defect -- can be driven by a declaration that has
+     * them. The real files do not and must not, so reaching those branches any other way would mean
+     * breaking the contract this class exists to keep.
+     */
+    static void run(FixtureDimensions dimensions, FixtureExclusions exclusions, Path report) throws IOException {
+        List<Cell> cells = audit(dimensions);
 
         List<String> out = new ArrayList<>();
         out.add("dimension contract audit");
@@ -84,7 +95,7 @@ public final class FixtureContractAudit {
         // case running must name a filed issue. Checked HERE rather than in the loader -- FixtureExclusions
         // is a singleton every suite loads, so throwing there fails every test in every module at class
         // init, which is an outage rather than enforcement.
-        List<FixtureExclusions.Exclusion> uncited = FixtureExclusions.get().uncitedBugs();
+        List<FixtureExclusions.Exclusion> uncited = exclusions.uncitedBugs();
         for (FixtureExclusions.Exclusion exclusion : uncited) {
             out.add(
                 String.format(

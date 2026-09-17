@@ -1247,4 +1247,132 @@ public class FixtureDimensionsTests extends ESTestCase {
         Exception e = expectThrows(IllegalStateException.class, () -> FixtureDimensions.parse(declaration(lines)));
         assertThat(e.getMessage(), containsString("is not one of the dimension's values"));
     }
+
+    /** The tier is written by hand into a system property, so it is matched without regard to case. */
+    public void testTierNamesAreMatchedCaseInsensitively() {
+        assertThat(FixtureDimensions.Tier.parse("CI"), equalTo(FixtureDimensions.Tier.CI));
+        assertThat(FixtureDimensions.Tier.parse(" nightly "), equalTo(FixtureDimensions.Tier.NIGHTLY));
+    }
+
+    /** The delimiter's spelling is the character the writer emits and the reader is told to expect. */
+    public void testTheDelimiterSpellingResolvesToOneCharacter() {
+        FixtureDimensions d = FixtureDimensions.get();
+        assertThat(d.delimiterChar("comma"), equalTo(','));
+        assertThat(d.delimiterChar("tab"), equalTo('\t'));
+        assertThat(d.delimiterChar("pipe"), equalTo('|'));
+    }
+
+    /** A codec's file extension is declared, so a renamed codec cannot keep an extension nothing writes. */
+    public void testACodecExtensionComesFromTheDeclaration() {
+        FixtureDimensions d = FixtureDimensions.get();
+        assertThat(d.extensionFor("text_codec", "gzip"), equalTo("gz"));
+        assertThat("a value with no declared extension has none", d.extensionFor("text_codec", "none"), nullValue());
+    }
+
+    /** A qualifier on an attribute that takes none is dead text: nothing reads the extra segment. */
+    public void testAnAttributeQualifierIsRejectedWhereNoneIsTaken() {
+        String[] lines = ArrayUtils.append(wellFormed(), "dimension.error_mode.binds.extra = directive");
+        Exception e = expectThrows(IllegalStateException.class, () -> FixtureDimensions.parse(declaration(lines)));
+        assertThat(e.getMessage(), containsString("takes no qualifier"));
+    }
+
+    /** The mirror: an attribute that is per-value means nothing without the value it applies to. */
+    public void testAPerValueAttributeWithoutItsValueIsRejected() {
+        String[] lines = ArrayUtils.append(wellFormed(), "dimension.error_mode.rule = rule: no value named");
+        Exception e = expectThrows(IllegalStateException.class, () -> FixtureDimensions.parse(declaration(lines)));
+        assertThat(e.getMessage(), containsString("requires a value name"));
+    }
+
+    /**
+     * An absence removes a cell from the crossing. Naming a value or a format that does not exist removes
+     * nothing, and nothing would ever report that the reason is inert.
+     */
+    public void testAnAbsenceMustNameARealValueAndFormat() {
+        String[] unknownValue = ArrayUtils.append(wellFormed(), "dimension.error_mode.rule.nope = rule: cannot be written");
+        assertThat(
+            expectThrows(IllegalStateException.class, () -> FixtureDimensions.parse(declaration(unknownValue))).getMessage(),
+            containsString("names a value the dimension does not declare")
+        );
+        String[] unknownFormat = ArrayUtils.append(wellFormed(), "dimension.error_mode.rule.skip_row.orc = rule: cannot be written");
+        assertThat(
+            expectThrows(IllegalStateException.class, () -> FixtureDimensions.parse(declaration(unknownFormat))).getMessage(),
+            containsString("names an undeclared format")
+        );
+    }
+
+    /** A tier promotes a cell into the pull-request battery, so it cannot name a format that has none. */
+    public void testATierMustNameADeclaredFormat() {
+        String[] lines = ArrayUtils.append(
+            wellFormed(),
+            "dimension.error_mode.tier.skip_row.orc = ci: elastic/esql-planning#1 -- the row-error path"
+        );
+        Exception e = expectThrows(IllegalStateException.class, () -> FixtureDimensions.parse(declaration(lines)));
+        assertThat(e.getMessage(), containsString("names an undeclared format"));
+    }
+
+    /** A backend mapping for a value the dimension does not declare would never be consulted. */
+    public void testABackendMappingMustNameADeclaredValue() {
+        String[] lines = ArrayUtils.append(wellFormed(), "dimension.error_mode.backend.nope = S3");
+        Exception e = expectThrows(IllegalStateException.class, () -> FixtureDimensions.parse(declaration(lines)));
+        assertThat(e.getMessage(), containsString("names a value the dimension does not declare"));
+    }
+
+    /**
+     * A stray key is a typo or an invented attribute, and either way nothing would read it -- except a
+     * trailing .why or .needs, which is prose hanging off an entry declared elsewhere and is skipped
+     * rather than refused.
+     */
+    public void testAStrayTopLevelKeyIsRejectedUnlessItIsAReason() {
+        String[] stray = ArrayUtils.append(wellFormed(), "nonsense.attribute = because");
+        Exception e = expectThrows(IllegalStateException.class, () -> FixtureDimensions.parse(declaration(stray)));
+        assertThat(e.getMessage(), containsString("expected 'dimension.<n>.*' or 'pair.<a>.<b>'"));
+
+        String[] reason = ArrayUtils.append(wellFormed(), "nonsense.why = because");
+        assertThat(
+            "prose attached to an entry declared elsewhere is skipped, not refused",
+            FixtureDimensions.parse(declaration(reason)).names(),
+            equalTo(List.of("error_mode", "format"))
+        );
+    }
+
+    /** An untraced pair is treated as interacting, so uncertainty costs test executions, never coverage. */
+    public void testAnUnverifiedPairIsTreatedAsInteracting() {
+        String[] lines = wellFormed().clone();
+        lines[6] = "pair.error_mode.format = unverified";
+        FixtureDimensions d = FixtureDimensions.parse(declaration(lines));
+        assertThat(d.verdict("error_mode", "format"), equalTo(FixtureDimensions.Verdict.UNVERIFIED));
+    }
+
+    /** Asking for a dimension the declaration does not have is a caller bug, not an empty answer. */
+    public void testAskingForAnUnknownDimensionIsRejected() {
+        Exception e = expectThrows(IllegalArgumentException.class, () -> FixtureDimensions.get().values("ghost"));
+        assertThat(e.getMessage(), containsString("unknown dimension [ghost]"));
+    }
+
+    /** Likewise a pair: an absent verdict would otherwise read as "does not interact" and cut cells. */
+    public void testAskingForAVerdictOnAnUnknownPairIsRejected() {
+        Exception e = expectThrows(IllegalArgumentException.class, () -> FixtureDimensions.get().verdict("format", "ghost"));
+        assertThat(e.getMessage(), containsString("no verdict for pair"));
+    }
+
+    /**
+     * A vector name carries the slots that are off their default and no others, so the name means the
+     * same configuration whichever tier generated it. The baseline slots are recovered from the
+     * declaration rather than from the name, which is why the round trip returns only the pinned ones.
+     */
+    public void testAVectorNameCarriesTheOffDefaultSlotsAndRoundTrips() {
+        FixtureDimensions d = FixtureDimensions.get();
+        Map<String, String> pinned = new LinkedHashMap<>(Map.of("format", "tsv", "text_mode", "escaped"));
+        assertThat(d.parseRendered(d.render(pinned)), equalTo(pinned));
+
+        Map<String, String> atBaseline = new LinkedHashMap<>(Map.of("format", "csv", "text_mode", "escaped"));
+        assertThat(
+            "csv is the default format, so it is not spelled into the name",
+            d.parseRendered(d.render(atBaseline)),
+            equalTo(Map.of("text_mode", "escaped"))
+        );
+
+        Exception e = expectThrows(IllegalArgumentException.class, () -> d.parseRendered("not-a-vector"));
+        assertThat(e.getMessage(), containsString("malformed vector name"));
+    }
 }

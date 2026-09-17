@@ -218,4 +218,121 @@ public class FixtureMatrixTests extends ESTestCase {
         declaration.setProperty("layout.standalone.dir", "standalone");
         return declaration;
     }
+
+    /**
+     * A derived layout's template is not its own dataset: it is assembled from another one, and the
+     * declaration says which. Without derived_from there is no dataset to ask about padding or dialect.
+     */
+    public void testADerivedLayoutResolvesToTheDatasetItIsBuiltFrom() {
+        Properties declaration = minimalDeclaration();
+        declaration.setProperty("layout.multifile.dir", "multifile");
+        declaration.setProperty("layout.multifile.derived_from", "employees");
+        FixtureMatrix matrix = FixtureMatrix.parse(declaration);
+        assertThat(matrix.layoutFor("employees_multifile").name(), equalTo("multifile"));
+        assertThat(matrix.datasetForTemplate("employees_multifile"), equalTo("employees"));
+    }
+
+    /**
+     * A layout built from no single dataset has nothing to inherit, so padding and dialect answer from
+     * what the generators actually write rather than throwing on a dataset that does not exist.
+     */
+    public void testALayoutWithNoSourceDatasetFallsBackRatherThanThrowing() {
+        Properties declaration = minimalDeclaration();
+        declaration.setProperty("layout.assembled.dir", "assembled");
+        FixtureMatrix matrix = FixtureMatrix.parse(declaration);
+        assertThat(matrix.datasetForTemplate("mixed_assembled"), nullValue());
+        assertThat(matrix.paddedForTemplate("mixed_assembled", "csv"), equalTo(false));
+        assertThat(matrix.writeDialectForTemplate("mixed_assembled"), equalTo("none"));
+    }
+
+    /**
+     * Excluding whole spec files removes coverage wholesale, so it costs a reason. Declaring the list and
+     * omitting the reason is the shape that reads as deliberate and is not.
+     */
+    public void testAWholeFileExclusionMustDeclareItsReason() {
+        Properties unexplained = minimalDeclaration();
+        unexplained.setProperty("suite.csv.specs.exclude", "some-spec");
+        assertThat(
+            expectThrows(IllegalStateException.class, () -> FixtureMatrix.parse(unexplained).excludedSpecs("csv")).getMessage(),
+            containsString("declares no reason")
+        );
+
+        Properties explained = minimalDeclaration();
+        explained.setProperty("suite.csv.specs.exclude", "some-spec, other-spec");
+        explained.setProperty("suite.csv.specs.exclude.reason", "rule: the reader cannot express these at all");
+        assertThat(FixtureMatrix.parse(explained).excludedSpecs("csv"), equalTo(Set.of("some-spec", "other-spec")));
+    }
+
+    /**
+     * A dialect a dataset cannot be written in is a skip, and a skip with no reason is indistinguishable
+     * from an oversight. The delimiter-qualified form stacks on the unqualified one rather than replacing
+     * it -- a dataset unrepresentable in a dialect is unrepresentable whatever the delimiter.
+     */
+    public void testUnrepresentableDialectsStackAndMustBeExplained() {
+        Properties unexplained = minimalDeclaration();
+        unexplained.setProperty("dataset.employees.unrepresentable_dialects", "plain");
+        assertThat(
+            expectThrows(IllegalStateException.class, () -> FixtureMatrix.parse(unexplained).unrepresentableDialects("employees"))
+                .getMessage(),
+            containsString("with no reason")
+        );
+
+        Properties explained = minimalDeclaration();
+        explained.setProperty("dataset.employees.unrepresentable_dialects", "plain");
+        explained.setProperty("dataset.employees.unrepresentable_dialects.reason", "rule: its values carry the delimiter");
+        explained.setProperty("dataset.employees.unrepresentable_dialects.semicolon", "escaped");
+        explained.setProperty("dataset.employees.unrepresentable_dialects.semicolon.reason", "rule: a semicolon appears in data");
+        FixtureMatrix matrix = FixtureMatrix.parse(explained);
+        assertThat(matrix.unrepresentableDialects("employees"), equalTo(Set.of("plain")));
+        assertThat(matrix.unrepresentableDialects("employees", "semicolon"), equalTo(Set.of("plain", "escaped")));
+    }
+
+    /**
+     * A dataset restricted to some formats is a gap in the crossing, so it carries a reason, and it cannot
+     * name a format the declaration does not have -- that entry would restrict nothing.
+     */
+    public void testARestrictedDatasetNeedsAReasonAndRealFormats() {
+        Properties noReason = minimalDeclaration();
+        noReason.setProperty("dataset.employees", "csv");
+        assertThat(
+            expectThrows(IllegalStateException.class, () -> FixtureMatrix.parse(noReason)).getMessage(),
+            containsString("declares no [dataset.employees.reason]")
+        );
+
+        Properties unknownFormat = minimalDeclaration();
+        unknownFormat.setProperty("dataset.employees", "avro");
+        unknownFormat.setProperty("dataset.employees.reason", "rule: only csv can carry it");
+        assertThat(
+            expectThrows(IllegalStateException.class, () -> FixtureMatrix.parse(unknownFormat)).getMessage(),
+            containsString("names unknown format")
+        );
+    }
+
+    /** A dataset that declares no unrepresentable dialects has none, rather than failing to look. */
+    public void testADatasetWithNoDeclaredUnrepresentableDialectsHasNone() {
+        assertThat(FixtureMatrix.parse(minimalDeclaration()).unrepresentableDialects("employees"), equalTo(Set.of()));
+    }
+
+    /**
+     * A blank list is the same missing decision as an absent one, and reads more like a deliberate empty
+     * set -- which is exactly the silent pass the declaration exists to prevent.
+     */
+    public void testABlankCodecListIsRefusedLikeAnAbsentOne() {
+        Properties declaration = minimalDeclaration();
+        declaration.setProperty("codec.text", "   ");
+        declaration.setProperty("codec.parquet", "");
+        FixtureMatrix matrix = FixtureMatrix.parse(declaration);
+        assertThat(expectThrows(IllegalStateException.class, () -> matrix.textCodecs(true)).getMessage(), containsString("codec.text"));
+        assertThat(
+            expectThrows(IllegalStateException.class, () -> matrix.parquetCodecs("parquet")).getMessage(),
+            containsString("codec.parquet")
+        );
+    }
+
+    /** A blank exclusion list excludes nothing, and needs no reason because it removes no coverage. */
+    public void testABlankSpecExclusionListExcludesNothing() {
+        Properties declaration = minimalDeclaration();
+        declaration.setProperty("suite.csv.specs.exclude", "  ");
+        assertThat(FixtureMatrix.parse(declaration).excludedSpecs("csv"), equalTo(Set.of()));
+    }
 }

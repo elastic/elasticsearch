@@ -26,6 +26,7 @@ import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.datasources.metadata.DataSource;
 import org.elasticsearch.xpack.esql.datasources.metadata.DataSourceMetadata;
 import org.elasticsearch.xpack.esql.datasources.metadata.DataSourceSetting;
+import org.elasticsearch.xpack.esql.datasources.spi.FormatReader;
 import org.elasticsearch.xpack.esql.plan.IndexPattern;
 import org.elasticsearch.xpack.esql.plan.LinkedIndexPattern;
 import org.elasticsearch.xpack.esql.plan.logical.DatasetShadowRelation;
@@ -524,6 +525,11 @@ public final class DatasetRewriter {
         Map<String, Object> merged = new HashMap<>();
         merged.putAll(dataset.settings());
         merged.keySet().removeAll(RemovedParquetDatasetSettings.KEYS);
+        // Legacy stored documents omit schema_resolution. Hydrate union_by_name on the query config
+        // only so those lakes keep extra columns / widening. Do not write cluster state.
+        if (merged.get(ExternalSourceResolver.CONFIG_SCHEMA_RESOLUTION) == null) {
+            merged.put(ExternalSourceResolver.CONFIG_SCHEMA_RESOLUTION, FormatReader.SchemaResolution.UNION_BY_NAME.configName());
+        }
         if (parent.settings().isEmpty() == false) {
             Map<String, Object> dsSettings = new HashMap<>();
             for (Map.Entry<String, DataSourceSetting> e : parent.settings()) {

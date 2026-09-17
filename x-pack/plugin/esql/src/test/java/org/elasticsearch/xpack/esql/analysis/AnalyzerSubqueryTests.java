@@ -16,10 +16,10 @@ import org.elasticsearch.common.logging.LoggerMessageFormat;
 import org.elasticsearch.common.lucene.BytesRefs;
 import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.indices.TestIndexNameExpressionResolver;
-import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.TransportVersionUtils;
 import org.elasticsearch.xpack.esql.TestAnalyzer;
 import org.elasticsearch.xpack.esql.VerificationException;
+import org.elasticsearch.xpack.esql.VersionMode;
 import org.elasticsearch.xpack.esql.action.EsqlCapabilities;
 import org.elasticsearch.xpack.esql.core.expression.Alias;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
@@ -65,7 +65,6 @@ import java.util.List;
 import java.util.Map;
 
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.TEST_PARSER;
-import static org.elasticsearch.xpack.esql.EsqlTestUtils.analyzer;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.as;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.loadMapping;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.referenceAttribute;
@@ -85,7 +84,11 @@ import static org.hamcrest.Matchers.is;
  * Negative tests for subquery analysis in {@code FROM} (and the related {@code ViewUnionAll}/{@code UnionAll} planning), or those don't
  * fit the golden tests. The successful plan-shape (positive) tests over real CSV datasets now live in {@code AnalyzerSubqueryGoldenTests}.
  */
-public class AnalyzerSubqueryTests extends ESTestCase {
+public class AnalyzerSubqueryTests extends AnalyzerTestCase {
+
+    public AnalyzerSubqueryTests(VersionMode versionMode) {
+        super(versionMode);
+    }
 
     private static final String SALARIES_INT_RESOURCE = "s3://bucket/salaries_int.parquet";
     private static final String SALARIES_LONG_RESOURCE = "s3://bucket/salaries_long.parquet";
@@ -1743,7 +1746,7 @@ public class AnalyzerSubqueryTests extends ESTestCase {
      * configured external source schemas — so a dataset branch is backed by an {@link ExternalRelation}, exactly like a
      * real dataset subquery. The plan is analyzed (not optimized) to match the neighbouring tests.
      */
-    private static LogicalPlan analyzeExternalDatasetSubquery(String query) {
+    private LogicalPlan analyzeExternalDatasetSubquery(String query) {
         DataSource dataSource = new DataSource("external_ds", "test", null, Map.of());
         Dataset intDataset = new Dataset("salaries_int", new DataSourceReference("external_ds"), SALARIES_INT_RESOURCE, null, Map.of());
         Dataset longDataset = new Dataset("salaries_long", new DataSourceReference("external_ds"), SALARIES_LONG_RESOURCE, null, Map.of());

@@ -22,6 +22,7 @@ import org.testcontainers.images.builder.ImageFromDockerfile;
 import org.testcontainers.utility.DockerImageName;
 import org.testcontainers.utility.LazyFuture;
 
+import java.util.concurrent.TimeUnit;
 import java.util.function.Supplier;
 
 /**
@@ -93,6 +94,10 @@ public class PullOrBuildImage extends LazyFuture<String> {
         return fallbackImage.get();
     }
 
+    // How long to wait for a remote image pull before giving up and building locally.
+    // Suite timeouts are typically 20 minutes; 10 minutes leaves headroom for the fallback build.
+    static final long PULL_TIMEOUT_MINUTES = 10;
+
     private boolean tryPull() {
         try {
             // Check if image exists locally first (using Testcontainers' cache and pull policy)
@@ -102,12 +107,20 @@ public class PullOrBuildImage extends LazyFuture<String> {
             }
 
             LOGGER.info("Attempting to pull remote image: {}", remoteImageName);
-            dockerClientSupplier.get()
+            boolean completed = dockerClientSupplier.get()
                 .pullImageCmd(remoteImageName.asCanonicalNameString())
                 .exec(new PullImageResultCallback())
-                .awaitCompletion();
-            LOGGER.info("Successfully pulled remote image: {}", remoteImageName);
-            return true;
+                .awaitCompletion(PULL_TIMEOUT_MINUTES, TimeUnit.MINUTES);
+            if (completed) {
+                LOGGER.info("Successfully pulled remote image: {}", remoteImageName);
+                return true;
+            }
+            LOGGER.info(
+                "Timed out after {} minutes pulling remote image: {}. Falling back to Dockerfile build.",
+                PULL_TIMEOUT_MINUTES,
+                remoteImageName
+            );
+            return false;
         } catch (NotFoundException e) {
             LOGGER.info("Remote image not found: {}. Falling back to Dockerfile build.", remoteImageName);
             return false;

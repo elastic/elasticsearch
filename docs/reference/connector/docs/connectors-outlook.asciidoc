@@ -135,10 +135,13 @@ MIID+jCCAuKgAwIBAgIGAJJMzlxLMA0GCSqGSIb3DQEBCwUAMHoxCzAJBgNVBAYT
 *Note:* This configuration is applicable for `Outlook Server` only.
 
 Sync all mail folders::
-Indexes mail from all mailbox folders, not only Inbox, Sent, Junk, and Archive.
-Other folders are stored as `Mail` with `folder_name`; the four default folders keep their existing types.
+Indexes mail from the user mail folders in each mailbox, not only Inbox, Sent, Junk, and Archive.
+Other folders are stored as `Mail` with a `folder_name` field.
+The four default folders keep their existing types.
+System folders such as Deleted Items, Drafts, Outbox, and search folders are never indexed.
+Enabling this setting increases sync time, load on Exchange, and index size.
 Default value is `false`.
-Introduced in 8.19.22.
+Introduced in 8.19.23.
 
 Document level security::
 Toggle to enable <<es-dls, Document level security (DLS)>>.
@@ -162,7 +165,7 @@ The connector syncs the following objects and entities:
 ** *Sent Mails*
 ** *Archive Mails*
 ** *Junk Mails*
-** *Mail* (other folders when **Sync all mail folders** is enabled; includes `folder_name`)
+** *Mail* (other user mail folders, when **Sync all mail folders** is enabled. Includes a `folder_name` field)
 * *Contacts*
 * *Calendar Events*
 * *Tasks*
@@ -351,10 +354,13 @@ Use <<es-connectors-content-extraction-data-extraction-service,self-hosted conte
 Default value is `False`.
 
 `sync_all_mail_folders`::
-Indexes mail from all mailbox folders, not only Inbox, Sent, Junk, and Archive.
-Other folders are stored as `Mail` with `folder_name`; the four default folders keep their existing types.
+Indexes mail from the user mail folders in each mailbox, not only Inbox, Sent, Junk, and Archive.
+Other folders are stored as `Mail` with a `folder_name` field.
+The four default folders keep their existing types.
+System folders such as Deleted Items, Drafts, Outbox, and search folders are never indexed.
+Enabling this setting increases sync time, load on Exchange, and index size.
 Default value is `False`.
-Introduced in 8.19.22.
+Introduced in 8.19.23.
 
 `document_level_security`::
 Toggle to enable <<es-dls, Document level security (DLS)>>.
@@ -385,7 +391,7 @@ The connector syncs the following objects and entities:
 ** *Sent Mails*
 ** *Archive Mails*
 ** *Junk Mails*
-** *Mail* (other folders when **Sync all mail folders** is enabled; includes `folder_name`)
+** *Mail* (other user mail folders, when **Sync all mail folders** is enabled. Includes a `folder_name` field)
 * *Contacts*
 * *Calendar Events*
 * *Tasks*

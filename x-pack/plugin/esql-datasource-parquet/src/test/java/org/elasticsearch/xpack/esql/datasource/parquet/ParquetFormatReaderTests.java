@@ -341,7 +341,7 @@ public class ParquetFormatReaderTests extends ESTestCase {
      * ({@code m.key_value.key}, {@code m.key_value.value}) that the flattener collapses to one logical
      * name {@code m}. Folding their heterogeneously typed footer stats (String key vs Long value) into
      * one entry threw {@link ClassCastException} in the min/max merge, surfacing as an HTTP 500 before
-     * type resolution — so even {@code STATS COUNT(*)} failed. {@code isMapDescendedLeaf} now skips
+     * type resolution — so even {@code STATS COUNT(*)} failed. {@code isMapOrVariantDescendedLeaf} now skips
      * every map-descended leaf, so metadata resolves, the map surfaces as {@code UNSUPPORTED} (never
      * published as a stat), and the sibling scalar keeps its concrete stats.
      */
@@ -641,7 +641,7 @@ public class ParquetFormatReaderTests extends ESTestCase {
 
     /**
      * Reverse nesting ({@code list<map<string,int64>>}): a MAP reached through an enclosing LIST rather
-     * than being the outermost group. This exercises the ordering of the {@code isMapDescendedLeaf} check
+     * than being the outermost group. This exercises the ordering of the {@code isMapOrVariantDescendedLeaf} check
      * ahead of the top-level-list-leaf branch — the map leaves must be skipped (not mis-keyed as a
      * top-level list size marker), metadata must resolve, and no stats are published for the list-of-map
      * column while the sibling scalar keeps its stats.
@@ -681,6 +681,218 @@ public class ParquetFormatReaderTests extends ESTestCase {
         assertFalse("no stats for the list-of-map column", cols.containsKey("ml"));
         assertTrue(cols.containsKey("id"));
         assertEquals(OptionalLong.of(0L), cols.get("id").nullCount());
+    }
+
+    /**
+     * A VARIANT column must surface as a single UNSUPPORTED attribute at the group's own name, not be
+     * flattened like a STRUCT into the Variant encoding's internals. Before the fix the flattener
+     * descended into an unshredded variant and emitted {@code var.metadata} / {@code var.value} as
+     * {@code keyword} (both are un-annotated BINARY), so a query returned the raw Variant binary
+     * encoding instead of the user's data. esql-planning#1970.
+     */
+    public void testUnshreddedVariantColumnIsUnsupported() throws Exception {
+        MessageType schema = MessageTypeParser.parseMessageType("""
+            message test_schema {
+              required int64 id;
+              optional group var (VARIANT(1)) {
+                required binary metadata;
+                optional binary value;
+              }
+            }
+            """);
+
+        byte[] parquetData = createParquetFile(schema, factory -> {
+            List<Group> rows = new ArrayList<>();
+            for (int r = 0; r < 3; r++) {
+                Group g = factory.newGroup();
+                g.add("id", (long) r);
+                Group var = g.addGroup("var");
+                var.append("metadata", Binary.fromConstantByteArray(new byte[] { 1, 0, 0 }));
+                var.append("value", Binary.fromConstantByteArray(new byte[] { 12, (byte) r }));
+                rows.add(g);
+            }
+            return rows;
+        });
+
+        ParquetFormatReader reader = new ParquetFormatReader(blockFactory);
+        SourceMetadata metadata = reader.metadata(createStorageObject(parquetData));
+
+        Map<String, DataType> types = metadata.schema().stream().collect(Collectors.toMap(Attribute::name, Attribute::dataType));
+        assertEquals("the variant surfaces at its own name, UNSUPPORTED", DataType.UNSUPPORTED, types.get("var"));
+        // The regression this pins: the encoding's internals must not be addressable as keyword columns.
+        assertFalse("the variant must not be flattened into its internals", types.containsKey("var.metadata"));
+        assertFalse("the variant must not be flattened into its internals", types.containsKey("var.value"));
+        assertEquals("only id and var", Set.of("id", "var"), types.keySet());
+
+        // The flattener's logical name for a variant leaf is the variant group itself, which is what keeps
+        // the statistics producers and buildColumnInfos keyed on a name an attribute actually has.
+        assertEquals("var", ParquetFormatReader.logicalLeafName(schema, new String[] { "var", "metadata" }));
+        assertEquals("var", ParquetFormatReader.logicalLeafName(schema, new String[] { "var", "value" }));
+
+        Map<String, SourceStatistics.ColumnStatistics> cols = metadata.statistics().get().columnStatistics().get();
+        assertFalse("no stats must be published for the variant column", cols.containsKey("var"));
+        assertTrue(cols.containsKey("id"));
+        assertEquals(Optional.of(0L), cols.get("id").minValue());
+        assertEquals(Optional.of(2L), cols.get("id").maxValue());
+    }
+
+    /**
+     * An unshredded VARIANT is homogeneously typed (both internals are BINARY), so the {@code metadata()}
+     * path is uninteresting — the variant is UNSUPPORTED there and dropped by the publish filter either
+     * way. The path it actually corrupts is the split/row-group stats
+     * ({@link ParquetFormatReader#discoverSplitRanges} &rarr; {@code buildRowGroupStats}), which has no
+     * UNSUPPORTED filter: once the flattener stops at the variant group, {@code metadata} and {@code value}
+     * collapse onto the single name {@code var} and {@code put} last-writer-wins min/max/null_count/size
+     * under it, serializing wrong per-split stats. Assert those keys are absent so this is a genuine
+     * regression guard, mirroring {@link #testHomogeneousMapPublishesNoFoldedSplitStat}.
+     */
+    public void testVariantPublishesNoFoldedSplitStat() throws Exception {
+        MessageType schema = MessageTypeParser.parseMessageType("""
+            message test_schema {
+              required int64 id;
+              optional group var (VARIANT(1)) {
+                required binary metadata;
+                optional binary value;
+              }
+            }
+            """);
+
+        byte[] parquetData = createParquetFile(schema, factory -> {
+            List<Group> rows = new ArrayList<>();
+            for (int r = 0; r < 3; r++) {
+                Group g = factory.newGroup();
+                g.add("id", (long) r);
+                Group var = g.addGroup("var");
+                var.append("metadata", Binary.fromConstantByteArray(new byte[] { 1, 0, 0 }));
+                var.append("value", Binary.fromConstantByteArray(new byte[] { 12, (byte) r }));
+                rows.add(g);
+            }
+            return rows;
+        });
+
+        ParquetFormatReader reader = new ParquetFormatReader(blockFactory);
+        List<RangeAwareFormatReader.SplitRange> ranges = reader.discoverSplitRanges(createStorageObject(parquetData));
+        assertEquals(1, ranges.size());
+        Map<String, Object> stats = ranges.getFirst().statistics();
+        assertNull("no folded variant min in split stats", stats.get("_stats.columns.var.min"));
+        assertNull("no folded variant max in split stats", stats.get("_stats.columns.var.max"));
+        assertNull("no folded variant null_count in split stats", stats.get("_stats.columns.var.null_count"));
+        assertNull("no folded variant size in split stats", stats.get("_stats.columns.var.size_bytes"));
+        // Nothing under the variant may be published either. Asserting on the folded "var" keys alone would
+        // pass on a fully pre-fix tree, where the leaves keep their own distinct names
+        // (_stats.columns.var.metadata.size_bytes) and so trip none of the assertions above.
+        assertEquals(
+            "no variant-descended leaf may publish split stats",
+            Set.of(),
+            stats.keySet().stream().filter(k -> k.startsWith("_stats.columns.var")).collect(Collectors.toSet())
+        );
+        // The sibling scalar still publishes its real per-split stats.
+        assertEquals(0L, stats.get("_stats.columns.id.min"));
+        assertEquals(2L, stats.get("_stats.columns.id.max"));
+    }
+
+    /**
+     * A shredded VARIANT, whose {@code typed_value} subtree carries the values in typed form. Two things
+     * must hold: the whole group is still one UNSUPPORTED attribute (nothing under {@code var.typed_value}
+     * is addressable), and its heterogeneously typed leaves must not be folded into one stats entry.
+     * <p>
+     * The BINARY {@code metadata} normalizes to a {@code String} extremum while the INT32
+     * {@code typed_value} normalizes to an {@code Integer}; both collapse onto the name {@code var}, so
+     * without the {@code isMapOrVariantDescendedLeaf} skip they meet in the min/max merge and trip the
+     * heterogeneity net in {@link ParquetFormatReader#compareStatExtremum} — an {@code AssertionError}
+     * under {@code -ea} (so, here), and a meaningless {@code 0} comparison in production. The real
+     * {@code shredded_variant/case-046.parquet} fixture cannot pin this because its INT32 leaf is
+     * all-null and never reaches the merge, hence the non-null {@code typed_value} written below.
+     */
+    public void testShreddedVariantColumnIsUnsupported() throws Exception {
+        MessageType schema = MessageTypeParser.parseMessageType("""
+            message test_schema {
+              required int64 id;
+              optional group var (VARIANT(1)) {
+                required binary metadata;
+                optional binary value;
+                optional group typed_value {
+                  required group a {
+                    optional binary value;
+                    optional int32 typed_value;
+                  }
+                }
+              }
+            }
+            """);
+
+        byte[] parquetData = createParquetFile(schema, factory -> {
+            List<Group> rows = new ArrayList<>();
+            for (int r = 0; r < 3; r++) {
+                Group g = factory.newGroup();
+                g.add("id", (long) r);
+                Group var = g.addGroup("var");
+                var.append("metadata", Binary.fromConstantByteArray(new byte[] { 1, 0, 0 }));
+                // Shredded: the value lives in typed_value, and is deliberately non-null so that its
+                // INT32 extremum actually reaches the min/max merge against the BINARY metadata's.
+                var.addGroup("typed_value").addGroup("a").append("typed_value", r);
+                rows.add(g);
+            }
+            return rows;
+        });
+
+        ParquetFormatReader reader = new ParquetFormatReader(blockFactory);
+        SourceMetadata metadata = reader.metadata(createStorageObject(parquetData));
+
+        Map<String, DataType> types = metadata.schema().stream().collect(Collectors.toMap(Attribute::name, Attribute::dataType));
+        assertEquals(DataType.UNSUPPORTED, types.get("var"));
+        assertEquals("only id and var", Set.of("id", "var"), types.keySet());
+        assertEquals("var", ParquetFormatReader.logicalLeafName(schema, new String[] { "var", "typed_value", "a", "typed_value" }));
+
+        Map<String, SourceStatistics.ColumnStatistics> cols = metadata.statistics().get().columnStatistics().get();
+        assertFalse("no stats must be published for the variant column", cols.containsKey("var"));
+        assertTrue(cols.containsKey("id"));
+    }
+
+    /**
+     * A VARIANT nested inside a STRUCT: the flattener must stop at the variant at any depth, surfacing
+     * {@code s.var} as UNSUPPORTED, and the statistics skip must be depth-driven too. The sibling struct
+     * leaf {@code s.a} keeps its concrete stats. Mirrors {@link #testStructNestedMapDoesNotCrash}.
+     */
+    public void testStructNestedVariantColumnIsUnsupported() throws Exception {
+        MessageType schema = MessageTypeParser.parseMessageType("""
+            message test_schema {
+              optional group s {
+                required int64 a;
+                optional group var (VARIANT(1)) {
+                  required binary metadata;
+                  optional binary value;
+                }
+              }
+            }
+            """);
+
+        byte[] parquetData = createParquetFile(schema, factory -> {
+            List<Group> rows = new ArrayList<>();
+            for (int r = 0; r < 3; r++) {
+                Group g = factory.newGroup();
+                Group s = g.addGroup("s");
+                s.add("a", (long) r);
+                Group var = s.addGroup("var");
+                var.append("metadata", Binary.fromConstantByteArray(new byte[] { 1, 0, 0 }));
+                var.append("value", Binary.fromConstantByteArray(new byte[] { 12, (byte) r }));
+                rows.add(g);
+            }
+            return rows;
+        });
+
+        ParquetFormatReader reader = new ParquetFormatReader(blockFactory);
+        SourceMetadata metadata = reader.metadata(createStorageObject(parquetData));
+
+        Map<String, DataType> types = metadata.schema().stream().collect(Collectors.toMap(Attribute::name, Attribute::dataType));
+        assertEquals(DataType.UNSUPPORTED, types.get("s.var"));
+        assertFalse("the nested variant must not be flattened", types.containsKey("s.var.metadata"));
+        assertEquals("only s.a and s.var", Set.of("s.a", "s.var"), types.keySet());
+
+        Map<String, SourceStatistics.ColumnStatistics> cols = metadata.statistics().get().columnStatistics().get();
+        assertFalse("no stats for the nested variant", cols.containsKey("s.var"));
+        assertTrue(cols.containsKey("s.a"));
+        assertEquals(OptionalLong.of(0L), cols.get("s.a").nullCount());
     }
 
     /**

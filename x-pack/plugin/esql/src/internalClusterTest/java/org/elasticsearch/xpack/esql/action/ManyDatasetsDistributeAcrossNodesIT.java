@@ -38,26 +38,25 @@ public class ManyDatasetsDistributeAcrossNodesIT extends AbstractExternalDataSou
     private static final int DATASETS = 4;
     private static final int ROWS_PER_DATASET = 2;
 
-    private final List<String> datasets = new ArrayList<>();
-
     @Override
     protected Collection<Class<? extends Plugin>> formatPlugins() {
         return List.of(ParquetDataSourcePlugin.class);
     }
 
     /** One file per dataset, so every producer discovers exactly one split. */
-    private void registerSingleFileDatasets() throws Exception {
-        datasets.clear();
+    private List<String> registerSingleFileDatasets(int count) throws Exception {
+        List<String> names = new ArrayList<>();
         Path root = createTempDir();
-        for (int ds = 0; ds < DATASETS; ds++) {
+        for (int ds = 0; ds < count; ds++) {
             Path file = writeSingleColumnIdParquet(root.resolve("ds" + ds), ROWS_PER_DATASET);
-            datasets.add(registerDataset("spread_ds_" + ds, StoragePath.fileUri(file), Map.of()));
+            names.add(registerDataset("spread_ds_" + ds, StoragePath.fileUri(file), Map.of()));
         }
+        return names;
     }
 
     public void testSingleSplitProducersReadOnMoreThanOneNode() throws Exception {
         internalCluster().ensureAtLeastNumDataNodes(2);
-        registerSingleFileDatasets();
+        List<String> datasets = registerSingleFileDatasets(DATASETS);
 
         var request = syncEsqlQueryRequest("FROM " + String.join(", ", datasets) + " | STATS s = SUM(id)");
         request.profile(true);
@@ -76,7 +75,7 @@ public class ManyDatasetsDistributeAcrossNodesIT extends AbstractExternalDataSou
      */
     public void testLoneSingleSplitDatasetStillReadsOnOneNode() throws Exception {
         internalCluster().ensureAtLeastNumDataNodes(2);
-        registerSingleFileDatasets();
+        List<String> datasets = registerSingleFileDatasets(1);
 
         var request = syncEsqlQueryRequest("FROM " + datasets.getFirst() + " | STATS s = SUM(id)");
         request.profile(true);

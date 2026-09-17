@@ -44,7 +44,6 @@ import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.RefCounted;
 import org.elasticsearch.core.Releasable;
 import org.elasticsearch.core.Releasables;
-import org.elasticsearch.core.Tuple;
 import org.elasticsearch.grok.MatcherWatchdog;
 import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.indices.IndicesService;
@@ -977,11 +976,9 @@ public class ComputeService {
         );
         // Unwrap the first MergeExec into per-child subplans plus a coordinator ExchangeSourceExec.
         // The merge kind travels with those children so each child can place against its siblings.
-        Holder<MergeExec.Kind> mergeKind = new Holder<>();
-        physicalPlan.forEachDown(MergeExec.class, me -> mergeKind.setIfAbsent(me.kind()));
-        Tuple<List<PhysicalPlan>, PhysicalPlan> subplansAndMainPlan = PlannerUtils.breakPlanIntoSubPlansAndMainPlan(physicalPlan);
+        PlannerUtils.SubPlansAndMainPlan subplansAndMainPlan = PlannerUtils.breakPlanIntoSubPlansAndMainPlan(physicalPlan);
 
-        List<PhysicalPlan> subplans = subplansAndMainPlan.v1();
+        List<PhysicalPlan> subplans = subplansAndMainPlan.subplans();
 
         // take a snapshot of the initial cluster statuses, this is the status after index resolutions,
         // and it will be checked before executing data node plan on remote clusters
@@ -1013,7 +1010,7 @@ public class ComputeService {
         }
 
         final List<Page> collectedPages = Collections.synchronizedList(new ArrayList<>());
-        PhysicalPlan mainPlan = new OutputExec(subplansAndMainPlan.v2(), collectedPages::add);
+        PhysicalPlan mainPlan = new OutputExec(subplansAndMainPlan.mainPlan(), collectedPages::add);
 
         listener = listener.delegateResponse((l, e) -> {
             collectedPages.forEach(p -> Releasables.closeExpectNoException(p::releaseBlocks));
@@ -1078,7 +1075,7 @@ public class ComputeService {
                 mainExchangeSource,
                 initialClusterStatuses,
                 warnIndexCoordinatorOnce,
-                mergeKind.get() != null ? mergeKind.get() : MergeExec.Kind.UNION
+                subplansAndMainPlan.kind()
             );
             subPlansExecutor.execute(branchParallelDegree);
         }

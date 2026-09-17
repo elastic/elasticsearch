@@ -57,6 +57,6 @@ public record SiblingPlacement(int index, int count, boolean sourceSiblings) {
      * splits than an earlier one may share nodes with it.
      */
     public int stride(int splitCount, int nodeCount) {
-        return Math.floorMod(index * Math.max(splitCount, 1), nodeCount);
+        return Math.floorMod((long) index * Math.max(splitCount, 1), nodeCount);
     }
 }

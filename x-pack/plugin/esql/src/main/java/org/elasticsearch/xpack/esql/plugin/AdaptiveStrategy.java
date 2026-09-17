@@ -9,10 +9,8 @@ package org.elasticsearch.xpack.esql.plugin;
 
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.xpack.esql.datasources.spi.ExternalSplit;
-import org.elasticsearch.xpack.esql.plan.physical.AggregateExec;
 import org.elasticsearch.xpack.esql.plan.physical.LimitExec;
 import org.elasticsearch.xpack.esql.plan.physical.PhysicalPlan;
-import org.elasticsearch.xpack.esql.plan.physical.TopNExec;
 
 import java.util.List;
 
@@ -87,10 +85,12 @@ public final class AdaptiveStrategy implements ExternalDistributionStrategy {
         return ExternalDistributionPlan.LOCAL;
     }
 
+    /**
+     * True when a coordinator {@code LimitExec} is the only breaker: no aggregation, TopN, TopNBy, or
+     * LimitBy on the physical tree or inside a fragment. A UNION STATS leaf that still carries a limit
+     * is not limit-only, so the reduction check can still hop it.
+     */
     private static boolean isLimitOnly(PhysicalPlan plan) {
-        boolean hasLimit = plan.anyMatch(n -> n instanceof LimitExec);
-        boolean hasAgg = plan.anyMatch(n -> n instanceof AggregateExec);
-        boolean hasTopN = plan.anyMatch(n -> n instanceof TopNExec);
-        return hasLimit && hasAgg == false && hasTopN == false;
+        return plan.anyMatch(n -> n instanceof LimitExec) && ExternalDistributionStrategy.hasReducingOperator(plan) == false;
     }
 }

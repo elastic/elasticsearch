@@ -162,6 +162,14 @@ public class ExternalDistributionRotationTests extends ESTestCase {
         assertEquals(1, new SiblingPlacement(4, 6, true).stride(1, 3));
     }
 
+    public void testStrideUsesLongArithmetic() {
+        int index = Integer.MAX_VALUE / 2;
+        int splitCount = 3;
+        int nodeCount = 5;
+        long expected = Math.floorMod((long) index * splitCount, nodeCount);
+        assertEquals((int) expected, new SiblingPlacement(index, Integer.MAX_VALUE, true).stride(splitCount, nodeCount));
+    }
+
     public void testForkBranchesRotate() {
         var nodeList = eligible(createNodes(10));
         List<ExternalSplit> splits = createSplits(3);

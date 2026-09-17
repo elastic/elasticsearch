@@ -25,9 +25,10 @@ import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.esql.plan.physical.AggregateExec;
 import org.elasticsearch.xpack.esql.plan.physical.ExternalSourceExec;
 import org.elasticsearch.xpack.esql.plan.physical.FragmentExec;
+import org.elasticsearch.xpack.esql.plan.physical.LimitByExec;
 import org.elasticsearch.xpack.esql.plan.physical.LimitExec;
-import org.elasticsearch.xpack.esql.plan.physical.MergeExec;
 import org.elasticsearch.xpack.esql.plan.physical.PhysicalPlan;
+import org.elasticsearch.xpack.esql.plan.physical.TopNByExec;
 import org.elasticsearch.xpack.esql.plan.physical.TopNExec;
 
 import java.util.ArrayList;
@@ -113,6 +114,40 @@ public class AdaptiveStrategyTests extends ESTestCase {
 
         ExternalDistributionContext context = new ExternalDistributionContext(
             planWithTopN,
+            createSplits(4),
+            createNodes(2),
+            QueryPragmas.EMPTY
+        );
+
+        ExternalDistributionPlan plan = strategy.planDistribution(context);
+
+        assertTrue(plan.distributed());
+        assertEquals(2, plan.nodeAssignments().size());
+    }
+
+    public void testLimitByWithMultipleSplitsDistributes() {
+        Literal limitExpr = new Literal(Source.EMPTY, 10, DataType.INTEGER);
+        PhysicalPlan planWithLimitBy = new LimitByExec(Source.EMPTY, createExternalSourceExec(), limitExpr, List.of(), null);
+
+        ExternalDistributionContext context = new ExternalDistributionContext(
+            planWithLimitBy,
+            createSplits(4),
+            createNodes(2),
+            QueryPragmas.EMPTY
+        );
+
+        ExternalDistributionPlan plan = strategy.planDistribution(context);
+
+        assertTrue(plan.distributed());
+        assertEquals(2, plan.nodeAssignments().size());
+    }
+
+    public void testTopNByWithMultipleSplitsDistributes() {
+        Literal limitExpr = new Literal(Source.EMPTY, 10, DataType.INTEGER);
+        PhysicalPlan planWithTopNBy = new TopNByExec(Source.EMPTY, createExternalSourceExec(), List.of(), limitExpr, List.of(), null);
+
+        ExternalDistributionContext context = new ExternalDistributionContext(
+            planWithTopNBy,
             createSplits(4),
             createNodes(2),
             QueryPragmas.EMPTY
@@ -313,17 +348,22 @@ public class AdaptiveStrategyTests extends ESTestCase {
         assertEquals(Set.of("node-3", "node-4", "node-5"), assignedNodeIds(plan));
     }
 
+    public void testLimitExecOverFragmentAggregateWithSourceSiblingsDistributes() {
+        Literal limitExpr = new Literal(Source.EMPTY, 10, DataType.INTEGER);
+        LogicalPlan aggregateInFragment = new Aggregate(Source.EMPTY, EsqlTestUtils.emptySource(), List.of(), List.of());
+        PhysicalPlan plan = new LimitExec(Source.EMPTY, new FragmentExec(aggregateInFragment), limitExpr, null);
+
+        ExternalDistributionContext context = context(plan, createSplits(1), createNodes(3), new SiblingPlacement(0, 4, true));
+
+        assertTrue(strategy.planDistribution(context).distributed());
+    }
+
     private static AdaptiveStrategy orderedStrategy() {
         return new AdaptiveStrategy(allNodes -> {
             List<DiscoveryNode> list = NodeEligibilityStrategy.EXTERNAL_WORKER_NODES.eligibleNodes(allNodes);
             list.sort(Comparator.comparing(DiscoveryNode::getId));
             return list;
         });
-    }
-
-    public void testForMergeDrivesAdaptiveOnlyThroughTheRecord() {
-        assertEquals(new SiblingPlacement(1, 3, false), SiblingPlacement.forMerge(MergeExec.Kind.FORK, 1, 3));
-        assertEquals(new SiblingPlacement(1, 3, true), SiblingPlacement.forMerge(MergeExec.Kind.UNION, 1, 3));
     }
 
     private static ExternalDistributionContext context(

@@ -47,13 +47,6 @@ public class MergeExec extends PhysicalPlan {
     }
 
     /**
-     * Defaults {@code kind} to {@link Kind#UNION}.
-     */
-    public MergeExec(Source source, List<PhysicalPlan> children, List<Attribute> output) {
-        this(source, children, output, Kind.UNION);
-    }
-
-    /**
      * Extracts the children as a list of suppliers. All children must be LocalSourceExec.
      */
     public List<LocalSupplier> suppliers() {

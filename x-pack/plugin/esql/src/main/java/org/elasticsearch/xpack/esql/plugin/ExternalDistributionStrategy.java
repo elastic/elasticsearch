@@ -9,11 +9,14 @@ package org.elasticsearch.xpack.esql.plugin;
 
 import org.elasticsearch.xpack.esql.plan.logical.Aggregate;
 import org.elasticsearch.xpack.esql.plan.logical.LimitBy;
+import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.esql.plan.logical.TopN;
 import org.elasticsearch.xpack.esql.plan.logical.TopNBy;
 import org.elasticsearch.xpack.esql.plan.physical.AggregateExec;
 import org.elasticsearch.xpack.esql.plan.physical.FragmentExec;
+import org.elasticsearch.xpack.esql.plan.physical.LimitByExec;
 import org.elasticsearch.xpack.esql.plan.physical.PhysicalPlan;
+import org.elasticsearch.xpack.esql.plan.physical.TopNByExec;
 import org.elasticsearch.xpack.esql.plan.physical.TopNExec;
 
 /**
@@ -29,38 +32,50 @@ public interface ExternalDistributionStrategy {
     /**
      * Whether the plan contains an operator that cannot simply be replicated across parallel scan drivers, because
      * each driver would run it over its own slice of the input and emit its own result: an aggregation would produce
-     * one row per driver instead of one merged row, and a {@code TopN} its own top-N per driver. Such a plan needs a
-     * gather boundary above the scan.
+     * one row per driver instead of one merged row, and a {@code TopN} / {@code TopNBy} / {@code LimitBy} its own
+     * slice per driver. Such a plan needs a gather boundary above the scan.
      *
-     * <p>A {@code LIMIT} is deliberately not in this set: {@code LimitOperator.Factory} builds a single
+     * <p>Looks at both physical nodes and the logical plan inside a {@link FragmentExec}: a UNION leaf still holds
+     * a pushed-down aggregation as a logical {@link Aggregate} in the fragment, and collapsing that leaf's exchange
+     * would drop the gather the same way collapsing an {@link AggregateExec} would.
+     *
+     * <p>A plain {@code LIMIT} is deliberately not in this set: {@code LimitOperator.Factory} builds a single
      * {@code Limiter} and hands that same instance to every driver it creates, so a limit is already enforced
      * across all of them and stays correct without a gather.
      *
-     * <p>Single home for the gather-correctness rule used by {@link ComputeService} (whether a scan staying
-     * local must still keep its exchange). Whether a hop is worth it is a separate question and lives on
-     * {@link #hasReducingOperator(PhysicalPlan)}.
+     * <p>{@link #hasReducingOperator(PhysicalPlan)} asks a different question (whether a hop pays) of the same
+     * operator set: a per-driver-unsafe operator both needs a gather when the scan stays local and is worth
+     * shipping after a remote reduce. The two methods must not diverge.
      */
     static boolean needsGatherBoundary(PhysicalPlan plan) {
-        return plan.anyMatch(n -> n instanceof AggregateExec || n instanceof TopNExec);
+        return plan.anyMatch(
+            n -> isPerDriverUnsafePhysical(n) || (n instanceof FragmentExec fragment && fragmentHoldsPerDriverUnsafeLogical(fragment))
+        );
     }
 
     /**
      * Whether distributing this read would have a data node reduce rows before shipping them back.
-     * Broader than {@link #needsGatherBoundary}: that rule is a correctness check for a local read's
-     * operators, this one only decides whether a hop pays. A UNION child still holds its pushed-down
+     * Same operators as {@link #needsGatherBoundary}: a UNION child still holds its pushed-down
      * aggregation as a logical {@link Aggregate} inside {@link FragmentExec}, so the physical tree
      * alone would report no reduction.
      *
      * <p>A plain {@code Limit} is absent on purpose: it does reduce rows, but a limit-only read is
-     * cheapest where the limit is applied once.
+     * cheapest where the limit is applied once, and the shared {@code Limiter} already makes a local
+     * collapse correct.
      */
     static boolean hasReducingOperator(PhysicalPlan plan) {
-        return needsGatherBoundary(plan)
-            || plan.anyMatch(node -> node instanceof FragmentExec fragment && fragmentHoldsReducingLogical(fragment));
+        return needsGatherBoundary(plan);
     }
 
-    private static boolean fragmentHoldsReducingLogical(FragmentExec fragment) {
-        return fragment.fragment()
-            .anyMatch(n -> n instanceof Aggregate || n instanceof TopN || n instanceof TopNBy || n instanceof LimitBy);
+    private static boolean isPerDriverUnsafePhysical(PhysicalPlan node) {
+        return node instanceof AggregateExec || node instanceof TopNExec || node instanceof TopNByExec || node instanceof LimitByExec;
+    }
+
+    private static boolean fragmentHoldsPerDriverUnsafeLogical(FragmentExec fragment) {
+        return fragment.fragment().anyMatch(ExternalDistributionStrategy::isPerDriverUnsafeLogical);
+    }
+
+    private static boolean isPerDriverUnsafeLogical(LogicalPlan node) {
+        return node instanceof Aggregate || node instanceof TopN || node instanceof TopNBy || node instanceof LimitBy;
     }
 }

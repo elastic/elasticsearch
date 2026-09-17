@@ -14,10 +14,13 @@ import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.plan.logical.Fork;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.esql.plan.logical.UnionAll;
+import org.elasticsearch.xpack.esql.plan.logical.ViewUnionAll;
 import org.elasticsearch.xpack.esql.plan.physical.MergeExec;
 import org.elasticsearch.xpack.esql.plan.physical.PhysicalPlan;
+import org.elasticsearch.xpack.esql.planner.PlannerUtils;
 import org.elasticsearch.xpack.esql.session.Versioned;
 
+import java.util.LinkedHashMap;
 import java.util.List;
 
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.as;
@@ -39,6 +42,24 @@ public class MergeExecKindMapperTests extends ESTestCase {
         assertEquals(MergeExec.Kind.UNION, merge.kind());
     }
 
+    public void testViewUnionAllMapsToUnionKind() {
+        PhysicalPlan physical = new Mapper().map(new Versioned<>(viewUnionAll(), TransportVersion.current()));
+        MergeExec merge = as(physical, MergeExec.class);
+        assertEquals(MergeExec.Kind.UNION, merge.kind());
+    }
+
+    public void testBreakPlanIntoSubPlansAndMainPlanReturnsTheMergeKind() {
+        PhysicalPlan fork = new Mapper().map(new Versioned<>(fork(), TransportVersion.current()));
+        PlannerUtils.SubPlansAndMainPlan forkSplit = PlannerUtils.breakPlanIntoSubPlansAndMainPlan(fork);
+        assertEquals(MergeExec.Kind.FORK, forkSplit.kind());
+        assertEquals(2, forkSplit.subplans().size());
+
+        PhysicalPlan union = new Mapper().map(new Versioned<>(unionAll(), TransportVersion.current()));
+        PlannerUtils.SubPlansAndMainPlan unionSplit = PlannerUtils.breakPlanIntoSubPlansAndMainPlan(union);
+        assertEquals(MergeExec.Kind.UNION, unionSplit.kind());
+        assertEquals(2, unionSplit.subplans().size());
+    }
+
     private static Fork fork() {
         LogicalPlan left = EsqlTestUtils.emptySource();
         LogicalPlan right = EsqlTestUtils.emptySource();
@@ -49,5 +70,14 @@ public class MergeExecKindMapperTests extends ESTestCase {
         LogicalPlan left = EsqlTestUtils.emptySource();
         LogicalPlan right = EsqlTestUtils.emptySource();
         return new UnionAll(Source.EMPTY, List.of(left, right), left.output());
+    }
+
+    private static ViewUnionAll viewUnionAll() {
+        LogicalPlan left = EsqlTestUtils.emptySource();
+        LogicalPlan right = EsqlTestUtils.emptySource();
+        LinkedHashMap<String, LogicalPlan> children = new LinkedHashMap<>();
+        children.put("left", left);
+        children.put("right", right);
+        return new ViewUnionAll(Source.EMPTY, children, left.output());
     }
 }

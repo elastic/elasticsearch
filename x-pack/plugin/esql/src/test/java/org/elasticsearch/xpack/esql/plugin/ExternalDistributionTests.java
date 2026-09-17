@@ -40,7 +40,9 @@ import org.elasticsearch.xpack.esql.plan.logical.Eval;
 import org.elasticsearch.xpack.esql.plan.logical.ExternalRelation;
 import org.elasticsearch.xpack.esql.plan.logical.Filter;
 import org.elasticsearch.xpack.esql.plan.logical.Limit;
+import org.elasticsearch.xpack.esql.plan.logical.LimitBy;
 import org.elasticsearch.xpack.esql.plan.logical.TopN;
+import org.elasticsearch.xpack.esql.plan.logical.TopNBy;
 import org.elasticsearch.xpack.esql.plan.physical.AggregateExec;
 import org.elasticsearch.xpack.esql.plan.physical.EvalExec;
 import org.elasticsearch.xpack.esql.plan.physical.ExchangeExec;
@@ -48,8 +50,10 @@ import org.elasticsearch.xpack.esql.plan.physical.ExchangeSinkExec;
 import org.elasticsearch.xpack.esql.plan.physical.ExternalSourceExec;
 import org.elasticsearch.xpack.esql.plan.physical.FilterExec;
 import org.elasticsearch.xpack.esql.plan.physical.FragmentExec;
+import org.elasticsearch.xpack.esql.plan.physical.LimitByExec;
 import org.elasticsearch.xpack.esql.plan.physical.LimitExec;
 import org.elasticsearch.xpack.esql.plan.physical.PhysicalPlan;
+import org.elasticsearch.xpack.esql.plan.physical.TopNByExec;
 import org.elasticsearch.xpack.esql.plan.physical.TopNExec;
 import org.elasticsearch.xpack.esql.planner.PlannerSettings;
 import org.elasticsearch.xpack.esql.planner.PlannerUtils;
@@ -354,6 +358,35 @@ public class ExternalDistributionTests extends ESTestCase {
         assertFalse("a limit-only plan must not be rerouted through a gather", ExternalDistributionStrategy.needsGatherBoundary(limitPlan));
     }
 
+    public void testNeedsGatherBoundaryLooksInsideFragment() {
+        ExternalRelation external = createExternalRelation();
+        FragmentExec fragmentAgg = new FragmentExec(new Aggregate(SRC, external, List.of(), List.of()));
+        assertTrue(
+            "a UNION leaf still holds STATS as a logical Aggregate inside the fragment",
+            ExternalDistributionStrategy.needsGatherBoundary(fragmentAgg)
+        );
+        assertTrue(ExternalDistributionStrategy.hasReducingOperator(fragmentAgg));
+
+        FragmentExec fragmentLimit = new FragmentExec(new Limit(SRC, new Literal(SRC, 10, DataType.INTEGER), external));
+        assertFalse(
+            "a limit inside a fragment is still a shared Limiter after mapping, so collapse stays correct",
+            ExternalDistributionStrategy.needsGatherBoundary(fragmentLimit)
+        );
+    }
+
+    public void testNeedsGatherBoundaryIncludesTopNByAndLimitBy() {
+        ExternalSourceExec source = createExternalSourceExec();
+        Literal limitExpr = new Literal(SRC, 10, DataType.INTEGER);
+        assertTrue(ExternalDistributionStrategy.needsGatherBoundary(new TopNByExec(SRC, source, List.of(), limitExpr, List.of(), null)));
+        assertTrue(ExternalDistributionStrategy.needsGatherBoundary(new LimitByExec(SRC, source, limitExpr, List.of(), null)));
+
+        ExternalRelation external = createExternalRelation();
+        assertTrue(
+            ExternalDistributionStrategy.needsGatherBoundary(new FragmentExec(new TopNBy(SRC, external, List.of(), limitExpr, List.of())))
+        );
+        assertTrue(ExternalDistributionStrategy.needsGatherBoundary(new FragmentExec(new LimitBy(SRC, limitExpr, external, List.of()))));
+    }
+
     public void testHasCollapsibleExternalExchangeFalseWithoutExchange() {
         ExternalSourceExec externalSource = createExternalSourceExec();
         LimitExec limit = new LimitExec(SRC, externalSource, new Literal(SRC, 10, DataType.INTEGER), null);
@@ -618,6 +651,22 @@ public class ExternalDistributionTests extends ESTestCase {
         assertEquals(Set.of("index-1"), result.distributionPlan().nodeAssignments().keySet());
         assertEquals(2, result.distributionPlan().nodeAssignments().get("index-1").size());
         assertTrue(result.coordinatorSplits().isEmpty());
+    }
+
+    public void testLocalExternalScanResultSelfAssignsWhenFragmentHoldsAggregate() {
+        ExternalRelation external = createExternalRelation();
+        FragmentExec fragment = new FragmentExec(new Aggregate(SRC, external, List.of(), List.of()));
+        ExchangeExec exchange = new ExchangeExec(SRC, fragment);
+        List<ExternalSplit> splits = List.of(
+            new FileSplit("parquet", StoragePath.of("s3://bucket/file1.parquet"), 0, 1024, ".parquet", Map.of(), Map.of()),
+            new FileSplit("parquet", StoragePath.of("s3://bucket/file2.parquet"), 0, 1024, ".parquet", Map.of(), Map.of())
+        );
+
+        var result = ComputeService.localExternalScanResult(exchange, splits, "index-1");
+
+        assertTrue(result.isDistributed());
+        assertEquals(Set.of("index-1"), result.distributionPlan().nodeAssignments().keySet());
+        assertTrue(ComputeService.hasCollapsibleExternalExchange(result.plan()));
     }
 
     public void testHasNonEmptyExternalSplits() {

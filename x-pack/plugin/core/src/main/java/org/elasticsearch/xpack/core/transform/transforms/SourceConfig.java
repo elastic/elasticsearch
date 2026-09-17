@@ -15,6 +15,8 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.core.Nullable;
+import org.elasticsearch.index.query.BoolQueryBuilder;
+import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.license.RemoteClusterLicenseChecker;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.xcontent.ConstructingObjectParser;
@@ -189,6 +191,16 @@ public class SourceConfig implements Writeable, ToXContentObject {
      */
     public SourceConfig withProjectRouting(@Nullable String projectRouting) {
         return new SourceConfig(getIndex(), getQueryConfig(), getRuntimeMappings(), indicesOptions, projectRouting);
+    }
+
+    /**
+     * Returns a copy of this {@link SourceConfig} whose query is this config's query ANDed with the
+     * given {@code extraFilter}, preserving all other fields. Used to bound a source query (e.g. with
+     * a {@code from} time range) for validation-time searches without mutating the stored config.
+     */
+    public SourceConfig withAdditionalQueryFilter(QueryBuilder extraFilter) {
+        QueryBuilder boundedQuery = new BoolQueryBuilder().filter(getQueryConfig().getQuery()).filter(extraFilter);
+        return new SourceConfig(getIndex(), QueryConfig.forQuery(boundedQuery), getRuntimeMappings(), indicesOptions, projectRouting);
     }
 
     /**

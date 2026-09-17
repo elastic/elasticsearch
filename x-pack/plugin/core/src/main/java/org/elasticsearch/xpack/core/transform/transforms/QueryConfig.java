@@ -22,6 +22,7 @@ import org.elasticsearch.index.query.MatchAllQueryBuilder;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.xcontent.DeprecationHandler;
 import org.elasticsearch.xcontent.NamedXContentRegistry;
+import org.elasticsearch.xcontent.ToXContent;
 import org.elasticsearch.xcontent.ToXContentObject;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentFactory;
@@ -35,6 +36,7 @@ import org.elasticsearch.xpack.core.transform.TransformDeprecations;
 import org.elasticsearch.xpack.core.transform.TransformMessages;
 
 import java.io.IOException;
+import java.io.UncheckedIOException;
 import java.util.Collections;
 import java.util.Map;
 import java.util.Objects;
@@ -53,6 +55,22 @@ public class QueryConfig implements SimpleDiffable<QueryConfig>, Writeable, ToXC
 
     public static QueryConfig matchAll() {
         return new QueryConfig(Collections.singletonMap(MatchAllQueryBuilder.NAME, Collections.emptyMap()), new MatchAllQueryBuilder());
+    }
+
+    /**
+     * Builds a {@link QueryConfig} from an already-parsed {@link QueryBuilder}, deriving the raw
+     * {@code source} map from the builder so the two representations stay in lockstep. Use this when
+     * synthesizing a query in code (e.g. wrapping a source query with an extra filter) rather than
+     * parsing one from user XContent.
+     */
+    public static QueryConfig forQuery(final QueryBuilder query) {
+        try (XContentBuilder builder = XContentFactory.jsonBuilder()) {
+            query.toXContent(builder, ToXContent.EMPTY_PARAMS);
+            Map<String, Object> source = XContentHelper.convertToMap(BytesReference.bytes(builder), false, XContentType.JSON).v2();
+            return new QueryConfig(source, query);
+        } catch (IOException e) {
+            throw new UncheckedIOException(e);
+        }
     }
 
     public QueryConfig(final Map<String, Object> source, final QueryBuilder query) {

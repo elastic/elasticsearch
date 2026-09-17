@@ -50,6 +50,24 @@
         },
         {
           "name" : "value",
+          "type" : "date_nanos",
+          "optional" : false,
+          "description" : "The value of the first pair, followed by any further alternating keys and values. Provide arguments as alternating key/value pairs."
+        }
+      ],
+      "variadic" : true,
+      "returnType" : "keyword"
+    },
+    {
+      "params" : [
+        {
+          "name" : "key",
+          "type" : "keyword",
+          "optional" : false,
+          "description" : "The key of the first key/value pair."
+        },
+        {
+          "name" : "value",
           "type" : "double",
           "optional" : false,
           "description" : "The value of the first pair, followed by any further alternating keys and values. Provide arguments as alternating key/value pairs."
@@ -141,6 +159,24 @@
         {
           "name" : "value",
           "type" : "text",
+          "optional" : false,
+          "description" : "The value of the first pair, followed by any further alternating keys and values. Provide arguments as alternating key/value pairs."
+        }
+      ],
+      "variadic" : true,
+      "returnType" : "keyword"
+    },
+    {
+      "params" : [
+        {
+          "name" : "key",
+          "type" : "keyword",
+          "optional" : false,
+          "description" : "The key of the first key/value pair."
+        },
+        {
+          "name" : "value",
+          "type" : "unsigned_long",
           "optional" : false,
           "description" : "The value of the first pair, followed by any further alternating keys and values. Provide arguments as alternating key/value pairs."
         }
@@ -212,6 +248,24 @@
         },
         {
           "name" : "value",
+          "type" : "date_nanos",
+          "optional" : false,
+          "description" : "The value of the first pair, followed by any further alternating keys and values. Provide arguments as alternating key/value pairs."
+        }
+      ],
+      "variadic" : true,
+      "returnType" : "keyword"
+    },
+    {
+      "params" : [
+        {
+          "name" : "key",
+          "type" : "text",
+          "optional" : false,
+          "description" : "The key of the first key/value pair."
+        },
+        {
+          "name" : "value",
           "type" : "double",
           "optional" : false,
           "description" : "The value of the first pair, followed by any further alternating keys and values. Provide arguments as alternating key/value pairs."
@@ -303,6 +357,24 @@
         {
           "name" : "value",
           "type" : "text",
+          "optional" : false,
+          "description" : "The value of the first pair, followed by any further alternating keys and values. Provide arguments as alternating key/value pairs."
+        }
+      ],
+      "variadic" : true,
+      "returnType" : "keyword"
+    },
+    {
+      "params" : [
+        {
+          "name" : "key",
+          "type" : "text",
+          "optional" : false,
+          "description" : "The key of the first key/value pair."
+        },
+        {
+          "name" : "value",
+          "type" : "unsigned_long",
           "optional" : false,
           "description" : "The value of the first pair, followed by any further alternating keys and values. Provide arguments as alternating key/value pairs."
         }

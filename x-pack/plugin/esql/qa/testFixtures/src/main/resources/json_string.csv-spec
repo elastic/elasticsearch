@@ -26,6 +26,55 @@ doc:keyword
 ;
 
 
+With duplicate keys
+required_capability: fn_json_string
+ROW seed = 1
+| EVAL doc = JSON_STRING("a", 1, "a", 2)
+| KEEP doc
+;
+
+doc:keyword
+"{""a"":1,""a"":2}"
+;
+
+
+With unsigned_long
+required_capability: fn_json_string
+ROW small = 42::unsigned_long, big = "18446744073709551615"::unsigned_long
+| EVAL doc = JSON_STRING("small", small, "big", big)
+| KEEP doc
+;
+
+doc:keyword
+"{""small"":42,""big"":18446744073709551615}"
+;
+
+
+With date
+required_capability: fn_json_string
+ROW d = "2024-01-15T12:30:00.000Z"::datetime
+| EVAL doc = JSON_STRING("d", d)
+| KEEP doc
+;
+
+doc:keyword
+"{""d"":""2024-01-15T12:30:00.000Z""}"
+;
+
+
+With date_nanos
+required_capability: fn_json_string
+ROW d = "2023-10-23T12:15:03.360103847Z"::date_nanos,
+    a = ["2023-10-23T12:15:03.360103847Z", "2023-10-23T13:55:01.543123456Z"]::date_nanos
+| EVAL doc = JSON_STRING("d", d, "a", a)
+| KEEP doc
+;
+
+doc:keyword
+"{""d"":""2023-10-23T12:15:03.360103847Z"",""a"":[""2023-10-23T12:15:03.360103847Z"",""2023-10-23T13:55:01.543123456Z""]}"
+;
+
+
 With multivalued values
 required_capability: fn_json_string
 ROW k = "nums", v = [1, 2, 3]

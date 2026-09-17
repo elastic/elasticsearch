@@ -937,8 +937,10 @@ public final class AstKeywordFieldRewriter {
                     && spanMatches(attr.source())) {
                     wrappedMatchFunctionArg = true;
                 }
-                // Heuristic to map variadic args to the last named param, or just skip if we don't care.
-                // IN, CONCAT and JSON_STRING can just cap at 1.
+                // Heuristic to map variadic args onto the named FunctionInfo params that kibana
+                // signatures expose (coverage keys are function:argIndex). Homogeneous tails
+                // (CONCAT, IN) fold onto the last named param. JSON_STRING alternates key/value,
+                // so even/odd extra args map back to param 0/1.
                 // TODO use a `kind` marker for varargs somehow.
                 int argIndex = i;
                 if (expressionName != null) {
@@ -948,8 +950,8 @@ public final class AstKeywordFieldRewriter {
                     if (expressionName.equals("IN") && argIndex > 1) {
                         argIndex = 1;
                     }
-                    if (expressionName.equals("JSON_STRING") && argIndex > 1) {
-                        argIndex = 1;
+                    if (expressionName.equals("JSON_STRING")) {
+                        argIndex %= 2;
                     }
                 }
                 String nextTrackingContext = expressionName != null ? expressionName + ":" + argIndex : trackingContext;

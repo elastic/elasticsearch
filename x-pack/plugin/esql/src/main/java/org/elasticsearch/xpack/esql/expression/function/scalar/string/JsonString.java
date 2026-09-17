@@ -44,7 +44,6 @@ import org.elasticsearch.xpack.esql.io.stream.PlanStreamInput;
 import java.io.IOException;
 import java.io.OutputStream;
 import java.io.UncheckedIOException;
-import java.time.ZoneOffset;
 import java.util.Arrays;
 import java.util.List;
 import java.util.Set;
@@ -54,8 +53,10 @@ import static org.elasticsearch.common.logging.LoggerMessageFormat.format;
 import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.ParamOrdinal;
 import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.isString;
 import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.isType;
-import static org.elasticsearch.xpack.esql.type.EsqlDataTypeConverter.DEFAULT_DATE_TIME_FORMATTER;
+import static org.elasticsearch.xpack.esql.core.util.NumericUtils.unsignedLongAsBigInteger;
+import static org.elasticsearch.xpack.esql.type.EsqlDataTypeConverter.dateTimeToString;
 import static org.elasticsearch.xpack.esql.type.EsqlDataTypeConverter.ipToString;
+import static org.elasticsearch.xpack.esql.type.EsqlDataTypeConverter.nanoTimeToString;
 import static org.elasticsearch.xpack.esql.type.EsqlDataTypeConverter.versionToString;
 
 /**
@@ -83,16 +84,19 @@ public class JsonString extends EsqlScalarFunction {
         DataType.BOOLEAN,
         DataType.INTEGER,
         DataType.LONG,
+        DataType.UNSIGNED_LONG,
         DataType.DOUBLE,
         DataType.KEYWORD,
         DataType.TEXT,
         DataType.IP,
         DataType.VERSION,
-        DataType.DATETIME
+        DataType.DATETIME,
+        DataType.DATE_NANOS
     );
 
     /** Human readable list of accepted value types, in a fixed order, for type-resolution error messages. */
-    static final String VALUE_TYPES_MESSAGE = "boolean, integer, long, double, keyword, text, ip, version or date";
+    static final String VALUE_TYPES_MESSAGE =
+        "boolean, integer, long, unsigned_long, double, keyword, text, ip, version, date or date_nanos";
 
     public JsonString(Source source, List<Expression> keyValuePairs) {
         super(source, keyValuePairs);
@@ -113,7 +117,7 @@ public class JsonString extends EsqlScalarFunction {
         @Param(name = "key", type = { "keyword", "text" }, description = "The key of the first key/value pair.") Expression first,
         @Param(
             name = "value",
-            type = { "boolean", "integer", "long", "double", "keyword", "text", "ip", "version", "date" },
+            type = { "boolean", "integer", "long", "unsigned_long", "double", "keyword", "text", "ip", "version", "date", "date_nanos" },
             description = "The value of the first pair, followed by any further alternating keys and values. "
                 + "Provide arguments as alternating key/value pairs."
         ) List<Expression> rest
@@ -329,13 +333,13 @@ public class JsonString extends EsqlScalarFunction {
                                 case BOOLEAN -> json.value(((BooleanBlock) valueBlock).getBoolean(i));
                                 case INTEGER -> json.value(((IntBlock) valueBlock).getInt(i));
                                 case LONG -> json.value(((LongBlock) valueBlock).getLong(i));
+                                case UNSIGNED_LONG -> json.value(unsignedLongAsBigInteger(((LongBlock) valueBlock).getLong(i)));
                                 case DOUBLE -> json.value(((DoubleBlock) valueBlock).getDouble(i));
                                 case KEYWORD, TEXT -> json.value(((BytesRefBlock) valueBlock).getBytesRef(i, scratch).utf8ToString());
                                 case IP -> json.value(ipToString(((BytesRefBlock) valueBlock).getBytesRef(i, scratch)));
                                 case VERSION -> json.value(versionToString(((BytesRefBlock) valueBlock).getBytesRef(i, scratch)));
-                                case DATETIME -> json.value(
-                                    DEFAULT_DATE_TIME_FORMATTER.withZone(ZoneOffset.UTC).formatMillis(((LongBlock) valueBlock).getLong(i))
-                                );
+                                case DATETIME -> json.value(dateTimeToString(((LongBlock) valueBlock).getLong(i)));
+                                case DATE_NANOS -> json.value(nanoTimeToString(((LongBlock) valueBlock).getLong(i)));
                                 default -> throw new IllegalStateException("unsupported value type [" + valueTypes[blockIndex] + "]");
                             }
                         }

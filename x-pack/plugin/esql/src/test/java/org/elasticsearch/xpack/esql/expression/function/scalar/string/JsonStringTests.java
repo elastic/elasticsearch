@@ -17,14 +17,15 @@ import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.expression.function.AbstractScalarFunctionTestCase;
 import org.elasticsearch.xpack.esql.expression.function.TestCaseSupplier;
 
-import java.time.ZoneOffset;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.function.Supplier;
 
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.randomLiteral;
-import static org.elasticsearch.xpack.esql.type.EsqlDataTypeConverter.DEFAULT_DATE_TIME_FORMATTER;
+import static org.elasticsearch.xpack.esql.core.util.NumericUtils.unsignedLongAsBigInteger;
+import static org.elasticsearch.xpack.esql.type.EsqlDataTypeConverter.dateTimeToString;
 import static org.elasticsearch.xpack.esql.type.EsqlDataTypeConverter.ipToString;
+import static org.elasticsearch.xpack.esql.type.EsqlDataTypeConverter.nanoTimeToString;
 import static org.elasticsearch.xpack.esql.type.EsqlDataTypeConverter.versionToString;
 import static org.hamcrest.Matchers.equalTo;
 
@@ -34,12 +35,14 @@ public class JsonStringTests extends AbstractScalarFunctionTestCase {
         DataType.BOOLEAN,
         DataType.INTEGER,
         DataType.LONG,
+        DataType.UNSIGNED_LONG,
         DataType.DOUBLE,
         DataType.KEYWORD,
         DataType.TEXT,
         DataType.IP,
         DataType.VERSION,
-        DataType.DATETIME
+        DataType.DATETIME,
+        DataType.DATE_NANOS
     );
 
     public JsonStringTests(@Name("TestCase") Supplier<TestCaseSupplier.TestCase> testCaseSupplier) {
@@ -58,7 +61,7 @@ public class JsonStringTests extends AbstractScalarFunctionTestCase {
         }
         suppliers.add(twoPairs());
         suppliers.add(escaping());
-        return parameterSuppliersFromTypedData(suppliers);
+        return parameterSuppliersFromTypedData(randomizeBytesRefsOffset(suppliers));
     }
 
     private static TestCaseSupplier singlePair(DataType keyType, DataType valueType) {
@@ -108,10 +111,12 @@ public class JsonStringTests extends AbstractScalarFunctionTestCase {
     private static String fragment(DataType valueType, Object value) {
         return switch (valueType) {
             case BOOLEAN, INTEGER, LONG, DOUBLE -> String.valueOf(value);
+            case UNSIGNED_LONG -> unsignedLongAsBigInteger((Long) value).toString();
             case KEYWORD, TEXT -> quote(((BytesRef) value).utf8ToString());
             case IP -> quote(ipToString((BytesRef) value));
             case VERSION -> quote(versionToString((BytesRef) value));
-            case DATETIME -> quote(DEFAULT_DATE_TIME_FORMATTER.withZone(ZoneOffset.UTC).formatMillis((Long) value));
+            case DATETIME -> quote(dateTimeToString((Long) value));
+            case DATE_NANOS -> quote(nanoTimeToString((Long) value));
             default -> throw new IllegalArgumentException("unsupported value type [" + valueType + "]");
         };
     }

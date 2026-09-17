@@ -6,20 +6,24 @@
 | --- | --- | --- |
 | keyword | boolean | keyword |
 | keyword | date | keyword |
+| keyword | date_nanos | keyword |
 | keyword | double | keyword |
 | keyword | integer | keyword |
 | keyword | ip | keyword |
 | keyword | keyword | keyword |
 | keyword | long | keyword |
 | keyword | text | keyword |
+| keyword | unsigned_long | keyword |
 | keyword | version | keyword |
 | text | boolean | keyword |
 | text | date | keyword |
+| text | date_nanos | keyword |
 | text | double | keyword |
 | text | integer | keyword |
 | text | ip | keyword |
 | text | keyword | keyword |
 | text | long | keyword |
 | text | text | keyword |
+| text | unsigned_long | keyword |
 | text | version | keyword |
 

@@ -41,6 +41,7 @@ import org.apache.lucene.util.BytesRefHash;
 import org.apache.lucene.util.FixedBitSet;
 import org.elasticsearch.columnar.ColumNARDocValuesFormat;
 import org.elasticsearch.columnar.ColumnarFieldType;
+import org.elasticsearch.columnar.ColumnarStringMatchQuery;
 import org.elasticsearch.columnar.ColumnarStringTermQuery;
 import org.elasticsearch.columnar.ScanBudget;
 import org.elasticsearch.columnar.string.ColumnarStringBinaryDocValues;
@@ -353,6 +354,9 @@ public enum StringFormat {
 
         /** The prefix as a query, the shape of {@code LIKE "x*"}. */
         long queryPrefix(BytesRef prefix) throws IOException;
+
+        /** Documents whose value falls in {@code [lower, upper]}, inclusive. */
+        long queryRange(BytesRef lower, BytesRef upper) throws IOException;
     }
 
     /**
@@ -413,6 +417,22 @@ public enum StringFormat {
                 directoryReader.leaves().get(0),
                 ColumnarStringTermQuery.prefix(FIELD, prefix, ScanBudget.UNLIMITED)
             );
+        }
+
+        @Override
+        public long queryRange(BytesRef lower, BytesRef upper) throws IOException {
+            final BytesRef low = BytesRef.deepCopyOf(lower);
+            final BytesRef high = BytesRef.deepCopyOf(upper);
+            final String identity = "range=[" + low + "," + high + "]";
+            final Query query = new ColumnarStringMatchQuery(FIELD, value -> {
+                final int cmpLow = value.compareTo(low);
+                if (cmpLow < 0) {
+                    return false;
+                }
+                final int cmpHigh = value.compareTo(high);
+                return cmpHigh <= 0;
+            }, identity, ScanBudget.UNLIMITED);
+            return bulkCount(searcher, directoryReader.leaves().get(0), query);
         }
 
         private static long count(DocIdSetIterator matches) throws IOException {
@@ -665,6 +685,22 @@ public enum StringFormat {
                 terms.add(BytesRef.deepCopyOf(term));
             }
             return terms.isEmpty() ? 0 : bulkCount(searcher, reader.leaves().get(0), SortedDocValuesField.newSlowSetQuery(FIELD, terms));
+        }
+
+        @Override
+        public long queryRange(BytesRef lower, BytesRef upper) throws IOException {
+            if (format == ES819_BINARY) {
+                final BinaryDocValues values = leaf.getBinaryDocValues(FIELD);
+                long found = 0;
+                for (int doc = values.nextDoc(); doc != DocIdSetIterator.NO_MORE_DOCS; doc = values.nextDoc()) {
+                    final BytesRef value = values.binaryValue();
+                    if (value.compareTo(lower) >= 0 && value.compareTo(upper) <= 0) {
+                        found++;
+                    }
+                }
+                return found;
+            }
+            return bulkCount(searcher, reader.leaves().get(0), SortedDocValuesField.newSlowRangeQuery(FIELD, lower, upper, true, true));
         }
 
         @Override

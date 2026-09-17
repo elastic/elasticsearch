@@ -14,6 +14,8 @@ import org.apache.lucene.index.DocValues;
 import org.apache.lucene.index.LeafReader;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.columnar.string.StringBinaryPayload;
+import org.elasticsearch.columnar.string.StringColumnReader;
+import org.elasticsearch.columnar.string.StringColumnSource;
 
 import java.io.IOException;
 
@@ -29,13 +31,44 @@ public final class ColumnarPayloadSortedBinaryDocValues extends SortingBinaryDoc
 
     private final BinaryDocValues binary;
     private final StringBinaryPayload.Decoder decoder = new StringBinaryPayload.Decoder();
+    private final Sparsity sparsity;
+    private final ValueMode valueMode;
 
     public ColumnarPayloadSortedBinaryDocValues(BinaryDocValues binary) {
+        this(binary, Sparsity.UNKNOWN, ValueMode.UNKNOWN);
+    }
+
+    private ColumnarPayloadSortedBinaryDocValues(BinaryDocValues binary, Sparsity sparsity, ValueMode valueMode) {
         this.binary = binary;
+        this.sparsity = sparsity;
+        this.valueMode = valueMode;
     }
 
     public static ColumnarPayloadSortedBinaryDocValues from(LeafReader leafReader, String valuesFieldName) throws IOException {
-        return new ColumnarPayloadSortedBinaryDocValues(DocValues.getBinary(leafReader, valuesFieldName));
+        final BinaryDocValues binary = DocValues.getBinary(leafReader, valuesFieldName);
+        // A column records both of these, so neither costs a walk over the documents. A segment that arrives
+        // as an overlay records neither and leaves them unknown.
+        if (binary instanceof StringColumnSource source) {
+            final StringColumnReader column = source.reader();
+            return new ColumnarPayloadSortedBinaryDocValues(
+                binary,
+                column.numDocsWithField() == leafReader.maxDoc() ? Sparsity.DENSE : Sparsity.SPARSE,
+                // No value addresses means one slot a document, so none holds two. A null slot is no value,
+                // which single valued allows: it says at most one.
+                column.hasValueAddresses() ? ValueMode.UNKNOWN : ValueMode.SINGLE_VALUED
+            );
+        }
+        return new ColumnarPayloadSortedBinaryDocValues(binary);
+    }
+
+    @Override
+    public Sparsity getSparsity() {
+        return sparsity;
+    }
+
+    @Override
+    public ValueMode getValueMode() {
+        return valueMode;
     }
 
     @Override

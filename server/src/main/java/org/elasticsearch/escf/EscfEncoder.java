@@ -27,13 +27,17 @@ import org.elasticsearch.sourcebatch.SourceBatchEncodeHelper;
 import org.elasticsearch.sourcebatch.SourceBatchEncoder;
 import org.elasticsearch.sourcebatch.SourceValueType;
 import org.elasticsearch.transport.BytesRefRecycler;
+import org.elasticsearch.xcontent.DeprecationHandler;
+import org.elasticsearch.xcontent.NamedXContentRegistry;
 import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xcontent.XContentParserConfiguration;
 import org.elasticsearch.xcontent.XContentString;
 import org.elasticsearch.xcontent.XContentType;
+import org.elasticsearch.xcontent.support.MapXContentParser;
 
 import java.io.IOException;
 import java.util.List;
+import java.util.Map;
 
 /**
  * Encodes XContentType documents into {@link EscfBatch}es (Elasticsearch Column Format), accumulating one
@@ -122,6 +126,35 @@ public final class EscfEncoder implements SourceBatchEncoder {
             if (xContentType == XContentType.JSON) {
                 parser.allowDuplicateKeys(true);
             }
+            parser.nextToken(); // START_OBJECT
+            flattenObject(row, parser, parser.nextToken(), sink);
+        }
+        row.finishRow();
+    }
+
+    public void parseToScratch(Map<String, Object> source) throws IOException {
+        parseToScratch(source, LeafSink.NO_OP);
+    }
+
+    /**
+     * Parses a pre-decoded map document into the encoder's scratch buffers. The SIMD path is not
+     * applicable here; the map is walked directly via {@link MapXContentParser}.
+     *
+     * <p>Because map keys are inherently unique, duplicate-key handling is not needed and
+     * {@link MapXContentParser#allowDuplicateKeys} is not called. In raw-text mode, numeric and
+     * boolean leaf bytes are the Java {@link Object#toString()} representation of the value rather
+     * than the original source bytes.
+     */
+    public void parseToScratch(Map<String, Object> source, LeafSink sink) throws IOException {
+        EscfRowBuffer row = backend.beginRow();
+        try (
+            XContentParser parser = new MapXContentParser(
+                NamedXContentRegistry.EMPTY,
+                DeprecationHandler.IGNORE_DEPRECATIONS,
+                source,
+                XContentType.JSON
+            )
+        ) {
             parser.nextToken(); // START_OBJECT
             flattenObject(row, parser, parser.nextToken(), sink);
         }

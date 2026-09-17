@@ -251,10 +251,11 @@ final class S3EndpointCheck {
      * {@code s3-} or {@code sts-}, which is wider than anything AWS serves.
      */
     private static boolean isServiceLabel(String label, String service) {
-        if (S3_SERVICE.equals(service)) {
-            return S3_SERVICE_LABELS.contains(label) || isDashRegionLabel(label);
-        }
-        return STS_SERVICE_LABELS.contains(label);
+        return switch (service) {
+            case S3_SERVICE -> S3_SERVICE_LABELS.contains(label) || isDashRegionLabel(label);
+            case STS_SERVICE -> STS_SERVICE_LABELS.contains(label);
+            default -> throw new IllegalArgumentException("unknown service [" + service + "]");
+        };
     }
 
     /** The historical {@code s3-<region>} spelling, still resolvable and still in customer configuration. */
@@ -277,8 +278,10 @@ final class S3EndpointCheck {
      * so this is what lets them keep reading without each cluster naming its fixture somewhere. It is dead
      * code on a released node, which cannot reach a loopback service belonging to anyone but itself anyway.
      *
-     * <p>Loopback is recognised from the literal alone — no name is resolved, so nothing here depends on
-     * what DNS happens to say.
+     * <p>An IP literal is recognised as loopback from the literal alone. The name {@code localhost} is
+     * accepted as well, because {@code S3HttpFixture} hands one out in place of a literal on its TLS branch
+     * on Windows; whether that name reaches a loopback destination is decided by the resolver, not here.
+     * Both arms are reachable only on a snapshot build.
      */
     private static boolean isTestFixtureHost(String host) {
         if (Build.current().isSnapshot() == false) {

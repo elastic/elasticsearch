@@ -176,6 +176,8 @@ public class S3DataSourcePlugin extends Plugin implements DataSourcePlugin {
                     + "or omit it to have the bucket region detected automatically"
             )
             .withResourceCheck(S3ResourceCheck::validate)
+            // The cast holds because this same builder is given S3Configuration::fromMap as its config
+            // factory above, and the validator passes that factory's own product to the check.
             .withDatasourceCheck((config, errors) -> S3EndpointCheck.validate((S3Configuration) config, errors));
         return Map.of(v.type(), v);
     }

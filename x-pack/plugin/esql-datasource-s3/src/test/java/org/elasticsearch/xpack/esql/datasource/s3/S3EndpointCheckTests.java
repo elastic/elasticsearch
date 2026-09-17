@@ -13,6 +13,7 @@ import software.amazon.awssdk.services.s3.endpoints.S3EndpointProvider;
 import software.amazon.awssdk.services.sts.endpoints.StsEndpointParams;
 import software.amazon.awssdk.services.sts.endpoints.StsEndpointProvider;
 
+import org.elasticsearch.Build;
 import org.elasticsearch.common.ValidationException;
 import org.elasticsearch.test.ESTestCase;
 
@@ -207,6 +208,24 @@ public class S3EndpointCheckTests extends ESTestCase {
     public void testValidateRequiresHttps() {
         ValidationException errors = new ValidationException();
         S3EndpointCheck.validate(config("http://s3.us-east-1.amazonaws.com"), errors);
+        assertThat(errors.validationErrors().toString(), containsString("must use https"));
+    }
+
+    /**
+     * The fixture allowance, which is the one branch that admits a non-AWS host. Driven through
+     * {@link S3EndpointCheck#validate} rather than {@code isPermittedHost}, because that is the only entry
+     * point that consults it. Both arms run on a snapshot build, which is what the unit suite is.
+     */
+    public void testAcceptsLoopbackFixtureHostsOnlyOnASnapshotBuild() {
+        assertTrue(Build.current().isSnapshot());
+        for (String endpoint : List.of("http://127.0.0.1:9000", "http://[::1]:9000", "http://localhost:9000")) {
+            ValidationException errors = new ValidationException();
+            S3EndpointCheck.validate(config(endpoint), errors);
+            assertTrue(endpoint + " -> " + errors.validationErrors(), errors.validationErrors().isEmpty());
+        }
+        // A private address is not loopback, so it stays refused even here.
+        ValidationException errors = new ValidationException();
+        S3EndpointCheck.validate(config("http://10.0.0.1:9000"), errors);
         assertThat(errors.validationErrors().toString(), containsString("must use https"));
     }
 

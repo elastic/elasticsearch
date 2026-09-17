@@ -225,14 +225,14 @@ public class TextFieldTypeTests extends FieldTypeTestCase {
         AutomatonQuery actual = (AutomatonQuery) ft.wildcardQuery("*Butterflies*", null, false, MOCK_CONTEXT);
         AutomatonQuery expected = new WildcardQuery(new Term("field", new BytesRef("*Butterflies*")));
         assertEquals(expected, actual);
-        assertFalse(new CharacterRunAutomaton(actual.getAutomaton()).run("some butterflies somewhere"));
+        assertFalse(automatonMatches(actual.getAutomaton(), "some butterflies somewhere"));
 
         // case insensitive
         actual = (AutomatonQuery) ft.wildcardQuery("*Butterflies*", null, true, MOCK_CONTEXT);
         expected = AutomatonQueries.caseInsensitiveWildcardQuery(new Term("field", new BytesRef("*Butterflies*")));
         assertEquals(expected, actual);
-        assertTrue(new CharacterRunAutomaton(actual.getAutomaton()).run("some butterflies somewhere"));
-        assertTrue(new CharacterRunAutomaton(actual.getAutomaton()).run("some Butterflies somewhere"));
+        assertTrue(automatonMatches(actual.getAutomaton(), "some butterflies somewhere"));
+        assertTrue(automatonMatches(actual.getAutomaton(), "some Butterflies somewhere"));
 
         ElasticsearchException ee = expectThrows(
             ElasticsearchException.class,
@@ -250,8 +250,8 @@ public class TextFieldTypeTests extends FieldTypeTestCase {
         AutomatonQuery actual = (AutomatonQuery) ft.normalizedWildcardQuery("*Butterflies*", null, MOCK_CONTEXT);
         AutomatonQuery expected = new WildcardQuery(new Term("field", new BytesRef("*butterflies*")));
         assertEquals(expected, actual);
-        assertTrue(new CharacterRunAutomaton(actual.getAutomaton()).run("some butterflies somewhere"));
-        assertFalse(new CharacterRunAutomaton(actual.getAutomaton()).run("some Butterflies somewhere"));
+        assertTrue(automatonMatches(actual.getAutomaton(), "some butterflies somewhere"));
+        assertFalse(automatonMatches(actual.getAutomaton(), "some Butterflies somewhere"));
 
         ElasticsearchException ee = expectThrows(
             ElasticsearchException.class,
@@ -890,6 +890,11 @@ public class TextFieldTypeTests extends FieldTypeTestCase {
         TextFieldType binaryFt = binaryDocValuesOnly();
         q = binaryFt.regexpQuery("foo.*", 0, RegExp.ASCII_CASE_INSENSITIVE, 10, null, MOCK_CONTEXT);
         assertThat(q, instanceOf(ScanningBinaryDocValuesRegexpQuery.class));
+    }
+
+    // Lucene 11 WildcardQuery.getAutomaton() is an NFA; CharacterRunAutomaton still needs a DFA.
+    private static boolean automatonMatches(Automaton automaton, String text) {
+        return new CharacterRunAutomaton(Operations.determinize(automaton, Operations.DEFAULT_DETERMINIZE_WORK_LIMIT)).run(text);
     }
 
 }

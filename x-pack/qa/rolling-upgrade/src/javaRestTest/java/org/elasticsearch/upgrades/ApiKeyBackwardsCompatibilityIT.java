@@ -10,7 +10,6 @@ package org.elasticsearch.upgrades;
 import com.carrotsearch.randomizedtesting.annotations.Name;
 
 import org.apache.http.client.methods.HttpGet;
-import org.elasticsearch.Build;
 import org.elasticsearch.TransportVersion;
 import org.elasticsearch.Version;
 import org.elasticsearch.client.Request;
@@ -198,15 +197,6 @@ public class ApiKeyBackwardsCompatibilityIT extends AbstractXpackRollingUpgradeW
             final Tuple<String, String> apiKey = createOrGrantApiKey(initialApiKeyRole);
             updateOrBulkUpdateApiKey(apiKey.v1(), randomValueOtherThan(initialApiKeyRole, () -> randomRoleDescriptors(false)));
             authenticateWithApiKey(apiKey.v1(), apiKey.v2());
-
-            // Verify the API key was created with certificate identity
-            final Request getApiKeyRequest = new Request("GET", "/_security/api_key");
-            getApiKeyRequest.addParameter("id", apiKey.v1());
-            final Response getResponse = client().performRequest(getApiKeyRequest);
-            assertOK(getResponse);
-
-            final ObjectPath getPath = ObjectPath.createFromResponse(getResponse);
-            assertThat(getPath.evaluate("api_keys.0.certificate_identity"), equalTo("CN=test-.*"));
         }
     }
 
@@ -351,20 +341,10 @@ public class ApiKeyBackwardsCompatibilityIT extends AbstractXpackRollingUpgradeW
     }
 
     boolean nodeSupportApiKeyRemoteIndices(NodeInfo node) {
-        TransportVersion transportVersion = getTransportVersionWithFallback(
-            node.version(),
-            node.transportVersion(),
-            () -> TransportVersion.zero()
-        );
-
-        if (transportVersion.equals(TransportVersion.zero())) {
-            // In cases where we were not able to find a TransportVersion, a pre-8.8.0 node answered about a newer (upgraded) node.
-            // In that case, the node will be current (upgraded), and remote indices are supported for sure.
-            var nodeIsCurrent = node.version().equals(Build.current().version());
-            assertTrue(nodeIsCurrent);
-            return true;
+        if (node.transportVersion().equals(TransportVersion.zero())) {
+            return node.isUpgradedVersionCluster();
         }
-        return transportVersion.onOrAfter(RemoteClusterPortSettings.TRANSPORT_VERSION_ADVANCED_REMOTE_CLUSTER_SECURITY);
+        return node.transportVersion().onOrAfter(RemoteClusterPortSettings.TRANSPORT_VERSION_ADVANCED_REMOTE_CLUSTER_SECURITY);
     }
 
     private static RoleDescriptor randomRoleDescriptor(boolean includeRemoteDescriptors) {

@@ -18,9 +18,7 @@ import java.util.function.UnaryOperator;
 
 public abstract class AbstractXpackRollingUpgradeTestCase extends ParameterizedRollingUpgradeTestCase {
 
-    static final org.elasticsearch.Version UPGRADE_FROM_VERSION = org.elasticsearch.Version.fromString(
-        System.getProperty("tests.upgrade_from_version")
-    );
+    static final org.elasticsearch.Version UPGRADE_FROM_VERSION = org.elasticsearch.Version.fromString(getOldClusterVersion());
 
     public AbstractXpackRollingUpgradeTestCase(int upgradedNodes) {
         super(upgradedNodes);

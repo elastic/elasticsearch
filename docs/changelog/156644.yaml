@@ -1,6 +1,0 @@
-pr: 156665
-summary: "Fix Google Vertex AI `chat_completion` tool calls with non-string arguments"
-area: Inference
-type: bug
-issues:
-  - 156644

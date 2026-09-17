@@ -1,5 +1,0 @@
-area: Search
-issues: []
-pr: 157050
-summary: "Fix search failures caused by missing query cache shard statistics"
-type: bug

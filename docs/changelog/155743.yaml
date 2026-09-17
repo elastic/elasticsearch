@@ -1,5 +1,0 @@
-area: Search
-issues: []
-pr: 155743
-summary: "Add `search.aggs.max_nested_depth` to limit aggregation nesting"
-type: bug

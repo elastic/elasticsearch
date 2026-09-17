@@ -169,6 +169,24 @@ public class BulkInferenceExecutor {
         }
 
         /**
+         * Hands the scheduling turn to the next queued bulk request. Any path that stops driving the queue must call this, otherwise a
+         * queued bulk request is left with nobody to resume it.
+         *
+         * @param includeSelf whether this bulk request is itself a valid candidate, which is only the case right after it enqueued itself
+         */
+        private void scheduleNextPendingBulkRequest(boolean includeSelf) {
+            BulkInferenceRequest nextBulkRequest = pendingBulkRequests.poll();
+
+            while (includeSelf == false && nextBulkRequest == this) {
+                nextBulkRequest = pendingBulkRequests.poll();
+            }
+
+            if (nextBulkRequest != null) {
+                executorService.execute(nextBulkRequest::executePendingRequests);
+            }
+        }
+
+        /**
          * Main execution loop that processes inference requests asynchronously with hybrid recursion strategy.
          * <p>
          * This method implements a continuation-based asynchronous pattern with the following features:
@@ -204,6 +222,12 @@ public class BulkInferenceExecutor {
                     if (permits.tryAcquire() == false) {
                         if (requests.hasNext()) {
                             pendingBulkRequests.add(this);
+                            // A parked bulk request is resumed only by whoever releases a permit next, and permit holders look at the
+                            // queue right after releasing. A permit released between the failed tryAcquire() above and this enqueue
+                            // finds the queue still empty and moves on, leaving nobody to resume us.
+                            if (permits.availablePermits() > 0) {
+                                scheduleNextPendingBulkRequest(true);
+                            }
                         }
                         return;
                     } else {
@@ -215,15 +239,7 @@ public class BulkInferenceExecutor {
                             permits.release();
 
                             // Check if another bulk request is pending for execution.
-                            BulkInferenceRequest nexBulkRequest = pendingBulkRequests.poll();
-
-                            while (nexBulkRequest == this) {
-                                nexBulkRequest = pendingBulkRequests.poll();
-                            }
-
-                            if (nexBulkRequest != null) {
-                                executorService.execute(nexBulkRequest::executePendingRequests);
-                            }
+                            scheduleNextPendingBulkRequest(false);
 
                             return;
                         }
@@ -256,10 +272,7 @@ public class BulkInferenceExecutor {
                                         // Response has already been sent
                                         // No need to continue processing this bulk.
                                         // Check if another bulk request is pending for execution.
-                                        BulkInferenceRequest nexBulkRequest = pendingBulkRequests.poll();
-                                        if (nexBulkRequest != null) {
-                                            executorService.execute(nexBulkRequest::executePendingRequests);
-                                        }
+                                        scheduleNextPendingBulkRequest(true);
                                         return;
                                     }
                                     if (executionState.finished() == false) {
@@ -288,6 +301,9 @@ public class BulkInferenceExecutor {
                         inferenceRunner.doInference(bulkRequestItem.request(), inferenceResponseListener);
                     }
                 }
+
+                // This bulk is finished, so it will never look at the queue again: hand the turn over to whoever is still waiting.
+                scheduleNextPendingBulkRequest(false);
             } catch (Exception e) {
                 executionState.addFailure(e);
             }

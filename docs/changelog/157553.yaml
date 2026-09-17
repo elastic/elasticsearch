@@ -1,6 +1,0 @@
-pr: 157553
-summary: "Clamp out-of-range `COUNT_DISTINCT` precision thresholds to the maximum"
-area: ES|QL
-type: bug
-issues:
-  - 157549

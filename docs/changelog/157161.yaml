@@ -1,5 +1,0 @@
-area: Infra/Metrics
-issues: []
-pr: 157161
-summary: "Fix errors from node flush metrics during shutdown"
-type: bug

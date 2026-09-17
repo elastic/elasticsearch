@@ -2,22 +2,30 @@
 
 set -euo pipefail
 
-# Older versions of openjdk are incompatible to newer kernel of ubuntu. Use adoptopenjdk17 instead
+# Oracle OpenJDK 17.0.2 cannot read cgroup v2 on newer kernels
+# (NPE: CgroupInfo.getMountPoint() / anyController is null).
+# Adoptium 17 still can. JAVA_HOME alone is not enough: run-gradle.sh
+# launches Gradle via `java` on PATH.
 resolve_java_home() {
-  if [[ "$ES_BUILD_JAVA" == *"openjdk17"* ]]; then
-    if [ -f "/etc/os-release" ]; then
-        . /etc/os-release
-        if [[ "$ID" == "ubuntu" && "$VERSION_ID" == "24.04" ]]; then
-          echo "$HOME/.java/adoptopenjdk17"
-          return
-        fi
-      fi
+  local adoptium_home="$HOME/.java/adoptopenjdk17"
+  if [[ "${ES_BUILD_JAVA:-}" == *"openjdk17"* ]]; then
+    if [[ ! -d "$adoptium_home" ]]; then
+      echo "Missing $adoptium_home (required when ES_BUILD_JAVA=$ES_BUILD_JAVA)" >&2
+      exit 1
+    fi
+    echo "$adoptium_home"
+    return
   fi
-
-  echo "$JAVA_HOME"
+  echo "${JAVA_HOME:?JAVA_HOME not set}"
 }
 
-cd $WORKSPACE/plugins/examples
+cd "$WORKSPACE/plugins/examples"
 
-JAVA_HOME=$(resolve_java_home) \
-  $WORKSPACE/.ci/scripts/run-gradle.sh $@
+JAVA_HOME="$(resolve_java_home)"
+export JAVA_HOME
+export PATH="$JAVA_HOME/bin:$PATH"
+
+echo "--- Using JAVA_HOME=$JAVA_HOME"
+"$JAVA_HOME/bin/java" -version
+
+"$WORKSPACE/.ci/scripts/run-gradle.sh" "$@"

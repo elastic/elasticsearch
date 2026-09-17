@@ -1,4 +1,0 @@
-pr: 156029
-summary: "Grant `kibana_system` privileges on Ping Directory log indices"
-area: Authorization
-type: enhancement

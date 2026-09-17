@@ -17,6 +17,7 @@ import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.datasources.PartitionFilterHintExtractor.Operator;
 import org.elasticsearch.xpack.esql.datasources.PartitionFilterHintExtractor.PartitionFilterHint;
+import org.elasticsearch.xpack.esql.datasources.glob.GlobExpander;
 import org.elasticsearch.xpack.esql.expression.function.EsqlFunctionRegistry;
 import org.elasticsearch.xpack.esql.expression.function.UnresolvedFunction;
 import org.elasticsearch.xpack.esql.expression.predicate.logical.And;
@@ -161,6 +162,34 @@ public class PartitionFilterHintExtractorTests extends ESTestCase {
 
         Map<String, List<PartitionFilterHint>> hints = PartitionFilterHintExtractor.extract(rel);
         assertTrue(hints.isEmpty());
+    }
+
+    /**
+     * Field {@code DATE_EXTRACT} is not a Hive folder bind. C2 inverts it after analysis;
+     * listing still sees an unresolved function and must not emit {@code year=}.
+     */
+    public void testDateExtractOnTimestampFieldIsNotHiveHint() {
+        String path = "s3://bucket/data/year=*/*.parquet";
+        Expression extract = new UnresolvedFunction(SRC, "DATE_EXTRACT", List.of(keywordLiteral("year"), unresolved("ts")));
+        LogicalPlan plan = filterAboveExternal(new Equals(SRC, extract, intLiteral(2024)), path);
+
+        Map<String, List<PartitionFilterHint>> hints = PartitionFilterHintExtractor.extract(plan);
+        assertTrue("DATE_EXTRACT on ts must not emit year=", hints.isEmpty());
+        assertEquals(path, GlobExpander.rewriteGlobWithHints(path, hints.getOrDefault(path, List.of())));
+    }
+
+    public void testDateTruncOnTimestampFieldIsNotHiveHint() {
+        String path = "s3://bucket/data/year=*/*.parquet";
+        Expression trunc = new UnresolvedFunction(
+            SRC,
+            "DATE_TRUNC",
+            List.of(new Literal(SRC, Period.ofYears(1), DataType.DATE_PERIOD), unresolved("ts"))
+        );
+        LogicalPlan plan = filterAboveExternal(new Equals(SRC, trunc, keywordLiteral("2024-01-01T00:00:00Z")), path);
+
+        Map<String, List<PartitionFilterHint>> hints = PartitionFilterHintExtractor.extract(plan);
+        assertTrue("DATE_TRUNC on ts must not emit year=", hints.isEmpty());
+        assertEquals(path, GlobExpander.rewriteGlobWithHints(path, hints.getOrDefault(path, List.of())));
     }
 
     public void testUnsupportedExpressionIgnored() {

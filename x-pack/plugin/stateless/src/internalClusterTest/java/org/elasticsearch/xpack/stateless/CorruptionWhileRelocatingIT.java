@@ -10,7 +10,9 @@ package org.elasticsearch.xpack.stateless;
 import org.elasticsearch.action.ActionFuture;
 import org.elasticsearch.action.admin.cluster.reroute.ClusterRerouteUtils;
 import org.elasticsearch.action.index.IndexRequest;
+import org.elasticsearch.action.support.SubscribableListener;
 import org.elasticsearch.action.support.broadcast.BroadcastResponse;
+import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.routing.allocation.command.MoveAllocationCommand;
 import org.elasticsearch.cluster.routing.allocation.decider.MaxRetryAllocationDecider;
 import org.elasticsearch.common.settings.Settings;
@@ -27,12 +29,16 @@ import org.elasticsearch.transport.TransportChannel;
 import org.elasticsearch.transport.TransportResponse;
 import org.elasticsearch.xpack.stateless.action.NewCommitNotificationRequest;
 import org.elasticsearch.xpack.stateless.action.TransportNewCommitNotificationAction;
+import org.elasticsearch.xpack.stateless.commits.StatelessCommitService;
 import org.elasticsearch.xpack.stateless.commits.StatelessCompoundCommit;
+import org.elasticsearch.xpack.stateless.recovery.RegisterCommitResponse;
+import org.elasticsearch.xpack.stateless.recovery.TransportRegisterCommitForRecoveryAction;
 
 import java.util.Collection;
 import java.util.Locale;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.locks.LockSupport;
 
@@ -40,6 +46,7 @@ import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertNoFa
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertResponse;
 import static org.elasticsearch.xpack.stateless.commits.HollowShardsService.STATELESS_HOLLOW_INDEX_SHARDS_ENABLED;
 import static org.elasticsearch.xpack.stateless.recovery.TransportStatelessPrimaryRelocationHandoffAction.PRIMARY_CONTEXT_HANDOFF_ACTION_NAME;
+import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.instanceOf;
 
 public class CorruptionWhileRelocatingIT extends AbstractStatelessPluginIntegTestCase {
@@ -282,6 +289,157 @@ public class CorruptionWhileRelocatingIT extends AbstractStatelessPluginIntegTes
 
         refresh(indexName);
 
+        assertResponse(prepareSearch(indexName).setQuery(QueryBuilders.matchAllQuery()), searchResponse -> {
+            assertNoFailures(searchResponse);
+            assertEquals(2000, searchResponse.getHits().getTotalHits().value());
+        });
+    }
+
+    /// A search shard that registers for recovery while the primary is mid-handoff must not be given a commit whose
+    /// generation is above `maxGenerationToUpload`. That commit will never be uploaded by the relocation source
+    ///
+    /// The sequence forced here:
+    /// - The old primary enters `RELOCATING`, pinning `maxGenerationToUpload = M`.
+    /// - A force merge on the old node creates generation `M+1`, whose upload is paused for good.
+    /// - A recovering search shard registers with the old primary, which is still the primary in the routing table.
+    /// - The handoff completes and generation `M+1` is discarded, never reaching the object store.
+    ///
+    public void testSearchShardRegistrationDuringRelocationStaysWithinMaxGenerationToUpload() throws Exception {
+        final Settings indexNodeSettings = Settings.builder()
+            .put(disableIndexingDiskAndMemoryControllersNodeSettings())
+            .put(STATELESS_HOLLOW_INDEX_SHARDS_ENABLED.getKey(), Boolean.FALSE)
+            .build();
+
+        final var oldIndexNode = startMasterAndIndexNode(indexNodeSettings);
+        final String indexName = randomAlphaOfLength(10).toLowerCase(Locale.ROOT);
+        createIndex(
+            indexName,
+            indexSettings(1, 0).put(IndexSettings.INDEX_TRANSLOG_FLUSH_THRESHOLD_SIZE_SETTING.getKey(), ByteSizeValue.ofGb(1L))
+                .put(IndexSettings.INDEX_REFRESH_INTERVAL_SETTING.getKey(), TimeValue.MINUS_ONE)
+                .build()
+        );
+        ensureGreen(indexName);
+
+        // Several segments, so that the force merge below actually rewrites them into a new layout.
+        indexDocs(indexName, 1_000);
+        flush(indexName);
+        indexDocs(indexName, 1_000);
+        flush(indexName);
+
+        final var index = resolveIndex(indexName);
+        final var sourceShard = findIndexShard(index, 0, oldIndexNode);
+        final var newIndexNode = startIndexNode(indexNodeSettings);
+
+        // Hold the search shard's commit registration on the old node until the force merge has created a commit above
+        // maxGenerationToUpload, then capture the generation the old node hands back.
+        final var pauseRegistration = new CountDownLatch(1);
+        final var resumeRegistration = new CountDownLatch(1);
+        final var firstRegistration = new SubscribableListener<RegisterCommitResponse>();
+        final var firstRegistrationCaptured = new AtomicBoolean();
+        MockTransportService.getInstance(oldIndexNode)
+            .addRequestHandlingBehavior(TransportRegisterCommitForRecoveryAction.NAME, (handler, request, channel, task) -> {
+                pauseRegistration.countDown();
+                safeAwait(resumeRegistration);
+                handler.messageReceived(request, new TransportChannel() {
+                    @Override
+                    public void sendResponse(TransportResponse response) {
+                        if (response instanceof RegisterCommitResponse rcr && rcr.getCompoundCommit() != null) {
+                            logger.info("--> old primary handed back generation [{}]", rcr.getCompoundCommit().generation());
+                            // Record the first registration
+                            if (firstRegistrationCaptured.compareAndSet(false, true)) {
+                                firstRegistration.onResponse(rcr);
+                            }
+                        }
+                        channel.sendResponse(response);
+                    }
+
+                    @Override
+                    public void sendResponse(Exception exception) {
+                        channel.sendResponse(exception);
+                    }
+
+                    @Override
+                    public String getProfileName() {
+                        return channel.getProfileName();
+                    }
+                }, task);
+            });
+
+        // Hold the handoff response so that the old primary stays in RELOCATING while the force merge and the
+        // search shard registration runs.
+        final var pauseHandoff = new CountDownLatch(1);
+        final var resumeHandoff = new CountDownLatch(1);
+        MockTransportService.getInstance(newIndexNode)
+            .addRequestHandlingBehavior(
+                PRIMARY_CONTEXT_HANDOFF_ACTION_NAME,
+                (handler, request, channel, task) -> handler.messageReceived(request, new TransportChannel() {
+                    @Override
+                    public void sendResponse(TransportResponse response) {
+                        pauseHandoff.countDown();
+                        safeAwait(resumeHandoff);
+                        channel.sendResponse(response);
+                    }
+
+                    @Override
+                    public void sendResponse(Exception exception) {
+                        pauseHandoff.countDown();
+                        safeAwait(resumeHandoff);
+                        channel.sendResponse(exception);
+                    }
+
+                    @Override
+                    public String getProfileName() {
+                        return channel.getProfileName();
+                    }
+                }, task)
+            );
+
+        logger.info("--> moving index shard from {} to {}", oldIndexNode, newIndexNode);
+        ClusterRerouteUtils.reroute(client(), new MoveAllocationCommand(indexName, 0, oldIndexNode, newIndexNode));
+        logger.info("--> waiting for the relocation handoff to be paused");
+        safeAwait(pauseHandoff);
+
+        // markRelocating has run, so maxGenerationToUpload is the generation of the last flush on the source.
+        final long maxGenerationToUpload = sourceShard.getEngineOrNull().getLastCommittedSegmentInfos().getGeneration();
+
+        startSearchNode();
+        updateIndexSettings(Settings.builder().put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 1), indexName);
+        logger.info("--> waiting for the search shard registration to reach the old indexing node");
+        safeAwait(pauseRegistration);
+
+        logger.info("--> force merging on the old node to create a commit above maxGenerationToUpload");
+        client(oldIndexNode).admin().indices().prepareForceMerge(indexName).setMaxNumSegments(1).execute();
+
+        final var sourceCommitService = internalCluster().getInstance(StatelessCommitService.class, oldIndexNode);
+        assertBusy(
+            () -> assertThat(
+                sourceCommitService.getMaxPendingOrUploadedGeneration(sourceShard.shardId()),
+                greaterThan(maxGenerationToUpload)
+            )
+        );
+
+        logger.info(
+            "--> before resuming registration: maxGenerationToUpload=[{}], maxPendingOrUploaded=[{}], latestUploadedBcc=[{}], engine=[{}]",
+            maxGenerationToUpload,
+            sourceCommitService.getMaxPendingOrUploadedGeneration(sourceShard.shardId()),
+            sourceCommitService.getLatestUploadedBcc(sourceShard.shardId()).primaryTermAndGeneration(),
+            sourceShard.getEngineOrNull().getLastCommittedSegmentInfos().getGeneration()
+        );
+        logger.info("--> resuming the search shard registration");
+        resumeRegistration.countDown();
+
+        final var registrationResponse = safeAwait(firstRegistration);
+        logger.info(
+            "--> registration returned [{}], maxGenerationToUpload=[{}], source engine is at [{}]",
+            registrationResponse.getCompoundCommit().primaryTermAndGeneration(),
+            maxGenerationToUpload,
+            sourceShard.getEngineOrNull().getLastCommittedSegmentInfos().getGeneration()
+        );
+
+        logger.info("--> resuming the relocation handoff");
+        resumeHandoff.countDown();
+
+        ensureGreen(indexName);
         assertResponse(prepareSearch(indexName).setQuery(QueryBuilders.matchAllQuery()), searchResponse -> {
             assertNoFailures(searchResponse);
             assertEquals(2000, searchResponse.getHits().getTotalHits().value());

@@ -482,4 +482,10 @@ public class WeightedTokensQueryBuilderTests extends AbstractQueryTestCase<Weigh
         );
         assertWarnings(WeightedTokensQueryBuilder.WEIGHTED_TOKENS_DEPRECATION_MESSAGE);
     }
+
+    @Override
+    protected boolean supportsParseTimeBreakerSelfTest() {
+        // weighted_tokens emits a deprecation warning during parsing; the base self-test cannot assert it
+        return false;
+    }
 }

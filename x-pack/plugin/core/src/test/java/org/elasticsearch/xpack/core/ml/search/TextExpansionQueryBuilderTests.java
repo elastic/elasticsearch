@@ -310,4 +310,10 @@ public class TextExpansionQueryBuilderTests extends AbstractQueryTestCase<TextEx
             assertTrue(rewrittenQueryBuilder instanceof WeightedTokensQueryBuilder);
         }
     }
+
+    @Override
+    protected boolean supportsParseTimeBreakerSelfTest() {
+        // text_expansion emits a deprecation warning during parsing; the base self-test cannot assert it
+        return false;
+    }
 }

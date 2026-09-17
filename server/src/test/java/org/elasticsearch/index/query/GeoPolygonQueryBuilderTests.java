@@ -313,4 +313,10 @@ public class GeoPolygonQueryBuilderTests extends AbstractQueryTestCase<GeoPolygo
         assertParseTimeBreaker(limit, small, large);
         assertDeprecationWarning();
     }
+
+    @Override
+    protected boolean supportsParseTimeBreakerSelfTest() {
+        // geo_polygon emits a deprecation warning during parsing; the base self-test cannot assert it
+        return false;
+    }
 }

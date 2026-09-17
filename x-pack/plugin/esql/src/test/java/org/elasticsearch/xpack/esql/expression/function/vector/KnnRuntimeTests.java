@@ -90,13 +90,7 @@ public class KnnRuntimeTests extends ESTestCase {
         try (FloatBlock fieldBlock = vectorBlock(new float[] { 2.0f, 0.0f })) {
             IllegalArgumentException error = expectThrows(
                 IllegalArgumentException.class,
-                () -> Knn.runtimeFilterForDotProduct(
-                    0,
-                    fieldBlock,
-                    new float[] { 1.0f, 0.0f },
-                    null,
-                    new float[2]
-                )
+                () -> Knn.runtimeFilterForDotProduct(0, fieldBlock, new float[] { 1.0f, 0.0f }, null, new float[2])
             );
             assertThat(error.getMessage(), containsString("dot_product requires unit-length vectors"));
         }
@@ -104,27 +98,13 @@ public class KnnRuntimeTests extends ESTestCase {
 
     public void testRuntimeFilterUnitVectorHandlesNullAndDimensionMismatch() {
         try (FloatBlock fieldBlock = vectorBlock((float[]) null)) {
-            assertFalse(
-                Knn.runtimeFilterForDotProduct(
-                    0,
-                    fieldBlock,
-                    new float[] { 1.0f, 0.0f },
-                    null,
-                    new float[2]
-                )
-            );
+            assertFalse(Knn.runtimeFilterForDotProduct(0, fieldBlock, new float[] { 1.0f, 0.0f }, null, new float[2]));
         }
 
         try (FloatBlock fieldBlock = vectorBlock(new float[] { 1.0f })) {
             IllegalArgumentException error = expectThrows(
                 IllegalArgumentException.class,
-                () -> Knn.runtimeFilterForDotProduct(
-                    0,
-                    fieldBlock,
-                    new float[] { 1.0f, 0.0f },
-                    null,
-                    new float[2]
-                )
+                () -> Knn.runtimeFilterForDotProduct(0, fieldBlock, new float[] { 1.0f, 0.0f }, null, new float[2])
             );
             assertThat(error.getMessage(), containsString("dense_vector dimensions do not match"));
         }

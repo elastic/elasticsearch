@@ -1035,7 +1035,7 @@ public final class QueryDslTranslator {
 
     /**
      * A Lucene wildcard pattern as an ES|QL predicate. {@code mv_like} speaks that same dialect — {@link
-     * WildcardPattern} builds its automaton with {@code WildcardQuery.toAutomaton}, the very call the index makes — so
+     * WildcardPattern} builds its automaton with {@code WildcardQuery.toAutomaton}, Lucene's own wildcard reader, so
      * the pattern goes across verbatim, which also keeps the affix fast paths ({@code foo*}, the shape a {@code prefix}
      * always takes). It is narrower in one place: ES|QL rejects a trailing backslash and an escape of anything other
      * than {@code * ? \}, both of which Lucene reads leniently. Those spellings take {@code mv_rlike} through the

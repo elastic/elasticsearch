@@ -266,6 +266,11 @@ public class JinaAIService extends SenderService<JinaAIModel> implements Reranki
     }
 
     @Override
+    public boolean requiresSingleInputEmbeddingRequest(Model model, InferenceStringGroup input) {
+        return input.containsPdfEntry();
+    }
+
+    @Override
     protected boolean supportsMultipleItemsPerContent() {
         return true;
     }

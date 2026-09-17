@@ -529,7 +529,7 @@ public class AnalyzerExternalTests extends ESTestCase {
             TEST_PARSER.parseQuery(query),
             datasetProject(resource),
             TestIndexNameExpressionResolver.newInstance(),
-            // These cases name their datasets exactly, which reaches them at the dataset_wildcards default.
+            // These cases name their datasets exactly, which reaches them at the wildcards_match_datasets default.
             false
         );
         return testAnalyzer.buildAnalyzer().analyze(rewritten);

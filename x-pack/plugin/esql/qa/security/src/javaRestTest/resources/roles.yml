@@ -475,7 +475,7 @@ ds_dataset_query_fls:
 # read on security_it_ds_keep_* only — used to test partial wildcard authorization and an explicitly-unauthorized
 # dataset (security_it_ds_drop_*) in the same FROM.
 # Plain read on one dataset name, and a DLS-carrying read on a wildcard that matches a different dataset. With
-# dataset_wildcards off the wildcard reaches no dataset, so the DLS grant must not reject the query: the request
+# wildcards_match_datasets off the wildcard reaches no dataset, so the DLS grant must not reject the query: the request
 # should reach the exactly-named dataset only. See testMixedExactAndDlsWildcardIsNotRejectedWhenDatasetWildcardsOff.
 ds_dataset_query_ok_plus_dls:
   cluster: []

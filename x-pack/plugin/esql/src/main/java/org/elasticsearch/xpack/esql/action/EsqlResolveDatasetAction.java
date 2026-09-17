@@ -94,7 +94,7 @@ public class EsqlResolveDatasetAction extends TransportLocalProjectMetadataActio
             request.rawPatterns(),
             project.metadata(),
             indexNameExpressionResolver,
-            request.datasetWildcards()
+            request.wildcardsMatchDatasets()
         );
         listener.onResponse(
             new Response(resolution.resolvedExternalDatasets(), resolution.nonDatasetNames(), resolution.explicitUnauthorized())
@@ -113,22 +113,22 @@ public class EsqlResolveDatasetAction extends TransportLocalProjectMetadataActio
         // un-narrowed patterns to classify whether the relation also targets non-dataset abstractions.
         private final String[] rawPatterns;
         private ResolvedIndexExpressions resolvedIndexExpressions;
-        // The coordinator's resolved dataset_wildcards query setting. This is a LocalClusterStateRequest, whose writeTo
+        // The coordinator's resolved wildcards_match_datasets query setting. This is a LocalClusterStateRequest, whose writeTo
         // is the local-only stub, so carrying it serializes nothing and costs no transport version.
-        private final boolean datasetWildcards;
+        private final boolean wildcardsMatchDatasets;
 
         /**
          * @param rawPatterns one relation's raw FROM patterns (split on comma, not pre-expanded)
-         * @param datasetWildcards the coordinator's resolved {@code dataset_wildcards} query setting
+         * @param wildcardsMatchDatasets the coordinator's resolved {@code wildcards_match_datasets} query setting
          */
-        public Request(TimeValue masterTimeout, String[] rawPatterns, boolean datasetWildcards) {
+        public Request(TimeValue masterTimeout, String[] rawPatterns, boolean wildcardsMatchDatasets) {
             super(masterTimeout);
-            // With dataset_wildcards off a wildcard reaches no dataset, so it must not reach the security filter
+            // With wildcards_match_datasets off a wildcard reaches no dataset, so it must not reach the security filter
             // either: the filter expands it, and ViewAndDatasetDlsFlsRequestInterceptor then rejects the request over
             // a DLS/FLS dataset this request will never read. rawPatterns keeps the full user-typed list.
-            this.indices = datasetWildcards ? rawPatterns : DatasetRewriter.exactPatterns(rawPatterns);
+            this.indices = wildcardsMatchDatasets ? rawPatterns : DatasetRewriter.exactPatterns(rawPatterns);
             this.rawPatterns = rawPatterns;
-            this.datasetWildcards = datasetWildcards;
+            this.wildcardsMatchDatasets = wildcardsMatchDatasets;
         }
 
         @Override
@@ -146,9 +146,9 @@ public class EsqlResolveDatasetAction extends TransportLocalProjectMetadataActio
             return rawPatterns;
         }
 
-        /** The coordinator's resolved {@code dataset_wildcards} query setting; see {@link DatasetRewriter#resolve}. */
-        public boolean datasetWildcards() {
-            return datasetWildcards;
+        /** The coordinator's resolved {@code wildcards_match_datasets} query setting; see {@link DatasetRewriter#resolve}. */
+        public boolean wildcardsMatchDatasets() {
+            return wildcardsMatchDatasets;
         }
 
         @Override

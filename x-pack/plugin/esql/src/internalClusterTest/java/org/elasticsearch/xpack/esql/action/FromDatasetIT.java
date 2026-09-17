@@ -5046,7 +5046,7 @@ public class FromDatasetIT extends AbstractExternalDataSourceIT {
         }
 
         // On: employees + employees_alt = 3 + 2 = 5
-        try (var response = run(syncEsqlQueryRequest("SET dataset_wildcards = true; FROM employees* | STATS c = COUNT(*)"), TIMEOUT)) {
+        try (var response = run(syncEsqlQueryRequest("SET wildcards_match_datasets = true; FROM employees* | STATS c = COUNT(*)"), TIMEOUT)) {
             List<List<Object>> rows = getValuesList(response);
             assertThat(rows, hasSize(1));
             assertThat(((Number) rows.get(0).get(0)).longValue(), equalTo(5L));
@@ -5070,7 +5070,7 @@ public class FromDatasetIT extends AbstractExternalDataSourceIT {
         // On: employees* matches both, exclusion of employees_alt leaves only employees (3 rows)
         try (
             var response = run(
-                syncEsqlQueryRequest("SET dataset_wildcards = true; FROM employees*,-employees_alt | STATS c = COUNT(*)"),
+                syncEsqlQueryRequest("SET wildcards_match_datasets = true; FROM employees*,-employees_alt | STATS c = COUNT(*)"),
                 TIMEOUT
             )
         ) {
@@ -5229,7 +5229,7 @@ public class FromDatasetIT extends AbstractExternalDataSourceIT {
         }
 
         // On: logs_* expands to logs_index (empty) + logs_dataset (3 rows) = 3 total
-        try (var response = run(syncEsqlQueryRequest("SET dataset_wildcards = true; FROM logs_* | STATS c = COUNT(*)"), TIMEOUT)) {
+        try (var response = run(syncEsqlQueryRequest("SET wildcards_match_datasets = true; FROM logs_* | STATS c = COUNT(*)"), TIMEOUT)) {
             List<List<Object>> rows = getValuesList(response);
             assertThat(rows, hasSize(1));
             assertThat(((Number) rows.get(0).get(0)).longValue(), equalTo(3L));

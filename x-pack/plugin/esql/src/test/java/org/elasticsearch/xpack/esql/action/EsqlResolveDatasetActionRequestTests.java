@@ -49,7 +49,7 @@ public class EsqlResolveDatasetActionRequestTests extends ESTestCase {
         assertThat("rawPatterns is unaffected by indices() narrowing", request.rawPatterns(), arrayContaining("logs_*", "-logs_test"));
     }
 
-    public void testWildcardsAreWithheldFromTheSecurityFilterWhenDatasetWildcardsIsOff() {
+    public void testWildcardsAreWithheldFromTheSecurityFilterWhenWildcardsMatchDatasetsIsOff() {
         // With the setting off a wildcard reaches no dataset, so it must not reach the security filter either: the
         // filter expands it and ViewAndDatasetDlsFlsRequestInterceptor then rejects the whole request over a DLS/FLS
         // dataset this request will never read. Only the exactly-named parts go out; rawPatterns keeps the full list.

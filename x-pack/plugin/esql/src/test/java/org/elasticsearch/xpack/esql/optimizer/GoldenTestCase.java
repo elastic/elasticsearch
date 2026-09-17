@@ -747,7 +747,7 @@ public abstract class GoldenTestCase extends ESTestCase {
             // Then turn FROM <dataset> targets into UnresolvedExternalRelation, exactly as EsqlSession does. A
             // null datasetMetadata (the default) makes this a no-op, so plain golden tests are unaffected; when a
             // test registers datasets, external relations are excluded from CSV index discovery below.
-            // Golden tests name their datasets exactly, which reaches them at the dataset_wildcards default.
+            // Golden tests name their datasets exactly, which reaches them at the wildcards_match_datasets default.
             parsedPlan = DatasetRewriter.rewriteUnsecured(
                 parsedPlan,
                 datasetMetadata,

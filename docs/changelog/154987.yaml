@@ -1,5 +1,5 @@
 pr: 154987
-summary: Make wildcard discovery of datasets opt-in with `dataset_wildcards`
+summary: Make wildcard discovery of datasets opt-in with `wildcards_match_datasets`
 area: ES|QL
 type: feature
 issues:

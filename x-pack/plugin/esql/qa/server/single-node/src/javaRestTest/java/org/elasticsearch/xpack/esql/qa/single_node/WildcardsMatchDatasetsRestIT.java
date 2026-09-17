@@ -34,7 +34,7 @@ import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasSize;
 
 /**
- * End-to-end REST coverage for the {@code dataset_wildcards} query setting, against the scenario reported on a 9.5.2
+ * End-to-end REST coverage for the {@code wildcards_match_datasets} query setting, against the scenario reported on a 9.5.2
  * cluster in elastic/elasticsearch#158472: enough registered datasets make every {@code FROM *} fail, because a
  * wildcard sweeps them all in and each becomes its own plan branch.
  *
@@ -47,7 +47,7 @@ import static org.hamcrest.Matchers.hasSize;
  * the {@code x-pack:plugin:esql} unit suites.
  */
 @ThreadLeakFilters(filters = TestClustersThreadFilter.class)
-public class DatasetWildcardsRestIT extends ESRestTestCase {
+public class WildcardsMatchDatasetsRestIT extends ESRestTestCase {
 
     /** One past {@code MergePlan.MAX_BRANCHES} once the matching index contributes its own branch. */
     private static final int DATASET_COUNT = 8;
@@ -105,7 +105,7 @@ public class DatasetWildcardsRestIT extends ESRestTestCase {
 
         // On: the same wildcard now reaches the dataset and the query fails trying to read its resource. That failure
         // IS the proof of reach -- the bucket does not exist, which is exactly why it is unambiguous.
-        ResponseException ex = expectThrows(ResponseException.class, () -> query("SET dataset_wildcards = true; FROM lake_1* | LIMIT 1"));
+        ResponseException ex = expectThrows(ResponseException.class, () -> query("SET wildcards_match_datasets = true; FROM lake_1* | LIMIT 1"));
         assertThat(ex.getResponse().getStatusLine().getStatusCode(), equalTo(400));
         String body = EntityUtils.toString(ex.getResponse().getEntity());
         assertThat(body, containsString("Failed to resolve external source [s3://bucket/1/*.csv]"));

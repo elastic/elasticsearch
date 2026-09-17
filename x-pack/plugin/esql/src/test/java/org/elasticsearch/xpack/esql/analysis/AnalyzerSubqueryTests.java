@@ -1758,7 +1758,7 @@ public class AnalyzerSubqueryTests extends AnalyzerTestCase {
             TEST_PARSER.parseQuery(query),
             projectMetadata,
             TestIndexNameExpressionResolver.newInstance(),
-            // These cases name their datasets exactly, which reaches them at the dataset_wildcards default.
+            // These cases name their datasets exactly, which reaches them at the wildcards_match_datasets default.
             false
         );
         ExternalSourceResolution resolution = new ExternalSourceResolution(

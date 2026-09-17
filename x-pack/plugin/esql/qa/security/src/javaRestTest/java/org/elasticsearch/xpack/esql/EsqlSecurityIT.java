@@ -2874,7 +2874,7 @@ public class EsqlSecurityIT extends ESRestTestCase {
         final String authorized = createSecurityItDatasetAsAdmin("security_it_ds_keep_" + randomAlphaOfLength(6).toLowerCase(Locale.ROOT));
         final String denied = createSecurityItDatasetAsAdmin("security_it_ds_drop_" + randomAlphaOfLength(6).toLowerCase(Locale.ROOT));
         try {
-            // With dataset_wildcards off (the default) security_it_ds_keep_* reaches no dataset at all; the
+            // With wildcards_match_datasets off (the default) security_it_ds_keep_* reaches no dataset at all; the
             // explicitly-named denied one is unaffected by the setting and must still error.
             ResponseException ex = expectThrows(
                 ResponseException.class,
@@ -2898,7 +2898,7 @@ public class EsqlSecurityIT extends ESRestTestCase {
      * points at a bucket that does not exist, which is what makes the two outcomes unambiguous: reaching the dataset
      * fails the query, so an empty success proves it was never reached.
      */
-    public void testFromDatasetWildcardUnderSecurityRespectsDatasetWildcardsSetting() throws IOException {
+    public void testFromDatasetWildcardUnderSecurityRespectsWildcardsMatchDatasetsSetting() throws IOException {
         assumeTrue("data_sources REST API not supported by cluster", dataSourcesApiSupported());
         ensureSecurityItDatasourcesForTests();
         final String authorized = createSecurityItDatasetAsAdmin("security_it_ds_keep_" + randomAlphaOfLength(6).toLowerCase(Locale.ROOT));
@@ -2914,7 +2914,7 @@ public class EsqlSecurityIT extends ESRestTestCase {
                 ResponseException.class,
                 () -> runESQLCommand(
                     "ds_dataset_query_partial",
-                    "SET dataset_wildcards = true; FROM security_it_ds_keep_* | STATS COUNT(*)"
+                    "SET wildcards_match_datasets = true; FROM security_it_ds_keep_* | STATS COUNT(*)"
                 )
             );
             assertThat(ex.getResponse().getStatusLine().getStatusCode(), equalTo(HttpStatus.SC_BAD_REQUEST));
@@ -2943,7 +2943,7 @@ public class EsqlSecurityIT extends ESRestTestCase {
     }
 
     /**
-     * Narrowing to the exactly-named datasets must not narrow to nothing: with {@code dataset_wildcards} off, a
+     * Narrowing to the exactly-named datasets must not narrow to nothing: with {@code wildcards_match_datasets} off, a
      * dataset the user named exactly still reaches, even when a wildcard sits beside it in the same {@code FROM} and
      * authorization has already expanded that wildcard into concrete names. Both datasets are authorized for the
      * principal, so authorization is not what decides the outcome here - only the setting is.
@@ -2953,7 +2953,7 @@ public class EsqlSecurityIT extends ESRestTestCase {
      * from the post-filter {@code indices()} instead of from {@code rawPatterns}. Each dataset carries its own
      * resource so the failure names the dataset the query reached rather than a string both share.
      */
-    public void testDatasetWildcardsOffKeepsExactlyNamedDatasetUnderSecurity() throws IOException {
+    public void testWildcardsMatchDatasetsOffKeepsExactlyNamedDatasetUnderSecurity() throws IOException {
         assumeTrue("data_sources REST API not supported by cluster", dataSourcesApiSupported());
         ensureSecurityItDatasourcesForTests();
         final String suffix = randomAlphaOfLength(6).toLowerCase(Locale.ROOT);
@@ -2983,7 +2983,7 @@ public class EsqlSecurityIT extends ESRestTestCase {
 
     /**
      * A wildcard that reaches no dataset must not drag one through authorization either. With
-     * {@code dataset_wildcards} off, {@code FROM ok_ds, dls_*} reads only {@code ok_ds}, so the DLS grant covering
+     * {@code wildcards_match_datasets} off, {@code FROM ok_ds, dls_*} reads only {@code ok_ds}, so the DLS grant covering
      * {@code dls_*} is irrelevant to this query and must not reject it.
      * <p>
      * Before the request withheld its wildcards from the security filter, the filter expanded {@code dls_*} to the
@@ -2991,7 +2991,7 @@ public class EsqlSecurityIT extends ESRestTestCase {
      * would never read. Reported by julian-elastic on elastic/elasticsearch#154987. The assertion is the exactly-named
      * dataset's own resource: reaching it proves the query got past authorization and narrowed to the right name.
      */
-    public void testMixedExactAndDlsWildcardIsNotRejectedWhenDatasetWildcardsOff() throws IOException {
+    public void testMixedExactAndDlsWildcardIsNotRejectedWhenWildcardsMatchDatasetsOff() throws IOException {
         assumeTrue("data_sources REST API not supported by cluster", dataSourcesApiSupported());
         ensureSecurityItDatasourcesForTests();
         final String suffix = randomAlphaOfLength(6).toLowerCase(Locale.ROOT);

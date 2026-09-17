@@ -16,22 +16,16 @@ import software.amazon.awssdk.services.sts.endpoints.StsEndpointProvider;
 import org.elasticsearch.common.ValidationException;
 import org.elasticsearch.test.ESTestCase;
 
+import java.net.URI;
 import java.util.List;
 import java.util.Map;
 
+import static org.elasticsearch.xpack.esql.datasource.s3.S3EndpointCheck.S3_SERVICE;
+import static org.elasticsearch.xpack.esql.datasource.s3.S3EndpointCheck.STS_SERVICE;
 import static org.hamcrest.Matchers.containsString;
 
-/**
- * The endpoint constraint, driven directly rather than through the validator.
- *
- * <p>{@link #testAcceptsEveryEndpointTheResolverProduces} is the load-bearing one: it asks the SDK's own
- * endpoint resolver for the destination of every region/FIPS/dual-stack combination across all eight AWS
- * partitions and requires the rule to accept each. A rule written against a single literal suffix cannot
- * pass it, and a partition or variant the SDK gains is covered without editing this file.
- */
 public class S3EndpointCheckTests extends ESTestCase {
 
-    /** One region per partition, plus extras in the commercial partition. */
     private static final List<String> REGIONS = List.of(
         "us-east-1",
         "eu-west-1",
@@ -45,6 +39,11 @@ public class S3EndpointCheckTests extends ESTestCase {
         "eusc-de-east-1"
     );
 
+    /**
+     * Asks the SDK's own resolver where each region, FIPS and dual-stack combination in all eight AWS
+     * partitions resolves to, and requires the rule to accept every one. A rule written against a single
+     * literal suffix cannot pass, and a partition the SDK gains is covered without editing this file.
+     */
     public void testAcceptsEveryEndpointTheResolverProduces() {
         int checked = 0;
         for (String region : REGIONS) {
@@ -52,193 +51,156 @@ public class S3EndpointCheckTests extends ESTestCase {
                 for (boolean dualStack : List.of(false, true)) {
                     String s3Host = resolveS3Host(region, fips, dualStack);
                     if (s3Host != null) {
-                        // The resolver answers with the bucket in the leading label; the endpoint setting names
-                        // the service endpoint, which is what remains once that label is removed.
-                        String serviceHost = s3Host.substring("mybucket.".length());
-                        assertTrue(
-                            "s3 endpoint rejected: " + serviceHost,
-                            S3EndpointCheck.isPermittedHost(serviceHost, S3EndpointCheck.S3_SERVICE)
-                        );
+                        // The resolver puts the bucket in the leading label; the setting names what remains.
+                        String service = s3Host.substring("mybucket.".length());
+                        assertTrue("rejected " + service, S3EndpointCheck.isPermittedHost(service, S3_SERVICE));
                         checked++;
                     }
                     String stsHost = resolveStsHost(region, fips, dualStack);
                     if (stsHost != null) {
-                        assertTrue(
-                            "sts endpoint rejected: " + stsHost,
-                            S3EndpointCheck.isPermittedHost(stsHost, S3EndpointCheck.STS_SERVICE)
-                        );
+                        assertTrue("rejected " + stsHost, S3EndpointCheck.isPermittedHost(stsHost, STS_SERVICE));
                         checked++;
                     }
                 }
             }
         }
-        // An exact count, not a floor: a combination that silently stopped resolving would otherwise drop
-        // out of the walk without anyone noticing.
         assertEquals("the set of endpoints the resolver produces has changed", 68, checked);
     }
 
-    public void testAcceptsGlobalAndVariantEndpoints() {
-        assertPermitted("https://s3.amazonaws.com", S3EndpointCheck.S3_SERVICE);
-        assertPermitted("https://sts.amazonaws.com", S3EndpointCheck.STS_SERVICE);
-        assertPermitted("https://s3-accesspoint.us-east-1.amazonaws.com", S3EndpointCheck.S3_SERVICE);
-        assertPermitted("https://s3express-use1-az4.us-east-1.amazonaws.com", S3EndpointCheck.S3_SERVICE);
-        // Case and the DNS root dot both normalise away.
-        assertPermitted("https://S3.US-EAST-1.AMAZONAWS.COM", S3EndpointCheck.S3_SERVICE);
-        assertPermitted("https://s3.us-east-1.amazonaws.com.", S3EndpointCheck.S3_SERVICE);
-    }
-
-    public void testAcceptsVpcInterfaceEndpoints() {
-        // AWS PrivateLink: the destination a customer cannot express any other way. The SDK carries no
-        // pattern for these, so these cases are what pins the spelling.
-        assertPermitted("https://bucket.vpce-0a1b2c3d4e5f.s3.us-east-1.vpce.amazonaws.com", S3EndpointCheck.S3_SERVICE);
-        assertPermitted("https://accesspoint.vpce-0a1b2c3d.s3.eu-west-1.vpce.amazonaws.com", S3EndpointCheck.S3_SERVICE);
-        assertPermitted("https://control.vpce-0a1b2c3d.s3.cn-north-1.vpce.amazonaws.com.cn", S3EndpointCheck.S3_SERVICE);
-        assertPermitted("https://vpce-0a1b2c3d.sts.us-east-1.vpce.amazonaws.com", S3EndpointCheck.STS_SERVICE);
-    }
-
-    public void testRefusesHostsThatEndInAPartitionSuffixWithoutALabelBoundary() {
-        // The suffix test is anchored with a leading dot. Unanchored, these pass: eu-west-1xamazonaws.com
-        // is an ordinary registrable domain, so an attacker could hold a certificate for
-        // s3.eu-west-1xamazonaws.com and receive the node's token. The suffix-extension cases above do not
-        // cover this, because the label arithmetic refuses those for a second, independent reason; these
-        // are refused by the anchoring alone.
-        assertRefused("https://s3.eu-west-1xamazonaws.com", S3EndpointCheck.S3_SERVICE);
-        assertRefused("https://sts.eu-west-1xamazonaws.com", S3EndpointCheck.STS_SERVICE);
-        assertRefused("https://s3.us-east-1xapi.aws", S3EndpointCheck.S3_SERVICE);
-        assertRefused("https://s3.us-east-11amazonaws.com", S3EndpointCheck.S3_SERVICE);
-    }
-
-    public void testRefusesVpcFormsOutsideTheExactShape() {
-        // The interface-endpoint shape is [<prefix>.]vpce-<id>.<service>.<region>.vpce.<suffix>, with every
-        // part in a fixed position. An unpositioned scan for a (vpce-*, service) pair admits all of these.
-        assertRefused("https://vpce-0a1b.sts.anything.at.all.vpce.amazonaws.com", S3EndpointCheck.STS_SERVICE);
-        assertRefused("https://vpce-0a1b.sts.vpce.amazonaws.com", S3EndpointCheck.STS_SERVICE);
-        // An empty endpoint id never reaches the rule at all: URI.getHost() returns null for a label
-        // ending in a dash, so there is no guard for this in the rule and none is needed.
-        assertRefused("https://vpce-.sts.us-east-1.vpce.amazonaws.com", S3EndpointCheck.STS_SERVICE);
-        assertRefused("https://evil.vpce-0a1b.sts.evil.vpce.amazonaws.com", S3EndpointCheck.STS_SERVICE);
-        assertRefused("https://a.b.vpce-0a1b.s3.us-east-1.vpce.amazonaws.com", S3EndpointCheck.S3_SERVICE);
-        assertRefused("https://vpce-0a1b.s3.us-east-1.notvpce.amazonaws.com", S3EndpointCheck.S3_SERVICE);
-        // A trailing vpce label is not on its own a licence; the service must sit after the endpoint id.
-        assertRefused("https://vpce-0a1b.us-east-1.vpce.amazonaws.com", S3EndpointCheck.S3_SERVICE);
-        // A customer PrivateLink service id spells vpce-svc-<id>, which satisfies the vpce- test on its
-        // own. AWS puts it in the second position, where the service check already refuses it, so this
-        // synthetic first-position form is what pins the explicit exclusion.
-        assertRefused("https://vpce-svc-0c2d.s3.us-east-1.vpce.amazonaws.com", S3EndpointCheck.S3_SERVICE);
-    }
-
-    public void testRefusesUnknownServiceLabelsUnderAPartitionSuffix() {
-        // The leading label is an enumerated set plus two generated forms, not an open s3-/sts- prefix.
-        assertRefused("https://sts-evil.us-east-1.amazonaws.com", S3EndpointCheck.STS_SERVICE);
-        assertRefused("https://s3-evil.us-east-1.amazonaws.com", S3EndpointCheck.S3_SERVICE);
-        assertRefused("https://s3-notaregion.amazonaws.com", S3EndpointCheck.S3_SERVICE);
-        assertRefused("https://stsevil.us-east-1.amazonaws.com", S3EndpointCheck.STS_SERVICE);
-    }
-
-    public void testAcceptsDocumentedServiceLabelVariants() {
+    public void testAcceptsAwsEndpoints() {
         for (String host : List.of(
-            "https://s3-accesspoint.us-east-1.amazonaws.com",
-            "https://s3-accesspoint-fips.us-east-1.amazonaws.com",
-            "https://s3-object-lambda.us-east-1.amazonaws.com",
-            "https://s3-outposts.us-east-1.amazonaws.com",
-            "https://s3-control.us-east-1.amazonaws.com",
-            "https://s3-accelerate.amazonaws.com",
-            "https://s3-external-1.amazonaws.com",
-            // the historical dash-before-region spelling, still resolvable
-            "https://s3-us-west-2.amazonaws.com"
+            "s3.amazonaws.com",
+            "s3-accesspoint.us-east-1.amazonaws.com",
+            "s3-accesspoint-fips.us-east-1.amazonaws.com",
+            "s3-object-lambda.us-east-1.amazonaws.com",
+            "s3-outposts.us-east-1.amazonaws.com",
+            "s3-control.us-east-1.amazonaws.com",
+            "s3-accelerate.amazonaws.com",
+            "s3-external-1.amazonaws.com",
+            "s3-us-west-2.amazonaws.com",
+            "S3.US-EAST-1.AMAZONAWS.COM",
+            "s3.us-east-1.amazonaws.com.",
+            // AWS PrivateLink, in the three prefixes AWS assigns for S3.
+            "bucket.vpce-0a1b2c3d4e5f.s3.us-east-1.vpce.amazonaws.com",
+            "accesspoint.vpce-0a1b2c3d.s3.eu-west-1.vpce.amazonaws.com",
+            "control.vpce-0a1b2c3d.s3.cn-north-1.vpce.amazonaws.com.cn"
         )) {
-            assertPermitted(host, S3EndpointCheck.S3_SERVICE);
+            assertTrue(host, S3EndpointCheck.isPermittedHost(host, S3_SERVICE));
+        }
+        for (String host : List.of("sts.amazonaws.com", "vpce-0a1b2c3d.sts.us-east-1.vpce.amazonaws.com")) {
+            assertTrue(host, S3EndpointCheck.isPermittedHost(host, STS_SERVICE));
         }
     }
 
-    public void testRefusesCustomerPublishedPrivateLinkService() {
-        // A PrivateLink service a customer publishes themselves also lives under vpce.amazonaws.com, and its
-        // backend is an NLB they control. The label after the endpoint id is vpce-svc-<id> rather than the
-        // service name, which is the only thing separating it from an AWS-operated interface endpoint.
-        assertRefused("https://vpce-0a1b.vpce-svc-0c2d.us-east-1.vpce.amazonaws.com", S3EndpointCheck.S3_SERVICE);
-        assertRefused("https://vpce-0a1b.vpce-svc-0c2d.us-east-1.vpce.amazonaws.com", S3EndpointCheck.STS_SERVICE);
-        // An interface endpoint for a different AWS service is equally not ours.
-        assertRefused("https://vpce-0a1b.ec2.us-east-1.vpce.amazonaws.com", S3EndpointCheck.S3_SERVICE);
+    /**
+     * An S3 Express endpoint serves only directory buckets, and those are refused by name in
+     * {@link S3ResourceCheck}, so accepting the endpoint that reaches them would be incoherent.
+     */
+    public void testRefusesS3ExpressEndpoints() {
+        assertAllRefused(S3_SERVICE, "s3express-use1-az4.us-east-1.amazonaws.com", "s3express-control.us-east-1.amazonaws.com");
     }
 
-    public void testRefusesThirdPartyStores() {
-        for (String host : List.of(
-            "https://minio.example.com:9000",
-            "https://play.min.io",
-            "https://storage.googleapis.com",
-            "https://s3.us-west-004.backblazeb2.com",
-            "https://abc123.r2.cloudflarestorage.com",
-            "https://ceph.internal:8080"
-        )) {
-            assertRefused(host, S3EndpointCheck.S3_SERVICE);
-        }
+    public void testRefusesNonAwsHosts() {
+        assertAllRefused(
+            S3_SERVICE,
+            "minio.example.com",
+            "play.min.io",
+            "storage.googleapis.com",
+            "s3.us-west-004.backblazeb2.com",
+            "abc123.r2.cloudflarestorage.com",
+            "169.254.169.254",
+            "[fd00::1]"
+        );
     }
 
-    public void testRefusesLinkLocalAndLiteralAddresses() {
-        assertRefused("https://169.254.169.254", S3EndpointCheck.S3_SERVICE);
-        assertRefused("https://127.0.0.1:9000", S3EndpointCheck.S3_SERVICE);
-        assertRefused("https://[::ffff:169.254.169.254]", S3EndpointCheck.S3_SERVICE);
-        assertRefused("https://[fd00::1]", S3EndpointCheck.S3_SERVICE);
-    }
-
+    /**
+     * The spelling attacks, all defeated by taking the host from {@link URI#getHost()} rather than the
+     * authority and anchoring every suffix test with a leading dot. Driven through URI parsing on purpose:
+     * for several of these the defence is that {@code getHost()} returns something other than what the
+     * string appears to say.
+     */
     public void testRefusesSpellingAttacks() {
-        for (String value : List.of(
-            // userinfo: everything before the @ is credentials, so the host is the attacker's
+        for (String url : List.of(
             "https://s3.us-east-1.amazonaws.com@evil.example.com/",
             "https://s3.us-east-1.amazonaws.com@@evil.example.com/",
-            // an AWS-looking name extended by further labels
             "https://s3.us-east-1.amazonaws.com.evil.example.com",
-            "https://s3.us-east-1.amazonaws.com.evil.example.com.",
-            // fragment and query stuffing
             "https://evil.example.com#.s3.us-east-1.amazonaws.com",
             "https://evil.example.com?x=.s3.us-east-1.amazonaws.com",
-            // percent-encoded and non-ASCII separators
             "https://s3.us-east-1.amazonaws.com%2e%2eevil.example.com",
             "https://s3.us-east-1.amazonaws.com。evil.example.com",
             "https://s3­.us-east-1.amazonaws.com",
-            // punycode that merely looks like the real name
             "https://xn--s3-amazonaws.com",
-            // empty labels
             "https://s3..us-east-1.amazonaws.com",
             "https://.s3.us-east-1.amazonaws.com",
-            // backslash, which some parsers treat as a separator
-            "https://s3.us-east-1.amazonaws.com\\@evil.example.com"
+            "https://s3.us-east-1.amazonaws.com\\@evil.example.com",
+            "https://[::ffff:169.254.169.254]"
         )) {
-            assertRefused(value, S3EndpointCheck.S3_SERVICE);
+            assertFalse(url, S3EndpointCheck.isPermittedHost(hostOf(url), S3_SERVICE));
         }
     }
 
+    /**
+     * Hosts under an AWS partition suffix that are not this service's endpoint. {@code execute-api} and a
+     * bucket named {@code sts-anything} are both names an attacker can obtain, which is why the partition
+     * suffix alone cannot be the rule: what refuses them is the region required after the service label.
+     */
     public void testRefusesAwsHostsThatAreNotThisService() {
-        // API Gateway gives an attacker a name under amazonaws.com whose content they control, which is why
-        // the partition suffix alone cannot be the whole rule.
-        assertRefused("https://abc123.execute-api.us-east-1.amazonaws.com", S3EndpointCheck.STS_SERVICE);
-        assertRefused("https://abc123.execute-api.us-east-1.amazonaws.com", S3EndpointCheck.S3_SERVICE);
-        // A bucket anyone can create answers on a name whose leading label carries the sts- prefix. The
-        // region label after the service label is what refuses it: that label is s3, not a region.
-        assertRefused("https://sts-anything.s3.us-east-1.amazonaws.com", S3EndpointCheck.STS_SERVICE);
-        assertRefused("https://sts.s3.us-east-1.amazonaws.com", S3EndpointCheck.STS_SERVICE);
-        // Neither service accepts the other's endpoint.
-        assertRefused("https://sts.us-east-1.amazonaws.com", S3EndpointCheck.S3_SERVICE);
-        assertRefused("https://s3.us-east-1.amazonaws.com", S3EndpointCheck.STS_SERVICE);
-        // A bucket-qualified host is not a service endpoint; the SDK supplies the bucket label itself.
-        assertRefused("https://mybucket.s3.us-east-1.amazonaws.com", S3EndpointCheck.S3_SERVICE);
+        assertAllRefused(
+            STS_SERVICE,
+            "abc123.execute-api.us-east-1.amazonaws.com",
+            "sts-anything.s3.us-east-1.amazonaws.com",
+            "sts.s3.us-east-1.amazonaws.com",
+            "sts-evil.us-east-1.amazonaws.com",
+            "s3.us-east-1.amazonaws.com"
+        );
+        assertAllRefused(
+            S3_SERVICE,
+            "sts.us-east-1.amazonaws.com",
+            "s3-evil.us-east-1.amazonaws.com",
+            // A bucket-qualified host: the SDK supplies the bucket label itself.
+            "mybucket.s3.us-east-1.amazonaws.com",
+            "s3.notaregion.amazonaws.com",
+            "s3.us-east-1.evil.amazonaws.com",
+            "s3.dualstack.notaregion.amazonaws.com"
+        );
     }
 
-    public void testRefusesLabelWhereARegionIsRequired() {
-        assertRefused("https://s3.notaregion.amazonaws.com", S3EndpointCheck.S3_SERVICE);
-        assertRefused("https://s3.us-east-1.evil.amazonaws.com", S3EndpointCheck.S3_SERVICE);
-        assertRefused("https://s3.dualstack.notaregion.amazonaws.com", S3EndpointCheck.S3_SERVICE);
-        // A region belonging to another partition is still a region, so this is accepted; the destination
-        // is AWS either way and the SDK, not this rule, decides whether the pairing resolves.
-        assertPermitted("https://s3.cn-north-1.amazonaws.com", S3EndpointCheck.S3_SERVICE);
+    /**
+     * Without the leading dot, {@code s3.eu-west-1xamazonaws.com} passes — and
+     * {@code eu-west-1xamazonaws.com} is an ordinary registrable domain. The suffix-extension cases above
+     * do not cover this: the label arithmetic refuses those for a second, independent reason.
+     */
+    public void testRefusesSuffixWithoutALabelBoundary() {
+        assertAllRefused(S3_SERVICE, "s3.eu-west-1xamazonaws.com", "s3.us-east-1xapi.aws", "s3.us-east-11amazonaws.com");
+        assertAllRefused(STS_SERVICE, "sts.eu-west-1xamazonaws.com");
+    }
+
+    /**
+     * The interface-endpoint shape has every part in a fixed position. An unpositioned scan for a
+     * {@code (vpce-*, service)} pair admits all of these — including a customer-published PrivateLink
+     * service, whose {@code vpce-svc-<id>} label satisfies the {@code vpce-} test on its own.
+     */
+    public void testRefusesVpcFormsOutsideTheExactShape() {
+        assertAllRefused(
+            STS_SERVICE,
+            "vpce-0a1b.sts.anything.at.all.vpce.amazonaws.com",
+            "vpce-0a1b.sts.vpce.amazonaws.com",
+            "evil.vpce-0a1b.sts.evil.vpce.amazonaws.com"
+        );
+        assertAllRefused(
+            S3_SERVICE,
+            "vpce-0a1b.vpce-svc-0c2d.us-east-1.vpce.amazonaws.com",
+            "vpce-svc-0c2d.s3.us-east-1.vpce.amazonaws.com",
+            "vpce-0a1b.ec2.us-east-1.vpce.amazonaws.com",
+            "a.b.vpce-0a1b.s3.us-east-1.vpce.amazonaws.com",
+            "vpce-0a1b.s3.us-east-1.notvpce.amazonaws.com",
+            "vpce-0a1b.us-east-1.vpce.amazonaws.com"
+        );
     }
 
     public void testValidateRequiresHttps() {
         ValidationException errors = new ValidationException();
-        S3EndpointCheck.validate(
-            S3Configuration.fromMap(Map.of("endpoint", "http://s3.us-east-1.amazonaws.com", "auth", "anonymous")),
-            errors
-        );
+        S3EndpointCheck.validate(config("http://s3.us-east-1.amazonaws.com"), errors);
         assertThat(errors.validationErrors().toString(), containsString("must use https"));
     }
 
@@ -248,51 +210,45 @@ public class S3EndpointCheckTests extends ESTestCase {
         assertTrue(errors.validationErrors().toString(), errors.validationErrors().isEmpty());
     }
 
-    public void testAdditionalHostsPropertyName() {
-        // Two test source sets repeat this string because neither can see S3EndpointCheck:
-        // SeedingS3HttpFixture in this plugin's javaRestTest, and S3FixtureUtils in the esql qa modules.
-        // Renaming the constant without updating both would leave every S3 integration suite unable to
-        // reach its fixture, so the spelling is pinned here rather than left to a grep.
-        assertEquals("org.elasticsearch.xpack.esql.datasource.s3.additionalEndpointHosts", S3EndpointCheck.ADDITIONAL_HOSTS_PROPERTY);
-    }
-
-    private static void assertPermitted(String url, String service) {
-        assertTrue(url + " should be permitted for " + service, S3EndpointCheck.isPermittedHost(hostOf(url), service));
-    }
-
-    private static void assertRefused(String url, String service) {
-        assertFalse(url + " should be refused for " + service, S3EndpointCheck.isPermittedHost(hostOf(url), service));
-    }
-
+    /** The host as the validator sees it: null when the value does not parse, which is itself a refusal. */
     private static String hostOf(String url) {
         try {
-            return java.net.URI.create(url).getHost();
+            return URI.create(url).getHost();
         } catch (IllegalArgumentException e) {
             return null;
         }
     }
 
+    private static S3Configuration config(String endpoint) {
+        return S3Configuration.fromMap(Map.of("endpoint", endpoint, "auth", "anonymous"));
+    }
+
+    private static void assertAllRefused(String service, String... hosts) {
+        for (String host : hosts) {
+            assertFalse(host + " for " + service, S3EndpointCheck.isPermittedHost(host, service));
+        }
+    }
+
     private static String resolveS3Host(String region, boolean fips, boolean dualStack) {
         try {
+            var params = S3EndpointParams.builder().region(Region.of(region)).bucket("mybucket");
             return S3EndpointProvider.defaultProvider()
-                .resolveEndpoint(
-                    S3EndpointParams.builder().region(Region.of(region)).bucket("mybucket").useFips(fips).useDualStack(dualStack).build()
-                )
+                .resolveEndpoint(params.useFips(fips).useDualStack(dualStack).build())
                 .join()
                 .url()
                 .getHost();
         } catch (RuntimeException e) {
-            // Not every partition offers every variant (aws-cn has no FIPS endpoints, the ISO
-            // partitions no dual-stack ones). A combination the resolver refuses has no destination
-            // for the rule to admit.
+            // aws-cn has no FIPS endpoints and the ISO partitions no dual-stack ones; a combination the
+            // resolver refuses has no destination for the rule to admit.
             return null;
         }
     }
 
     private static String resolveStsHost(String region, boolean fips, boolean dualStack) {
         try {
+            var params = StsEndpointParams.builder().region(Region.of(region));
             return StsEndpointProvider.defaultProvider()
-                .resolveEndpoint(StsEndpointParams.builder().region(Region.of(region)).useFips(fips).useDualStack(dualStack).build())
+                .resolveEndpoint(params.useFips(fips).useDualStack(dualStack).build())
                 .join()
                 .url()
                 .getHost();

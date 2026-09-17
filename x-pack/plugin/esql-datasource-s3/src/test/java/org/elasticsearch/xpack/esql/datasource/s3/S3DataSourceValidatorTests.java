@@ -1056,49 +1056,6 @@ public class S3DataSourceValidatorTests extends AbstractDataSourceValidatorTests
         assertEquals("https://s3.us-east-1.amazonaws.com", result.get("endpoint").nonSecretValue());
     }
 
-    public void testValidateDatasourceAcceptsEndpointsInEveryPartition() {
-        // More than one partition, so a rule written against a single literal suffix cannot pass.
-        for (String endpoint : List.of(
-            "https://s3.eu-west-1.amazonaws.com",
-            "https://s3.cn-north-1.amazonaws.com.cn",
-            "https://s3.us-gov-west-1.amazonaws.com",
-            "https://s3.us-iso-east-1.c2s.ic.gov",
-            "https://s3.us-isob-east-1.sc2s.sgov.gov",
-            "https://s3.eu-isoe-west-1.cloud.adc-e.uk",
-            "https://s3.us-isof-south-1.csp.hci.ic.gov",
-            "https://s3.eusc-de-east-1.amazonaws.eu",
-            "https://s3-fips.us-east-1.amazonaws.com",
-            "https://s3.dualstack.us-east-1.amazonaws.com"
-        )) {
-            var result = validator.validateDatasource(Map.of("endpoint", endpoint, "auth", "anonymous"));
-            assertEquals(endpoint, result.get("endpoint").nonSecretValue());
-        }
-    }
-
-    public void testValidateDatasourceAcceptsVpcInterfaceEndpoint() {
-        // AWS PrivateLink is the one destination a customer cannot reach any other way.
-        String endpoint = "https://bucket.vpce-0a1b2c3d4e5f.s3.us-east-1.vpce.amazonaws.com";
-        var result = validator.validateDatasource(Map.of("endpoint", endpoint, "auth", "anonymous"));
-        assertEquals(endpoint, result.get("endpoint").nonSecretValue());
-    }
-
-    public void testValidateDatasourceRejectsEndpointSpellingAttacks() {
-        for (String endpoint : List.of(
-            "https://s3.us-east-1.amazonaws.com@evil.example.com/",
-            "https://s3.us-east-1.amazonaws.com.evil.example.com",
-            "https://evil.example.com#.s3.us-east-1.amazonaws.com",
-            "https://evil.example.com?x=.s3.us-east-1.amazonaws.com",
-            "https://169.254.169.254",
-            "https://[::ffff:169.254.169.254]"
-        )) {
-            var e = expectThrows(
-                ValidationException.class,
-                () -> validator.validateDatasource(Map.of("endpoint", endpoint, "auth", "anonymous"))
-            );
-            assertThat(e.getMessage(), containsString("endpoint [" + endpoint + "]"));
-        }
-    }
-
     public void testValidateDatasourceAbsentEndpointAccepted() {
         // No endpoint: accepted — the SDK uses the default regional endpoint.
         var result = validator.validateDatasource(Map.of("access_key", "AKIA123", "secret_key", "sk", "region", "us-east-1"));
@@ -1179,23 +1136,6 @@ public class S3DataSourceValidatorTests extends AbstractDataSourceValidatorTests
             )
         );
         assertThat(e.getMessage(), containsString("sts_endpoint [https://attacker.example.com]"));
-        assertThat(e.getMessage(), containsString("not a supported AWS STS endpoint"));
-    }
-
-    public void testValidateDatasourceRejectsS3HostAsStsEndpoint() {
-        // A bucket anyone can create answers on a name carrying the sts- prefix under amazonaws.com; the
-        // label after the service label is s3 rather than a region, which is what refuses it.
-        var e = expectThrows(
-            ValidationException.class,
-            () -> federatedValidator().validateDatasource(
-                Map.of(
-                    "role_arn",
-                    "arn:aws:iam::123456789012:role/example",
-                    "sts_endpoint",
-                    "https://sts-anything.s3.us-east-1.amazonaws.com"
-                )
-            )
-        );
         assertThat(e.getMessage(), containsString("not a supported AWS STS endpoint"));
     }
 

@@ -18,11 +18,15 @@ import org.elasticsearch.xpack.esql.datasources.spi.StoragePath;
 
 import java.net.InetAddress;
 import java.net.InetSocketAddress;
+import java.util.ArrayList;
+import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
+
+import static org.hamcrest.Matchers.hasItem;
 
 /**
  * Whether a read follows an HTTP redirect away from the configured endpoint.
@@ -84,11 +88,14 @@ public class S3EndpointRedirectTests extends ESTestCase {
         });
         elsewhere.start();
 
-        AtomicInteger redirectorHits = new AtomicInteger();
+        List<String> redirectorRequests = Collections.synchronizedList(new ArrayList<>());
         HttpServer redirector = HttpServer.create(new InetSocketAddress(InetAddress.getLoopbackAddress(), 0), 0);
         String elsewhereUrl = "http://" + addressOf(elsewhere);
         redirector.createContext("/", exchange -> {
-            redirectorHits.incrementAndGet();
+            String range = exchange.getRequestHeaders().getFirst("Range");
+            redirectorRequests.add(
+                exchange.getRequestMethod() + " " + exchange.getRequestURI().getPath() + (range == null ? "" : " " + range)
+            );
             exchange.getResponseHeaders().add("Location", elsewhereUrl + exchange.getRequestURI().getPath());
             if (withBucketRegionHeader) {
                 exchange.getResponseHeaders().add("x-amz-bucket-region", "eu-west-1");
@@ -113,9 +120,14 @@ public class S3EndpointRedirectTests extends ESTestCase {
                     // under test is where the node went, not whether the read succeeded.
                 }
             }
-            // Positive control. Without it a zero count at the second server would also be what a read
-            // that never left the node looks like, and the assertion below would prove nothing.
-            assertTrue(driver + ": the request never reached the configured endpoint, so this proves nothing", redirectorHits.get() > 0);
+            // Positive control, and it has to name the request this driver issues rather than count
+            // requests. The async path opens an object before it reads one, and opening it goes out
+            // over the sync client, so a count alone stays satisfied by a range read that never ran.
+            assertThat(
+                driver + ": the request this driver issues never reached the configured endpoint, so this proves nothing",
+                redirectorRequests,
+                hasItem(driver == Driver.SYNC ? "HEAD /" + BUCKET + "/" + KEY : "GET /" + BUCKET + "/" + KEY + " bytes=0-15")
+            );
             assertEquals(driver + ": a " + status + " redirect was followed to a host never named", 0, elsewhereHits.get());
         } finally {
             redirector.stop(0);

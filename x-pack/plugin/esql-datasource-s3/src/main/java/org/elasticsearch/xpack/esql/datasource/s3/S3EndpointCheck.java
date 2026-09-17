@@ -15,60 +15,41 @@ import software.amazon.awssdk.regions.Region;
 import org.elasticsearch.Build;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.ValidationException;
-import org.elasticsearch.core.SuppressForbidden;
+import org.elasticsearch.common.network.InetAddresses;
 
 import java.net.URI;
-import java.util.Arrays;
 import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Locale;
 import java.util.Set;
 import java.util.TreeSet;
 import java.util.regex.Pattern;
-import java.util.stream.Collectors;
 
 /**
- * Provider-specific validation for the {@code endpoint} and {@code sts_endpoint} data-source settings,
- * invoked at {@code PUT /_query/data_source} time via
+ * Restricts the {@code endpoint} and {@code sts_endpoint} data-source settings to the AWS endpoints this
+ * product supports, at {@code PUT /_query/data_source} time via
  * {@link org.elasticsearch.xpack.esql.datasources.spi.FileDataSourceValidator#withDatasourceCheck}.
  *
- * <p>Both settings become an endpoint override on an AWS SDK client builder, so whatever host they name
- * is a host this node connects to — for {@code sts_endpoint}, one that receives the node's own OIDC token
- * as a bearer credential, because that client authenticates with nothing else. Neither setting is
- * constrained by anything upstream: the shared URL check confirms the value is an absolute http or https
- * URL with a parseable host and makes no judgement about which host.
+ * <p>Both settings become an endpoint override on an AWS SDK client builder, so whatever host they name is
+ * one this node connects to. For {@code sts_endpoint} that host receives the node's own OIDC token as a
+ * bearer credential, because the STS client authenticates with nothing else.
  *
- * <p>This class confines both to the AWS endpoints the product supports. A value is permitted when its
- * host takes one of two forms, under one of the AWS partition DNS suffixes:
+ * <p>A host is permitted in one of two shapes, under an AWS partition DNS suffix:
  *
  * <ul>
- *   <li><b>Service endpoint</b> — {@code <service>[.dualstack].<region>.<suffix>}, or the global
- *       {@code <service>.<suffix>}. The leading label carries the service and any variant the resolver
- *       spells there ({@code s3}, {@code s3-fips}, {@code s3-accesspoint}, {@code s3express-<az>},
- *       {@code sts}, {@code sts-fips}).</li>
- *   <li><b>VPC interface endpoint</b> — {@code [<prefix>.]vpce-<id>.<service>.<region>.vpce.<suffix>},
- *       the AWS PrivateLink form. This is the one destination a customer cannot reach any other way,
- *       so refusing it would take away a supported deployment.</li>
+ *   <li>{@code <service>[.dualstack].<region>}, or the global {@code <service>} — see
+ *       {@link #S3_SERVICE_LABELS} for the leading labels and what each reaches.</li>
+ *   <li>{@code [<prefix>.]vpce-<id>.<service>.<region>.vpce} — an AWS PrivateLink interface endpoint, the
+ *       one destination a customer cannot express any other way.</li>
  * </ul>
  *
- * <p>Requiring a region label after the service label is load-bearing rather than tidiness. Without it
- * any customer-controlled name whose leading label happens to start with the service prefix is admitted:
- * an S3 bucket called {@code sts-anything} answers to
- * {@code sts-anything.s3.us-east-1.amazonaws.com}, which carries the {@code sts-} prefix and the AWS
- * suffix, and would otherwise be a legal destination for the node's token. The region label breaks that,
- * because the label following the service is then {@code s3} rather than a region.
+ * <p>Suffixes and region patterns come from the SDK's partition metadata, so a partition it gains needs no
+ * change here. The interface-endpoint shape has no such source — {@code vpce} appears in none of the SDK
+ * jars — so it is maintained here and pinned by {@code S3EndpointCheckTests}.
  *
- * <p>The suffixes and the region patterns are read out of the SDK's own partition metadata rather than
- * written down here, so a partition or region the SDK gains is covered without a code change. The
- * interface-endpoint half has no such source — {@code vpce} appears in none of the SDK jars — so that
- * pattern is maintained here and pinned by tests.
- *
- * <p>The host is taken from {@link URI#getHost()}, never {@code getAuthority()}, and every suffix
- * comparison is anchored with a leading dot. That combination is what defeats the spelling attacks:
- * userinfo before an AWS-looking name ({@code https://s3.us-east-1.amazonaws.com@evil.example.com}) has
- * host {@code evil.example.com}, an AWS-looking name extended by a further label
- * ({@code s3.us-east-1.amazonaws.com.evil.example.com}) fails the anchored suffix test, and
- * percent-encoded or non-ASCII separators leave {@code getHost()} null.
+ * <p>Requiring a region after the service label is load-bearing. Without it any name whose leading label
+ * merely starts with the service prefix is admitted, and a bucket called {@code sts-anything} answers to
+ * {@code sts-anything.s3.us-east-1.amazonaws.com}.
  */
 final class S3EndpointCheck {
 
@@ -76,52 +57,33 @@ final class S3EndpointCheck {
     static final String STS_SERVICE = "sts";
 
     /**
-     * Leading labels AWS serves S3 on, beside the generated {@code s3express-<az>} and {@code s3-<region>}
-     * forms. Taken from the endpoints the SDK resolver produces plus the variants AWS documents on the same
-     * host families; the resolver walk in {@code S3EndpointCheckTests} fails if one of them goes missing.
+     * The leading label of every S3 endpoint AWS serves, and what each one reaches. Beside these there is
+     * one form whose tail is generated rather than fixed, handled by pattern in {@link #isServiceLabel}:
+     * the historical {@code s3-<region>} spelling. The {@code s3express-<az>} label is deliberately absent —
+     * it serves only directory buckets, which {@link S3ResourceCheck} refuses.
      */
     private static final Set<String> S3_SERVICE_LABELS = Set.of(
-        "s3",
-        "s3-fips",
-        "s3-accesspoint",
+        "s3",                     // the regional and global object endpoint
+        "s3-fips",                // the same, over a FIPS 140-validated endpoint
+        "s3-accesspoint",         // an access point, which fronts one bucket under its own policy
         "s3-accesspoint-fips",
-        "s3-accelerate",
-        "s3-object-lambda",
+        "s3-accelerate",          // transfer acceleration, which routes through an edge location
+        "s3-object-lambda",       // an access point that runs a Lambda over each object as it is read
         "s3-object-lambda-fips",
-        "s3-outposts",
+        "s3-outposts",            // storage on an Outposts rack in the customer's own data centre
         "s3-outposts-fips",
-        "s3-control",
+        "s3-control",             // the account-level control plane (access points, jobs), not object reads
         "s3-control-fips",
-        "s3-external-1"
+        "s3-external-1"           // the legacy us-east-1 alias, still resolvable
     );
 
-    /** Leading labels AWS serves STS on. */
+    /** The leading label of every STS endpoint: the token service, regional or global, plain or FIPS. */
     private static final Set<String> STS_SERVICE_LABELS = Set.of("sts", "sts-fips");
 
     /**
-     * Test-only escape hatch naming extra permitted endpoint hosts, comma-separated, so the integration
-     * suites can point a data source at a local fixture instead of at AWS. A host named here bypasses this
-     * check entirely, scheme included, because the fixtures serve plain http on a loopback address.
-     *
-     * <p>Read only in a snapshot build, which is also the only build the S3 integration suites run in
-     * ({@code javaRestTest} is disabled otherwise), so in a release build the property has no effect at all
-     * and there is no way to widen the constraint on a shipped node. Scoped to this plugin so it cannot
-     * collide with {@code repository-s3}. Precedent for the shape:
-     * {@code CustomWebIdentityTokenCredentialsProvider.STS_ENDPOINT_OVERRIDE_PROPERTY}.
-     *
-     * <p>Suites set it from the fixture's own address. The name is declared on {@link S3DataSourcePlugin}
-     * so test source sets that cannot see this package-private class can still name it, and is repeated as
-     * a literal in the two test modules that cannot see the plugin either — {@code SeedingS3HttpFixture}
-     * and {@code S3FixtureUtils}. {@code S3EndpointCheckTests} pins the value so a rename cannot silently
-     * leave those behind.
-     */
-    static final String ADDITIONAL_HOSTS_PROPERTY = S3DataSourcePlugin.ADDITIONAL_ENDPOINT_HOSTS_PROPERTY;
-
-    /**
-     * Every DNS suffix reachable from the SDK's partition metadata, longest-match-first at lookup time.
-     * Enumerated over {@link Region#regions()} — a fixed built-in list that {@link Region#of} does not
-     * extend — crossed with the four FIPS/dual-stack tag combinations, because a partition spells a
-     * dual-stack destination under a different suffix ({@code api.aws}, {@code api.amazonwebservices.com.cn}).
+     * Enumerated over {@link Region#regions()} — a fixed built-in list {@link Region#of} does not extend —
+     * crossed with the four FIPS/dual-stack combinations, because a partition spells its dual-stack
+     * destination under a different suffix ({@code api.aws}, {@code api.amazonwebservices.com.cn}).
      */
     private static final Set<String> PARTITION_DNS_SUFFIXES;
 
@@ -161,10 +123,8 @@ final class S3EndpointCheck {
     private S3EndpointCheck() {}
 
     /**
-     * Validates both endpoint settings on a data source, adding one error per refused value. Does not throw.
-     *
-     * <p>A blank or absent value is valid: it means the SDK resolves the endpoint itself from the region,
-     * which is the confined path by construction.
+     * Adds one error per refused value; does not throw. A blank or absent value is valid — the SDK then
+     * resolves the endpoint from the region, which is confined by construction.
      */
     static void validate(S3Configuration config, ValidationException errors) {
         validateEndpoint(config.endpoint(), "endpoint", S3_SERVICE, errors);
@@ -186,9 +146,7 @@ final class S3EndpointCheck {
             // Likewise: a value with no parseable host is already refused for being a malformed URL.
             return;
         }
-        if (additionalHosts().contains(uri.getHost().toLowerCase(Locale.ROOT))) {
-            // Test-only fixture route. It waives the scheme check as well as the host check, because the
-            // integration fixtures serve plain http on a loopback address.
+        if (isTestFixtureHost(uri.getHost())) {
             return;
         }
         if ("https".equalsIgnoreCase(uri.getScheme()) == false) {
@@ -265,19 +223,10 @@ final class S3EndpointCheck {
     }
 
     /**
-     * {@code [<prefix>.]vpce-<id>.<service>.<region>.vpce} before the suffix, with the endpoint id, the
-     * service, the region and the trailing {@code vpce} in exactly those positions and at most one
-     * leading label.
-     *
-     * <p>Every part of that shape carries weight. The service immediately after the endpoint id separates
-     * an AWS-operated interface endpoint for this service from a customer-published PrivateLink service,
-     * whose corresponding label is {@code vpce-svc-<id>} — and note that spelling also satisfies the
-     * {@code vpce-} test, so position is what rejects it rather than the prefix. The region, and the fixed
-     * positions either side of it, are the same discipline {@link #isServiceEndpoint} applies, for the same
-     * reason: an unpositioned scan admits arbitrary intervening labels.
-     *
-     * <p>This is the half of the rule with no SDK ground beneath it — {@code vpce} appears in none of the
-     * SDK jars — so the shape is maintained here and pinned by {@code S3EndpointCheckTests}.
+     * {@code [<prefix>.]vpce-<id>.<service>.<region>.vpce}, every part in a fixed position. The service
+     * immediately after the endpoint id is what separates an AWS-operated interface endpoint from a
+     * customer-published PrivateLink service, whose label there is {@code vpce-svc-<id>} — a spelling that
+     * satisfies the {@code vpce-} test too, so position rejects it rather than the prefix.
      */
     private static boolean isVpcInterfaceEndpoint(String[] labels, String service) {
         // <id>.<service>.<region>.vpce, optionally preceded by one label such as bucket/accesspoint/control.
@@ -293,19 +242,14 @@ final class S3EndpointCheck {
     }
 
     /**
-     * The leading label of a service endpoint: the service plus whatever variant the resolver spells
-     * alongside it.
+     * The leading label of a service endpoint.
      *
-     * <p>Enumerated rather than prefix-matched. A prefix test admits the whole open set of names beginning
-     * {@code s3-} or {@code sts-}, which is wider than anything AWS serves and wider than this rule intends;
-     * no such name appears to be obtainable today, but the narrower form stays correct without that argument
-     * having to hold. The two generated families keep a pattern because their tail is not a fixed word: an
-     * availability-zone id for directory buckets, and a region for the historical dash-before-region
-     * spelling ({@code s3-us-west-2.amazonaws.com}).
+     * <p>Enumerated rather than prefix-matched: a prefix test admits the open set of names beginning
+     * {@code s3-} or {@code sts-}, which is wider than anything AWS serves.
      */
     private static boolean isServiceLabel(String label, String service) {
         if (S3_SERVICE.equals(service)) {
-            return S3_SERVICE_LABELS.contains(label) || label.startsWith("s3express-") || isDashRegionLabel(label);
+            return S3_SERVICE_LABELS.contains(label) || isDashRegionLabel(label);
         }
         return STS_SERVICE_LABELS.contains(label);
     }
@@ -324,18 +268,22 @@ final class S3EndpointCheck {
         return false;
     }
 
-    @SuppressForbidden(reason = "test-only fixture route, mirroring the STS endpoint override system property")
-    private static Set<String> additionalHosts() {
+    /**
+     * Whether this is an integration fixture rather than a real destination. Every object-store fixture in
+     * the repository binds a loopback address, and a snapshot build is the only build their suites run in,
+     * so this is what lets them keep reading without each cluster naming its fixture somewhere. It is dead
+     * code on a released node, which cannot reach a loopback service belonging to anyone but itself anyway.
+     *
+     * <p>Loopback is recognised from the literal alone — no name is resolved, so nothing here depends on
+     * what DNS happens to say.
+     */
+    private static boolean isTestFixtureHost(String host) {
         if (Build.current().isSnapshot() == false) {
-            return Set.of();
+            return false;
         }
-        String configured = System.getProperty(ADDITIONAL_HOSTS_PROPERTY);
-        if (Strings.hasText(configured) == false) {
-            return Set.of();
-        }
-        return Arrays.stream(configured.split(","))
-            .map(host -> host.trim().toLowerCase(Locale.ROOT))
-            .filter(host -> host.isEmpty() == false)
-            .collect(Collectors.toUnmodifiableSet());
+        String literal = host.startsWith("[") && host.endsWith("]") ? host.substring(1, host.length() - 1) : host;
+        return "localhost".equalsIgnoreCase(host)
+            || (InetAddresses.isInetAddress(literal) && InetAddresses.forString(literal).isLoopbackAddress());
     }
+
 }

@@ -92,9 +92,7 @@ class S3ResourceCheck {
             return;
         }
 
-        // 2. S3 Express directory buckets: refused because the bucket name alone moves the destination to a
-        // different host family, so the endpoint constraint in S3EndpointCheck cannot confine them. Sits beside
-        // the MRAP refusal because it is the same kind of rule — a bucket spelling this product does not support.
+        // 2. S3 Express directory buckets: the name alone moves the destination, so no endpoint can confine it.
         if (authorityLower.endsWith(DIRECTORY_BUCKET_SUFFIX)) {
             errors.addValidationError(EXPRESS_MESSAGE_PREFIX + resource + "].");
             return;

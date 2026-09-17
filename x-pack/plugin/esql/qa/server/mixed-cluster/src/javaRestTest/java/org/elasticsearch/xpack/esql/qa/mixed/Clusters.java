@@ -12,7 +12,6 @@ import org.elasticsearch.test.cluster.local.distribution.DistributionType;
 import org.elasticsearch.test.cluster.util.Version;
 import org.elasticsearch.test.cluster.util.resource.Resource;
 import org.elasticsearch.xpack.esql.CsvTestUtils;
-import org.elasticsearch.xpack.esql.datasources.S3FixtureUtils;
 import org.elasticsearch.xpack.esql.qa.rest.EsqlDataSourceMixedClusterTestSupport;
 
 import java.nio.file.Path;
@@ -75,11 +74,7 @@ public class Clusters {
             .configFile("ingest-geoip/GeoLite2-City.mmdb", Resource.fromClasspath("GeoLite2-City.mmdb"))
             .configFile("ingest-geoip/GeoLite2-Country.mmdb", Resource.fromClasspath("GeoLite2-Country.mmdb"))
             .configFile("ingest-geoip/GeoLite2-ASN.mmdb", Resource.fromClasspath("GeoLite2-ASN.mmdb"))
-            // esql qa suites read from object-store fixtures bound to loopback. The S3 data source refuses an
-            // endpoint outside the AWS endpoints the product supports, so the fixture host is named on the
-            // test-only route; a released node ignores this property entirely.
-            .setting("ingest.geoip.downloader.enabled", "false")
-            .systemProperty(S3FixtureUtils.ADDITIONAL_ENDPOINT_HOSTS_PROPERTY, S3FixtureUtils.LOOPBACK_ENDPOINT_HOSTS);
+            .setting("ingest.geoip.downloader.enabled", "false");
         if (supportRetryOnShardFailures(oldVersion) == false) {
             cluster.setting("cluster.routing.rebalance.enable", "none");
         }

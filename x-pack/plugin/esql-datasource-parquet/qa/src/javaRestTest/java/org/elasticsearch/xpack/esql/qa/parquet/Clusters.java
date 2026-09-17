@@ -14,7 +14,6 @@ import org.elasticsearch.test.cluster.local.LocalClusterSpecBuilder;
 import org.elasticsearch.test.cluster.local.distribution.DistributionType;
 import org.elasticsearch.xpack.esql.datasources.Federation;
 import org.elasticsearch.xpack.esql.datasources.FixtureUtils;
-import org.elasticsearch.xpack.esql.datasources.S3FixtureUtils;
 import org.elasticsearch.xpack.esql.qa.rest.EsqlDataSourceMixedClusterTestSupport;
 
 import java.util.function.Supplier;
@@ -99,9 +98,6 @@ public class Clusters {
             .setting("esql.external.local_allowed_paths", FixtureUtils.pathRepoRootForFixtures(Clusters.class))
             // S3 client configuration for accessing the S3HttpFixture
             .setting("s3.client.default.endpoint", s3EndpointSupplier)
-            // esql qa fixtures bind loopback; the S3 data source refuses an endpoint outside AWS, so the
-            // fixture host is named on the test-only route. A released node ignores this property.
-            .systemProperty(S3FixtureUtils.ADDITIONAL_ENDPOINT_HOSTS_PROPERTY, S3FixtureUtils.LOOPBACK_ENDPOINT_HOSTS)
             // S3 credentials must be stored in keystore, not as regular settings
             .keystore("s3.client.default.access_key", ACCESS_KEY)
             .keystore("s3.client.default.secret_key", SECRET_KEY)
@@ -139,9 +135,6 @@ public class Clusters {
                 .setting("xpack.ml.enabled", "false")
                 .setting("path.repo", fixturesPath)
                 .setting("s3.client.default.endpoint", s3EndpointSupplier)
-                // esql qa fixtures bind loopback; the S3 data source refuses an endpoint outside AWS, so the
-                // fixture host is named on the test-only route. A released node ignores this property.
-                .systemProperty(S3FixtureUtils.ADDITIONAL_ENDPOINT_HOSTS_PROPERTY, S3FixtureUtils.LOOPBACK_ENDPOINT_HOSTS)
                 .keystore("s3.client.default.access_key", ACCESS_KEY)
                 .keystore("s3.client.default.secret_key", SECRET_KEY)
                 .setting("s3.client.default.protocol", "http")

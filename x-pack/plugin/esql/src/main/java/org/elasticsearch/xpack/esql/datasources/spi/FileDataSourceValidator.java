@@ -179,10 +179,7 @@ public class FileDataSourceValidator implements DataSourceValidator {
     @Nullable
     private final FileDataSourceConfiguration.AuthMode fixedAuthMode;
     private final BiConsumer<String, ValidationException> resourceCheck;
-    /**
-     * Provider-specific validation over the parsed data-source configuration, run on a PUT only.
-     * Supplied by the plugin via {@link #withDatasourceCheck}; a no-op when the plugin supplies none.
-     */
+    /** Per-type settings policy, run on a PUT only. A no-op unless the plugin supplies one. */
     private final BiConsumer<DataSourceConfiguration, ValidationException> datasourceCheck;
     /**
      * Storage-provider-specific keys accepted on a dataset PUT, beyond the shared {@link #DATASET_FIELDS}. Supplied
@@ -382,17 +379,13 @@ public class FileDataSourceValidator implements DataSourceValidator {
     }
 
     /**
-     * Returns a new validator that runs {@code check} against the parsed data-source configuration on a PUT,
-     * after the configuration has been accepted by its own field-level validation. The check receives the
-     * configuration and the accumulating {@link ValidationException}; it should call
-     * {@link ValidationException#addValidationError} for each problem it finds.
+     * Returns a new validator that runs {@code check} against the parsed configuration on a PUT, calling
+     * {@link ValidationException#addValidationError} for each problem. Shape mirrors
+     * {@link #withResourceCheck(BiConsumer)}.
      *
-     * <p>This is the seam for per-type policy over settings that the configuration object itself must keep
-     * accepting. A rule placed in a configuration's own {@code validateSettings} runs inside the constructor,
-     * so it refuses a stored configuration on every read as well as on a PUT; a rule placed here refuses a
-     * value at registration while leaving an already-stored configuration readable.
-     *
-     * <p>Precedent for the shape: {@link #withResourceCheck(BiConsumer)}.
+     * <p>This is the seam for per-type settings policy that the configuration object must keep accepting:
+     * a rule in {@code validateSettings} runs inside the constructor, so it would refuse a stored
+     * configuration on every read rather than only at registration.
      */
     public FileDataSourceValidator withDatasourceCheck(BiConsumer<DataSourceConfiguration, ValidationException> check) {
         return new FileDataSourceValidator(

@@ -52,14 +52,6 @@ public class S3DataSourcePlugin extends Plugin implements DataSourcePlugin {
     public static final String POD_IDENTITY_TOKEN_FILE_LOCATION = "esql-datasource-s3/eks-pod-identity-token";
 
     /**
-     * Test-only system property naming extra permitted {@code endpoint} / {@code sts_endpoint} hosts,
-     * comma-separated, so integration suites can point a data source at a local fixture instead of at AWS.
-     * Read only in a snapshot build; see {@link S3EndpointCheck} for what it waives and why that is safe.
-     * Declared here rather than on that package-private class so test source sets can name it.
-     */
-    public static final String ADDITIONAL_ENDPOINT_HOSTS_PROPERTY = "org.elasticsearch.xpack.esql.datasource.s3.additionalEndpointHosts";
-
-    /**
      * IRSA web-identity provider, built once on the first {@link #storageProviders} call. The provider
      * self-disables ({@code isActive() == false}) when {@code AWS_WEB_IDENTITY_TOKEN_FILE} is unset, so
      * non-EKS deployments incur no cost beyond construction. Released by {@link #close()}.
@@ -184,10 +176,6 @@ public class S3DataSourcePlugin extends Plugin implements DataSourcePlugin {
                     + "or omit it to have the bucket region detected automatically"
             )
             .withResourceCheck(S3ResourceCheck::validate)
-            // endpoint and sts_endpoint stay declared fields — a stored configuration must keep parsing —
-            // but a PUT may only name an AWS endpoint this product supports. The rule sits here rather than
-            // in S3Configuration.validateSettings because that runs inside the configuration's constructor,
-            // which would make an already-stored data source unreadable rather than merely unsettable.
             .withDatasourceCheck((config, errors) -> S3EndpointCheck.validate((S3Configuration) config, errors));
         return Map.of(v.type(), v);
     }

@@ -144,15 +144,10 @@ public class S3ManagedIdentityAuthIT extends AbstractEsqlIntegTestCase {
         });
         s3Server.start();
         s3Port = s3Server.getAddress().getPort();
-        // This suite registers an s3 data source at the loopback fixture. The S3 data source refuses an
-        // endpoint outside the AWS endpoints the product supports, so the fixture host is named on the
-        // test-only route. Same JVM as the node here, so a system property is all it takes.
-        System.setProperty(S3DataSourcePlugin.ADDITIONAL_ENDPOINT_HOSTS_PROPERTY, "127.0.0.1");
     }
 
     @AfterClass
     public static void stopS3Server() {
-        System.clearProperty(S3DataSourcePlugin.ADDITIONAL_ENDPOINT_HOSTS_PROPERTY);
         if (s3Server != null) {
             s3Server.stop(0);
             s3Server = null;

@@ -88,9 +88,6 @@ public class ExternalErrorSurfaceIT extends ESRestTestCase {
     private static final String ENCRYPTION_PASSWORD_ID = "test";
 
     private static final ElasticsearchCluster cluster = ElasticsearchCluster.local()
-        // The endpoint constraint refuses a host outside AWS, so name the fixture's host on the test-only
-        // route. Lazy: the fixture has no address until the rule chain has started it.
-        .systemProperty(SeedingS3HttpFixture.ADDITIONAL_HOSTS_PROPERTY, s3HttpFixture::endpointHost)
         .distribution(DistributionType.DEFAULT)
         .setting("xpack.security.enabled", "false")
         .setting("xpack.license.self_generated.type", "trial")

@@ -19,7 +19,6 @@ import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.rest.RestStatus;
 
-import java.net.URI;
 import java.util.function.BiPredicate;
 
 import static fixture.aws.AwsCredentialsUtils.checkAuthorization;
@@ -43,26 +42,6 @@ import static fixture.aws.AwsFixtureUtils.sendError;
  */
 @SuppressForbidden(reason = "test fixture seeds blobs directly into the S3 handler's in-memory store")
 public class SeedingS3HttpFixture extends S3HttpFixture {
-
-    /**
-     * Name of the node system property naming extra permitted S3 endpoint hosts. The S3 data source refuses
-     * an {@code endpoint} outside the AWS endpoints the product supports, so a cluster reading from this
-     * fixture has to name its host here. Defined by {@code S3EndpointCheck}, which this source set cannot
-     * see, and pinned to this spelling by {@code S3EndpointCheckTests}.
-     */
-    public static final String ADDITIONAL_HOSTS_PROPERTY = "org.elasticsearch.xpack.esql.datasource.s3.additionalEndpointHosts";
-
-    /**
-     * This fixture's host, in the form the property expects. Call it lazily from a cluster builder — the
-     * fixture has no address until the rule chain has started it.
-     */
-    public String endpointHost() {
-        String host = URI.create(getAddress()).getHost();
-        if (host == null) {
-            throw new IllegalStateException("fixture address has no host: [" + getAddress() + "]");
-        }
-        return host;
-    }
 
     private final String bucket;
     private final BiPredicate<String, String> authorizationPredicate;

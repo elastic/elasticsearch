@@ -769,6 +769,98 @@ public class ParquetFormatReaderTests extends ESTestCase {
         }
     }
 
+    /**
+     * After {@code metadataAsync} on a file that fits in the 64 KiB footer prefetch, a later
+     * optimized scan must reuse the cached whole-file tail: still one GET, rows intact.
+     */
+    public void testTinyFileMetadataThenScanIsOneGet() throws Exception {
+        byte[] parquetData = createVpcFlowShapedParquet();
+        assertThat(parquetData.length, lessThanOrEqualTo(ParquetFormatReader.FOOTER_TAIL_PREFETCH_BYTES));
+        assertFooterThenScanGetCount(parquetData, 1);
+    }
+
+    /**
+     * A file larger than the 64 KiB tail still needs a data GET: only the suffix is cached.
+     */
+    public void testLargeFileMetadataThenScanStillDataGet() throws Exception {
+        byte[] parquetData = createPaddedParquet(ParquetFormatReader.FOOTER_TAIL_PREFETCH_BYTES + 16 * 1024);
+        assertThat(parquetData.length, greaterThan(ParquetFormatReader.FOOTER_TAIL_PREFETCH_BYTES));
+        ParquetFormatReader reader = new ParquetFormatReader(blockFactory);
+        ExecutorService probePool = Executors.newFixedThreadPool(2);
+        AtomicInteger asyncReadCount = new AtomicInteger();
+        try {
+            StorageObject asyncObject = createAsyncStorageObject(parquetData, probePool, asyncReadCount, null);
+            metadataAsyncDirect(reader, asyncObject);
+            assertEquals(1, asyncReadCount.get());
+            int rows = drainAllRows(reader, asyncObject);
+            assertEquals(1, rows);
+            assertThat("body past the 64KiB tail must still GET", asyncReadCount.get(), greaterThan(1));
+        } finally {
+            probePool.shutdownNow();
+        }
+    }
+
+    /**
+     * Evicting the footer-byte entry after metadata forces the scan to GET again; rows stay correct.
+     */
+    public void testFooterByteEvictionForcesScanGet() throws Exception {
+        byte[] parquetData = createVpcFlowShapedParquet();
+        ParquetFormatReader reader = new ParquetFormatReader(blockFactory);
+        ExecutorService probePool = Executors.newFixedThreadPool(2);
+        AtomicInteger asyncReadCount = new AtomicInteger();
+        try {
+            StorageObject asyncObject = createAsyncStorageObject(parquetData, probePool, asyncReadCount, null);
+            metadataAsyncDirect(reader, asyncObject);
+            assertEquals(1, asyncReadCount.get());
+            reader.footerByteCacheForTests().invalidateAll();
+            int rows = drainAllRows(reader, asyncObject);
+            assertEquals(1, rows);
+            assertThat(asyncReadCount.get(), greaterThan(1));
+        } finally {
+            probePool.shutdownNow();
+        }
+    }
+
+    private void assertFooterThenScanGetCount(byte[] parquetData, int expectedGets) throws Exception {
+        ParquetFormatReader reader = new ParquetFormatReader(blockFactory);
+        ExecutorService probePool = Executors.newFixedThreadPool(2);
+        AtomicInteger asyncReadCount = new AtomicInteger();
+        try {
+            StorageObject asyncObject = createAsyncStorageObject(parquetData, probePool, asyncReadCount, null);
+            metadataAsyncDirect(reader, asyncObject);
+            assertEquals("metadataAsync should prefetch the footer once", 1, asyncReadCount.get());
+            int rows = drainAllRows(reader, asyncObject);
+            assertEquals(1, rows);
+            assertEquals(expectedGets, asyncReadCount.get());
+        } finally {
+            probePool.shutdownNow();
+        }
+    }
+
+    private static int drainAllRows(ParquetFormatReader reader, StorageObject object) throws Exception {
+        int rows = 0;
+        try (CloseableIterator<Page> iterator = reader.read(object, null, 10)) {
+            while (iterator.hasNext()) {
+                rows += iterator.next().getPositionCount();
+            }
+        }
+        return rows;
+    }
+
+    private byte[] createPaddedParquet(int minBytes) throws IOException {
+        MessageType schema = Types.buildMessage()
+            .required(PrimitiveType.PrimitiveTypeName.BINARY)
+            .as(LogicalTypeAnnotation.stringType())
+            .named("payload")
+            .named("padded");
+        int payload = Math.max(1, minBytes);
+        return createParquetFile(schema, factory -> {
+            Group g = factory.newGroup();
+            g.add("payload", "x".repeat(payload));
+            return List.of(g);
+        });
+    }
+
     public void testDiscoverSplitRangesAsyncPrefetchesFooterOnMiss() throws Exception {
         MessageType schema = Types.buildMessage()
             .required(PrimitiveType.PrimitiveTypeName.INT64)

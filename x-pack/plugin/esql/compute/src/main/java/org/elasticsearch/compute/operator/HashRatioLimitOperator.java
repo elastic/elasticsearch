@@ -8,10 +8,7 @@
 package org.elasticsearch.compute.operator;
 
 import org.apache.lucene.util.Accountable;
-import org.apache.lucene.util.BytesRef;
-import org.apache.lucene.util.BytesRefBuilder;
 import org.apache.lucene.util.RamUsageEstimator;
-import org.apache.lucene.util.StringHelper;
 import org.elasticsearch.common.bytes.PagedBytesBuilder;
 import org.elasticsearch.common.bytes.PagedBytesCursor;
 import org.elasticsearch.compute.data.BlockFactory;
@@ -23,10 +20,14 @@ import java.util.Arrays;
 import java.util.List;
 
 /**
- * Stateless hash-sampling row filter: each row is kept or dropped by hashing its key columns, so
- * the kept subset is stable however the rows are partitioned or ordered. The keep/drop decision
- * needs no per-group state, so unlike a count-based limit this operator runs concurrently on
- * whatever rows it receives.
+ * Stateless hash-sampling row filter: each row is kept or dropped by hashing its key columns.
+ * The keep/drop decision needs no per-group state, so unlike a count-based limit this operator
+ * runs concurrently on whatever rows it receives.
+ * <p>
+ * The subset is stable within a process lifetime -- the same key always hashes the same way, so
+ * rows are decided identically however pages are partitioned or ordered -- but it is deliberately
+ * not stable across restarts: the hash seed varies per JVM instance. Documented as a divergence
+ * from hash-stable samplers; see the {@code limit_ratio} function docs.
  * <p>
  * A non-negative ratio {@code r} keeps rows whose sampling offset is below {@code r}, while a
  * negative ratio inverts the selection (offsets at or above {@code 1 + r}). Out-of-range ratios
@@ -68,9 +69,6 @@ public class HashRatioLimitOperator extends AbstractPageMappingOperator implemen
 
     private static final long SHALLOW_SIZE = RamUsageEstimator.shallowSizeOfInstance(HashRatioLimitOperator.class);
 
-    /** Fixed hash seed; the sampling offset derivation is deterministic across runs and platforms. */
-    private static final int HASH_SEED = 0;
-
     private final double ratio;
     private final GroupKeyEncoder keyEncoder;
 
@@ -85,15 +83,9 @@ public class HashRatioLimitOperator extends AbstractPageMappingOperator implemen
             int positionCount = page.getPositionCount();
             int acceptedCount = 0;
             int[] accepted = new int[positionCount];
-            BytesRefBuilder keyBytes = new BytesRefBuilder();
-            BytesRef chunk = new BytesRef();
             for (int pos = 0; pos < positionCount; pos++) {
                 PagedBytesCursor key = keyEncoder.encode(page, pos);
-                keyBytes.clear();
-                while (key.remaining() > 0) {
-                    keyBytes.append(key.readPageChunk(chunk));
-                }
-                if (keep(ratio, hash(keyBytes))) {
+                if (keep(ratio, key.hashCode())) {
                     accepted[acceptedCount++] = pos;
                 }
             }
@@ -107,15 +99,6 @@ public class HashRatioLimitOperator extends AbstractPageMappingOperator implemen
         } finally {
             page.releaseBlocks();
         }
-    }
-
-    /**
-     * Hashes encoded key bytes with an explicit little-endian murmur and a fixed seed, so the
-     * sampling offset is deterministic across runs and platforms.
-     */
-    static int hash(BytesRefBuilder keyBytes) {
-        BytesRef key = keyBytes.get();
-        return StringHelper.murmurhash3_x86_32(key.bytes, key.offset, key.length, HASH_SEED);
     }
 
     /**

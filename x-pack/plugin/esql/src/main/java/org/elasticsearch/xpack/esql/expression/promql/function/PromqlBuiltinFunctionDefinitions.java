@@ -102,7 +102,7 @@ public class PromqlBuiltinFunctionDefinitions {
 
     /**
      * {@code limit_ratio(r, v)} keeps each series iff its field-key hash falls below {@code r},
-     * like Prometheus. The kept subset is stable across steps, runs, and shards; no per-group state.
+     * like Prometheus. The kept subset is stable within a process lifetime; no per-group state.
      */
     public static final PromqlFunctionDefinition LIMIT_RATIO = PromqlFunctionDefinition.def()
         .acrossSeriesBinaryRatioReduce(PromqlFunctionDefinition.RATIO)
@@ -113,8 +113,9 @@ public class PromqlBuiltinFunctionDefinitions {
         .differenceFromPrometheus(
             "Series are kept by hashing our internal field key rather than the Prometheus label serialization, "
                 + "so the kept subset has the same statistical properties but is generally a different subset than "
-                + "the one Prometheus keeps. `by` is a membership no-op as in Prometheus. "
-                + "A `without` grouping clause is not yet supported."
+                + "the one Prometheus keeps. The subset is stable within a process lifetime but varies across "
+                + "node restarts, unlike Prometheus where it is stable. `by` is a membership no-op as in "
+                + "Prometheus. A `without` grouping clause is not yet supported."
         )
         .name("limit_ratio");
 

@@ -1,0 +1,6 @@
+area: Search
+issues:
+ - 158773
+pr: 159641
+summary: Allow multipage PDFs on the semantic field
+type: bug

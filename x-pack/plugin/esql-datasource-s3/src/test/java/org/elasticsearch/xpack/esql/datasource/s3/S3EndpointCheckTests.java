@@ -100,6 +100,12 @@ public class S3EndpointCheckTests extends ESTestCase {
         assertAllRefused(S3_SERVICE, "s3express-use1-az4.us-east-1.amazonaws.com", "s3express-control.us-east-1.amazonaws.com");
     }
 
+    /** Dual-stack is always regional: the resolver produces no region-less dual-stack endpoint. */
+    public void testRefusesDualStackWithoutARegion() {
+        assertAllRefused(S3_SERVICE, "s3.dualstack.amazonaws.com", "s3-fips.dualstack.amazonaws.com");
+        assertAllRefused(STS_SERVICE, "sts.dualstack.amazonaws.com");
+    }
+
     public void testRefusesNonAwsHosts() {
         assertAllRefused(
             S3_SERVICE,

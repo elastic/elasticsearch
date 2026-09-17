@@ -213,11 +213,14 @@ final class S3EndpointCheck {
             return false;
         }
         int next = 1;
-        if (next < labels.length && labels[next].equals("dualstack")) {
+        boolean dualStack = next < labels.length && labels[next].equals("dualstack");
+        if (dualStack) {
             next++;
         }
         if (next == labels.length) {
-            return true;
+            // The global form, the service label alone. Dual-stack is always regional, so the region
+            // after it is required rather than optional.
+            return dualStack == false;
         }
         return next == labels.length - 1 && isRegionLabel(labels[next]);
     }

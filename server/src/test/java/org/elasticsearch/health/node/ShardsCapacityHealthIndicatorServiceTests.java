@@ -181,14 +181,7 @@ public class ShardsCapacityHealthIndicatorServiceTests extends ESTestCase {
         assertEquals("The cluster has enough room to add new shards.", indicatorResult.symptom());
         assertThat(
             xContentToMap(indicatorResult.details()),
-            is(
-                Map.of(
-                    "data",
-                    Map.of("max_shards_in_cluster", 25),
-                    "frozen",
-                    Map.of("max_shards_in_cluster", maxShardsPerNodeFrozen)
-                )
-            )
+            is(Map.of("data", Map.of("max_shards_in_cluster", 25), "frozen", Map.of("max_shards_in_cluster", maxShardsPerNodeFrozen)))
         );
     }
 

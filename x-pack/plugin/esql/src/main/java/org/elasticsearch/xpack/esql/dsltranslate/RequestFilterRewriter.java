@@ -30,10 +30,12 @@ import java.util.Set;
  * Extending the request filter to other source boundaries (a view, say) is a change of the target predicate here, not of
  * the mechanism. Index leaves keep their existing (pre-analysis) request-filter path and are not touched.
  *
- * <p>A construct outside the supported subset costs the caller that clause and nothing more: the translatable
- * AND-conjuncts are applied and the rest are dropped with a {@link HeaderWarning} naming each one. The applied
- * predicate is therefore never tighter than the filter the caller wrote, so a dropped clause can only over-return.
- * A filter that translates to a supported no-op ({@code match_all}) leaves the relation read unfiltered.
+ * <p>A construct outside the supported subset never fails the query: the translatable AND-conjuncts are applied and
+ * the rest are dropped with a {@link HeaderWarning} naming each one. Usually that costs the caller only the offending
+ * clause, but not always — a {@code must_not} arm and a required {@code should} group are all-or-nothing, so an
+ * untranslatable construct inside one drops its siblings with it. Dropping only ever widens what matches, never
+ * narrows it, which is what makes it safe. A filter that translates to a supported no-op ({@code match_all}) leaves
+ * the relation read unfiltered.
  *
  * <p>The strict policy — fail the query with a 400 ({@link VerificationException}) listing every offending clause —
  * remains reachable through {@code dropUntranslatableWithWarning} so both policies stay under test. Nothing selects it

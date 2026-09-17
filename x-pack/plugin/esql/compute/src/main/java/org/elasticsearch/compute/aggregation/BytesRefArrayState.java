@@ -521,25 +521,12 @@ public final class BytesRefArrayState implements GroupingAggregatorState, Releas
         return new BytesRefPartitionSplitter(breaker);
     }
 
-    BytesRef[] partitionValues(GroupingAggregatorFunction.PartitionedState source, int partition) {
+    BytesRefSequence partitionValues(GroupingAggregatorFunction.PartitionedState source, int partition) {
         if (source instanceof FlatBytesRefPartitionedState flat) {
-            final int count = flat.partitionCounts[partition];
-            final BytesRef[] result = new BytesRef[count];
-            for (int i = 0; i < count; i++) {
-                final int start = flat.partitionOffsets[partition][i];
-                final int end = flat.partitionOffsets[partition][i + 1];
-                result[i] = new BytesRef(flat.partitionData[partition], start, end - start);
-            }
-            return result;
+            return new BytesRefSequence.Flat(flat.partitionData[partition], flat.partitionOffsets[partition], flat.partitionCounts[partition]);
         }
         final PagedBytesRefPartitionedState paged = (PagedBytesRefPartitionedState) source;
-        final int count = (int) paged.partitionArrays[partition].size();
-        final BytesRef[] result = new BytesRef[count];
-        for (int i = 0; i < count; i++) {
-            result[i] = new BytesRef();
-            paged.partitionArrays[partition].get(i, result[i]);
-        }
-        return result;
+        return new BytesRefSequence.Paged(paged.partitionArrays[partition]);
     }
 
     boolean[] partitionSeen(GroupingAggregatorFunction.PartitionedState source, int partition) {
@@ -550,9 +537,10 @@ public final class BytesRefArrayState implements GroupingAggregatorState, Releas
         return paged.seen == null ? null : paged.seen[partition];
     }
 
-    void appendPartition(BytesRef[] src, int firstId, int length) {
+    void appendPartition(BytesRefSequence src, int firstId, int length) {
+        BytesRef scratch = new BytesRef();
         for (int i = 0; i < length; i++) {
-            set(firstId + i, src[i]);
+            set(firstId + i, src.get(i, scratch));
         }
     }
 }

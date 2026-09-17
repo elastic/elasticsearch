@@ -80,8 +80,9 @@ public class BytesRefArrayStatePartitionTests extends ESTestCase {
 
             PartitionedState partitioned = splitter.finish();
 
+            BytesRef scratch = new BytesRef();
             for (int p = 0; p < NUM_PARTITIONS; p++) {
-                BytesRef[] values = state.partitionValues(partitioned, p);
+                BytesRefSequence values = state.partitionValues(partitioned, p);
                 boolean[] seen = state.partitionSeen(partitioned, p);
 
                 assertThat("seen==null iff no null-tracking", seen == null, equalTo(withNulls == false));
@@ -91,11 +92,11 @@ public class BytesRefArrayStatePartitionTests extends ESTestCase {
                     BytesRef expectedValue = expected[g];
                     if (withNulls == false) {
                         assertNotNull("group " + g + " should have a value", expectedValue);
-                        assertEquals("group " + g, expectedValue, values[k]);
+                        assertEquals("group " + g, expectedValue, values.get(k, scratch));
                     } else {
                         if (expectedValue != null) {
                             assertTrue("seen[" + k + "] for group " + g, seen[k]);
-                            assertEquals("group " + g, expectedValue, values[k]);
+                            assertEquals("group " + g, expectedValue, values.get(k, scratch));
                         } else {
                             assertFalse("seen[" + k + "] for group " + g, seen[k]);
                         }

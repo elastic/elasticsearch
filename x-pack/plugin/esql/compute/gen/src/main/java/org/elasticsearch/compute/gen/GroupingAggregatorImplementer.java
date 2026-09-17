@@ -68,6 +68,8 @@ import static org.elasticsearch.compute.gen.Types.INT_VECTOR;
 import static org.elasticsearch.compute.gen.Types.LIST_AGG_FUNC_DESC;
 import static org.elasticsearch.compute.gen.Types.LIST_INTEGER;
 import static org.elasticsearch.compute.gen.Types.PAGE;
+import static org.elasticsearch.compute.gen.Types.BYTES_REF;
+import static org.elasticsearch.compute.gen.Types.BYTES_REF_SEQUENCE;
 import static org.elasticsearch.compute.gen.Types.SEEN_GROUP_IDS;
 import static org.elasticsearch.compute.gen.Types.WARNINGS;
 import static org.elasticsearch.compute.gen.Types.blockType;
@@ -108,12 +110,6 @@ public class GroupingAggregatorImplementer {
     private final boolean anyArgumentSupportsVectors;
     private final boolean processNulls;
     private final boolean supportsPartitioning;
-    /**
-     * The element type of the partition values array used in {@link #combinePartition()}.
-     * For primitive-state aggregators this equals {@link AggregationState#declaredType()}.
-     * For non-primitive-state aggregators it equals the first agg-parameter type (e.g. {@code BytesRef}).
-     */
-    private final TypeName partitionValueType;
 
     public GroupingAggregatorImplementer(
         Elements elements,
@@ -180,13 +176,6 @@ public class GroupingAggregatorImplementer {
         this.anyArgumentSupportsVectors = aggParams.stream().anyMatch(a -> a instanceof StandardArgument && a.supportsVectorReadAccess());
         this.processNulls = processNulls;
         this.supportsPartitioning = supportsPartitioning;
-        if (aggState.declaredType().isPrimitive()) {
-            this.partitionValueType = aggState.declaredType();
-        } else if (supportsPartitioning && aggParams.isEmpty() == false && aggParams.get(0) instanceof StandardArgument sa) {
-            this.partitionValueType = sa.type();
-        } else {
-            this.partitionValueType = aggState.declaredType();
-        }
         if (supportsPartitioning && combineOnState == false) {
             throw new IllegalArgumentException(
                 "["
@@ -195,6 +184,13 @@ public class GroupingAggregatorImplementer {
                     + aggState.type()
                     + ", int groupId, <value>)"
             );
+        }
+        if (supportsPartitioning && aggState.declaredType().isPrimitive() == false) {
+            if (aggParams.isEmpty() || (aggParams.get(0) instanceof StandardArgument sa && sa.type().equals(BYTES_REF)) == false) {
+                throw new IllegalArgumentException(
+                    "[" + declarationType + "] requests partitioning with a non-primitive state; only BytesRef value types are supported"
+                );
+            }
         }
 
         this.createParameters = init.getParameters()
@@ -952,7 +948,13 @@ public class GroupingAggregatorImplementer {
         builder.beginControlFlow("if (length == 0)");
         builder.addStatement("return");
         builder.endControlFlow();
-        builder.addStatement("$T values = state.partitionValues(source, partition)", ArrayTypeName.of(partitionValueType));
+        final boolean primitive = aggState.declaredType().isPrimitive();
+        if (primitive) {
+            builder.addStatement("$T values = state.partitionValues(source, partition)", ArrayTypeName.of(aggState.declaredType()));
+        } else {
+            builder.addStatement("$T values = state.partitionValues(source, partition)", BYTES_REF_SEQUENCE);
+            builder.addStatement("$T scratch = new $T()", BYTES_REF, BYTES_REF);
+        }
         builder.addStatement("boolean[] seen = state.partitionSeen(source, partition)");
         builder.beginControlFlow("if (seen == null)");
         {
@@ -960,7 +962,11 @@ public class GroupingAggregatorImplementer {
             builder.addStatement("state.appendPartition(values, dstIds[0], length)");
             builder.nextControlFlow("else");
             builder.beginControlFlow("for (int i = 0; i < length; i++)");
-            builder.addStatement("$T.combine(state, dstIds[i], values[i])", declarationType);
+            if (primitive) {
+                builder.addStatement("$T.combine(state, dstIds[i], values[i])", declarationType);
+            } else {
+                builder.addStatement("$T.combine(state, dstIds[i], values.get(i, scratch))", declarationType);
+            }
             builder.endControlFlow();
             builder.endControlFlow();
             builder.addStatement("return");
@@ -968,7 +974,11 @@ public class GroupingAggregatorImplementer {
         builder.endControlFlow();
         builder.beginControlFlow("for (int i = 0; i < length; i++)");
         builder.beginControlFlow("if (seen[i])");
-        builder.addStatement("$T.combine(state, dstIds[i], values[i])", declarationType);
+        if (primitive) {
+            builder.addStatement("$T.combine(state, dstIds[i], values[i])", declarationType);
+        } else {
+            builder.addStatement("$T.combine(state, dstIds[i], values.get(i, scratch))", declarationType);
+        }
         builder.endControlFlow();
         builder.endControlFlow();
         return builder.build();

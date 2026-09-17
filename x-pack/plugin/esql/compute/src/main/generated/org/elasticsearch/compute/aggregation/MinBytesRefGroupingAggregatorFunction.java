@@ -425,21 +425,22 @@ public final class MinBytesRefGroupingAggregatorFunction implements GroupingAggr
     if (length == 0) {
       return;
     }
-    BytesRef[] values = state.partitionValues(source, partition);
+    BytesRefSequence values = state.partitionValues(source, partition);
+    BytesRef scratch = new BytesRef();
     boolean[] seen = state.partitionSeen(source, partition);
     if (seen == null) {
       if (appendOnly) {
         state.appendPartition(values, dstIds[0], length);
       } else {
         for (int i = 0; i < length; i++) {
-          MinBytesRefAggregator.combine(state, dstIds[i], values[i]);
+          MinBytesRefAggregator.combine(state, dstIds[i], values.get(i, scratch));
         }
       }
       return;
     }
     for (int i = 0; i < length; i++) {
       if (seen[i]) {
-        MinBytesRefAggregator.combine(state, dstIds[i], values[i]);
+        MinBytesRefAggregator.combine(state, dstIds[i], values.get(i, scratch));
       }
     }
   }

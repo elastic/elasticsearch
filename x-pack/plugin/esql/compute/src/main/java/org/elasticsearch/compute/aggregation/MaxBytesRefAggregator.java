@@ -97,7 +97,7 @@ class MaxBytesRefAggregator {
             return internalState.createPartitioningSplitter(breaker);
         }
 
-        BytesRef[] partitionValues(GroupingAggregatorFunction.PartitionedState source, int partition) {
+        BytesRefSequence partitionValues(GroupingAggregatorFunction.PartitionedState source, int partition) {
             return internalState.partitionValues(source, partition);
         }
 
@@ -105,7 +105,7 @@ class MaxBytesRefAggregator {
             return internalState.partitionSeen(source, partition);
         }
 
-        void appendPartition(BytesRef[] src, int firstId, int length) {
+        void appendPartition(BytesRefSequence src, int firstId, int length) {
             internalState.appendPartition(src, firstId, length);
         }
 

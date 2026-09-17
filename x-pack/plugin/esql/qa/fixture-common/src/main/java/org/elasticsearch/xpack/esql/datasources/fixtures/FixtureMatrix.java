@@ -291,8 +291,9 @@ public final class FixtureMatrix {
      * {@code trim_spaces}.
      *
      * <p>Per format, not per dataset alone, because only csv reads the authored bytes. Every other format
-     * is re-rendered from {@link CsvFixtureParser}, whose field values are trimmed on the way out, so a
-     * tsv or ndjson copy of a padded dataset is not padded -- measured: {@code employees.tsv} has zero
+     * is re-rendered from the canonical CSV by the fixture generators, whose field values are trimmed on
+     * the way out, so a tsv or ndjson copy of a padded dataset is not padded -- measured: {@code
+    * employees.tsv} has zero
      * padded fields where {@code employees.csv} has 303.
      *
      * <p>Getting this format-blind was worse than leaving it blanket. It made
@@ -310,7 +311,7 @@ public final class FixtureMatrix {
         }
         String dataset = datasetForTemplate(templateName);
         if (dataset == null) {
-            // Assembled from its own authored sources, which TextRowRenderer writes unpadded.
+            // Assembled from its own authored sources, which the generators write unpadded.
             return false;
         }
         String declared = declaration.getProperty("dataset." + dataset + ".padded");

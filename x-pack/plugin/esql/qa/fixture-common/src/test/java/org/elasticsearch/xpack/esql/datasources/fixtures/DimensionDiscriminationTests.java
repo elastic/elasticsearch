@@ -28,11 +28,13 @@ import static org.hamcrest.Matchers.greaterThan;
  * the bytes and settings can be identical to the default the whole way -- a pass that means nothing,
  * indistinguishable downstream from real coverage.
  *
- * <p>That is not hypothetical. Both fixture generators built TextRowRenderer with its 3-arg constructor,
- * so {@code quote=single} and {@code escape=tilde} vectors rendered with the DEFAULT characters while
- * announcing the pinned ones to the reader. And {@code schema_mode=declared_*} injected nothing on
- * sources-based layouts, so those cases ran the inferred baseline under a declared name. Both passed.
- * Neither was caught by a run; both were found by reading the code.
+ * <p>That is not hypothetical. {@code schema_mode=declared_*} injected nothing on sources-based layouts,
+ * so those cases ran the inferred baseline under a declared name, and a renderer built with the wrong
+ * constructor wrote the DEFAULT grammar characters while announcing the pinned ones to the reader. Both
+ * passed. Neither was caught by a run; both were found by reading the code.
+ *
+ * <p>The byte-level half of this check lives with the fixture generators and is not in this module: what
+ * is checked here is everything that lands in a SETTING, and that every reachable cell is carried.
  *
  * <p>So every value a dimension declares must produce something observably different from its default.
  * What "observable" means depends on where the value lands, and each is checked below.
@@ -96,69 +98,6 @@ public class DimensionDiscriminationTests extends ESTestCase {
     }
 
     /**
-     * A value that changes the BYTES must actually change them.
-     *
-     * <p>The settings check above cannot see this: {@code quote} announces itself through a read_key AND
-     * decides what the writer emits, and it was announcing correctly while writing the default. Rendering
-     * a probe row through each value and comparing output is what distinguishes the two.
-     */
-    public void testEveryGrammarValueChangesTheBytesItRenders() {
-        FixtureDimensions dimensions = FixtureDimensions.get();
-        List<String> inert = new ArrayList<>();
-        int checked = 0;
-
-        // A row that exercises all three grammar characters at once: it holds a delimiter candidate, a
-        // quote candidate and text an escape would have to protect.
-        Object[] probe = new Object[] { "a,b;c|d\te\"f'g", 1 };
-
-        for (String dimension : List.of("delimiter", "quote", "escape")) {
-            String baseline = dimensions.defaultValue(dimension, "csv");
-            String base = renderProbe(dimensions, dimension, baseline, probe);
-            for (String value : dimensions.values(dimension)) {
-                if (value.equals(baseline)) {
-                    continue;
-                }
-                checked++;
-                if (renderProbe(dimensions, dimension, value, probe).equals(base)) {
-                    inert.add(dimension + "=" + value + " renders byte-identically to its default [" + baseline + "]");
-                }
-            }
-        }
-        assertThat("no grammar cells were checked -- the gate would pass vacuously", checked, greaterThan(0));
-        assertTrue("grammar values that change nothing:\n" + String.join("\n", inert), inert.isEmpty());
-    }
-
-    /**
-     * A derived dimension must still discriminate -- in the content it injects, not in a settings key.
-     *
-     * <p>schema_mode is the only one today. declared_open and declared_closed differ by the `dynamic`
-     * flag, and both must differ from inferred, which injects no mappings at all. This is the check that
-     * would have caught declared_* no-opping: if the content were identical the vectors would be three
-     * names for one configuration.
-     */
-    public void testDerivedValuesProduceDifferentContent() {
-        FixtureDimensions dimensions = FixtureDimensions.get();
-        // A synthetic schema rather than a fixture: the question is whether the two modes produce
-        // different CONTENT, which does not need a real dataset -- and fixture-common's tests do not carry
-        // the fixture data, so loading one would make the gate depend on a classpath it does not control.
-        List<CsvFixtureParser.ColumnSpec> schema = List.of(
-            new CsvFixtureParser.ColumnSpec("id", "integer"),
-            new CsvFixtureParser.ColumnSpec("name", "keyword")
-        );
-
-        String open = DeclaredSchemas.mappingsJson(schema, true);
-        String closed = DeclaredSchemas.mappingsJson(schema, false);
-        assertNotNull("declared_open must produce a declaration", open);
-        assertNotNull("declared_closed must produce a declaration", closed);
-        assertNotEquals("declared_open and declared_closed must not be the same declaration", open, closed);
-        assertTrue("both must name the dynamic flag they differ by", open.contains("dynamic"));
-
-        // And inferred injects nothing, so it differs from both by construction. Pinned here so that a
-        // future change making inferred inject something has to say so.
-        assertEquals("inferred is the baseline", "inferred", dimensions.defaultValue("schema_mode", "csv"));
-    }
-
-    /**
      * Every cell a seam can express must be carried by at least one vector.
      *
      * <p>Reachable and exercised are different claims, and the gap between them is silent: the audit
@@ -216,23 +155,5 @@ public class DimensionDiscriminationTests extends ESTestCase {
         all.putAll(dimensions.readSettings(vector, format));
         all.putAll(dimensions.pragmaSettings(vector, format));
         return all;
-    }
-
-    /** Renders one row with a single grammar character re-pointed, everything else at its default. */
-    private static String renderProbe(FixtureDimensions dimensions, String dimension, String value, Object[] row) {
-        char delimiter = dimensions.charValue("delimiter", pick(dimensions, dimension, "delimiter", value, "csv"));
-        char quote = dimensions.charValue("quote", pick(dimensions, dimension, "quote", value, "csv"));
-        char escape = dimensions.charValue("escape", pick(dimensions, dimension, "escape", value, "csv"));
-        TextRowRenderer renderer = new TextRowRenderer(delimiter, quote, escape, TextRowRenderer.Dialect.ESCAPED, false);
-        return renderer.render(
-            new CsvFixtureParser.CsvFixtureResult(
-                List.of(new CsvFixtureParser.ColumnSpec("text", "keyword"), new CsvFixtureParser.ColumnSpec("n", "integer")),
-                List.<Object[]>of(row)
-            )
-        );
-    }
-
-    private static String pick(FixtureDimensions dimensions, String pinned, String slot, String value, String format) {
-        return pinned.equals(slot) ? value : dimensions.defaultValue(slot, format);
     }
 }

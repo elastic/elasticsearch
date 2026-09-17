@@ -6,18 +6,18 @@
  */
 
 /*
- * Tooling shared by every external-source fixture generator, and the one place the
- * fixture matrix is declared.
+ * The declaration every external-source suite reads: the dimensions, which pairs of
+ * them interact, the exclusions, and the fixture matrix.
  *
- * This module exists because the shared pieces had no home. `CsvFixtureParser` and
- * `SplitPartitioner` ended up inside the esql-datasource-csv PLUGIN -- a production
- * artifact -- because the canonical fixture source format happens to be CSV. Four
- * generators' build-time classpaths therefore depend on a query-time plugin to get
- * two classes that have nothing to do with reading CSV at query time.
+ * This module exists because the declaration had no home. A suite that wanted to know
+ * what values a dimension takes had to re-list them, and a re-listed value drifts from
+ * the declaration silently -- it does not fail, it quietly tests one configuration
+ * fewer than it claims to.
  *
- * The cost of that accident is visible in the fixture matrix: what was shared spread
- * to every format, and what was not did not. Hive bucketing stayed inside
- * ParquetFixtureGenerator, so hive fixtures exist for Parquet alone.
+ * It carries the declaration and the code that derives cases from it, and nothing that
+ * writes fixture bytes. The generators' shared helpers belong here too and arrive with
+ * the generators that call them; until then they stay where they are, because moving a
+ * class out of a plugin without moving its callers leaves two copies of it.
  *
  * Dependency-free by design, and it must stay that way: the ORC and Parquet generator
  * configurations deliberately isolate their Hadoop jars, and anything this module drags

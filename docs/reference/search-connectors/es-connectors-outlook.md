@@ -172,8 +172,8 @@ You can now use the Client ID, Tenant ID, and Client Secret you’ve noted to co
     ```
 
 
-`sync_all_mail_folders`
-:   Indexes mail from all mailbox folders, not only Inbox, Sent, Junk, and Archive. Other folders are stored as `Mail` with `folder_name`; the four default folders keep their existing types. Default value is `False`. Introduced in 8.19.22, 9.4.8, 9.5.4, and 9.6.
+`sync_all_mail_folders` {applies_to}`stack: ga 9.4.8`
+:   Indexes mail from the user mail folders in each mailbox, not only Inbox, Sent, Junk, and Archive. Other folders are stored as `Mail` with a `folder_name` field. The four default folders keep their existing types. System folders such as Deleted Items, Drafts, Outbox, and search folders are never indexed. Enabling this setting increases sync time, load on Exchange, and index size. Default value is `False`.
 
 `use_text_extraction_service`
 :   Use [self-hosted content extraction service](/reference/search-connectors/es-connectors-content-extraction.md#es-connectors-content-extraction-data-extraction-service). Default value is `False`.
@@ -276,7 +276,7 @@ The connector syncs the following objects and entities:
     * **Sent Mails**
     * **Archive Mails**
     * **Junk Mails**
-    * **Mail** (other folders when **Sync all mail folders** is enabled; includes `folder_name`)
+    * **Mail** {applies_to}`stack: ga 9.4.8` — other user mail folders, when `sync_all_mail_folders` is enabled. Includes a `folder_name` field.
 
 * **Contacts**
 * **Calendar Events**

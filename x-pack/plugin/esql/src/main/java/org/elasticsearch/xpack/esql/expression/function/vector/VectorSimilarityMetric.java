@@ -10,6 +10,7 @@ package org.elasticsearch.xpack.esql.expression.function.vector;
 import org.apache.lucene.util.VectorUtil;
 import org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapper;
 
+import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
 import java.util.Locale;
@@ -23,7 +24,7 @@ import java.util.stream.Collectors;
  * from the mapping, so the option is rejected there.
  * <p>
  * The constants are named to match {@link DenseVectorFieldMapper.VectorSimilarity} and apply the same score
- * normalization, so a user who knows how their indexed fields score can expect the same behaviour here. Each
+ * normalization, so a user who knows how their indexed fields score can expect the same behavior here. Each
  * constant pairs the raw similarity computation with the normalization that turns that raw value into a relevance
  * score, higher meaning more relevant. The normalization matters because the raw values are not comparable across
  * metrics.
@@ -41,10 +42,10 @@ public enum VectorSimilarityMetric {
     DOT_PRODUCT(DotProduct.SIMILARITY_FUNCTION) {
         @Override
         public double normalizeToRelevanceScore(float similarity) {
-            // Same mapping as DenseVectorFieldMapper.VectorSimilarity#DOT_PRODUCT for float vectors. The raw dot
-            // product only lands in [-1, 1], and so the score only lands in [0, 1], for unit-length vectors. Both
-            // the query and field vectors are required to be unit-length: the query vector is rejected at plan time,
+            // Same mapping as DenseVectorFieldMapper.VectorSimilarity#DOT_PRODUCT for float vectors.
+            // Both the query and field vectors are required to be unit-length: the query vector is rejected at plan time,
             // and each field vector is rejected per-row as a warning at runtime.
+            // Hence, the product only lands in [-1, 1], and so the score only lands in [0, 1].
             return VectorUtil.normalizeToUnitInterval(similarity);
         }
     },
@@ -53,7 +54,7 @@ public enum VectorSimilarityMetric {
         @Override
         public double normalizeToRelevanceScore(float similarity) {
             // Same mapping as DenseVectorFieldMapper.VectorSimilarity#L2_NORM for float vectors: the raw value is
-            // the euclidean distance, and 1 / (1 + d²) makes closer vectors score higher.
+            // the Euclidean distance, and 1 / (1 + d²) makes closer vectors score higher.
             return 1.0 / (1.0 + (double) similarity * similarity);
         }
     },
@@ -69,7 +70,7 @@ public enum VectorSimilarityMetric {
     };
 
     private static final Map<String, VectorSimilarityMetric> BY_OPTION_VALUE = Arrays.stream(values())
-        .collect(Collectors.toUnmodifiableMap(VectorSimilarityMetric::optionValue, Function.identity()));
+        .collect(Collectors.toUnmodifiableMap(value -> value.name().toLowerCase(Locale.ROOT), Function.identity()));
 
     private final DenseVectorFieldMapper.SimilarityFunction similarityFunction;
 
@@ -89,14 +90,9 @@ public enum VectorSimilarityMetric {
      * Normalizes a raw similarity value into a relevance score, higher meaning more relevant, so that scores are
      * comparable across metrics and can be ranked the same way regardless of which metric produced them. Most
      * metrics produce scores in {@code [0, 1]}; {@link #MAX_INNER_PRODUCT} is unbounded above 1 for positive inner
-     * products, mirroring the behaviour of the equally named mapping similarity.
+     * products, mirroring the behavior of {@link DenseVectorFieldMapper.VectorSimilarity#MAX_INNER_PRODUCT}.
      */
     public abstract double normalizeToRelevanceScore(float similarity);
-
-    /** The name this metric is referred to by in the {@code vector_similarity} option, e.g. {@code dot_product}. */
-    public String optionValue() {
-        return name().toLowerCase(Locale.ROOT);
-    }
 
     /** Resolves an option value to its metric, ignoring case, or {@code null} when the value names no metric. */
     public static VectorSimilarityMetric fromOptionValue(String optionValue) {
@@ -105,6 +101,6 @@ public enum VectorSimilarityMetric {
 
     /** Every accepted option value, in declaration order, for use in error messages. */
     public static List<String> optionValues() {
-        return Arrays.stream(values()).map(VectorSimilarityMetric::optionValue).toList();
+        return new ArrayList<>(BY_OPTION_VALUE.keySet());
     }
 }

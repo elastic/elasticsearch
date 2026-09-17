@@ -3689,7 +3689,7 @@ public class VerifierTests extends AnalyzerTestCase {
 
         for (VectorSimilarityMetric metric : VectorSimilarityMetric.values()) {
             fullText().error(
-                "FROM test | WHERE KNN(vector, [0.1, 0.2, 0.3], {\"vector_similarity\": \"" + metric.optionValue() + "\"})",
+                "FROM test | WHERE KNN(vector, [0.1, 0.2, 0.3], {\"vector_similarity\": \"" + metric.name().toLowerCase(Locale.ROOT) + "\"})",
                 containsString("[KNN] option [vector_similarity] is only supported")
             );
         }

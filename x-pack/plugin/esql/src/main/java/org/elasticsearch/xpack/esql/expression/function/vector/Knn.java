@@ -431,16 +431,29 @@ public class Knn extends SingleFieldFullTextFunction
         float[] queryVector = queryAsFloats();
         Float similarityThreshold = similarityThresholdOption();
         VectorSimilarityMetric metric = similarityMetric();
-        return new KnnRuntimeFilterEvaluator.Factory(
-            source(),
-            toEvaluator.apply(field()),
-            queryVector,
-            metric,
-            similarityThreshold,
-            // Allocate a scratch buffer whenever we will actually read the field vector: either to compare against
-            // the threshold or to validate unit length for DOT_PRODUCT.
-            context -> (similarityThreshold == null && metric != VectorSimilarityMetric.DOT_PRODUCT) ? null : new float[queryVector.length]
-        );
+        if (metric == VectorSimilarityMetric.DOT_PRODUCT) {
+            return new KnnRuntimeFilterUnitVectorEvaluator.Factory(
+                source(),
+                toEvaluator.apply(field()),
+                queryVector,
+                metric,
+                similarityThreshold,
+                // Allocate a scratch buffer whenever we will actually read the field vector: either to compare against
+                // the threshold or to validate unit length for DOT_PRODUCT.
+                context -> new float[queryVector.length]
+            );
+        } else {
+            return new KnnRuntimeFilterEvaluator.Factory(
+                source(),
+                toEvaluator.apply(field()),
+                queryVector,
+                metric,
+                similarityThreshold,
+                // Allocate a scratch buffer whenever we will actually read the field vector: either to compare against
+                // the threshold or to validate unit length for DOT_PRODUCT.
+                context -> similarityThreshold == null ? null : new float[queryVector.length]
+            );
+        }
     }
 
     @Override
@@ -701,18 +714,46 @@ public class Knn extends SingleFieldFullTextFunction
         if (dimensions != queryVector.length) {
             throw new IllegalArgumentException("dense_vector dimensions do not match");
         }
-        // If there is no threshold, we don't need to read the field vector at all: every row with a non-null vector passes.
-        // except for DOT_PRODUCT, we continue to read and validate that the field vector is unit length.
-        if (similarityThreshold == null && similarityMetric != VectorSimilarityMetric.DOT_PRODUCT) {
+        // With no threshold, every row with a non-null vector passes. No need to read the vector.
+        if (similarityThreshold == null) {
             return true;
         }
         int first = fieldBlock.getFirstValueIndex(position);
         for (int i = 0; i < dimensions; i++) {
             scratchVector[i] = fieldBlock.getFloat(first + i);
         }
-        if (similarityMetric == VectorSimilarityMetric.DOT_PRODUCT) {
-            requireUnitLength(scratchVector);
+
+        float similarity = similarityMetric.calculateSimilarity(scratchVector, queryVector);
+        return similarityMetric.normalizeToRelevanceScore(similarity) >= similarityMetric.normalizeToRelevanceScore(similarityThreshold);
+    }
+
+    /**
+     * Same as {@link #runtimeFilter(int, FloatBlock, float[], VectorSimilarityMetric, Float, float[])} above,
+     * but also checks that the field vector is unit length for DOT_PRODUCT.
+     */
+    @Evaluator(extraName = "RuntimeFilterUnitVector", allNullsIsNull = false, warnExceptions = { IllegalArgumentException.class })
+    static boolean runtimeFilterUnitVector(
+        @Position int position,
+        FloatBlock fieldBlock,
+        @Fixed float[] queryVector,
+        @Fixed VectorSimilarityMetric similarityMetric,
+        @Fixed @Nullable Float similarityThreshold,
+        @Fixed(includeInToString = false, scope = Fixed.Scope.THREAD_LOCAL) float[] scratchVector
+    ) {
+        if (fieldBlock.isNull(position)) {
+            return false;
         }
+        int dimensions = fieldBlock.getValueCount(position);
+        if (dimensions != queryVector.length) {
+            throw new IllegalArgumentException("dense_vector dimensions do not match");
+        }
+
+        // we need to read the vector even if similarityThreshold is null, because we need to check that it is unit length for DOT_PRODUCT
+        int first = fieldBlock.getFirstValueIndex(position);
+        for (int i = 0; i < dimensions; i++) {
+            scratchVector[i] = fieldBlock.getFloat(first + i);
+        }
+        requireUnitLength(scratchVector);
         if (similarityThreshold == null) {
             return true;
         }
@@ -723,6 +764,8 @@ public class Knn extends SingleFieldFullTextFunction
     /**
      * Evaluator factory for runtime KNN scoring (double result): normalizes the vector similarity value to the unit interval
      * and applies boost.
+     * We intentionally do not check for unit length here, because the {@link #runtimeFilterUnitVector(int, FloatBlock, float[], VectorSimilarityMetric, Float, float[]) filter evaluator}
+     * should have already done that for DOT_PRODUCT.
      */
     @Evaluator(extraName = "RuntimeScore", allNullsIsNull = false, warnExceptions = { IllegalArgumentException.class })
     static double runtimeScore(
@@ -744,9 +787,6 @@ public class Knn extends SingleFieldFullTextFunction
         int first = fieldBlock.getFirstValueIndex(position);
         for (int i = 0; i < dimensions; i++) {
             scratchVector[i] = fieldBlock.getFloat(first + i);
-        }
-        if (similarityMetric == VectorSimilarityMetric.DOT_PRODUCT) {
-            requireUnitLength(scratchVector);
         }
         return similarityMetric.normalizeToRelevanceScore(similarityMetric.calculateSimilarity(scratchVector, queryVector)) * boost;
     }

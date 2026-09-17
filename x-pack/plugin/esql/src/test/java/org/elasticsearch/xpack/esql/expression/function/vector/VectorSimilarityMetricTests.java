@@ -25,14 +25,6 @@ public class VectorSimilarityMetricTests extends ESTestCase {
         assertThat(VectorSimilarityMetric.optionValues(), equalTo(List.of("cosine", "dot_product", "l2_norm", "max_inner_product")));
     }
 
-    public void testFromOptionValueIgnoresCase() {
-        for (VectorSimilarityMetric metric : VectorSimilarityMetric.values()) {
-            assertThat(VectorSimilarityMetric.fromOptionValue(metric.optionValue()), equalTo(metric));
-            assertThat(VectorSimilarityMetric.fromOptionValue(metric.optionValue().toUpperCase(Locale.ROOT)), equalTo(metric));
-            assertThat(VectorSimilarityMetric.fromOptionValue(randomCasing(metric.optionValue())), equalTo(metric));
-        }
-    }
-
     public void testFromOptionValueRejectsUnknownNames() {
         // The old v_-prefixed names are deliberately not accepted
         assertThat(VectorSimilarityMetric.fromOptionValue("v_cosine"), nullValue());

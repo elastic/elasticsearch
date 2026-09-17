@@ -99,7 +99,8 @@ public final class DateFunctionComparisonRewriter {
      * Map {@code trunc/extract op literal} through the half-open bucket {@code [start, next)}.
      * Non-aligned equality is the empty range {@code field >= start AND field < start}, which
      * is false for every non-null field value and null when the field is null. Non-aligned
-     * {@code !=} is left alone.
+     * {@code !=} is left alone. TODO: rewrite that case to {@code field IS NOT NULL} — it is
+     * vacuously true for every non-null timestamp and stays null when the field is null.
      */
     static Expression rewriteComparisonBounds(EsqlBinaryComparison cmp, Expression field, Literal start, Literal next, boolean aligned) {
         Source source = cmp.source();
@@ -110,6 +111,7 @@ public final class DateFunctionComparisonRewriter {
                 : new And(source, new GreaterThanOrEqual(source, field, start, zoneId), new LessThan(source, field, start, zoneId));
             case NotEquals ignored -> aligned
                 ? new Or(source, new LessThan(source, field, start, zoneId), new GreaterThanOrEqual(source, field, next, zoneId))
+                // TODO: non-aligned != → field IS NOT NULL (vacuous, 3VL-safe)
                 : null;
             case GreaterThan ignored -> new GreaterThanOrEqual(source, field, next, zoneId);
             case GreaterThanOrEqual ignored -> new GreaterThanOrEqual(source, field, aligned ? start : next, zoneId);

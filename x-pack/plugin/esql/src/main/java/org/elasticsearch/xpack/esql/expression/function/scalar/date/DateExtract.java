@@ -339,24 +339,26 @@ public class DateExtract extends EsqlConfigurationFunction implements AnyNullIsN
     }
 
     private static long[] extractBucketBounds(ChronoField chrono, long value, ZoneId zone, DataType fieldType) {
-        ZonedDateTime start = switch (chrono) {
-            case YEAR -> LocalDate.of(Math.toIntExact(value), 1, 1).atStartOfDay(zone);
+        record Bounds(ZonedDateTime start, ZonedDateTime next) {}
+        Bounds bounds = switch (chrono) {
+            case YEAR -> {
+                ZonedDateTime start = LocalDate.of(Math.toIntExact(value), 1, 1).atStartOfDay(zone);
+                yield new Bounds(start, start.plusYears(1));
+            }
             case PROLEPTIC_MONTH -> {
                 long year = Math.floorDiv(value, 12);
                 int month = Math.toIntExact(Math.floorMod(value, 12L)) + 1;
-                yield LocalDate.of(Math.toIntExact(year), month, 1).atStartOfDay(zone);
+                ZonedDateTime start = LocalDate.of(Math.toIntExact(year), month, 1).atStartOfDay(zone);
+                yield new Bounds(start, start.plusMonths(1));
             }
-            case EPOCH_DAY -> LocalDate.ofEpochDay(value).atStartOfDay(zone);
-            default -> throw new IllegalArgumentException("unexpected chrono [" + chrono + "]");
-        };
-        ZonedDateTime next = switch (chrono) {
-            case YEAR -> start.plusYears(1);
-            case PROLEPTIC_MONTH -> start.plusMonths(1);
-            case EPOCH_DAY -> start.plusDays(1);
+            case EPOCH_DAY -> {
+                ZonedDateTime start = LocalDate.ofEpochDay(value).atStartOfDay(zone);
+                yield new Bounds(start, start.plusDays(1));
+            }
             default -> throw new IllegalArgumentException("unexpected chrono [" + chrono + "]");
         };
         return new long[] {
-            DateFunctionLiterals.toFieldEpoch(start.toInstant(), fieldType),
-            DateFunctionLiterals.toFieldEpoch(next.toInstant(), fieldType) };
+            DateFunctionLiterals.toFieldEpoch(bounds.start().toInstant(), fieldType),
+            DateFunctionLiterals.toFieldEpoch(bounds.next().toInstant(), fieldType) };
     }
 }

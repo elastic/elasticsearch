@@ -334,6 +334,12 @@ public class DateFunctionComparisonRewriterTests extends ESTestCase {
         assertGteLt(asAnd(rewritten), ts, YEAR_2024, YEAR_2025, DataType.DATETIME);
     }
 
+    public void testDateExtractRefusesNonIntegralLiteral() {
+        FieldAttribute ts = datetimeField();
+        assertNull(invert(eq(extract(keyword("year"), ts, utc()), new Literal(SRC, 2024.0, DataType.DOUBLE))));
+        assertNull(invert(eq(extract(keyword("year"), ts, utc()), new Literal(SRC, 2024.0f, DataType.FLOAT))));
+    }
+
     public void testInvertRefusesNonDatetimeFieldAndNullLiteral() {
         FieldAttribute yearInt = field("year", DataType.INTEGER);
         FieldAttribute ts = datetimeField();

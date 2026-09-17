@@ -122,11 +122,9 @@ final class DateFunctionLiterals {
             return null;
         }
         Object value = expr.fold(ctx);
-        if (value instanceof Number number) {
-            long integral = number.longValue();
-            if (number.doubleValue() == integral) {
-                return integral;
-            }
+        // Integral boxes only. doubleValue() == longValue() lies for |n| > 2^53.
+        if (value instanceof Long || value instanceof Integer || value instanceof Short || value instanceof Byte) {
+            return ((Number) value).longValue();
         }
         return null;
     }

@@ -1323,6 +1323,7 @@ public class DatafeedJobTests extends ESTestCase {
             currentTimeSupplier,
             delayedDataDetector,
             null,
+            null,
             latestFinalBucketEndTimeMs,
             latestRecordTimeMs,
             haveSeenDataPreviously,

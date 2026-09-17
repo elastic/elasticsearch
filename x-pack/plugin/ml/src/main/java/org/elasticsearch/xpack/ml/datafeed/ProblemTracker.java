@@ -47,6 +47,8 @@ class ProblemTracker {
     private volatile String previousProblem;
     private volatile int consecutiveSameProblemCount;
     private volatile int emptyDataCount;
+    private volatile int consecutiveExtractionFailureCount;
+    private volatile boolean extractionProblemThisReport;
     private final long numberOfSearchesInADay;
 
     ProblemTracker(AnomalyDetectionAuditor auditor, String jobId, long numberOfSearchesInADay) {
@@ -65,11 +67,15 @@ class ProblemTracker {
     }
 
     /**
-     * Reports as extraction problem if it is different than the last seen problem
+     * Reports as extraction problem if it is different than the last seen problem, and tracks the number of
+     * consecutive real-time cycles that have failed extraction.
      *
      * @param error the exception
+     * @return the number of consecutive extraction failures including this one
      */
-    public void reportExtractionProblem(DatafeedJob.ExtractionProblemException error) {
+    public int reportExtractionProblem(DatafeedJob.ExtractionProblemException error) {
+        extractionProblemThisReport = true;
+        consecutiveExtractionFailureCount++;
         CircuitBreakingException parentCircuitBreaker = findParentCircuitBreaker(error);
         if (parentCircuitBreaker != null) {
             String problemMessage = Messages.getMessage(
@@ -83,6 +89,15 @@ class ProblemTracker {
                 ExceptionsHelper.findSearchExceptionRootCause(error).getMessage()
             );
         }
+        return consecutiveExtractionFailureCount;
+    }
+
+    /**
+     * @return the number of consecutive real-time cycles that have failed extraction, reset to zero whenever a
+     * cycle completes without an extraction failure
+     */
+    public int getConsecutiveExtractionFailureCount() {
+        return consecutiveExtractionFailureCount;
     }
 
     /**
@@ -173,6 +188,13 @@ class ProblemTracker {
             previousProblem = null;
             consecutiveSameProblemCount = 0;
         }
+
+        // Reset the consecutive extraction failure counter whenever a cycle completes without hitting an
+        // extraction problem, so only genuinely consecutive failures accumulate towards the stop threshold.
+        if (extractionProblemThisReport == false) {
+            consecutiveExtractionFailureCount = 0;
+        }
+        extractionProblemThisReport = false;
 
         hadProblems = hasProblems;
         hasProblems = false;

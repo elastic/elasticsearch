@@ -119,6 +119,37 @@ public class ProblemTrackerTests extends ESTestCase {
         verify(auditor, times(3)).error("foo", "Datafeed is encountering errors extracting data: cause");
     }
 
+    public void testConsecutiveExtractionFailureCount_IncrementsOnEachFailure() {
+        assertEquals(1, problemTracker.reportExtractionProblem(createExtractionProblem("top level", "cause")));
+        problemTracker.finishReport();
+        assertEquals(2, problemTracker.reportExtractionProblem(createExtractionProblem("top level", "cause")));
+        problemTracker.finishReport();
+        assertEquals(3, problemTracker.reportExtractionProblem(createExtractionProblem("top level", "cause")));
+        assertEquals(3, problemTracker.getConsecutiveExtractionFailureCount());
+    }
+
+    public void testConsecutiveExtractionFailureCount_ResetsAfterSuccessfulCycle() {
+        // Two failing cycles, each terminated by finishReport as the real-time loop does
+        assertEquals(1, problemTracker.reportExtractionProblem(createExtractionProblem("top level", "cause")));
+        problemTracker.finishReport();
+        assertEquals(2, problemTracker.reportExtractionProblem(createExtractionProblem("top level", "cause")));
+        problemTracker.finishReport();
+
+        // A cycle with no extraction problem (e.g. data seen, or empty data) resets the counter on finishReport
+        problemTracker.reportNonEmptyDataCount();
+        problemTracker.finishReport();
+        assertEquals(0, problemTracker.getConsecutiveExtractionFailureCount());
+
+        assertEquals(1, problemTracker.reportExtractionProblem(createExtractionProblem("top level", "cause")));
+    }
+
+    public void testConsecutiveExtractionFailureCount_NotResetWhileFailuresContinue() {
+        assertEquals(1, problemTracker.reportExtractionProblem(createExtractionProblem("top level", "cause")));
+        problemTracker.finishReport();
+        // finishReport must not reset the counter when the cycle itself hit an extraction problem
+        assertEquals(2, problemTracker.reportExtractionProblem(createExtractionProblem("top level", "cause")));
+    }
+
     public void testUpdateEmptyDataCount_GivenEmptyNineTimes() {
         for (int i = 0; i < 9; i++) {
             problemTracker.reportEmptyDataCount();

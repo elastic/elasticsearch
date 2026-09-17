@@ -10,6 +10,7 @@
 package org.elasticsearch.health.node;
 
 import org.elasticsearch.cluster.metadata.Metadata;
+import org.elasticsearch.cluster.metadata.ProjectId;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.service.ClusterService;
@@ -25,8 +26,11 @@ import org.elasticsearch.health.HealthStatus;
 import org.elasticsearch.health.ImpactArea;
 import org.elasticsearch.health.metadata.HealthMetadata;
 import org.elasticsearch.indices.ShardLimitValidator;
+import org.elasticsearch.xcontent.XContentBuilder;
 
+import java.io.IOException;
 import java.util.ArrayList;
+import java.util.Comparator;
 import java.util.Iterator;
 import java.util.LinkedHashSet;
 import java.util.List;
@@ -195,16 +199,21 @@ public class ShardsCapacityHealthIndicatorService implements HealthIndicatorServ
                     state.nodes(),
                     state.metadata(),
                     limitGroup::checkShardLimit,
-                    healthMetadata.getShardLimitsMetadata().shardCapacityUnhealthyThresholdYellow(),
-                    healthMetadata.getShardLimitsMetadata().shardCapacityUnhealthyThresholdRed()
+                    shardLimitsMetadata.shardCapacityUnhealthyThresholdYellow(),
+                    shardLimitsMetadata.shardCapacityUnhealthyThresholdRed()
                 )
             )
             .toList();
 
-        return mergeIndicators(verbose, statusResults);
+        return mergeIndicators(verbose, statusResults, state.metadata(), maxAffectedResourcesCount);
     }
 
-    private HealthIndicatorResult mergeIndicators(boolean verbose, List<StatusResult> statusResults) {
+    private HealthIndicatorResult mergeIndicators(
+        boolean verbose,
+        List<StatusResult> statusResults,
+        Metadata metadata,
+        int maxAffectedResourcesCount
+    ) {
         var finalStatus = HealthStatus.merge(statusResults.stream().map(StatusResult::status));
         var diagnoses = new LinkedHashSet<Diagnosis>();
         var symptomBuilder = new StringBuilder();
@@ -245,7 +254,9 @@ public class ShardsCapacityHealthIndicatorService implements HealthIndicatorServ
         return createIndicator(
             finalStatus,
             symptomBuilder.toString(),
-            verbose ? buildDetails(statusResults.stream().map(StatusResult::result).toList()) : HealthIndicatorDetails.EMPTY,
+            verbose
+                ? buildDetails(statusResults.stream().map(StatusResult::result).toList(), metadata, maxAffectedResourcesCount)
+                : HealthIndicatorDetails.EMPTY,
             indicatorImpacts,
             verbose ? List.copyOf(diagnoses) : List.of()
         );
@@ -272,20 +283,56 @@ public class ShardsCapacityHealthIndicatorService implements HealthIndicatorServ
         return new StatusResult(HealthStatus.GREEN, result);
     }
 
-    static HealthIndicatorDetails buildDetails(List<ShardLimitValidator.Result> results) {
+    static HealthIndicatorDetails buildDetails(List<ShardLimitValidator.Result> results, Metadata metadata, int maxAffectedResourcesCount) {
         return (builder, params) -> {
             builder.startObject();
             for (var result : results) {
                 builder.startObject(nodeTypeForLimitGroup(result.group()));
                 builder.field("max_shards_in_cluster", result.maxShardsInCluster());
                 if (result.currentUsedShards().isPresent()) {
-                    builder.field("current_used_shards", result.currentUsedShards().get());
+                    // Sum open shards in this group across all projects.
+                    builder.field("current_used_shards", result.group().countShards(metadata));
+                    if (metadata.projects().size() > 1
+                        && (result.group() == ShardLimitValidator.LimitGroup.INDEX
+                            || result.group() == ShardLimitValidator.LimitGroup.SEARCH)) {
+                        writeProjects(builder, metadata, result.group(), maxAffectedResourcesCount);
+                    }
                 }
                 builder.endObject();
             }
             builder.endObject();
             return builder;
         };
+    }
+
+    /**
+     * Writes the multi-project breakdown under {@code projects}, ordered by used shards for this group (descending)
+     * and capped to {@code maxAffectedResourcesCount}.
+     */
+    private static void writeProjects(
+        XContentBuilder builder,
+        Metadata metadata,
+        ShardLimitValidator.LimitGroup group,
+        int maxAffectedResourcesCount
+    ) throws IOException {
+        var topProjects = metadata.projects()
+            .entrySet()
+            .stream()
+            .map(entry -> Map.entry(entry.getKey(), group.countShards(entry.getValue())))
+            .sorted(
+                Comparator.<Map.Entry<ProjectId, Integer>>comparingInt(Map.Entry::getValue)
+                    .reversed()
+                    .thenComparing(entry -> entry.getKey().id())
+            )
+            .limit(maxAffectedResourcesCount)
+            .toList();
+        builder.startObject("projects");
+        for (var entry : topProjects) {
+            builder.startObject(entry.getKey().id());
+            builder.field("current_used_shards", entry.getValue());
+            builder.endObject();
+        }
+        builder.endObject();
     }
 
     private HealthIndicatorResult unknownIndicator() {

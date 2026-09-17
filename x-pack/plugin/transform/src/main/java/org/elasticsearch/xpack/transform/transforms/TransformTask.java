@@ -308,18 +308,13 @@ public class TransformTask extends AllocatedPersistentTask
             // we could not read the previous state information from said index.
             persistStateToClusterState(state, ActionListener.wrap(task -> {
                 auditor.info(transform.getId(), "Updated transform state to [" + state.getTaskState() + "].");
-                transformScheduler.registerTransform(transform, this);
                 listener.onResponse(new StartTransformAction.Response(true));
             }, exc -> {
-                auditor.warning(
-                    transform.getId(),
-                    "Failed to persist to cluster state while marking task as started. Failure: " + exc.getMessage()
-                );
                 logger.error(() -> format("[%s] failed updating state to [%s].", getTransformId(), state), exc);
                 getIndexer().stop();
                 listener.onFailure(
                     new ElasticsearchException(
-                        "Error while updating state for transform [" + transform.getId() + "] to [" + state.getIndexerState() + "].",
+                        "Error while updating state for transform [" + transform.getId() + "] to [" + TransformTaskState.STARTED + "].",
                         exc
                     )
                 );
@@ -551,6 +546,15 @@ public class TransformTask extends AllocatedPersistentTask
                 listener.onResponse(null);
                 return;
             }
+            // If we are aborting, this means a cancellation request (e.g. the node the task is on is going away) is already
+            // tearing the indexer down towards a clean completion. A failure racing that teardown (e.g. an in-flight search
+            // failing because of the same disconnect that triggered the cancellation) must not override it with FAILED,
+            // since FAILED is sticky and blocks the reassigned task from auto-starting on the new node.
+            if (getIndexer() != null && getIndexer().getState() == IndexerState.ABORTING) {
+                logger.info("[{}] encountered a failure but indexer is ABORTING; reason [{}].", getTransformId(), reason);
+                listener.onResponse(null);
+                return;
+            }
 
             // We should not keep retrying. Either the task will be stopped, or started
             // If it is started again, it is registered again.
@@ -606,6 +610,10 @@ public class TransformTask extends AllocatedPersistentTask
             // there is no background transform running, we can shutdown safely
             shutdown();
         }
+    }
+
+    public boolean isRetryingStartup() {
+        return getContext().getStartUpFailureCount() > 0;
     }
 
     TransformTask setNumFailureRetries(int numFailureRetries) {

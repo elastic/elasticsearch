@@ -291,10 +291,6 @@ public final class DatasetRegistry {
      * failure that aborted cleanup) does not leave stale entries that would make a later suite in the same
      * JVM fork skip a needed PUT.
      */
-    public static synchronized String registeredDatasetNames() {
-        return String.join(", ", datasets.keySet());
-    }
-
     public static synchronized void clearCaches() {
         datasets.clear();
         dataSources.clear();

@@ -13,6 +13,7 @@ import org.elasticsearch.Build;
 import org.elasticsearch.client.Request;
 import org.elasticsearch.client.ResponseException;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.test.rest.ESRestTestCase;
 import org.elasticsearch.xpack.esql.AssertWarnings;
 import org.elasticsearch.xpack.esql.CsvTestsDataLoader;
@@ -487,11 +488,13 @@ public abstract class GenerativeRestTest extends ESRestTestCase implements Query
             } catch (Exception e) {
                 // query failures are AssertionErrors, if we get here it's an unexpected exception in the query generation
                 if (e instanceof AllowedGeneratorFailureException == false && isAllowedError(e.getMessage()) == false) {
-                    StringBuilder message = new StringBuilder();
-                    message.append("Generative tests, error generating new command \n");
-                    message.append("Previous query: \n");
-                    message.append(exec.previousResult == null ? "<no previous query>" : exec.previousResult.query());
-                    fail(e, message.toString());
+                    String previousQuery = exec.previousResult == null ? null : exec.previousResult.query();
+                    // fail(e, report) would run the report through Strings.format, which reinterprets any '%' in the
+                    // generated query as a format specifier.
+                    throw new AssertionError(
+                        "Generative tests, error generating new command\n" + failureReport(previousQuery, e.getMessage()),
+                        e
+                    );
                 }
             }
         }
@@ -721,32 +724,52 @@ public abstract class GenerativeRestTest extends ESRestTestCase implements Query
 
     /**
      * Composes the message for a failing generated query. These run to tens of kilobytes and are truncated before
-     * they reach a filed issue, so the error goes near the top and the warnings go last.
+     * they reach a filed issue, so the error goes near the top and the bulky context ({@link #extraFailureContext}
+     * and the response warnings) goes last.
+     *
+     * @param query the query that failed, or {@code null} when the failure happened before one could be generated
+     * @param error the error message, or {@code null} when the failure carries no message
      */
-    protected String failureReport(String query, String error) {
+    protected final String failureReport(@Nullable String query, @Nullable String error) {
         String warnings = "";
-        Matcher matcher = RESPONSE_WARNINGS.matcher(error);
-        if (matcher.find()) {
-            warnings = matcher.group().strip();
-            error = matcher.replaceFirst("\n");
+        if (error == null) {
+            error = "<no error message>";
+        } else {
+            Matcher matcher = RESPONSE_WARNINGS.matcher(error);
+            if (matcher.find()) {
+                warnings = matcher.group().strip();
+                error = matcher.replaceFirst("\n");
+            }
         }
 
-        StringBuilder report = new StringBuilder("query: ").append(query);
+        StringBuilder report = new StringBuilder("query: ").append(query == null ? "<no query generated>" : query);
         report.append("\nfeatures: ").append(enabledFeatures());
-        String datasets = DatasetRegistry.registeredDatasetNames();
-        if (datasets.isEmpty() == false) {
-            report.append("\nregistered datasets: ").append(datasets);
-        }
         report.append("\nreproduce with -Dtests.seed=")
             .append(RandomizedContext.current().getRunnerSeedAsString())
             .append(" on build ")
             .append(Build.current().hash())
             .append(" (a seed only reproduces on the build that generated it)");
         report.append("\nerror: ").append(error);
+        String extra = extraFailureContext(query);
+        if (extra.isEmpty() == false) {
+            report.append("\n").append(extra);
+        }
         if (warnings.isEmpty() == false) {
             report.append("\n").append(warnings);
         }
         return report.toString();
+    }
+
+    /**
+     * Context a subclass wants appended after the error, for failures that are not reproducible from the seed
+     * alone (e.g. the mappings and documents of a randomly generated index). Runs on the failure path only, so
+     * it may be expensive, but it lands in the part of the report most likely to be truncated: keep the
+     * seed-reproducible details in {@link #failureReport} instead.
+     *
+     * @param query the query that failed, or {@code null} when the failure happened before one could be generated
+     */
+    protected String extraFailureContext(@Nullable String query) {
+        return "";
     }
 
     /**

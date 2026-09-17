@@ -71,7 +71,7 @@ Data sources are managed under the `/_query/data_source` endpoint. All data sour
 | [Get](#get-a-data-source) | `GET /_query/data_source/{name}` | [Get ES\|QL data sources](https://www.elastic.co/docs/api/doc/elasticsearch/v9/operation/operation-esql-get-data-source) |
 | [List all](#list-all-data-sources) | `GET /_query/data_source` | [Get ES\|QL data sources](https://www.elastic.co/docs/api/doc/elasticsearch/v9/operation/operation-esql-get-data-source) |
 | [Delete](#delete-a-data-source) | `DELETE /_query/data_source/{name}` | [Delete ES\|QL data sources](https://www.elastic.co/docs/api/doc/elasticsearch/v9/operation/operation-esql-delete-data-source) |
-<!-- | [Test connection](#test-a-connection) | `POST /_query/data_source/_test_connection` | [Test an ES\|QL data source connection](https://www.elastic.co/docs/api/doc/elasticsearch/operation/operation-esql-data-source-test-connection) | -->
+<!-- | [Test connection](#test-a-connection) | `POST /_query/data_source/_test` | [Test an ES\|QL data source connection](https://www.elastic.co/docs/api/doc/elasticsearch/operation/operation-esql-data-source-test-connection) | -->
 
 ### Create or update a data source
 
@@ -209,7 +209,7 @@ A data source cannot be deleted while datasets still reference it. Delete the de
 stack: experimental 9.6+
 ```
 
-Use `POST /_query/data_source/_test_connection` to verify that a configuration can reach its backend before saving it. The data source does not need to exist in cluster state — the endpoint accepts the same `type` and `settings` fields as the `PUT` request.
+Use `POST /_query/data_source/_test` to verify that a configuration can reach its backend before saving it. The data source does not need to exist in cluster state — the endpoint accepts the same `type` and `settings` fields as the `PUT` request.
 
 The response contains a `status` field with one of three values:
 
@@ -225,7 +225,7 @@ The response contains a `status` field with one of three values:
 :::{tab-item} Console
 :sync: console
 ```console
-POST /_query/data_source/_test_connection
+POST /_query/data_source/_test
 {
   "type": "s3",
   "settings": {
@@ -241,7 +241,7 @@ POST /_query/data_source/_test_connection
 :::{tab-item} curl
 :sync: curl
 ```bash
-curl -X POST "${ELASTICSEARCH_URL}/_query/data_source/_test_connection" \
+curl -X POST "${ELASTICSEARCH_URL}/_query/data_source/_test" \
   -H "Authorization: ApiKey ${API_KEY}" \
   -H "Content-Type: application/json" \
   -d '{

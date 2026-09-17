@@ -105,9 +105,7 @@ public class HttpDataSourcePlugin extends Plugin implements DataSourcePlugin {
             providers.put("https", httpFactory);
         }
         if (localEnabled()) {
-            // Local filesystem is always reachable when the feature is enabled — no network probe needed.
-            StorageProviderFactory localFactory = StorageProviderFactory.noConfigKeys(LocalStorageProvider::new);
-            providers.put("file", StorageProviderFactory.withTestConnection(localFactory, config -> {}));
+            providers.put("file", StorageProviderFactory.noConfigKeys(LocalStorageProvider::new));
         }
         return Map.copyOf(providers);
     }

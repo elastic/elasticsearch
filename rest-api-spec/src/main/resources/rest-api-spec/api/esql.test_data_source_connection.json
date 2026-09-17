@@ -17,7 +17,7 @@
     "url": {
       "paths": [
         {
-          "path": "/_query/data_source/_test_connection",
+          "path": "/_query/data_source/_test",
           "methods": [
             "POST"
           ]

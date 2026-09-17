@@ -120,7 +120,7 @@ teardown:
   - requires:
       capabilities:
         - method: POST
-          path: /_query/data_source/_test_connection
+          path: /_query/data_source/_test
           capabilities: [data_source_test_connection]
       test_runner_features: capabilities
       reason: "ES|QL data source test-connection API"
@@ -138,7 +138,7 @@ teardown:
   - requires:
       capabilities:
         - method: POST
-          path: /_query/data_source/_test_connection
+          path: /_query/data_source/_test
           capabilities: [data_source_test_connection]
       test_runner_features: capabilities
       reason: "ES|QL data source test-connection API — internal types must be rejected"
@@ -148,6 +148,26 @@ teardown:
         body:
           type: "file"
           settings: {}
+
+---
+"test-connection-local-untestable":
+  # The "local" type has no connectivity probe — it uses the local filesystem, which is either
+  # permitted or denied by esql.external.local_allowed_paths at query time, not via a network probe.
+  # After our fix (removing the empty lambda that returned success), it correctly returns untestable.
+  # Requires the esql_external_datasources_local feature flag (snapshot-on, release-off).
+  - requires:
+      capabilities:
+        - method: POST
+          path: /_query/data_source/_test
+          capabilities: [data_source_test_connection, data_source_local_type]
+      test_runner_features: capabilities
+      reason: "local type returns untestable — requires esql_external_datasources_local feature flag"
+  - do:
+      esql.test_data_source_connection:
+        body:
+          type: "local"
+          settings: {}
+  - match: { status: "untestable" }
 
 ---
 "region-on-datasource-warns":

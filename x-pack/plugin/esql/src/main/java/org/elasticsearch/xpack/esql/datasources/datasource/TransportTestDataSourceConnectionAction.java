@@ -47,6 +47,20 @@ import java.util.concurrent.atomic.AtomicInteger;
  *       {@code failure} beats {@code untestable} beats {@code success}. A mix of {@code success}
  *       and {@code untestable} resolves to {@code untestable} — the result is inconclusive.</li>
  * </ol>
+ *
+ * <p><b>Two-registry note.</b> The coordinator gates on the PUT validator registry
+ * ({@code DataSourceService.validatorFor()}). Each node resolves the probe factory through
+ * {@code DataSourceModule.testConnection}, which uses its own lookup chain
+ * ({@code sourceFactories}, then {@code storageProviderRegistry}, then {@code testConnectionSchemes}).
+ * If a per-node system property (e.g. a GCS plugin flag) causes the two to diverge, the node
+ * throws an {@link IllegalArgumentException} which surfaces as a {@code TransportException} at the
+ * coordinator and is mapped to {@code untestable} — inconclusive rather than a false failure.
+ * Aligning both registries behind a single source of truth is a follow-up.
+ *
+ * <p><b>Concurrency note.</b> Each node probe opens a storage client and blocks a GENERIC-pool
+ * thread until the probe completes or times out. In a large cluster this means one GENERIC thread
+ * per data node for up to {@link #PROBE_TIMEOUT} per call. Cancellation of the REST request does
+ * not propagate to node requests. A per-call concurrency limit is a follow-up.
  */
 public class TransportTestDataSourceConnectionAction extends HandledTransportAction<
     TestDataSourceConnectionAction.Request,
@@ -146,8 +160,13 @@ public class TransportTestDataSourceConnectionAction extends HandledTransportAct
 
                     @Override
                     public void handleException(TransportException exp) {
-                        String msg = exp.getMessage() != null ? exp.getMessage() : exp.getClass().getName();
-                        results.set(idx, TestConnectionResult.failure(msg));
+                        // Transport exceptions (no-handler on old nodes during rolling upgrade, timeout,
+                        // or registry inconsistency) are inconclusive — the probe did not run.
+                        // Map to untestable with no user-visible message: cause messages contain
+                        // internal strings (action names, node addresses, registry IAE text) that
+                        // must not be surfaced in a public response. The untestable message field
+                        // is for user-visible guidance (e.g. "create a dataset"), not debug info.
+                        results.set(idx, new TestConnectionResult.Untestable(null));
                         if (remaining.decrementAndGet() == 0) {
                             listener.onResponse(aggregate(results));
                         }
@@ -167,7 +186,7 @@ public class TransportTestDataSourceConnectionAction extends HandledTransportAct
      * This means {@code success + untestable → untestable}: the result is inconclusive when any
      * node could not run the probe. Only unanimous success guarantees reachability from every node.
      */
-    private static TestDataSourceConnectionAction.Response aggregate(AtomicArray<TestConnectionResult> results) {
+    static TestDataSourceConnectionAction.Response aggregate(AtomicArray<TestConnectionResult> results) {
         String firstFailure = null;
         String firstUntestableReason = null;
         boolean anyFailure = false;

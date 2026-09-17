@@ -13,15 +13,11 @@ import org.elasticsearch.action.ActionType;
 import org.elasticsearch.action.support.TransportAction;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.core.Nullable;
-import org.elasticsearch.tasks.CancellableTask;
-import org.elasticsearch.tasks.Task;
-import org.elasticsearch.tasks.TaskId;
 import org.elasticsearch.xcontent.ConstructingObjectParser;
 import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xcontent.ToXContentObject;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentParser;
-import org.elasticsearch.xpack.core.esql.DataSourceRequestInfo;
 import org.elasticsearch.xpack.core.esql.EsqlDataSourceActionNames;
 
 import java.io.IOException;
@@ -48,7 +44,7 @@ public class TestDataSourceConnectionAction extends ActionType<TestDataSourceCon
     }
 
     /** Request body: {@code {"type": "...", "settings": {...}}}. */
-    public static class Request extends ActionRequest implements DataSourceRequestInfo {
+    public static class Request extends ActionRequest {
         private static final ParseField TYPE = new ParseField("type");
         private static final ParseField SETTINGS = new ParseField("settings");
 
@@ -92,21 +88,6 @@ public class TestDataSourceConnectionAction extends ActionType<TestDataSourceCon
         @Override
         public ActionRequestValidationException validate() {
             return null;
-        }
-
-        @Override
-        public String[] dataSourceNames() {
-            return new String[0];
-        }
-
-        @Override
-        public String dataSourceClusterActionName() {
-            return NAME;
-        }
-
-        @Override
-        public Task createTask(long id, String type, String action, TaskId parentTaskId, Map<String, String> headers) {
-            return new CancellableTask(id, type, action, getDescription(), parentTaskId, headers);
         }
 
         @Override

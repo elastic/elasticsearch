@@ -19,6 +19,24 @@ import org.elasticsearch.xpack.core.transform.transforms.TransformProgress;
  */
 public interface CheckpointProvider {
 
+    /** Starting GetCheckpoint timeout. Silent nodes should not wait the 12h walk bound. */
+    TimeValue MIN_GET_INDEX_CHECKPOINTS_TIMEOUT = TimeValue.timeValueSeconds(30);
+
+    /** Ceiling for huge searchable-snapshot sources. */
+    TimeValue MAX_GET_INDEX_CHECKPOINTS_TIMEOUT = TimeValue.timeValueHours(12);
+
+    /**
+     * {@code 30s * 2^failureCount}, capped at 12h.
+     */
+    static TimeValue getIndexCheckpointsTimeout(int failureCount) {
+        // Cap the shift to avoid overflow (same bound as TransformSchedulingUtils).
+        long timeoutMillis = Math.min(
+            MIN_GET_INDEX_CHECKPOINTS_TIMEOUT.millis() << Math.min(Math.max(failureCount, 0), 32),
+            MAX_GET_INDEX_CHECKPOINTS_TIMEOUT.millis()
+        );
+        return TimeValue.timeValueMillis(timeoutMillis);
+    }
+
     /**
      * Create a new checkpoint
      *
@@ -26,6 +44,14 @@ public interface CheckpointProvider {
      * @param listener listener to call after inner request returned
      */
     void createNextCheckpoint(TransformCheckpoint lastCheckpoint, ActionListener<TransformCheckpoint> listener);
+
+    /**
+     * Create a checkpoint using {@code timeout} for the GetCheckpoint send and walk.
+     * Default ignores {@code timeout} so existing two-arg implementors keep working.
+     */
+    default void createNextCheckpoint(TransformCheckpoint lastCheckpoint, TimeValue timeout, ActionListener<TransformCheckpoint> listener) {
+        createNextCheckpoint(lastCheckpoint, listener);
+    }
 
     /**
      * Determines whether the transform needs updating

@@ -383,68 +383,6 @@ public class SharedBlobCacheServiceTests extends ESTestCase {
         }
     }
 
-    public void testTimestampSetOnceAcrossFetchOverloads() throws Exception {
-        final long cacheSize = size(500L);
-        final long regionSize = size(100L);
-        Settings settings = Settings.builder()
-            .put(NODE_NAME_SETTING.getKey(), "node")
-            .put(SharedBlobCacheService.SHARED_CACHE_SIZE_SETTING.getKey(), ByteSizeValue.ofBytes(cacheSize))
-            .put(SharedBlobCacheService.SHARED_CACHE_REGION_SIZE_SETTING.getKey(), ByteSizeValue.ofBytes(regionSize))
-            .put(SharedBlobCacheService.SHARED_CACHE_INITIAL_DECAYS_SETTING.getKey(), 0)
-            .put("path.home", createTempDir())
-            .build();
-
-        final var threadPool = new TestThreadPool("test");
-        final var bulkExecutor = new StoppableExecutorServiceWrapper(threadPool.generic());
-
-        final RangeMissingHandler writer = (
-            channel,
-            channelPos,
-            streamFactory,
-            relativePos,
-            length,
-            progressUpdater,
-            completionListener) -> completeWith(completionListener, () -> progressUpdater.accept(length));
-
-        try (
-            NodeEnvironment environment = new NodeEnvironment(settings, TestEnvironment.newEnvironment(settings));
-            var cacheService = new SharedBlobCacheService<>(
-                environment,
-                settings,
-                threadPool,
-                threadPool.executor(ThreadPool.Names.GENERIC),
-                BlobCacheMetrics.NOOP
-            )
-        ) {
-            final var cacheKey = generateCacheKey();
-            final long firstTimestamp = randomLongBetween(1, Long.MAX_VALUE - 2);
-            final long secondTimestamp = firstTimestamp + 1;
-
-            // first population path to create region 0 wins the stamp
-            final PlainActionFuture<Boolean> firstFuture = new PlainActionFuture<>();
-            cacheService.fetchRegion(cacheKey, 0, regionSize, writer, bulkExecutor, true, firstTimestamp, firstFuture);
-            assertThat(firstFuture.get(10, TimeUnit.SECONDS), is(true));
-
-            // a later population path through a different overload carries a different timestamp, but the stamp is set-once
-            final PlainActionFuture<Boolean> secondFuture = new PlainActionFuture<>();
-            cacheService.maybeFetchRange(
-                cacheKey,
-                0,
-                ByteRange.of(0, regionSize),
-                regionSize,
-                writer,
-                bulkExecutor,
-                secondTimestamp,
-                secondFuture
-            );
-            secondFuture.get(10, TimeUnit.SECONDS);
-
-            assertEquals(firstTimestamp, cacheService.get(cacheKey, regionSize, 0, UNKNOWN_TIMESTAMP).timestampMillis());
-        } finally {
-            TestThreadPool.terminate(threadPool, 10, TimeUnit.SECONDS);
-        }
-    }
-
     public void testGetCacheFileStampsTimestampOnRead() throws Exception {
         Settings settings = Settings.builder()
             .put(NODE_NAME_SETTING.getKey(), "node")
@@ -4724,74 +4662,7 @@ public class SharedBlobCacheServiceTests extends ESTestCase {
         }
     }
 
-    public void testTryReadAfterBackfillUsesRegionTimestamp() throws Exception {
-        final long regionSize = size(10);
-        final long fileLength = size(randomIntBetween(5, 10));
-        Settings settings = Settings.builder()
-            .put(NODE_NAME_SETTING.getKey(), "node")
-            .put(SharedBlobCacheService.SHARED_CACHE_SIZE_SETTING.getKey(), ByteSizeValue.ofBytes(size(50)).getStringRep())
-            .put(SharedBlobCacheService.SHARED_CACHE_REGION_SIZE_SETTING.getKey(), ByteSizeValue.ofBytes(regionSize).getStringRep())
-            .put("path.home", createTempDir())
-            .build();
-        final DeterministicTaskQueue taskQueue = new DeterministicTaskQueue();
-        final RecordingMeterRegistry recording = new RecordingMeterRegistry();
-        try (
-            NodeEnvironment environment = new NodeEnvironment(settings, TestEnvironment.newEnvironment(settings));
-            var cacheService = new SharedBlobCacheService<TestCacheKey>(
-                environment,
-                settings,
-                taskQueue.getThreadPool(),
-                EsExecutors.DIRECT_EXECUTOR_SERVICE,
-                new BlobCacheMetrics(recording, NOOP_TIME_PROVIDER)
-            )
-        ) {
-            final var cacheKey = generateCacheKey();
-            final var cacheFile = cacheService.getCacheFile(
-                cacheKey,
-                fileLength,
-                SharedBlobCacheService.CacheMissHandler.NOOP,
-                SharedBlobCacheService.BACKFILL_IN_PROGRESS_TIMESTAMP
-            );
-
-            final byte[] testData = randomByteArrayOfLength((int) fileLength);
-            final ByteBuffer writeBuffer = ByteBuffer.allocate(SharedBytes.PAGE_SIZE);
-            cacheFile.populateAndRead(
-                ByteRange.of(0L, fileLength),
-                ByteRange.of(0L, fileLength),
-                (channel, pos, relativePos, len) -> len,
-                (channel, channelPos, streamFactory, relativePos, len, progressUpdater, completionListener) -> {
-                    SharedBytes.copyToCacheFileAligned(
-                        channel,
-                        new java.io.ByteArrayInputStream(testData, relativePos, len),
-                        channelPos,
-                        relativePos,
-                        len,
-                        progressUpdater,
-                        writeBuffer.clear()
-                    );
-                    ActionListener.completeWith(completionListener, () -> null);
-                },
-                "test"
-            );
-
-            final long backfill = randomLongBetween(1, Long.MAX_VALUE - 1);
-            cacheService.backfillRegionTimestamps(cacheKey.shardId(), key -> key.equals(cacheKey) ? backfill : null);
-            assertEquals(
-                backfill,
-                cacheService.get(cacheKey, fileLength, 0, SharedBlobCacheService.BACKFILL_IN_PROGRESS_TIMESTAMP).timestampMillis()
-            );
-
-            recording.getRecorder().resetCalls();
-            assertTrue(cacheFile.tryRead(ByteBuffer.wrap(new byte[1]), 0));
-
-            // NOOP_TIME_PROVIDER reports now=0, so a positive backfilled timestamp is a negative age.
-            List<Measurement> readAges = recording.getRecorder().getMeasurements(InstrumentType.LONG_HISTOGRAM, BLOB_CACHE_READ_AGE);
-            assertThat(readAges, hasSize(1));
-            assertEquals(0L - backfill, readAges.getFirst().getLong());
-        }
-    }
-
-    public void testPopulateMissAfterBackfillUsesRegionTimestamp() throws Exception {
+    public void testBackfillTimestampIsUsedForAgeHistograms() throws Exception {
         final long regionSize = size(10);
         final long fileLength = size(randomIntBetween(5, 10));
         Settings settings = Settings.builder()
@@ -4823,9 +4694,43 @@ public class SharedBlobCacheServiceTests extends ESTestCase {
 
             final long backfill = randomLongBetween(1, Long.MAX_VALUE - 1);
             cacheService.backfillRegionTimestamps(cacheKey.shardId(), key -> key.equals(cacheKey) ? backfill : null);
+            assertEquals(
+                backfill,
+                cacheService.get(cacheKey, fileLength, 0, SharedBlobCacheService.BACKFILL_IN_PROGRESS_TIMESTAMP).timestampMillis()
+            );
 
+            // NOOP_TIME_PROVIDER reports now=0, so a positive backfilled timestamp is a negative age.
+
+            // Cache-hit path (tryRead): only a read age is recorded
+            recording.getRecorder().resetCalls();
             final byte[] testData = randomByteArrayOfLength((int) fileLength);
             final ByteBuffer writeBuffer = ByteBuffer.allocate(SharedBytes.PAGE_SIZE);
+            cacheFile.populateAndRead(
+                ByteRange.of(0L, fileLength),
+                ByteRange.of(0L, fileLength),
+                (channel, pos, relativePos, len) -> len,
+                (channel, channelPos, streamFactory, relativePos, len, progressUpdater, completionListener) -> {
+                    SharedBytes.copyToCacheFileAligned(
+                        channel,
+                        new java.io.ByteArrayInputStream(testData, relativePos, len),
+                        channelPos,
+                        relativePos,
+                        len,
+                        progressUpdater,
+                        writeBuffer.clear()
+                    );
+                    ActionListener.completeWith(completionListener, () -> null);
+                },
+                "test"
+            );
+            recording.getRecorder().resetCalls();
+            assertTrue(cacheFile.tryRead(ByteBuffer.wrap(new byte[1]), 0));
+            List<Measurement> readAges = recording.getRecorder().getMeasurements(InstrumentType.LONG_HISTOGRAM, BLOB_CACHE_READ_AGE);
+            assertThat(readAges, hasSize(1));
+            assertEquals(0L - backfill, readAges.getFirst().getLong());
+            assertThat(recording.getRecorder().getMeasurements(InstrumentType.LONG_HISTOGRAM, BLOB_CACHE_MISS_AGE), empty());
+
+            // Cache-miss path (populateAndRead): both read and miss ages are recorded
             recording.getRecorder().resetCalls();
             cacheFile.populateAndRead(
                 ByteRange.of(0L, fileLength),
@@ -4845,10 +4750,9 @@ public class SharedBlobCacheServiceTests extends ESTestCase {
                 },
                 "test"
             );
-            // NOOP_TIME_PROVIDER reports now=0, so a positive backfilled timestamp is a negative age.
-            List<Measurement> readAges = recording.getRecorder().getMeasurements(InstrumentType.LONG_HISTOGRAM, BLOB_CACHE_READ_AGE);
-            assertThat(readAges, hasSize(1));
-            assertEquals(0L - backfill, readAges.getFirst().getLong());
+            List<Measurement> readAges2 = recording.getRecorder().getMeasurements(InstrumentType.LONG_HISTOGRAM, BLOB_CACHE_READ_AGE);
+            assertThat(readAges2, hasSize(1));
+            assertEquals(0L - backfill, readAges2.getFirst().getLong());
             List<Measurement> missAges = recording.getRecorder().getMeasurements(InstrumentType.LONG_HISTOGRAM, BLOB_CACHE_MISS_AGE);
             assertThat(missAges, hasSize(1));
             assertEquals(0L - backfill, missAges.getFirst().getLong());

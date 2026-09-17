@@ -15,6 +15,7 @@ import org.elasticsearch.logging.Logger;
 import org.elasticsearch.tasks.TaskCancelledException;
 import org.elasticsearch.xpack.esql.datasources.spi.DirectBufferFactory;
 import org.elasticsearch.xpack.esql.datasources.spi.DirectReadBuffer;
+import org.elasticsearch.xpack.esql.datasources.spi.ExternalObjectChangedException;
 import org.elasticsearch.xpack.esql.datasources.spi.ExternalSourceMetrics;
 import org.elasticsearch.xpack.esql.datasources.spi.ExternalUnavailableException;
 import org.elasticsearch.xpack.esql.datasources.spi.StorageObject;
@@ -46,6 +47,17 @@ class RetryableStorageObject implements StorageObject {
      * range read completes in a handful of re-opens at most, so this is never approached in practice.
      */
     private static final int MAX_TOTAL_RESUMES = 1000;
+
+    /**
+     * Anti-drip floor for one {@link ResumingInputStream} progress window, not a transfer SLA.
+     * Idle timers (HTTP wrapper, S3 socket timeout) catch a silent body; they reset on any byte, so a
+     * keepalive-sized trickle never looks idle. Once a window of
+     * {@code esql.external.throttle_max_retry_duration} elapses, that window must have delivered at
+     * least this many bytes per second (1 KiB/s). A steady few-KiB/s WAN clears it; a 1-byte drip
+     * does not. The window then tumbles, so a fast burst does not buy later silence. {@link
+     * RetryPolicy#NO_BUDGET} disables the check.
+     */
+    static final int MIN_PROGRESS_BYTES_PER_SEC = 1024;
 
     private final StorageObject delegate;
     private final RetryPolicy retryPolicy;
@@ -175,6 +187,16 @@ class RetryableStorageObject implements StorageObject {
     }
 
     @Override
+    public long knownLength() {
+        return delegate.knownLength();
+    }
+
+    @Override
+    public String contentGeneration() {
+        return delegate.contentGeneration();
+    }
+
+    @Override
     public long length() throws IOException {
         // Metadata ops (length/lastModified/exists) never bump the read-scoped registry request counter, so their
         // retries/errors/read-stall must NOT feed the registry sink — that would leak storage.retries/errors/read_stall
@@ -185,6 +207,17 @@ class RetryableStorageObject implements StorageObject {
         return retryPolicy.execute(
             delegate::length,
             "length",
+            delegate.path(),
+            retryCounters::addRetryProfileOnly,
+            RetryPolicy.RetryTelemetry.NONE
+        );
+    }
+
+    @Override
+    public long lengthForFooterCacheKey() throws IOException {
+        return retryPolicy.execute(
+            delegate::lengthForFooterCacheKey,
+            "lengthForFooterCacheKey",
             delegate.path(),
             retryCounters::addRetryProfileOnly,
             RetryPolicy.RetryTelemetry.NONE
@@ -403,6 +436,11 @@ class RetryableStorageObject implements StorageObject {
     }
 
     @Override
+    public boolean readBytesAsyncReleasesExecutor() {
+        return delegate.readBytesAsyncReleasesExecutor();
+    }
+
+    @Override
     public StorageObjectMetrics metrics() {
         return delegate.metrics().add(retryCounters.snapshot());
     }
@@ -419,7 +457,10 @@ class RetryableStorageObject implements StorageObject {
      * Wraps a range read so a transient transport fault <em>during</em> the read re-opens the remaining byte
      * range and resumes, instead of failing the whole read. Resume is byte-exact: {@code delivered} tracks
      * bytes already handed to the caller, so a re-open requests {@code [position + delivered, end]} and no
-     * byte is delivered twice or skipped (object content is immutable for the life of a query). Whether a
+     * byte is delivered twice or skipped. A clean {@code -1} short of the expected byte count is treated
+     * as a truncated body and resumed like a thrown transport fault; a re-open that observes a different
+     * generation or object size fails with {@link ExternalObjectChangedException} rather than splicing
+     * bytes. Whether a
      * fault is retryable, the backoff, and the total-time budget all come from the same {@link RetryPolicy}
      * used for opens; a non-retryable fault or an exhausted budget propagates unchanged. Reading raw object
      * bytes, a failure here is almost always transport (parsing happens above this stream); a rare
@@ -435,11 +476,39 @@ class RetryableStorageObject implements StorageObject {
         // currentStream()) from the operator/cancel thread, so the abort must see the live stream, not a stale ref.
         private volatile InputStream current;
         private long delivered = 0;
+        /**
+         * The provider's generation pin ({@link StorageObject#contentGeneration()}) as of the first open.
+         * A successful re-open proves the generation is unchanged because the provider either sends this
+         * as a request condition or validates the response generation. {@code null} when the provider
+         * could not pin (for example, GCS with metadata access denied); the check below then refuses to
+         * adopt a pin that only materializes after bytes were delivered, which is the one case where an
+         * unpinned re-open could splice.
+         */
+        private String pinnedGeneration;
+        /** {@link StorageObject#knownLength()} at the first open; {@link #READ_TO_END} if unknown. */
+        private long pinnedKnownLength;
+        /**
+         * Start of the current progress window. Tumbling: when the duration budget elapses with enough
+         * bytes, this resets so a fast burst does not excuse a later drip. Independent of
+         * {@link #episodeStartNanos}, which still resets on any progress for retry-budget accounting.
+         */
+        private long windowStartNanos;
+        /** Bytes delivered in the current {@link #windowStartNanos} window. */
+        private long bytesInWindow;
+        /**
+         * Set just before a progress-floor give-up. {@link ExternalUnavailableException} is otherwise
+         * always treated as transient; this flag keeps the give-up terminal even if a later refactor
+         * catches it on the resume path.
+         */
+        private boolean belowProgressFloor;
 
         ResumingInputStream(InputStream initial, long position, long length) {
             this.current = initial;
             this.position = position;
             this.length = length;
+            this.pinnedGeneration = delegate.contentGeneration();
+            this.pinnedKnownLength = delegate.knownLength();
+            this.windowStartNanos = retryPolicy.nanoTime();
         }
 
         // Consecutive re-opens since the last byte of progress, and when that "stuck" episode began.
@@ -466,23 +535,95 @@ class RetryableStorageObject implements StorageObject {
         @Override
         public int read(byte[] b, int off, int len) throws IOException {
             while (true) {
+                final int n;
                 try {
-                    int n = current.read(b, off, len);
-                    if (n > 0) {
-                        delivered += n;
-                        failuresSinceProgress = 0;
-                        episodeStartNanos = 0;
-                    }
-                    return n;
+                    n = current.read(b, off, len);
                 } catch (IOException | ExternalUnavailableException e) {
                     // A raw transport fault surfaces as an IOException; a provider's typing wrapper re-types a
                     // mid-read status fault as the unchecked ExternalUnavailableException. Both drive a resume.
                     reopenOrThrow(e);
+                    continue;
                 }
+                if (n > 0) {
+                    delivered += n;
+                    bytesInWindow += n;
+                    // Progress give-up is terminal: it must not be caught as a resume-able fault, or a
+                    // 1-byte trickle would reset the episode clock and loop. Fail the logical read instead.
+                    failIfBelowProgressFloor();
+                    failuresSinceProgress = 0;
+                    episodeStartNanos = 0;
+                    return n;
+                }
+                if (n < 0 && isPrematureEof()) {
+                    reopenOrThrow(
+                        new ExternalUnavailableException(
+                            false,
+                            "Premature end of object body for [{}] after [{}] of [{}] bytes",
+                            delegate.path(),
+                            delivered,
+                            expectedCount()
+                        )
+                    );
+                    continue;
+                }
+                return n;
             }
         }
 
+        /**
+         * Once the current window has lasted the policy duration budget, require
+         * {@link #MIN_PROGRESS_BYTES_PER_SEC} over <em>that window</em>. Idle timeouts still handle a
+         * silent body; this catches a drip those timers reset on. A window that clears the floor
+         * tumbles so later drips cannot ride an earlier burst.
+         */
+        private void failIfBelowProgressFloor() {
+            long budgetMs = retryPolicy.maxTotalDurationMs();
+            if (budgetMs <= 0) {
+                return;
+            }
+            long elapsedMs = (retryPolicy.nanoTime() - windowStartNanos) / 1_000_000L;
+            if (elapsedMs < budgetMs) {
+                return;
+            }
+            long minBytes = minBytesForWindow(budgetMs);
+            if (bytesInWindow >= minBytes) {
+                windowStartNanos = retryPolicy.nanoTime();
+                bytesInWindow = 0;
+                return;
+            }
+            logger.warn(
+                "giving up read of [{}] at byte [{}]: [{}] bytes in [{}] ms window is below [{}] B/s progress floor",
+                delegate.path(),
+                position + delivered,
+                bytesInWindow,
+                elapsedMs,
+                MIN_PROGRESS_BYTES_PER_SEC
+            );
+            belowProgressFloor = true;
+            throw new ExternalUnavailableException(
+                false,
+                "Read of [{}] at byte [{}] below progress floor: [{}] bytes in [{}] ms",
+                delegate.path(),
+                position + delivered,
+                bytesInWindow,
+                elapsedMs
+            );
+        }
+
+        private static long minBytesForWindow(long windowMs) {
+            if (windowMs <= 0) {
+                return 0L;
+            }
+            if (windowMs > Long.MAX_VALUE / MIN_PROGRESS_BYTES_PER_SEC) {
+                return Long.MAX_VALUE;
+            }
+            return MIN_PROGRESS_BYTES_PER_SEC * windowMs / 1000L;
+        }
+
         private void reopenOrThrow(Exception e) throws IOException {
+            if (belowProgressFloor) {
+                throw rethrow(e);
+            }
             if (totalResumes >= MAX_TOTAL_RESUMES) {
                 throw rethrow(e);
             }
@@ -540,6 +681,59 @@ class RetryableStorageObject implements StorageObject {
                         storageTelemetry
                     )
                     : InputStream.nullInputStream();
+            }
+            ensureGenerationConsistent();
+        }
+
+        /**
+         * Bytes this stream still owes the caller. {@link StorageObject#READ_TO_END} when the expected
+         * count is unknown (open-ended read with no cached object size) — a clean {@code -1} is then
+         * trusted as EOF. A non-positive remaining count is real EOF (open-ended resume at/after the
+         * end of the object).
+         */
+        private long expectedCount() {
+            if (length != READ_TO_END) {
+                return length;
+            }
+            long known = pinnedKnownLength != READ_TO_END ? pinnedKnownLength : delegate.knownLength();
+            if (known == READ_TO_END) {
+                return READ_TO_END;
+            }
+            long remaining = known - position;
+            return remaining < 0 ? 0 : remaining;
+        }
+
+        private boolean isPrematureEof() {
+            long expected = expectedCount();
+            return expected != READ_TO_END && delivered < expected;
+        }
+
+        /**
+         * Backstop for the case the provider's pin cannot cover. When the provider is pinned, the
+         * re-open either carried If-Match / generationMatch or had its response generation validated,
+         * so a rewrite surfaces as {@link ExternalObjectChangedException} from the provider and there is
+         * nothing left to compare.
+         * When it is <em>not</em> pinned, a pin that materializes only after bytes were delivered is a
+         * generation this stream cannot attribute to its earlier bytes — adopting it would splice — and a
+         * changed object size is the same story with no generation at all.
+         */
+        private void ensureGenerationConsistent() {
+            String observed = delegate.contentGeneration();
+            if (pinnedGeneration == null) {
+                if (observed != null && delivered > 0) {
+                    throw new ExternalObjectChangedException("Object changed during read of [{}]", delegate.path());
+                }
+                pinnedGeneration = observed;
+            } else if (observed != null && pinnedGeneration.equals(observed) == false) {
+                // Providers set the pin once, so this is unreachable today; kept as an assertion of that
+                // invariant rather than as a silent splice if a provider ever moves its pin.
+                throw new ExternalObjectChangedException("Object changed during read of [{}]", delegate.path());
+            }
+            long observedLength = delegate.knownLength();
+            if (pinnedKnownLength == READ_TO_END) {
+                pinnedKnownLength = observedLength;
+            } else if (observedLength != READ_TO_END && observedLength != pinnedKnownLength) {
+                throw new ExternalObjectChangedException("Object changed during read of [{}]", delegate.path());
             }
         }
 

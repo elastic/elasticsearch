@@ -8,6 +8,7 @@
 package org.elasticsearch.xpack.esql.qa.multi_node;
 
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.test.cluster.ElasticsearchCluster;
 import org.elasticsearch.test.rest.ESRestTestCase;
 import org.elasticsearch.xpack.esql.AssertWarnings;
@@ -22,12 +23,15 @@ import org.junit.rules.RuleChain;
 import org.junit.rules.TestRule;
 
 import java.io.IOException;
+import java.nio.charset.StandardCharsets;
 import java.util.List;
 import java.util.Map;
 
 import static org.elasticsearch.xpack.esql.datasources.S3FixtureUtils.ACCESS_KEY;
 import static org.elasticsearch.xpack.esql.datasources.S3FixtureUtils.BUCKET;
 import static org.elasticsearch.xpack.esql.datasources.S3FixtureUtils.SECRET_KEY;
+import static org.elasticsearch.xpack.esql.datasources.S3FixtureUtils.WAREHOUSE;
+import static org.elasticsearch.xpack.esql.datasources.S3FixtureUtils.addBlobToFixture;
 
 /**
  * Base class for external source distributed integration tests that use the in-memory
@@ -43,12 +47,19 @@ public abstract class AbstractExternalDistributedIT extends ESRestTestCase {
 
     protected static final List<String> DISTRIBUTION_MODES = List.of("coordinator_only", "round_robin", "adaptive");
 
+    /** Warehouse prefix used by the in-memory S3 fixture. */
+    protected static final String S3_WAREHOUSE = WAREHOUSE;
+
     /** The single {@code s3} data source every dataset binds to; registered lazily on first {@link #fromS3}. */
     private static final String S3_DATA_SOURCE = "distributed_s3_ds";
 
     public static DataSourcesS3HttpFixture s3Fixture = new DataSourcesS3HttpFixture();
 
     private static ElasticsearchCluster clusterInstance = ExternalDistributedClusters.testCluster(() -> s3Fixture.getAddress());
+
+    protected static ElasticsearchCluster cluster() {
+        return clusterInstance;
+    }
 
     @ClassRule
     public static TestRule ruleChain = RuleChain.outerRule((base, description) -> new org.junit.runners.model.Statement() {
@@ -119,5 +130,13 @@ public abstract class AbstractExternalDistributedIT extends ESRestTestCase {
             .build();
         var request = new RestEsqlTestCase.RequestObjectBuilder().query(query).pragmasOk().pragmas(pragmas);
         return RestEsqlTestCase.runEsqlSync(request, new AssertWarnings.NoWarnings(), null);
+    }
+
+    /**
+     * Puts a CSV object into the in-memory S3 fixture so a {@link #fromS3} glob can discover it.
+     */
+    @SuppressForbidden(reason = "writes directly to the in-memory S3 fixture blob map")
+    protected void addS3Csv(String key, String csv) {
+        addBlobToFixture(s3Fixture.getHandler(), key, csv.getBytes(StandardCharsets.UTF_8));
     }
 }

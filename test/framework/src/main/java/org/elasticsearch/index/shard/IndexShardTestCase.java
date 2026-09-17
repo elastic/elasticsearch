@@ -75,6 +75,7 @@ import org.elasticsearch.indices.breaker.CircuitBreakerMetrics;
 import org.elasticsearch.indices.breaker.CircuitBreakerService;
 import org.elasticsearch.indices.breaker.HierarchyCircuitBreakerService;
 import org.elasticsearch.indices.recovery.AsyncRecoveryTarget;
+import org.elasticsearch.indices.recovery.FailureStrategy;
 import org.elasticsearch.indices.recovery.PeerRecoveryTargetService;
 import org.elasticsearch.indices.recovery.RecoveryFailedException;
 import org.elasticsearch.indices.recovery.RecoveryListener;
@@ -120,7 +121,8 @@ import java.util.function.LongSupplier;
 import java.util.stream.Collectors;
 
 import static org.elasticsearch.cluster.routing.TestShardRouting.shardRoutingBuilder;
-import static org.elasticsearch.indices.recovery.RecoveryListener.FailureStrategy.FAIL_SILENT;
+import static org.elasticsearch.indices.recovery.FailureStrategy.ABORT;
+import static org.elasticsearch.indices.recovery.FailureStrategy.FAIL_SILENT;
 import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasSize;
@@ -155,12 +157,8 @@ public abstract class IndexShardTestCase extends ESTestCase {
 
         @Override
         public void onRecoveryFailure(RecoveryFailedException e, FailureStrategy failureStrategy) {
-            throw new AssertionError(e);
-        }
-
-        @Override
-        public void onRecoveryAborted() {
             // Abortion is a normal reaction to changes in allocation or node shutdown. Don't fail here.
+            if (failureStrategy != ABORT) throw new AssertionError(e);
         }
     };
 
@@ -1173,7 +1171,7 @@ public abstract class IndexShardTestCase extends ESTestCase {
     }
 
     protected List<DocIdSeqNoAndSource> getDocIdAndSeqNos(final IndexShard shard, final boolean refresh) throws IOException {
-        return shard.withEngineException(engine -> EngineTestUtils.getDocIds(engine, refresh, false));
+        return shard.withEngineException(engine -> EngineTestUtils.getDocIds(engine, refresh));
     }
 
     protected void assertDocCount(IndexShard shard, int docCount) throws IOException {
@@ -1313,10 +1311,10 @@ public abstract class IndexShardTestCase extends ESTestCase {
         shard.flush(new FlushRequest(shard.shardId().getIndexName()).force(force));
     }
 
-    public static boolean recoverFromStore(IndexShard newShard) {
-        final PlainActionFuture<Boolean> future = new PlainActionFuture<>();
+    public static void recoverFromStore(IndexShard newShard) {
+        final PlainActionFuture<Void> future = new PlainActionFuture<>();
         newShard.recoverFromStore(future);
-        return future.actionGet();
+        future.actionGet(); // Will throw if unsuccessful
     }
 
     /**

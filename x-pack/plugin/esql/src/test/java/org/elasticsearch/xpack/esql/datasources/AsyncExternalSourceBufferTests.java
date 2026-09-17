@@ -30,6 +30,7 @@ import java.util.concurrent.CyclicBarrier;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
+import java.util.function.Consumer;
 
 /**
  * Unit tests for {@link AsyncExternalSourceBuffer} backpressure via {@link AsyncExternalSourceBuffer#waitForSpace()}.
@@ -340,12 +341,12 @@ public class AsyncExternalSourceBufferTests extends ESTestCase {
         AsyncExternalSourceBuffer buffer = new AsyncExternalSourceBuffer(1024);
         assertNull(buffer.formatReaderStatus());
 
-        buffer.recordFormatReaderStatus(new NdJsonReaderStatus(3L, 0L, 0L, 0L));
-        assertEquals(new NdJsonReaderStatus(3L, 0L, 0L, 0L), buffer.formatReaderStatus());
+        buffer.recordFormatReaderStatus(new NdJsonReaderStatus(3L, 0L));
+        assertEquals(new NdJsonReaderStatus(3L, 0L), buffer.formatReaderStatus());
 
         // Latest snapshot replaces (does not merge) the prior one.
-        buffer.recordFormatReaderStatus(new NdJsonReaderStatus(5L, 17L, 0L, 0L));
-        assertEquals(new NdJsonReaderStatus(5L, 17L, 0L, 0L), buffer.formatReaderStatus());
+        buffer.recordFormatReaderStatus(new NdJsonReaderStatus(5L, 17L));
+        assertEquals(new NdJsonReaderStatus(5L, 17L), buffer.formatReaderStatus());
 
         // Null clears the recorded snapshot.
         buffer.recordFormatReaderStatus(null);
@@ -412,10 +413,19 @@ public class AsyncExternalSourceBufferTests extends ESTestCase {
      * rather than a sequential loop, so the cap is exercised under genuine concurrent access to the
      * shared counter — matching how independent parse-worker threads actually drive
      * {@link AsyncExternalSourceBuffer#recordInformationalWarning} for one chunk/segment each. Regression
-     * coverage for the streaming per-chunk flood.
+     * coverage for the streaming per-chunk flood. Admission through the shared budget and insertion into
+     * the per-driver buffer are separate concurrent steps, so the contract does not assign the overflow
+     * marker a global position among accepted payload warnings.
      */
     public void testRecordInformationalWarningAppliesOneGlobalCapAcrossManyCallers() throws Exception {
         AsyncExternalSourceBuffer buffer = new AsyncExternalSourceBuffer(1024);
+        InformationalWarningBudget budget = new InformationalWarningBudget(SkipWarnings.MAX_ADDED_WARNINGS);
+        Consumer<String> recordWarning = warning -> {
+            String accepted = budget.accept(warning);
+            if (accepted != null) {
+                buffer.recordInformationalWarning(accepted);
+            }
+        };
         // One thread per chunk, as 50 independent SkipWarnings instances would drive this method
         // concurrently on the streaming-parallel path.
         int chunks = 50;
@@ -427,8 +437,8 @@ public class AsyncExternalSourceBufferTests extends ESTestCase {
             threads[c] = new Thread(() -> {
                 try {
                     barrier.await();
-                    buffer.recordInformationalWarning("chunk " + chunk + " summary");
-                    buffer.recordInformationalWarning("chunk " + chunk + " detail");
+                    recordWarning.accept("chunk " + chunk + " summary");
+                    recordWarning.accept("chunk " + chunk + " detail");
                 } catch (Throwable t) {
                     error.set(t);
                 }
@@ -450,13 +460,13 @@ public class AsyncExternalSourceBufferTests extends ESTestCase {
             drained.add(w);
         }
 
-        int maxInformationalWarnings = SkipWarnings.MAX_ADDED_WARNINGS + 2;
+        int maxInformationalWarnings = SkipWarnings.MAX_ADDED_WARNINGS + 1;
         assertEquals(
             "total lines must be bounded regardless of how many chunk threads raced to contribute",
             maxInformationalWarnings,
             drained.size()
         );
-        assertTrue("the last line must note suppression", drained.get(drained.size() - 1).contains("further reader warnings suppressed"));
+        assertEquals("exactly one line must note suppression", 1L, drained.stream().filter(SkipWarnings.overflowMessage()::equals).count());
         assertFalse(buffer.isPartial());
     }
 

@@ -52,7 +52,9 @@ public class StatsInvalidationScopeTests extends ESTestCase {
     /** Keys that depend on the file's bytes or the listing, never on how rows were interpreted. */
     private static final Set<String> BYTE_OR_LISTING_SCOPED = Set.of(
         SourceStatisticsSerializer.STATS_SIZE_BYTES,
-        SourceStatisticsSerializer.STATS_FILE_COUNT
+        SourceStatisticsSerializer.STATS_FILE_COUNT,
+        // Physical file shape (row groups / stripes), not a measurement over a row interpretation.
+        SourceStatisticsSerializer.STATS_READABLE_UNIT_COUNT
     );
 
     /** Keys that identify WHICH read produced the entry rather than carrying a measurement. */
@@ -161,6 +163,8 @@ public class StatsInvalidationScopeTests extends ESTestCase {
         Map.entry(SourceStatisticsSerializer.STATS_ROW_COUNT, FoldBehaviour.SUM),
         Map.entry(SourceStatisticsSerializer.STATS_SIZE_BYTES, FoldBehaviour.SUM),
         Map.entry(SourceStatisticsSerializer.STATS_FILE_COUNT, FoldBehaviour.MODEL_INTERNAL),
+        // Per-file shape. A dataset fold must not sum 1+1 into a fake unit count; SplitStats drops it.
+        Map.entry(SourceStatisticsSerializer.STATS_READABLE_UNIT_COUNT, FoldBehaviour.MODEL_INTERNAL),
         Map.entry(ExternalStats.READ_CONFIG_FINGERPRINT_KEY, FoldBehaviour.CARRIED_IF_UNANIMOUS),
         Map.entry(ExternalStats.ROW_COUNT_READ_CONFIG_INDEPENDENT_KEY, FoldBehaviour.AND),
         // The cache-identity pair: stripes within one entry share an mtime, files in a glob do not, so the right

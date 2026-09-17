@@ -65,6 +65,7 @@ import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.search.SearchResponseUtils;
 import org.elasticsearch.search.SearchService;
 import org.elasticsearch.search.builder.PointInTimeBuilder;
+import org.elasticsearch.search.internal.PitReaderContext;
 import org.elasticsearch.snapshots.SnapshotInfo;
 import org.elasticsearch.snapshots.SnapshotState;
 import org.elasticsearch.snapshots.mockstore.MockRepository;
@@ -140,7 +141,7 @@ import static org.elasticsearch.xpack.stateless.commits.StatelessCommitService.S
 import static org.elasticsearch.xpack.stateless.commits.StatelessCommitService.SHARD_INACTIVITY_MONITOR_INTERVAL_TIME_SETTING;
 import static org.elasticsearch.xpack.stateless.lucene.BlobStoreCacheDirectoryTestUtils.getCacheService;
 import static org.elasticsearch.xpack.stateless.objectstore.ObjectStoreService.OBJECT_STORE_FILE_DELETION_DELAY;
-import static org.elasticsearch.xpack.stateless.recovery.TransportStatelessPrimaryRelocationAction.PRIMARY_CONTEXT_HANDOFF_ACTION_NAME;
+import static org.elasticsearch.xpack.stateless.recovery.TransportStatelessPrimaryRelocationHandoffAction.PRIMARY_CONTEXT_HANDOFF_ACTION_NAME;
 import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
@@ -1802,6 +1803,18 @@ public class StatelessFileDeletionIT extends AbstractStatelessPluginIntegTestCas
         }
         ensureGreen(indexName);
 
+        // prevent a race between the above `ensureGreen` and the below PIT searches used for keeping accurate state (PIT IDs):
+        // the above `ensureGreen` guarantees `firstSearchNode` has applied the cluster state, but it marks its PIT contexts as relocating
+        // asynchronously after that. If a PIT search below runs before the async part, it still succeeds on `firstSearchNode` and the
+        // PIT ID state we keep is stale and keeps pointing to `firstSearchNode`,
+        // so the later closePITs never reaches the copy on `newSearchNode` and the BCCs it pins are never deleted.
+        if (testScenario == PITRetentionTestScenarios.SUCCESSFUL_RELOCATION) {
+            var sourceSearchService = internalCluster().getInstance(SearchService.class, firstSearchNode);
+            assertBusy(
+                () -> assertTrue(sourceSearchService.getActivePITContexts(shardId).stream().allMatch(PitReaderContext::isRelocating))
+            );
+        }
+
         // in case of a successful relocation and when source node fails or is stopped, we should be able to continue PIT searches
         // and verify number of docs retrievable. This will also potentially update the PIT ids to their new location, which is
         // important
@@ -1863,6 +1876,7 @@ public class StatelessFileDeletionIT extends AbstractStatelessPluginIntegTestCas
         for (var pitInfo : openPITs) {
             var closePITRequest = new ClosePointInTimeRequest(pitInfo.v1().get());
             var closePITResponse = client().execute(TransportClosePointInTimeAction.TYPE, closePITRequest).get();
+            assertThat("PIT ID is correct and PIT was freed", closePITResponse.isSucceeded(), equalTo(true));
         }
     }
 

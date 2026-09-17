@@ -198,6 +198,27 @@ This command will apply the changes from the original PR to the release branch
 being backported to, fixing the transport version state files as necessary for
 that branch, and staging those files.
 
+### The serverless patch branch
+
+Serverless patch releases are made on the `patch/serverless-fix` branch, which
+tracks whatever is currently deployed to serverless production, and are then
+merged back into `main`. That branch is therefore behind `main`, so a transport
+version created there with a normal increment would take an id `main` has very
+likely already been used.
+
+Transport versions created on `patch/serverless-fix` are instead patch ids,
+which slot in below the next id `main` will allocate. For example, if the branch
+is at `9505000` while `main` has moved on to `9513000`, a fix on the patch
+branch gets `9505001`.
+
+This is detected automatically in CI from the branch the pull request targets.
+When generating locally, there is nothing to detect it from, so ask for it:
+
+    ./gradlew generateTransportVersion --patch
+
+Validation enforces this, so a pull request against `patch/serverless-fix` fails
+if its new transport version is not a patch id.
+
 ### Reverting changes
 
 Transport versions cannot be removed, they can only be added. If the logic

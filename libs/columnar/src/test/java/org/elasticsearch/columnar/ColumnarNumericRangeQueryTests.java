@@ -158,8 +158,8 @@ public class ColumnarNumericRangeQueryTests extends ESTestCase {
     }
 
     private void indexColumnar(Directory dir, long[] values, boolean compoundFile) throws IOException {
-        final Codec codec = columnarCodec();
-        final FieldType type = columnarBinaryFieldType(ColumnarFieldType.LONG);
+        final Codec codec = columnarCodec(ColumnarFieldType.LONG);
+        final FieldType type = columnarBinaryFieldType();
         final IndexWriterConfig iwc = new IndexWriterConfig().setCodec(codec).setUseCompoundFile(compoundFile);
         if (compoundFile == false) {
             // The per-file assertions need the codec's own files, not a packed .cfs.

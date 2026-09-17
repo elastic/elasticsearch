@@ -28,7 +28,7 @@ import org.elasticsearch.index.fielddata.AbstractSortedDocValues;
 import org.elasticsearch.index.fielddata.DenseDoubleValues;
 import org.elasticsearch.index.fielddata.DenseLongValues;
 import org.elasticsearch.index.fielddata.FieldData;
-import org.elasticsearch.index.fielddata.SortedBinaryDocValues;
+import org.elasticsearch.index.fielddata.SortableBinaryDocValues;
 import org.elasticsearch.index.fielddata.SortedNumericDoubleValues;
 import org.elasticsearch.index.fielddata.SortedNumericLongValues;
 
@@ -299,7 +299,7 @@ public enum MultiValueMode implements Writeable {
         }
 
         @Override
-        protected BytesRef pick(SortedBinaryDocValues values) throws IOException {
+        protected BytesRef pick(SortableBinaryDocValues values) throws IOException {
             return values.nextValue();
         }
 
@@ -438,7 +438,7 @@ public enum MultiValueMode implements Writeable {
         }
 
         @Override
-        protected BytesRef pick(SortedBinaryDocValues values) throws IOException {
+        protected BytesRef pick(SortableBinaryDocValues values) throws IOException {
             int count = values.docValueCount();
             for (int i = 0; i < count - 1; ++i) {
                 values.nextValue();
@@ -727,7 +727,7 @@ public enum MultiValueMode implements Writeable {
      *
      * Allowed Modes: MIN, MAX
      */
-    public BinaryDocValues select(final SortedBinaryDocValues values, final BytesRef missingValue) {
+    public BinaryDocValues select(final SortableBinaryDocValues values, final BytesRef missingValue) {
         final BinaryDocValues singleton = FieldData.unwrapSingleton(values);
         if (singleton != null) {
             if (missingValue == null) {
@@ -771,7 +771,7 @@ public enum MultiValueMode implements Writeable {
         }
     }
 
-    protected BytesRef pick(SortedBinaryDocValues values) throws IOException {
+    protected BytesRef pick(SortableBinaryDocValues values) throws IOException {
         throw new IllegalArgumentException("Unsupported sort mode: " + this);
     }
 
@@ -788,7 +788,7 @@ public enum MultiValueMode implements Writeable {
      *       The returned instance can only be evaluate the current and upcoming docs
      */
     public BinaryDocValues select(
-        final SortedBinaryDocValues values,
+        final SortableBinaryDocValues values,
         final BytesRef missingValue,
         final BitSet parentDocs,
         final DocIdSetIterator childDocs,

@@ -39,34 +39,34 @@ import static org.hamcrest.Matchers.instanceOf;
  * What a column says about its own shape, which is what lets a single value check rewrite itself away
  * rather than ask every document.
  */
-public class ColumnarPayloadSortedBinaryDocValuesTests extends ESTestCase {
+public class ColumnarPayloadSortableBinaryDocValuesTests extends ESTestCase {
 
     private static final String FIELD = "kw";
 
     public void testOneSlotADocumentIsSingleValued() throws IOException {
         withColumn(new String[][] { { "a" }, { "b" }, { "c" } }, values -> {
-            assertEquals(SortedBinaryDocValues.ValueMode.SINGLE_VALUED, values.getValueMode());
-            assertEquals(SortedBinaryDocValues.Sparsity.DENSE, values.getSparsity());
+            assertEquals(SortableBinaryDocValues.ValueMode.SINGLE_VALUED, values.getValueMode());
+            assertEquals(SortableBinaryDocValues.Sparsity.DENSE, values.getSparsity());
         });
     }
 
     /** A null slot is no value, and single valued says at most one, so a column holding them still qualifies. */
     public void testANullSlotIsStillSingleValued() throws IOException {
         withColumn(new String[][] { { "a" }, { null }, { "c" } }, values -> {
-            assertEquals(SortedBinaryDocValues.ValueMode.SINGLE_VALUED, values.getValueMode());
+            assertEquals(SortableBinaryDocValues.ValueMode.SINGLE_VALUED, values.getValueMode());
         });
     }
 
     public void testASecondSlotIsNotSingleValued() throws IOException {
         withColumn(new String[][] { { "a" }, { "b", "c" } }, values -> {
-            assertNotEquals(SortedBinaryDocValues.ValueMode.SINGLE_VALUED, values.getValueMode());
+            assertNotEquals(SortableBinaryDocValues.ValueMode.SINGLE_VALUED, values.getValueMode());
         });
     }
 
     /** A document the field is absent from leaves the column short of the segment, which is sparse. */
     public void testAColumnMissingDocumentsIsSparse() throws IOException {
         withColumn(new String[][] { { "a" }, null, { "c" } }, values -> {
-            assertEquals(SortedBinaryDocValues.Sparsity.SPARSE, values.getSparsity());
+            assertEquals(SortableBinaryDocValues.Sparsity.SPARSE, values.getSparsity());
         });
     }
 
@@ -107,7 +107,7 @@ public class ColumnarPayloadSortedBinaryDocValuesTests extends ESTestCase {
     public void testEveryDocumentReadsItsOwnValue() throws IOException {
         final String[][] docs = { { "a" }, { "b" }, { null }, { "c" }, null, { "d" } };
         withColumn(docs, values -> {
-            assertEquals(SortedBinaryDocValues.ValueMode.SINGLE_VALUED, values.getValueMode());
+            assertEquals(SortableBinaryDocValues.ValueMode.SINGLE_VALUED, values.getValueMode());
             assertTrue(values.advanceExact(0));
             assertEquals(new BytesRef("a"), values.nextValue());
             assertTrue(values.advanceExact(1));
@@ -162,7 +162,7 @@ public class ColumnarPayloadSortedBinaryDocValuesTests extends ESTestCase {
     }
 
     private interface Check {
-        void check(SortedBinaryDocValues values) throws IOException;
+        void check(SortableBinaryDocValues values) throws IOException;
     }
 
     /** {@code null} in place of a document's slots writes no field for it at all. */
@@ -181,7 +181,7 @@ public class ColumnarPayloadSortedBinaryDocValuesTests extends ESTestCase {
             try (DirectoryReader reader = DirectoryReader.open(dir)) {
                 final LeafReader leaf = reader.leaves().get(0).reader();
                 assertThat("the field is a column", leaf.getBinaryDocValues(FIELD), instanceOf(StringColumnSource.class));
-                check.check(ColumnarPayloadSortedBinaryDocValues.from(leaf, FIELD));
+                check.check(ColumnarPayloadSortableBinaryDocValues.from(leaf, FIELD));
             }
         }
     }

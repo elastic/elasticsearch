@@ -44,7 +44,7 @@ import java.util.Arrays;
  * slots in document order so that array order survives, and the order is re-established here. A column read through
  * something other than the codec's own doc values has no slots to walk and is read from its payload.
  */
-public final class ColumnarPayloadSortedBinaryDocValues extends SortedBinaryDocValues {
+public final class ColumnarPayloadSortableBinaryDocValues extends SortableBinaryDocValues {
 
     private final BinaryDocValues binary;
     private final StringColumnSource source;
@@ -73,11 +73,11 @@ public final class ColumnarPayloadSortedBinaryDocValues extends SortedBinaryDocV
     /** Whether the document {@link #binary} stands on has been read; false while only its count is known. */
     private boolean decoded;
 
-    public ColumnarPayloadSortedBinaryDocValues(BinaryDocValues binary) {
+    public ColumnarPayloadSortableBinaryDocValues(BinaryDocValues binary) {
         this(binary, null, Sparsity.UNKNOWN, ValueMode.UNKNOWN);
     }
 
-    private ColumnarPayloadSortedBinaryDocValues(
+    private ColumnarPayloadSortableBinaryDocValues(
         BinaryDocValues binary,
         StringColumnSource source,
         Sparsity sparsity,
@@ -90,13 +90,13 @@ public final class ColumnarPayloadSortedBinaryDocValues extends SortedBinaryDocV
         this.valueMode = valueMode;
     }
 
-    public static ColumnarPayloadSortedBinaryDocValues from(LeafReader leafReader, String valuesFieldName) throws IOException {
+    public static ColumnarPayloadSortableBinaryDocValues from(LeafReader leafReader, String valuesFieldName) throws IOException {
         final BinaryDocValues binary = DocValues.getBinary(leafReader, valuesFieldName);
         // A column records both of these, so neither costs a walk over the documents. A segment that arrives
         // as an overlay records neither and leaves them unknown.
         if (binary instanceof StringColumnSource source) {
             final StringColumnReader column = source.reader();
-            return new ColumnarPayloadSortedBinaryDocValues(
+            return new ColumnarPayloadSortableBinaryDocValues(
                 binary,
                 source,
                 column.numDocsWithField() == leafReader.maxDoc() ? Sparsity.DENSE : Sparsity.SPARSE,
@@ -105,7 +105,7 @@ public final class ColumnarPayloadSortedBinaryDocValues extends SortedBinaryDocV
                 column.hasValueAddresses() ? ValueMode.UNKNOWN : ValueMode.SINGLE_VALUED
             );
         }
-        return new ColumnarPayloadSortedBinaryDocValues(binary);
+        return new ColumnarPayloadSortableBinaryDocValues(binary);
     }
 
     @Override

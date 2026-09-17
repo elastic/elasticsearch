@@ -16,7 +16,7 @@ import org.apache.lucene.search.ScoreMode;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.util.LongArray;
 import org.elasticsearch.index.fielddata.FieldData;
-import org.elasticsearch.index.fielddata.SortedBinaryDocValues;
+import org.elasticsearch.index.fielddata.SortableBinaryDocValues;
 import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.aggregations.AggregationExecutionContext;
 import org.elasticsearch.search.aggregations.Aggregator;
@@ -124,7 +124,7 @@ public final class BinaryRangeAggregator extends BucketsAggregator {
                 }
             };
         } else {
-            SortedBinaryDocValues values = valuesSource.bytesValues(aggCtx.getLeafReaderContext());
+            SortableBinaryDocValues values = valuesSource.bytesValues(aggCtx.getLeafReaderContext());
             return new SortedBinaryRangeLeafCollector(values, ranges, sub) {
                 @Override
                 protected void doCollect(LeafBucketCollector sub, int doc, long bucket) throws IOException {
@@ -259,7 +259,7 @@ public final class BinaryRangeAggregator extends BucketsAggregator {
         private final DocCollector collector;
         private final LeafBucketCollector sub;
 
-        SortedBinaryRangeLeafCollector(SortedBinaryDocValues values, Range[] ranges, LeafBucketCollector sub) {
+        SortedBinaryRangeLeafCollector(SortableBinaryDocValues values, Range[] ranges, LeafBucketCollector sub) {
             super(sub, values);
             for (int i = 1; i < ranges.length; ++i) {
                 if (RANGE_COMPARATOR.compare(ranges[i - 1], ranges[i]) > 0) {

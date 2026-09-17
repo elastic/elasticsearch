@@ -12,8 +12,8 @@ package org.elasticsearch.index.mapper.flattened;
 import org.apache.lucene.util.Accountable;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.index.fielddata.LeafFieldData;
-import org.elasticsearch.index.fielddata.MultiValuedSortedBinaryDocValues;
-import org.elasticsearch.index.fielddata.SortedBinaryDocValues;
+import org.elasticsearch.index.fielddata.MultiValuedSortableBinaryDocValues;
+import org.elasticsearch.index.fielddata.SortableBinaryDocValues;
 import org.elasticsearch.script.field.DocValuesScriptFieldFactory;
 import org.elasticsearch.script.field.ToScriptFieldFactory;
 
@@ -30,9 +30,9 @@ public final class BinaryKeyedFlattenedLeafFieldData implements LeafFieldData {
 
     private final String key;
     private final LeafFieldData delegate;
-    private final ToScriptFieldFactory<SortedBinaryDocValues> toScriptFieldFactory;
+    private final ToScriptFieldFactory<SortableBinaryDocValues> toScriptFieldFactory;
 
-    private static final SortedBinaryDocValues EMPTY = new SortedBinaryDocValues(null) {
+    private static final SortableBinaryDocValues EMPTY = new SortableBinaryDocValues(null) {
         @Override
         public boolean advanceExact(int doc) throws IOException {
             return false;
@@ -52,7 +52,7 @@ public final class BinaryKeyedFlattenedLeafFieldData implements LeafFieldData {
     BinaryKeyedFlattenedLeafFieldData(
         String key,
         LeafFieldData delegate,
-        ToScriptFieldFactory<SortedBinaryDocValues> toScriptFieldFactory
+        ToScriptFieldFactory<SortableBinaryDocValues> toScriptFieldFactory
     ) {
         this.key = key;
         this.delegate = delegate;
@@ -75,14 +75,14 @@ public final class BinaryKeyedFlattenedLeafFieldData implements LeafFieldData {
     }
 
     @Override
-    public SortedBinaryDocValues getBytesValues() {
+    public SortableBinaryDocValues getBytesValues() {
         return new KeyedFlattenedBinaryDocValues(new BytesRef(key), delegate.getBytesValues());
     }
 
     /**
-     * Returns key-filtered view on the provided SortedBinaryDocValues, for use by block loaders.
+     * Returns key-filtered view on the provided SortableBinaryDocValues, for use by block loaders.
      */
-    static SortedBinaryDocValues getKeyFilteredSortedBinaryDocValues(MultiValuedSortedBinaryDocValues dv, String key) throws IOException {
+    static SortableBinaryDocValues getKeyFilteredSortedBinaryDocValues(MultiValuedSortableBinaryDocValues dv, String key) throws IOException {
         return new KeyedFlattenedBinaryDocValues(new BytesRef(key), dv);
     }
 
@@ -91,14 +91,14 @@ public final class BinaryKeyedFlattenedLeafFieldData implements LeafFieldData {
         return key.compareTo(extractedKey);
     }
 
-    private static class KeyedFlattenedBinaryDocValues extends SortedBinaryDocValues {
+    private static class KeyedFlattenedBinaryDocValues extends SortableBinaryDocValues {
 
         private final BytesRef key;
-        private final SortedBinaryDocValues delegate;
+        private final SortableBinaryDocValues delegate;
         private int count;
         private int seen;
 
-        private KeyedFlattenedBinaryDocValues(BytesRef key, SortedBinaryDocValues delegate) {
+        private KeyedFlattenedBinaryDocValues(BytesRef key, SortableBinaryDocValues delegate) {
             super(delegate.docIdIterator());
             this.key = key;
             this.delegate = delegate;

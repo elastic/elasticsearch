@@ -24,7 +24,7 @@ import org.elasticsearch.index.fielddata.AbstractBinaryDocValues;
 import org.elasticsearch.index.fielddata.AbstractSortedDocValues;
 import org.elasticsearch.index.fielddata.AbstractSortedSetDocValues;
 import org.elasticsearch.index.fielddata.FieldData;
-import org.elasticsearch.index.fielddata.SortedBinaryDocValues;
+import org.elasticsearch.index.fielddata.SortableBinaryDocValues;
 import org.elasticsearch.index.fielddata.SortedNumericDoubleValues;
 import org.elasticsearch.index.fielddata.SortedNumericLongValues;
 import org.elasticsearch.test.ESTestCase;
@@ -471,7 +471,7 @@ public class MultiValueModeTests extends ESTestCase {
                 }
             }
         }
-        final Supplier<SortedBinaryDocValues> multiValues = () -> FieldData.singleton(new AbstractBinaryDocValues() {
+        final Supplier<SortableBinaryDocValues> multiValues = () -> FieldData.singleton(new AbstractBinaryDocValues() {
             int docID;
 
             @Override
@@ -503,7 +503,7 @@ public class MultiValueModeTests extends ESTestCase {
             Arrays.sort(values);
             array[i] = values;
         }
-        final Supplier<SortedBinaryDocValues> multiValues = () -> new SortedBinaryDocValues(null) {
+        final Supplier<SortableBinaryDocValues> multiValues = () -> new SortableBinaryDocValues(null) {
             int doc;
             int i;
 
@@ -531,10 +531,10 @@ public class MultiValueModeTests extends ESTestCase {
         verifySortedBinary(multiValues, numDocs, rootDocs, innerDocs, randomIntBetween(1, numDocs));
     }
 
-    private void verifySortedBinary(Supplier<SortedBinaryDocValues> supplier, int maxDoc) throws IOException {
+    private void verifySortedBinary(Supplier<SortableBinaryDocValues> supplier, int maxDoc) throws IOException {
         for (BytesRef missingValue : new BytesRef[] { new BytesRef(), new BytesRef(randomAlphaOfLengthBetween(8, 8)) }) {
             for (MultiValueMode mode : new MultiValueMode[] { MultiValueMode.MIN, MultiValueMode.MAX }) {
-                SortedBinaryDocValues values = supplier.get();
+                SortableBinaryDocValues values = supplier.get();
                 final BinaryDocValues selected = mode.select(values, missingValue);
                 for (int i = 0; i < maxDoc; ++i) {
                     assertTrue(selected.advanceExact(i));
@@ -576,7 +576,7 @@ public class MultiValueModeTests extends ESTestCase {
     }
 
     private void verifySortedBinary(
-        Supplier<SortedBinaryDocValues> supplier,
+        Supplier<SortableBinaryDocValues> supplier,
         int maxDoc,
         FixedBitSet rootDocs,
         FixedBitSet innerDocs,
@@ -584,7 +584,7 @@ public class MultiValueModeTests extends ESTestCase {
     ) throws IOException {
         for (BytesRef missingValue : new BytesRef[] { new BytesRef(), new BytesRef(randomAlphaOfLengthBetween(8, 8)) }) {
             for (MultiValueMode mode : new MultiValueMode[] { MultiValueMode.MIN, MultiValueMode.MAX }) {
-                SortedBinaryDocValues values = supplier.get();
+                SortableBinaryDocValues values = supplier.get();
                 final BinaryDocValues selected = mode.select(
                     values,
                     missingValue,

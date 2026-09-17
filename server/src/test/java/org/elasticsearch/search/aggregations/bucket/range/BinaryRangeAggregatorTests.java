@@ -11,7 +11,7 @@ package org.elasticsearch.search.aggregations.bucket.range;
 import org.apache.lucene.tests.util.TestUtil;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.index.fielddata.AbstractSortedSetDocValues;
-import org.elasticsearch.index.fielddata.SortedBinaryDocValues;
+import org.elasticsearch.index.fielddata.SortableBinaryDocValues;
 import org.elasticsearch.search.aggregations.LeafBucketCollector;
 import org.elasticsearch.search.aggregations.bucket.range.BinaryRangeAggregator.SortedBinaryRangeLeafCollector;
 import org.elasticsearch.search.aggregations.bucket.range.BinaryRangeAggregator.SortedSetRangeLeafCollector;
@@ -136,7 +136,7 @@ public class BinaryRangeAggregatorTests extends ESTestCase {
         }
     }
 
-    private static class FakeSortedBinaryDocValues extends SortedBinaryDocValues {
+    private static class FakeSortedBinaryDocValues extends SortableBinaryDocValues {
 
         private final BytesRef[] terms;
         int i;

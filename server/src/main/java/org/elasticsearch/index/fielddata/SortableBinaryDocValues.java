@@ -21,7 +21,7 @@ import java.io.IOException;
  * There might be dups however.
  */
 // TODO: Should it expose a count (current approach) or return null when there are no more values?
-public abstract class SortedBinaryDocValues {
+public abstract class SortableBinaryDocValues {
 
     @Nullable
     private final DocIdSetIterator docIdIterator;
@@ -29,7 +29,7 @@ public abstract class SortedBinaryDocValues {
     /**
      * @param docIdSetIterator, the {@link DocIdSetIterator} that backs this instance.
      */
-    public SortedBinaryDocValues(@Nullable DocIdSetIterator docIdSetIterator) {
+    public SortableBinaryDocValues(@Nullable DocIdSetIterator docIdSetIterator) {
         this.docIdIterator = docIdSetIterator;
     }
 

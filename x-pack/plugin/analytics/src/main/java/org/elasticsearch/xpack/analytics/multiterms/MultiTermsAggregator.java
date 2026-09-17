@@ -25,7 +25,7 @@ import org.elasticsearch.common.util.ObjectArray;
 import org.elasticsearch.common.util.ObjectArrayPriorityQueue;
 import org.elasticsearch.core.Releasables;
 import org.elasticsearch.index.fielddata.FieldData;
-import org.elasticsearch.index.fielddata.SortedBinaryDocValues;
+import org.elasticsearch.index.fielddata.SortableBinaryDocValues;
 import org.elasticsearch.index.fielddata.SortedNumericDoubleValues;
 import org.elasticsearch.index.fielddata.SortedNumericLongValues;
 import org.elasticsearch.search.DocValueFormat;
@@ -499,17 +499,17 @@ class MultiTermsAggregator extends DeferableBucketAggregator {
 
         @Override
         public TermValues getValues(LeafReaderContext ctx) throws IOException {
-            final SortedBinaryDocValues values = source.bytesValues(ctx);
+            final SortableBinaryDocValues values = source.bytesValues(ctx);
             final BinaryDocValues singleton = FieldData.unwrapSingleton(values);
             return singleton != null ? getValues(singleton) : getValues(values);
         }
 
-        private TermValues getValues(SortedBinaryDocValues values) {
+        private TermValues getValues(SortableBinaryDocValues values) {
             return doc -> {
                 if (values.advanceExact(doc)) {
                     final int valuesCount = values.docValueCount();
                     final List<Object> objects = new ArrayList<>(valuesCount);
-                    // SortedBinaryDocValues don't guarantee uniqueness so we
+                    // SortableBinaryDocValues don't guarantee uniqueness so we
                     // need to take care of dups
                     previous.clear();
                     for (int i = 0; i < valuesCount; ++i) {

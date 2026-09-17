@@ -17,7 +17,7 @@ import org.elasticsearch.common.util.ObjectArray;
 import org.elasticsearch.common.util.SetBackedScalingCuckooFilter;
 import org.elasticsearch.core.Releasables;
 import org.elasticsearch.index.fielddata.FieldData;
-import org.elasticsearch.index.fielddata.SortedBinaryDocValues;
+import org.elasticsearch.index.fielddata.SortableBinaryDocValues;
 import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.aggregations.AggregationExecutionContext;
 import org.elasticsearch.search.aggregations.Aggregator;
@@ -68,12 +68,12 @@ public class StringRareTermsAggregator extends AbstractRareTermsAggregator {
 
     @Override
     public LeafBucketCollector getLeafCollector(AggregationExecutionContext aggCtx, final LeafBucketCollector sub) throws IOException {
-        final SortedBinaryDocValues values = valuesSource.bytesValues(aggCtx.getLeafReaderContext());
+        final SortableBinaryDocValues values = valuesSource.bytesValues(aggCtx.getLeafReaderContext());
         final BinaryDocValues singleton = FieldData.unwrapSingleton(values);
         return singleton != null ? getLeafCollector(singleton, sub) : getLeafCollector(values, sub);
     }
 
-    private LeafBucketCollector getLeafCollector(SortedBinaryDocValues values, LeafBucketCollector sub) {
+    private LeafBucketCollector getLeafCollector(SortableBinaryDocValues values, LeafBucketCollector sub) {
         return new LeafBucketCollectorBase(sub, values) {
             final BytesRefBuilder previous = new BytesRefBuilder();
 
@@ -81,7 +81,7 @@ public class StringRareTermsAggregator extends AbstractRareTermsAggregator {
             public void collect(int docId, long owningBucketOrd) throws IOException {
                 if (values.advanceExact(docId)) {
                     previous.clear();
-                    // SortedBinaryDocValues don't guarantee uniqueness so we
+                    // SortableBinaryDocValues don't guarantee uniqueness so we
                     // need to take care of dups
                     for (int i = 0; i < values.docValueCount(); ++i) {
                         BytesRef bytes = values.nextValue();

@@ -295,7 +295,7 @@ public class BlobCacheMetrics {
             "The fraction of cache reads that missed data (warming not included)",
             "fraction",
             // read misses before reads on purpose
-            () -> new DoubleWithAttributes(Math.min((double) missCount() / Math.max(readCount(), 1L), 1.0d))
+            () -> new DoubleWithAttributes(Math.min((double) missCount.longValue() / Math.max(readCount.longValue(), 1L), 1.0d))
         );
     }
 

@@ -32,11 +32,13 @@ import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xpack.core.ilm.LifecycleAction;
 import org.elasticsearch.xpack.core.ilm.RolloverAction;
 import org.elasticsearch.xpack.core.ml.MlStatsIndex;
+import org.elasticsearch.xpack.core.ml.job.persistence.AnomalyDetectorsIndex;
 import org.elasticsearch.xpack.core.ml.job.persistence.AnomalyDetectorsIndexFields;
 import org.junit.Before;
 import org.mockito.ArgumentCaptor;
 import org.mockito.stubbing.Answer;
 
+import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.equalTo;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.same;
@@ -82,6 +84,37 @@ public class MlIndexTemplateRegistryTests extends ESTestCase {
         );
 
         putIndexTemplateRequestCaptor = ArgumentCaptor.forClass(TransportPutComposableIndexTemplateAction.Request.class);
+    }
+
+    public void testResultsTemplate() {
+        MlIndexTemplateRegistry registry = new MlIndexTemplateRegistry(
+            Settings.EMPTY,
+            clusterService,
+            threadPool,
+            client,
+            true,
+            xContentRegistry
+        );
+
+        registry.clusterChanged(createClusterChangedEvent(nodes));
+
+        verify(client, times(4)).execute(
+            same(TransportPutComposableIndexTemplateAction.TYPE),
+            putIndexTemplateRequestCaptor.capture(),
+            any()
+        );
+
+        TransportPutComposableIndexTemplateAction.Request req = putIndexTemplateRequestCaptor.getAllValues()
+            .stream()
+            .filter(r -> r.name().equals(AnomalyDetectorsIndex.jobResultsIndexPrefix()))
+            .findFirst()
+            .orElseThrow(() -> new AssertionError("expected the ml anomalies results index template to be put"));
+        ComposableIndexTemplate indexTemplate = req.indexTemplate();
+        assertThat(
+            indexTemplate.indexPatterns(),
+            containsInAnyOrder(".ml-anomalies-*", ".reindexed-v7-ml-anomalies-*", ".reindexed-v8-ml-anomalies-*")
+        );
+        assertThat(indexTemplate.priority(), equalTo(2147483647L));
     }
 
     public void testStateTemplate() {

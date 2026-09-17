@@ -318,7 +318,8 @@ public class DatasetRewriterTests extends ESTestCase {
 
     public void testWildcardMatchingOnlyDatasetsExcludesThemWhenDatasetWildcardsOff() {
         // With wildcard-dataset matching off, FROM logs_* does not resolve any dataset: the relation is left untouched
-        // and flows to normal index resolution, which excludes datasets but not the other abstractions.
+        // and flows to normal index resolution, which excludes datasets; aliases and data streams resolve as
+        // before, and views were already expanded upstream by ViewResolver.
         DataSource parent = dataSource("s3_parent", Map.of());
         Dataset a = new Dataset("logs_a", new DataSourceReference("s3_parent"), "s3://a/", null, Map.of());
         Dataset b = new Dataset("logs_b", new DataSourceReference("s3_parent"), "s3://b/", null, Map.of());

@@ -61,7 +61,7 @@ import java.util.Set;
  *
  * <p>Whether a wildcard may resolve to a dataset is governed by the {@code dataset_wildcards} query setting, resolved
  * on the coordinator and threaded in by the caller: when it is off (the default) a dataset is reachable only by an
- * exact name, so a wildcard resolves to indices exactly as it did before datasets existed. Index expressions are
+ * exact name, so a wildcard resolves exactly as it did before datasets existed. Index expressions are
  * otherwise untouched.
  */
 public final class DatasetRewriter {

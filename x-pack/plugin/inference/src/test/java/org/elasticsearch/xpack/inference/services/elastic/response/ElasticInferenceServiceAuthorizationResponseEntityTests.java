@@ -1307,6 +1307,88 @@ public class ElasticInferenceServiceAuthorizationResponseEntityTests extends EST
         assertTrue(endpoint.deniedByRegionPolicy());
     }
 
+    public void testParse_ParsesCapabilities() throws IOException {
+        var response = parse("""
+            {
+              "inference_endpoints": [
+                {
+                  "id": "test-endpoint",
+                  "model_name": "test-model",
+                  "task_types": {
+                    "eis": "chat",
+                    "elasticsearch": "chat_completion"
+                  },
+                  "status": "ga",
+                  "release_date": "2024-05-01",
+                  "capabilities": {
+                    "reasoning": {
+                      "supported_effort_levels": ["xhigh", "high", "medium", "low", "none"],
+                      "default_effort_level": "high"
+                    },
+                    "context_window": {
+                      "max_input_tokens": 1050000,
+                      "max_output_tokens": 128000
+                    }
+                  }
+                }
+              ]
+            }
+            """);
+
+        assertThat(response.authorizedEndpoints().size(), is(1));
+        var endpoint = response.authorizedEndpoints().get(0);
+        var capabilities = endpoint.capabilities();
+        assertNotNull(capabilities);
+        assertNotNull(capabilities.reasoning());
+        assertThat(
+            capabilities.reasoning().supportedEffortLevels().stream().map(Object::toString).toList(),
+            is(List.of("xhigh", "high", "medium", "low", "none"))
+        );
+        assertThat(capabilities.reasoning().defaultEffortLevel().toString(), is("high"));
+        assertNotNull(capabilities.contextWindow());
+        assertThat(capabilities.contextWindow().maxInputTokens(), is(1050000));
+        assertThat(capabilities.contextWindow().maxOutputTokens(), is(128000));
+    }
+
+    public void testParse_CapabilitiesWithUnknownEffortLevel_FiltersUnknownValues() throws IOException {
+        // Unknown effort levels (e.g. "max", not yet in the enum) should be silently filtered out;
+        // the rest of the authorization response must still parse correctly.
+        var response = parse("""
+            {
+              "inference_endpoints": [
+                {
+                  "id": "test-endpoint",
+                  "model_name": "test-model",
+                  "task_types": {
+                    "eis": "chat",
+                    "elasticsearch": "chat_completion"
+                  },
+                  "status": "ga",
+                  "release_date": "2024-05-01",
+                  "capabilities": {
+                    "reasoning": {
+                      "supported_effort_levels": ["max", "high"],
+                      "default_effort_level": "max"
+                    }
+                  }
+                }
+              ]
+            }
+            """);
+
+        assertThat(response.authorizedEndpoints().size(), is(1));
+        var endpoint = response.authorizedEndpoints().get(0);
+        // endpoint still present
+        assertThat(endpoint.id(), is("test-endpoint"));
+        // capabilities is present but unknown "max" is filtered from supported levels
+        var capabilities = endpoint.capabilities();
+        assertNotNull(capabilities);
+        assertNotNull(capabilities.reasoning());
+        assertThat(capabilities.reasoning().supportedEffortLevels().stream().map(Object::toString).toList(), is(List.of("high")));
+        // unknown default effort level is dropped → null
+        assertNull(capabilities.reasoning().defaultEffortLevel());
+    }
+
     private ElasticInferenceServiceAuthorizationResponseEntity parse(String json) throws IOException {
         try (var parser = createParser(JsonXContent.jsonXContent, json)) {
             return ElasticInferenceServiceAuthorizationResponseEntity.PARSER.apply(parser, null);

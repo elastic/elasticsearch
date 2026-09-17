@@ -15,6 +15,7 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.inference.StatusHeuristic;
+import org.elasticsearch.inference.completion.Reasoning.ReasoningEffort;
 import org.elasticsearch.xcontent.ConstructingObjectParser;
 import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xcontent.ToXContent;
@@ -28,6 +29,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
+import java.util.stream.Stream;
 
 /**
  * Endpoint metadata contains descriptive information for an inference endpoint. This information allows an upstream service to communicate
@@ -44,25 +46,30 @@ import java.util.Optional;
  * @param display              contains information for how to display the endpoint in user interfaces (descriptive name, etc).
  * @param regions              the availability regions for this endpoint.
  * @param deniedByRegionPolicy {@code true} when the caller's region policy prohibits access to this endpoint.
+ * @param capabilities         model capability metadata (supported reasoning effort levels, context window) surfaced for Kibana and
+ *                             other consumers. Omitted when {@link Capabilities#isEmpty()} is {@code true}.
  */
 public record EndpointMetadata(
     Heuristics heuristics,
     Internal internal,
     Display display,
     List<EndpointRegion> regions,
-    boolean deniedByRegionPolicy
+    boolean deniedByRegionPolicy,
+    Capabilities capabilities
 ) implements ToXContentObject, Writeable {
 
     public static final TransportVersion INFERENCE_ENDPOINT_METADATA_FIELDS_ADDED = TransportVersion.fromName(
         "inference_endpoint_metadata_fields_added"
     );
     public static final TransportVersion REGIONS_ADDED = TransportVersion.fromName("inference_endpoint_metadata_regions_added");
+    public static final TransportVersion CAPABILITIES_ADDED = TransportVersion.fromName("inference_endpoint_metadata_capabilities_added");
     public static final EndpointMetadata EMPTY_INSTANCE = new EndpointMetadata(
         Heuristics.EMPTY_INSTANCE,
         Internal.EMPTY_INSTANCE,
         Display.EMPTY_INSTANCE,
         List.of(),
-        false
+        false,
+        Capabilities.EMPTY_INSTANCE
     );
     public static final String METADATA_FIELD_NAME = "metadata";
     public static final String HEURISTICS_FIELD_NAME = "heuristics";
@@ -70,6 +77,7 @@ public record EndpointMetadata(
     public static final String DISPLAY_FIELD_NAME = "display";
     public static final String REGIONS_FIELD_NAME = "regions";
     public static final String DENIED_BY_REGION_POLICY_FIELD_NAME = "denied_by_region_policy";
+    public static final String CAPABILITIES_FIELD_NAME = "capabilities";
 
     private static final String INCLUDE_INTERNAL_FIELDS_PARAM_NAME = "include_internal_fields";
 
@@ -82,7 +90,8 @@ public record EndpointMetadata(
             args[1] == null ? Internal.EMPTY_INSTANCE : (Internal) args[1],
             args[2] == null ? Display.EMPTY_INSTANCE : (Display) args[2],
             args[3] == null ? List.of() : (List<EndpointRegion>) args[3],
-            args[4] == null ? false : (Boolean) args[4]
+            args[4] == null ? false : (Boolean) args[4],
+            args[5] == null ? Capabilities.EMPTY_INSTANCE : (Capabilities) args[5]
         )
     );
 
@@ -108,6 +117,11 @@ public record EndpointMetadata(
             new ParseField(REGIONS_FIELD_NAME)
         );
         PARSER.declareBoolean(ConstructingObjectParser.optionalConstructorArg(), new ParseField(DENIED_BY_REGION_POLICY_FIELD_NAME));
+        PARSER.declareObject(
+            ConstructingObjectParser.optionalConstructorArg(),
+            (p, c) -> Capabilities.parse(p),
+            new ParseField(CAPABILITIES_FIELD_NAME)
+        );
     }
 
     public static EndpointMetadata parse(XContentParser parser) throws IOException {
@@ -119,6 +133,21 @@ public record EndpointMetadata(
         Objects.requireNonNull(internal);
         Objects.requireNonNull(display);
         Objects.requireNonNull(regions);
+        Objects.requireNonNull(capabilities);
+    }
+
+    /**
+     * Convenience constructor for callers that predate the {@code capabilities} field.
+     * Defaults {@code capabilities} to {@link Capabilities#EMPTY_INSTANCE}.
+     */
+    public EndpointMetadata(
+        Heuristics heuristics,
+        Internal internal,
+        Display display,
+        List<EndpointRegion> regions,
+        boolean deniedByRegionPolicy
+    ) {
+        this(heuristics, internal, display, regions, deniedByRegionPolicy, Capabilities.EMPTY_INSTANCE);
     }
 
     public EndpointMetadata(StreamInput in) throws IOException {
@@ -127,7 +156,8 @@ public record EndpointMetadata(
             new Internal(in),
             new Display(in),
             in.getTransportVersion().supports(REGIONS_ADDED) ? in.readCollectionAsList(EndpointRegion::new) : List.of(),
-            in.getTransportVersion().supports(REGIONS_ADDED) ? in.readBoolean() : false
+            in.getTransportVersion().supports(REGIONS_ADDED) ? in.readBoolean() : false,
+            in.getTransportVersion().supports(CAPABILITIES_ADDED) ? new Capabilities(in) : Capabilities.EMPTY_INSTANCE
         );
     }
 
@@ -169,6 +199,10 @@ public record EndpointMetadata(
             builder.field(DENIED_BY_REGION_POLICY_FIELD_NAME, true);
         }
 
+        if (capabilities.isEmpty() == false) {
+            builder.field(CAPABILITIES_FIELD_NAME, capabilities);
+        }
+
         builder.endObject();
         return builder;
     }
@@ -181,6 +215,211 @@ public record EndpointMetadata(
         if (out.getTransportVersion().supports(REGIONS_ADDED)) {
             out.writeCollection(regions);
             out.writeBoolean(deniedByRegionPolicy);
+        }
+        if (out.getTransportVersion().supports(CAPABILITIES_ADDED)) {
+            capabilities.writeTo(out);
+        }
+    }
+
+    /**
+     * Model capability metadata surfaced in the authorizations API for Kibana and other consumers to discover
+     * reasoning effort support and context window limits without maintaining their own model tables.
+     *
+     * @param reasoning     supported reasoning effort levels for this endpoint; {@code null} when the endpoint does not support
+     *                      discrete effort levels (e.g. Converse-routed models).
+     * @param contextWindow token limits for this endpoint; {@code null} when not available.
+     */
+    public record Capabilities(@Nullable ReasoningCapability reasoning, @Nullable ContextWindow contextWindow)
+        implements
+            ToXContentObject,
+            Writeable {
+
+        public static final Capabilities EMPTY_INSTANCE = new Capabilities(null, null);
+
+        public static final String REASONING_FIELD_NAME = "reasoning";
+        public static final String CONTEXT_WINDOW_FIELD_NAME = "context_window";
+
+        private static final ConstructingObjectParser<Capabilities, Void> PARSER = new ConstructingObjectParser<>(
+            "endpoint_metadata_capabilities",
+            true,
+            args -> new Capabilities((ReasoningCapability) args[0], (ContextWindow) args[1])
+        );
+
+        static {
+            PARSER.declareObject(
+                ConstructingObjectParser.optionalConstructorArg(),
+                (p, c) -> ReasoningCapability.parse(p),
+                new ParseField(REASONING_FIELD_NAME)
+            );
+            PARSER.declareObject(
+                ConstructingObjectParser.optionalConstructorArg(),
+                (p, c) -> ContextWindow.parse(p),
+                new ParseField(CONTEXT_WINDOW_FIELD_NAME)
+            );
+        }
+
+        public static Capabilities parse(XContentParser parser) throws IOException {
+            return PARSER.apply(parser, null);
+        }
+
+        public Capabilities(StreamInput in) throws IOException {
+            this(in.readOptionalWriteable(ReasoningCapability::new), in.readOptionalWriteable(ContextWindow::new));
+        }
+
+        @Override
+        public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
+            builder.startObject();
+            if (reasoning != null) {
+                builder.field(REASONING_FIELD_NAME, reasoning);
+            }
+            if (contextWindow != null) {
+                builder.field(CONTEXT_WINDOW_FIELD_NAME, contextWindow);
+            }
+            builder.endObject();
+            return builder;
+        }
+
+        @Override
+        public void writeTo(StreamOutput out) throws IOException {
+            out.writeOptionalWriteable(reasoning);
+            out.writeOptionalWriteable(contextWindow);
+        }
+
+        public boolean isEmpty() {
+            return this.equals(EMPTY_INSTANCE);
+        }
+    }
+
+    /**
+     * Describes the reasoning effort levels that an endpoint supports.
+     *
+     * @param supportedEffortLevels effort levels that produce distinct behaviour on this endpoint. Values outside this list are not
+     *                              rejected by the gateway; upstream providers typically clamp them to a neighbouring tier.
+     * @param defaultEffortLevel    effort level applied when the client omits {@code reasoning.effort}.
+     */
+    public record ReasoningCapability(List<ReasoningEffort> supportedEffortLevels, @Nullable ReasoningEffort defaultEffortLevel)
+        implements
+            ToXContentObject,
+            Writeable {
+
+        public static final String SUPPORTED_EFFORT_LEVELS_FIELD_NAME = "supported_effort_levels";
+        public static final String DEFAULT_EFFORT_LEVEL_FIELD_NAME = "default_effort_level";
+
+        @SuppressWarnings("unchecked")
+        private static final ConstructingObjectParser<ReasoningCapability, Void> PARSER = new ConstructingObjectParser<>(
+            "endpoint_metadata_reasoning_capability",
+            true,
+            args -> {
+                var levelStrings = (List<String>) args[0];
+                // Silently filter unknown values so a future gateway effort tier (e.g. "max") that is not yet
+                // in the ReasoningEffort enum does not fail the entire authorization response.
+                var levels = levelStrings == null ? List.<ReasoningEffort>of() : levelStrings.stream().flatMap(s -> {
+                    try {
+                        return Stream.of(ReasoningEffort.fromString(s));
+                    } catch (Exception ignored) {
+                        return Stream.empty();
+                    }
+                }).toList();
+                ReasoningEffort defaultLevel = null;
+                if (args[1] != null) {
+                    try {
+                        defaultLevel = ReasoningEffort.fromString((String) args[1]);
+                    } catch (Exception ignored) {
+                        // Drop unknown default effort level silently.
+                    }
+                }
+                return new ReasoningCapability(levels, defaultLevel);
+            }
+        );
+
+        static {
+            PARSER.declareStringArray(
+                ConstructingObjectParser.optionalConstructorArg(),
+                new ParseField(SUPPORTED_EFFORT_LEVELS_FIELD_NAME)
+            );
+            PARSER.declareString(ConstructingObjectParser.optionalConstructorArg(), new ParseField(DEFAULT_EFFORT_LEVEL_FIELD_NAME));
+        }
+
+        public static ReasoningCapability parse(XContentParser parser) throws IOException {
+            return PARSER.apply(parser, null);
+        }
+
+        public ReasoningCapability(StreamInput in) throws IOException {
+            this(in.readCollectionAsList(i -> i.readEnum(ReasoningEffort.class)), in.readOptionalEnum(ReasoningEffort.class));
+        }
+
+        @Override
+        public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
+            builder.startObject();
+            builder.field(SUPPORTED_EFFORT_LEVELS_FIELD_NAME, supportedEffortLevels.stream().map(ReasoningEffort::toString).toList());
+            if (defaultEffortLevel != null) {
+                builder.field(DEFAULT_EFFORT_LEVEL_FIELD_NAME, defaultEffortLevel.toString());
+            }
+            builder.endObject();
+            return builder;
+        }
+
+        @Override
+        public void writeTo(StreamOutput out) throws IOException {
+            out.writeCollection(supportedEffortLevels, StreamOutput::writeEnum);
+            out.writeOptionalEnum(defaultEffortLevel);
+        }
+
+        public ReasoningCapability {
+            Objects.requireNonNull(supportedEffortLevels);
+        }
+    }
+
+    /**
+     * Describes the token limits for an inference endpoint.
+     *
+     * @param maxInputTokens  maximum number of tokens allowed in the prompt; {@code null} when not specified.
+     * @param maxOutputTokens maximum number of tokens the model will generate; {@code null} when not specified.
+     */
+    public record ContextWindow(@Nullable Integer maxInputTokens, @Nullable Integer maxOutputTokens)
+        implements
+            ToXContentObject,
+            Writeable {
+
+        public static final String MAX_INPUT_TOKENS_FIELD_NAME = "max_input_tokens";
+        public static final String MAX_OUTPUT_TOKENS_FIELD_NAME = "max_output_tokens";
+
+        private static final ConstructingObjectParser<ContextWindow, Void> PARSER = new ConstructingObjectParser<>(
+            "endpoint_metadata_context_window",
+            true,
+            args -> new ContextWindow((Integer) args[0], (Integer) args[1])
+        );
+
+        static {
+            PARSER.declareInt(ConstructingObjectParser.optionalConstructorArg(), new ParseField(MAX_INPUT_TOKENS_FIELD_NAME));
+            PARSER.declareInt(ConstructingObjectParser.optionalConstructorArg(), new ParseField(MAX_OUTPUT_TOKENS_FIELD_NAME));
+        }
+
+        public static ContextWindow parse(XContentParser parser) throws IOException {
+            return PARSER.apply(parser, null);
+        }
+
+        public ContextWindow(StreamInput in) throws IOException {
+            this(in.readOptionalVInt(), in.readOptionalVInt());
+        }
+
+        @Override
+        public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
+            builder.startObject();
+            if (maxInputTokens != null) {
+                builder.field(MAX_INPUT_TOKENS_FIELD_NAME, maxInputTokens);
+            }
+            if (maxOutputTokens != null) {
+                builder.field(MAX_OUTPUT_TOKENS_FIELD_NAME, maxOutputTokens);
+            }
+            builder.endObject();
+            return builder;
+        }
+
+        @Override
+        public void writeTo(StreamOutput out) throws IOException {
+            out.writeOptionalVInt(maxInputTokens);
+            out.writeOptionalVInt(maxOutputTokens);
         }
     }
 

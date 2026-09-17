@@ -13,6 +13,7 @@ import org.elasticsearch.TransportVersion;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.xcontent.XContentHelper;
+import org.elasticsearch.inference.completion.Reasoning.ReasoningEffort;
 import org.elasticsearch.inference.metadata.EndpointMetadata;
 import org.elasticsearch.test.AbstractBWCSerializationTestCase;
 import org.elasticsearch.xcontent.ToXContent;
@@ -36,7 +37,11 @@ public class EndpointMetadataTests extends AbstractBWCSerializationTestCase<Endp
         new EndpointMetadata.Internal("fingerprint", 1L),
         new EndpointMetadata.Display("name", "some_creator"),
         List.of(new EndpointMetadata.EndpointRegion("aws", "us-east-1", "us")),
-        true
+        true,
+        new EndpointMetadata.Capabilities(
+            new EndpointMetadata.ReasoningCapability(List.of(ReasoningEffort.HIGH, ReasoningEffort.LOW), ReasoningEffort.HIGH),
+            new EndpointMetadata.ContextWindow(100000, 8192)
+        )
     );
 
     private static final String NON_EMPTY_ENDPOINT_METADATA_JSON = """
@@ -56,7 +61,17 @@ public class EndpointMetadataTests extends AbstractBWCSerializationTestCase<Endp
             "model_creator": "some_creator"
           },
           "regions": [{"csp": "aws", "region": "us-east-1", "geo": "us"}],
-          "denied_by_region_policy": true
+          "denied_by_region_policy": true,
+          "capabilities": {
+            "reasoning": {
+              "supported_effort_levels": ["high", "low"],
+              "default_effort_level": "high"
+            },
+            "context_window": {
+              "max_input_tokens": 100000,
+              "max_output_tokens": 8192
+            }
+          }
         }
         """;
 
@@ -73,7 +88,17 @@ public class EndpointMetadataTests extends AbstractBWCSerializationTestCase<Endp
             "model_creator": "some_creator"
           },
           "regions": [{"csp": "aws", "region": "us-east-1", "geo": "us"}],
-          "denied_by_region_policy": true
+          "denied_by_region_policy": true,
+          "capabilities": {
+            "reasoning": {
+              "supported_effort_levels": ["high", "low"],
+              "default_effort_level": "high"
+            },
+            "context_window": {
+              "max_input_tokens": 100000,
+              "max_output_tokens": 8192
+            }
+          }
         }
         """;
 
@@ -87,8 +112,9 @@ public class EndpointMetadataTests extends AbstractBWCSerializationTestCase<Endp
         var display = randomDisplay();
         var regions = randomRegions();
         var deniedByRegionPolicy = randomBoolean();
+        var capabilities = randomCapabilities();
 
-        var instance = new EndpointMetadata(heuristics, internal, display, regions, deniedByRegionPolicy);
+        var instance = new EndpointMetadata(heuristics, internal, display, regions, deniedByRegionPolicy, capabilities);
         return EndpointMetadata.EMPTY_INSTANCE.equals(instance) ? EndpointMetadata.EMPTY_INSTANCE : instance;
     }
 
@@ -109,7 +135,7 @@ public class EndpointMetadataTests extends AbstractBWCSerializationTestCase<Endp
 
         var regions = IntStream.range(0, randomIntBetween(1, 3)).mapToObj(i -> randomEndpointRegion()).collect(Collectors.toList());
 
-        return new EndpointMetadata(heuristics, internal, display, regions, randomBoolean());
+        return new EndpointMetadata(heuristics, internal, display, regions, randomBoolean(), randomCapabilities());
     }
 
     public static EndpointMetadata.EndpointRegion randomEndpointRegion() {
@@ -165,6 +191,35 @@ public class EndpointMetadataTests extends AbstractBWCSerializationTestCase<Endp
 
         var instance = new EndpointMetadata.Internal(fingerprint, version);
         return EndpointMetadata.Internal.EMPTY_INSTANCE.equals(instance) ? EndpointMetadata.Internal.EMPTY_INSTANCE : instance;
+    }
+
+    public static EndpointMetadata.Capabilities randomCapabilities() {
+        if (randomBoolean()) {
+            return EndpointMetadata.Capabilities.EMPTY_INSTANCE;
+        }
+        var reasoning = randomBoolean() ? randomReasoningCapability() : null;
+        var contextWindow = randomBoolean() ? randomContextWindow() : null;
+        if (reasoning == null && contextWindow == null) {
+            return EndpointMetadata.Capabilities.EMPTY_INSTANCE;
+        }
+        return new EndpointMetadata.Capabilities(reasoning, contextWindow);
+    }
+
+    public static EndpointMetadata.ReasoningCapability randomReasoningCapability() {
+        var allLevels = ReasoningEffort.values();
+        var count = randomIntBetween(1, allLevels.length);
+        var levels = randomSubsetOf(count, allLevels).stream().toList();
+        var defaultLevel = randomFrom(levels);
+        return new EndpointMetadata.ReasoningCapability(levels, defaultLevel);
+    }
+
+    public static EndpointMetadata.ContextWindow randomContextWindow() {
+        var maxInput = randomBoolean() ? null : randomIntBetween(1, 2_000_000);
+        var maxOutput = randomBoolean() ? null : randomIntBetween(1, 128_000);
+        if (maxInput == null && maxOutput == null) {
+            maxInput = randomIntBetween(1, 1_000_000);
+        }
+        return new EndpointMetadata.ContextWindow(maxInput, maxOutput);
     }
 
     public void testToXContentEmptyEndpointMetadata() throws IOException {
@@ -326,16 +381,18 @@ public class EndpointMetadataTests extends AbstractBWCSerializationTestCase<Endp
         var display = instance.display();
         var regions = instance.regions();
         var deniedByRegionPolicy = instance.deniedByRegionPolicy();
+        var capabilities = instance.capabilities();
 
-        switch (randomInt(4)) {
+        switch (randomInt(5)) {
             case 0 -> heuristics = randomValueOtherThan(heuristics, EndpointMetadataTests::randomHeuristics);
             case 1 -> internal = randomValueOtherThan(internal, EndpointMetadataTests::randomInternal);
             case 2 -> display = randomValueOtherThan(display, EndpointMetadataTests::randomDisplay);
             case 3 -> regions = randomValueOtherThan(regions, EndpointMetadataTests::randomRegions);
             case 4 -> deniedByRegionPolicy = deniedByRegionPolicy == false;
+            case 5 -> capabilities = randomValueOtherThan(capabilities, EndpointMetadataTests::randomCapabilities);
         }
 
-        return new EndpointMetadata(heuristics, internal, display, regions, deniedByRegionPolicy);
+        return new EndpointMetadata(heuristics, internal, display, regions, deniedByRegionPolicy, capabilities);
     }
 
     @Override
@@ -349,6 +406,7 @@ public class EndpointMetadataTests extends AbstractBWCSerializationTestCase<Endp
         var display = instance.display();
         var regions = instance.regions();
         var deniedByRegionPolicy = instance.deniedByRegionPolicy();
+        var capabilities = instance.capabilities();
 
         if (version.supports(EndpointMetadata.Display.MODEL_CREATOR_ADDED) == false) {
             display = new EndpointMetadata.Display(display.name(), null);
@@ -357,6 +415,9 @@ public class EndpointMetadataTests extends AbstractBWCSerializationTestCase<Endp
             regions = List.of();
             deniedByRegionPolicy = false;
         }
-        return new EndpointMetadata(heuristics, internal, display, regions, deniedByRegionPolicy);
+        if (version.supports(EndpointMetadata.CAPABILITIES_ADDED) == false) {
+            capabilities = EndpointMetadata.Capabilities.EMPTY_INSTANCE;
+        }
+        return new EndpointMetadata(heuristics, internal, display, regions, deniedByRegionPolicy, capabilities);
     }
 }

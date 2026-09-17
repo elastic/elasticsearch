@@ -965,7 +965,7 @@ public class GenerationalDocValuesIT extends AbstractStatelessPluginIntegTestCas
         );
 
         // batched compound commit for generation 6 exists in the object store (stateless_commit_6)
-        final String bccBlobName = StatelessCompoundCommit.blobNameFromGeneration(6L);
+        final String bccBlobName = BatchedCompoundCommit.blobNameFromGeneration(6L);
         var blobContainer = indexDirectory.getBlobStoreCacheDirectory().getBlobContainer(indexingShard.getOperationPrimaryTerm());
         assertBusy(() -> assertThat(blobContainer.listBlobs(OperationPurpose.INDICES).keySet(), hasItem(bccBlobName)));
 

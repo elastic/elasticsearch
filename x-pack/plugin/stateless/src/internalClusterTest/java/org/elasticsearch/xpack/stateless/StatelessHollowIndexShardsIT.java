@@ -106,6 +106,7 @@ import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xcontent.json.JsonXContent;
 import org.elasticsearch.xpack.stateless.cache.SharedBlobCacheWarmingService;
 import org.elasticsearch.xpack.stateless.cache.StatelessSharedBlobCacheService;
+import org.elasticsearch.xpack.stateless.commits.BatchedCompoundCommit;
 import org.elasticsearch.xpack.stateless.commits.HollowShardsService;
 import org.elasticsearch.xpack.stateless.commits.StatelessCommitCleaner;
 import org.elasticsearch.xpack.stateless.commits.StatelessCommitService;
@@ -651,7 +652,7 @@ public class StatelessHollowIndexShardsIT extends AbstractStatelessPluginIntegTe
                 indexShard.shardId(),
                 bcc.primaryTermAndGeneration().primaryTerm()
             );
-            final var blobName = StatelessCompoundCommit.blobNameFromGeneration(bcc.primaryTermAndGeneration().generation());
+            final var blobName = BatchedCompoundCommit.blobNameFromGeneration(bcc.primaryTermAndGeneration().generation());
 
             final var cc = bcc.lastCompoundCommit();
             assert cc.hollow();
@@ -714,7 +715,7 @@ public class StatelessHollowIndexShardsIT extends AbstractStatelessPluginIntegTe
                 long position,
                 long length
             ) throws IOException {
-                if (StatelessCompoundCommit.startsWithBlobPrefix(blobName)) {
+                if (BatchedCompoundCommit.startsWithBlobPrefix(blobName)) {
                     logger.debug("--> reading BCC {} at position {} for length {}", blobName, position, length);
                     bccAccesses.incrementAndGet();
                 }
@@ -3492,7 +3493,7 @@ public class StatelessHollowIndexShardsIT extends AbstractStatelessPluginIntegTe
                 long position,
                 long length
             ) throws IOException {
-                if (StatelessCompoundCommit.startsWithBlobPrefix(blobName)) {
+                if (BatchedCompoundCommit.startsWithBlobPrefix(blobName)) {
                     logger.info("--> {} reading BCC {} at position {} for length {}", indexNode, blobName, position, length);
                     bccAccesses.incrementAndGet();
                 }

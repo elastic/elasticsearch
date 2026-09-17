@@ -31,6 +31,8 @@ public record BatchedCompoundCommit(PrimaryTermAndGeneration primaryTermAndGener
     implements
         AbstractBatchedCompoundCommit {
 
+    public static final String PREFIX = "stateless_commit_";
+
     public BatchedCompoundCommit {
         if (primaryTermAndGeneration == null) {
             throw new IllegalArgumentException("Batched compound commits must have a non-null primary term and generation");
@@ -89,6 +91,11 @@ public record BatchedCompoundCommit(PrimaryTermAndGeneration primaryTermAndGener
     public BlobFile toBlobFile() {
         String blobName = blobNameFromGeneration(primaryTermAndGeneration.generation());
         return new BlobFile(blobName, primaryTermAndGeneration);
+    }
+
+    @Override
+    public String toString() {
+        return '[' + blobNameFromGeneration(primaryTermAndGeneration().generation()) + ']' + lastCompoundCommit().toShortDescription();
     }
 
     /**
@@ -188,7 +195,7 @@ public record BatchedCompoundCommit(PrimaryTermAndGeneration primaryTermAndGener
                 var compoundCommit = StatelessCompoundCommit.readFromStoreAtOffset(
                     streamInput,
                     offset,
-                    ignored -> StatelessCompoundCommit.parseGenerationFromBlobName(blobName)
+                    ignored -> parseGenerationFromBlobName(blobName)
                 );
 
                 assert assertPaddingComposedOfZeros(blobName, maxBlobLength, blobReader, offset, compoundCommit);
@@ -244,7 +251,18 @@ public record BatchedCompoundCommit(PrimaryTermAndGeneration primaryTermAndGener
         }
     }
 
+    // Since CC and BCC share the same naming scheme, these methods work equally for both of them.
+    public static boolean startsWithBlobPrefix(String name) {
+        return name.startsWith(PREFIX);
+    }
+
     public static String blobNameFromGeneration(long generation) {
-        return StatelessCompoundCommit.blobNameFromGeneration(generation);
+        assert generation > 0 : generation;
+        return PREFIX + generation;
+    }
+
+    public static long parseGenerationFromBlobName(String name) {
+        assert startsWithBlobPrefix(name) : name;
+        return Long.parseLong(name.substring(name.lastIndexOf('_') + 1));
     }
 }

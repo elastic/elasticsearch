@@ -160,8 +160,6 @@ public record StatelessCompoundCommit(
         );
     }
 
-    public static final String PREFIX = "stateless_commit_";
-
     public static boolean isGenerationalFile(String file) {
         return file.startsWith("_") && (file.endsWith(".tmp") == false) && IndexFileNames.parseGeneration(file) > 0L;
     }
@@ -203,23 +201,12 @@ public record StatelessCompoundCommit(
     }
 
     public String toShortDescription() {
-        return '[' + blobNameFromGeneration(generation()) + "][" + primaryTerm() + "][" + generation() + ']' + (hollow() ? "[h]" : "");
-    }
-
-    public String toLongDescription() {
-        return shardId
-            + toShortDescription()
-            + '['
-            + translogRecoveryStartFile
+        return '['
+            + primaryTerm()
             + "]["
-            + nodeEphemeralId
-            + "]["
-            + commitFiles
-            + "]["
-            + extraContent
-            + "]["
-            + timestampFieldValueRange
-            + ']';
+            + generation()
+            + ']'
+            + (hollow() ? "[h]" : "");
     }
 
     @Override
@@ -654,7 +641,7 @@ public record StatelessCompoundCommit(
         @Nullable TimestampFieldValueRange timestampFieldValueRange
     ) {
         PrimaryTermAndGeneration bccTermAndGen = new PrimaryTermAndGeneration(primaryTerm, bccGenSupplier.apply(generation));
-        var blobFile = new BlobFile(StatelessCompoundCommit.blobNameFromGeneration(bccTermAndGen.generation()), bccTermAndGen);
+        var blobFile = new BlobFile(BatchedCompoundCommit.blobNameFromGeneration(bccTermAndGen.generation()), bccTermAndGen);
         final var combinedCommitFilesResult = combineCommitFiles(
             blobFile,
             replicatedContentRanges,
@@ -765,23 +752,6 @@ public record StatelessCompoundCommit(
     static {
         SHARD_ID_PARSER.declareObject(constructorArg(), (p, c) -> Index.fromXContent(p), new ParseField("index"));
         SHARD_ID_PARSER.declareInt(constructorArg(), new ParseField("id"));
-    }
-
-    // Since CC and BCC share the same naming scheme, this method works equally for both of them.
-    public static boolean startsWithBlobPrefix(String name) {
-        return name.startsWith(StatelessCompoundCommit.PREFIX);
-    }
-
-    // Since CC and BCC share the same naming scheme, this method works equally for both of them.
-    public static String blobNameFromGeneration(long generation) {
-        assert generation > 0 : generation;
-        return StatelessCompoundCommit.PREFIX + generation;
-    }
-
-    // Since CC and BCC share the same naming scheme, this method works equally for both of them.
-    public static long parseGenerationFromBlobName(String name) {
-        assert startsWithBlobPrefix(name) : name;
-        return Long.parseLong(name.substring(name.lastIndexOf('_') + 1));
     }
 
     private static boolean assertSortedBySize(Iterable<InternalFile> files) {

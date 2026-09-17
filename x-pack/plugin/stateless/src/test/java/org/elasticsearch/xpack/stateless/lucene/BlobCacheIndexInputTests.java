@@ -53,7 +53,7 @@ import org.elasticsearch.xpack.stateless.cache.reader.ObjectStoreCacheBlobReader
 import org.elasticsearch.xpack.stateless.cache.reader.ObjectStoreUploadTracker;
 import org.elasticsearch.xpack.stateless.cache.reader.SequentialRangeMissingHandler;
 import org.elasticsearch.xpack.stateless.cache.reader.SwitchingCacheBlobReader;
-import org.elasticsearch.xpack.stateless.commits.StatelessCompoundCommit;
+import org.elasticsearch.xpack.stateless.commits.BatchedCompoundCommit;
 import org.elasticsearch.xpack.stateless.engine.PrimaryTermAndGeneration;
 import org.junit.After;
 import org.junit.Before;
@@ -181,7 +181,7 @@ public class BlobCacheIndexInputTests extends ESIndexInputTestCase {
 
                 @Override
                 public InputStream readBlob(OperationPurpose purpose, String blobName) throws IOException {
-                    if (blobName.contains(StatelessCompoundCommit.PREFIX)) {
+                    if (blobName.contains(BatchedCompoundCommit.PREFIX)) {
                         assert ThreadPool.assertCurrentThreadPool(StatelessPlugin.SHARD_READ_THREAD_POOL);
                     }
                     return super.readBlob(purpose, blobName);
@@ -189,7 +189,7 @@ public class BlobCacheIndexInputTests extends ESIndexInputTestCase {
 
                 @Override
                 public InputStream readBlob(OperationPurpose purpose, String blobName, long position, long length) throws IOException {
-                    if (blobName.contains(StatelessCompoundCommit.PREFIX)) {
+                    if (blobName.contains(BatchedCompoundCommit.PREFIX)) {
                         assert ThreadPool.assertCurrentThreadPool(StatelessPlugin.SHARD_READ_THREAD_POOL);
                     }
                     return super.readBlob(purpose, blobName, position, length);
@@ -466,7 +466,7 @@ public class BlobCacheIndexInputTests extends ESIndexInputTestCase {
             final ShardId shardId = new ShardId(new Index("_index_name", "_index_id"), 0);
             final long primaryTerm = randomNonNegativeLong();
             final long generation = randomNonNegativeLong();
-            final String blobName = StatelessCompoundCommit.blobNameFromGeneration(generation);
+            final String blobName = BatchedCompoundCommit.blobNameFromGeneration(generation);
             // Create a blob with data span from 2 to 4 regions
             final int numberRegions = between(2, 4);
             final byte[] data = randomByteArrayOfLength(numberRegions * (int) regionSize.getBytes());

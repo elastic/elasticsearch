@@ -235,13 +235,13 @@ public class BlobCacheMetrics {
             ),
             meterRegistry.registerLongHistogram(
                 BLOB_CACHE_READ_AGE,
-                "The age of data served by a cache read (warming and bypasses not included), in milliseconds",
+                "The age of data served by a cache read, in milliseconds; sentinel timestamps and bypasses are omitted",
                 "milliseconds",
                 TimeRangeBucket.histogramBoundaries()
             ),
             meterRegistry.registerLongHistogram(
                 BLOB_CACHE_MISS_AGE,
-                "The age of data that missed the cache (warming and bypasses not included), in milliseconds",
+                "The age of data that missed the cache, in milliseconds; sentinel timestamps and bypasses are omitted",
                 "milliseconds",
                 TimeRangeBucket.histogramBoundaries()
             ),

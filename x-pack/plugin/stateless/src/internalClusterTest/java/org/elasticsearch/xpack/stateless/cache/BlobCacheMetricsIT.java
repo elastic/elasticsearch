@@ -22,6 +22,7 @@ import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.plugins.PluginsService;
+import org.elasticsearch.repositories.blobstore.BlobStoreRepository;
 import org.elasticsearch.snapshots.mockstore.MockRepository;
 import org.elasticsearch.telemetry.Measurement;
 import org.elasticsearch.telemetry.TelemetryProvider;
@@ -141,8 +142,8 @@ public class BlobCacheMetricsIT extends AbstractBlobCacheMetricsIntegTestCase {
         CachePopulationSource expectedPopulationSource
     ) {
         TestTelemetryPlugin testTelemetryPlugin = getTestTelemetryPlugin(searchNode);
-        long reads = collectAndSumReadTotal(testTelemetryPlugin);
-        long misses = collectAndSumMissTotal(testTelemetryPlugin);
+        long reads = collectReadTotal(testTelemetryPlugin);
+        long misses = collectMissTotal(testTelemetryPlugin);
         assertThat(misses, lessThanOrEqualTo(reads));
 
         executeSearch(indexName);
@@ -150,8 +151,8 @@ public class BlobCacheMetricsIT extends AbstractBlobCacheMetricsIntegTestCase {
         // Confirm we see cache-miss metrics on the search node
         assertMetricsArePresent(searchNode, BlobCacheMetrics.CachePopulationReason.CacheMiss, expectedPopulationSource);
 
-        long newReads = collectAndSumReadTotal(testTelemetryPlugin);
-        long newMisses = collectAndSumMissTotal(testTelemetryPlugin);
+        long newReads = collectReadTotal(testTelemetryPlugin);
+        long newMisses = collectMissTotal(testTelemetryPlugin);
         double newRatio = testTelemetryPlugin.getDoubleGaugeMeasurement("es.blob_cache.miss.ratio").getLast().getDouble();
 
         assertThat(newReads, greaterThan(reads));
@@ -162,15 +163,15 @@ public class BlobCacheMetricsIT extends AbstractBlobCacheMetricsIntegTestCase {
 
     private static void executeNoMissSearch(String searchNode, String indexName) {
         TestTelemetryPlugin testTelemetryPlugin = getTestTelemetryPlugin(searchNode);
-        long reads = collectAndSumReadTotal(testTelemetryPlugin);
-        long misses = collectAndSumMissTotal(testTelemetryPlugin);
+        long reads = collectReadTotal(testTelemetryPlugin);
+        long misses = collectMissTotal(testTelemetryPlugin);
         double ratio = testTelemetryPlugin.getDoubleGaugeMeasurement("es.blob_cache.miss.ratio").getLast().getDouble();
         assertThat(misses, lessThanOrEqualTo(reads));
 
         executeSearch(indexName);
 
-        long newReads = collectAndSumReadTotal(testTelemetryPlugin);
-        long newMisses = collectAndSumMissTotal(testTelemetryPlugin);
+        long newReads = collectReadTotal(testTelemetryPlugin);
+        long newMisses = collectMissTotal(testTelemetryPlugin);
         double newRatio = testTelemetryPlugin.getDoubleGaugeMeasurement("es.blob_cache.miss.ratio").getLast().getDouble();
 
         assertThat(newReads, greaterThan(reads));
@@ -182,14 +183,14 @@ public class BlobCacheMetricsIT extends AbstractBlobCacheMetricsIntegTestCase {
      * Resets the meter, triggers a fresh collect, then returns the unattributed
      * {@code es.blob_cache.read.total} gauge.
      */
-    private static long collectAndSumReadTotal(TestTelemetryPlugin plugin) {
+    private static long collectReadTotal(TestTelemetryPlugin plugin) {
         plugin.resetMeter();
         plugin.collect();
         return plugin.getLongGaugeMeasurement(BLOB_CACHE_READ_TOTAL).getLast().getLong();
     }
 
-    /** Like {@link #collectAndSumReadTotal} but for {@code es.blob_cache.miss.total}. */
-    private static long collectAndSumMissTotal(TestTelemetryPlugin plugin) {
+    /** Like {@link #collectReadTotal} but for {@code es.blob_cache.miss.total}. */
+    private static long collectMissTotal(TestTelemetryPlugin plugin) {
         plugin.resetMeter();
         plugin.collect();
         return plugin.getLongGaugeMeasurement(BLOB_CACHE_MISS_TOTAL).getLast().getLong();
@@ -253,14 +254,14 @@ public class BlobCacheMetricsIT extends AbstractBlobCacheMetricsIntegTestCase {
             .mapToLong(Measurement::getLong)
             .sum();
         assertThat(noCacheBypassCount, greaterThan(0L));
-        // Bypass reads count as both reads and misses; SUM across all timestamp buckets to get node-level totals.
-        assertThat(collectAndSumReadTotal(noCacheTelemetry), equalTo(noCacheBypassCount));
-        assertThat(collectAndSumMissTotal(noCacheTelemetry), equalTo(noCacheBypassCount));
+        // Bypass reads count as both a read and a miss on the unattributed totals.
+        assertThat(collectReadTotal(noCacheTelemetry), equalTo(noCacheBypassCount));
+        assertThat(collectMissTotal(noCacheTelemetry), equalTo(noCacheBypassCount));
 
         // Normal-cache node: reads and misses but no bypass reads
         final var normalCacheTelemetry = getTestTelemetryPlugin(normalCacheSearchNode);
-        assertThat(collectAndSumReadTotal(normalCacheTelemetry), greaterThan(0L));
-        assertThat(collectAndSumMissTotal(normalCacheTelemetry), greaterThan(0L));
+        assertThat(collectReadTotal(normalCacheTelemetry), greaterThan(0L));
+        assertThat(collectMissTotal(normalCacheTelemetry), greaterThan(0L));
         long normalCacheBypassCount = normalCacheTelemetry.getLongCounterMeasurement(BlobCacheMetrics.BLOB_CACHE_BYPASS_READ_TOTAL)
             .stream()
             .mapToLong(Measurement::getLong)
@@ -405,13 +406,19 @@ public class BlobCacheMetricsIT extends AbstractBlobCacheMetricsIntegTestCase {
         }
         allIndices.add(otherIndexName);
         ensureGreen(allIndices.toArray(String[]::new));
-        // Wait that there is nothing going on, like warming, before we clear the cache and start measuring.
+        // Wait for cache population on the search node to finish. Other pools (management, generic)
+        // keep periodic work and would make an all-pools idle wait flake.
         final var searchThreadPool = internalCluster().getInstance(ThreadPool.class, searchNode);
         assertBusy(() -> {
-            for (ThreadPoolStats.Stats stat : searchThreadPool.stats()) {
-                assertEquals(stat.active(), 0);
-                assertEquals(stat.queue(), 0);
-            }
+            ThreadPoolStats.Stats stats = searchThreadPool.stats()
+                .stats()
+                .stream()
+                .filter(s -> BlobStoreRepository.STATELESS_SHARD_READ_THREAD_NAME.equals(s.name()))
+                .findFirst()
+                .orElse(null);
+            assertNotNull("missing " + BlobStoreRepository.STATELESS_SHARD_READ_THREAD_NAME + " pool", stats);
+            assertEquals(0, stats.active());
+            assertEquals(0, stats.queue());
         }, 30L, TimeUnit.SECONDS);
 
         final TestTelemetryPlugin plugin = getTestTelemetryPlugin(searchNode);
@@ -504,9 +511,9 @@ public class BlobCacheMetricsIT extends AbstractBlobCacheMetricsIntegTestCase {
 
     /**
      * Creates a single-shard, one-replica index with a {@code @timestamp} date field mapping.
-     * The replica starts unassigned (no search node yet) and is allocated when a search node joins,
-     * triggering synchronous warming before recovery completes. Automatic refresh is disabled so
-     * each explicit {@link #refresh} call produces exactly one Lucene segment.
+     * The search node is already in the cluster, so the replica allocates immediately and
+     * {@link SynchronousWarmingPlugin} warms the cache before recovery completes. Automatic
+     * refresh is disabled so each explicit {@link #refresh} call produces exactly one Lucene segment.
      */
     private String createTimestampedIndex(String namePrefix) {
         final String indexName = namePrefix + "-" + randomIdentifier();

@@ -17,7 +17,8 @@ import java.util.List;
 /**
  * Classifies a data age (milliseconds between a timestamp and now) into a discrete named bucket.
  * The thresholds defined here are the single source of truth for both the search-request
- * {@code TIME_RANGE_FILTER_FROM_ATTRIBUTE} (via {@link SearchRequestAttributesExtractor#introspectTimeRange})
+ * {@link SearchRequestAttributesExtractor#TIME_RANGE_FILTER_FROM_ATTRIBUTE}
+ * (via {@link SearchRequestAttributesExtractor#introspectTimeRange})
  * and the blob-cache read/miss age histogram bucket boundaries.
  *
  * <p>Negative ages (future timestamps) fall into the {@link #FifteenMinutes} bucket.
@@ -44,7 +45,7 @@ public enum TimeRangeBucket {
         this.label = label;
     }
 
-    /** The string label used as a metric attribute value for this bucket. */
+    /** The string label used as the {@link SearchRequestAttributesExtractor#TIME_RANGE_FILTER_FROM_ATTRIBUTE} value for this bucket. */
     public String label() {
         return label;
     }

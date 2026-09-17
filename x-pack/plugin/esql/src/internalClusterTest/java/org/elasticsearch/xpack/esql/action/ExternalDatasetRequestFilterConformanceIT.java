@@ -391,7 +391,7 @@ public class ExternalDatasetRequestFilterConformanceIT extends AbstractExternalD
     // ---- REST layer tests: the policy a request actually gets, through the HTTP parsing path ----
 
     /**
-     * REST: an untranslatable construct costs the caller that clause and nothing more — HTTP 200, the rows the
+     * REST: an untranslatable construct in a top-level conjunct costs the caller that clause — HTTP 200, the rows the
      * translatable remainder selects, and a {@code Warning} response header naming the construct that was dropped.
      * There is no request parameter to set: this is the only policy a request can get.
      */

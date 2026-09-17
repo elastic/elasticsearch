@@ -31,11 +31,12 @@ import java.util.Set;
  * the mechanism. Index leaves keep their existing (pre-analysis) request-filter path and are not touched.
  *
  * <p>A construct outside the supported subset never fails the query: the translatable AND-conjuncts are applied and
- * the rest are dropped with a {@link HeaderWarning} naming each one. Usually that costs the caller only the offending
- * clause, but not always — a {@code must_not} arm and a required {@code should} group are all-or-nothing, so an
- * untranslatable construct inside one drops its siblings with it. Dropping only ever widens what matches, never
- * narrows it, which is what makes it safe. A filter that translates to a supported no-op ({@code match_all}) leaves
- * the relation read unfiltered.
+ * the rest are dropped with a {@link HeaderWarning} naming each one. What that costs the caller depends on where the
+ * construct sits. In a top-level conjunct it costs that clause. In a {@code must_not} arm or a required
+ * {@code should} group — both all-or-nothing — it drops its siblings with it. In a non-required {@code should} arm it
+ * costs nothing and is not reported: those arms gate scoring rather than matching, so they are never translated and
+ * their failures are not collected. Dropping only ever widens what matches, never narrows it, which is what makes it
+ * safe. A filter that translates to a supported no-op ({@code match_all}) leaves the relation read unfiltered.
  *
  * <p>The strict policy — fail the query with a 400 ({@link VerificationException}) listing every offending clause —
  * remains reachable through {@code dropUntranslatableWithWarning} so both policies stay under test. Nothing selects it

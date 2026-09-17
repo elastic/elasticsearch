@@ -42,6 +42,9 @@ import static org.hamcrest.Matchers.nullValue;
  */
 public class GeoGridFromDocValuesBlockLoaderTests extends AbstractNumericBlockLoaderTests {
     private static final int PRECISION = 5;
+    private static final BlockLoaderFunctionConfig.GeoGridShapeTilerFactory POINTS_ONLY = warnings -> {
+        throw new AssertionError("shapes are not loaded by the point loader");
+    };
     /** Roughly Europe and Africa, so a good share of the globally spread test points fall outside. */
     private static final GeoBoundingBox BOUNDS = new GeoBoundingBox(new GeoPoint(60, -20), new GeoPoint(-35, 50));
 
@@ -110,7 +113,13 @@ public class GeoGridFromDocValuesBlockLoaderTests extends AbstractNumericBlockLo
                 };
             };
         }
-        return new BlockLoaderFunctionConfig.GeoGrid(BlockLoaderFunctionConfig.Function.ST_GEOHASH, precision, bounds, encoders);
+        return new BlockLoaderFunctionConfig.GeoGrid(
+            BlockLoaderFunctionConfig.Function.ST_GEOHASH,
+            precision,
+            bounds,
+            encoders,
+            POINTS_ONLY
+        );
     }
 
     static BlockLoaderFunctionConfig.GeoGrid geotile(int precision, GeoBoundingBox bounds) {
@@ -128,7 +137,13 @@ public class GeoGridFromDocValuesBlockLoaderTests extends AbstractNumericBlockLo
                 };
             };
         }
-        return new BlockLoaderFunctionConfig.GeoGrid(BlockLoaderFunctionConfig.Function.ST_GEOTILE, precision, bounds, encoders);
+        return new BlockLoaderFunctionConfig.GeoGrid(
+            BlockLoaderFunctionConfig.Function.ST_GEOTILE,
+            precision,
+            bounds,
+            encoders,
+            POINTS_ONLY
+        );
     }
 
     private Matcher<Object> readerMatcher() {

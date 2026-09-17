@@ -30,6 +30,7 @@ import org.elasticsearch.geometry.Rectangle;
 import org.elasticsearch.index.mapper.blockloader.BlockLoaderFunctionConfig;
 import org.elasticsearch.search.aggregations.bucket.geogrid.GeoTileBoundedPredicate;
 import org.elasticsearch.search.aggregations.bucket.geogrid.GeoTileUtils;
+import org.elasticsearch.xpack.esql.common.spatial.GeoShapeDocValues;
 import org.elasticsearch.xpack.esql.core.expression.AnyNullIsNull;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.FoldContext;
@@ -139,7 +140,17 @@ public class StGeotile extends SpatialGridFunction implements EvaluatorMapper, A
                 return (lon, lat) -> grid.calculateGridId(new Point(lon, lat));
             };
         }
-        return new BlockLoaderFunctionConfig.GeoGrid(BlockLoaderFunctionConfig.Function.ST_GEOTILE, precision, bounds, encoders);
+        BlockLoaderFunctionConfig.GeoGridShapeTilerFactory shapeTilers = shapeTilers(
+            encoders,
+            () -> (shape, onTruncation) -> computeGeotileCells(shape, precision, bounds, onTruncation)
+        );
+        return new BlockLoaderFunctionConfig.GeoGrid(
+            BlockLoaderFunctionConfig.Function.ST_GEOTILE,
+            precision,
+            bounds,
+            encoders,
+            shapeTilers
+        );
     }
 
     @FunctionInfo(
@@ -366,11 +377,19 @@ public class StGeotile extends SpatialGridFunction implements EvaluatorMapper, A
      */
     static List<Long> computeGeotileCells(BytesRef wkb, int precision, GeoBoundingBox bbox, Consumer<String> onTruncation)
         throws IOException {
-        GeoShapeDocValues shape = GeoShapeDocValues.from(wkb, GEO_SHAPE_INDEXER);
+        return computeGeotileCells(GeoShapeDocValues.from(wkb, GEO_SHAPE_INDEXER), precision, bbox, onTruncation);
+    }
+
+    /**
+     * Same as {@link #computeGeotileCells(BytesRef, int, GeoBoundingBox, Consumer)} but on a triangle tree that is already
+     * available, such as the doc value of a {@code geo_shape} field when the function is fused into field loading.
+     */
+    static List<Long> computeGeotileCells(GeoShapeDocValues shape, int precision, GeoBoundingBox bbox, Consumer<String> onTruncation)
+        throws IOException {
         GeoTileBoundedPredicate predicate = (bbox == null || bbox.isUnbounded()) ? null : new GeoTileBoundedPredicate(precision, bbox);
         List<Long> cells = new ArrayList<>();
         // geo tiles are not defined at the extreme latitudes
-        if (shape.minLat > GeoTileUtils.NORMALIZED_LATITUDE_MASK || shape.maxLat < GeoTileUtils.NORMALIZED_NEGATIVE_LATITUDE_MASK) {
+        if (shape.minLat() > GeoTileUtils.NORMALIZED_LATITUDE_MASK || shape.maxLat() < GeoTileUtils.NORMALIZED_NEGATIVE_LATITUDE_MASK) {
             return cells;
         }
         if (precision == 0) {
@@ -390,10 +409,10 @@ public class StGeotile extends SpatialGridFunction implements EvaluatorMapper, A
             return cells;
         }
         final int tiles = 1 << precision;
-        final int minXTile = GeoTileUtils.getXTile(shape.minLon, tiles);
-        final int minYTile = GeoTileUtils.getYTile(shape.maxLat, tiles);
-        final int maxXTile = GeoTileUtils.getXTile(shape.maxLon, tiles);
-        final int maxYTile = GeoTileUtils.getYTile(shape.minLat, tiles);
+        final int minXTile = GeoTileUtils.getXTile(shape.minLon(), tiles);
+        final int minYTile = GeoTileUtils.getYTile(shape.maxLat(), tiles);
+        final int maxXTile = GeoTileUtils.getXTile(shape.maxLon(), tiles);
+        final int maxYTile = GeoTileUtils.getYTile(shape.minLat(), tiles);
         final long count = (long) (maxXTile - minXTile + 1) * (maxYTile - minYTile + 1);
         if (count <= 8L * precision) {
             geotileBruteForceScan(shape, precision, minXTile, minYTile, maxXTile, maxYTile, predicate, cells, onTruncation);

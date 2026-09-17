@@ -9,11 +9,14 @@
 
 package org.elasticsearch.index.mapper.blockloader;
 
+import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.geo.GeoBoundingBox;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.index.mapper.MappedFieldType;
 
+import java.io.IOException;
 import java.util.Arrays;
+import java.util.List;
 import java.util.Objects;
 import java.util.Set;
 import java.util.function.Supplier;
@@ -79,14 +82,39 @@ public interface BlockLoaderFunctionConfig {
     }
 
     /**
-     * Configuration for loading {@code geo_point} doc values directly as geo-grid cell ids
-     * ({@code ST_GEOHASH}, {@code ST_GEOTILE} or {@code ST_GEOHEX}), optionally restricted to the cells intersecting
-     * {@code bounds}. Equality deliberately ignores {@link #encoders()}: the encoder is fully determined by the
-     * function, precision and bounds.
+     * Computes the geo-grid cells intersecting a {@code geo_shape}, given the binary doc value of the field, which
+     * holds the indexed triangle tree of all shapes in the document. The result may be truncated to a maximum number
+     * of cells, in which case the warning given when the tiler was {@link GeoGridShapeTilerFactory created} is used.
+     * Like {@link GeoGridEncoder} the implementation is supplied by the caller (ES|QL), which keeps the algorithm and
+     * the cell order identical to evaluating the function on a loaded shape.
      */
-    record GeoGrid(Function function, int precision, @Nullable GeoBoundingBox bounds, Supplier<GeoGridEncoder> encoders)
-        implements
-            BlockLoaderFunctionConfig {
+    @FunctionalInterface
+    interface GeoGridShapeTiler {
+        List<Long> cells(BytesRef encodedShape) throws IOException;
+    }
+
+    /**
+     * Creates a {@link GeoGridShapeTiler} for one reader. The warnings, when not null, receive a warning if the cells
+     * of a shape are truncated. Tilers may keep scratch state, so one is created per reader.
+     */
+    @FunctionalInterface
+    interface GeoGridShapeTilerFactory {
+        GeoGridShapeTiler create(@Nullable Warnings warnings);
+    }
+
+    /**
+     * Configuration for loading {@code geo_point} or {@code geo_shape} doc values directly as geo-grid cell ids
+     * ({@code ST_GEOHASH}, {@code ST_GEOTILE} or {@code ST_GEOHEX}), optionally restricted to the cells intersecting
+     * {@code bounds}. Points use {@link #encoders()} and shapes {@link #shapeTilers()}. Equality deliberately ignores
+     * both: they are fully determined by the function, precision and bounds.
+     */
+    record GeoGrid(
+        Function function,
+        int precision,
+        @Nullable GeoBoundingBox bounds,
+        Supplier<GeoGridEncoder> encoders,
+        GeoGridShapeTilerFactory shapeTilers
+    ) implements BlockLoaderFunctionConfig {
         public GeoGrid {
             if (function != Function.ST_GEOHASH && function != Function.ST_GEOTILE && function != Function.ST_GEOHEX) {
                 throw new IllegalArgumentException("not a geo-grid function [" + function + "]");

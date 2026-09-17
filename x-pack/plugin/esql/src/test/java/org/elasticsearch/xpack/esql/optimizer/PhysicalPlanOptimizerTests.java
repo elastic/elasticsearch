@@ -4943,6 +4943,51 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
     }
 
     /**
+     * Grid functions over a geo_shape field are fused into field loading as well when the field has doc-values: the cells are
+     * tiled from the indexed triangle tree in the doc values. Without doc-values the shape is loaded as WKB and evaluated.
+     */
+    public void testSpatialGridStatsOnGeoShapeUsesFusedLoad() {
+        for (String grid : new String[] { "geohash", "geotile", "geohex" }) {
+            for (boolean bounded : new boolean[] { false, true }) {
+                String function = bounded
+                    ? "ST_GRID(city_boundary, 2, TO_GEOSHAPE(\"BBOX(-180, 180, 90, -90)\"))"
+                    : "ST_GRID(city_boundary, 2)";
+                String query = ("FROM airports_city_boundaries | EVAL grid = " + function + " | STATS count = COUNT(*) BY grid").replace(
+                    "GRID",
+                    grid
+                );
+                for (boolean shapeDocValues : new boolean[] { true, false }) {
+                    var testData = shapeDocValues ? airportsCityBoundaries : airportsCityBoundariesNoShapeDocValues;
+                    var plan = physicalPlan(query, testData);
+                    var optimized = optimizedPlan(plan, testData.stats);
+                    var limit = as(optimized, LimitExec.class);
+                    var agg = as(limit.child(), AggregateExec.class);
+                    var exchange = as(agg.child(), ExchangeExec.class);
+                    agg = as(exchange.child(), AggregateExec.class);
+                    assertAggregation(agg, "count", Count.class);
+                    var evalExec = as(agg.child(), EvalExec.class);
+                    var alias = as(evalExec.fields().getFirst(), Alias.class);
+                    if (shapeDocValues) {
+                        var fused = assertGridFusedIntoFieldLoad(alias.child(), grid, 2);
+                        var config = as(as(fused.field(), FunctionEsField.class).functionConfig(), BlockLoaderFunctionConfig.GeoGrid.class);
+                        assertThat(config.bounds() != null, is(bounded));
+                        assertChildIsFusedGridExtract(evalExec, grid, 2);
+                    } else {
+                        var gridFunction = as(alias.child(), SpatialGridFunction.class);
+                        var spatialField = as(gridFunction.spatialField(), FieldAttribute.class);
+                        assertThat(spatialField.name(), equalTo("city_boundary"));
+                        assertThat(spatialField.dataType(), equalTo(GEO_SHAPE));
+                        var extract = as(evalExec.child(), FieldExtractExec.class);
+                        assertThat(names(extract.attributesToExtract()), is(List.of("city_boundary")));
+                        assertThat(extract.docValuesAttributes(), is(empty()));
+                        as(extract.child(), EsQueryExec.class);
+                    }
+                }
+            }
+        }
+    }
+
+    /**
      * Tests that ST_GEOMETRYTYPE, ST_DIMENSION and ST_ISEMPTY use doc-values when available on geo_point and cartesian_point fields.
      * The query pattern is: FROM index | EVAL result = FUNCTION(location) | STATS count = COUNT(*) BY result
      */

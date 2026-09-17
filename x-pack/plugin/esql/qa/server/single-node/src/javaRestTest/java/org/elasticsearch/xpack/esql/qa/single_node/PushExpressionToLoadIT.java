@@ -848,6 +848,94 @@ public class PushExpressionToLoadIT extends ESRestTestCase {
         );
     }
 
+    /**
+     * Tests that {@code ST_GEOHASH} on a {@code geo_shape} field is fused into the field load via
+     * {@code GeoGridFromShapeDocValues}: the cells come from the indexed triangle tree in the doc values and the shape is
+     * never read from {@code _source}. A square around the origin touches the four precision-1 cells that meet there.
+     */
+    public void testStGeohashToGeoShape() throws IOException {
+        test(
+            justType("geo_shape"),
+            b -> b.field("test", "POLYGON((-1 -1, 1 -1, 1 1, -1 1, -1 -1))"),
+            "| EVAL test = TO_STRING(ST_GEOHASH(test, 1))",
+            matchesList().item(List.of("7", "e", "k", "s")),
+            matchesMap().entry("test:column_at_a_time:GeoGridFromShapeDocValues", 1)
+        );
+    }
+
+    /**
+     * Like {@link #testStGeohashToGeoShape} with bounds covering only the north-eastern quadrant, leaving one cell.
+     */
+    public void testBoundedStGeohashToGeoShape() throws IOException {
+        test(
+            justType("geo_shape"),
+            b -> b.field("test", "POLYGON((-1 -1, 1 -1, 1 1, -1 1, -1 -1))"),
+            "| EVAL test = TO_STRING(ST_GEOHASH(test, 1, TO_GEOSHAPE(\"BBOX(0, 90, 90, 0)\")))",
+            matchesList().item("s"),
+            matchesMap().entry("test:column_at_a_time:GeoGridFromShapeDocValues", 1)
+        );
+    }
+
+    /**
+     * Like {@link #testStGeohashToGeoShape} for {@code ST_GEOTILE}: the same square touches the four zoom-1 tiles.
+     */
+    public void testStGeotileToGeoShape() throws IOException {
+        test(
+            justType("geo_shape"),
+            b -> b.field("test", "POLYGON((-1 -1, 1 -1, 1 1, -1 1, -1 -1))"),
+            "| EVAL test = TO_STRING(ST_GEOTILE(test, 1))",
+            matchesList().item(List.of("1/0/0", "1/0/1", "1/1/0", "1/1/1")),
+            matchesMap().entry("test:column_at_a_time:GeoGridFromShapeDocValues", 1)
+        );
+    }
+
+    /**
+     * Like {@link #testStGeohashToGeoShape} for {@code ST_GEOHEX}, where a small shape at resolution 0 lies in one cell.
+     */
+    public void testStGeohexToGeoShape() throws IOException {
+        test(
+            justType("geo_shape"),
+            b -> b.field("test", "POLYGON((12.62 55.62, 12.64 55.62, 12.64 55.64, 12.62 55.64, 12.62 55.62))"),
+            "| EVAL test = TO_STRING(ST_GEOHEX(test, 0))",
+            matchesList().item(H3.geoToH3Address(55.63, 12.63, 0)),
+            matchesMap().entry("test:column_at_a_time:GeoGridFromShapeDocValues", 1)
+        );
+    }
+
+    /**
+     * A one degree square intersects about 16 000 precision-6 geohash cells, more than {@code MAX_GRID_CELLS}, so the
+     * fused load must truncate to the limit and register the very same warning the evaluator does.
+     */
+    public void testStGeohashToGeoShapeTruncatesWithWarning() throws IOException {
+        String query = """
+            FROM test
+            | EVAL test = MV_COUNT(ST_GEOHASH(test, 6))
+            | STATS test = MV_SORT(VALUES(test))
+            """;
+        int column = query.lines().toList().get(1).indexOf("ST_GEOHASH") + 1;
+        test(
+            justType("geo_shape"),
+            b -> b.field("test", "POLYGON((10 50, 11 50, 11 51, 10 51, 10 50))"),
+            query,
+            matchesList().item(10_000),
+            matchesList().item(matchesMap().entry("name", "test").entry("type", "integer")),
+            Map.of("data", List.of(matchesMap().entry("test:column_at_a_time:GeoGridFromShapeDocValues", 1))),
+            sig -> assertMap(
+                sig,
+                matchesList().item("LuceneSourceOperator")
+                    .item("ValuesSourceReaderOperator")
+                    .item("EvalOperator")
+                    .item("AggregationOperator")
+                    .item("ExchangeSinkOperator")
+            ),
+            null,
+            null,
+            new AssertWarnings.ExactStrings(
+                List.of("Line 2:" + column + " [ST_GEOHASH(test, 6)]: ST_GEOHASH generated more than 10000 grid cells")
+            )
+        );
+    }
+
     //
     // Tests without STATS at the end - check that node_reduce phase works correctly
     //
@@ -1411,13 +1499,39 @@ public class PushExpressionToLoadIT extends ESRestTestCase {
         Settings pragmas,
         String indexMode
     ) throws IOException {
+        test(
+            mapping,
+            doc,
+            query,
+            expectedValue,
+            columnMatcher,
+            expectedLoadersPerDriver,
+            assertDataNodeSig,
+            pragmas,
+            indexMode,
+            new AssertWarnings.NoWarnings()
+        );
+    }
+
+    private void test(
+        CheckedConsumer<XContentBuilder, IOException> mapping,
+        CheckedConsumer<XContentBuilder, IOException> doc,
+        String query,
+        Matcher<?> expectedValue,
+        Matcher<?> columnMatcher,
+        Map<String, List<MapMatcher>> expectedLoadersPerDriver,
+        Consumer<List<String>> assertDataNodeSig,
+        Settings pragmas,
+        String indexMode,
+        AssertWarnings assertWarnings
+    ) throws IOException {
         indexValue(mapping, doc, indexMode);
         RestEsqlTestCase.RequestObjectBuilder builder = requestObjectBuilder().query(query);
         if (pragmas != null) {
             builder.pragmasOk().pragmas(pragmas);
         }
         builder.profile(true);
-        Map<String, Object> result = runEsql(builder, new AssertWarnings.NoWarnings(), profileLogger, RestEsqlTestCase.Mode.SYNC);
+        Map<String, Object> result = runEsql(builder, assertWarnings, profileLogger, RestEsqlTestCase.Mode.SYNC);
 
         assertResultMap(
             result,

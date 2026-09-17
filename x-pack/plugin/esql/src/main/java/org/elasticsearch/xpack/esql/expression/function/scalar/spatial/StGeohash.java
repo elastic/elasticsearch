@@ -27,6 +27,7 @@ import org.elasticsearch.geometry.Point;
 import org.elasticsearch.geometry.utils.Geohash;
 import org.elasticsearch.index.mapper.blockloader.BlockLoaderFunctionConfig;
 import org.elasticsearch.search.aggregations.bucket.geogrid.GeoHashBoundedPredicate;
+import org.elasticsearch.xpack.esql.common.spatial.GeoShapeDocValues;
 import org.elasticsearch.xpack.esql.core.expression.AnyNullIsNull;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.FoldContext;
@@ -142,7 +143,17 @@ public class StGeohash extends SpatialGridFunction implements EvaluatorMapper, A
                 return (lon, lat) -> grid.calculateGridId(new Point(lon, lat));
             };
         }
-        return new BlockLoaderFunctionConfig.GeoGrid(BlockLoaderFunctionConfig.Function.ST_GEOHASH, precision, bounds, encoders);
+        BlockLoaderFunctionConfig.GeoGridShapeTilerFactory shapeTilers = shapeTilers(
+            encoders,
+            () -> (shape, onTruncation) -> computeGeohashCells(shape, precision, bounds, onTruncation)
+        );
+        return new BlockLoaderFunctionConfig.GeoGrid(
+            BlockLoaderFunctionConfig.Function.ST_GEOHASH,
+            precision,
+            bounds,
+            encoders,
+            shapeTilers
+        );
     }
 
     @FunctionInfo(
@@ -361,11 +372,19 @@ public class StGeohash extends SpatialGridFunction implements EvaluatorMapper, A
      */
     static List<Long> computeGeohashCells(BytesRef wkb, int precision, GeoBoundingBox bbox, Consumer<String> onTruncation)
         throws IOException {
-        GeoShapeDocValues shape = GeoShapeDocValues.from(wkb, GEO_SHAPE_INDEXER);
+        return computeGeohashCells(GeoShapeDocValues.from(wkb, GEO_SHAPE_INDEXER), precision, bbox, onTruncation);
+    }
+
+    /**
+     * Same as {@link #computeGeohashCells(BytesRef, int, GeoBoundingBox, Consumer)} but on a triangle tree that is already
+     * available, such as the doc value of a {@code geo_shape} field when the function is fused into field loading.
+     */
+    static List<Long> computeGeohashCells(GeoShapeDocValues shape, int precision, GeoBoundingBox bbox, Consumer<String> onTruncation)
+        throws IOException {
         GeoHashBoundedPredicate predicate = (bbox == null || bbox.isUnbounded()) ? null : new GeoHashBoundedPredicate(precision, bbox);
         List<Long> cells = new ArrayList<>();
-        long dX = (long) Math.ceil((shape.maxLon - shape.minLon) / Geohash.lonWidthInDegrees(precision));
-        long dY = (long) Math.ceil((shape.maxLat - shape.minLat) / Geohash.latHeightInDegrees(precision));
+        long dX = (long) Math.ceil((shape.maxLon() - shape.minLon()) / Geohash.lonWidthInDegrees(precision));
+        long dY = (long) Math.ceil((shape.maxLat() - shape.minLat()) / Geohash.latHeightInDegrees(precision));
         if (dX * dY <= 32L * precision) {
             geohashBruteForceScan(shape, precision, predicate, cells, onTruncation);
         } else {
@@ -386,18 +405,18 @@ public class StGeohash extends SpatialGridFunction implements EvaluatorMapper, A
         List<Long> cells,
         Consumer<String> onTruncation
     ) throws IOException {
-        final String stop = Geohash.stringEncode(shape.maxLon, shape.maxLat, precision);
+        final String stop = Geohash.stringEncode(shape.maxLon(), shape.maxLat(), precision);
         String firstInRow = null;
         String lastInRow = null;
         outer: do {
             lastInRow = (lastInRow == null)
-                ? Geohash.stringEncode(shape.maxLon, shape.minLat, precision)
+                ? Geohash.stringEncode(shape.maxLon(), shape.minLat(), precision)
                 : Geohash.getNeighbor(lastInRow, precision, 0, 1);
             String current = null;
             do {
                 if (current == null) {
                     firstInRow = (firstInRow == null)
-                        ? Geohash.stringEncode(shape.minLon, shape.minLat, precision)
+                        ? Geohash.stringEncode(shape.minLon(), shape.minLat(), precision)
                         : Geohash.getNeighbor(firstInRow, precision, 0, 1);
                     current = firstInRow;
                 } else {

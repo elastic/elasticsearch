@@ -7,10 +7,8 @@
 
 package org.elasticsearch.xpack.esql.expression.function.scalar.spatial;
 
-import org.apache.lucene.geo.LatLonGeometry;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.geo.GeoBoundingBox;
-import org.elasticsearch.common.geo.GeoPoint;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.compute.ann.Evaluator;
@@ -33,8 +31,8 @@ import org.elasticsearch.h3.LatLng;
 import org.elasticsearch.index.mapper.blockloader.BlockLoaderFunctionConfig;
 import org.elasticsearch.license.License;
 import org.elasticsearch.license.XPackLicenseState;
-import org.elasticsearch.xpack.esql.common.spatial.H3CartesianUtil;
-import org.elasticsearch.xpack.esql.common.spatial.H3SphericalUtil;
+import org.elasticsearch.xpack.esql.common.spatial.GeoHexGridTiler;
+import org.elasticsearch.xpack.esql.common.spatial.GeoShapeDocValues;
 import org.elasticsearch.xpack.esql.core.expression.AnyNullIsNull;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.FoldContext;
@@ -51,7 +49,6 @@ import org.elasticsearch.xpack.esql.expression.function.FunctionInfo;
 import org.elasticsearch.xpack.esql.expression.function.Param;
 
 import java.io.IOException;
-import java.util.ArrayList;
 import java.util.List;
 import java.util.function.Consumer;
 import java.util.function.Function;
@@ -146,7 +143,17 @@ public class StGeohex extends SpatialGridFunction implements EvaluatorMapper, An
                 return (lon, lat) -> grid.calculateGridId(new Point(lon, lat));
             };
         }
-        return new BlockLoaderFunctionConfig.GeoGrid(BlockLoaderFunctionConfig.Function.ST_GEOHEX, precision, bounds, encoders);
+        BlockLoaderFunctionConfig.GeoGridShapeTilerFactory shapeTilers = shapeTilers(encoders, () -> {
+            GeoHexGridTiler tiler = GeoHexGridTiler.makeGridTiler(precision, bounds);
+            return (shape, onTruncation) -> tiler.cells(shape, MAX_GRID_CELLS, onTruncation);
+        });
+        return new BlockLoaderFunctionConfig.GeoGrid(
+            BlockLoaderFunctionConfig.Function.ST_GEOHEX,
+            precision,
+            bounds,
+            encoders,
+            shapeTilers
+        );
     }
 
     @FunctionInfo(
@@ -248,7 +255,8 @@ public class StGeohex extends SpatialGridFunction implements EvaluatorMapper, An
             Source evalSource = source();
             Function<DriverContext, GeoShapeCellsComputer> shapeTilerFactory = ctx -> {
                 Warnings w = ctx.createOnlyWarnings(evalSource);
-                return wkb -> computeGeohexCells(wkb, precision, bbox, w::registerWarning);
+                GeoHexGridTiler tiler = GeoHexGridTiler.makeGridTiler(precision, bbox);
+                return wkb -> tiler.cells(GeoShapeDocValues.from(wkb, GEO_SHAPE_INDEXER), MAX_GRID_CELLS, w::registerWarning);
             };
             return spatialDocValues
                 ? new StGeohexFromFieldDocValuesAndLiteralAndLiteralEvaluator.Factory(
@@ -267,7 +275,8 @@ public class StGeohex extends SpatialGridFunction implements EvaluatorMapper, An
             Source evalSource = source();
             Function<DriverContext, GeoShapeCellsComputer> shapeTilerFactory = ctx -> {
                 Warnings w = ctx.createOnlyWarnings(evalSource);
-                return wkb -> computeGeohexCells(wkb, precision, null, w::registerWarning);
+                GeoHexGridTiler tiler = GeoHexGridTiler.makeGridTiler(precision, null);
+                return wkb -> tiler.cells(GeoShapeDocValues.from(wkb, GEO_SHAPE_INDEXER), MAX_GRID_CELLS, w::registerWarning);
             };
             return spatialDocValues
                 ? new StGeohexFromFieldDocValuesAndLiteralEvaluator.Factory(source(), toEvaluator.apply(spatialField()), precision)
@@ -400,142 +409,24 @@ public class StGeohex extends SpatialGridFunction implements EvaluatorMapper, An
      * truncating at {@link SpatialGridFunction#MAX_GRID_CELLS} and calling {@code onTruncation}
      * with a warning message when the limit is reached.
      * <p>
-     * The recursive H3-tree descent strategy is adapted from {@code GeoHexGridTiler.setValuesByRecursion}
-     * in the spatial module. The bounding-box pre-check per level replaces the {@code GeoHexVisitor}
-     * approach (which depends on {@code H3CartesianUtil} from the spatial module) with
-     * {@link GeoShapeDocValues#intersects} over a Lucene {@link LatLonGeometry} bounding rectangle.
-     * At leaf level an exact hexagon polygon intersection is performed.
+     * The cells are found by {@link GeoHexGridTiler}, the ES|QL copy of the tiler behind the {@code geohex_grid}
+     * aggregation, so the result matches that aggregation.
      * </p>
      * The fold path emits warnings via HTTP response headers using {@link SpatialGridFunction#foldWarningConsumer()};
      * the evaluator path passes {@code warnings::registerWarning} so the user sees a driver-context warning.
      */
     static List<Long> computeGeohexCells(BytesRef wkb, int precision, GeoBoundingBox bbox, Consumer<String> onTruncation)
         throws IOException {
-        GeoShapeDocValues shape = GeoShapeDocValues.from(wkb, GEO_SHAPE_INDEXER);
-        GeoHexBoundedPredicate predicate = bbox == null ? null : new GeoHexBoundedPredicate(bbox);
-        List<Long> cells = new ArrayList<>();
-        // Scratch bbox is reused across recursion levels to avoid per-cell allocation
-        GeoBoundingBox scratch = new GeoBoundingBox(new GeoPoint(), new GeoPoint());
-        for (long res0cell : H3.getLongRes0Cells()) {
-            recursiveGeohex(shape, res0cell, precision, predicate, cells, scratch, onTruncation);
-            if (cells.size() >= MAX_GRID_CELLS) {
-                break;
-            }
-        }
-        return cells;
+        return computeGeohexCells(GeoShapeDocValues.from(wkb, GEO_SHAPE_INDEXER), precision, bbox, onTruncation);
     }
 
     /**
-     * Recursively descends the H3 hierarchy, adding cells that intersect the shape.
-     * When the limit is reached, calls {@code onTruncation} with a warning message and returns early.
-     *
-     * <p>Two subtleties from the original are preserved here:
-     * <ol>
-     *   <li><b>Polar forced-recurse</b>: near the poles the equirectangular projection distorts
-     *       H3 cell shapes enough that the bounding-box pre-check becomes unreliable at intermediate
-     *       resolutions. When an intermediate cell's bbox touches the polar band for that resolution
-     *       we skip the bbox check and always recurse, matching the {@code QUERY_CROSSES} return in
-     *       {@code UnboundedGeoHexGridTiler.relateTile}.</li>
-     *   <li><b>noChild (non-intersecting-children) loop</b>: H3 children at resolution N+1 can
-     *       physically extend beyond their resolution-N parent's area. A target-resolution cell C
-     *       may be an H3 child of parent Q but overlap a different intermediate cell P. If Q's bbox
-     *       does not intersect the shape, Q's branch is pruned and C is never visited through Q.
-     *       After recursing all H3 children of a non-disjoint cell P, we therefore also check every
-     *       noChild of P — a cell in the next resolution that intersects P but whose H3 parent is
-     *       Q ≠ P — and recurse it only when Q's bbox is disjoint from the shape (i.e. Q was or
-     *       would be pruned). See {@code H3.h3ToNoChildrenIntersecting} and the comment in
-     *       {@code GeoHexGridTiler.setValuesByRecursion}.</li>
-     * </ol>
+     * Same as {@link #computeGeohexCells(BytesRef, int, GeoBoundingBox, Consumer)} but on a triangle tree that is already
+     * available. Builds a fresh {@link GeoHexGridTiler}, so callers computing cells for many shapes should instead keep
+     * one tiler per thread, as the evaluator and the block loader do.
      */
-    private static void recursiveGeohex(
-        GeoShapeDocValues shape,
-        long h3,
-        int targetRes,
-        GeoHexBoundedPredicate predicate,
-        List<Long> cells,
-        GeoBoundingBox scratch,
-        Consumer<String> onTruncation
-    ) throws IOException {
-        int res = H3.getResolution(h3);
-        if (res == targetRes) {
-            // At the target resolution: apply the exact hexagon intersection test.
-            H3SphericalUtil.computeGeoBounds(h3, scratch);
-            if (geohexBboxIntersectsShape(shape, scratch) == false) {
-                return;
-            }
-            if (predicate == null || predicate.validHex(h3)) {
-                if (h3CellIntersectsShape(shape, h3)) {
-                    if (cells.size() >= SpatialGridFunction.MAX_GRID_CELLS) {
-                        String msg = "ST_GEOHEX generated more than " + SpatialGridFunction.MAX_GRID_CELLS + " grid cells";
-                        if (onTruncation != null) {
-                            onTruncation.accept(msg);
-                            return;
-                        }
-                        throw new IllegalArgumentException(msg);
-                    }
-                    cells.add(h3);
-                }
-            }
-        } else {
-            // At intermediate resolutions: use the bbox as a fast pruning check.
-            // Near the poles the equirectangular projection distorts cell shapes, so skip the bbox check
-            // for polar-band cells and always recurse (equivalent to QUERY_CROSSES in the original tiler).
-            H3SphericalUtil.computeGeoBounds(h3, scratch);
-            boolean inPolarBand = scratch.top() > H3CartesianUtil.getNorthPolarBound(res)
-                || scratch.bottom() < H3CartesianUtil.getSouthPolarBound(res);
-            if (inPolarBand == false && geohexBboxIntersectsShape(shape, scratch) == false) {
-                return;
-            }
-            // Recurse all H3 children of this cell.
-            for (long child : H3.h3ToChildren(h3)) {
-                recursiveGeohex(shape, child, targetRes, predicate, cells, scratch, onTruncation);
-                if (cells.size() >= SpatialGridFunction.MAX_GRID_CELLS) {
-                    return;
-                }
-            }
-            // H3 cells at the next resolution can physically extend beyond their H3 parent's area.
-            // Visit each noChild (a next-resolution cell that intersects this cell but has a different
-            // H3 parent) only when that H3 parent's bbox is disjoint from the shape — meaning it was
-            // or would be pruned, so the noChild will never be reached through its own parent's branch.
-            for (long noChild : H3.h3ToNoChildrenIntersecting(h3)) {
-                long noChildParent = H3.h3ToParent(noChild);
-                H3SphericalUtil.computeGeoBounds(noChildParent, scratch);
-                if (geohexBboxIntersectsShape(shape, scratch) == false) {
-                    recursiveGeohex(shape, noChild, targetRes, predicate, cells, scratch, onTruncation);
-                    if (cells.size() >= SpatialGridFunction.MAX_GRID_CELLS) {
-                        return;
-                    }
-                }
-            }
-        }
-    }
-
-    /**
-     * Tests whether the H3 bounding box (computed via {@link H3SphericalUtil}) overlaps the shape,
-     * used as a fast pre-check before the exact hexagon polygon test.
-     * Dateline-crossing cells use a conservative full-longitude rectangle.
-     */
-    private static boolean geohexBboxIntersectsShape(GeoShapeDocValues shape, GeoBoundingBox hexBbox) throws IOException {
-        if (hexBbox.top() < shape.minLat || hexBbox.bottom() > shape.maxLat) {
-            return false;
-        }
-        org.apache.lucene.geo.Rectangle luceneRect;
-        if (hexBbox.left() > hexBbox.right()) {
-            // Crosses dateline — use the full longitude range as conservative approximation
-            luceneRect = new org.apache.lucene.geo.Rectangle(hexBbox.bottom(), hexBbox.top(), -180, 180);
-        } else {
-            luceneRect = new org.apache.lucene.geo.Rectangle(hexBbox.bottom(), hexBbox.top(), hexBbox.left(), hexBbox.right());
-        }
-        return shape.intersects(LatLonGeometry.create(luceneRect));
-    }
-
-    /**
-     * Tests whether the shape intersects the H3 cell exactly.
-     * Uses {@link H3CartesianUtil#getLatLonGeometry(long)} which is adapted from {@code H3CartesianGeometry}
-     * in the spatial module. It handles coordinate quantization, polar cells, and dateline-crossing cells
-     * correctly. In particular it handles larger H3 cells due to great-circle-arc vs. straight-line projection differences.
-     */
-    private static boolean h3CellIntersectsShape(GeoShapeDocValues shape, long h3) throws IOException {
-        return shape.intersects(LatLonGeometry.create(H3CartesianUtil.getLatLonGeometry(h3)));
+    static List<Long> computeGeohexCells(GeoShapeDocValues shape, int precision, GeoBoundingBox bbox, Consumer<String> onTruncation)
+        throws IOException {
+        return GeoHexGridTiler.makeGridTiler(precision, bbox).cells(shape, MAX_GRID_CELLS, onTruncation);
     }
 }

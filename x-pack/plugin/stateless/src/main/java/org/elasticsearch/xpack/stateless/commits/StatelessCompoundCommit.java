@@ -201,12 +201,7 @@ public record StatelessCompoundCommit(
     }
 
     public String toShortDescription() {
-        return '['
-            + primaryTerm()
-            + "]["
-            + generation()
-            + ']'
-            + (hollow() ? "[h]" : "");
+        return '[' + primaryTerm() + "][" + generation() + ']' + (hollow() ? "[h]" : "");
     }
 
     @Override

@@ -16,7 +16,6 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.QueryBuilders;
-import org.elasticsearch.xpack.esql.dsltranslate.ViewRequestFilterRewriter;
 import org.elasticsearch.xpack.esql.view.PutViewAction;
 import org.junit.Before;
 
@@ -75,12 +74,6 @@ public class ViewRequestFilterIT extends AbstractEsqlIntegTestCase {
 
     @Before
     public void loadData() {
-        // Every test here asserts feature-on behaviour: the request filter landing on the view's output. The flag is off in release
-        // builds (see REQUEST_FILTER_ON_VIEW_FEATURE_FLAG), where the filter takes the pre-feature Lucene path instead.
-        assumeTrue(
-            "requires the request-filter-on-views feature flag",
-            ViewRequestFilterRewriter.REQUEST_FILTER_ON_VIEW_FEATURE_FLAG.isEnabled()
-        );
         assertAcked(
             client().admin()
                 .indices()
@@ -184,6 +177,7 @@ public class ViewRequestFilterIT extends AbstractEsqlIntegTestCase {
      * the whole union, when every branch is a view. Pinned here so the rewriter never needs its own dead-branch detection.
      */
     public void testFilterOnFieldMissingFromViewPrunesTheViewBranch() {
+        assumeTrue("EXPLAIN requires the capability to be enabled", EsqlCapabilities.Cap.EXPLAIN.isEnabled());
         QueryBuilder fake = QueryBuilders.termQuery("fake", 1);
         // View branch alongside a bare index: only the bare-index branch survives.
         String mixed = optimizedLogicalPlan("FROM " + PREFILTERED_VIEW + ", " + INDEX + " | KEEP id", fake);

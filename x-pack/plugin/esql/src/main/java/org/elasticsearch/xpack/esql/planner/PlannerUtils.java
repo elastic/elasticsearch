@@ -42,6 +42,7 @@ import org.elasticsearch.xpack.esql.core.util.Holder;
 import org.elasticsearch.xpack.esql.core.util.Queries;
 import org.elasticsearch.xpack.esql.datasources.FormatReaderRegistry;
 import org.elasticsearch.xpack.esql.datasources.spi.ExternalSplit;
+import org.elasticsearch.xpack.esql.dsltranslate.ViewRequestFilterRewriter;
 import org.elasticsearch.xpack.esql.expression.predicate.Predicates;
 import org.elasticsearch.xpack.esql.io.stream.PlanStreamWrapperQueryBuilder;
 import org.elasticsearch.xpack.esql.optimizer.ExternalOptimizerContext;
@@ -415,16 +416,28 @@ public class PlannerUtils {
         return localPlan(plan, logicalOptimizer, physicalOptimizer, externalSplits, planTimeProfile);
     }
 
-    public static PhysicalPlan integrateEsFilterIntoFragment(PhysicalPlan plan, @Nullable QueryBuilder esFilter) {
+    /**
+     * Stamps the request {@code esFilter} onto every {@link FragmentExec} so it is pushed into the Lucene scan — except fragments
+     * under a view branch, whose filter {@code ViewRequestFilterRewriter} has already installed as a logical {@code Filter} above
+     * the view's output. When {@code minimumVersion} is too old for that rewrite to have run
+     * ({@link ViewRequestFilterRewriter#supportsRewrite}), view-branch fragments are stamped like any other so the filter is not
+     * lost; see the rewriter's class javadoc for why that fallback is only approximately right.
+     */
+    public static PhysicalPlan integrateEsFilterIntoFragment(
+        PhysicalPlan plan,
+        @Nullable QueryBuilder esFilter,
+        TransportVersion minimumVersion
+    ) {
         if (esFilter == null) {
             return plan;
         }
+        boolean viewBranchesFilteredAtOutput = ViewRequestFilterRewriter.supportsRewrite(minimumVersion);
         return plan.transformUp(FragmentExec.class, f -> {
             // View-branch fragments must not receive the Lucene esFilter: the request filter has already been applied
             // as a logical Filter above the view's output boundary (by ViewRequestFilterRewriter). Pushing the raw DSL
             // filter into the Lucene scan would apply it before any aggregation or field computation the view performs,
             // returning wrong results for fields that exist only as computed values (EVAL, STATS, RENAME, etc.).
-            if (f.isFromViewBranch()) {
+            if (f.isFromViewBranch() && viewBranchesFilteredAtOutput) {
                 return f;
             }
             var fragmentFilter = f.esFilter();

@@ -174,7 +174,7 @@ public class ExternalDistributionTests extends ESTestCase {
         ExternalRelation external = createExternalRelation();
         FragmentExec fragment = new FragmentExec(external);
 
-        PhysicalPlan result = PlannerUtils.integrateEsFilterIntoFragment(fragment, null);
+        PhysicalPlan result = PlannerUtils.integrateEsFilterIntoFragment(fragment, null, TransportVersion.current());
 
         // no request filter at all -- nothing to warn about; unchecked warnings would fail teardown
         assertSame(fragment, result);
@@ -184,7 +184,7 @@ public class ExternalDistributionTests extends ESTestCase {
         EsRelation relation = createEsRelation();
         FragmentExec fragment = new FragmentExec(relation);
 
-        PlannerUtils.integrateEsFilterIntoFragment(fragment, QueryBuilders.termQuery("name", "foo"));
+        PlannerUtils.integrateEsFilterIntoFragment(fragment, QueryBuilders.termQuery("name", "foo"), TransportVersion.current());
 
         // no ExternalRelation anywhere in the plan -- the warning must not fire; an unexpected warning
         // would otherwise fail this test at teardown (ESTestCase#ensureNoWarnings)

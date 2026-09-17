@@ -563,13 +563,7 @@ public class EsqlSession {
                         // view's output schema and inserted as an ordinary Filter above the view's subplan, so it
                         // applies after the view's own processing (STATS, EVAL, RENAME, …) rather than being
                         // pushed into the view's source indices as a Lucene query.
-                        plan = ViewRequestFilterRewriter.rewrite(
-                            afterDatasetFilter,
-                            request.filter(),
-                            ViewRequestFilterRewriter.REQUEST_FILTER_ON_VIEW_FEATURE_FLAG.isEnabled(),
-                            finalConfiguration,
-                            minimumVersion
-                        );
+                        plan = ViewRequestFilterRewriter.rewrite(afterDatasetFilter, request.filter(), finalConfiguration, minimumVersion);
                     } catch (Exception e) {
                         listener.onFailure(e);
                         return;
@@ -2699,7 +2693,11 @@ public class EsqlSession {
         // surfaces it in the failure log.
         planSnapshot = planSnapshot.withOptimized(optimizedPlan);
         PhysicalPlan physicalPlan = optimizedPhysicalPlan(optimizedPlan, physicalPlanOptimizer, planTimeProfile);
-        physicalPlan = PlannerUtils.integrateEsFilterIntoFragment(physicalPlan, request.filter());
+        physicalPlan = PlannerUtils.integrateEsFilterIntoFragment(
+            physicalPlan,
+            request.filter(),
+            physicalPlanOptimizer.context().minimumVersion()
+        );
         physicalPlan = EstimatesRowSize.estimateRowSize(0, physicalPlan);
         // Overwrite on each call so a failure during subplan execution surfaces the most recent
         // physical plan we built.

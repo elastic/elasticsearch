@@ -43,7 +43,9 @@ public class FragmentExec extends LeafExec implements EstimatesRowSize {
      * View-branch fragments must NOT receive the raw DSL {@code request.filter()} as a Lucene query (via
      * {@code PlannerUtils.integrateEsFilterIntoFragment}), because the filter has already been applied as a logical
      * {@code Filter} above the view's output boundary. Pushing it into the Lucene scan would apply it before any
-     * aggregation or field computation the view performs, producing wrong results for computed fields.
+     * aggregation or field computation the view performs, producing wrong results for computed fields. The mark is
+     * structural — always set for a view branch — and {@code integrateEsFilterIntoFragment} decides what it means: when the
+     * cluster is too old for the logical rewrite to have run, a marked fragment is filtered like any other.
      *
      * <p>This flag is intentionally <em>not serialised</em>. It is set on the coordinator before the filter is
      * integrated and cleared (reads as {@code false}) on any node that deserialises the plan — by that point the

@@ -13,6 +13,7 @@ import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.esql.EsqlTestUtils;
 import org.elasticsearch.xpack.esql.core.tree.Source;
+import org.elasticsearch.xpack.esql.dsltranslate.ViewRequestFilterRewriter;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.esql.plan.logical.ViewUnionAll;
 import org.elasticsearch.xpack.esql.plan.physical.FragmentExec;
@@ -82,17 +83,41 @@ public class ViewBranchFilterPushdownTests extends ESTestCase {
         FragmentExec viewBranch = new FragmentExec(EsqlTestUtils.relation()).asFromViewBranch();
         assertTrue("precondition: the marker survived construction", viewBranch.isFromViewBranch());
 
-        FragmentExec stampedPlain = (FragmentExec) PlannerUtils.integrateEsFilterIntoFragment(plain, FILTER);
-        FragmentExec stampedView = (FragmentExec) PlannerUtils.integrateEsFilterIntoFragment(viewBranch, FILTER);
+        FragmentExec stampedPlain = (FragmentExec) PlannerUtils.integrateEsFilterIntoFragment(plain, FILTER, TransportVersion.current());
+        FragmentExec stampedView = (FragmentExec) PlannerUtils.integrateEsFilterIntoFragment(
+            viewBranch,
+            FILTER,
+            TransportVersion.current()
+        );
 
         assertThat("a bare-index fragment takes the Lucene push-in path", stampedPlain.esFilter(), equalTo(FILTER));
         assertThat("a view-branch fragment must not receive the raw DSL", stampedView.esFilter(), nullValue());
     }
 
+    /**
+     * The fallback: when the cluster is too old for {@code ViewRequestFilterRewriter} to have installed the logical
+     * {@code Filter} (it skips below {@code ESQL_REQUEST_FILTER_ON_DATASET}), a marked fragment must not be left unfiltered.
+     * It is stamped like a plain one, so the filter reaches the view's source scan — the pre-feature behaviour. The mark itself
+     * stays set: it is structural, and only this policy decision changes with the version.
+     */
+    public void testIntegrateEsFilterReachesMarkedFragmentsWhenClusterIsTooOldForTheRewrite() {
+        TransportVersion tooOld = TransportVersion.minimumCompatible();
+        assertFalse("precondition: the rewrite would have been skipped", ViewRequestFilterRewriter.supportsRewrite(tooOld));
+        FragmentExec plain = new FragmentExec(EsqlTestUtils.relation());
+        FragmentExec viewBranch = new FragmentExec(EsqlTestUtils.relation()).asFromViewBranch();
+
+        FragmentExec stampedPlain = (FragmentExec) PlannerUtils.integrateEsFilterIntoFragment(plain, FILTER, tooOld);
+        FragmentExec stampedView = (FragmentExec) PlannerUtils.integrateEsFilterIntoFragment(viewBranch, FILTER, tooOld);
+
+        assertThat(stampedPlain.esFilter(), equalTo(FILTER));
+        assertThat("a view-branch fragment falls back to the Lucene push-in path", stampedView.esFilter(), equalTo(FILTER));
+        assertTrue("the structural mark is untouched", stampedView.isFromViewBranch());
+    }
+
     /** A null request filter leaves every fragment alone, marked or not. */
     public void testIntegrateEsFilterWithNoFilterIsANoop() {
         FragmentExec viewBranch = new FragmentExec(EsqlTestUtils.relation()).asFromViewBranch();
-        assertThat(PlannerUtils.integrateEsFilterIntoFragment(viewBranch, null), equalTo(viewBranch));
+        assertThat(PlannerUtils.integrateEsFilterIntoFragment(viewBranch, null, TransportVersion.current()), equalTo(viewBranch));
     }
 
     private static List<Boolean> collectFragmentMarks(PhysicalPlan plan) {

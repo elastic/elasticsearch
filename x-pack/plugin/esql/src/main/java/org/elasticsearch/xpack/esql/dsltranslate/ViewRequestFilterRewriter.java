@@ -9,7 +9,6 @@ package org.elasticsearch.xpack.esql.dsltranslate;
 
 import org.elasticsearch.TransportVersion;
 import org.elasticsearch.common.logging.HeaderWarning;
-import org.elasticsearch.common.util.FeatureFlag;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.index.query.BoolQueryBuilder;
 import org.elasticsearch.index.query.MatchAllQueryBuilder;
@@ -57,25 +56,25 @@ import static org.elasticsearch.xpack.esql.dsltranslate.RequestFilterRewriter.ES
  * ({@link IllegalArgumentException}) naming the construct, rather than silently applying a widened superset. A filter
  * that translates to a supported no-op ({@code match_all}) leaves the relation read unfiltered.
  *
- * <p>The rewrite is <em>feature-flagged</em>. Applying the filter to view outputs changes what an existing view query
- * returns — a filter that used to be dropped now selects rows, and DSL outside the supported subset now fails the
- * query — so it is gated on {@link #REQUEST_FILTER_ON_VIEW_FEATURE_FLAG}: on by default in snapshot builds (so
- * development, CI and tests exercise it) and excluded from release builds until we choose to ship it.
- *
- * <p>The rewrite is also <em>version-gated</em>. Both this rewriter and {@link RequestFilterRewriter} (for datasets) use
+ * <p>The rewrite is <em>version-gated</em>. Both this rewriter and {@link RequestFilterRewriter} (for datasets) use
  * the same {@link QueryDslTranslator}, which can emit {@code mv_in_range} nodes for range queries; older nodes do not
  * know that function and would fail to deserialize a plan containing it. The gate is therefore the same version:
  * {@link RequestFilterRewriter#ESQL_REQUEST_FILTER_ON_DATASET}. Any cluster new enough to apply the dataset rewrite is
  * already new enough to apply the view rewrite — introducing a separate transport version would add no protection and
- * would fragment the version history unnecessarily. Below that version the rewrite is skipped entirely — views are read
- * unfiltered (the pre-feature behavior) with a warning — rather than shipping a plan a peer cannot read.
+ * would fragment the version history unnecessarily. Below that version the rewrite is skipped entirely rather than shipping a
+ * plan a peer cannot read, and the query falls back to the pre-feature behavior: the raw DSL is pushed into the view's source
+ * scan (see below), with a warning, because that filters computed fields against their raw indexed values. Whether such
+ * mixed clusters should instead fail the query outright is an open decision; {@link #supportsRewrite} is the single place
+ * both halves consult, so changing it changes them together.
  *
  * <p>The raw DSL filter must <em>not</em> also reach the source scan inside a view subplan, or a filter on a field the view
  * computes (via {@code EVAL}/{@code STATS}) would match no documents in the source index and override the correct result
- * produced here. {@code Mapper#mapFork} therefore marks every
+ * produced here. {@code Mapper#mapMergePlan} therefore marks every
  * {@link org.elasticsearch.xpack.esql.plan.physical.FragmentExec} under a view branch (see
- * {@code FragmentExec#isFromViewBranch()}) and {@code PlannerUtils.integrateEsFilterIntoFragment} skips those fragments.
- * That marker is coordinator-only state on a plan node, so it has to survive generic tree rebuilds: it is part of
+ * {@code FragmentExec#isFromViewBranch()}) and {@code PlannerUtils.integrateEsFilterIntoFragment} skips those fragments —
+ * but only while {@link #supportsRewrite} holds, so the Lucene path takes over exactly when this rewrite stands down. The
+ * mark itself is structural and always set; which path a marked fragment takes is decided where the filter is integrated.
+ * The marker is coordinator-only state on a plan node, so it has to survive generic tree rebuilds: it is part of
  * {@code FragmentExec}'s {@code NodeInfo} and its {@code equals}/{@code hashCode} for exactly that reason.
  *
  * <p>Because the filter is bound against the view's output schema, the fields it references must have been loaded from
@@ -87,14 +86,16 @@ import static org.elasticsearch.xpack.esql.dsltranslate.RequestFilterRewriter.ES
  */
 public final class ViewRequestFilterRewriter {
 
-    /**
-     * Gates applying the request filter to view outputs: on by default in snapshot builds, excluded from release builds
-     * unless {@code -Des.esql_request_filter_on_view_feature_flag_enabled=true}. Shipping this code therefore cannot
-     * change what an existing view query returns until we decide to turn it on.
-     */
-    public static final FeatureFlag REQUEST_FILTER_ON_VIEW_FEATURE_FLAG = new FeatureFlag("esql_request_filter_on_view");
-
     private ViewRequestFilterRewriter() {}
+
+    /**
+     * Whether every node the plan targets can deserialize the functions the translated filter may contain. This is the
+     * version gate described in the class javadoc; {@link #rewrite} and {@code PlannerUtils.integrateEsFilterIntoFragment}
+     * both consult it so the logical filter and the Lucene fallback can never both apply, or both be absent.
+     */
+    public static boolean supportsRewrite(TransportVersion minimumVersion) {
+        return minimumVersion.supports(ESQL_REQUEST_FILTER_ON_DATASET);
+    }
 
     /**
      * Whether {@code requestFilter} could actually put a {@link Filter} on a view's output — i.e. whether anything downstream needs
@@ -111,10 +112,7 @@ public final class ViewRequestFilterRewriter {
      * other way would push the filter into the view's source scan.
      */
     public static boolean appliesToViewOutputs(@Nullable QueryBuilder requestFilter) {
-        if (requestFilter == null || REQUEST_FILTER_ON_VIEW_FEATURE_FLAG.isEnabled() == false) {
-            return false;
-        }
-        return matchesEveryDocument(requestFilter) == false;
+        return requestFilter != null && matchesEveryDocument(requestFilter) == false;
     }
 
     /**
@@ -144,33 +142,26 @@ public final class ViewRequestFilterRewriter {
      *                       {@link ViewUnionAll} nodes carry their resolved subplans.
      * @param requestFilter  the Query DSL from the request; {@code null} means no filter and the plan is returned
      *                       unchanged.
-     * @param enabled        whether the feature is on (production passes {@link #REQUEST_FILTER_ON_VIEW_FEATURE_FLAG});
-     *                       when {@code false} the view is read unfiltered with a warning.
      * @param configuration  the query configuration — anchors {@code now} date math so a request filter over a view
      *                       resolves {@code "now-15m"} to the same instant the index path would, and supplies the
      *                       locale for case-folding.
-     * @param minimumVersion the minimum transport version across the nodes this plan targets; below
-     *                       {@link RequestFilterRewriter#ESQL_REQUEST_FILTER_ON_DATASET} the rewrite is skipped (see the
-     *                       class javadoc).
+     * @param minimumVersion the minimum transport version across the nodes this plan targets; when
+     *                       {@link #supportsRewrite} is false the rewrite is skipped and the filter falls back to the
+     *                       view's source scan (see the class javadoc).
      * @throws IllegalArgumentException if {@code requestFilter} contains a construct outside the supported subset —
      *                       the translation is fail-closed.
      */
     public static LogicalPlan rewrite(
         LogicalPlan analyzed,
         QueryBuilder requestFilter,
-        boolean enabled,
         Configuration configuration,
         TransportVersion minimumVersion
     ) {
         if (requestFilter == null) {
             return analyzed;
         }
-        if (enabled == false) {
-            warnNotApplied(analyzed, "applying the request filter to views is not enabled in this build");
-            return analyzed;
-        }
-        if (minimumVersion.supports(ESQL_REQUEST_FILTER_ON_DATASET) == false) {
-            warnNotApplied(analyzed, "the cluster contains a node too old to evaluate the translated filter");
+        if (supportsRewrite(minimumVersion) == false) {
+            warnPushedIntoSources(analyzed);
             return analyzed;
         }
         // Walk down and stop at the first ViewUnionAll on each path: the filter belongs on the output of the views the
@@ -255,10 +246,10 @@ public final class ViewRequestFilterRewriter {
     }
 
     /**
-     * Warns, via a response header, that the request filter was not applied to the view subplans in {@code plan},
-     * naming those views, when there are any.
+     * Warns, via a response header, that the request filter was pushed into the source indices of the views in {@code plan}
+     * rather than applied to their output, naming those views, when there are any.
      */
-    private static void warnNotApplied(LogicalPlan plan, String reason) {
+    private static void warnPushedIntoSources(LogicalPlan plan) {
         TreeSet<String> viewNames = new TreeSet<>();
         plan.forEachDown(ViewUnionAll.class, vua -> {
             for (String key : vua.viewBranchKeys()) {
@@ -267,10 +258,10 @@ public final class ViewRequestFilterRewriter {
         });
         if (viewNames.isEmpty() == false) {
             HeaderWarning.addWarning(
-                "The request filter was not applied to view(s) [{}] because {}; they were read unfiltered. "
-                    + "Use a WHERE clause to filter rows from views instead",
-                String.join(", ", viewNames),
-                reason
+                "The request filter was applied to the source indices of view(s) [{}] rather than to their output because the "
+                    + "cluster contains a node too old to evaluate the translated filter; a filter on a field a view computes "
+                    + "or renames may therefore be wrong. Use a WHERE clause to filter rows from views instead",
+                String.join(", ", viewNames)
             );
         }
     }

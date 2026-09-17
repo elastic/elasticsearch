@@ -44,7 +44,6 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 
-import static org.elasticsearch.xpack.esql.dsltranslate.ViewRequestFilterRewriter.REQUEST_FILTER_ON_VIEW_FEATURE_FLAG;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.instanceOf;
@@ -123,7 +122,7 @@ public class ViewRequestFilterRewriterTests extends ESTestCase {
     /** A null request filter is a no-op: the plan is returned unchanged. */
     public void testNullFilterLeavesPlanUnchanged() {
         ViewUnionAll vua = unionWithView("myView", attr("y", DataType.INTEGER));
-        assertSame(vua, ViewRequestFilterRewriter.rewrite(vua, null, true, CONFIG, CURRENT));
+        assertSame(vua, ViewRequestFilterRewriter.rewrite(vua, null, CONFIG, CURRENT));
     }
 
     /**
@@ -135,7 +134,7 @@ public class ViewRequestFilterRewriterTests extends ESTestCase {
         ViewUnionAll vua = unionWithView("myView", y);
         LogicalPlan original = vua.namedSubqueries().get("myView");
 
-        LogicalPlan result = ViewRequestFilterRewriter.rewrite(vua, QueryBuilders.termQuery("y", 42), true, CONFIG, CURRENT);
+        LogicalPlan result = ViewRequestFilterRewriter.rewrite(vua, QueryBuilders.termQuery("y", 42), CONFIG, CURRENT);
 
         LogicalPlan viewChild = viewChild(result, "myView");
         assertThat("filter is installed above the view subplan", viewChild, instanceOf(Filter.class));
@@ -160,7 +159,7 @@ public class ViewRequestFilterRewriterTests extends ESTestCase {
         map.put("myView", viewSubplan("myView", attr("y", DataType.INTEGER)));
         ViewUnionAll vua = new ViewUnionAll(Source.EMPTY, map, Set.of("myView"), List.of(attr("y", DataType.INTEGER)));
 
-        LogicalPlan result = ViewRequestFilterRewriter.rewrite(vua, QueryBuilders.termQuery("y", 42), true, CONFIG, CURRENT);
+        LogicalPlan result = ViewRequestFilterRewriter.rewrite(vua, QueryBuilders.termQuery("y", 42), CONFIG, CURRENT);
         assertThat(bareIndexChild(result), sameInstance(bare));
         assertThat(bareIndexChild(result), not(instanceOf(Filter.class)));
     }
@@ -174,7 +173,7 @@ public class ViewRequestFilterRewriterTests extends ESTestCase {
         map.put(null, bareIndex());
         ViewUnionAll vua = new ViewUnionAll(Source.EMPTY, map, Set.of(), List.of());
 
-        LogicalPlan result = ViewRequestFilterRewriter.rewrite(vua, QueryBuilders.termQuery("y", 42), true, CONFIG, CURRENT);
+        LogicalPlan result = ViewRequestFilterRewriter.rewrite(vua, QueryBuilders.termQuery("y", 42), CONFIG, CURRENT);
         assertSame(vua, result);
     }
 
@@ -183,7 +182,7 @@ public class ViewRequestFilterRewriterTests extends ESTestCase {
      */
     public void testPlanWithNoViewUnionAllIsUnchanged() {
         LogicalPlan indexOnly = bareIndex();
-        assertSame(indexOnly, ViewRequestFilterRewriter.rewrite(indexOnly, QueryBuilders.termQuery("y", 42), true, CONFIG, CURRENT));
+        assertSame(indexOnly, ViewRequestFilterRewriter.rewrite(indexOnly, QueryBuilders.termQuery("y", 42), CONFIG, CURRENT));
     }
 
     /**
@@ -194,7 +193,7 @@ public class ViewRequestFilterRewriterTests extends ESTestCase {
         ViewUnionAll vua = unionWithView("myView", attr("y", DataType.INTEGER));
         LogicalPlan original = vua.namedSubqueries().get("myView");
 
-        LogicalPlan result = ViewRequestFilterRewriter.rewrite(vua, QueryBuilders.matchAllQuery(), true, CONFIG, CURRENT);
+        LogicalPlan result = ViewRequestFilterRewriter.rewrite(vua, QueryBuilders.matchAllQuery(), CONFIG, CURRENT);
         // match_all → TRUE → view subplan not wrapped
         assertThat(viewChild(result, "myView"), sameInstance(original));
     }
@@ -213,7 +212,7 @@ public class ViewRequestFilterRewriterTests extends ESTestCase {
         map.put("viewB", viewSubplan("viewB", z));
         ViewUnionAll vua = new ViewUnionAll(Source.EMPTY, map, Set.of("viewA", "viewB"), List.of(y, z));
 
-        LogicalPlan result = ViewRequestFilterRewriter.rewrite(vua, QueryBuilders.termQuery("y", 1), true, CONFIG, CURRENT);
+        LogicalPlan result = ViewRequestFilterRewriter.rewrite(vua, QueryBuilders.termQuery("y", 1), CONFIG, CURRENT);
 
         // viewA has field y → bound to the attribute → real filter
         assertThat(viewChild(result, "viewA"), instanceOf(Filter.class));
@@ -228,7 +227,7 @@ public class ViewRequestFilterRewriterTests extends ESTestCase {
         ViewUnionAll vua = unionWithView("myView", attr("y", DataType.KEYWORD));
         IllegalArgumentException e = expectThrows(
             IllegalArgumentException.class,
-            () -> ViewRequestFilterRewriter.rewrite(vua, QueryBuilders.wildcardQuery("y", "x*"), true, CONFIG, CURRENT)
+            () -> ViewRequestFilterRewriter.rewrite(vua, QueryBuilders.wildcardQuery("y", "x*"), CONFIG, CURRENT)
         );
         assertThat(e.getMessage(), containsString("[wildcard]"));
         assertThat(e.getMessage(), containsString("views"));
@@ -245,76 +244,36 @@ public class ViewRequestFilterRewriterTests extends ESTestCase {
             () -> ViewRequestFilterRewriter.rewrite(
                 vua,
                 QueryBuilders.boolQuery().must(QueryBuilders.termQuery("y", "a")).must(QueryBuilders.wildcardQuery("y", "x*")),
-                true,
                 CONFIG,
                 CURRENT
             )
         );
     }
 
-    // --- feature flag gate ---
-
-    /**
-     * When the feature is disabled (release build without the flag) the view is read unfiltered and a warning names
-     * every distinct view, rather than the filter being silently dropped.
-     */
-    public void testDisabledLeavesThePlanUnchangedAndWarns() {
-        ViewUnionAll vua = unionWithView("myView", attr("y", DataType.INTEGER));
-
-        LogicalPlan result = ViewRequestFilterRewriter.rewrite(vua, QueryBuilders.termQuery("y", 1), false, CONFIG, CURRENT);
-        assertSame(vua, result);
-        assertWarnings(
-            "The request filter was not applied to view(s) [myView] because applying the request filter to "
-                + "views is not enabled in this build; they were read unfiltered. "
-                + "Use a WHERE clause to filter rows from views instead"
-        );
-    }
-
-    /** Disabled short-circuits before translation, so even an unsupported construct does not fail the query. */
-    public void testDisabledDoesNotFailOnUnsupportedConstruct() {
-        ViewUnionAll vua = unionWithView("myView", attr("y", DataType.KEYWORD));
-        LogicalPlan result = ViewRequestFilterRewriter.rewrite(vua, QueryBuilders.wildcardQuery("y", "x*"), false, CONFIG, CURRENT);
-        assertSame(vua, result);
-        assertWarnings(
-            "The request filter was not applied to view(s) [myView] because applying the request filter to "
-                + "views is not enabled in this build; they were read unfiltered. "
-                + "Use a WHERE clause to filter rows from views instead"
-        );
-    }
-
-    /**
-     * When the flag is disabled and there are no view subplans in the plan, no warning is emitted: there is nothing to
-     * tell the user about.
-     */
-    public void testDisabledWithNoViewsEmitsNoWarning() {
-        LogicalPlan indexOnly = bareIndex();
-        LogicalPlan result = ViewRequestFilterRewriter.rewrite(indexOnly, QueryBuilders.termQuery("y", 1), false, CONFIG, CURRENT);
-        assertSame(indexOnly, result);
-        // no warning expected; ESTestCase.assertWarnings checks all headers are clear if not called
-    }
-
     // --- version gate ---
 
     /**
      * The critical version gate: below {@link RequestFilterRewriter#ESQL_REQUEST_FILTER_ON_DATASET} the rewrite is
-     * skipped entirely so that no plan an old node cannot deserialize is shipped.
+     * skipped entirely so that no plan an old node cannot deserialize is shipped. The filter is not lost — the planner then
+     * pushes it into the view's source scan instead (see {@code ViewBranchFilterPushdownTests}) — but that path is wrong for
+     * computed fields, hence the warning.
      */
     public void testOldMinimumVersionSkipsRewriteAndWarns() {
         ViewUnionAll vua = unionWithView("myView", attr("y", DataType.INTEGER));
 
-        LogicalPlan result = ViewRequestFilterRewriter.rewrite(vua, QueryBuilders.termQuery("y", 1), true, CONFIG, TOO_OLD);
+        LogicalPlan result = ViewRequestFilterRewriter.rewrite(vua, QueryBuilders.termQuery("y", 1), CONFIG, TOO_OLD);
         assertSame(vua, result);
         assertWarnings(
-            "The request filter was not applied to view(s) [myView] because the cluster contains a node "
-                + "too old to evaluate the translated filter; they were read unfiltered. "
-                + "Use a WHERE clause to filter rows from views instead"
+            "The request filter was applied to the source indices of view(s) [myView] rather than to their output because the "
+                + "cluster contains a node too old to evaluate the translated filter; a filter on a field a view computes "
+                + "or renames may therefore be wrong. Use a WHERE clause to filter rows from views instead"
         );
     }
 
     /** A version-gate skip with no views in the plan is silent. */
     public void testOldVersionWithNoViewsIsQuiet() {
         LogicalPlan indexOnly = bareIndex();
-        LogicalPlan result = ViewRequestFilterRewriter.rewrite(indexOnly, QueryBuilders.termQuery("y", 1), true, CONFIG, TOO_OLD);
+        LogicalPlan result = ViewRequestFilterRewriter.rewrite(indexOnly, QueryBuilders.termQuery("y", 1), CONFIG, TOO_OLD);
         assertSame(indexOnly, result);
     }
 
@@ -326,11 +285,11 @@ public class ViewRequestFilterRewriterTests extends ESTestCase {
         map.put("viewB", viewSubplan("viewB", y));
         ViewUnionAll vua = new ViewUnionAll(Source.EMPTY, map, Set.of("viewA", "viewB"), List.of(y));
 
-        ViewRequestFilterRewriter.rewrite(vua, QueryBuilders.termQuery("y", 1), true, CONFIG, TOO_OLD);
+        ViewRequestFilterRewriter.rewrite(vua, QueryBuilders.termQuery("y", 1), CONFIG, TOO_OLD);
         assertWarnings(
-            "The request filter was not applied to view(s) [viewA, viewB] because the cluster contains a node "
-                + "too old to evaluate the translated filter; they were read unfiltered. "
-                + "Use a WHERE clause to filter rows from views instead"
+            "The request filter was applied to the source indices of view(s) [viewA, viewB] rather than to their output because the "
+                + "cluster contains a node too old to evaluate the translated filter; a filter on a field a view computes "
+                + "or renames may therefore be wrong. Use a WHERE clause to filter rows from views instead"
         );
     }
 
@@ -357,26 +316,10 @@ public class ViewRequestFilterRewriterTests extends ESTestCase {
         );
     }
 
-    /**
-     * Anything that can exclude a document needs the boundaries kept — when the feature is on. Its counterpart
-     * {@link #testRealFiltersDoNotNeedViewBoundariesWhenFeatureIsDisabled} runs in release builds, where the flag is off.
-     */
+    /** Anything that can exclude a document needs the boundaries kept. */
     public void testRealFiltersNeedViewBoundaries() {
-        assumeTrue("requires the request-filter-on-views feature flag", REQUEST_FILTER_ON_VIEW_FEATURE_FLAG.isEnabled());
         for (Map.Entry<String, QueryBuilder> filter : realFilters().entrySet()) {
             assertTrue(filter.getKey(), ViewRequestFilterRewriter.appliesToViewOutputs(filter.getValue()));
-        }
-    }
-
-    /**
-     * With the feature off nothing needs view boundaries, however real the filter: the flag gates the whole feature, not just the
-     * rewrite, so views compact as before and the filter takes the pre-feature Lucene path. Only runs where the flag is actually off,
-     * i.e. release builds — the {@code release-tests} CI job — rather than faking the flag.
-     */
-    public void testRealFiltersDoNotNeedViewBoundariesWhenFeatureIsDisabled() {
-        assumeFalse("requires the request-filter-on-views feature flag to be off", REQUEST_FILTER_ON_VIEW_FEATURE_FLAG.isEnabled());
-        for (Map.Entry<String, QueryBuilder> filter : realFilters().entrySet()) {
-            assertFalse(filter.getKey(), ViewRequestFilterRewriter.appliesToViewOutputs(filter.getValue()));
         }
     }
 
@@ -412,11 +355,11 @@ public class ViewRequestFilterRewriterTests extends ESTestCase {
             """);
         assertThat(kibanaEmpty, instanceOf(BoolQueryBuilder.class));
         assertFalse("Kibana's empty filter must not preserve view boundaries", ViewRequestFilterRewriter.appliesToViewOutputs(kibanaEmpty));
-        // Sanity: the same bool with one real clause does need them (feature on), so the assertion above is not vacuous.
+        // Sanity: the same bool with one real clause does need them, so the assertion above is not vacuous.
         QueryBuilder withClause = parseFilter("""
             { "bool": { "must": [ { "term": { "region": "eu" } } ], "filter": [], "should": [], "must_not": [] } }
             """);
-        assertThat(ViewRequestFilterRewriter.appliesToViewOutputs(withClause), equalTo(REQUEST_FILTER_ON_VIEW_FEATURE_FLAG.isEnabled()));
+        assertTrue(ViewRequestFilterRewriter.appliesToViewOutputs(withClause));
     }
 
     private static QueryBuilder parseFilter(String json) throws IOException {

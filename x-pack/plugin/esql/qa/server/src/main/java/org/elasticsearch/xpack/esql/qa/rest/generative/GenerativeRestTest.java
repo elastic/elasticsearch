@@ -186,6 +186,7 @@ public abstract class GenerativeRestTest extends ESRestTestCase implements Query
         // throwing IllegalArgumentException via PackedValuesBlockHash
         // see https://github.com/elastic/elasticsearch/issues/145694
         "Found a single entry with .* entries",
+        "All SPARKLINE functions in a single STATS command must share the same timestamp, buckets, from, and to value",
 
         // Awaiting fixes for query failure
         "Unknown column \\[<all-fields-projected>\\]", // https://github.com/elastic/elasticsearch/issues/121741,
@@ -197,7 +198,6 @@ public abstract class GenerativeRestTest extends ESRestTestCase implements Query
         // "optimized incorrectly due to missing references", // https://github.com/elastic/elasticsearch/issues/138231
         // https://github.com/elastic/elasticsearch/issues/142537 for null arguments in clamp() function
         "'field' must not be null in clamp\\(\\)", // clamp/clamp_min/clamp_max reject NULL field from unmapped fields
-        "must be \\[boolean, date, ip, string or numeric except unsigned_long or counter types\\]", // type mismatch in top() arguments
         "Does not support yet aggregations over constants", // https://github.com/elastic/elasticsearch/issues/118292
         "Field \\[.*\\] of type \\[.*\\] does not support match.* queries",
 

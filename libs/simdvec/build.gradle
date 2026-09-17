@@ -16,7 +16,7 @@ apply plugin: 'elasticsearch.foreign-library'
 apply plugin: 'elasticsearch.foreign-api'
 apply plugin: 'java-test-fixtures'
 apply plugin: 'elasticsearch.native-library-build'
-apply plugin: 'elasticsearch.jmh'
+apply plugin: 'elasticsearch.benchmark'
 
 dependencies {
   implementation project(':libs:lucene-store')
@@ -37,7 +37,7 @@ dependencies {
 
   // JMH benchmark source set. jmh-core, jopt-simple, commons-math3, :benchmarks:common,
   // :benchmarks:processor and :test:framework (the latter for benchmarkTest only) are
-  // added by elasticsearch.jmh; everything below is what this module needs on top.
+  // added by elasticsearch.benchmark; everything below is what this module needs on top.
   benchmarkImplementation testFixtures(project(':libs:simdvec'))
   benchmarkImplementation project(':server')
   // VectorTestUtils lives in :test:framework main and is used from benchmark bodies, not

@@ -693,6 +693,7 @@ final class ColumNARDocValuesConsumer extends DocValuesConsumer {
             options.targetChunkBytes(),
             options.plainPathTargetChunkBytes(),
             options.compressedOrdinalBlockSize(),
+            options.slotCountsBlockSize(),
             options.dictionary(),
             known,
             directory,

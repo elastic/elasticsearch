@@ -216,9 +216,10 @@ public class StatelessMemoryMetricsServiceTests extends ESTestCase {
         final var updatingMetric = new UpdatingOnSnapshotShardMemoryMetrics(initialMappingSize, updatedMappingSize);
         service.getShardMemoryMetrics().put(shardId, updatingMetric);
 
-        // getEstimatedHeapUsageStats snapshots shardMemoryMetrics first. The custom metric below returns the old values to that
-        // snapshot and then updates the live metric. Both node-level and shard-level estimates must keep reading from the old
-        // captured snapshot; without that snapshot, one side of the combined response could observe the live updated values.
+        // getEstimatedHeapUsageStats will invoke snapshot() on the updatingMetric set in the service's shardMemoryMetrics map.
+        // updatingMetric will return some initial values to that snapshot and then update the shard's metrics in the live map to new
+        // values. Both node-level and shard-level estimates must keep reading from the old captured snapshot; without that snapshot, one
+        // side of the combined response could observe the live updated values.
         final EstimatedHeapUsageStats estimatedHeapUsageStats = service.getEstimatedHeapUsageStats(clusterState);
 
         assertThat(updatingMetric.updatedDuringSnapshot(), equalTo(true));

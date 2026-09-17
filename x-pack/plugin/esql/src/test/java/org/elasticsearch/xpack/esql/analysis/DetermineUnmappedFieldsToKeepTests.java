@@ -10,6 +10,7 @@ package org.elasticsearch.xpack.esql.analysis;
 import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.xpack.esql.EsqlTestUtils;
 import org.elasticsearch.xpack.esql.TestAnalyzer;
+import org.elasticsearch.xpack.esql.VersionMode;
 import org.elasticsearch.xpack.esql.action.EsqlCapabilities;
 import org.elasticsearch.xpack.esql.core.util.CollectionUtils;
 import org.elasticsearch.xpack.esql.plan.logical.EsRelation;
@@ -34,6 +35,10 @@ import static org.hamcrest.Matchers.is;
  * candidate field names the resulting pattern would keep via {@link UnmappedFieldsPattern#matches(String)}.
  */
 public class DetermineUnmappedFieldsToKeepTests extends AnalyzerUnmappedTestBase {
+
+    public DetermineUnmappedFieldsToKeepTests(VersionMode versionMode) {
+        super(versionMode);
+    }
 
     /**
      * Mapped field names in the "test" index (from mapping-basic.json). They are always excluded from
@@ -656,7 +661,7 @@ public class DetermineUnmappedFieldsToKeepTests extends AnalyzerUnmappedTestBase
         }
     }
 
-    private static void assertNoUnmappedFieldsAttribute(String query) {
+    private void assertNoUnmappedFieldsAttribute(String query) {
         LogicalPlan plan = test().statement(setUnmappedLoadAll(query));
         for (EsRelation relation : plan.collect(EsRelation.class)) {
             assertThat("expected no UnmappedFieldsAttribute on " + relation, unmappedFieldsAttributes(relation), empty());
@@ -682,7 +687,7 @@ public class DetermineUnmappedFieldsToKeepTests extends AnalyzerUnmappedTestBase
         assertKept(pattern, randomValueOtherThanMany(excluded::contains, () -> randomAlphaOfLength(10)));
     }
 
-    private static UnmappedFieldsPattern patternFor(String query) {
+    private UnmappedFieldsPattern patternFor(String query) {
         return patternOf(test().statement(setUnmappedLoadAll(query)));
     }
 

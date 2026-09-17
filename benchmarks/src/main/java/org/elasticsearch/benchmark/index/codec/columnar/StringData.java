@@ -234,6 +234,28 @@ public enum StringData {
             }
             return values;
         }
+    },
+
+    /**
+     * The same vocabulary and value multiset as {@link #CLUSTERED_POD_NAME}, with document order
+     * permuted uniformly at random. Cardinality, value length, and vocabulary size are identical to
+     * {@code CLUSTERED_POD_NAME}; the only difference is that no value clusters near similar values in
+     * document order. Comparing the two isolates the contribution of doc-order clustering from the
+     * contribution of cardinality and value length, which no existing pair of shapes does.
+     */
+    SHUFFLED_POD_NAME {
+        @Override
+        BytesRef[] generate(int count, Random random) {
+            final BytesRef[] clustered = CLUSTERED_POD_NAME.generate(count, random);
+            // Fisher-Yates shuffle: each position i swaps with a uniformly chosen position in [i, count).
+            for (int i = count - 1; i > 0; i--) {
+                final int j = random.nextInt(i + 1);
+                final BytesRef tmp = clustered[i];
+                clustered[i] = clustered[j];
+                clustered[j] = tmp;
+            }
+            return clustered;
+        }
     };
 
     abstract BytesRef[] generate(int count, Random random);

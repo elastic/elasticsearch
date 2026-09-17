@@ -14,6 +14,7 @@ import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.search.SearchType;
 import org.elasticsearch.action.search.TransportSearchAction;
 import org.elasticsearch.action.support.PlainActionFuture;
+import org.elasticsearch.action.support.SubscribableListener;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
@@ -85,9 +86,9 @@ public class ExecutableSearchInput extends ExecutableInput<SearchInput, SearchIn
 
         ClientHelper.assertNoAuthorizationHeader(ctx.watch().status().getHeaders());
         SearchRequest searchRequest = searchTemplateService.toSearchRequest(request);
-        // Use PlainActionFuture so the cleanup fires at actual search completion,
-        // not merely when actionGet(timeout) stops waiting.
-        PlainActionFuture<SearchResponse> future = new PlainActionFuture<>();
+        // Use SubscribableListener so that if actionGet(timeout) times out, a cleanup
+        // listener can be added after the fact to decRef any late-arriving response.
+        SubscribableListener<SearchResponse> subscribable = new SubscribableListener<>();
         ClientHelper.executeWithHeadersAsync(
             ctx.watch().status().getHeaders(),
             ClientHelper.WATCHER_ORIGIN,
@@ -96,13 +97,16 @@ public class ExecutableSearchInput extends ExecutableInput<SearchInput, SearchIn
             searchRequest,
             ActionListener.runAfter(ActionListener.wrap(r -> {
                 r.mustIncRef();
-                future.onResponse(r);
-            }, future::onFailure), () -> { if (searchRequest.source() != null) searchRequest.source().close(); })
+                subscribable.onResponse(r);
+            }, subscribable::onFailure), () -> { if (searchRequest.source() != null) searchRequest.source().close(); })
         );
+        PlainActionFuture<SearchResponse> future = new PlainActionFuture<>();
+        subscribable.addListener(future);
         final SearchResponse response;
         try {
             response = future.actionGet(timeout);
         } catch (Exception e) {
+            subscribable.addListener(ActionListener.wrap(SearchResponse::decRef, ignore -> {}));
             if (searchRequest.source() != null) searchRequest.source().close();
             throw e;
         }

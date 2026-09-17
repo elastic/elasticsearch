@@ -241,10 +241,10 @@ public class StatelessMemoryMetricsServiceTests extends ESTestCase {
         assertThat(service.getShardHeapUsageEstimates().perShard().get(shardId), not(equalTo(shardEstimate)));
     }
 
-        /**
-         * Metric override that will supply the {@code initialMappingSize} for the first snapshot() call and then {@code updatedMappingSize}
-         * for any subsequent calls. Helpful to prove subsequent updates do not alter snapshots of the shard metrics.
-         */
+    /**
+     * Metric override that will supply the {@code initialMappingSize} for the first snapshot() call and then {@code updatedMappingSize}
+     * for any subsequent calls. Helpful to prove subsequent updates do not alter snapshots of the shard metrics.
+     */
     private static class UpdatingOnSnapshotShardMemoryMetrics extends StatelessMemoryMetricsService.ShardMemoryMetrics {
 
         private final ShardMappingSize updatedMappingSize;

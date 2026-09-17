@@ -47,6 +47,9 @@ import static org.elasticsearch.simdjson.internal.parsers.CharacterUtils.hexToIn
  *       {@code VectorUtils}.</li>
  *   <li>Omits upstream {@code parseChar} and length-prefixed {@code parseString} overloads not
  *       needed by the ESCF walker.</li>
+ *   <li>Adds {@link #scanUnescapedLength}, a vectorized quote/backslash scan used by the walker
+ *       to size and copy escape-free string values without a full {@link #parseString} call;
+ *       not present upstream.</li>
  * </ul>
  */
 public final class StringParser {
@@ -62,6 +65,49 @@ public final class StringParser {
 
     public int parseString(byte[] buffer, int idx, byte[] stringBuffer) {
         return doParseString(buffer, idx, stringBuffer, 0);
+    }
+
+    /**
+     * Vectorized scan for the common case where the JSON string value starting at {@code idx}
+     * (the opening quote) contains no backslash escape before its closing quote.
+     *
+     * <p>Returns the string's raw byte length (bytes strictly between the quotes) if no escape
+     * is found. Returns {@code -1} the moment a backslash is seen, before scanning any further —
+     * callers should fall back to {@link #parseString} in that case, which discovers the true
+     * content on its own and does not need a pre-computed length.
+     *
+     * <p>Reuses the same quote/backslash vector comparison {@link #doParseString} uses, but skips
+     * all copying, so the escape-free case — the overwhelming majority of string values in
+     * practice — costs a single vectorized pass instead of the two scalar byte-at-a-time passes
+     * (length, then backslash-presence) it replaces.
+     */
+    public int scanUnescapedLength(byte[] buffer, int idx) {
+        int src = idx + 1;
+        int start = src;
+        int loopBound = buffer.length - BYTES_PROCESSED;
+        while (src <= loopBound) {
+            ByteVector srcVec = ByteVector.fromArray(BYTE_SPECIES, buffer, src);
+            long backslashBits = srcVec.eq(BACKSLASH).toLong();
+            long quoteBits = srcVec.eq(QUOTE).toLong();
+
+            if (hasQuoteFirst(backslashBits, quoteBits)) {
+                return src + Long.numberOfTrailingZeros(quoteBits) - start;
+            }
+            if (hasBackslash(backslashBits, quoteBits)) {
+                return -1;
+            }
+            src += BYTES_PROCESSED;
+        }
+        while (true) {
+            byte b = buffer[src];
+            if (b == QUOTE) {
+                return src - start;
+            }
+            if (b == BACKSLASH) {
+                return -1;
+            }
+            src++;
+        }
     }
 
     private int doParseString(byte[] buffer, int idx, byte[] stringBuffer, int offset) {

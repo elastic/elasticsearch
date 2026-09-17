@@ -10,6 +10,7 @@ package org.elasticsearch.xpack.esql.qa.mixed;
 import com.carrotsearch.randomizedtesting.annotations.ThreadLeakFilters;
 
 import org.apache.http.HttpHost;
+import org.elasticsearch.Version;
 import org.elasticsearch.client.Request;
 import org.elasticsearch.client.Response;
 import org.elasticsearch.client.RestClient;
@@ -76,11 +77,11 @@ public class MixedClusterExternalSourceIT extends ESRestTestCase {
             assumeFalse("FIPS mode requires security enabled; this test uses a plain HTTP S3 fixture", inFipsJvm());
             assumeTrue(
                 "external data-source BWC coverage starts at 9.5.0",
-                EsqlDataSourceMixedClusterTestSupport.bwcVersion().onOrAfter(org.elasticsearch.Version.V_9_5_0)
+                EsqlDataSourceMixedClusterTestSupport.bwcVersion().onOrAfter(Version.V_9_5_0)
             );
             assumeTrue(
                 "requires distinguishable old and current nodes",
-                EsqlDataSourceMixedClusterTestSupport.bwcVersion().before(org.elasticsearch.Version.CURRENT)
+                EsqlDataSourceMixedClusterTestSupport.bwcVersion().before(Version.CURRENT)
             );
             base.evaluate();
         }
@@ -244,7 +245,7 @@ public class MixedClusterExternalSourceIT extends ESRestTestCase {
             nodesInfo,
             false
         );
-        boolean everyNodeTranslates = EsqlDataSourceMixedClusterTestSupport.bwcVersion().onOrAfter(org.elasticsearch.Version.V_9_6_0);
+        boolean everyNodeTranslates = EsqlDataSourceMixedClusterTestSupport.bwcVersion().onOrAfter(Version.V_9_6_0);
 
         List<Object> allIds = List.of(1, 2, 3, 4);
         List<FilterCase> cases = List.of(new FilterCase("a keyword range with an upper bound (mv_less)", """

@@ -565,7 +565,7 @@ public class ExternalDatasetRequestFilterConformanceIT extends AbstractExternalD
 
     /**
      * REST: {@code allow_partial_dsl_filter} is withdrawn, so sending it is a request error rather than a way to
-     * select the strict policy. Pins the removal — a reintroduced parameter would make this pass silently.
+     * select the strict policy. Pins the removal: reintroducing the parameter makes this test fail.
      */
     public void testWithdrawnPartialFilterParameterIsRejected() throws IOException {
         // The parameter came out of both REST specifications, so pin the removal on both endpoints.

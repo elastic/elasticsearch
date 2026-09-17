@@ -539,6 +539,9 @@ public class FileDataSourceValidator implements DataSourceValidator {
         // query path uses, so a malformed setting is rejected at PUT time with the same message it
         // would produce at query time. Each parser reads the keys it owns from the settings map.
         // error_mode + max_errors + max_error_ratio (incl. mutual exclusion) via the owning policy parser.
+        // Registration refuses a bare budget (max_errors/max_error_ratio without error_mode) — the query
+        // path infers skip_row in that case but the inference must be made explicit at registration time.
+        validate(() -> ErrorPolicy.validateRegistrationBudget(settings), errors);
         validate(() -> ErrorPolicy.fromConfig(settings, ErrorPolicy.STRICT), errors);
         // partition_detection enum, plus the combinations in which one of the two active partition settings
         // (partition_detection, partition_path) would be silently ignored, via the owning parser.
@@ -672,6 +675,18 @@ public class FileDataSourceValidator implements DataSourceValidator {
         }
 
         errors.throwIfValidationErrorsExist();
+        // New PUTs that omit schema_resolution store the cluster default (first_file_wins) so GET
+        // and a later no-op PUT of that same body see the same map. Re-PUT of a legacy document that
+        // still omits the key is a full replace and also stores first_file_wins. Cluster-state
+        // documents that predate this key hydrate as union_by_name at query time; that path does
+        // not go through this validator.
+        //
+        // Stamped on every omit-key PUT, including single-file and declared-mapping datasets. GET
+        // then shows the same default a later glob would use; the key is inert until
+        // resolveMultiFile consults it.
+        if (result.get(ExternalSourceResolver.CONFIG_SCHEMA_RESOLUTION) == null) {
+            result.put(ExternalSourceResolver.CONFIG_SCHEMA_RESOLUTION, FormatReader.DEFAULT_SCHEMA_RESOLUTION.configName());
+        }
         return result;
     }
 

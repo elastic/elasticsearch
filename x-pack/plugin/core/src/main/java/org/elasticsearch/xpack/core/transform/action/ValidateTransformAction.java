@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.core.transform.action;
 
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.action.ActionType;
@@ -25,6 +26,7 @@ import org.elasticsearch.xpack.core.security.cloud.CloudCredential;
 import org.elasticsearch.xpack.core.transform.transforms.TransformConfig;
 
 import java.io.IOException;
+import java.time.Instant;
 import java.util.Map;
 import java.util.Objects;
 
@@ -41,6 +43,12 @@ public class ValidateTransformAction extends ActionType<ValidateTransformAction.
 
     public static class Request extends AcknowledgedRequest<Request> implements Releasable {
 
+        /**
+         * Gates the {@code from} start-time bound on the wire. Silently dropped for older validate nodes,
+         * which simply run validation unbounded (the prior behavior).
+         */
+        public static final TransportVersion TRANSFORM_VALIDATE_FROM = TransportVersion.fromName("transform_validate_from");
+
         private final TransformConfig config;
         private final boolean deferValidation;
         // Caller's UIAM cloud credential carried on the request payload so it survives the
@@ -48,16 +56,29 @@ public class ValidateTransformAction extends ActionType<ValidateTransformAction.
         // receiver re-injects it into its local thread context before invoking user-data ops.
         @Nullable
         private final CloudCredential cloudCredential;
+        @Nullable
+        private final Instant from;
 
         public Request(TransformConfig config, boolean deferValidation, TimeValue timeout) {
-            this(config, deferValidation, timeout, null);
+            this(config, deferValidation, timeout, null, null);
         }
 
         public Request(TransformConfig config, boolean deferValidation, TimeValue timeout, @Nullable CloudCredential cloudCredential) {
+            this(config, deferValidation, timeout, cloudCredential, null);
+        }
+
+        public Request(
+            TransformConfig config,
+            boolean deferValidation,
+            TimeValue timeout,
+            @Nullable CloudCredential cloudCredential,
+            @Nullable Instant from
+        ) {
             super(TRAPPY_IMPLICIT_DEFAULT_MASTER_NODE_TIMEOUT, timeout);
             this.config = config;
             this.deferValidation = deferValidation;
             this.cloudCredential = cloudCredential;
+            this.from = from;
         }
 
         public Request(StreamInput in) throws IOException {
@@ -69,6 +90,7 @@ public class ValidateTransformAction extends ActionType<ValidateTransformAction.
             } else {
                 this.cloudCredential = null;
             }
+            this.from = in.getTransportVersion().supports(TRANSFORM_VALIDATE_FROM) ? in.readOptionalInstant() : null;
         }
 
         @Override
@@ -97,6 +119,11 @@ public class ValidateTransformAction extends ActionType<ValidateTransformAction.
             return cloudCredential;
         }
 
+        @Nullable
+        public Instant from() {
+            return from;
+        }
+
         @Override
         public void writeTo(StreamOutput out) throws IOException {
             super.writeTo(out);
@@ -104,6 +131,9 @@ public class ValidateTransformAction extends ActionType<ValidateTransformAction.
             out.writeBoolean(this.deferValidation);
             if (out.getTransportVersion().supports(TRANSFORM_CLOUD_TOKEN)) {
                 out.writeOptionalWriteable(this.cloudCredential);
+            }
+            if (out.getTransportVersion().supports(TRANSFORM_VALIDATE_FROM)) {
+                out.writeOptionalInstant(this.from);
             }
         }
 
@@ -125,13 +155,16 @@ public class ValidateTransformAction extends ActionType<ValidateTransformAction.
             // the base class does not implement equals, therefore we need to check timeout ourselves.
             // cloudCredential is intentionally excluded: it's a request-scoped secret carrier, not part
             // of the logical request identity, and its SecureString does not implement value equality.
-            return Objects.equals(config, that.config) && deferValidation == that.deferValidation && ackTimeout().equals(that.ackTimeout());
+            return Objects.equals(config, that.config)
+                && deferValidation == that.deferValidation
+                && ackTimeout().equals(that.ackTimeout())
+                && Objects.equals(from, that.from);
         }
 
         @Override
         public int hashCode() {
             // the base class does not implement hashCode, therefore we need to hash timeout ourselves
-            return Objects.hash(ackTimeout(), config, deferValidation);
+            return Objects.hash(ackTimeout(), config, deferValidation, from);
         }
 
         @Override

@@ -20,6 +20,8 @@ import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.ValidationException;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
+import org.elasticsearch.core.Nullable;
+import org.elasticsearch.index.query.RangeQueryBuilder;
 import org.elasticsearch.ingest.IngestService;
 import org.elasticsearch.injection.guice.Inject;
 import org.elasticsearch.license.License;
@@ -34,11 +36,15 @@ import org.elasticsearch.xpack.core.transform.TransformMessages;
 import org.elasticsearch.xpack.core.transform.action.ValidateTransformAction;
 import org.elasticsearch.xpack.core.transform.action.ValidateTransformAction.Request;
 import org.elasticsearch.xpack.core.transform.action.ValidateTransformAction.Response;
+import org.elasticsearch.xpack.core.transform.transforms.SourceConfig;
+import org.elasticsearch.xpack.core.transform.transforms.TimeSyncConfig;
+import org.elasticsearch.xpack.core.transform.transforms.TransformConfig;
 import org.elasticsearch.xpack.transform.TransformServices;
 import org.elasticsearch.xpack.transform.transforms.FunctionFactory;
 import org.elasticsearch.xpack.transform.transforms.TransformNodes;
 import org.elasticsearch.xpack.transform.utils.SourceDestValidations;
 
+import java.time.Instant;
 import java.util.Map;
 
 import static java.util.Collections.emptyMap;
@@ -140,6 +146,10 @@ public class TransportValidateTransformAction extends HandledTransportAction<Req
         // headers). Scope cross-project resolution to whether that credential can actually fan out.
         var sourceIndicesOptions = config.getSource().indicesOptions(request.cloudCredential() != null);
 
+        // When _start was called with a from bound, restrict the validation searches to data at/after it,
+        // mirroring how the running indexer bounds its source query via the sync-field range filter.
+        final SourceConfig validationSource = boundValidationSource(config, request.from());
+
         // <6> Final listener
         ActionListener<Map<String, String>> deduceMappingsListener = ActionListener.wrap(deducedMappings -> {
             listener.onResponse(new Response(deducedMappings));
@@ -158,7 +168,7 @@ public class TransportValidateTransformAction extends HandledTransportAction<Req
                     parentClient,
                     config.getHeaders(),
                     config.getId(),
-                    config.getSource(),
+                    validationSource,
                     sourceIndicesOptions,
                     deduceMappingsListener
                 );
@@ -170,14 +180,7 @@ public class TransportValidateTransformAction extends HandledTransportAction<Req
             if (request.isDeferValidation()) {
                 l.onResponse(true);
             } else {
-                function.validateQuery(
-                    parentClient,
-                    config.getHeaders(),
-                    config.getSource(),
-                    sourceIndicesOptions,
-                    request.ackTimeout(),
-                    l
-                );
+                function.validateQuery(parentClient, config.getHeaders(), validationSource, sourceIndicesOptions, request.ackTimeout(), l);
             }
         });
 
@@ -231,6 +234,22 @@ public class TransportValidateTransformAction extends HandledTransportAction<Req
             ),
             validateSourceDestListener
         );
+    }
+
+    /**
+     * Returns the transform's source, restricted to data at/after {@code from} when a start-time bound was
+     * supplied for a continuous (time-sync) transform. This mirrors how the running indexer bounds its
+     * source query, so validation searches don't scan the full (potentially cold) time range. {@code from}
+     * is only ever set for time-sync transforms, so the sync field is always available when it is non-null.
+     */
+    static SourceConfig boundValidationSource(TransformConfig config, @Nullable Instant from) {
+        if (from != null && config.getSyncConfig() instanceof TimeSyncConfig timeSyncConfig) {
+            return config.getSource()
+                .withAdditionalQueryFilter(
+                    new RangeQueryBuilder(timeSyncConfig.getField()).gte(from.toEpochMilli()).format("epoch_millis")
+                );
+        }
+        return config.getSource();
     }
 
     // An explicit remote/cross-project source ("cluster:index"), other than the CPS local qualifier

@@ -10,6 +10,10 @@ package org.elasticsearch.xpack.core.transform.transforms;
 import org.elasticsearch.TransportVersion;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.common.io.stream.Writeable.Reader;
+import org.elasticsearch.index.query.BoolQueryBuilder;
+import org.elasticsearch.index.query.QueryBuilder;
+import org.elasticsearch.index.query.RangeQueryBuilder;
+import org.elasticsearch.index.query.TermQueryBuilder;
 import org.elasticsearch.xcontent.XContentParseException;
 import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xcontent.json.JsonXContent;
@@ -300,6 +304,32 @@ public class SourceConfigTests extends AbstractSerializingTransformTestCase<Sour
         SourceConfig cleared = withRouting.withProjectRouting(null);
         assertThat(cleared.getProjectRouting(), is(equalTo(null)));
         assertThat(cleared.getIndex(), equalTo(original.getIndex()));
+    }
+
+    public void testWithAdditionalQueryFilter() {
+        QueryBuilder originalQuery = new TermQueryBuilder("field", "value");
+        SourceConfig original = new SourceConfig(
+            new String[] { "index1", "index2" },
+            new QueryConfig(Map.of(TermQueryBuilder.NAME, Map.of("field", "value")), originalQuery),
+            Map.of("field", Map.of("type", "keyword")),
+            indicesOptions(),
+            "_alias:_origin"
+        );
+        QueryBuilder extraFilter = new RangeQueryBuilder("@timestamp").gte(123L).format("epoch_millis");
+
+        SourceConfig bounded = original.withAdditionalQueryFilter(extraFilter);
+
+        // The query becomes the original ANDed with the extra filter, and both the parsed query and its
+        // serialized source map reflect that (forQuery keeps the two representations in lockstep).
+        QueryBuilder expected = new BoolQueryBuilder().filter(originalQuery).filter(extraFilter);
+        assertThat(bounded.getQueryConfig().getQuery(), equalTo(expected));
+        assertThat(bounded.getQueryConfig(), equalTo(QueryConfig.forQuery(expected)));
+
+        // Everything else is preserved.
+        assertThat(bounded.getIndex(), equalTo(original.getIndex()));
+        assertThat(bounded.getRuntimeMappings(), equalTo(original.getRuntimeMappings()));
+        assertThat(bounded.indicesOptions(true), equalTo(original.indicesOptions(true)));
+        assertThat(bounded.getProjectRouting(), equalTo(original.getProjectRouting()));
     }
 
     public void testIndicesOptionsScopingDropsCrossProjectWhenNotAllowed() {

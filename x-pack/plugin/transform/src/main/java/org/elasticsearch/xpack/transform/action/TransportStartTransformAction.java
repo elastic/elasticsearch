@@ -337,7 +337,8 @@ public class TransportStartTransformAction extends TransportMasterNodeAction<Sta
                 config,
                 false,
                 request.ackTimeout(),
-                CloudCredential.copyOf(request.getCloudCredential())
+                CloudCredential.copyOf(request.getCloudCredential()),
+                request.from()
             );
             ClientHelper.executeAsyncWithOrigin(
                 parentClient,

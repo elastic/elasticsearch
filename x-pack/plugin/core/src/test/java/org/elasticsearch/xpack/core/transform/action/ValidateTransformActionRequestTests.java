@@ -18,7 +18,9 @@ import org.elasticsearch.xpack.core.transform.transforms.TransformConfig;
 import org.elasticsearch.xpack.core.transform.transforms.TransformConfigTests;
 
 import java.io.IOException;
+import java.time.Instant;
 
+import static org.elasticsearch.xpack.core.transform.action.ValidateTransformAction.Request.TRANSFORM_VALIDATE_FROM;
 import static org.elasticsearch.xpack.core.transform.transforms.TransformConfig.TRANSFORM_CLOUD_TOKEN;
 import static org.elasticsearch.xpack.core.transform.transforms.TransformConfigTests.randomTransformConfig;
 import static org.hamcrest.Matchers.is;
@@ -32,7 +34,8 @@ public class ValidateTransformActionRequestTests extends AbstractWireSerializing
         // Randomly include a cloud credential so the wire path with the optional field is exercised
         // by the inherited round-trip test even though the field is excluded from equals/hashCode.
         CloudCredential cloudCredential = randomBoolean() ? randomCloudCredential() : null;
-        return new Request(randomTransformConfig(), randomBoolean(), randomTimeValue(), cloudCredential);
+        Instant from = randomBoolean() ? Instant.ofEpochMilli(randomNonNegativeLong()) : null;
+        return new Request(randomTransformConfig(), randomBoolean(), randomTimeValue(), cloudCredential, from);
     }
 
     @Override
@@ -45,15 +48,17 @@ public class ValidateTransformActionRequestTests extends AbstractWireSerializing
         TransformConfig config = instance.getConfig();
         boolean deferValidation = instance.isDeferValidation();
         TimeValue timeout = instance.ackTimeout();
+        Instant from = instance.from();
 
-        switch (between(0, 2)) {
+        switch (between(0, 3)) {
             case 0 -> config = new TransformConfig.Builder(config).setId(config.getId() + randomAlphaOfLengthBetween(1, 5)).build();
             case 1 -> deferValidation ^= true;
             case 2 -> timeout = new TimeValue(timeout.duration() + randomLongBetween(1, 5), timeout.timeUnit());
+            case 3 -> from = from == null ? Instant.ofEpochMilli(randomNonNegativeLong()) : null;
             default -> throw new AssertionError("Illegal randomization branch");
         }
 
-        return new Request(config, deferValidation, timeout, instance.cloudCredential());
+        return new Request(config, deferValidation, timeout, instance.cloudCredential(), from);
     }
 
     @Override
@@ -61,13 +66,32 @@ public class ValidateTransformActionRequestTests extends AbstractWireSerializing
         // SourceConfig has version-gated fields (projectRouting, indicesOptions); delegate to the shared
         // TransformConfig helper that knows how to drop them for older versions. cloudCredential is
         // excluded from Request.equals so it passes through unchanged here; the explicit drop semantics
-        // are asserted by testCloudCredentialDroppedWhenWireVersionTooOld.
+        // are asserted by testCloudCredentialDroppedWhenWireVersionTooOld. from is part of equals, so it
+        // must be dropped for versions that predate its wire support to match the round-tripped instance.
+        Instant from = version.supports(TRANSFORM_VALIDATE_FROM) ? instance.from() : null;
         return new Request(
             TransformConfigTests.mutateForVersion(instance.getConfig(), version),
             instance.isDeferValidation(),
             instance.ackTimeout(),
-            instance.cloudCredential()
+            instance.cloudCredential(),
+            from
         );
+    }
+
+    public void testFromDroppedWhenWireVersionTooOld() throws IOException {
+        Request original = new Request(
+            randomTransformConfig(),
+            randomBoolean(),
+            randomTimeValue(),
+            null,
+            Instant.ofEpochMilli(randomNonNegativeLong())
+        );
+
+        var olderVersion = TransportVersionUtils.randomVersionNotSupporting(TRANSFORM_VALIDATE_FROM);
+        Request copy = copyWriteable(original, getNamedWriteableRegistry(), instanceReader(), olderVersion);
+        // Older receivers can't decode the new optional field, so it must round-trip as null and the
+        // validation search simply runs unbounded, matching pre-change behavior.
+        assertThat(copy.from(), is(nullValue()));
     }
 
     public void testCloudCredentialRoundTripPreservesValue() throws IOException {

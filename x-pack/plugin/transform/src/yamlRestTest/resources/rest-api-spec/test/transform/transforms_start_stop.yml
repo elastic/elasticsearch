@@ -315,6 +315,16 @@ teardown:
         transform_id: "airline-transform-start-stop"
 
 ---
+"Test start continuous transform with valid from parameter":
+  # from bounds the validation searches (composite-agg query + field_caps) to data at/after it,
+  # mirroring the running indexer. The transform must still start successfully.
+  - do:
+      transform.start_transform:
+        from: "2023-01-11T12:00:00"
+        transform_id: "airline-transform-start-stop-continuous"
+  - match: { acknowledged: true }
+
+---
 "Test start continuous transform with initial_delay parameter":
   - do:
       transform.start_transform:

@@ -193,6 +193,7 @@ public final class FixtureDimensions {
     private final Map<String, Map<String, String>> backendByName;
     private final Map<String, Map<String, String>> extensionByName;
     private final Map<String, Map<String, String>> absenceByName;
+    private final Map<String, Map<String, String>> rejectionByName;
     private final Map<String, Map<String, String>> tierByName;
     private final Set<String> formatSpecificKeys;
     private final Map<String, Set<String>> valueDisjointByPair;
@@ -213,6 +214,7 @@ public final class FixtureDimensions {
         Map<String, Map<String, String>> backendByName,
         Map<String, Map<String, String>> extensionByName,
         Map<String, Map<String, String>> absenceByName,
+        Map<String, Map<String, String>> rejectionByName,
         Map<String, Map<String, String>> tierByName,
         Set<String> formatSpecificKeys,
         Map<String, Set<String>> valueDisjointByPair,
@@ -232,6 +234,7 @@ public final class FixtureDimensions {
         this.backendByName = Map.copyOf(backendByName);
         this.extensionByName = Map.copyOf(extensionByName);
         this.absenceByName = Map.copyOf(absenceByName);
+        this.rejectionByName = Map.copyOf(rejectionByName);
         this.tierByName = Map.copyOf(tierByName);
         this.formatSpecificKeys = Set.copyOf(formatSpecificKeys);
         this.valueDisjointByPair = Map.copyOf(valueDisjointByPair);
@@ -399,6 +402,26 @@ public final class FixtureDimensions {
      */
     public String absenceReason(String dimension, String value, String format) {
         Map<String, String> declared = absenceByName.getOrDefault(dimension, Map.of());
+        String perFormat = declared.get(value + "." + format);
+        return perFormat != null ? perFormat : declared.get(value);
+    }
+
+    /**
+     * The message a registration carrying this value must be refused with, or null when it is accepted.
+     *
+     * <p>The second of the three outcomes a case can expect. An absence says a cell cannot be built; this
+     * says it can be built and must be turned down, which is a different claim and a testable one -- the
+     * value is in the crossing, and what it asserts is the refusal.
+     *
+     * <p>The message is the contract, not a decoration. A case asserting only that some 400 came back
+     * passes when the wrong setting is rejected for the wrong reason, which is indistinguishable from the
+     * right refusal at every point downstream.
+     *
+     * <p>Resolves per format first, exactly as absences and tiers do: the same value can be refused by
+     * one format's reader and accepted by another's.
+     */
+    public String rejectionMessage(String dimension, String value, String format) {
+        Map<String, String> declared = rejectionByName.getOrDefault(dimension, Map.of());
         String perFormat = declared.get(value + "." + format);
         return perFormat != null ? perFormat : declared.get(value);
     }
@@ -615,6 +638,7 @@ public final class FixtureDimensions {
         Map<String, Map<String, String>> backends = new LinkedHashMap<>();
         Map<String, Map<String, String>> extensions = new LinkedHashMap<>();
         Map<String, Map<String, String>> absences = new LinkedHashMap<>();
+        Map<String, Map<String, String>> rejections = new LinkedHashMap<>();
         Map<String, Map<String, String>> tiers = new LinkedHashMap<>();
         Set<String> formatSpecificKeys = new LinkedHashSet<>();
         Map<String, Verdict> verdicts = new LinkedHashMap<>();
@@ -690,6 +714,22 @@ public final class FixtureDimensions {
                             );
                         }
                         absences.computeIfAbsent(name, k -> new LinkedHashMap<>()).put(slot, value);
+                    }
+                    // `rejected.<v>` and `rejected.<v>.<format>`: the value is expressible and the
+                    // registration must refuse it. The message is required because the assertion IS the
+                    // message -- a case checking only the status passes on any refusal, including one for
+                    // a setting the case never varied.
+                    case "rejected" -> {
+                        String slot = requireQualified(key, tail);
+                        if (value.isBlank()) {
+                            throw new IllegalStateException(
+                                "rejection ["
+                                    + key
+                                    + "] declares no message; a case that asserts only a status passes when the wrong "
+                                    + "setting is refused for the wrong reason"
+                            );
+                        }
+                        rejections.computeIfAbsent(name, k -> new LinkedHashMap<>()).put(slot, value);
                     }
                     // `tier.<v>` and `tier.<v>.<format>`: which battery a value earns a place in. The
                     // same shape as the absence grammar on purpose -- both answer "why is this cell where
@@ -940,6 +980,38 @@ public final class FixtureDimensions {
                 }
             }
         }
+        for (Map.Entry<String, Map<String, String>> entry : rejections.entrySet()) {
+            String owner = entry.getKey();
+            requireDeclaredDimension(values, owner, "rejection");
+            for (String slot : entry.getValue().keySet()) {
+                int at = slot.indexOf('.');
+                String refused = at < 0 ? slot : slot.substring(0, at);
+                String format = at < 0 ? null : slot.substring(at + 1);
+                if (values.get(owner).contains(refused) == false) {
+                    throw new IllegalStateException("rejection [" + owner + "." + slot + "] names a value the dimension does not declare");
+                }
+                if (format != null && declaredFormats.contains(format) == false) {
+                    throw new IllegalStateException("rejection [" + owner + "." + slot + "] names an undeclared format");
+                }
+                // The baseline is carried by every vector, so a refused default would make the whole
+                // crossing unregisterable -- and it would do it silently, as every case failing the same
+                // way reads as one broken suite rather than one wrong line.
+                if (refused.equals(defaults.get(owner))) {
+                    throw new IllegalStateException(
+                        "rejection [" + owner + "." + slot + "] refuses the dimension's default, which every vector carries"
+                    );
+                }
+                if (absences.getOrDefault(owner, Map.of()).containsKey(slot)) {
+                    throw new IllegalStateException(
+                        "["
+                            + owner
+                            + "."
+                            + slot
+                            + "] is declared both absent and rejected; a cell that cannot be built cannot also be refused"
+                    );
+                }
+            }
+        }
         for (Map.Entry<String, Map<String, String>> entry : absences.entrySet()) {
             String owner = entry.getKey();
             requireDeclaredDimension(values, owner, "absence");
@@ -1042,6 +1114,7 @@ public final class FixtureDimensions {
             backends,
             extensions,
             absences,
+            rejections,
             tiers,
             formatSpecificKeys,
             normalisedDisjoint,
@@ -1465,7 +1538,16 @@ public final class FixtureDimensions {
         /** A DYNAMIC cluster setting: updatable around a single case, and put back after. */
         CLUSTER_SETTING,
         /** A setting on the data source's own registration, not the dataset's. */
-        DATA_SOURCE
+        DATA_SOURCE,
+        /**
+         * The registration itself: a suite that issues the PUT and checks its outcome.
+         *
+         * <p>The only seam that can observe a REJECTION. A query-path suite sees a dataset that exists or
+         * a query that fails; whether the registration was refused, and with what message, is visible
+         * only to something watching the PUT -- so a rejected value offered to any other seam would be a
+         * cell nothing could ever assert.
+         */
+        REGISTRATION
     }
 
     /**
@@ -1517,6 +1599,11 @@ public final class FixtureDimensions {
      * is silent in the direction that matters: the cell looks covered.
      */
     public boolean seamServes(String dimension, String value, String format, Set<Seam> seams) {
+        // A refusal is visible only where the registration is. Whatever the value BINDS as, no query-path
+        // seam can assert it: the dataset never comes into existence, so there is nothing to read.
+        if (rejectionMessage(dimension, value, format) != null) {
+            return seams.contains(Seam.REGISTRATION);
+        }
         return switch (binds(dimension)) {
             case "directive" -> seams.contains(Seam.DIRECTIVE)
                 && directiveKey(dimension) != null

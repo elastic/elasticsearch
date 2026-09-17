@@ -1375,4 +1375,94 @@ public class FixtureDimensionsTests extends ESTestCase {
         Exception e = expectThrows(IllegalArgumentException.class, () -> d.parseRendered("not-a-vector"));
         assertThat(e.getMessage(), containsString("malformed vector name"));
     }
+
+    /**
+     * The second outcome a case can expect: the registration is refused, and the message is the assertion.
+     * Distinct from an absence, which says the cell cannot be built at all -- this one is built, offered,
+     * and turned down, which is a claim a test can check.
+     */
+    public void testARejectedValueCarriesTheMessageItMustBeRefusedWith() {
+        FixtureDimensions d = FixtureDimensions.parse(declaration(rejecting()));
+        assertThat(d.rejectionMessage("segment_size", "tiny", "csv"), containsString("below the minimum"));
+        assertThat("an accepted value has no refusal", d.rejectionMessage("segment_size", "default", "csv"), nullValue());
+    }
+
+    /** A per-format refusal wins over a bare one, exactly as absences and tiers resolve. */
+    public void testAPerFormatRejectionWinsOverABareOne() {
+        String[] lines = ArrayUtils.append(rejecting(), "dimension.segment_size.rejected.tiny.parquet = parquet ignores segment_size");
+        FixtureDimensions d = FixtureDimensions.parse(declaration(lines));
+        assertThat(d.rejectionMessage("segment_size", "tiny", "parquet"), equalTo("parquet ignores segment_size"));
+        assertThat(d.rejectionMessage("segment_size", "tiny", "csv"), containsString("below the minimum"));
+    }
+
+    /**
+     * A refusal is visible only where the registration is: the dataset never comes into existence, so a
+     * query-path seam has nothing to read. Offering the cell to one would be coverage that cannot assert.
+     */
+    public void testARejectedValueIsServedOnlyByTheRegistrationSeam() {
+        FixtureDimensions d = FixtureDimensions.parse(declaration(rejecting()));
+        assertThat(d.seamServes("segment_size", "tiny", "csv", Set.of(FixtureDimensions.Seam.REGISTRATION)), equalTo(true));
+        assertThat(d.seamServes("segment_size", "tiny", "csv", Set.of(FixtureDimensions.Seam.DIRECTIVE)), equalTo(false));
+        assertThat(
+            "an accepted value is still served by the seam it binds as",
+            d.seamServes("segment_size", "big", "csv", Set.of(FixtureDimensions.Seam.DIRECTIVE)),
+            equalTo(true)
+        );
+    }
+
+    /** Asserting only that some 400 came back passes when the wrong setting is refused for the wrong reason. */
+    public void testARejectionWithoutAMessageIsRefused() {
+        String[] lines = ArrayUtils.append(wellFormed(), "dimension.error_mode.rejected.skip_row = ");
+        Exception e = expectThrows(IllegalStateException.class, () -> FixtureDimensions.parse(declaration(lines)));
+        assertThat(e.getMessage(), containsString("declares no message"));
+    }
+
+    /**
+     * Every vector carries the baseline, so a refused default would make the whole crossing
+     * unregisterable -- and silently, because every case failing the same way reads as one broken suite
+     * rather than one wrong line.
+     */
+    public void testRefusingTheDefaultIsRejected() {
+        String[] lines = ArrayUtils.append(wellFormed(), "dimension.error_mode.rejected.fail_fast = it is refused");
+        Exception e = expectThrows(IllegalStateException.class, () -> FixtureDimensions.parse(declaration(lines)));
+        assertThat(e.getMessage(), containsString("refuses the dimension's default"));
+    }
+
+    /** Cannot-be-built and must-be-refused are different claims, and a cell cannot make both. */
+    public void testACellCannotBeBothAbsentAndRejected() {
+        String[] lines = ArrayUtils.append(
+            ArrayUtils.append(wellFormed(), "dimension.error_mode.rejected.skip_row = it is refused"),
+            "dimension.error_mode.rule.skip_row = rule: nothing writes it"
+        );
+        Exception e = expectThrows(IllegalStateException.class, () -> FixtureDimensions.parse(declaration(lines)));
+        assertThat(e.getMessage(), containsString("cannot also be refused"));
+    }
+
+    /** A refusal naming a value or format that does not exist refuses nothing. */
+    public void testARejectionMustNameARealValueAndFormat() {
+        String[] unknownValue = ArrayUtils.append(wellFormed(), "dimension.error_mode.rejected.nope = it is refused");
+        assertThat(
+            expectThrows(IllegalStateException.class, () -> FixtureDimensions.parse(declaration(unknownValue))).getMessage(),
+            containsString("names a value the dimension does not declare")
+        );
+        String[] unknownFormat = ArrayUtils.append(wellFormed(), "dimension.error_mode.rejected.skip_row.orc = it is refused");
+        assertThat(
+            expectThrows(IllegalStateException.class, () -> FixtureDimensions.parse(declaration(unknownFormat))).getMessage(),
+            containsString("names an undeclared format")
+        );
+    }
+
+    /** A dimension whose off-default values are a mix of accepted and refused ones. */
+    private static String[] rejecting() {
+        return new String[] {
+            "dimension.format.values = csv, parquet",
+            "dimension.format.default = csv",
+            "dimension.format.binds = fixture",
+            "dimension.segment_size.values = default, big, tiny",
+            "dimension.segment_size.default = default",
+            "dimension.segment_size.binds = directive",
+            "dimension.segment_size.key = segment_size",
+            "dimension.segment_size.rejected.tiny = [1b] is below the minimum segment size of [64kb]",
+            "pair.format.segment_size = interacting" };
+    }
 }

@@ -1,6 +1,0 @@
-area: ES|QL
-issues: []
-pr: PLACEHOLDER
-summary: "Fix format_reader profile counters in ES|QL external-source operators reporting
-  zeros or accumulating across queries"
-type: bug

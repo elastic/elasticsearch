@@ -1,5 +1,6 @@
 area: ES|QL
 issues: []
 pr: 159615
-summary: Esql planning 1803
+summary: "Fix format_reader profile counters in ES|QL external-source operators reporting
+  zeros or accumulating across queries"
 type: bug

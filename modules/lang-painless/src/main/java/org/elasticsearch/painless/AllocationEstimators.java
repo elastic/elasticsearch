@@ -44,7 +44,7 @@ public final class AllocationEstimators {
      * length (from an out-of-range argument the real call will reject) costs just the overhead.
      */
     /** Allowance per {@code String.format} argument or {@code String.join} element, whose rendered length is not knowable. */
-    private static final long FORMAT_BYTES_PER_ARGUMENT = 256;
+    private static final long FORMAT_CHARACTERS_PER_ARGUMENT = 256;
 
     /** Element count assumed for a {@code String.join} over an iterable that cannot be sized without consuming it. */
     private static final long UNKNOWN_ELEMENT_COUNT = 16;

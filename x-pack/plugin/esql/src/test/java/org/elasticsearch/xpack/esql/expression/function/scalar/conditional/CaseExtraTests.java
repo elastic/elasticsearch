@@ -533,6 +533,50 @@ public class CaseExtraTests extends ESTestCase {
     }
 
     /**
+     * One {@code CASE} holding several nested {@code CASE} values is the only shape where the
+     * walk has to keep more than one node pending at a time. The nests elsewhere in this class
+     * are chains, so they would pass even if the walk could only follow one node.
+     * <p>
+     *     Conditions are {@code 1 == 2} rather than literals so that nothing is short-circuited
+     *     away and every arm has to be looked at. An unfoldable leaf is planted in one arm,
+     *     chosen at random including the else arm, so dropping any pending node shows up.
+     * </p>
+     */
+    public void testSeveralNestedCaseValuesUnderOneCase() {
+        int value = randomInt();
+        int arms = randomIntBetween(2, 5);
+
+        Case allFoldable = caseOverNestedArms(value, arms, -1);
+        assertTrue(allFoldable.foldable());
+        assertThat(allFoldable.foldable(), equalTo(foldableRecursively(allFoldable)));
+
+        Case oneArmUnfoldable = caseOverNestedArms(value, arms, randomIntBetween(0, arms));
+        assertFalse(oneArmUnfoldable.foldable());
+        assertThat(oneArmUnfoldable.foldable(), equalTo(foldableRecursively(oneArmUnfoldable)));
+    }
+
+    /**
+     * {@code CASE(1 == 2, CASE(..), 1 == 2, CASE(..), .., CASE(..))}, where the arm at
+     * {@code unfoldableArm} holds a field. Pass {@code arms} to plant it in the else arm, or
+     * -1 to leave every arm foldable.
+     */
+    private static Case caseOverNestedArms(int value, int arms, int unfoldableArm) {
+        List<Expression> rest = new ArrayList<>();
+        rest.add(nestedArm(value, unfoldableArm == 0));
+        for (int i = 1; i < arms; i++) {
+            rest.add(randomEquals(false));
+            rest.add(nestedArm(value, unfoldableArm == i));
+        }
+        rest.add(nestedArm(value, unfoldableArm == arms));
+        return resolvedCase(randomEquals(false), rest.toArray(Expression[]::new));
+    }
+
+    private static Case nestedArm(int value, boolean unfoldable) {
+        Expression arm = unfoldable ? field("f", DataType.INTEGER) : intLiteral(value);
+        return resolvedCase(randomEquals(randomBoolean()), arm, intLiteral(value));
+    }
+
+    /**
      * Cross-check the iterative {@code fold} and {@code foldable} against the recursive
      * implementations they replaced, which are safe at this depth.
      */

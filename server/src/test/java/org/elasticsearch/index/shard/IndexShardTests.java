@@ -85,6 +85,7 @@ import org.elasticsearch.index.engine.CommitStats;
 import org.elasticsearch.index.engine.DocIdSeqNoAndSource;
 import org.elasticsearch.index.engine.Engine;
 import org.elasticsearch.index.engine.EngineConfig;
+import org.elasticsearch.index.engine.EngineFactory;
 import org.elasticsearch.index.engine.EngineTestCase;
 import org.elasticsearch.index.engine.InternalEngine;
 import org.elasticsearch.index.engine.InternalEngineFactory;
@@ -4312,6 +4313,140 @@ public class IndexShardTests extends IndexShardTestCase {
             mockLog.assertAllExpectationsMatched();
         }
         closeShards(primary);
+    }
+
+    /**
+     * The refresh that {@link IndexShard#ensureShardSearchActive} forks can still be queued when the shard closes. Closing detaches the
+     * engine before it closes the refresh listeners, so the task finds a pending refresh location and no engine behind it, and must drop
+     * the refresh rather than let the failure escape the refresh worker.
+     */
+    public void testEnsureShardSearchActiveIgnoresClosedEngineOnRefreshThread() throws Exception {
+        IndexMetadata metadata = newTestIndexMetadata();
+        IndexShard primary = newShard(new ShardId(metadata.getIndex(), 0), true, "n1", metadata, null);
+        // Released on every exit path below: an assertion failure while the refresh threads are held would otherwise leave them parked
+        // until safeAwait times out, and each would then report a timeout that hides the real failure.
+        final CountDownLatch releaseRefreshThreads = new CountDownLatch(1);
+        final AtomicReference<Runnable> deferredClose = new AtomicReference<>();
+        final PlainActionFuture<Void> closeFuture = new PlainActionFuture<>();
+        try {
+            recoverShardFromStore(primary);
+            indexDoc(primary, "_doc", "0", "{\"foo\" : \"bar\"}");
+            PlainActionFuture<Boolean> refreshed = new PlainActionFuture<>();
+            primary.scheduledRefresh(refreshed);
+            assertTrue(refreshed.actionGet());
+
+            Settings searchIdleSettings = Settings.builder()
+                .put(primary.indexSettings().getSettings())
+                .put(IndexSettings.INDEX_SEARCH_IDLE_AFTER.getKey(), TimeValue.ZERO)
+                .build();
+            primary.indexSettings().getScopedSettings().applySettings(searchIdleSettings);
+            indexDoc(primary, "_doc", "1", "{\"foo\" : \"bar\"}");
+            PlainActionFuture<Boolean> deferred = new PlainActionFuture<>();
+            primary.scheduledRefresh(deferred);
+            assertFalse(deferred.actionGet());
+            assertTrue("a refresh should be pending while the shard is search idle", primary.hasRefreshPending());
+
+            // Hold every refresh thread so that the refresh forked below stays queued while the shard closes underneath it.
+            final int refreshThreads = threadPool.info(ThreadPool.Names.REFRESH).getMax();
+            final CountDownLatch refreshThreadsBusy = new CountDownLatch(refreshThreads);
+            for (int i = 0; i < refreshThreads; i++) {
+                threadPool.executor(ThreadPool.Names.REFRESH).execute(() -> {
+                    refreshThreadsBusy.countDown();
+                    safeAwait(releaseRefreshThreads);
+                });
+            }
+            safeAwait(refreshThreadsBusy);
+
+            primary.ensureShardSearchActive(ignored -> {});
+
+            // Deferring the close executor keeps the shard in the state it passes through in production: the engine is already gone but
+            // the refresh listeners have not fired yet, so the queued refresh still sees its pending location.
+            primary.close("test", false, deferredClose::set, closeFuture);
+            assertNotNull("close must hand the rest of the work to the close executor", deferredClose.get());
+            assertNull("close must detach the engine before the close executor runs", primary.getEngineOrNull());
+            assertTrue("the queued refresh must still see a pending refresh location", primary.hasRefreshPending());
+
+            // A regression escapes the refresh worker, and the runner fails the test on any exception that leaves a thread, so that is
+            // the real signal here. The expectation below covers the other half: the drop must stay silent rather than warn about a
+            // shard that is simply going away.
+            try (var mockLog = MockLog.capture(IndexShard.class)) {
+                mockLog.addExpectation(
+                    new MockLog.UnseenEventExpectation(
+                        "refresh failure warning",
+                        IndexShard.class.getCanonicalName(),
+                        Level.WARN,
+                        "Failed to perform engine refresh"
+                    )
+                );
+                releaseRefreshThreads.countDown();
+                // Returns only once every refresh thread is idle, so the forked refresh has run by the time the expectation is checked.
+                flushThreadPoolExecutor(threadPool, ThreadPool.Names.REFRESH);
+                mockLog.assertAllExpectationsMatched();
+            }
+        } finally {
+            releaseRefreshThreads.countDown();
+            final Runnable completeClose = deferredClose.get();
+            if (completeClose == null) {
+                closeShards(primary);
+            } else {
+                IOUtils.close(() -> {
+                    completeClose.run();
+                    safeGet(closeFuture);
+                }, primary.store());
+            }
+        }
+    }
+
+    /**
+     * A refresh forked by {@link IndexShard#ensureShardSearchActive} that fails for a reason other than the shard closing must still be
+     * reported, so that swallowing the close race does not also hide real refresh failures.
+     */
+    public void testEnsureShardSearchActiveLogsUnexpectedRefreshFailure() throws Exception {
+        // The guard can only observe a synchronous throw: Engine#maybeRefresh is declared to throw, but InternalEngine completes its
+        // listener on failure instead, and the forked call discards that listener. This pins the contract of the guard rather than a
+        // failure mode InternalEngine can currently produce.
+        final EngineFactory engineFactory = config -> new InternalEngine(config) {
+            @Override
+            public void maybeRefresh(String source, ActionListener<Engine.RefreshResult> listener) {
+                if ("ensure-shard-search-active".equals(source)) {
+                    throw new RuntimeException("simulated refresh failure");
+                }
+                super.maybeRefresh(source, listener);
+            }
+        };
+        IndexShard primary = newStartedShard(true, Settings.EMPTY, engineFactory);
+        indexDoc(primary, "_doc", "0");
+        PlainActionFuture<Boolean> refreshed = new PlainActionFuture<>();
+        primary.scheduledRefresh(refreshed);
+        assertTrue(refreshed.actionGet());
+
+        Settings searchIdleSettings = Settings.builder()
+            .put(primary.indexSettings().getSettings())
+            .put(IndexSettings.INDEX_SEARCH_IDLE_AFTER.getKey(), TimeValue.ZERO)
+            .build();
+        primary.indexSettings().getScopedSettings().applySettings(searchIdleSettings);
+        indexDoc(primary, "_doc", "1");
+        PlainActionFuture<Boolean> deferred = new PlainActionFuture<>();
+        primary.scheduledRefresh(deferred);
+        assertFalse(deferred.actionGet());
+        assertTrue("a refresh should be pending while the shard is search idle", primary.hasRefreshPending());
+
+        try (var mockLog = MockLog.capture(IndexShard.class)) {
+            mockLog.addExpectation(
+                new MockLog.SeenEventExpectation(
+                    "refresh failure warning",
+                    IndexShard.class.getCanonicalName(),
+                    Level.WARN,
+                    "Failed to perform engine refresh"
+                )
+            );
+            primary.ensureShardSearchActive(ignored -> {});
+            flushThreadPoolExecutor(threadPool, ThreadPool.Names.REFRESH);
+            mockLog.assertAllExpectationsMatched();
+        } finally {
+            // close on every exit path so that a failed expectation does not also leak the engine and store
+            closeShards(primary);
+        }
     }
 
     public void testRefreshIsNeededWithRefreshListeners() throws IOException, InterruptedException {

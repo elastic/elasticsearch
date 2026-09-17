@@ -116,6 +116,7 @@ public class RepositoryIntegrityHealthIndicatorService implements HealthIndicato
     @Override
     public HealthIndicatorResult calculate(boolean verbose, int maxAffectedResourcesCount, HealthInfo healthInfo) {
         var clusterState = clusterService.state();
+        boolean supportsMultipleProjects = projectResolver.supportsMultipleProjects();
         int totalRepositories = 0;
         List<String> corruptedRepositories = new ArrayList<>();
         for (ProjectMetadata project : clusterState.metadata().projects().values()) {
@@ -127,7 +128,7 @@ public class RepositoryIntegrityHealthIndicatorService implements HealthIndicato
                         HealthIndicatorDisplayValues.getRepositoryDisplayName(
                             project.id(),
                             repository.name(),
-                            projectResolver.supportsMultipleProjects()
+                            supportsMultipleProjects
                         )
                     );
                 }

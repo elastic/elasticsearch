@@ -109,13 +109,15 @@ public class RepositoriesHealthTrackerTests extends ESTestCase {
 
     public void testGetHealthWithSameRepositoryNameInDifferentProjects() {
         repositoriesHealthTracker = new RepositoriesHealthTracker(repositoriesService, TestProjectResolvers.allProjects());
-        var repo = createRepositoryMetadata();
+        var repoName = randomAlphaOfLength(10);
+        var repoA = createRepositoryMetadata(repoName);
+        var repoB = createRepositoryMetadata(repoName);
         var projectA = randomUniqueProjectId();
         var projectB = randomUniqueProjectId();
         when(repositoriesService.getRepositories()).thenReturn(
             List.of(
-                new UnknownTypeRepository(projectA, repo),
-                new InvalidRepository(projectB, repo, new RepositoryException(repo.name(), "Test"))
+                new UnknownTypeRepository(projectA, repoA),
+                new InvalidRepository(projectB, repoB, new RepositoryException(repoName, "Test"))
             )
         );
 
@@ -123,11 +125,11 @@ public class RepositoriesHealthTrackerTests extends ESTestCase {
 
         assertThat(
             health.unknownRepositories(),
-            containsInAnyOrder(HealthIndicatorDisplayValues.getRepositoryDisplayName(projectA, repo.name(), true))
+            containsInAnyOrder(HealthIndicatorDisplayValues.getRepositoryDisplayName(projectA, repoName, true))
         );
         assertThat(
             health.invalidRepositories(),
-            containsInAnyOrder(HealthIndicatorDisplayValues.getRepositoryDisplayName(projectB, repo.name(), true))
+            containsInAnyOrder(HealthIndicatorDisplayValues.getRepositoryDisplayName(projectB, repoName, true))
         );
     }
 
@@ -141,9 +143,13 @@ public class RepositoriesHealthTrackerTests extends ESTestCase {
     }
 
     private static RepositoryMetadata createRepositoryMetadata() {
+        return createRepositoryMetadata(randomAlphaOfLength(10));
+    }
+
+    private static RepositoryMetadata createRepositoryMetadata(String name) {
         var generation = randomNonNegativeLong() / 2L;
         return new RepositoryMetadata(
-            randomAlphaOfLength(10),
+            name,
             randomAlphaOfLength(10),
             randomAlphaOfLength(10),
             Settings.EMPTY,

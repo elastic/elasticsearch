@@ -83,8 +83,7 @@ public final class StringParser {
      *
      * <p>Reuses the same quote/backslash vector comparison {@link #doParseString} uses, but skips
      * all copying, so the escape-free case — the overwhelming majority of string values in
-     * practice — costs a single vectorized pass instead of the two scalar byte-at-a-time passes
-     * (length, then backslash-presence) it replaces.
+     * practice — costs a single vectorized pass.
      */
     public int scanUnescapedLength(byte[] buffer, int idx) {
         int src = idx + 1;

@@ -43,10 +43,6 @@ public class ValidateTransformAction extends ActionType<ValidateTransformAction.
 
     public static class Request extends AcknowledgedRequest<Request> implements Releasable {
 
-        /**
-         * Gates the {@code from} start-time bound on the wire. Silently dropped for older validate nodes,
-         * which simply run validation unbounded (the prior behavior).
-         */
         public static final TransportVersion TRANSFORM_VALIDATE_FROM = TransportVersion.fromName("transform_validate_from");
 
         private final TransformConfig config;

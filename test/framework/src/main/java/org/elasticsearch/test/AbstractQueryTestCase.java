@@ -34,6 +34,8 @@ import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.unit.Fuzziness;
 import org.elasticsearch.common.util.LimitedBreaker;
 import org.elasticsearch.common.xcontent.XContentHelper;
+import org.elasticsearch.core.Releasable;
+import org.elasticsearch.core.Releasables;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.index.query.AbstractQueryBuilder;
 import org.elasticsearch.index.query.MatchAllQueryBuilder;
@@ -517,16 +519,19 @@ public abstract class AbstractQueryTestCase<QB extends AbstractQueryBuilder<QB>>
         assumeTrue("query builder skips parse-time breaker self-test", supportsParseTimeBreakerSelfTest());
         QB builder = createTestQueryBuilder();
 
-        // Step 1: measure actual charge T with an effectively unlimited breaker
+        // Step 1: measure actual charge T with an effectively unlimited breaker.
+        // Use the trackTo overload so the charge is held while we snapshot it; release after reading.
         long chargeT;
         LimitedBreaker measuringBreaker = new LimitedBreaker(CircuitBreaker.REQUEST, ByteSizeValue.ofBytes(Long.MAX_VALUE));
         AbstractQueryBuilder.setQueryParsingBreaker(measuringBreaker);
         try {
             BytesReference bytes = XContentHelper.toXContent(builder, XContentType.JSON, false);
+            List<Releasable> trackTo = new ArrayList<>();
             try (XContentParser parser = createParser(XContentType.JSON.xContent(), bytes)) {
-                parseQuery(parser);
+                parseTopLevelQuery(parser, queryName -> {}, trackTo);
             }
-            chargeT = measuringBreaker.getUsed();
+            chargeT = measuringBreaker.getUsed();  // charge still held via trackTo — non-zero
+            Releasables.close(trackTo);
             assertEquals("breaker not released after measurement parse", 0L, measuringBreaker.getUsed());
         } finally {
             AbstractQueryBuilder.setQueryParsingBreaker(null);

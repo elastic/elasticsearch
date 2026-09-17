@@ -25,9 +25,9 @@ public interface ReleasableRequest {
     /**
      * Acquires a handle on this request's resource reservation.
      *
-     * @return a {@link Releasable} that the caller must close when done, or {@code null} if the
-     *         request carries no reservation
-     * @throws IllegalStateException if the reservation has already been fully released
+     * @return a {@link Releasable} that the caller must close when done, {@code null} if the
+     *         request carries no reservation, or {@code null} if the reservation has already been
+     *         fully released (the underlying refcount reached zero)
      */
     @Nullable
     Releasable acquireReservation();

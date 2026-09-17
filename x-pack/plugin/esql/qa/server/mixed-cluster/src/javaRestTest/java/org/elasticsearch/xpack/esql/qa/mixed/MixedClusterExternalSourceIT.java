@@ -11,7 +11,9 @@ import com.carrotsearch.randomizedtesting.annotations.ThreadLeakFilters;
 
 import org.apache.http.HttpHost;
 import org.elasticsearch.client.Request;
+import org.elasticsearch.client.Response;
 import org.elasticsearch.client.RestClient;
+import org.elasticsearch.client.WarningsHandler;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.test.TestClustersThreadFilter;
 import org.elasticsearch.test.cluster.ElasticsearchCluster;
@@ -40,6 +42,13 @@ import static org.elasticsearch.xpack.esql.datasources.S3FixtureUtils.BUCKET;
 import static org.elasticsearch.xpack.esql.datasources.S3FixtureUtils.WAREHOUSE;
 import static org.elasticsearch.xpack.esql.datasources.S3FixtureUtils.addBlobToFixture;
 import static org.elasticsearch.xpack.esql.qa.rest.RestEsqlTestCase.hasCapabilities;
+import static org.hamcrest.Matchers.allOf;
+import static org.hamcrest.Matchers.containsString;
+import static org.hamcrest.Matchers.greaterThan;
+import static org.hamcrest.Matchers.hasItem;
+import static org.hamcrest.Matchers.hasItems;
+import static org.hamcrest.Matchers.lessThan;
+import static org.hamcrest.Matchers.not;
 
 /**
  * Exercises external-source plans and profiles across both directions of a 9.5+ mixed-version cluster.
@@ -214,6 +223,108 @@ public class MixedClusterExternalSourceIT extends ESRestTestCase {
                 expectedDeclared = assertConsistent(expectedDeclared, declared);
             }
         }
+    }
+
+    /**
+     * A request filter on a dataset translates to functions an older node cannot deserialize: a keyword range with one bound
+     * becomes {@code mv_less} or {@code mv_greater}, an integer range becomes {@code mv_in_range}, and none of the three
+     * exists before 9.6.0. The rewrite is gated on the cluster's minimum transport version, so while an older node is in the
+     * cluster the query must not fail: the dataset is read unfiltered, and a current coordinator says so in a warning.
+     * Round-robin distribution sends the scan to every old node, so the old nodes really do receive the plan. Once every node
+     * is on 9.6.0 or later the filter applies.
+     */
+    public void testRequestFilterOnDatasetAcrossVersions() throws IOException {
+        registerDatasets();
+        ObjectPath nodesInfo = ObjectPath.createFromResponse(adminClient().performRequest(new Request("GET", "/_nodes")));
+        List<EsqlDataSourceMixedClusterTestSupport.Node> oldNodes = EsqlDataSourceMixedClusterTestSupport.nodesForCoordinator(
+            nodesInfo,
+            true
+        );
+        List<EsqlDataSourceMixedClusterTestSupport.Node> currentNodes = EsqlDataSourceMixedClusterTestSupport.nodesForCoordinator(
+            nodesInfo,
+            false
+        );
+        boolean everyNodeTranslates = EsqlDataSourceMixedClusterTestSupport.bwcVersion().onOrAfter(org.elasticsearch.Version.V_9_6_0);
+
+        List<Object> allIds = List.of(1, 2, 3, 4);
+        List<FilterCase> cases = List.of(new FilterCase("a keyword range with an upper bound (mv_less)", """
+            {"range": {"name": {"lt": "name-3"}}}""", List.of(1, 2)), new FilterCase("a keyword range with a lower bound (mv_greater)", """
+            {"range": {"name": {"gt": "name-2"}}}""", List.of(3, 4)), new FilterCase("an integer range with both bounds (mv_in_range)", """
+            {"range": {"value": {"gte": 15, "lte": 35}}}""", List.of(2, 3)));
+        for (FilterCase filterCase : cases) {
+            assertThat(
+                filterCase.description() + " must select part of the data, or whether it applied cannot be observed",
+                filterCase.filteredIds().size(),
+                allOf(greaterThan(0), lessThan(allIds.size()))
+            );
+        }
+
+        for (EsqlDataSourceMixedClusterTestSupport.Node coordinator : List.of(oldNodes.get(0), currentNodes.get(0))) {
+            boolean currentCoordinator = currentNodes.contains(coordinator);
+            try (RestClient coordinatorClient = coordinatorClient(coordinator)) {
+                for (FilterCase filterCase : cases) {
+                    for (String distribution : List.of("round_robin", "coordinator_only")) {
+                        String context = filterCase.description()
+                            + " through "
+                            + (currentCoordinator ? "a current" : "an old")
+                            + " coordinator with "
+                            + distribution;
+                        // A failure to deserialize on any node surfaces here as a thrown ResponseException.
+                        FilteredResult result = runFilteredQuery(coordinatorClient, filterCase.filter(), distribution);
+
+                        if (everyNodeTranslates) {
+                            assertEquals(context + " applies the filter", filterCase.filteredIds(), result.ids());
+                            assertThat(context, result.warnings(), not(hasItem(containsString("was not applied"))));
+                        } else {
+                            assertThat(
+                                context + " never returns fewer rows than the filter selects",
+                                result.ids(),
+                                hasItems(filterCase.filteredIds().toArray())
+                            );
+                            if (currentCoordinator) {
+                                assertEquals(context + " skips the rewrite and reads every row", allIds, result.ids());
+                                assertThat(
+                                    context + " says the filter was not applied",
+                                    result.warnings(),
+                                    hasItem(
+                                        allOf(
+                                            containsString("too old to evaluate the translated filter"),
+                                            containsString(PROJECTION_DATASET)
+                                        )
+                                    )
+                                );
+                            }
+                        }
+                        if ("round_robin".equals(distribution)) {
+                            assertDistributedCsvProfile(result.response(), oldNodes, currentNodes);
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    private record FilterCase(String description, String filter, List<Object> filteredIds) {}
+
+    private record FilteredResult(Map<String, Object> response, List<Object> ids, List<String> warnings) {}
+
+    @SuppressWarnings("unchecked")
+    private static FilteredResult runFilteredQuery(RestClient coordinatorClient, String filter, String distribution) throws IOException {
+        Request request = new Request("POST", "/_query");
+        request.setJsonEntity(Strings.format("""
+            {
+              "query": "FROM %s | KEEP id | SORT id",
+              "filter": %s,
+              "profile": true,
+              "accept_pragma_risks": true,
+              "pragma": {"external_distribution": "%s"}
+            }""", PROJECTION_DATASET, filter, distribution));
+        // The not-applied warning is the behaviour under test; the default strict handler would turn it into a failure.
+        request.setOptions(request.getOptions().toBuilder().setWarningsHandler(WarningsHandler.PERMISSIVE).build());
+        Response response = coordinatorClient.performRequest(request);
+        Map<String, Object> body = entityAsMap(response);
+        List<Object> ids = ((List<List<Object>>) body.get("values")).stream().map(row -> row.get(0)).toList();
+        return new FilteredResult(body, ids, response.getWarnings());
     }
 
     private static void registerDatasets() throws IOException {

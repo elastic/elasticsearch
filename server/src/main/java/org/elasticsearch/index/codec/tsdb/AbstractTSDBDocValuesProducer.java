@@ -1054,13 +1054,6 @@ public abstract class AbstractTSDBDocValuesProducer extends DocValuesProducer {
             return new RawBinaryBlock(compression, header.isCompressed(), uncompressedLength, rawBlockInput, payloadLength);
         }
 
-        /**
-         * Returns the length of the lazily-allocated decompression buffer, for testing that the
-         * merge path does not materialize outlier-sized values. Returns 0 if never allocated.
-         */
-        int retainedBlockBufferLength() {
-            return uncompressedBlock == null ? 0 : uncompressedBlock.length;
-        }
     }
 
     public abstract static class TSDBBinaryDocValues extends BinaryDocValues

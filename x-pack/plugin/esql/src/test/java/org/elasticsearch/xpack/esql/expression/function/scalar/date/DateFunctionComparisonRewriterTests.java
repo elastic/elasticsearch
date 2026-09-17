@@ -10,29 +10,49 @@ package org.elasticsearch.xpack.esql.expression.function.scalar.date;
 import org.elasticsearch.common.time.DateUtils;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
+import org.elasticsearch.xpack.esql.core.expression.FieldAttribute;
+import org.elasticsearch.xpack.esql.core.expression.FoldContext;
 import org.elasticsearch.xpack.esql.core.expression.Literal;
+import org.elasticsearch.xpack.esql.core.expression.ReferenceAttribute;
 import org.elasticsearch.xpack.esql.core.expression.UnresolvedAttribute;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
+import org.elasticsearch.xpack.esql.core.type.EsField;
 import org.elasticsearch.xpack.esql.expression.function.EsqlFunctionRegistry;
 import org.elasticsearch.xpack.esql.expression.function.UnresolvedFunction;
+import org.elasticsearch.xpack.esql.expression.predicate.logical.And;
+import org.elasticsearch.xpack.esql.expression.predicate.logical.Or;
+import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.Equals;
+import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.EsqlBinaryComparison;
+import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.GreaterThan;
+import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.GreaterThanOrEqual;
+import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.LessThan;
+import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.LessThanOrEqual;
+import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.NotEquals;
 import org.elasticsearch.xpack.esql.plan.QuerySettings;
 import org.elasticsearch.xpack.esql.session.Configuration;
 import org.elasticsearch.xpack.esql.session.ConfigurationBuilder;
 
 import java.time.Instant;
+import java.time.LocalDate;
 import java.time.Period;
 import java.time.ZoneId;
 import java.time.ZoneOffset;
+import java.time.ZonedDateTime;
 import java.util.List;
+import java.util.Map;
 
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.TEST_CFG;
+import static org.elasticsearch.xpack.esql.core.type.EsField.TimeSeriesFieldType;
 
 public class DateFunctionComparisonRewriterTests extends ESTestCase {
 
     private static final Source SRC = new Source(1, 0, "DATE_EXTRACT(\"YEAR\", \"2026-07-13\")");
     private static final EsqlFunctionRegistry REGISTRY = new EsqlFunctionRegistry();
     private static final long JULY_13_2026_UTC = Instant.parse("2026-07-13T00:00:00Z").toEpochMilli();
+    private static final long YEAR_2024 = Instant.parse("2024-01-01T00:00:00Z").toEpochMilli();
+    private static final long YEAR_2025 = Instant.parse("2025-01-01T00:00:00Z").toEpochMilli();
+    private static final long JUNE_2024 = Instant.parse("2024-06-01T00:00:00Z").toEpochMilli();
 
     public void testDateExtractDatetimeLiteral() {
         Literal folded = foldLiteral("DATE_EXTRACT", List.of(keyword("YEAR"), datetime(JULY_13_2026_UTC)), utc());
@@ -83,6 +103,13 @@ public class DateFunctionComparisonRewriterTests extends ESTestCase {
         assertUnchanged("DATE_TRUNC", List.of(keyword("1 day"), datetime(JULY_13_2026_UTC)), utc());
     }
 
+    public void testDateTruncQuotedIntervalNotInverted() {
+        // Same listing gap: invert sees a resolved node, but the interval is still KEYWORD.
+        // Analysis ImplicitCasting turns "1 year" into Period; optimizer tests cover that path.
+        FieldAttribute ts = datetimeField();
+        assertNull(invert(eq(trunc(keyword("1 year"), ts, utc()), datetime(YEAR_2024))));
+    }
+
     public void testBadIsoUnchanged() {
         assertUnchanged("DATE_EXTRACT", List.of(keyword("YEAR"), keyword("not-a-date")), utc());
     }
@@ -123,6 +150,158 @@ public class DateFunctionComparisonRewriterTests extends ESTestCase {
         assertEquals(JULY_13_2026_UTC, folded.value());
     }
 
+    public void testDateTruncAlignedEqualsBecomesHalfOpenRange() {
+        FieldAttribute ts = datetimeField();
+        Expression rewritten = invert(eq(trunc(yearInterval(), ts, utc()), datetime(YEAR_2024)));
+        assertGteLt(asAnd(rewritten), ts, YEAR_2024, YEAR_2025, DataType.DATETIME);
+    }
+
+    public void testDateTruncNonAlignedEqualsIsEmptyRange() {
+        FieldAttribute ts = datetimeField();
+        Expression rewritten = invert(eq(trunc(yearInterval(), ts, utc()), datetime(JUNE_2024)));
+        assertGteLt(asAnd(rewritten), ts, YEAR_2024, YEAR_2024, DataType.DATETIME);
+    }
+
+    public void testDateTruncAlignedNotEqualsBecomesOutsideRange() {
+        FieldAttribute ts = datetimeField();
+        Expression rewritten = invert(neq(trunc(yearInterval(), ts, utc()), datetime(YEAR_2024)));
+        assertLtGte((Or) rewritten, ts, YEAR_2024, YEAR_2025, DataType.DATETIME);
+    }
+
+    public void testDateTruncNonAlignedNotEqualsLeftAlone() {
+        FieldAttribute ts = datetimeField();
+        assertNull(invert(neq(trunc(yearInterval(), ts, utc()), datetime(JUNE_2024))));
+    }
+
+    public void testDateTruncInequalitiesUseBucketBounds() {
+        FieldAttribute ts = datetimeField();
+        Literal interval = yearInterval();
+        Configuration cfg = utc();
+        assertGte(invert(gt(trunc(interval, ts, cfg), datetime(YEAR_2024))), ts, YEAR_2025, DataType.DATETIME);
+        assertGte(invert(gte(trunc(interval, ts, cfg), datetime(YEAR_2024))), ts, YEAR_2024, DataType.DATETIME);
+        assertLt(invert(lt(trunc(interval, ts, cfg), datetime(YEAR_2024))), ts, YEAR_2024, DataType.DATETIME);
+        assertLt(invert(lte(trunc(interval, ts, cfg), datetime(YEAR_2024))), ts, YEAR_2025, DataType.DATETIME);
+        assertGte(invert(gt(trunc(interval, ts, cfg), datetime(JUNE_2024))), ts, YEAR_2025, DataType.DATETIME);
+        assertGte(invert(gte(trunc(interval, ts, cfg), datetime(JUNE_2024))), ts, YEAR_2025, DataType.DATETIME);
+        assertLt(invert(lt(trunc(interval, ts, cfg), datetime(JUNE_2024))), ts, YEAR_2025, DataType.DATETIME);
+        assertLt(invert(lte(trunc(interval, ts, cfg), datetime(JUNE_2024))), ts, YEAR_2025, DataType.DATETIME);
+    }
+
+    public void testDateTruncKeywordIsoLiteral() {
+        FieldAttribute ts = datetimeField();
+        Expression rewritten = invert(eq(trunc(yearInterval(), ts, utc()), keyword("2024-01-01T00:00:00Z")));
+        assertGteLt(asAnd(rewritten), ts, YEAR_2024, YEAR_2025, DataType.DATETIME);
+    }
+
+    public void testDateTruncBoundsMatchFieldDateNanos() {
+        FieldAttribute ts = nanosField();
+        long startNanos = DateUtils.toNanoSeconds(YEAR_2024);
+        long nextNanos = DateUtils.toNanoSeconds(YEAR_2025);
+        Expression rewritten = invert(eq(trunc(yearInterval(), ts, utc()), new Literal(SRC, startNanos, DataType.DATE_NANOS)));
+        assertGteLt(asAnd(rewritten), ts, startNanos, nextNanos, DataType.DATE_NANOS);
+    }
+
+    public void testDateTruncEvalAliasInverts() {
+        ReferenceAttribute alias = new ReferenceAttribute(SRC, "ts", DataType.DATETIME);
+        Expression rewritten = invert(eq(trunc(yearInterval(), alias, utc()), datetime(YEAR_2024)));
+        assertGteLt(asAnd(rewritten), alias, YEAR_2024, YEAR_2025, DataType.DATETIME);
+    }
+
+    public void testDateExtractYearEqualsBecomesRange() {
+        FieldAttribute ts = datetimeField();
+        Expression rewritten = invert(eq(extract(keyword("year"), ts, utc()), longLit(2024L)));
+        assertGteLt(asAnd(rewritten), ts, YEAR_2024, YEAR_2025, DataType.DATETIME);
+    }
+
+    public void testDateExtractYearUsesQueryTimeZone() {
+        FieldAttribute ts = datetimeField();
+        ZoneId plus530 = ZoneOffset.ofHoursMinutes(5, 30);
+        Configuration cfg = config(plus530);
+        long start = ZonedDateTime.of(2024, 1, 1, 0, 0, 0, 0, plus530).toInstant().toEpochMilli();
+        long next = ZonedDateTime.of(2025, 1, 1, 0, 0, 0, 0, plus530).toInstant().toEpochMilli();
+        Expression rewritten = invert(eq(extract(keyword("YEAR"), ts, cfg), longLit(2024L)));
+        assertGteLt(asAnd(rewritten), ts, start, next, DataType.DATETIME);
+    }
+
+    public void testDateTruncUsesQueryTimeZone() {
+        FieldAttribute ts = datetimeField();
+        ZoneId plus530 = ZoneOffset.ofHoursMinutes(5, 30);
+        Configuration cfg = config(plus530);
+        long zoneYearStart = ZonedDateTime.of(2024, 1, 1, 0, 0, 0, 0, plus530).toInstant().toEpochMilli();
+        long zoneYearNext = ZonedDateTime.of(2025, 1, 1, 0, 0, 0, 0, plus530).toInstant().toEpochMilli();
+        Expression unaligned = invert(eq(trunc(yearInterval(), ts, cfg), datetime(YEAR_2024)));
+        assertGteLt(asAnd(unaligned), ts, zoneYearStart, zoneYearStart, DataType.DATETIME);
+        Expression aligned = invert(eq(trunc(yearInterval(), ts, cfg), datetime(zoneYearStart)));
+        assertGteLt(asAnd(aligned), ts, zoneYearStart, zoneYearNext, DataType.DATETIME);
+    }
+
+    public void testDateExtractProlepticMonthAndEpochDay() {
+        FieldAttribute ts = datetimeField();
+        long jan2024 = Instant.parse("2024-01-01T00:00:00Z").toEpochMilli();
+        long feb2024 = Instant.parse("2024-02-01T00:00:00Z").toEpochMilli();
+        long prolepticMonth = 2024L * 12 + 1 - 1;
+        Expression month = invert(eq(extract(keyword("proleptic_month"), ts, utc()), longLit(prolepticMonth)));
+        assertGteLt(asAnd(month), ts, jan2024, feb2024, DataType.DATETIME);
+
+        long epochDay = LocalDate.of(2024, 1, 1).toEpochDay();
+        long nextDay = Instant.parse("2024-01-02T00:00:00Z").toEpochMilli();
+        Expression day = invert(eq(extract(keyword("epoch_day"), ts, utc()), longLit(epochDay)));
+        assertGteLt(asAnd(day), ts, jan2024, nextDay, DataType.DATETIME);
+    }
+
+    public void testDateExtractCyclicChronoLeftAlone() {
+        FieldAttribute ts = datetimeField();
+        Configuration cfg = utc();
+        assertNull(invert(eq(extract(keyword("month_of_year"), ts, cfg), longLit(7L))));
+        assertNull(invert(eq(extract(keyword("hour_of_day"), ts, cfg), longLit(9L))));
+        assertNull(invert(eq(extract(keyword("day_of_month"), ts, cfg), longLit(13L))));
+        assertNull(invert(eq(extract(keyword("year_of_era"), ts, cfg), longLit(2024L))));
+    }
+
+    public void testDateTruncRefusesNanosLiteralOnDatetimeField() {
+        FieldAttribute ts = datetimeField();
+        Literal nanos = new Literal(SRC, DateUtils.toNanoSeconds(YEAR_2024), DataType.DATE_NANOS);
+        assertNull(invert(eq(trunc(yearInterval(), ts, utc()), nanos)));
+    }
+
+    public void testDateExtractYearOnDateNanos() {
+        FieldAttribute ts = nanosField();
+        long startNanos = DateUtils.toNanoSeconds(YEAR_2024);
+        long nextNanos = DateUtils.toNanoSeconds(YEAR_2025);
+        Expression rewritten = invert(eq(extract(keyword("year"), ts, utc()), longLit(2024L)));
+        assertGteLt(asAnd(rewritten), ts, startNanos, nextNanos, DataType.DATE_NANOS);
+    }
+
+    public void testDateTruncDatetimeLiteralOnNanosField() {
+        FieldAttribute ts = nanosField();
+        long startNanos = DateUtils.toNanoSeconds(YEAR_2024);
+        long nextNanos = DateUtils.toNanoSeconds(YEAR_2025);
+        Expression rewritten = invert(eq(trunc(yearInterval(), ts, utc()), datetime(YEAR_2024)));
+        assertGteLt(asAnd(rewritten), ts, startNanos, nextNanos, DataType.DATE_NANOS);
+    }
+
+    public void testDateTruncLeftoverNanosIsEmptyRange() {
+        FieldAttribute ts = nanosField();
+        long startNanos = DateUtils.toNanoSeconds(YEAR_2024);
+        Literal leftover = new Literal(SRC, startNanos + 1L, DataType.DATE_NANOS);
+        Expression rewritten = invert(eq(trunc(yearInterval(), ts, utc()), leftover));
+        assertGteLt(asAnd(rewritten), ts, startNanos, startNanos, DataType.DATE_NANOS);
+    }
+
+    public void testDateExtractIntegerLiteral() {
+        FieldAttribute ts = datetimeField();
+        Expression rewritten = invert(eq(extract(keyword("year"), ts, utc()), intLit(2024)));
+        assertGteLt(asAnd(rewritten), ts, YEAR_2024, YEAR_2025, DataType.DATETIME);
+    }
+
+    public void testInvertRefusesNonDatetimeFieldAndNullLiteral() {
+        FieldAttribute yearInt = field("year", DataType.INTEGER);
+        FieldAttribute ts = datetimeField();
+        assertNull(invert(eq(trunc(yearInterval(), yearInt, utc()), datetime(YEAR_2024))));
+        assertNull(invert(eq(trunc(yearInterval(), ts, utc()), new Literal(SRC, null, DataType.DATETIME))));
+        assertNull(invert(eq(new UnresolvedAttribute(SRC, "x"), longLit(2024L))));
+    }
+
     private static Literal foldLiteral(String name, List<Expression> args, Configuration config) {
         UnresolvedFunction call = new UnresolvedFunction(SRC, name, args);
         Expression folded = DateFunctionComparisonRewriter.tryFoldCall(call, config, REGISTRY);
@@ -151,5 +330,106 @@ public class DateFunctionComparisonRewriterTests extends ESTestCase {
 
     private static Literal datetime(long millis) {
         return new Literal(SRC, millis, DataType.DATETIME);
+    }
+
+    private static Expression invert(EsqlBinaryComparison cmp) {
+        return DateFunctionComparisonRewriter.tryRewriteComparison(cmp, FoldContext.small());
+    }
+
+    private static DateTrunc trunc(Expression interval, Expression field, Configuration config) {
+        return new DateTrunc(SRC, interval, field, config);
+    }
+
+    private static DateExtract extract(Expression chrono, Expression field, Configuration config) {
+        return new DateExtract(SRC, chrono, field, config);
+    }
+
+    private static And asAnd(Expression expression) {
+        assertNotNull(expression);
+        return (And) expression;
+    }
+
+    private static void assertGteLt(And and, Expression field, long start, long next, DataType type) {
+        GreaterThanOrEqual gte = (GreaterThanOrEqual) and.left();
+        LessThan lt = (LessThan) and.right();
+        assertSame(field, gte.left());
+        assertSame(field, lt.left());
+        assertEquals(type, gte.right().dataType());
+        assertEquals(type, lt.right().dataType());
+        assertEquals(start, ((Literal) gte.right()).value());
+        assertEquals(next, ((Literal) lt.right()).value());
+    }
+
+    private static void assertLtGte(Or or, Expression field, long start, long next, DataType type) {
+        LessThan lt = (LessThan) or.left();
+        GreaterThanOrEqual gte = (GreaterThanOrEqual) or.right();
+        assertSame(field, lt.left());
+        assertSame(field, gte.left());
+        assertEquals(type, lt.right().dataType());
+        assertEquals(type, gte.right().dataType());
+        assertEquals(start, ((Literal) lt.right()).value());
+        assertEquals(next, ((Literal) gte.right()).value());
+    }
+
+    private static void assertGte(Expression expression, Expression field, long bound, DataType type) {
+        GreaterThanOrEqual gte = (GreaterThanOrEqual) expression;
+        assertSame(field, gte.left());
+        assertEquals(type, gte.right().dataType());
+        assertEquals(bound, ((Literal) gte.right()).value());
+    }
+
+    private static void assertLt(Expression expression, Expression field, long bound, DataType type) {
+        LessThan lt = (LessThan) expression;
+        assertSame(field, lt.left());
+        assertEquals(type, lt.right().dataType());
+        assertEquals(bound, ((Literal) lt.right()).value());
+    }
+
+    private static Equals eq(Expression left, Expression right) {
+        return new Equals(SRC, left, right, null);
+    }
+
+    private static NotEquals neq(Expression left, Expression right) {
+        return new NotEquals(SRC, left, right, null);
+    }
+
+    private static GreaterThan gt(Expression left, Expression right) {
+        return new GreaterThan(SRC, left, right, null);
+    }
+
+    private static GreaterThanOrEqual gte(Expression left, Expression right) {
+        return new GreaterThanOrEqual(SRC, left, right, null);
+    }
+
+    private static LessThan lt(Expression left, Expression right) {
+        return new LessThan(SRC, left, right, null);
+    }
+
+    private static LessThanOrEqual lte(Expression left, Expression right) {
+        return new LessThanOrEqual(SRC, left, right, null);
+    }
+
+    private static Literal yearInterval() {
+        return new Literal(SRC, Period.ofYears(1), DataType.DATE_PERIOD);
+    }
+
+    private static Literal longLit(long value) {
+        return new Literal(SRC, value, DataType.LONG);
+    }
+
+    private static Literal intLit(int value) {
+        return new Literal(SRC, value, DataType.INTEGER);
+    }
+
+    private static FieldAttribute datetimeField() {
+        return field("ts", DataType.DATETIME);
+    }
+
+    private static FieldAttribute nanosField() {
+        return field("ts", DataType.DATE_NANOS);
+    }
+
+    private static FieldAttribute field(String name, DataType type) {
+        return new FieldAttribute(SRC, name, new EsField(name, type, Map.of(), true, TimeSeriesFieldType.NONE));
     }
 }

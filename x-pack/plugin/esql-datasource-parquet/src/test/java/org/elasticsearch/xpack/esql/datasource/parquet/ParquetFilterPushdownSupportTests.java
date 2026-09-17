@@ -11,16 +11,20 @@ import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
+import org.elasticsearch.xpack.esql.core.expression.FoldContext;
 import org.elasticsearch.xpack.esql.core.expression.Literal;
 import org.elasticsearch.xpack.esql.core.expression.ReferenceAttribute;
 import org.elasticsearch.xpack.esql.core.expression.predicate.regex.WildcardPattern;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.datasources.spi.FilterPushdownSupport;
+import org.elasticsearch.xpack.esql.expression.function.scalar.date.DateFunctionComparisonRewriter;
+import org.elasticsearch.xpack.esql.expression.function.scalar.date.DateTrunc;
 import org.elasticsearch.xpack.esql.expression.function.scalar.string.Contains;
 import org.elasticsearch.xpack.esql.expression.function.scalar.string.EndsWith;
 import org.elasticsearch.xpack.esql.expression.function.scalar.string.StartsWith;
 import org.elasticsearch.xpack.esql.expression.function.scalar.string.regex.WildcardLike;
+import org.elasticsearch.xpack.esql.expression.predicate.Predicates;
 import org.elasticsearch.xpack.esql.expression.predicate.Range;
 import org.elasticsearch.xpack.esql.expression.predicate.logical.And;
 import org.elasticsearch.xpack.esql.expression.predicate.logical.Not;
@@ -35,9 +39,12 @@ import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.Les
 import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.LessThanOrEqual;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.NotEquals;
 
+import java.time.Instant;
+import java.time.Period;
 import java.time.ZoneOffset;
 import java.util.List;
 
+import static org.elasticsearch.xpack.esql.EsqlTestUtils.TEST_CFG;
 import static org.hamcrest.Matchers.instanceOf;
 
 public class ParquetFilterPushdownSupportTests extends ESTestCase {
@@ -438,6 +445,38 @@ public class ParquetFilterPushdownSupportTests extends ESTestCase {
         FilterPushdownSupport.PushdownResult result = support.pushFilters(List.of(filter));
 
         assertTrue(result.hasPushedFilter());
+    }
+
+    /**
+     * C2 invert emits {@code ts >= start AND ts < next} with bounds typed as the field.
+     * The existing mint must accept that shape.
+     */
+    public void testDatetimeInvertedTruncRangePushed() {
+        Attribute col = attr("ts", DataType.DATETIME);
+        long start = Instant.parse("1986-01-01T00:00:00Z").toEpochMilli();
+        long next = Instant.parse("1987-01-01T00:00:00Z").toEpochMilli();
+        DateTrunc trunc = new DateTrunc(Source.EMPTY, new Literal(Source.EMPTY, Period.ofYears(1), DataType.DATE_PERIOD), col, TEST_CFG);
+        Expression rewritten = DateFunctionComparisonRewriter.tryRewriteComparison(
+            new Equals(Source.EMPTY, trunc, datetimeLit(start), null),
+            FoldContext.small()
+        );
+        And and = (And) rewritten;
+        GreaterThanOrEqual gte = (GreaterThanOrEqual) and.left();
+        LessThan lt = (LessThan) and.right();
+        assertEquals(DataType.DATETIME, gte.right().dataType());
+        assertEquals(DataType.DATETIME, lt.right().dataType());
+        assertEquals(start, ((Literal) gte.right()).value());
+        assertEquals(next, ((Literal) lt.right()).value());
+
+        List<Expression> conjuncts = Predicates.splitAnd(rewritten);
+        assertEquals(FilterPushdownSupport.Pushability.RECHECK, support.canPush(gte));
+        assertEquals(FilterPushdownSupport.Pushability.RECHECK, support.canPush(lt));
+        FilterPushdownSupport.PushdownResult result = support.pushFilters(conjuncts);
+
+        assertTrue(result.hasPushedFilter());
+        assertThat(result.pushedFilter(), instanceOf(ParquetPushedExpressions.class));
+        assertEquals(List.of(gte, lt), result.pushedExpressions());
+        assertEquals(List.of(gte, lt), result.remainder());
     }
 
     public void testDatetimeIsNullPushed() {

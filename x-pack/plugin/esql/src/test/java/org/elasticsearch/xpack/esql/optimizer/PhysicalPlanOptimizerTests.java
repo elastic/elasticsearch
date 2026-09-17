@@ -10656,6 +10656,50 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
     }
 
     /**
+     * Inverted {@code DATE_TRUNC(1 year, hire_date) == ...} pushes a Lucene range on the timestamp field.
+     */
+    public void testPushInvertedDateTruncEquals() {
+        assertHireDateYearRangePushed("""
+            FROM test
+            | WHERE DATE_TRUNC(1 year, hire_date) == "1986-01-01T00:00:00Z"
+            """, "1986-01-01T00:00:00.000Z", "1987-01-01T00:00:00.000Z");
+    }
+
+    public void testPushInvertedDateTruncQuotedIntervalEquals() {
+        assertHireDateYearRangePushed("""
+            FROM test
+            | WHERE DATE_TRUNC("1 year", hire_date) == "1986-01-01T00:00:00Z"
+            """, "1986-01-01T00:00:00.000Z", "1987-01-01T00:00:00.000Z");
+    }
+
+    /**
+     * Inverted {@code DATE_EXTRACT("year", hire_date) == 1986} pushes the same Lucene range.
+     */
+    public void testPushInvertedDateExtractYearEquals() {
+        assertHireDateYearRangePushed("""
+            FROM test
+            | WHERE DATE_EXTRACT("year", hire_date) == 1986
+            """, "1986-01-01T00:00:00.000Z", "1987-01-01T00:00:00.000Z");
+    }
+
+    private void assertHireDateYearRangePushed(String query, String start, String end) {
+        var plan = physicalPlan(query);
+        var optimized = optimizedPlan(plan);
+        var topLimit = as(optimized, LimitExec.class);
+        var exchange = asRemoteExchange(topLimit.child());
+        var project = as(exchange.child(), ProjectExec.class);
+        var fieldExtract = as(project.child(), FieldExtractExec.class);
+        var source = source(fieldExtract.child());
+
+        var rangeQuery = as(sv(source.query(), "hire_date"), RangeQueryBuilder.class);
+        assertThat(rangeQuery.fieldName(), equalTo("hire_date"));
+        assertThat(rangeQuery.from(), equalTo(start));
+        assertThat(rangeQuery.to(), equalTo(end));
+        assertTrue(rangeQuery.includeLower());
+        assertFalse(rangeQuery.includeUpper());
+    }
+
+    /**
      * {@snippet lang="text":
      * ProjectExec[[c{r}#4, n{r}#6]]
      * \_LimitExec[3[INTEGER],null]

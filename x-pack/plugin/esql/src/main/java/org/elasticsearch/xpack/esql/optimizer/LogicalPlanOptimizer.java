@@ -77,6 +77,7 @@ import org.elasticsearch.xpack.esql.optimizer.rules.logical.ReplaceSparklineAggr
 import org.elasticsearch.xpack.esql.optimizer.rules.logical.ReplaceStatsFilteredOrNullAggWithEval;
 import org.elasticsearch.xpack.esql.optimizer.rules.logical.ReplaceStringCasingWithInsensitiveEquals;
 import org.elasticsearch.xpack.esql.optimizer.rules.logical.ReplaceTrivialTypeConversions;
+import org.elasticsearch.xpack.esql.optimizer.rules.logical.RewriteDateFunctionComparisons;
 import org.elasticsearch.xpack.esql.optimizer.rules.logical.RewriteSumOfExpressionPlusConstant;
 import org.elasticsearch.xpack.esql.optimizer.rules.logical.SetAsOptimized;
 import org.elasticsearch.xpack.esql.optimizer.rules.logical.SimplifyComparisonsArithmetics;
@@ -222,6 +223,8 @@ public class LogicalPlanOptimizer extends ParameterizedRuleExecutor<LogicalPlan,
             // boolean
             new BooleanSimplification(),
             new LiteralsOnTheRight(),
+            // invert DATE_TRUNC / monotonic DATE_EXTRACT before BinaryComparison combinations
+            new RewriteDateFunctionComparisons(),
             // needs to occur before BinaryComparison combinations (see class)
             new PropagateEquals(),
             new PropagateNullable(),

@@ -11,15 +11,29 @@ import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.FieldAttribute;
+import org.elasticsearch.xpack.esql.core.expression.FoldContext;
 import org.elasticsearch.xpack.esql.core.expression.Literal;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.core.type.EsField;
 import org.elasticsearch.xpack.esql.datasources.spi.FilterPushdownSupport;
+import org.elasticsearch.xpack.esql.expression.function.scalar.date.DateFunctionComparisonRewriter;
+import org.elasticsearch.xpack.esql.expression.function.scalar.date.DateTrunc;
+import org.elasticsearch.xpack.esql.expression.predicate.Predicates;
+import org.elasticsearch.xpack.esql.expression.predicate.logical.And;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.Equals;
+import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.GreaterThanOrEqual;
+import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.LessThan;
+import org.elasticsearch.xpack.esql.plan.ResolvedSettings;
+import org.elasticsearch.xpack.esql.plugin.QueryPragmas;
+import org.elasticsearch.xpack.esql.session.Configuration;
 
+import java.time.Instant;
+import java.time.Period;
 import java.util.Collections;
 import java.util.List;
+import java.util.Locale;
+import java.util.Map;
 
 import static org.elasticsearch.xpack.esql.core.type.EsField.TimeSeriesFieldType;
 import static org.hamcrest.Matchers.instanceOf;
@@ -91,6 +105,33 @@ public class OrcFilterPushdownSupportTests extends ESTestCase {
         assertFalse(result.hasPushedFilter());
     }
 
+    public void testDatetimeInvertedTruncRangePushed() {
+        FieldAttribute ts = field("ts", DataType.DATETIME);
+        long start = Instant.parse("1986-01-01T00:00:00Z").toEpochMilli();
+        long next = Instant.parse("1987-01-01T00:00:00Z").toEpochMilli();
+        DateTrunc trunc = new DateTrunc(SOURCE, new Literal(SOURCE, Period.ofYears(1), DataType.DATE_PERIOD), ts, utcConfig());
+        Expression rewritten = DateFunctionComparisonRewriter.tryRewriteComparison(
+            new Equals(SOURCE, trunc, new Literal(SOURCE, start, DataType.DATETIME), null),
+            FoldContext.small()
+        );
+        And and = (And) rewritten;
+        GreaterThanOrEqual gte = (GreaterThanOrEqual) and.left();
+        LessThan lt = (LessThan) and.right();
+        assertEquals(DataType.DATETIME, gte.right().dataType());
+        assertEquals(DataType.DATETIME, lt.right().dataType());
+        assertEquals(start, ((Literal) gte.right()).value());
+        assertEquals(next, ((Literal) lt.right()).value());
+
+        List<Expression> conjuncts = Predicates.splitAnd(rewritten);
+        assertEquals(FilterPushdownSupport.Pushability.RECHECK, support.canPush(gte));
+        assertEquals(FilterPushdownSupport.Pushability.RECHECK, support.canPush(lt));
+        FilterPushdownSupport.PushdownResult result = support.pushFilters(conjuncts);
+        assertTrue(result.hasPushedFilter());
+        assertThat(result.pushedFilter(), instanceOf(OrcPushedExpressions.class));
+        assertEquals(List.of(gte, lt), result.pushedExpressions());
+        assertEquals(2, result.remainder().size());
+    }
+
     public void testVirtualColumnNotPushable() {
         // Virtual columns (engine-synthesized _file.* / VirtualAttribute) are not stored as ORC
         // columns; predicate pushdown must reject them so the engine evaluates the filter after
@@ -109,6 +150,27 @@ public class OrcFilterPushdownSupportTests extends ESTestCase {
 
     private static FieldAttribute field(String name, DataType dataType) {
         return new FieldAttribute(SOURCE, name, new EsField(name, dataType, Collections.emptyMap(), true, TimeSeriesFieldType.NONE));
+    }
+
+    private static Configuration utcConfig() {
+        return new Configuration(
+            Instant.EPOCH,
+            Locale.ROOT,
+            "test",
+            "test",
+            QueryPragmas.EMPTY,
+            10000,
+            1000,
+            "",
+            false,
+            Map.of(),
+            0L,
+            false,
+            10000,
+            1000,
+            ResolvedSettings.EMPTY,
+            Map.of()
+        );
     }
 
     private static Expression eq(String fieldName, DataType type, Object value) {

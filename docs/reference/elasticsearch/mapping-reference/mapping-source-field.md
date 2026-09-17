@@ -325,12 +325,12 @@ PUT my-columnar-index
 {
   "settings": {
     "index": {
+      "mapping": {
+        "source": {
+          "mode": "columnar_stored"
+        }
+      },
       "mode": "columnar"
-    }
-  },
-  "mappings": {
-    "_source": {
-      "mode": "columnar_stored"
     }
   }
 }

@@ -18,6 +18,7 @@ import org.elasticsearch.compute.operator.CloseableIterator;
 import org.elasticsearch.compute.operator.DriverContext;
 import org.elasticsearch.compute.operator.SourceOperator;
 import org.elasticsearch.core.Nullable;
+import org.elasticsearch.core.Releasables;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.expression.FieldAttribute;
@@ -36,6 +37,7 @@ import org.elasticsearch.xpack.esql.datasources.spi.FormatReader;
 import org.elasticsearch.xpack.esql.datasources.spi.NoConfigFormatReader;
 import org.elasticsearch.xpack.esql.datasources.spi.PassThroughRowPositionStrategy;
 import org.elasticsearch.xpack.esql.datasources.spi.RowPositionStrategy;
+import org.elasticsearch.xpack.esql.datasources.spi.SkipWarnings;
 import org.elasticsearch.xpack.esql.datasources.spi.SourceMetadata;
 import org.elasticsearch.xpack.esql.datasources.spi.StorageObject;
 import org.elasticsearch.xpack.esql.datasources.spi.StoragePath;
@@ -45,12 +47,16 @@ import java.io.IOException;
 import java.io.InputStream;
 import java.time.Instant;
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.Consumer;
 
+import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.hasItem;
+import static org.hamcrest.Matchers.hasSize;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.mock;
@@ -158,6 +164,78 @@ public class AsyncExternalSourceOperatorFactoryDeferredExtractionTests extends E
             }
             operator.close();
         }
+    }
+
+    /**
+     * The deferred extractor's warning sink must deposit into the driver's {@link DriverContext}, which
+     * {@code DriverCompletionInfo} ships back from whatever node ran the scan, rather than into the emitting
+     * thread's {@code ThreadContext} — the latter only reaches the client when the scan runs on the coordinator
+     * (elastic/esql-planning#1837). The sink stays budget-gated, so a flood still collapses to the cap plus one
+     * overflow marker.
+     */
+    public void testDeferredExtractorWarningSinkFeedsTheDriverSinkUnderTheBudget() throws Exception {
+        AtomicInteger readCount = new AtomicInteger();
+        AtomicInteger extractorsCreated = new AtomicInteger();
+        List<Consumer<String>> capturedSinks = Collections.synchronizedList(new ArrayList<>());
+        FormatReader_RowPositionEmitting reader = new FormatReader_RowPositionEmitting(
+            readCount,
+            extractorsCreated,
+            /* rowsPerFile = */ 1,
+            capturedSinks
+        );
+
+        StoragePath path = StoragePath.of("s3://bucket/data/f1.parquet");
+        FileList fileList = GlobExpander.fileListOf(List.of(new StorageEntry(path, 100, Instant.EPOCH)), "s3://bucket/data/*.parquet");
+        List<Attribute> attributes = List.of(field("value", DataType.INTEGER), field(ColumnExtractor.ROW_POSITION_COLUMN, DataType.LONG));
+
+        // A real context, since the sink under test writes into it; a mock would swallow every message.
+        DriverContext driverContext = new DriverContext(BigArrays.NON_RECYCLING_INSTANCE, BLOCK_FACTORY, null);
+
+        AsyncExternalSourceOperatorFactory factory = AsyncExternalSourceOperatorFactory.builder(
+            new StubStorageProvider(),
+            reader,
+            path,
+            attributes,
+            100,
+            10,
+            (Runnable r) -> r.run()
+        ).fileList(fileList).deferredExtraction(true).build();
+
+        SourceOperator operator = factory.get(driverContext);
+        List<Page> pages = new ArrayList<>();
+        try {
+            while (operator.isFinished() == false) {
+                Page page = operator.getOutput();
+                if (page != null) {
+                    pages.add(page);
+                }
+            }
+            assertThat("the extractor handshake must hand out a sink", capturedSinks, hasSize(1));
+            Consumer<String> sink = capturedSinks.get(0);
+
+            // One distinct message per call, so the budget counts each rather than deduplicating them, and the
+            // count deliberately overshoots the cap.
+            int offered = SkipWarnings.MAX_ADDED_WARNINGS + 5;
+            for (int i = 0; i < offered; i++) {
+                sink.accept("extractor notice " + i);
+            }
+        } finally {
+            for (Page p : pages) {
+                p.releaseBlocks();
+            }
+            operator.close();
+        }
+
+        driverContext.finish();
+        List<String> warnings = driverContext.warnings();
+        assertThat(
+            "the cap admits MAX_ADDED_WARNINGS payloads plus one overflow marker",
+            warnings,
+            hasSize(SkipWarnings.MAX_ADDED_WARNINGS + 1)
+        );
+        assertThat(warnings.get(0), equalTo("extractor notice 0"));
+        assertThat(warnings, hasItem(SkipWarnings.overflowMessage()));
+        Releasables.close(driverContext.getSnapshot());
     }
 
     public void testEmptyDataProjectionWithDeferredExtractionAndNonIdentityMapping() throws Exception {
@@ -490,10 +568,58 @@ public class AsyncExternalSourceOperatorFactoryDeferredExtractionTests extends E
         assertEquals("onClose runs exactly once after registry teardown", 1, onCloseCalls.get());
     }
 
+    /**
+     * {@code createDrivers} builds the source operator before the extract operator, so
+     * {@link AsyncExternalSourceOperatorFactory#sourceExtractorsFor} can run after {@code get()}.
+     * A producer that dies before registering an extractor must not drop the factory's deferred
+     * ref — otherwise the later registry attaches to an already-returned lease.
+     */
+    public void testDeferredExtractionKeepsFactoryRefUntilOperatorCloseWhenGetRunsFirst() throws Exception {
+        FormatReader failOnRead = new FailOnReadExtractorAwareReader();
+        StorageObject storageObject = mock(StorageObject.class);
+        StorageProvider storageProvider = mock(StorageProvider.class);
+        when(storageProvider.newObject(any())).thenReturn(storageObject);
+
+        StoragePath path = StoragePath.of("s3://bucket/data/f.parquet");
+        List<Attribute> attributes = List.of(field("value", DataType.INTEGER), field(ColumnExtractor.ROW_POSITION_COLUMN, DataType.LONG));
+
+        DriverContext driverContext = mock(DriverContext.class);
+        when(driverContext.blockFactory()).thenReturn(BLOCK_FACTORY);
+        doAnswer(inv -> null).when(driverContext).addAsyncAction();
+        doAnswer(inv -> null).when(driverContext).removeAsyncAction();
+
+        AtomicInteger onCloseCalls = new AtomicInteger();
+        AsyncExternalSourceOperatorFactory factory = AsyncExternalSourceOperatorFactory.builder(
+            storageProvider,
+            failOnRead,
+            path,
+            attributes,
+            100,
+            10,
+            (Runnable r) -> r.run()
+        ).deferredExtraction(true).onClose(() -> onCloseCalls.incrementAndGet()).build();
+
+        SourceOperator operator = factory.get(driverContext);
+        try {
+            expectThrows(Exception.class, operator::getOutput);
+            assertEquals("operator hold must keep the factory deferred ref after a failed get()", 0, onCloseCalls.get());
+
+            SourceExtractors registry = factory.sourceExtractorsFor(driverContext);
+            assertEquals("late sourceExtractorsFor must attach to a still-open lease", 0, onCloseCalls.get());
+
+            operator.close();
+            assertEquals("onClose waits for the registry after operator.close()", 0, onCloseCalls.get());
+            registry.close();
+            assertEquals("onClose runs once after operator and registry both close", 1, onCloseCalls.get());
+        } finally {
+            operator.close();
+        }
+    }
+
     public void testNonDeferredExtractionStillClosesOnSourceRelease() throws Exception {
-        // Symmetric guard: when deferred extraction is disabled, the legacy path stays in effect
-        // and onClose runs as soon as the source finishes — there is no late materialization
-        // reading from the budget, so keeping it alive would just delay GC.
+        // Symmetric guard: when deferred extraction is disabled, onClose runs after the last
+        // operator.close() (the producer has also finished by then) — there is no late
+        // materialization reading from the budget, so keeping it alive would just delay GC.
         FormatReader_RowPositionEmitting reader = new FormatReader_RowPositionEmitting(new AtomicInteger(), new AtomicInteger(), 2);
 
         StorageObject storageObject = mock(StorageObject.class);
@@ -531,7 +657,7 @@ public class AsyncExternalSourceOperatorFactoryDeferredExtractionTests extends E
         } finally {
             operator.close();
         }
-        assertEquals("non-deferred path closes onClose at source release", 1, onCloseCalls.get());
+        assertEquals("non-deferred path closes onClose after last operator.close()", 1, onCloseCalls.get());
     }
 
     public void testDeferredExtractionRequiresColumnExtractorAware() {
@@ -811,6 +937,40 @@ public class AsyncExternalSourceOperatorFactoryDeferredExtractionTests extends E
     }
 
     /**
+     * {@link ColumnExtractorAware} reader whose {@code read} throws before a producer iterator
+     * exists, so deferred extraction never reaches {@code sourceExtractorsFor} during {@code get()}.
+     */
+    private static final class FailOnReadExtractorAwareReader implements NoConfigFormatReader, ColumnExtractorAware {
+        @Override
+        public RowPositionStrategy rowPositionStrategy() {
+            return PassThroughRowPositionStrategy.INSTANCE;
+        }
+
+        @Override
+        public SourceMetadata metadata(StorageObject object) {
+            return null;
+        }
+
+        @Override
+        public CloseableIterator<Page> read(StorageObject object, FormatReadContext context) throws IOException {
+            throw new IOException("injected first-read failure");
+        }
+
+        @Override
+        public String formatName() {
+            return "fail-first-aware";
+        }
+
+        @Override
+        public List<String> fileExtensions() {
+            return List.of(".parquet");
+        }
+
+        @Override
+        public void close() {}
+    }
+
+    /**
      * Format reader that implements {@link ColumnExtractorAware}. Each {@code read} returns one
      * page with two columns (value, _rowPosition). The {@code _rowPosition} column carries raw
      * file-local positions ({@code 0..rowsPerFile-1}) — exactly what a real
@@ -826,11 +986,23 @@ public class AsyncExternalSourceOperatorFactoryDeferredExtractionTests extends E
         private final AtomicInteger readCount;
         private final AtomicInteger extractorsCreated;
         private final int rowsPerFile;
+        /** Sinks handed to {@link ColumnExtractorProducer#createColumnExtractor}; empty unless a test wants them. */
+        private final List<Consumer<String>> capturedSinks;
 
         FormatReader_RowPositionEmitting(AtomicInteger readCount, AtomicInteger extractorsCreated, int rowsPerFile) {
+            this(readCount, extractorsCreated, rowsPerFile, Collections.synchronizedList(new ArrayList<>()));
+        }
+
+        FormatReader_RowPositionEmitting(
+            AtomicInteger readCount,
+            AtomicInteger extractorsCreated,
+            int rowsPerFile,
+            List<Consumer<String>> capturedSinks
+        ) {
             this.readCount = readCount;
             this.extractorsCreated = extractorsCreated;
             this.rowsPerFile = rowsPerFile;
+            this.capturedSinks = capturedSinks;
         }
 
         @Override
@@ -841,7 +1013,7 @@ public class AsyncExternalSourceOperatorFactoryDeferredExtractionTests extends E
         @Override
         public CloseableIterator<Page> read(StorageObject object, FormatReadContext context) {
             int idx = readCount.getAndIncrement();
-            return new ProducerIterator(idx, extractorsCreated, rowsPerFile);
+            return new ProducerIterator(idx, extractorsCreated, rowsPerFile, capturedSinks);
         }
 
         @Override
@@ -867,13 +1039,15 @@ public class AsyncExternalSourceOperatorFactoryDeferredExtractionTests extends E
         private final int fileIndex;
         private final AtomicInteger extractorsCreated;
         private final int rowsPerFile;
+        private final List<Consumer<String>> capturedSinks;
         private boolean emitted = false;
         private long rowPositionEncodingHighBits = -1L;
 
-        ProducerIterator(int fileIndex, AtomicInteger extractorsCreated, int rowsPerFile) {
+        ProducerIterator(int fileIndex, AtomicInteger extractorsCreated, int rowsPerFile, List<Consumer<String>> capturedSinks) {
             this.fileIndex = fileIndex;
             this.extractorsCreated = extractorsCreated;
             this.rowsPerFile = rowsPerFile;
+            this.capturedSinks = capturedSinks;
         }
 
         @Override
@@ -906,6 +1080,9 @@ public class AsyncExternalSourceOperatorFactoryDeferredExtractionTests extends E
         @Override
         public ColumnExtractor createColumnExtractor(@Nullable Consumer<String> driverThreadWarningSink) {
             extractorsCreated.incrementAndGet();
+            if (driverThreadWarningSink != null) {
+                capturedSinks.add(driverThreadWarningSink);
+            }
             return new InMemoryColumnExtractor(rowsPerFile);
         }
 

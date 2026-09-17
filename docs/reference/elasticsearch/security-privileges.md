@@ -28,6 +28,10 @@ Roles are governed by a set of configurable privileges grouped into these catego
 
 When creating roles, refer to this page for a complete list of available privileges.
 
+:::{note}
+Privileges do not grant a fixed set of operations. Each privilege is defined by the action name patterns it matches, which means it automatically covers any new operations added to {{es}} in future releases that fall within its scope. For example, the `all` cluster privilege covers every cluster action, and `manage` covers all administrative actions — including new ones as they are introduced. The operations described for each privilege below are representative examples, not an exhaustive list.
+:::
+
 ## Cluster privileges [privileges-list-cluster]
 
 `all`
@@ -139,7 +143,7 @@ When creating roles, refer to this page for a complete list of available privile
 `manage_pipeline`
 :   All operations on ingest pipelines.
 
-`manage_project_routing` {applies_to}`stack: unavailable` {applies_to}`serverless: preview`
+`manage_project_routing` {applies_to}`stack: unavailable` {applies_to}`serverless: ga`
 :   All read and write operations on [cross-project search](docs-content://explore-analyze/cross-project-search.md) project routing. Builds on `read_project_routing` by adding the ability to create and delete named project routing expressions.
 
 `manage_reindex` {applies_to}`serverless: ga` {applies_to}`stack: ga 9.5`
@@ -166,7 +170,9 @@ When creating roles, refer to this page for a complete list of available privile
 :   All security-related operations such as CRUD operations on users and roles and cache clearing.
 
 `manage_service_account` {applies_to}`serverless: unavailable`
-:   All security-related operations on {{es}} service accounts including [Get service accounts](https://www.elastic.co/docs/api/doc/elasticsearch/operation/operation-security-get-service-accounts), [Create service account tokens](https://www.elastic.co/docs/api/doc/elasticsearch/operation/operation-security-create-service-token), [Delete service account token](https://www.elastic.co/docs/api/doc/elasticsearch/operation/operation-security-delete-service-token), and [Get service account credentials](https://www.elastic.co/docs/api/doc/elasticsearch/operation/operation-security-get-service-credentials).
+:   Security-related operations on {{es}} service accounts including [Get service accounts](https://www.elastic.co/docs/api/doc/elasticsearch/operation/operation-security-get-service-accounts), [Create service account tokens](https://www.elastic.co/docs/api/doc/elasticsearch/operation/operation-security-create-service-token), [Delete service account token](https://www.elastic.co/docs/api/doc/elasticsearch/operation/operation-security-delete-service-token), and [Get service account credentials](https://www.elastic.co/docs/api/doc/elasticsearch/operation/operation-security-get-service-credentials). 
+
+   {applies_to}`stack: ga 9.6+` This privilege grants token creation and deletion for Elastic-managed service accounts (in the `elastic` namespace) only. Managing user-managed service accounts and their tokens requires the `manage_security` privilege.
 
 
 `manage_slm` {applies_to}`serverless: unavailable` {applies_to}`stack: deprecated 8.15`
@@ -255,7 +261,7 @@ When creating roles, refer to this page for a complete list of available privile
 `read_pipeline`
 :   Read-only access to ingest pipeline (get, simulate).
 
-`read_project_routing` {applies_to}`stack: unavailable` {applies_to}`serverless: preview`
+`read_project_routing` {applies_to}`stack: unavailable` {applies_to}`serverless: ga`
 :   Read-only access to [cross-project search](docs-content://explore-analyze/cross-project-search.md) project routing, including viewing project routing expressions and project metadata. Include `read_project_routing` for custom roles with the `read` index privilege to ensure users have access to the project picker in {{kib}}.
 
 `read_slm` {applies_to}`serverless: unavailable` {applies_to}`stack: deprecated 8.15`

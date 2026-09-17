@@ -42,6 +42,11 @@ import static org.hamcrest.Matchers.is;
 
 //@TestLogging(value = "org.elasticsearch.xpack.esql:TRACE", reason = "debug")
 public class DeduplicateAggsTests extends AbstractLogicalPlanOptimizerTests {
+
+    public DeduplicateAggsTests(VersionMode versionMode) {
+        super(versionMode);
+    }
+
     public static <T extends AggregateFunction> void aggFieldName(Expression exp, Class<T> aggType, String fieldName) {
         var alias = as(exp, Alias.class);
         var af = as(alias.child(), aggType);

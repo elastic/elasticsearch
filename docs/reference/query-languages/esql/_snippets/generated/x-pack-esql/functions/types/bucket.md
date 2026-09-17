@@ -56,6 +56,18 @@
 | double | integer | long | long | | double |
 | double | integer | | | | double |
 | double | long | | | | double |
+| exponential_histogram {applies_to}`stack: preview 9.6.0` | double | | | | double_range |
+| exponential_histogram {applies_to}`stack: preview 9.6.0` | integer | double | double | | double_range |
+| exponential_histogram {applies_to}`stack: preview 9.6.0` | integer | double | integer | | double_range |
+| exponential_histogram {applies_to}`stack: preview 9.6.0` | integer | double | long | | double_range |
+| exponential_histogram {applies_to}`stack: preview 9.6.0` | integer | integer | double | | double_range |
+| exponential_histogram {applies_to}`stack: preview 9.6.0` | integer | integer | integer | | double_range |
+| exponential_histogram {applies_to}`stack: preview 9.6.0` | integer | integer | long | | double_range |
+| exponential_histogram {applies_to}`stack: preview 9.6.0` | integer | long | double | | double_range |
+| exponential_histogram {applies_to}`stack: preview 9.6.0` | integer | long | integer | | double_range |
+| exponential_histogram {applies_to}`stack: preview 9.6.0` | integer | long | long | | double_range |
+| exponential_histogram {applies_to}`stack: preview 9.6.0` | integer | | | | double_range |
+| exponential_histogram {applies_to}`stack: preview 9.6.0` | long | | | | double_range |
 | integer | double | | | | double |
 | integer | integer | double | double | | double |
 | integer | integer | double | integer | | double |
@@ -80,4 +92,16 @@
 | long | integer | long | long | | double |
 | long | integer | | | | double |
 | long | long | | | | double |
+| tdigest {applies_to}`stack: preview 9.6.0` | double | | | | double_range |
+| tdigest {applies_to}`stack: preview 9.6.0` | integer | double | double | | double_range |
+| tdigest {applies_to}`stack: preview 9.6.0` | integer | double | integer | | double_range |
+| tdigest {applies_to}`stack: preview 9.6.0` | integer | double | long | | double_range |
+| tdigest {applies_to}`stack: preview 9.6.0` | integer | integer | double | | double_range |
+| tdigest {applies_to}`stack: preview 9.6.0` | integer | integer | integer | | double_range |
+| tdigest {applies_to}`stack: preview 9.6.0` | integer | integer | long | | double_range |
+| tdigest {applies_to}`stack: preview 9.6.0` | integer | long | double | | double_range |
+| tdigest {applies_to}`stack: preview 9.6.0` | integer | long | integer | | double_range |
+| tdigest {applies_to}`stack: preview 9.6.0` | integer | long | long | | double_range |
+| tdigest {applies_to}`stack: preview 9.6.0` | integer | | | | double_range |
+| tdigest {applies_to}`stack: preview 9.6.0` | long | | | | double_range |
 

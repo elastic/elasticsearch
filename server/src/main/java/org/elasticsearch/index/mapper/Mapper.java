@@ -374,4 +374,14 @@ public abstract class Mapper implements ToXContentFragment, Iterable<Mapper> {
     public boolean storesArrayValuesInOrder() {
         return false;
     }
+
+    /**
+     * Records an empty array for a mapper that {@link #storesArrayValuesInOrder() stores its array elements in order}: the
+     * {@code .counts} companion alone, at zero, with no binary blob. Overridable because the accumulator registered on the document
+     * is per-format, and a field whose doc values go to the ColumNAR codec registers a different one.
+     */
+    public void recordEmptyArrayInOrder(LuceneDocument doc) {
+        assert storesArrayValuesInOrder() : "only an in-order mapper records an empty array this way";
+        MultiValuedBinaryDocValuesField.ArrayOrderInlineNull.recordEmptyArray(doc, fullPath());
+    }
 }

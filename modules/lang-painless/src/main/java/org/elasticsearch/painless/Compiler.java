@@ -184,13 +184,25 @@ final class Compiler {
      * @param name The name of the script.
      * @param source The source code for the script.
      * @param settings The CompilerSettings to be used during the compilation.
+     * @param allocationRecorder Records each execution's allocation total, or {@code null} to record none. Injected into the
+     *                           generated class as a static constant, like the other {@code $}-prefixed constants.
      * @return The ScriptScope used to compile
      */
-    ScriptScope compile(Loader loader, String name, String source, CompilerSettings settings) {
+    ScriptScope compile(
+        Loader loader,
+        String name,
+        String source,
+        CompilerSettings settings,
+        AllocationMetrics.ContextRecorder allocationRecorder
+    ) {
         String scriptName = Location.computeSourceName(name);
         ScriptClassInfo scriptClassInfo = new ScriptClassInfo(painlessLookup, scriptClass);
         SClass root = Walker.buildPainlessTree(scriptName, source, settings);
         ScriptScope scriptScope = new ScriptScope(painlessLookup, settings, scriptClassInfo, scriptName, source, root.getIdentifier() + 1);
+
+        if (allocationRecorder != null) {
+            scriptScope.addStaticConstant(WriterConstants.ALLOC_METRICS_FIELD, allocationRecorder);
+        }
         new PainlessSemanticHeaderPhase().visitClass(root, scriptScope);
         new PainlessSemanticAnalysisPhase().visitClass(root, scriptScope);
         new PainlessUserTreeToIRTreePhase().visitClass(root, scriptScope);

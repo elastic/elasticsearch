@@ -162,10 +162,13 @@ public final class ExternalMetadataColumns {
     private static Object perFileValue(String name, @Nullable String datasetName) {
         return switch (name) {
             case INDEX -> datasetName != null ? new BytesRef(datasetName) : null;
+            // No query ranks a dataset row, so there is no relevance to report. Zero rather than NULL:
+            // the value is the absence of ranking, which is what an unranked row scores.
+            case SCORE -> 0.0;
             // A file carries no document identity, no document version and no stored source, and no
-            // relevance score, per-row _ignored list, index mode, tsid or stored size either. Every one
-            // of these is SQL NULL rather than a value composed at the reader.
-            case ID, VERSION, SOURCE, SCORE, IGNORED, INDEX_MODE, TSID, SIZE, DataTierFieldMapper.NAME, SLICE -> null;
+            // per-row _ignored list, index mode, tsid or stored size either. Every one of these is SQL
+            // NULL rather than a value composed at the reader.
+            case ID, VERSION, SOURCE, IGNORED, INDEX_MODE, TSID, SIZE, DataTierFieldMapper.NAME, SLICE -> null;
             default -> throw new AssertionError("Unhandled per-file constant name: " + name);
         };
     }

@@ -34,14 +34,15 @@ import static org.hamcrest.Matchers.nullValue;
 /**
  * Per-format matrix for the standard metadata columns surfaced on {@code FROM <external-dataset>}.
  *
- * <p>The wiring that surfaces {@code _index} (and the always-null set
- * {@code _id / _version / _source / _score / _ignored / _index_mode / _tsid / _size}), plus the
+ * <p>The wiring that surfaces {@code _index}, the constant {@code _score}, and the always-null set
+ * {@code _id / _version / _source / _ignored / _index_mode / _tsid / _size}, plus the
  * {@code _file.*} family, reaches into the per-format <em>reader</em>, so a format-specific
  * regression in any of those paths would otherwise pass with only the CSV coverage in
  * {@link FromDatasetIT}.
  *
  * <p>{@code _id}, {@code _version} and {@code _source} are in that null set because a file holds no
- * document identity, no document version and no stored source.
+ * document identity, no document version and no stored source. {@code _score} is not: no query ranks
+ * a dataset row, so every row scores zero.
  *
  * <p>This base owns the {@code @Test} bodies; each concrete subclass binds them to one format
  * by supplying {@link #format()}, {@link #formatPlugins()} and a {@link #writeFixture(Path)} that
@@ -145,8 +146,9 @@ public abstract class AbstractExternalMetadataMatrixIT extends AbstractExternalD
     public void testAllStandardMetadataColumnsPinned() throws Exception {
         // Standing contract: every standard metadata name a dataset answers is accepted in one query,
         // returns a value or SQL NULL (never an error), and the value/null disposition is pinned.
-        // _index carries the dataset name; the remaining eight have no external semantic and come back
-        // as NULL columns. _tier is snapshot-only — see testTierIsNullOnExternalRowsSnapshotOnly.
+        // _index carries the dataset name and _score is zero on every row; the remaining seven have no
+        // external semantic and come back as NULL columns. _tier is snapshot-only — see
+        // testTierIsNullOnExternalRowsSnapshotOnly.
         String query = "FROM employees METADATA _index, _id, _version, _source, _ignored, _index_mode, _tsid, _size, _score "
             + "| SORT emp_no | LIMIT 10";
 
@@ -174,7 +176,7 @@ public abstract class AbstractExternalMetadataMatrixIT extends AbstractExternalD
                 assertThat("_index_mode is null on external rows", row.get(indexModeI), nullValue());
                 assertThat("_tsid is null on external rows", row.get(tsidI), nullValue());
                 assertThat("_size is null on external rows", row.get(sizeI), nullValue());
-                assertThat("_score is null on external rows", row.get(scoreI), nullValue());
+                assertThat("_score is zero on external rows", (Double) row.get(scoreI), equalTo(0.0));
             }
         }
     }
@@ -343,7 +345,7 @@ public abstract class AbstractExternalMetadataMatrixIT extends AbstractExternalD
         try (
             var response = run(syncEsqlQueryRequest("FROM employees METADATA _score | WHERE _score IS NULL | STATS c = COUNT(*)"), TIMEOUT)
         ) {
-            assertThat(((Number) getValuesList(response).get(0).get(0)).longValue(), equalTo(3L));
+            assertThat(((Number) getValuesList(response).get(0).get(0)).longValue(), equalTo(0L));
         }
         try (
             var response = run(
@@ -351,7 +353,7 @@ public abstract class AbstractExternalMetadataMatrixIT extends AbstractExternalD
                 TIMEOUT
             )
         ) {
-            assertThat(((Number) getValuesList(response).get(0).get(0)).longValue(), equalTo(0L));
+            assertThat(((Number) getValuesList(response).get(0).get(0)).longValue(), equalTo(3L));
         }
         try (
             var response = run(

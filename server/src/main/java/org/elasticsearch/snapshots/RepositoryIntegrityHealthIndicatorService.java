@@ -125,11 +125,7 @@ public class RepositoryIntegrityHealthIndicatorService implements HealthIndicato
             for (RepositoryMetadata repository : projectRepositories) {
                 if (repository.generation() == RepositoryData.CORRUPTED_REPO_GEN) {
                     corruptedRepositories.add(
-                        HealthIndicatorDisplayValues.getRepositoryDisplayName(
-                            project.id(),
-                            repository.name(),
-                            supportsMultipleProjects
-                        )
+                        HealthIndicatorDisplayValues.getRepositoryDisplayName(project.id(), repository.name(), supportsMultipleProjects)
                     );
                 }
             }

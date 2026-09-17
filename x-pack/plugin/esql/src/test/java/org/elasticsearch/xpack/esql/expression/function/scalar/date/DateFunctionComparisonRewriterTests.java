@@ -213,6 +213,16 @@ public class DateFunctionComparisonRewriterTests extends ESTestCase {
         assertGteLt(asAnd(rewritten), ts, YEAR_2024, YEAR_2025, DataType.DATETIME);
     }
 
+    public void testDateExtractYearInequalitiesAndNotEquals() {
+        FieldAttribute ts = datetimeField();
+        DateExtract year = extract(keyword("year"), ts, utc());
+        assertGte(invert(gt(year, longLit(2024L))), ts, YEAR_2025, DataType.DATETIME);
+        assertGte(invert(gte(year, longLit(2024L))), ts, YEAR_2024, DataType.DATETIME);
+        assertLt(invert(lt(year, longLit(2024L))), ts, YEAR_2024, DataType.DATETIME);
+        assertLt(invert(lte(year, longLit(2024L))), ts, YEAR_2025, DataType.DATETIME);
+        assertLtGte((Or) invert(neq(year, longLit(2024L))), ts, YEAR_2024, YEAR_2025, DataType.DATETIME);
+    }
+
     public void testDateExtractYearUsesQueryTimeZone() {
         FieldAttribute ts = datetimeField();
         ZoneId plus530 = ZoneOffset.ofHoursMinutes(5, 30);
@@ -220,6 +230,15 @@ public class DateFunctionComparisonRewriterTests extends ESTestCase {
         long start = ZonedDateTime.of(2024, 1, 1, 0, 0, 0, 0, plus530).toInstant().toEpochMilli();
         long next = ZonedDateTime.of(2025, 1, 1, 0, 0, 0, 0, plus530).toInstant().toEpochMilli();
         Expression rewritten = invert(eq(extract(keyword("YEAR"), ts, cfg), longLit(2024L)));
+        assertGteLt(asAnd(rewritten), ts, start, next, DataType.DATETIME);
+    }
+
+    public void testDateExtractYearUsesNamedTimeZone() {
+        FieldAttribute ts = datetimeField();
+        ZoneId ny = ZoneId.of("America/New_York");
+        long start = LocalDate.of(2024, 1, 1).atStartOfDay(ny).toInstant().toEpochMilli();
+        long next = LocalDate.of(2025, 1, 1).atStartOfDay(ny).toInstant().toEpochMilli();
+        Expression rewritten = invert(eq(extract(keyword("YEAR"), ts, config(ny)), longLit(2024L)));
         assertGteLt(asAnd(rewritten), ts, start, next, DataType.DATETIME);
     }
 
@@ -233,6 +252,27 @@ public class DateFunctionComparisonRewriterTests extends ESTestCase {
         assertGteLt(asAnd(unaligned), ts, zoneYearStart, zoneYearStart, DataType.DATETIME);
         Expression aligned = invert(eq(trunc(yearInterval(), ts, cfg), datetime(zoneYearStart)));
         assertGteLt(asAnd(aligned), ts, zoneYearStart, zoneYearNext, DataType.DATETIME);
+    }
+
+    public void testDateTruncWeekAndDay() {
+        FieldAttribute ts = datetimeField();
+        // 2024-01-01 is Monday; WEEK_OF_WEEKYEAR, not a 7-day epoch duration.
+        Expression week = invert(eq(trunc(weekInterval(), ts, utc()), datetime(YEAR_2024)));
+        assertGteLt(asAnd(week), ts, YEAR_2024, Instant.parse("2024-01-08T00:00:00Z").toEpochMilli(), DataType.DATETIME);
+        Expression midweek = invert(eq(trunc(weekInterval(), ts, utc()), datetime(Instant.parse("2024-01-03T00:00:00Z").toEpochMilli())));
+        assertGteLt(asAnd(midweek), ts, YEAR_2024, YEAR_2024, DataType.DATETIME);
+        Expression day = invert(eq(trunc(dayInterval(), ts, utc()), datetime(YEAR_2024)));
+        assertGteLt(asAnd(day), ts, YEAR_2024, Instant.parse("2024-01-02T00:00:00Z").toEpochMilli(), DataType.DATETIME);
+    }
+
+    public void testDateTruncDayUsesNamedZoneDst() {
+        FieldAttribute ts = datetimeField();
+        ZoneId ny = ZoneId.of("America/New_York");
+        long start = LocalDate.of(2024, 3, 10).atStartOfDay(ny).toInstant().toEpochMilli();
+        long next = LocalDate.of(2024, 3, 11).atStartOfDay(ny).toInstant().toEpochMilli();
+        assertEquals("spring-forward day is 23 hours", 23 * 3_600_000L, next - start);
+        Expression rewritten = invert(eq(trunc(dayInterval(), ts, config(ny)), datetime(start)));
+        assertGteLt(asAnd(rewritten), ts, start, next, DataType.DATETIME);
     }
 
     public void testDateExtractProlepticMonthAndEpochDay() {
@@ -411,6 +451,14 @@ public class DateFunctionComparisonRewriterTests extends ESTestCase {
 
     private static Literal yearInterval() {
         return new Literal(SRC, Period.ofYears(1), DataType.DATE_PERIOD);
+    }
+
+    private static Literal weekInterval() {
+        return new Literal(SRC, Period.ofDays(7), DataType.DATE_PERIOD);
+    }
+
+    private static Literal dayInterval() {
+        return new Literal(SRC, Period.ofDays(1), DataType.DATE_PERIOD);
     }
 
     private static Literal longLit(long value) {

@@ -14,8 +14,10 @@ import org.elasticsearch.xpack.esql.optimizer.LogicalOptimizerContext;
 
 /**
  * After literals sit on the right, invert {@code DATE_TRUNC} / monotonic {@code DATE_EXTRACT}
- * comparisons into timestamp ranges so later combination and source pushdown can see
- * field-vs-literal predicates.
+ * comparisons into field-vs-literal inequalities ({@code field >= start AND field < next},
+ * or a single bound). {@code CombineBinaryComparisons} only tightens same-direction
+ * inequalities; it does not mint a {@code Range} node. Lucene later builds a range query
+ * from the pair.
  */
 public final class RewriteDateFunctionComparisons extends OptimizerRules.OptimizerExpressionRule<EsqlBinaryComparison> {
 

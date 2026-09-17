@@ -223,7 +223,7 @@ public class LogicalPlanOptimizer extends ParameterizedRuleExecutor<LogicalPlan,
             // boolean
             new BooleanSimplification(),
             new LiteralsOnTheRight(),
-            // invert DATE_TRUNC / monotonic DATE_EXTRACT before BinaryComparison combinations
+            // invert DATE_TRUNC / monotonic DATE_EXTRACT so later rules see field-vs-literal inequalities
             new RewriteDateFunctionComparisons(),
             // needs to occur before BinaryComparison combinations (see class)
             new PropagateEquals(),

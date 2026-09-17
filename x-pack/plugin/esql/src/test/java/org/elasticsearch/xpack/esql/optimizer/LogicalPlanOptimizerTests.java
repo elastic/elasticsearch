@@ -10285,18 +10285,54 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
      * Monotonic {@code DATE_EXTRACT("year", hire_date) == 1986} is the same half-open year range.
      */
     public void testDateExtractYearEqualsInvertsToTimestampRange() {
-        long start = Instant.parse("1986-01-01T00:00:00Z").toEpochMilli();
-        long next = Instant.parse("1987-01-01T00:00:00Z").toEpochMilli();
-
-        var plan = plan("""
+        assertDateExtractYearEqualsInverts("""
             FROM test
             | WHERE DATE_EXTRACT("year", hire_date) == 1986
             """);
+    }
 
+    /**
+     * Literal on the left must move before invert; otherwise the comparison is skipped.
+     */
+    public void testDateExtractYearEqualsLiteralOnTheLeftInverts() {
+        assertDateExtractYearEqualsInverts("""
+            FROM test
+            | WHERE 1986 == DATE_EXTRACT("year", hire_date)
+            """);
+    }
+
+    private void assertDateExtractYearEqualsInverts(String query) {
+        long start = Instant.parse("1986-01-01T00:00:00Z").toEpochMilli();
+        long next = Instant.parse("1987-01-01T00:00:00Z").toEpochMilli();
+
+        var plan = plan(query);
         var limit = as(plan, Limit.class);
         var filter = as(limit.child(), Filter.class);
         assertHireDateHalfOpenRange(filter.condition(), start, next);
         as(filter.child(), EsRelation.class);
+    }
+
+    public void testDateTruncDayAndWeekEqualsInverts() {
+        var day = plan("""
+            FROM test
+            | WHERE DATE_TRUNC(1 day, hire_date) == "1986-01-01T00:00:00Z"
+            """);
+        assertHireDateHalfOpenRange(
+            as(as(day, Limit.class).child(), Filter.class).condition(),
+            Instant.parse("1986-01-01T00:00:00Z").toEpochMilli(),
+            Instant.parse("1986-01-02T00:00:00Z").toEpochMilli()
+        );
+
+        // 1985-12-30 is Monday; 1 week uses WEEK_OF_WEEKYEAR, not a 7-day epoch bucket.
+        var week = plan("""
+            FROM test
+            | WHERE DATE_TRUNC(1 week, hire_date) == "1985-12-30T00:00:00Z"
+            """);
+        assertHireDateHalfOpenRange(
+            as(as(week, Limit.class).child(), Filter.class).condition(),
+            Instant.parse("1985-12-30T00:00:00Z").toEpochMilli(),
+            Instant.parse("1986-01-06T00:00:00Z").toEpochMilli()
+        );
     }
 
     /**

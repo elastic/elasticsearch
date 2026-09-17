@@ -215,7 +215,7 @@ public class DateTrunc extends EsqlConfigurationFunction implements AnyNullIsNul
     }
 
     /**
-     * Invert {@code DATE_TRUNC(interval, field) op literal} into a field-vs-literal range.
+     * Invert {@code DATE_TRUNC(interval, field) op literal} into field-vs-literal inequalities.
      * Interval must already be a foldable {@code Period}/{@code Duration} (quoted strings are
      * cast after analysis). Returns {@code null} to leave the comparison unchanged.
      */

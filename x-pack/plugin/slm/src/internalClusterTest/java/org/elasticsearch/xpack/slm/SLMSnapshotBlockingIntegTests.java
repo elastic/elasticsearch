@@ -279,8 +279,8 @@ public class SLMSnapshotBlockingIntegTests extends AbstractSnapshotIntegTestCase
 
             // Wait for .slm-history* to exist and its shards to be assigned before searching
             assertBusy(() -> {
-                ClusterHealthResponse health = clusterAdmin().prepareHealth(".slm-history*").get();
-                assertThat(health.getNumberOfIndices(), greaterThan(0));
+                ClusterHealthResponse health = clusterAdmin().prepareHealth(TEST_REQUEST_TIMEOUT, ".slm-history*").get();
+                assertThat(health.getIndices().size(), greaterThan(0));
                 assertThat(health.getUnassignedShards(), equalTo(0));
             });
 

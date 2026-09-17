@@ -97,21 +97,21 @@ public class HashRatioLimitOperatorTests extends OperatorTestCase {
     }
 
     /**
-     * Ratios above one keep every row, matching Prometheus clamping.
+     * Ratios above one keep every row.
      */
     public void testRatioGreaterThanOneKeepsAll() {
         assertKeepsExactly(2.0, ids("a", "b", "c"));
     }
 
     /**
-     * ratio=-1.0 keeps everything via the complement branch, matching Prometheus clamping.
+     * ratio=-1.0 keeps everything via the inverted branch.
      */
     public void testNegativeOneKeepsAll() {
         assertKeepsExactly(-1.0, ids("a", "b", "c"));
     }
 
     /**
-     * NaN keeps nothing since both predicate comparisons are false, matching Prometheus.
+     * NaN keeps nothing since both predicate comparisons are false.
      */
     public void testNaNKeepsNothing() {
         DriverContext ctx = driverContext();
@@ -124,8 +124,8 @@ public class HashRatioLimitOperatorTests extends OperatorTestCase {
 
     /**
      * A negative ratio keeps exactly the complement of the positive ratio: for r in (0, 1) every
-     * series is kept by exactly one of {@code r} and {@code -r}. This mirrors the Prometheus
-     * negative-complement rule without coupling the test to specific hash values.
+     * row is kept by exactly one of {@code r} and {@code -r}, without coupling the test to
+     * specific hash values.
      */
     public void testNegativeRatioKeepsComplement() {
         List<String> names = new ArrayList<>();
@@ -151,8 +151,7 @@ public class HashRatioLimitOperatorTests extends OperatorTestCase {
 
     /**
      * The kept subset depends only on the field key, so the same id is kept or dropped
-     * identically on every page. This is the stability property PromQL compliance requires:
-     * a series kept at one step is kept at every step.
+     * identically on every page, however pages are partitioned or ordered.
      */
     public void testSameIdDecidedIdenticallyAcrossPages() {
         DriverContext ctx = driverContext();
@@ -190,9 +189,8 @@ public class HashRatioLimitOperatorTests extends OperatorTestCase {
     }
 
     /**
-     * Predicate edge cases mirror Prometheus {@code AddRatioSampleWithOffset} exactly. The operator
-     * itself is total (NaN keeps nothing since both comparisons are false); NaN literals are
-     * rejected upstream at analysis time, like Prometheus.
+     * Predicate edge cases: out-of-range ratios keep everything, NaN keeps nothing. The operator
+     * itself is total; callers needing stricter validation reject such ratios before planning.
      */
     public void testKeepPredicateEdges() {
         BytesRef id = new BytesRef("series-1");

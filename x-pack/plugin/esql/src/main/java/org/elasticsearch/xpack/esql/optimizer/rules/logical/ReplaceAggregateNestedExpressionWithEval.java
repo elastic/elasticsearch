@@ -98,10 +98,6 @@ public final class ReplaceAggregateNestedExpressionWithEval extends OptimizerRul
     Aggregate,
     LogicalOptimizerContext> {
 
-    public ReplaceAggregateNestedExpressionWithEval() {
-        super(OptimizerRules.TransformDirection.DOWN);
-    }
-
     private final boolean locallyUniqueNames;
     private final boolean extractConstants;
 
@@ -112,6 +108,7 @@ public final class ReplaceAggregateNestedExpressionWithEval extends OptimizerRul
      *                           into the pre-agg eval.
      */
     public ReplaceAggregateNestedExpressionWithEval(boolean locallyUniqueNames, boolean extractConstants) {
+        super(OptimizerRules.TransformDirection.DOWN);
         this.locallyUniqueNames = locallyUniqueNames;
         this.extractConstants = extractConstants;
     }
@@ -153,7 +150,7 @@ public final class ReplaceAggregateNestedExpressionWithEval extends OptimizerRul
                             ) == false) {
                         // Extract the format pattern and field from DateFormat
                         Expression rawFormat = df.format();
-                        AttributeMap<Expression> collectRefs = RuleUtils.foldableReferences(aggregate, ctx);
+                        AttributeMap<Expression> collectRefs = RuleUtils.foldableReferencesSkipMVGroupings(aggregate, ctx);
 
                         // Try to convert the format pattern to a minimal time interval
                         // This optimization attempts to simplify date formatting to DATE_TRUNC operations
@@ -162,7 +159,7 @@ public final class ReplaceAggregateNestedExpressionWithEval extends OptimizerRul
                             // If we can optimize the format to use DATE_TRUNC
                             if (interval != null) {
                                 // Create a new DateTrunc operation with the optimized interval
-                                DateTrunc dateTrunc = new DateTrunc(df.source(), interval, df.field());
+                                DateTrunc dateTrunc = new DateTrunc(df.source(), interval, df.field(), df.configuration());
                                 // Create a synthetic alias for the DateTrunc operation
                                 var alias = new Alias(as.source(), as.name(), dateTrunc, null, true);
                                 attr = alias.toAttribute();

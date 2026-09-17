@@ -9682,10 +9682,10 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
         );
 
         var queries = List.of("""
-            FROM test
+            FROM types
             | STATS avg = AVG(integer) BY date = DATE_FORMAT("%s", date)
             """, """
-            FROM test
+            FROM types
             | STATS avg = AVG(integer) BY date = DATE_FORMAT("%s", date_nanos)
             """);
 
@@ -9836,10 +9836,10 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
         );
 
         var queries = List.of("""
-            FROM test
+            FROM types
             | STATS avg = AVG(integer) BY date = DATE_FORMAT("%s", date)
             """, """
-            FROM test
+            FROM types
             | STATS avg = AVG(integer) BY date = DATE_FORMAT("%s", date_nanos)
             """);
 
@@ -9983,7 +9983,7 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
      */
     public void testStatsDateFormatWithReferenceAttribute() {
         var query = """
-            from test
+            from types
             | eval x = integer::long + 10, y = date_nanos + 1 day + 1 year - 1 hour
             | stats sum(x) by date_format("yyyy-MM-dd", y)
             """;
@@ -10028,7 +10028,7 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
      */
     public void testInlineStatsDateFormatWithReferenceAttribute() {
         var query = """
-            from test
+            from types
             | eval x = integer::long + 10, y = date_nanos + 1 day + 1 year - 1 hour
             | inline stats sum(x) by date_format("yyyy-MM-dd", y)
             """;
@@ -10070,7 +10070,7 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
      */
     public void testStatsDateFormatWithBothReferenceAttributes() {
         var query = """
-            from test
+            from types
             | eval x = integer::long + 10, y = date_nanos + 1 day + 1 year - 1 hour, fmt = "yyyy-MM-dd"
             | stats sum(x) by date_format(fmt, y)
             """;
@@ -10110,7 +10110,7 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
      */
     public void testInlineStatsDateFormatWithBothReferenceAttributes() {
         var query = """
-            from test
+            from types
             | eval x = integer::long + 10, y = date_nanos + 1 day + 1 year - 1 hour, fmt = "yyyy-MM-dd"
             | inline stats sum(x) by date_format(fmt, y)
             """;

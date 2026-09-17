@@ -92,7 +92,8 @@ public class ReplaceSparklineAggregate extends OptimizerRules.ParameterizedOptim
             plan,
             extracted.sparklineAggregates(),
             extracted.nonSparklineAggregates(),
-            extracted.dateBucket()
+            extracted.dateBucket(),
+            context
         );
         SecondPhaseAggregateData secondPhase = buildSecondPhaseAggregate(
             source,
@@ -174,7 +175,8 @@ public class ReplaceSparklineAggregate extends OptimizerRules.ParameterizedOptim
         Aggregate plan,
         List<Map.Entry<Alias, Sparkline>> sparklineAggregates,
         List<Alias> nonSparklineAggregates,
-        Bucket dateBucket
+        Bucket dateBucket,
+        LogicalOptimizerContext context
     ) {
         List<Alias> sparklineValueAliases = new ArrayList<>();
         for (Map.Entry<Alias, Sparkline> entry : sparklineAggregates) {
@@ -214,7 +216,7 @@ public class ReplaceSparklineAggregate extends OptimizerRules.ParameterizedOptim
         // directly and inside SPARKLINE), in which case its inner expression was already extracted into an identically-named synthetic
         // Eval by the global pass. Reusing that name here would make one of the two extractions be dropped by output-attribute merging,
         // leaving a dangling reference.
-        phase1Plan = new ReplaceAggregateNestedExpressionWithEval(true, false).apply(phase1Plan);
+        phase1Plan = new ReplaceAggregateNestedExpressionWithEval(true, false).apply(phase1Plan, context);
         return new FirstPhaseAggregateData(phase1Plan, sparklineValueAliases, toPartialAliases, originalAggFuncs, dateBucketAttr);
     }
 

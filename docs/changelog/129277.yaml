@@ -1,0 +1,6 @@
+pr: 129277
+summary: "ESQL: Replace grouping by DateFormat with DateTrunc"
+area: ES|QL
+type: enhancement
+issues:
+  - 114772

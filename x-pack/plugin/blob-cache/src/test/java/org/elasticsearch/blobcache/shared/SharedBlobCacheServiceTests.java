@@ -4700,11 +4700,11 @@ public class SharedBlobCacheServiceTests extends ESTestCase {
             );
 
             // NOOP_TIME_PROVIDER reports now=0, so a positive backfilled timestamp is a negative age.
-
-            // Cache-hit path (tryRead): only a read age is recorded
-            recording.getRecorder().resetCalls();
             final byte[] testData = randomByteArrayOfLength((int) fileLength);
             final ByteBuffer writeBuffer = ByteBuffer.allocate(SharedBytes.PAGE_SIZE);
+
+            // Cache-miss path (populateAndRead on empty region): both read and miss ages are recorded
+            recording.getRecorder().resetCalls();
             cacheFile.populateAndRead(
                 ByteRange.of(0L, fileLength),
                 ByteRange.of(0L, fileLength),
@@ -4723,39 +4723,20 @@ public class SharedBlobCacheServiceTests extends ESTestCase {
                 },
                 "test"
             );
-            recording.getRecorder().resetCalls();
-            assertTrue(cacheFile.tryRead(ByteBuffer.wrap(new byte[1]), 0));
             List<Measurement> readAges = recording.getRecorder().getMeasurements(InstrumentType.LONG_HISTOGRAM, BLOB_CACHE_READ_AGE);
             assertThat(readAges, hasSize(1));
             assertEquals(0L - backfill, readAges.getFirst().getLong());
-            assertThat(recording.getRecorder().getMeasurements(InstrumentType.LONG_HISTOGRAM, BLOB_CACHE_MISS_AGE), empty());
-
-            // Cache-miss path (populateAndRead): both read and miss ages are recorded
-            recording.getRecorder().resetCalls();
-            cacheFile.populateAndRead(
-                ByteRange.of(0L, fileLength),
-                ByteRange.of(0L, fileLength),
-                (channel, pos, relativePos, len) -> len,
-                (channel, channelPos, streamFactory, relativePos, len, progressUpdater, completionListener) -> {
-                    SharedBytes.copyToCacheFileAligned(
-                        channel,
-                        new java.io.ByteArrayInputStream(testData, relativePos, len),
-                        channelPos,
-                        relativePos,
-                        len,
-                        progressUpdater,
-                        writeBuffer.clear()
-                    );
-                    ActionListener.completeWith(completionListener, () -> null);
-                },
-                "test"
-            );
-            List<Measurement> readAges2 = recording.getRecorder().getMeasurements(InstrumentType.LONG_HISTOGRAM, BLOB_CACHE_READ_AGE);
-            assertThat(readAges2, hasSize(1));
-            assertEquals(0L - backfill, readAges2.getFirst().getLong());
             List<Measurement> missAges = recording.getRecorder().getMeasurements(InstrumentType.LONG_HISTOGRAM, BLOB_CACHE_MISS_AGE);
             assertThat(missAges, hasSize(1));
             assertEquals(0L - backfill, missAges.getFirst().getLong());
+
+            // Cache-hit path (tryRead on now-populated region): only a read age is recorded
+            recording.getRecorder().resetCalls();
+            assertTrue(cacheFile.tryRead(ByteBuffer.wrap(new byte[1]), 0));
+            List<Measurement> readAges2 = recording.getRecorder().getMeasurements(InstrumentType.LONG_HISTOGRAM, BLOB_CACHE_READ_AGE);
+            assertThat(readAges2, hasSize(1));
+            assertEquals(0L - backfill, readAges2.getFirst().getLong());
+            assertThat(recording.getRecorder().getMeasurements(InstrumentType.LONG_HISTOGRAM, BLOB_CACHE_MISS_AGE), empty());
         }
     }
 

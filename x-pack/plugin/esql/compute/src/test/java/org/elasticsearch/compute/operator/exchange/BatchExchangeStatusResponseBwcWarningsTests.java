@@ -91,7 +91,18 @@ public class BatchExchangeStatusResponseBwcWarningsTests extends ESTestCase {
     }
 
     public void testProfileRoundTrip() throws IOException {
-        BatchExchangeStatusResponse.Profile profile = new BatchExchangeStatusResponse.Profile(101L, 102L, 103L, 104L, 105L, 106L, 107L);
+        BatchExchangeStatusResponse.Profile profile = new BatchExchangeStatusResponse.Profile(
+            101L,
+            102L,
+            103L,
+            104L,
+            105L,
+            106L,
+            107L,
+            108L,
+            109L,
+            110L
+        );
         BatchExchangeStatusResponse original = new BatchExchangeStatusResponse(108L, List.of("warning"), profile);
 
         BytesReference bytes = serialize(original, TransportVersion.current());
@@ -114,6 +125,31 @@ public class BatchExchangeStatusResponseBwcWarningsTests extends ESTestCase {
         BatchExchangeStatusResponse deserialized = deserialize(bytes, oldVersion, new ThreadContext(Settings.EMPTY));
 
         assertThat(deserialized.profile(), nullValue());
+    }
+
+    public void testGranularProfileIsOmittedBeforeGranularVersion() throws IOException {
+        BatchExchangeStatusResponse.Profile profile = new BatchExchangeStatusResponse.Profile(
+            101L,
+            102L,
+            103L,
+            104L,
+            105L,
+            106L,
+            107L,
+            108L,
+            109L,
+            110L
+        );
+        BatchExchangeStatusResponse original = new BatchExchangeStatusResponse(108L, List.of(), profile);
+
+        BytesReference bytes = serialize(original, BatchExchangeStatusResponse.ESQL_BATCH_EXCHANGE_PROFILE);
+        BatchExchangeStatusResponse deserialized = deserialize(
+            bytes,
+            BatchExchangeStatusResponse.ESQL_BATCH_EXCHANGE_PROFILE,
+            new ThreadContext(Settings.EMPTY)
+        );
+
+        assertThat(deserialized.profile(), equalTo(new BatchExchangeStatusResponse.Profile(101L, 102L, 103L, 104L, 105L, 106L, 107L)));
     }
 
     public void testProfileSummarizesDriverAndFieldLoading() {
@@ -144,7 +180,8 @@ public class BatchExchangeStatusResponseBwcWarningsTests extends ESTestCase {
             new DriverSleeps(Map.of(), List.of(), List.of())
         );
 
-        BatchExchangeStatusResponse.Profile profile = BatchExchangeStatusResponse.Profile.from(driverProfile, 101L);
+        ExchangeSinkHandler.Profile responseProfile = new ExchangeSinkHandler.Profile(111L, 112L, 113L);
+        BatchExchangeStatusResponse.Profile profile = BatchExchangeStatusResponse.Profile.from(driverProfile, 101L, responseProfile);
 
         assertThat(profile.driverTookNanos(), equalTo(101L));
         assertThat(profile.driverCpuNanos(), equalTo(102L));
@@ -153,6 +190,9 @@ public class BatchExchangeStatusResponseBwcWarningsTests extends ESTestCase {
         assertThat(profile.sourceDocsLoaded(), equalTo(105L));
         assertThat(profile.sourceFieldReads(), equalTo(106L));
         assertThat(profile.sourceBytesLoaded(), equalTo(107L));
+        assertThat(profile.responsePages(), equalTo(111L));
+        assertThat(profile.responseRows(), equalTo(112L));
+        assertThat(profile.responseSerializedBytes(), equalTo(113L));
     }
 
     private static BytesReference serialize(BatchExchangeStatusResponse response, TransportVersion version) throws IOException {

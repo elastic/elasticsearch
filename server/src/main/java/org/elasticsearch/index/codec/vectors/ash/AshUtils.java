@@ -180,88 +180,60 @@ final class AshUtils {
     }
 
     private static float[] topKEigenvectorsGram(float[] a, int m, int n, int k, long seed) {
-        // Block (subspace) power iteration: process all k vectors simultaneously.
-        // V = random (n x k), iterate: V <- A^T (A V), then QR-orthogonalize.
-        // This is O(iterations * m * n * k) total -- much faster than deflation for large k.
-        int iters = 20; // sufficient for PCA init that gets refined by Procrustes
-
-        // Pre-transpose A so that A^T @ W uses sequential memory access in the inner loop.
-        float[] aT = transposeMatrix(a, m, n);
-
-        // qrOrthogonalize wants the block as rows, both products want it as columns, so it is
-        // transposed either side of each orthogonalization. Keeping the products in this
-        // orientation leaves the small operand on the right, which multiplyAccumulate streams once
-        // per four output rows; restating them to work on (k x n) throughout would put A there.
-        float[] vT = randomGaussians(new Random(seed), n * k);
-        qrOrthogonalize(vT, n, k);
-        float[] v = transposeMatrix(vT, k, n);
-
-        for (int iter = 0; iter < iters; iter++) {
-            float[] w = ESVectorUtil.matrixMultiply(a, v, m, n, k);      // W = A @ V (m x k)
-            float[] vNew = ESVectorUtil.matrixMultiply(aT, w, n, m, k);  // V_new = A^T @ W (n x k)
-            vT = transposeMatrix(vNew, n, k);
-            qrOrthogonalize(vT, n, k);
-            v = transposeMatrix(vT, k, n);
-        }
-
-        return v;
+        // Eigenvectors of A^T A are the right singular vectors, so iterate with X = A. A^T is
+        // materialized so that the A^T @ W product reads sequentially.
+        float[] vT = blockPowerIteration(a, transposeMatrix(a, m, n), m, n, k, seed);
+        return transposeMatrix(vT, k, n);
     }
 
     private static float[] topKEigenvectorsGramTranspose(float[] a, int m, int n, int k, long seed) {
-        // A is (m x n) with m < n. Block power iteration on A A^T (m x m).
-        // U = random (m x k), iterate: U <- A (A^T U), then QR-orthogonalize.
-        // After convergence, recover right singular vectors: V = A^T U, normalize columns.
-        int iters = 20;
+        // A is (m x n) with m < n, so A A^T (m x m) is the smaller Gram matrix: iterate with
+        // X = A^T to get the left singular vectors U, then recover the right singular vectors.
+        float[] uT = blockPowerIteration(transposeMatrix(a, m, n), a, n, m, k, seed);
 
-        // Pre-transpose A so that A^T @ U uses sequential memory access in the inner loop.
-        float[] aT = transposeMatrix(a, m, n);
-
-        // As in topKEigenvectorsGram, the block is transposed either side of each orthogonalization
-        // so that qrOrthogonalize sees contiguous vectors while the products keep U as columns.
-        float[] uT = randomGaussians(new Random(seed), m * k);
-        qrOrthogonalize(uT, m, k);
-        float[] u = transposeMatrix(uT, k, m);
-
-        for (int iter = 0; iter < iters; iter++) {
-            float[] w = ESVectorUtil.matrixMultiply(aT, u, n, m, k);    // W = A^T @ U (n x k)
-            float[] uNew = ESVectorUtil.matrixMultiply(a, w, m, n, k);  // U_new = A @ W (m x k)
-            uT = transposeMatrix(uNew, m, k);
-            qrOrthogonalize(uT, m, k);
-            u = transposeMatrix(uT, k, m);
-        }
-
-        // Recover right singular vectors: V = A^T U (n x k), normalize each column
-        float[] v = ESVectorUtil.matrixMultiply(aT, u, n, m, k);
+        // V = A^T U, computed transposed as V^T = U^T A (k x n) so that each vector occupies a
+        // row and the normalization runs over contiguous data.
+        float[] vT = ESVectorUtil.matrixMultiply(uT, a, k, m, n);
         for (int j = 0; j < k; j++) {
-            normalizeColumn(v, j, k, n);
+            ESVectorUtil.l2Normalize(vT, j * n, n);
         }
-        return v;
+        return transposeMatrix(vT, k, n);
     }
 
     /**
-     * Normalizes column {@code col} of a row-major matrix in-place and returns the column norm.
-     * Elements are at indices {@code col}, {@code col + stride}, ..., {@code col + (length-1)*stride}.
-     * No-ops (but still returns the norm) if the norm is zero or non-finite.
+     * Block (subspace) power iteration for the dominant k-dimensional invariant subspace of
+     * {@code X^T X}: iterates {@code B <- X^T (X B)}, QR-orthogonalizing after each step. All k
+     * vectors advance at once, which is O(iterations * p * q * k) in total, much cheaper than
+     * deflating one vector at a time for large k.
+     * <p>
+     * The caller supplies both X and its transpose so that each product keeps the (q x k) block as
+     * its right operand, which {@code multiplyAccumulate} streams once per four rows of output.
+     * The block is transposed either side of each orthogonalization because
+     * {@link #qrOrthogonalize} needs the vectors in rows while the products need them in columns.
      *
-     * @param matrix flat row-major array
-     * @param col    column index within a row (starting offset of the column)
-     * @param stride number of columns in the matrix
-     * @param length number of rows to normalize
-     * @return the column norm before normalization
+     * @param x    the matrix, row-major (p x q)
+     * @param xT   the transpose of {@code x}, row-major (q x p)
+     * @param p    number of rows in {@code x}
+     * @param q    number of columns in {@code x}
+     * @param k    the size of the subspace to extract
+     * @param seed random seed for initialization
+     * @return the converged block transposed, row-major (k x q), one orthonormal vector per row
      */
-    static float normalizeColumn(float[] matrix, int col, int stride, int length) {
-        double normSq = 0;
-        for (int i = 0; i < length; i++) {
-            normSq = Math.fma(matrix[i * stride + col], matrix[i * stride + col], normSq);
+    private static float[] blockPowerIteration(float[] x, float[] xT, int p, int q, int k, long seed) {
+        int iters = 20; // sufficient for PCA init that gets refined by Procrustes
+
+        float[] bT = randomGaussians(new Random(seed), q * k);
+        qrOrthogonalize(bT, q, k);
+
+        for (int iter = 0; iter < iters; iter++) {
+            float[] b = transposeMatrix(bT, k, q);                       // B (q x k)
+            float[] w = ESVectorUtil.matrixMultiply(x, b, p, q, k);      // W = X @ B (p x k)
+            float[] bNew = ESVectorUtil.matrixMultiply(xT, w, q, p, k);  // B <- X^T @ W (q x k)
+            bT = transposeMatrix(bNew, q, k);
+            qrOrthogonalize(bT, q, k);
         }
-        float norm = (float) Math.sqrt(normSq);
-        float invNorm = 1.0f / norm;
-        if (Float.isFinite(invNorm)) {
-            for (int i = 0; i < length; i++) {
-                matrix[i * stride + col] *= invNorm;
-            }
-        }
-        return norm;
+
+        return bT;
     }
 
     /**

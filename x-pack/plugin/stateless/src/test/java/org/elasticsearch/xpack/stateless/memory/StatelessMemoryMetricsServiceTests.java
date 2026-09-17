@@ -224,7 +224,7 @@ public class StatelessMemoryMetricsServiceTests extends ESTestCase {
 
         assertThat(updatingMetric.updatedDuringSnapshot(), equalTo(true));
 
-        // Capture the pre-update snapshot values from the stats result.
+        // Capture the initial snapshot values from the metrics service.
         final NodeHeapEstimates nodeEstimate = estimatedHeapUsageStats.nodeHeapEstimates().get(node0.getId());
         final ShardAndIndexHeapUsage shardEstimate = estimatedHeapUsageStats.shardHeapUsageEstimates().perShard().get(shardId);
 

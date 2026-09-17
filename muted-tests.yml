@@ -206,6 +206,9 @@ tests:
 - class: org.elasticsearch.xpack.logsdb.qa.StandardVersusStandardReindexedIntoLogsDbChallengeRestIT
   method: testFieldCaps
   issue: https://github.com/elastic/elasticsearch/issues/159530
+- class: org.elasticsearch.xpack.esql.heap_attack.ManyRequestsIT
+  method: testManyRequests
+  issue: https://github.com/elastic/elasticsearch/issues/151627
 
 # Examples:
 #

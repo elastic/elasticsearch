@@ -1624,14 +1624,6 @@ public class SharedBlobCacheService<KeyType extends SharedBlobCacheService.KeyBa
             return cacheKey;
         }
 
-        /**
-         * Construction-time timestamp stamped on this cache file. {@link CacheFileRegion} timestamps
-         * may later be updated by backfill; metric recording uses the region's current timestamp.
-         */
-        public long timestampMillis() {
-            return timestampMillis;
-        }
-
         public boolean tryPrefetch(long offset, long length) throws IOException {
             assert assertOffsetsWithinFileLength(offset, length, this.length);
             final int startRegion = getRegion(offset);

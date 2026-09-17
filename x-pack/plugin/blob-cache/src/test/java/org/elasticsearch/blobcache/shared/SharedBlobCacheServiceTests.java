@@ -4781,13 +4781,11 @@ public class SharedBlobCacheServiceTests extends ESTestCase {
                 backfill,
                 cacheService.get(cacheKey, fileLength, 0, SharedBlobCacheService.BACKFILL_IN_PROGRESS_TIMESTAMP).timestampMillis()
             );
-            assertEquals(SharedBlobCacheService.BACKFILL_IN_PROGRESS_TIMESTAMP, cacheFile.timestampMillis());
 
             recording.getRecorder().resetCalls();
             assertTrue(cacheFile.tryRead(ByteBuffer.wrap(new byte[1]), 0));
 
             // NOOP_TIME_PROVIDER reports now=0, so a positive backfilled timestamp is a negative age.
-            // Using CacheFile.timestampMillis would skip the histogram (sentinel) instead of recording it.
             List<Measurement> readAges = recording.getRecorder().getMeasurements(InstrumentType.LONG_HISTOGRAM, BLOB_CACHE_READ_AGE);
             assertThat(readAges, hasSize(1));
             assertEquals(0L - backfill, readAges.getFirst().getLong());

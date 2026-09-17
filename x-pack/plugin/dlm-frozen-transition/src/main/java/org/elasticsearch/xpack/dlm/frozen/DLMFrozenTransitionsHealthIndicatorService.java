@@ -42,7 +42,9 @@ import java.util.function.LongSupplier;
  *
  * <p>The indicator raises a {@link HealthStatus#YELLOW} diagnosis for each transition state whose count is greater than
  * zero. The sample supplies example index names for diagnosis resources; the diagnosis is raised even when the sample
- * contains fewer names than the count (as can happen with an older master during a rolling upgrade).
+ * contains fewer names than the count (as can happen with an older master during a rolling upgrade). Each diagnosis
+ * reports its cluster-wide affected-index count in its cause text, so an operator can tell how many indices are in
+ * that state even though the listed resources are only a capped sample.
  *
  * <p>{@code UNMARKED} means the data-stream lifecycle service is not marking eligible indices as expected; it marks
  * them independently of the {@code dlm.frozen_transitions.enabled} setting, so a persistent {@code UNMARKED} backlog
@@ -196,14 +198,16 @@ public class DLMFrozenTransitionsHealthIndicatorService implements HealthIndicat
 
         // Merge the per-state counts into per-definition groups. Walk TransitionState in ordinal order so the resulting
         // LinkedHashMap has a deterministic iteration order. MARKED and QUEUED while disabled both resolve to
-        // TRANSITIONS_DISABLED_DIAGNOSIS_DEF and are merged.
-        Map<Diagnosis.Definition, List<String>> byDefinition = new LinkedHashMap<>();
+        // TRANSITIONS_DISABLED_DIAGNOSIS_DEF, so their counts and sample names are summed into one group.
+        Map<Diagnosis.Definition, AffectedIndices> byDefinition = new LinkedHashMap<>();
         for (TransitionState state : TransitionState.values()) {
-            if (info.overdueIndicesCountByState().getOrDefault(state, 0) > 0) {
+            int stateCount = info.overdueIndicesCountByState().getOrDefault(state, 0);
+            if (stateCount > 0) {
                 Diagnosis.Definition def = diagnosisFor(state, transitionsEnabled, info.defaultRepositoryConfigured());
                 if (def != null) {
-                    byDefinition.computeIfAbsent(def, ignored -> new ArrayList<>())
-                        .addAll(sampleNamesByState.getOrDefault(state, List.of()));
+                    AffectedIndices affected = byDefinition.computeIfAbsent(def, ignored -> new AffectedIndices());
+                    affected.count += stateCount;
+                    affected.sampleNames.addAll(sampleNamesByState.getOrDefault(state, List.of()));
                 }
             }
         }
@@ -216,13 +220,16 @@ public class DLMFrozenTransitionsHealthIndicatorService implements HealthIndicat
         }
 
         List<Diagnosis> diagnoses = new ArrayList<>();
-        byDefinition.forEach((def, indexNames) -> {
-            List<Diagnosis.Resource> resources = indexNames.isEmpty()
+        byDefinition.forEach((def, affected) -> {
+            List<Diagnosis.Resource> resources = affected.sampleNames.isEmpty()
                 ? null
                 : List.of(
-                    new Diagnosis.Resource(Diagnosis.Resource.Type.INDEX, indexNames.stream().limit(maxAffectedResourcesCount).toList())
+                    new Diagnosis.Resource(
+                        Diagnosis.Resource.Type.INDEX,
+                        affected.sampleNames.stream().limit(maxAffectedResourcesCount).toList()
+                    )
                 );
-            diagnoses.add(new Diagnosis(def, resources));
+            diagnoses.add(new Diagnosis(withAffectedCount(def, affected.count), resources));
         });
 
         String symptom;
@@ -232,6 +239,31 @@ public class DLMFrozenTransitionsHealthIndicatorService implements HealthIndicat
             symptom = "An issue affecting DLM frozen-tier transitions was detected";
         }
         return createIndicator(HealthStatus.YELLOW, symptom, details, FROZEN_TRANSITION_BLOCKED_IMPACT, verbose ? diagnoses : List.of());
+    }
+
+    /**
+     * Returns a copy of the given diagnosis definition whose cause also reports how many indices are affected across
+     * the whole cluster. That count is the complete total for every transition state mapping to this definition, so it
+     * can exceed the number of index names in the diagnosis's affected resources, which are drawn from a capped sample.
+     *
+     * <p>The definition's {@code id} and {@code helpURL} are preserved, so {@link Diagnosis.Definition#getUniqueId()}
+     * stays stable for consumers that key off it.
+     */
+    // visible for testing
+    static Diagnosis.Definition withAffectedCount(Diagnosis.Definition base, int count) {
+        // Several causes end in a trailing space, so strip before appending to avoid a double space.
+        String cause = base.cause().strip() + " " + (count == 1 ? "1 index is affected." : count + " indices are affected.");
+        return new Diagnosis.Definition(base.indicatorName(), base.id(), cause, base.action(), base.helpURL());
+    }
+
+    /**
+     * Accumulates, for a single diagnosis definition, the cluster-wide count of affected indices together with the
+     * example index names drawn from the published sample. The count can exceed the number of names, because the
+     * publisher caps the sample per transition state.
+     */
+    private static final class AffectedIndices {
+        private int count;
+        private final List<String> sampleNames = new ArrayList<>();
     }
 
     /**

@@ -38,6 +38,7 @@ import static org.elasticsearch.xpack.dlm.frozen.DLMFrozenTransitionsHealthIndic
 import static org.elasticsearch.xpack.dlm.frozen.DLMFrozenTransitionsHealthIndicatorService.SERVICE_NOT_RUNNING_DIAGNOSIS_DEF;
 import static org.elasticsearch.xpack.dlm.frozen.DLMFrozenTransitionsHealthIndicatorService.STALE_AFTER_PUBLISH_INTERVALS;
 import static org.elasticsearch.xpack.dlm.frozen.DLMFrozenTransitionsHealthIndicatorService.TRANSITIONS_DISABLED_DIAGNOSIS_DEF;
+import static org.elasticsearch.xpack.dlm.frozen.DLMFrozenTransitionsHealthIndicatorService.withAffectedCount;
 import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.is;
@@ -92,7 +93,7 @@ public class DLMFrozenTransitionsHealthIndicatorServiceTests extends ESTestCase 
             result.diagnosisList(),
             containsInAnyOrder(
                 new Diagnosis(
-                    TRANSITIONS_DISABLED_DIAGNOSIS_DEF,
+                    withAffectedCount(TRANSITIONS_DISABLED_DIAGNOSIS_DEF, 1),
                     List.of(new Diagnosis.Resource(Diagnosis.Resource.Type.INDEX, List.of("marked-index")))
                 )
             )
@@ -138,7 +139,7 @@ public class DLMFrozenTransitionsHealthIndicatorServiceTests extends ESTestCase 
             result.diagnosisList(),
             containsInAnyOrder(
                 new Diagnosis(
-                    ELIGIBLE_INDICES_UNMARKED_DIAGNOSIS_DEF,
+                    withAffectedCount(ELIGIBLE_INDICES_UNMARKED_DIAGNOSIS_DEF, 2),
                     List.of(new Diagnosis.Resource(Diagnosis.Resource.Type.INDEX, List.of("eligible-index-1", "eligible-index-2")))
                 )
             )
@@ -166,7 +167,8 @@ public class DLMFrozenTransitionsHealthIndicatorServiceTests extends ESTestCase 
         assertThat(result.symptom(), containsString("An issue"));
         assertThat(result.diagnosisList().size(), is(1));
         Diagnosis diagnosis = result.diagnosisList().get(0);
-        assertThat(diagnosis.definition(), is(TRANSITIONS_DISABLED_DIAGNOSIS_DEF));
+        // MARKED and QUEUED merge into one diagnosis, so the reported count is the sum of both states.
+        assertThat(diagnosis.definition(), is(withAffectedCount(TRANSITIONS_DISABLED_DIAGNOSIS_DEF, 2)));
         assertThat(diagnosis.affectedResources().get(0).getValues(), containsInAnyOrder("marked-index", "queued-index"));
     }
 
@@ -216,7 +218,7 @@ public class DLMFrozenTransitionsHealthIndicatorServiceTests extends ESTestCase 
             result.diagnosisList(),
             containsInAnyOrder(
                 new Diagnosis(
-                    ELIGIBLE_INDICES_UNMARKED_DIAGNOSIS_DEF,
+                    withAffectedCount(ELIGIBLE_INDICES_UNMARKED_DIAGNOSIS_DEF, 1),
                     List.of(new Diagnosis.Resource(Diagnosis.Resource.Type.INDEX, List.of("eligible-index")))
                 )
             )
@@ -241,7 +243,7 @@ public class DLMFrozenTransitionsHealthIndicatorServiceTests extends ESTestCase 
             result.diagnosisList(),
             containsInAnyOrder(
                 new Diagnosis(
-                    ELIGIBLE_INDICES_UNMARKED_NO_REPOSITORY_DIAGNOSIS_DEF,
+                    withAffectedCount(ELIGIBLE_INDICES_UNMARKED_NO_REPOSITORY_DIAGNOSIS_DEF, 1),
                     List.of(new Diagnosis.Resource(Diagnosis.Resource.Type.INDEX, List.of("eligible-index")))
                 )
             )
@@ -259,7 +261,7 @@ public class DLMFrozenTransitionsHealthIndicatorServiceTests extends ESTestCase 
             result.diagnosisList(),
             containsInAnyOrder(
                 new Diagnosis(
-                    MARKED_TRANSITIONS_NOT_STARTED_DIAGNOSIS_DEF,
+                    withAffectedCount(MARKED_TRANSITIONS_NOT_STARTED_DIAGNOSIS_DEF, 1),
                     List.of(new Diagnosis.Resource(Diagnosis.Resource.Type.INDEX, List.of("stalled-index")))
                 )
             )
@@ -278,7 +280,7 @@ public class DLMFrozenTransitionsHealthIndicatorServiceTests extends ESTestCase 
             result.diagnosisList(),
             containsInAnyOrder(
                 new Diagnosis(
-                    MARKED_TRANSITIONS_QUEUED_DIAGNOSIS_DEF,
+                    withAffectedCount(MARKED_TRANSITIONS_QUEUED_DIAGNOSIS_DEF, 1),
                     List.of(new Diagnosis.Resource(Diagnosis.Resource.Type.INDEX, List.of("queued-index")))
                 )
             )
@@ -302,21 +304,25 @@ public class DLMFrozenTransitionsHealthIndicatorServiceTests extends ESTestCase 
             result.diagnosisList(),
             containsInAnyOrder(
                 new Diagnosis(
-                    ELIGIBLE_INDICES_UNMARKED_DIAGNOSIS_DEF,
+                    withAffectedCount(ELIGIBLE_INDICES_UNMARKED_DIAGNOSIS_DEF, 1),
                     List.of(new Diagnosis.Resource(Diagnosis.Resource.Type.INDEX, List.of("eligible-index")))
                 ),
                 new Diagnosis(
-                    MARKED_TRANSITIONS_NOT_STARTED_DIAGNOSIS_DEF,
+                    withAffectedCount(MARKED_TRANSITIONS_NOT_STARTED_DIAGNOSIS_DEF, 1),
                     List.of(new Diagnosis.Resource(Diagnosis.Resource.Type.INDEX, List.of("stalled-index")))
                 ),
                 new Diagnosis(
-                    MARKED_TRANSITIONS_QUEUED_DIAGNOSIS_DEF,
+                    withAffectedCount(MARKED_TRANSITIONS_QUEUED_DIAGNOSIS_DEF, 1),
                     List.of(new Diagnosis.Resource(Diagnosis.Resource.Type.INDEX, List.of("queued-index")))
                 )
             )
         );
     }
 
+    /**
+     * The affected-resources list is truncated to {@code maxAffectedResourcesCount}, but the count reported in the
+     * diagnosis cause must remain the full cluster-wide total.
+     */
     public void testAffectedResourcesAreLimited() {
         ProjectId projectId = randomProjectIdOrDefault();
         InfoBuilder builder = healthy();
@@ -325,10 +331,48 @@ public class DLMFrozenTransitionsHealthIndicatorServiceTests extends ESTestCase 
         }
         HealthIndicatorResult result = service.calculate(true, 3, constructHealthInfo(builder.build()));
         assertThat(result.status(), is(HealthStatus.YELLOW));
+        Diagnosis diagnosis = result.diagnosisList().get(0);
         assertThat(
-            result.diagnosisList().get(0).affectedResources().get(0).getValues(),
+            diagnosis.affectedResources().get(0).getValues(),
             is(List.of("eligible-index-0", "eligible-index-1", "eligible-index-2"))
         );
+        assertThat(diagnosis.definition(), is(withAffectedCount(ELIGIBLE_INDICES_UNMARKED_DIAGNOSIS_DEF, 10)));
+    }
+
+    /**
+     * Pins the rendered cause wording, including the count and its singular form, so the operator-facing text cannot
+     * change silently.
+     */
+    public void testDiagnosisCauseReportsAffectedCount() {
+        ProjectId projectId = randomProjectIdOrDefault();
+        InfoBuilder builder = healthy();
+        for (int i = 0; i < 7; i++) {
+            builder.overdue(projectId, "eligible-index-" + i, TransitionState.UNMARKED);
+        }
+        HealthIndicatorResult result = service.calculate(true, 100, constructHealthInfo(builder.build()));
+        assertThat(result.diagnosisList().get(0).definition().cause(), containsString("7 indices are affected."));
+
+        HealthIndicatorResult single = service.calculate(
+            true,
+            100,
+            constructHealthInfo(healthy().overdue(projectId, "only-index", TransitionState.UNMARKED).build())
+        );
+        assertThat(single.diagnosisList().get(0).definition().cause(), containsString("1 index is affected."));
+    }
+
+    /**
+     * The count in the cause is the cluster-wide total, so it is reported in full even when the capped sample supplies
+     * no index names at all and the diagnosis therefore lists no affected resources.
+     */
+    public void testCauseReportsFullCountWhenSampleIsEmpty() {
+        HealthIndicatorResult result = service.calculate(
+            true,
+            100,
+            constructHealthInfo(healthy().count(TransitionState.UNMARKED, 250).build())
+        );
+        Diagnosis diagnosis = result.diagnosisList().get(0);
+        assertThat(diagnosis.affectedResources(), nullValue());
+        assertThat(diagnosis.definition().cause(), containsString("250 indices are affected."));
     }
 
     public void testNonVerboseProducesNoDetailsOrDiagnoses() {
@@ -386,7 +430,7 @@ public class DLMFrozenTransitionsHealthIndicatorServiceTests extends ESTestCase 
         assertThat(result.status(), is(HealthStatus.YELLOW));
         Diagnosis diagnosis = result.diagnosisList()
             .stream()
-            .filter(d -> d.definition().equals(ELIGIBLE_INDICES_UNMARKED_DIAGNOSIS_DEF))
+            .filter(d -> d.definition().id().equals(ELIGIBLE_INDICES_UNMARKED_DIAGNOSIS_DEF.id()))
             .findFirst()
             .orElseThrow();
         assertThat(diagnosis.affectedResources().get(0).getValues(), containsInAnyOrder(expectedName1, expectedName2));
@@ -407,7 +451,7 @@ public class DLMFrozenTransitionsHealthIndicatorServiceTests extends ESTestCase 
         assertThat(result.status(), is(HealthStatus.YELLOW));
         assertThat(result.diagnosisList().size(), is(1));
         Diagnosis diagnosis = result.diagnosisList().get(0);
-        assertThat(diagnosis.definition(), is(MARKED_TRANSITIONS_QUEUED_DIAGNOSIS_DEF));
+        assertThat(diagnosis.definition(), is(withAffectedCount(MARKED_TRANSITIONS_QUEUED_DIAGNOSIS_DEF, 5)));
         assertThat(diagnosis.affectedResources(), nullValue());
     }
 
@@ -423,7 +467,7 @@ public class DLMFrozenTransitionsHealthIndicatorServiceTests extends ESTestCase 
         HealthIndicatorResult result = service.calculate(true, 100, constructHealthInfo(builder.build()));
         assertThat(result.status(), is(HealthStatus.YELLOW));
         assertThat(result.diagnosisList().size(), is(1));
-        assertThat(result.diagnosisList().get(0).definition(), is(ELIGIBLE_INDICES_UNMARKED_DIAGNOSIS_DEF));
+        assertThat(result.diagnosisList().get(0).definition(), is(withAffectedCount(ELIGIBLE_INDICES_UNMARKED_DIAGNOSIS_DEF, 1)));
     }
 
     // --- helpers ---

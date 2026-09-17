@@ -224,11 +224,14 @@ public class DLMFrozenTransitionHealthIT extends ESIntegTestCase {
             ).actionGet();
             HealthIndicatorResult indicator = healthResponse.findIndicator(DLMFrozenTransitionsHealthIndicatorService.NAME);
             assertThat(indicator.status(), is(HealthStatus.YELLOW));
+            // Match on the diagnosis id rather than the whole definition: the cause carries a cluster-wide
+            // affected-index count, so the definition is not equal to the static template.
             Diagnosis diagnosis = indicator.diagnosisList()
                 .stream()
                 .filter(
                     d -> d.definition()
-                        .equals(DLMFrozenTransitionsHealthIndicatorService.ELIGIBLE_INDICES_UNMARKED_NO_REPOSITORY_DIAGNOSIS_DEF)
+                        .id()
+                        .equals(DLMFrozenTransitionsHealthIndicatorService.ELIGIBLE_INDICES_UNMARKED_NO_REPOSITORY_DIAGNOSIS_DEF.id())
                 )
                 .findFirst()
                 .orElse(null);

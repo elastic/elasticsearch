@@ -58,7 +58,6 @@ import java.util.stream.Stream;
 import static org.elasticsearch.test.hamcrest.OptionalMatchers.isPresentWith;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
-import static org.junit.Assume.assumeTrue;
 
 public class DatafeedCrossProjectIT extends MlSingleNodeTestCase {
 

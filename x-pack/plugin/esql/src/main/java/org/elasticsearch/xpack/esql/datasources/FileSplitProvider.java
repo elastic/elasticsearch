@@ -553,6 +553,11 @@ public class FileSplitProvider implements SplitProvider {
         Map<StoragePath, SchemaReconciliation.FileSchemaInfo> schemaInfo = context.schemaMap();
         Map<ColumnMapping, ColumnMapping> mappingCache = new ConcurrentHashMap<>();
         ExternalSchema unifiedSchema = context.unifiedSchema();
+        boolean anchorPinnedFirstFileWins = ExternalSourceResolver.isAnchorPinnedFirstFileWins(
+            fileList.originalPattern(),
+            config,
+            context.declaredReadSpec()
+        );
         Set<String> metadataColumnNames = context.metadataColumnNames();
 
         int certifiedSkips = 0;
@@ -625,6 +630,7 @@ public class FileSplitProvider implements SplitProvider {
                 }
                 readSchema = fileSchemaInfo.fileSchema().attributes();
             }
+            boolean unknownNativeTypes = ExternalSourceResolver.nativeTypesUnknown(fileSchemaInfo, anchorPinnedFirstFileWins);
 
             tasks.add(
                 new FileTask(
@@ -639,7 +645,9 @@ public class FileSplitProvider implements SplitProvider {
                     context.maxRecordBytes(),
                     context.declaredReadSpec(),
                     inferredFileTypes,
-                    fileStatistics
+                    fileStatistics,
+                    context.metadata() == null ? null : context.metadata().sourceMetadata(),
+                    unknownNativeTypes
                 )
             );
         }
@@ -879,7 +887,10 @@ public class FileSplitProvider implements SplitProvider {
             task.declaredReadSpec(),
             task.inferredFileTypes(),
             ranges,
-            splits
+            splits,
+            task.foldedSourceMetadata(),
+            implicitNullsFor(task),
+            task.unknownNativeTypes()
         );
         return new PlanResult.Splits(splits);
     }
@@ -1435,14 +1446,21 @@ public class FileSplitProvider implements SplitProvider {
         @Nullable Map<String, DataType> reconciledTypes,
         int maxRecordBytes,
         DeclaredReadSpec declaredReadSpec,
-        // PRE-overlay inferred file types (physical-keyed), or null when no declared overlay ran. The stats-type
-        // authority for normalizing footer range stats, not the overlaid readSchema types.
+        // Native file types, physical-keyed. Null when this file's types were not obtained or when
+        // fileSchema itself is native. The stats-type authority for normalizing footer range stats,
+        // not the overlaid or pinned readSchema types.
         @Nullable Map<String, DataType> inferredFileTypes,
         // File-level statistics: a live harvest from this query's schema resolution, or the same
         // harvest reconstructed from the schema cache's flat _stats.* map. Null when this file was
         // never harvested (no cache entry). A harvest whose readableUnitCount is 1 lets
         // tryRangeAwareSplits emit a whole-file split without opening the footer again.
-        @Nullable SourceStatistics statistics
+        @Nullable SourceStatistics statistics,
+        // Coordinator fold (sourceMetadata on the relation). Copied onto each harvest or
+        // footer range so split merge cannot serve a column the fold already dropped.
+        @Nullable Map<String, Object> foldedSourceMetadata,
+        // True when this FIRST_FILE_WINS glob file has no native-type snapshot. Column statistics
+        // must be withheld before alignment can interpret them against the pinned read schema.
+        boolean unknownNativeTypes
     ) {}
 
     /**
@@ -1688,8 +1706,10 @@ public class FileSplitProvider implements SplitProvider {
             task.declaredReadSpec(),
             task.inferredFileTypes(),
             task.statistics(),
+            task.foldedSourceMetadata(),
             fileSplits,
-            hoistedProvider
+            hoistedProvider,
+            task.unknownNativeTypes()
         )) {
             return new PlanResult.Splits(fileSplits);
         }
@@ -2015,8 +2035,10 @@ public class FileSplitProvider implements SplitProvider {
         DeclaredReadSpec declaredReadSpec,
         @Nullable Map<String, DataType> inferredFileTypes,
         @Nullable SourceStatistics fileStatistics,
+        @Nullable Map<String, Object> foldedSourceMetadata,
         List<ExternalSplit> splits,
-        @Nullable StorageProvider hoistedProvider
+        @Nullable StorageProvider hoistedProvider,
+        boolean unknownNativeTypes
     ) {
         if (formatRegistry == null || storageRegistry == null || format == null) {
             return false;
@@ -2043,7 +2065,10 @@ public class FileSplitProvider implements SplitProvider {
                 readSchema,
                 reconciledTypes,
                 declaredReadSpec,
-                inferredFileTypes
+                inferredFileTypes,
+                foldedSourceMetadata,
+                implicitNullsFor(reader),
+                unknownNativeTypes
             );
             splits.add(
                 FileSplit.withStatisticsAndReadSchema(
@@ -2082,7 +2107,10 @@ public class FileSplitProvider implements SplitProvider {
                 declaredReadSpec,
                 inferredFileTypes,
                 ranges,
-                splits
+                splits,
+                foldedSourceMetadata,
+                implicitNullsFor(reader),
+                unknownNativeTypes
             );
             return true;
         } catch (IOException e) {
@@ -2137,7 +2165,10 @@ public class FileSplitProvider implements SplitProvider {
                             task.declaredReadSpec(),
                             task.inferredFileTypes(),
                             ranges,
-                            splits
+                            splits,
+                            task.foldedSourceMetadata(),
+                            implicitNullsFor(reader),
+                            task.unknownNativeTypes()
                         );
                         listener.onResponse(splits);
                     } catch (Exception e) {
@@ -2170,7 +2201,10 @@ public class FileSplitProvider implements SplitProvider {
         DeclaredReadSpec declaredReadSpec,
         @Nullable Map<String, DataType> inferredFileTypes,
         List<SplitRange> ranges,
-        List<ExternalSplit> splits
+        List<ExternalSplit> splits,
+        @Nullable Map<String, Object> foldedSourceMetadata,
+        boolean implicitNulls,
+        boolean unknownNativeTypes
     ) {
         Map<String, Object> splitConfig = new HashMap<>(config);
         splitConfig.put(RANGE_SPLIT_KEY, "true");
@@ -2178,53 +2212,16 @@ public class FileSplitProvider implements SplitProvider {
 
         for (SplitRange range : ranges) {
             Map<String, Object> rangeStats = range.statistics().isEmpty() ? null : range.statistics();
-            if (rangeStats != null && readSchema != null && reconciledTypes != null) {
-                // Type authority for the raw footer values. Prefer inferredFileTypes when set (pre-pin / pre-overlay):
-                // a text UNION_BY_NAME pin stores the reconciled type on readSchema, which would make
-                // file == reconciled and skip the LONG->DOUBLE convert. Fall back to readSchema when nothing
-                // retyped this file. A declaration overlays readSchema, so the branch below rekeys and poisons
-                // before normalizing with the inferred types.
-                Map<String, DataType> statsFileTypes;
-                if (declaredReadSpec.isEmpty()) {
-                    statsFileTypes = undeclaredStatsFileTypes(readSchema, inferredFileTypes);
-                } else {
-                    // S1 boundary, split edition. Rekey the `path` renames (a pure move changes no value, so rekeyed
-                    // stats stay exact) and poison declared-retyped / date-format columns (the scan's per-value
-                    // coercion makes pre-coercion stats untrustworthy), BEFORE unit-normalizing.
-                    Map<String, String> physicalToLogical = PhysicalNames.inverse(declaredReadSpec.renames());
-                    Set<String> poison = new HashSet<>(declaredReadSpec.dateFormats().keySet());
-                    if (inferredFileTypes != null) {
-                        Map<String, DataType> overlaidTypes = attributesToTypeMap(readSchema); // logical, declared types
-                        for (String logical : declaredReadSpec.declaredTypeColumns()) {
-                            String physical = declaredReadSpec.renames().getOrDefault(logical, logical);
-                            DataType inferredType = inferredFileTypes.get(physical);
-                            // Absent from THIS file (lenient union-by-name overlay skipped it): no footer stat exists
-                            // for it here either, so nothing to poison.
-                            if (inferredType != null && inferredType != overlaidTypes.get(logical)) {
-                                poison.add(logical);
-                            }
-                        }
-                        rangeStats = SourceStatisticsSerializer.overlayDeclaredSchemaOnStats(rangeStats, physicalToLogical, poison);
-                        // Inferred file types, rekeyed to logical so they align with the rekeyed stats + reconciledTypes.
-                        statsFileTypes = new HashMap<>(inferredFileTypes.size());
-                        for (Map.Entry<String, DataType> e : inferredFileTypes.entrySet()) {
-                            statsFileTypes.put(physicalToLogical.getOrDefault(e.getKey(), e.getKey()), e.getValue());
-                        }
-                    } else {
-                        // Declared read but no captured inference (strict paths skip inference): the declared-vs-inferred
-                        // comparison is impossible, so conservatively poison EVERY declared column. row_count survives.
-                        poison.addAll(declaredReadSpec.declaredTypeColumns());
-                        rangeStats = SourceStatisticsSerializer.overlayDeclaredSchemaOnStats(rangeStats, physicalToLogical, poison);
-                        statsFileTypes = attributesToTypeMap(readSchema);
-                    }
-                }
-                // Footer stats are in each file's LOCAL unit/representation (footer or inferred types, not a
-                // pinned or unified type); normalize to the reconciled query type so the split-filter classifier
-                // and the filtered merge compare/serve in ONE unit across mixed DATETIME(millis)/DATE_NANOS(nanos)
-                // files and LONG/INTEGER files reconciled to DOUBLE, not unit-blind. A non-normalizable
-                // representation safe-misses via the marker.
-                rangeStats = SourceStatisticsSerializer.normalizeStatsToReconciled(rangeStats, statsFileTypes, reconciledTypes);
-            }
+            rangeStats = normalizeSplitStats(
+                rangeStats,
+                readSchema,
+                reconciledTypes,
+                declaredReadSpec,
+                inferredFileTypes,
+                foldedSourceMetadata,
+                implicitNulls,
+                unknownNativeTypes
+            );
             splits.add(
                 FileSplit.withStatisticsAndReadSchema(
                     "file",
@@ -2244,10 +2241,11 @@ public class FileSplitProvider implements SplitProvider {
 
     /**
      * Normalizes raw footer statistics (the {@code _stats.*} map) for stamping onto a split: applies the
-     * declared-overlay rekey/poison when a declaration ran, then unit-normalizes values to the reconciled query
-     * types. Returns {@code null} for absent/empty stats and the stats untouched when the read schema or
-     * reconciled types are unknown (nothing to normalize against). Shared by the per-range path and the
-     * single-unit discovery skip in {@link #tryRangeAwareSplits} so both stamp identical stats for one unit.
+     * declared-overlay rekey/poison when a declaration ran, unit-normalizes values to the reconciled query
+     * types, reapplies the FIRST_FILE_WINS rewrite or unsigned encode against this file's read schema,
+     * then copies fold-level unservability from {@code foldedSourceMetadata}. Returns {@code null} for
+     * absent/empty stats. Shared by the per-range path and the single-unit discovery skip in
+     * {@link #tryRangeAwareSplits} so both stamp identical stats for one unit.
      */
     @Nullable
     private static Map<String, Object> normalizeSplitStats(
@@ -2255,11 +2253,33 @@ public class FileSplitProvider implements SplitProvider {
         @Nullable List<Attribute> readSchema,
         @Nullable Map<String, DataType> reconciledTypes,
         DeclaredReadSpec declaredReadSpec,
-        @Nullable Map<String, DataType> inferredFileTypes
+        @Nullable Map<String, DataType> inferredFileTypes,
+        @Nullable Map<String, Object> foldedSourceMetadata,
+        boolean implicitNulls,
+        boolean unknownNativeTypes
     ) {
         Map<String, Object> stats = rawStats == null || rawStats.isEmpty() ? null : rawStats;
-        if (stats == null || readSchema == null || reconciledTypes == null) {
+        if (stats == null) {
             return stats;
+        }
+        if (unknownNativeTypes) {
+            stats = SourceStatisticsSerializer.overlayPinnedColumnsOnStats(
+                stats,
+                ExternalSourceResolver.fileBackedPhysicalColumns(readSchema, declaredReadSpec),
+                false
+            );
+        }
+        if (readSchema == null || reconciledTypes == null) {
+            // Align against the read schema the reader is pinned to, not the unified type:
+            // UNION_BY_NAME widens DATETIME+DATE_NANOS in the output and converts after the read.
+            stats = ExternalSourceResolver.alignHarvestWithAnchorTypes(
+                stats,
+                inferredFileTypes,
+                readSchema != null ? attributesToTypeMap(readSchema) : null,
+                implicitNulls,
+                declaredReadSpec.declaredTypeColumns()
+            );
+            return SourceStatisticsSerializer.alignHarvestWithFold(stats, foldedSourceMetadata);
         }
         // Type authority for the raw footer values. Prefer inferredFileTypes when set (pre-pin / pre-overlay):
         // a text UNION_BY_NAME pin stores the reconciled type on readSchema, which would make
@@ -2305,7 +2325,35 @@ public class FileSplitProvider implements SplitProvider {
         // and the filtered merge compare/serve in ONE unit across mixed DATETIME(millis)/DATE_NANOS(nanos)
         // files and LONG/INTEGER files reconciled to DOUBLE, not unit-blind. A non-normalizable
         // representation safe-misses via the marker.
-        return SourceStatisticsSerializer.normalizeStatsToReconciled(stats, statsFileTypes, reconciledTypes);
+        stats = SourceStatisticsSerializer.normalizeStatsToReconciled(stats, statsFileTypes, reconciledTypes);
+        // FIRST_FILE_WINS pins every file to the anchor, so readSchema is the planner type the
+        // footer reader null-fills against. UNION_BY_NAME keeps the per-file footer type on
+        // readSchema and converts afterwards; comparing against reconciledTypes would treat a
+        // representable DATETIME→DATE_NANOS widen as unrepresentable and rewrite the harvest
+        // to value_count=0.
+        stats = ExternalSourceResolver.alignHarvestWithAnchorTypes(
+            stats,
+            statsFileTypes,
+            attributesToTypeMap(readSchema),
+            implicitNulls,
+            declaredReadSpec.declaredTypeColumns()
+        );
+        return SourceStatisticsSerializer.alignHarvestWithFold(stats, foldedSourceMetadata);
+    }
+
+    /**
+     * Footer implicit-nulls for this file's configured reader, including an extensionless object
+     * with an explicit {@code format}. An unresolvable reader answers {@code false}: this flag
+     * licenses rewriting a present harvest to {@code value_count = 0}, so guessing footer
+     * behavior would manufacture an undercount.
+     */
+    private boolean implicitNullsFor(FileTask task) {
+        FormatReader reader = resolveConfiguredReader(task.filePath(), task.config());
+        return reader != null && implicitNullsFor(reader);
+    }
+
+    private static boolean implicitNullsFor(FormatReader reader) {
+        return reader.aggregatePushdownSupport().appliesImplicitNullsForAbsentColumn();
     }
 
     /**

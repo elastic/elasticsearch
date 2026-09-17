@@ -540,7 +540,6 @@ public class EsqlSession {
                     // against each source's schema. Index leaves keep their existing filter path. Version-gated:
                     // the translated predicate can contain mv_in_range / mv_greater / mv_less, which older
                     // nodes cannot deserialize.
-                    // Fail-closed by default: an unsupported construct throws VerificationException (a 400).
                     // Applies the translatable subset and drops the rest with a warning naming each clause.
                     // This callback runs outside the SubscribableListener chain below, so a synchronous throw here
                     // would not be routed to the listener — catch it and fail the query explicitly.

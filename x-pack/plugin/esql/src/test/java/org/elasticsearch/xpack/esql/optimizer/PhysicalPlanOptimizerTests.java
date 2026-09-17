@@ -113,6 +113,7 @@ import org.elasticsearch.xpack.esql.index.IndexProperties;
 import org.elasticsearch.xpack.esql.index.IndexResolution;
 import org.elasticsearch.xpack.esql.optimizer.rules.physical.ProjectAwayColumns;
 import org.elasticsearch.xpack.esql.parser.ParsingException;
+import org.elasticsearch.xpack.esql.plan.QuerySettings;
 import org.elasticsearch.xpack.esql.plan.logical.Aggregate;
 import org.elasticsearch.xpack.esql.plan.logical.Enrich;
 import org.elasticsearch.xpack.esql.plan.logical.EsRelation;
@@ -174,10 +175,12 @@ import org.elasticsearch.xpack.esql.querydsl.query.SingleValueQuery;
 import org.elasticsearch.xpack.esql.querydsl.query.SpatialRelatesQuery;
 import org.elasticsearch.xpack.esql.rule.RuleExecutor;
 import org.elasticsearch.xpack.esql.session.Configuration;
+import org.elasticsearch.xpack.esql.session.ConfigurationBuilder;
 import org.elasticsearch.xpack.esql.session.Versioned;
 import org.elasticsearch.xpack.esql.stats.SearchStats;
 import org.junit.Before;
 
+import java.time.ZoneId;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
@@ -428,6 +431,14 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
 
     TestDataSource makeTestDataSource(String indexName, String mappingFileName) {
         return makeTestDataSource(indexName, mappingFileName, TEST_SEARCH_STATS);
+    }
+
+    private TestDataSource testDataWithConfig(Configuration cfg) {
+        TestAnalyzer builder = analyzer().configuration(cfg).addIndex(testData.index());
+        builder.minimumTransportVersion(minimumVersion.get());
+        setupEnrichPolicies(builder);
+        builder.addNoFieldsIndex();
+        return new TestDataSource(testData.mapping(), testData.index(), builder.buildAnalyzer(), testData.stats());
     }
 
     private static void setupEnrichPolicies(TestAnalyzer builder) {
@@ -10653,6 +10664,62 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
         assertThat(rangeQuery.to(), equalTo(endRange));
         assertFalse(rangeQuery.includeLower());
         assertTrue(rangeQuery.includeUpper());
+    }
+
+    /**
+     * Inverted {@code DATE_TRUNC(1 year, hire_date) == ...} pushes a Lucene range on the timestamp field.
+     */
+    public void testPushInvertedDateTruncEquals() {
+        assertHireDateYearRangePushed("""
+            FROM test
+            | WHERE DATE_TRUNC(1 year, hire_date) == "1986-01-01T00:00:00Z"
+            """, "1986-01-01T00:00:00.000Z", "1987-01-01T00:00:00.000Z");
+    }
+
+    public void testPushInvertedDateTruncQuotedIntervalEquals() {
+        assertHireDateYearRangePushed("""
+            FROM test
+            | WHERE DATE_TRUNC("1 year", hire_date) == "1986-01-01T00:00:00Z"
+            """, "1986-01-01T00:00:00.000Z", "1987-01-01T00:00:00.000Z");
+    }
+
+    /**
+     * Inverted {@code DATE_EXTRACT("year", hire_date) == 1986} pushes the same Lucene range.
+     */
+    public void testPushInvertedDateExtractYearEquals() {
+        assertHireDateYearRangePushed("""
+            FROM test
+            | WHERE DATE_EXTRACT("year", hire_date) == 1986
+            """, "1986-01-01T00:00:00.000Z", "1987-01-01T00:00:00.000Z");
+    }
+
+    public void testPushInvertedDateExtractYearEqualsNonUtc() {
+        Configuration ny = new ConfigurationBuilder(config).setting(QuerySettings.TIME_ZONE, ZoneId.of("America/New_York")).build();
+        assertHireDateYearRangePushed("""
+            FROM test
+            | WHERE DATE_EXTRACT("year", hire_date) == 1986
+            """, "1986-01-01T05:00:00.000Z", "1987-01-01T05:00:00.000Z", testDataWithConfig(ny));
+    }
+
+    private void assertHireDateYearRangePushed(String query, String start, String end) {
+        assertHireDateYearRangePushed(query, start, end, testData);
+    }
+
+    private void assertHireDateYearRangePushed(String query, String start, String end, TestDataSource dataSource) {
+        var plan = physicalPlan(query, dataSource);
+        var optimized = optimizedPlan(plan, dataSource);
+        var topLimit = as(optimized, LimitExec.class);
+        var exchange = asRemoteExchange(topLimit.child());
+        var project = as(exchange.child(), ProjectExec.class);
+        var fieldExtract = as(project.child(), FieldExtractExec.class);
+        var source = source(fieldExtract.child());
+
+        var rangeQuery = as(sv(source.query(), "hire_date"), RangeQueryBuilder.class);
+        assertThat(rangeQuery.fieldName(), equalTo("hire_date"));
+        assertThat(rangeQuery.from(), equalTo(start));
+        assertThat(rangeQuery.to(), equalTo(end));
+        assertTrue(rangeQuery.includeLower());
+        assertFalse(rangeQuery.includeUpper());
     }
 
     /**

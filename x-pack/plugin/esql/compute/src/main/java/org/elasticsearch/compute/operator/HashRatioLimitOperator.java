@@ -86,6 +86,8 @@ public class HashRatioLimitOperator extends AbstractPageMappingOperator {
      * {@code ratio} for a non-negative ratio, at or above {@code 1 + ratio} for a negative one.
      */
     static boolean keep(double ratio, BytesRef fieldId) {
+        // Scale the 32-bit hash to a sampling offset in [0, 1). Multiplying by 2^-32 is exact,
+        // so every hash maps to a distinct offset with no rounding skew.
         double offset = (StringHelper.murmurhash3_x86_32(fieldId, HASH_SEED) & 0xFFFFFFFFL) * 0x1p-32;
         return (ratio >= 0 && offset < ratio) || (ratio < 0 && offset >= 1.0 + ratio);
     }

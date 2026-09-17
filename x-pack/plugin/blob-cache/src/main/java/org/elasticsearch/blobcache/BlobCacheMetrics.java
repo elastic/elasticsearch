@@ -50,18 +50,18 @@ public class BlobCacheMetrics {
     public static final String BLOB_CACHE_MISS_TOTAL = "es.blob_cache.miss.total";
     /**
      * Age of each cache-path read in milliseconds, bucketed with the {@link TimeRangeBucket} thresholds.
-     * Sentinel timestamps (negative) and {@linkplain #recordBypassRead() bypass} reads are omitted
-     * so the distribution reflects region ages that hit the cache. Those events still increment
-     * {@link #BLOB_CACHE_READ_TOTAL}; {@code read.total} minus this histogram's count is sentinels
-     * plus bypasses.
+     * Warming does not record here (same as {@link #BLOB_CACHE_READ_TOTAL}). Sentinel timestamps
+     * (negative) and {@linkplain #recordBypassRead() bypass} reads are omitted so the distribution
+     * reflects region ages that hit the cache. Those events still increment {@link #BLOB_CACHE_READ_TOTAL};
+     * {@code read.total} minus this histogram's count is sentinels plus bypasses.
      */
     public static final String BLOB_CACHE_READ_AGE = "es.blob_cache.read.age.histogram";
     /**
      * Age of each cache-path miss in milliseconds, bucketed with the {@link TimeRangeBucket} thresholds.
-     * Sentinel timestamps (negative) and {@linkplain #recordBypassRead() bypass} reads are omitted
-     * so the distribution reflects region ages that missed the cache. Those events still increment
-     * {@link #BLOB_CACHE_MISS_TOTAL}; {@code miss.total} minus this histogram's count is sentinels
-     * plus bypasses.
+     * Warming does not record here (same as {@link #BLOB_CACHE_MISS_TOTAL}). Sentinel timestamps
+     * (negative) and {@linkplain #recordBypassRead() bypass} reads are omitted so the distribution
+     * reflects region ages that missed the cache. Those events still increment {@link #BLOB_CACHE_MISS_TOTAL};
+     * {@code miss.total} minus this histogram's count is sentinels plus bypasses.
      */
     public static final String BLOB_CACHE_MISS_AGE = "es.blob_cache.miss.age.histogram";
 
@@ -235,13 +235,15 @@ public class BlobCacheMetrics {
             ),
             meterRegistry.registerLongHistogram(
                 BLOB_CACHE_READ_AGE,
-                "The age of data served by a cache read, in milliseconds; sentinel timestamps and bypasses are omitted",
+                "The age of data served by a cache read (warming not included), in milliseconds; "
+                    + "sentinel timestamps and bypasses are omitted",
                 "milliseconds",
                 TimeRangeBucket.histogramBoundaries()
             ),
             meterRegistry.registerLongHistogram(
                 BLOB_CACHE_MISS_AGE,
-                "The age of data that missed the cache, in milliseconds; sentinel timestamps and bypasses are omitted",
+                "The age of data that missed the cache (warming not included), in milliseconds; "
+                    + "sentinel timestamps and bypasses are omitted",
                 "milliseconds",
                 TimeRangeBucket.histogramBoundaries()
             ),

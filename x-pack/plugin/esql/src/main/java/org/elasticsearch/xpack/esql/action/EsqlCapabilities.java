@@ -3557,6 +3557,13 @@ public class EsqlCapabilities {
          */
         TS_STATS_LITERAL_AGG_FIX,
 
+        /**
+         * Read an unmapped field straight from _source, so an object value reads as null rather than as Java's
+         * Map.toString(). Applies to both source modes.
+         * See https://github.com/elastic/elasticsearch/issues/158306.
+         */
+        OPTIONAL_FIELDS_FIX_UNMAPPED_OBJECT_VALUE,
+
         // Last capability should still have a comma for fewer merge conflicts when adding new ones :)
         // This comment prevents the semicolon from being on the previous capability when Spotless formats the file.
         ;

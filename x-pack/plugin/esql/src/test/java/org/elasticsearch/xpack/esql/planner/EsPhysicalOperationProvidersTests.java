@@ -206,6 +206,40 @@ public class EsPhysicalOperationProvidersTests extends MapperServiceTestCase {
         );
     }
 
+    /**
+     * When unmapped_fields="load" and the field is truly unmapped (absent from the shard's mapping),
+     * the shard context should use {@link UnmappedKeywordBlockLoader} to read from _source and return
+     * null for object values, rather than delegating to the broken KeywordFieldType loader paths.
+     */
+    public void testTrulyUnmappedFieldUsesUnmappedKeywordBlockLoader() throws IOException {
+        SearchExecutionContext searchExecutionContext = createSearchExecutionContext(createMapperService(mapping(b -> {})), null);
+        var defaultCtx = new EsPhysicalOperationProviders.DefaultShardContext(
+            0,
+            new NoOpReleasable(),
+            searchExecutionContext,
+            AliasFilter.EMPTY
+        );
+        var unmappedCtx = EsPhysicalOperationProviders.wrapWithUnmappedFieldContext(
+            defaultCtx,
+            new PotentiallyUnmappedKeywordEsField("unmapped_field")
+        );
+
+        BlockLoader blockLoader = unmappedCtx.blockLoader(
+            "unmapped_field",
+            false,
+            MappedFieldType.FieldExtractPreference.NONE,
+            null,
+            null,
+            ByteSizeValue.ofKb(100),
+            ByteSizeValue.ofKb(300)
+        );
+        assertThat(
+            "Truly unmapped field should use UnmappedKeywordBlockLoader to correctly handle object values",
+            blockLoader,
+            instanceOf(UnmappedKeywordBlockLoader.class)
+        );
+    }
+
     public void testTemporalityForMissingSetting() throws IOException {
         SearchExecutionContext searchExecutionContext = createSearchExecutionContext(
             createMapperService(mapping(b -> b.startObject("metric_temporality").field("type", "keyword").endObject())),

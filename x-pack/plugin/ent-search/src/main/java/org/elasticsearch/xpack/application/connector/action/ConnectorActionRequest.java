@@ -77,8 +77,7 @@ public abstract class ConnectorActionRequest extends UntypedActionRequest {
     }
 
     /**
-     * Validates that the given description does not exceed {@link Connector#MAX_DESCRIPTION_LENGTH}. Connector documents are
-     * returned in full by the get connector API, so an oversized description can exhaust the node heap when connectors are read.
+     * Validates that the given description does not exceed {@link Connector#MAX_DESCRIPTION_LENGTH}.
      *
      * @param description         The description to validate. If null, no validation is performed.
      * @param validationException The exception to accumulate validation errors.

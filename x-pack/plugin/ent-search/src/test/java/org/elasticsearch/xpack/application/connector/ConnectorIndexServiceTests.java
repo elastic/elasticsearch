@@ -120,7 +120,7 @@ public class ConnectorIndexServiceTests extends ESSingleNodeTestCase {
         assertThat(listedConnector, not(hasKey(Connector.CONFIGURATION_FIELD.getPreferredName())));
         assertThat(listedConnector, hasKey(Connector.INDEX_NAME_FIELD.getPreferredName()));
 
-        // The configuration is only excluded from the list endpoint, it is still returned when reading a single connector
+        // Only the list endpoint excludes it
         assertThat(awaitGetConnector(connectorId).getConfiguration().keySet(), equalTo(connector.getConfiguration().keySet()));
     }
 

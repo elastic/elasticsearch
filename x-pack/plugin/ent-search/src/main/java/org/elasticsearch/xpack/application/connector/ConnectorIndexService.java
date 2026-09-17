@@ -332,8 +332,7 @@ public class ConnectorIndexService {
             final SearchSourceBuilder source = new SearchSourceBuilder().from(from)
                 .size(size)
                 .query(buildListQuery(indexNames, connectorNames, serviceTypes, searchQuery, includeDeleted))
-                // The configuration can hold large and sensitive values, and this endpoint returns a full page of connectors at once.
-                // It is available via the get connector endpoint, which reads a single document.
+                // Configuration is large and sensitive, and a page holds many connectors. Read it via getConnector instead.
                 .fetchSource(null, LIST_EXCLUDED_SOURCE_FIELDS)
                 .sort(Connector.INDEX_NAME_FIELD.getPreferredName(), SortOrder.ASC);
             final SearchRequest req = new SearchRequest(CONNECTOR_INDEX_NAME).source(source);

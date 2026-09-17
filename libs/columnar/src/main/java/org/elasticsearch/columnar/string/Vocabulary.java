@@ -81,9 +81,8 @@ public final class Vocabulary {
     }
 
     /**
-     * A vocabulary worked out from what other columns recorded rather than from values: the union of their
-     * dictionaries, or the sum of their summaries. Either way their values need not be read again to
-     * discover what they contain.
+     * A vocabulary worked out from what other columns recorded rather than from values, such as the union of
+     * their dictionaries, so their values need not be read again to discover what they contain.
      *
      * @param sortedTerms the vocabulary, in term order
      * @param coverage    the share of the merged column's values these terms hold; one for a union of

@@ -9,6 +9,7 @@
 
 package org.elasticsearch.index.codec.vectors;
 
+import org.apache.lucene.index.VectorEncoding;
 import org.apache.lucene.tests.index.BaseKnnVectorsFormatTestCase;
 import org.elasticsearch.common.logging.LogConfigurator;
 
@@ -25,5 +26,22 @@ public abstract class ESBaseKnnVectorsFormatTestCase extends BaseKnnVectorsForma
 
     static {
         LogConfigurator.configureESLogging(); // native access requires logging to be initialized
+    }
+
+    /**
+     * Elasticsearch knn formats store float32, byte, or ES bfloat16 (as {@link VectorEncoding#FLOAT32}).
+     * Lucene 11's default hook also picks IEEE {@link VectorEncoding#FLOAT16}, which no ES format
+     * implements.
+     */
+    // TODO: LUCENE11 drop this override once dense_vector has an IEEE FLOAT16 element type and
+    // knn formats implement Float16VectorValues / short[] search. Until then Lucene's default
+    // randomVectorEncoding() writes FLOAT16 fields that our codecs reject with UOE.
+    @Override
+    protected VectorEncoding randomVectorEncoding() {
+        VectorEncoding encoding;
+        do {
+            encoding = super.randomVectorEncoding();
+        } while (encoding == VectorEncoding.FLOAT16);
+        return encoding;
     }
 }

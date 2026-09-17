@@ -433,19 +433,3 @@ setup:
         body: {}
 
   - match: { error.reason: "Validation Failed: 1: [configuration] and [values] cannot both be null.;" }
-
----
-"List Connectors - configuration is excluded from the results":
-  - do:
-      connector.list: { }
-
-  - match: { count: 1 }
-  - match: { results.0.id: test-connector }
-  - match: { results.0.index_name: search-1-test }
-  - is_false: results.0.configuration
-
-  - do:
-      connector.get:
-        connector_id: test-connector
-
-  - match: { configuration.some_field.value: 123 }

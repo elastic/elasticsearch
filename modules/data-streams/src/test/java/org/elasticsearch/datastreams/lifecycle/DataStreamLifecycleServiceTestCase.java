@@ -74,6 +74,8 @@ import static org.elasticsearch.datastreams.DataStreamsPlugin.LIFECYCLE_CUSTOM_I
 import static org.elasticsearch.datastreams.lifecycle.DataStreamLifecycleFixtures.createDataStream;
 import static org.elasticsearch.datastreams.lifecycle.DataStreamLifecycleService.DATA_STREAM_MERGE_POLICY_TARGET_FACTOR_SETTING;
 import static org.elasticsearch.datastreams.lifecycle.DataStreamLifecycleService.DATA_STREAM_MERGE_POLICY_TARGET_FLOOR_SEGMENT_SETTING;
+import static org.elasticsearch.datastreams.lifecycle.DataStreamLifecycleService.DATA_STREAM_MERGE_POLICY_TSDB_TARGET_FACTOR_SETTING;
+import static org.elasticsearch.datastreams.lifecycle.DataStreamLifecycleService.DATA_STREAM_MERGE_POLICY_TSDB_TARGET_FLOOR_SEGMENT_SETTING;
 import static org.elasticsearch.test.ClusterServiceUtils.createClusterService;
 import static org.elasticsearch.test.ClusterServiceUtils.setState;
 
@@ -99,6 +101,8 @@ public abstract class DataStreamLifecycleServiceTestCase extends ESTestCase {
         builtInClusterSettings.add(DataStreamLifecycleService.DATA_STREAM_LIFECYCLE_POLL_INTERVAL_SETTING);
         builtInClusterSettings.add(DATA_STREAM_MERGE_POLICY_TARGET_FLOOR_SEGMENT_SETTING);
         builtInClusterSettings.add(DATA_STREAM_MERGE_POLICY_TARGET_FACTOR_SETTING);
+        builtInClusterSettings.add(DATA_STREAM_MERGE_POLICY_TSDB_TARGET_FLOOR_SEGMENT_SETTING);
+        builtInClusterSettings.add(DATA_STREAM_MERGE_POLICY_TSDB_TARGET_FACTOR_SETTING);
         ClusterSettings clusterSettings = new ClusterSettings(Settings.EMPTY, builtInClusterSettings);
         clusterService = createClusterService(threadPool, clusterSettings);
 

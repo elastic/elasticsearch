@@ -414,7 +414,7 @@ public final class SplitDiscoveryPhase {
 
         SplitDiscoveryContext context = new SplitDiscoveryContext(
             new SimpleSourceMetadata(
-                queryDataAttributes,
+                querySchema.attributes(),
                 exec.sourceType(),
                 exec.sourcePath(),
                 null,
@@ -467,7 +467,7 @@ public final class SplitDiscoveryPhase {
 
         SplitDiscoveryContext context = new SplitDiscoveryContext(
             new SimpleSourceMetadata(
-                queryDataAttributes,
+                querySchema.attributes(),
                 exec.sourceType(),
                 exec.sourcePath(),
                 null,

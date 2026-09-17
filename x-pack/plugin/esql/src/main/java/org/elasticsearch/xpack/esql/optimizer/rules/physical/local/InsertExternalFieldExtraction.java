@@ -175,12 +175,22 @@ public class InsertExternalFieldExtraction extends PhysicalOptimizerRules.Parame
         // late-materialisation is disabled for `_source` queries (correctness preserves over the
         // I/O optimisation).
         boolean sourceProjected = false;
+        boolean idProjected = false;
         for (Attribute a : sourceOutput) {
-            if (a instanceof ExternalMetadataAttribute && ExternalMetadataColumns.SOURCE.equals(a.name())) {
-                sourceProjected = true;
-                break;
+            if (a instanceof ExternalMetadataAttribute) {
+                if (ExternalMetadataColumns.SOURCE.equals(a.name())) {
+                    sourceProjected = true;
+                } else if (ExternalMetadataColumns.ID.equals(a.name())) {
+                    idProjected = true;
+                }
             }
         }
+        // When `_id` is projected and mappings._id.path names a file-resident data column,
+        // VirtualColumnIterator stamps `_id` from that column on the reader page. Deferring
+        // the stamp source leaves idPathDataChannel == -1 and `_id` is constant-null. Pin
+        // that one data column eager; other projection columns can still defer. Keep-physical
+        // `_file.path` (a ReferenceAttribute, not VirtualAttribute) takes this path too.
+        String idPath = idProjected ? externalSource.declaredReadSpec().idPath() : null;
         // The second non-file-resident family: hive-style partition columns. Unlike {@code _file.*}
         // they carry no {@link VirtualAttribute} marker — they are surfaced as plain
         // {@link org.elasticsearch.xpack.esql.core.expression.ReferenceAttribute}s on purpose, so
@@ -206,6 +216,8 @@ public class InsertExternalFieldExtraction extends PhysicalOptimizerRules.Parame
                 eagerColumns.add(a);
             } else if (sourceProjected && a instanceof ExternalMetadataAttribute == false) {
                 // File-resident data column under `_source` projection — must be eager.
+                eagerColumns.add(a);
+            } else if (idPath != null && idPath.equals(a.name())) {
                 eagerColumns.add(a);
             } else {
                 deferredColumns.add(a);

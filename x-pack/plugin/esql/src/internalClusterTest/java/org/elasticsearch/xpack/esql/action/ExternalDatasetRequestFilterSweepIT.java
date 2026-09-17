@@ -52,8 +52,9 @@ import static org.elasticsearch.xpack.esql.action.EsqlQueryRequest.syncEsqlQuery
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 
 /**
- * Every field type, every construct the translator attempts and every bool context, each filter run against a mapped
- * index and a dataset holding the same rows.
+ * Every construct the translator attempts, over a column of each type this fixture holds, in every bool context, each
+ * filter run against a mapped index and a dataset holding the same rows. The two types the fixture leaves out, text and
+ * version, are covered by {@code RequestFilterGoldenTests}, which needs no index to hold them.
  *
  * <p>Two properties are checked on every filter. The dataset must never return a row set the index's result is not
  * contained in — a dropped clause may only widen what matches. And when the translator expresses the whole filter,
@@ -269,13 +270,15 @@ public class ExternalDatasetRequestFilterSweepIT extends AbstractExternalDataSou
     // ---- combinations ----
 
     /**
-     * Random bool trees over every column and construct, up to three levels deep, checked the same way. Seeded by the
-     * test framework, so a failure reproduces with the printed seed.
+     * Random bool trees up to three levels deep, checked the same way, over every column and the per-column constructs
+     * plus {@code match_all}, {@code match_none} and an untranslatable {@code wildcard}. Seeded by the test framework,
+     * so a failure reproduces with the printed seed.
      */
     public void testRandomFilters() {
         List<String> failures = new ArrayList<>();
-        // Scales with the test multiplier, so a nightly run goes deeper than a local one. AbstractQueryTestCase uses 20
-        // random queries per test and the ES|QL generative suite 100, so this is already the generous end of precedent.
+        // Varies the count per run rather than pinning one, so repeated runs cover more of the space than a fixed
+        // number would; -Dtests.multiplier scales it further. AbstractQueryTestCase draws 20 random queries per test
+        // and the ES|QL generative suite 100, so the low end here is already the generous end of precedent.
         int iterations = scaledRandomIntBetween(150, 400);
         int translatedInFull = 0;
         int droppedSomething = 0;

@@ -12,12 +12,19 @@ import org.elasticsearch.client.Request;
 import org.elasticsearch.client.Response;
 import org.elasticsearch.client.ResponseException;
 import org.elasticsearch.cluster.metadata.DatasetFieldMapping;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.plugins.Plugin;
+import org.elasticsearch.xpack.esql.core.expression.Expression;
+import org.elasticsearch.xpack.esql.core.expression.Literal;
+import org.elasticsearch.xpack.esql.core.expression.ReferenceAttribute;
+import org.elasticsearch.xpack.esql.core.tree.Source;
+import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.datasource.csv.CsvDataSourcePlugin;
 import org.elasticsearch.xpack.esql.datasources.spi.StoragePath;
+import org.elasticsearch.xpack.esql.dsltranslate.QueryDslTranslator;
 import org.junit.Before;
 
 import java.io.IOException;
@@ -33,10 +40,12 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
+import java.util.function.Function;
 import java.util.function.IntPredicate;
 import java.util.stream.IntStream;
 
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
+import static org.elasticsearch.xpack.esql.EsqlTestUtils.TEST_CFG;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.getValuesList;
 import static org.elasticsearch.xpack.esql.action.EsqlQueryRequest.syncEsqlQueryRequest;
 import static org.hamcrest.Matchers.allOf;
@@ -561,6 +570,44 @@ public class ExternalDatasetRequestFilterConformanceIT extends AbstractExternalD
             "expected a warning about the dropped [wildcard] construct; got: " + warnings,
             warnings.stream().anyMatch(w -> w.contains("[wildcard]"))
         );
+    }
+
+    /**
+     * Asking the translator directly whether it expressed a whole filter is how the sweep decides when to demand exact
+     * agreement with the index. That answer has to match the one the query gives, which is the drop warning.
+     */
+    public void testAskingTheTranslatorMatchesTheDropWarning() throws IOException {
+        Map<String, DataType> types = Map.of(
+            "id",
+            DataType.INTEGER,
+            "status",
+            DataType.INTEGER,
+            "tags",
+            DataType.KEYWORD,
+            "bytes",
+            DataType.LONG
+        );
+        List<QueryBuilder> filters = List.of(
+            QueryBuilders.termQuery("status", 200),
+            QueryBuilders.rangeQuery("bytes").gte(10).lte(100),
+            QueryBuilders.rangeQuery("tags").gte("a"),
+            QueryBuilders.existsQuery("tags"),
+            QueryBuilders.wildcardQuery("tags", "t*"),
+            QueryBuilders.boolQuery().must(QueryBuilders.termQuery("status", 200)).must(QueryBuilders.wildcardQuery("tags", "t*")),
+            QueryBuilders.prefixQuery("tags", "t")
+        );
+        for (QueryBuilder filter : filters) {
+            Request request = new Request("POST", "/_query");
+            request.setJsonEntity("{\"query\": \"FROM " + dataset + " | KEEP id\", \"filter\": " + Strings.toString(filter) + "}");
+            Response response = getRestClient().performRequest(request);
+            boolean warned = response.getWarnings().stream().anyMatch(w -> w.contains("were skipped"));
+            Function<String, Expression> binder = name -> {
+                DataType type = types.get(name);
+                return type == null ? Literal.NULL : new ReferenceAttribute(Source.EMPTY, name, type);
+            };
+            boolean translatedInFull = new QueryDslTranslator(binder, types.keySet(), TEST_CFG).translate(filter).unsupported().isEmpty();
+            assertThat(Strings.toString(filter), translatedInFull, equalTo(warned == false));
+        }
     }
 
     /**

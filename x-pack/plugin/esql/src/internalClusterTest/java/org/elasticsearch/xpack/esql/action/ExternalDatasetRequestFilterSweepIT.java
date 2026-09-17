@@ -52,19 +52,13 @@ import static org.elasticsearch.xpack.esql.action.EsqlQueryRequest.syncEsqlQuery
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 
 /**
- * Every construct the translator attempts, over a column of each type this fixture holds, in every bool context, each
- * filter run against a mapped index and a dataset holding the same rows. The two types the fixture leaves out, text and
- * version, are covered by {@code RequestFilterGoldenTests}, which needs no index to hold them.
+ * Every construct the translator attempts, run against a mapped index and a dataset holding the same rows: per-field
+ * constructs on every column in every bool context, fieldless ones once per context. {@code text} and {@code version}
+ * are not in the fixture; {@code RequestFilterGoldenTests} pins those.
  *
- * <p>Two properties are checked on every filter. The dataset must never return a row set the index's result is not
- * contained in — a dropped clause may only widen what matches. And when the translator expresses the whole filter,
- * the dataset must return exactly the index's rows. Which filters translate in full is taken from the translator
- * itself, which is what the drop warning reports; what each shape translates to is pinned separately by
- * {@code RequestFilterGoldenTests}, so this suite does not also decide it.
- *
- * <p>Every column is sparse, so each shape meets rows that have the field and rows that lack it — the case where a
- * translation can agree with the index under {@code AND} and disagree under {@code must_not}. The fixture loads once
- * per suite.
+ * <p>Two properties on every filter: the dataset returns everything the index returns, and where the whole filter
+ * translates, exactly that. Every column is sparse, so each shape meets rows that lack the field — where a translation
+ * can agree under {@code AND} and disagree under {@code must_not}.
  */
 @SuiteScopeTestCase
 public class ExternalDatasetRequestFilterSweepIT extends AbstractExternalDataSourceIT {
@@ -270,15 +264,13 @@ public class ExternalDatasetRequestFilterSweepIT extends AbstractExternalDataSou
     // ---- combinations ----
 
     /**
-     * Random bool trees up to three levels deep, checked the same way, over every column and the per-column constructs
-     * plus {@code match_all}, {@code match_none} and an untranslatable {@code wildcard}. Seeded by the test framework,
-     * so a failure reproduces with the printed seed.
+     * Random bool trees up to three levels deep, checked the same way. Leaves draw from the per-column constructs
+     * except the exclusive range, plus {@code match_all}, {@code match_none} and an untranslatable {@code wildcard}.
      */
     public void testRandomFilters() {
         List<String> failures = new ArrayList<>();
-        // Varies the count per run rather than pinning one, so repeated runs cover more of the space than a fixed
-        // number would; -Dtests.multiplier scales it further. AbstractQueryTestCase draws 20 random queries per test
-        // and the ES|QL generative suite 100, so the low end here is already the generous end of precedent.
+        // Near the low end normally, near the high end on a nightly run. AbstractQueryTestCase draws 20 per test.
+
         int iterations = scaledRandomIntBetween(150, 400);
         int translatedInFull = 0;
         int droppedSomething = 0;
@@ -295,8 +287,7 @@ public class ExternalDatasetRequestFilterSweepIT extends AbstractExternalDataSou
             }
         }
         assertNoFailures(failures);
-        // The draw is only worth running if it is a mix. All-translatable never exercises dropping, all-dropped never
-        // exercises the equality half of the oracle, and a filter that selects every row or no row cannot show either.
+        // A draw that is all-translatable, all-dropped, or all-or-nothing on rows exercises only half the oracle.
         String mix = iterations
             + " filters: "
             + translatedInFull
@@ -351,7 +342,8 @@ public class ExternalDatasetRequestFilterSweepIT extends AbstractExternalDataSou
             case 7 -> QueryBuilders.rangeQuery(c.name()).gte(c.lower()).lte(c.upper());
             case 8 -> QueryBuilders.rangeQuery(c.name());
             case 9 -> QueryBuilders.termQuery(c.name(), c.sample()).caseInsensitive(true);
-            default -> randomFrom(QueryBuilders.matchAllQuery(), new MatchNoneQueryBuilder(), QueryBuilders.wildcardQuery(c.name(), "k*"));
+            case 10 -> randomFrom(QueryBuilders.matchAllQuery(), new MatchNoneQueryBuilder(), QueryBuilders.wildcardQuery(c.name(), "k*"));
+            default -> throw new AssertionError("unreachable: randomIntBetween(0, 10) returned out of range");
         };
     }
 
@@ -415,6 +407,10 @@ public class ExternalDatasetRequestFilterSweepIT extends AbstractExternalDataSou
         }
     }
 
+    /**
+     * Whether the translator expresses the whole filter. Rebuilt here rather than read off the query; the production
+     * signal is the drop warning, and {@code ExternalDatasetRequestFilterConformanceIT} pins this answer against it.
+     */
     private static boolean fullyTranslates(QueryBuilder filter) {
         Map<String, DataType> types = new HashMap<>();
         types.put("id", DataType.INTEGER);

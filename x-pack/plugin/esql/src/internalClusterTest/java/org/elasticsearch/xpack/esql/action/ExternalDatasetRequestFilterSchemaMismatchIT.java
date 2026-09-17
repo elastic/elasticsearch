@@ -33,17 +33,9 @@ import static org.elasticsearch.xpack.esql.action.EsqlQueryRequest.syncEsqlQuery
 
 /**
  * The request filter over a dataset whose declared column type disagrees with the index mapping over the same values.
- *
- * <p>The differential the other request-filter suites use — the dataset must select what the index selects — does not
- * apply here, because the two sources genuinely hold different types: {@code "10"} as a keyword on one side and
- * {@code 10} as a long on the other answer a range differently, and both answers are right for the type they hold.
- * What must still hold is that the dataset answers its own schema consistently, so the oracle here is the dataset
- * against itself: a filter pushed down must select the rows the equivalent {@code WHERE} selects when the same query
- * runs with no filter at all. A translation that reads the literal against the wrong type diverges from that.
- *
- * <p>The second half of the suite sends literals that cannot be read as the declared type at all. Those must not fail
- * the query: a clause is dropped or folds to no match, and the loosen-only invariant holds — the answer contains every
- * row the equivalent {@code WHERE} selects.
+ * The index differential does not apply — both sources are right for the type they hold — so the oracle is the dataset
+ * against itself: a pushed-down filter must select what the equivalent {@code WHERE} selects. Literals unreadable as
+ * the declared type must not fail the query and may only widen.
  */
 @SuiteScopeTestCase
 public class ExternalDatasetRequestFilterSchemaMismatchIT extends AbstractExternalDataSourceIT {
@@ -52,10 +44,7 @@ public class ExternalDatasetRequestFilterSchemaMismatchIT extends AbstractExtern
     private static final String INDEX = "mismatch_idx";
     private static final String DATASET = "mismatch_ds";
 
-    /**
-     * One column of the fixture: the same text in the CSV and in the index, declared as one type on the dataset and
-     * mapped as another on the index.
-     */
+    /** The same text in the CSV and the index, declared as one type on the dataset and mapped as another. */
     private record Mismatched(String name, String declaredOnDataset, String mappedOnIndex) {}
 
     private static final List<Mismatched> COLUMNS = List.of(
@@ -112,10 +101,7 @@ public class ExternalDatasetRequestFilterSchemaMismatchIT extends AbstractExtern
             source.put("id", row);
             csv.append(row);
             for (Mismatched column : COLUMNS) {
-                String value = switch (column.name()) {
-                    case "stamp" -> stamp(row);
-                    default -> digits(row);
-                };
+                String value = column.name().equals("stamp") ? stamp(row) : digits(row);
                 csv.append(',');
                 if (present(row)) {
                     source.put(column.name(), value);
@@ -134,11 +120,7 @@ public class ExternalDatasetRequestFilterSchemaMismatchIT extends AbstractExtern
 
     // ---- positive control ----
 
-    /**
-     * The fixture is only a mismatch fixture if the two sources really do read the same text differently. A keyword
-     * range over the digits is lexicographic and a numeric range is not, so the two must select different rows here —
-     * otherwise every assertion below would hold on a fixture that had no mismatch in it.
-     */
+    /** Without this the suite could pass on a fixture that held no mismatch: lexicographic and numeric must differ. */
     public void testTheTwoSourcesReallyDisagreeOnTheSameValues() {
         QueryBuilder wideRange = QueryBuilders.rangeQuery("digits").gte(10).lte(100);
         List<Object> onIndex = idsMatchingFilter(INDEX, wideRange);
@@ -189,18 +171,16 @@ public class ExternalDatasetRequestFilterSchemaMismatchIT extends AbstractExtern
 
     // ---- a literal that cannot be read as the declared type ----
 
-    /**
-     * Each of these is a literal the dataset's declared type cannot hold. None may fail the query, and each must return
-     * at least the rows the equivalent predicate selects — the clause is dropped, or folds to no match, never to a
-     * narrower answer than the predicate it stands for.
-     */
+    /** A literal the declared type cannot hold: never a failure, and never narrower than the predicate it stands for. */
     public void testUnreadableLiteralsNeverFailTheQuery() {
         List<String> failures = new ArrayList<>();
-        assertLooseOnly(QueryBuilders.termQuery("digits", "not-a-number"), "false", failures);
-        assertLooseOnly(QueryBuilders.rangeQuery("digits").gte("not-a-number"), "false", failures);
-        assertLooseOnly(QueryBuilders.termQuery("stamp", "not-a-date"), "false", failures);
-        assertLooseOnly(QueryBuilders.rangeQuery("stamp").gte("2020-13-45T99:99:99Z"), "false", failures);
-        // A number against a keyword column: readable as text, so this one may legitimately select rows.
+        // An unreadable literal has two correct answers and no third: the clause folds to no match, or it is dropped
+        // and every row comes back. Anything between the two is a translation that read the literal as something.
+        assertAllRowsOrNone(QueryBuilders.termQuery("digits", "not-a-number"), failures);
+        assertAllRowsOrNone(QueryBuilders.rangeQuery("digits").gte("not-a-number"), failures);
+        assertAllRowsOrNone(QueryBuilders.termQuery("stamp", "not-a-date"), failures);
+        assertAllRowsOrNone(QueryBuilders.rangeQuery("stamp").gte("2020-13-45T99:99:99Z"), failures);
+        // A number against a keyword column is readable as text, so this one selects rows and is checked against WHERE.
         assertLooseOnly(QueryBuilders.termQuery("numeric", 50), "numeric == \"50\"", failures);
         if (failures.isEmpty() == false) {
             fail(failures.size() + " unreadable literal(s) misbehaved:\n" + String.join("\n", failures));
@@ -226,14 +206,26 @@ public class ExternalDatasetRequestFilterSchemaMismatchIT extends AbstractExtern
 
     // ---- the oracle ----
 
-    /**
-     * The dataset answers the pushed-down filter exactly as it answers the same predicate written as {@code WHERE},
-     * which is the dataset's own reading of its own schema.
-     */
+    /** The pushed-down filter and the same predicate as {@code WHERE} are the dataset reading its own schema twice. */
     private void assertPushdownMatchesWhere(QueryBuilder filter, String where) {
         List<Object> pushedDown = idsMatchingFilter(DATASET, filter);
         List<Object> written = idsMatchingWhere(DATASET, where);
         assertEquals("pushed down " + Strings.toString(filter) + " disagrees with WHERE " + where, written, pushedDown);
+    }
+
+    private void assertAllRowsOrNone(QueryBuilder filter, List<String> failures) {
+        String described = Strings.toString(filter);
+        List<Object> pushedDown;
+        try {
+            pushedDown = idsMatchingFilter(DATASET, filter);
+        } catch (Exception e) {
+            failures.add(described + " — failed the query: " + e);
+            return;
+        }
+        List<Object> everyRow = idsMatchingWhere(DATASET, "true");
+        if (pushedDown.isEmpty() == false && pushedDown.equals(everyRow) == false) {
+            failures.add(described + " — selected a proper subset, so the literal was read as a value: " + pushedDown);
+        }
     }
 
     private void assertLooseOnly(QueryBuilder filter, String where, List<String> failures) {

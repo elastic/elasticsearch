@@ -10,7 +10,6 @@ package org.elasticsearch.xpack.esql.expression.function.vector;
 import org.apache.lucene.util.VectorUtil;
 import org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapper;
 
-import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
 import java.util.Locale;
@@ -71,6 +70,7 @@ public enum VectorSimilarityMetric {
 
     private static final Map<String, VectorSimilarityMetric> BY_OPTION_VALUE = Arrays.stream(values())
         .collect(Collectors.toUnmodifiableMap(value -> value.name().toLowerCase(Locale.ROOT), Function.identity()));
+    private static final List<String> OPTION_VALUES = Arrays.stream(values()).map(value -> value.name().toLowerCase(Locale.ROOT)).toList();
 
     private final DenseVectorFieldMapper.SimilarityFunction similarityFunction;
 
@@ -101,6 +101,6 @@ public enum VectorSimilarityMetric {
 
     /** Every accepted option value, in declaration order, for use in error messages. */
     public static List<String> optionValues() {
-        return new ArrayList<>(BY_OPTION_VALUE.keySet());
+        return OPTION_VALUES;
     }
 }

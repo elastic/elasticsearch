@@ -10,7 +10,6 @@ package org.elasticsearch.xpack.esql.expression.function.vector;
 import org.elasticsearch.test.ESTestCase;
 
 import java.util.List;
-import java.util.Locale;
 
 import static org.hamcrest.Matchers.closeTo;
 import static org.hamcrest.Matchers.equalTo;
@@ -33,6 +32,12 @@ public class VectorSimilarityMetricTests extends ESTestCase {
         assertThat(VectorSimilarityMetric.fromOptionValue("l1_norm"), nullValue());
         assertThat(VectorSimilarityMetric.fromOptionValue(""), nullValue());
         assertThat(VectorSimilarityMetric.fromOptionValue(null), nullValue());
+    }
+
+    public void testFromOptionValueIsCaseInsensitive() {
+        for (VectorSimilarityMetric metric : VectorSimilarityMetric.values()) {
+            assertThat(VectorSimilarityMetric.fromOptionValue(randomCasing(metric.name())), equalTo(metric));
+        }
     }
 
     public void testCosineScore() {

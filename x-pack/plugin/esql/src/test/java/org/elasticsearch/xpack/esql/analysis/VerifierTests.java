@@ -3681,16 +3681,13 @@ public class VerifierTests extends AnalyzerTestCase {
      * there would silently ignore it. The accepted values are the {@link VectorSimilarityMetric} names; the runtime
      * path itself is covered by knn-runtime-function.csv-spec, which can turn the pragma gating it on.
      */
-    public void testKnnVectorSimilarityOption() throws Exception {
-        fullText().error(
-            "FROM test | WHERE KNN(vector, [0.1, 0.2, 0.3], {\"vector_similarity\": \"l2_norm\"})",
-            containsString("[KNN] option [vector_similarity] is only supported when [vector] is a non-index-mapped field or expression")
-        );
-
+    public void testKnnVectorSimilarityOption() {
         for (VectorSimilarityMetric metric : VectorSimilarityMetric.values()) {
             fullText().error(
-                "FROM test | WHERE KNN(vector, [0.1, 0.2, 0.3], {\"vector_similarity\": \"" + metric.name().toLowerCase(Locale.ROOT) + "\"})",
-                containsString("[KNN] option [vector_similarity] is only supported")
+                "FROM test | WHERE KNN(vector, [0.1, 0.2, 0.3], {\"vector_similarity\": \""
+                    + metric.name().toLowerCase(Locale.ROOT)
+                    + "\"})",
+                containsString("[KNN] option [vector_similarity] is only supported when [vector] is a non-index-mapped field or expression")
             );
         }
 

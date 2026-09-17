@@ -411,7 +411,13 @@ public class BlobCacheMetricsIT extends AbstractBlobCacheMetricsIntegTestCase {
         }
         allIndices.add(otherIndexName);
         ensureGreen(allIndices.toArray(String[]::new));
-        assertShardReadPoolIdle(searchNode);
+        final var searchThreadPool = internalCluster().getInstance(ThreadPool.class, searchNode);
+        assertBusy(() -> {
+            for (ThreadPoolStats.Stats stat : searchThreadPool.stats()) {
+                assertEquals(stat.active(), 0);
+                assertEquals(stat.queue(), 0);
+            }
+        }, 30L, TimeUnit.SECONDS);
 
         final TestTelemetryPlugin plugin = getTestTelemetryPlugin(searchNode);
 
@@ -556,25 +562,6 @@ public class BlobCacheMetricsIT extends AbstractBlobCacheMetricsIntegTestCase {
             }
             case OlderThan14Days -> ageMillis > TimeRangeBucket.FourteenDays.millis();
         };
-    }
-
-    /**
-     * Wait until the search node's {@code stateless_shard_read} pool has no queued or active tasks,
-     * so cache population from recovery/warming is finished before we evict and collect metrics.
-     */
-    private void assertShardReadPoolIdle(String searchNode) throws Exception {
-        assertBusy(() -> {
-            ThreadPoolStats.Stats stats = null;
-            for (ThreadPoolStats.Stats poolStats : internalCluster().getInstance(ThreadPool.class, searchNode).stats()) {
-                if (BlobStoreRepository.STATELESS_SHARD_READ_THREAD_NAME.equals(poolStats.name())) {
-                    stats = poolStats;
-                    break;
-                }
-            }
-            assertNotNull("missing " + BlobStoreRepository.STATELESS_SHARD_READ_THREAD_NAME + " pool", stats);
-            assertEquals("active " + BlobStoreRepository.STATELESS_SHARD_READ_THREAD_NAME + " tasks", 0, stats.active());
-            assertEquals("queued " + BlobStoreRepository.STATELESS_SHARD_READ_THREAD_NAME + " tasks", 0, stats.queue());
-        });
     }
 
     /**

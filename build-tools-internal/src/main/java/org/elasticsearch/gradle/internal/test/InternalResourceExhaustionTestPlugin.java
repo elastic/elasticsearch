@@ -18,8 +18,6 @@ import org.gradle.api.tasks.SourceSet;
 import org.gradle.api.tasks.SourceSetContainer;
 import org.gradle.api.tasks.TaskProvider;
 
-import java.util.Map;
-
 import static org.elasticsearch.gradle.internal.test.rest.RestTestUtil.registerTestTask;
 
 /**
@@ -29,8 +27,8 @@ import static org.elasticsearch.gradle.internal.test.rest.RestTestUtil.registerT
  * <p>Each test class runs in its own forked JVM ({@code forkEvery = 1}) so that heap state
  * from one resource-exhaustion test cannot affect another.
  *
- * <p>The {@code :test:test-clusters} project is automatically added to the source set's
- * implementation classpath.
+ * <p>Consumers must declare their own compile dependencies (e.g. {@code :test:framework},
+ * {@code :test:test-clusters}) on the {@code resourceExhaustionTestImplementation} configuration.
  */
 public class InternalResourceExhaustionTestPlugin implements Plugin<Project> {
 
@@ -42,14 +40,6 @@ public class InternalResourceExhaustionTestPlugin implements Plugin<Project> {
 
         SourceSetContainer sourceSets = project.getExtensions().getByType(SourceSetContainer.class);
         SourceSet sourceSet = sourceSets.create(SOURCE_SET_NAME);
-
-        if (project.findProject(":test:test-clusters") != null) {
-            project.getDependencies()
-                .add(
-                    sourceSet.getImplementationConfigurationName(),
-                    project.getDependencies().project(Map.of("path", ":test:test-clusters"))
-                );
-        }
 
         TaskProvider<RestIntegTestTask> testTask = registerTestTask(project, sourceSet, SOURCE_SET_NAME, RestIntegTestTask.class);
 

@@ -16,6 +16,11 @@ apply plugin: 'elasticsearch.internal-cluster-test'
 apply plugin: 'elasticsearch.internal-java-rest-test'
 apply plugin: 'elasticsearch.internal-resource-exhaustion-test'
 
+dependencies {
+    resourceExhaustionTestImplementation project(':test:framework')
+    resourceExhaustionTestImplementation project(':test:test-clusters')
+}
+
 esplugin {
     description = 'An easy, safe and fast scripting language for Elasticsearch'
     classname ='org.elasticsearch.painless.PainlessPlugin'

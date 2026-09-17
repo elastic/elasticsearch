@@ -65,8 +65,8 @@ public class DLMFrozenTransitionsHealthIndicatorService implements HealthIndicat
             NAME,
             FROZEN_TRANSITION_BLOCKED_IMPACT_ID,
             3,
-            "Data stream backing indices may be delayed or blocked from transitioning to the frozen tier. Data retention and storage "
-                + "cost management could be impacted.",
+            "Data stream backing indices may be delayed or blocked from transitioning to the frozen tier. Storage "
+                + "size and cost management could be impacted.",
             List.of(ImpactArea.DEPLOYMENT_MANAGEMENT)
         )
     );

@@ -45,6 +45,15 @@ public class DecodedVectorTests extends ESTestCase {
         UTF8_BYTES
     }
 
+    /**
+     * The base64 payload layouts that {@link DecodedVector} accepts.
+     */
+    private enum Base64Form {
+        RAW_BYTES,
+        FLOAT32,
+        BFLOAT16
+    }
+
     @ParametersFactory
     public static Iterable<Object[]> parameters() {
         List<Object[]> params = new ArrayList<>();
@@ -62,15 +71,6 @@ public class DecodedVectorTests extends ESTestCase {
     public DecodedVectorTests(ElementType elementType, InputKind inputKind) {
         this.elementType = elementType;
         this.inputKind = inputKind;
-    }
-
-    /**
-     * The base64 payload layouts that {@link DecodedVector} accepts.
-     */
-    private enum Base64Form {
-        RAW_BYTES,
-        FLOAT32,
-        BFLOAT16
     }
 
     /**
@@ -105,7 +105,7 @@ public class DecodedVectorTests extends ESTestCase {
         String hex = HexFormat.of().formatHex(raw);
 
         IllegalArgumentException ex = expectThrows(IllegalArgumentException.class, () -> decode(hex, dims, false));
-        assertThat(ex.getMessage(), containsString("failed to decode vector: value must contain a valid Base64-encoded"));
+        assertThat(ex.getMessage(), containsString("failed to decode vector: Base64 decoded vector byte length ["));
     }
 
     /**
@@ -149,12 +149,17 @@ public class DecodedVectorTests extends ESTestCase {
         String encoded = Base64.getEncoder().encodeToString(raw);
 
         IllegalArgumentException ex = expectThrows(IllegalArgumentException.class, () -> decode(encoded, dims));
-        String expectedTypeWord = switch (elementType) {
-            case BYTE, BIT -> "byte";
-            case FLOAT, BFLOAT16 -> "float or bfloat16";
-        };
-        assertThat(ex.getMessage(), containsString("value must contain a valid Base64-encoded " + expectedTypeWord + " vector"));
-        assertThat(ex.getMessage(), containsString("decoded bytes length [" + wrongLength + "]"));
+        assertThat(ex.getMessage(), containsString("Base64 decoded vector byte length [" + wrongLength + "]"));
+        assertThat(ex.getMessage(), containsString("for dimension count [" + dims + "]"));
+        switch (elementType) {
+            case BYTE, BIT -> assertThat(ex.getMessage(), containsString("expected length of [" + elementType.vectorLength(dims) + "]"));
+            case FLOAT, BFLOAT16 -> {
+                assertThat(
+                    ex.getMessage(),
+                    containsString("expected length of [" + (dims * Float.BYTES) + "] or [" + (dims * BFloat16.BYTES) + "]")
+                );
+            }
+        }
     }
 
     /**

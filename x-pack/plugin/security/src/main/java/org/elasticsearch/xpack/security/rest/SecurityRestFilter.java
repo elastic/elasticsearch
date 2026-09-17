@@ -9,6 +9,7 @@ package org.elasticsearch.xpack.security.rest;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.ElasticsearchSecurityException;
+import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.rest.RestChannel;
@@ -76,7 +77,12 @@ public class SecurityRestFilter implements RestInterceptor {
         // RestRequest might have stream content, in some cases we need to aggregate request content, for example audit logging.
         final Consumer<RestRequest> aggregationCallback = (aggregatedRestRequest) -> {
             final RestRequest wrappedRequest = maybeWrapRestRequest(aggregatedRestRequest, targetHandler);
-            auditTrailService.get().authenticationSuccess(wrappedRequest);
+            try {
+                auditTrailService.get().authenticationSuccess(wrappedRequest);
+            } catch (ElasticsearchStatusException e) {
+                handleException(aggregatedRestRequest, e, listener);
+                return;
+            }
             secondaryAuthenticator.authenticateAndAttachToContext(wrappedRequest, ActionListener.wrap(secondaryAuthentication -> {
                 if (secondaryAuthentication != null) {
                     logger.trace(

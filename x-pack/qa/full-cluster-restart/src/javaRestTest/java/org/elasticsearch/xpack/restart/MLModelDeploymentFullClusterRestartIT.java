@@ -18,6 +18,7 @@ import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.common.xcontent.support.XContentMapValues;
 import org.elasticsearch.core.RestApiVersion;
 import org.elasticsearch.core.Strings;
+import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.upgrades.FullClusterRestartUpgradeStatus;
 import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xpack.core.ml.inference.assignment.AllocationStatus;
@@ -131,12 +132,9 @@ public class MLModelDeploymentFullClusterRestartIT extends AbstractXpackFullClus
     @SuppressWarnings("unchecked")
     private void waitForDeploymentStarted(String modelId) throws Exception {
         assertBusy(() -> {
-            Response response;
-            try {
-                response = getTrainedModelStats(modelId);
-            } catch (ResponseException e) {
-                throw new AssertionError("Model stats not available yet", e);
-            }
+            Request request = new Request("GET", "/_ml/trained_models/" + modelId + "/_stats");
+            // Transient 404/503 while ML indices relocate or the plugin is still recovering after restart.
+            var response = performRequestRaisingAssertionOnTransientStatus(request, RestStatus.NOT_FOUND, RestStatus.SERVICE_UNAVAILABLE);
             Map<String, Object> map = entityAsMap(response);
             List<Map<String, Object>> stats = (List<Map<String, Object>>) map.get("trained_model_stats");
             assertThat(stats, hasSize(1));

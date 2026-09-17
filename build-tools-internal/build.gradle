@@ -258,6 +258,10 @@ sourceSets {
     compileClasspath += sourceSets["main"].output + configurations["testRuntimeClasspath"]
     runtimeClasspath += output + compileClasspath
   }
+  archunit {
+    compileClasspath += sourceSets["main"].output + sourceSets["test"].output + sourceSets["integTest"].output + configurations["testRuntimeClasspath"] + configurations["integTestRuntimeClasspath"]
+    runtimeClasspath += output + compileClasspath
+  }
 }
 
 tasks.withType(JavaCompile).configureEach {
@@ -280,6 +284,8 @@ repositories {
 
 configurations {
   integTestRuntimeOnly.extendsFrom(testRuntimeOnly)
+  archunitImplementation.extendsFrom(testImplementation, integTestImplementation)
+  archunitRuntimeOnly.extendsFrom(testRuntimeOnly, integTestRuntimeOnly)
 }
 
 dependencies {
@@ -288,6 +294,7 @@ dependencies {
     // ensuring brought asm version brought in by spock is up-to-date
     testImplementation buildLibs.asm
     integTestImplementation buildLibs.asm
+    archunitImplementation buildLibs.asm
     api(buildLibs.snakeyaml)
     api("org.slf4j:slf4j-api:2.0.6") {
       because("Align with what we use in production")
@@ -377,6 +384,12 @@ dependencies {
 tasks.named('test').configure {
   useJUnitPlatform()
 }
+tasks.register("archunitTest", Test) {
+  dependsOn("testClasses", "integTestClasses")
+  testClassesDirs = sourceSets.archunit.output.classesDirs
+  classpath = sourceSets.archunit.runtimeClasspath
+  useJUnitPlatform()
+}
 tasks.register("integTest", Test) {
   systemProperty 'test.version_under_test', version
   testClassesDirs = sourceSets.integTest.output.classesDirs
@@ -395,7 +408,7 @@ tasks.register("integTest", Test) {
   } as CommandLineArgumentProvider)
 }
 
-tasks.named("check").configure { dependsOn("integTest") }
+tasks.named("check").configure { dependsOn("integTest", "archunitTest") }
 
 tasks.register("bootstrapPerformanceTests", Copy) {
   from('performance')

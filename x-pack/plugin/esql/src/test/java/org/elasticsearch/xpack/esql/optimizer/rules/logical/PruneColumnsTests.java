@@ -13,7 +13,9 @@ import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.expression.Expressions;
 import org.elasticsearch.xpack.esql.core.expression.FieldAttribute;
 import org.elasticsearch.xpack.esql.core.expression.Literal;
+import org.elasticsearch.xpack.esql.core.expression.MetadataAttribute;
 import org.elasticsearch.xpack.esql.core.expression.ReferenceAttribute;
+import org.elasticsearch.xpack.esql.core.expression.TimeSeriesMetadataAttribute;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.core.type.EsField;
 import org.elasticsearch.xpack.esql.datasources.spi.SourceMetadata;
@@ -2986,5 +2988,129 @@ public class PruneColumnsTests extends AbstractLogicalPlanOptimizerTests {
 
         // The Fork must still be present on the left of the InlineJoin.
         assertTrue("Fork must be present on the left of the InlineJoin", ij.left().anyMatch(p -> p instanceof Fork));
+    }
+
+    /**
+     * A {@code TS} relation resolves the index's dimensions, so it can carry attributes the query never names. Once the
+     * rest of the plan references only a subset, {@link PruneColumns} drops the rest from the relation so they are not
+     * serialized into the fragment shipped to every data node.
+     */
+    public void testTimeSeriesRelationDropsUnreferencedDimensions() {
+        FieldAttribute cost = metricField("network.cost", DataType.DOUBLE);
+        EsRelation relation = timeSeriesRelation(
+            List.of(timestampField(), dimensionField("cluster"), dimensionField("pod"), dimensionField("region"), cost)
+        );
+        Project project = new Project(EMPTY, relation, List.of(cost));
+
+        LogicalPlan result = new PruneColumns().apply(project);
+
+        EsRelation pruned = as(as(result, Project.class).child(), EsRelation.class);
+        assertThat(Expressions.names(pruned.output()), contains("network.cost"));
+    }
+
+    /**
+     * {@code _tsid} and {@code @timestamp} feed the time-series aggregation pipeline and are therefore referenced. They
+     * survive pruning even though the unreferenced dimensions around them are dropped.
+     */
+    public void testTimeSeriesRelationKeepsTsidAndTimestamp() {
+        FieldAttribute timestamp = timestampField();
+        MetadataAttribute tsid = tsidField();
+        EsRelation relation = timeSeriesRelation(
+            List.of(timestamp, dimensionField("cluster"), dimensionField("pod"), metricField("network.cost", DataType.DOUBLE), tsid)
+        );
+        Project project = new Project(EMPTY, relation, List.of(timestamp, tsid));
+
+        LogicalPlan result = new PruneColumns().apply(project);
+
+        EsRelation pruned = as(as(result, Project.class).child(), EsRelation.class);
+        assertThat(Expressions.names(pruned.output()), containsInAnyOrder("@timestamp", "_tsid"));
+    }
+
+    /**
+     * The {@code _timeseries} metadata attribute that {@code WITHOUT} lowers to carries the excluded dimension names and
+     * drives the shard-side packed-dimension loader. It is referenced downstream, so pruning keeps it. The individual
+     * dimension field attributes are not referenced (the loader reads them off the shard by name), so they are dropped
+     * without losing the WITHOUT exclusion information.
+     */
+    public void testTimeSeriesRelationKeepsDimensionsExcludedByWithout() {
+        FieldAttribute cost = metricField("network.cost", DataType.DOUBLE);
+        TimeSeriesMetadataAttribute timeseries = new TimeSeriesMetadataAttribute(EMPTY, Set.of("pod"));
+        EsRelation relation = timeSeriesRelation(
+            List.of(timestampField(), dimensionField("cluster"), dimensionField("pod"), cost, timeseries)
+        );
+        Project project = new Project(EMPTY, relation, List.of(cost, timeseries));
+
+        LogicalPlan result = new PruneColumns().apply(project);
+
+        EsRelation pruned = as(as(result, Project.class).child(), EsRelation.class);
+        assertThat(Expressions.names(pruned.output()), containsInAnyOrder("network.cost", "_timeseries"));
+    }
+
+    /**
+     * With nothing above the relation to drop columns, the relation's own output is the plan output, so every attribute is
+     * used and pruning leaves the relation untouched.
+     */
+    public void testTimeSeriesRelationWithoutProjectionKeepsEveryField() {
+        EsRelation relation = timeSeriesRelation(
+            List.of(
+                timestampField(),
+                dimensionField("cluster"),
+                dimensionField("pod"),
+                metricField("network.cost", DataType.DOUBLE),
+                tsidField()
+            )
+        );
+
+        LogicalPlan result = new PruneColumns().apply(relation);
+
+        EsRelation pruned = as(result, EsRelation.class);
+        assertThat(Expressions.names(pruned.output()), containsInAnyOrder("@timestamp", "cluster", "pod", "network.cost", "_tsid"));
+    }
+
+    /**
+     * Only LOOKUP and TIME_SERIES relations are pruned here. For STANDARD relations {@code InsertFieldExtraction} handles
+     * field-level extraction later, so the rule leaves their full attribute list intact even when the query names a subset.
+     */
+    public void testStandardRelationIsNotPruned() {
+        FieldAttribute cost = metricField("network.cost", DataType.DOUBLE);
+        EsRelation relation = new EsRelation(
+            EMPTY,
+            "metrics",
+            IndexMode.STANDARD,
+            Map.of(),
+            Map.of(),
+            Map.of("metrics", IndexMode.STANDARD),
+            List.of(timestampField(), dimensionField("cluster"), dimensionField("pod"), cost)
+        );
+        Project project = new Project(EMPTY, relation, List.of(cost));
+
+        LogicalPlan result = new PruneColumns().apply(project);
+
+        EsRelation pruned = as(as(result, Project.class).child(), EsRelation.class);
+        assertThat(Expressions.names(pruned.output()), containsInAnyOrder("@timestamp", "cluster", "pod", "network.cost"));
+    }
+
+    private static EsRelation timeSeriesRelation(List<Attribute> attributes) {
+        return new EsRelation(EMPTY, "k8s", IndexMode.TIME_SERIES, Map.of(), Map.of(), Map.of("k8s", IndexMode.TIME_SERIES), attributes);
+    }
+
+    private static FieldAttribute timestampField() {
+        return new FieldAttribute(
+            EMPTY,
+            "@timestamp",
+            new EsField("@timestamp", DataType.DATETIME, Map.of(), true, EsField.TimeSeriesFieldType.NONE)
+        );
+    }
+
+    private static FieldAttribute dimensionField(String name) {
+        return new FieldAttribute(EMPTY, name, new EsField(name, KEYWORD, Map.of(), true, EsField.TimeSeriesFieldType.DIMENSION));
+    }
+
+    private static FieldAttribute metricField(String name, DataType type) {
+        return new FieldAttribute(EMPTY, name, new EsField(name, type, Map.of(), true, EsField.TimeSeriesFieldType.METRIC));
+    }
+
+    private static MetadataAttribute tsidField() {
+        return new MetadataAttribute(EMPTY, MetadataAttribute.TSID_FIELD, DataType.TSID_DATA_TYPE, false);
     }
 }

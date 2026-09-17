@@ -335,7 +335,7 @@ public class BoolQueryBuilder extends AbstractQueryBuilder<BoolQueryBuilder> {
     ) throws IOException {
         for (QueryBuilder query : clauses) {
             try (AutoPrefilteringScope autoPrefilteringScope = context.autoPrefilteringScope()) {
-                autoPrefilteringScope.push(collectPrefilters(query));
+                autoPrefilteringScope.push(collectPrefilters(query), context.nestedScope().getObjectMapper());
                 Query luceneQuery = query.toQuery(context, queryVisitor);
                 booleanQueryBuilder.add(new BooleanClause(luceneQuery, occurs));
             }
@@ -357,7 +357,7 @@ public class BoolQueryBuilder extends AbstractQueryBuilder<BoolQueryBuilder> {
         Set<Query> deduplicate = new HashSet<>();
         for (QueryBuilder query : clauses) {
             try (AutoPrefilteringScope autoPrefilteringScope = context.autoPrefilteringScope()) {
-                autoPrefilteringScope.push(collectPrefilters(query));
+                autoPrefilteringScope.push(collectPrefilters(query), context.nestedScope().getObjectMapper());
                 Query luceneQuery = query.toQuery(context, clauseVisitor);
                 if (deduplicate.add(luceneQuery)) {
                     queryVisitor.merge(clauseVisitor);

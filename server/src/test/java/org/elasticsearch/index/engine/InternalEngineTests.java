@@ -2028,6 +2028,54 @@ public class InternalEngineTests extends EngineTestCase {
         assertOpsOnReplica(ops, replicaEngine, true, logger);
     }
 
+    /**
+     * Reproduces the primary/replica divergence tracked in
+     * <a href="https://github.com/elastic/elasticsearch/issues/150408">#150408</a> on a plain (non-columnar) index, showing the bug
+     * depends only on {@link IndexSettings#sequenceNumbersDisabled()} and not on the columnar index mode.
+     *
+     * <p>Two replica writes for the same document arrive out of order (higher seq_no first, then a stale lower seq_no write) with a
+     * refresh in between so the id is evicted from the version map and the conflict must be resolved against Lucene. The document with
+     * the highest seq_no must always win regardless of application order. When sequence numbers are disabled,
+     * {@code InternalEngine#compareOpToLuceneDocBasedOnSeqNo} resolves against Lucene with {@code loadSeqNo=false}, so
+     * {@code VersionsAndSeqNoResolver#loadDocIdAndSeqNo} returns {@code UNASSIGNED_SEQ_NO} and the stale op is wrongly considered
+     * newer, overwriting the live document.
+     */
+    public void testOutOfOrderReplicaWritesWithSequenceNumbersDisabledConverge() throws Exception {
+        IOUtils.close(engine, store);
+        final SeqNoFieldMapper.SeqNoIndexOptions previousSeqNoIndexOptions = seqNoIndexOptions;
+        try {
+            // Sequence numbers cannot be trimmed for points, so DISABLE_SEQUENCE_NUMBERS requires doc-values-only seq_no.
+            seqNoIndexOptions = SeqNoFieldMapper.SeqNoIndexOptions.DOC_VALUES_ONLY;
+            final Settings settings = Settings.builder()
+                .put(indexSettings())
+                .put(IndexSettings.DISABLE_SEQUENCE_NUMBERS.getKey(), true)
+                .build();
+            final IndexSettings indexSettings = IndexSettingsModule.newIndexSettings("index", settings);
+            assertTrue("this test requires sequence numbers to be disabled", indexSettings.sequenceNumbersDisabled());
+            // config() reads the shared mapperService field, so it must reflect the doc-values-only seq_no options above.
+            mapperService = createMapperService(settings, defaultMapping(), extraMappers());
+            store = createStore();
+            engine = createEngine(config(indexSettings, store, createTempDir(), newMergePolicy(), null));
+
+            // Model the primary having observed an update at seq_no 1 so the replica resolves the conflict against Lucene rather than
+            // taking the append-only optimization.
+            engine.advanceMaxSeqNoOfUpdatesOrDeletes(1L);
+            // The higher seq_no write arrives first and becomes the live document.
+            engine.index(replicaIndexForDoc(parseDocument(mapperService, "1", null), 2L, 1L, false));
+            // Refresh so the id is evicted from the version map, forcing the next op to resolve against Lucene.
+            engine.refresh("test");
+            // The stale write (lower seq_no) arrives late; it must not overwrite the higher seq_no document.
+            engine.index(replicaIndexForDoc(parseDocument(mapperService, "1", null), 1L, 0L, false));
+            engine.refresh("test");
+
+            final List<DocIdSeqNoAndSource> docs = getDocIds(engine, true);
+            assertThat(docs, hasSize(1));
+            assertThat("the document with the highest seq_no must remain live", docs.get(0).seqNo(), equalTo(1L));
+        } finally {
+            seqNoIndexOptions = previousSeqNoIndexOptions;
+        }
+    }
+
     public void testConcurrentOutOfOrderDocsOnReplica() throws IOException, InterruptedException {
         final List<Engine.Operation> opsDoc1 = generateSingleDocHistory(
             true,
@@ -5046,19 +5094,20 @@ public class InternalEngineTests extends EngineTestCase {
         }
     }
 
-    public void testLoadDocIdAndSeqNoWithLoadSeqNoFalse() throws IOException {
+    public void testLoadDocIdAndSeqNoLenient() throws IOException {
         indexDoc(engine, indexForDoc(createParsedDoc("1", null)));
         engine.refresh("test");
 
         try (Engine.Searcher searcher = engine.acquireSearcher("test", Engine.SearcherScope.INTERNAL)) {
-            DocIdAndSeqNo withSeqNo = VersionsAndSeqNoResolver.loadDocIdAndSeqNo(searcher.getIndexReader(), Uid.encodeId("1"), true);
-            assertNotNull(withSeqNo);
-            assertThat(withSeqNo.seqNo, greaterThanOrEqualTo(0L));
+            // A retained (non-pruned) _seq_no doc value is read and returned regardless of leniency: strict and lenient loads agree.
+            DocIdAndSeqNo strict = VersionsAndSeqNoResolver.loadDocIdAndSeqNo(searcher.getIndexReader(), Uid.encodeId("1"), false);
+            assertNotNull(strict);
+            assertThat(strict.seqNo, greaterThanOrEqualTo(0L));
 
-            DocIdAndSeqNo withoutSeqNo = VersionsAndSeqNoResolver.loadDocIdAndSeqNo(searcher.getIndexReader(), Uid.encodeId("1"), false);
-            assertNotNull(withoutSeqNo);
-            assertThat(withoutSeqNo.seqNo, equalTo(UNASSIGNED_SEQ_NO));
-            assertThat(withoutSeqNo.docId, equalTo(withSeqNo.docId));
+            DocIdAndSeqNo lenient = VersionsAndSeqNoResolver.loadDocIdAndSeqNo(searcher.getIndexReader(), Uid.encodeId("1"), true);
+            assertNotNull(lenient);
+            assertThat(lenient.seqNo, equalTo(strict.seqNo));
+            assertThat(lenient.docId, equalTo(strict.docId));
         }
     }
 

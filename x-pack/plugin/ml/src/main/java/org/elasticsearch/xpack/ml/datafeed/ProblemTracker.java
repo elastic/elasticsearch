@@ -34,6 +34,7 @@ class ProblemTracker {
     private volatile boolean hasProblems;
     private volatile boolean hadProblems;
     private volatile String previousProblem;
+    private volatile int consecutiveSameProblemCount;
     private volatile int emptyDataCount;
     private final long numberOfSearchesInADay;
 
@@ -68,7 +69,15 @@ class ProblemTracker {
      */
     private void reportProblem(String template, String problemMessage) {
         hasProblems = true;
-        if (Objects.equals(previousProblem, problemMessage) == false) {
+        if (Objects.equals(previousProblem, problemMessage)) {
+            // Same problem repeating: increment counter and re-audit periodically so a persistent
+            // failure doesn't become permanently invisible after the first dedup suppression.
+            consecutiveSameProblemCount++;
+            if (consecutiveSameProblemCount % numberOfSearchesInADay == 0) {
+                auditor.error(jobId, Messages.getMessage(template, problemMessage));
+            }
+        } else {
+            consecutiveSameProblemCount = 1;
             previousProblem = problemMessage;
             auditor.error(jobId, Messages.getMessage(template, problemMessage));
         }
@@ -103,6 +112,8 @@ class ProblemTracker {
     public void finishReport() {
         if (hasProblems == false && hadProblems) {
             auditor.info(jobId, Messages.getMessage(Messages.JOB_AUDIT_DATAFEED_RECOVERED));
+            previousProblem = null;
+            consecutiveSameProblemCount = 0;
         }
 
         hadProblems = hasProblems;

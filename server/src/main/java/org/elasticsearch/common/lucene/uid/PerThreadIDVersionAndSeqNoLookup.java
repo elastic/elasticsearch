@@ -185,15 +185,38 @@ final class PerThreadIDVersionAndSeqNoLookup {
     }
 
     /** Return null if id is not found. */
-    DocIdAndSeqNo lookupDocIdAndSeqNo(BytesRef id, LeafReaderContext context, boolean loadSeqNo) throws IOException {
+    DocIdAndSeqNo lookupDocIdAndSeqNo(BytesRef id, LeafReaderContext context, boolean allowMissingSeqNo) throws IOException {
         assert readerKey == null || context.reader().getCoreCacheHelper().getKey().equals(readerKey)
             : "context's reader is not the same as the reader class was initialized on.";
         final int docID = getDocID(id, context);
         if (docID != DocIdSetIterator.NO_MORE_DOCS) {
-            final long seqNo = loadSeqNo ? readNumericDocValues(context.reader(), SeqNoFieldMapper.NAME, docID) : UNASSIGNED_SEQ_NO;
+            final long seqNo = readSeqNo(context.reader(), docID, allowMissingSeqNo);
             return new DocIdAndSeqNo(docID, seqNo, context);
         } else {
             return null;
         }
+    }
+
+    /**
+     * Reads the {@code _seq_no} doc value for the given document.
+     *
+     * <p>On sequence-number-disabled indices, {@link org.elasticsearch.index.engine.PruningMergePolicy} removes the {@code _seq_no}
+     * doc value of a document once it is fully replicated (its seq_no falls below the retained range, i.e. {@code minRetainedSeqNo}).
+     * When {@code allowMissingSeqNo} is {@code true}, a missing doc value is tolerated and
+     * {@link org.elasticsearch.index.seqno.SequenceNumbers#UNASSIGNED_SEQ_NO} is returned:
+     * a pruned document is older than any operation that can still reach seq-no-based conflict resolution, so treating it as unassigned
+     * yields the correct {@code OP_NEWER} verdict. When {@code allowMissingSeqNo} is {@code false} (sequence numbers enabled, so
+     * {@code _seq_no} is never pruned) a missing doc value indicates corruption and fails.
+     */
+    private static long readSeqNo(LeafReader reader, int docId, boolean allowMissingSeqNo) throws IOException {
+        final NumericDocValues dv = reader.getNumericDocValues(SeqNoFieldMapper.NAME);
+        if (dv != null && dv.advanceExact(docId)) {
+            return dv.longValue();
+        }
+        if (allowMissingSeqNo) {
+            return UNASSIGNED_SEQ_NO;
+        }
+        assert false : "document [" + docId + "] does not have docValues for [" + SeqNoFieldMapper.NAME + "]";
+        throw new IllegalStateException("document [" + docId + "] does not have docValues for [" + SeqNoFieldMapper.NAME + "]");
     }
 }

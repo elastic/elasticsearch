@@ -80,7 +80,12 @@ public class ES94HnswScalarQuantizedVectorsFormatTests extends BaseQuantizedHnsw
     }
 
     public void testSimpleOffHeapSize() throws IOException {
-        float[] vector = randomVector(random().nextInt(12, 500));
+        // Int4 (bits=4 / PACKED_NIBBLE) requires even dimensions; createFormat may randomly pick bits=4.
+        int dimension = random().nextInt(12, 500);
+        if (dimension % 2 != 0) {
+            dimension++;
+        }
+        float[] vector = randomVector(dimension);
         // Use threshold=0 to ensure HNSW graph is always built, but keep assertion tolerant to implementation details.
         KnnVectorsFormat format = createFormat(16, 100, 1, null, 0);
         var config = newIndexWriterConfig().setCodec(TestUtil.alwaysKnnVectorsFormat(format));

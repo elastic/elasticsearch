@@ -76,6 +76,14 @@ public final class SearchFeatures implements FeatureSpecification {
     public static final NodeFeature FETCH_FIELDS_EXCLUDES_NON_METADATA_TYPE = new NodeFeature(
         "search.fetch_fields.excludes_non_metadata_type"
     );
+    /**
+     * Composite aggregation no longer silently returns zero buckets when the leading source is a field
+     * backed only by a doc values skipper (no points index for dates, no terms dictionary for
+     * non-indexed keywords). Previously, {@code checkIfSortedDocsIsApplicable} accepted any index-sort
+     * shortcut and built a {@code SortedDocsProducer} against the absent BKD tree or terms dictionary,
+     * which collected nothing and reported success.
+     */
+    public static final NodeFeature COMPOSITE_AGG_DOC_VALUES_SKIPPER_FIX = new NodeFeature("search.aggs.composite.doc_values_skipper_fix");
 
     /**
      * Test-only gate for REST tests asserting that {@code inner_hits} of a nested kNN query score with the same
@@ -116,7 +124,8 @@ public final class SearchFeatures implements FeatureSpecification {
             DEFAULT_DISK_BBQ,
             DATE_HISTOGRAM_HARD_BOUNDS_OUTSIDE_DATA_FIX,
             FETCH_FIELDS_EXCLUDES_NON_METADATA_TYPE,
-            NESTED_KNN_INNER_HITS_MATCH_QUERY_PHASE_SCORING
+            NESTED_KNN_INNER_HITS_MATCH_QUERY_PHASE_SCORING,
+            COMPOSITE_AGG_DOC_VALUES_SKIPPER_FIX
         );
     }
 }

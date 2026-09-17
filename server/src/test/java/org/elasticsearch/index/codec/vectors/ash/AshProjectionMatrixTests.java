@@ -24,58 +24,32 @@ public class AshProjectionMatrixTests extends ESTestCase {
     public void testDimAccessors() {
         int originalDim = 768;
         int nDims = 384;
-        float[] w = new float[originalDim * nDims];
-        AshProjectionMatrix pm = new AshProjectionMatrix(w, originalDim, nDims);
+        float[] wT = new float[originalDim * nDims];
+        AshProjectionMatrix pm = new AshProjectionMatrix(wT, originalDim, nDims);
         assertEquals(originalDim, pm.originalDim());
         assertEquals(nDims, pm.nDims());
-    }
-
-    public void testTransposeCorrectness() {
-        int originalDim = 4;
-        int nDims = 3;
-        float[] w = { 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12 };
-        AshProjectionMatrix pm = new AshProjectionMatrix(w, originalDim, nDims);
-        float[] wT = pm.wT();
-
-        // wT should be (nDims x originalDim)
-        assertEquals(nDims * originalDim, wT.length);
-
-        // Verify transpose: wT[j][i] == w[i][j] (i.e. wT[j*originalDim+i] == w[i*nDims+j])
-        for (int i = 0; i < originalDim; i++) {
-            for (int j = 0; j < nDims; j++) {
-                assertEquals(w[i * nDims + j], wT[j * originalDim + i], 0f);
-            }
-        }
-    }
-
-    public void testTransposeLazyAndCached() {
-        float[] w = { 1, 2, 3, 4 };
-        AshProjectionMatrix pm = new AshProjectionMatrix(w, 2, 2);
-        float[] wT1 = pm.wT();
-        float[] wT2 = pm.wT();
-        assertSame(wT1, wT2);
     }
 
     public void testSerializationRoundtrip() throws IOException {
         int originalDim = randomIntBetween(4, 100);
         int nDims = randomIntBetween(2, originalDim);
-        float[] w = AshUtils.randomGaussians(random(), originalDim * nDims);
+        float[] wT = AshUtils.randomGaussians(random(), originalDim * nDims);
 
-        AshProjectionMatrix original = new AshProjectionMatrix(w, originalDim, nDims);
+        AshProjectionMatrix original = new AshProjectionMatrix(wT, originalDim, nDims);
 
         AshProjectionMatrix restored = writeAndRead(original);
 
         assertEquals(originalDim, restored.originalDim());
         assertEquals(nDims, restored.nDims());
-        assertArrayEquals(w, restored.w(), 0f);
+        assertArrayEquals(wT, restored.wT(), 0f);
     }
 
     public void testByteSizeMatchesActualSerialized() throws IOException {
         int originalDim = randomIntBetween(4, 50);
         int nDims = randomIntBetween(2, originalDim);
-        float[] w = AshUtils.randomGaussians(random(), originalDim * nDims);
+        float[] wT = AshUtils.randomGaussians(random(), originalDim * nDims);
 
-        AshProjectionMatrix pm = new AshProjectionMatrix(w, originalDim, nDims);
+        AshProjectionMatrix pm = new AshProjectionMatrix(wT, originalDim, nDims);
 
         ByteBuffersDataOutput dataOut = new ByteBuffersDataOutput();
         try (ByteBuffersIndexOutput out = new ByteBuffersIndexOutput(dataOut, "test", "test")) {

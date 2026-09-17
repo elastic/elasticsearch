@@ -185,13 +185,16 @@ public final class QuerySettings {
         name = "wildcards_match_datasets",
         type = { "boolean" },
         since = "9.6.0",
+        // Stated rather than derived: this setting belongs to Data Federation, and every page documenting that
+        // feature is stack: experimental / serverless: unavailable. Deriving it from preview() would instead claim
+        // the setting is available in preview on serverless, where the feature is not enabled at all.
+        applies_to = "stack: experimental 9.6+\nserverless: unavailable",
         description = "When enabled, a wildcard in `FROM` also matches registered datasets."
             + " Defaults to `false`, so a wildcard does not match a dataset and a dataset is reached by its"
             + " exact name. Other abstractions a wildcard matches are unaffected.\n\n"
             + "The default itself is configurable. If a query does not specify a value, the "
             + "`esql.query.settings.wildcards_match_datasets` cluster setting supplies it. If that cluster setting is not "
-            + "configured either, the value is `false`. "
-            + "{applies_to}`{\"stack\": \"ga 9.6+\", \"serverless\": \"unavailable\"}`"
+            + "configured either, the value is `false`."
     )
     public static final QuerySettingDef<Boolean> WILDCARDS_MATCH_DATASETS = QuerySettingDef.bool("wildcards_match_datasets")
         .withDefault(Boolean.FALSE)

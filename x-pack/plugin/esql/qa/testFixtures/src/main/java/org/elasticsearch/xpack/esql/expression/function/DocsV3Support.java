@@ -1425,22 +1425,30 @@ public abstract class DocsV3Support {
             builder.append(Strings.format("### `%s` [esql-%s]\n", settingName, settingName));
 
             builder.append("```{applies_to}\n");
-            builder.append("serverless: ");
-            builder.append(setting.preview() ? "preview" : "ga");
-            builder.append("\n");
-
-            if (setting.serverlessOnly()) {
-                builder.append("stack: unavailable");
+            // A setting whose availability is not derivable from preview/serverlessOnly states it on the annotation,
+            // the same attribute the function docs already read. A setting belonging to a feature with its own
+            // documented availability says what that feature's pages say instead of reporting its own lifecycle.
+            String declaredAppliesTo = param != null ? param.applies_to() : mapParam.applies_to();
+            if (declaredAppliesTo.isEmpty() == false) {
+                builder.append(declaredAppliesTo).append("\n");
             } else {
-                builder.append("stack: ");
+                builder.append("serverless: ");
                 builder.append(setting.preview() ? "preview" : "ga");
-                String since = param != null ? param.since() : mapParam.since();
-                if (since.length() > 0) {
-                    builder.append(" ");
-                    builder.append(since);
+                builder.append("\n");
+
+                if (setting.serverlessOnly()) {
+                    builder.append("stack: unavailable");
+                } else {
+                    builder.append("stack: ");
+                    builder.append(setting.preview() ? "preview" : "ga");
+                    String since = param != null ? param.since() : mapParam.since();
+                    if (since.length() > 0) {
+                        builder.append(" ");
+                        builder.append(since);
+                    }
                 }
+                builder.append("\n");
             }
-            builder.append("\n");
             builder.append("```\n");
 
             builder.append(param != null ? param.description() : mapParam.description());

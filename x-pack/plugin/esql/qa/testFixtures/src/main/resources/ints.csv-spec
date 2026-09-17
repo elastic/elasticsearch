@@ -171,13 +171,16 @@ str1:keyword |str2:keyword |str3:keyword |long1:long  |long2:long |long3:long
 
 convertDoubleToLong
 required_capability: convert_warn
+required_capability: fix_double_to_long_overflow
 
-row d = 123.4 | eval d2l = to_long(d), overflow = to_long(1e19);
+row d = 123.4 | eval d2l = to_long(d), overflow = to_long(1e19), boundary = to_long(9223372036854775808.0);
 warningRegex:Line 1:51: evaluation of \[to_long\(1e19\)\] failed, treating result as null. Only first 20 failures recorded.
 warningRegex:Line 1:51: org.elasticsearch.xpack.(esql.core|ql).(Invalid|QlIllegal)ArgumentException: \[1.0E19\] out of \[long\] range
+warningRegex:Line 1:.*evaluation of \[to_long\(9223372036854775808.0\)\] failed, treating result as null. Only first 20 failures recorded.
+warningRegex:Line 1:.*org.elasticsearch.xpack.(esql.core|ql).(Invalid|QlIllegal)ArgumentException: \[9.223372036854776E18\] out of \[long\] range
 
-d:double       |d2l:long      |overflow:long     
-123.4          |123           |null    
+d:double       |d2l:long      |overflow:long     |boundary:long
+123.4          |123           |null              |null
 ;
 
 // conversions to INTEGER

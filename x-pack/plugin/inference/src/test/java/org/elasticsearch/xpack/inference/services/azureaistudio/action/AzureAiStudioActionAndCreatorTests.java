@@ -45,6 +45,7 @@ import java.util.concurrent.TimeUnit;
 import static org.elasticsearch.xpack.core.inference.results.ChatCompletionResultsTests.buildExpectationCompletion;
 import static org.elasticsearch.xpack.core.inference.results.TextEmbeddingFloatResultsTests.buildExpectationFloat;
 import static org.elasticsearch.xpack.inference.Utils.inferenceUtilityPool;
+import static org.elasticsearch.xpack.inference.Utils.mockClusterService;
 import static org.elasticsearch.xpack.inference.Utils.mockClusterServiceEmpty;
 import static org.elasticsearch.xpack.inference.external.http.Utils.entityAsMap;
 import static org.elasticsearch.xpack.inference.external.http.Utils.getUrl;
@@ -94,7 +95,8 @@ public class AzureAiStudioActionAndCreatorTests extends ESTestCase {
             threadPool,
             mock(ThrottlerManager.class),
             timeoutSettings,
-            TruncatorTests.createTruncator()
+            TruncatorTests.createTruncator(),
+            mockClusterService(timeoutSettings)
         );
 
         try (var sender = createSender(senderFactory)) {
@@ -148,7 +150,8 @@ public class AzureAiStudioActionAndCreatorTests extends ESTestCase {
             threadPool,
             mock(ThrottlerManager.class),
             timeoutSettings,
-            TruncatorTests.createTruncator()
+            TruncatorTests.createTruncator(),
+            mockClusterService(timeoutSettings)
         );
 
         try (var sender = createSender(senderFactory)) {

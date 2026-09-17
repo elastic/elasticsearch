@@ -12,14 +12,21 @@ import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.inference.common.TruncatorTests;
 
+import static org.elasticsearch.xpack.inference.Utils.mockClusterService;
 import static org.elasticsearch.xpack.inference.logging.ThrottlerManagerTests.mockThrottlerManager;
 
 public class ServiceComponentsTests extends ESTestCase {
     public static ServiceComponents createWithEmptySettings(ThreadPool threadPool) {
-        return new ServiceComponents(threadPool, mockThrottlerManager(), Settings.EMPTY, TruncatorTests.createTruncator());
+        return createWithSettings(threadPool, Settings.EMPTY);
     }
 
     public static ServiceComponents createWithSettings(ThreadPool threadPool, Settings settings) {
-        return new ServiceComponents(threadPool, mockThrottlerManager(), settings, TruncatorTests.createTruncator());
+        return new ServiceComponents(
+            threadPool,
+            mockThrottlerManager(),
+            settings,
+            TruncatorTests.createTruncator(),
+            mockClusterService(settings)
+        );
     }
 }

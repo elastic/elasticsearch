@@ -918,7 +918,11 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
                 }
                 rankFeatureShardPhase.prepareForFetch(searchContext, request);
                 fetchPhase.execute(searchContext, docIds, null);
-                rankFeatureShardPhase.processFetch(searchContext);
+                try {
+                    rankFeatureShardPhase.processFetch(searchContext);
+                } finally {
+                    searchContext.fetchResult().releaseCircuitBreakerBytes(searchContext.circuitBreaker());
+                }
                 var rankFeatureResult = searchContext.rankFeatureResult();
                 rankFeatureResult.incRef();
                 return rankFeatureResult;
@@ -943,6 +947,7 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
         } finally {
             if (opsListener != null) {
                 opsListener.onFailedFetchPhase(context);
+                context.fetchResult().releaseCircuitBreakerBytes(context.circuitBreaker());
             }
         }
         // This will incRef the QuerySearchResult when it gets created
@@ -1155,6 +1160,7 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
                     } finally {
                         if (opsListener != null) {
                             opsListener.onFailedFetchPhase(searchContext);
+                            searchContext.fetchResult().releaseCircuitBreakerBytes(searchContext.circuitBreaker());
                         }
                     }
                     var fetchResult = searchContext.fetchResult();

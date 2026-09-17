@@ -4,6 +4,7 @@
 // 2.0.
 package org.elasticsearch.xpack.esql.expression.function.scalar.math;
 
+import java.lang.ArithmeticException;
 import java.lang.IllegalArgumentException;
 import java.lang.Override;
 import java.lang.String;
@@ -57,7 +58,7 @@ public final class RoundIntEvaluator implements EvalOperator.ExpressionEvaluator
         if (decimalsVector == null) {
           return eval(page.getPositionCount(), valBlock, decimalsBlock);
         }
-        return eval(page.getPositionCount(), valVector, decimalsVector).asBlock();
+        return eval(page.getPositionCount(), valVector, decimalsVector);
       }
     }
   }
@@ -95,16 +96,26 @@ public final class RoundIntEvaluator implements EvalOperator.ExpressionEvaluator
           result.appendNull();
           continue position;
         }
-        result.appendInt(Round.process(valBlock.getInt(valBlock.getFirstValueIndex(p)), decimalsBlock.getLong(decimalsBlock.getFirstValueIndex(p))));
+        try {
+          result.appendInt(Round.process(valBlock.getInt(valBlock.getFirstValueIndex(p)), decimalsBlock.getLong(decimalsBlock.getFirstValueIndex(p))));
+        } catch (ArithmeticException e) {
+          warnings().registerException(e);
+          result.appendNull();
+        }
       }
       return result.build();
     }
   }
 
-  public IntVector eval(int positionCount, IntVector valVector, LongVector decimalsVector) {
-    try(IntVector.FixedBuilder result = driverContext.blockFactory().newIntVectorFixedBuilder(positionCount)) {
+  public IntBlock eval(int positionCount, IntVector valVector, LongVector decimalsVector) {
+    try(IntBlock.Builder result = driverContext.blockFactory().newIntBlockBuilder(positionCount)) {
       position: for (int p = 0; p < positionCount; p++) {
-        result.appendInt(p, Round.process(valVector.getInt(p), decimalsVector.getLong(p)));
+        try {
+          result.appendInt(Round.process(valVector.getInt(p), decimalsVector.getLong(p)));
+        } catch (ArithmeticException e) {
+          warnings().registerException(e);
+          result.appendNull();
+        }
       }
       return result.build();
     }

@@ -12,6 +12,7 @@ import org.elasticsearch.common.time.DateUtils;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.esql.core.InvalidArgumentException;
 import org.elasticsearch.xpack.esql.core.type.DataType;
+import org.elasticsearch.xpack.esql.core.type.DataTypeConverter;
 
 import java.time.Instant;
 import java.util.Arrays;
@@ -53,9 +54,29 @@ import static org.elasticsearch.xpack.esql.type.EsqlDataTypeConverter.commonType
 
 public class EsqlDataTypeConverterTests extends ESTestCase {
 
+    private static final double DOUBLE_TO_LONG_UPPER_BOUND = (double) Long.MAX_VALUE;
+    private static final double MAX_DOUBLE_CONVERTIBLE_TO_LONG = Math.nextDown(DOUBLE_TO_LONG_UPPER_BOUND);
+
     public void testStringToUnsignedLongRejectsOversizedString() {
         String oversized = "9".repeat(Numbers.MAX_NUMERIC_STRING_LENGTH + 1);
         expectThrows(InvalidArgumentException.class, () -> EsqlDataTypeConverter.stringToUnsignedLong(oversized));
+    }
+
+    public void testSafeDoubleToLongBounds() {
+        assertEquals(Long.MIN_VALUE, DataTypeConverter.safeDoubleToLong((double) Long.MIN_VALUE));
+        assertEquals(Math.round(MAX_DOUBLE_CONVERTIBLE_TO_LONG), DataTypeConverter.safeDoubleToLong(MAX_DOUBLE_CONVERTIBLE_TO_LONG));
+
+        InvalidArgumentException belowLowerBound = expectThrows(
+            InvalidArgumentException.class,
+            () -> DataTypeConverter.safeDoubleToLong(Math.nextDown((double) Long.MIN_VALUE))
+        );
+        assertEquals("[" + Math.nextDown((double) Long.MIN_VALUE) + "] out of [long] range", belowLowerBound.getMessage());
+
+        InvalidArgumentException upperBound = expectThrows(
+            InvalidArgumentException.class,
+            () -> DataTypeConverter.safeDoubleToLong(DOUBLE_TO_LONG_UPPER_BOUND)
+        );
+        assertEquals("[" + DOUBLE_TO_LONG_UPPER_BOUND + "] out of [long] range", upperBound.getMessage());
     }
 
     public void testNanoTimeToString() {

@@ -1,0 +1,68 @@
+[[release-notes-8.19.21]]
+== {es} version 8.19.21
+
+coming[8.19.21]
+
+Also see <<breaking-changes-8.19,Breaking changes in 8.19>>.
+
+[[bug-8.19.21]]
+[float]
+=== Bug fixes
+
+ES|QL::
+* Clamp out-of-range `COUNT_DISTINCT` precision thresholds to the maximum {es-pull}157553[#157553] (issue: {es-issue}157549[#157549])
+* Fix incorrect results for multi-key `SORT` with `LIMIT` {es-pull}155923[#155923]
+* Fix missing columns when `CIDR_MATCH` is used with `CASE` and casts {es-pull}156162[#156162] (issue: {es-issue}155979[#155979])
+
+Inference::
+* Fix Google Vertex AI `chat_completion` tool calls with non-string arguments {es-pull}156665[#156665] (issue: {es-issue}156644[#156644])
+
+Infra/Core::
+* Fix error when truncating long JSON in log and error messages {es-pull}156382[#156382] (issue: {es-issue}156289[#156289])
+
+Infra/Metrics::
+* Fix errors from node flush metrics during shutdown {es-pull}157161[#157161]
+
+Machine Learning::
+* Re-audit datafeed extraction errors periodically {es-pull}157565[#157565]
+
+SQL::
+* Reject `ROUND` results that overflow `byte` or `short` values {es-pull}157554[#157554] (issue: {es-issue}157550[#157550])
+
+Search::
+* Add `search.aggs.max_nested_depth` to limit aggregation nesting {es-pull}155743[#155743]
+* Ensure batched queries always return a response {es-pull}155908[#155908]
+* Exclude non-metadata `_type` from default search hit fields {es-pull}155706[#155706] (issue: {es-issue}110438[#110438])
+* Fix search failures caused by missing query cache shard statistics {es-pull}157050[#157050]
+* Keep scroll contexts on transient search queue rejection {es-pull}155697[#155697] (issue: {es-issue}90912[#90912])
+* Return a clear error when `search_after` contains a null value {es-pull}132434[#132434] (issue: {es-issue}132370[#132370])
+* Return an error for deeply nested aggregations instead of failing the node {es-pull}155745[#155745]
+
+Snapshot/Restore::
+* Halt the node correctly on fatal errors during S3 multipart uploads {es-pull}156765[#156765]
+
+Transform::
+* Preserve transform credentials when a deprecated setting is migrated {es-pull}156191[#156191]
+
+Vector Search::
+* Fix empty `inner_hits` for nested kNN search on quantized vectors {es-pull}156332[#156332] (issue: {es-issue}138496[#138496])
+
+[[enhancement-8.19.21]]
+[float]
+=== Enhancements
+
+Authorization::
+* Grant `kibana_system` privileges on Ping Directory log indices {es-pull}156029[#156029]
+
+[[upgrade-8.19.21]]
+[float]
+=== Upgrades
+
+FIPS::
+* Upgrade Bouncy Castle FIPS to 2.0.2 (FIPS 140-3) and 1.0.2.7 (FIPS 140-2) {es-pull}156296[#156296]
+
+Infra/Core::
+* Upgrade ASM to 9.10.1 {es-pull}156213[#156213]
+* Upgrade the bundled JDK to 26.0.2 {es-pull}156203[#156203]
+
+

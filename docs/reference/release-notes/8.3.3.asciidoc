@@ -9,6 +9,8 @@ Also see <<breaking-changes-8.3,Breaking changes in 8.3>>.
 
 include::8.0.0.asciidoc[tag=jackson-filtering-bug]
 
+include::8.0.0.asciidoc[tag=cgroup-v2-startup-failure]
+
 
 [[bug-8.3.3]]
 [float]

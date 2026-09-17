@@ -10,6 +10,7 @@ import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.ActionType;
 import org.elasticsearch.action.support.tasks.BaseTasksRequest;
 import org.elasticsearch.action.support.tasks.BaseTasksResponse;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
@@ -145,6 +146,11 @@ public class StopDatafeedAction extends ActionType<StopDatafeedAction.Response> 
 
         @Override
         public ActionRequestValidationException validate() {
+            if (Strings.hasText(datafeedId) == false) {
+                ActionRequestValidationException e = new ActionRequestValidationException();
+                e.addValidationError(DatafeedConfig.ID.getPreferredName() + " cannot be empty");
+                return e;
+            }
             return null;
         }
 

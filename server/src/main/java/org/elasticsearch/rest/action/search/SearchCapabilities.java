@@ -54,6 +54,7 @@ public final class SearchCapabilities {
     private static final String DENSE_VECTOR_UPDATABLE_BBQ = "dense_vector_updatable_bbq";
     private static final String BUCKET_SCRIPT_PARENT_MULTI_BUCKET_ERROR = "bucket_script_parent_multi_bucket_error";
     private static final String REJECT_INVALID_REVERSE_NESTING = "reject_invalid_reverse_nesting";
+    private static final String HIGHLIGHT_MAX_ANALYZED_OFFSET_DEFAULT = "highlight_max_analyzed_offset_default";
 
     public static final Set<String> CAPABILITIES;
     static {
@@ -78,6 +79,7 @@ public final class SearchCapabilities {
         capabilities.add(DENSE_VECTOR_UPDATABLE_BBQ);
         capabilities.add(BUCKET_SCRIPT_PARENT_MULTI_BUCKET_ERROR);
         capabilities.add(REJECT_INVALID_REVERSE_NESTING);
+        capabilities.add(HIGHLIGHT_MAX_ANALYZED_OFFSET_DEFAULT);
         CAPABILITIES = Set.copyOf(capabilities);
     }
 }

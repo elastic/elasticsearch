@@ -1,0 +1,5 @@
+area: SQL
+issues: []
+pr: 157752
+summary: Fix result size limit check on INSERT
+type: bug

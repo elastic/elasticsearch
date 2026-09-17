@@ -40,6 +40,33 @@ public class TextStructureUtilsTests extends TextStructureTestCase {
         assertFalse(TextStructureUtils.isMoreLikelyTextThanKeyword(randomAlphaOfLengthBetween(1, 256)));
     }
 
+    public void testValuesContainingRegexWhitespaceShouldMatchPreviousReplaceAllBehaviour() {
+        char[] regexWhitespace = { ' ', '\t', '\n', '\u000B', '\f', '\r' };
+        char[] nearMissWhitespace = { '\u00A0', '\u2003', '\u001C', '\u001D', '\u001E', '\u001F' };
+        char[] regular = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789".toCharArray();
+
+        for (int i = 0; i < 1000; i++) {
+            String str = randomStringFromPools(regexWhitespace, nearMissWhitespace, regular);
+            assertEquals(referenceIsMoreLikelyTextThanKeyword(str), TextStructureUtils.isMoreLikelyTextThanKeyword(str));
+        }
+    }
+
+    private static String randomStringFromPools(char[] regexWhitespace, char[] nearMissWhitespace, char[] regular) {
+        int length = randomIntBetween(0, 300);
+        StringBuilder builder = new StringBuilder(length);
+        for (int i = 0; i < length; i++) {
+            int pool = randomInt(2);
+            char[] chosen = pool == 0 ? regexWhitespace : pool == 1 ? nearMissWhitespace : regular;
+            builder.append(chosen[randomInt(chosen.length - 1)]);
+        }
+        return builder.toString();
+    }
+
+    private static boolean referenceIsMoreLikelyTextThanKeyword(String str) {
+        int length = str.length();
+        return length > 256 || length - str.replaceAll("\\s", "").length() > 5;
+    }
+
     public void testGuessTimestampGivenSingleSampleSingleField() {
         Map<String, String> sample = Collections.singletonMap("field1", "2018-05-24T17:28:31,735");
         Tuple<String, TimestampFormatFinder> match = TextStructureUtils.guessTimestampField(

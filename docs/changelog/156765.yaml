@@ -1,5 +1,0 @@
-area: Snapshot/Restore
-issues: []
-pr: 156765
-summary: Ensure `Error` propagates out of `S3BlobContainer`
-type: bug

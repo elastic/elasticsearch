@@ -12,11 +12,13 @@ package org.elasticsearch.action.datastreams.autosharding;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.cluster.ClusterState;
+import org.elasticsearch.cluster.metadata.ComposableIndexTemplate;
 import org.elasticsearch.cluster.metadata.DataStream;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.IndexMetadataStats;
 import org.elasticsearch.cluster.metadata.IndexWriteLoad;
 import org.elasticsearch.cluster.metadata.Metadata;
+import org.elasticsearch.cluster.metadata.MetadataIndexTemplateService;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.regex.Regex;
 import org.elasticsearch.common.settings.Setting;
@@ -30,6 +32,7 @@ import org.elasticsearch.index.IndexMode;
 
 import java.util.List;
 import java.util.Objects;
+import java.util.Optional;
 import java.util.OptionalDouble;
 import java.util.function.Function;
 import java.util.function.LongSupplier;
@@ -187,7 +190,7 @@ public class DataStreamAutoShardingService {
             return NOT_APPLICABLE_RESULT;
         }
 
-        if (dataStream.getIndexMode() == IndexMode.LOOKUP) {
+        if (isLookupIndexMode(state.metadata(), dataStream)) {
             logger.debug("Data stream [{}] has indexing mode LOOKUP; auto-sharding is not applicable.", dataStream.getName());
             return NOT_APPLICABLE_RESULT;
         }
@@ -420,5 +423,19 @@ public class DataStreamAutoShardingService {
 
     private void updateDataStreamExcludePatterns(List<String> newExcludePatterns) {
         this.dataStreamExcludePatterns = newExcludePatterns;
+    }
+
+    /**
+     * Attempt to resolve the expected values after rollover or, if that's not possible,
+     * just use the current value from the datastream settings
+     */
+    private static boolean isLookupIndexMode(Metadata project, DataStream dataStream) {
+        return Optional.ofNullable(MetadataIndexTemplateService.findV2Template(project, dataStream.getName(), false))
+            .map(templateName -> project.templatesV2().get(templateName))
+            .map(template -> {
+                ComposableIndexTemplate templateWithSettings = template.mergeSettings(dataStream.getSettings());
+                return project.retrieveIndexModeFromTemplate(templateWithSettings) == IndexMode.LOOKUP;
+            })
+            .orElse(dataStream.getIndexMode() == IndexMode.LOOKUP);
     }
 }

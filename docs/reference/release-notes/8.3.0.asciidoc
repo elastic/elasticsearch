@@ -7,6 +7,8 @@ Also see <<breaking-changes-8.3,Breaking changes in 8.3>>.
 === Known issues
 
 include::8.0.0.asciidoc[tag=jackson-filtering-bug]
+
+include::8.0.0.asciidoc[tag=cgroup-v2-startup-failure]
 [[bug-8.3.0]]
 [float]
 === Bug fixes

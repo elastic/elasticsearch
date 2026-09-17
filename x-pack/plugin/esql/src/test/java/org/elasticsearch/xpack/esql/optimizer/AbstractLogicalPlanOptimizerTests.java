@@ -147,6 +147,10 @@ public abstract class AbstractLogicalPlanOptimizerTests extends ESTestCase {
         );
     }
 
+    protected LogicalPlan optimize(LogicalPlan plan) {
+        return logicalOptimizer.optimize(plan);
+    }
+
     protected LogicalPlan optimizedPlan(String query) {
         return plan(query);
     }

@@ -13,12 +13,14 @@ import org.elasticsearch.action.admin.indices.rollover.MaxAgeCondition;
 import org.elasticsearch.action.admin.indices.rollover.RolloverInfo;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
+import org.elasticsearch.cluster.metadata.ComposableIndexTemplate;
 import org.elasticsearch.cluster.metadata.DataStream;
 import org.elasticsearch.cluster.metadata.DataStreamAutoShardingEvent;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.IndexMetadataStats;
 import org.elasticsearch.cluster.metadata.IndexWriteLoad;
 import org.elasticsearch.cluster.metadata.Metadata;
+import org.elasticsearch.cluster.metadata.Template;
 import org.elasticsearch.cluster.node.DiscoveryNodeUtils;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.service.ClusterService;
@@ -837,6 +839,81 @@ public class DataStreamAutoShardingServiceTests extends ESTestCase {
         assertThat(autoShardingResult, is(NOT_APPLICABLE_RESULT));
     }
 
+    /**
+     * Regression test for https://github.com/elastic/elasticsearch/issues/134505.
+     * When a data stream's stored indexMode is stale (null) but the matching composable template declares
+     * {@code index.mode: lookup}, auto-sharding must return NOT_APPLICABLE rather than recommending a shard
+     * increase that would then cause rollover to fail.
+     */
+    public void testCalculateReturnsNotApplicableWhenTemplateHasLookupIndexMode() {
+        Metadata.Builder builder = Metadata.builder();
+
+        // Build the data stream with a null (stale) indexMode.
+        DataStream dataStream = createDataStream(
+            builder,
+            dataStreamName,
+            1,
+            now,
+            List.of(now - 3000, now - 2000, now - 1000),
+            getWriteLoad(1, 2.0),
+            null
+        );
+        assert dataStream.getIndexMode() == null : "test assumes null (stale) indexMode on the data stream";
+        builder.put(dataStream);
+
+        // Register a composable template matching the data stream's name that declares lookup mode.
+        var lookupTemplate = new Template(Settings.builder().put("index.mode", "lookup").build(), null, null);
+        var composableTemplate = ComposableIndexTemplate.builder()
+            .indexPatterns(List.of(dataStreamName + "*"))
+            .template(lookupTemplate)
+            .dataStreamTemplate(new ComposableIndexTemplate.DataStreamTemplate())
+            .build();
+        builder.put(dataStreamName + "_template", composableTemplate);
+
+        ClusterState state = createClusterStateWithDataStreamAndAutoShardingFeature(builder);
+
+        // With a real write load: should be NOT_APPLICABLE because the effective mode is LOOKUP.
+        AutoShardingResult withWriteLoad = service.calculate(state, dataStream, 2.5);
+        assertThat(withWriteLoad, is(NOT_APPLICABLE_RESULT));
+
+        // With a null write load: same guard should fire before the null-write-load check.
+        AutoShardingResult withNullWriteLoad = service.calculate(state, dataStream, null);
+        assertThat(withNullWriteLoad, is(NOT_APPLICABLE_RESULT));
+    }
+
+    /**
+     * Ensures that the template-fallback logic in {@link DataStreamAutoShardingService} does not interfere when the
+     * matching template has no index mode set (the common, non-LOOKUP case).
+     */
+    public void testCalculateProducesNormalResultWhenTemplateHasNoIndexMode() {
+        Metadata.Builder builder = Metadata.builder();
+
+        // Build a data stream whose write index has a high load, so auto-sharding would recommend an increase.
+        DataStream dataStream = createDataStream(
+            builder,
+            dataStreamName,
+            1,
+            now,
+            List.of(now - 3000, now - 2000, now - 1000),
+            getWriteLoad(1, 2.0),
+            null
+        );
+        builder.put(dataStream);
+
+        // Template present but with no index.mode setting — should not trigger the LOOKUP guard.
+        var composableTemplate = ComposableIndexTemplate.builder()
+            .indexPatterns(List.of(dataStreamName + "*"))
+            .template(new Template(null, null, null))
+            .dataStreamTemplate(new ComposableIndexTemplate.DataStreamTemplate())
+            .build();
+        builder.put(dataStreamName + "_template", composableTemplate);
+
+        ClusterState state = createClusterStateWithDataStreamAndAutoShardingFeature(builder);
+
+        AutoShardingResult result = service.calculate(state, dataStream, 9999.0);
+        assertThat(result.type(), is(INCREASE_SHARDS));
+    }
+
     private DataStream createLookupModeDataStream(Metadata.Builder builder) {
         DataStream dataStream = DataStream.builder(dataStreamName, List.of(new Index("test-index", randomUUID())))
             .setGeneration(1)
@@ -849,6 +926,14 @@ public class DataStreamAutoShardingServiceTests extends ESTestCase {
     private ClusterState createClusterStateWithDataStream(Metadata.Builder builder) {
         return ClusterState.builder(ClusterName.DEFAULT)
             .nodes(DiscoveryNodes.builder().add(DiscoveryNodeUtils.create("n1")))
+            .metadata(builder.build())
+            .build();
+    }
+
+    private ClusterState createClusterStateWithDataStreamAndAutoShardingFeature(Metadata.Builder builder) {
+        return ClusterState.builder(ClusterName.DEFAULT)
+            .nodes(DiscoveryNodes.builder().add(DiscoveryNodeUtils.create("n1")))
+            .nodeFeatures(Map.of("n1", Set.of(DataStreamAutoShardingService.DATA_STREAM_AUTO_SHARDING_FEATURE.id())))
             .metadata(builder.build())
             .build();
     }

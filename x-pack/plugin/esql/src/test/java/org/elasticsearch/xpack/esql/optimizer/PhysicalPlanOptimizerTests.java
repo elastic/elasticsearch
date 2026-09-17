@@ -84,6 +84,7 @@ import org.elasticsearch.xpack.esql.expression.function.aggregate.SpatialExtent;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.Sum;
 import org.elasticsearch.xpack.esql.expression.function.fulltext.Match;
 import org.elasticsearch.xpack.esql.expression.function.fulltext.Score;
+import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToLong;
 import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToString;
 import org.elasticsearch.xpack.esql.expression.function.scalar.math.Round;
 import org.elasticsearch.xpack.esql.expression.function.scalar.spatial.BinarySpatialGeometryFunction;
@@ -4984,6 +4985,41 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
                     }
                 }
             }
+        }
+    }
+
+    /**
+     * Casting the grid cell to a long, for instance to sort on it, must not prevent the grid function from being fused into field
+     * loading: the fused attribute is loaded below the TopN and the cast runs on the cell ids, while the kept location is only
+     * extracted after the TopN.
+     */
+    public void testSpatialGridSortWithCastToLongUsesFusedLoad() {
+        for (String grid : new String[] { "geohash", "geotile", "geohex" }) {
+            String query = """
+                FROM airports
+                | EVAL grid = ST_GRID(location, 5)::long
+                | SORT grid ASC
+                | KEEP grid, location
+                | LIMIT 10
+                """.replace("GRID", grid);
+            var plan = physicalPlan(query, airports);
+            var optimized = optimizedPlan(plan, airports.stats);
+            var project = as(optimized, ProjectExec.class);
+            var topN = as(project.child(), TopNExec.class);
+            var exchange = as(topN.child(), ExchangeExec.class);
+            project = as(exchange.child(), ProjectExec.class);
+            var locationExtract = as(project.child(), FieldExtractExec.class);
+            assertThat(names(locationExtract.attributesToExtract()), is(List.of("location")));
+            topN = as(locationExtract.child(), TopNExec.class);
+            assertThat(topN.docValuesAttributes(), is(empty()));
+            var evalExec = as(topN.child(), EvalExec.class);
+            var alias = as(evalExec.fields().getFirst(), Alias.class);
+            assertThat(alias.name(), equalTo("grid"));
+            var cast = as(alias.child(), ToLong.class);
+            assertGridFusedIntoFieldLoad(cast.field(), grid, 5);
+            var extract = as(evalExec.child(), FieldExtractExec.class);
+            assertThat(names(extract.attributesToExtract()), hasSize(1));
+            as(extract.child(), EsQueryExec.class);
         }
     }
 

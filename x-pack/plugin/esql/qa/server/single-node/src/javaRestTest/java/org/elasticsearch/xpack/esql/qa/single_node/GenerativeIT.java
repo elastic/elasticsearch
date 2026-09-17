@@ -42,7 +42,12 @@ public class GenerativeIT extends PerFeatureGenerativeRestTest {
     public static DataSourcesS3HttpFixture s3Fixture = new DataSourcesS3HttpFixture();
 
     @ClassRule
-    public static ElasticsearchCluster cluster = Clusters.testCluster();
+    public static ElasticsearchCluster cluster = Clusters.testCluster(
+        // This suite boosts the registered parquet datasets into the generator's source pool and lets
+        // EsqlQueryGenerator#indexPattern wildcard their names, so it needs wildcards to reach datasets.
+        // That is off by default, so opt in here rather than lose the coverage.
+        spec -> spec.setting("esql.query.settings.dataset_wildcards", "true")
+    );
 
     @BeforeClass
     public static void loadS3Fixtures() {

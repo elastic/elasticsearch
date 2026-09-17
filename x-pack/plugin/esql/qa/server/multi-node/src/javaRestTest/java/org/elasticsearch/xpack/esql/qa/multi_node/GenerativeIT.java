@@ -48,6 +48,9 @@ public class GenerativeIT extends PerFeatureGenerativeRestTest {
         // encryption must be enabled or the registration returns 503.
         spec.keystore("cluster.state.encryption.password.test", "esql-generative-encryption-password");
         spec.keystore("cluster.state.encryption.active_password_id", "test");
+        // See the single-node GenerativeIT: the generator wildcards dataset names, which reaches a dataset
+        // only when dataset_wildcards is on.
+        spec.setting("esql.query.settings.dataset_wildcards", "true");
     });
 
     @BeforeClass

@@ -3943,6 +3943,29 @@ public class ExternalSourceResolverTests extends ESTestCase {
     }
 
     /**
+     * With no Iceberg catalog registered (flag off or not installed), a single extensionless S3 object path
+     * with no {@code format} setting is not handed to a catalog: the resolver applies the standard file-format
+     * check and fails with the dataset-format error, not an Iceberg metadata error.
+     * <p>
+     * This pins the contract established by the Iceberg feature flag: removing the catalog as a claimant
+     * means extensionless paths fall through to file-format inference, which correctly rejects them as
+     * ambiguous rather than forwarding them to a catalog that would fail with a 400 for an unrelated reason.
+     */
+    public void testExtensionlessS3ObjectWithoutCatalogFailsWithFormatError() {
+        String path = "s3://bucket/data/my_table";
+        Map<String, List<Attribute>> schemasByPath = Map.of(path, List.of(attr("a", DataType.KEYWORD)));
+
+        Exception e = expectThrows(Exception.class, () -> resolveSingleFile(path, schemasByPath));
+
+        assertEquals("an extensionless path with no format is a client error", RestStatus.BAD_REQUEST, ExceptionsHelper.status(e));
+        assertThat(
+            "must fail with the dataset-format error, not an Iceberg metadata error",
+            e.getMessage(),
+            containsString(FormatNameResolver.ambiguousDatasetFormatMessage(path))
+        );
+    }
+
+    /**
      * A single-segment extension reports itself alone — the two-segment tail is for compound names only, and must not
      * drag a preceding dotted stem into the message.
      */

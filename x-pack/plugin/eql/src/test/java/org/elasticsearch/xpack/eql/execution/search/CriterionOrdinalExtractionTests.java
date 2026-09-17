@@ -16,6 +16,7 @@ import org.elasticsearch.xpack.eql.EqlIllegalArgumentException;
 import org.elasticsearch.xpack.eql.execution.assembler.SequenceCriterion;
 import org.elasticsearch.xpack.eql.execution.search.extractor.FieldHitExtractor;
 import org.elasticsearch.xpack.eql.execution.search.extractor.ImplicitTiebreakerHitExtractor;
+import org.elasticsearch.xpack.eql.execution.search.extractor.TimestampFieldHitExtractor;
 import org.elasticsearch.xpack.ql.execution.search.extractor.HitExtractor;
 import org.elasticsearch.xpack.ql.type.DataTypes;
 import org.junit.After;
@@ -77,6 +78,21 @@ public class CriterionOrdinalExtractionTests extends ESTestCase {
         Ordinal ordinal = ordinal(searchHit(time, null), true);
         assertEquals(time, ordinal.timestamp());
         assertNull(ordinal.tiebreaker());
+    }
+
+    public void testTimeAsEpochMillisString() throws Exception {
+        long millis = 1_580_733_296_000L;
+        HitExtractor extractor = new TimestampFieldHitExtractor(new FieldHitExtractor(tsField, DataTypes.KEYWORD, null, null, FULL));
+        SearchHit hit = searchHit(Long.toString(millis), null);
+        SequenceCriterion criterion = new SequenceCriterion(0, null, emptyList(), extractor, null, implicitTbExtractor, false, false);
+        assertEquals(millis, criterion.ordinal(hit).timestamp().instant().toEpochMilli());
+    }
+
+    public void testTimeAsIso8601String() throws Exception {
+        HitExtractor extractor = new TimestampFieldHitExtractor(new FieldHitExtractor(tsField, DataTypes.KEYWORD, null, null, FULL));
+        SearchHit hit = searchHit("2020-02-03T12:34:56.000Z", null);
+        SequenceCriterion criterion = new SequenceCriterion(0, null, emptyList(), extractor, null, implicitTbExtractor, false, false);
+        assertEquals(1_580_733_296_000L, criterion.ordinal(hit).timestamp().instant().toEpochMilli());
     }
 
     public void testTimeNotComparable() throws Exception {

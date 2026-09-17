@@ -188,6 +188,17 @@ public final class AsymmetricHashingQuantizer {
         return new VectorAndNorm(centroidProjected, centroidNormSq);
     }
 
+    private static final ThreadLocal<float[]> XLATENT_ARRAY = new ThreadLocal<>();
+
+    private static float[] getXLatentArray(int length) {
+        float[] array = XLATENT_ARRAY.get();
+        if (array == null || array.length != length) {
+            array = new float[length];
+            XLATENT_ARRAY.set(array);
+        }
+        return array;
+    }
+
     /**
      * Fast single-vector encoding using precomputed centroid values and transposed W.
      * This avoids recomputing centroid @ W and ||centroid||^2 for every vector in a posting list.
@@ -203,10 +214,11 @@ public final class AsymmetricHashingQuantizer {
         int nDims = wT.length / originalDim;
 
         // Center and compute norm
-        var centered = centralizeVector(vector, centroid);
+        VectorAndNorm centered = centralizeVector(vector, centroid);
 
         // Project using transposed W
-        float[] xLatent = ESVectorUtil.matrixVectorMultiply(wT, nDims, originalDim, centered.vector());
+        float[] xLatent = getXLatentArray(nDims);
+        ESVectorUtil.matrixVectorMultiply(wT, nDims, originalDim, centered.vector(), xLatent);
 
         // Quantize
         AshSphericalScalarQuantizer.SingleQuantizeResult qr = quantizer.encodeOne(xLatent);
@@ -245,16 +257,19 @@ public final class AsymmetricHashingQuantizer {
         float[] m = AshUtils.randomGaussians(new Random(seed), nDims * nDims);
 
         // Iterative Procrustes
-        float[] r = null;
+        float[] r = new float[nDims * nDims];
+        float[] xTransformed = new float[nTraining * nDims];
+        AshSphericalScalarQuantizer.QuantizeResult qr = new AshSphericalScalarQuantizer.QuantizeResult(nTraining, nDims);
+
         for (int epoch = 0; epoch <= nTrainingIterations; epoch++) {
             // R = procrustes(M)
-            r = AshUtils.procrustes(m, nDims);
+            AshUtils.procrustes(m, nDims, r);
 
             if (epoch < nTrainingIterations) {
                 // X_transformed = X_ld @ R (nTraining x nDims)
-                float[] xTransformed = ESVectorUtil.matrixMultiply(xLd, r, nTraining, nDims, nDims);
+                ESVectorUtil.matrixMultiply(xLd, r, nTraining, nDims, nDims, xTransformed);
                 // Quantize
-                AshSphericalScalarQuantizer.QuantizeResult qr = quantizer.encode(xTransformed, nTraining, nDims);
+                quantizer.encode(xTransformed, nTraining, nDims, qr);
                 float[] xEnc = qr.centeredCodes();
                 float[] codeNorms = qr.codeNorms();
                 // Normalize encoded: xEnc[i] /= codeNorms[i]
@@ -268,7 +283,7 @@ public final class AsymmetricHashingQuantizer {
                     }
                 }
                 // M = X_ld^T @ X_enc (nDims x nDims) — uses pre-transposed X_ld for sequential access
-                m = ESVectorUtil.matrixMultiply(xLdT, xEnc, nDims, nTraining, nDims);
+                ESVectorUtil.matrixMultiply(xLdT, xEnc, nDims, nTraining, nDims, m);
             }
         }
 

@@ -1,6 +1,6 @@
 EvalExec[[LENGTH(keyword{r}#0) AS x#1]]
 \_LimitExec[1000[INTEGER],null]
-  \_MergeExec[[s{r}#2, u{r}#3, keyword{r}#0, _fork{r}#4, t{r}#5]]
+  \_MergeExec[[s{r}#2, u{r}#3, keyword{r}#0, _fork{r}#4, t{r}#5],FORK]
     |_ProjectExec[[s{r}#6, u{r}#7, keyword{f}#8, _fork{r}#9, t{r}#10]]
     | \_EvalExec[[COSINESIMILARITY(dense_vector{f}#11,[4.0, 5.0, 6.0][DENSE_VECTOR]) AS u#7, LENGTH(text{f}#12) AS s#6, fork1[KEYWORD] AS _fork#9, null[DOUBLE] AS t#10]]
     |   \_LimitExec[1000[INTEGER],null]

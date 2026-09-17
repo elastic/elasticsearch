@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.inference.external.request;
 
+import org.apache.hc.client5.http.async.methods.SimpleHttpRequest;
 import org.apache.hc.core5.http.Header;
 import org.apache.hc.core5.http.HttpHeaders;
 import org.apache.hc.core5.http.message.BasicHeader;
@@ -54,7 +55,7 @@ public class RequestUtils {
     /**
      * Sets the {@code Content-Type} and {@code Authorization: Bearer} headers on the given request using the supplied API key.
      */
-    public static void decorateWithAuthHeader(HttpPost request, SecureString apiKey) {
+    public static void decorateWithAuthHeader(SimpleHttpRequest request, SecureString apiKey) {
         request.setHeader(HttpHeaders.CONTENT_TYPE, XContentType.JSON.mediaType());
         request.setHeader(createAuthBearerHeader(apiKey));
     }

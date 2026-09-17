@@ -9,6 +9,7 @@
 
 package org.elasticsearch.common.util.concurrent;
 
+import org.apache.logging.log4j.Level;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.action.ActionListener;
@@ -85,6 +86,7 @@ public class AbstractThrottledTaskRunner<T extends ActionListener<Releasable>> {
 
     /// Register metrics to get task-queue depth and currently running tasks, as well as a queue-latency histogram.
     public List<Instrument> setupMetrics(MeterRegistry meterRegistry, String name) {
+        logger.log(Level.INFO, String.format("About to set up metrics for %s that has max running tasks %d", name, maxRunningTasks));
         this.queuedNanosByTask = new ConcurrentHashMap<>();
         this.queueLatencyMillisHistogram = new ExponentialBucketHistogram(QUEUE_LATENCY_HISTOGRAM_BUCKETS);
 

@@ -9,9 +9,15 @@
 
 package org.elasticsearch.common.util.concurrent;
 
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.bulk.TransportShardBulkAction;
 import org.elasticsearch.core.Releasable;
+import org.elasticsearch.telemetry.metric.Instrument;
+import org.elasticsearch.telemetry.metric.MeterRegistry;
 
+import java.util.List;
 import java.util.concurrent.Executor;
 import java.util.concurrent.PriorityBlockingQueue;
 
@@ -28,6 +34,10 @@ public class PrioritizedThrottledAsyncTaskRunner<T extends ActionListener<Releas
         this.queue = new PriorityBlockingQueue<>();
         this.runner = new AbstractThrottledTaskRunner<>(name, maxRunningTasks, executor, queue);
     }
+
+   public List<Instrument> setupMetrics(MeterRegistry meterRegistry, String name) {
+        return runner.setupMetrics(meterRegistry, name);
+   }
 
     /**
      * Submits a task for execution. If there are fewer than {@code maxRunningTasks} tasks currently running then this task is immediately

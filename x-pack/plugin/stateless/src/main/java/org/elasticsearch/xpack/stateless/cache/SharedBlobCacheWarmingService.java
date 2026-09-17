@@ -443,9 +443,10 @@ public class SharedBlobCacheWarmingService {
         // having the PREWARM_THREAD_POOL stall while the next task is being queued up
         this.warmingTaskRunner = new PrioritizedThrottledAsyncTaskRunner<>(
             "prewarming-cache",
-            1 + threadPool.info(StatelessPlugin.PREWARM_THREAD_POOL).getMax(),
+            1,
             threadPool.generic() // TODO should be DIRECT, forks to the fetch pool pretty much straight away, but see ES-8448
         );
+        this.warmingTaskRunner.setupMetrics(telemetryProvider.getMeterRegistry(), "prewarming_cache");
         this.warmingTaskNumber = new AtomicLong(0);
         this.readCommitsForSearchWarmingExecutor = runnable -> warmingTaskRunner.enqueueTask(
             // We know this is always used with SEARCH type.

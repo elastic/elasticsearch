@@ -137,7 +137,9 @@ public class SparseVectorFieldMapper extends FieldMapper {
                 builderIndexOptions = SparseVectorIndexOptions.getDefaultIndexOptions(indexVersionCreated);
             }
 
-            final boolean isExcludeSourceVectorsFinal = isExcludeSourceVectors && context.isSourceSynthetic() == false && stored.get();
+            final boolean isExcludeSourceVectorsFinal = isExcludeSourceVectors
+                && (context.isSourceStored() || context.isSourceColumnarStored())
+                && stored.get();
             return new SparseVectorFieldMapper(
                 leafName(),
                 new SparseVectorFieldType(

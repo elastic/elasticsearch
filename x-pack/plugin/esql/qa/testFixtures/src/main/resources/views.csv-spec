@@ -2358,3 +2358,48 @@ emp_no:integer | m:boolean
 10003          | true
 10004          | false
 ;
+
+inSubqueryInStatsWhereReferencingView
+required_capability: views_with_no_branching
+required_capability: views_crud_as_index_actions
+required_capability: where_in_subquery_with_view
+required_capability: stats_where_in_subquery
+
+FROM employees
+| STATS matching = COUNT(*) WHERE emp_no IN (
+    FROM employees_all
+    | WHERE emp_no <= 10003
+    | KEEP emp_no
+  ),
+  total = COUNT(*)
+;
+
+matching:long | total:long
+3             | 100
+;
+
+viewContainingInSubqueryInStatsWhereReferencingView
+required_capability: views_with_no_branching
+required_capability: views_crud_as_index_actions
+required_capability: where_in_subquery_with_view
+required_capability: stats_where_in_subquery
+
+FROM employees_stats_where_in_subquery_view
+| WHERE matching IN (
+    FROM employees_all
+    | WHERE emp_no == 10003
+    | EVAL expected_matching = TO_LONG(emp_no - 10000)
+    | KEEP expected_matching
+  )
+| EVAL doubled_matching = matching * 2
+| STATS view_rows = COUNT(*) WHERE total IN (
+    FROM employees_all
+    | STATS expected_total = COUNT(*)
+    | KEEP expected_total
+  ),
+  max_doubled = MAX(doubled_matching)
+;
+
+view_rows:long | max_doubled:long
+1              | 6
+;

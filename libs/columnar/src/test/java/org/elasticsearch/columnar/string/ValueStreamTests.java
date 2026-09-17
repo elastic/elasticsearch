@@ -23,7 +23,7 @@ import java.util.List;
 
 /**
  * The byte sequence a string column stores its values in, on its own: whatever is written reads back, at
- * every block layout and every width a packed length takes.
+ * every block layout and every bit width a packed length takes.
  */
 public class ValueStreamTests extends ESTestCase {
 
@@ -34,20 +34,24 @@ public class ValueStreamTests extends ESTestCase {
         assertRoundTrip(values(between(200, 2000), 0, 20));
     }
 
-    /** One byte per length: long enough for a block to pack them, short enough to fit in a byte. */
-    public void testPackedLengthsOneByte() throws IOException {
+    /** Values of length 0 and 1, so the packed header is 1 bit per value. */
+    public void testPackedOneBit() throws IOException {
+        assertRoundTrip(values(between(200, 2000), 0, 1));
+    }
+
+    /** Values up to 255 bytes, so the packed header is at most 8 bits per value. */
+    public void testPackedEightBits() throws IOException {
         assertRoundTrip(values(between(200, 1500), 40, 255));
     }
 
-    /** Two bytes per length. */
-    public void testPackedLengthsTwoBytes() throws IOException {
-        assertRoundTrip(values(between(100, 600), 300, 5000));
+    /** Values up to 4095 bytes, so the packed header is at most 12 bits per value. */
+    public void testPackedTwelveBits() throws IOException {
+        assertRoundTrip(values(between(100, 600), 300, 4000));
     }
 
-    /** Four bytes per length, which needs a value past sixty-five thousand. */
-    public void testPackedLengthsFourBytes() throws IOException {
-        final List<BytesRef> values = new ArrayList<>(values(between(4, 20), 66_000, 66_500));
-        assertRoundTrip(values);
+    /** Values whose length needs 17 bits, past what two bytes could hold. */
+    public void testPackedSeventeenBits() throws IOException {
+        assertRoundTrip(values(between(4, 20), 66_000, 66_500));
     }
 
     /** A column that mixes them, so the layout differs from one block to the next. */
@@ -129,6 +133,11 @@ public class ValueStreamTests extends ESTestCase {
                 }
             }
             assertEquals(label + " numValues", values.size(), metadata.numValues());
+            long valueBytes = 0;
+            for (BytesRef value : values) {
+                valueBytes += value.length;
+            }
+            assertEquals(label + " valueBytes", valueBytes, metadata.valueBytes());
 
             try (IndexInput in = dir.openInput(FILE, IOContext.DEFAULT)) {
                 final ValueStream.Reader reader = metadata.open(in);
@@ -149,6 +158,16 @@ public class ValueStreamTests extends ESTestCase {
                     assertEquals(label + " random at " + i, values.get(i), read);
                 }
             }
+        }
+    }
+
+    /** Every value a block's first byte may take; anything else is a corrupt index. */
+    public void testUnknownLayoutMarkersAreNotAccepted() {
+        for (ValueStream.BlockLayout layout : ValueStream.BlockLayout.values()) {
+            assertSame("id " + layout.id + " round-trips to " + layout, layout, ValueStream.BlockLayout.fromId(layout.id));
+        }
+        for (byte marker : new byte[] { 3, 4, 5, 6, 42, -1, Byte.MIN_VALUE, Byte.MAX_VALUE }) {
+            assertNull("marker " + marker + " names no known layout", ValueStream.BlockLayout.fromId(marker));
         }
     }
 }

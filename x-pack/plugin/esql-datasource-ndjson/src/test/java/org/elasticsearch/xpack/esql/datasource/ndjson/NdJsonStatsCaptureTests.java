@@ -122,6 +122,32 @@ public class NdJsonStatsCaptureTests extends ESTestCase {
     }
 
     /**
+     * SKIP_ROW plus a record naming one field twice, on a field the query does NOT project. Jackson checks every
+     * name the tokeniser reads, so the line drops here as it would under any projection, which puts this drop in
+     * the same class as the malformed line above: the survivors are exact for every query carrying this identity
+     * and must commit. The duplicate sits on [x] precisely because a detector limited to projected columns would
+     * miss it, keep the line, and measure a different row count for a query that projected [x].
+     */
+    public void testSkipRowDuplicateKeyDropCommitsStatsOverSurvivors() throws Exception {
+        ErrorPolicy skipRowQuiet = new ErrorPolicy(ErrorPolicy.Mode.SKIP_ROW, 10, 1.0, false);
+        StorageObject o = obj("{\"a\":1}\n{\"a\":2,\"x\":3,\"x\":4}\n{\"a\":5}\n");
+        List<Attribute> bound = List.of(new ReferenceAttribute(Source.EMPTY, "a", DataType.LONG));
+        long[] rows = new long[1];
+        Map<String, Object> published = captureCounting(
+            o,
+            FormatReadContext.builder().batchSize(10).errorPolicy(skipRowQuiet).readSchema(bound).build(),
+            rows
+        );
+        assertEquals("the record naming [x] twice must actually drop", 2L, rows[0]);
+        assertNotNull("a duplicate-key drop is projection-independent; survivors must commit", published);
+        SplitStats stats = SplitStats.of(published);
+        assertNotNull(stats);
+        assertEquals("row count over survivors", 2L, stats.rowCount());
+        assertEquals(1, ((Number) stats.columnMin("a")).intValue());
+        assertEquals(5, ((Number) stats.columnMax("a")).intValue());
+    }
+
+    /**
      * SKIP_ROW plus a coercion failure of a PROJECTED column: the survivor set is a function of the query's
      * projection, which the cache identity cannot carry -- a COUNT(*) scan of the same file decodes nothing,
      * drops nothing and answers 3 where this scan measured 2. The whole publish must be suppressed. The bound
@@ -143,12 +169,10 @@ public class NdJsonStatsCaptureTests extends ESTestCase {
     }
 
     /**
-     * SKIP_ROW plus a scalar/object shape conflict on a decoded field: the record drops through shapeConflict,
-     * the OTHER sink that discards a record under skip_row. Only a projected (decoded) field can conflict, so
-     * this drop is projection-dependent too and must suppress. Inference resolves [a] as a scalar from the first
-     * record -- first writer wins, so this is immune to the sample-window size and fires deterministically.
+     * A scalar then an object at the same name is not a value error. skip_row keeps every record and
+     * the stats publish commits: nothing projection-dependent was dropped.
      */
-    public void testSkipRowShapeConflictDropSuppressesPublish() throws Exception {
+    public void testSkipRowScalarThenObjectDoesNotSuppressPublish() throws Exception {
         ErrorPolicy skipRowQuiet = new ErrorPolicy(ErrorPolicy.Mode.SKIP_ROW, 10, 1.0, false);
         StorageObject o = obj("{\"a\":1}\n{\"a\":{\"b\":2}}\n{\"a\":3}\n");
         long[] rows = new long[1];
@@ -157,8 +181,8 @@ public class NdJsonStatsCaptureTests extends ESTestCase {
             FormatReadContext.builder().batchSize(10).errorPolicy(skipRowQuiet).build(),
             rows
         );
-        assertEquals("the shape-conflicted record must actually drop", 2L, rows[0]);
-        assertNull("a shape-conflict drop is projection-dependent and must suppress the publish", published);
+        assertEquals("a scalar/object mix is not a skip_row drop", 3L, rows[0]);
+        assertNotNull("no projection-dependent drop, so the publish commits", published);
     }
 
     /**

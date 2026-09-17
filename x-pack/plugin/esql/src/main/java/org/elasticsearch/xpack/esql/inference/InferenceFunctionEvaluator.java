@@ -214,6 +214,8 @@ public class InferenceFunctionEvaluator {
                         inferenceService,
                         inferenceId(inferenceFunction, foldContext),
                         expressionEvaluatorFactory(textEmbedding.inputText(), foldContext),
+                        // Folding embeds a single constant text, so the batch size is irrelevant here.
+                        InferenceSettings.DENSE_VECTOR_DEFAULT_BATCH_SIZE,
                         textEmbedding.inputTimeout(),
                         Source.EMPTY,
                         false
@@ -223,7 +225,11 @@ public class InferenceFunctionEvaluator {
                         inferenceId(inferenceFunction, foldContext),
                         expressionEvaluatorFactory(embedding.inputText(), foldContext),
                         embedding.inputDataType(),
-                        embedding.inputTimeout()
+                        // Folding embeds a single constant text, so the batch size is irrelevant here.
+                        InferenceSettings.DENSE_VECTOR_DEFAULT_BATCH_SIZE,
+                        embedding.inputTimeout(),
+                        Source.EMPTY,
+                        false
                     );
                     case CompletionFunction completion -> new CompletionOperator.Factory(
                         inferenceService,

@@ -59,15 +59,66 @@ setup:
 
 ---
 "Fail to index hex-encoded vector on float field":
-
-  # [-128, 127, 10] - is encoded as '807f0a'
+  # '807f0a' is hex-encoded, but hex is disabled for float fields
   - do:
-      catch: bad_request
+      catch: /byte length \[4\] does not match the expected length of \[12\] or \[6\]/
       index:
         index: knn_base64_vector_index
         id: "5"
         body:
           my_vector_float: "807f0a"
+
+  - match: { status: 400 }
+
+---
+"Fail to index invalid base64 on float field":
+  - do:
+      catch: /must be a valid base64 string/
+      index:
+        index: knn_base64_vector_index
+        id: "5"
+        body:
+          my_vector_float: "not-valid-base64!!!"
+
+  - match: { status: 400 }
+
+---
+"Fail to index wrong-length base64 on float field":
+  # 'PczMzT5MzM0=' decodes to 8 bytes; accepted lengths are 12 (float32) or 6 (bfloat16) for dims=3
+  - do:
+      catch: /byte length \[8\] does not match the expected length of \[12\] or \[6\]/
+      index:
+        index: knn_base64_vector_index
+        id: "5"
+        body:
+          my_vector_float: "PczMzT5MzM0="
+
+  - match: { status: 400 }
+
+---
+"Fail to index wrong-dimension hex on byte field":
+  # '807f0a0b' is valid hex encoding 4 bytes; field expects 3 dimensions
+  - do:
+      catch: /dimensions \[4\] than the expected \[3\]/
+      index:
+        index: knn_base64_vector_index
+        id: "5"
+        body:
+          my_vector_byte: "807f0a0b"
+
+  - match: { status: 400 }
+
+---
+"Fail to index undecodable string on byte field":
+  - do:
+      catch: /must be a valid base64 or hex string/
+      index:
+        index: knn_base64_vector_index
+        id: "5"
+        body:
+          my_vector_byte: "garbage!"
+
+  - match: { status: 400 }
 
 ---
 "Knn retrieve base64 encoded vectors" :

@@ -31,12 +31,15 @@ import java.util.stream.Collectors;
  *                                    {@link Error}, which {@code isShutdown()} on the executor cannot detect.
  * @param defaultRepositoryConfigured Whether a default snapshot repository ({@code repositories.default_repository}) is
  *                                    configured. Without one, eligible indices cannot be marked for frozen conversion.
- * @param overdueIndices              A capped sample of indices, keyed by project then index name, that are past their
+ * @param overdueIndices              A sample of overdue indices, keyed by project then index name, that are past their
  *                                    {@code frozen_after} age by more than the configured stuck threshold and have not
  *                                    completed their frozen-tier transition, together with their current transition
- *                                    state. {@code totalOverdueIndicesCount} may exceed the number of entries here.
- * @param totalOverdueIndicesCount    The total number of overdue indices found across all projects, regardless of
- *                                    whether they fit in {@code overdueIndices}.
+ *                                    state. Indices whose transition is already running are making progress and are
+ *                                    not reported at all. The sample is capped at
+ *                                    {@code DLMFrozenTransitionHealthInfoPublisher.MAX_INDICES_TO_PUBLISH} entries,
+ *                                    so {@code totalOverdueIndicesCount} may exceed the number of entries here.
+ * @param totalOverdueIndicesCount    The total number of reported overdue indices found across all projects,
+ *                                    regardless of whether they fit in the {@code overdueIndices} sample.
  * @param generatedAtMillis           Epoch-millisecond timestamp at which the master built this snapshot. Used to
  *                                    detect stale data (e.g. after a master failover before the new master has
  *                                    published its first snapshot).

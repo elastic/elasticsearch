@@ -246,7 +246,11 @@ public class DLMFrozenTransitionHealthInfoPublisherTests extends ESTestCase {
         assertThat(info.overdueIndices().get(projectId), equalTo(Map.of(markedIndex.getName(), TransitionState.MARKED)));
     }
 
-    public void testMarkedIndexReportedAsRunningWhenTransitionIsRunning() throws Exception {
+    /**
+     * An index whose transition is actually running is making progress, so it must be left out of the report
+     * entirely: neither in the sample nor in the total count.
+     */
+    public void testRunningIndexIsNotReported() throws Exception {
         ProjectId projectId = randomProjectIdOrDefault();
         ProjectMetadata.Builder projectBuilder = ProjectMetadata.builder(projectId);
         Index markedIndex = addDataStreamWithFrozenLifecycle(
@@ -265,7 +269,8 @@ public class DLMFrozenTransitionHealthInfoPublisherTests extends ESTestCase {
             safeAwait(task.started);
 
             DlmFrozenTransitionsHealthInfo info = publisher.buildHealthInfo(clusterService.state());
-            assertThat(info.overdueIndices().get(projectId), equalTo(Map.of(markedIndex.getName(), TransitionState.RUNNING)));
+            assertThat(info.totalOverdueIndicesCount(), is(0));
+            assertThat(info.overdueIndices(), equalTo(Map.of()));
         } finally {
             task.blockUntil.countDown();
         }
@@ -358,13 +363,17 @@ public class DLMFrozenTransitionHealthInfoPublisherTests extends ESTestCase {
     }
 
     public void testPublishHealthInfoSendsRequestToHealthNode() {
-        ClusterState stateWithHealthNode = ClusterStateCreationUtils.state(node1, node1, node1, allNodes);
+        // node1 is local, node2 is master and health node — differentiating them catches the bug where
+        // the request was sent with the health-node id instead of the local-node id.
+        ClusterState stateWithHealthNode = ClusterStateCreationUtils.state(node1, node2, node2, allNodes);
         setState(clusterService, stateWithHealthNode);
 
         publisher.publishHealthInfo();
 
         assertThat(clientSeenRequests.size(), is(1));
-        assertThat(clientSeenRequests.get(0).getDlmFrozenTransitionsHealthInfo(), is(notNullValue()));
+        UpdateHealthInfoCacheAction.Request request = clientSeenRequests.get(0);
+        assertThat(request.getNodeId(), equalTo(node1.getId()));
+        assertThat(request.getDlmFrozenTransitionsHealthInfo(), is(notNullValue()));
     }
 
     public void testPublishHealthInfoNoHealthNode() {

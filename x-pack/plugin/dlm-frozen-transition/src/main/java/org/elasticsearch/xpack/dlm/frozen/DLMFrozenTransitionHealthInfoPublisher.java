@@ -124,10 +124,11 @@ public class DLMFrozenTransitionHealthInfoPublisher extends AbstractDLMPeriodicM
             return;
         }
         String healthNodeId = healthNode.getId();
+        String localNodeId = state.nodes().getLocalNodeId();
         DlmFrozenTransitionsHealthInfo info = buildHealthInfo(state);
         client.execute(
             UpdateHealthInfoCacheAction.INSTANCE,
-            new UpdateHealthInfoCacheAction.Request.Builder().nodeId(healthNodeId).dlmFrozenTransitionsHealthInfo(info).build(),
+            new UpdateHealthInfoCacheAction.Request.Builder().nodeId(localNodeId).dlmFrozenTransitionsHealthInfo(info).build(),
             ActionListener.wrap(
                 resp -> logger.trace("published DLM frozen transition health info to health node [{}]", healthNodeId),
                 e -> logger.debug(
@@ -173,7 +174,12 @@ public class DLMFrozenTransitionHealthInfoPublisher extends AbstractDLMPeriodicM
                     if (indexMetadata == null || DataStreamLifecycleService.frozenTransitionCompleted(indexMetadata)) {
                         continue;
                     }
-                    overdueIndices.add(projectId, index.getName(), transitionStateFor(projectId, indexMetadata));
+                    TransitionState transitionState = transitionStateFor(projectId, indexMetadata);
+                    // A running transition is making progress, so it is not a problem the operator needs to see.
+                    if (transitionState == TransitionState.RUNNING) {
+                        continue;
+                    }
+                    overdueIndices.add(projectId, index.getName(), transitionState);
                 }
             }
         }
@@ -204,9 +210,9 @@ public class DLMFrozenTransitionHealthInfoPublisher extends AbstractDLMPeriodicM
     }
 
     /**
-     * Mutable accumulator for overdue indices. Tracks the total count independently of the capped sample so that
-     * callers can distinguish "no overdue indices" from "overdue indices that didn't fit in the sample". The cap
-     * ({@link #MAX_INDICES_TO_PUBLISH}) is applied across all projects combined, not per project.
+     * Mutable accumulator for overdue indices. Tracks the total count independently of the sample, which is capped at
+     * {@link #MAX_INDICES_TO_PUBLISH}, so that callers can distinguish "no overdue indices" from "overdue indices that
+     * didn't fit in the sample".
      */
     private static final class OverdueIndices {
         private int totalCount;

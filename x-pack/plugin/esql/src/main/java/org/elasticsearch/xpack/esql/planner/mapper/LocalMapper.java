@@ -125,7 +125,7 @@ public class LocalMapper {
                 mappedChild,
                 limitRatioBy.ratio(),
                 limitRatioBy.groupings(),
-                limitRatioBy.seriesKey()
+                limitRatioBy.fieldKey()
             );
         }
 

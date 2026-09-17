@@ -25,7 +25,7 @@ public class LimitRatioBySerializationTests extends AbstractLogicalPlanSerializa
         LogicalPlan child = randomChild(0);
         Expression ratio = randomRatio();
         List<Expression> groupings = randomGroupings();
-        return new LimitRatioBy(source, child, ratio, groupings, randomSeriesKey());
+        return new LimitRatioBy(source, child, ratio, groupings, randomFieldKey());
     }
 
     @Override
@@ -33,15 +33,15 @@ public class LimitRatioBySerializationTests extends AbstractLogicalPlanSerializa
         LogicalPlan child = instance.child();
         Expression ratio = instance.ratio();
         List<Expression> groupings = instance.groupings();
-        Expression seriesKey = instance.seriesKey();
+        Expression fieldKey = instance.fieldKey();
         switch (between(0, 3)) {
             case 0 -> child = randomValueOtherThan(child, () -> randomChild(0));
             case 1 -> ratio = randomValueOtherThan(ratio, LimitRatioBySerializationTests::randomRatio);
             case 2 -> groupings = randomValueOtherThan(groupings, LimitRatioBySerializationTests::randomGroupings);
-            case 3 -> seriesKey = randomValueOtherThan(seriesKey, LimitRatioBySerializationTests::randomSeriesKey);
+            case 3 -> fieldKey = randomValueOtherThan(fieldKey, LimitRatioBySerializationTests::randomFieldKey);
             default -> throw new IllegalStateException("Should never reach here");
         }
-        return new LimitRatioBy(instance.source(), child, ratio, groupings, seriesKey);
+        return new LimitRatioBy(instance.source(), child, ratio, groupings, fieldKey);
     }
 
     @Override
@@ -57,7 +57,7 @@ public class LimitRatioBySerializationTests extends AbstractLogicalPlanSerializa
         return randomList(1, 3, () -> createFieldAttribute(0, false));
     }
 
-    private static Expression randomSeriesKey() {
+    private static Expression randomFieldKey() {
         return createFieldAttribute(0, false);
     }
 }

@@ -2498,12 +2498,12 @@ public class LocalExecutionPlanner {
         // and NaN keeps nothing, so no validation is needed here. Non-numeric and non-literal
         // ratios are rejected at analysis time.
         Layout layout = source.layout;
-        int seriesChannel = getAttributeChannel(limitRatioBy.seriesKey(), layout, "LIMIT RATIO BY series key must be an attribute");
-        DataType keyType = layout.inverse().get(seriesChannel).type();
+        int fieldChannel = getAttributeChannel(limitRatioBy.fieldKey(), layout, "LIMIT RATIO BY field key must be an attribute");
+        DataType keyType = layout.inverse().get(fieldChannel).type();
         if (PlannerUtils.toElementType(keyType) != ElementType.BYTES_REF) {
-            throw new EsqlIllegalArgumentException("LIMIT RATIO BY requires the series key to be a keyword, got [{}]", keyType);
+            throw new EsqlIllegalArgumentException("LIMIT RATIO BY requires the field key to be a keyword, got [{}]", keyType);
         }
-        return source.with(new HashRatioLimitOperator.Factory(ratioValue, seriesChannel), source.layout);
+        return source.with(new HashRatioLimitOperator.Factory(ratioValue, fieldChannel), source.layout);
     }
 
     private PhysicalOperation planMvExpand(MvExpandExec mvExpandExec, LocalExecutionPlannerContext context) {

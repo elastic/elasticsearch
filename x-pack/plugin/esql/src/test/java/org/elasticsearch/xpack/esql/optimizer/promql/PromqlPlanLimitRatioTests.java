@@ -40,14 +40,14 @@ public class PromqlPlanLimitRatioTests extends AbstractPromqlPlanOptimizerTests 
      * groups carrying no {@code _timeseries}, so the series key must be the group packing -- a real
      * column -- and never a constant (a constant key would keep or drop every group together).
      */
-    public void testLimitRatioOverAggregateUsesGroupCarriersAsSeriesKey() {
+    public void testLimitRatioOverAggregateUsesGroupCarriersAsFieldKey() {
         var plan = logicalOptimizerWithLatestVersion.optimize(
             planPromql("PROMQL index=k8s step=1h result=(limit_ratio(0.5, sum by (pod) (network.total_bytes_in{cluster=\"prod\"})))", false)
         );
 
         var node = as(plan.collect(LimitRatioBy.class).get(0), LimitRatioBy.class);
-        assertThat(node.seriesKey().foldable(), equalTo(false));
-        assertThat(node.child().output(), hasItem((Attribute) node.seriesKey()));
+        assertThat(node.fieldKey().foldable(), equalTo(false));
+        assertThat(node.child().output(), hasItem((Attribute) node.fieldKey()));
         var eval = as(node.child(), org.elasticsearch.xpack.esql.plan.logical.Eval.class);
         assertThat(eval.fields().size(), equalTo(1));
         assertThat(eval.fields().get(0).child().foldable(), equalTo(false));

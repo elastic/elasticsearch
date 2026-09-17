@@ -14,7 +14,7 @@ import org.elasticsearch.compute.data.Page;
 
 /**
  * Stateless sampling operator for {@code limit_ratio(r, v)} with Prometheus-compatible semantics:
- * each series is kept or dropped by hashing its series identity, so the kept subset is stable
+ * each row is kept or dropped by hashing its field key, so the kept subset is stable
  * across steps, runs, and shards. The keep/drop decision needs no per-group state, so unlike
  * a count-based limit this operator runs concurrently on whatever rows it receives.
  * <p>
@@ -23,7 +23,7 @@ import org.elasticsearch.compute.data.Page;
  * Out-of-range ratios need no clamping: {@code r > 1} keeps everything, {@code r < -1} keeps
  * everything via the complement branch, and NaN keeps nothing since both comparisons are false.
  * <p>
- * The hashed bytes are our internal series id, not the Prometheus label serialization, so the
+ * The hashed bytes are our internal field key, not the Prometheus label serialization, so the
  * kept subset has the same statistical properties but is generally a different subset than the
  * one Prometheus keeps.
  */
@@ -31,21 +31,21 @@ public class HashRatioLimitOperator extends AbstractPageMappingOperator {
 
     public static final class Factory implements Operator.OperatorFactory {
         private final double ratio;
-        private final int seriesChannel;
+        private final int fieldChannel;
 
-        public Factory(double ratio, int seriesChannel) {
+        public Factory(double ratio, int fieldChannel) {
             this.ratio = ratio;
-            this.seriesChannel = seriesChannel;
+            this.fieldChannel = fieldChannel;
         }
 
         @Override
         public HashRatioLimitOperator get(DriverContext driverContext) {
-            return new HashRatioLimitOperator(ratio, seriesChannel);
+            return new HashRatioLimitOperator(ratio, fieldChannel);
         }
 
         @Override
         public String describe() {
-            return "HashRatioLimitOperator[ratio=" + ratio + ", seriesChannel=" + seriesChannel + "]";
+            return "HashRatioLimitOperator[ratio=" + ratio + ", fieldChannel=" + fieldChannel + "]";
         }
     }
 
@@ -53,23 +53,23 @@ public class HashRatioLimitOperator extends AbstractPageMappingOperator {
     private static final int HASH_SEED = 0;
 
     private final double ratio;
-    private final int seriesChannel;
+    private final int fieldChannel;
 
-    public HashRatioLimitOperator(double ratio, int seriesChannel) {
+    public HashRatioLimitOperator(double ratio, int fieldChannel) {
         this.ratio = ratio;
-        this.seriesChannel = seriesChannel;
+        this.fieldChannel = fieldChannel;
     }
 
     @Override
     protected Page process(Page page) {
         try {
             int positionCount = page.getPositionCount();
-            BytesRefBlock series = page.getBlock(seriesChannel);
+            BytesRefBlock field = page.getBlock(fieldChannel);
             int acceptedCount = 0;
             int[] accepted = new int[positionCount];
             BytesRef scratch = new BytesRef();
             for (int pos = 0; pos < positionCount; pos++) {
-                if (keep(ratio, series.getBytesRef(pos, scratch))) {
+                if (keep(ratio, field.getBytesRef(pos, scratch))) {
                     accepted[acceptedCount++] = pos;
                 }
             }
@@ -86,16 +86,16 @@ public class HashRatioLimitOperator extends AbstractPageMappingOperator {
     }
 
     /**
-     * Mirrors Prometheus {@code AddRatioSampleWithOffset} with the offset derived from our series
-     * id hash instead of the Prometheus label hash.
+     * Mirrors Prometheus {@code AddRatioSampleWithOffset} with the offset derived from our field
+     * key hash instead of the Prometheus label hash.
      */
-    static boolean keep(double ratio, BytesRef seriesId) {
-        double offset = (StringHelper.murmurhash3_x86_32(seriesId, HASH_SEED) & 0xFFFFFFFFL) * 0x1p-32;
+    static boolean keep(double ratio, BytesRef fieldId) {
+        double offset = (StringHelper.murmurhash3_x86_32(fieldId, HASH_SEED) & 0xFFFFFFFFL) * 0x1p-32;
         return (ratio >= 0 && offset < ratio) || (ratio < 0 && offset >= 1.0 + ratio);
     }
 
     @Override
     public String toString() {
-        return "HashRatioLimitOperator[ratio=" + ratio + ", seriesChannel=" + seriesChannel + "]";
+        return "HashRatioLimitOperator[ratio=" + ratio + ", fieldChannel=" + fieldChannel + "]";
     }
 }

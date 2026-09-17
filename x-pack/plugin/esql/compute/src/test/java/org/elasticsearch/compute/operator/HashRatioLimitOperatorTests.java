@@ -55,12 +55,12 @@ public class HashRatioLimitOperatorTests extends OperatorTestCase {
 
     @Override
     protected Matcher<String> expectedDescriptionOfSimple() {
-        return equalTo("HashRatioLimitOperator[ratio=0.5, seriesChannel=0]");
+        return equalTo("HashRatioLimitOperator[ratio=0.5, fieldChannel=0]");
     }
 
     @Override
     protected Matcher<String> expectedToStringOfSimple() {
-        return equalTo("HashRatioLimitOperator[ratio=0.5, seriesChannel=0]");
+        return equalTo("HashRatioLimitOperator[ratio=0.5, fieldChannel=0]");
     }
 
     @Override
@@ -150,7 +150,7 @@ public class HashRatioLimitOperatorTests extends OperatorTestCase {
     }
 
     /**
-     * The kept subset depends only on the series id, so the same id is kept or dropped
+     * The kept subset depends only on the field key, so the same id is kept or dropped
      * identically on every page. This is the stability property PromQL compliance requires:
      * a series kept at one step is kept at every step.
      */

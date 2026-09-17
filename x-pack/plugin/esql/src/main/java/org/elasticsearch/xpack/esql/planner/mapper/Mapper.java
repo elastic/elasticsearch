@@ -193,7 +193,7 @@ public class Mapper {
                 mappedChild,
                 limitRatioBy.ratio(),
                 limitRatioBy.groupings(),
-                limitRatioBy.seriesKey()
+                limitRatioBy.fieldKey()
             );
         }
 

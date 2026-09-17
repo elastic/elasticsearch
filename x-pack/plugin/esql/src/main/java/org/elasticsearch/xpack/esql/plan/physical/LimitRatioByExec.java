@@ -34,13 +34,13 @@ public class LimitRatioByExec extends UnaryExec {
 
     private final Expression ratio;
     private final List<Expression> groupings;
-    private final Expression seriesKey;
+    private final Expression fieldKey;
 
-    public LimitRatioByExec(Source source, PhysicalPlan child, Expression ratio, List<Expression> groupings, Expression seriesKey) {
+    public LimitRatioByExec(Source source, PhysicalPlan child, Expression ratio, List<Expression> groupings, Expression fieldKey) {
         super(source, child);
         this.ratio = ratio;
         this.groupings = groupings;
-        this.seriesKey = seriesKey;
+        this.fieldKey = fieldKey;
     }
 
     private static LimitRatioByExec readFrom(StreamInput in) throws IOException {
@@ -48,8 +48,8 @@ public class LimitRatioByExec extends UnaryExec {
         PhysicalPlan child = in.readNamedWriteable(PhysicalPlan.class);
         Expression ratio = in.readNamedWriteable(Expression.class);
         List<Expression> groupings = in.readNamedWriteableCollectionAsList(Expression.class);
-        Expression seriesKey = in.readNamedWriteable(Expression.class);
-        return new LimitRatioByExec(source, child, ratio, groupings, seriesKey);
+        Expression fieldKey = in.readNamedWriteable(Expression.class);
+        return new LimitRatioByExec(source, child, ratio, groupings, fieldKey);
     }
 
     @Override
@@ -58,7 +58,7 @@ public class LimitRatioByExec extends UnaryExec {
         out.writeNamedWriteable(child());
         out.writeNamedWriteable(ratio());
         out.writeNamedWriteableCollection(groupings());
-        out.writeNamedWriteable(seriesKey());
+        out.writeNamedWriteable(fieldKey());
     }
 
     @Override
@@ -68,12 +68,12 @@ public class LimitRatioByExec extends UnaryExec {
 
     @Override
     protected NodeInfo<? extends LimitRatioByExec> info() {
-        return NodeInfo.create(this, LimitRatioByExec::new, child(), ratio, groupings, seriesKey);
+        return NodeInfo.create(this, LimitRatioByExec::new, child(), ratio, groupings, fieldKey);
     }
 
     @Override
     public LimitRatioByExec replaceChild(PhysicalPlan newChild) {
-        return new LimitRatioByExec(source(), newChild, ratio, groupings, seriesKey);
+        return new LimitRatioByExec(source(), newChild, ratio, groupings, fieldKey);
     }
 
     public Expression ratio() {
@@ -84,13 +84,13 @@ public class LimitRatioByExec extends UnaryExec {
         return groupings;
     }
 
-    public Expression seriesKey() {
-        return seriesKey;
+    public Expression fieldKey() {
+        return fieldKey;
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(ratio, groupings, seriesKey, child());
+        return Objects.hash(ratio, groupings, fieldKey, child());
     }
 
     @Override
@@ -104,7 +104,7 @@ public class LimitRatioByExec extends UnaryExec {
         LimitRatioByExec other = (LimitRatioByExec) obj;
         return Objects.equals(ratio, other.ratio)
             && Objects.equals(groupings, other.groupings)
-            && Objects.equals(seriesKey, other.seriesKey)
+            && Objects.equals(fieldKey, other.fieldKey)
             && Objects.equals(child(), other.child());
     }
 }

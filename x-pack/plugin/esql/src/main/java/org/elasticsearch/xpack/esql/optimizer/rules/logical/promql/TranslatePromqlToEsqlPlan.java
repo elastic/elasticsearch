@@ -487,13 +487,13 @@ public final class TranslatePromqlToEsqlPlan extends AnalyzerRules.Parameterized
         /**
          * Keeps an approximate {@code ratio} of the already-collapsed per-series rows within each step and partition.
          * Unlike the order-statistic reductions this is not a {@link TopNBy}: the kept subset is selected by hashing
-         * the series identity in {@link LimitRatioBy}, so no sort order is built.
+         * the field key in {@link LimitRatioBy}, so no sort order is built.
          */
         private LogicalPlan emitLimitRatioBy(AcrossSeriesReduction reduction, IntermediateResult table, List<String> partitions) {
             ReductionGrouping grouping = reductionGrouping(reduction, table, partitions);
             LogicalPlan plan = grouping.plan();
-            Expression seriesKey = plan.output().stream().filter(MetadataAttribute::isTimeSeriesAttribute).findFirst().orElse(null);
-            if (seriesKey == null) {
+            Expression fieldKey = plan.output().stream().filter(MetadataAttribute::isTimeSeriesAttribute).findFirst().orElse(null);
+            if (fieldKey == null) {
                 // The input was already aggregated (for example limit_ratio over sum by): its rows are groups,
                 // not series, so they carry no _timeseries. Their identity is the finest packing, which the
                 // surrounding translation also uses to tell result series apart (vector matching, roots).
@@ -501,29 +501,29 @@ public final class TranslatePromqlToEsqlPlan extends AnalyzerRules.Parameterized
                 for (Set<String> skip : finestFirst(table.header().skips())) {
                     Attribute packing = table.packed(skip);
                     if (packing != null) {
-                        seriesKey = packing;
+                        fieldKey = packing;
                         break;
                     }
                 }
             }
-            if (seriesKey == null) {
+            if (fieldKey == null) {
                 // No packing either (for example limit_ratio over an ungrouped sum): synthesize a stable
                 // per-row identity from the input's grouping carriers instead; with no carriers every row
                 // shares one identity, so the whole single-series result is kept or dropped
                 // deterministically, like Prometheus hashing the empty label set.
-                Alias key = new Alias(reduction.source(), SERIES_KEY_ATTRIBUTE, seriesKeyValue(reduction.source(), table));
+                Alias key = new Alias(reduction.source(), FIELD_KEY_ATTRIBUTE, fieldKeyValue(reduction.source(), table));
                 plan = new Eval(cmd.source(), plan, List.of(key));
-                seriesKey = key.toAttribute();
+                fieldKey = key.toAttribute();
             }
-            return new LimitRatioBy(reduction.source(), plan, reduction.parameters().getFirst(), grouping.groupings(), seriesKey);
+            return new LimitRatioBy(reduction.source(), plan, reduction.parameters().getFirst(), grouping.groupings(), fieldKey);
         }
 
         /**
-         * Internal-only name for the synthesized {@link LimitRatioBy} series identity. It must not match
+         * Internal-only name for the synthesized {@link LimitRatioBy} field key. It must not match
          * {@code _timeseries}: a fake packed column would change vector-matching and output handling downstream,
          * while this key is only ever hashed locally by the ratio filter.
          */
-        private static final String SERIES_KEY_ATTRIBUTE = "$$series_key";
+        private static final String FIELD_KEY_ATTRIBUTE = "$$field_key";
 
         /**
          * A stable per-row identity over the input table's own grain labels, mirroring {@code label_join}
@@ -533,7 +533,7 @@ public final class TranslatePromqlToEsqlPlan extends AnalyzerRules.Parameterized
          * reduction is bare. With no labels every row shares one identity, so the whole single-series
          * result is kept or dropped deterministically, like Prometheus hashing the empty label set.
          */
-        private Expression seriesKeyValue(Source source, IntermediateResult table) {
+        private Expression fieldKeyValue(Source source, IntermediateResult table) {
             List<Expression> parts = new ArrayList<>();
             Literal separator = Literal.keyword(source, "|");
             for (String label : table.header().labels()) {

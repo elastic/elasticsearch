@@ -1,7 +1,7 @@
 // Tests for the PromQL limit_ratio() function.
 //
 // limit_ratio(r, v) keeps each series iff its sampling offset is below r, like Prometheus.
-// The offset is derived from a hash of the series identity, so the kept subset is stable
+// The offset is derived from a hash of the field key, so the kept subset is stable
 // across steps, runs, and shards: a series kept at one step is kept at every step.
 // The absolute value of r selects the share; a negative r inverts the selection, keeping
 // offsets at or above 1 + r. So keeps(-x) is exactly the complement of keeps(1-x): the
@@ -9,10 +9,10 @@
 // Out-of-range ratios need no clamping (r > 1 and r < -1 keep everything), r=0 keeps nothing,
 // and NaN is rejected.
 //
-// The hashed bytes are our internal series id, not the Prometheus label serialization, so the
+// The hashed bytes are our internal field key, not the Prometheus label serialization, so the
 // exact kept subset below is implementation-defined; what matters is that it is stable and that
 // the negative pair partitions the input exactly. Over an aggregated input (limit_ratio over
-// sum by) rows are groups rather than series, so the identity is synthesized from the grouping
+// sum by) rows are groups rather than series, so the field key is synthesized from the grouping
 // values.
 //
 // The k8s prod cluster has three pods: pod=one (947), pod=two (10277), pod=three (9969).

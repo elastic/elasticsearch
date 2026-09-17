@@ -18,7 +18,6 @@ import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.core.type.EsField;
 import org.elasticsearch.xpack.esql.datasources.DeclaredReadSpec;
-import org.elasticsearch.xpack.esql.datasources.FormatNameResolver;
 import org.elasticsearch.xpack.esql.datasources.FormatReaderRegistry;
 import org.elasticsearch.xpack.esql.datasources.spi.ErrorPolicy;
 import org.elasticsearch.xpack.esql.datasources.spi.FilterPushdownSupport;
@@ -44,21 +43,36 @@ import java.util.Set;
 import static org.hamcrest.Matchers.instanceOf;
 
 /**
- * Verifies that {@link PushFiltersToSource#resolveFormatName} delegates to
- * {@link FormatNameResolver#resolve}. Comprehensive resolution tests live in
+ * Filter pushdown onto an {@link ExternalSourceExec} keys the reader on {@code sourceType}, not a last-dot
+ * of {@code sourcePath()}. Comprehensive format-name resolution tests live in
  * {@link org.elasticsearch.xpack.esql.datasources.FormatNameResolverTests}.
  */
 public class PushFiltersToSourceTests extends ESTestCase {
 
-    public void testResolveFormatNameDelegatesToFormatNameResolver() {
-        assertEquals(
-            FormatNameResolver.resolve(Map.of("reader", "java"), "file.parquet"),
-            PushFiltersToSource.resolveFormatName(Map.of("reader", "java"), "file.parquet")
-        );
+    /**
+     * A compressed CSV path last-dots to {@code gz}. The plan's {@code sourceType} is still {@code csv}, so
+     * pushdown must look up the csv reader — the same origin as {@code InsertExternalFieldExtraction}.
+     */
+    public void testPushesCompressedCsvUsingSourceTypeNotPathSuffix() {
+        FilterExec filterExec = filterOverExternalSource("file:///hits.csv.gz", "csv", "null_field", Set.of());
+
+        PhysicalPlan result = applyRule(filterExec, registry(true));
+
+        assertThat(result, instanceOf(ExternalSourceExec.class));
+        assertNotNull(((ExternalSourceExec) result).pushedFilter());
     }
 
-    public void testResolveFormatNameFromExtension() {
-        assertEquals("orc", PushFiltersToSource.resolveFormatName(null, "s3://bucket/data/file.orc"));
+    /**
+     * {@code sourceType=parquet} still pushes when the path uses the {@code .parq} alias. The rule keys
+     * the reader on {@code sourceType}, not a last-dot of {@code sourcePath()}.
+     */
+    public void testPushesParquetSourceTypeForParqAliasPaths() {
+        for (String path : List.of("file:///data/*.parq", "file:///data/file.parq")) {
+            FilterExec filterExec = filterOverExternalSource(path, "parquet", "null_field", Set.of());
+            PhysicalPlan result = applyRule(filterExec, registry(true));
+            assertThat(path, result, instanceOf(ExternalSourceExec.class));
+            assertNotNull(path, ((ExternalSourceExec) result).pushedFilter());
+        }
     }
 
     // -- referencesAnyColumn: partition/data conjunct split --
@@ -113,6 +127,16 @@ public class PushFiltersToSourceTests extends ESTestCase {
         assertSame("the filter must stay above the source, unpushed", filterExec, result);
     }
 
+    /**
+     * The stub above reaches {@code false} by saying nothing, which is the point: the SPI default is the conservative
+     * answer, so a reader written without a thought for {@code skip_row} loses the pushdown rather than the row-drop.
+     * Pinned separately from the rule so a flip of the default is a failure here and not only a silent correctness
+     * regression in whichever reader forgot to opt out.
+     */
+    public void testReaderSilentAboutRowDropTakesTheConservativeDefault() {
+        assertFalse(new StubReader().dropsRowsUnderPushedFilter());
+    }
+
     /** The same read on a reader that does drop rows on its filtered path (ORC) keeps the pushdown. */
     public void testPushesWhenReaderDropsRowsUnderPushedFilter() {
         FilterExec filterExec = filterOverExternalSource("skip_row", Set.of("salary"));
@@ -155,11 +179,20 @@ public class PushFiltersToSourceTests extends ESTestCase {
     }
 
     private static FilterExec filterOverExternalSource(String errorMode, Set<String> declaredTypeColumns) {
+        return filterOverExternalSource("file:///test.parquet", "parquet", errorMode, declaredTypeColumns);
+    }
+
+    private static FilterExec filterOverExternalSource(
+        String sourcePath,
+        String sourceType,
+        String errorMode,
+        Set<String> declaredTypeColumns
+    ) {
         FieldAttribute salary = fieldAttr("salary");
         ExternalSourceExec source = new ExternalSourceExec(
             SRC,
-            "file:///test.parquet",
-            "parquet",
+            sourcePath,
+            sourceType,
             List.of(salary),
             Map.of(ErrorPolicy.CONFIG_ERROR_MODE, errorMode),
             Map.of(),
@@ -183,27 +216,21 @@ public class PushFiltersToSourceTests extends ESTestCase {
 
     private static FormatReaderRegistry registry(boolean dropsRowsUnderPushedFilter) {
         FormatReaderRegistry registry = new FormatReaderRegistry(null);
-        registry.registerLazy("parquet", (settings, blockFactory) -> new StubReader(dropsRowsUnderPushedFilter), null, null);
+        FormatReader parquet = dropsRowsUnderPushedFilter ? new DroppingStubReader() : new StubReader();
+        registry.registerLazy("parquet", (settings, blockFactory) -> parquet, null, null);
+        // csv is registered so a compressed csv sourceType still finds a pushdown-capable reader.
+        registry.registerLazy("csv", (settings, blockFactory) -> new DroppingStubReader(), null, null);
         return registry;
     }
 
     /**
      * Reader stub whose only interesting behaviour is the pair the rule consults: it always offers pushdown (via a
-     * support object that swallows every conjunct) and answers {@link FormatReader#dropsRowsUnderPushedFilter()} as
-     * configured. The remaining {@link NoConfigFormatReader} methods stay unimplemented so accidental use during a
-     * rule pass is loud.
+     * support object that swallows every conjunct) and says nothing at all about
+     * {@link FormatReader#dropsRowsUnderPushedFilter()} — the shape a newly written reader has, so it takes the SPI
+     * default. The remaining {@link NoConfigFormatReader} methods stay unimplemented so accidental use during a rule
+     * pass is loud.
      */
-    private static final class StubReader implements NoConfigFormatReader {
-        private final boolean dropsRows;
-
-        StubReader(boolean dropsRows) {
-            this.dropsRows = dropsRows;
-        }
-
-        @Override
-        public boolean dropsRowsUnderPushedFilter() {
-            return dropsRows;
-        }
+    private static class StubReader implements NoConfigFormatReader {
 
         @Override
         public FilterPushdownSupport filterPushdownSupport() {
@@ -237,5 +264,13 @@ public class PushFiltersToSourceTests extends ESTestCase {
 
         @Override
         public void close() {}
+    }
+
+    /** The opt-in half: a reader that does declare the row-drop on its filtered path, as ORC does. */
+    private static final class DroppingStubReader extends StubReader {
+        @Override
+        public boolean dropsRowsUnderPushedFilter() {
+            return true;
+        }
     }
 }

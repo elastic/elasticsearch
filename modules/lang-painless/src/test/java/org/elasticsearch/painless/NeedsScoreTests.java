@@ -36,7 +36,7 @@ public class NeedsScoreTests extends ESSingleNodeTestCase {
 
         Map<ScriptContext<?>, List<Whitelist>> contexts = new HashMap<>();
         contexts.put(NumberSortScript.CONTEXT, PAINLESS_BASE_WHITELIST);
-        PainlessScriptEngine service = new PainlessScriptEngine(Settings.EMPTY, contexts);
+        PainlessScriptEngine service = new PainlessScriptEngine(Settings.EMPTY, contexts, () -> null, false);
 
         SearchExecutionContext searchExecutionContext = index.newSearchExecutionContext(0, 0, null, () -> 0, null, emptyMap(), null, null);
 

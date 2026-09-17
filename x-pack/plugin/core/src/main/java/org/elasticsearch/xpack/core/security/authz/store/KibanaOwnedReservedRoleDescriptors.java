@@ -278,6 +278,13 @@ class KibanaOwnedReservedRoleDescriptors {
                     )
                     .privileges("all")
                     .build(),
+                // Used in Security Solution for the threat intel supply pipeline.
+                // Kibana user creates this index, reads / writes to it, and maintains the
+                // per-space filtered aliases that Indicator Match rules read.
+                RoleDescriptor.IndicesPrivileges.builder()
+                    .indices(ReservedRolesStore.THREAT_INTEL_INDICATORS_INDEX)
+                    .privileges("all")
+                    .build(),
                 // "Alerts as data" internal backing indices used in Security Solution,
                 // Observability, etc.
                 // Kibana system user creates these indices; reads / writes to them via the
@@ -762,7 +769,7 @@ class KibanaOwnedReservedRoleDescriptors {
                 // Context Engine's SML storage. A regular (non-system) index that Kibana
                 // creates and manages itself at startup, including its alias.
                 RoleDescriptor.IndicesPrivileges.builder()
-                    .indices("ai-index-idx-sml-data", "ai-index-idx-sml-data-*")
+                    .indices(".ai-index-idx-elastic-index", ".ai-index-idx-elastic-index-*")
                     .privileges("all")
                     .build(),
                 // Context Engine feedback-loop signals. Per-space, regular (non-system)

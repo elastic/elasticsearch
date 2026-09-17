@@ -21,7 +21,9 @@ import java.util.List;
  * <p>
  * Distributes when the plan contains pipeline breakers (aggregations, TopN)
  * and there are multiple splits, or when the split count exceeds the number
- * of eligible nodes. Stays on the coordinator for single splits or LIMIT-only plans.
+ * of eligible remote workers. Stays on the coordinator for single splits or LIMIT-only plans.
+ * An empty eligible-worker set -- including an index-only cluster -- returns {@code LOCAL}
+ * so the coordinator runs the scan itself.
  */
 public final class AdaptiveStrategy implements ExternalDistributionStrategy {
 
@@ -35,7 +37,7 @@ public final class AdaptiveStrategy implements ExternalDistributionStrategy {
     }
 
     public AdaptiveStrategy() {
-        this(NodeEligibilityStrategy.DATA_NODES_ONLY);
+        this(NodeEligibilityStrategy.EXTERNAL_WORKER_NODES);
     }
 
     @Override
@@ -62,7 +64,8 @@ public final class AdaptiveStrategy implements ExternalDistributionStrategy {
         if (hasPipelineBreaker || manySplits) {
             boolean allHaveSize = true;
             for (ExternalSplit split : splits) {
-                if (split.estimatedSizeInBytes() <= 0) {
+                // Unknown size is negative. Zero is an empty file; it still has open cost.
+                if (split.estimatedSizeInBytes() < 0) {
                     allHaveSize = false;
                     break;
                 }

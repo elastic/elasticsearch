@@ -23,7 +23,6 @@ import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xpack.esql.plan.logical.UnmappedFieldsPattern;
 
 import java.io.IOException;
-import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
@@ -35,7 +34,8 @@ import static org.hamcrest.Matchers.nullValue;
 /**
  * Tests that {@link UnmappedFieldsBlockLoader} reads {@code _source} and keeps only the top-level keys
  * selected by its {@link UnmappedFieldsPattern}, dropping everything else: the mapped fields (which the
- * analyzer adds to the pattern's excludes) and any key that does not match the includes.
+ * analyzer adds to the pattern's excludes), any key that does not match the includes, and any key whose
+ * value carries no information for the coordinator to turn into a column.
  */
 public class UnmappedFieldsBlockLoaderTests extends ESTestCase {
 
@@ -43,79 +43,156 @@ public class UnmappedFieldsBlockLoaderTests extends ESTestCase {
     private static final double RESERVATION_FACTOR = 4;
 
     public void testFiltersOutMappedFieldsKeepingUnmappedSourceKeys() throws IOException {
-        Map<String, Object> filtered = load(
-            UnmappedFieldsPattern.excludes(List.of("emp_no", "first_name")),
-            Map.of("emp_no", 1, "first_name", "John", "first_pet", "Rex", "hobby", "chess")
-        );
+        Map<String, Object> filtered = load(UnmappedFieldsPattern.excludes(List.of("emp_no", "first_name")), """
+            { "emp_no": 1, "first_name": "John", "first_pet": "Rex", "hobby": "chess" }""");
         assertMap(filtered, matchesMap().entry("first_pet", "Rex").entry("hobby", "chess"));
     }
 
     public void testIncludeWildcardSelectsMatchingSourceKeys() throws IOException {
-        Map<String, Object> filtered = load(
-            UnmappedFieldsPattern.includes(List.of("first*")),
-            Map.of("first_name", "John", "first_pet", "Rex", "last_name", "Doe", "age", 30)
-        );
+        Map<String, Object> filtered = load(UnmappedFieldsPattern.includes(List.of("first*")), """
+            { "first_name": "John", "first_pet": "Rex", "last_name": "Doe", "age": 30 }""");
         assertMap(filtered, matchesMap().entry("first_name", "John").entry("first_pet", "Rex"));
     }
 
     public void testIncludeWildcardWithExcludeRemovesMatchingKey() throws IOException {
         Map<String, Object> filtered = load(
             UnmappedFieldsPattern.includes(List.of("first*")).withAdditionalExcludes(List.of("first_name")),
-            Map.of("first_name", "John", "first_pet", "Rex", "first_toy", "ball", "last_name", "Doe")
+            """
+                { "first_name": "John", "first_pet": "Rex", "first_toy": "ball", "last_name": "Doe" }"""
         );
         assertMap(filtered, matchesMap().entry("first_pet", "Rex").entry("first_toy", "ball"));
     }
 
     public void testSingleIncludeGroupUsesOrSemantics() throws IOException {
-        Map<String, Object> filtered = load(
-            UnmappedFieldsPattern.includes(List.of("first_name*", "salary_bonus*")),
-            Map.of("first_name_suffix", "Jr", "salary_bonus", 100, "first_pet", "Rex", "last_name", "Doe")
-        );
+        Map<String, Object> filtered = load(UnmappedFieldsPattern.includes(List.of("first_name*", "salary_bonus*")), """
+            { "first_name_suffix": "Jr", "salary_bonus": 100, "first_pet": "Rex", "last_name": "Doe" }""");
         assertMap(filtered, matchesMap().entry("first_name_suffix", "Jr").entry("salary_bonus", 100));
     }
 
     public void testMultipleIncludeGroupsRequireEachGroupToMatch() throws IOException {
         Map<String, Object> filtered = load(
             UnmappedFieldsPattern.includes(List.of("first*")).intersect(UnmappedFieldsPattern.includes(List.of("first_name*"))),
-            Map.of("first_name_suffix", "Jr", "first_pet", "Rex", "first_grade", "A", "last_name", "Doe")
+            """
+                { "first_name_suffix": "Jr", "first_pet": "Rex", "first_grade": "A", "last_name": "Doe" }"""
         );
         assertMap(filtered, matchesMap().entry("first_name_suffix", "Jr"));
     }
 
     public void testExcludePatternRemovesMatchingSourceKeys() throws IOException {
-        Map<String, Object> filtered = load(
-            UnmappedFieldsPattern.excludes(List.of("secret*")),
-            Map.of("secret_key", "abc", "secret_token", "xyz", "public_note", "hello")
-        );
+        Map<String, Object> filtered = load(UnmappedFieldsPattern.excludes(List.of("secret*")), """
+            { "secret_key": "abc", "secret_token": "xyz", "public_note": "hello" }""");
         assertMap(filtered, matchesMap().entry("public_note", "hello"));
     }
 
     public void testNestedSourceValuesArePreserved() throws IOException {
-        Map<String, Object> filtered = load(
-            UnmappedFieldsPattern.excludes(List.of("first_name")),
-            Map.of("address", Map.of("city", "Berlin", "zip", "10115"), "tags", List.of("a", "b"), "first_name", "John")
-        );
+        Map<String, Object> filtered = load(UnmappedFieldsPattern.excludes(List.of("first_name")), """
+            { "address": { "city": "Berlin", "zip": "10115" }, "tags": [ "a", "b" ], "first_name": "John" }""");
         assertMap(filtered, matchesMap().entry("address", Map.of("city", "Berlin", "zip", "10115")).entry("tags", List.of("a", "b")));
     }
 
+    public void testScalarArrayShipsUnderRestrictiveIncludeGroup() throws IOException {
+        Map<String, Object> filtered = load(UnmappedFieldsPattern.includes(List.of("tags*")), """
+            { "tags": [ "a", "b" ], "other": "x" }""");
+        assertMap(filtered, matchesMap().entry("tags", List.of("a", "b")));
+
+        Map<String, Object> dotted = load(UnmappedFieldsPattern.includes(List.of("tags.*")), """
+            { "tags": [ "a", "b" ], "other": "x" }""");
+        assertMap(dotted, matchesMap().entry("tags", List.of("a", "b")));
+    }
+
+    public void testObjectShipsWhenOnlyItsDescendantsCanMatch() throws IOException {
+        Map<String, Object> filtered = load(UnmappedFieldsPattern.includes(List.of("address.*")), """
+            { "address": { "city": "Berlin" }, "other": "x" }""");
+        assertMap(filtered, matchesMap().entry("address", Map.of("city", "Berlin")));
+    }
+
+    /** Same pattern and key as above, but a scalar is gated on the strict {@code matches} rather than shipping leniently. */
+    public void testScalarUnderTheSamePatternIsGatedStrictly() throws IOException {
+        assertThat(load(UnmappedFieldsPattern.includes(List.of("address.*")), """
+            { "address": "scalar" }"""), nullValue());
+    }
+
     public void testNonePatternEmitsNull() throws IOException {
-        assertThat(load(UnmappedFieldsPattern.NONE, Map.of("a", "1", "b", "2")), nullValue());
+        assertThat(load(UnmappedFieldsPattern.NONE, """
+            { "a": "1", "b": "2" }"""), nullValue());
     }
 
     public void testActivePatternMatchingNothingEmitsNull() throws IOException {
-        assertThat(load(UnmappedFieldsPattern.includes(List.of("nomatch*")), Map.of("first_name", "John", "hobby", "chess")), nullValue());
+        assertThat(load(UnmappedFieldsPattern.includes(List.of("nomatch*")), """
+            { "first_name": "John", "hobby": "chess" }"""), nullValue());
     }
 
     public void testEmptySourceEmitsNull() throws IOException {
-        assertThat(load(UnmappedFieldsPattern.ALL, Map.of()), nullValue());
+        assertThat(load(UnmappedFieldsPattern.ALL, "{}"), nullValue());
     }
 
-    public void testNullSourceValueIsKeptNotDropped() throws IOException {
-        Map<String, Object> source = new HashMap<>();
-        source.put("first_pet", null);
-        source.put("hobby", "chess");
-        Map<String, Object> filtered = load(UnmappedFieldsPattern.ALL, source);
-        assertMap(filtered, matchesMap().entry("first_pet", nullValue()).entry("hobby", "chess"));
+    /**
+     * A key whose value is null, an empty array or an array of nulls says as little about the field as omitting the key would, so it
+     * is not worth a trip to the coordinator - where it would earn the field an output column that is null in every row.
+     */
+    public void testValuelessSourceValuesAreDropped() throws IOException {
+        Map<String, Object> filtered = load(UnmappedFieldsPattern.ALL, """
+            {
+              "null_value": null,
+              "empty_array": [],
+              "array_of_null": [ null ],
+              "nested_emptiness": [ [ null ], [] ],
+              "hobby": "chess"
+            }""");
+        assertMap(filtered, matchesMap().entry("hobby", "chess"));
+    }
+
+    /**
+     * Objects are not expanded into columns of their own, but a nully object still says nothing about the field it sits under, so it
+     * must not keep that field's column alive either - not even through a leaf buried inside it, which would not be mapped anyway.
+     */
+    public void testValuelessSourceObjectsAreDropped() throws IOException {
+        Map<String, Object> filtered = load(UnmappedFieldsPattern.ALL, """
+            {
+              "empty_object": {},
+              "object_of_nully_leaves": { "baz": [ null ], "inga": {} },
+              "array_of_nully_objects": [ { "foo": [ null ] }, { "bar": [] } ],
+              "hobby": "chess"
+            }""");
+        assertMap(filtered, matchesMap().entry("hobby", "chess"));
+    }
+
+    /** An object with anything at all in it is kept, but only the parts of it that say something survive. */
+    public void testSourceObjectWithAValueKeepsOnlyThatValue() throws IOException {
+        Map<String, Object> filtered = load(UnmappedFieldsPattern.ALL, """
+            { "extra": { "baz": "world", "empty": [], "null_leaf": null } }""");
+        assertMap(filtered, matchesMap().entry("extra", matchesMap().entry("baz", "world")));
+    }
+
+    public void testOnlyValuelessSourceValuesEmitsNull() throws IOException {
+        assertThat(load(UnmappedFieldsPattern.ALL, """
+            { "first_pet": null, "tags": [], "address": { "city": [] } }"""), nullValue());
+    }
+
+    /**
+     * One real element makes an array worth keeping, but the nulls around it are not: were the field mapped, the array would have
+     * become a multi-value, and multi-values never contain nulls.
+     */
+    public void testNullsAreStrippedFromKeptArrays() throws IOException {
+        Map<String, Object> filtered = load(UnmappedFieldsPattern.ALL, """
+            { "tags": [ null, "a", null, "b" ] }""");
+        assertMap(filtered, matchesMap().entry("tags", List.of("a", "b")));
+    }
+
+    public void testNullsAreStrippedFromNestedArraysAndObjects() throws IOException {
+        Map<String, Object> filtered = load(UnmappedFieldsPattern.ALL, """
+            { "tags": [ null, [ "b", null ], [], { "keep": "me", "drop": [] } ] }""");
+        assertMap(filtered, matchesMap().entry("tags", List.of(List.of("b"), Map.of("keep", "me"))));
+    }
+
+    /** Nothing to prune means nothing to rebuild: the loader hands the value straight through, untouched. */
+    public void testValuesWithoutNullsPassThroughUnchanged() throws IOException {
+        Map<String, Object> filtered = load(UnmappedFieldsPattern.ALL, """
+            { "tags": [ "a", "b" ], "address": { "city": "Berlin", "zips": [ "10115" ] } }""");
+        assertMap(
+            filtered,
+            matchesMap().entry("tags", List.of("a", "b")).entry("address", Map.of("city", "Berlin", "zips", List.of("10115")))
+        );
     }
 
     public void testReaderToStringIsDistinctFromLoader() throws IOException {
@@ -158,7 +235,8 @@ public class UnmappedFieldsBlockLoaderTests extends ESTestCase {
 
     public void testReaderUnderCrankyBreakerDoesNotLeak() throws IOException {
         UnmappedFieldsBlockLoader loader = loader(UnmappedFieldsPattern.ALL);
-        Source source = Source.fromMap(Map.of("a", "b", "c", "d"), XContentType.JSON);
+        Source source = Source.fromBytes(new BytesArray("""
+            { "a": "b", "c": "d" }"""), XContentType.JSON);
         var cranky = new CrankyCircuitBreakerService.CrankyCircuitBreaker();
         for (int attempt = 0; attempt < 2000; attempt++) {
             try (BlockLoader.RowStrideReader reader = loader.rowStrideReader(cranky, null)) {
@@ -176,15 +254,15 @@ public class UnmappedFieldsBlockLoaderTests extends ESTestCase {
     }
 
     /**
-     * Runs the block loader over a single document whose {@code _source} is {@code sourceMap} and returns the emitted
+     * Runs the block loader over a single document whose {@code _source} is {@code sourceJson} and returns the emitted
      * JSON parsed back into a map, or {@code null} if the loader emitted a null because no key matched the pattern.
      * {@code convertToMap} returns a (content-type, map) tuple, so {@code v2()} is the map.
      */
-    private static Map<String, Object> load(UnmappedFieldsPattern pattern, Map<String, Object> sourceMap) throws IOException {
+    private static Map<String, Object> load(UnmappedFieldsPattern pattern, String sourceJson) throws IOException {
         UnmappedFieldsBlockLoader loader = loader(pattern);
         try (BlockLoader.RowStrideReader reader = loader.rowStrideReader(newLimitedBreaker(ByteSizeValue.ofMb(1)), null)) {
             BlockLoader.Builder builder = loader.builder(TestBlock.factory(), 1);
-            reader.read(0, storedFields(Source.fromMap(sourceMap, XContentType.JSON)), builder);
+            reader.read(0, storedFields(Source.fromBytes(new BytesArray(sourceJson), XContentType.JSON)), builder);
             BytesRef json = (BytesRef) ((TestBlock) builder.build()).get(0);
             if (json == null) {
                 return null;

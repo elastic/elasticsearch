@@ -1062,6 +1062,25 @@ book_no:keyword | title:text
 2301            | Smith of Wootton Major & Farmer Giles of Ham
 ;
 
+// Same window as matchOnRuntimeText, but the LIMIT runs first: it drops 2301, which the unrestricted filter matches.
+matchOnRuntimeTextAfterLimit
+
+required_capability: match_operator_colon
+required_capability: fn_match_runtime_anywhere
+
+FROM books
+| SORT book_no
+| LIMIT 6
+| EVAL content = to_text(concat(title, " ", description))
+| WHERE content:"Tolkien"
+| KEEP book_no, title
+;
+
+book_no:keyword | title:text
+1463            | Realms of Tolkien: Images of Middle-earth
+2130            | The J. R. R. Tolkien Audio Collection
+;
+
 matchOnRuntimeTextAndIndexedField
 
 required_capability: match_operator_colon
@@ -1814,6 +1833,41 @@ book_no:keyword | title:text
 2301            | Smith of Wootton Major & Farmer Giles of Ham
 ;
 
+matchOperatorOnToTextOverIndexedKeywordField
+required_capability: match_operator_colon
+required_capability: fn_match_to_text_on_indexed_field_fix
+required_capability: match_operator_lhs_expression
+
+FROM books
+| WHERE TO_TEXT(author.keyword):"faulkner"
+| KEEP book_no, author
+| SORT book_no
+| LIMIT 5
+;
+
+book_no:keyword | author:text
+2378            | [Carol Faulkner, Holly Byers Ochoa, Lucretia Mott]
+2713            | William Faulkner
+2847            | Colleen Faulkner
+2883            | William Faulkner
+3293            | Danny Faulkner
+;
+
+matchOperatorOnToStringOverIndexedTextField
+required_capability: match_operator_colon
+required_capability: fn_match_to_string_on_indexed_field_fix
+required_capability: match_operator_lhs_expression
+
+// Mirror-image bug, exercised through the : operator form: TO_STRING over a normal text field (author) must be
+// matched as exact, unanalyzed keyword text - "Faulkner" is never the whole value of any author.
+FROM books
+| WHERE TO_STRING(author):"Faulkner"
+| KEEP book_no, author
+;
+
+book_no:keyword | author:text
+;
+
 matchOperatorFunctionOnLhsConstantFolded
 required_capability: match_operator_colon
 required_capability: fn_match_runtime_filter
@@ -1838,4 +1892,95 @@ ROW a = "Anneke", b = "Preusig"
 
 a:keyword | b:keyword
 Anneke    | Preusig
+;
+
+matchOperatorAfterInlineStats
+required_capability: match_operator_colon
+required_capability: full_text_functions_after_inline_stats
+
+FROM books
+| INLINE STATS max_year = MAX(year)
+| WHERE author:"Faulkner"
+| KEEP book_no, max_year
+| SORT book_no
+;
+
+book_no:keyword | max_year:integer
+2378            | 2022
+2713            | 2022
+2847            | 2022
+2883            | 2022
+3293            | 2022
+3535            | 2022
+3870            | 2022
+4502            | 2022
+4724            | 2022
+4977            | 2022
+5119            | 2022
+5404            | 2022
+5578            | 2022
+6151            | 2022
+7381            | 2022
+8077            | 2022
+8423            | 2022
+9896            | 2022
+;
+
+matchOperatorAfterGroupedInlineStats
+required_capability: match_operator_colon
+required_capability: full_text_functions_after_inline_stats
+
+FROM books
+| INLINE STATS max_year_for_publisher = MAX(year) BY publisher
+| WHERE author:"Faulkner" AND max_year_for_publisher >= 2000
+| KEEP book_no, year, publisher, max_year_for_publisher
+| SORT book_no
+;
+
+book_no:keyword | year:integer | publisher:text               | max_year_for_publisher:integer
+2378            | 2002         | University of Illinois Press | 2002
+2713            | 1995         | Vintage                      | 2011
+2883            | 2005         | Vintage Books                | 2005
+3293            | 2004         | New Leaf Publishing Group    | 2004
+3535            | 2003         | Barrons Juveniles            | 2003
+4724            | 2011         | Vintage                      | 2011
+4977            | 2011         | Vintage                      | 2011
+5119            | 2011         | Vintage                      | 2011
+5404            | 2011         | Vintage                      | 2011
+5578            | 1991         | Vintage                      | 2011
+6151            | 2003         | Dutton Childrens Books       | 2003
+7381            | 2003         | Red Wheel/Weiser             | 2003
+8077            | 2011         | Vintage                      | 2011
+;
+
+matchOperatorNotPushableAfterInlineStats
+required_capability: match_operator_colon
+required_capability: full_text_functions_after_inline_stats
+
+FROM books
+| INLINE STATS max_year = MAX(year)
+| WHERE author:"Faulkner" OR LENGTH(title) < 5
+| KEEP book_no, max_year
+| SORT book_no
+;
+
+book_no:keyword | max_year:integer
+2378            | 2022
+2713            | 2022
+2847            | 2022
+2883            | 2022
+3293            | 2022
+3535            | 2022
+3870            | 2022
+4502            | 2022
+4724            | 2022
+4977            | 2022
+5119            | 2022
+5404            | 2022
+5578            | 2022
+6151            | 2022
+7381            | 2022
+8077            | 2022
+8423            | 2022
+9896            | 2022
 ;

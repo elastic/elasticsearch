@@ -22,19 +22,48 @@ import static org.hamcrest.Matchers.not;
 public class AllocationDisabledBytecodeTests extends ScriptTestCase {
 
     private static String bytecode(String source, long maxAllocationBytes) {
+        return bytecode(source, maxAllocationBytes, false);
+    }
+
+    private static String bytecode(String source, long maxAllocationBytes, boolean allocationMetricsEnabled) {
         CompilerSettings settings = new CompilerSettings();
         settings.setMaxAllocationBytes(maxAllocationBytes);
+        settings.setAllocationMetricsEnabled(allocationMetricsEnabled);
         return Debugger.toString(PainlessTestScript.class, source, settings, PAINLESS_BASE_WHITELIST);
     }
 
     public void testNoCounterBytecodeWhenDisabled() {
-        // A script with an allocation site must still be bit-clean of tracking bytecode when the limit is off.
+        // "Disabled" now means neither the limit nor metrics; either one alone enables the counter.
         String asm = bytecode("int[] a = new int[] {1, 2, 3}; return 1;", -1L);
         assertThat(asm, not(containsString("$allocBytes")));
         assertThat(asm, not(containsString("$incAllocBytes")));
         assertThat(asm, not(containsString("getAllocBytes")));
         assertThat(asm, not(containsString("$checkAllocBytes")));
         assertThat(asm, not(containsString("AllocationGuard")));
+        assertThat(asm, not(containsString("recordExecutionAllocation")));
+    }
+
+    public void testMetricsAloneEnableTheCounterWithoutTheLimitPath() {
+        // Metrics-only emits the counter and the record, but nothing can fail the script, so no breach helper.
+        String asm = bytecode("int[] a = new int[] {1, 2, 3}; return 1;", -1L, true);
+        assertThat(asm, containsString("$allocBytes"));
+        assertThat(asm, containsString("$checkAllocBytes"));
+        assertThat(asm, containsString("recordExecutionAllocation"));
+        assertThat(asm, not(containsString("allocationLimitExceeded")));
+    }
+
+    public void testLimitAloneEmitsNoRecordingCall() {
+        // Enforcement-only keeps the pre-existing shape: no metrics call on the return path.
+        String asm = bytecode("int[] a = new int[] {1, 2, 3}; return 1;", 1024L);
+        assertThat(asm, containsString("$allocBytes"));
+        assertThat(asm, containsString("allocationLimitExceeded"));
+        assertThat(asm, not(containsString("recordExecutionAllocation")));
+    }
+
+    public void testBothEmitEnforcementAndRecording() {
+        String asm = bytecode("int[] a = new int[] {1, 2, 3}; return 1;", 1024L, true);
+        assertThat(asm, containsString("allocationLimitExceeded"));
+        assertThat(asm, containsString("recordExecutionAllocation"));
     }
 
     public void testCounterBytecodePresentWhenEnabled() {

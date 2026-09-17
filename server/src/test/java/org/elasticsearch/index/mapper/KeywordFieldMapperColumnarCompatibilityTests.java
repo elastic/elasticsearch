@@ -9,6 +9,8 @@
 
 package org.elasticsearch.index.mapper;
 
+import org.apache.lucene.index.DocValuesType;
+import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.IndexMode;
@@ -17,6 +19,7 @@ import org.elasticsearch.index.codec.columnar.ColumnarDocValuesFormatSelector;
 import org.elasticsearch.indices.recovery.RecoverySettings;
 
 import java.io.IOException;
+import java.util.List;
 
 /**
  * Parity tests for {@link KeywordFieldMapper#mapColumnBatch} against the row path.
@@ -26,6 +29,37 @@ import java.io.IOException;
 public class KeywordFieldMapperColumnarCompatibilityTests extends AbstractColumnarMapperCompatibilityTestCase {
 
     private static final String FIELD = "f";
+
+    /**
+     * Extends the base equality check with:
+     * <ul>
+     *   <li>An explicit doc-values-type assertion for {@code FIELD}: when {@code expected} produces a
+     *       non-NONE doc-values type, this asserts that {@code actual} matches it as a named assertion
+     *       rather than buried in the full set diff.</li>
+     *   <li>Exclusion of {@code _id} from comparison in TSDB scenarios (detected by the presence of
+     *       {@code _tsid} in {@code expected}): the columnar path splits {@code _id} into a DV column
+     *       and a separate TokenStreamColumn while the row path combines them — a known divergence
+     *       covered by {@link TsidExtractingIdFieldMapperColumnarCompatibilityTests}.</li>
+     * </ul>
+     */
+    @Override
+    protected void assertFieldSetsEqual(List<FieldDescriptor> expected, List<FieldDescriptor> actual, String message) {
+        for (FieldDescriptor fd : expected) {
+            if (fd.name().equals(FIELD) && fd.fieldType().docValuesType() != DocValuesType.NONE) {
+                final DocValuesType dvType = fd.fieldType().docValuesType();
+                assertTrue(
+                    message + ": field [" + FIELD + "] expected docValuesType=" + dvType + " but columnar path did not produce it",
+                    actual.stream().anyMatch(a -> a.name().equals(FIELD) && a.fieldType().docValuesType() == dvType)
+                );
+            }
+        }
+        final boolean isTsdb = expected.stream().anyMatch(fd -> fd.name().equals("_tsid"));
+        if (isTsdb) {
+            expected = expected.stream().filter(fd -> fd.name().equals("_id") == false).toList();
+            actual = actual.stream().filter(fd -> fd.name().equals("_id") == false).toList();
+        }
+        super.assertFieldSetsEqual(expected, actual, message);
+    }
 
     private static Settings columnarSettings() {
         return Settings.builder()
@@ -454,23 +488,23 @@ public class KeywordFieldMapperColumnarCompatibilityTests extends AbstractColumn
         );
     }
 
-    public void testTsdbIsNotYetColumnar() throws IOException {
-        // The mode gate admits TIME_SERIES, but every keyword field in a TSDB index resolves to
-        // DocValuesDiskFormat.SORTED_SET, which supportsColumnarDocValues() does not accept yet. Flip this
-        // assertion when SORTED_SET emission lands; the dimension gate itself is already routing-aware.
+    public void testTsdbDimensionIsColumnar() throws IOException {
+        // TSDB keyword dimensions resolve to DocValuesDiskFormat.SORTED_SET. The columnar batch path now
+        // emits native SORTED_SET doc values, so these fields take the columnar path. Routing-path
+        // dimensions are still excluded (testDimensionRoutingPathIsNotColumnar covers that).
         final MapperService mapperService = createMapperService(tsdbSettings(IndexMetadata.INDEX_DIMENSIONS.getKey()), mapping(b -> {
             b.startObject("@timestamp").field("type", "date").endObject();
             b.startObject(FIELD).field("type", "keyword").field("time_series_dimension", true).endObject();
         }));
         final FieldMapper mapper = (FieldMapper) mapperService.mappingLookup().getMapper(FIELD);
-        assertFalse(
-            "TSDB keyword fields use SORTED_SET doc values, which the columnar path cannot emit yet",
-            mapper.supportsColumnarParse(mapperService.getIndexSettings())
-        );
         assertEquals(
-            "precondition: the gap is the doc-values format, not the dimension gate",
+            "precondition: TSDB keyword dimension must use SORTED_SET doc values",
             KeywordFieldMapper.KeywordFieldType.DocValuesDiskFormat.SORTED_SET,
             ((KeywordFieldMapper.KeywordFieldType) mapper.fieldType()).diskFormat()
+        );
+        assertTrue(
+            "TSDB keyword dimensions now take the columnar path via SORTED_SET emission",
+            mapper.supportsColumnarParse(mapperService.getIndexSettings())
         );
     }
 
@@ -766,6 +800,174 @@ public class KeywordFieldMapperColumnarCompatibilityTests extends AbstractColumn
         }),
             columnarSettings(),
             batch("mixed-type sub-fields", 1L, doc("d1", 1L, "{\"f\":\"123\"}"), doc("d2", 2L, "{\"f\":\"456\"}"), doc("d3", 3L, "{}"))
+        );
+    }
+
+    // =========================================================================
+    // TSDB / SORTED_SET: keyword fields in TIME_SERIES index mode
+    //
+    // Every keyword field in a TSDB index resolves to DocValuesDiskFormat.SORTED_SET (Lucene-native
+    // sorted and deduplicated doc values). The columnar batch path now emits SORTED_SET directly via
+    // LuceneBinaryColumn.of with the frozen fieldType (which carries DocValuesType.SORTED_SET).
+    //
+    // The tested keyword field "f" is also the TSDB dimension. Routing is computed by the coordinating
+    // node in production; in tests we supply it as TimeSeriesRoutingHashFieldMapper.encode(routingHash)
+    // and use TsidExtractingIdFieldMapper.createSyntheticId to produce the correct document IDs.
+    // The assertFieldSetsEqual override excludes _id from TSDB comparisons (detected via _tsid presence)
+    // since the columnar path splits _id differently — covered by TsidExtractingIdFieldMapperColumnarCompatibilityTests.
+    // =========================================================================
+
+    private static final BytesRef ST_TSID = new BytesRef(new byte[] { 0x10, 0x20, 0x30, 0x40, 0x50 });
+    private static final int ST_ROUTING_HASH = 17;
+    private static final String ST_ROUTING = TimeSeriesRoutingHashFieldMapper.encode(ST_ROUTING_HASH);
+    // epoch millis: 2025-01-01T00:00:00.000Z
+    private static final long ST_TS_A = 1735689600000L;
+
+    /**
+     * TIME_SERIES settings with {@code f} as the keyword dimension (via {@code index.time_series.dimensions}).
+     */
+    private static Settings tsdbDimensionSettings() {
+        return Settings.builder()
+            .put(IndexSettings.MODE.getKey(), IndexMode.TIME_SERIES.getName())
+            .putList(IndexMetadata.INDEX_DIMENSIONS.getKey(), FIELD)
+            .put(IndexSettings.TIME_SERIES_START_TIME.getKey(), "-9999-01-01T00:00:00Z")
+            .put(IndexSettings.TIME_SERIES_END_TIME.getKey(), "9999-01-01T00:00:00Z")
+            .build();
+    }
+
+    private static String tsdbId(long tsMillis) {
+        return TsidExtractingIdFieldMapper.createSyntheticId(ST_TSID, tsMillis, ST_ROUTING_HASH);
+    }
+
+    public void testTsdbSingleValue() throws IOException {
+        // One value per document; the source column stays scalar (STRING), so zero-copy applies.
+        assertColumnarMatchesXContent(mapping(b -> {
+            b.startObject("@timestamp").field("type", "date").endObject();
+            b.startObject(FIELD).field("type", "keyword").field("time_series_dimension", true).endObject();
+        }),
+            tsdbDimensionSettings(),
+            batch(
+                "TSDB keyword single value",
+                1L,
+                doc(tsdbId(ST_TS_A), ST_ROUTING, ST_TSID, 1L, "{\"f\":\"host-a\",\"@timestamp\":" + ST_TS_A + "}"),
+                doc(tsdbId(ST_TS_A + 1000L), ST_ROUTING, ST_TSID, 2L, "{\"f\":\"host-b\",\"@timestamp\":" + (ST_TS_A + 1000L) + "}"),
+                doc(tsdbId(ST_TS_A + 2000L), ST_ROUTING, ST_TSID, 3L, "{\"@timestamp\":" + (ST_TS_A + 2000L) + "}")
+            )
+        );
+    }
+
+    public void testTsdbArrayValues() throws IOException {
+        // Multi-valued document: the source column is promoted to ARRAY. Lucene's SORTED_SET writer
+        // adds one value per element and deduplicates. Both paths must produce an identical multiset.
+        assertColumnarMatchesXContent(mapping(b -> {
+            b.startObject("@timestamp").field("type", "date").endObject();
+            b.startObject(FIELD).field("type", "keyword").field("time_series_dimension", true).endObject();
+        }),
+            tsdbDimensionSettings(),
+            batch(
+                "TSDB keyword array values",
+                1L,
+                doc(tsdbId(ST_TS_A), ST_ROUTING, ST_TSID, 1L, "{\"f\":[\"tag-a\",\"tag-b\"],\"@timestamp\":" + ST_TS_A + "}"),
+                doc(tsdbId(ST_TS_A + 1000L), ST_ROUTING, ST_TSID, 2L, "{\"f\":\"solo\",\"@timestamp\":" + (ST_TS_A + 1000L) + "}"),
+                doc(tsdbId(ST_TS_A + 2000L), ST_ROUTING, ST_TSID, 3L, "{\"@timestamp\":" + (ST_TS_A + 2000L) + "}")
+            )
+        );
+    }
+
+    public void testTsdbArrayWithDuplicates() throws IOException {
+        // Duplicate values in an array: Lucene's SORTED_SET writer deduplicates per doc on both paths.
+        assertColumnarMatchesXContent(mapping(b -> {
+            b.startObject("@timestamp").field("type", "date").endObject();
+            b.startObject(FIELD).field("type", "keyword").field("time_series_dimension", true).endObject();
+        }),
+            tsdbDimensionSettings(),
+            batch(
+                "TSDB keyword array duplicates",
+                1L,
+                doc(tsdbId(ST_TS_A), ST_ROUTING, ST_TSID, 1L, "{\"f\":[\"dup\",\"dup\",\"other\"],\"@timestamp\":" + ST_TS_A + "}"),
+                doc(tsdbId(ST_TS_A + 1000L), ST_ROUTING, ST_TSID, 2L, "{\"f\":[\"x\",\"x\"],\"@timestamp\":" + (ST_TS_A + 1000L) + "}")
+            )
+        );
+    }
+
+    public void testTsdbExplicitNull() throws IOException {
+        // Explicit JSON null with no null_value configured: absent on both paths (no slot written).
+        assertColumnarMatchesXContent(mapping(b -> {
+            b.startObject("@timestamp").field("type", "date").endObject();
+            b.startObject(FIELD).field("type", "keyword").field("time_series_dimension", true).endObject();
+        }),
+            tsdbDimensionSettings(),
+            batch(
+                "TSDB keyword explicit null",
+                1L,
+                doc(tsdbId(ST_TS_A), ST_ROUTING, ST_TSID, 1L, "{\"f\":null,\"@timestamp\":" + ST_TS_A + "}"),
+                doc(tsdbId(ST_TS_A + 1000L), ST_ROUTING, ST_TSID, 2L, "{\"f\":\"val\",\"@timestamp\":" + (ST_TS_A + 1000L) + "}")
+            )
+        );
+    }
+
+    public void testTsdbNullValue() throws IOException {
+        // null_value substitution: explicit null becomes the configured null_value on both paths.
+        assertColumnarMatchesXContent(mapping(b -> {
+            b.startObject("@timestamp").field("type", "date").endObject();
+            b.startObject(FIELD).field("type", "keyword").field("time_series_dimension", true).field("null_value", "NULL").endObject();
+        }),
+            tsdbDimensionSettings(),
+            batch(
+                "TSDB keyword null_value",
+                1L,
+                doc(tsdbId(ST_TS_A), ST_ROUTING, ST_TSID, 1L, "{\"f\":null,\"@timestamp\":" + ST_TS_A + "}"),
+                doc(tsdbId(ST_TS_A + 1000L), ST_ROUTING, ST_TSID, 2L, "{\"f\":\"real\",\"@timestamp\":" + (ST_TS_A + 1000L) + "}")
+            )
+        );
+    }
+
+    public void testTsdbIgnoreAboveSingleValuePerDoc() throws IOException {
+        // One ignore_above-exceeded value per document is stored as a synthetic-source fallback blob.
+        // The batch path must emit the SeparateCount blob + .counts sidecar to match the row path.
+        assertColumnarMatchesXContent(mapping(b -> {
+            b.startObject("@timestamp").field("type", "date").endObject();
+            b.startObject(FIELD).field("type", "keyword").field("time_series_dimension", true).field("ignore_above", 4).endObject();
+        }),
+            tsdbDimensionSettings(),
+            batch(
+                "TSDB keyword ignore_above single per doc",
+                1L,
+                doc(tsdbId(ST_TS_A), ST_ROUTING, ST_TSID, 1L, "{\"f\":\"TOOLONG\",\"@timestamp\":" + ST_TS_A + "}"),
+                doc(tsdbId(ST_TS_A + 1000L), ST_ROUTING, ST_TSID, 2L, "{\"f\":\"ok\",\"@timestamp\":" + (ST_TS_A + 1000L) + "}"),
+                doc(tsdbId(ST_TS_A + 2000L), ST_ROUTING, ST_TSID, 3L, "{\"@timestamp\":" + (ST_TS_A + 2000L) + "}")
+            )
+        );
+    }
+
+    public void testTsdbIgnoreAboveTwoValuesPerDocBailsOut() throws IOException {
+        // More than one ignore_above-exceeded value in a single document: the batch path throws
+        // UnsupportedOperationException so ShardBatchMapper falls back to the row path.
+        final MapperService mapperService = createMapperService(tsdbDimensionSettings(), mapping(b -> {
+            b.startObject("@timestamp").field("type", "date").endObject();
+            b.startObject(FIELD).field("type", "keyword").field("time_series_dimension", true).field("ignore_above", 3).endObject();
+        }));
+        expectThrows(
+            UnsupportedOperationException.class,
+            () -> mapColumnarLeaf(mapperService, FIELD, "{\"f\":[\"TOOLONG1\",\"TOOLONG2\"],\"@timestamp\":" + ST_TS_A + "}")
+        );
+    }
+
+    public void testTsdbIgnoreAboveBackfillFix() throws IOException {
+        // ["short", "TOOLONG", "short2"] — the first element is accepted, the second triggers
+        // deoptimization via ignore_above, and the third is accepted again. This exercises the
+        // backfillUtf8Before fix: without passing elementsThisDoc=1, "short" would be silently lost.
+        assertColumnarMatchesXContent(mapping(b -> {
+            b.startObject("@timestamp").field("type", "date").endObject();
+            b.startObject(FIELD).field("type", "keyword").field("time_series_dimension", true).field("ignore_above", 6).endObject();
+        }),
+            tsdbDimensionSettings(),
+            batch(
+                "TSDB keyword ignore_above backfill fix",
+                1L,
+                doc(tsdbId(ST_TS_A), ST_ROUTING, ST_TSID, 1L, "{\"f\":[\"short\",\"TOOLONG\",\"short2\"],\"@timestamp\":" + ST_TS_A + "}"),
+                doc(tsdbId(ST_TS_A + 1000L), ST_ROUTING, ST_TSID, 2L, "{\"f\":\"other\",\"@timestamp\":" + (ST_TS_A + 1000L) + "}")
+            )
         );
     }
 }

@@ -34,6 +34,23 @@ public final class QueryParsingReservation extends AbstractRefCounted {
     }
 
     /**
+     * Appends {@code charges} to this reservation's releasable list if the reservation is still live,
+     * ensuring they are closed when this reservation is fully released. If the reservation has already
+     * been fully released, the charges are closed immediately so they are not leaked.
+     */
+    public void addCharges(List<Releasable> charges) {
+        if (tryIncRef()) {
+            try {
+                releasables.addAll(charges);
+            } finally {
+                decRef();
+            }
+        } else {
+            Releasables.close(charges);
+        }
+    }
+
+    /**
      * Returns a new handle on this reservation, or {@code null} if the reservation has already been
      * fully released (charges already returned to the breaker). The caller must close the returned
      * {@link Releasable} when the parsed query is no longer needed (typically when the request

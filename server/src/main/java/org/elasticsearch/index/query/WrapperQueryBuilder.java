@@ -17,6 +17,8 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.core.Releasable;
+import org.elasticsearch.core.Releasables;
 import org.elasticsearch.search.internal.MaxClauseCountQueryVisitor;
 import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xcontent.XContentBuilder;
@@ -25,7 +27,9 @@ import org.elasticsearch.xcontent.XContentParser;
 
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
+import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.List;
 
 /**
  * A Query builder which allows building a query given JSON string or binary data provided as input. This is useful when you want
@@ -155,15 +159,21 @@ public class WrapperQueryBuilder extends AbstractQueryBuilder<WrapperQueryBuilde
 
     @Override
     protected QueryBuilder doRewrite(QueryRewriteContext context) throws IOException {
-        // Note: parseTopLevelQuery is called with no trackTo list (one-arg overload), so the
-        // circuit-breaker charge for the expanded tree is released immediately during rewrite
-        // rather than being held for the request lifetime. This is a known limitation: rewrite
-        // runs in a QueryRewriteContext that carries no List<Releasable>, so there is no
-        // mechanism to defer the charge here. The raw source bytes are charged via
-        // parseTimeBreakerEstimate() and held correctly; only the expanded tree is uncharged.
         try (XContentParser qSourceParser = XContentFactory.xContent(source).createParser(context.getParserConfig(), source)) {
-
-            final QueryBuilder queryBuilder = parseTopLevelQuery(qSourceParser).rewrite(context);
+            List<Releasable> trackTo = new ArrayList<>();
+            final QueryBuilder queryBuilder;
+            try {
+                queryBuilder = parseTopLevelQuery(qSourceParser, queryName -> {}, trackTo).rewrite(context);
+            } catch (Exception e) {
+                Releasables.close(trackTo);
+                throw e;
+            }
+            QueryParsingReservation reservation = context.getQueryParsingReservation();
+            if (reservation != null) {
+                reservation.addCharges(trackTo);
+            } else {
+                Releasables.close(trackTo);
+            }
             if (boost() != DEFAULT_BOOST || queryName() != null) {
                 final BoolQueryBuilder boolQueryBuilder = new BoolQueryBuilder();
                 boolQueryBuilder.must(queryBuilder);

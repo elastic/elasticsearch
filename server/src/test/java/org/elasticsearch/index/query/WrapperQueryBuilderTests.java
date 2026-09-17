@@ -15,21 +15,29 @@ import org.apache.lucene.search.Query;
 import org.apache.lucene.search.TermQuery;
 import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.lucene.search.Queries;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.unit.ByteSizeValue;
+import org.elasticsearch.common.util.LimitedBreaker;
 import org.elasticsearch.common.xcontent.XContentHelper;
+import org.elasticsearch.core.Releasable;
 import org.elasticsearch.test.AbstractQueryTestCase;
 import org.elasticsearch.xcontent.XContentParseException;
+import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xcontent.XContentType;
 import org.hamcrest.Matchers;
 
 import java.io.IOException;
 import java.io.UncheckedIOException;
 import java.nio.charset.StandardCharsets;
+import java.util.ArrayList;
+import java.util.List;
 
 import static org.elasticsearch.search.SearchModule.INDICES_MAX_NESTED_DEPTH_SETTING;
+import static org.hamcrest.Matchers.greaterThan;
 
 public class WrapperQueryBuilderTests extends AbstractQueryTestCase<WrapperQueryBuilder> {
 
@@ -214,5 +222,65 @@ public class WrapperQueryBuilderTests extends AbstractQueryTestCase<WrapperQuery
         byte[] largeSource = Strings.toString(new TermQueryBuilder(TEXT_FIELD_NAME, "v".repeat(500))).getBytes(StandardCharsets.UTF_8);
         long limit = AbstractQueryBuilder.QUERY_BUILDER_SIZE_ESTIMATE_BYTES + smallSource.length + 32L;
         assertParseTimeBreaker(limit, new WrapperQueryBuilder(smallSource), new WrapperQueryBuilder(largeSource));
+    }
+
+    public void testAddChargesToLiveReservation() {
+        int[] closed = { 0 };
+        List<Releasable> releasables = new ArrayList<>();
+        QueryParsingReservation reservation = new QueryParsingReservation(releasables);
+
+        List<Releasable> charges = new ArrayList<>();
+        charges.add(() -> closed[0]++);
+        reservation.addCharges(charges);
+
+        assertEquals("charge must not be released while reservation is live", 0, closed[0]);
+        reservation.decRef();
+        assertEquals("charge must be released when reservation is closed", 1, closed[0]);
+    }
+
+    public void testAddChargesToReleasedReservation() {
+        List<Releasable> releasables = new ArrayList<>();
+        QueryParsingReservation reservation = new QueryParsingReservation(releasables);
+        reservation.decRef(); // release immediately
+
+        int[] closed = { 0 };
+        List<Releasable> charges = new ArrayList<>();
+        charges.add(() -> closed[0]++);
+        reservation.addCharges(charges);
+
+        assertEquals("charge must be released immediately when reservation is already closed", 1, closed[0]);
+    }
+
+    public void testRewriteChargesHeldByReservation() throws IOException {
+        LimitedBreaker breaker = new LimitedBreaker(CircuitBreaker.REQUEST, ByteSizeValue.ofBytes(Long.MAX_VALUE));
+        AbstractQueryBuilder.setQueryParsingBreaker(breaker);
+        try {
+            TermQueryBuilder inner = new TermQueryBuilder(TEXT_FIELD_NAME, "value");
+            WrapperQueryBuilder wrapper = new WrapperQueryBuilder(Strings.toString(inner));
+
+            // Parse the wrapper, holding charges in wrapperCharges so we can snapshot the breaker
+            List<Releasable> wrapperCharges = new ArrayList<>();
+            BytesReference bytes = XContentHelper.toXContent(wrapper, XContentType.JSON, false);
+            try (XContentParser parser = createParser(XContentType.JSON.xContent(), bytes)) {
+                AbstractQueryBuilder.parseTopLevelQuery(parser, queryName -> {}, wrapperCharges);
+            }
+            long chargeAfterWrapperParse = breaker.getUsed();
+            assertThat("wrapper parse must charge the breaker", chargeAfterWrapperParse, greaterThan(0L));
+
+            // Set the reservation on a QRC and rewrite — inner query charges must transfer to reservation
+            QueryParsingReservation reservation = new QueryParsingReservation(wrapperCharges);
+            QueryRewriteContext context = createQueryRewriteContext();
+            context.setQueryParsingReservation(reservation);
+            wrapper.doRewrite(context);
+
+            long chargeAfterRewrite = breaker.getUsed();
+            assertThat("inner query parse must add charges via reservation", chargeAfterRewrite, greaterThan(chargeAfterWrapperParse));
+
+            // Closing the reservation must release all charges — both wrapper and inner
+            reservation.decRef();
+            assertEquals("all charges must be released when reservation is closed", 0L, breaker.getUsed());
+        } finally {
+            AbstractQueryBuilder.setQueryParsingBreaker(null);
+        }
     }
 }

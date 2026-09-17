@@ -216,7 +216,10 @@ public class ObjectStoreService extends AbstractLifecycleComponent implements Cl
                 Settings.Builder builder = Settings.builder()
                     .put(super.createRepositorySettings(bucket, client, basePath, multiPartThreshold));
                 if (multiPartThreshold != null) {
+                    // Azure has both the part size and threshold settings so we update both of them.
+                    // This has the same effect as other repositories.
                     builder.put(AZURE_MULTIPART_THRESHOLD_SETTING_KEY, multiPartThreshold.getStringRep());
+                    builder.put(AZURE_MULTIPART_PART_SIZE_SETTING_KEY, multiPartThreshold.getStringRep());
                 }
                 return builder.build();
             }
@@ -363,6 +366,7 @@ public class ObjectStoreService extends AbstractLifecycleComponent implements Cl
     static final String S3_MULTIPART_THRESHOLD_SETTING_KEY = "buffer_size";
     static final String GCS_MULTIPART_THRESHOLD_SETTING_KEY = "multipart_upload_chunk_size";
     static final String AZURE_MULTIPART_THRESHOLD_SETTING_KEY = "max_single_part_upload_size";
+    static final String AZURE_MULTIPART_PART_SIZE_SETTING_KEY = "multipart_upload_part_size";
 
     private static final int UPLOAD_PERMITS = Integer.MAX_VALUE;
 

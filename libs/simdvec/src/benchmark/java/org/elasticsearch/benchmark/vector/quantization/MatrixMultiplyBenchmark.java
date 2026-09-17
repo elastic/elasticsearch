@@ -27,7 +27,9 @@ import org.openjdk.jmh.annotations.Scope;
 import org.openjdk.jmh.annotations.Setup;
 import org.openjdk.jmh.annotations.State;
 import org.openjdk.jmh.annotations.Warmup;
+import org.openjdk.jmh.infra.Blackhole;
 
+import java.util.Arrays;
 import java.util.Random;
 import java.util.concurrent.TimeUnit;
 
@@ -47,13 +49,15 @@ public class MatrixMultiplyBenchmark {
     @Param({ "SCALAR", "PANAMA" })
     VectorImplementation implementation;
 
-    @Param({ "192", "768" })
+    // ASH defaults are 10240 x 1024 x 512
+    // also use an odd number to exercise the tails
+    @Param({ "192", "481", "768", "10240" })
     int m;
 
-    @Param({ "192", "768" })
+    @Param({ "192", "481", "768", "1024" })
     int k;
 
-    @Param({ "96", "384" })
+    @Param({ "96", "241", "384", "512" })
     int n;
 
     private ESVectorUtilSupport impl;
@@ -61,6 +65,7 @@ public class MatrixMultiplyBenchmark {
     private float[] a;
     /** B for matrixMultiply: (k x n). */
     private float[] bMul;
+    private float[] result;
 
     @Setup(Level.Trial)
     public void init() {
@@ -72,11 +77,18 @@ public class MatrixMultiplyBenchmark {
         Random random = new Random();
         a = VectorTestUtils.randomFloatVector(random, m * k);
         bMul = VectorTestUtils.randomFloatVector(random, k * n);
+        result = new float[m * n];
+    }
+
+    @Setup(Level.Iteration)
+    public void reset() {
+        Arrays.fill(result, 0);
     }
 
     /** C = A @ B, A is (m x k), B is (k x n), C is (m x n). */
     @Benchmark
-    public float[] matrixMultiply() {
-        return impl.matrixMultiply(a, bMul, m, k, n);
+    public void matrixMultiply(Blackhole bh) {
+        impl.matrixMultiply(a, bMul, m, k, n, result);
+        bh.consume(result);
     }
 }

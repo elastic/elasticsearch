@@ -1561,6 +1561,7 @@ public class AnalyzerUnmappedTests extends AnalyzerUnmappedTestBase {
 
     public void testLoadAllModeAllowsMainIndexPlusSubquery() {
         test().addLanguages().statement(setUnmappedLoadAll("FROM test, (FROM languages | WHERE language_code > 1)"));
+        assertWarnings(nonLoadablePunkWarning("gender", "text"), nonLoadablePunkWarning("job", "text"));
     }
 
     public void testLoadAllModeAllowsTwoSubqueriesWithoutMainIndex() {
@@ -1605,6 +1606,31 @@ public class AnalyzerUnmappedTests extends AnalyzerUnmappedTestBase {
             assertThat(query, clientIp, instanceOf(UnsupportedAttribute.class));
             assertThat(query, ((UnsupportedAttribute) clientIp).originalTypes(), equalTo(List.of("keyword", "ip")));
         }
+    }
+
+    public void testLoadAllSubqueryNonLoadableWarns() {
+        assumeTrue(
+            "Requires OPTIONAL_FIELDS_LOAD_ALL_NON_LOADABLE_NULLS_AND_WARNS",
+            EsqlCapabilities.Cap.OPTIONAL_FIELDS_LOAD_ALL_NON_LOADABLE_NULLS_AND_WARNS.isEnabled()
+        );
+        var mapped = new EsIndex(
+            "idx1",
+            Map.of("tx", aggregateMetricDoubleField("tx")),
+            Map.of("idx1", new IndexProperties(IndexMode.STANDARD, 0)),
+            Map.of(),
+            Map.of()
+        );
+        var unmapped = new EsIndex(
+            "idx2",
+            Map.of("id", keywordField("id")),
+            Map.of("idx2", new IndexProperties(IndexMode.STANDARD, 0)),
+            Map.of(),
+            Map.of()
+        );
+        var plan = analyzer().addIndex(mapped).addIndex(unmapped).statement(setUnmappedLoadAll("FROM (FROM idx1), (FROM idx2) | KEEP tx"));
+        var tx = EsqlTestUtils.singleValue(plan.output().stream().filter(a -> a.name().equals("tx")).toList());
+        assertThat(tx.dataType(), equalTo(DataType.AGGREGATE_METRIC_DOUBLE));
+        assertWarnings(nonLoadablePunkWarning("tx", "aggregate_metric_double"));
     }
 
     public void testLoadAllModeAllowsSubqueryWithLookupJoin() {

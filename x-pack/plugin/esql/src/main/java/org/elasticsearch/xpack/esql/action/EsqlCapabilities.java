@@ -3499,6 +3499,13 @@ public class EsqlCapabilities {
         OPTIONAL_FIELDS_LOAD_ALL_SUBQUERIES(OPTIONAL_FIELDS_LOAD_ALL_V2.isEnabled()),
 
         /**
+         * A LOAD_ALL subquery field mapped as a type with no implicit conversion from KEYWORD in one branch, and unmapped (but present
+         * in {@code _source}) in another, null-fills the unmapped rows and warns — the same as the multi-index LOAD path — instead of
+         * failing the query when the unmapped {@code _source} value is read.
+         */
+        OPTIONAL_FIELDS_LOAD_ALL_NON_LOADABLE_NULLS_AND_WARNS(OPTIONAL_FIELDS_LOAD_ALL_V2.isEnabled()),
+
+        /**
          * Support for the {@code ==} operator on the root of a {@code flattened} field in ES|QL.
          */
         FN_EQUALS_FLATTENED,

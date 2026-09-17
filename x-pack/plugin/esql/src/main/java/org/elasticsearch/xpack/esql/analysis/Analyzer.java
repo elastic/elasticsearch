@@ -1830,12 +1830,10 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
                     // branches read independent indices, a shape FORK never has.
                     //
                     // Conflict resolution:
-                    // PUNKs (potentially Unmapped Non-Keywords) resolution is somewhat similar to the multi-index case, except we fail at
-                    // runtime rather than during planning (since we don't know if an unmentioned field will exist in a branch until we read
-                    // its _source). If a field is mapped to a type with an implicit cast from KEYWORD in one branch, we apply the cast to
-                    // the unmapped field in the other branch. However, if there's no available implicit cast, we use a special
-                    // "PotentiallyUnmappedNonLoadableEsField" type, which will fail if it reads non-null values; this is analogue to
-                    // failing during planning in the multi-index case.
+                    // PUNKs (potentially Unmapped Non-Keywords) resolution is somewhat similar to the multi-index case.
+                    // If a field is mapped to a type with an implicit cast from KEYWORD in one branch, we apply the cast to
+                    // the unmapped field in the other branch. If there's no available implicit cast, we use a
+                    // PotentiallyUnmappedNonLoadableEsField, which null-fills and is warned about, the same as the multi-index path.
                     FieldAttribute mapped = mappedSiblingField(attr);
                     if (mergePlan instanceof UnionAll
                         && unmappedResolution.loadsAllUnmappedFields()
@@ -1980,8 +1978,8 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
 
         /**
          * When this branch already read an unmapped field from {@code _source} as keyword (KEEP/mention) and a sibling maps it as a
-         * type with no cast from keyword, mark it non-loadable, so that reading a value fails rather than silently yielding null. A
-         * sibling type that does have a cast needs nothing here: {@code ResolveUnionTypesInUnionAll} reconciles those.
+         * type with no cast from keyword, mark it non-loadable so the unmapped rows null-fill (and the analyzer warns). A sibling type
+         * that does have a cast needs nothing here: {@code ResolveUnionTypesInUnionAll} reconciles those.
          */
         private static List<FieldAttribute> markExplicitlyLoadedUnmappedNonLoadable(
             LogicalPlan logicalPlan,
@@ -3992,8 +3990,16 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
 
             Set<NameId> warned = new HashSet<>();
             plan.forEachExpressionDown(FieldAttribute.class, fa -> {
-                if (fa.field() instanceof PotentiallyUnmappedSingleTypeEsField punk && observedFields.contains(fa) && warned.add(fa.id())) {
-                    DataType mappedType = punk.mappedField().getDataType();
+                if (observedFields.contains(fa) == false || warned.contains(fa.id())) {
+                    return;
+                }
+                DataType mappedType = switch (fa.field()) {
+                    case PotentiallyUnmappedSingleTypeEsField punk -> punk.mappedField().getDataType();
+                    case PotentiallyUnmappedNonLoadableEsField ignored -> fa.dataType();
+                    default -> null;
+                };
+                if (mappedType != null) {
+                    warned.add(fa.id());
                     context.deferredHeaderWarnings().add(nonLoadablePunkWarning(fa.name(), mappedType.typeName()));
                 }
             });

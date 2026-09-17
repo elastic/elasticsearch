@@ -16,7 +16,7 @@ import java.util.Map;
 /**
  * Marks a field mapped on a sibling subquery index but unmapped here, whose type has no implicit conversion from {@code KEYWORD} (e.g.,
  * {@code text}, {@code aggregate_metric_double}). {@code _source} only yields keyword, so the value cannot be surfaced as that type:
- * reading it fails at runtime rather than silently returning null.
+ * reading it yields null rather than failing the query.
  */
 public class PotentiallyUnmappedNonLoadableEsField extends EsField implements UnmappedEsField {
     public PotentiallyUnmappedNonLoadableEsField(EsField mapped) {

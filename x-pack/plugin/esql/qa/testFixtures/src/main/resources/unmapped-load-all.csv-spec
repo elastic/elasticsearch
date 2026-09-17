@@ -1911,7 +1911,7 @@ with_timestamp:long | mapped_ts:long | rows:long
 7                   | 7              | 14
 ;
 
-// The sibling-with-a-value failure is 298_unmapped_load_all_subquery_non_loadable.yml.
+// The sibling-with-a-value case is loadAllSubqueryMappedTextNullsOnSiblingWithSourceValue.
 loadAllSubqueryMappedTextNullsOnSiblingWithoutSourceValue
 required_capability: optional_fields_load_all_subqueries
 required_capability: subquery_in_from_command
@@ -1921,11 +1921,30 @@ FROM (FROM text_state_mapped METADATA _source), (FROM text_state_nonexistent MET
 | KEEP doc_id, txt, _source
 | SORT doc_id
 ;
+warning:Field [txt] of type [text] is unmapped in some indices and has no implicit conversion from KEYWORD, so it will not be loaded from _source; values will be null in those indices
 
 doc_id:keyword | txt:text         | _source:_source
 mapped-1       | William Faulkner | "{""doc_id"":""mapped-1"",""txt"":""William Faulkner""}"
 mapped-2       | Jane Austen      | "{""doc_id"":""mapped-2"",""txt"":""Jane Austen""}"
 nonexistent-1  | null             | "{""doc_id"":""nonexistent-1""}"
+;
+
+loadAllSubqueryMappedTextNullsOnSiblingWithSourceValue
+required_capability: optional_fields_load_all_subqueries
+required_capability: optional_fields_load_all_non_loadable_nulls_and_warns
+required_capability: subquery_in_from_command
+
+SET unmapped_fields="LOAD_ALL"\;
+FROM (FROM text_state_mapped), (FROM text_state_unmapped)
+| KEEP doc_id, txt
+| SORT doc_id
+;
+warning:Field [txt] of type [text] is unmapped in some indices and has no implicit conversion from KEYWORD, so it will not be loaded from _source; values will be null in those indices
+
+doc_id:keyword | txt:text
+mapped-1       | William Faulkner
+mapped-2       | Jane Austen
+unmapped-1     | null
 ;
 
 // Suffix glob so LOAD_ALL extras stay enabled without also keeping the metric subfields (tx.min/max/sum/value_count).
@@ -1939,6 +1958,7 @@ FROM (FROM k8s-downsampled), (FROM k8s_nonexistent)
 | KEEP *eth0.tx
 ;
 ignoreOrder:true
+warning:Field [network.eth0.tx] of type [aggregate_metric_double] is unmapped in some indices and has no implicit conversion from KEYWORD, so it will not be loaded from _source; values will be null in those indices
 
 network.eth0.tx:aggregate_metric_double
 {"min":263.0,"max":740.0,"sum":5390.0,"value_count":10}
@@ -1982,6 +2002,7 @@ FROM (FROM k8s_nonexistent), (FROM k8s-downsampled)
 | KEEP *eth0.tx
 ;
 ignoreOrder:true
+warning:Field [network.eth0.tx] of type [aggregate_metric_double] is unmapped in some indices and has no implicit conversion from KEYWORD, so it will not be loaded from _source; values will be null in those indices
 
 network.eth0.tx:aggregate_metric_double
 {"min":263.0,"max":740.0,"sum":5390.0,"value_count":10}
@@ -2015,8 +2036,46 @@ null
 null
 ;
 
-// Without the DROP, the integer _source value for this field fails at execution
-// (298_unmapped_load_all_subquery_non_loadable.yml).
+loadAllSubqueryMappedAmdNullsOnUnmappedSiblingWithSourceValue
+required_capability: optional_fields_load_all_subqueries
+required_capability: optional_fields_load_all_non_loadable_nulls_and_warns
+required_capability: subquery_in_from_command
+required_capability: aggregate_metric_double_v0
+
+SET unmapped_fields="LOAD_ALL"\;
+FROM (FROM k8s-downsampled METADATA _index | WHERE cluster == "qa" AND pod == "three" AND @timestamp == "2024-05-09T23:30:00.000Z"),
+     (FROM k8s_unmapped METADATA _index | WHERE cluster == "qa" AND pod == "three" | SORT @timestamp | LIMIT 1)
+| KEEP _index, network.eth0.tx
+| SORT _index
+;
+warning:Field [network.eth0.tx] of type [aggregate_metric_double] is unmapped in some indices and has no implicit conversion from KEYWORD, so it will not be loaded from _source; values will be null in those indices
+
+_index:keyword  | network.eth0.tx:aggregate_metric_double
+k8s-downsampled | {"min":605.0,"max":605.0,"sum":605.0,"value_count":1}
+k8s_unmapped    | null
+;
+
+// EVAL so the filter is not Lucene-pushed: the unmapped sibling's integer _source is still read, then dropped.
+loadAllSubqueryMappedAmdNullsOnUnmappedSiblingLateFilter
+required_capability: optional_fields_load_all_subqueries
+required_capability: optional_fields_load_all_non_loadable_nulls_and_warns
+required_capability: subquery_in_from_command
+required_capability: aggregate_metric_double_v0
+
+SET unmapped_fields="LOAD_ALL"\;
+FROM (FROM k8s-downsampled METADATA _index | WHERE cluster == "qa" AND pod == "three" AND @timestamp == "2024-05-09T23:30:00.000Z"),
+     (FROM k8s_unmapped METADATA _index | WHERE cluster == "qa" AND pod == "three" | SORT @timestamp | LIMIT 1)
+| EVAL keep = _index == "k8s-downsampled"
+| WHERE keep
+| KEEP network.eth0.tx
+;
+warning:Field [network.eth0.tx] of type [aggregate_metric_double] is unmapped in some indices and has no implicit conversion from KEYWORD, so it will not be loaded from _source; values will be null in those indices
+
+network.eth0.tx:aggregate_metric_double
+{"min":605.0,"max":605.0,"sum":605.0,"value_count":1}
+;
+
+// Without the DROP, the integer _source value for this field null-fills and warns.
 loadAllSubqueryDropAmdOnUnmappedSibling
 required_capability: optional_fields_load_all_subqueries
 required_capability: subquery_in_from_command
@@ -2032,7 +2091,7 @@ loaded:long | rows:long
 27          | 227
 ;
 
-// A sibling KEEP that excludes the field stops the load just like DROP does; otherwise its integer _source value fails at execution.
+// A sibling KEEP that excludes the field stops the load just like DROP does; otherwise its integer _source value null-fills and warns.
 loadAllSubqueryKeepExcludingAmdOnUnmappedSibling
 required_capability: optional_fields_load_all_subqueries
 required_capability: subquery_in_from_command
@@ -2064,7 +2123,7 @@ loaded:long | clusters:long | rows:long
 27          | 227           | 227
 ;
 
-// A mention the outer projection prunes must not be loaded on the sibling: its integer _source value would fail at execution.
+// A mention the outer projection prunes must not be loaded on the sibling: otherwise its integer _source value would null-fill and warn.
 loadAllSubqueryMentionPrunedByOuterKeepNotLoadedOnSibling
 required_capability: optional_fields_load_all_subqueries
 required_capability: subquery_in_from_command
@@ -2075,6 +2134,7 @@ FROM (FROM k8s-downsampled | KEEP network.eth0.tx), (FROM k8s_unmapped)
 | KEEP cluster
 | STATS rows = COUNT(*), clusters = COUNT(cluster)
 ;
+warning:Field [network.eth0.tx] of type [aggregate_metric_double] is unmapped in some indices and has no implicit conversion from KEYWORD, so it will not be loaded from _source; values will be null in those indices
 
 rows:long | clusters:long
 227       | 200
@@ -2171,6 +2231,7 @@ FROM (FROM k8s-downsampled), (FROM k8s_nonexistent | KEEP network.eth0.tx)
 | KEEP network.eth0.tx
 ;
 ignoreOrder:true
+warning:Field [network.eth0.tx] of type [aggregate_metric_double] is unmapped in some indices and has no implicit conversion from KEYWORD, so it will not be loaded from _source; values will be null in those indices
 
 network.eth0.tx:aggregate_metric_double
 {"min":263.0,"max":740.0,"sum":5390.0,"value_count":10}
@@ -2293,6 +2354,8 @@ FROM (FROM k8s-downsampled), (FROM k8s_nonexistent | KEEP network.eth0.tx, *)
 | KEEP *eth0.tx
 ;
 ignoreOrder:true
+warning:Field [network.eth0.tx] of type [aggregate_metric_double] is unmapped in some indices and has no implicit conversion from KEYWORD, so it will not be loaded from _source; values will be null in those indices
+warning:Field [network.total_bytes_out] of type [counter_long] is unmapped in some indices and has no implicit conversion from KEYWORD, so it will not be loaded from _source; values will be null in those indices
 
 network.eth0.tx:aggregate_metric_double
 {"min":263.0,"max":740.0,"sum":5390.0,"value_count":10}
@@ -4134,8 +4197,7 @@ foo:integer | id:keyword | unmapped:keyword | unmapped.bar:keyword | unmapped.de
 123         | 7          | null             | bar7                 | null                       | null                 | abc
 ;
 
-// Same nulls and warning as the load twin in unmapped-load.csv-spec: a comma-separated FROM does not reach the non-loadable
-// marker, so it warns instead of failing the way the subquery form does (298_unmapped_load_all_subquery_non_loadable.yml).
+// Same nulls and warning as the load twin in unmapped-load.csv-spec; the subquery form now matches.
 loadAllCommaFormDenseVectorWarnsAndNulls
 required_capability: optional_fields_load_all_v2
 required_capability: optional_fields_fix_partially_unmapped_dense_vector
@@ -4143,6 +4205,29 @@ required_capability: optional_fields_warn_non_loadable_punk
 
 SET unmapped_fields="LOAD_ALL"\;
 FROM dense_vector, dense_vector_unmapped METADATA _index
+| KEEP _index, id, float_vector
+| SORT _index, id
+| LIMIT 6
+;
+warning:Field [float_vector] of type [dense_vector] is unmapped in some indices and has no implicit conversion from KEYWORD, so it will not be loaded from _source; values will be null in those indices
+
+_index:keyword        | id:l | float_vector:dense_vector
+dense_vector          | 0    | [1.0, 2.0, 3.0]
+dense_vector          | 1    | [4.0, 5.0, 6.0]
+dense_vector          | 2    | [9.0, 8.0, 7.0]
+dense_vector          | 3    | [0.0625, 0.25, 0.75]
+dense_vector          | 4    | null
+dense_vector_unmapped | 0    | null
+;
+
+loadAllSubqueryDenseVectorWarnsAndNulls
+required_capability: optional_fields_load_all_subqueries
+required_capability: optional_fields_load_all_non_loadable_nulls_and_warns
+required_capability: optional_fields_fix_partially_unmapped_dense_vector
+required_capability: subquery_in_from_command
+
+SET unmapped_fields="LOAD_ALL"\;
+FROM (FROM dense_vector METADATA _index), (FROM dense_vector_unmapped METADATA _index)
 | KEEP _index, id, float_vector
 | SORT _index, id
 | LIMIT 6
@@ -4169,6 +4254,7 @@ FROM (FROM text_state_mapped), (FROM text_state_nonexistent | KEEP doc_id, txt),
 | KEEP doc_id, txt
 | SORT doc_id, txt NULLS LAST
 ;
+warning:Field [txt] of type [text] is unmapped in some indices and has no implicit conversion from KEYWORD, so it will not be loaded from _source; values will be null in those indices
 
 doc_id:keyword | txt:text
 mapped-1       | William Faulkner

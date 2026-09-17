@@ -55,6 +55,7 @@ import org.elasticsearch.xpack.esql.datasources.spi.DeclaredTypeCoercions;
 import org.elasticsearch.xpack.esql.datasources.spi.DynamicThreshold;
 import org.elasticsearch.xpack.esql.datasources.spi.ErrorPolicy;
 import org.elasticsearch.xpack.esql.datasources.spi.FormatReader;
+import org.elasticsearch.xpack.esql.datasources.spi.SharedErrorBudget;
 import org.elasticsearch.xpack.esql.datasources.spi.SkipWarnings;
 import org.elasticsearch.xpack.esql.datasources.spi.StorageObject;
 
@@ -429,11 +430,18 @@ final class OptimizedParquetColumnIterator implements CloseableIterator<Page>, C
         ColumnDescriptor sortColumnDescriptor,
         ParquetReaderCounters counters,
         ErrorPolicy errorPolicy,
-        @Nullable Consumer<String> warningSink
+        @Nullable Consumer<String> warningSink,
+        @Nullable SharedErrorBudget sharedErrorBudget
     ) {
         this.errorPolicy = errorPolicy;
         this.warningSink = warningSink;
-        this.listCorruptionHandler = new ParquetColumnDecoding.ListCorruptionHandler(errorPolicy, fileLocation, warningSink);
+        this.listCorruptionHandler = new ParquetColumnDecoding.ListCorruptionHandler(
+            errorPolicy,
+            fileLocation,
+            warningSink,
+            false,
+            sharedErrorBudget
+        );
         this.reader = reader;
         this.projectedSchema = projectedSchema;
         this.attributes = attributes;
@@ -476,7 +484,9 @@ final class OptimizedParquetColumnIterator implements CloseableIterator<Page>, C
         this.isPredicateColumn = classifyPredicateColumns(attributes, columnInfos, pushedExpressions);
         this.lateMaterialization = pushedExpressions != null;
         // Built before unfilteredLimit below, which has to know whether this read can drop rows.
-        this.rowDropHelper = ColumnarRowDropHelper.forPolicy(errorPolicy, fileLocation);
+        this.rowDropHelper = sharedErrorBudget != null
+            ? ColumnarRowDropHelper.forSharedBudget(sharedErrorBudget)
+            : ColumnarRowDropHelper.forPolicy(errorPolicy, fileLocation);
         this.unfilteredLimit = ParquetFormatReader.unfilteredLimit(
             rowBudget,
             survivingRowGroups != null,
@@ -636,7 +646,8 @@ final class OptimizedParquetColumnIterator implements CloseableIterator<Page>, C
                             nextBlock.getRowCount(),
                             breaker,
                             formatReader.ioWatermark(),
-                            admitHold
+                            admitHold,
+                            formatReader.footerBytes()
                         );
                     } else {
                         future = ColumnChunkPrefetcher.prefetchAsync(
@@ -645,7 +656,8 @@ final class OptimizedParquetColumnIterator implements CloseableIterator<Page>, C
                             phaseColumns,
                             breaker,
                             formatReader.ioWatermark(),
-                            admitHold
+                            admitHold,
+                            formatReader.footerBytes()
                         );
                     }
                     future.whenComplete((ignored, error) -> admitHold.drop());
@@ -1368,7 +1380,8 @@ final class OptimizedParquetColumnIterator implements CloseableIterator<Page>, C
                         block,
                         predicateColumnPaths,
                         breaker,
-                        formatReader.ioWatermark()
+                        formatReader.ioWatermark(),
+                        formatReader.footerBytes()
                     );
                     currentChunksReleasable = fetched.release();
                     chunks = fetched.chunks();
@@ -1429,7 +1442,8 @@ final class OptimizedParquetColumnIterator implements CloseableIterator<Page>, C
                         rowGroupOrdinal,
                         block.getRowCount(),
                         breaker,
-                        formatReader.ioWatermark()
+                        formatReader.ioWatermark(),
+                        formatReader.footerBytes()
                     );
                     currentChunksReleasable = fetched.release();
                     chunks = fetched.chunks();
@@ -1930,7 +1944,15 @@ final class OptimizedParquetColumnIterator implements CloseableIterator<Page>, C
         CompletableFuture<ColumnChunkPrefetcher.PrefetchedChunks> future = null;
         try {
             future = rowRanges == null
-                ? ColumnChunkPrefetcher.prefetchAsync(storageObject, block, projectionOnlyColumnPaths, breaker, formatReader.ioWatermark())
+                ? ColumnChunkPrefetcher.prefetchAsync(
+                    storageObject,
+                    block,
+                    projectionOnlyColumnPaths,
+                    breaker,
+                    formatReader.ioWatermark(),
+                    null,
+                    formatReader.footerBytes()
+                )
                 : ColumnChunkPrefetcher.prefetchAsync(
                     storageObject,
                     block,
@@ -1940,7 +1962,9 @@ final class OptimizedParquetColumnIterator implements CloseableIterator<Page>, C
                     rowGroupOrdinal,
                     block.getRowCount(),
                     breaker,
-                    formatReader.ioWatermark()
+                    formatReader.ioWatermark(),
+                    null,
+                    formatReader.footerBytes()
                 );
             return StorageRetryCancellation.getWithCancellationChecks(future);
         } catch (TaskCancelledException cancelled) {
@@ -1974,7 +1998,8 @@ final class OptimizedParquetColumnIterator implements CloseableIterator<Page>, C
                         block,
                         projectionOnlyColumnPaths,
                         breaker,
-                        formatReader.ioWatermark()
+                        formatReader.ioWatermark(),
+                        formatReader.footerBytes()
                     )
                     : ColumnChunkPrefetcher.fetchSync(
                         storageObjectForFallback(),
@@ -1985,7 +2010,8 @@ final class OptimizedParquetColumnIterator implements CloseableIterator<Page>, C
                         rowGroupOrdinal,
                         block.getRowCount(),
                         breaker,
-                        formatReader.ioWatermark()
+                        formatReader.ioWatermark(),
+                        formatReader.footerBytes()
                     );
             } catch (Throwable retryFailure) {
                 if (retryFailure != asyncFailure) {
@@ -2620,13 +2646,13 @@ final class OptimizedParquetColumnIterator implements CloseableIterator<Page>, C
                     }
                 }
                 survivorPositions = truncated;
-                // sliceBlockHead either returns the same block (no slice needed) or closes the
-                // source on success. predicateBlocks[col] is reassigned to the result before any
-                // subsequent call so a failure on column N+1 leaves columns 0..N owned by
-                // predicateBlocks[] for the catch to release.
+                // sliceBlockHead now closes source on failure. Null the slot first so the outer
+                // catch cannot double-close a block that sliceBlockHead already released.
                 for (int col = 0; col < columnInfos.length; col++) {
                     if (isPredicateColumn[col] && predicateBlocks[col] != null) {
-                        predicateBlocks[col] = sliceBlockHead(predicateBlocks[col], newCount);
+                        Block source = predicateBlocks[col];
+                        predicateBlocks[col] = null;
+                        predicateBlocks[col] = sliceBlockHead(source, newCount);
                     }
                 }
                 emitCount = newCount;
@@ -2668,31 +2694,15 @@ final class OptimizedParquetColumnIterator implements CloseableIterator<Page>, C
                     // transferred predicate Blocks) — that's the production crash signature.
                     Block fullBlock = readColumnBlockNoCleanup(col, info, sourceRows);
                     if (budgetExhaustsBatch) {
-                        // sliceBlockHead returns the same block when sizes match (no slice), or
-                        // closes source on success. On failure we own fullBlock and must close it.
-                        try {
-                            blocks[col] = sliceBlockHead(fullBlock, emitCount);
-                        } catch (RuntimeException sliceEx) {
-                            ParquetReadFailures.closePreservingCause(sliceEx, fullBlock);
-                            throw sliceEx;
-                        }
+                        blocks[col] = sliceBlockHead(fullBlock, emitCount);
                     } else {
                         blocks[col] = fullBlock;
                     }
                 } else if (pageColumnReaders != null && pageColumnReaders[col] != null) {
                     blocks[col] = pageColumnReaders[col].readBatchSparse(sourceRows, blockFactory, survivorPositions, emitCount);
                 } else {
-                    // Read the full source-rows block and immediately filter to survivors.
-                    // We hand fullBlock to filterBlock which closes it on success; on failure
-                    // (e.g. a breaker trip during the new filtered allocation) filterBlock does
-                    // NOT close source, so we must close it explicitly to avoid a leak.
                     Block fullBlock = readColumnBlockNoCleanup(col, info, sourceRows);
-                    try {
-                        blocks[col] = PageColumnReader.filterBlock(fullBlock, survivorPositions, emitCount, blockFactory);
-                    } catch (RuntimeException filterEx) {
-                        ParquetReadFailures.closePreservingCause(filterEx, fullBlock);
-                        throw filterEx;
-                    }
+                    blocks[col] = filterBlockClosingOnFailure(fullBlock, survivorPositions, emitCount);
                 }
             }
         } catch (CircuitBreakingException e) {
@@ -2762,7 +2772,22 @@ final class OptimizedParquetColumnIterator implements CloseableIterator<Page>, C
         for (int i = 0; i < newCount; i++) {
             head[i] = i;
         }
-        return PageColumnReader.filterBlock(source, head, newCount, blockFactory);
+        return filterBlockClosingOnFailure(source, head, newCount);
+    }
+
+    /**
+     * Calls {@link PageColumnReader#filterBlock} and, on any {@link RuntimeException}, closes
+     * {@code source} via {@link ParquetReadFailures#closePreservingCause} before rethrowing.
+     * Use only when {@code source} is a local variable not yet stored in a {@code blocks[]} array
+     * that an outer catch can clean up; leave in-array sources owned by their array.
+     */
+    private Block filterBlockClosingOnFailure(Block source, int[] positions, int count) {
+        try {
+            return PageColumnReader.filterBlock(source, positions, count, blockFactory);
+        } catch (RuntimeException e) {
+            ParquetReadFailures.closePreservingCause(e, source);
+            throw e;
+        }
     }
 
     private void closeTwoPhaseState() {
@@ -2930,7 +2955,7 @@ final class OptimizedParquetColumnIterator implements CloseableIterator<Page>, C
                     blocks[col] = pageColumnReaders[col].readBatchFiltered(rowsToRead, blockFactory, positions, survivorCount);
                 } else {
                     Block fullBlock = readColumnBlockNoCleanup(col, info, rowsToRead);
-                    blocks[col] = PageColumnReader.filterBlock(fullBlock, positions, survivorCount, blockFactory);
+                    blocks[col] = filterBlockClosingOnFailure(fullBlock, positions, survivorCount);
                 }
             }
 

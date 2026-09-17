@@ -1,6 +1,6 @@
 LimitExec[1000[INTEGER],null]
 \_AggregateExec[[dept{r$}#0],[FROMPARTIAL($$partial$$d{r$}#1,true[BOOLEAN],PT0S[TIME_DURATION],COUNTDISTINCT(emp_no{r}#2,true[BOOLEAN],PT0S[TIME_DURATION])) AS d#3, dept{r$}#0 AS dept#4],SINGLE,[dept{r$}#0, $$d$partial{r}#5],null]
-  \_MergeExec[[$$partial$$d{r$}#1, dept{r$}#0]]
+  \_MergeExec[[$$partial$$d{r$}#1, dept{r$}#0],UNION]
     |_AggregateExec[[dept{r}#6],[TOPARTIAL(COUNTDISTINCT(emp_no{r}#7,true[BOOLEAN],PT0S[TIME_DURATION]),true[BOOLEAN],PT0S[TIME_DURATION],COUNTDISTINCT(emp_no{r}#7,true[BOOLEAN],PT0S[TIME_DURATION])) AS $$partial$$d#1, dept{r}#6 AS dept#0],FINAL,[dept{r}#6, $$partial$$d$partial{r}#8],null]
     | \_ExchangeExec[[dept{r}#6, $$partial$$d$partial{r}#8],true]
     |   \_FragmentExec[filter=null, estimatedRowSize=0, reducer=[], fragment=[<>

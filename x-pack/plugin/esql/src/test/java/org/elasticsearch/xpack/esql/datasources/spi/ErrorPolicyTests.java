@@ -9,6 +9,10 @@ package org.elasticsearch.xpack.esql.datasources.spi;
 
 import org.elasticsearch.test.ESTestCase;
 
+import java.util.Map;
+
+import static org.hamcrest.Matchers.containsString;
+
 public class ErrorPolicyTests extends ESTestCase {
 
     public void testStrictPolicy() {
@@ -116,5 +120,43 @@ public class ErrorPolicyTests extends ESTestCase {
 
     public void testModeParsingInvalid() {
         expectThrows(IllegalArgumentException.class, () -> ErrorPolicy.Mode.parse("invalid"));
+    }
+
+    public void testValidateRegistrationBudgetRequiresMode() {
+        IllegalArgumentException ex = expectThrows(
+            IllegalArgumentException.class,
+            () -> ErrorPolicy.validateRegistrationBudget(Map.of(ErrorPolicy.CONFIG_MAX_ERRORS, "100"))
+        );
+        assertThat(ex.getMessage(), containsString(ErrorPolicy.CONFIG_ERROR_MODE));
+        assertThat(ex.getMessage(), containsString("skip_row"));
+        assertThat(ex.getMessage(), containsString("null_field"));
+
+        IllegalArgumentException ex2 = expectThrows(
+            IllegalArgumentException.class,
+            () -> ErrorPolicy.validateRegistrationBudget(Map.of(ErrorPolicy.CONFIG_MAX_ERROR_RATIO, "0.1"))
+        );
+        assertThat(ex2.getMessage(), containsString(ErrorPolicy.CONFIG_ERROR_MODE));
+        assertThat(ex2.getMessage(), containsString("skip_row"));
+        assertThat(ex2.getMessage(), containsString("null_field"));
+    }
+
+    public void testValidateRegistrationBudgetAllowsExplicitMode() {
+        ErrorPolicy.validateRegistrationBudget(Map.of(ErrorPolicy.CONFIG_MAX_ERRORS, "100", ErrorPolicy.CONFIG_ERROR_MODE, "skip_row"));
+        ErrorPolicy.validateRegistrationBudget(Map.of(ErrorPolicy.CONFIG_MAX_ERRORS, "50", ErrorPolicy.CONFIG_ERROR_MODE, "null_field"));
+        ErrorPolicy.validateRegistrationBudget(Map.of(ErrorPolicy.CONFIG_ERROR_MODE, "fail_fast"));
+        ErrorPolicy.validateRegistrationBudget(Map.of());
+        ErrorPolicy.validateRegistrationBudget(null);
+    }
+
+    public void testValidateRegistrationBudgetExplicitNullModeIsNotAMode() {
+        // A map entry with error_mode=null is treated as absent (get returns null), so the budget is bare.
+        Map<String, Object> explicitNull = new java.util.HashMap<>();
+        explicitNull.put(ErrorPolicy.CONFIG_MAX_ERRORS, "100");
+        explicitNull.put(ErrorPolicy.CONFIG_ERROR_MODE, null);
+        IllegalArgumentException ex = expectThrows(
+            IllegalArgumentException.class,
+            () -> ErrorPolicy.validateRegistrationBudget(explicitNull)
+        );
+        assertThat(ex.getMessage(), containsString(ErrorPolicy.CONFIG_ERROR_MODE));
     }
 }

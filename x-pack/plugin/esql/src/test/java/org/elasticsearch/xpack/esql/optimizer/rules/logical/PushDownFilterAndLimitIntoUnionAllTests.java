@@ -70,6 +70,10 @@ import static org.hamcrest.Matchers.instanceOf;
 //@TestLogging(value = "org.elasticsearch.xpack.esql:TRACE", reason = "debug")
 public class PushDownFilterAndLimitIntoUnionAllTests extends AbstractLogicalPlanOptimizerTests {
 
+    public PushDownFilterAndLimitIntoUnionAllTests(VersionMode versionMode) {
+        super(versionMode);
+    }
+
     @Before
     public void checkSubqueryInFromCommandSupport() {
         assumeTrue("Requires subquery in FROM command support", EsqlCapabilities.Cap.SUBQUERY_IN_FROM_COMMAND.isEnabled());

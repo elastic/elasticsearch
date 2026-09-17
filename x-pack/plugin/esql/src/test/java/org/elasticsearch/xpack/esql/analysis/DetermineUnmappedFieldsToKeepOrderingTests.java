@@ -10,6 +10,7 @@ package org.elasticsearch.xpack.esql.analysis;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.xpack.esql.EsqlTestUtils;
 import org.elasticsearch.xpack.esql.TestAnalyzer;
+import org.elasticsearch.xpack.esql.VersionMode;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.expression.Expressions;
 import org.elasticsearch.xpack.esql.core.expression.ReferenceAttribute;
@@ -32,6 +33,10 @@ import static org.hamcrest.Matchers.notNullValue;
 import static org.hamcrest.Matchers.nullValue;
 
 public class DetermineUnmappedFieldsToKeepOrderingTests extends AnalyzerUnmappedTestBase {
+
+    public DetermineUnmappedFieldsToKeepOrderingTests(VersionMode versionMode) {
+        super(versionMode);
+    }
 
     /** An explicit term still beats a wildcard and keeps its written position, because the real KEEP resolver decides. */
     public void testKeepOrderingHonouredForDiscoveredFields() {
@@ -245,7 +250,7 @@ public class DetermineUnmappedFieldsToKeepOrderingTests extends AnalyzerUnmapped
         }
     }
 
-    private static List<String> orderFor(String query, String... discovered) {
+    private List<String> orderFor(String query, String... discovered) {
         TestAnalyzer analyzer = test();
         analyzer.statement(setUnmappedLoadAll(query));
         UnmappedFieldsOrdering ordering = analyzer.lastAnalyzer().unmappedFieldsOrdering();

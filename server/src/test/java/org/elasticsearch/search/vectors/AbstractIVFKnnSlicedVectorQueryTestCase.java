@@ -10,6 +10,7 @@ package org.elasticsearch.search.vectors;
 
 import org.apache.lucene.document.Document;
 import org.apache.lucene.document.Field;
+import org.apache.lucene.document.NumericDocValuesField;
 import org.apache.lucene.document.SortedDocValuesField;
 import org.apache.lucene.document.StoredField;
 import org.apache.lucene.document.StringField;
@@ -17,6 +18,8 @@ import org.apache.lucene.index.DirectoryReader;
 import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.index.IndexWriter;
 import org.apache.lucene.index.IndexWriterConfig;
+import org.apache.lucene.index.SoftDeletesDirectoryReaderWrapper;
+import org.apache.lucene.index.SoftDeletesRetentionMergePolicy;
 import org.apache.lucene.index.Term;
 import org.apache.lucene.index.VectorSimilarityFunction;
 import org.apache.lucene.search.IndexSearcher;
@@ -30,6 +33,8 @@ import org.apache.lucene.tests.util.LuceneTestCase;
 import org.apache.lucene.tests.util.TestUtil;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.logging.LogConfigurator;
+import org.elasticsearch.common.lucene.Lucene;
+import org.elasticsearch.common.lucene.search.Queries;
 import org.elasticsearch.index.cache.query.TrivialQueryCachingPolicy;
 import org.elasticsearch.index.codec.vectors.diskbbq.CentroidIndexFormat;
 import org.elasticsearch.index.codec.vectors.diskbbq.QuantEncoding;
@@ -62,6 +67,13 @@ public abstract class AbstractIVFKnnSlicedVectorQueryTestCase extends LuceneTest
     @Before
     public void initFormat() throws Exception {
         format = new ESNextDiskBBQVectorsFormat(128, 4, SLICE_FIELD);
+    }
+
+    /** The index sort every sliced index must use: slice field first, STRING, ascending, missing values last. */
+    protected static Sort sliceIndexSort() {
+        SortField sliceSort = new SortField(SLICE_FIELD, SortField.Type.STRING);
+        sliceSort.setMissingValue(SortField.STRING_LAST);
+        return new Sort(sliceSort);
     }
 
     /** Creates a vector field with a random vector of the given dimensions. */
@@ -129,6 +141,95 @@ public abstract class AbstractIVFKnnSlicedVectorQueryTestCase extends LuceneTest
         doTestSlices(() -> true, applyFilter);
     }
 
+    public void testTrailingMissingSliceDocValues() throws IOException {
+        final int dimensions = random().nextInt(12, 128);
+        final int numSlices = random().nextInt(2, 8);
+        final int docsPerSlice = random().nextInt(2, 20);
+        final int routedDocs = numSlices * docsPerSlice;
+        final int tombstones = random().nextInt(1, Math.max(2, numSlices));
+        final IndexWriterConfig iwc = newIndexWriterConfig();
+        final SortField sliceSort = new SortField(SLICE_FIELD, SortField.Type.STRING, false, SortField.STRING_LAST);
+        iwc.setIndexSort(new Sort(sliceSort));
+        iwc.setSoftDeletesField(Lucene.SOFT_DELETES_FIELD);
+        // Retain soft-deleted tombstones through merges, as Elasticsearch does. Otherwise a randomized merge policy
+        // can expunge every tombstone before the reader opens and no leaf remains sparse.
+        iwc.setMergePolicy(
+            new SoftDeletesRetentionMergePolicy(Lucene.SOFT_DELETES_FIELD, () -> Queries.ALL_DOCS_INSTANCE, iwc.getMergePolicy())
+        );
+        iwc.setCodec(TestUtil.alwaysKnnVectorsFormat(format));
+        // Keep segments small enough to exercise both single- and multi-segment readers. Tombstones are interleaved
+        // with routed documents below, so at least one segment contains both kinds of documents.
+        iwc.setMaxBufferedDocs(random().nextInt(3, Math.min(20, routedDocs + tombstones + 1)));
+
+        try (Directory dir = newDirectory(); IndexWriter writer = new IndexWriter(dir, iwc)) {
+            int tombstonesAdded = 0;
+            final int tombstoneInterval = Math.max(1, routedDocs / (tombstones + 1));
+            for (int i = 0; i < routedDocs; i++) {
+                final int slice = i % numSlices;
+                final String sliceValue = Integer.toString(slice);
+                final Document document = new Document();
+                document.add(SortedDocValuesField.indexedField(SLICE_FIELD, new BytesRef(sliceValue)));
+                document.add(new StoredField(SLICE_FIELD, new BytesRef(sliceValue)));
+                document.add(createVectorField("vector", dimensions));
+                writer.addDocument(document);
+
+                if (tombstonesAdded < tombstones && (i + 1) % tombstoneInterval == 0) {
+                    final Document tombstone = new Document();
+                    tombstone.add(new NumericDocValuesField(Lucene.SOFT_DELETES_FIELD, 1L));
+                    writer.addDocument(tombstone);
+                    tombstonesAdded++;
+                }
+            }
+            if (random().nextBoolean()) {
+                // Also cover a single merged segment; the retention merge policy keeps its tombstones as a trailing suffix.
+                writer.forceMerge(1);
+            }
+            writer.commit();
+
+            try (DirectoryReader reader = new SoftDeletesDirectoryReaderWrapper(DirectoryReader.open(writer), Lucene.SOFT_DELETES_FIELD)) {
+                assertEquals(routedDocs, reader.numDocs());
+                int sparseLeaves = 0;
+                for (var context : reader.leaves()) {
+                    final var leaf = context.reader();
+                    assertSame(SortField.STRING_LAST, leaf.getMetaData().sort().getSort()[0].getMissingValue());
+                    final var skipper = leaf.getDocValuesSkipper(SLICE_FIELD);
+                    if (skipper != null && skipper.docCount() < leaf.maxDoc()) {
+                        sparseLeaves++;
+                    }
+                }
+                assertTrue("expected at least one leaf with trailing missing slice doc values", sparseLeaves > 0);
+
+                final IndexSearcher searcher = new IndexSearcher(reader);
+                final int targetSlice = random().nextInt(numSlices);
+                final String targetSliceValue = Integer.toString(targetSlice);
+                final Query oneSlice = createSlicedQuery(
+                    "vector",
+                    dimensions,
+                    docsPerSlice,
+                    docsPerSlice,
+                    null,
+                    1.0f,
+                    new BytesRef(targetSliceValue)
+                );
+                final TopDocs oneSliceResults = searcher.search(oneSlice, docsPerSlice);
+                assertEquals(docsPerSlice, oneSliceResults.scoreDocs.length);
+                for (var scoreDoc : oneSliceResults.scoreDocs) {
+                    final Document document = reader.storedFields().document(scoreDoc.doc);
+                    assertThat(document.getField(SLICE_FIELD).binaryValue().utf8ToString(), equalTo(targetSliceValue));
+                }
+
+                final Query allSlices = createSlicedQuery("vector", dimensions, routedDocs, routedDocs, null, 1.0f);
+                final TopDocs allSliceResults = searcher.search(allSlices, routedDocs);
+                assertEquals(routedDocs, allSliceResults.scoreDocs.length);
+                for (var scoreDoc : allSliceResults.scoreDocs) {
+                    final Document document = reader.storedFields().document(scoreDoc.doc);
+                    final int slice = Integer.parseInt(document.getField(SLICE_FIELD).binaryValue().utf8ToString());
+                    assertTrue(slice >= 0 && slice < numSlices);
+                }
+            }
+        }
+    }
+
     /**
      * Tests that querying multiple slices at once returns results from all requested slices.
      */
@@ -138,7 +239,7 @@ public abstract class AbstractIVFKnnSlicedVectorQueryTestCase extends LuceneTest
         int numSlices = random().nextInt(3, 8);
         int[] docsPerSlice = new int[numSlices];
         IndexWriterConfig iwc = newIndexWriterConfig();
-        iwc.setIndexSort(new Sort(new SortField(SLICE_FIELD, SortField.Type.STRING)));
+        iwc.setIndexSort(sliceIndexSort());
         iwc.setCodec(TestUtil.alwaysKnnVectorsFormat(format));
 
         try (Directory dir = newDirectory(); IndexWriter w = new IndexWriter(dir, iwc)) {
@@ -184,7 +285,7 @@ public abstract class AbstractIVFKnnSlicedVectorQueryTestCase extends LuceneTest
         int numSlices = random().nextInt(3, 8);
         int totalWithVector = 0;
         IndexWriterConfig iwc = newIndexWriterConfig();
-        iwc.setIndexSort(new Sort(new SortField(SLICE_FIELD, SortField.Type.STRING)));
+        iwc.setIndexSort(sliceIndexSort());
         iwc.setCodec(TestUtil.alwaysKnnVectorsFormat(format));
 
         try (Directory dir = newDirectory(); IndexWriter w = new IndexWriter(dir, iwc)) {
@@ -211,7 +312,7 @@ public abstract class AbstractIVFKnnSlicedVectorQueryTestCase extends LuceneTest
 
     public void testToString() throws IOException {
         IndexWriterConfig iwc = newIndexWriterConfig();
-        iwc.setIndexSort(new Sort(new SortField(SLICE_FIELD, SortField.Type.STRING)));
+        iwc.setIndexSort(sliceIndexSort());
         iwc.setCodec(TestUtil.alwaysKnnVectorsFormat(format));
         try (Directory dir = newDirectory(); IndexWriter w = new IndexWriter(dir, iwc)) {
             Document doc = new Document();
@@ -253,7 +354,7 @@ public abstract class AbstractIVFKnnSlicedVectorQueryTestCase extends LuceneTest
         String filterMiss = "miss";
         String docIdField = "_doc_id";
         IndexWriterConfig iwc = newIndexWriterConfig();
-        iwc.setIndexSort(new Sort(new SortField(SLICE_FIELD, SortField.Type.STRING)));
+        iwc.setIndexSort(sliceIndexSort());
         iwc.setCodec(TestUtil.alwaysKnnVectorsFormat(format));
 
         try (Directory dir = newDirectory(); IndexWriter w = new IndexWriter(dir, iwc)) {

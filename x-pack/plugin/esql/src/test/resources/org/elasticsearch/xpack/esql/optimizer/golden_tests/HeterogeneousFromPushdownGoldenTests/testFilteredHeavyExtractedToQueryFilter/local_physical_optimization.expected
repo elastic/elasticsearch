@@ -1,6 +1,6 @@
 LimitExec[1000[INTEGER],null]
 \_AggregateExec[[],[COUNTDISTINCT(emp_no{r}#0,true[BOOLEAN],PT0S[TIME_DURATION]) AS d#1],SINGLE,[$$d$hll{r}#2],null]
-  \_MergeExec[[emp_no{r}#0]]
+  \_MergeExec[[emp_no{r}#0],UNION]
     |_ExchangeExec[[emp_no{r}#3],false]
     | \_ProjectExec[[emp_no{r}#3]]
     |   \_FilterExec[salary{r}#4 > 0[INTEGER]]

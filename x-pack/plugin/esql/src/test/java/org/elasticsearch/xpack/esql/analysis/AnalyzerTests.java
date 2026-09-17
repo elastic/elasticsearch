@@ -21,12 +21,12 @@ import org.elasticsearch.index.analysis.IndexAnalyzers;
 import org.elasticsearch.index.mapper.TimeSeriesParams;
 import org.elasticsearch.inference.TaskType;
 import org.elasticsearch.logging.LogManager;
-import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.core.enrich.EnrichPolicy;
 import org.elasticsearch.xpack.esql.EsqlTestUtils;
 import org.elasticsearch.xpack.esql.LoadMapping;
 import org.elasticsearch.xpack.esql.TestAnalyzer;
 import org.elasticsearch.xpack.esql.VerificationException;
+import org.elasticsearch.xpack.esql.VersionMode;
 import org.elasticsearch.xpack.esql.action.EsqlCapabilities;
 import org.elasticsearch.xpack.esql.core.expression.Alias;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
@@ -154,7 +154,6 @@ import static org.elasticsearch.web.UriParts.QUERY;
 import static org.elasticsearch.web.UriParts.SCHEME;
 import static org.elasticsearch.web.UriParts.USERNAME;
 import static org.elasticsearch.web.UriParts.USER_INFO;
-import static org.elasticsearch.xpack.esql.EsqlTestUtils.analyzer;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.as;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.configuration;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.equalToIgnoringIds;
@@ -199,6 +198,7 @@ import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.matchesRegex;
 import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.notNullValue;
+import static org.hamcrest.Matchers.nullValue;
 import static org.hamcrest.Matchers.startsWith;
 
 //@TestLogging(value = "org.elasticsearch.xpack.esql.analysis:TRACE", reason = "debug")
@@ -208,7 +208,11 @@ import static org.hamcrest.Matchers.startsWith;
  * Use this class if you want to test analysis phase
  * and especially if you expect to get a VerificationException during analysis
  */
-public class AnalyzerTests extends ESTestCase {
+public class AnalyzerTests extends AnalyzerTestCase {
+
+    public AnalyzerTests(VersionMode versionMode) {
+        super(versionMode);
+    }
 
     private static final UnresolvedRelation UNRESOLVED_RELATION = unresolvedRelation("idx");
     private static final int MAX_LIMIT = AnalyzerSettings.QUERY_RESULT_TRUNCATION_MAX_SIZE.getDefault(Settings.EMPTY);
@@ -2598,7 +2602,7 @@ public class AnalyzerTests extends ESTestCase {
         checkDenseVectorCastingHexKnn("bfloat16_vector");
     }
 
-    private static void checkDenseVectorCastingKnn(String fieldName) {
+    private void checkDenseVectorCastingKnn(String fieldName) {
         var plan = denseVector().query(String.format(Locale.ROOT, """
             from test | where knn(%s, [0, 1, 2])
             """, fieldName));
@@ -2611,7 +2615,7 @@ public class AnalyzerTests extends ESTestCase {
         assertThat(literal.value(), equalTo(List.of(0, 1, 2)));
     }
 
-    private static void checkDenseVectorCastingHexKnn(String fieldName) {
+    private void checkDenseVectorCastingHexKnn(String fieldName) {
         var plan = denseVector().query(String.format(Locale.ROOT, """
             from test | where knn(%s, "000102")
             """, fieldName));
@@ -2624,7 +2628,7 @@ public class AnalyzerTests extends ESTestCase {
         assertThat(queryVector.value(), equalTo(List.of(0.0f, 1.0f, 2.0f)));
     }
 
-    private static void checkDenseVectorEvalCastingKnn(String fieldName) {
+    private void checkDenseVectorEvalCastingKnn(String fieldName) {
         var plan = denseVector().query(String.format(Locale.ROOT, """
             from test | eval query = to_dense_vector([0, 1, 2]) | where knn(%s, query)
             """, fieldName));
@@ -2784,7 +2788,7 @@ public class AnalyzerTests extends ESTestCase {
                 avg(rate(network.bytes_in[5m]))""", DEFAULT_TIMESERIES_LIMIT);
     }
 
-    private static void assertDefaultLimitForQuery(String query, int expectedLimit) {
+    private void assertDefaultLimitForQuery(String query, int expectedLimit) {
         var plan = tsdb().query(query);
         var limit = as(plan, Limit.class);
         assertThat(query, as(limit.limit(), Literal.class).value(), equalTo(expectedLimit));
@@ -4042,7 +4046,7 @@ public class AnalyzerTests extends ESTestCase {
         return allWarnings;
     }
 
-    private static LogicalPlan analyzeWithEmptyFieldCapsResponse(String query) throws IOException {
+    private LogicalPlan analyzeWithEmptyFieldCapsResponse(String query) throws IOException {
         List<FieldCapabilitiesIndexResponse> idxResponses = List.of(
             new FieldCapabilitiesIndexResponse("idx", "idx", Map.of(), true, IndexMode.STANDARD)
         );
@@ -4850,6 +4854,132 @@ public class AnalyzerTests extends ESTestCase {
         assertThat(getAttributeByName(denseVector.output(), "title_dense_vector"), notNullValue());
     }
 
+    private static void assumeDenseVectorNamingEnabled() {
+        assumeTrue("DENSE_VECTOR naming requires corresponding capability", EsqlCapabilities.Cap.DENSE_VECTOR_COMMAND_V3.isEnabled());
+    }
+
+    public void testDenseVectorExplicitOutputNameResolves() {
+        assumeDenseVectorNamingEnabled();
+        LogicalPlan plan = books().query("""
+            FROM books
+            | DENSE_VECTOR vec = title WITH { "inference_id" : "text-embedding-inference-id" }
+            """);
+
+        DenseVector denseVector = as(as(plan, Limit.class).child(), DenseVector.class);
+        assertThat(denseVector.generatedAttributes(), hasSize(1));
+        assertThat(denseVector.generatedAttributes().get(0).name(), equalTo("vec"));
+        Attribute generated = getAttributeByName(denseVector.output(), "vec");
+        assertThat(generated, notNullValue());
+        assertThat(generated.dataType(), equalTo(DataType.DENSE_VECTOR));
+        // The default name is not produced alongside the explicit one.
+        assertThat(getAttributeByName(denseVector.output(), "title_dense_vector"), nullValue());
+        // The source column survives; DENSE_VECTOR appends rather than replaces.
+        assertThat(getAttributeByName(denseVector.output(), "title"), notNullValue());
+    }
+
+    public void testDenseVectorSuffixResolvesForEachField() {
+        assumeDenseVectorNamingEnabled();
+        LogicalPlan plan = books().query("""
+            FROM books
+            | DENSE_VECTOR suffix = "_dv" ON title, description WITH { "inference_id" : "text-embedding-inference-id" }
+            """);
+
+        DenseVector denseVector = as(as(plan, Limit.class).child(), DenseVector.class);
+        assertThat(denseVector.generatedAttributes(), hasSize(2));
+        assertThat(denseVector.generatedAttributes().get(0).name(), equalTo("title_dv"));
+        assertThat(denseVector.generatedAttributes().get(1).name(), equalTo("description_dv"));
+        assertThat(getAttributeByName(denseVector.output(), "title_dv"), notNullValue());
+        assertThat(getAttributeByName(denseVector.output(), "description_dv"), notNullValue());
+        assertThat(getAttributeByName(denseVector.output(), "title_dense_vector"), nullValue());
+    }
+
+    /**
+     * An explicit name that collides with an existing column replaces it, the same shadowing rule EVAL follows. The surviving
+     * column carries the generated {@code dense_vector} type rather than the shadowed column's type.
+     */
+    public void testDenseVectorExplicitNameShadowsExistingColumn() {
+        assumeDenseVectorNamingEnabled();
+        LogicalPlan plan = books().query("""
+            FROM books
+            | DENSE_VECTOR description = title WITH { "inference_id" : "text-embedding-inference-id" }
+            """);
+
+        DenseVector denseVector = as(as(plan, Limit.class).child(), DenseVector.class);
+        Attribute shadowed = getAttributeByName(denseVector.output(), "description");
+        assertThat(shadowed, notNullValue());
+        assertThat(shadowed.dataType(), equalTo(DataType.DENSE_VECTOR));
+        assertThat(denseVector.output().stream().filter(a -> a.name().equals("description")).count(), equalTo(1L));
+    }
+
+    /**
+     * Naming the output after its own input leaves the embedding in place of the source text, so the source column is no longer
+     * reachable downstream.
+     */
+    public void testDenseVectorOutputNameMatchingInputReplacesIt() {
+        assumeDenseVectorNamingEnabled();
+        LogicalPlan plan = books().query("""
+            FROM books
+            | DENSE_VECTOR title = title WITH { "inference_id" : "text-embedding-inference-id" }
+            """);
+
+        DenseVector denseVector = as(as(plan, Limit.class).child(), DenseVector.class);
+        Attribute title = getAttributeByName(denseVector.output(), "title");
+        assertThat(title, notNullValue());
+        assertThat(title.dataType(), equalTo(DataType.DENSE_VECTOR));
+        assertThat(denseVector.output().stream().filter(a -> a.name().equals("title")).count(), equalTo(1L));
+    }
+
+    /** Chained clauses naming the same output column: the later clause shadows the earlier one. */
+    public void testDenseVectorChainedClausesWithSameOutputName() {
+        assumeDenseVectorNamingEnabled();
+        LogicalPlan plan = books().query("""
+            FROM books
+            | DENSE_VECTOR vec = title WITH { "inference_id" : "text-embedding-inference-id" }
+            | DENSE_VECTOR vec = description WITH { "inference_id" : "text-embedding-inference-id" }
+            """);
+
+        DenseVector outer = as(as(plan, Limit.class).child(), DenseVector.class);
+        assertThat(outer.fields().get(0).name(), equalTo("description"));
+        assertThat(outer.output().stream().filter(a -> a.name().equals("vec")).count(), equalTo(1L));
+        assertThat(getAttributeByName(outer.output(), "vec").dataType(), equalTo(DataType.DENSE_VECTOR));
+    }
+
+    /** A suffix that reproduces an existing column's name shadows it, exactly as the default suffix would. */
+    public void testDenseVectorSuffixShadowsExistingColumn() {
+        assumeDenseVectorNamingEnabled();
+        LogicalPlan plan = books().query("""
+            FROM books
+            | EVAL title_dv = "placeholder"
+            | DENSE_VECTOR suffix = "_dv" ON title WITH { "inference_id" : "text-embedding-inference-id" }
+            """);
+
+        DenseVector denseVector = as(as(plan, Limit.class).child(), DenseVector.class);
+        Attribute shadowed = getAttributeByName(denseVector.output(), "title_dv");
+        assertThat(shadowed, notNullValue());
+        assertThat(shadowed.dataType(), equalTo(DataType.DENSE_VECTOR));
+        assertThat(denseVector.output().stream().filter(a -> a.name().equals("title_dv")).count(), equalTo(1L));
+    }
+
+    public void testDenseVectorNamedOutputOnNonTextFieldFails() {
+        assumeDenseVectorNamingEnabled();
+        books().error(
+            "FROM books | DENSE_VECTOR vec = year WITH { \"inference_id\" : \"text-embedding-inference-id\" }",
+            containsString("DENSE_VECTOR field [year] must be [text] or [keyword], found [integer]")
+        );
+        books().error(
+            "FROM books | DENSE_VECTOR suffix = \"_dv\" ON year WITH { \"inference_id\" : \"text-embedding-inference-id\" }",
+            containsString("DENSE_VECTOR field [year] must be [text] or [keyword], found [integer]")
+        );
+    }
+
+    public void testDenseVectorNamedOutputOnUnknownColumnFails() {
+        assumeDenseVectorNamingEnabled();
+        books().error(
+            "FROM books | DENSE_VECTOR vec = no_such_column WITH { \"inference_id\" : \"text-embedding-inference-id\" }",
+            containsString("Unknown column [no_such_column]")
+        );
+    }
+
     public void testResolveGroupingsBeforeResolvingImplicitReferencesToGroupings() {
         var plan = defaultMapping().query("""
             FROM test
@@ -5091,7 +5221,7 @@ public class AnalyzerTests extends ESTestCase {
         assertThat(cleanedParent, instanceOf(KeywordEsField.class));
     }
 
-    private static EsField assertConflictedMultifieldIsCleaned(EsField conflictedMultifield) {
+    private EsField assertConflictedMultifieldIsCleaned(EsField conflictedMultifield) {
         EsField parent = new KeywordEsField(
             "my_field",
             Map.of(CONFLICTED_SUBFIELD, conflictedMultifield),
@@ -5249,7 +5379,7 @@ public class AnalyzerTests extends ESTestCase {
     }
 
     /** Analyzes {@code query} over a single-field index and returns the last {@code fieldName} attribute's (cleaned) field. */
-    private static EsField shippedFieldAfterAnalysis(String fieldName, EsField field, String query) {
+    private EsField shippedFieldAfterAnalysis(String fieldName, EsField field, String query) {
         EsIndex index = new EsIndex(
             "idx",
             Map.of(fieldName, field),
@@ -6456,47 +6586,47 @@ public class AnalyzerTests extends ESTestCase {
         return new IndexResolver.FieldsInfo(caps, TransportVersion.current(), false, false, false, hasTimeSeriesAggregation, true);
     }
 
-    private static TestAnalyzer basic() {
+    private TestAnalyzer basic() {
         return analyzer().addEmployees("test").stripErrorPrefix(true);
     }
 
-    private static TestAnalyzer basicWithEnrich() {
+    private TestAnalyzer basicWithEnrich() {
         return basic().addEnrichPolicy("match", "languages", "language_code", "languages_idx", "mapping-languages.json");
     }
 
-    private static TestAnalyzer denseVector() {
+    private TestAnalyzer denseVector() {
         return analyzer().addIndex("test", "mapping-dense_vector-all_element_types.json");
     }
 
-    private static TestAnalyzer tsdb() {
+    private TestAnalyzer tsdb() {
         return analyzer().addIndex("test", "tsdb-mapping.json", IndexMode.TIME_SERIES);
     }
 
-    private static TestAnalyzer k8s() {
+    private TestAnalyzer k8s() {
         return analyzer().addK8sDownsampled();
     }
 
-    private static TestAnalyzer allTypes() {
+    private TestAnalyzer allTypes() {
         return analyzer().addIndex("books", "mapping-all-types.json").addAnalysisTestsInferenceResolution();
     }
 
-    private static TestAnalyzer sampleData() {
+    private TestAnalyzer sampleData() {
         return analyzer().addSampleData();
     }
 
-    private static TestAnalyzer books() {
+    private TestAnalyzer books() {
         return analyzer().addIndex("books", "mapping-books.json").addAnalysisTestsInferenceResolution();
     }
 
-    private static TestAnalyzer defaultMapping() {
+    private TestAnalyzer defaultMapping() {
         return analyzer().addDefaultIndex();
     }
 
-    private static TestAnalyzer multiFieldVariation() {
+    private TestAnalyzer multiFieldVariation() {
         return analyzer().addIndex("test", "mapping-multi-field-variation.json");
     }
 
-    private static TestAnalyzer multiFieldWithNested() {
+    private TestAnalyzer multiFieldWithNested() {
         return analyzer().addIndex("test", "mapping-multi-field-with-nested.json");
     }
 }

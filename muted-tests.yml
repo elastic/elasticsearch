@@ -497,3 +497,6 @@ tests:
 - class: org.elasticsearch.xpack.esql.ccq.MultiClusterSpecEnrichIT
   method: test {csv-spec:enrich.enrichDecadesStats}
   issue: https://github.com/elastic/elasticsearch/issues/159418
+- class: org.elasticsearch.xpack.core.ml.inference.InferenceToXContentCompressorTests
+  method: testInflateParsingTooLargeStream
+  issue: https://github.com/elastic/elasticsearch/issues/159563

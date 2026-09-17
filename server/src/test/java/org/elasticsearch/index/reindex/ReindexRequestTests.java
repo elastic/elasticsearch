@@ -735,8 +735,8 @@ public class ReindexRequestTests extends AbstractBulkByPaginatedSearchRequestTes
 
     public void testDestSliceParsesWhenFeatureFlagEnabled() throws IOException {
         assumeTrue("slice indexing feature flag must be enabled", SliceIndexing.SLICE_FEATURE_FLAG.isEnabled());
-        // A destination [slice] is a plain slice value that every reindexed document is routed to.
-        ReindexRequest request = parseRequestWithDestRoutingField(SliceIndexing.PARAM_NAME, "s1");
+        // A destination [_slice] is a plain slice value that every reindexed document is routed to.
+        ReindexRequest request = parseRequestWithDestRoutingField(SliceIndexing.FIELD_NAME, "s1");
         assertEquals("s1", request.getDestination().routing());
         assertTrue(request.getDestination().isRoutingFromSlice());
         assertNull(request.validate());
@@ -744,8 +744,8 @@ public class ReindexRequestTests extends AbstractBulkByPaginatedSearchRequestTes
 
     public void testDestSliceCommandValueRejectedAtParse() throws IOException {
         assumeTrue("slice indexing feature flag must be enabled", SliceIndexing.SLICE_FEATURE_FLAG.isEnabled());
-        // Routing-command style values are no longer accepted for a destination [slice]; only plain slice values are.
-        Exception e = expectThrows(Exception.class, () -> parseRequestWithDestRoutingField(SliceIndexing.PARAM_NAME, "=s1"));
+        // Routing-command style values are no longer accepted for a destination [_slice]; only plain slice values are.
+        Exception e = expectThrows(Exception.class, () -> parseRequestWithDestRoutingField(SliceIndexing.FIELD_NAME, "=s1"));
         assertThat(e.getMessage(), containsString("[reindex] failed to parse field [dest]"));
     }
 
@@ -753,7 +753,7 @@ public class ReindexRequestTests extends AbstractBulkByPaginatedSearchRequestTes
         assumeTrue("slice indexing feature flag must be enabled", SliceIndexing.SLICE_FEATURE_FLAG.isEnabled());
         Exception e = expectThrows(
             Exception.class,
-            () -> parseRequestWithDestRoutingField(SliceIndexing.PARAM_NAME, SliceIndexing.SLICE_ALL)
+            () -> parseRequestWithDestRoutingField(SliceIndexing.FIELD_NAME, SliceIndexing.SLICE_ALL)
         );
         assertThat(e.getMessage(), containsString("[reindex] failed to parse field [dest]"));
     }
@@ -782,7 +782,7 @@ public class ReindexRequestTests extends AbstractBulkByPaginatedSearchRequestTes
         while (root.getCause() != null) {
             root = root.getCause();
         }
-        assertThat(root.getMessage(), equalTo("request does not support [" + SliceIndexing.PARAM_NAME + "]"));
+        assertThat(root.getMessage(), equalTo("request does not support [" + SliceIndexing.FIELD_NAME + "]"));
     }
 
     public void testSourceSliceRejectedWhenClusterFeatureUnsupported() throws IOException {
@@ -794,7 +794,7 @@ public class ReindexRequestTests extends AbstractBulkByPaginatedSearchRequestTes
                 b.startObject("source");
                 {
                     b.field("index", "source");
-                    b.field(SliceIndexing.PARAM_NAME, "tenant-a");
+                    b.field(SliceIndexing.FIELD_NAME, "tenant-a");
                 }
                 b.endObject();
                 b.startObject("dest");
@@ -812,12 +812,12 @@ public class ReindexRequestTests extends AbstractBulkByPaginatedSearchRequestTes
             while (root.getCause() != null) {
                 root = root.getCause();
             }
-            assertThat(root.getMessage(), equalTo("request does not support [" + SliceIndexing.PARAM_NAME + "]"));
+            assertThat(root.getMessage(), equalTo("request does not support [" + SliceIndexing.FIELD_NAME + "]"));
         }
     }
 
     public void testSourceSliceBuilderObjectStillParses() throws IOException {
-        // The search slice-scroll object form of [slice] must keep working and must not be treated as a source slice value.
+        // The search slice-scroll object form of [slice] must keep working and must not be treated as a source [_slice] value.
         BytesReference request;
         try (XContentBuilder b = JsonXContent.contentBuilder()) {
             b.startObject();
@@ -825,7 +825,7 @@ public class ReindexRequestTests extends AbstractBulkByPaginatedSearchRequestTes
                 b.startObject("source");
                 {
                     b.field("index", "source");
-                    b.startObject(SliceIndexing.PARAM_NAME);
+                    b.startObject("slice");
                     {
                         b.field("id", 0);
                         b.field("max", 2);
@@ -864,7 +864,7 @@ public class ReindexRequestTests extends AbstractBulkByPaginatedSearchRequestTes
                 {
                     b.field("index", "dest");
                     b.field("routing", "keep");
-                    b.field(SliceIndexing.PARAM_NAME, "s1");
+                    b.field(SliceIndexing.FIELD_NAME, "s1");
                 }
                 b.endObject();
             }
@@ -891,7 +891,7 @@ public class ReindexRequestTests extends AbstractBulkByPaginatedSearchRequestTes
                 b.startObject("dest");
                 {
                     b.field("index", "dest");
-                    b.field(SliceIndexing.PARAM_NAME, "keep");
+                    b.field(SliceIndexing.FIELD_NAME, "keep");
                 }
                 b.endObject();
             }
@@ -906,7 +906,7 @@ public class ReindexRequestTests extends AbstractBulkByPaginatedSearchRequestTes
 
     public void testDestSliceProvenancePreservedOnTransportSerialization() throws IOException {
         assumeTrue("slice indexing feature flag must be enabled", SliceIndexing.SLICE_FEATURE_FLAG.isEnabled());
-        ReindexRequest request = parseRequestWithDestRoutingField(SliceIndexing.PARAM_NAME, "s1");
+        ReindexRequest request = parseRequestWithDestRoutingField(SliceIndexing.FIELD_NAME, "s1");
 
         BytesStreamOutput out = new BytesStreamOutput();
         out.setTransportVersion(TransportVersion.current());
@@ -933,7 +933,7 @@ public class ReindexRequestTests extends AbstractBulkByPaginatedSearchRequestTes
                 b.startObject("dest");
                 {
                     b.field("index", "dest");
-                    b.field(SliceIndexing.PARAM_NAME, "s1");
+                    b.field(SliceIndexing.FIELD_NAME, "s1");
                 }
                 b.endObject();
             }
@@ -947,7 +947,7 @@ public class ReindexRequestTests extends AbstractBulkByPaginatedSearchRequestTes
             );
             assertThat(e.getMessage(), containsString("failed to parse field"));
             assertThat(e.getCause().getMessage(), containsString("failed to parse field"));
-            assertThat(e.getCause().getCause().getMessage(), equalTo("request does not support [" + SliceIndexing.PARAM_NAME + "]"));
+            assertThat(e.getCause().getCause().getMessage(), equalTo("request does not support [" + SliceIndexing.FIELD_NAME + "]"));
         }
     }
 
@@ -983,7 +983,7 @@ public class ReindexRequestTests extends AbstractBulkByPaginatedSearchRequestTes
                 b.startObject("source");
                 {
                     b.field("index", "source");
-                    b.field(SliceIndexing.PARAM_NAME, sliceValue);
+                    b.field(SliceIndexing.FIELD_NAME, sliceValue);
                 }
                 b.endObject();
                 b.startObject("dest");

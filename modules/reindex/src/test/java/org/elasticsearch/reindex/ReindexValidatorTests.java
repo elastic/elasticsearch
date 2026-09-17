@@ -144,7 +144,7 @@ public class ReindexValidatorTests extends ESTestCase {
         ReindexRequest request = new ReindexRequest().setSourceIndices("source-index").setDestIndex("dest-index");
 
         IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> validator.initialValidation(request));
-        assertThat(e.getMessage(), containsString("[" + SliceIndexing.PARAM_NAME + "] is required in [dest]"));
+        assertThat(e.getMessage(), containsString("[" + SliceIndexing.FIELD_NAME + "] is required in [dest]"));
     }
 
     public void testAllowOmittedSliceInSliceEnabledDestinationWhenSourceIsSliceMode() {
@@ -173,7 +173,7 @@ public class ReindexValidatorTests extends ESTestCase {
         request.getDestination().routing("s1").setRoutingFromSlice(true);
 
         IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> validator.initialValidation(request));
-        assertThat(e.getMessage(), containsString("[" + SliceIndexing.PARAM_NAME + "] is not allowed in [dest]"));
+        assertThat(e.getMessage(), containsString("[" + SliceIndexing.FIELD_NAME + "] is not allowed in [dest]"));
     }
 
     public void testRequireSliceInSliceEnabledDestinationFromV1Template() {
@@ -182,7 +182,7 @@ public class ReindexValidatorTests extends ESTestCase {
         ReindexRequest request = new ReindexRequest().setSourceIndices("source-index").setDestIndex("dest-auto");
 
         IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> validator.initialValidation(request));
-        assertThat(e.getMessage(), containsString("[" + SliceIndexing.PARAM_NAME + "] is required in [dest]"));
+        assertThat(e.getMessage(), containsString("[" + SliceIndexing.FIELD_NAME + "] is required in [dest]"));
     }
 
     public void testRejectSliceInSliceDisabledDestinationFromV1Template() {
@@ -192,7 +192,7 @@ public class ReindexValidatorTests extends ESTestCase {
         request.getDestination().routing("s1").setRoutingFromSlice(true);
 
         IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> validator.initialValidation(request));
-        assertThat(e.getMessage(), containsString("[" + SliceIndexing.PARAM_NAME + "] is not allowed in [dest]"));
+        assertThat(e.getMessage(), containsString("[" + SliceIndexing.FIELD_NAME + "] is not allowed in [dest]"));
     }
 
     public void testRejectReindexFromRoutingRequiredSourceIntoDestinationSlice() {

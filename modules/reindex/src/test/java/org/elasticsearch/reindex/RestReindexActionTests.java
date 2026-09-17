@@ -82,7 +82,7 @@ public class RestReindexActionTests extends RestActionTestCase {
               },
               "dest": {
                 "index": "dest",
-                "slice": "s1"
+                "_slice": "s1"
               }
             }
             """));
@@ -96,7 +96,7 @@ public class RestReindexActionTests extends RestActionTestCase {
             {
               "source": {
                 "index": "source",
-                "slice": "tenant-a"
+                "_slice": "tenant-a"
               },
               "dest": {
                 "index": "dest"
@@ -116,13 +116,13 @@ public class RestReindexActionTests extends RestActionTestCase {
               },
               "dest": {
                 "index": "dest",
-                "slice": "s1"
+                "_slice": "s1"
               }
             }
             """)));
         assertThat(e.getMessage(), containsString("failed to parse field"));
         assertThat(e.getCause().getMessage(), containsString("failed to parse field"));
-        assertThat(e.getCause().getCause().getMessage(), equalTo("request does not support [" + SliceIndexing.PARAM_NAME + "]"));
+        assertThat(e.getCause().getCause().getMessage(), equalTo("request does not support [" + SliceIndexing.FIELD_NAME + "]"));
     }
 
     public void testFilterSource() throws IOException {

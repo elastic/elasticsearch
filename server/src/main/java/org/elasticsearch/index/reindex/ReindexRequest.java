@@ -120,7 +120,7 @@ public class ReindexRequest extends AbstractBulkIndexByPaginatedSearchRequest<Re
         }
         if (false == routingIsValid()) {
             if (destination.isRoutingFromSlice()) {
-                e = addValidationError("[" + SliceIndexing.PARAM_NAME + "] must be a valid slice value", e);
+                e = addValidationError("[" + SliceIndexing.FIELD_NAME + "] must be a valid slice value", e);
             } else {
                 e = addValidationError("routing must be unset, [keep], [discard] or [=<some new value>]", e);
             }
@@ -147,7 +147,7 @@ public class ReindexRequest extends AbstractBulkIndexByPaginatedSearchRequest<Re
                 );
             }
             if (getSearchRequest().isRoutingFromSlice()) {
-                e = addValidationError("reindex from remote sources doesn't support source [" + SliceIndexing.PARAM_NAME + "]", e);
+                e = addValidationError("reindex from remote sources doesn't support source [" + SliceIndexing.FIELD_NAME + "]", e);
             }
             if (getRemoteInfo().getUsername() != null && getRemoteInfo().getPassword() == null) {
                 e = addValidationError("reindex from remote source included username but not password", e);
@@ -366,7 +366,7 @@ public class ReindexRequest extends AbstractBulkIndexByPaginatedSearchRequest<Re
             builder.array("index", getSearchRequest().indices());
             if (getSearchRequest().isRoutingFromSlice()) {
                 assert SliceIndexing.SLICE_FEATURE_FLAG.isEnabled();
-                builder.field(SliceIndexing.PARAM_NAME, getSearchRequest().searchSlice());
+                builder.field(SliceIndexing.FIELD_NAME, getSearchRequest().searchSlice());
             }
             getSearchRequest().source().innerToXContent(builder, params);
             builder.endObject();
@@ -377,7 +377,7 @@ public class ReindexRequest extends AbstractBulkIndexByPaginatedSearchRequest<Re
             builder.field("index", getDestination().index());
             if (getDestination().routing() != null) {
                 assert !getDestination().isRoutingFromSlice() || SliceIndexing.SLICE_FEATURE_FLAG.isEnabled();
-                builder.field(getDestination().isRoutingFromSlice() ? SliceIndexing.PARAM_NAME : "routing", getDestination().routing());
+                builder.field(getDestination().isRoutingFromSlice() ? SliceIndexing.FIELD_NAME : "routing", getDestination().routing());
             }
             builder.field("op_type", getDestination().opType().getLowercase());
             if (getDestination().getPipeline() != null) {
@@ -412,14 +412,14 @@ public class ReindexRequest extends AbstractBulkIndexByPaginatedSearchRequest<Re
             if (indices != null) {
                 request.getSearchRequest().indices(indices);
             }
-            // A source [slice] is a string value selecting which slice of a slice-enabled source to read ([_all] reads every slice).
-            // Search still parses [slice] as a slice-scroll object ({id, max, ...}); we only intercept the string form here to avoid
-            // colliding with that object form.
-            final Object sourceSlice = source.get(SliceIndexing.PARAM_NAME);
+            // A source [_slice] is a string value selecting which slice of a slice-enabled source to read ([_all] reads every slice).
+            // It is distinct from [slice], which Search parses as a slice-scroll object ({id, max, ...}); we intercept [_slice] here and
+            // remove it so it is not forwarded to the search source parser, which does not know about it.
+            final Object sourceSlice = source.get(SliceIndexing.FIELD_NAME);
             if (sourceSlice instanceof String sliceValue) {
-                source.remove(SliceIndexing.PARAM_NAME);
+                source.remove(SliceIndexing.FIELD_NAME);
                 if (SliceIndexing.SLICE_FEATURE_FLAG.isEnabled() == false || context.test(IndexFeatures.SLICE_INDEXING) == false) {
-                    throw new IllegalArgumentException("request does not support [" + SliceIndexing.PARAM_NAME + "]");
+                    throw new IllegalArgumentException("request does not support [" + SliceIndexing.FIELD_NAME + "]");
                 }
                 if (SliceIndexing.SLICE_ALL.equals(sliceValue) == false) {
                     SliceIndexing.validateUserSliceValue(sliceValue);
@@ -445,7 +445,7 @@ public class ReindexRequest extends AbstractBulkIndexByPaginatedSearchRequest<Re
         destParser.declareString(IndexRequest::index, new ParseField("index"));
         destParser.declareString((request, routing) -> {
             if (request.isRoutingFromSlice()) {
-                throw new IllegalArgumentException("[routing] is not allowed together with [" + SliceIndexing.PARAM_NAME + "]");
+                throw new IllegalArgumentException("[routing] is not allowed together with [" + SliceIndexing.FIELD_NAME + "]");
             }
             request.routing(routing);
         }, new ParseField("routing"));
@@ -453,21 +453,21 @@ public class ReindexRequest extends AbstractBulkIndexByPaginatedSearchRequest<Re
             final String slice = parser.text();
             if (SliceIndexing.SLICE_FEATURE_FLAG.isEnabled() == false
                 || clusterSupportsFeature.test(IndexFeatures.SLICE_INDEXING) == false) {
-                throw new IllegalArgumentException("request does not support [" + SliceIndexing.PARAM_NAME + "]");
+                throw new IllegalArgumentException("request does not support [" + SliceIndexing.FIELD_NAME + "]");
             }
             if (request.routing() != null) {
-                throw new IllegalArgumentException("[routing] is not allowed together with [" + SliceIndexing.PARAM_NAME + "]");
+                throw new IllegalArgumentException("[routing] is not allowed together with [" + SliceIndexing.FIELD_NAME + "]");
             }
             if (SliceIndexing.SLICE_ALL.equals(slice)) {
                 throw new IllegalArgumentException(
-                    "[" + SliceIndexing.SLICE_ALL + "] is not allowed for [" + SliceIndexing.PARAM_NAME + "] in [dest]"
+                    "[" + SliceIndexing.SLICE_ALL + "] is not allowed for [" + SliceIndexing.FIELD_NAME + "] in [dest]"
                 );
             }
-            // A destination [slice] is a plain slice value that every reindexed document is routed to.
+            // A destination [_slice] is a plain slice value that every reindexed document is routed to.
             SliceIndexing.validateUserSliceValue(slice);
             request.routing(slice);
             request.setRoutingFromSlice(true);
-        }, new ParseField(SliceIndexing.PARAM_NAME), ObjectParser.ValueType.STRING);
+        }, new ParseField(SliceIndexing.FIELD_NAME), ObjectParser.ValueType.STRING);
         destParser.declareString(IndexRequest::opType, new ParseField("op_type"));
         destParser.declareString(IndexRequest::setPipeline, new ParseField("pipeline"));
         destParser.declareString((s, i) -> s.versionType(VersionType.fromString(i)), new ParseField("version_type"));

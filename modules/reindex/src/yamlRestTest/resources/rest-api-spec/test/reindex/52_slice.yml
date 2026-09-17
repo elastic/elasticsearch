@@ -36,7 +36,7 @@ setup:
         body:
           source:
             index: sliced_source
-            slice: tenant-a
+            _slice: tenant-a
           dest:
             index: non_sliced_dest
   - match: {created: 1}
@@ -83,7 +83,7 @@ setup:
         body:
           source:
             index: sliced_source_all
-            slice: _all
+            _slice: _all
           dest:
             index: non_sliced_dest_all
   - match: {created: 2}
@@ -128,7 +128,7 @@ setup:
             index: plain_source
           dest:
             index: sliced_dest
-            slice: tenant-a
+            _slice: tenant-a
   - match: {created: 2}
   - match: {noops: 0}
 
@@ -182,10 +182,10 @@ setup:
         body:
           source:
             index: sliced_source_1
-            slice: tenant-a
+            _slice: tenant-a
           dest:
             index: sliced_dest_1
-            slice: tenant-b
+            _slice: tenant-b
   - match: {created: 1}
   - match: {noops: 0}
 
@@ -232,7 +232,7 @@ setup:
         body:
           source:
             index: sliced_source_2
-            slice: tenant-a
+            _slice: tenant-a
           dest:
             index: sliced_dest_2
   - match: {created: 2}
@@ -288,7 +288,7 @@ setup:
         body:
           source:
             index: sliced_source_3
-            slice: _all
+            _slice: _all
           dest:
             index: sliced_dest_3
   - match: {created: 2}
@@ -333,7 +333,7 @@ setup:
             index: plain_source_reject
           dest:
             index: plain_dest_reject
-            slice: tenant-a
+            _slice: tenant-a
 
 ---
 "Destination slice _all is rejected":
@@ -345,7 +345,7 @@ setup:
             index: some_source
           dest:
             index: some_dest
-            slice: _all
+            _slice: _all
 
 ---
 "Destination slice is required for a slice-enabled destination when the source is not read with slice":
@@ -406,7 +406,7 @@ setup:
             index: routing_required_source
           dest:
             index: slice_dest_from_routing
-            slice: tenant-a
+            _slice: tenant-a
 
 ---
 "Reindex a source slice into a destination that requires routing is rejected":
@@ -441,6 +441,6 @@ setup:
         body:
           source:
             index: slice_source_to_routing
-            slice: tenant-a
+            _slice: tenant-a
           dest:
             index: routing_required_dest

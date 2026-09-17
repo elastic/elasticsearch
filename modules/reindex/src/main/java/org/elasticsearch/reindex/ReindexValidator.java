@@ -125,7 +125,7 @@ public class ReindexValidator {
         if (destSliceProvided && destinationSliceEnabled == false) {
             throw new IllegalArgumentException(
                 "["
-                    + SliceIndexing.PARAM_NAME
+                    + SliceIndexing.FIELD_NAME
                     + "] is not allowed in [dest] when ["
                     + IndexSettings.SLICE_ENABLED.getKey()
                     + "] is false for destination ["
@@ -141,21 +141,21 @@ public class ReindexValidator {
                         + "] is true for destination ["
                         + destinationIndex
                         + "], use ["
-                        + SliceIndexing.PARAM_NAME
+                        + SliceIndexing.FIELD_NAME
                         + "] instead"
                 );
             }
-            // Omitting [slice] in [dest] only works when the source is read in slice mode, so each document can keep its source slice.
+            // Omitting [_slice] in [dest] only works when the source is read in slice mode, so each document can keep its source slice.
             if (destSliceProvided == false && sourceSliceMode == false) {
                 throw new IllegalArgumentException(
                     "["
-                        + SliceIndexing.PARAM_NAME
+                        + SliceIndexing.FIELD_NAME
                         + "] is required in [dest] when ["
                         + IndexSettings.SLICE_ENABLED.getKey()
                         + "] is true for destination ["
                         + destinationIndex
                         + "] unless the source is read with ["
-                        + SliceIndexing.PARAM_NAME
+                        + SliceIndexing.FIELD_NAME
                         + "]"
                 );
             }

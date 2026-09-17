@@ -609,7 +609,7 @@ public class CacheFileReader {
                         }
                     }));
                     bytesRead += cacheFile.recordWait(len, readFuture);
-                    blobCacheMetrics.recordBypassRead(cacheFile.timestampMillis());
+                    blobCacheMetrics.recordBypassRead();
                 } else {
                     throw e;
                 }

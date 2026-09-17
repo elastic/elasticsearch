@@ -49,15 +49,19 @@ public class BlobCacheMetrics {
     public static final String BLOB_CACHE_READ_TOTAL = "es.blob_cache.read.total";
     public static final String BLOB_CACHE_MISS_TOTAL = "es.blob_cache.miss.total";
     /**
-     * Age of each cache read in milliseconds, bucketed with the {@link TimeRangeBucket} thresholds.
-     * Sentinel timestamps (negative) are omitted; unknown volume is {@code read.total} minus this
-     * histogram's count.
+     * Age of each cache-path read in milliseconds, bucketed with the {@link TimeRangeBucket} thresholds.
+     * Sentinel timestamps (negative) and {@linkplain #recordBypassRead() bypass} reads are omitted
+     * so the distribution reflects region ages that hit the cache. Those events still increment
+     * {@link #BLOB_CACHE_READ_TOTAL}; {@code read.total} minus this histogram's count is sentinels
+     * plus bypasses.
      */
     public static final String BLOB_CACHE_READ_AGE = "es.blob_cache.read.age.histogram";
     /**
-     * Age of each cache miss in milliseconds, bucketed with the {@link TimeRangeBucket} thresholds.
-     * Sentinel timestamps (negative) are omitted; unknown volume is {@code miss.total} minus this
-     * histogram's count.
+     * Age of each cache-path miss in milliseconds, bucketed with the {@link TimeRangeBucket} thresholds.
+     * Sentinel timestamps (negative) and {@linkplain #recordBypassRead() bypass} reads are omitted
+     * so the distribution reflects region ages that missed the cache. Those events still increment
+     * {@link #BLOB_CACHE_MISS_TOTAL}; {@code miss.total} minus this histogram's count is sentinels
+     * plus bypasses.
      */
     public static final String BLOB_CACHE_MISS_AGE = "es.blob_cache.miss.age.histogram";
 
@@ -231,13 +235,13 @@ public class BlobCacheMetrics {
             ),
             meterRegistry.registerLongHistogram(
                 BLOB_CACHE_READ_AGE,
-                "The age of data served by a cache read (warming not included), in milliseconds",
+                "The age of data served by a cache read (warming and bypasses not included), in milliseconds",
                 "milliseconds",
                 TimeRangeBucket.histogramBoundaries()
             ),
             meterRegistry.registerLongHistogram(
                 BLOB_CACHE_MISS_AGE,
-                "The age of data that missed the cache (warming not included), in milliseconds",
+                "The age of data that missed the cache (warming and bypasses not included), in milliseconds",
                 "milliseconds",
                 TimeRangeBucket.histogramBoundaries()
             ),
@@ -379,7 +383,8 @@ public class BlobCacheMetrics {
      * @param regionTimestampMillis the representative data timestamp of the region (epoch millis), or one of
      *                              the sentinel values defined in {@code SharedBlobCacheService} which
      *                              are negative and are omitted from the age histogram; non-negative values
-     *                              are recorded as {@code now - timestamp} milliseconds.
+     *                              are recorded as {@code now - timestamp} milliseconds. Bypass reads are
+     *                              recorded via {@link #recordBypassRead()} and are also omitted.
      */
     public void recordRead(long regionTimestampMillis) {
         recordAccess(readCount, readAgeHistogram, regionTimestampMillis, timeProvider.absoluteTimeInMillis());
@@ -396,14 +401,13 @@ public class BlobCacheMetrics {
 
     /**
      * Record metrics for a read that bypassed the cache entirely (e.g. due to eviction or no free region).
-     * This counts as both a read and a miss, in addition to incrementing the bypass counter.
-     *
-     * @param regionTimestampMillis see {@link #recordRead(long)}
+     * This counts as both a read and a miss and increments the bypass counter, but does <em>not</em>
+     * record on the age histograms: those measure cache-path hit/miss age so we can tell whether
+     * region ages help or obstruct cache efficiency.
      */
-    public void recordBypassRead(long regionTimestampMillis) {
-        final long nowMillis = timeProvider.absoluteTimeInMillis();
-        recordAccess(readCount, readAgeHistogram, regionTimestampMillis, nowMillis);
-        recordAccess(missCount, missAgeHistogram, regionTimestampMillis, nowMillis);
+    public void recordBypassRead() {
+        readCount.increment();
+        missCount.increment();
         cacheBypassCounter.increment();
     }
 

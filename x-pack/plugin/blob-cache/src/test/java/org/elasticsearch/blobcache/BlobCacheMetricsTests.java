@@ -25,6 +25,7 @@ import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.stream.IntStream;
 
+import static org.elasticsearch.blobcache.BlobCacheMetrics.BLOB_CACHE_BYPASS_READ_TOTAL;
 import static org.elasticsearch.blobcache.BlobCacheMetrics.BLOB_CACHE_EVICTION_SCANNED_ENTRIES;
 import static org.elasticsearch.blobcache.BlobCacheMetrics.BLOB_CACHE_EVICTION_SCAN_TIME;
 import static org.elasticsearch.blobcache.BlobCacheMetrics.BLOB_CACHE_LOCK_ACQUIRE_TIME;
@@ -313,43 +314,25 @@ public class BlobCacheMetricsTests extends ESTestCase {
         assertEquals(misses, gaugeValue(BLOB_CACHE_MISS_TOTAL));
     }
 
-    public void testBypassReadSamplesNowOnce() {
-        // Advance the clock by 1ms on every absoluteTimeInMillis() sample. Sampling twice would
-        // record read age 15 minutes and miss age 15 minutes + 1ms.
-        final AtomicLong clock = new AtomicLong(fakeNowMillis.get());
-        final TimeProvider advancingClock = new TimeProvider() {
-            @Override
-            public long relativeTimeInMillis() {
-                return clock.get();
-            }
+    public void testBypassReadDoesNotRecordAgeHistograms() {
+        metrics.recordBypassRead();
 
-            @Override
-            public long relativeTimeInNanos() {
-                return clock.get() * 1_000_000L;
-            }
+        assertEquals(1L, metrics.readCount());
+        assertEquals(1L, metrics.missCount());
+        assertThat(ageMeasurements(BLOB_CACHE_READ_AGE), empty());
+        assertThat(ageMeasurements(BLOB_CACHE_MISS_AGE), empty());
+        assertEquals(
+            1L,
+            recordingMeterRegistry.getRecorder()
+                .getMeasurements(InstrumentType.LONG_COUNTER, BLOB_CACHE_BYPASS_READ_TOTAL)
+                .stream()
+                .mapToLong(Measurement::getLong)
+                .sum()
+        );
 
-            @Override
-            public long rawRelativeTimeInMillis() {
-                return clock.get();
-            }
-
-            @Override
-            public long absoluteTimeInMillis() {
-                return clock.getAndIncrement();
-            }
-        };
-        final RecordingMeterRegistry registry = new RecordingMeterRegistry();
-        final BlobCacheMetrics bypassMetrics = new BlobCacheMetrics(registry, advancingClock);
-        final long now = clock.get();
-        final long expectedAge = TimeValue.timeValueMinutes(15).getMillis();
-        bypassMetrics.recordBypassRead(now - expectedAge);
-
-        List<Measurement> readAges = registry.getRecorder().getMeasurements(InstrumentType.LONG_HISTOGRAM, BLOB_CACHE_READ_AGE);
-        List<Measurement> missAges = registry.getRecorder().getMeasurements(InstrumentType.LONG_HISTOGRAM, BLOB_CACHE_MISS_AGE);
-        assertThat(readAges, hasSize(1));
-        assertThat(missAges, hasSize(1));
-        assertEquals(expectedAge, readAges.getFirst().getLong());
-        assertEquals(expectedAge, missAges.getFirst().getLong());
+        collectAndReset();
+        assertEquals(1L, gaugeValue(BLOB_CACHE_READ_TOTAL));
+        assertEquals(1L, gaugeValue(BLOB_CACHE_MISS_TOTAL));
     }
 
     private static void assertEvictionScanAttributes(

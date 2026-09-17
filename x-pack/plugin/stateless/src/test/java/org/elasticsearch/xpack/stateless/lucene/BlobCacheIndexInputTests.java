@@ -86,6 +86,7 @@ import static org.elasticsearch.xpack.stateless.TestUtils.newCacheService;
 import static org.elasticsearch.xpack.stateless.commits.BlobLocationTestUtils.createBlobFileRanges;
 import static org.elasticsearch.xpack.stateless.lucene.BlobStoreCacheDirectoryTestUtils.getCacheFile;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.lessThan;
 import static org.hamcrest.Matchers.lessThanOrEqualTo;
 import static org.hamcrest.Matchers.not;
@@ -1101,7 +1102,7 @@ public class BlobCacheIndexInputTests extends ESIndexInputTestCase {
                     new FileCacheKey(shardId, primaryTerm, fileName),
                     input.length,
                     SharedBlobCacheService.CacheMissHandler.NOOP,
-                    randomRegionTimestampMillis()
+                    System.currentTimeMillis() - TimeUnit.HOURS.toMillis(2)
                 )
             );
             doThrow(new AlreadyClosedException("evicted")).doCallRealMethod()
@@ -1157,6 +1158,17 @@ public class BlobCacheIndexInputTests extends ESIndexInputTestCase {
                 .mapToLong(Measurement::getLong)
                 .sum(),
             equalTo(expectedBypasses)
+        );
+        // Bypass never records ages; cache-path reads/misses on this timestamped file do.
+        final int expectedReadAgeSamples = expectedBypasses > 0 ? 0 : (int) expectedReads;
+        final int expectedMissAgeSamples = expectedBypasses > 0 ? 0 : (int) expectedMisses;
+        assertThat(
+            recordingMeterRegistry.getRecorder().getMeasurements(InstrumentType.LONG_HISTOGRAM, BlobCacheMetrics.BLOB_CACHE_READ_AGE),
+            hasSize(expectedReadAgeSamples)
+        );
+        assertThat(
+            recordingMeterRegistry.getRecorder().getMeasurements(InstrumentType.LONG_HISTOGRAM, BlobCacheMetrics.BLOB_CACHE_MISS_AGE),
+            hasSize(expectedMissAgeSamples)
         );
     }
 

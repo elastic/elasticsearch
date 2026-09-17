@@ -82,7 +82,6 @@ import org.elasticsearch.test.transport.MockTransportService;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.stateless.cache.SearchCommitPrefetcherDynamicSettings;
 import org.elasticsearch.xpack.stateless.cache.SharedBlobCacheWarmingService;
-import org.elasticsearch.xpack.stateless.cache.SharedBlobCacheWarmingService.WarmTarget;
 import org.elasticsearch.xpack.stateless.cache.StatelessSharedBlobCacheService;
 import org.elasticsearch.xpack.stateless.cache.WarmingRatioProvider;
 import org.elasticsearch.xpack.stateless.cluster.coordination.StatelessElectionStrategy;
@@ -1270,7 +1269,7 @@ public abstract class AbstractStatelessPluginIntegTestCase extends ESIntegTestCa
     }
 
     protected static long getLastLongGaugeValue(String name, TestTelemetryPlugin telemetryPlugin) {
-        List<Measurement> measurements = telemetryPlugin.getLongGaugeMeasurement(name);
+        List<Measurement> measurements = telemetryPlugin.getLongAsyncGaugeMeasurement(name);
         return measurements.isEmpty() ? 0L : measurements.get(measurements.size() - 1).getLong();
     }
 

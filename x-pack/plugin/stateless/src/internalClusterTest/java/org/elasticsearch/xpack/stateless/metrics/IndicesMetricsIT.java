@@ -336,7 +336,7 @@ public class IndicesMetricsIT extends AbstractStatelessPluginIntegTestCase {
         telemetry.collect();
         for (Map.Entry<String, Matcher<Long>> e : matchers.entrySet()) {
             String name = e.getKey();
-            List<Measurement> measurements = telemetry.getLongGaugeMeasurement(name);
+            List<Measurement> measurements = telemetry.getLongAsyncGaugeMeasurement(name);
             assertThat(name, measurements, hasSize(times));
             assertThat(name, measurements.getLast().getLong(), e.getValue());
         }

@@ -138,6 +138,7 @@ public class RecoveryMetricsCollector implements IndexEventListener, RecoverySch
             "Whether recovery dispatch is currently blocked by recovery gates",
             "unit"
         );
+        recoveryGateBlockedCurrentMetric.set(0); // starts as unblocked
         recoveryGateBlockedMetric = meterRegistry.registerLongCounter(
             RECOVERY_GATE_BLOCKED_TOTAL_METRIC,
             "Number of times recovery dispatch entered the blocked state",

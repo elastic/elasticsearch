@@ -315,7 +315,7 @@ public class NodeIndexingMetricsIT extends ESIntegTestCase {
         var indexingTotal = getSingleRecordedMetric(plugin::getLongAsyncCounterMeasurement, "es.indexing.docs.total");
         assertThat(indexingTotal.getLong(), equalTo((long) docsCount));
 
-        var indexingCurrent = getSingleRecordedMetric(plugin::getLongGaugeMeasurement, "es.indexing.docs.current.total");
+        var indexingCurrent = getSingleRecordedMetric(plugin::getLongAsyncGaugeMeasurement, "es.indexing.docs.current.total");
         assertThat(indexingCurrent.getLong(), equalTo(0L));
 
         var indexingFailedTotal = getSingleRecordedMetric(plugin::getLongAsyncCounterMeasurement, "es.indexing.indexing.failed.total");
@@ -329,7 +329,7 @@ public class NodeIndexingMetricsIT extends ESIntegTestCase {
         var deletionTotal = getSingleRecordedMetric(plugin::getLongAsyncCounterMeasurement, "es.indexing.deletion.docs.total");
         assertThat(deletionTotal.getLong(), equalTo((long) deletesCount));
 
-        var deletionCurrent = getSingleRecordedMetric(plugin::getLongGaugeMeasurement, "es.indexing.deletion.docs.current.total");
+        var deletionCurrent = getSingleRecordedMetric(plugin::getLongAsyncGaugeMeasurement, "es.indexing.deletion.docs.current.total");
         assertThat(deletionCurrent.getLong(), equalTo(0L));
 
         var indexingTime = getSingleRecordedMetric(plugin::getLongAsyncCounterMeasurement, "es.indexing.time");
@@ -358,13 +358,13 @@ public class NodeIndexingMetricsIT extends ESIntegTestCase {
         assertThat(coordinatingOperationsTotal.getLong(), equalTo((long) docsCount + deletesCount));
 
         var coordinatingOperationsCurrentSize = getSingleRecordedMetric(
-            plugin::getLongGaugeMeasurement,
+            plugin::getLongAsyncGaugeMeasurement,
             "es.indexing.coordinating_operations.current.size"
         );
         assertThat(coordinatingOperationsCurrentSize.getLong(), equalTo(0L));
 
         var coordinatingOperationsCurrentTotal = getSingleRecordedMetric(
-            plugin::getLongGaugeMeasurement,
+            plugin::getLongAsyncGaugeMeasurement,
             "es.indexing.coordinating_operations.current.total"
         );
         assertThat(coordinatingOperationsCurrentTotal.getLong(), equalTo(0L));
@@ -393,13 +393,13 @@ public class NodeIndexingMetricsIT extends ESIntegTestCase {
         assertThat(primaryOperationsTotal.getLong(), equalTo((long) docsCount + deletesCount));
 
         var primaryOperationsCurrentSize = getSingleRecordedMetric(
-            plugin::getLongGaugeMeasurement,
+            plugin::getLongAsyncGaugeMeasurement,
             "es.indexing.primary_operations.current.size"
         );
         assertThat(primaryOperationsCurrentSize.getLong(), equalTo(0L));
 
         var primaryOperationsCurrentTotal = getSingleRecordedMetric(
-            plugin::getLongGaugeMeasurement,
+            plugin::getLongAsyncGaugeMeasurement,
             "es.indexing.primary_operations.current.total"
         );
         assertThat(primaryOperationsCurrentTotal.getLong(), equalTo(0L));

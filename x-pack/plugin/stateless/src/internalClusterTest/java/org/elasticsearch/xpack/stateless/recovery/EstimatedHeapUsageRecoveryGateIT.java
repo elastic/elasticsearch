@@ -311,6 +311,6 @@ public class EstimatedHeapUsageRecoveryGateIT extends AbstractStatelessPluginInt
     }
 
     private static double getLastDoubleGaugeValue(String name, TestTelemetryPlugin telemetryPlugin) {
-        return telemetryPlugin.getDoubleGaugeMeasurement(name).getLast().getDouble();
+        return telemetryPlugin.getDoubleAsyncGaugeMeasurement(name).getLast().getDouble();
     }
 }

@@ -122,17 +122,17 @@ public class PromqlPlanLimitRatioTests extends AbstractPromqlPlanOptimizerTests 
     }
 
     /**
-     * Like the other reductions ({@code TopNBy}) the node is a {@link PipelineBreaker} running on the
-     * coordinator after collection, but the hash predicate itself is per-series stateless: it needs no
-     * global per-group view, so unlike before it must not claim {@link ExecutesOn.Coordinator}.
+     * Unlike the other reductions ({@code TopNBy}) the node carries no placement constraints: the
+     * hash predicate is per-row stateless and idempotent, so it needs no global per-group view and
+     * may run anywhere, including pushed down into data-node fragments.
      */
-    public void testLimitRatioPlacedLikeTopK() {
+    public void testLimitRatioHasNoPlacementConstraints() {
         var plan = logicalOptimizerWithLatestVersion.optimize(
             planPromql("PROMQL index=k8s step=1h result=(limit_ratio(0.5, network.bytes_in))", false)
         );
 
         var node = as(plan.collect(LimitRatioBy.class).get(0), LimitRatioBy.class);
-        assertThat(node, instanceOf(PipelineBreaker.class));
+        assertThat(node instanceof PipelineBreaker, equalTo(false));
         assertThat(node instanceof ExecutesOn.Coordinator, equalTo(false));
     }
 

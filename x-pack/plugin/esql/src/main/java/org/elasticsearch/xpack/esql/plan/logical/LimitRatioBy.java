@@ -26,16 +26,17 @@ import java.util.Objects;
 import static org.elasticsearch.xpack.esql.common.Failure.fail;
 
 /**
- * Retains a ratio of series using Prometheus-compatible hash sampling: each series is kept or
- * dropped by hashing its series identity, so the kept subset is stable across steps, runs, and
- * shards. The keep/drop decision is per-series stateless, unlike a count-based limit.
+ * Retains a ratio of series using hash sampling: each row is kept or dropped by hashing its
+ * sampling key (the groupings without the step bucket), so the kept subset is stable however rows
+ * are partitioned. The keep/drop decision is per-row stateless, unlike a count-based limit.
  * <p>
- * Like the other reductions ({@code TopNBy}) this is a {@link PipelineBreaker}: it runs on the
- * coordinator after the per-series rows are collected. Pushing the stateless filter itself down
- * to data nodes is a possible follow-up; it is not needed for PromQL compliance since the
- * hashed subset is identical wherever it is computed.
+ * Unlike the other reductions ({@code TopNBy}) this is not a {@link PipelineBreaker}: the hash
+ * filter is idempotent and needs no global per-group view, so it may run anywhere in the plan,
+ * including pushed down into data-node fragments. In practice it sits above the aggregation that
+ * produces its input (which breaks the pipeline itself), so it typically executes post-exchange
+ * on the coordinator.
  */
-public class LimitRatioBy extends UnaryPlan implements PipelineBreaker, PostOptimizationVerificationAware {
+public class LimitRatioBy extends UnaryPlan implements PostOptimizationVerificationAware {
     public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(
         LogicalPlan.class,
         "LimitRatioBy",

@@ -37,6 +37,11 @@
  *     the whole query with a 400 naming the construct, rather than silently applying a widened superset. It is feature-flagged
  *     (on in snapshot builds, excluded from release) and version-gated, because
  *     the translated predicate can contain expressions older nodes cannot deserialize.</li>
+ *     <li>{@link org.elasticsearch.xpack.esql.dsltranslate.ViewRequestFilterRewriter} — the view <em>policy</em> over
+ *     that same mechanism: it targets the output boundary of each logical view subplan (the non-index children of
+ *     {@link org.elasticsearch.xpack.esql.plan.logical.ViewUnionAll} nodes), so the filter applies to the view's
+ *     <em>output</em> rather than being pushed into the view's source indices. It shares the same fail-closed,
+ *     feature-flagged, and version-gated design as {@code RequestFilterRewriter}.</li>
  * </ul>
  *
  * <h2>Two invariants the whole thing rests on</h2>

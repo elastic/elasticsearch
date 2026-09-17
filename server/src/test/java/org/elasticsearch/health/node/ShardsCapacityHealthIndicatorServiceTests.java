@@ -13,9 +13,13 @@ import org.elasticsearch.action.support.replication.ClusterStateCreationUtils;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.Metadata;
+import org.elasticsearch.cluster.metadata.ProjectId;
+import org.elasticsearch.cluster.metadata.ProjectMetadata;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodeRole;
 import org.elasticsearch.cluster.node.DiscoveryNodeUtils;
+import org.elasticsearch.cluster.routing.GlobalRoutingTable;
+import org.elasticsearch.cluster.routing.RoutingTable;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.settings.Settings;
@@ -45,8 +49,11 @@ import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
 import java.util.function.Function;
+import java.util.function.Supplier;
+import java.util.stream.IntStream;
 import java.util.stream.Stream;
 
+import static java.util.stream.Collectors.toSet;
 import static org.elasticsearch.cluster.metadata.IndexMetadata.SETTING_CREATION_DATE;
 import static org.elasticsearch.health.HealthStatus.GREEN;
 import static org.elasticsearch.health.HealthStatus.RED;
@@ -78,9 +85,14 @@ public class ShardsCapacityHealthIndicatorServiceTests extends ESTestCase {
     private ClusterService clusterService;
     private DiscoveryNode dataNode;
     private DiscoveryNode frozenNode;
+    private Set<ProjectId> projectIds;
 
     @Before
-    public void startClusterService() throws Exception {
+    public void startClusterService() {
+        projectIds = randomBoolean()
+            ? IntStream.range(0, randomIntBetween(1, 5)).mapToObj(i -> randomUniqueProjectId()).collect(toSet())
+            : Set.of(randomProjectIdOrDefault());
+
         dataNode = DiscoveryNodeUtils.builder("data_node")
             .name("data_node")
             .roles(Set.of(DiscoveryNodeRole.MASTER_ROLE, DiscoveryNodeRole.DATA_ROLE))
@@ -115,7 +127,7 @@ public class ShardsCapacityHealthIndicatorServiceTests extends ESTestCase {
                 randomValidMaxShards(),
                 randomValidMaxShards(),
                 new HealthMetadata(DISK_METADATA, null),
-                createIndexInDataNode(100)
+                () -> new IndexMetadata.Builder[] { createIndexInDataNode(100) }
             )
         );
         var target = new ShardsCapacityHealthIndicatorService(clusterService);
@@ -130,7 +142,12 @@ public class ShardsCapacityHealthIndicatorServiceTests extends ESTestCase {
 
     public void testNoHealthMetadata() throws IOException {
         var clusterService = createClusterService(
-            createClusterState(randomValidMaxShards(), randomValidMaxShards(), null, createIndexInDataNode(100))
+            createClusterState(
+                randomValidMaxShards(),
+                randomValidMaxShards(),
+                null,
+                () -> new IndexMetadata.Builder[] { createIndexInDataNode(100) }
+            )
         );
         var indicatorResult = new ShardsCapacityHealthIndicatorService(clusterService).calculate(true, HealthInfo.EMPTY_HEALTH_INFO);
 
@@ -144,7 +161,11 @@ public class ShardsCapacityHealthIndicatorServiceTests extends ESTestCase {
     public void testIndicatorYieldsGreenInCaseThereIsRoom() throws IOException {
         int maxShardsPerNode = randomValidMaxShards();
         int maxShardsPerNodeFrozen = randomValidMaxShards();
-        var clusterService = createClusterService(maxShardsPerNode, maxShardsPerNodeFrozen, createIndexInDataNode(maxShardsPerNode / 4));
+        var clusterService = createClusterService(
+            maxShardsPerNode,
+            maxShardsPerNodeFrozen,
+            () -> new IndexMetadata.Builder[] { createIndexInDataNode(1) }
+        );
         var indicatorResult = new ShardsCapacityHealthIndicatorService(clusterService).calculate(true, HealthInfo.EMPTY_HEALTH_INFO);
 
         assertEquals(indicatorResult.status(), HealthStatus.GREEN);
@@ -171,7 +192,7 @@ public class ShardsCapacityHealthIndicatorServiceTests extends ESTestCase {
         var clusterService = createClusterService(
             25,
             maxShardsPerNodeFrozen,
-            createIndex(11, NORMAL_GROUP).state(IndexMetadata.State.CLOSE)
+            () -> new IndexMetadata.Builder[] { createIndex(11, NORMAL_GROUP).state(IndexMetadata.State.CLOSE) }
         );
         var indicatorResult = new ShardsCapacityHealthIndicatorService(clusterService).calculate(true, HealthInfo.EMPTY_HEALTH_INFO);
 
@@ -181,14 +202,7 @@ public class ShardsCapacityHealthIndicatorServiceTests extends ESTestCase {
         assertEquals("The cluster has enough room to add new shards.", indicatorResult.symptom());
         assertThat(
             xContentToMap(indicatorResult.details()),
-            is(
-                Map.of(
-                    "data",
-                    Map.of("max_shards_in_cluster", 25),
-                    "frozen",
-                    Map.of("max_shards_in_cluster", maxShardsPerNodeFrozen)
-                )
-            )
+            is(Map.of("data", Map.of("max_shards_in_cluster", 25), "frozen", Map.of("max_shards_in_cluster", maxShardsPerNodeFrozen)))
         );
     }
 
@@ -217,10 +231,18 @@ public class ShardsCapacityHealthIndicatorServiceTests extends ESTestCase {
     }
 
     public void testIndicatorYieldsYellowInCaseThereIsNotEnoughRoom() throws IOException {
+        // 4 primaries + 1 replica per project leaves 17 shards of room. This is too few for the 20-shard yellow
+        // probe, but enough for the 10-shard red probe.
+        int usedShards = 8 * projectIds.size();
+        int maxShardsForYellow = usedShards + 17;
         {
             // Only data_nodes does not have enough space
             int maxShardsPerNodeFrozen = randomValidMaxShards();
-            var clusterService = createClusterService(25, maxShardsPerNodeFrozen, createIndexInDataNode(4));
+            var clusterService = createClusterService(
+                maxShardsForYellow,
+                maxShardsPerNodeFrozen,
+                () -> new IndexMetadata.Builder[] { createIndexInDataNode(4) }
+            );
             var indicatorResult = new ShardsCapacityHealthIndicatorService(clusterService).calculate(true, HealthInfo.EMPTY_HEALTH_INFO);
 
             assertEquals(indicatorResult.status(), YELLOW);
@@ -233,7 +255,7 @@ public class ShardsCapacityHealthIndicatorServiceTests extends ESTestCase {
                 is(
                     Map.of(
                         "data",
-                        Map.of("max_shards_in_cluster", 25, "current_used_shards", 8),
+                        Map.of("max_shards_in_cluster", maxShardsForYellow, "current_used_shards", usedShards),
                         "frozen",
                         Map.of("max_shards_in_cluster", maxShardsPerNodeFrozen)
                     )
@@ -243,7 +265,11 @@ public class ShardsCapacityHealthIndicatorServiceTests extends ESTestCase {
         {
             // Only frozen_nodes does not have enough space
             int maxShardsPerNode = randomValidMaxShards();
-            var clusterService = createClusterService(maxShardsPerNode, 25, createIndexInFrozenNode(4));
+            var clusterService = createClusterService(
+                maxShardsPerNode,
+                maxShardsForYellow,
+                () -> new IndexMetadata.Builder[] { createIndexInFrozenNode(4) }
+            );
             var indicatorResult = new ShardsCapacityHealthIndicatorService(clusterService).calculate(true, HealthInfo.EMPTY_HEALTH_INFO);
 
             assertEquals(indicatorResult.status(), YELLOW);
@@ -261,14 +287,18 @@ public class ShardsCapacityHealthIndicatorServiceTests extends ESTestCase {
                         "data",
                         Map.of("max_shards_in_cluster", maxShardsPerNode),
                         "frozen",
-                        Map.of("max_shards_in_cluster", 25, "current_used_shards", 8)
+                        Map.of("max_shards_in_cluster", maxShardsForYellow, "current_used_shards", usedShards)
                     )
                 )
             );
         }
         {
             // Both data and frozen nodes does not have enough space
-            var clusterService = createClusterService(25, 25, createIndexInDataNode(4), createIndexInFrozenNode(4));
+            var clusterService = createClusterService(
+                maxShardsForYellow,
+                maxShardsForYellow,
+                () -> new IndexMetadata.Builder[] { createIndexInDataNode(4), createIndexInFrozenNode(4) }
+            );
             var indicatorResult = new ShardsCapacityHealthIndicatorService(clusterService).calculate(true, HealthInfo.EMPTY_HEALTH_INFO);
 
             assertEquals(indicatorResult.status(), YELLOW);
@@ -286,9 +316,9 @@ public class ShardsCapacityHealthIndicatorServiceTests extends ESTestCase {
                 is(
                     Map.of(
                         "data",
-                        Map.of("max_shards_in_cluster", 25, "current_used_shards", 8),
+                        Map.of("max_shards_in_cluster", maxShardsForYellow, "current_used_shards", usedShards),
                         "frozen",
-                        Map.of("max_shards_in_cluster", 25, "current_used_shards", 8)
+                        Map.of("max_shards_in_cluster", maxShardsForYellow, "current_used_shards", usedShards)
                     )
                 )
             );
@@ -296,10 +326,17 @@ public class ShardsCapacityHealthIndicatorServiceTests extends ESTestCase {
     }
 
     public void testIndicatorYieldsRedInCaseThereIsNotEnoughRoom() throws IOException {
+        // 11 primaries + 1 replica per project leaves 3 shards of room. This is too few for the 10-shard red probe.
+        int usedShards = 22 * projectIds.size();
+        int maxShardsForRed = usedShards + 3;
         {
             // Only data_nodes does not have enough space
             int maxShardsPerNodeFrozen = randomValidMaxShards();
-            var clusterService = createClusterService(25, maxShardsPerNodeFrozen, createIndexInDataNode(11));
+            var clusterService = createClusterService(
+                maxShardsForRed,
+                maxShardsPerNodeFrozen,
+                () -> new IndexMetadata.Builder[] { createIndexInDataNode(11) }
+            );
             var indicatorResult = new ShardsCapacityHealthIndicatorService(clusterService).calculate(true, HealthInfo.EMPTY_HEALTH_INFO);
 
             assertEquals(indicatorResult.status(), RED);
@@ -312,7 +349,7 @@ public class ShardsCapacityHealthIndicatorServiceTests extends ESTestCase {
                 is(
                     Map.of(
                         "data",
-                        Map.of("max_shards_in_cluster", 25, "current_used_shards", 22),
+                        Map.of("max_shards_in_cluster", maxShardsForRed, "current_used_shards", usedShards),
                         "frozen",
                         Map.of("max_shards_in_cluster", maxShardsPerNodeFrozen)
                     )
@@ -322,7 +359,11 @@ public class ShardsCapacityHealthIndicatorServiceTests extends ESTestCase {
         {
             // Only frozen_nodes does not have enough space
             int maxShardsPerNode = randomValidMaxShards();
-            var clusterService = createClusterService(maxShardsPerNode, 25, createIndexInFrozenNode(11));
+            var clusterService = createClusterService(
+                maxShardsPerNode,
+                maxShardsForRed,
+                () -> new IndexMetadata.Builder[] { createIndexInFrozenNode(11) }
+            );
             var indicatorResult = new ShardsCapacityHealthIndicatorService(clusterService).calculate(true, HealthInfo.EMPTY_HEALTH_INFO);
 
             assertEquals(indicatorResult.status(), RED);
@@ -340,14 +381,18 @@ public class ShardsCapacityHealthIndicatorServiceTests extends ESTestCase {
                         "data",
                         Map.of("max_shards_in_cluster", maxShardsPerNode),
                         "frozen",
-                        Map.of("max_shards_in_cluster", 25, "current_used_shards", 22)
+                        Map.of("max_shards_in_cluster", maxShardsForRed, "current_used_shards", usedShards)
                     )
                 )
             );
         }
         {
             // Both data and frozen nodes does not have enough space
-            var clusterService = createClusterService(25, 25, createIndexInDataNode(11), createIndexInFrozenNode(11));
+            var clusterService = createClusterService(
+                maxShardsForRed,
+                maxShardsForRed,
+                () -> new IndexMetadata.Builder[] { createIndexInDataNode(11), createIndexInFrozenNode(11) }
+            );
             var indicatorResult = new ShardsCapacityHealthIndicatorService(clusterService).calculate(true, HealthInfo.EMPTY_HEALTH_INFO);
 
             assertEquals(indicatorResult.status(), RED);
@@ -365,9 +410,9 @@ public class ShardsCapacityHealthIndicatorServiceTests extends ESTestCase {
                 is(
                     Map.of(
                         "data",
-                        Map.of("max_shards_in_cluster", 25, "current_used_shards", 22),
+                        Map.of("max_shards_in_cluster", maxShardsForRed, "current_used_shards", usedShards),
                         "frozen",
-                        Map.of("max_shards_in_cluster", 25, "current_used_shards", 22)
+                        Map.of("max_shards_in_cluster", maxShardsForRed, "current_used_shards", usedShards)
                     )
                 )
             );
@@ -524,7 +569,13 @@ public class ShardsCapacityHealthIndicatorServiceTests extends ESTestCase {
 
     public void testSkippingFieldsWhenVerboseIsFalse() {
         int maxShardsPerNodeFrozen = randomValidMaxShards();
-        var clusterService = createClusterService(25, maxShardsPerNodeFrozen, createIndexInDataNode(11));
+        int usedShards = 22 * projectIds.size();
+        int maxShardsForRed = usedShards + 3;
+        var clusterService = createClusterService(
+            maxShardsForRed,
+            maxShardsPerNodeFrozen,
+            () -> new IndexMetadata.Builder[] { createIndexInDataNode(11) }
+        );
         var indicatorResult = new ShardsCapacityHealthIndicatorService(clusterService).calculate(false, HealthInfo.EMPTY_HEALTH_INFO);
 
         assertEquals(indicatorResult.status(), RED);
@@ -551,13 +602,17 @@ public class ShardsCapacityHealthIndicatorServiceTests extends ESTestCase {
         return clusterService;
     }
 
-    private ClusterService createClusterService(int maxShardsPerNode, int maxShardsPerNodeFrozen, IndexMetadata.Builder... indexMetadata) {
+    private ClusterService createClusterService(
+        int maxShardsPerNode,
+        int maxShardsPerNodeFrozen,
+        Supplier<IndexMetadata.Builder[]> perProjectIndices
+    ) {
         return createClusterService(
             createClusterState(
                 maxShardsPerNode,
                 maxShardsPerNodeFrozen,
                 new HealthMetadata(DISK_METADATA, new HealthMetadata.ShardLimits(maxShardsPerNode, maxShardsPerNodeFrozen, 10, 5)),
-                indexMetadata
+                perProjectIndices
             )
         );
     }
@@ -566,7 +621,7 @@ public class ShardsCapacityHealthIndicatorServiceTests extends ESTestCase {
         int maxShardsPerNode,
         int maxShardsPerNodeFrozen,
         HealthMetadata healthMetadata,
-        IndexMetadata.Builder... indexMetadata
+        Supplier<IndexMetadata.Builder[]> perProjectIndices
     ) {
         var clusterState = ClusterStateCreationUtils.state(dataNode, dataNode, dataNode, new DiscoveryNode[] { dataNode, frozenNode });
         if (healthMetadata != null) {
@@ -580,12 +635,18 @@ public class ShardsCapacityHealthIndicatorServiceTests extends ESTestCase {
                     .put(ShardLimitValidator.SETTING_CLUSTER_MAX_SHARDS_PER_NODE_FROZEN.getKey(), maxShardsPerNodeFrozen)
                     .build()
             );
+        var routingTable = GlobalRoutingTable.builder();
 
-        for (var idxMetadata : indexMetadata) {
-            metadata.put(idxMetadata);
+        for (ProjectId projectId : projectIds) {
+            var project = ProjectMetadata.builder(projectId);
+            for (var idxMetadata : perProjectIndices.get()) {
+                project.put(idxMetadata);
+            }
+            metadata.put(project);
+            routingTable.put(projectId, RoutingTable.builder().build());
         }
 
-        return ClusterState.builder(clusterState).metadata(metadata).build();
+        return ClusterState.builder(clusterState).metadata(metadata).routingTable(routingTable.build()).build();
     }
 
     private static IndexMetadata.Builder createIndexInDataNode(int shards) {

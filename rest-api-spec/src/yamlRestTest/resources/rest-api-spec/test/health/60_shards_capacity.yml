@@ -1,0 +1,41 @@
+---
+"shards_capacity is green with verbose details":
+  - requires:
+      cluster_features: "gte_v8.7.0"
+      reason: "the API path changed in 8.7"
+
+  - do:
+      health_report:
+        feature: shards_capacity
+
+  - is_true: cluster_name
+  - match:   { indicators.shards_capacity.status: "green" }
+  - match:   { indicators.shards_capacity.symptom: "The cluster has enough room to add new shards." }
+  - is_true: indicators.shards_capacity.details
+  # Green responses omit impacts, diagnosis, and per-project breakdowns
+  - is_false: indicators.shards_capacity.impacts
+  - is_false: indicators.shards_capacity.diagnosis
+  - is_false: indicators.shards_capacity.details.index.projects
+  - is_false: indicators.shards_capacity.details.search.projects
+  - is_false: indicators.shards_capacity.details.data.projects
+  - is_false: indicators.shards_capacity.details.frozen.projects
+  # Feature drill-down returns only this indicator
+  - is_false: indicators.shards_availability
+
+---
+"shards_capacity omits details when verbose is false":
+  - requires:
+      cluster_features: "gte_v8.7.0"
+      reason: "the API path changed in 8.7"
+
+  - do:
+      health_report:
+        feature: shards_capacity
+        verbose: false
+
+  - is_true: cluster_name
+  - match:   { indicators.shards_capacity.status: "green" }
+  - match:   { indicators.shards_capacity.symptom: "The cluster has enough room to add new shards." }
+  - is_false: indicators.shards_capacity.details
+  - is_false: indicators.shards_capacity.impacts
+  - is_false: indicators.shards_capacity.diagnosis

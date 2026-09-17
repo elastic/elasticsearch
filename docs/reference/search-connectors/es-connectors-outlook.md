@@ -175,8 +175,8 @@ You can now use the Client ID, Tenant ID, and Client Secret you’ve noted to co
 `use_text_extraction_service`
 :   Use [self-hosted content extraction service](/reference/search-connectors/es-connectors-content-extraction.md#es-connectors-content-extraction-data-extraction-service). Default value is `False`.
 
-`Index full raw email (including headers)` {applies_to}`stack: ga 9.5`
-:   Toggle to index the full raw MIME message. Default value is `False`. When off, only the email body (preferring `text/plain` over `text/html`) and a minimal set of headers (`Subject`, `From`, `Reply-To`, `To`, `Cc`, `Bcc`, `Date`, `Message-ID`) are indexed. Routing/authentication headers and binary attachments are dropped. Enable this toggle to restore the passthrough behavior when body extraction misses content.
+`Index full raw email (including headers)` {applies_to}`stack: ga 9.5.5`
+:   Toggle to index the full raw MIME message. Default value is `False`. When off, only the email body (preferring `text/plain` over `text/html`) and a minimal set of headers (`Subject`, `From`, `Reply-To`, `To`, `Cc`, `Bcc`, `Date`, `Message-ID`) are indexed. Routing/authentication headers and binary attachments are dropped. Enable this toggle to restore the passthrough behavior when body extraction misses content. Available in 9.5.5 and later.
 
 `document_level_security`
 :   Toggle to enable [Document level security (DLS)](/reference/search-connectors/document-level-security.md). When enabled:

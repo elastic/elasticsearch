@@ -48,13 +48,15 @@ import java.util.List;
  * {@code Alias} in a projection list to have an {@code Attribute} child, so a literal cannot live in
  * the {@code Project}.
  * <p>
- * That has a measured cost under a {@code UnionAll}. {@code PushDownUtils.isLeafUnionAll} accepts only a
- * relation or a {@code Project} directly over one, and it uses the absence of an {@code Eval} to tell the
- * heterogeneous-FROM shape apart from the subquery shape {@code Project > Eval? > Subquery}. So asking for
- * either column stops {@code PushAggregateThroughUnionAll} firing: the aggregate stays above the union
- * instead of decomposing into a partial per branch. {@code RelationClassGoldenTests} pins both plans side
- * by side. Widening that predicate would have to keep the distinction it was written to make, so it is not
- * done here. A query that asks for neither column is returned untouched and keeps every pushdown.
+ * That {@code Eval} is why this rule runs in its own batch after {@code operators()} has converged rather
+ * than inside it. {@code PushDownUtils.isLeafUnionAll} gates four {@code UnionAll} pushdowns and accepts
+ * only a relation or a {@code Project} directly over one, because {@code Project > Eval > relation} is the
+ * shape a FORK branch has. Materialising inside {@code operators()} therefore made every branch look like
+ * a FORK branch and switched those pushdowns off: a heterogeneous {@code STATS} stopped decomposing into a
+ * partial per branch and shipped every row to one aggregator instead. Running afterwards, the pushdowns
+ * see the plain relation, and an aggregate that was pushed into a branch keeps this {@code Eval} below it
+ * -- so {@code STATS ... BY _class} groups on a per-branch constant. {@code RelationClassGoldenTests} pins
+ * those plans.
  */
 public final class MaterializeRelationClassAndName extends OptimizerRules.OptimizerRule<LeafPlan> {
 

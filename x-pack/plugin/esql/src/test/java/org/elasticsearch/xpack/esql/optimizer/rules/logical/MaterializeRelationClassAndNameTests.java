@@ -24,7 +24,6 @@ import org.elasticsearch.xpack.esql.optimizer.AbstractLogicalPlanOptimizerTests;
 import org.elasticsearch.xpack.esql.plan.logical.EsRelation;
 import org.elasticsearch.xpack.esql.plan.logical.Eval;
 import org.elasticsearch.xpack.esql.plan.logical.ExternalRelation;
-import org.elasticsearch.xpack.esql.plan.logical.Limit;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.esql.plan.logical.Project;
 
@@ -94,15 +93,14 @@ public class MaterializeRelationClassAndNameTests extends AbstractLogicalPlanOpt
     }
 
     /**
-     * The Eval does not stay glued to the relation. A per-row constant neither adds nor drops rows,
-     * so limit pushdown moves the implicit LIMIT below it and the relation is no longer the Eval's
-     * direct child. Pinned because an assertion on that child is an assertion about pushdown rather
-     * than about this rule, and reads as a failure of this rule when pushdown changes.
+     * The Eval sits directly above the relation, with nothing pushed between them. That follows from
+     * the rule running in its own batch after operators() has converged, which is what lets the
+     * UnionAll pushdowns see the plain relation shape before the Eval exists. Pinned because losing
+     * this means the rule moved back into a batch that still has pushdowns left to run.
      */
-    public void testTheImplicitLimitIsPushedBelowTheEval() {
+    public void testTheEvalSitsDirectlyAboveTheRelation() {
         LogicalPlan optimized = plan("FROM test METADATA _class | KEEP _class");
-        Limit limit = as(firstEval(optimized).child(), Limit.class);
-        as(limit.child(), EsRelation.class);
+        as(firstEval(optimized).child(), EsRelation.class);
     }
 
     /**

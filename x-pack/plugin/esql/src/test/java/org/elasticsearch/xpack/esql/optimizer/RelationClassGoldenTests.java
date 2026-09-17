@@ -36,11 +36,13 @@ import static org.elasticsearch.xpack.esql.EsqlTestUtils.referenceAttribute;
  * come back as an {@code Eval} of a literal (for {@code _class}, and for a dataset's {@code _name}) or of an alias over
  * {@code _index} (for an index's {@code _name}), so no data source is ever asked for a column it cannot answer.
  *
- * <p>Second, the cost, which these snapshots measure rather than predict. {@code PushDownUtils.isLeafUnionAll} accepts
- * only a bare relation or a {@code Project} directly over one, so the {@code Eval} makes a {@code UnionAll} non-leaf.
- * {@link #testHeavyAggregateWithClassRequested} differs from {@code HeterogeneousFromPushdownGoldenTests.testCountDistinctPushed}
- * only by {@code METADATA _class}, and its plan keeps the aggregate above the union where the other decomposes it into a
- * {@code TOPARTIAL} per branch. Asking for the column costs that decomposition.
+ * <p>Second, that asking for either column costs no pushdown, which these snapshots measure rather than assert.
+ * {@code PushDownUtils.isLeafUnionAll} accepts only a bare relation or a {@code Project} directly over one, so an
+ * {@code Eval} under a {@code UnionAll} would make it non-leaf -- which is why the rule runs in its own batch after
+ * {@code operators()}. {@link #testHeavyAggregateWithClassRequested} differs from
+ * {@code HeterogeneousFromPushdownGoldenTests.testCountDistinctPushed} only by {@code METADATA _class} and decomposes
+ * into a {@code TOPARTIAL} per branch exactly as that one does. {@link #testGroupingOnClass} goes further: each branch
+ * aggregates on its own constant. Regressing the batch order turns both back into one coordinator aggregate.
  */
 public class RelationClassGoldenTests extends GoldenTestCase {
 

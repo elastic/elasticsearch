@@ -125,6 +125,17 @@ public class LogicalPlanOptimizer extends ParameterizedRuleExecutor<LogicalPlan,
     private static final List<RuleExecutor.Batch<LogicalPlan>> RULES = List.of(
         substitutions(),
         operators(),
+        // After operators() has converged, so the UnionAll pushdowns gated on PushDownUtils.isLeafUnionAll
+        // see the plain relation shape. This rule replaces a relation with Project > Eval > relation, which
+        // is the FORK branch shape, and would switch those pushdowns off for the rest of that batch.
+        new Batch<>(
+            "Materialize Relation Columns",
+            Limiter.ONCE,
+            new MaterializeRelationClassAndName(),
+            // The rule emits a Project restoring the relation's output shape, which sits under whatever
+            // projection the query already had. operators() has converged by now, so combine them here.
+            new CombineProjections()
+        ),
         new Batch<>("Skip Compute", new SkipQueryOnLimitZero()),
         cleanup(),
         warnings(),
@@ -235,7 +246,6 @@ public class LogicalPlanOptimizer extends ParameterizedRuleExecutor<LogicalPlan,
             new ReplaceStatsFilteredOrNullAggWithEval(),
             new ExtractAggregateCommonFilter(),
             // prune/elimination
-            new MaterializeRelationClassAndName(),
             new PruneFilters(),
             new PruneColumns(),
             new PruneConstantSortKeysFromOrderBy(),

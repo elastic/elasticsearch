@@ -34,8 +34,7 @@ import static java.nio.charset.StandardCharsets.UTF_8;
 
 /**
  * Isolates {@link org.elasticsearch.simdjson.SimdJsonDirectWalker#walkObject} plus the vectorized
- * string-copy loop it drives in {@code StringParser.doParseString}, without the surrounding ESCF
- * encoding machinery that {@code SimdJsonParserBenchmark} exercises.
+ * string-copy loop it drives in {@code StringParser.doParseString}.
  *
  * <p><strong>Running.</strong>
  * <pre>{@code

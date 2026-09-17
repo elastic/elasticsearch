@@ -8,7 +8,6 @@
 package org.elasticsearch.xpack.esql.action;
 
 import org.apache.http.util.EntityUtils;
-import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.client.Request;
 import org.elasticsearch.client.Response;
 import org.elasticsearch.client.ResponseException;
@@ -17,7 +16,6 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.plugins.Plugin;
-import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.xpack.esql.datasource.csv.CsvDataSourcePlugin;
 import org.elasticsearch.xpack.esql.datasources.spi.StoragePath;
 import org.junit.Before;
@@ -40,6 +38,7 @@ import static org.elasticsearch.xpack.esql.EsqlTestUtils.getValuesList;
 import static org.elasticsearch.xpack.esql.action.EsqlQueryRequest.syncEsqlQueryRequest;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.hasItems;
 
 /**
  * The out-of-band request {@code filter} is applied to an external dataset by translating the Query DSL into ES|QL
@@ -361,21 +360,22 @@ public class ExternalDatasetRequestFilterConformanceIT extends AbstractExternalD
     }
 
     /**
-     * Fail-closed: a filter mixing a supported {@code term} with an unsupported {@code wildcard} in a required must arm
-     * fails the whole query with a 400 naming the construct — the supported clause does not rescue it.
+     * A filter mixing a supported {@code term} with an unsupported {@code wildcard} in a required must arm does not
+     * fail: the {@code term} is applied, the {@code wildcard} is dropped, and the dataset over-returns relative to the
+     * index rather than hiding a row. The index applies both, so its answer is a subset of the dataset's.
      */
-    public void testUnsupportedConstructFailsTheQuery() {
+    public void testUnsupportedConstructInAMustArmIsDropped() {
         QueryBuilder mixed = QueryBuilders.boolQuery()
             .must(QueryBuilders.termQuery("status", 300))
             .must(QueryBuilders.wildcardQuery("tags", "t*"));
-        Exception e = expectThrows(Exception.class, () -> selectedIds(dataset, mixed));
-        Throwable cause = ExceptionsHelper.unwrapCause(e);
-        assertThat(cause.getMessage(), containsString("[wildcard]"));
-        assertThat("an unsupported construct is a 400, not a 500", ExceptionsHelper.status(cause), equalTo(RestStatus.BAD_REQUEST));
+        List<Object> onDataset = selectedIds(dataset, mixed);
+        List<Object> onIndex = selectedIds(INDEX, mixed);
+        assertThat("the surviving term clause must still select rows", onDataset.isEmpty(), equalTo(false));
+        assertThat("a dropped clause may only over-return", onDataset, hasItems(onIndex.toArray()));
     }
 
     /**
-     * Non-required should arm with an unsupported construct must NOT fail the query in fail-closed mode: the applied
+     * Non-required should arm with an unsupported construct leaves the applied filter semantically complete: the applied
      * filter is semantically complete (the must conjunct is the binding constraint; the should is optional).
      */
     public void testNonRequiredShouldUnsupportedDoesNotFailQuery() {

@@ -332,9 +332,6 @@ public class EsqlQueryRequest extends org.elasticsearch.xpack.core.esql.action.E
         return this;
     }
 
-    /** Whether unsupported request-filter DSL clauses are dropped with a warning; {@code null} when not set (treated as false). */
-    @Nullable
-
     @Override
     public Task createTask(TaskId taskId, String type, String action, TaskId parentTaskId, Map<String, String> headers) {
         var status = new EsqlQueryStatus(new AsyncExecutionId(UUIDs.randomBase64UUID(), taskId), keepAlive);

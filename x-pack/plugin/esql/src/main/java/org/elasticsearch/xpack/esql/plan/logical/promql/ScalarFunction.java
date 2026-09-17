@@ -97,14 +97,8 @@ public final class ScalarFunction extends LeafPlan implements PromqlPlan {
     public Expression buildEsqlFunction(PromqlFunctionRegistry.PromqlContext ctx) {
         try {
             Object built = definition.esqlBuilder().build(source(), null, ctx, List.of());
-            if (built instanceof Expression expression) {
-                return expression;
-            }
-            throw new ParsingException(
-                source(),
-                "Error building ESQL function for [{}]: function is not lowered to an expression",
-                functionName()
-            );
+            assert built instanceof Expression : "Function [" + functionName() + "] is not lowered to an expression";
+            return (Expression) built;
         } catch (ParsingException e) {
             throw e;
         } catch (Exception e) {

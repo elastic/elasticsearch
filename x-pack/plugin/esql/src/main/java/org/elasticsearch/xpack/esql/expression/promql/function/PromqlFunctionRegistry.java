@@ -261,18 +261,16 @@ public class PromqlFunctionRegistry {
     /**
      * Builds the ES|QL expression for scalar, aggregate, and value-transformation functions.
      * Reductions lowered to plan nodes ({@code limit_ratio}) and functions translated directly must go through
-     * {@code PromqlFunctionCall#buildEsqlFunction} or the translator instead; calling this method for them fails
-     * with a clear error rather than a {@code ClassCastException} or an unwrapped runtime exception.
+     * {@code PromqlFunctionCall#buildEsqlFunction} or the translator instead; calling this method for them trips
+     * the assertion below, since which builder a function uses is fixed statically and never depends on user input.
      */
     public Expression buildEsqlFunction(String name, Source source, Expression target, PromqlContext ctx, List<Expression> extraParams) {
         checkFunction(source, name);
         PromqlFunctionDefinition metadata = functionMetadata(name);
         try {
             Object built = metadata.esqlBuilder().build(source, target, ctx, extraParams);
-            if (built instanceof Expression expression) {
-                return expression;
-            }
-            throw new ParsingException(source, "Error building ESQL function for [{}]: function is not lowered to an expression", name);
+            assert built instanceof Expression : "Function [" + name + "] is not lowered to an expression";
+            return (Expression) built;
         } catch (ParsingException e) {
             throw e;
         } catch (Exception e) {

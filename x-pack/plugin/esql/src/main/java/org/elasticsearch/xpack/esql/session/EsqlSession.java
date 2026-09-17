@@ -541,7 +541,7 @@ public class EsqlSession {
                     // the translated predicate can contain mv_in_range / mv_greater / mv_less, which older
                     // nodes cannot deserialize.
                     // Fail-closed by default: an unsupported construct throws VerificationException (a 400).
-                    // With allow_partial_dsl_filter=true: applies only the translatable subset, emits a warning.
+                    // Applies the translatable subset and drops the rest with a warning naming each clause.
                     // This callback runs outside the SubscribableListener chain below, so a synchronous throw here
                     // would not be routed to the listener — catch it and fail the query explicitly.
                     final LogicalPlan plan;
@@ -549,10 +549,9 @@ public class EsqlSession {
                         plan = RequestFilterRewriter.rewrite(
                             analyzedPlan.inner(),
                             request.filter(),
-                            RequestFilterRewriter.REQUEST_FILTER_ON_DATASET_FEATURE_FLAG.isEnabled(),
                             finalConfiguration,
                             minimumVersion,
-                            Boolean.TRUE.equals(request.allowPartialDslFilter())
+                            true
                         );
                     } catch (Exception e) {
                         listener.onFailure(e);

@@ -388,50 +388,15 @@ public class ExternalDatasetRequestFilterConformanceIT extends AbstractExternalD
         assertThat("filter on must=300 must return rows", ids.isEmpty(), equalTo(false));
     }
 
-    // ---- REST layer tests: prove the URL param is parsed by RestEsqlQueryAction and flows through ----
+    // ---- REST layer tests: the policy a request actually gets, through the HTTP parsing path ----
 
     /**
-     * REST: without {@code allow_partial_dsl_filter}, an unsupported DSL construct fails the query with HTTP 400.
-     * This proves the default is fail-closed through the HTTP parsing path.
+     * REST: an untranslatable construct costs the caller that clause and nothing more — HTTP 200, the rows the
+     * translatable remainder selects, and a {@code Warning} response header naming the construct that was dropped.
+     * There is no request parameter to set: this is the only policy a request can get.
      */
-    public void testRestParamDefaultFailsClosed() throws IOException {
+    public void testUntranslatableConstructIsDroppedWithAWarning() throws IOException {
         Request request = new Request("POST", "/_query");
-        request.setJsonEntity(String.format(Locale.ROOT, """
-            {
-              "query": "FROM %s | KEEP id",
-              "filter": { "wildcard": { "tags": { "value": "t*" } } }
-            }
-            """, dataset));
-        ResponseException e = expectThrows(ResponseException.class, () -> getRestClient().performRequest(request));
-        assertThat(e.getResponse().getStatusLine().getStatusCode(), equalTo(400));
-        assertThat(EntityUtils.toString(e.getResponse().getEntity()), containsString("[wildcard]"));
-    }
-
-    /**
-     * REST: {@code allow_partial_dsl_filter=false} is explicit fail-closed — same as the default.
-     */
-    public void testRestParamFalseExplicit() throws IOException {
-        Request request = new Request("POST", "/_query");
-        request.addParameter("allow_partial_dsl_filter", "false");
-        request.setJsonEntity(String.format(Locale.ROOT, """
-            {
-              "query": "FROM %s | KEEP id",
-              "filter": { "wildcard": { "tags": { "value": "t*" } } }
-            }
-            """, dataset));
-        ResponseException e = expectThrows(ResponseException.class, () -> getRestClient().performRequest(request));
-        assertThat(e.getResponse().getStatusLine().getStatusCode(), equalTo(400));
-        assertThat(EntityUtils.toString(e.getResponse().getEntity()), containsString("[wildcard]"));
-    }
-
-    /**
-     * REST: {@code allow_partial_dsl_filter=true} returns HTTP 200 with a {@code Warning} response header naming the
-     * dropped construct. This proves the URL param is parsed by {@link RestEsqlQueryAction} and flows through
-     * {@code EsqlSession} to {@code RequestFilterRewriter}.
-     */
-    public void testRestParamTrueAppliesPartially() throws IOException {
-        Request request = new Request("POST", "/_query");
-        request.addParameter("allow_partial_dsl_filter", "true");
         request.setJsonEntity(String.format(Locale.ROOT, """
             {
               "query": "FROM %s | KEEP id",
@@ -445,5 +410,23 @@ public class ExternalDatasetRequestFilterConformanceIT extends AbstractExternalD
             "expected a warning about the dropped [wildcard] construct; got: " + warnings,
             warnings.stream().anyMatch(w -> w.contains("[wildcard]"))
         );
+    }
+
+    /**
+     * REST: {@code allow_partial_dsl_filter} is withdrawn, so sending it is a request error rather than a way to
+     * select the strict policy. Pins the removal — a reintroduced parameter would make this pass silently.
+     */
+    public void testWithdrawnPartialFilterParameterIsRejected() throws IOException {
+        Request request = new Request("POST", "/_query");
+        request.addParameter("allow_partial_dsl_filter", "true");
+        request.setJsonEntity(String.format(Locale.ROOT, """
+            {
+              "query": "FROM %s | KEEP id",
+              "filter": { "term": { "status": 200 } }
+            }
+            """, dataset));
+        ResponseException e = expectThrows(ResponseException.class, () -> getRestClient().performRequest(request));
+        assertThat(e.getResponse().getStatusLine().getStatusCode(), equalTo(400));
+        assertThat(EntityUtils.toString(e.getResponse().getEntity()), containsString("allow_partial_dsl_filter"));
     }
 }

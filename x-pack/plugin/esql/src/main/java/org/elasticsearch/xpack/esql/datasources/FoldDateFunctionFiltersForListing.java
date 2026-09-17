@@ -12,14 +12,9 @@ import org.elasticsearch.xpack.esql.core.expression.Literal;
 import org.elasticsearch.xpack.esql.expression.function.EsqlFunctionRegistry;
 import org.elasticsearch.xpack.esql.expression.function.UnresolvedFunction;
 import org.elasticsearch.xpack.esql.expression.function.scalar.date.DateFunctionComparisonRewriter;
-import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.EsqlBinaryComparison;
-import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.In;
 import org.elasticsearch.xpack.esql.plan.logical.Filter;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.esql.session.Configuration;
-
-import java.util.ArrayList;
-import java.util.List;
 
 /**
  * Listing-only copy of {@link Filter} conjuncts with all-literal {@code date_extract} /
@@ -34,6 +29,8 @@ public final class FoldDateFunctionFiltersForListing {
     /**
      * Returns a plan whose {@link Filter} conditions have foldable date-function sides replaced.
      * Unchanged filters (and the original plan, when nothing folds) are reused by identity.
+     * {@code transformUp} folds nested calls inside-out so {@code DATE_EXTRACT(..., DATE_TRUNC(...))}
+     * can become a literal before the comparison is seen.
      */
     public static LogicalPlan fold(LogicalPlan plan, Configuration configuration, EsqlFunctionRegistry functionRegistry) {
         return plan.transformUp(Filter.class, filter -> {
@@ -48,33 +45,10 @@ public final class FoldDateFunctionFiltersForListing {
         EsqlFunctionRegistry functionRegistry
     ) {
         return condition.transformUp(expr -> {
-            if (expr instanceof EsqlBinaryComparison comparison) {
-                Expression left = foldCall(comparison.left(), configuration, functionRegistry);
-                Expression right = foldCall(comparison.right(), configuration, functionRegistry);
-                if (left != comparison.left() || right != comparison.right()) {
-                    return comparison.replaceChildren(List.of(left, right));
-                }
-                return comparison;
-            }
-            if (expr instanceof In in) {
-                Expression value = foldCall(in.value(), configuration, functionRegistry);
-                boolean changed = value != in.value();
-                List<Expression> list = new ArrayList<>(in.list().size());
-                for (Expression item : in.list()) {
-                    Expression folded = foldCall(item, configuration, functionRegistry);
-                    changed |= folded != item;
-                    list.add(folded);
-                }
-                return changed ? new In(in.source(), value, List.copyOf(list)) : in;
+            if (expr instanceof UnresolvedFunction uf) {
+                return DateFunctionComparisonRewriter.tryFoldCall(uf, configuration, functionRegistry);
             }
             return expr;
         });
-    }
-
-    private static Expression foldCall(Expression expr, Configuration configuration, EsqlFunctionRegistry functionRegistry) {
-        if (expr instanceof UnresolvedFunction uf) {
-            return DateFunctionComparisonRewriter.tryFoldCall(uf, configuration, functionRegistry);
-        }
-        return expr;
     }
 }

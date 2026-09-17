@@ -39,6 +39,7 @@ import org.elasticsearch.xpack.esql.plan.logical.Rename;
 import org.elasticsearch.xpack.esql.plan.logical.UnresolvedExternalRelation;
 
 import java.time.Instant;
+import java.time.Period;
 import java.util.List;
 import java.util.Map;
 
@@ -441,6 +442,18 @@ public class PartitionFilterHintExtractorTests extends ESTestCase {
 
         assertTrue("DATE_EXTRACT over an unresolved field cannot become a partition hint", extractFolded(plan).isEmpty());
         assertSame("nothing folded, so the listing copy is the original plan", plan, foldForListing(plan));
+    }
+
+    public void testPreprocessorFoldsNestedDateExtractOverDateTrunc() {
+        UnresolvedFunction trunc = new UnresolvedFunction(
+            SRC,
+            "DATE_TRUNC",
+            List.of(new Literal(SRC, Period.ofDays(1), DataType.DATE_PERIOD), datetimeLiteral(DASHBOARD_TS))
+        );
+        LogicalPlan plan = filterAboveExternal(new Equals(SRC, unresolved("year"), dateExtract("YEAR", trunc)), PATH);
+
+        List<PartitionFilterHint> hints = extractFolded(plan).get(PATH);
+        assertEquals(List.of(new PartitionFilterHint("year", Operator.EQUALS, List.of(2026L))), hints);
     }
 
     private static final String PATH = "s3://bucket/data/*.parquet";

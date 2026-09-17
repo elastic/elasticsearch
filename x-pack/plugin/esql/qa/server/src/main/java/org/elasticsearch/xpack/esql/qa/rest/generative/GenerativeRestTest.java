@@ -727,14 +727,15 @@ public abstract class GenerativeRestTest extends ESRestTestCase implements Query
 
     /**
      * Composes the message for a failing generated query. These run to tens of kilobytes and are truncated before
-     * they reach a filed issue, so the error goes near the top and the bulky context ({@link #extraFailureContext}
-     * and the response warnings) goes last.
+     * they reach a filed issue, so the error goes near the top and the response warnings go last. A subclass that
+     * overrides this to add context should append it to {@code super}'s report rather than prepend it, to keep the
+     * bulky part in the tail that truncation eats.
      *
      * @param query the query the failure relates to: the one that failed, or the last one that ran when the
      *              generator could not produce the next command; {@code null} when none was generated at all
      * @param error the error message, or {@code null} when the failure carries no message
      */
-    protected final String failureReport(@Nullable String query, @Nullable String error) {
+    protected String failureReport(@Nullable String query, @Nullable String error) {
         String warnings = "";
         if (error == null) {
             error = "<no error message>";
@@ -754,27 +755,10 @@ public abstract class GenerativeRestTest extends ESRestTestCase implements Query
             .append(Build.current().hash())
             .append(" (a seed only reproduces on the build that generated it)");
         report.append("\nerror: ").append(error);
-        String extra = extraFailureContext(query);
-        if (extra.isEmpty() == false) {
-            report.append("\n").append(extra);
-        }
         if (warnings.isEmpty() == false) {
             report.append("\n").append(warnings);
         }
         return report.toString();
-    }
-
-    /**
-     * Context a subclass wants appended after the error, for failures that are not reproducible from the seed
-     * alone (e.g. the mappings and documents of a randomly generated index). Runs on the failure path only, so
-     * it may be expensive, but it lands in the part of the report most likely to be truncated: keep the
-     * seed-reproducible details in {@link #failureReport} instead. Implementations must not return
-     * {@code null}; return an empty string to add nothing.
-     *
-     * @param query the query the failure relates to, or {@code null} when none was generated
-     */
-    protected String extraFailureContext(@Nullable String query) {
-        return "";
     }
 
     /**

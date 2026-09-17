@@ -259,16 +259,21 @@ public abstract class GenerativeRandomMappingRestTest extends GenerativeRestTest
     }
 
     /**
-     * The mappings and documents of this run's randomly generated indices, which a seed alone does not
-     * reproduce once the generator changes, plus the failing query, as ready-to-paste REST commands.
+     * Appends the mappings and documents of this run's randomly generated indices, which a seed alone does not
+     * reproduce once the generator changes.
      */
     @Override
-    protected String extraFailureContext(@Nullable String query) {
+    protected String failureReport(@Nullable String query, @Nullable String error) {
+        return super.failureReport(query, error) + formatReproductionContext(query);
+    }
+
+    /** The generated indices and the failing query, as ready-to-paste REST commands. */
+    private static String formatReproductionContext(@Nullable String query) {
         List<GeneratedIndex> indices = generatedIndices;
         if (indices == null) {
             return "";
         }
-        StringBuilder sb = new StringBuilder("\n=== Reproduction commands ===\n");
+        StringBuilder sb = new StringBuilder("\n\n=== Reproduction commands ===\n");
         for (GeneratedIndex idx : indices) {
             sb.append("\nPUT /").append(idx.name()).append("\n");
             sb.append("{\"mappings\":{").append(RandomMappingGenerator.toMappingJson(idx.fields())).append("}}\n");

@@ -33,17 +33,8 @@ public class GenerativeFailureReportTests extends ESTestCase {
 
     private static final String BODY = "{\"error\":{\"type\":\"verification_exception\",\"reason\":\"boom\"}}";
 
-    private static final String EXTRA_CONTEXT = "\n=== Reproduction commands ===\nPUT /gen_rm_0\n";
-
     /** The section labels {@link GenerativeRestTest#failureReport} emits, in the order the report should carry them. */
-    private static final List<String> SECTION_LABELS = List.of(
-        "query: ",
-        "features: ",
-        "reproduce with ",
-        "error: ",
-        "=== Reproduction commands ===",
-        "Warnings: ["
-    );
+    private static final List<String> SECTION_LABELS = List.of("query: ", "features: ", "reproduce with ", "error: ", "Warnings: [");
 
     /**
      * The message {@code ResponseException} builds: a request line, an optional {@code Warnings} block, then the
@@ -69,10 +60,6 @@ public class GenerativeFailureReportTests extends ESTestCase {
     }
 
     private static GenerativeRestTest reporter() {
-        return reporter("");
-    }
-
-    private static GenerativeRestTest reporter(String extraContext) {
         return new GenerativeRestTest() {
             @Override
             protected boolean supportsSourceFieldMapping() {
@@ -83,29 +70,15 @@ public class GenerativeFailureReportTests extends ESTestCase {
             protected Set<GenerativeFeature> enabledFeatures() {
                 return Set.of(GenerativeFeature.SUBQUERIES);
             }
-
-            @Override
-            protected String extraFailureContext(@Nullable String query) {
-                return extraContext;
-            }
         };
     }
 
     public void testWarningsMoveBelowTheError() {
         String report = reporter().failureReport(QUERY, responseExceptionMessage(WARNINGS));
 
-        assertThat(sectionsOf(report), contains("query: ", "features: ", "reproduce with ", "error: ", "Warnings: ["));
+        assertThat(sectionsOf(report), contains(SECTION_LABELS.toArray(String[]::new)));
         assertThat(report, containsString(BODY));
         assertThat(report, endsWith(WARNINGS));
-    }
-
-    public void testExtraContextGoesBetweenTheErrorAndTheWarnings() {
-        String report = reporter(EXTRA_CONTEXT).failureReport(QUERY, responseExceptionMessage(WARNINGS));
-
-        assertThat(
-            sectionsOf(report),
-            contains("query: ", "features: ", "reproduce with ", "error: ", "=== Reproduction commands ===", "Warnings: [")
-        );
     }
 
     public void testErrorWithoutWarningsIsLeftIntact() {

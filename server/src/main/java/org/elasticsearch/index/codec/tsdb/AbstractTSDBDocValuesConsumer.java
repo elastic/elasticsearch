@@ -649,10 +649,12 @@ public abstract class AbstractTSDBDocValuesConsumer extends XDocValuesConsumer {
             // decompressor. Vacuous today (COMPRESSED_ZSTD_LEVEL_1 is the only compressed mode, and
             // NO_COMPRESS sources route through getUncompressedBinary, which never produces a raw
             // block), but the algorithm identity lives in the per-field meta byte, not in the
-            // per-block IS_COMPRESSED flag bit, so this check keeps the copy honest when a second
-            // mode lands. The isCompressed flag is a policy gate: requiring equality ensures the
-            // verbatim-copied block is byte-identical to what re-compression would have produced,
-            // and avoids silently re-introducing (or removing) compression the operator configured.
+            // per-block header, so this check keeps the copy honest when a second mode lands.
+            //
+            // This if statement is a policy gate, not a correctness one — the reader dispatches per-block,
+            // so a mixed stream is readable. Requiring equality means the verbatim-copied block is
+            // byte-identical to what re-compression would have produced, and avoids silently
+            // re-introducing (or removing) compression the operator configured.
             assert raw.compression() != BinaryDVCompressionMode.NO_COMPRESS;
             if (raw.compression() != compressionMode || raw.compressed() != formatConfig.enablePerBlockCompression()) {
                 return false;

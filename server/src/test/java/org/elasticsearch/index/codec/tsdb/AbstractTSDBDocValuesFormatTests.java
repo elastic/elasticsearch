@@ -2987,7 +2987,7 @@ public abstract class AbstractTSDBDocValuesFormatTests extends BaseDocValuesForm
      * <p>The InfoStream assertion is the key observability check: zstd is deterministic at a fixed
      * level, so a verbatim-copied and a re-compressed segment are byte-identical — we cannot observe
      * the optimization from output bytes alone. The byte-equality check after merge is therefore not
-     * redundant with the InfoStream assertion: it catches wrong-doc splices (the failure mode of a
+     * redundant with the InfoStream assertion: it catches wrong-doc copies (the failure mode of a
      * probe that corrupted its cursor) that would also produce the InfoStream message.
      */
     public void testForceMergeWithOversizedBinaryValues() throws IOException {

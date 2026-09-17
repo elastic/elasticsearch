@@ -9,6 +9,7 @@ package org.elasticsearch.xpack.esql.datasource.s3;
 
 import org.elasticsearch.common.ValidationException;
 
+import java.util.List;
 import java.util.Locale;
 
 /**
@@ -40,11 +41,16 @@ class S3ResourceCheck {
     static final String EXPRESS_MESSAGE_PREFIX = "[resource] looks like an S3 Express directory bucket, which is not supported, but was [";
 
     /**
-     * Suffix that makes a bucket name a directory bucket. The SDK keys off this exact spelling: a bucket
+     * Suffixes that make a bucket name a directory bucket. The SDK keys off these exact spellings: a bucket
      * named {@code mybucket--use1-az4--x-s3} resolves to an {@code s3express-<az>} host rather than the
      * regional S3 host, while {@code mybucket--use1-az4--x-s3-suffix} resolves to the ordinary one.
+     *
+     * <p>Both spellings are needed. The pinned SDK's endpoint provider tests them in two separate rules —
+     * the last six characters against {@code --x-s3}, the last seven against {@code --xa-s3} — and both
+     * arms build an S3 Express endpoint. {@code --op-s3} is not one of them: it is the Outposts access-point
+     * alias, and it resolves to the ordinary regional host.
      */
-    private static final String DIRECTORY_BUCKET_SUFFIX = "--x-s3";
+    private static final List<String> DIRECTORY_BUCKET_SUFFIXES = List.of("--x-s3", "--xa-s3");
 
     private S3ResourceCheck() {}
 
@@ -93,9 +99,11 @@ class S3ResourceCheck {
         }
 
         // 2. S3 Express directory buckets: the name alone moves the destination, so no endpoint can confine it.
-        if (authorityLower.endsWith(DIRECTORY_BUCKET_SUFFIX)) {
-            errors.addValidationError(EXPRESS_MESSAGE_PREFIX + resource + "].");
-            return;
+        for (String suffix : DIRECTORY_BUCKET_SUFFIXES) {
+            if (authorityLower.endsWith(suffix)) {
+                errors.addValidationError(EXPRESS_MESSAGE_PREFIX + resource + "].");
+                return;
+            }
         }
 
         // 3. Generic ARN check.

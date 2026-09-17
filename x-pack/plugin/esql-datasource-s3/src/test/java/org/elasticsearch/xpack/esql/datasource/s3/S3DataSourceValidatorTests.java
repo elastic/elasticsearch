@@ -1302,18 +1302,23 @@ public class S3DataSourceValidatorTests extends AbstractDataSourceValidatorTests
     public void testValidateDatasetRejectsDirectoryBucket() {
         // An S3 Express directory bucket moves the destination to an s3express-<az> host from the bucket
         // name alone, so no endpoint setting can confine it. Refused here, beside the MRAP refusal.
-        var e = expectThrows(
-            ValidationException.class,
-            () -> validator.validateDataset(Map.of(), "s3://mybucket--use1-az4--x-s3/data/f.parquet", Map.of())
-        );
-        assertThat(e.getMessage(), containsString("looks like an S3 Express directory bucket, which is not supported"));
-        assertThat(e.getMessage(), not(containsString("does not accept an ARN")));
+        // Both spellings the SDK routes into S3 Express are refused; --xa-s3 does not end in --x-s3.
+        for (String bucket : List.of("mybucket--use1-az4--x-s3", "mybucket--use1-az4--xa-s3")) {
+            var e = expectThrows(
+                ValidationException.class,
+                () -> validator.validateDataset(Map.of(), "s3://" + bucket + "/data/f.parquet", Map.of())
+            );
+            assertThat(bucket, e.getMessage(), containsString("looks like an S3 Express directory bucket, which is not supported"));
+            assertThat(bucket, e.getMessage(), not(containsString("does not accept an ARN")));
+        }
     }
 
     public void testValidateDatasetAcceptsBucketNamesThatMerelyResembleDirectoryBuckets() {
-        // The SDK keys off the exact --x-s3 suffix: mybucket--use1-az4--x-s3-suffix resolves to the ordinary
-        // regional host, so refusing it would take away a legitimate bucket name.
+        // The SDK keys off the exact suffixes: these resolve to the ordinary regional host, so refusing
+        // them would take away a legitimate bucket name. --op-s3 is the Outposts access-point alias.
         validator.validateDataset(Map.of(), "s3://mybucket--use1-az4--x-s3-suffix/data/f.parquet", Map.of());
+        validator.validateDataset(Map.of(), "s3://mybucket--use1-az4--xa-s3-suffix/data/f.parquet", Map.of());
+        validator.validateDataset(Map.of(), "s3://mybucket--use1-az4--op-s3/data/f.parquet", Map.of());
         validator.validateDataset(Map.of(), "s3://my-x-s3/data/f.parquet", Map.of());
     }
 

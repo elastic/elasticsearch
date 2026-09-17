@@ -26,6 +26,6 @@ public class GroqServiceConfigurationTests extends ESTestCase {
         assertThat(configuration.getTaskTypes(), equalTo(EnumSet.of(TaskType.CHAT_COMPLETION)));
         assertThat(configuration.getConfigurations().keySet(), hasItems("model_id", "url", "api_key"));
         assertNotNull(configuration.getFeatures());
-        assertTrue(configuration.getFeatures().isSupported(NonStreamingChatFeature.NAME));
+        assertTrue(configuration.getFeatures().has(NonStreamingChatFeature.SUPPORTED_INSTANCE));
     }
 }

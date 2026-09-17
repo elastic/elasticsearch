@@ -28,14 +28,6 @@ public class NonStreamingChatFeature extends SupportedInferenceFeature {
 
     private static final ObjectParser<Builder, Void> PARSER = buildCommonParser(NAME, Builder::new);
 
-    /**
-     * For a value decided at runtime. Prefer {@link #SUPPORTED_INSTANCE} / {@link #UNSUPPORTED_INSTANCE} when the
-     * answer is known statically, which is the case for every service that declares this feature today.
-     */
-    public static NonStreamingChatFeature of(boolean supported) {
-        return new NonStreamingChatFeature(supported);
-    }
-
     public static NonStreamingChatFeature fromXContent(XContentParser parser) throws IOException {
         return PARSER.parse(parser, null).build();
     }
@@ -43,7 +35,7 @@ public class NonStreamingChatFeature extends SupportedInferenceFeature {
     public static class Builder extends SupportedInferenceFeature.Builder<NonStreamingChatFeature> {
         @Override
         protected NonStreamingChatFeature build(boolean supported) {
-            return of(supported);
+            return supported ? SUPPORTED_INSTANCE : UNSUPPORTED_INSTANCE;
         }
     }
 

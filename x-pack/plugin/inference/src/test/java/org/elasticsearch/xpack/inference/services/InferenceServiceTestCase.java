@@ -254,7 +254,7 @@ public abstract class InferenceServiceTestCase extends ESTestCase {
                 : service.getConfiguration();
 
             assertNotNull(configuration.getFeatures());
-            assertTrue(configuration.getFeatures().isSupported(NonStreamingChatFeature.NAME));
+            assertTrue(configuration.getFeatures().has(NonStreamingChatFeature.SUPPORTED_INSTANCE));
         }
     }
 

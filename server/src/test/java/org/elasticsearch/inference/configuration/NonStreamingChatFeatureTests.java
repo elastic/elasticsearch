@@ -27,7 +27,7 @@ import static org.hamcrest.Matchers.is;
 public class NonStreamingChatFeatureTests extends AbstractBWCSerializationTestCase<NonStreamingChatFeature> {
 
     public static NonStreamingChatFeature randomInstance() {
-        return NonStreamingChatFeature.of(randomBoolean());
+        return randomBoolean() ? NonStreamingChatFeature.SUPPORTED_INSTANCE : NonStreamingChatFeature.UNSUPPORTED_INSTANCE;
     }
 
     @Override
@@ -52,7 +52,7 @@ public class NonStreamingChatFeatureTests extends AbstractBWCSerializationTestCa
 
     @Override
     protected NonStreamingChatFeature mutateInstance(NonStreamingChatFeature instance) {
-        return NonStreamingChatFeature.of(instance.isSupported() == false);
+        return instance.isSupported() ? NonStreamingChatFeature.UNSUPPORTED_INSTANCE : NonStreamingChatFeature.SUPPORTED_INSTANCE;
     }
 
     @Override
@@ -60,13 +60,32 @@ public class NonStreamingChatFeatureTests extends AbstractBWCSerializationTestCa
         return instance;
     }
 
+    /**
+     * Parsing resolves to one of the shared instances, so an XContent round trip returns the very same object while a
+     * wire round trip allocates a new one. Identity is therefore not a stable property to assert here — equality is,
+     * and {@link #testEquals_HoldsAcrossAWireRoundTrip} pins the allocating path explicitly.
+     */
+    @Override
+    protected void assertEqualInstances(NonStreamingChatFeature expectedInstance, NonStreamingChatFeature newInstance) {
+        assertThat(newInstance, is(expectedInstance));
+        assertThat(newInstance.hashCode(), is(expectedInstance.hashCode()));
+    }
+
     public void testGetWriteableName() {
         assertThat(NonStreamingChatFeature.SUPPORTED_INSTANCE.getWriteableName(), is("non_streaming_chat"));
     }
 
-    public void testOf_MatchesTheSharedInstances() {
-        assertThat(NonStreamingChatFeature.of(true), is(NonStreamingChatFeature.SUPPORTED_INSTANCE));
-        assertThat(NonStreamingChatFeature.of(false), is(NonStreamingChatFeature.UNSUPPORTED_INSTANCE));
+    public void testFromXContent_ReturnsTheSharedInstances() throws IOException {
+        try (var parser = createParser(XContentType.JSON.xContent(), """
+            {"supported": true}
+            """)) {
+            assertSame(NonStreamingChatFeature.SUPPORTED_INSTANCE, NonStreamingChatFeature.fromXContent(parser));
+        }
+        try (var parser = createParser(XContentType.JSON.xContent(), """
+            {"supported": false}
+            """)) {
+            assertSame(NonStreamingChatFeature.UNSUPPORTED_INSTANCE, NonStreamingChatFeature.fromXContent(parser));
+        }
     }
 
     public void testEquals_HoldsAcrossAWireRoundTrip() throws IOException {

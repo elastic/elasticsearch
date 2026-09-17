@@ -44,9 +44,10 @@ import static org.hamcrest.Matchers.is;
 public class InferenceServiceFeaturesTests extends AbstractBWCSerializationTestCase<InferenceServiceFeatures> {
 
     private static final String TEST_FEATURE_DETAIL = "some detail";
+    private static final String OTHER_TEST_FEATURE_DETAIL = "some other detail";
 
     public static InferenceServiceFeatures randomInstance() {
-        return randomBoolean() ? InferenceServiceFeatures.of() : InferenceServiceFeatures.of(NonStreamingChatFeature.of(randomBoolean()));
+        return randomBoolean() ? InferenceServiceFeatures.of() : InferenceServiceFeatures.of(NonStreamingChatFeatureTests.randomInstance());
     }
 
     @Override
@@ -130,12 +131,29 @@ public class InferenceServiceFeaturesTests extends AbstractBWCSerializationTestC
         }
     }
 
-    public void testIsSupported() {
+    public void testHas_MatchesADeclaredFeature() {
         var features = InferenceServiceFeatures.of(NonStreamingChatFeature.SUPPORTED_INSTANCE);
-        assertTrue(features.isSupported(NonStreamingChatFeature.NAME));
+        assertTrue(features.has(NonStreamingChatFeature.SUPPORTED_INSTANCE));
+    }
 
-        assertFalse(InferenceServiceFeatures.of(NonStreamingChatFeature.UNSUPPORTED_INSTANCE).isSupported(NonStreamingChatFeature.NAME));
-        assertFalse(InferenceServiceFeatures.of().isSupported(NonStreamingChatFeature.NAME));
+    public void testHas_DoesNotMatchAFeatureDeclaredWithADifferentValue() {
+        var features = InferenceServiceFeatures.of(NonStreamingChatFeature.UNSUPPORTED_INSTANCE);
+        assertFalse(features.has(NonStreamingChatFeature.SUPPORTED_INSTANCE));
+        assertTrue(features.has(NonStreamingChatFeature.UNSUPPORTED_INSTANCE));
+    }
+
+    public void testHas_DoesNotMatchAFeatureThatWasNotDeclared() {
+        assertFalse(InferenceServiceFeatures.of().has(NonStreamingChatFeature.SUPPORTED_INSTANCE));
+    }
+
+    /**
+     * {@code has} is not limited to {@link SupportedInferenceFeature}: a feature with its own shape matches on its own
+     * equality, so two instances of the same feature name with different payloads are distinguishable.
+     */
+    public void testHas_MatchesAFeatureThatIsNotSupportedShaped() {
+        var features = InferenceServiceFeatures.of(new TestFeature(TEST_FEATURE_DETAIL));
+        assertTrue(features.has(new TestFeature(TEST_FEATURE_DETAIL)));
+        assertFalse(features.has(new TestFeature(OTHER_TEST_FEATURE_DETAIL)));
     }
 
     public void testGet_ReturnsNullForAFeatureThatWasNotDeclared() {

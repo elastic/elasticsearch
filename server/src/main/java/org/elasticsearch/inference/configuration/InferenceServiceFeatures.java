@@ -129,12 +129,11 @@ public class InferenceServiceFeatures implements Writeable, ToXContentObject {
     }
 
     /**
-     * Returns true only when the named feature is present and reports itself as supported. A feature a service never
-     * declared is indistinguishable from one it declared as unsupported, which is the answer callers want when asking
-     * "can this service do X".
+     * Returns true only when the service declared exactly this feature. Equality is the feature's own, so a
+     * {@link SupportedInferenceFeature} declared as unsupported does not match its supported counterpart
      */
-    public boolean isSupported(String featureName) {
-        return features.get(featureName) instanceof SupportedInferenceFeature supportedFeature && supportedFeature.isSupported();
+    public boolean has(InferenceFeature feature) {
+        return feature.equals(features.get(feature.getWriteableName()));
     }
 
     @Override

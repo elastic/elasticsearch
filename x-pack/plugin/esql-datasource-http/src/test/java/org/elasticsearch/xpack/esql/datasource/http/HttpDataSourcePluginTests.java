@@ -54,9 +54,9 @@ public class HttpDataSourcePluginTests extends ESTestCase {
     public void testHttpValidatorAcceptsHttpAndHttpsSchemes() {
         assumeTrue("requires http datasource feature flag", httpEnabled());
         DataSourceValidator http = plugin.datasourceValidators(Settings.EMPTY).get("http");
-        // No dataset settings supplied, so the validated settings come back empty for both schemes.
-        assertTrue(http.validateDataset(Map.of(), "http://example.org/data.csv", Map.of()).isEmpty());
-        assertTrue(http.validateDataset(Map.of(), "https://example.org/data.csv", Map.of()).isEmpty());
+        // File-backed PUT materializes omitted schema_resolution as first_file_wins.
+        assertEquals("first_file_wins", http.validateDataset(Map.of(), "http://example.org/data.csv", Map.of()).get("schema_resolution"));
+        assertEquals("first_file_wins", http.validateDataset(Map.of(), "https://example.org/data.csv", Map.of()).get("schema_resolution"));
     }
 
     public void testHttpValidatorRejectsNonHttpScheme() {

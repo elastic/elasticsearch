@@ -135,6 +135,158 @@ public final class FieldNameHash {
         return word & mask;
     }
 
+    private static final long QUOTE_XOR = 0x2222222222222222L;
+    private static final long BACKSLASH_XOR = 0x5C5C5C5C5C5C5C5CL;
+    private static final long LO_BITS = 0x0101010101010101L;
+    private static final long HI_BITS = 0x8080808080808080L;
+
+    /**
+     * Result of a fused SWAR scan + wyhash over a JSON field name (bytes after the opening quote).
+     * Mutable and reused across calls (see {@link #scanFieldName(byte[], int, FieldNameScan)}) so
+     * that resolving a field name on the hot document-walking path does not allocate.
+     */
+    public static final class FieldNameScan {
+        private int hash;
+        private int len;
+        private long prefix8;
+
+        /** wyhash of the field name, guaranteed non-zero. */
+        public int hash() {
+            return hash;
+        }
+
+        /** Length of the field name in bytes. */
+        public int len() {
+            return len;
+        }
+
+        /** First {@code min(len, 8)} bytes as a little-endian long. */
+        public long prefix8() {
+            return prefix8;
+        }
+
+        private void set(int hash, int len, long prefix8) {
+            this.hash = hash;
+            this.len = len;
+            this.prefix8 = prefix8;
+        }
+    }
+
+    /**
+     * Scans for the closing quote and computes hash + prefix8 without re-reading the name bytes
+     * for the common len &lt;= 16 case, writing the result into {@code out} to avoid allocating.
+     * Returns {@code false} if a backslash escape is found, in which case {@code out} is
+     * unmodified.
+     */
+    public static boolean scanFieldName(byte[] buf, int startIdx, FieldNameScan out) {
+        int start = startIdx;
+        int pos = start;
+        int loopBound = buf.length - 8;
+
+        if (pos > loopBound) {
+            return scanFieldNameScalar(buf, start, pos, out);
+        }
+
+        long firstWord = readLE8(buf, pos);
+        long prefix8 = firstWord;
+        long xq = firstWord ^ QUOTE_XOR;
+        long xb = firstWord ^ BACKSLASH_XOR;
+        long qh = (xq - LO_BITS) & ~xq & HI_BITS;
+        long bh = (xb - LO_BITS) & ~xb & HI_BITS;
+
+        if ((qh | bh) != 0) {
+            if (bh != 0 && (qh == 0 || (Long.numberOfTrailingZeros(bh) <= Long.numberOfTrailingZeros(qh)))) {
+                return false;
+            }
+            int len = Long.numberOfTrailingZeros(qh) >>> 3;
+            out.set(hashWord(firstWord, len), len, maskWord(firstWord, len));
+            return true;
+        }
+
+        long seed = WY_SECRET0;
+        pos = start + 8;
+        while (pos <= loopBound) {
+            long word = readLE8(buf, pos);
+            xq = word ^ QUOTE_XOR;
+            xb = word ^ BACKSLASH_XOR;
+            qh = (xq - LO_BITS) & ~xq & HI_BITS;
+            bh = (xb - LO_BITS) & ~xb & HI_BITS;
+
+            if ((qh | bh) != 0) {
+                if (bh != 0 && (qh == 0 || (Long.numberOfTrailingZeros(bh) <= Long.numberOfTrailingZeros(qh)))) {
+                    return false;
+                }
+                int len = (pos - start) + (Long.numberOfTrailingZeros(qh) >>> 3);
+                int h = hashScanned(buf, start, len, seed, firstWord);
+                out.set(h, len, prefix8);
+                return true;
+            }
+            if (pos >= start + 16) {
+                seed = wymix(readLE8(buf, pos - 8) ^ WY_SECRET1, readLE8(buf, pos) ^ seed);
+            }
+            pos += 8;
+        }
+        return scanFieldNameScalar(buf, start, pos, out);
+    }
+
+    /** Computes wyhash for a field name whose bytes were already scanned up to {@code len}. */
+    private static int hashScanned(byte[] buf, int off, int len, long seed, long firstWord) {
+        if (len <= 8) {
+            return hashWord(firstWord, len);
+        }
+        if (len <= 16) {
+            long a = readSmallFromWord(firstWord, Math.min(len, 8));
+            long b = readLE8(buf, off + len - 8);
+            return finishHash(a, b, seed, len);
+        }
+        return hashName(buf, off, len);
+    }
+
+    private static boolean scanFieldNameScalar(byte[] buf, int start, int pos, FieldNameScan out) {
+        while (true) {
+            byte b = buf[pos];
+            if (b == '"') {
+                int len = pos - start;
+                long prefix8 = len >= 8 ? readLE8(buf, start) : readPrefix8Small(buf, start, len);
+                out.set(hashName(buf, start, len), len, prefix8);
+                return true;
+            }
+            if (b == '\\') {
+                return false;
+            }
+            pos++;
+        }
+    }
+
+    private static long readPrefix8Small(byte[] buf, int off, int len) {
+        if (len >= 8) {
+            return readLE8(buf, off);
+        }
+        long v = 0;
+        for (int i = 0; i < len; i++) {
+            v |= (long) (buf[off + i] & 0xFF) << (i * 8);
+        }
+        return v;
+    }
+
+    private static int finishHash(long a, long b, long seed, int len) {
+        long h = wymix(a ^ WY_SECRET1, b ^ seed) ^ WY_SECRET2 ^ len;
+        h = wymix(h, h);
+        int h32 = (int) (h ^ (h >>> 32));
+        return h32 == 0 ? 1 : h32;
+    }
+
+    public static long readPrefix8(byte[] buf, int off, int len) {
+        if (len >= 8) {
+            return readLE8(buf, off);
+        }
+        long v = 0;
+        for (int i = 0; i < len; i++) {
+            v |= (long) (buf[off + i] & 0xFF) << (i * 8);
+        }
+        return v;
+    }
+
     /**
      * Scans for the closing quote and computes the wyhash in a single pass. Each 8-byte word
      * is read once, checked for quote/backslash, and the same bytes are fed into

@@ -11,6 +11,7 @@ package org.elasticsearch.simdjson;
 
 import org.elasticsearch.simdjson.internal.fieldnames.FieldNameHash;
 import org.elasticsearch.simdjson.internal.fieldnames.FieldNameLookup;
+import org.elasticsearch.simdjson.internal.fieldnames.ResolvedFieldName;
 import org.elasticsearch.simdjson.internal.parsers.BitIndexes;
 import org.elasticsearch.simdjson.internal.parsers.DoubleParser;
 import org.elasticsearch.simdjson.internal.parsers.StringParser;
@@ -19,7 +20,6 @@ import java.lang.invoke.MethodHandles;
 import java.lang.invoke.VarHandle;
 import java.math.BigInteger;
 import java.nio.ByteOrder;
-import java.nio.charset.StandardCharsets;
 import java.util.Arrays;
 
 import static org.elasticsearch.simdjson.internal.parsers.CharacterUtils.isStructuralOrWhitespace;
@@ -33,7 +33,7 @@ import static org.elasticsearch.simdjson.internal.parsers.CharacterUtils.isStruc
  * to the handler; numbers are parsed inline.
  *
  * <p>Field name resolution uses a {@link FieldNameLookup} which freezes into a
- * compact hash table after the first document. Lookups use a prefix-8 fast
+ * compact hash table once the field-name set stabilizes. Lookups use a prefix-8 fast
  * rejection to minimize full key comparisons. Cross-thread sharing happens at batch
  * boundaries via {@link #releaseNames()}.
  *
@@ -59,6 +59,7 @@ import static org.elasticsearch.simdjson.internal.parsers.CharacterUtils.isStruc
 public final class SimdJsonDirectWalker {
 
     private static final int DEFAULT_MAX_DEPTH = 64;
+    private static final VarHandle LONG_LE = MethodHandles.byteArrayViewVarHandle(long[].class, ByteOrder.LITTLE_ENDIAN);
 
     private final FieldNameLookup nameCache;
     private final StringParser stringParser = new StringParser();
@@ -66,7 +67,9 @@ public final class SimdJsonDirectWalker {
     private final int maxDepth;
     private byte[] stringBuf = new byte[4096];
     private int currentDepth;
-    private int docCount;
+    // Reused across every field-name resolution on this (single-threaded) walker instance so the
+    // hot path doesn't allocate a scan result per field; see FieldNameHash.scanFieldName.
+    private final FieldNameHash.FieldNameScan fieldNameScan = new FieldNameHash.FieldNameScan();
 
     public SimdJsonDirectWalker(FieldNameLookup nameCache) {
         this(nameCache, DEFAULT_MAX_DEPTH);
@@ -102,6 +105,8 @@ public final class SimdJsonDirectWalker {
             throw new JsonParsingException("No structural element found.");
         }
 
+        nameCache.beginDocument();
+
         int idx = bitIndexes.getAndAdvance();
         if (buffer[idx] != '{') {
             throw new JsonParsingException("Expected document to start with '{' but got '" + (char) buffer[idx] + "'");
@@ -109,19 +114,13 @@ public final class SimdJsonDirectWalker {
 
         if (buffer[bitIndexes.peek()] == '}') {
             bitIndexes.advance();
-            freezeAfterFirstDoc();
+            nameCache.maybeFreezeAfterDocument();
             return;
         }
 
         currentDepth = 0;
         walkObject(buffer, bitIndexes, handler);
-        freezeAfterFirstDoc();
-    }
-
-    private void freezeAfterFirstDoc() {
-        if (docCount++ == 0) {
-            nameCache.freeze();
-        }
+        nameCache.maybeFreezeAfterDocument();
     }
 
     /**
@@ -147,7 +146,7 @@ public final class SimdJsonDirectWalker {
                     throw new JsonParsingException("Expected field name or '}' but got '" + (char) buffer[keyIdx] + "'");
                 }
 
-                String fieldName = resolveFieldName(buffer, keyIdx);
+                ResolvedFieldName field = resolveFieldName(buffer, keyIdx);
 
                 int colonIdx = bi.getAndAdvance();
                 if (buffer[colonIdx] != ':') {
@@ -161,15 +160,15 @@ public final class SimdJsonDirectWalker {
                     case '{' -> {
                         if (buffer[bi.peek()] == '}') {
                             bi.advance();
-                            handler.emptyObject(fieldName);
+                            dispatchEmptyObject(field, handler);
                         } else {
-                            handler.startObject(fieldName);
+                            dispatchStartObject(field, handler);
                             walkObject(buffer, bi, handler);
                             handler.endObject();
                         }
                     }
                     case '[' -> {
-                        handler.startArray(fieldName);
+                        dispatchStartArray(field, handler);
                         walkArray(buffer, bi, handler);
                         handler.endArray();
                     }
@@ -180,25 +179,25 @@ public final class SimdJsonDirectWalker {
                         if (hasEscape) {
                             int parsed = stringParser.parseString(buffer, valIdx, ensureStringBuf(len));
                             byte[] copy = Arrays.copyOf(stringBuf, parsed);
-                            handler.stringField(fieldName, copy, 0, parsed);
+                            dispatchStringField(field, handler, copy, 0, parsed);
                         } else {
-                            handler.stringField(fieldName, buffer, off, len);
+                            dispatchStringField(field, handler, buffer, off, len);
                         }
                     }
                     case 't' -> {
                         validateTrue(buffer, valIdx);
-                        handler.booleanField(fieldName, true, buffer, valIdx, 4);
+                        dispatchBooleanField(field, handler, true, buffer, valIdx, 4);
                     }
                     case 'f' -> {
                         validateFalse(buffer, valIdx);
-                        handler.booleanField(fieldName, false, buffer, valIdx, 5);
+                        dispatchBooleanField(field, handler, false, buffer, valIdx, 5);
                     }
                     case 'n' -> {
                         validateNull(buffer, valIdx);
-                        handler.nullField(fieldName);
+                        dispatchNullField(field, handler);
                     }
                     case '-', '0', '1', '2', '3', '4', '5', '6', '7', '8', '9' -> {
-                        handleNumber(buffer, valIdx, fieldName, handler);
+                        handleNumber(buffer, valIdx, field, handler);
                     }
                     default -> throw new JsonParsingException("Unexpected value byte: " + (char) valByte);
                 }
@@ -287,16 +286,7 @@ public final class SimdJsonDirectWalker {
                 throw new JsonParsingException("Expected field name in nested object");
             }
 
-            int keyStart = keyIdx + 1;
-            int keyLen = scalarStringLength(buffer, keyStart);
-            boolean keyEscaped = containsBackslash(buffer, keyStart, keyLen);
-            String fieldName;
-            if (keyEscaped) {
-                int parsed = stringParser.parseString(buffer, keyIdx, ensureStringBuf(keyLen));
-                fieldName = new String(stringBuf, 0, parsed, StandardCharsets.UTF_8);
-            } else {
-                fieldName = new String(buffer, keyStart, keyLen, StandardCharsets.UTF_8);
-            }
+            ResolvedFieldName field = resolveFieldName(buffer, keyIdx);
 
             int colonIdx = bi.getAndAdvance();
             if (buffer[colonIdx] != ':') {
@@ -313,40 +303,40 @@ public final class SimdJsonDirectWalker {
                     boolean hasEscape = containsBackslash(buffer, off, len);
                     if (hasEscape) {
                         int parsed = stringParser.parseString(buffer, valIdx, ensureStringBuf(len));
-                        handler.stringField(fieldName, Arrays.copyOf(stringBuf, parsed), 0, parsed);
+                        dispatchStringField(field, handler, Arrays.copyOf(stringBuf, parsed), 0, parsed);
                     } else {
-                        handler.stringField(fieldName, buffer, off, len);
+                        dispatchStringField(field, handler, buffer, off, len);
                     }
                 }
                 case 't' -> {
                     validateTrue(buffer, valIdx);
-                    handler.booleanField(fieldName, true, buffer, valIdx, 4);
+                    dispatchBooleanField(field, handler, true, buffer, valIdx, 4);
                 }
                 case 'f' -> {
                     validateFalse(buffer, valIdx);
-                    handler.booleanField(fieldName, false, buffer, valIdx, 5);
+                    dispatchBooleanField(field, handler, false, buffer, valIdx, 5);
                 }
                 case 'n' -> {
                     validateNull(buffer, valIdx);
-                    handler.nullField(fieldName);
+                    dispatchNullField(field, handler);
                 }
                 case '{' -> {
                     if (buffer[bi.peek()] == '}') {
                         bi.advance();
-                        handler.emptyObject(fieldName);
+                        dispatchEmptyObject(field, handler);
                     } else {
-                        handler.startObject(fieldName);
+                        dispatchStartObject(field, handler);
                         walkObjectInArray(buffer, bi, handler);
                         handler.endObject();
                     }
                 }
                 case '[' -> {
-                    handler.startArray(fieldName);
+                    dispatchStartArray(field, handler);
                     walkArray(buffer, bi, handler);
                     handler.endArray();
                 }
                 case '-', '0', '1', '2', '3', '4', '5', '6', '7', '8', '9' -> {
-                    handleNumber(buffer, valIdx, fieldName, handler);
+                    handleNumber(buffer, valIdx, field, handler);
                 }
                 default -> throw new JsonParsingException("Unexpected byte in nested value: " + (char) valByte);
             }
@@ -363,7 +353,7 @@ public final class SimdJsonDirectWalker {
     // Number parsing
     // ------------------------------------------------------------------
 
-    private void handleNumber(byte[] buffer, int idx, String fieldName, JsonDocumentHandler handler) {
+    private void handleNumber(byte[] buffer, int idx, ResolvedFieldName field, JsonDocumentHandler handler) {
         boolean negative = buffer[idx] == '-';
         int pos = negative ? idx + 1 : idx;
 
@@ -389,7 +379,7 @@ public final class SimdJsonDirectWalker {
         }
 
         if (ch == '.' || ch == 'e' || ch == 'E') {
-            handleFloatingPoint(buffer, idx, negative, digits, pos, fieldName, handler);
+            handleFloatingPoint(buffer, idx, negative, digits, pos, field, handler);
             return;
         }
 
@@ -401,14 +391,14 @@ public final class SimdJsonDirectWalker {
         if (digitCount >= 19) {
             if (digitCount > 19 || (negative ? digits == Long.MIN_VALUE ? false : digits < 0 : digits < 0)) {
                 BigInteger bigVal = new BigInteger(new String(buffer, idx, len, java.nio.charset.StandardCharsets.US_ASCII));
-                handler.bigIntegerField(fieldName, bigVal, buffer, idx, len);
+                dispatchBigIntegerField(field, handler, bigVal, buffer, idx, len);
                 return;
             }
         }
 
         long val = negative ? -digits : digits;
         boolean fitsInt = val >= Integer.MIN_VALUE && val <= Integer.MAX_VALUE;
-        handler.longField(fieldName, val, fitsInt, buffer, idx, len);
+        dispatchLongField(field, handler, val, fitsInt, buffer, idx, len);
     }
 
     /**
@@ -439,7 +429,7 @@ public final class SimdJsonDirectWalker {
         boolean negative,
         long intDigits,
         int pos,
-        String fieldName,
+        ResolvedFieldName field,
         JsonDocumentHandler handler
     ) {
         int digitsStartIdx = negative ? startIdx + 1 : startIdx;
@@ -483,7 +473,7 @@ public final class SimdJsonDirectWalker {
         int len = pos - startIdx;
         float fval = (float) val;
         boolean fitsFloat = (double) fval == val;
-        handler.doubleField(fieldName, val, fitsFloat, buffer, startIdx, len);
+        dispatchDoubleField(field, handler, val, fitsFloat, buffer, startIdx, len);
     }
 
     private void handleArrayNumber(byte[] buffer, int idx, JsonDocumentHandler handler) {
@@ -563,84 +553,133 @@ public final class SimdJsonDirectWalker {
     // Field name resolution
     // ------------------------------------------------------------------
 
-    private static final long QUOTE_XOR = 0x2222222222222222L;
-    private static final long BACKSLASH_XOR = 0x5C5C5C5C5C5C5C5CL;
-    private static final long LO_BITS = 0x0101010101010101L;
-    private static final long HI_BITS = 0x8080808080808080L;
-    private static final VarHandle LONG_LE = MethodHandles.byteArrayViewVarHandle(long[].class, ByteOrder.LITTLE_ENDIAN);
-
-    private String resolveFieldName(byte[] buffer, int quoteIdx) {
+    private ResolvedFieldName resolveFieldName(byte[] buffer, int quoteIdx) {
         int start = quoteIdx + 1;
-        int pos = start;
-        int loopBound = buffer.length - 8;
-
-        if (pos <= loopBound) {
-            long word = (long) LONG_LE.get(buffer, pos);
-            long xq = word ^ QUOTE_XOR;
-            long xb = word ^ BACKSLASH_XOR;
-            long qh = (xq - LO_BITS) & ~xq & HI_BITS;
-            long bh = (xb - LO_BITS) & ~xb & HI_BITS;
-
-            if ((qh | bh) != 0) {
-                if (bh != 0 && (qh == 0 || (Long.numberOfTrailingZeros(bh) <= Long.numberOfTrailingZeros(qh)))) {
-                    return resolveEscapedFieldName(buffer, quoteIdx, start);
-                }
-                int len = Long.numberOfTrailingZeros(qh) >>> 3;
-                int h = FieldNameHash.hashWord(word, len);
-                long pfx = FieldNameHash.maskWord(word, len);
-                String s = nameCache.lookup(buffer, start, len, h, pfx);
-                return s != null ? s : nameCache.insert(buffer, start, len, h);
-            }
-            pos = start + 8;
-            while (pos <= loopBound) {
-                word = (long) LONG_LE.get(buffer, pos);
-                xq = word ^ QUOTE_XOR;
-                xb = word ^ BACKSLASH_XOR;
-                qh = (xq - LO_BITS) & ~xq & HI_BITS;
-                bh = (xb - LO_BITS) & ~xb & HI_BITS;
-
-                if ((qh | bh) != 0) {
-                    if (bh != 0 && (qh == 0 || (Long.numberOfTrailingZeros(bh) <= Long.numberOfTrailingZeros(qh)))) {
-                        return resolveEscapedFieldName(buffer, quoteIdx, start);
-                    }
-                    int len = (pos - start) + (Long.numberOfTrailingZeros(qh) >>> 3);
-                    int h = FieldNameHash.hashName(buffer, start, len);
-                    String s = nameCache.lookup(buffer, start, len, h);
-                    return s != null ? s : nameCache.insert(buffer, start, len, h);
-                }
-                pos += 8;
-            }
+        if (FieldNameHash.scanFieldName(buffer, start, fieldNameScan) == false) {
+            return resolveEscapedFieldName(buffer, quoteIdx, start);
         }
-        return resolveFieldNameScalar(buffer, quoteIdx, start, pos);
+        int len = fieldNameScan.len();
+        int hash = fieldNameScan.hash();
+        ResolvedFieldName resolved = nameCache.lookupField(buffer, start, len, hash, fieldNameScan.prefix8());
+        return resolved != null ? resolved : nameCache.insertField(buffer, start, len, hash);
     }
 
     /** Handles field names containing backslash escapes. */
-    private String resolveEscapedFieldName(byte[] buffer, int quoteIdx, int start) {
+    private ResolvedFieldName resolveEscapedFieldName(byte[] buffer, int quoteIdx, int start) {
         int end = start;
         while (buffer[end] != '"') {
-            if (buffer[end] == '\\') end += 2;
-            else end++;
+            if (buffer[end] == '\\') {
+                end += 2;
+            } else {
+                end++;
+            }
         }
         int parsed = stringParser.parseString(buffer, quoteIdx, ensureStringBuf(end - start));
         int h = FieldNameHash.hashName(stringBuf, 0, parsed);
-        String s = nameCache.lookup(stringBuf, 0, parsed, h);
-        return s != null ? s : nameCache.insert(stringBuf, 0, parsed, h);
+        long pfx = FieldNameHash.readPrefix8(stringBuf, 0, parsed);
+        ResolvedFieldName resolved = nameCache.lookupField(stringBuf, 0, parsed, h, pfx);
+        return resolved != null ? resolved : nameCache.insertField(stringBuf, 0, parsed, h);
     }
 
-    /** Byte-at-a-time fallback when the field name is near the end of the buffer. */
-    private String resolveFieldNameScalar(byte[] buffer, int quoteIdx, int start, int pos) {
-        while (true) {
-            byte b = buffer[pos];
-            if (b == '"') {
-                int len = pos - start;
-                int h = FieldNameHash.hashName(buffer, start, len);
-                String s = nameCache.lookup(buffer, start, len, h);
-                return s != null ? s : nameCache.insert(buffer, start, len, h);
-            }
-            if (b == '\\') {
-                return resolveEscapedFieldName(buffer, quoteIdx, start);
-            }
-            pos++;
+    private static void dispatchStartObject(ResolvedFieldName field, JsonDocumentHandler handler) {
+        if (field.ordinal() >= 0) {
+            handler.startObject(field.ordinal(), field.name());
+        } else {
+            handler.startObject(field.name());
+        }
+    }
+
+    private static void dispatchEmptyObject(ResolvedFieldName field, JsonDocumentHandler handler) {
+        if (field.ordinal() >= 0) {
+            handler.emptyObject(field.ordinal(), field.name());
+        } else {
+            handler.emptyObject(field.name());
+        }
+    }
+
+    private static void dispatchStartArray(ResolvedFieldName field, JsonDocumentHandler handler) {
+        if (field.ordinal() >= 0) {
+            handler.startArray(field.ordinal(), field.name());
+        } else {
+            handler.startArray(field.name());
+        }
+    }
+
+    private static void dispatchStringField(ResolvedFieldName field, JsonDocumentHandler handler, byte[] buf, int off, int len) {
+        if (field.ordinal() >= 0) {
+            handler.stringField(field.ordinal(), field.name(), buf, off, len);
+        } else {
+            handler.stringField(field.name(), buf, off, len);
+        }
+    }
+
+    private static void dispatchLongField(
+        ResolvedFieldName field,
+        JsonDocumentHandler handler,
+        long value,
+        boolean fitsInt,
+        byte[] srcBuf,
+        int srcOff,
+        int srcLen
+    ) {
+        if (field.ordinal() >= 0) {
+            handler.longField(field.ordinal(), field.name(), value, fitsInt, srcBuf, srcOff, srcLen);
+        } else {
+            handler.longField(field.name(), value, fitsInt, srcBuf, srcOff, srcLen);
+        }
+    }
+
+    private static void dispatchBigIntegerField(
+        ResolvedFieldName field,
+        JsonDocumentHandler handler,
+        BigInteger value,
+        byte[] srcBuf,
+        int srcOff,
+        int srcLen
+    ) {
+        if (field.ordinal() >= 0) {
+            handler.bigIntegerField(field.ordinal(), field.name(), value, srcBuf, srcOff, srcLen);
+        } else {
+            handler.bigIntegerField(field.name(), value, srcBuf, srcOff, srcLen);
+        }
+    }
+
+    private static void dispatchDoubleField(
+        ResolvedFieldName field,
+        JsonDocumentHandler handler,
+        double value,
+        boolean fitsFloat,
+        byte[] srcBuf,
+        int srcOff,
+        int srcLen
+    ) {
+        if (field.ordinal() >= 0) {
+            handler.doubleField(field.ordinal(), field.name(), value, fitsFloat, srcBuf, srcOff, srcLen);
+        } else {
+            handler.doubleField(field.name(), value, fitsFloat, srcBuf, srcOff, srcLen);
+        }
+    }
+
+    private static void dispatchBooleanField(
+        ResolvedFieldName field,
+        JsonDocumentHandler handler,
+        boolean value,
+        byte[] srcBuf,
+        int srcOff,
+        int srcLen
+    ) {
+        if (field.ordinal() >= 0) {
+            handler.booleanField(field.ordinal(), field.name(), value, srcBuf, srcOff, srcLen);
+        } else {
+            handler.booleanField(field.name(), value, srcBuf, srcOff, srcLen);
+        }
+    }
+
+    private static void dispatchNullField(ResolvedFieldName field, JsonDocumentHandler handler) {
+        if (field.ordinal() >= 0) {
+            handler.nullField(field.ordinal(), field.name());
+        } else {
+            handler.nullField(field.name());
         }
     }
 

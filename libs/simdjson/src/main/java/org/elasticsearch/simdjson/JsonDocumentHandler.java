@@ -38,14 +38,27 @@ public interface JsonDocumentHandler {
     /** Descends into a named nested object. Pair with {@link #endObject()}. */
     void startObject(String fieldName);
 
+    /** Descends into a named nested object using a pre-resolved ordinal. */
+    default void startObject(int fieldOrdinal, String fieldName) {
+        startObject(fieldName);
+    }
+
     /** Ascends from a nested object. */
     void endObject();
 
     /** An empty object ({@code {}}) as a field value. */
     void emptyObject(String fieldName);
 
+    default void emptyObject(int fieldOrdinal, String fieldName) {
+        emptyObject(fieldName);
+    }
+
     /** A string field. The bytes are UTF-8, already unescaped. */
     void stringField(String fieldName, byte[] buf, int off, int len);
+
+    default void stringField(int fieldOrdinal, String fieldName, byte[] buf, int off, int len) {
+        stringField(fieldName, buf, off, len);
+    }
 
     /**
      * An integer or long field. {@code fitsInt} is true if the value fits in a Java int.
@@ -54,11 +67,19 @@ public interface JsonDocumentHandler {
      */
     void longField(String fieldName, long value, boolean fitsInt, byte[] srcBuf, int srcOff, int srcLen);
 
+    default void longField(int fieldOrdinal, String fieldName, long value, boolean fitsInt, byte[] srcBuf, int srcOff, int srcLen) {
+        longField(fieldName, value, fitsInt, srcBuf, srcOff, srcLen);
+    }
+
     /**
      * An integer field whose value exceeds the range of {@code long}. The raw source bytes
      * ({@code srcBuf[srcOff..srcOff+srcLen)}) contain the original JSON text.
      */
     void bigIntegerField(String fieldName, BigInteger value, byte[] srcBuf, int srcOff, int srcLen);
+
+    default void bigIntegerField(int fieldOrdinal, String fieldName, BigInteger value, byte[] srcBuf, int srcOff, int srcLen) {
+        bigIntegerField(fieldName, value, srcBuf, srcOff, srcLen);
+    }
 
     /**
      * A float or double field. {@code fitsFloat} is true if {@code (float)value == value}.
@@ -67,19 +88,35 @@ public interface JsonDocumentHandler {
      */
     void doubleField(String fieldName, double value, boolean fitsFloat, byte[] srcBuf, int srcOff, int srcLen);
 
+    default void doubleField(int fieldOrdinal, String fieldName, double value, boolean fitsFloat, byte[] srcBuf, int srcOff, int srcLen) {
+        doubleField(fieldName, value, fitsFloat, srcBuf, srcOff, srcLen);
+    }
+
     /**
      * A boolean field. The raw source bytes ({@code srcBuf[srcOff..srcOff+srcLen)})
      * contain the original JSON text ({@code "true"} or {@code "false"}).
      */
     void booleanField(String fieldName, boolean value, byte[] srcBuf, int srcOff, int srcLen);
 
+    default void booleanField(int fieldOrdinal, String fieldName, boolean value, byte[] srcBuf, int srcOff, int srcLen) {
+        booleanField(fieldName, value, srcBuf, srcOff, srcLen);
+    }
+
     /** A null field. */
     void nullField(String fieldName);
+
+    default void nullField(int fieldOrdinal, String fieldName) {
+        nullField(fieldName);
+    }
 
     // ---- Array bracketing ----
 
     /** Begins an array value for a named field. Pair with {@link #endArray()}. */
     void startArray(String fieldName);
+
+    default void startArray(int fieldOrdinal, String fieldName) {
+        startArray(fieldName);
+    }
 
     /** Ends the current array. */
     void endArray();

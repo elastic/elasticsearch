@@ -42,6 +42,7 @@ public final class EscfRowBuffer {
 
     private int[] parentStack;
     private int parentDepth;
+    private int[] ordinalToColIdx;
 
     /**
      * Whether {@link #finishRow()} has been called but {@link EscfBatchBuilder#commit} has not.
@@ -100,6 +101,13 @@ public final class EscfRowBuffer {
         return colIdx;
     }
 
+    public int emptyObject(int fieldOrdinal, String name) {
+        int colIdx = leafByOrdinal(fieldOrdinal, name);
+        scratchType[colIdx] = SourceValueType.KEY_VALUE;
+        scratchVar[colIdx] = BytesRef.EMPTY_BYTES;
+        return colIdx;
+    }
+
     /** Stages a long; uses {@code INT} encoding if the value fits in int range. Returns the leaf column index. */
     public int longField(String name, long value) {
         int colIdx = addLeaf(name);
@@ -108,9 +116,25 @@ public final class EscfRowBuffer {
         return colIdx;
     }
 
+    /** Root-level fast path using a pre-resolved field ordinal from the frozen name table. */
+    public int longField(int fieldOrdinal, String name, long value) {
+        int colIdx = leafByOrdinal(fieldOrdinal, name);
+        scratchType[colIdx] = (value >= Integer.MIN_VALUE && value <= Integer.MAX_VALUE) ? SourceValueType.INT : SourceValueType.LONG;
+        scratchNumeric[colIdx] = value;
+        return colIdx;
+    }
+
     /** Stages a double; uses {@code FLOAT} encoding if it round-trips exactly through float. Returns the leaf column index. */
     public int doubleField(String name, double value) {
         int colIdx = addLeaf(name);
+        float fval = (float) value;
+        scratchType[colIdx] = ((double) fval == value) ? SourceValueType.FLOAT : SourceValueType.DOUBLE;
+        scratchNumeric[colIdx] = Double.doubleToRawLongBits(value);
+        return colIdx;
+    }
+
+    public int doubleField(int fieldOrdinal, String name, double value) {
+        int colIdx = leafByOrdinal(fieldOrdinal, name);
         float fval = (float) value;
         scratchType[colIdx] = ((double) fval == value) ? SourceValueType.FLOAT : SourceValueType.DOUBLE;
         scratchNumeric[colIdx] = Double.doubleToRawLongBits(value);
@@ -130,9 +154,26 @@ public final class EscfRowBuffer {
         return stringField(name, new XContentString.UTF8Bytes(bytes, offset, length));
     }
 
+    public int stringField(int fieldOrdinal, String name, byte[] bytes, int offset, int length) {
+        return stringField(fieldOrdinal, name, new XContentString.UTF8Bytes(bytes, offset, length));
+    }
+
+    public int stringField(int fieldOrdinal, String name, XContentString.UTF8Bytes value) {
+        int colIdx = leafByOrdinal(fieldOrdinal, name);
+        scratchType[colIdx] = SourceValueType.STRING;
+        scratchVar[colIdx] = value;
+        return colIdx;
+    }
+
     /** Stages a boolean value. Returns the leaf column index. */
     public int booleanField(String name, boolean value) {
         int colIdx = addLeaf(name);
+        scratchType[colIdx] = value ? SourceValueType.TRUE : SourceValueType.FALSE;
+        return colIdx;
+    }
+
+    public int booleanField(int fieldOrdinal, String name, boolean value) {
+        int colIdx = leafByOrdinal(fieldOrdinal, name);
         scratchType[colIdx] = value ? SourceValueType.TRUE : SourceValueType.FALSE;
         return colIdx;
     }
@@ -144,12 +185,25 @@ public final class EscfRowBuffer {
         return colIdx;
     }
 
+    public int nullField(int fieldOrdinal, String name) {
+        int colIdx = leafByOrdinal(fieldOrdinal, name);
+        scratchType[colIdx] = SourceValueType.NULL;
+        return colIdx;
+    }
+
     /**
      * Stages a packed inline array ({@link SourceValueType#FIXED_ARRAY} or
      * {@link SourceValueType#UNION_ARRAY}). Returns the leaf column index.
      */
     public int arrayField(String name, byte arrayType, byte[] packed) {
         int colIdx = addLeaf(name);
+        scratchType[colIdx] = arrayType;
+        scratchVar[colIdx] = packed;
+        return colIdx;
+    }
+
+    public int arrayField(int fieldOrdinal, String name, byte arrayType, byte[] packed) {
+        int colIdx = leafByOrdinal(fieldOrdinal, name);
         scratchType[colIdx] = arrayType;
         scratchVar[colIdx] = packed;
         return colIdx;
@@ -178,6 +232,34 @@ public final class EscfRowBuffer {
             throw new IllegalArgumentException("Duplicate field [" + name + "]");
         }
         return colIdx;
+    }
+
+    /**
+     * Uses a frozen field ordinal to reuse the leaf column index learned on a prior row, avoiding
+     * {@link SourceSchema#appendLeaf} hash lookups on warm root-level fields.
+     */
+    private int leafByOrdinal(int fieldOrdinal, String name) {
+        if (fieldOrdinal >= 0 && parentDepth == 0) {
+            if (ordinalToColIdx == null) {
+                ordinalToColIdx = new int[Math.max(16, fieldOrdinal + 1)];
+                Arrays.fill(ordinalToColIdx, -1);
+            } else if (fieldOrdinal >= ordinalToColIdx.length) {
+                ordinalToColIdx = Arrays.copyOf(ordinalToColIdx, fieldOrdinal + 1);
+                Arrays.fill(ordinalToColIdx, ordinalToColIdx.length / 2, ordinalToColIdx.length, -1);
+            }
+            int cached = ordinalToColIdx[fieldOrdinal];
+            if (cached >= 0) {
+                ensureScratchCapacity(cached + 1);
+                if (columnsSet.getAndSet(cached)) {
+                    throw new IllegalArgumentException("Duplicate field [" + name + "]");
+                }
+                return cached;
+            }
+            int colIdx = addLeaf(name);
+            ordinalToColIdx[fieldOrdinal] = colIdx;
+            return colIdx;
+        }
+        return addLeaf(name);
     }
 
     private void ensureScratchCapacity(int size) {

@@ -21,6 +21,7 @@ import io.netty.channel.FixedRecvByteBufAllocator;
 import io.netty.channel.RecvByteBufAllocator;
 import io.netty.channel.socket.nio.NioChannelOption;
 import io.netty.handler.codec.ByteToMessageDecoder;
+import io.netty.handler.codec.compression.StandardCompressionOptions;
 import io.netty.handler.codec.http.HttpContentCompressor;
 import io.netty.handler.codec.http.HttpContentDecompressor;
 import io.netty.handler.codec.http.HttpMessage;
@@ -401,16 +402,28 @@ public class Netty4HttpServerTransport extends AbstractHttpServerTransport {
                 })
                 .addLast("aggregator", aggregator);
             if (handlingSettings.compression()) {
-                ch.pipeline().addLast("encoder_compress", new HttpContentCompressor(handlingSettings.compressionLevel()) {
-                    @Override
-                    protected Result beginEncode(HttpResponse httpResponse, String acceptEncoding) throws Exception {
-                        if (ChunkedZipResponse.ZIP_CONTENT_TYPE.equals(httpResponse.headers().get("content-type"))) {
-                            return null;
-                        } else {
-                            return super.beginEncode(httpResponse, acceptEncoding);
+                final int compressionLevel = handlingSettings.compressionLevel();
+                final int maxPipelineDepth = transport.pipeliningMaxEvents;
+                ch.pipeline()
+                    .addLast(
+                        "encoder_compress",
+                        // Only gzip and deflate are offered; the ES compression level setting is a
+                        // gzip/deflate concept and does not apply to snappy, brotli, or zstd.
+                        new HttpContentCompressor(
+                            0,
+                            maxPipelineDepth,
+                            StandardCompressionOptions.gzip(compressionLevel, 15, 8),
+                            StandardCompressionOptions.deflate(compressionLevel, 15, 8)
+                        ) {
+                            @Override
+                            protected Result beginEncode(HttpResponse httpResponse, String acceptEncoding) throws Exception {
+                                if (ChunkedZipResponse.ZIP_CONTENT_TYPE.equals(httpResponse.headers().get("content-type"))) {
+                                    return null;
+                                }
+                                return super.beginEncode(httpResponse, acceptEncoding);
+                            }
                         }
-                    }
-                });
+                    );
             }
             if (ResourceLeakDetector.isEnabled()) {
                 ch.pipeline().addLast(new Netty4LeakDetectionHandler());

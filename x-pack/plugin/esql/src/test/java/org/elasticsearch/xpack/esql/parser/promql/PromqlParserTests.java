@@ -1041,6 +1041,35 @@ public class PromqlParserTests extends ESTestCase {
         }
     }
 
+    public void testPromqlExpressionTooLarge() {
+        String query = "m".repeat(PromqlParser.MAX_LENGTH + 1);
+        ParsingException e = assertThrows(ParsingException.class, () -> new PromqlParser().createStatement(query));
+        assertThat(e.getMessage(), containsString("PromQL statement is too large"));
+    }
+
+    public void testPromqlBinaryOperatorChainRejected() {
+        // security#12593: a long chain of binary operators must be rejected before ANTLR builds the parse tree
+        String query = "m" + " + m".repeat(PromqlParser.MAX_BINARY_OPERATORS + 500);
+        ParsingException e = assertThrows(ParsingException.class, () -> new PromqlParser().createStatement(query));
+        assertThat(e.getMessage(), containsString("exceeded the maximum number of binary operators allowed"));
+    }
+
+    public void testPromqlDeepParenthesesRejected() {
+        String query = "(".repeat(PromqlAstBuilder.MAX_EXPRESSION_DEPTH + 10)
+            + "m"
+            + ")".repeat(PromqlAstBuilder.MAX_EXPRESSION_DEPTH + 10);
+        ParsingException e = assertThrows(ParsingException.class, () -> new PromqlParser().createStatement(query));
+        assertThat(e.getMessage(), containsString("exceeded the maximum expression depth allowed"));
+    }
+
+    public void testPromqlCommandBinaryOperatorChainRejectedEndToEnd() {
+        // Same attack shape as security#12593 but through the full PROMQL source command; must fail fast
+        // with a ParsingException (400) rather than exhausting the heap.
+        String inner = "m" + " + m".repeat(PromqlParser.MAX_BINARY_OPERATORS + 500);
+        ParsingException e = assertThrows(ParsingException.class, () -> parse("PROMQL index=test step=5m (" + inner + ")"));
+        assertThat(e.getMessage(), containsString("exceeded the maximum number of binary operators allowed"));
+    }
+
     private static PromqlCommand parse(String query) {
         return as(TEST_PARSER.parseQuery(query), PromqlCommand.class);
     }

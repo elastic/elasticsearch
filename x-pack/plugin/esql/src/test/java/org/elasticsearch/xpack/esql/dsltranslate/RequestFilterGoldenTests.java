@@ -248,6 +248,19 @@ public class RequestFilterGoldenTests extends GoldenTestCase {
         );
     }
 
+    /**
+     * Supported should arms beside a must, with nothing unsupported in the group. Translating them as a required group
+     * would install them; this is the case that shows whether they are left out.
+     */
+    public void testNonRequiredShouldOfSupportedArms() {
+        runGoldenFilter(
+            QueryBuilders.boolQuery()
+                .must(QueryBuilders.termQuery("kw", "b"))
+                .should(QueryBuilders.termQuery("i", 5))
+                .should(QueryBuilders.termQuery("l", 5L))
+        );
+    }
+
     public void testMinimumShouldMatch() {
         runGoldenFilter(
             QueryBuilders.boolQuery()

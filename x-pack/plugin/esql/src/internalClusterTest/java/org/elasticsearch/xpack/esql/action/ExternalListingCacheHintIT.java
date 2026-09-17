@@ -30,9 +30,14 @@ import static org.elasticsearch.xpack.esql.action.EsqlQueryRequest.syncEsqlQuery
  *
  * <p>Two conditions are load-bearing and easy to get subtly wrong:
  * <ul>
- *   <li><b>{@code schema_resolution: first_file_wins}.</b> The default is {@code union_by_name}, whose reconciliation
- *       path never consults the listing cache. A poisoning test on the default path passes for the wrong reason — it
- *       never touches the cache at all.</li>
+ *   <li><b>Listing + hints.</b> {@code registerDataset} uses the pass-through TestValidator, so an
+ *       omitted {@code schema_resolution} stays missing and query hydrates {@code union_by_name}
+ *       (NAME_ASC listing). {@code testFilteredThenUnfilteredSeesEveryFileOnFirstFileWins} registers
+ *       through a {@code local} data source so the omitted key stores {@code first_file_wins}.
+ *       Files are homogeneous: row counts match on both rails. Hint-poison is valid on either.
+ *       Assertions are row counts: they catch a cached listing keyed without hints, not a skip-cache
+ *       regression (fresh lists still yield 6). Listing hit/miss is asserted in
+ *       {@code ExternalSourceResolverTests}.</li>
  *   <li><b>Both queries on one coordinator.</b> The listing cache is a node singleton on the resolving coordinator, so
  *       the sequence must be pinned to a single node with {@code client(coordinator)} for the second query to hit the
  *       first's entry.</li>
@@ -84,22 +89,37 @@ public class ExternalListingCacheHintIT extends AbstractExternalDataSourceIT {
     }
 
     /**
-     * The core defect (esql-planning#1174's headline example): a filtered query narrows the listing to a subset of the
+     * The core defect: a filtered query narrows the listing to a subset of the
      * files and caches it; keyed only on the path, that subset is then served to a later unfiltered query, which
      * silently reads fewer files than the dataset holds. Uses a {@code _file.name} filter on a plain glob — that
-     * pruning runs on any multi-file listing, so the defect is not specific to hive-partitioned globs. The listing
-     * cache is only consulted under {@code first_file_wins} (the default {@code union_by_name} never lists through it),
-     * and it is a node singleton, so both queries are pinned to one coordinator.
+     * pruning runs on any multi-file listing, so the defect is not specific to hive-partitioned globs. TestValidator
+     * omit-key hydrates {@code union_by_name}; poison keys are still computed. Homogeneous files, so row counts
+     * match FFW. Row counts do not prove a cache hit — skip-cache still returns 6. Hit/miss is
+     * {@code ExternalSourceResolverTests}. Both queries are pinned to one coordinator because the listing cache is
+     * a node singleton. The persisted-FFW rail is {@link #testFilteredThenUnfilteredSeesEveryFileOnFirstFileWins}.
      */
     public void testFilteredThenUnfilteredSeesEveryFile() throws Exception {
+        assertFilteredThenUnfilteredSeesEveryFile(false);
+    }
+
+    /**
+     * Same listing-cache poison as {@link #testFilteredThenUnfilteredSeesEveryFile}, registered through
+     * a {@code local} data source so omitted {@code schema_resolution} stores {@code first_file_wins}.
+     */
+    public void testFilteredThenUnfilteredSeesEveryFileOnFirstFileWins() throws Exception {
+        assertFilteredThenUnfilteredSeesEveryFile(true);
+    }
+
+    private void assertFilteredThenUnfilteredSeesEveryFile(boolean persistFirstFileWins) throws Exception {
         for (TextFormat format : TextFormat.values()) {
-            Path root = createTempDir().resolve("poison_" + format.tag);
+            Path root = createTempDir().resolve("poison_" + format.tag + (persistFirstFileWins ? "_ffw" : ""));
             writeFile(root, "a", format, List.of(new String[] { "1", "alpha" }, new String[] { "2", "beta" }));
             writeFile(root, "b", format, List.of(new String[] { "3", "gamma" }, new String[] { "4", "delta" }));
             writeFile(root, "c", format, List.of(new String[] { "5", "epsilon" }, new String[] { "6", "zeta" }));
 
             String glob = StoragePath.fileUri(root) + "/*" + format.ext;
-            String dataset = registerDataset("poison_" + format.tag, glob, Map.of("schema_resolution", "first_file_wins"));
+            String name = "poison_" + format.tag + (persistFirstFileWins ? "_ffw" : "");
+            String dataset = persistFirstFileWins ? registerLocalFileDataset(name, glob, Map.of()) : registerDataset(name, glob, Map.of());
             String coordinator = internalCluster().getNodeNames()[0];
 
             long filtered = count(
@@ -179,7 +199,7 @@ public class ExternalListingCacheHintIT extends AbstractExternalDataSourceIT {
                 + StoragePath.fileUri(b)
                 + "/month=*/**/*"
                 + format.ext;
-            String dataset = registerDataset("comma_" + format.tag, glob, Map.of("hive_partitioning", true));
+            String dataset = registerDataset("comma_" + format.tag, glob, Map.of("partition_detection", "hive"));
             String coordinator = internalCluster().getNodeNames()[0];
 
             long count = count(coordinator, "FROM " + dataset + " | WHERE month == 6 | STATS c = COUNT(*)");
@@ -193,7 +213,7 @@ public class ExternalListingCacheHintIT extends AbstractExternalDataSourceIT {
         // avoids the unrelated first_file_wins + hive-partition virtual-column path.
         @SuppressWarnings("checkstyle:EmptyJavadoc") // the glob's '/**/' is misread as Javadoc
         String glob = StoragePath.fileUri(root) + "/" + partitionKey + "=*/**/*" + format.ext;
-        return registerDataset(name, glob, Map.of("hive_partitioning", true));
+        return registerDataset(name, glob, Map.of("partition_detection", "hive"));
     }
 
     private long count(String coordinator, String query) {

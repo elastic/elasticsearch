@@ -216,11 +216,11 @@ class PushDownUtils {
 
     private record AttributeReplacement(List<Expression> rewrittenExpressions, AttributeMap<Alias> replacedAttributes) {}
 
-    public static boolean shouldPushDownPipelineBreakerIntoForkBranch(LogicalPlan plan) {
+    public static boolean shouldPushDownPipelineBreakerIntoMergeBranch(LogicalPlan plan) {
         // We only push down a pipeline breaker when:
         // 1. There is an OrderBy that is not followed by a Limit.
         // 2. There is no PipelineBreaker, but we have an EsRelation. If no EsRelation is found.
-        // We should not push a pipeline breaker like LIMIT into the fork branch, since it will
+        // We should not push a pipeline breaker like LIMIT into the merge branch, since it will
         // be removed by other optimizations.
         Holder<Boolean> hasPipelineBreaker = new Holder<>(false);
         Holder<Boolean> hasEsRelation = new Holder<>(false);
@@ -254,7 +254,7 @@ class PushDownUtils {
     /**
      * Returns {@code true} when every child of {@code unionAll} is a direct leaf source —
      * either an {@link EsRelation} or an {@link ExternalRelation} — or a {@link Project}
-     * wrapping one of those leaves (the shape produced by the analyzer's {@code resolveFork}
+     * wrapping one of those leaves (the shape produced by the analyzer's {@code resolveMergePlan}
      * for heterogeneous-FROM when the branches have matching schemas). Optimizer rules use
      * this to distinguish the heterogeneous-FROM shape from the subquery-shape where each
      * branch is {@code Project > Eval? > Subquery}.

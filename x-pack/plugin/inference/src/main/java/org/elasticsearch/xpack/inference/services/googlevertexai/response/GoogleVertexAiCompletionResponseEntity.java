@@ -12,7 +12,7 @@ import org.elasticsearch.xcontent.XContentFactory;
 import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xcontent.XContentParserConfiguration;
 import org.elasticsearch.xcontent.XContentType;
-import org.elasticsearch.xpack.core.inference.results.ChatCompletionResults;
+import org.elasticsearch.xpack.core.inference.results.CompletionResults;
 import org.elasticsearch.xpack.core.inference.results.completion.ChatCompletionChunkResponse;
 import org.elasticsearch.xpack.inference.external.http.HttpResult;
 import org.elasticsearch.xpack.inference.external.request.OutboundRequest;
@@ -96,8 +96,8 @@ public class GoogleVertexAiCompletionResponseEntity {
             moveToFirstToken(parser);
             chunk = GoogleVertexAiUnifiedStreamingProcessor.GoogleVertexAiChatCompletionChunkParser.parse(parser);
         }
-        var results = chunk.choices().stream().map(choice -> choice.message().content()).map(ChatCompletionResults.Result::new).toList();
+        var results = chunk.choices().stream().map(choice -> choice.message().content()).map(CompletionResults.Result::new).toList();
 
-        return new ChatCompletionResults(results);
+        return new CompletionResults(results);
     }
 }

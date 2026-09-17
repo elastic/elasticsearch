@@ -48,6 +48,7 @@ import java.util.Set;
 import java.util.concurrent.Executor;
 import java.util.concurrent.ExecutorService;
 import java.util.function.BooleanSupplier;
+import java.util.function.Consumer;
 
 /**
  * Module that collects all data source implementations from plugins.
@@ -67,6 +68,7 @@ public final class DataSourceModule implements Closeable {
     private final List<Closeable> managedCloseables;
     private final DataSourceCapabilities capabilities;
     private final ExternalSourceMetrics externalSourceMetrics;
+    private final DecompressionCodecRegistry codecRegistry;
 
     public DataSourceModule(
         List<DataSourcePlugin> dataSourcePlugins,
@@ -118,7 +120,8 @@ public final class DataSourceModule implements Closeable {
             environment,
             resourceWatcherService,
             meterRegistry,
-            LocalFileAccess.UNRESTRICTED
+            LocalFileAccess.UNRESTRICTED,
+            null
         );
     }
 
@@ -135,6 +138,43 @@ public final class DataSourceModule implements Closeable {
         @Nullable ResourceWatcherService resourceWatcherService,
         @Nullable MeterRegistry meterRegistry,
         LocalFileAccess localFileAccess
+    ) {
+        this(
+            dataSourcePlugins,
+            capabilities,
+            settings,
+            blockFactory,
+            executor,
+            credentials,
+            managedIdentityEnabled,
+            threadPool,
+            environment,
+            resourceWatcherService,
+            meterRegistry,
+            localFileAccess,
+            null
+        );
+    }
+
+    /**
+     * @param splitDiscoveryExecutor dedicated pool for Phase-2 split discovery (production:
+     *                             {@code esql_external_io}). {@code null} falls back to {@code executor}
+     *                             (the SPI/GENERIC pool, or {@code DIRECT} in short test constructors).
+     */
+    public DataSourceModule(
+        List<DataSourcePlugin> dataSourcePlugins,
+        DataSourceCapabilities capabilities,
+        Settings settings,
+        BlockFactory blockFactory,
+        ExecutorService executor,
+        DataSourceCredentials credentials,
+        BooleanSupplier managedIdentityEnabled,
+        @Nullable ThreadPool threadPool,
+        @Nullable Environment environment,
+        @Nullable ResourceWatcherService resourceWatcherService,
+        @Nullable MeterRegistry meterRegistry,
+        LocalFileAccess localFileAccess,
+        @Nullable ExecutorService splitDiscoveryExecutor
     ) {
         this.capabilities = capabilities;
         // Always create a live accumulator so phone-home counters work even when APM is disabled.
@@ -154,13 +194,13 @@ public final class DataSourceModule implements Closeable {
             effectiveLocalFileAccess
         );
 
-        DecompressionCodecRegistry codecRegistry = new DecompressionCodecRegistry();
+        this.codecRegistry = new DecompressionCodecRegistry();
         for (DataSourcePlugin plugin : dataSourcePlugins) {
             for (DecompressionCodec codec : plugin.decompressionCodecs(settings, executor)) {
-                codecRegistry.register(codec);
+                this.codecRegistry.register(codec);
             }
         }
-        this.formatReaderRegistry = new FormatReaderRegistry(codecRegistry);
+        this.formatReaderRegistry = new FormatReaderRegistry(this.codecRegistry);
 
         Map<String, ExternalSourceFactory> sourceFactoryMap = new LinkedHashMap<>();
         Map<String, SourceOperatorFactoryProvider> operatorFactoryProviders = new HashMap<>();
@@ -260,7 +300,14 @@ public final class DataSourceModule implements Closeable {
 
             // Table catalogs: register lazy wrappers
             for (String catalogType : plugin.supportedCatalogs()) {
-                LazyTableCatalogWrapper lazyCatalog = new LazyTableCatalogWrapper(state, catalogType, closeables, settings, credentials);
+                LazyTableCatalogWrapper lazyCatalog = new LazyTableCatalogWrapper(
+                    state,
+                    catalogType,
+                    closeables,
+                    settings,
+                    credentials,
+                    formatReaderRegistry
+                );
                 if (sourceFactoryMap.put(catalogType, lazyCatalog) != null) {
                     throw new IllegalArgumentException("Source factory for type [" + catalogType + "] is already registered");
                 }
@@ -289,7 +336,7 @@ public final class DataSourceModule implements Closeable {
             formatReaderRegistry,
             codecRegistry,
             settings,
-            executor,
+            splitDiscoveryExecutor != null ? splitDiscoveryExecutor : executor,
             blockFactory,
             effectiveLocalFileAccess,
             externalSourceMetrics
@@ -339,6 +386,10 @@ public final class DataSourceModule implements Closeable {
     /** The node-level external-source telemetry holder. Always a live instance backed by a real {@link DataSourceUsageAccumulator}. */
     public ExternalSourceMetrics externalSourceMetrics() {
         return externalSourceMetrics;
+    }
+
+    public DecompressionCodecRegistry codecRegistry() {
+        return codecRegistry;
     }
 
     /**
@@ -482,6 +533,13 @@ public final class DataSourceModule implements Closeable {
         }
 
         @Override
+        public void validateConfig(String location, Map<String, Object> config, Consumer<String> warningSink) {
+            // Forward the sink rather than inheriting the interface default, which would drop it and
+            // fall back to the two-argument form -- losing the resolver's buffered warning routing.
+            resolveDelegate().validateConfig(location, credentials.decryptInPlace(config), warningSink);
+        }
+
+        @Override
         public Connector open(Map<String, Object> config) {
             return resolveDelegate().open(credentials.decryptInPlace(config));
         }
@@ -541,6 +599,7 @@ public final class DataSourceModule implements Closeable {
         private final List<Closeable> managedCloseables;
         private final Settings settings;
         private final DataSourceCredentials credentials;
+        private final FormatReaderRegistry formatReaderRegistry;
         private volatile TableCatalog delegate;
 
         LazyTableCatalogWrapper(
@@ -548,13 +607,15 @@ public final class DataSourceModule implements Closeable {
             String catalogType,
             List<Closeable> managedCloseables,
             Settings settings,
-            DataSourceCredentials credentials
+            DataSourceCredentials credentials,
+            FormatReaderRegistry formatReaderRegistry
         ) {
             this.state = state;
             this.catalogType = catalogType;
             this.managedCloseables = managedCloseables;
             this.settings = settings;
             this.credentials = credentials;
+            this.formatReaderRegistry = formatReaderRegistry;
         }
 
         @Override
@@ -586,6 +647,24 @@ public final class DataSourceModule implements Closeable {
             }
         }
 
+        /**
+         * Declines when the config names an explicit registered file format (mirrors the complementary claim in
+         * {@link FileSourceFactory#canHandle(String, Map)}). Without this override the path-only form would win
+         * the factory race for every extensionless S3 object, even when the config carries an authoritative
+         * {@code format} setting — causing the catalog's {@code validateConfig} to reject the setting as unknown
+         * on the synchronous anchor-footer read path that strict mappings trigger.
+         */
+        @Override
+        public boolean canHandle(String path, Map<String, Object> config) {
+            if (config != null && config.isEmpty() == false) {
+                String format = FormatNameResolver.resolve(config, "");
+                if (format != null && formatReaderRegistry.hasFormat(format)) {
+                    return false;
+                }
+            }
+            return canHandle(path);
+        }
+
         @Override
         public SourceMetadata resolveMetadata(String location, Map<String, Object> config) {
             return resolveDelegate().resolveMetadata(location, credentials.decryptInPlace(config));
@@ -594,6 +673,13 @@ public final class DataSourceModule implements Closeable {
         @Override
         public void validateConfig(String location, Map<String, Object> config) {
             resolveDelegate().validateConfig(location, credentials.decryptInPlace(config));
+        }
+
+        @Override
+        public void validateConfig(String location, Map<String, Object> config, Consumer<String> warningSink) {
+            // Forward the sink rather than inheriting the interface default, which would drop it and
+            // fall back to the two-argument form -- losing the resolver's buffered warning routing.
+            resolveDelegate().validateConfig(location, credentials.decryptInPlace(config), warningSink);
         }
 
         @Override

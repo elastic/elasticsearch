@@ -152,8 +152,8 @@ public final class NumericColumnReader {
             data.seek(blockStart);
             int length = (int) (blockEnd - blockStart);
             DataInput blockData = blockBytesCodec.read(data, length);
-            // Full blocks hold blockSize values; the last block holds the remainder. A block that repeats
-            // another decodes that one, which is full, since only the last block is short.
+            // Full blocks hold blockSize values; the last block holds the remainder. The count is the
+            // source block's, which is a full one: only the last block is short, and nothing repeats it.
             int valueCount = (int) Math.min(meta.blockSize(), meta.numValues() - source * meta.blockSize());
             encoder.decode(blockData, valueCount, blockBuffer);
             cachedSource = source;

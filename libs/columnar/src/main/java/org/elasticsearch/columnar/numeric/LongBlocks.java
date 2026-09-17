@@ -121,13 +121,13 @@ public final class LongBlocks {
         private long added;
         private boolean finished;
 
-        /** Whether every value of the block being filled is the same, tracked as the values arrive. */
+        /** Whether every value of the block being filled is the same. */
         private boolean blockIsConstant = true;
         /** The value a constant block holds, meaningful only while {@link #blockIsConstant}. */
         private long blockConstant;
         /** The value the last block written out holds, when that block was constant. */
         private long lastWrittenConstant;
-        /** Whether the last block written out was constant, so a constant block can repeat it. */
+        /** Whether the last block written out was constant. */
         private boolean lastWrittenIsConstant;
 
         /**
@@ -201,8 +201,6 @@ public final class LongBlocks {
                 blockIsConstant = true;
                 blockConstant = value;
             } else if (blockIsConstant && value != blockConstant) {
-                // Only while the block still looks constant: past the first value that differs there is
-                // nothing left to learn, and the branch stops being taken for the rest of the block.
                 blockIsConstant = false;
             }
             buffer[inBlock++] = value;
@@ -240,14 +238,8 @@ public final class LongBlocks {
         }
 
         /**
-         * Writes the block unless it repeats the one before it, which a run of the same value is. A block
-         * that writes nothing leaves the next offset equal to its own, and that empty extent is what tells
-         * the reader to take the block before it — so a run of any length costs the bytes of its first
-         * block and nothing more.
-         *
-         * <p>Only a constant block is offered as a repeat. Recognising one costs a comparison as each value
-         * arrives; recognising an arbitrary repeat would mean holding the previous block and comparing it in
-         * full, which every column would pay for and few would gain from.
+         * Writes the block unless it holds the one value the block before it held, in which case it writes
+         * nothing and leaves the empty extent {@link BlockRuns} reads as a repeat.
          */
         private void flush(int count) throws IOException {
             if (blockIsConstant && lastWrittenIsConstant && blockConstant == lastWrittenConstant) {
@@ -318,8 +310,8 @@ public final class LongBlocks {
                 final long to = blockOffsets.get(source + 1);
                 data.seek(meta.valuesOffset() + from);
                 final DataInput blockData = blockBytesCodec.read(data, (int) (to - from));
-                // Full blocks hold blockSize values; the last block holds the remainder. A block that
-                // repeats another decodes that one, which is full, since only the last block is short.
+                // Full blocks hold blockSize values; the last block holds the remainder. The count is the
+                // source block's, which is a full one: only the last block is short, and nothing repeats it.
                 final int valueCount = (int) Math.min(meta.blockSize(), meta.numValues() - source * meta.blockSize());
                 encoder.decode(blockData, valueCount, blockBuffer);
                 cachedSource = source;

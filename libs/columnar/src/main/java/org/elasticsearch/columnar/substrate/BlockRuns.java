@@ -13,12 +13,11 @@ import org.apache.lucene.util.LongValues;
 
 /**
  * How a block that repeats the one before it is written down: it writes no bytes, which leaves its extent
- * in the offsets table empty. A run of equal blocks therefore costs the bytes of its first block and an
- * empty extent for each of the rest, and the table stays monotonic because an empty extent is an offset
- * repeated rather than one that goes backwards.
+ * in the offsets table empty. A run of equal blocks costs the bytes of its first block and an empty extent
+ * for each of the rest, and the table stays monotonic because an empty extent is an offset repeated rather
+ * than one that goes backwards.
  *
- * <p>Every reader of a block offsets table has to resolve a repeat before it reads, which is why the rule
- * lives here rather than in each of them.
+ * <p>Every reader of a block offsets table resolves a repeat before it reads.
  */
 public final class BlockRuns {
 

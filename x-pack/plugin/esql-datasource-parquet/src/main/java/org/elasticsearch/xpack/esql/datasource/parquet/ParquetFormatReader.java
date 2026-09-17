@@ -222,6 +222,11 @@ public class ParquetFormatReader implements RangeAwareFormatReader, NoConfigForm
         return parsedFooters.get(key);
     }
 
+    /** The footer byte cache shared by this reader and all readers derived from it. */
+    FooterByteCache footerBytes() {
+        return footerBytes;
+    }
+
     /** The footer byte cache shared by this reader and all readers derived from it. Test assertions only. */
     FooterByteCache footerByteCacheForTests() {
         return footerBytes;
@@ -2439,7 +2444,8 @@ public class ParquetFormatReader implements RangeAwareFormatReader, NoConfigForm
             indexColumnPaths.offsetIndexPaths(),
             offsetIndexRowGroupLimit,
             blockFactory.breaker(),
-            ioWatermark
+            ioWatermark,
+            footerBytes
         );
         boolean metadataHandedOff = false;
         try {

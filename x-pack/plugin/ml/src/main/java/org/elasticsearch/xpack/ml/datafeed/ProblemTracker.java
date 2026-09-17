@@ -101,6 +101,16 @@ class ProblemTracker {
     }
 
     /**
+     * Resets the consecutive extraction failure tracking. This is called at the lookback-to-real-time boundary so
+     * that extraction failures encountered during lookback do not count towards the real-time stop threshold, which
+     * is defined in terms of consecutive <em>real-time</em> extraction failures.
+     */
+    public void resetConsecutiveExtractionFailureCount() {
+        consecutiveExtractionFailureCount = 0;
+        extractionProblemThisReport = false;
+    }
+
+    /**
      * Reports the problem if it is different than the last seen problem
      *
      * @param problemMessage the problem message

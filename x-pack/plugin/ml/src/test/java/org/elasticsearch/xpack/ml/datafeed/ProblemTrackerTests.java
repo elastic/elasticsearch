@@ -143,6 +143,17 @@ public class ProblemTrackerTests extends ESTestCase {
         assertEquals(1, problemTracker.reportExtractionProblem(createExtractionProblem("top level", "cause")));
     }
 
+    public void testConsecutiveExtractionFailureCount_ResetAtLookbackToRealtimeBoundary() {
+        // A lookback extraction failure increments the counter, but it must not carry into the real-time threshold
+        assertEquals(1, problemTracker.reportExtractionProblem(createExtractionProblem("top level", "cause")));
+
+        problemTracker.resetConsecutiveExtractionFailureCount();
+        assertEquals(0, problemTracker.getConsecutiveExtractionFailureCount());
+
+        // The first real-time failure therefore starts the count from one again
+        assertEquals(1, problemTracker.reportExtractionProblem(createExtractionProblem("top level", "cause")));
+    }
+
     public void testConsecutiveExtractionFailureCount_NotResetWhileFailuresContinue() {
         assertEquals(1, problemTracker.reportExtractionProblem(createExtractionProblem("top level", "cause")));
         problemTracker.finishReport();

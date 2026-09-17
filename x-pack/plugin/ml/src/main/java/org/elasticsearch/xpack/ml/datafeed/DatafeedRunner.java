@@ -352,6 +352,9 @@ public class DatafeedRunner {
                     holder.finishedLookback(true);
                     if (holder.isIsolated() == false) {
                         if (next != null) {
+                            // Extraction failures during lookback must not count towards the real-time stop
+                            // threshold, which tracks consecutive real-time extraction failures.
+                            holder.problemTracker.resetConsecutiveExtractionFailureCount();
                             doDatafeedRealtime(next, holder.datafeedJob.getJobId(), holder);
                         } else {
                             holder.stop("no_realtime", TimeValue.timeValueSeconds(20), null);

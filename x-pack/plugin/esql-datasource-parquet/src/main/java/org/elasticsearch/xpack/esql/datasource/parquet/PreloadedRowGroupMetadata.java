@@ -24,6 +24,7 @@ import org.elasticsearch.core.Releasable;
 import org.elasticsearch.core.Releasables;
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
+import org.elasticsearch.xpack.esql.datasources.cache.FooterByteCache;
 import org.elasticsearch.xpack.esql.datasources.spi.StorageObject;
 
 import java.io.ByteArrayInputStream;
@@ -230,6 +231,30 @@ final class PreloadedRowGroupMetadata implements Releasable {
         CircuitBreaker breaker,
         @Nullable ParquetIoWatermark ioWatermark
     ) {
+        return preload(
+            reader,
+            storageObject,
+            predicateColumnPaths,
+            columnIndexPaths,
+            offsetIndexPaths,
+            offsetIndexRowGroupLimit,
+            breaker,
+            ioWatermark,
+            null
+        );
+    }
+
+    static PreloadedRowGroupMetadata preload(
+        ParquetFileReader reader,
+        StorageObject storageObject,
+        Set<String> predicateColumnPaths,
+        Set<String> columnIndexPaths,
+        Set<String> offsetIndexPaths,
+        int offsetIndexRowGroupLimit,
+        CircuitBreaker breaker,
+        @Nullable ParquetIoWatermark ioWatermark,
+        @Nullable FooterByteCache footerBytes
+    ) {
         List<BlockMetaData> rowGroups = reader.getRowGroups();
         if (rowGroups.isEmpty()) {
             return empty();
@@ -246,7 +271,8 @@ final class PreloadedRowGroupMetadata implements Releasable {
                     offsetIndexPaths,
                     offsetIndexRowGroupLimit,
                     breaker,
-                    ioWatermark
+                    ioWatermark,
+                    footerBytes
                 );
             } catch (Exception e) {
                 logger.debug("Coalesced metadata preload failed, falling back to sequential: {}", e.getMessage());
@@ -280,7 +306,8 @@ final class PreloadedRowGroupMetadata implements Releasable {
         Set<String> offsetIndexPaths,
         int offsetIndexRowGroupLimit,
         CircuitBreaker breaker,
-        @Nullable ParquetIoWatermark ioWatermark
+        @Nullable ParquetIoWatermark ioWatermark,
+        @Nullable FooterByteCache footerBytes
     ) {
         List<CoalescedRangeReader.ByteRange> ranges = new ArrayList<>();
         List<RangeMeta> rangeMetas = new ArrayList<>();
@@ -334,6 +361,8 @@ final class PreloadedRowGroupMetadata implements Releasable {
             CoalescedRangeReader.DEFAULT_MAX_COALESCE_GAP,
             breaker,
             ioWatermark,
+            null,
+            footerBytes,
             Runnable::run,
             future
         );
@@ -406,7 +435,8 @@ final class PreloadedRowGroupMetadata implements Releasable {
                     preWarmedChunks,
                     storageObject,
                     breaker,
-                    ioWatermark
+                    ioWatermark,
+                    footerBytes
                 );
             } catch (Throwable e) {
                 try {
@@ -513,7 +543,8 @@ final class PreloadedRowGroupMetadata implements Releasable {
         NavigableMap<Long, ColumnChunkPrefetcher.PrefetchedChunk> preWarmedChunks,
         StorageObject storageObject,
         CircuitBreaker breaker,
-        @Nullable ParquetIoWatermark ioWatermark
+        @Nullable ParquetIoWatermark ioWatermark,
+        @Nullable FooterByteCache footerBytes
     ) {
         List<CoalescedRangeReader.ByteRange> ranges = omittedDictionaryRanges(
             rowGroups,
@@ -532,6 +563,8 @@ final class PreloadedRowGroupMetadata implements Releasable {
             CoalescedRangeReader.DEFAULT_MAX_COALESCE_GAP,
             breaker,
             ioWatermark,
+            null,
+            footerBytes,
             Runnable::run,
             future
         );

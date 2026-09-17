@@ -38,6 +38,7 @@ import static org.elasticsearch.xpack.esql.EsqlTestUtils.getValuesList;
 import static org.elasticsearch.xpack.esql.action.EsqlQueryRequest.syncEsqlQueryRequest;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.hasItems;
 
 /**
@@ -362,16 +363,25 @@ public class ExternalDatasetRequestFilterConformanceIT extends AbstractExternalD
     /**
      * A filter mixing a supported {@code term} with an unsupported {@code wildcard} in a required must arm does not
      * fail: the {@code term} is applied, the {@code wildcard} is dropped, and the dataset over-returns relative to the
-     * index rather than hiding a row. The index applies both, so its answer is a subset of the dataset's.
+     * index rather than hiding a row. The wildcard matches only {@code t1}, so dropping it genuinely widens the result:
+     * the index applies both clauses and the dataset applies the {@code term} alone.
      */
     public void testUnsupportedConstructInAMustArmIsDropped() {
         QueryBuilder mixed = QueryBuilders.boolQuery()
             .must(QueryBuilders.termQuery("status", 300))
-            .must(QueryBuilders.wildcardQuery("tags", "t*"));
-        List<Object> onDataset = selectedIds(dataset, mixed);
+            .must(QueryBuilders.wildcardQuery("tags", "*1"));
         List<Object> onIndex = selectedIds(INDEX, mixed);
-        assertThat("the surviving term clause must still select rows", onDataset.isEmpty(), equalTo(false));
+        List<Object> onDataset = selectedIds(dataset, mixed);
+        assertThat("the index must select part of the data, or nothing here can be observed", onIndex.isEmpty(), equalTo(false));
         assertThat("a dropped clause may only over-return", onDataset, hasItems(onIndex.toArray()));
+        assertThat("dropping the wildcard must widen the result", onDataset.size(), greaterThan(onIndex.size()));
+        // Against the index, which does not go through the translator: comparing with the dataset's own term-only answer
+        // would pass even if the term stopped filtering, because both sides would be wrong the same way.
+        assertEquals(
+            "the dataset applies exactly the surviving term clause",
+            selectedIds(INDEX, QueryBuilders.termQuery("status", 300)),
+            onDataset
+        );
     }
 
     /**
@@ -417,16 +427,19 @@ public class ExternalDatasetRequestFilterConformanceIT extends AbstractExternalD
      * select the strict policy. Pins the removal — a reintroduced parameter would make this pass silently.
      */
     public void testWithdrawnPartialFilterParameterIsRejected() throws IOException {
-        Request request = new Request("POST", "/_query");
-        request.addParameter("allow_partial_dsl_filter", "true");
-        request.setJsonEntity(String.format(Locale.ROOT, """
-            {
-              "query": "FROM %s | KEEP id",
-              "filter": { "term": { "status": 200 } }
-            }
-            """, dataset));
-        ResponseException e = expectThrows(ResponseException.class, () -> getRestClient().performRequest(request));
-        assertThat(e.getResponse().getStatusLine().getStatusCode(), equalTo(400));
-        assertThat(EntityUtils.toString(e.getResponse().getEntity()), containsString("allow_partial_dsl_filter"));
+        // The parameter came out of both REST specifications, so pin the removal on both endpoints.
+        for (String endpoint : List.of("/_query", "/_query/async")) {
+            Request request = new Request("POST", endpoint);
+            request.addParameter("allow_partial_dsl_filter", "true");
+            request.setJsonEntity(String.format(Locale.ROOT, """
+                {
+                  "query": "FROM %s | KEEP id",
+                  "filter": { "term": { "status": 200 } }
+                }
+                """, dataset));
+            ResponseException e = expectThrows(ResponseException.class, () -> getRestClient().performRequest(request));
+            assertThat(endpoint, e.getResponse().getStatusLine().getStatusCode(), equalTo(400));
+            assertThat(endpoint, EntityUtils.toString(e.getResponse().getEntity()), containsString("allow_partial_dsl_filter"));
+        }
     }
 }

@@ -32,8 +32,10 @@ import java.util.Set;
  *
  * <p>A construct outside the supported subset never fails the query: the translatable AND-conjuncts are applied and
  * the rest are dropped with a {@link HeaderWarning} naming each one. What that costs the caller depends on where the
- * construct sits. In a top-level conjunct it costs that clause. In a {@code must_not} arm or a required
- * {@code should} group — both all-or-nothing — it drops its siblings with it. In a non-required {@code should} arm it
+ * construct sits. In a top-level conjunct it costs that clause. Each {@code must_not} clause is its own arm, dropped
+ * whole if anything inside it fails, while separate {@code must_not} clauses stand or fall independently. A required
+ * {@code should} group is all-or-nothing across its arms, so one failure drops the whole group. In a non-required
+ * {@code should} arm it
  * costs nothing and is not reported: those arms gate scoring rather than matching, so they are never translated and
  * their failures are not collected. Dropping only ever widens what matches, never narrows it, which is what makes it
  * safe. A filter that translates to a supported no-op ({@code match_all}) leaves the relation read unfiltered.

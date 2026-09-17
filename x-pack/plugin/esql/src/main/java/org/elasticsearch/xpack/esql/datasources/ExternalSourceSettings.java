@@ -266,8 +266,12 @@ public final class ExternalSourceSettings {
     /**
      * Hard cap on objects visited while listing a glob, including keys that do not match the pattern
      * and keys dropped by exclusion. Protects the LIST-page cost of a prefix that holds far more
-     * objects than the query will keep. Default: 1,000,000 — about 1,000 S3 {@code ListObjectsV2}
-     * pages at the default page size of 1,000 keys. Operators can raise it; the default is not the max.
+     * objects than the query will keep. Applied independently to each glob listing, not to the query
+     * as a whole: a comma-separated resource of {@code N} globs does {@code N} listings, each against
+     * this cap. A rewrite-empty fallback can list the same glob a second time. The kept-files cap
+     * ({@link #MAX_DISCOVERED_FILES}) is shared across that comma list. Default: 1,000,000 — about
+     * 1,000 S3 {@code ListObjectsV2} pages at the default page size of 1,000 keys. Operators can
+     * raise it; the default is not the max.
      */
     public static final Setting<Integer> MAX_LISTED_OBJECTS = Setting.intSetting(
         "esql.external.max_listed_objects",

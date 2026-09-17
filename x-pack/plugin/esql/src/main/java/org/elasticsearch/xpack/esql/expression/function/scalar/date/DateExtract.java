@@ -18,6 +18,7 @@ import org.elasticsearch.xpack.esql.core.InvalidArgumentException;
 import org.elasticsearch.xpack.esql.core.expression.AnyNullIsNull;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.FoldContext;
+import org.elasticsearch.xpack.esql.core.expression.Literal;
 import org.elasticsearch.xpack.esql.core.expression.TypeResolutions;
 import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
 import org.elasticsearch.xpack.esql.core.tree.Source;
@@ -257,5 +258,37 @@ public class DateExtract extends EsqlConfigurationFunction implements AnyNullIsN
     @Override
     public boolean foldable() {
         return children().get(0).foldable() && children().get(1).foldable();
+    }
+
+    /**
+     * Fold an all-literal call without constructing a {@code DateExtract} node. Listing runs
+     * before ImplicitCasting, so KEYWORD ISO datetimes are parsed here. Returns {@code null}
+     * when the call cannot be folded; does not call {@code dataType()} on unresolved children.
+     * {@code source} is the unresolved call being replaced.
+     */
+    static Literal tryFoldLiterals(Source source, List<Expression> args, Configuration configuration) {
+        Literal[] literals = DateFunctionLiterals.literalArgs(args, 2);
+        if (literals == null) {
+            return null;
+        }
+        Literal datePart = literals[0];
+        Literal field = literals[1];
+        if (datePart.value() == null || field.value() == null) {
+            return null;
+        }
+        if (DataType.isString(datePart.dataType()) == false) {
+            return null;
+        }
+        ChronoField chrono = stringToChrono(datePart.value());
+        if (chrono == null) {
+            return null;
+        }
+        ZoneId zone = DateFunctionLiterals.zoneId(configuration);
+        DateFunctionLiterals.ParsedDate parsed = DateFunctionLiterals.parseDateLiteral(field, zone);
+        if (parsed == null) {
+            return null;
+        }
+        long extracted = parsed.nanos() ? processNanos(parsed.epoch(), chrono, zone) : processMillis(parsed.epoch(), chrono, zone);
+        return new Literal(source, extracted, DataType.LONG);
     }
 }

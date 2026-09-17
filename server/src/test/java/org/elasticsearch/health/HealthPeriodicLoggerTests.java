@@ -31,7 +31,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.health.node.DiskHealthIndicatorService;
 import org.elasticsearch.telemetry.TelemetryProvider;
-import org.elasticsearch.telemetry.metric.LongGaugeMetric;
+import org.elasticsearch.telemetry.metric.LongGauge;
 import org.elasticsearch.telemetry.metric.MeterRegistry;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.MockLog;
@@ -749,7 +749,7 @@ public class HealthPeriodicLoggerTests extends ESTestCase {
         List<String> logs = new ArrayList<>();
         List<Long> metrics = new ArrayList<>();
 
-        BiConsumer<LongGaugeMetric, Long> metricWriter = (metric, value) -> metrics.add(value);
+        BiConsumer<LongGauge, Long> metricWriter = (metric, value) -> metrics.add(value);
         Consumer<ESLogMessage> logWriter = msg -> logs.add(msg.asString());
         List<HealthIndicatorResult> results = getTestIndicatorResultsWithRed();
         HealthService testHealthService = this.getMockedHealthService();
@@ -906,7 +906,7 @@ public class HealthPeriodicLoggerTests extends ESTestCase {
         ClusterService clusterService,
         HealthService testHealthService,
         boolean started,
-        BiConsumer<LongGaugeMetric, Long> metricWriter,
+        BiConsumer<LongGauge, Long> metricWriter,
         Consumer<ESLogMessage> logWriter
     ) {
         var provider = getMockedTelemetryProvider();

@@ -7,7 +7,6 @@
 
 package org.elasticsearch.xpack.stateless.cache;
 
-import org.apache.lucene.util.SetOnce;
 import org.elasticsearch.blobcache.shared.CacheRegion;
 import org.elasticsearch.blobcache.shared.EvictionPolicy;
 import org.elasticsearch.blobcache.shared.SharedBlobCacheService;
@@ -19,7 +18,7 @@ import org.elasticsearch.core.Releasables;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
-import org.elasticsearch.telemetry.metric.ConsumingLongGaugeMetric;
+import org.elasticsearch.telemetry.metric.LongGauge;
 import org.elasticsearch.telemetry.metric.MeterRegistry;
 import org.elasticsearch.threadpool.Scheduler;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -27,7 +26,6 @@ import org.elasticsearch.xpack.stateless.lucene.SearchDirectory;
 
 import java.io.IOException;
 import java.util.Objects;
-import java.util.function.Consumer;
 
 /**
  * Periodically samples shared blob-cache occupancy and eviction-policy protection gauges.
@@ -127,20 +125,19 @@ public final class StatelessSharedBlobCachePeriodicMetrics extends AbstractLifec
 
     private final SharedBlobCacheService<?> cacheService;
     private final ThreadPool threadPool;
-    private final MeterRegistry meterRegistry;
     private final Releasable removeSettingsUpdater;
 
     private volatile TimeValue metricsInterval;
     private Scheduler.Cancellable metricsTask;
-    private final SetOnce<ConsumingLongGaugeMetric> filledRegionsMetric = new SetOnce<>();
-    private final SetOnce<ConsumingLongGaugeMetric> totalRegionsMetric = new SetOnce<>();
-    private final SetOnce<ConsumingLongGaugeMetric> protectedMetric = new SetOnce<>();
-    private final SetOnce<ConsumingLongGaugeMetric> protectedFreq0Metric = new SetOnce<>();
-    private final SetOnce<ConsumingLongGaugeMetric> protectedFreqPositiveMetric = new SetOnce<>();
-    private final SetOnce<ConsumingLongGaugeMetric> backfillMetric = new SetOnce<>();
-    private final SetOnce<ConsumingLongGaugeMetric> unknownMetric = new SetOnce<>();
-    private final SetOnce<ConsumingLongGaugeMetric> minimalMetric = new SetOnce<>();
-    private final SetOnce<ConsumingLongGaugeMetric> preTimestampFieldMetric = new SetOnce<>();
+    private final LongGauge filledRegionsMetric;
+    private final LongGauge totalRegionsMetric;
+    private final LongGauge protectedMetric;
+    private final LongGauge protectedFreq0Metric;
+    private final LongGauge protectedFreqPositiveMetric;
+    private final LongGauge backfillMetric;
+    private final LongGauge unknownMetric;
+    private final LongGauge minimalMetric;
+    private final LongGauge preTimestampFieldMetric;
 
     public StatelessSharedBlobCachePeriodicMetrics(
         SharedBlobCacheService<?> cacheService,
@@ -150,11 +147,52 @@ public final class StatelessSharedBlobCachePeriodicMetrics extends AbstractLifec
     ) {
         this.cacheService = Objects.requireNonNull(cacheService);
         this.threadPool = Objects.requireNonNull(threadPool);
-        this.meterRegistry = Objects.requireNonNull(meterRegistry);
         Objects.requireNonNull(clusterSettings);
+        Objects.requireNonNull(meterRegistry);
         this.metricsInterval = clusterSettings.get(METRICS_INTERVAL_SETTING);
         this.removeSettingsUpdater = Releasables.releaseOnce(
             clusterSettings.addRemovableSettingsUpdateConsumer(METRICS_INTERVAL_SETTING, this::onMetricsIntervalChanged)
+        );
+        filledRegionsMetric = meterRegistry.registerLongGauge(
+            BLOB_CACHE_REGIONS_FILLED,
+            "The number of occupied shared blob-cache regions",
+            "regions"
+        );
+        totalRegionsMetric = meterRegistry.registerLongGauge(
+            BLOB_CACHE_REGIONS_TOTAL,
+            "The total number of shared blob-cache region slots (cache capacity)",
+            "regions"
+        );
+        protectedMetric = meterRegistry.registerLongGauge(
+            PROTECTED_METRIC,
+            "Number of occupied shared blob-cache regions protected by the active eviction policy",
+            "regions"
+        );
+        protectedFreq0Metric = meterRegistry.registerLongGauge(
+            PROTECTED_FREQ_0_METRIC,
+            "Number of protected regions at LFU frequency level 0",
+            "regions"
+        );
+        protectedFreqPositiveMetric = meterRegistry.registerLongGauge(
+            PROTECTED_FREQ_POSITIVE_METRIC,
+            "Number of protected regions at a positive LFU frequency level",
+            "regions"
+        );
+        backfillMetric = meterRegistry.registerLongGauge(
+            BACKFILL_METRIC,
+            "Number of occupied regions with a backfill-in-progress timestamp",
+            "regions"
+        );
+        unknownMetric = meterRegistry.registerLongGauge(UNKNOWN_METRIC, "Number of occupied regions with an unknown timestamp", "regions");
+        minimalMetric = meterRegistry.registerLongGauge(
+            MINIMAL_METRIC,
+            "Number of occupied regions carrying the minimal cache timestamp",
+            "regions"
+        );
+        preTimestampFieldMetric = meterRegistry.registerLongGauge(
+            PRE_TIMESTAMP_FIELD_METRIC,
+            "Number of occupied regions carrying the pre-timestamp-field fallback timestamp",
+            "regions"
         );
     }
 
@@ -181,104 +219,20 @@ public final class StatelessSharedBlobCachePeriodicMetrics extends AbstractLifec
             clearGauges();
             return;
         }
-        ensureGaugesRegistered();
         metricsTask = threadPool.scheduleWithFixedDelay(this::sample, metricsInterval, threadPool.generic());
-    }
-
-    private void ensureGaugesRegistered() {
-        assert Thread.holdsLock(this);
-        if (filledRegionsMetric.get() != null) {
-            return;
-        }
-        filledRegionsMetric.set(
-            ConsumingLongGaugeMetric.create(
-                meterRegistry,
-                BLOB_CACHE_REGIONS_FILLED,
-                "The number of occupied shared blob-cache regions",
-                "regions"
-            )
-        );
-        totalRegionsMetric.set(
-            ConsumingLongGaugeMetric.create(
-                meterRegistry,
-                BLOB_CACHE_REGIONS_TOTAL,
-                "The total number of shared blob-cache region slots (cache capacity)",
-                "regions"
-            )
-        );
-        protectedMetric.set(
-            ConsumingLongGaugeMetric.create(
-                meterRegistry,
-                PROTECTED_METRIC,
-                "Number of occupied shared blob-cache regions protected by the active eviction policy",
-                "regions"
-            )
-        );
-        protectedFreq0Metric.set(
-            ConsumingLongGaugeMetric.create(
-                meterRegistry,
-                PROTECTED_FREQ_0_METRIC,
-                "Number of protected regions at LFU frequency level 0",
-                "regions"
-            )
-        );
-        protectedFreqPositiveMetric.set(
-            ConsumingLongGaugeMetric.create(
-                meterRegistry,
-                PROTECTED_FREQ_POSITIVE_METRIC,
-                "Number of protected regions at a positive LFU frequency level",
-                "regions"
-            )
-        );
-        backfillMetric.set(
-            ConsumingLongGaugeMetric.create(
-                meterRegistry,
-                BACKFILL_METRIC,
-                "Number of occupied regions with a backfill-in-progress timestamp",
-                "regions"
-            )
-        );
-        unknownMetric.set(
-            ConsumingLongGaugeMetric.create(
-                meterRegistry,
-                UNKNOWN_METRIC,
-                "Number of occupied regions with an unknown timestamp",
-                "regions"
-            )
-        );
-        minimalMetric.set(
-            ConsumingLongGaugeMetric.create(
-                meterRegistry,
-                MINIMAL_METRIC,
-                "Number of occupied regions carrying the minimal cache timestamp",
-                "regions"
-            )
-        );
-        preTimestampFieldMetric.set(
-            ConsumingLongGaugeMetric.create(
-                meterRegistry,
-                PRE_TIMESTAMP_FIELD_METRIC,
-                "Number of occupied regions carrying the pre-timestamp-field fallback timestamp",
-                "regions"
-            )
-        );
     }
 
     private void clearGauges() {
         assert Thread.holdsLock(this);
-        final ConsumingLongGaugeMetric filled = filledRegionsMetric.get();
-        if (filled == null) {
-            return;
-        }
-        filled.set(0);
-        totalRegionsMetric.get().set(0);
-        protectedMetric.get().set(0);
-        protectedFreq0Metric.get().set(0);
-        protectedFreqPositiveMetric.get().set(0);
-        backfillMetric.get().set(0);
-        unknownMetric.get().set(0);
-        minimalMetric.get().set(0);
-        preTimestampFieldMetric.get().set(0);
+        filledRegionsMetric.set(0);
+        totalRegionsMetric.set(0);
+        protectedMetric.set(0);
+        protectedFreq0Metric.set(0);
+        protectedFreqPositiveMetric.set(0);
+        backfillMetric.set(0);
+        unknownMetric.set(0);
+        minimalMetric.set(0);
+        preTimestampFieldMetric.set(0);
     }
 
     private void sample() {
@@ -286,53 +240,17 @@ public final class StatelessSharedBlobCachePeriodicMetrics extends AbstractLifec
         if (lifecycle.started() == false) {
             return;
         }
-        final ConsumingLongGaugeMetric filled = filledRegionsMetric.get();
-        final ConsumingLongGaugeMetric total = totalRegionsMetric.get();
-        final ConsumingLongGaugeMetric protectedRegions = protectedMetric.get();
-        final ConsumingLongGaugeMetric protectedFreq0 = protectedFreq0Metric.get();
-        final ConsumingLongGaugeMetric protectedFreqPositive = protectedFreqPositiveMetric.get();
-        final ConsumingLongGaugeMetric backfill = backfillMetric.get();
-        final ConsumingLongGaugeMetric unknown = unknownMetric.get();
-        final ConsumingLongGaugeMetric minimal = minimalMetric.get();
-        final ConsumingLongGaugeMetric preTimestampField = preTimestampFieldMetric.get();
-        assert filled != null;
-        assert total != null;
-        assert protectedRegions != null;
-        assert protectedFreq0 != null;
-        assert protectedFreqPositive != null;
-        assert backfill != null;
-        assert unknown != null;
-        assert minimal != null;
-        assert preTimestampField != null;
-        total.set(cacheService.getStats().numberOfRegions());
-        sampleRegions(
-            cacheService,
-            filled,
-            protectedRegions,
-            protectedFreq0,
-            protectedFreqPositive,
-            backfill,
-            unknown,
-            minimal,
-            preTimestampField
-        );
+        totalRegionsMetric.set(cacheService.getStats().numberOfRegions());
+        sampleRegions();
     }
 
     /**
      * Walks occupied regions once to publish occupancy and protection gauges.
      */
-    private static <KeyType extends SharedBlobCacheService.KeyBase> void sampleRegions(
-        SharedBlobCacheService<KeyType> cacheService,
-        ConsumingLongGaugeMetric filledMetric,
-        ConsumingLongGaugeMetric protectedMetric,
-        ConsumingLongGaugeMetric protectedFreq0Metric,
-        ConsumingLongGaugeMetric protectedFreqPositiveMetric,
-        ConsumingLongGaugeMetric backfillMetric,
-        ConsumingLongGaugeMetric unknownMetric,
-        ConsumingLongGaugeMetric minimalMetric,
-        ConsumingLongGaugeMetric preTimestampFieldMetric
-    ) {
-        final EvictionPolicy<KeyType> policy = cacheService.getEvictionPolicy();
+    @SuppressWarnings("unchecked")
+    private <KeyType extends SharedBlobCacheService.KeyBase> void sampleRegions() {
+        final SharedBlobCacheService<KeyType> typedCacheService = (SharedBlobCacheService<KeyType>) cacheService;
+        final EvictionPolicy<KeyType> policy = typedCacheService.getEvictionPolicy();
         final long[] filled = new long[1];
         final long[] protectedCount = new long[1];
         final long[] protectedFreq0 = new long[1];
@@ -342,7 +260,7 @@ public final class StatelessSharedBlobCachePeriodicMetrics extends AbstractLifec
         final long[] minimalTimestamp = new long[1];
         final long[] preTimestampField = new long[1];
         final long startTime = System.nanoTime();
-        cacheService.iterateCachedRegions((CacheRegion<KeyType> region, Integer freq) -> {
+        typedCacheService.iterateCachedRegions((CacheRegion<KeyType> region, Integer freq) -> {
             filled[0]++;
             final long timestampMillis = region.timestampMillis();
             if (timestampMillis == SharedBlobCacheService.MINIMAL_CACHE_TIMESTAMP) {
@@ -366,7 +284,7 @@ public final class StatelessSharedBlobCachePeriodicMetrics extends AbstractLifec
             }
         });
         logger.debug("scanned [{}] regions in [{}]", filled[0], TimeValue.timeValueNanos(System.nanoTime() - startTime));
-        filledMetric.set(filled[0]);
+        filledRegionsMetric.set(filled[0]);
         protectedMetric.set(protectedCount[0]);
         protectedFreq0Metric.set(protectedFreq0[0]);
         protectedFreqPositiveMetric.set(protectedFreqPositive[0]);
@@ -397,18 +315,5 @@ public final class StatelessSharedBlobCachePeriodicMetrics extends AbstractLifec
     @Override
     protected void doClose() throws IOException {
         Releasables.close(removeSettingsUpdater);
-        final Consumer<ConsumingLongGaugeMetric> closeGauge = (gauge) -> {
-            if (gauge != null) {
-                gauge.gauge().close();
-            }
-        };
-        closeGauge.accept(filledRegionsMetric.get());
-        closeGauge.accept(totalRegionsMetric.get());
-        closeGauge.accept(protectedMetric.get());
-        closeGauge.accept(protectedFreq0Metric.get());
-        closeGauge.accept(protectedFreqPositiveMetric.get());
-        closeGauge.accept(backfillMetric.get());
-        closeGauge.accept(unknownMetric.get());
-        closeGauge.accept(minimalMetric.get());
     }
 }

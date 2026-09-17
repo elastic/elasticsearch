@@ -557,6 +557,24 @@ public class ParquetFormatReader
         );
     }
 
+    ParquetFormatReader copySharingCachesForTests() {
+        return new ParquetFormatReader(
+            blockFactory,
+            pushedFilter,
+            pushedExpressions,
+            forceBaselinePath,
+            optimizedReader,
+            dynamicThreshold,
+            declaredDateFormats,
+            declaredTypeColumns,
+            footerBytes,
+            parsedFooters,
+            ioWatermark,
+            heapBufferPool,
+            maxFooterReadBytes
+        );
+    }
+
     /**
      * Returns a reader that always uses the row-at-a-time {@code ColumnReader} path,
      * bypassing {@link PageColumnReader}. Package-private; intended for correctness

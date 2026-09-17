@@ -147,4 +147,16 @@ public class ErrorPolicyTests extends ESTestCase {
         ErrorPolicy.validateRegistrationBudget(Map.of());
         ErrorPolicy.validateRegistrationBudget(null);
     }
+
+    public void testValidateRegistrationBudgetExplicitNullModeIsNotAMode() {
+        // A map entry with error_mode=null is treated as absent (get returns null), so the budget is bare.
+        Map<String, Object> explicitNull = new java.util.HashMap<>();
+        explicitNull.put(ErrorPolicy.CONFIG_MAX_ERRORS, "100");
+        explicitNull.put(ErrorPolicy.CONFIG_ERROR_MODE, null);
+        IllegalArgumentException ex = expectThrows(
+            IllegalArgumentException.class,
+            () -> ErrorPolicy.validateRegistrationBudget(explicitNull)
+        );
+        assertThat(ex.getMessage(), containsString(ErrorPolicy.CONFIG_ERROR_MODE));
+    }
 }

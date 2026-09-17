@@ -323,6 +323,21 @@ final class FileSourceFactory implements ExternalSourceFactory {
         if (config == null || config.isEmpty()) {
             return;
         }
+        // Warn when a budget is present without an explicit mode: the query path infers skip_row, which
+        // may surprise the caller. Routes through the sink so the message reaches the client response
+        // regardless of which thread validateConfig runs on (request or metadata-read executor).
+        if (config.get(ErrorPolicy.CONFIG_ERROR_MODE) == null
+            && (config.get(ErrorPolicy.CONFIG_MAX_ERRORS) != null || config.get(ErrorPolicy.CONFIG_MAX_ERROR_RATIO) != null)) {
+            warningSink.accept(
+                "["
+                    + ErrorPolicy.CONFIG_MAX_ERRORS
+                    + "] or ["
+                    + ErrorPolicy.CONFIG_MAX_ERROR_RATIO
+                    + "] was set without ["
+                    + ErrorPolicy.CONFIG_ERROR_MODE
+                    + "]; [skip_row] is in effect -- [fail_fast] is not"
+            );
+        }
         StoragePath storagePath = StoragePath.of(location);
         Configured<StorageProvider> resolvedStorage = storageRegistry.createProviderTrackingConsumedKeys(
             storagePath.scheme(),
@@ -697,25 +712,9 @@ final class FileSourceFactory implements ExternalSourceFactory {
         return physical;
     }
 
-    /**
-     * Delegates to {@link ErrorPolicy#forReader(Map, FormatReader)}, the one resolution the plan-time rules use too.
-     * Kept here so existing call sites and tests do not have to change.
-     * <p>
-     * Emits a {@code Warning} response header when the config carries a budget ({@code max_errors} or
-     * {@code max_error_ratio}) without an explicit {@code error_mode}, so that callers of datasets stored
-     * before registration started refusing bare budgets learn which mode is actually in effect.
-     */
+    /** Delegates to {@link ErrorPolicy#forReader(Map, FormatReader)}, the one resolution the plan-time rules use too.
+     *  Kept here so existing call sites and tests do not have to change. */
     static ErrorPolicy resolveErrorPolicy(Map<String, Object> config, FormatReader format) {
-        if (config != null
-            && (config.containsKey(ErrorPolicy.CONFIG_MAX_ERRORS) || config.containsKey(ErrorPolicy.CONFIG_MAX_ERROR_RATIO))
-            && config.get(ErrorPolicy.CONFIG_ERROR_MODE) == null) {
-            HeaderWarning.addWarning(
-                "[{}] or [{}] was set without [{}]; [skip_row] is in effect — [fail_fast] is not",
-                ErrorPolicy.CONFIG_MAX_ERRORS,
-                ErrorPolicy.CONFIG_MAX_ERROR_RATIO,
-                ErrorPolicy.CONFIG_ERROR_MODE
-            );
-        }
         return ErrorPolicy.forReader(config, format);
     }
 

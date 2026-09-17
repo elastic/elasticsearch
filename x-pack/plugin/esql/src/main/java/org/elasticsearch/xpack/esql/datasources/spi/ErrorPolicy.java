@@ -110,6 +110,14 @@ public record ErrorPolicy(Mode mode, long maxErrors, double maxErrorRatio, boole
         public static String supportedValues() {
             return Arrays.stream(values()).map(m -> m.name().toLowerCase(Locale.ROOT)).collect(Collectors.joining(", "));
         }
+
+        /** The modes that accept an error budget ({@link #SKIP_ROW} and {@link #NULL_FIELD}), lower case. */
+        public static String budgetedValues() {
+            return Arrays.stream(values())
+                .filter(m -> m != FAIL_FAST)
+                .map(m -> m.name().toLowerCase(Locale.ROOT))
+                .collect(Collectors.joining(", "));
+        }
     }
 
     /** Fail immediately on any malformed row. */
@@ -222,6 +230,10 @@ public record ErrorPolicy(Mode mode, long maxErrors, double maxErrorRatio, boole
      * dataset registration time so a bare budget is refused with a clear message rather than silently
      * inferring {@link Mode#SKIP_ROW}.
      *
+     * <p>This check applies only to dataset registration ({@code PUT /_query/dataset/...}). Inline
+     * {@code FROM "..." WITH (...)} queries are not validated here and still resolve to the reader's
+     * default for a bare budget; a warning is emitted at query time instead.
+     *
      * <p>Does not replace {@link #fromConfig}: call this alongside it so the remaining validations
      * (numeric range, {@code FAIL_FAST} + budget contradiction, etc.) still run.
      *
@@ -231,8 +243,8 @@ public record ErrorPolicy(Mode mode, long maxErrors, double maxErrorRatio, boole
         if (config == null) {
             return;
         }
-        boolean hasBudget = config.containsKey(CONFIG_MAX_ERRORS) || config.containsKey(CONFIG_MAX_ERROR_RATIO);
-        boolean hasMode = config.containsKey(CONFIG_ERROR_MODE);
+        boolean hasBudget = config.get(CONFIG_MAX_ERRORS) != null || config.get(CONFIG_MAX_ERROR_RATIO) != null;
+        boolean hasMode = config.get(CONFIG_ERROR_MODE) != null;
         if (hasBudget && hasMode == false) {
             throw new IllegalArgumentException(
                 "["
@@ -241,7 +253,9 @@ public record ErrorPolicy(Mode mode, long maxErrors, double maxErrorRatio, boole
                     + CONFIG_MAX_ERROR_RATIO
                     + "] each require an explicit ["
                     + CONFIG_ERROR_MODE
-                    + "]; set it to one of [skip_row, null_field]"
+                    + "]; set it to one of ["
+                    + Mode.budgetedValues()
+                    + "]"
             );
         }
     }
@@ -272,30 +286,20 @@ public record ErrorPolicy(Mode mode, long maxErrors, double maxErrorRatio, boole
         Mode mode = Mode.SKIP_ROW;
         if (errorModeValue != null) {
             String modeStr = errorModeValue.toString();
+            String rejection = "Invalid value for ["
+                + CONFIG_ERROR_MODE
+                + "]: ["
+                + errorModeValue
+                + "]; supported values are ["
+                + Mode.supportedValues()
+                + "]";
             try {
                 mode = Mode.parse(modeStr);
             } catch (IllegalArgumentException e) {
-                throw new IllegalArgumentException(
-                    "Invalid value for ["
-                        + CONFIG_ERROR_MODE
-                        + "]: ["
-                        + errorModeValue
-                        + "]; supported values are ["
-                        + Mode.supportedValues()
-                        + "]",
-                    e
-                );
+                throw new IllegalArgumentException(rejection, e);
             }
             if (mode == null) {
-                throw new IllegalArgumentException(
-                    "Invalid value for ["
-                        + CONFIG_ERROR_MODE
-                        + "]: ["
-                        + errorModeValue
-                        + "]; supported values are ["
-                        + Mode.supportedValues()
-                        + "]"
-                );
+                throw new IllegalArgumentException(rejection);
             }
         }
 

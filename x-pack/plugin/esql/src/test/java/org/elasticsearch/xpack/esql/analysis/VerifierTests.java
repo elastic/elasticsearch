@@ -3688,7 +3688,7 @@ public class VerifierTests extends AnalyzerTestCase {
                     + metric.name().toLowerCase(Locale.ROOT)
                     + "\"})",
                 containsString(
-                    "[KNN] option [similarity_function] is only supported when [vector] is a" + " non-index-mapped field or expression"
+                    "[KNN] option [similarity_function] is only supported when [vector] is a non-index-mapped field or expression"
                 )
             );
         }

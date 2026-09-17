@@ -45,18 +45,13 @@ import java.util.Set;
  * <p>There is no feature flag: applying a request filter to a dataset is ordinary behaviour, and the only gate is the
  * transport version below.
  *
- * <p>Version-gated on {@link #ESQL_DATASET_REQUEST_FILTER_BOUNDS}: the translated filter may contain
+ * <p>Version-gated on {@link #ESQL_REQUEST_FILTER_ON_DATASET}: the translated filter may contain
  * {@code mv_in_range}/{@code mv_greater}/{@code mv_less}, which older nodes cannot deserialize. Below that version the
  * rewrite is skipped (unfiltered + warning).
  */
 public final class RequestFilterRewriter {
 
-    /**
-     * The previous pin was allocated before {@code MvGreater} and {@code MvLess} existed, so it does not cover every
-     * function a translated filter can carry. A node at that version would be told it could evaluate a filter it
-     * cannot deserialize.
-     */
-    static final TransportVersion ESQL_DATASET_REQUEST_FILTER_BOUNDS = TransportVersion.fromName("esql_dataset_request_filter_bounds");
+    static final TransportVersion ESQL_REQUEST_FILTER_ON_DATASET = TransportVersion.fromName("esql_request_filter_on_dataset");
 
     private RequestFilterRewriter() {}
 
@@ -65,7 +60,7 @@ public final class RequestFilterRewriter {
      *                              an external source resolves {@code "now-15m"} to the same instant the index path
      *                              would, and supplies the locale for case-folding.
      * @param minimumVersion        the minimum transport version across the nodes this plan targets; below
-     *                              {@link #ESQL_DATASET_REQUEST_FILTER_BOUNDS} the rewrite is skipped (see the class
+     *                              {@link #ESQL_REQUEST_FILTER_ON_DATASET} the rewrite is skipped (see the class
      *                              javadoc).
      * @param dropUntranslatableWithWarning when {@code true}, unsupported DSL clauses are dropped with a warning rather
      *                                      than failing the query. Production always passes {@code true}; the
@@ -81,7 +76,7 @@ public final class RequestFilterRewriter {
         if (requestFilter == null) {
             return analyzed;
         }
-        if (minimumVersion.supports(ESQL_DATASET_REQUEST_FILTER_BOUNDS) == false) {
+        if (minimumVersion.supports(ESQL_REQUEST_FILTER_ON_DATASET) == false) {
             warnNotApplied(analyzed, "the cluster contains a node too old to evaluate the translated filter");
             return analyzed;
         }

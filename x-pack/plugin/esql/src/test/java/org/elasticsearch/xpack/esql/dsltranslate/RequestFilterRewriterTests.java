@@ -43,7 +43,7 @@ public class RequestFilterRewriterTests extends ESTestCase {
 
     private static final long NOW = 1_600_000_000_000L;
     private static final Configuration CONFIG = new ConfigurationBuilder(EsqlTestUtils.TEST_CFG).now(Instant.ofEpochMilli(NOW)).build();
-    private static final TransportVersion CURRENT = RequestFilterRewriter.ESQL_DATASET_REQUEST_FILTER_BOUNDS;
+    private static final TransportVersion CURRENT = RequestFilterRewriter.ESQL_REQUEST_FILTER_ON_DATASET;
     private static final TransportVersion TOO_OLD = TransportVersion.minimumCompatible();
 
     private static ExternalRelation relation() {

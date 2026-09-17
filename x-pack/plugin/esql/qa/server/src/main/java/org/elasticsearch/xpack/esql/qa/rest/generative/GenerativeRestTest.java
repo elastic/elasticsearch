@@ -727,7 +727,8 @@ public abstract class GenerativeRestTest extends ESRestTestCase implements Query
      * they reach a filed issue, so the error goes near the top and the bulky context ({@link #extraFailureContext}
      * and the response warnings) goes last.
      *
-     * @param query the query that failed, or {@code null} when the failure happened before one could be generated
+     * @param query the query the failure relates to: the one that failed, or the last one that ran when the
+     *              generator could not produce the next command; {@code null} when none was generated at all
      * @param error the error message, or {@code null} when the failure carries no message
      */
     protected final String failureReport(@Nullable String query, @Nullable String error) {
@@ -764,9 +765,10 @@ public abstract class GenerativeRestTest extends ESRestTestCase implements Query
      * Context a subclass wants appended after the error, for failures that are not reproducible from the seed
      * alone (e.g. the mappings and documents of a randomly generated index). Runs on the failure path only, so
      * it may be expensive, but it lands in the part of the report most likely to be truncated: keep the
-     * seed-reproducible details in {@link #failureReport} instead.
+     * seed-reproducible details in {@link #failureReport} instead. Implementations must not return
+     * {@code null}; return an empty string to add nothing.
      *
-     * @param query the query that failed, or {@code null} when the failure happened before one could be generated
+     * @param query the query the failure relates to, or {@code null} when none was generated
      */
     protected String extraFailureContext(@Nullable String query) {
         return "";

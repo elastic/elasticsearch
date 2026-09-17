@@ -9,7 +9,7 @@
 
 package org.elasticsearch.gradle.internal
 
-import spock.lang.Specification
+import org.elasticsearch.gradle.fixtures.AbstractProjectBuilderPluginSpec
 import spock.lang.TempDir
 
 import org.gradle.api.Project
@@ -23,7 +23,6 @@ import org.gradle.internal.properties.InputBehavior
 import org.gradle.internal.properties.InputFilePropertyType
 import org.gradle.internal.properties.PropertyValue
 import org.gradle.internal.properties.PropertyVisitor
-import org.gradle.testfixtures.ProjectBuilder
 
 /**
  * Unit coverage for the cache-relocatable input wiring in {@link ElasticsearchTestBasePlugin}.
@@ -36,7 +35,12 @@ import org.gradle.testfixtures.ProjectBuilder
  * normalization for the jars so the manifest timestamp is ignored), and the bridge jar is declared
  * as an input exactly once (via {@code entitlementBridgeJavaBasePatch}) rather than twice.
  */
-class ElasticsearchTestBasePluginSpec extends Specification {
+class ElasticsearchTestBasePluginSpec extends AbstractProjectBuilderPluginSpec {
+
+    @Override
+    Class<ElasticsearchTestBasePlugin> getPluginClassUnderTest() {
+        return ElasticsearchTestBasePlugin
+    }
 
     @TempDir
     File workspace
@@ -47,33 +51,21 @@ class ElasticsearchTestBasePluginSpec extends Specification {
         // elasticsearch.test-base bootstraps GlobalBuildInfoPlugin, which resolves the workspace to the
         // root project dir and reads <workspace>/build-tools-internal/version.properties. Provide a minimal
         // one so the plugin can be applied in isolation without the full repository layout.
-        new File(workspace, "build-tools-internal").mkdirs()
-        new File(workspace, "build-tools-internal/version.properties").text = """
-            elasticsearch      = 9.1.0
-            lucene             = 10.2.2
-            bundled_jdk_vendor = openjdk
-            bundled_jdk        = 24+36@1f9ff9062db4449d8ca828c504ffae90
-            minimumJdkVersion  = 21
-            minimumRuntimeJava = 21
-            minimumCompilerJava = 21
-        """.stripIndent()
+        writeBuildToolsVersionProperties(workspace)
 
-        rootProject = ProjectBuilder.builder()
-            .withProjectDir(workspace)
-            .withName("elasticsearch")
-            .build()
+        rootProject = buildProject("elasticsearch", null, workspace)
 
         // The immutable-collections patch input wires a dependency on the "patch" configuration of
         // :test:immutable-collections-patch, so that project must exist for the input to be registered.
-        def testProject = ProjectBuilder.builder().withParent(rootProject).withName("test").build()
-        def patchProject = ProjectBuilder.builder().withParent(testProject).withName("immutable-collections-patch").build()
+        def testProject = buildProject("test", rootProject)
+        def patchProject = buildProject("immutable-collections-patch", testProject)
         patchProject.configurations.create("patch") {
             it.canBeConsumed = true
             it.canBeResolved = false
         }
 
         rootProject.pluginManager.apply(JavaPlugin)
-        rootProject.pluginManager.apply(ElasticsearchTestBasePlugin)
+        applyPluginUnderTest(rootProject)
         // internalClusterTest is one of TEST_TASKS_WITH_ENTITLEMENTS but is not created by the java plugin.
         rootProject.tasks.register("internalClusterTest", Test) {
             it.testClassesDirs = rootProject.files()

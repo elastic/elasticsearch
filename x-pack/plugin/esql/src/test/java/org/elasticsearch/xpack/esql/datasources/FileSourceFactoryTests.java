@@ -11,6 +11,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.compute.operator.SourceOperator;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.esql.datasources.glob.GlobExpander;
+import org.elasticsearch.xpack.esql.datasources.spi.FileDataSourceValidator;
 import org.elasticsearch.xpack.esql.datasources.spi.FileList;
 import org.elasticsearch.xpack.esql.datasources.spi.FormatReadContext;
 import org.elasticsearch.xpack.esql.datasources.spi.FormatReader;
@@ -26,6 +27,7 @@ import org.elasticsearch.xpack.esql.datasources.spi.StorageProviderFactory;
 
 import java.io.InputStream;
 import java.time.Instant;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 
@@ -190,11 +192,72 @@ public class FileSourceFactoryTests extends ESTestCase {
         assertFalse("scheme-only location is not claimed", fileSourceFactory.canHandle("s3://", explicitFormat));
     }
 
+    public void testCanHandleRefusesMixedFormatsWithoutExplicitFormat() {
+        FileSourceFactory fileSourceFactory = newFileSourceFactory();
+        assertFalse(fileSourceFactory.canHandle("s3://bucket/a.parquet,s3://bucket/b.csv", Map.of()));
+        assertFalse(fileSourceFactory.canHandle("s3://bucket/*.{parquet,csv}"));
+        assertTrue(fileSourceFactory.canHandle("s3://bucket/*.parquet"));
+        assertTrue(fileSourceFactory.canHandle("s3://bucket/a.parquet,s3://bucket/b.parquet"));
+    }
+
+    /**
+     * {@link FileSourceFactory#validateConfig} is the query-time validator for inline {@code FROM "..." WITH {...}}
+     * queries. It must emit the same value-aware deprecation warning as the CRUD-time path
+     * ({@link FileDataSourceValidator#validateDataset}) — inline queries have no CRUD path, so this is the only
+     * site that fires for them.
+     */
+    public void testValidateConfigEmitsHivePartitioningDeprecationWarning() {
+        FileSourceFactory factory = newFileSourceFactory();
+        // false: names the canonical replacement
+        factory.validateConfig("s3://bucket/data.parquet", Map.of(PartitionConfig.CONFIG_PARTITIONING_HIVE, "false"));
+        assertWarnings(FileDataSourceValidator.HIVE_PARTITIONING_FALSE_DEPRECATION_MESSAGE);
+        factory.validateConfig("s3://bucket/data.parquet", Map.of(PartitionConfig.CONFIG_PARTITIONING_HIVE, false));
+        assertWarnings(FileDataSourceValidator.HIVE_PARTITIONING_FALSE_DEPRECATION_MESSAGE);
+        // non-false: tells the user to remove the key
+        for (Object value : List.of("true", true, "yes", "banana")) {
+            factory.validateConfig("s3://bucket/data.parquet", Map.of(PartitionConfig.CONFIG_PARTITIONING_HIVE, value));
+            assertWarnings(FileDataSourceValidator.HIVE_PARTITIONING_NOOP_DEPRECATION_MESSAGE);
+        }
+    }
+
+    /**
+     * A bare budget (max_errors or max_error_ratio without error_mode) emits a warning through the
+     * warningSink so the message reaches the client regardless of which thread validateConfig runs on.
+     * Datasets with an explicit mode and bare configs with no budget keys stay quiet.
+     */
+    public void testValidateConfigEmitsBareBudgetWarning() {
+        FileSourceFactory factory = newFileSourceFactory();
+        String expectedWarning = "[max_errors] or [max_error_ratio] was set without [error_mode];"
+            + " [skip_row] is in effect -- [fail_fast] is not";
+
+        // bare max_errors — warned
+        factory.validateConfig("s3://bucket/data.parquet", Map.of("max_errors", "100"));
+        assertWarnings(expectedWarning);
+
+        // bare max_error_ratio — warned
+        factory.validateConfig("s3://bucket/data.parquet", Map.of("max_error_ratio", "0.1"));
+        assertWarnings(expectedWarning);
+
+        // explicit mode alongside budget — no warning
+        factory.validateConfig("s3://bucket/data.parquet", Map.of("max_errors", "100", "error_mode", "skip_row"));
+
+        // mode only, no budget — no warning
+        factory.validateConfig("s3://bucket/data.parquet", Map.of("error_mode", "fail_fast"));
+
+        // The sink variant (what the metadata-read executor calls): warning goes to the caller's sink.
+        List<String> sink = new ArrayList<>();
+        factory.validateConfig("s3://bucket/data.parquet", Map.of("max_errors", "50"), sink::add);
+        assertEquals(List.of(expectedWarning), sink);
+    }
+
     private static FileSourceFactory newFileSourceFactory() {
-        FormatReader stubReader = new StubFormatReader();
+        FormatReader parquetReader = new StubFormatReader("test-parquet", ".parquet");
+        FormatReader csvReader = new StubFormatReader("test-csv", ".csv");
         FormatReaderRegistry formatRegistry = new FormatReaderRegistry(new DecompressionCodecRegistry());
-        formatRegistry.registerLazy("test-parquet", (s, bf) -> stubReader, Settings.EMPTY, null);
+        formatRegistry.registerLazy("test-parquet", (s, bf) -> parquetReader, Settings.EMPTY, null);
         formatRegistry.registerExtension(".parquet", "test-parquet");
+        formatRegistry.registerLazy("test-csv", (s, bf) -> csvReader, Settings.EMPTY, null);
+        formatRegistry.registerExtension(".csv", "test-csv");
 
         StorageProviderRegistry storageRegistry = new StorageProviderRegistry(Settings.EMPTY);
         StorageProvider stubProvider = new StubStorageProvider();
@@ -206,8 +269,16 @@ public class FileSourceFactoryTests extends ESTestCase {
         return new FileSourceFactory(storageRegistry, formatRegistry, new DecompressionCodecRegistry(), Settings.EMPTY);
     }
 
-    /** Stub reader: no-op {@code read}, claims {@code .parquet} so the factory registry resolves. */
+    /** Stub reader: no-op {@code read}, claims the given format/extension so the factory registry resolves. */
     private static final class StubFormatReader implements NoConfigFormatReader {
+        private final String formatName;
+        private final List<String> extensions;
+
+        StubFormatReader(String formatName, String extension) {
+            this.formatName = formatName;
+            this.extensions = List.of(extension);
+        }
+
         @Override
         public RowPositionStrategy rowPositionStrategy() {
             return PassThroughRowPositionStrategy.INSTANCE;
@@ -228,12 +299,12 @@ public class FileSourceFactoryTests extends ESTestCase {
 
         @Override
         public String formatName() {
-            return "test-parquet";
+            return formatName;
         }
 
         @Override
         public List<String> fileExtensions() {
-            return List.of(".parquet");
+            return extensions;
         }
 
         @Override

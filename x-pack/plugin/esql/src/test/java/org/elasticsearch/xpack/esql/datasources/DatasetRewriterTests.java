@@ -46,6 +46,7 @@ import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.instanceOf;
+import static org.hamcrest.Matchers.nullValue;
 
 public class DatasetRewriterTests extends ESTestCase {
 
@@ -84,8 +85,13 @@ public class DatasetRewriterTests extends ESTestCase {
         assertThat(rewritten, instanceOf(UnresolvedExternalRelation.class));
         UnresolvedExternalRelation out = (UnresolvedExternalRelation) rewritten;
         assertThat(tablePathString(out), equalTo("s3://logs/*.parquet"));
-        assertThat(datasourceParamValue(out, "region"), equalTo("us-east-1"));
+        assertThat(datasourceParamValue(out, "region"), nullValue());
         assertThat(paramValue(out, "format"), equalTo("parquet"));
+        assertThat(
+            "legacy stored document without schema_resolution hydrates as union_by_name",
+            paramValue(out, ExternalSourceResolver.CONFIG_SCHEMA_RESOLUTION),
+            equalTo("union_by_name")
+        );
     }
 
     public void testRemovedParquetDatasetSettingsAreStrippedOnRewrite() {
@@ -105,11 +111,28 @@ public class DatasetRewriterTests extends ESTestCase {
         assertThat(rewritten, instanceOf(UnresolvedExternalRelation.class));
         UnresolvedExternalRelation out = (UnresolvedExternalRelation) rewritten;
         assertThat(tablePathString(out), equalTo("s3://logs/*.parquet"));
-        assertThat(datasourceParamValue(out, "region"), equalTo("us-east-1"));
+        assertThat(datasourceParamValue(out, "region"), nullValue());
         assertThat(paramValue(out, "format"), equalTo("parquet"));
         for (String key : RemovedParquetDatasetSettings.KEYS) {
             assertFalse(out.config().containsKey(key));
         }
+        assertThat(paramValue(out, ExternalSourceResolver.CONFIG_SCHEMA_RESOLUTION), equalTo("union_by_name"));
+    }
+
+    public void testStoredFirstFileWinsIsNotHydratedToUnionByName() {
+        DataSource parent = dataSource("s3_parent", Map.of("region", new DataSourceSetting("us-east-1", false)));
+        Dataset dataset = new Dataset(
+            "logs",
+            new DataSourceReference("s3_parent"),
+            "s3://logs/*.parquet",
+            null,
+            Map.of("format", "parquet", "schema_resolution", "first_file_wins")
+        );
+        ProjectMetadata project = projectWith(Map.of("s3_parent", parent), Map.of("logs", dataset));
+
+        LogicalPlan rewritten = rewrite(relationOf("logs"), project);
+        UnresolvedExternalRelation out = (UnresolvedExternalRelation) rewritten;
+        assertThat(paramValue(out, ExternalSourceResolver.CONFIG_SCHEMA_RESOLUTION), equalTo("first_file_wins"));
     }
 
     public void testDatasetSettingsOverrideParentOnKeyCollision() {
@@ -253,12 +276,23 @@ public class DatasetRewriterTests extends ESTestCase {
     public void testNonSecretSettingsArriveAsTheirOriginalValue() {
         // Non-secret settings are placed in the carrier as their underlying Object (String, Integer,
         // Boolean...). Asserts that mergeSettings does not transform them.
+        DataSource parent = dataSource("s3_parent", Map.of("endpoint", new DataSourceSetting("https://s3.example.com", false)));
+        Dataset dataset = new Dataset("logs", new DataSourceReference("s3_parent"), "s3://logs/", null, Map.of());
+        ProjectMetadata project = projectWith(Map.of("s3_parent", parent), Map.of("logs", dataset));
+
+        LogicalPlan rewritten = rewrite(relationOf("logs"), project);
+        assertThat(datasourceParamValue((UnresolvedExternalRelation) rewritten, "endpoint"), equalTo("https://s3.example.com"));
+    }
+
+    public void testParentRegionIsNotContributedToMergedConfig() {
+        // region is a dataset-level key; a value set on the parent data source must not appear
+        // under _datasource after rewriting, so the storage provider cannot accidentally read it.
         DataSource parent = dataSource("s3_parent", Map.of("region", new DataSourceSetting("us-east-1", false)));
         Dataset dataset = new Dataset("logs", new DataSourceReference("s3_parent"), "s3://logs/", null, Map.of());
         ProjectMetadata project = projectWith(Map.of("s3_parent", parent), Map.of("logs", dataset));
 
         LogicalPlan rewritten = rewrite(relationOf("logs"), project);
-        assertThat(datasourceParamValue((UnresolvedExternalRelation) rewritten, "region"), equalTo("us-east-1"));
+        assertThat(datasourceParamValue((UnresolvedExternalRelation) rewritten, "region"), nullValue());
     }
 
     // ---- Pattern expansion (parity with FROM <index> patterns via IndexNameExpressionResolver) ----
@@ -465,8 +499,9 @@ public class DatasetRewriterTests extends ESTestCase {
     public void testHeterogeneousFromUnderCpsEmitsShadowForDataset() {
         // A heterogeneous FROM (local index + local dataset) under CPS must run the same
         // non-remotable-abstraction rail as a dataset-only FROM. The dataset's exact name gets a DatasetShadowRelation
-        // so a remote index of the same name reads both and a remote dataset/view of the same name fails. Before the
-        // unification the heterogeneous path returned before the CPS rail, silently skipping the dataset's remote check.
+        // so a remote index of the same name reads both, a remote view of the same name is ignored, and a remote dataset of
+        // the same name is invisible. Before the unification the heterogeneous path returned before the CPS rail,
+        // silently skipping the dataset's remote half.
         DataSource parent = dataSource("s3_parent", Map.of());
         Dataset ds = new Dataset("logs_dataset", new DataSourceReference("s3_parent"), "s3://logs/", null, Map.of());
         ProjectMetadata project = projectWithIndices(Map.of("s3_parent", parent), Map.of("logs_dataset", ds), Set.of("some_idx"));

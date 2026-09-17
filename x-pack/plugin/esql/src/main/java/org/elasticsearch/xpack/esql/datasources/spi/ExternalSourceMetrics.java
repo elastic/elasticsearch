@@ -109,10 +109,14 @@ public final class ExternalSourceMetrics {
     public static final String PARSE_ROWS_TOTAL = "es.esql.datasources.parse.rows.total";
 
     /**
-     * Cumulative reader-thread time an external-source scan operator spent reading and parsing an object, in
-     * milliseconds — summed across parallel parse workers ({@link FormatReaderStatus#readNanos()}), not wall time.
+     * Cumulative wall-clock time an external-source scan operator spent reading and parsing an object, in milliseconds.
      */
     public static final String PARSE_DURATION = "es.esql.datasources.parse.duration.histogram";
+
+    /**
+     * Cumulative CPU time an external-source scan operator spent reading and parsing an object, in milliseconds.
+     */
+    public static final String PARSE_CPU_DURATION = "es.esql.datasources.parse.cpu_duration.histogram";
 
     /**
      * Number of splits scanned by an external-source scan operator. A scan/parse-phase quantity — the per-operator
@@ -153,6 +157,12 @@ public final class ExternalSourceMetrics {
 
     /** Rejection reason, present only when {@link #OP_ATTRIBUTE} is {@code rejected}. */
     public static final String REASON_ATTRIBUTE = "es_datasource_reason";
+
+    /**
+     * Schema-resolution dimension on the discovery histograms, a closed low-cardinality set:
+     * {@code first_file_wins}, {@code union_by_name}, {@code strict}.
+     */
+    public static final String SCHEMA_RESOLUTION_ATTRIBUTE = "es_datasource_schema_resolution";
 
     /**
      * Query-outcome dimension, a closed low-cardinality set: {@code success}, {@code failure}, {@code cancelled}.
@@ -197,6 +207,12 @@ public final class ExternalSourceMetrics {
      */
     private static final Map<String, Map<String, Object>> TYPE_FORMAT_ATTRIBUTES = typeFormatAttributes();
 
+    /**
+     * Pre-built {@link #TYPE_ATTRIBUTE}×{@link #SCHEMA_RESOLUTION_ATTRIBUTE} maps for discovery histograms.
+     * Keyed {@code type + '\0' + schema_resolution}. Every closed combination is present so lookups never allocate.
+     */
+    private static final Map<String, Map<String, Object>> TYPE_SCHEMA_RESOLUTION_ATTRIBUTES = typeSchemaResolutionAttributes();
+
     /** Pre-built, immutable single-entry {@link #OUTCOME_ATTRIBUTE} attribute maps for the closed outcome set. */
     private static final Map<String, Map<String, Object>> OUTCOME_ATTRIBUTES = Map.of(
         OUTCOME_SUCCESS,
@@ -225,6 +241,7 @@ public final class ExternalSourceMetrics {
     private final LongCounter discoveryFailuresTotal;
     private final LongCounter parseRowsTotal;
     private final LongHistogram parseDuration;
+    private final LongHistogram parseCpuDuration;
     private final LongHistogram parseSplitsScanned;
     private final LongCounter readerPoolRejectedTotal;
     private final LongCounter breakerTrippedTotal;
@@ -329,8 +346,12 @@ public final class ExternalSourceMetrics {
         );
         this.parseDuration = meterRegistry.registerLongHistogram(
             PARSE_DURATION,
-            "Cumulative reader-thread time an ES|QL external-data-source scan operator spent reading and parsing an object "
-                + "(summed across parallel parse workers)",
+            "Cumulative wall-clock time an ES|QL external-data-source scan operator spent reading and parsing an object",
+            "ms"
+        );
+        this.parseCpuDuration = meterRegistry.registerLongHistogram(
+            PARSE_CPU_DURATION,
+            "Cumulative CPU time an ES|QL external-data-source scan operator spent reading and parsing an object",
             "ms"
         );
         this.parseSplitsScanned = meterRegistry.registerLongHistogram(
@@ -488,11 +509,18 @@ public final class ExternalSourceMetrics {
 
     /**
      * Records one external-source discovery pass: its wall time, the file count and the estimated byte total, on
-     * the given storage {@code scheme}. Best-effort (self-guarded).
+     * the given storage {@code scheme}, tagged with the effective {@code schemaResolution}. Best-effort (self-guarded).
+     * Phone-home {@link DataSourceUsageAccumulator#recordDiscovery} is unchanged — no new usage stream.
      */
-    public void recordDiscovery(long durationMillis, long filesScanned, long bytesScanned, String scheme) {
+    public void recordDiscovery(
+        long durationMillis,
+        long filesScanned,
+        long bytesScanned,
+        String scheme,
+        FormatReader.SchemaResolution schemaResolution
+    ) {
         try {
-            Map<String, Object> attributes = typeAttrs(scheme);
+            Map<String, Object> attributes = typeSchemaResolutionAttrs(scheme, schemaResolution);
             discoveryDuration.record(Math.max(0L, durationMillis), attributes);
             discoveryFilesScanned.record(Math.max(0L, filesScanned), attributes);
             discoveryBytesScanned.record(Math.max(0L, bytesScanned), attributes);
@@ -517,17 +545,18 @@ public final class ExternalSourceMetrics {
     }
 
     /**
-     * Records the rows parsed and the read/parse wall time of one external-source scan operator, in milliseconds,
+     * Records the rows parsed, wall-clock and CPU read/parse time of one external-source scan operator, in milliseconds,
      * tagged with the storage {@code scheme} (folded to {@link #TYPE_ATTRIBUTE}) and the scan {@code format}
      * (folded to {@link #FORMAT_ATTRIBUTE}). Best-effort (self-guarded).
      */
-    public void recordParse(long rows, long parseDurationMillis, String scheme, String format) {
+    public void recordParse(long rows, long parseDurationMillis, long parseCpuDurationMillis, String scheme, String format) {
         try {
             Map<String, Object> attributes = typeFormatAttrs(scheme, format);
             if (rows > 0) {
                 parseRowsTotal.incrementBy(rows, attributes);
             }
             parseDuration.record(Math.max(0L, parseDurationMillis), attributes);
+            parseCpuDuration.record(Math.max(0L, parseCpuDurationMillis), attributes);
             if (usageAccumulator != null) {
                 usageAccumulator.recordParse(rows, parseDurationMillis, canonicalFormat(format));
             }
@@ -651,6 +680,39 @@ public final class ExternalSourceMetrics {
 
     private static String typeFormatKey(String type, String format) {
         return type + '\0' + format;
+    }
+
+    private static String typeResolutionKey(String type, String resolution) {
+        return type + '\0' + resolution;
+    }
+
+    /**
+     * Returns the pre-built {@link #TYPE_ATTRIBUTE}×{@link #SCHEMA_RESOLUTION_ATTRIBUTE} map. Null resolution
+     * folds to {@link FormatReader#DEFAULT_SCHEMA_RESOLUTION}. Every closed combination is present so this
+     * never allocates.
+     */
+    private static Map<String, Object> typeSchemaResolutionAttrs(String scheme, FormatReader.SchemaResolution schemaResolution) {
+        String type = Type.fromScheme(scheme).key();
+        String resolution = canonicalSchemaResolution(schemaResolution);
+        Map<String, Object> attrs = TYPE_SCHEMA_RESOLUTION_ATTRIBUTES.get(typeResolutionKey(type, resolution));
+        assert attrs != null : "non-canonical type/schema_resolution [" + type + "/" + resolution + "]";
+        return attrs;
+    }
+
+    private static Map<String, Map<String, Object>> typeSchemaResolutionAttributes() {
+        Map<String, Map<String, Object>> maps = new HashMap<>();
+        for (Type type : Type.values()) {
+            for (FormatReader.SchemaResolution resolution : FormatReader.SchemaResolution.values()) {
+                String key = canonicalSchemaResolution(resolution);
+                maps.put(typeResolutionKey(type.key(), key), Map.of(TYPE_ATTRIBUTE, type.key(), SCHEMA_RESOLUTION_ATTRIBUTE, key));
+            }
+        }
+        return Map.copyOf(maps);
+    }
+
+    static String canonicalSchemaResolution(FormatReader.SchemaResolution schemaResolution) {
+        FormatReader.SchemaResolution resolved = schemaResolution == null ? FormatReader.DEFAULT_SCHEMA_RESOLUTION : schemaResolution;
+        return resolved.configName();
     }
 
     /** Returns the pre-built {@link #OUTCOME_ATTRIBUTE} attribute map for {@code outcome} (a fresh map for any unknown). */

@@ -7,16 +7,17 @@
 # is reviewed, and the first real run would be the first nightly after merge, on main, unattended.
 # A pull-request pipeline is branch-defined and therefore runs now, on this tree, on the same agents.
 #
-# NOT AUTOMATIC. trigger-phrase only: nothing here runs on an ordinary pull-request build, because
-# 23 jobs of up to an hour is not something to spend on every push. Comment the phrase to run it.
+# RUNS ON EVERY PULL-REQUEST BUILD, deliberately. No config block, so no label and no comment are
+# needed: every push to this branch reruns the whole crossing, which is what makes a change to the
+# declaration answerable before merge rather than on the first unattended nightly after it.
 #
-# The steps below are the periodic file's steps, unchanged except for this config block -- same
-# widths, same machineType, same timeouts, same commands. Any edit here that is not mirrored there
-# makes this validate something the nightly will not do, which is worse than not running it.
-config:
-  auto-retry: false
-  allow-labels: run-nightly-vectors
-  trigger-phrase: '.*run\W+elasticsearch-ci/esql-datasource-vectors-nightly.*'
+# What that costs: 23 jobs on custom-32-98304 agents at about 55 minutes each, roughly 21 agent-hours
+# per build, plus the multi-node crossing. The pointed CI tier beside this one costs about 20 minutes
+# a step. Gate this again if the branch starts pushing often.
+#
+# The steps below are the periodic file's steps, unchanged -- same widths, same machineType, same
+# timeouts, same commands. Any edit here that is not mirrored there makes this validate something the
+# nightly will not do, which is worse than not running it.
 steps:
   - group: esql-datasource-vectors-nightly
     steps:

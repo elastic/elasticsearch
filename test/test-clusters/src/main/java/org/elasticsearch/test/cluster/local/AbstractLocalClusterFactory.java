@@ -59,7 +59,6 @@ import java.util.UUID;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.TimeoutException;
-import java.util.concurrent.atomic.AtomicLong;
 import java.util.regex.Pattern;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
@@ -107,12 +106,6 @@ public abstract class AbstractLocalClusterFactory<S extends LocalClusterSpec, H 
     public static class Node {
         private static final int TOOL_SCRIPT_RETRY_TIMES = OS.current() == WINDOWS ? 15 : 0;
         private static final int TOOL_SCRIPT_RETRY_DELAY_MS = OS.current() == WINDOWS ? 500 : 0;
-        // Monotonically incrementing seed for node.id.seed. Each node constructed in this JVM gets the
-        // next value, guaranteeing that concurrent ES child processes always receive different seeds and
-        // therefore always generate different persistent node IDs. This prevents the cluster-formation
-        // failure observed on Windows CI where child JVMs started at the same nanosecond can produce
-        // identical ThreadLocalRandom seeds and therefore identical node UUIDs.
-        private static final AtomicLong NODE_ID_SEED_COUNTER = new AtomicLong(0L);
 
         private final Path baseWorkingDir;
         private final DistributionResolver distributionResolver;
@@ -125,7 +118,6 @@ public abstract class AbstractLocalClusterFactory<S extends LocalClusterSpec, H 
         private final Path configDir;
         private final Path tempDir;
         private final int debugPort;
-        private final long nodeIdSeed;
 
         private Path distributionDir;
         private Version currentVersion;
@@ -151,7 +143,12 @@ public abstract class AbstractLocalClusterFactory<S extends LocalClusterSpec, H 
             this.configDir = Optional.ofNullable(spec.getConfigDir()).orElse(workingDir.resolve("config"));
             this.tempDir = workingDir.resolve("tmp"); // elasticsearch temporary directory
             this.debugPort = DefaultLocalClusterHandle.NEXT_DEBUG_PORT.getAndIncrement();
-            this.nodeIdSeed = NODE_ID_SEED_COUNTER.getAndIncrement();
+        }
+
+        /** stable, but sufficiently strong seed based on the node's working directory name */
+        private static long nodeIdSeed(String nodeDirName) {
+            UUID uuid = UUID.nameUUIDFromBytes(nodeDirName.getBytes(StandardCharsets.UTF_8));
+            return uuid.getMostSignificantBits() ^ uuid.getLeastSignificantBits();
         }
 
         public synchronized void start(Version version) {
@@ -411,14 +408,11 @@ public abstract class AbstractLocalClusterFactory<S extends LocalClusterSpec, H 
                 finalSettings.put("path.repo", repoDir.toString());
                 finalSettings.put("path.data", dataDir.toString());
                 finalSettings.put("path.logs", logsDir.toString());
-                // Guarantee a unique persistent node ID even when multiple ES child processes start
-                // concurrently. Without an explicit seed, NodeEnvironment falls back to ThreadLocalRandom
-                // inside the child JVM; on Windows CI, child processes started at the same nanosecond can
-                // end up with identical ThreadLocalRandom seeds and therefore identical node IDs, which
-                // prevents the cluster from forming. We seed with a per-node value minted in the test JVM
-                // (where the PRNG is unambiguously unique) so each node always gets a distinct ID.
-                // User-supplied settings (via spec.resolveSettings()) can still override this if needed.
-                finalSettings.put("node.id.seed", Long.toString(nodeIdSeed));
+                // Guarantee a unique persistent node ID even when multiple ES child processes start concurrently.
+                // Without an explicit seed, NodeEnvironment falls back to ThreadLocalRandom inside the child JVM;
+                // on Windows, child processes started at the same nanosecond can end up with identical ThreadLocalRandom seeds
+                // and therefore identical node IDs, which prevents the cluster from forming.
+                finalSettings.put("node.id.seed", Long.toString(nodeIdSeed(workingDir.getFileName().toString())));
                 finalSettings.putAll(spec.resolveSettings());
 
                 Files.writeString(

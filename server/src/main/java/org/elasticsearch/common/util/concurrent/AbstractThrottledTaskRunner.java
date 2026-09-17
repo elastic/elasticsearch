@@ -41,11 +41,10 @@ public class AbstractThrottledTaskRunner<T extends ActionListener<Releasable>> {
     public static final String THROTTLED_TASK_RUNNER_METRIC_NAME_QUEUE_TIME = ".tasks.queue_latency.histogram";
 
     @Nullable
-    private volatile ConcurrentHashMap<T, Long> queuedNanosByTask;
-    @Nullable
-    private volatile LongHistogram queueLatencyMillisHistogram;
+    private final ConcurrentHashMap<T, Long> queuedNanosByTask;
+    private final LongHistogram queueLatencyMillisHistogram;
 
-    private LongSupplier relativeTimeNanosProvider;
+    private final LongSupplier relativeTimeNanosProvider;
 
     private final String taskRunnerName;
     // The max number of tasks that this runner will schedule to concurrently run on the executor.
@@ -62,52 +61,57 @@ public class AbstractThrottledTaskRunner<T extends ActionListener<Releasable>> {
         this(name, maxRunningTasks, executor, taskQueue, MeterRegistry.NOOP, "no_metrics", () -> 0L);
 
     }
-    
+
+    /// Used to construct an **instrumented** throttled-task runner.
+    /// @param metricName is the throttled-task runner name to be used for metrics and must be a valid (i.e., see MetricValidator) name
+    /// @param relativeTimeNanosProvider used to compute the queueing latencies
     public AbstractThrottledTaskRunner(
-        final String name,
+        final String taskRunnerName,
         final int maxRunningTasks,
         final Executor executor,
         final Queue<T> taskQueue,
-        MeterRegistry meterRegistry,
-        String metricName,
-        LongSupplier relativeTimeNanosProvider
+        final MeterRegistry meterRegistry,
+        final String metricName,
+        final LongSupplier relativeTimeNanosProvider
     ) {
         assert maxRunningTasks > 0;
-        this.taskRunnerName = name;
+        this.taskRunnerName = taskRunnerName;
         this.maxRunningTasks = maxRunningTasks;
         this.executor = executor;
         this.tasks = taskQueue;
 
+        this.relativeTimeNanosProvider = relativeTimeNanosProvider;
         if (meterRegistry != MeterRegistry.NOOP) {
-            assert relativeTimeNanosProvider != null;
-            this.relativeTimeNanosProvider = relativeTimeNanosProvider;
             this.queuedNanosByTask = new ConcurrentHashMap<>();
-            setupMetrics(meterRegistry, metricName);
+        } else {
+            this.queuedNanosByTask = null;
         }
+
+        final var prefix = THROTTLED_TASK_RUNNER_METRIC_PREFIX + metricName;
+        this.queueLatencyMillisHistogram = meterRegistry.registerLongHistogram(
+            prefix + THROTTLED_TASK_RUNNER_METRIC_NAME_QUEUE_TIME,
+            "time tasks spent in the queue for throttled task runner " + taskRunnerName,
+            "milliseconds"
+        );
+        registerGauges(meterRegistry, this.taskRunnerName, metricName);
     }
 
     public String getTaskRunnerName() {
         return taskRunnerName;
     }
 
-    // register metrics to get task-queue depth and currently running tasks, as well as a queue-latency histogram
-    private void setupMetrics(MeterRegistry meterRegistry, String name) {
-        var prefix = THROTTLED_TASK_RUNNER_METRIC_PREFIX + name;
-
-        this.queueLatencyMillisHistogram = meterRegistry.registerLongHistogram(
-            prefix + THROTTLED_TASK_RUNNER_METRIC_NAME_QUEUE_TIME,
-            "time tasks spent in the queue for throttled task runner " + name,
-            "milliseconds"
-        );
+    // register metrics to get task-queue depth and currently-running tasks
+    private void registerGauges(MeterRegistry meterRegistry, String taskRunnerName, String metricName) {
+        final var prefix = THROTTLED_TASK_RUNNER_METRIC_PREFIX + metricName;
         meterRegistry.registerLongAsyncGauge(
             prefix + THROTTLED_TASK_RUNNER_METRIC_NAME_QUEUE,
-            "number of tasks waiting in the queue for throttled task runner " + name,
+            "number of tasks waiting in the queue for throttled task runner " + taskRunnerName,
             "count",
             () -> new LongWithAttributes(queuedTasks())
         );
         meterRegistry.registerLongAsyncGauge(
             prefix + THROTTLED_TASK_RUNNER_METRIC_NAME_RUNNING,
-            "number of tasks currently running (i.e., submitted to the underlying executor) for throttled task runner " + name,
+            "number of tasks currently running (i.e., submitted to the underlying executor) for throttled task runner " + taskRunnerName,
             "count",
             () -> new LongWithAttributes(runningTasks())
         );
@@ -204,7 +208,7 @@ public class AbstractThrottledTaskRunner<T extends ActionListener<Releasable>> {
 
                     @Override
                     protected void doRun() {
-                        if (queueStartNanos != null && queueLatencyMillisHistogram != null) {
+                        if (queueStartNanos != null) {
                             queueLatencyMillisHistogram.record(
                                 TimeUnit.NANOSECONDS.toMillis(relativeTimeNanosProvider.getAsLong() - queueStartNanos)
                             );
@@ -253,13 +257,11 @@ public class AbstractThrottledTaskRunner<T extends ActionListener<Releasable>> {
                 final Releasable ref = () -> isDone.set(true);
                 ActionListener<Releasable> task;
                 while ((task = tasks.poll()) != null) {
-                    if (queuedNanosByTask != null && queueLatencyMillisHistogram != null) {
-                        Long queueStartNanos = queuedNanosByTask.remove(task);
-                        if (queueStartNanos != null) {
-                            queueLatencyMillisHistogram.record(
-                                TimeUnit.NANOSECONDS.toMillis(relativeTimeNanosProvider.getAsLong() - queueStartNanos)
-                            );
-                        }
+                    final Long queueStartNanos = queuedNanosByTask != null ? queuedNanosByTask.remove(task) : null;
+                    if (queueStartNanos != null) {
+                        queueLatencyMillisHistogram.record(
+                            TimeUnit.NANOSECONDS.toMillis(relativeTimeNanosProvider.getAsLong() - queueStartNanos)
+                        );
                     }
 
                     isDone.set(false);

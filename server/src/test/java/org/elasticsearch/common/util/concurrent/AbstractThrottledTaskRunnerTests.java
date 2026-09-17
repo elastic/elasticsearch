@@ -283,7 +283,7 @@ public class AbstractThrottledTaskRunnerTests extends ESTestCase {
         assertThat(taskRunner.runningTasks(), equalTo(0));
     }
 
-    public void testSetupMetricsReportsQueuingAndRunningCounts() throws Exception {
+    public void testInstrumentedThrottledTaskRunnerRecordsQueuingAndRunningCounts() throws Exception {
         final String runnerName = "some_throttler";
         final String queueSizeMetric = THROTTLED_TASK_RUNNER_METRIC_PREFIX + runnerName + THROTTLED_TASK_RUNNER_METRIC_NAME_QUEUE;
         final String runningMetric = THROTTLED_TASK_RUNNER_METRIC_PREFIX + runnerName + THROTTLED_TASK_RUNNER_METRIC_NAME_RUNNING;
@@ -362,7 +362,7 @@ public class AbstractThrottledTaskRunnerTests extends ESTestCase {
         );
     }
 
-    public void testQueueLatencyHistogramRecordsCorrectBuckets() throws Exception {
+    public void testInstrumentedThrottledTaskRunnerRecordsQueueLatency() throws Exception {
         final String runnerName = "some_throttler";
         final String queueLatencyMetric = THROTTLED_TASK_RUNNER_METRIC_PREFIX + runnerName + THROTTLED_TASK_RUNNER_METRIC_NAME_QUEUE_TIME;
 

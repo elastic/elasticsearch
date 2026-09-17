@@ -114,23 +114,23 @@ public class JvmErgonomicsTests extends ESTestCase {
     public void testG1GOptionsForSmallHeap() throws Exception {
         List<String> jvmErgonomics = JvmErgonomics.choose(Arrays.asList("-Xms6g", "-Xmx6g", "-XX:+UseG1GC"), Settings.EMPTY);
         assertThat(jvmErgonomics, hasItem("-XX:G1HeapRegionSize=4m"));
-        assertThat(jvmErgonomics, hasItem("-XX:InitiatingHeapOccupancyPercent=30"));
+        assertThat(jvmErgonomics, hasItem("-XX:" + initiatingHeapOccupancyFlag() + "=30"));
         assertThat(jvmErgonomics, hasItem("-XX:G1ReservePercent=15"));
     }
 
     public void testG1GOptionsForSmallHeapWhenTuningSet() throws Exception {
         List<String> jvmErgonomics = JvmErgonomics.choose(
-            Arrays.asList("-Xms6g", "-Xmx6g", "-XX:+UseG1GC", "-XX:G1HeapRegionSize=4m", "-XX:InitiatingHeapOccupancyPercent=45"),
+            Arrays.asList("-Xms6g", "-Xmx6g", "-XX:+UseG1GC", "-XX:G1HeapRegionSize=4m", "-XX:" + initiatingHeapOccupancyFlag() + "=45"),
             Settings.EMPTY
         );
         assertThat(jvmErgonomics, everyItem(not(startsWith("-XX:G1HeapRegionSize="))));
-        assertThat(jvmErgonomics, everyItem(not(startsWith("-XX:InitiatingHeapOccupancyPercent="))));
+        assertThat(jvmErgonomics, everyItem(not(startsWith("-XX:" + initiatingHeapOccupancyFlag() + "="))));
         assertThat(jvmErgonomics, hasItem("-XX:G1ReservePercent=15"));
     }
 
     public void testG1GOptionsForLargeHeap() throws Exception {
         List<String> jvmErgonomics = JvmErgonomics.choose(Arrays.asList("-Xms8g", "-Xmx8g", "-XX:+UseG1GC"), Settings.EMPTY);
-        assertThat(jvmErgonomics, hasItem("-XX:InitiatingHeapOccupancyPercent=30"));
+        assertThat(jvmErgonomics, hasItem("-XX:" + initiatingHeapOccupancyFlag() + "=30"));
         assertThat(jvmErgonomics, hasItem("-XX:G1ReservePercent=25"));
         assertThat(jvmErgonomics, everyItem(not(startsWith("-XX:G1HeapRegionSize="))));
     }
@@ -138,16 +138,16 @@ public class JvmErgonomicsTests extends ESTestCase {
     public void testG1GOptionsForSmallHeapWhenOtherGCSet() throws Exception {
         List<String> jvmErgonomics = JvmErgonomics.choose(Arrays.asList("-Xms6g", "-Xmx6g", "-XX:+UseParallelGC"), Settings.EMPTY);
         assertThat(jvmErgonomics, everyItem(not(startsWith("-XX:G1HeapRegionSize="))));
-        assertThat(jvmErgonomics, everyItem(not(startsWith("-XX:InitiatingHeapOccupancyPercent="))));
+        assertThat(jvmErgonomics, everyItem(not(startsWith("-XX:" + initiatingHeapOccupancyFlag() + "="))));
         assertThat(jvmErgonomics, everyItem(not(startsWith("-XX:G1ReservePercent="))));
     }
 
     public void testG1GOptionsForLargeHeapWhenTuningSet() throws Exception {
         List<String> jvmErgonomics = JvmErgonomics.choose(
-            Arrays.asList("-Xms8g", "-Xmx8g", "-XX:+UseG1GC", "-XX:InitiatingHeapOccupancyPercent=60", "-XX:G1ReservePercent=10"),
+            Arrays.asList("-Xms8g", "-Xmx8g", "-XX:+UseG1GC", "-XX:" + initiatingHeapOccupancyFlag() + "=60", "-XX:G1ReservePercent=10"),
             Settings.EMPTY
         );
-        assertThat(jvmErgonomics, everyItem(not(startsWith("-XX:InitiatingHeapOccupancyPercent="))));
+        assertThat(jvmErgonomics, everyItem(not(startsWith("-XX:" + initiatingHeapOccupancyFlag() + "="))));
         assertThat(jvmErgonomics, everyItem(not(startsWith("-XX:G1ReservePercent="))));
         assertThat(jvmErgonomics, everyItem(not(startsWith("-XX:G1HeapRegionSize="))));
     }
@@ -295,6 +295,10 @@ public class JvmErgonomicsTests extends ESTestCase {
             expectThrows(IllegalStateException.class, () -> new JvmOption("OptionName", null)).getMessage(),
             allOf(containsString("could not determine the origin of JVM option [OptionName]"), containsString("unsupported"))
         );
+    }
+
+    private static String initiatingHeapOccupancyFlag() {
+        return Runtime.version().feature() >= 27 ? "G1IHOP" : "InitiatingHeapOccupancyPercent";
     }
 
 }

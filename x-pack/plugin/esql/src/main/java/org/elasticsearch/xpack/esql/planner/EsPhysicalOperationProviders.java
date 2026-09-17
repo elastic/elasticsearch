@@ -314,6 +314,9 @@ public class EsPhysicalOperationProviders extends AbstractPhysicalOperationProvi
             // here but missing there - a dynamic mapping update that landed after resolution - is read out of _source and reported
             // as unmapped. LOAD has the same race, where it instead loads the field with its new type into a column the coordinator
             // already declared keyword, so both modes are consistent in planning against the schema as of resolution time.
+            if (UnmappedFieldsBlockLoader.isNoop(ufa.pattern(), shardContext.mappingLookup())) {
+                return ValuesSourceReaderOperator.load(UnmappedFieldsBlockLoader.NOOP);
+            }
             return ValuesSourceReaderOperator.load(new UnmappedFieldsBlockLoader(ufa.pattern(), plannerSettings.sourceReservationFactor()));
         }
 

@@ -15,6 +15,10 @@ import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.index.mapper.BlockLoader;
 import org.elasticsearch.index.mapper.BlockStoredFieldsReader;
+import org.elasticsearch.index.mapper.Mapper;
+import org.elasticsearch.index.mapper.MappingLookup;
+import org.elasticsearch.index.mapper.MetadataFieldMapper;
+import org.elasticsearch.index.mapper.ObjectMapper;
 import org.elasticsearch.search.fetch.StoredFieldsSpec;
 import org.elasticsearch.search.lookup.Source;
 import org.elasticsearch.xcontent.XContentBuilder;
@@ -39,6 +43,105 @@ import java.util.Set;
  * <p>TODO: share a cached {@code _source} parse with other field-extraction operators.
  */
 final class UnmappedFieldsBlockLoader implements BlockLoader {
+
+    /**
+     * A no-op block loader that skips {@code _source} reads entirely and emits null for every document.
+     * Used when it is known at shard open time that no {@code _source} field can survive the pattern — for
+     * example when every top-level field in the shard's mapping is already excluded by {@link #isNoop}.
+     */
+    static final BlockLoader NOOP = new BlockLoader() {
+        @Override
+        public Builder builder(BlockFactory factory, int expectedCount) {
+            return factory.bytesRefs(expectedCount);
+        }
+
+        @Override
+        public IOFunction<CircuitBreaker, ColumnAtATimeReader> columnAtATimeReader(LeafReaderContext context) {
+            return null;
+        }
+
+        @Override
+        public RowStrideReader rowStrideReader(CircuitBreaker breaker, LeafReaderContext context) {
+            return new RowStrideReader() {
+                @Override
+                public void read(int docId, StoredFields storedFields, Builder builder) {
+                    builder.appendNull();
+                }
+
+                @Override
+                public boolean canReuse(int startingDocID) {
+                    return true;
+                }
+
+                @Override
+                public void close() {}
+            };
+        }
+
+        @Override
+        public StoredFieldsSpec rowStrideStoredFieldSpec() {
+            return StoredFieldsSpec.NO_REQUIREMENTS;
+        }
+
+        @Override
+        public boolean supportsOrdinals() {
+            return false;
+        }
+
+        @Override
+        public SortedSetDocValues ordinals(LeafReaderContext context) {
+            throw new UnsupportedOperationException();
+        }
+
+        @Override
+        public String toString() {
+            return "NoopUnmappedFieldsBlockLoader";
+        }
+    };
+
+    /**
+     * Returns {@code true} when, on the shard described by {@code mappingLookup}, the given {@code pattern} can never match any
+     * {@code _source} field — so every document would produce a null block and the {@code _source} reads may be skipped entirely.
+     * <p>
+     * For top-level scalar fields (no dot in the full path) it applies {@link UnmappedFieldsPattern#matches}; for top-level object
+     * and nested fields it applies the looser {@link UnmappedFieldsPattern#objectSubfieldsCouldMatch}. That check is conservative:
+     * an object field whose every descendant is excluded will cause the method to return {@code false}, falling back to the full
+     * {@code _source} read. That is safe — the optimisation matters most for flat, fully-mapped indices where no object fields appear.
+     * <p>
+     * The check is skipped (and returns {@code false}) when the root {@code dynamic} setting is {@code false} or {@code flattened},
+     * because in those modes {@code _source} may contain fields that are absent from the mapping.
+     */
+    static boolean isNoop(UnmappedFieldsPattern pattern, MappingLookup mappingLookup) {
+        if (pattern.isNone()) {
+            return true;
+        }
+        // With dynamic:false or dynamic:flattened, _source may contain fields not present in the mapping,
+        // so we cannot conclude from the mapping alone that nothing will survive the pattern.
+        ObjectMapper.Dynamic rootDynamic = ObjectMapper.Dynamic.getRootDynamic(mappingLookup);
+        if (rootDynamic == ObjectMapper.Dynamic.FALSE || rootDynamic == ObjectMapper.Dynamic.FLATTENED) {
+            return false;
+        }
+        // Check top-level scalar fields. MetadataFieldMapper instances (_id, _source, etc.) live outside
+        // the user _source document, so they must not be considered here. Dotted paths (e.g. "parent.child")
+        // are not top-level _source keys — they are covered by the object-mapper pass below.
+        for (Mapper mapper : mappingLookup.fieldMappers()) {
+            if (mapper instanceof MetadataFieldMapper) {
+                continue;
+            }
+            String fullPath = mapper.fullPath();
+            if (fullPath.indexOf('.') < 0 && pattern.matches(fullPath)) {
+                return false;
+            }
+        }
+        // Check top-level object and nested fields.
+        for (ObjectMapper objectMapper : mappingLookup.objectMappers().values()) {
+            String fullPath = objectMapper.fullPath();
+            if (fullPath.indexOf('.') < 0 && pattern.objectSubfieldsCouldMatch(fullPath)) {
+                return false;
+            }
+        }
+        return true;
+    }
 
     private final UnmappedFieldsPattern pattern;
     private final double sourceReservationFactor;

@@ -15,6 +15,13 @@ import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.index.mapper.BlockLoader;
 import org.elasticsearch.index.mapper.BlockSourceReader;
+import org.elasticsearch.index.mapper.MapperBuilderContext;
+import org.elasticsearch.index.mapper.Mapping;
+import org.elasticsearch.index.mapper.MappingLookup;
+import org.elasticsearch.index.mapper.MetadataFieldMapper;
+import org.elasticsearch.index.mapper.MockFieldMapper;
+import org.elasticsearch.index.mapper.ObjectMapper;
+import org.elasticsearch.index.mapper.RootObjectMapper;
 import org.elasticsearch.index.mapper.TestBlock;
 import org.elasticsearch.indices.CrankyCircuitBreakerService;
 import org.elasticsearch.search.lookup.Source;
@@ -23,6 +30,7 @@ import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xpack.esql.plan.logical.UnmappedFieldsPattern;
 
 import java.io.IOException;
+import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -169,6 +177,59 @@ public class UnmappedFieldsBlockLoaderTests extends ESTestCase {
             }
             assertThat("breaker leaked on attempt " + attempt, cranky.getUsed(), equalTo(0L));
         }
+    }
+
+    // ---- isNoop tests ----
+
+    /** Fully-mapped flat index: every mapped field is in exactExcludes → nothing can survive → noop. */
+    public void testIsNoopWhenAllMappedFieldsAreExcluded() {
+        MappingLookup lookup = mappingLookup(ObjectMapper.Dynamic.TRUE, "field1", "field2");
+        UnmappedFieldsPattern pattern = UnmappedFieldsPattern.ALL.withAdditionalExcludes(List.of("field1", "field2"));
+        assertTrue(UnmappedFieldsBlockLoader.isNoop(pattern, lookup));
+    }
+
+    /** One mapped field is NOT in exactExcludes → it could survive → not a noop. */
+    public void testIsNotNoopWhenSomeMappedFieldIsNotExcluded() {
+        MappingLookup lookup = mappingLookup(ObjectMapper.Dynamic.TRUE, "field1", "field2");
+        UnmappedFieldsPattern pattern = UnmappedFieldsPattern.ALL.withAdditionalExcludes(List.of("field1"));
+        assertFalse(UnmappedFieldsBlockLoader.isNoop(pattern, lookup));
+    }
+
+    /** dynamic:false means _source may contain fields absent from the mapping → never a noop. */
+    public void testIsNotNoopWhenDynamicFalse() {
+        MappingLookup lookup = mappingLookup(ObjectMapper.Dynamic.FALSE, "field1", "field2");
+        UnmappedFieldsPattern pattern = UnmappedFieldsPattern.ALL.withAdditionalExcludes(List.of("field1", "field2"));
+        assertFalse(UnmappedFieldsBlockLoader.isNoop(pattern, lookup));
+    }
+
+    /** dynamic:strict also means no unmapped fields can exist → noop when all fields excluded. */
+    public void testIsNoopWhenDynamicStrict() {
+        MappingLookup lookup = mappingLookup(ObjectMapper.Dynamic.STRICT, "field1", "field2");
+        UnmappedFieldsPattern pattern = UnmappedFieldsPattern.ALL.withAdditionalExcludes(List.of("field1", "field2"));
+        assertTrue(UnmappedFieldsBlockLoader.isNoop(pattern, lookup));
+    }
+
+    /** NONE pattern is already a noop regardless of mapping. */
+    public void testIsNoopForNonePattern() {
+        MappingLookup lookup = mappingLookup(ObjectMapper.Dynamic.TRUE, "field1");
+        assertTrue(UnmappedFieldsBlockLoader.isNoop(UnmappedFieldsPattern.NONE, lookup));
+    }
+
+    /**
+     * Builds a {@link MappingLookup} with the given root {@code dynamic} setting and a set of flat
+     * {@link MockFieldMapper} leaf fields. The {@code dynamic} may be {@code null} to leave it unset
+     * (which defaults to {@link ObjectMapper.Dynamic#TRUE} at runtime).
+     */
+    private static MappingLookup mappingLookup(ObjectMapper.Dynamic dynamic, String... fieldNames) {
+        RootObjectMapper.Builder builder = new RootObjectMapper.Builder("_doc");
+        if (dynamic != null) {
+            builder.dynamic(dynamic);
+        }
+        RootObjectMapper root = builder.build(MapperBuilderContext.root(false, false));
+        Mapping mapping = new Mapping(root, new MetadataFieldMapper[0], Collections.emptyMap());
+        List<org.elasticsearch.index.mapper.FieldMapper> fieldMappers = java.util.Arrays.stream(fieldNames).<
+            org.elasticsearch.index.mapper.FieldMapper>map(MockFieldMapper::new).toList();
+        return MappingLookup.fromMappers(mapping, fieldMappers, List.of(), null);
     }
 
     private static UnmappedFieldsBlockLoader loader(UnmappedFieldsPattern pattern) {

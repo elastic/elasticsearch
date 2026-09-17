@@ -127,7 +127,7 @@ public class ObjectMapper extends Mapper {
          * If no dynamic settings are explicitly configured, we default to {@link #TRUE}, unless the implicit flattened
          * {@code _unmapped} sink is present, in which case unmapped fields default to being absorbed ({@link #FLATTENED}).
          */
-        static Dynamic getRootDynamic(MappingLookup mappingLookup) {
+        public static Dynamic getRootDynamic(MappingLookup mappingLookup) {
             Dynamic rootDynamic = mappingLookup.getMapping().getRoot().dynamic;
             if (rootDynamic != null) {
                 return rootDynamic;

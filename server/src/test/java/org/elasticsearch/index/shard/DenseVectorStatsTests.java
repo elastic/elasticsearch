@@ -72,11 +72,13 @@ public class DenseVectorStatsTests extends AbstractWireSerializingTestCase<Dense
         int count = randomIntBetween(1, 3);
         List<AutoCalibrationEntry> entries = new ArrayList<>();
         for (int i = 0; i < count; i++) {
-            SegmentCalibrationParameters params = rarely() ? null : new SegmentCalibrationParameters.Osq(
-                randomFrom(QuantEncoding.values()),
-                randomBoolean(),
-                (float) randomDoubleBetween(1.0, 3.0, true)
-            );
+            SegmentCalibrationParameters params = rarely()
+                ? null
+                : new SegmentCalibrationParameters.Osq(
+                    randomFrom(QuantEncoding.values()),
+                    randomBoolean(),
+                    (float) randomDoubleBetween(1.0, 3.0, true)
+                );
             entries.add(new AutoCalibrationEntry(params, randomNonNegativeLong(), randomNonNegativeLong(), randomIntBetween(1, 10)));
         }
         return entries;
@@ -398,12 +400,16 @@ public class DenseVectorStatsTests extends AbstractWireSerializingTestCase<Dense
 
     public void testAutoCalibrationAddSameParams() {
         var params = new SegmentCalibrationParameters.Osq(QuantEncoding.ONE_BIT_4BIT_QUERY, true, 2.0f);
-        var stats1 = new DenseVectorStats(10000L, Map.of("f", Map.of("vec", 1000000L)), Map.of("f", List.of(
-            new AutoCalibrationEntry(params, 10000L, 1000000L, 1)
-        )));
-        var stats2 = new DenseVectorStats(20000L, Map.of("f", Map.of("vec", 2000000L)), Map.of("f", List.of(
-            new AutoCalibrationEntry(params, 20000L, 2000000L, 1)
-        )));
+        var stats1 = new DenseVectorStats(
+            10000L,
+            Map.of("f", Map.of("vec", 1000000L)),
+            Map.of("f", List.of(new AutoCalibrationEntry(params, 10000L, 1000000L, 1)))
+        );
+        var stats2 = new DenseVectorStats(
+            20000L,
+            Map.of("f", Map.of("vec", 2000000L)),
+            Map.of("f", List.of(new AutoCalibrationEntry(params, 20000L, 2000000L, 1)))
+        );
         stats1.add(stats2);
 
         List<AutoCalibrationEntry> merged = stats1.calibrationStats().get("f");
@@ -416,12 +422,16 @@ public class DenseVectorStatsTests extends AbstractWireSerializingTestCase<Dense
     public void testAutoCalibrationAddDifferentParams() {
         var params1bit = new SegmentCalibrationParameters.Osq(QuantEncoding.ONE_BIT_4BIT_QUERY, true, 2.0f);
         var params4bit = new SegmentCalibrationParameters.Osq(QuantEncoding.FOUR_BIT_SYMMETRIC, false, 1.5f);
-        var stats1 = new DenseVectorStats(10000L, Map.of("f", Map.of("vec", 1000000L)), Map.of("f", List.of(
-            new AutoCalibrationEntry(params1bit, 10000L, 1000000L, 1)
-        )));
-        var stats2 = new DenseVectorStats(5000L, Map.of("f", Map.of("vec", 500000L)), Map.of("f", List.of(
-            new AutoCalibrationEntry(params4bit, 5000L, 500000L, 1)
-        )));
+        var stats1 = new DenseVectorStats(
+            10000L,
+            Map.of("f", Map.of("vec", 1000000L)),
+            Map.of("f", List.of(new AutoCalibrationEntry(params1bit, 10000L, 1000000L, 1)))
+        );
+        var stats2 = new DenseVectorStats(
+            5000L,
+            Map.of("f", Map.of("vec", 500000L)),
+            Map.of("f", List.of(new AutoCalibrationEntry(params4bit, 5000L, 500000L, 1)))
+        );
         stats1.add(stats2);
 
         assertEquals(2, stats1.calibrationStats().get("f").size());
@@ -430,12 +440,16 @@ public class DenseVectorStatsTests extends AbstractWireSerializingTestCase<Dense
     public void testAutoCalibrationAddSameEncodingDifferentPrecondition() {
         var paramsWithPrecond = new SegmentCalibrationParameters.Osq(QuantEncoding.ONE_BIT_4BIT_QUERY, true, 2.0f);
         var paramsNoPrecond = new SegmentCalibrationParameters.Osq(QuantEncoding.ONE_BIT_4BIT_QUERY, false, 2.0f);
-        var stats1 = new DenseVectorStats(10000L, Map.of("f", Map.of("vec", 1000000L)), Map.of("f", List.of(
-            new AutoCalibrationEntry(paramsWithPrecond, 10000L, 1000000L, 1)
-        )));
-        var stats2 = new DenseVectorStats(5000L, Map.of("f", Map.of("vec", 500000L)), Map.of("f", List.of(
-            new AutoCalibrationEntry(paramsNoPrecond, 5000L, 500000L, 1)
-        )));
+        var stats1 = new DenseVectorStats(
+            10000L,
+            Map.of("f", Map.of("vec", 1000000L)),
+            Map.of("f", List.of(new AutoCalibrationEntry(paramsWithPrecond, 10000L, 1000000L, 1)))
+        );
+        var stats2 = new DenseVectorStats(
+            5000L,
+            Map.of("f", Map.of("vec", 500000L)),
+            Map.of("f", List.of(new AutoCalibrationEntry(paramsNoPrecond, 5000L, 500000L, 1)))
+        );
         stats1.add(stats2);
 
         assertEquals(2, stats1.calibrationStats().get("f").size());
@@ -458,12 +472,16 @@ public class DenseVectorStatsTests extends AbstractWireSerializingTestCase<Dense
     }
 
     public void testAutoCalibrationAddUncalibrated() {
-        var stats1 = new DenseVectorStats(5000L, Map.of("f", Map.of("vec", 500000L)), Map.of("f", List.of(
-            new AutoCalibrationEntry(null, 5000L, 500000L, 2)
-        )));
-        var stats2 = new DenseVectorStats(3000L, Map.of("f", Map.of("vec", 300000L)), Map.of("f", List.of(
-            new AutoCalibrationEntry(null, 3000L, 300000L, 1)
-        )));
+        var stats1 = new DenseVectorStats(
+            5000L,
+            Map.of("f", Map.of("vec", 500000L)),
+            Map.of("f", List.of(new AutoCalibrationEntry(null, 5000L, 500000L, 2)))
+        );
+        var stats2 = new DenseVectorStats(
+            3000L,
+            Map.of("f", Map.of("vec", 300000L)),
+            Map.of("f", List.of(new AutoCalibrationEntry(null, 3000L, 300000L, 1)))
+        );
         stats1.add(stats2);
 
         List<AutoCalibrationEntry> merged = stats1.calibrationStats().get("f");
@@ -475,9 +493,11 @@ public class DenseVectorStatsTests extends AbstractWireSerializingTestCase<Dense
     }
 
     public void testUncalibratedXContent() throws IOException {
-        var stats = new DenseVectorStats(5000L, Map.of("f", Map.of("vec", 500000L)), Map.of("f", List.of(
-            new AutoCalibrationEntry(null, 5000L, 500000L, 3)
-        )));
+        var stats = new DenseVectorStats(
+            5000L,
+            Map.of("f", Map.of("vec", 500000L)),
+            Map.of("f", List.of(new AutoCalibrationEntry(null, 5000L, 500000L, 3)))
+        );
 
         XContentBuilder builder = XContentFactory.jsonBuilder();
         builder.startObject();

@@ -35,5 +35,9 @@ artifacts {
 
 tasks.named("yamlRestCompatTestTransform").configure { task ->
   task.replaceValueInMatch("tokens.0.token", "absenț", "romanian")
+  // Lucene 11 Dutch snowball is Kraaij-Pohlmann (was Porter-style lidstat / bruin / voss)
+  task.replaceValueInMatch("tokens.0.token", "lidstaat", "dutch")
+  task.replaceValueTextByKeyValue("tokens.0.token", "bruin", "bruine", "snowball")
+  task.replaceValueTextByKeyValue("tokens.1.token", "voss", "vos", "snowball")
   task.skipTest("indices.analyze/15_analyze/Custom analyzer is not buildable", "error response changed with #123743")
 }

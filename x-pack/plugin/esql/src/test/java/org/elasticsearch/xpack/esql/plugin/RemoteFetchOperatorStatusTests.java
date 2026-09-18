@@ -110,6 +110,15 @@ public class RemoteFetchOperatorStatusTests extends AbstractWireSerializingTestC
             "source_docs_loaded":12,"source_field_reads":24,"source_bytes_loaded":1024,"bytes_read":2048}"""));
     }
 
+    public void testEmptyProfileIsOmittedFromXContent() {
+        RemoteFetchOperator.Status status = new RemoteFetchOperator.Status(1, 2, 30, 20, 4, 3);
+        assertThat(
+            Strings.toString(status),
+            equalTo("""
+                {"pages_received":1,"pages_emitted":2,"rows_received":30,"rows_emitted":20,"batches_sent":4,"exchanges_opened":3}""")
+        );
+    }
+
     public void testProfileIsOmittedForOldVersions() throws IOException {
         RemoteFetchOperator.Status original = createTestInstance();
         TransportVersion oldVersion = TransportVersionUtils.getPreviousVersion(BatchExchangeStatusResponse.ESQL_BATCH_EXCHANGE_PROFILE);

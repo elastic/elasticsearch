@@ -171,6 +171,8 @@ public final class RemoteFetchOperator implements Operator {
     private final int maxOutstandingRequests;
     private final RemoteFetchService.Client client;
     private final AtomicLong batchIds = new AtomicLong();
+    // Driver-thread only. Driver.status() snapshots operators on that thread after addInput()
+    // returns; _tasks reads the cached snapshot and does not call status() live.
     private final Map<TargetSession, RemoteFetchService.TargetExchange> exchanges = new HashMap<>();
     private final Map<Long, PendingGroup> pendingByBatch = new HashMap<>();
     private final Deque<PendingInput> pendingInputs = new ArrayDeque<>();
@@ -189,6 +191,7 @@ public final class RemoteFetchOperator implements Operator {
     private long processEndNanos;
     private long mergeNanos;
     private final AtomicLong exchangeWaitNanos = new AtomicLong();
+    // Completion can run on the listener's thread, not the driver thread.
     private final Map<SubscribableListener<Void>, Long> pendingExchangeWaits = new ConcurrentHashMap<>();
 
     // Note: no ThreadContext parameter on purpose. This operator only interacts with its exchanges synchronously
@@ -686,7 +689,9 @@ public final class RemoteFetchOperator implements Operator {
             builder.field("rows_emitted", rowsEmitted);
             builder.field("batches_sent", batchesSent);
             builder.field("exchanges_opened", exchangesOpened);
-            profile.toXContent(builder);
+            if (profile.equals(Profile.EMPTY) == false) {
+                profile.toXContent(builder);
+            }
             return builder.endObject();
         }
     }
@@ -697,6 +702,10 @@ public final class RemoteFetchOperator implements Operator {
      * {@code processNanos} covers the operator's end-to-end critical path, {@code exchangeWaitNanos} sums the time
      * unresolved exchange listeners remained pending, and {@code responseNanos} is the span from the first to the last response page.
      * Setup and fetch totals sum work across exchanges, while their maxima identify the slowest individual exchange.
+     * <p>
+     * {@code valuesLoaded} aggregates {@link org.elasticsearch.compute.operator.OperatorStatus#valuesLoaded()} across every
+     * operator in the server-side fetch driver. {@code fieldLoadNanos} and the {@code source*} fields come only from
+     * {@link org.elasticsearch.compute.lucene.read.ValuesSourceReaderOperatorStatus} instances in that driver.
      */
     public record Profile(
         long processNanos,

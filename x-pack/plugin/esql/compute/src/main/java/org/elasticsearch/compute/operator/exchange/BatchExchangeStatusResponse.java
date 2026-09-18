@@ -128,6 +128,10 @@ public final class BatchExchangeStatusResponse extends TransportResponse {
 
     /**
      * Compact profile of a batch exchange server driver and its source loading work.
+     * <p>
+     * {@code valuesLoaded} sums {@link OperatorStatus#valuesLoaded()} across every operator in the driver.
+     * {@code fieldLoadNanos} and the {@code source*} fields cover only
+     * {@link ValuesSourceReaderOperatorStatus} instances.
      */
     public record Profile(
         long driverTookNanos,

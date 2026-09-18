@@ -76,6 +76,8 @@ public final class BidirectionalBatchExchangeServer extends BidirectionalBatchEx
     private volatile boolean driverStarted = false; // Whether driver has been started (client sent BatchExchangeStatusRequest)
     private ScheduledFuture<?> clientReadyTimeoutFuture; // Timeout for client to send BatchExchangeStatusRequest
     private ActionListener<BatchExchangeStatusResponse> batchExchangeStatusListener; // Listener to call when batch processing completes
+    // Written on the setup thread before response-coordinator refs are acquired. The last
+    // ref release happens-before sendBatchExchangeStatusResponse() reads this.
     private boolean profile;
     private volatile long driverStartNanos;
     private volatile long driverTookNanos;

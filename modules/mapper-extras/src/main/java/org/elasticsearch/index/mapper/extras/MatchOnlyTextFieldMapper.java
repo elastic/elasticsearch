@@ -64,6 +64,7 @@ import org.elasticsearch.index.IndexVersions;
 import org.elasticsearch.index.analysis.IndexAnalyzers;
 import org.elasticsearch.index.analysis.NamedAnalyzer;
 import org.elasticsearch.index.codec.columnar.ColumnarDocValuesFormatSelector;
+import org.elasticsearch.index.fielddata.ColumnarPayloadSortedBinaryDocValues;
 import org.elasticsearch.index.fielddata.FieldData;
 import org.elasticsearch.index.fielddata.FieldDataContext;
 import org.elasticsearch.index.fielddata.IndexFieldData;
@@ -471,10 +472,7 @@ public class MatchOnlyTextFieldMapper extends FieldMapper {
             // if doc_values are enabled, fetch directly from them
             if (hasDocValues()) {
                 if (usesBinaryDocValues) {
-                    if (useArrayOrderBinaryDocValues) {
-                        return arrayOrderBinaryDocValuesFieldFetcher(name());
-                    }
-                    return binaryDocValuesFieldFetcher(name());
+                    return binaryDocValuesFieldFetcher(name(), binaryFormat());
                 } else {
                     var ifd = searchExecutionContext.getForField(this, MappedFieldType.FielddataOperation.SEARCH);
                     return docValuesFieldFetcher(ifd);
@@ -498,7 +496,7 @@ public class MatchOnlyTextFieldMapper extends FieldMapper {
                 } else {
                     // otherwise, fetch the value from fallback fields
                     if (usesBinaryDocValuesForFallbackFields) {
-                        return binaryDocValuesFieldFetcher(syntheticSourceFallbackFieldName());
+                        return binaryDocValuesFieldFetcher(syntheticSourceFallbackFieldName(), BinaryDocValuesFormat.SEPARATE_COUNT);
                     }
                     return storedFieldFetcher(name(), syntheticSourceFallbackFieldName());
                 }
@@ -548,7 +546,7 @@ public class MatchOnlyTextFieldMapper extends FieldMapper {
 
                 // The parent fallback field might be stored in binary doc values or in a stored field, we need to check which one
                 var fallbackFetcher = keywordParent.usesBinaryDocValuesForIgnoredFields()
-                    ? binaryDocValuesFieldFetcher(fallbackFieldName)
+                    ? binaryDocValuesFieldFetcher(fallbackFieldName, BinaryDocValuesFormat.SEPARATE_COUNT)
                     : storedFieldFetcher(fallbackFieldName);
 
                 if (parent.isStored()) {
@@ -585,7 +583,7 @@ public class MatchOnlyTextFieldMapper extends FieldMapper {
 
                 // The fallback field may be stored in binary doc values or stored fields depending on index version
                 var fallbackFetcher = usesBinaryDocValuesForFallbackFields
-                    ? binaryDocValuesFieldFetcher(fallbackName)
+                    ? binaryDocValuesFieldFetcher(fallbackName, BinaryDocValuesFormat.SEPARATE_COUNT)
                     : storedFieldFetcher(fallbackName);
 
                 if (keywordDelegate.isStored()) {
@@ -614,28 +612,14 @@ public class MatchOnlyTextFieldMapper extends FieldMapper {
             };
         }
 
-        private IOFunction<LeafReaderContext, CheckedIntFunction<List<Object>, IOException>> binaryDocValuesFieldFetcher(String fieldName) {
-            return context -> new CheckedIntFunction<>() {
-                SortedBinaryDocValues binaryDocValues;
-
-                @Override
-                public List<Object> apply(int docId) throws IOException {
-                    if (binaryDocValues == null) {
-                        binaryDocValues = MultiValuedSortedBinaryDocValues.from(context.reader(), fieldName);
-                    }
-                    return getValuesFromDocValues(binaryDocValues, docId);
-                }
-            };
-        }
-
         /**
-         * Value fetcher for high-cardinality columnar {@code match_only_text} fields that store their values in document order with inline
-         * nulls ({@link MultiValuedBinaryDocValuesField.ArrayOrderInlineNull}). Uses {@link SortingArrayOrderBinaryDocValues} to decode
-         * the {@code [len+1][val]…} encoding correctly. This is distinct from {@link #binaryDocValuesFieldFetcher}, which only understands
-         * the {@code SeparateCount} ({@code [len][val]…}) format.
+         * Reads a field's values back for the phrase verification, decoding them the way they were written. Which
+         * decoder that is has to follow the layout: they are not interchangeable, and reading one as another returns
+         * wrong values rather than failing, which a phrase query shows as a document that simply does not match.
          */
-        private IOFunction<LeafReaderContext, CheckedIntFunction<List<Object>, IOException>> arrayOrderBinaryDocValuesFieldFetcher(
-            String fieldName
+        private IOFunction<LeafReaderContext, CheckedIntFunction<List<Object>, IOException>> binaryDocValuesFieldFetcher(
+            String fieldName,
+            BinaryDocValuesFormat format
         ) {
             return context -> new CheckedIntFunction<>() {
                 SortedBinaryDocValues binaryDocValues;
@@ -643,7 +627,11 @@ public class MatchOnlyTextFieldMapper extends FieldMapper {
                 @Override
                 public List<Object> apply(int docId) throws IOException {
                     if (binaryDocValues == null) {
-                        binaryDocValues = SortingArrayOrderBinaryDocValues.from(context.reader(), fieldName);
+                        binaryDocValues = switch (format) {
+                            case COLUMNAR_PAYLOAD -> ColumnarPayloadSortedBinaryDocValues.from(context.reader(), fieldName);
+                            case ARRAY_ORDER_INLINE_NULL -> SortingArrayOrderBinaryDocValues.from(context.reader(), fieldName);
+                            case SEPARATE_COUNT -> MultiValuedSortedBinaryDocValues.from(context.reader(), fieldName);
+                        };
                     }
                     return getValuesFromDocValues(binaryDocValues, docId);
                 }

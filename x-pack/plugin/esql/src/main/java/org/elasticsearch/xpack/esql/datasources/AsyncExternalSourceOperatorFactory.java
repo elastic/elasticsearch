@@ -175,21 +175,11 @@ public class AsyncExternalSourceOperatorFactory implements SourceOperator.Source
     private final Set<String> partitionColumnNames;
     private final Map<String, Object> partitionValues;
     /**
-     * Standard ES metadata column names ({@code _index} and the ones that answer SQL {@code NULL})
-     * present in {@link #attributes} that the producer pipeline must materialise as per-file
-     * constants. Derived once from {@link #attributes} at construction.
+     * Standard ES metadata column names present in {@link #attributes} that the producer pipeline must
+     * materialise as per-file constants. Every one of them answers SQL {@code NULL}. Derived once from
+     * {@link #attributes} at construction.
      */
     private final Set<String> standardMetadataPerFileNames;
-    /**
-     * Dataset name threaded from the planner ({@code DatasetRewriter} attaches it to
-     * {@code UnresolvedExternalRelation}; {@code ExternalRelation} / {@code ExternalSourceExec} round-
-     * trip it on the wire under {@code ESQL_EXTERNAL_DATASET_NAME}; {@code LocalExecutionPlanner}
-     * sets it on the {@link org.elasticsearch.xpack.esql.datasources.spi.SourceOperatorContext}).
-     * Used for {@code _index} resolution: a bare-glob {@code FROM} query has no dataset identity, so
-     * the value is {@code null} and {@link VirtualColumnIterator} renders {@code _index} as
-     * SQL {@code NULL}.
-     */
-    @Nullable
     // Declared logical->physical column renames (source). Applied to reader-facing names (projection + read schema)
     // at the last mile via PhysicalNames, so readers stay rename-agnostic. Empty when the dataset declares no rename.
     private final Map<String, String> renames;
@@ -505,7 +495,6 @@ public class AsyncExternalSourceOperatorFactory implements SourceOperator.Source
         private Map<StoragePath, SchemaReconciliation.FileSchemaInfo> schemaMap;
         private Set<String> partitionColumnNames;
         private Map<String, Object> partitionValues;
-        @Nullable
         private Map<String, String> renames = Map.of();
         /** Turns one file's read schema into its read-configuration identity; see the factory field. */
         private Function<List<Attribute>, String> readConfigFingerprinter = schema -> "";
@@ -586,14 +575,6 @@ public class AsyncExternalSourceOperatorFactory implements SourceOperator.Source
             this.partitionValues = partitionValues;
             return this;
         }
-
-        /**
-         * Sets the dataset name surfaced to query rows via the {@code _index} metadata column.
-         * {@code null} when the {@code FROM} did not resolve to a single registered dataset (e.g.
-         * bare-glob {@code FROM "s3://bucket/*.parquet"}); the {@code _index} column then renders
-         * as SQL {@code NULL}. Only consulted when the bound attributes include an
-         * {@code ExternalMetadataAttribute} named {@code _index}.
-         */
 
         /** Declared logical-&gt;physical column renames; applied to reader-facing names at the last mile. */
         public Builder renames(Map<String, String> renames) {

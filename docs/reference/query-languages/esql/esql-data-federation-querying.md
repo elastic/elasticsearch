@@ -96,9 +96,11 @@ When sources have different schemas, columns that do not exist in a given source
 | `_index` {applies_to}`stack: experimental 9.6+` | null |
 | `_id`, `_version`, `_source` {applies_to}`stack: experimental 9.6+` | null |
 
-`_index`, `_id`, `_version` and `_source` return `null` on a dataset. A dataset is not an index, and
-files carry no document identity, version, or stored source. In 9.5, these fields returned synthetic
-values (dataset name, row ID, file modification time, row-as-JSON) instead of null.
+{applies_to}`stack: experimental 9.6+` `_index`, `_id`, `_version` and `_source` return `null` on a
+dataset. A dataset is not an index, and files carry no document identity, version, or stored source.
+
+{applies_to}`stack: experimental =9.5` These fields return synthetic values instead of null: the
+dataset name, a row ID, the file modification time, and the row as JSON.
 
 {applies_to}`stack: experimental 9.6+` `_class` and `_name` answer the same two questions on every source. On an index they return `index` and
 the concrete index name; on a dataset, `dataset` and the dataset name. A `FROM` that names both kinds

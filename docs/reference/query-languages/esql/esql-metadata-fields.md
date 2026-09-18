@@ -36,7 +36,7 @@ The following metadata fields are available in {{esql}}:
 
 ## Usage and limitations
 
-- Most metadata fields are only available when the data source is an index. `_class` and `_name` are answered by indices and datasets alike, and a dataset answers the rest either with a value or with `null` — refer to [query datasets](esql-data-federation-querying.md#use-metadata-columns)
+- Most metadata fields are only available when the data source is an index. {applies_to}`stack: ga 9.6` `_class` and `_name` are answered by indices and datasets alike, and a dataset answers the rest either with a value or with `null` — refer to [query datasets](esql-data-federation-querying.md#use-metadata-columns)
 - The `_source` type is not supported by functions
 - Only the `FROM` command supports the `METADATA` directive
 - Once enabled, metadata fields work like regular index fields

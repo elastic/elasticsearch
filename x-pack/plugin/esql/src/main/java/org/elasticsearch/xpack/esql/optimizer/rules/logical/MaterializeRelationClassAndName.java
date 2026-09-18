@@ -108,12 +108,19 @@ public final class MaterializeRelationClassAndName extends OptimizerRules.Optimi
 
     /**
      * The value the relation answers for this column, or null when the column is not one of ours.
+     * <p>
+     * {@link #isRelationColumn} decides membership, so the switch below covers a closed set and throws on
+     * anything else: a name added there and not here would otherwise be stripped from the relation and
+     * projected as a column nothing binds.
      */
     private static Expression valueOf(Attribute attr, ClassifiedAs classified, Attribute indexAttribute) {
+        if (isRelationColumn(attr) == false) {
+            return null;
+        }
         return switch (attr.name()) {
             case MetadataAttribute.RELATION_CLASS -> Literal.keyword(attr.source(), classified.relationClass().value());
             case MetadataAttribute.RELATION_NAME -> relationName(attr, classified, indexAttribute);
-            default -> null;
+            default -> throw new IllegalStateException("unhandled relation column: " + attr.name());
         };
     }
 

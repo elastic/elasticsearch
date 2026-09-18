@@ -104,9 +104,10 @@ public class ExternalSourceExec extends LeafExec implements EstimatesRowSize, Da
     private final Map<String, Object> sourceMetadata;
     private final Integer estimatedRowSize;
     private final List<ExternalSplit> splits;
-    // Registered dataset identifier when this exec came from FROM <dataset>, null for inline
-    // EXTERNAL. Serialized so the data-node operator factory can populate _index with the
-    // user-facing dataset name without having to re-derive it from cluster state.
+    // Registered dataset identifier when this exec came from FROM <dataset>, null for a bare glob.
+    // Nothing on this version's data node reads it: _name is answered on the coordinator from
+    // ExternalRelation.datasetName(), and _index answers SQL NULL. It stays serialized because a 9.5
+    // data node composes _index from this slot.
     @Nullable
     private final String datasetName;
     // Declared read-instructions (renames, per-column date formats), or DeclaredReadSpec.NONE. An execution input:

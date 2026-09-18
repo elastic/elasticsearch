@@ -60,14 +60,25 @@ public final class Case extends EsqlScalarFunction {
         // A one value list condition is single valued, so it picks a branch like a plain boolean.
         // A multivalued one warns even when the CASE is only partially folded, and reports the
         // same message the other functions use.
-        .capabilities("flattened", "single_value_list_condition", "partial_fold_multivalue_warning", "standard_multivalue_message")
+        .capabilities(
+            "flattened",
+            "single_value_list_condition",
+            "partial_fold_multivalue_warning",
+            "standard_multivalue_message",
+            "multivalue_warning_names_function"
+        )
         .name("case");
 
     private static final String MULTIVALUE_CONDITION_MESSAGE = "single-value function encountered multi-value";
 
     record Condition(Expression condition, Expression value) {
-        ConditionEvaluatorSupplier toEvaluator(ToEvaluator toEvaluator) {
-            return new ConditionEvaluatorSupplier(condition.source(), toEvaluator.apply(condition), toEvaluator.apply(value));
+        /**
+         * @param caseSource the source of the enclosing {@code CASE}, which multivalue warnings
+         *                   are reported against so that they name the function rather than one
+         *                   of its arguments
+         */
+        ConditionEvaluatorSupplier toEvaluator(ToEvaluator toEvaluator, Source caseSource) {
+            return new ConditionEvaluatorSupplier(caseSource, toEvaluator.apply(condition), toEvaluator.apply(value));
         }
     }
 
@@ -364,7 +375,7 @@ public final class Case extends EsqlScalarFunction {
     private static Expression takenBranch(FoldContext ctx, Case current) {
         for (Condition condition : current.conditions) {
             Object folded = condition.condition.fold(ctx);
-            warnIfMultivaluedCondition(current, condition.condition, folded);
+            warnIfMultivaluedCondition(current, folded);
             if (isTrue(folded)) {
                 return condition.value;
             }
@@ -384,9 +395,9 @@ public final class Case extends EsqlScalarFunction {
      *     planned CASE warns differently from an evaluated one.
      * </p>
      */
-    private static void warnIfMultivaluedCondition(Case c, Expression condition, Object folded) {
+    private static void warnIfMultivaluedCondition(Case c, Object folded) {
         if (folded instanceof List<?> values && values.size() > 1 && hasNoEvaluator(c) == false) {
-            Source source = condition.source();
+            Source source = c.source();
             String location = source.viewName() == null
                 ? format("Line {}:{}: ", source.lineNumber(), source.columnNumber())
                 : format("Line {}:{} (in view [{}]): ", source.lineNumber(), source.columnNumber(), source.viewName());
@@ -429,7 +440,7 @@ public final class Case extends EsqlScalarFunction {
             }
             modified = true;
             Object folded = condition.condition.fold(ctx);
-            warnIfMultivaluedCondition(this, condition.condition, folded);
+            warnIfMultivaluedCondition(this, folded);
             if (isTrue(folded)) {
                 /*
                  * `fold` can make four things here:
@@ -484,7 +495,7 @@ public final class Case extends EsqlScalarFunction {
 
     @Override
     public ExpressionEvaluator.Factory toEvaluator(ToEvaluator toEvaluator) {
-        List<ConditionEvaluatorSupplier> conditionsFactories = conditions.stream().map(c -> c.toEvaluator(toEvaluator)).toList();
+        List<ConditionEvaluatorSupplier> conditionsFactories = conditions.stream().map(c -> c.toEvaluator(toEvaluator, source())).toList();
         ExpressionEvaluator.Factory elseValueFactory = toEvaluator.apply(elseValue);
         ElementType resultType = PlannerUtils.toElementType(dataType());
 

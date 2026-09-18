@@ -685,7 +685,7 @@ public class CaseExtraTests extends ESTestCase {
 
     private void assertMultivalueConditionWarnings() {
         assertWarnings(
-            "Line -1:-1: evaluation of [cond] failed, treating result as false. Only first 20 failures recorded.",
+            "Line -1:-1: evaluation of [case] failed, treating result as false. Only first 20 failures recorded.",
             "Line -1:-1: java.lang.IllegalArgumentException: single-value function encountered multi-value"
         );
     }
@@ -711,7 +711,8 @@ public class CaseExtraTests extends ESTestCase {
      * not type resolution.
      */
     private static Case resolvedCase(Expression condition, Expression... rest) {
-        Case c = new Case(Source.EMPTY, condition, List.of(rest));
+        // A synthetic source so multivalue warnings, which name the CASE, have text to report.
+        Case c = new Case(Source.synthetic("case"), condition, List.of(rest));
         c.dataType();
         return c;
     }

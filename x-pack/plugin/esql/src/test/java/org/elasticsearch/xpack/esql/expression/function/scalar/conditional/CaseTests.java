@@ -49,6 +49,15 @@ public class CaseTests extends AbstractScalarFunctionTestCase {
         .toList();
 
     /**
+     * The warnings a multivalued condition raises. They name the CASE rather than the condition,
+     * and this harness builds the expression with {@link Source#EMPTY}, so the text is empty.
+     */
+    private static final List<String> MULTIVALUE_CONDITION_WARNINGS = List.of(
+        "Line -1:-1: evaluation of [] failed, treating result as false. Only first 20 failures recorded.",
+        "Line -1:-1: java.lang.IllegalArgumentException: single-value function encountered multi-value"
+    );
+
+    /**
      * Generate the test cases for this test
      */
     @ParametersFactory
@@ -58,16 +67,7 @@ public class CaseTests extends AbstractScalarFunctionTestCase {
             twoAndThreeArgs(suppliers, true, true, returnType, List.of());
             twoAndThreeArgs(suppliers, false, false, returnType, List.of());
             twoAndThreeArgs(suppliers, null, false, returnType, List.of());
-            twoAndThreeArgs(
-                suppliers,
-                randomMultivaluedCondition(),
-                false,
-                returnType,
-                List.of(
-                    "Line -1:-1: evaluation of [cond] failed, treating result as false. Only first 20 failures recorded.",
-                    "Line -1:-1: java.lang.IllegalArgumentException: single-value function encountered multi-value"
-                )
-            );
+            twoAndThreeArgs(suppliers, randomMultivaluedCondition(), false, returnType, MULTIVALUE_CONDITION_WARNINGS);
         }
 
         for (DataType returnType : RETURN_TYPES) {
@@ -76,28 +76,8 @@ public class CaseTests extends AbstractScalarFunctionTestCase {
             fourAndFiveArgs(suppliers, false, false, 2, returnType, List.of());
             fourAndFiveArgs(suppliers, null, true, 1, returnType, List.of());
             fourAndFiveArgs(suppliers, null, false, 2, returnType, List.of());
-            fourAndFiveArgs(
-                suppliers,
-                randomMultivaluedCondition(),
-                true,
-                1,
-                returnType,
-                List.of(
-                    "Line -1:-1: evaluation of [cond1] failed, treating result as false. Only first 20 failures recorded.",
-                    "Line -1:-1: java.lang.IllegalArgumentException: single-value function encountered multi-value"
-                )
-            );
-            fourAndFiveArgs(
-                suppliers,
-                false,
-                randomMultivaluedCondition(),
-                2,
-                returnType,
-                List.of(
-                    "Line -1:-1: evaluation of [cond2] failed, treating result as false. Only first 20 failures recorded.",
-                    "Line -1:-1: java.lang.IllegalArgumentException: single-value function encountered multi-value"
-                )
-            );
+            fourAndFiveArgs(suppliers, randomMultivaluedCondition(), true, 1, returnType, MULTIVALUE_CONDITION_WARNINGS);
+            fourAndFiveArgs(suppliers, false, randomMultivaluedCondition(), 2, returnType, MULTIVALUE_CONDITION_WARNINGS);
         }
         FunctionAppliesTo histogramPreviewAppliesTo = appliesTo(FunctionAppliesToLifecycle.PREVIEW, "9.3.0", "", false);
         FunctionAppliesTo histogramGaAppliesTo = appliesTo(FunctionAppliesToLifecycle.GA, "9.4.0", "", true);

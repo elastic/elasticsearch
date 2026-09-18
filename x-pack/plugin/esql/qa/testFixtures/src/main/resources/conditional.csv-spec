@@ -195,6 +195,22 @@ first_name:keyword | last_name:keyword | from_list:keyword | from_boolean:keywor
 Duangkaew          | Piveteau          | Duangkaew         | Duangkaew
 ;
 
+// A multivalued condition is false. The CASE is not foldable here, so the condition is
+// dropped by partiallyFold, which has to raise the same warning the evaluator would.
+caseOnFieldsWithMultivalueListCondition
+required_capability: fn_case_partial_fold_multivalue_warning
+
+FROM employees
+| WHERE emp_no == 10010
+| EVAL result = CASE([true, false], first_name, last_name)
+| KEEP first_name, last_name, result;
+warning:Line 3:22: evaluation of [[true, false]] failed, treating result as false. Only first 20 failures recorded.
+warning:Line 3:22: java.lang.IllegalArgumentException: CASE expects a single-valued boolean
+
+first_name:keyword | last_name:keyword | result:keyword
+Duangkaew          | Piveteau          | Piveteau
+;
+
 docsCaseSuccessRate
 // tag::docsCaseSuccessRate[]
 FROM sample_data

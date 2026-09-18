@@ -15,6 +15,7 @@ import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.esql.action.EsqlCapabilities;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.FoldContext;
+import org.elasticsearch.xpack.esql.core.expression.Literal;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.core.util.NumericUtils;
@@ -816,6 +817,7 @@ public class CaseTests extends AbstractScalarFunctionTestCase {
         }
         if (extra().expectedPartialFold.size() == 1) {
             assertThat(c.partiallyFold(FoldContext.small()), equalToIgnoringIds(extra().expectedPartialFold.get(0).asField()));
+            assertPartialFoldWarnings(c);
             return;
         }
         Case expected = build(
@@ -823,6 +825,26 @@ public class CaseTests extends AbstractScalarFunctionTestCase {
             extra().expectedPartialFold.stream().map(TestCaseSupplier.TypedData::asField).toList()
         );
         assertThat(c.partiallyFold(FoldContext.small()), equalToIgnoringIds(expected));
+        assertPartialFoldWarnings(c);
+    }
+
+    /**
+     * Dropping a multivalued condition raises the same warnings the evaluator would have. Only a
+     * condition that is already a multivalued literal gets dropped that way; a field condition is
+     * not foldable, so it is kept and partially folding warns about nothing.
+     */
+    private void assertPartialFoldWarnings(Case c) {
+        List<Expression> children = c.children();
+        for (int i = 0; i + 1 < children.size(); i += 2) {
+            if (children.get(i) instanceof Literal l && l.value() instanceof List<?> values && values.size() > 1) {
+                if (testCase.getExpectedBuildEvaluatorWarnings() != null) {
+                    assertWarnings(testCase.getExpectedBuildEvaluatorWarnings());
+                } else if (testCase.getExpectedWarnings() != null) {
+                    assertWarnings(testCase.getExpectedWarnings());
+                }
+                return;
+            }
+        }
     }
 
     private static Function<TestCaseSupplier.TestCase, TestCaseSupplier.TestCase> addWarnings(List<String> warnings) {

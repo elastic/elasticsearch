@@ -86,7 +86,7 @@ public class CaseExtraTests extends ESTestCase {
     public void testPartialFoldMv() {
         Case c = new Case(
             Source.synthetic("case"),
-            new Literal(Source.EMPTY, List.of(true, true), DataType.BOOLEAN),
+            listCondition(true, true),
             List.of(field("first", DataType.LONG), field("last_cond", DataType.BOOLEAN), field("last", DataType.LONG))
         );
         assertThat(c.foldable(), equalTo(false));
@@ -96,6 +96,8 @@ public class CaseExtraTests extends ESTestCase {
                 new Case(Source.synthetic("case"), field("last_cond", DataType.BOOLEAN), List.of(field("last", DataType.LONG)))
             )
         );
+        // Dropping the condition here is what the evaluator would have warned about.
+        assertMultivalueConditionWarnings();
     }
 
     public void testPartialFoldNoop() {

@@ -58,7 +58,8 @@ public final class Case extends EsqlScalarFunction {
     public static final FunctionDefinition DEFINITION = FunctionDefinition.def(Case.class)
         .unaryVariadic(Case::new)
         // A one value list condition is single valued, so it picks a branch like a plain boolean.
-        .capabilities("flattened", "single_value_list_condition")
+        // A multivalued one warns even when the CASE is only partially folded.
+        .capabilities("flattened", "single_value_list_condition", "partial_fold_multivalue_warning")
         .name("case");
 
     private static final String MULTIVALUE_CONDITION_MESSAGE = "CASE expects a single-valued boolean";
@@ -362,11 +363,7 @@ public final class Case extends EsqlScalarFunction {
     private static Expression takenBranch(FoldContext ctx, Case current) {
         for (Condition condition : current.conditions) {
             Object folded = condition.condition.fold(ctx);
-            if (folded instanceof List<?> values && values.size() > 1 && hasNoEvaluator(current) == false) {
-                // Folding builds no evaluator, so the warning CaseLazyEvaluator#eval would have
-                // raised for a multivalued condition has to come from here.
-                warnMultivaluedCondition(condition.condition);
-            }
+            warnIfMultivaluedCondition(current, condition.condition, folded);
             if (isTrue(folded)) {
                 return condition.value;
             }
@@ -376,23 +373,30 @@ public final class Case extends EsqlScalarFunction {
 
     /**
      * The two warnings {@link Warnings#registerException} raises for a multivalued condition.
-     * Folding has no {@link DriverContext} to collect them, so they go straight to the response
-     * headers, like {@code SpatialGridFunction#foldWarningConsumer}. Keep this in step with
-     * {@link Warnings}, including the 20 from its {@code MAX_ADDED_WARNINGS}, or a folded CASE
-     * warns differently from an evaluated one.
+     * Planning drops such a condition without building an evaluator, in {@link #takenBranch} and
+     * in {@link #partiallyFold}, so the warning the evaluator would have raised has to come from
+     * here instead. Types with no evaluator have never warned and still don't.
+     * <p>
+     *     There is no {@link DriverContext} to collect these, so they go straight to the response
+     *     headers, like {@code SpatialGridFunction#foldWarningConsumer}. Keep the text in step
+     *     with {@link Warnings}, including the 20 from its {@code MAX_ADDED_WARNINGS}, or a
+     *     planned CASE warns differently from an evaluated one.
+     * </p>
      */
-    private static void warnMultivaluedCondition(Expression condition) {
-        Source source = condition.source();
-        String location = source.viewName() == null
-            ? format("Line {}:{}: ", source.lineNumber(), source.columnNumber())
-            : format("Line {}:{} (in view [{}]): ", source.lineNumber(), source.columnNumber(), source.viewName());
-        HeaderWarning.addWarning(
-            "{}evaluation of [{}] failed, treating result as false. Only first {} failures recorded.",
-            location,
-            source.text(),
-            20
-        );
-        HeaderWarning.addWarning(location + IllegalArgumentException.class.getName() + ": " + MULTIVALUE_CONDITION_MESSAGE);
+    private static void warnIfMultivaluedCondition(Case c, Expression condition, Object folded) {
+        if (folded instanceof List<?> values && values.size() > 1 && hasNoEvaluator(c) == false) {
+            Source source = condition.source();
+            String location = source.viewName() == null
+                ? format("Line {}:{}: ", source.lineNumber(), source.columnNumber())
+                : format("Line {}:{} (in view [{}]): ", source.lineNumber(), source.columnNumber(), source.viewName());
+            HeaderWarning.addWarning(
+                "{}evaluation of [{}] failed, treating result as false. Only first {} failures recorded.",
+                location,
+                source.text(),
+                20
+            );
+            HeaderWarning.addWarning(location + IllegalArgumentException.class.getName() + ": " + MULTIVALUE_CONDITION_MESSAGE);
+        }
     }
 
     /**
@@ -423,7 +427,9 @@ public final class Case extends EsqlScalarFunction {
                 continue;
             }
             modified = true;
-            if (isTrue(condition.condition.fold(ctx))) {
+            Object folded = condition.condition.fold(ctx);
+            warnIfMultivaluedCondition(this, condition.condition, folded);
+            if (isTrue(folded)) {
                 /*
                  * `fold` can make four things here:
                  * 1. `TRUE`, or a one element list holding it, which is single valued

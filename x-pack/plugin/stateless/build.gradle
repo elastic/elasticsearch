@@ -22,10 +22,12 @@ configurations {
 
 dependencies {
   compileOnly project(':server')
+  compileOnly project(':libs:lucene-store')
   compileOnly project(xpackModule('core'))
   compileOnly project(xpackModule('blob-cache'))
 
   testImplementation project(':test:framework')
+  testImplementation project(':libs:lucene-store')
   testImplementation testArtifact(project(xpackModule('blob-cache')))
   testImplementation testArtifact(project(xpackModule('searchable-snapshots')))
   testImplementation 'com.amazonaws:aws-java-sdk-core:1.12.684'
@@ -48,7 +50,7 @@ dependencies {
   internalClusterTestImplementation project(xpackModule('esql-core'))
   internalClusterTestImplementation project(':x-pack:plugin:encryption')
   internalClusterTestImplementation project(':x-pack:plugin:encryption:spi')
-  internalClusterTestImplementation 'com.google.cloud:google-cloud-storage:2.50.0'
+  internalClusterTestImplementation 'com.google.cloud:google-cloud-storage:2.71.0'
 
   javaRestTestImplementation project(':x-pack:test:stateless-test-framework')
   yamlRestTestImplementation project(':x-pack:test:stateless-test-framework')

@@ -136,7 +136,8 @@ public class DoublesBlockLoader extends AbstractNumericBlockLoader {
 
         @Override
         protected DoubleBuilder newBuilder(BlockFactory factory, int count) {
-            return factory.doublesFromDocValues(count);
+            // Values are emitted in source insertion order (not sorted ascending).
+            return factory.doubles(count);
         }
 
         @Override

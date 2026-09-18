@@ -34,8 +34,9 @@ public class BucketSerializationTests extends AbstractExpressionSerializationTes
         Expression buckets = randomChild();
         Expression from = randomChild();
         Expression to = randomChild();
+        Expression options = randomChild();
         long offset = randomLongBetween(-Duration.ofDays(1).toMillis(), Duration.ofDays(1).toMillis());
-        return new Bucket(source, field, buckets, from, to, configuration, offset, Rounding.RoundingConvention.UP);
+        return new Bucket(source, field, buckets, from, to, options, configuration, offset, Rounding.RoundingConvention.UP);
     }
 
     @Override
@@ -45,8 +46,9 @@ public class BucketSerializationTests extends AbstractExpressionSerializationTes
         Expression buckets = instance.buckets();
         Expression from = instance.from();
         Expression to = instance.to();
+        Expression options = randomChild();
         long offset = instance.offset();
-        switch (between(0, 4)) {
+        switch (between(0, 5)) {
             case 0 -> field = randomValueOtherThan(field, AbstractExpressionSerializationTests::randomChild);
             case 1 -> buckets = randomValueOtherThan(buckets, AbstractExpressionSerializationTests::randomChild);
             case 2 -> from = randomValueOtherThan(from, AbstractExpressionSerializationTests::randomChild);
@@ -55,8 +57,9 @@ public class BucketSerializationTests extends AbstractExpressionSerializationTes
                 offset,
                 () -> randomLongBetween(-Duration.ofDays(1).toMillis(), Duration.ofDays(1).toMillis())
             );
+            case 5 -> to = randomValueOtherThan(options, AbstractExpressionSerializationTests::randomChild);
         }
-        return new Bucket(source, field, buckets, from, to, configuration(), offset, Rounding.RoundingConvention.UP);
+        return new Bucket(source, field, buckets, from, to, options, configuration(), offset, Rounding.RoundingConvention.UP);
     }
 
     public void testOffsetBackcompatSerialization() throws IOException {
@@ -67,6 +70,7 @@ public class BucketSerializationTests extends AbstractExpressionSerializationTes
             randomChildSupportedOn(oldVersion),
             randomChildSupportedOn(oldVersion),
             randomChildSupportedOn(oldVersion),
+            null,
             configuration(),
             0L,
             Rounding.RoundingConvention.DOWN
@@ -83,6 +87,7 @@ public class BucketSerializationTests extends AbstractExpressionSerializationTes
             randomChildSupportedOn(oldVersion),
             randomChildSupportedOn(oldVersion),
             randomChildSupportedOn(oldVersion),
+            null,
             configuration(),
             randomLongBetween(1, 1000),
             Rounding.RoundingConvention.DOWN

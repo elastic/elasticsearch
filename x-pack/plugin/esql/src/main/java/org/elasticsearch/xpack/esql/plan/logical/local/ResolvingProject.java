@@ -13,7 +13,10 @@ import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.esql.plan.logical.Project;
+import org.elasticsearch.xpack.esql.plan.logical.UnmappedFieldsAttribute;
+import org.elasticsearch.xpack.esql.plan.logical.UnmappedFieldsPattern;
 
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Objects;
 import java.util.function.Function;
@@ -27,20 +30,86 @@ import java.util.function.Function;
  * attribute because the pattern {@code foo*} matches it. But if the pattern was {@code foo_baz}, it would be incorrect to do so.
  */
 public class ResolvingProject extends Project {
-    private final Function<List<Attribute>, List<? extends NamedExpression>> resolver;
 
-    public ResolvingProject(Source source, LogicalPlan child, Function<List<Attribute>, List<? extends NamedExpression>> resolver) {
-        this(source, child, resolver.apply(child.output()), resolver);
+    /** The kind of command a {@link Command} was built from, i.e. how its projections translate into an {@link UnmappedFieldsPattern}. */
+    public enum Kind {
+        KEEP,
+        DROP,
+        RENAME
     }
 
-    private ResolvingProject(
-        Source source,
-        LogicalPlan child,
+    /**
+     * The command this node was built from: the projections as they were written, plus how to resolve them against an input.
+     * <p>
+     * This is deliberately kept out of {@link ResolvingProject#info()}. Node properties are what plan transformations rewrite, and
+     * {@link #projections} must stay unresolved for {@link #unmappedFieldsPattern()} to read them.
+     */
+    public record Command(
+        Kind kind,
         List<? extends NamedExpression> projections,
         Function<List<Attribute>, List<? extends NamedExpression>> resolver
     ) {
+        /**
+         * Which unmapped source fields this command lets through, derived from the projections it was written with — by the time
+         * {@link ResolvingProject#projections()} is computed, {@code ResolveRefs} has replaced the original wildcard expressions with
+         * the attributes they matched. Only {@code DetermineUnmappedFieldsToKeep} reads this, so it is only ever derived under
+         * {@code unmapped_fields="LOAD_ALL"}.
+         */
+        public UnmappedFieldsPattern unmappedFieldsPattern() {
+            return switch (kind) {
+                case KEEP -> UnmappedFieldsPattern.forKeep(projections);
+                case DROP -> UnmappedFieldsPattern.forDrop(projections);
+                // A RENAME keeps every column, so it restricts nothing; its target names shadow the source fields of the same name, which
+                // DetermineUnmappedFieldsToKeep excludes from this node's output on its own.
+                case RENAME -> UnmappedFieldsPattern.ALL;
+            };
+        }
+    }
+
+    private final Command command;
+
+    public ResolvingProject(Source source, LogicalPlan child, Command command) {
+        this(source, child, computeProjections(child.output(), command.resolver()), command);
+    }
+
+    /**
+     * Runs the resolver against the child output, keeping any {@link UnmappedFieldsAttribute} instances out of the resolver's scope
+     * (so KEEP/DROP/RENAME patterns cannot match the synthetic column), then re-appending them at the end. Where the synthetic column
+     * sits is irrelevant: the response order comes from the replay in {@code UnmappedFieldsOrdering}, which strips it before resolving.
+     * <p>
+     * At most one ever arrives. Every non-LOOKUP relation is stamped with one, so a multi-input plan starts out holding several, but
+     * they all share {@link UnmappedFieldsAttribute#ATTRIBUTE_NAME}: nodes that merge their inputs collapse them by name, while
+     * {@code MarkJoin}, {@code SemiJoin} and {@code AntiJoin} keep only the left side's. The {@code Verifier} rejects multi-input
+     * commands under LOAD_ALL anyway, but it runs after this, so it is not what holds here.
+     */
+    private static List<? extends NamedExpression> computeProjections(
+        List<Attribute> childOutput,
+        Function<List<Attribute>, List<? extends NamedExpression>> resolver
+    ) {
+        List<Attribute> unmappedAttrs = new ArrayList<>();
+        List<Attribute> resolverInput = new ArrayList<>();
+        for (Attribute a : childOutput) {
+            if (a instanceof UnmappedFieldsAttribute) {
+                unmappedAttrs.add(a);
+            } else {
+                resolverInput.add(a);
+            }
+        }
+        if (unmappedAttrs.isEmpty()) {
+            return resolver.apply(childOutput);
+        }
+        // See the javadoc for why one is all that can arrive; if that ever breaks, the post-processor's findIndex would use the first.
+        assert unmappedAttrs.size() <= 1 : "expected at most one " + UnmappedFieldsAttribute.ATTRIBUTE_NAME + ", got " + unmappedAttrs;
+        List<? extends NamedExpression> resolved = resolver.apply(resolverInput);
+        List<NamedExpression> result = new ArrayList<>(resolved.size() + unmappedAttrs.size());
+        result.addAll(resolved);
+        result.addAll(unmappedAttrs);
+        return result;
+    }
+
+    private ResolvingProject(Source source, LogicalPlan child, List<? extends NamedExpression> projections, Command command) {
         super(source, child, projections);
-        this.resolver = resolver;
+        this.command = command;
     }
 
     @Override
@@ -48,15 +117,15 @@ public class ResolvingProject extends Project {
         throw new UnsupportedOperationException("doesn't escape the node");
     }
 
-    public Function<List<Attribute>, List<? extends NamedExpression>> resolver() {
-        return resolver;
+    public UnmappedFieldsPattern unmappedFieldsPattern() {
+        return command.unmappedFieldsPattern();
     }
 
     @Override
     protected NodeInfo<Project> info() {
         return NodeInfo.create(
             this,
-            (source, child, projections) -> new ResolvingProject(source, child, projections, this.resolver),
+            (source, child, projections) -> new ResolvingProject(source, child, projections, command),
             child(),
             projections()
         );
@@ -64,17 +133,17 @@ public class ResolvingProject extends Project {
 
     @Override
     public ResolvingProject replaceChild(LogicalPlan newChild) {
-        return new ResolvingProject(source(), newChild, resolver);
+        return new ResolvingProject(source(), newChild, command);
     }
 
     @Override
     public Project withProjections(List<? extends NamedExpression> projections) {
-        return new ResolvingProject(source(), child(), projections, resolver);
+        return new ResolvingProject(source(), child(), projections, command);
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(super.hashCode(), resolver);
+        return Objects.hash(super.hashCode(), command);
     }
 
     @Override
@@ -87,7 +156,7 @@ public class ResolvingProject extends Project {
         }
 
         ResolvingProject other = (ResolvingProject) obj;
-        return super.equals(obj) && Objects.equals(resolver, other.resolver);
+        return super.equals(obj) && Objects.equals(command, other.command);
     }
 
     public Project asProject() {

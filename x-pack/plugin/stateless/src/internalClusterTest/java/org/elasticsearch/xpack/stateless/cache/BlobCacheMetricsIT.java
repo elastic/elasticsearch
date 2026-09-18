@@ -25,7 +25,6 @@ import org.elasticsearch.telemetry.TelemetryProvider;
 import org.elasticsearch.telemetry.TestTelemetryPlugin;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.stateless.TestUtils;
-import org.elasticsearch.xpack.stateless.cache.SharedBlobCacheWarmingService.WarmTarget;
 import org.elasticsearch.xpack.stateless.commits.BlobFile;
 import org.elasticsearch.xpack.stateless.commits.StatelessCommitService;
 import org.elasticsearch.xpack.stateless.commits.StatelessCompoundCommit;
@@ -245,6 +244,26 @@ public class BlobCacheMetricsIT extends AbstractBlobCacheMetricsIntegTestCase {
             .mapToLong(Measurement::getLong)
             .sum();
         assertThat(normalCacheBypassCount, equalTo(0L));
+    }
+
+    public void testSearchNodeOnlyPeriodicCacheMetrics() throws Exception {
+        final var indexNode = startMasterAndIndexNode();
+        final var searchNode = startSearchNode();
+
+        // Ensure object not instantiated for indexing node so that we expect exception throwing
+        expectThrows(Exception.class, () -> internalCluster().getInstance(StatelessSharedBlobCachePeriodicMetrics.class, indexNode));
+        // It should be available on the search node
+        internalCluster().getInstance(StatelessSharedBlobCachePeriodicMetrics.class, searchNode);
+
+        updateClusterSettings(Settings.builder().put(StatelessSharedBlobCachePeriodicMetrics.METRICS_INTERVAL_SETTING.getKey(), "1s"));
+
+        final var plugin = getTestTelemetryPlugin(searchNode);
+        assertBusy(() -> {
+            plugin.collect();
+            final var gauge = plugin.getLongGaugeMeasurement(StatelessSharedBlobCachePeriodicMetrics.BLOB_CACHE_REGIONS_FILLED);
+            assertNotNull(gauge);
+            assertFalse(gauge.isEmpty());
+        });
     }
 
     private static void assertMetricsArePresent(

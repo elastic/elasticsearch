@@ -20,7 +20,6 @@ import org.elasticsearch.compute.operator.IsBlockedResult;
 import org.elasticsearch.compute.operator.Operator;
 import org.elasticsearch.compute.operator.SourceOperator;
 import org.elasticsearch.compute.test.OperatorTestCase;
-import org.elasticsearch.compute.test.TestBlockFactory;
 import org.elasticsearch.compute.test.TestDriverRunner;
 import org.elasticsearch.compute.test.operator.blocksource.BytesRefBlockSourceOperator;
 import org.elasticsearch.xpack.esql.ConfigurationTestUtils;
@@ -63,15 +62,26 @@ public class RemoteFetchOperatorTests extends OperatorTestCase {
 
     @Override
     protected Operator.OperatorFactory simple(SimpleOptions options) {
-        return new RemoteFetchOperator.Factory(
-            0,
-            List.of(new RemoteFetchService.FetchField("salary", DataType.INTEGER)),
-            List.of(new ReferenceAttribute(Source.EMPTY, null, "salary", DataType.INTEGER)),
-            null,
-            ConfigurationAware.CONFIGURATION_MARKER,
-            3,
-            EchoFetchClient::new
-        );
+        return new Operator.OperatorFactory() {
+            @Override
+            public Operator get(DriverContext driverContext) {
+                return new RemoteFetchOperator(
+                    driverContext,
+                    0,
+                    List.of(new RemoteFetchService.FetchField("salary", DataType.INTEGER)),
+                    List.of(new ReferenceAttribute(Source.EMPTY, null, "salary", DataType.INTEGER)),
+                    null,
+                    ConfigurationAware.CONFIGURATION_MARKER,
+                    3,
+                    new EchoFetchClient(driverContext.blockFactory())
+                );
+            }
+
+            @Override
+            public String describe() {
+                return "RemoteFetchOperator[channel=0, requestFields=[salary:integer]]";
+            }
+        };
     }
 
     @Override
@@ -121,10 +131,15 @@ public class RemoteFetchOperatorTests extends OperatorTestCase {
     /**
      * Stub client that answers every batch synchronously with values derived from the handles themselves, standing in
      * for the transport-backed exchange client that is wired up outside this operator. Response pages are built with
-     * the non-breaking test factory because they represent memory accounted on the remote node, not this driver.
+     * the driver's block factory because once polled from the exchange they are coordinator-local memory.
      */
     private static class EchoFetchClient implements RemoteFetchService.Client {
+        private final BlockFactory blockFactory;
         private final List<EchoExchange> exchanges = new ArrayList<>();
+
+        EchoFetchClient(BlockFactory blockFactory) {
+            this.blockFactory = blockFactory;
+        }
 
         @Override
         public RemoteFetchService.TargetExchange openTargetExchange(
@@ -134,7 +149,7 @@ public class RemoteFetchOperatorTests extends OperatorTestCase {
             PhysicalPlan pushdownPlan,
             Configuration configuration
         ) {
-            EchoExchange exchange = new EchoExchange();
+            EchoExchange exchange = new EchoExchange(blockFactory);
             exchanges.add(exchange);
             return exchange;
         }
@@ -147,12 +162,16 @@ public class RemoteFetchOperatorTests extends OperatorTestCase {
         }
 
         private static class EchoExchange implements RemoteFetchService.TargetExchange {
+            private final BlockFactory blockFactory;
             private final Queue<Page> pages = new ArrayDeque<>();
+
+            EchoExchange(BlockFactory blockFactory) {
+                this.blockFactory = blockFactory;
+            }
 
             @Override
             public void sendBatch(long batchId, List<RemoteFetchHandle> handles) {
-                BlockFactory responseFactory = TestBlockFactory.getNonBreakingInstance();
-                try (IntBlock.Builder values = responseFactory.newIntBlockBuilder(handles.size())) {
+                try (IntBlock.Builder values = blockFactory.newIntBlockBuilder(handles.size())) {
                     for (RemoteFetchHandle handle : handles) {
                         values.appendInt(echoValue(handle));
                     }

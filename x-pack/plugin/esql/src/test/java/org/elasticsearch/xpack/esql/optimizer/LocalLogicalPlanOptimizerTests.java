@@ -22,7 +22,6 @@ import org.elasticsearch.xpack.esql.analysis.UnmappedResolution;
 import org.elasticsearch.xpack.esql.core.expression.Alias;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.expression.AttributeSet;
-import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.Expressions;
 import org.elasticsearch.xpack.esql.core.expression.FieldAttribute;
 import org.elasticsearch.xpack.esql.core.expression.FoldContext;
@@ -37,7 +36,6 @@ import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.core.type.EsField;
 import org.elasticsearch.xpack.esql.core.type.FunctionEsField;
-import org.elasticsearch.xpack.esql.core.type.InvalidMappedField;
 import org.elasticsearch.xpack.esql.core.util.Holder;
 import org.elasticsearch.xpack.esql.expression.Order;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.AggregateFunction;
@@ -48,28 +46,20 @@ import org.elasticsearch.xpack.esql.expression.function.aggregate.Max;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.Min;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.Rate;
 import org.elasticsearch.xpack.esql.expression.function.fulltext.SingleFieldFullTextFunction;
-import org.elasticsearch.xpack.esql.expression.function.scalar.conditional.Case;
 import org.elasticsearch.xpack.esql.expression.function.scalar.convert.FromAggregateMetricDouble;
 import org.elasticsearch.xpack.esql.expression.function.scalar.histogram.ExtractHistogramComponent;
 import org.elasticsearch.xpack.esql.expression.function.scalar.histogram.FilterUnsupportedTemporality;
-import org.elasticsearch.xpack.esql.expression.function.scalar.nulls.Coalesce;
-import org.elasticsearch.xpack.esql.expression.function.scalar.string.StartsWith;
 import org.elasticsearch.xpack.esql.expression.function.scalar.string.regex.RLike;
 import org.elasticsearch.xpack.esql.expression.function.scalar.string.regex.RLikeList;
 import org.elasticsearch.xpack.esql.expression.function.scalar.string.regex.WildcardLike;
 import org.elasticsearch.xpack.esql.expression.function.scalar.string.regex.WildcardLikeList;
 import org.elasticsearch.xpack.esql.expression.function.vector.VectorSimilarityFunction;
-import org.elasticsearch.xpack.esql.expression.predicate.Predicates;
 import org.elasticsearch.xpack.esql.expression.predicate.logical.And;
-import org.elasticsearch.xpack.esql.expression.predicate.nulls.IsNotNull;
-import org.elasticsearch.xpack.esql.expression.predicate.nulls.IsNull;
-import org.elasticsearch.xpack.esql.expression.predicate.operator.arithmetic.Add;
-import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.GreaterThan;
 import org.elasticsearch.xpack.esql.index.EsIndex;
 import org.elasticsearch.xpack.esql.index.EsIndexGenerator;
+import org.elasticsearch.xpack.esql.index.IndexProperties;
 import org.elasticsearch.xpack.esql.index.IndexResolution;
 import org.elasticsearch.xpack.esql.optimizer.rules.logical.OptimizerRules;
-import org.elasticsearch.xpack.esql.optimizer.rules.logical.local.InferIsNotNull;
 import org.elasticsearch.xpack.esql.plan.logical.Aggregate;
 import org.elasticsearch.xpack.esql.plan.logical.EsRelation;
 import org.elasticsearch.xpack.esql.plan.logical.Eval;
@@ -104,17 +94,13 @@ import java.util.Set;
 import static java.util.Arrays.asList;
 import static java.util.Collections.emptyMap;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.L;
-import static org.elasticsearch.xpack.esql.EsqlTestUtils.ONE;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.TEST_CFG;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.TEST_PARSER;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.TEST_SEARCH_STATS;
-import static org.elasticsearch.xpack.esql.EsqlTestUtils.THREE;
-import static org.elasticsearch.xpack.esql.EsqlTestUtils.TWO;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.analyzer;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.as;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.asLimit;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.getFieldAttribute;
-import static org.elasticsearch.xpack.esql.EsqlTestUtils.greaterThanOf;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.singleValue;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.statsForExistingField;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.statsForMissingField;
@@ -639,213 +625,6 @@ public class LocalLogicalPlanOptimizerTests extends AbstractLocalLogicalPlanOpti
         assertThat(Alias.unwrap(field).fold(FoldContext.small()), nullValue());
     }
 
-    // InferIsNotNull
-
-    public void testIsNotNullOnIsNullField() {
-        EsRelation relation = relation();
-        var fieldA = getFieldAttribute("a");
-        Expression inn = isNotNull(fieldA);
-        Filter f = new Filter(EMPTY, relation, inn);
-
-        assertEquals(f, new InferIsNotNull().apply(f));
-    }
-
-    public void testIsNotNullOnOperatorWithOneField() {
-        EsRelation relation = relation();
-        var fieldA = getFieldAttribute("a");
-        Expression inn = isNotNull(new Add(EMPTY, fieldA, ONE, TEST_CFG));
-        Filter f = new Filter(EMPTY, relation, inn);
-        Filter expected = new Filter(EMPTY, relation, new And(EMPTY, isNotNull(fieldA), inn));
-
-        assertEquals(expected, new InferIsNotNull().apply(f));
-    }
-
-    public void testIsNotNullOnOperatorWithTwoFields() {
-        EsRelation relation = relation();
-        var fieldA = getFieldAttribute("a");
-        var fieldB = getFieldAttribute("b");
-        Expression inn = isNotNull(new Add(EMPTY, fieldA, fieldB, TEST_CFG));
-        Filter f = new Filter(EMPTY, relation, inn);
-        Filter expected = new Filter(EMPTY, relation, new And(EMPTY, new And(EMPTY, isNotNull(fieldA), isNotNull(fieldB)), inn));
-
-        assertEquals(expected, new InferIsNotNull().apply(f));
-    }
-
-    public void testIsNotNullOnFunctionWithOneField() {
-        EsRelation relation = relation();
-        var fieldA = getFieldAttribute("a");
-        var pattern = L("abc");
-        Expression inn = isNotNull(
-            new And(EMPTY, new StartsWith(EMPTY, fieldA, pattern), greaterThanOf(new Add(EMPTY, ONE, TWO, TEST_CFG), THREE))
-        );
-
-        Filter f = new Filter(EMPTY, relation, inn);
-        Filter expected = new Filter(EMPTY, relation, new And(EMPTY, isNotNull(fieldA), inn));
-
-        assertEquals(expected, new InferIsNotNull().apply(f));
-    }
-
-    public void testIsNotNullOnFunctionWithTwoFields() {
-        EsRelation relation = relation();
-        var fieldA = getFieldAttribute("a");
-        var fieldB = getFieldAttribute("b");
-        Expression inn = isNotNull(new StartsWith(EMPTY, fieldA, fieldB));
-
-        Filter f = new Filter(EMPTY, relation, inn);
-        Filter expected = new Filter(EMPTY, relation, new And(EMPTY, new And(EMPTY, isNotNull(fieldA), isNotNull(fieldB)), inn));
-
-        assertEquals(expected, new InferIsNotNull().apply(f));
-    }
-
-    public void testIsNotNullOnCoalesce() {
-        var plan = localPlan("""
-              from test
-            | where coalesce(emp_no, salary) is not null
-            """);
-
-        var limit = as(plan, Limit.class);
-        var filter = as(limit.child(), Filter.class);
-        var inn = as(filter.condition(), IsNotNull.class);
-        var coalesce = as(inn.children().get(0), Coalesce.class);
-        assertThat(Expressions.names(coalesce.children()), contains("emp_no", "salary"));
-        var source = as(filter.child(), EsRelation.class);
-    }
-
-    public void testIsNotNullOnExpression() {
-        var plan = localPlan("""
-              from test
-            | eval x = emp_no + 1
-            | where x is not null
-            """);
-
-        var limit = as(plan, Limit.class);
-        var filter = as(limit.child(), Filter.class);
-        var inn = as(filter.condition(), IsNotNull.class);
-        assertThat(Expressions.names(inn.children()), contains("x"));
-        var eval = as(filter.child(), Eval.class);
-        filter = as(eval.child(), Filter.class);
-        inn = as(filter.condition(), IsNotNull.class);
-        assertThat(Expressions.names(inn.children()), contains("emp_no"));
-        var source = as(filter.child(), EsRelation.class);
-    }
-
-    public void testIsNotNullOnCase() {
-        var plan = localPlan("""
-              from test
-            | where case(emp_no > 10000, "1", salary < 50000, "2", first_name) is not null
-            """);
-
-        var limit = as(plan, Limit.class);
-        var filter = as(limit.child(), Filter.class);
-        var inn = as(filter.condition(), IsNotNull.class);
-        var caseF = as(inn.children().get(0), Case.class);
-        assertThat(Expressions.names(caseF.children()), contains("emp_no > 10000", "\"1\"", "salary < 50000", "\"2\"", "first_name"));
-        var source = as(filter.child(), EsRelation.class);
-    }
-
-    public void testIsNotNullOnCase_With_IS_NULL() {
-        var plan = localPlan("""
-              from test
-            | where case(emp_no IS NULL, "1", salary IS NOT NULL, "2", first_name) is not null
-            """);
-
-        var limit = as(plan, Limit.class);
-        var filter = as(limit.child(), Filter.class);
-        var inn = as(filter.condition(), IsNotNull.class);
-        var caseF = as(inn.children().get(0), Case.class);
-        assertThat(Expressions.names(caseF.children()), contains("emp_no IS NULL", "\"1\"", "salary IS NOT NULL", "\"2\"", "first_name"));
-        var source = as(filter.child(), EsRelation.class);
-    }
-
-    public void testIsNullFilterDoesNotPruneDisjunctionBranch() {
-        // (nullable IS NOT NULL OR emp_no > 10000) AND nullable IS NULL simplifies to
-        // (emp_no > 10000) AND nullable IS NULL — the surviving OR branch must not be pruned.
-        var plan = localPlan("""
-            FROM test
-            | EVAL nullable = languages
-            | KEEP emp_no, nullable
-            | WHERE nullable IS NOT NULL OR emp_no > 10000
-            | WHERE nullable IS NULL
-            """);
-
-        var project = as(plan, Project.class);
-        var limit = as(project.child(), Limit.class);
-        var filter = as(limit.child(), Filter.class);
-        var conjuncts = Predicates.splitAnd(filter.condition());
-        assertThat(conjuncts, hasSize(2));
-
-        var residualBranch = conjuncts.stream()
-            .filter(GreaterThan.class::isInstance)
-            .map(GreaterThan.class::cast)
-            .findFirst()
-            .orElseThrow();
-        var residualField = as(residualBranch.left(), FieldAttribute.class);
-        assertEquals("emp_no", residualField.name());
-
-        var isNull = conjuncts.stream().filter(IsNull.class::isInstance).map(IsNull.class::cast).findFirst().orElseThrow();
-        String nullableName = Expressions.name(isNull.field());
-        assertTrue(
-            "expected nullable field null-check to be preserved",
-            "nullable".equals(nullableName) || "languages".equals(nullableName)
-        );
-        assertThat("local plan should not be pruned to empty", filter.child(), not(instanceOf(LocalRelation.class)));
-    }
-
-    public void testIsNullOrDisjunctionWithSeparateWhereClauses() {
-        // Two separate WHERE clauses are merged by PushDownAndCombineFilters into the same pattern,
-        // so the surviving OR branch must also be preserved when the clauses come from different pipes.
-        var plan = localPlan("""
-            FROM test
-            | WHERE gender IS NOT NULL OR emp_no > 10015
-            | WHERE gender IS NULL
-            """);
-
-        var limit = as(plan, Limit.class);
-        var filter = as(limit.child(), Filter.class);
-        var conjuncts = Predicates.splitAnd(filter.condition());
-        assertThat("surviving branch and IS NULL must both be present", conjuncts, hasSize(2));
-
-        assertTrue("expected emp_no GreaterThan conjunct", conjuncts.stream().anyMatch(GreaterThan.class::isInstance));
-        assertTrue("expected gender IS NULL conjunct", conjuncts.stream().anyMatch(IsNull.class::isInstance));
-        assertThat("local plan should not be pruned to empty", filter.child(), not(instanceOf(LocalRelation.class)));
-    }
-
-    public void testIsNullOrDisjunctionWithEvalAlias() {
-        // EVAL introduces an alias; PropagateNullable must preserve the surviving OR branch
-        // even when the IS NULL targets an alias rather than a direct field.
-        var plan = localPlan("""
-            FROM test
-            | EVAL g = gender
-            | KEEP emp_no, g
-            | WHERE g IS NOT NULL OR emp_no > 10015
-            | WHERE g IS NULL
-            """);
-
-        var project = as(plan, Project.class);
-        var limit = as(project.child(), Limit.class);
-        var filter = as(limit.child(), Filter.class);
-        var conjuncts = Predicates.splitAnd(filter.condition());
-        assertThat("surviving branch and IS NULL must both be present", conjuncts, hasSize(2));
-        assertThat("local plan should not be pruned to empty", filter.child(), not(instanceOf(LocalRelation.class)));
-    }
-
-    public void testIsNullOrDisjunctionDoesNotPruneToEmptyRelation() {
-        // A salary-based surviving branch: (gender IS NOT NULL OR salary > 50000) AND gender IS NULL
-        // must keep the salary filter rather than pruning to empty.
-        var plan = localPlan("""
-            FROM test
-            | WHERE (gender IS NOT NULL OR salary > 50000) AND gender IS NULL
-            """);
-
-        var limit = as(plan, Limit.class);
-        var filter = as(limit.child(), Filter.class);
-        var conjuncts = Predicates.splitAnd(filter.condition());
-        assertThat("surviving branch and IS NULL must both be present", conjuncts, hasSize(2));
-
-        assertTrue("expected salary GreaterThan conjunct", conjuncts.stream().anyMatch(GreaterThan.class::isInstance));
-        assertThat("local plan should not be pruned to empty", filter.child(), not(instanceOf(LocalRelation.class)));
-    }
-
     /**
      * {@snippet lang="text":
      * Limit[1000[INTEGER],false]
@@ -1038,31 +817,6 @@ public class LocalLogicalPlanOptimizerTests extends AbstractLocalLogicalPlanOpti
 
         var local = as(plan, LocalRelation.class);
         assertThat(local.supplier(), equalTo(EmptyLocalSupplier.EMPTY));
-    }
-
-    /**
-     * {@snippet lang="text":
-     * Limit[1000[INTEGER],false]
-     * \_Aggregate[[],[SUM($$integer_long_field$converted_to$long{f$}#5,true[BOOLEAN]) AS sum(integer_long_field::long)#3]]
-     *   \_Filter[ISNOTNULL($$integer_long_field$converted_to$long{f$}#5)]
-     *     \_EsRelation[test*][!integer_long_field, $$integer_long_field$converted..]
-     * }
-     */
-    public void testUnionTypesInferNonNullAggConstraint() {
-        LogicalPlan coordinatorOptimized = optimize(
-            analyzerWithUnionTypeMapping().analyze(TEST_PARSER.parseQuery("FROM test* | STATS sum(integer_long_field::long)"))
-        );
-        var plan = localPlan(coordinatorOptimized, TEST_SEARCH_STATS);
-
-        var limit = asLimit(plan, 1000);
-        var agg = as(limit.child(), Aggregate.class);
-        var filter = as(agg.child(), Filter.class);
-        var relation = as(filter.child(), EsRelation.class);
-
-        var isNotNull = as(filter.condition(), IsNotNull.class);
-        var unionTypeField = as(isNotNull.field(), FieldAttribute.class);
-        assertEquals("$$integer_long_field$converted_to$long", unionTypeField.name());
-        assertEquals("integer_long_field", unionTypeField.fieldName().string());
     }
 
     /**
@@ -1738,33 +1492,26 @@ public class LocalLogicalPlanOptimizerTests extends AbstractLocalLogicalPlanOpti
         assertThat(Expressions.name(matchPhrase.field()), equalTo("last_name"));
     }
 
-    private IsNotNull isNotNull(Expression field) {
-        return new IsNotNull(EMPTY, field);
-    }
-
     private LocalRelation asEmptyRelation(Object o) {
         var empty = as(o, LocalRelation.class);
         assertThat(empty.supplier(), is(EmptyLocalSupplier.EMPTY));
         return empty;
     }
 
-    private static Analyzer analyzerWithUnionTypeMapping() {
-        InvalidMappedField unionTypeField = new InvalidMappedField(
-            "integer_long_field",
-            Map.of("integer", Set.of("test1"), "long", Set.of("test2"))
-        );
-
-        EsIndex test = EsIndexGenerator.esIndex(
-            "test*",
-            Map.of("integer_long_field", unionTypeField),
-            Map.of("test1", IndexMode.STANDARD, "test2", IndexMode.STANDARD)
-        );
-
-        return analyzer().addIndex(test).buildAnalyzer();
-    }
-
     public static EsRelation relation() {
         return EsqlTestUtils.relation(randomFrom(IndexMode.availableModes()));
+    }
+
+    public static EsRelation relation(Attribute... attrs) {
+        return new EsRelation(
+            EMPTY,
+            randomIdentifier(),
+            randomFrom(IndexMode.availableModes()),
+            Map.of(),
+            Map.of(),
+            Map.of(),
+            List.of(attrs)
+        );
     }
 
     private static Analyzer analyzerWithNullifyMode() {
@@ -1795,7 +1542,7 @@ public class LocalLogicalPlanOptimizerTests extends AbstractLocalLogicalPlanOpti
             IndexMode.STANDARD,
             Map.of(),
             Map.of(),
-            Map.of("test", IndexMode.STANDARD),
+            Map.of("test", new IndexProperties(IndexMode.STANDARD, 0)),
             List.of(fieldAttr, projectTagAttr)
         );
 
@@ -1844,7 +1591,7 @@ public class LocalLogicalPlanOptimizerTests extends AbstractLocalLogicalPlanOpti
             IndexMode.STANDARD,
             Map.of(),
             Map.of(),
-            Map.of("test", IndexMode.STANDARD),
+            Map.of("test", new IndexProperties(IndexMode.STANDARD, 0)),
             List.of(fieldAttr, projectTagAttr)
         );
 
@@ -1892,7 +1639,7 @@ public class LocalLogicalPlanOptimizerTests extends AbstractLocalLogicalPlanOpti
             IndexMode.STANDARD,
             Map.of(),
             Map.of(),
-            Map.of("test", IndexMode.STANDARD),
+            Map.of("test", new IndexProperties(IndexMode.STANDARD, 0)),
             List.of(fieldAttr, projectTagAttr)
         );
 
@@ -1935,7 +1682,7 @@ public class LocalLogicalPlanOptimizerTests extends AbstractLocalLogicalPlanOpti
             IndexMode.STANDARD,
             Map.of(),
             Map.of(),
-            Map.of("test", IndexMode.STANDARD),
+            Map.of("test", new IndexProperties(IndexMode.STANDARD, 0)),
             List.of(fieldAttr, indexAttr)
         );
 
@@ -1971,7 +1718,7 @@ public class LocalLogicalPlanOptimizerTests extends AbstractLocalLogicalPlanOpti
             IndexMode.TIME_SERIES,
             Map.of(),
             Map.of(),
-            Map.of("test", IndexMode.TIME_SERIES),
+            Map.of("test", new IndexProperties(IndexMode.TIME_SERIES, 0)),
             List.of(fieldAttr, timeSeriesAttr)
         );
         var eval = new Eval(EMPTY, new Limit(EMPTY, L(1000), relation), List.of(new Alias(EMPTY, "ts", timeSeriesAttr)));
@@ -2003,7 +1750,7 @@ public class LocalLogicalPlanOptimizerTests extends AbstractLocalLogicalPlanOpti
             IndexMode.TIME_SERIES,
             Map.of(),
             Map.of(),
-            Map.of("test", IndexMode.TIME_SERIES),
+            Map.of("test", new IndexProperties(IndexMode.TIME_SERIES, 0)),
             List.of(fieldAttr, timestampAttr)
         );
         var tsAggregate = new TimeSeriesAggregate(
@@ -2055,7 +1802,7 @@ public class LocalLogicalPlanOptimizerTests extends AbstractLocalLogicalPlanOpti
             IndexMode.TIME_SERIES,
             Map.of(),
             Map.of(),
-            Map.of("test", IndexMode.TIME_SERIES),
+            Map.of("test", new IndexProperties(IndexMode.TIME_SERIES, 0)),
             List.of(histogramAttr, timestampAttr)
         );
         var tsAggregate = new TimeSeriesAggregate(
@@ -2096,7 +1843,7 @@ public class LocalLogicalPlanOptimizerTests extends AbstractLocalLogicalPlanOpti
             IndexMode.TIME_SERIES,
             Map.of(),
             Map.of(),
-            Map.of("test", IndexMode.TIME_SERIES),
+            Map.of("test", new IndexProperties(IndexMode.TIME_SERIES, 0)),
             List.of(histogramAttr, timestampAttr)
         );
 

@@ -1,0 +1,6 @@
+area: ES|QL
+issues:
+ - 156402
+pr: 156690
+summary: Support STATS command for SET_UNMAPPED_FIELDS="LOAD_ALL"
+type: feature

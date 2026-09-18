@@ -229,7 +229,14 @@ public final class KnnRetrieverBuilder extends RetrieverBuilder {
         assert rankDocs != null : "rankDocs should have been materialized by now";
         var rankDocsQuery = new RankDocsQueryBuilder(
             rankDocs,
-            new QueryBuilder[] { new ExactKnnQueryBuilder(queryVector.get(), field, similarity) },
+            new QueryBuilder[] {
+                // Carry the oversample so the explained score matches the fidelity the kNN search used.
+                new ExactKnnQueryBuilder(
+                    queryVector.get(),
+                    field,
+                    similarity,
+                    rescoreVectorBuilder == null ? null : rescoreVectorBuilder.oversample()
+                ) },
             true
         );
         if (preFilterQueryBuilders.isEmpty()) {

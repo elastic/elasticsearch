@@ -1,0 +1,5 @@
+area: "Vector Search"
+issues: []
+pr: 156325
+summary: Zero-copy vector scoring during merges on the stateless index-tier
+type: enhancement

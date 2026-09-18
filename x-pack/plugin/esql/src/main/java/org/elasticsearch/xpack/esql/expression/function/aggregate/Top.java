@@ -62,6 +62,7 @@ import org.elasticsearch.xpack.esql.expression.function.FunctionDefinition;
 import org.elasticsearch.xpack.esql.expression.function.FunctionInfo;
 import org.elasticsearch.xpack.esql.expression.function.FunctionType;
 import org.elasticsearch.xpack.esql.expression.function.Param;
+import org.elasticsearch.xpack.esql.expression.function.Signature;
 import org.elasticsearch.xpack.esql.expression.function.TwoOptionalArguments;
 import org.elasticsearch.xpack.esql.planner.ToAggregator;
 
@@ -100,6 +101,15 @@ public class Top extends AggregateFunction
     @FunctionInfo(
         appliesTo = { @FunctionAppliesTo(lifeCycle = FunctionAppliesToLifecycle.GA) },
         returnType = { "boolean", "double", "integer", "long", "date", "ip", "keyword" },
+        signatures = {
+            @Signature(params = { "boolean|ip|date|double|integer|long|STRING", "integer" }, returnType = "$0.noText"),
+            @Signature(params = { "boolean|ip|date|double|integer|long|STRING", "integer", "keyword" }, returnType = "$0.noText"),
+            // outputField present: return follows the 4th argument.
+            // Narrower than 2/3-arg forms on purpose — matches current TopTests (no boolean/ip 4-arg coverage yet).
+            @Signature(
+                params = { "date|double|integer|long|STRING", "integer", "keyword", "date|double|integer|long|STRING" },
+                returnType = "$3.noText"
+            ) },
         briefSummary = "Collects the top values for a field, including repeated values.",
         description = "Collects the top values for a field. Includes repeated values.",
         type = FunctionType.AGGREGATE,
@@ -173,6 +183,11 @@ public class Top extends AggregateFunction
     @Nullable
     Expression outputField() {
         return parameters().size() > 2 ? parameters().get(2) : null;
+    }
+
+    @Override
+    public List<? extends Expression> fields() {
+        return outputField() == null ? List.of(field()) : List.of(field(), outputField());
     }
 
     private Integer limitValue() {
@@ -433,9 +448,12 @@ public class Top extends AggregateFunction
     @Override
     public Expression surrogate() {
         var s = source();
+        if (field().dataType() == DataType.NULL || (outputField() != null && outputField().dataType() == DataType.NULL)) {
+            return new Literal(s, null, DataType.NULL);
+        }
         // If the `outputField` is specified but its value is the same as `field` then we do not need to handle `outputField` separately.
         if (outputField() != null && field().semanticEquals(outputField())) {
-            return new Top(s, field(), limitField(), orderField(), null);
+            return new Top(s, field(), filter(), window(), limitField(), orderField(), null);
         }
         // To replace Top by Min or Max, we cannot have an `outputField`
         if (orderField() instanceof Literal && limitField() instanceof Literal && limitValue() == 1 && outputField() == null) {
@@ -446,5 +464,18 @@ public class Top extends AggregateFunction
             }
         }
         return null;
+    }
+
+    @Override
+    public AggregateFunction withFields(List<? extends Expression> newFields) {
+        return new Top(
+            source(),
+            newFields.get(0),
+            filter(),
+            window(),
+            limitField(),
+            orderField(),
+            newFields.size() > 1 ? newFields.get(1) : null
+        );
     }
 }

@@ -145,6 +145,12 @@ public abstract class AbstractLocalClusterFactory<S extends LocalClusterSpec, H 
             this.debugPort = DefaultLocalClusterHandle.NEXT_DEBUG_PORT.getAndIncrement();
         }
 
+        /** stable, but sufficiently strong seed based on the node's working directory name */
+        private static long nodeIdSeed(String nodeDirName) {
+            UUID uuid = UUID.nameUUIDFromBytes(nodeDirName.getBytes(StandardCharsets.UTF_8));
+            return uuid.getMostSignificantBits() ^ uuid.getLeastSignificantBits();
+        }
+
         public synchronized void start(Version version) {
             LOGGER.info("Starting Elasticsearch node '{}'", name);
             if (version != null) {
@@ -402,6 +408,11 @@ public abstract class AbstractLocalClusterFactory<S extends LocalClusterSpec, H 
                 finalSettings.put("path.repo", repoDir.toString());
                 finalSettings.put("path.data", dataDir.toString());
                 finalSettings.put("path.logs", logsDir.toString());
+                // Guarantee a unique persistent node ID even when multiple ES child processes start concurrently.
+                // Without an explicit seed, NodeEnvironment falls back to ThreadLocalRandom inside the child JVM;
+                // on Windows, child processes started at the same nanosecond can end up with identical ThreadLocalRandom seeds
+                // and therefore identical node IDs, which prevents the cluster from forming.
+                finalSettings.put("node.id.seed", Long.toString(nodeIdSeed(workingDir.getFileName().toString())));
                 finalSettings.putAll(spec.resolveSettings());
 
                 Files.writeString(
@@ -867,6 +878,12 @@ public abstract class AbstractLocalClusterFactory<S extends LocalClusterSpec, H 
                         environment.putIfAbsent(key, value);
                     }
                 }
+                // Ask elasticsearch-env.bat to print the resolved ES_HOME and launcher classpath directory
+                // contents to stderr. Windows CI intermittently fails test cluster tool invocations with a
+                // "could not find or load main class" (empty classpath). This captures, from the tool's own
+                // process, whether the launcher jars are actually present, so we can tell a >MAX_PATH glob
+                // failure from missing jars or a mis-resolved ES_HOME. Captured alongside the tool's stderr.
+                environment.put("ES_TOOLS_DEBUG", "1");
             }
 
             environment = environment.entrySet()

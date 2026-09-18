@@ -273,7 +273,121 @@ public class MatchFunctionIT extends AbstractEsqlIntegTestCase {
         try (var resp = run(query)) {
             assertColumnNames(resp.columns(), List.of("id", "_score"));
             assertColumnTypes(resp.columns(), List.of("integer", "double"));
-            assertValues(resp.values(), List.of(List.of(1, 0.0), List.of(6, 0.0)));
+            // Runtime match scores one point per matched query term.
+            assertValues(resp.values(), List.of(List.of(1, 1.0), List.of(6, 1.0)));
+        }
+    }
+
+    public void testWhereRuntimeMatchOnToTextOverIndexedKeywordField() {
+        var query = """
+            FROM test_keyword
+            | WHERE match(to_text(content), "FOX")
+            | KEEP id
+            | SORT id
+            """;
+
+        try (var resp = run(query)) {
+            assertColumnNames(resp.columns(), List.of("id"));
+            assertColumnTypes(resp.columns(), List.of("integer"));
+            assertValues(resp.values(), List.of(List.of(1), List.of(6)));
+        }
+    }
+
+    public void testWhereRuntimeMatchOnToTextOverIndexedKeywordFieldViaEvalAlias() {
+        var query = """
+            FROM test_keyword
+            | EVAL c = to_text(content)
+            | WHERE match(c, "FOX")
+            | KEEP id
+            | SORT id
+            """;
+
+        try (var resp = run(query)) {
+            assertColumnNames(resp.columns(), List.of("id"));
+            assertColumnTypes(resp.columns(), List.of("integer"));
+            assertValues(resp.values(), List.of(List.of(1), List.of(6)));
+        }
+    }
+
+    public void testWhereRuntimeMatchOnToStringOverIndexedTextField() {
+        var query = """
+            FROM test
+            | WHERE match(to_string(content), "fox")
+            | KEEP id
+            | SORT id
+            """;
+
+        try (var resp = run(query)) {
+            assertColumnNames(resp.columns(), List.of("id"));
+            assertColumnTypes(resp.columns(), List.of("integer"));
+            assertValues(resp.values(), List.of());
+        }
+    }
+
+    public void testWhereRuntimeMatchOnToStringOverIndexedTextFieldViaEvalAlias() {
+        var query = """
+            FROM test
+            | EVAL c = to_string(content)
+            | WHERE match(c, "fox")
+            | KEEP id
+            | SORT id
+            """;
+
+        try (var resp = run(query)) {
+            assertColumnNames(resp.columns(), List.of("id"));
+            assertColumnTypes(resp.columns(), List.of("integer"));
+            assertValues(resp.values(), List.of());
+        }
+    }
+
+    public void testWhereRuntimeMatchWithOptionsAndScore() {
+        var query = """
+            FROM test METADATA _score
+            | WHERE match(to_text(concat(content, " extra")), "fox dog", { "operator": "AND", "boost": 1.5 })
+            | KEEP id, _score
+            | SORT id
+            """;
+
+        try (var resp = run(query)) {
+            assertColumnNames(resp.columns(), List.of("id", "_score"));
+            assertColumnTypes(resp.columns(), List.of("integer", "double"));
+            // Two matched terms, each weighted by the boost.
+            assertValues(resp.values(), List.of(List.of(6, 3.0)));
+        }
+    }
+
+    public void testWhereRuntimeMatchTermWithScore() {
+        var query = """
+            FROM test METADATA _score
+            | EVAL new_id = id + 1
+            | WHERE new_id:"3" OR new_id:"2"
+            | KEEP id, new_id, _score
+            | SORT id
+            """;
+
+        try (var resp = run(query)) {
+            assertColumnNames(resp.columns(), List.of("id", "new_id", "_score"));
+            assertColumnTypes(resp.columns(), List.of("integer", "integer", "double"));
+            // Exact (non-text) runtime matches score 1.0; each row matches exactly one side of the OR.
+            assertValues(resp.values(), List.of(List.of(1, 2, 1.0), List.of(2, 3, 1.0)));
+        }
+    }
+
+    public void testWhereRuntimeMatchAndPushedDownMatchWithScore() {
+        var query = """
+            FROM test METADATA _score
+            | WHERE match(content, "fox") AND match(to_text(concat(content, " extra")), "dog")
+            | KEEP id, _score
+            """;
+
+        try (var resp = run(query)) {
+            assertColumnNames(resp.columns(), List.of("id", "_score"));
+            assertColumnTypes(resp.columns(), List.of("integer", "double"));
+            List<List<Object>> valuesList = getValuesList(resp.values());
+            assertEquals(1, valuesList.size());
+            assertEquals(6, valuesList.get(0).get(0));
+            // The pushed-down side contributes its BM25 score, the runtime side adds 1.0 for the matched term.
+            assertThat((double) valuesList.get(0).get(1), Matchers.greaterThan(1.0));
         }
     }
 
@@ -285,6 +399,63 @@ public class MatchFunctionIT extends AbstractEsqlIntegTestCase {
 
         var error = expectThrows(VerificationException.class, () -> run(query));
         assertThat(error.getMessage(), containsString("[MATCH] function is only supported in WHERE and STATS commands"));
+    }
+
+    public void testRuntimeMatchAfterLimit() {
+        var query = """
+            FROM test
+            | EVAL summary = to_text(concat("content: ", content))
+            | SORT id
+            | LIMIT 3
+            | WHERE match(summary, "fox")
+            | KEEP id
+            """;
+
+        // The LIMIT keeps ids 1-3, of which only 1 mentions a fox. Id 6 does too, so a filter that ran before the
+        // LIMIT - or that the LIMIT failed to constrain - would return it as well.
+        try (var resp = run(query)) {
+            assertColumnNames(resp.columns(), List.of("id"));
+            assertColumnTypes(resp.columns(), List.of("integer"));
+            assertValues(resp.values(), List.of(List.of(1)));
+        }
+    }
+
+    public void testRuntimeMatchAfterStats() {
+        var query = """
+            FROM test
+            | STATS ids = count(*) BY summary = to_text(concat("content: ", content))
+            | WHERE match(summary, "fox")
+            | KEEP summary, ids
+            | SORT summary
+            """;
+
+        try (var resp = run(query)) {
+            assertColumnNames(resp.columns(), List.of("summary", "ids"));
+            assertColumnTypes(resp.columns(), List.of("text", "long"));
+            assertValues(
+                resp.values(),
+                List.of(List.of("content: The quick brown fox jumps over the lazy dog", 1L), List.of("content: This is a brown fox", 1L))
+            );
+        }
+    }
+
+    public void testRuntimeMatchAfterLimitWithScore() {
+        var query = """
+            FROM test METADATA _score
+            | EVAL summary = to_text(concat("content: ", content))
+            | SORT id
+            | LIMIT 3
+            | WHERE match(summary, "fox")
+            | KEEP id, _score
+            """;
+
+        // The LIMIT is a pipeline breaker, so this filter runs on the coordinator. Runtime scoring needs no shard
+        // context, so the matched term must still score its point there, exactly as it does on a data node.
+        try (var resp = run(query)) {
+            assertColumnNames(resp.columns(), List.of("id", "_score"));
+            assertColumnTypes(resp.columns(), List.of("integer", "double"));
+            assertValues(resp.values(), List.of(List.of(1, 1.0)));
+        }
     }
 
     public void testMatchAfterMvExpand() {
@@ -324,6 +495,182 @@ public class MatchFunctionIT extends AbstractEsqlIntegTestCase {
         );
     }
 
+    public void testMatchOnToTextOverLookupJoinField() {
+        var client = client().admin().indices();
+        assertAcked(
+            client.prepareCreate("kw_lookup_tags")
+                .setSettings(Settings.builder().put("index.number_of_shards", 1).put("index.mode", "lookup"))
+                .setMapping("id", "type=integer", "tags", "type=keyword")
+        );
+        client().prepareBulk()
+            .add(new IndexRequest("kw_lookup_tags").source("id", 1, "tags", "fox"))
+            .add(new IndexRequest("kw_lookup_tags").source("id", 2, "tags", "dog"))
+            .setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE)
+            .get();
+        ensureYellow("kw_lookup_tags");
+
+        var rejected = """
+            FROM test
+            | LOOKUP JOIN kw_lookup_tags ON id
+            | WHERE MATCH(tags, "fox")
+            """;
+        var error = expectThrows(VerificationException.class, () -> run(rejected));
+        assertThat(
+            error.getMessage(),
+            containsString("[MATCH] function cannot operate on [tags], supplied by an index [kw_lookup_tags] in non-STANDARD mode [lookup]")
+        );
+
+        var accepted = """
+            FROM test
+            | LOOKUP JOIN kw_lookup_tags ON id
+            | WHERE MATCH(TO_TEXT(tags), "fox")
+            | KEEP id, tags
+            | SORT id
+            """;
+        try (var resp = run(accepted)) {
+            assertColumnNames(resp.columns(), List.of("id", "tags"));
+            assertColumnTypes(resp.columns(), List.of("integer", "keyword"));
+            assertValues(resp.values(), List.of(List.of(1, "fox")));
+        }
+    }
+
+    public void testMatchOnToTextOverTimeSeriesField() {
+        Settings settings = Settings.builder().put("mode", "time_series").putList("routing_path", List.of("host")).build();
+        assertAcked(
+            client().admin()
+                .indices()
+                .prepareCreate("ts_hosts")
+                .setSettings(settings)
+                .setMapping(
+                    "@timestamp",
+                    "type=date",
+                    "host",
+                    "type=keyword,time_series_dimension=true",
+                    "status",
+                    "type=keyword",
+                    "cpu",
+                    "type=long,time_series_metric=gauge"
+                )
+        );
+        client().prepareBulk()
+            .add(new IndexRequest("ts_hosts").source("@timestamp", "2024-01-01T00:00:00Z", "host", "a", "status", "fox", "cpu", 1))
+            .add(new IndexRequest("ts_hosts").source("@timestamp", "2024-01-01T00:00:01Z", "host", "b", "status", "dog", "cpu", 2))
+            .setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE)
+            .get();
+        ensureYellow("ts_hosts");
+
+        var rejected = "TS ts_hosts | WHERE MATCH(status, \"fox\")";
+        var error = expectThrows(VerificationException.class, () -> run(rejected));
+        assertThat(
+            error.getMessage(),
+            containsString(
+                "[MATCH] function cannot operate on [status], supplied by an index [ts_hosts] in non-STANDARD mode [time_series]"
+            )
+        );
+
+        var accepted = """
+            TS ts_hosts
+            | WHERE MATCH(TO_TEXT(status), "fox")
+            | KEEP host, status
+            | SORT host
+            """;
+        try (var resp = run(accepted)) {
+            assertColumnNames(resp.columns(), List.of("host", "status"));
+            assertColumnTypes(resp.columns(), List.of("keyword", "keyword"));
+            assertValues(resp.values(), List.of(List.of("a", "fox")));
+        }
+    }
+
+    public void testMatchOnToStringOverLookupJoinField() {
+        var client = client().admin().indices();
+        assertAcked(
+            client.prepareCreate("txt_lookup_tags")
+                .setSettings(Settings.builder().put("index.number_of_shards", 1).put("index.mode", "lookup"))
+                .setMapping("id", "type=integer", "tags", "type=text")
+        );
+        client().prepareBulk()
+            .add(new IndexRequest("txt_lookup_tags").source("id", 1, "tags", "fox"))
+            .add(new IndexRequest("txt_lookup_tags").source("id", 2, "tags", "red fox"))
+            .setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE)
+            .get();
+        ensureYellow("txt_lookup_tags");
+
+        var rejected = """
+            FROM test
+            | LOOKUP JOIN txt_lookup_tags ON id
+            | WHERE MATCH(tags, "fox")
+            """;
+        var error = expectThrows(VerificationException.class, () -> run(rejected));
+        assertThat(
+            error.getMessage(),
+            containsString(
+                "[MATCH] function cannot operate on [tags], supplied by an index [txt_lookup_tags] in non-STANDARD mode [lookup]"
+            )
+        );
+
+        // Exact/keyword semantics: "red fox" contains "fox" as an analyzed token but isn't exactly "fox", so only id=1 matches.
+        var accepted = """
+            FROM test
+            | LOOKUP JOIN txt_lookup_tags ON id
+            | WHERE MATCH(TO_STRING(tags), "fox")
+            | KEEP id, tags
+            | SORT id
+            """;
+        try (var resp = run(accepted)) {
+            assertColumnNames(resp.columns(), List.of("id", "tags"));
+            assertColumnTypes(resp.columns(), List.of("integer", "text"));
+            assertValues(resp.values(), List.of(List.of(1, "fox")));
+        }
+    }
+
+    public void testMatchOnToStringOverTimeSeriesField() {
+        Settings settings = Settings.builder().put("mode", "time_series").putList("routing_path", List.of("host")).build();
+        assertAcked(
+            client().admin()
+                .indices()
+                .prepareCreate("ts_hosts_text")
+                .setSettings(settings)
+                .setMapping(
+                    "@timestamp",
+                    "type=date",
+                    "host",
+                    "type=keyword,time_series_dimension=true",
+                    "status",
+                    "type=text",
+                    "cpu",
+                    "type=long,time_series_metric=gauge"
+                )
+        );
+        client().prepareBulk()
+            .add(new IndexRequest("ts_hosts_text").source("@timestamp", "2024-01-01T00:00:00Z", "host", "a", "status", "fox", "cpu", 1))
+            .add(new IndexRequest("ts_hosts_text").source("@timestamp", "2024-01-01T00:00:01Z", "host", "b", "status", "red fox", "cpu", 2))
+            .setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE)
+            .get();
+        ensureYellow("ts_hosts_text");
+
+        var rejected = "TS ts_hosts_text | WHERE MATCH(status, \"fox\")";
+        var error = expectThrows(VerificationException.class, () -> run(rejected));
+        assertThat(
+            error.getMessage(),
+            containsString(
+                "[MATCH] function cannot operate on [status], supplied by an index [ts_hosts_text] in non-STANDARD mode [time_series]"
+            )
+        );
+
+        // Exact/keyword semantics: "red fox" contains "fox" as an analyzed token but isn't exactly "fox", so only host=a matches.
+        var accepted = """
+            TS ts_hosts_text
+            | WHERE MATCH(TO_STRING(status), "fox")
+            | KEEP host, status
+            | SORT host
+            """;
+        try (var resp = run(accepted)) {
+            assertColumnNames(resp.columns(), List.of("host", "status"));
+            assertColumnTypes(resp.columns(), List.of("keyword", "text"));
+            assertValues(resp.values(), List.of(List.of("a", "fox")));
+        }
+    }
+
     public void testMatchOnJoinFieldWithLookupJoin() {
         var query = """
             FROM test
@@ -350,6 +697,10 @@ public class MatchFunctionIT extends AbstractEsqlIntegTestCase {
     }
 
     public void testWhereFalseBeforeInlineStatsWithMatch() {
+        assumeTrue(
+            "requires full-text functions after INLINE STATS support",
+            EsqlCapabilities.Cap.FULL_TEXT_FUNCTIONS_AFTER_INLINE_STATS.isEnabled()
+        );
         var query = """
             FROM test
             | WHERE false
@@ -357,11 +708,16 @@ public class MatchFunctionIT extends AbstractEsqlIntegTestCase {
             | WHERE match(content, "fox")
             """;
 
-        var error = expectThrows(VerificationException.class, () -> run(query));
-        assertThat(error.getMessage(), containsString("[MATCH] function cannot be used after INLINE"));
+        try (var resp = run(query)) {
+            assertValues(resp.values(), List.of());
+        }
     }
 
     public void testImpossibleFilterBeforeInlineStatsWithMatch() {
+        assumeTrue(
+            "requires full-text functions after INLINE STATS support",
+            EsqlCapabilities.Cap.FULL_TEXT_FUNCTIONS_AFTER_INLINE_STATS.isEnabled()
+        );
         var query = """
             FROM test
             | EVAL a = 1, b = a + 1, c = b + a
@@ -370,11 +726,16 @@ public class MatchFunctionIT extends AbstractEsqlIntegTestCase {
             | WHERE match(content, "fox")
             """;
 
-        var error = expectThrows(VerificationException.class, () -> run(query));
-        assertThat(error.getMessage(), containsString("[MATCH] function cannot be used after INLINE"));
+        try (var resp = run(query)) {
+            assertValues(resp.values(), List.of());
+        }
     }
 
     public void testWhereFalseBeforeInlineStatsWithMatchAndStats() {
+        assumeTrue(
+            "requires full-text functions after INLINE STATS support",
+            EsqlCapabilities.Cap.FULL_TEXT_FUNCTIONS_AFTER_INLINE_STATS.isEnabled()
+        );
         var query = """
             FROM test
             | WHERE false
@@ -383,11 +744,18 @@ public class MatchFunctionIT extends AbstractEsqlIntegTestCase {
             | STATS c = COUNT(*)
             """;
 
-        var error = expectThrows(VerificationException.class, () -> run(query));
-        assertThat(error.getMessage(), containsString("[MATCH] function cannot be used after INLINE"));
+        try (var resp = run(query)) {
+            assertColumnNames(resp.columns(), List.of("c"));
+            assertColumnTypes(resp.columns(), List.of("long"));
+            assertValues(resp.values(), List.of(List.of(0L)));
+        }
     }
 
     public void testWhereFalseBeforeGroupedInlineStatsWithMatch() {
+        assumeTrue(
+            "requires full-text functions after INLINE STATS support",
+            EsqlCapabilities.Cap.FULL_TEXT_FUNCTIONS_AFTER_INLINE_STATS.isEnabled()
+        );
         var query = """
             FROM test
             | WHERE false
@@ -395,8 +763,172 @@ public class MatchFunctionIT extends AbstractEsqlIntegTestCase {
             | WHERE match(content, "fox")
             """;
 
-        var error = expectThrows(VerificationException.class, () -> run(query));
-        assertThat(error.getMessage(), containsString("[MATCH] function cannot be used after INLINE"));
+        try (var resp = run(query)) {
+            assertValues(resp.values(), List.of());
+        }
+    }
+
+    public void testMatchAfterInlineStats() {
+        assumeTrue(
+            "requires full-text functions after INLINE STATS support",
+            EsqlCapabilities.Cap.FULL_TEXT_FUNCTIONS_AFTER_INLINE_STATS.isEnabled()
+        );
+        var query = """
+            FROM test
+            | INLINE STATS max_id = MAX(id)
+            | WHERE match(content, "fox")
+            | KEEP id
+            | SORT id
+            """;
+
+        try (var resp = run(query)) {
+            assertColumnNames(resp.columns(), List.of("id"));
+            assertColumnTypes(resp.columns(), List.of("integer"));
+            assertValues(resp.values(), List.of(List.of(1), List.of(6)));
+        }
+    }
+
+    public void testMatchAfterGroupedInlineStats() {
+        assumeTrue(
+            "requires full-text functions after INLINE STATS support",
+            EsqlCapabilities.Cap.FULL_TEXT_FUNCTIONS_AFTER_INLINE_STATS.isEnabled()
+        );
+        var query = """
+            FROM test
+            | INLINE STATS max_id = MAX(id) BY id
+            | WHERE match(content, "fox")
+            | KEEP id
+            | SORT id
+            """;
+
+        try (var resp = run(query)) {
+            assertColumnNames(resp.columns(), List.of("id"));
+            assertColumnTypes(resp.columns(), List.of("integer"));
+            assertValues(resp.values(), List.of(List.of(1), List.of(6)));
+        }
+    }
+
+    public void testMatchAfterInlineStatsKeepingAggValue() {
+        assumeTrue(
+            "requires full-text functions after INLINE STATS support",
+            EsqlCapabilities.Cap.FULL_TEXT_FUNCTIONS_AFTER_INLINE_STATS.isEnabled()
+        );
+        var query = """
+            FROM test
+            | INLINE STATS max_id = MAX(id)
+            | WHERE match(content, "fox")
+            | KEEP id, max_id
+            | SORT id
+            """;
+
+        try (var resp = run(query)) {
+            assertColumnNames(resp.columns(), List.of("id", "max_id"));
+            assertColumnTypes(resp.columns(), List.of("integer", "integer"));
+            assertValues(resp.values(), List.of(List.of(1, 6), List.of(6, 6)));
+        }
+    }
+
+    public void testNotMatchAfterInlineStats() {
+        assumeTrue(
+            "requires full-text functions after INLINE STATS support",
+            EsqlCapabilities.Cap.FULL_TEXT_FUNCTIONS_AFTER_INLINE_STATS.isEnabled()
+        );
+        var query = """
+            FROM test
+            | INLINE STATS max_id = MAX(id)
+            | WHERE NOT match(content, "brown fox")
+            | KEEP id
+            | SORT id
+            """;
+
+        try (var resp = run(query)) {
+            assertColumnNames(resp.columns(), List.of("id"));
+            assertColumnTypes(resp.columns(), List.of("integer"));
+            assertValues(resp.values(), List.of(List.of(5)));
+        }
+    }
+
+    public void testMatchNotPushableAfterInlineStats() {
+        assumeTrue(
+            "requires full-text functions after INLINE STATS support",
+            EsqlCapabilities.Cap.FULL_TEXT_FUNCTIONS_AFTER_INLINE_STATS.isEnabled()
+        );
+        var query = """
+            FROM test
+            | INLINE STATS max_id = MAX(id)
+            | WHERE match(content, "fox") OR length(content) < 20
+            | KEEP id
+            | SORT id
+            """;
+
+        try (var resp = run(query)) {
+            assertColumnNames(resp.columns(), List.of("id"));
+            assertColumnTypes(resp.columns(), List.of("integer"));
+            assertValues(resp.values(), List.of(List.of(1), List.of(2), List.of(6)));
+        }
+    }
+
+    public void testMatchAfterInlineStatsWithAggExpressionFilter() {
+        assumeTrue(
+            "requires full-text functions after INLINE STATS support",
+            EsqlCapabilities.Cap.FULL_TEXT_FUNCTIONS_AFTER_INLINE_STATS.isEnabled()
+        );
+        // max_plus = id + 1 per row (grouped BY id); id > 2 lets the second condition pass
+        var query = """
+            FROM test
+            | INLINE STATS max_plus = MAX(id) + 1 BY id
+            | WHERE match(content, "fox") OR max_plus > 3
+            | KEEP id
+            | SORT id
+            """;
+
+        try (var resp = run(query)) {
+            assertColumnNames(resp.columns(), List.of("id"));
+            assertColumnTypes(resp.columns(), List.of("integer"));
+            assertValues(resp.values(), List.of(List.of(1), List.of(3), List.of(4), List.of(5), List.of(6)));
+        }
+    }
+
+    public void testMatchAfterMultipleInlineStats() {
+        assumeTrue(
+            "requires full-text functions after INLINE STATS support",
+            EsqlCapabilities.Cap.FULL_TEXT_FUNCTIONS_AFTER_INLINE_STATS.isEnabled()
+        );
+        var query = """
+            FROM test
+            | INLINE STATS max_id = MAX(id)
+            | INLINE STATS min_id = MIN(id)
+            | WHERE match(content, "fox")
+            | KEEP id
+            | SORT id
+            """;
+
+        try (var resp = run(query)) {
+            assertColumnNames(resp.columns(), List.of("id"));
+            assertColumnTypes(resp.columns(), List.of("integer"));
+            assertValues(resp.values(), List.of(List.of(1), List.of(6)));
+        }
+    }
+
+    public void testMatchAfterInlineStatsWithAggValueFilter() {
+        assumeTrue(
+            "requires full-text functions after INLINE STATS support",
+            EsqlCapabilities.Cap.FULL_TEXT_FUNCTIONS_AFTER_INLINE_STATS.isEnabled()
+        );
+        // INLINE STATS BY id makes max_id = id per row; only id >= 6 passes the second condition
+        var query = """
+            FROM test
+            | INLINE STATS max_id = MAX(id) BY id
+            | WHERE match(content, "fox") AND max_id >= 6
+            | KEEP id
+            | SORT id
+            """;
+
+        try (var resp = run(query)) {
+            assertColumnNames(resp.columns(), List.of("id"));
+            assertColumnTypes(resp.columns(), List.of("integer"));
+            assertValues(resp.values(), List.of(List.of(6)));
+        }
     }
 
     public void testMatchWithLookupJoinOnMatch() {
@@ -578,18 +1110,193 @@ public class MatchFunctionIT extends AbstractEsqlIntegTestCase {
         );
     }
 
-    public void testMatchRuntimeWithAnalyzerOptionThrowsError() {
+    public void testMatchRuntimeWithAnalyzerOption() {
+        // The whitespace values analyzer, declared through to_text, does not lowercase, and the query analyzer
+        // defaults to it: "Fox" only matches the value that kept the capital F.
+        var query = """
+            ROW content = to_text(["the Fox jumped", "the fox jumped"], {"analyzer": "whitespace"})
+            | MV_EXPAND content
+            | WHERE match(content, "Fox")
+            """;
+        try (var resp = run(query)) {
+            assertColumnNames(resp.columns(), List.of("content"));
+            assertValues(resp.values(), List.of(List.of("the Fox jumped")));
+        }
+    }
+
+    public void testMatchRuntimeAnalyzerOptionAppliesToQueryStringOnly() {
+        // match's analyzer option keeps the query's "Fox" uppercase while the values stay standard-analyzed
+        // (lowercased): the case-mismatched query matches nothing.
+        var query = """
+            ROW content = to_text(["the Fox jumped", "the fox jumped"])
+            | MV_EXPAND content
+            | WHERE match(content, "Fox", {"analyzer": "whitespace"})
+            """;
+        try (var resp = run(query)) {
+            assertColumnNames(resp.columns(), List.of("content"));
+            assertValues(resp.values(), List.of());
+        }
+    }
+
+    public void testUnmappedWithAnalyzerOption() {
+        // The whitespace analyzer applies to the query string only, so the lowercase "this" query token matches
+        // the standard-analyzed (lowercased) values of ids 1-4 on both the mapped and the unmapped (loaded from
+        // _source) index.
+        var query = """
+            SET unmapped_fields = "LOAD";
+            FROM test, test_unmapped METADATA _index
+            | EVAL content = to_text(content)
+            | WHERE match(content, "this", {"analyzer": "whitespace"})
+            | KEEP id, _index
+            | SORT id, _index
+            """;
+        try (var resp = run(query)) {
+            assertColumnNames(resp.columns(), List.of("id", "_index"));
+            assertColumnTypes(resp.columns(), List.of("integer", "keyword"));
+            assertValues(
+                resp.values(),
+                List.of(
+                    List.of(1, "test"),
+                    List.of(1, "test_unmapped"),
+                    List.of(2, "test"),
+                    List.of(2, "test_unmapped"),
+                    List.of(3, "test"),
+                    List.of(3, "test_unmapped"),
+                    List.of(4, "test"),
+                    List.of(4, "test_unmapped")
+                )
+            );
+        }
+    }
+
+    public void testPotentiallyUnmappedKeywordFieldWithToTextAnalyzer() {
+        // content is keyword in test_keyword and unmapped in test_unmapped. Neither leg's values were analyzed at
+        // index time, and the field cannot be pushed down (it is potentially unmapped), so the runtime column is a
+        // legitimate declaration site: the whitespace values analyzer keeps case, and the query analyzer defaults
+        // to it, so "This" only matches values that kept the capital T.
+        var query = """
+            SET unmapped_fields = "LOAD";
+            FROM test_keyword, test_unmapped METADATA _index
+            | EVAL t = to_text(content, {"analyzer": "whitespace"})
+            | WHERE match(t, "This")
+            | KEEP id, _index
+            | SORT id, _index
+            """;
+        try (var resp = run(query)) {
+            assertColumnNames(resp.columns(), List.of("id", "_index"));
+            assertValues(
+                resp.values(),
+                List.of(
+                    List.of(1, "test_keyword"),
+                    List.of(1, "test_unmapped"),
+                    List.of(2, "test_keyword"),
+                    List.of(2, "test_unmapped"),
+                    List.of(3, "test_keyword"),
+                    List.of(3, "test_unmapped")
+                )
+            );
+        }
+    }
+
+    public void testPotentiallyUnmappedTextFieldWithToTextAnalyzerThrowsError() {
+        // same for a text field mapped in one index and unmapped in another
+        var query = """
+            SET unmapped_fields = "LOAD";
+            FROM test, test_unmapped
+            | EVAL t = to_text(content, {"analyzer": "whitespace"})
+            | WHERE match(t, "fox")
+            """;
+        var error = expectThrows(VerificationException.class, () -> run(query));
+        assertThat(error.getMessage(), containsString("[analyzer] option is not supported for [TO_TEXT] on index-mapped field [content]"));
+    }
+
+    public void testFullyUnmappedFieldWithToTextAnalyzer() {
+        // content has no mapping anywhere in test_unmapped, so the runtime column is a legitimate declaration
+        // site: the whitespace values analyzer keeps case, and the query analyzer defaults to it, so "This" only
+        // matches values that kept the capital T. (id is unmapped too and loads as keyword.)
+        var query = """
+            SET unmapped_fields = "LOAD";
+            FROM test_unmapped
+            | EVAL t = to_text(content, {"analyzer": "whitespace"})
+            | WHERE match(t, "This")
+            | KEEP id
+            | SORT id
+            """;
+        try (var resp = run(query)) {
+            assertColumnNames(resp.columns(), List.of("id"));
+            assertColumnTypes(resp.columns(), List.of("keyword"));
+            assertValues(resp.values(), List.of(List.of("1"), List.of("2"), List.of("3")));
+        }
+    }
+
+    public void testMatchRuntimeWithIndexSettingsAnalyzerThrowsError() {
+        // A custom analyzer defined in an index's settings only exists in that index; runtime analyzer resolution
+        // never consults index settings, so its name is rejected like any unregistered analyzer.
+        var indexName = "test_custom_analyzer";
+        var settings = Settings.builder()
+            .put("index.analysis.analyzer.my_custom_analyzer.type", "custom")
+            .put("index.analysis.analyzer.my_custom_analyzer.tokenizer", "standard")
+            .build();
+        assertAcked(
+            client().admin()
+                .indices()
+                .prepareCreate(indexName)
+                .setSettings(settings)
+                .setMapping("id", "type=integer", "content", "type=text")
+        );
         var query = """
             FROM test
-            | EVAL new_content = to_text(concat(content, " extra"))
-            | WHERE match(new_content, "fox", {"analyzer": "standard"})
-            | KEEP new_content
+            | EVAL new_content = to_text(concat(content, " extra"), {"analyzer": "my_custom_analyzer"})
+            | WHERE match(new_content, "fox")
+            """;
+        var error = expectThrows(VerificationException.class, () -> run(query));
+        assertThat(error.getMessage(), containsString("[my_custom_analyzer] is not a registered analyzer"));
+    }
+
+    public void testPotentiallyUnmappedFieldWithAnalyzerOption() {
+        // Options are accepted on a potentially unmapped text field. On shards where the field is mapped the query
+        // keeps indexed-field semantics: the whitespace analyzer applies to the query only, so "this" matches the
+        // standard-analyzed (lowercased) index tokens of ids 1-4. On the unmapped index the field loads as null
+        // without an explicit to_text cast, so it contributes no matches.
+        var query = """
+            SET unmapped_fields = "LOAD";
+            FROM test, test_unmapped METADATA _index
+            | WHERE match(content, "this", {"analyzer": "whitespace"})
+            | KEEP id, _index
+            | SORT id, _index
+            """;
+        try (var resp = run(query)) {
+            assertColumnNames(resp.columns(), List.of("id", "_index"));
+            assertColumnTypes(resp.columns(), List.of("integer", "keyword"));
+            assertValues(resp.values(), List.of(List.of(1, "test"), List.of(2, "test"), List.of(3, "test"), List.of(4, "test")));
+        }
+    }
+
+    public void testPotentiallyUnmappedKeywordFieldWithOptionsThrowsError() {
+        // Options work on a fully mapped keyword field (pushed down as a Lucene query), but the same query is
+        // rejected when the field is unmapped in one index, since it is then matched at runtime and the runtime
+        // keyword path is exact equality where options do not apply.
+        var query = """
+            SET unmapped_fields = "LOAD";
+            FROM test_keyword, test_unmapped
+            | WHERE match(content, "cat", {"fuzziness": "1"})
             """;
         var error = expectThrows(VerificationException.class, () -> run(query));
         assertThat(
             error.getMessage(),
-            containsString("The analyzer option is not supported for [MATCH] function call on non-index-mapped field [new_content]")
+            containsString("Options are not supported for [MATCH] function call on non-index-mapped, non-TEXT field [content]")
         );
+    }
+
+    public void testMatchRuntimeWithUnknownAnalyzerThrowsError() {
+        var query = """
+            FROM test
+            | EVAL new_content = to_text(concat(content, " extra"))
+            | WHERE match(new_content, "fox", {"analyzer": "nonexistent"})
+            | KEEP new_content
+            """;
+        var error = expectThrows(VerificationException.class, () -> run(query));
+        assertThat(error.getMessage(), containsString("[nonexistent] is not a registered analyzer"));
     }
 
     public void testMatchRuntimeWithInvalidOptionsThrowsError() {
@@ -692,6 +1399,77 @@ public class MatchFunctionIT extends AbstractEsqlIntegTestCase {
                 + "[my_date]",
             error.getMessage()
         );
+    }
+
+    public void testMatchOnMappedTextAfterForkThrowsError() {
+        // The LIMIT in each branch stops the filter being pushed into them, so the search runs on the merged column
+        // and would analyze a mapped text field's values with the standard analyzer instead of the field's own.
+        var query = """
+            FROM test
+            | FORK (WHERE match(content, "fox") | SORT id | LIMIT 5)
+                   (WHERE match(content, "dog") | SORT id | LIMIT 5)
+            | WHERE match(content, "brown")
+            """;
+
+        var error = expectThrows(VerificationException.class, () -> run(query));
+        assertThat(error.getMessage(), containsString("[MATCH] function cannot search column [content] after FORK"));
+        assertThat(error.getMessage(), containsString("Search [content] in the FORK branches instead"));
+        assertThat(error.getMessage(), containsString("TO_TEXT(content, {\"analyzer\": ...})"));
+    }
+
+    public void testMatchOnMappedTextAfterForkWithDeclaredAnalyzer() {
+        // Declaring the values analyzer makes the same merge searchable. Whitespace lowercases neither side, so
+        // document 4 - retrieved by the dog branch, and the only other row containing "this" - is dropped for
+        // spelling it in lower case. Under the standard analyzer it would come back.
+        var query = """
+            FROM test
+            | FORK (WHERE match(content, "fox") | SORT id | LIMIT 5)
+                   (WHERE match(content, "dog") | SORT id | LIMIT 5)
+            | EVAL t = to_text(content, {"analyzer": "whitespace"})
+            | WHERE match(t, "This")
+            | KEEP _fork, id, content
+            | SORT _fork, id
+            """;
+
+        try (var resp = run(query)) {
+            assertColumnNames(resp.columns(), List.of("_fork", "id", "content"));
+            assertValues(
+                resp.values(),
+                List.of(
+                    List.of("fork1", 1, "This is a brown fox"),
+                    List.of("fork2", 2, "This is a brown dog"),
+                    List.of("fork2", 3, "This dog is really brown")
+                )
+            );
+        }
+    }
+
+    public void testMatchOnMappedTextAfterForkWithoutPipelineBreaker() {
+        // No pipeline breaker in either branch, so the filter is pushed into them and this stays an indexed search
+        // that honors the field's mapped analyzer - nothing for the FORK restriction to reject.
+        var query = """
+            FROM test
+            | FORK (WHERE match(content, "fox"))
+                   (WHERE match(content, "dog"))
+            | WHERE match(content, "brown")
+            | KEEP _fork, id
+            | SORT _fork, id
+            """;
+
+        try (var resp = run(query)) {
+            assertColumnNames(resp.columns(), List.of("_fork", "id"));
+            assertValues(
+                resp.values(),
+                List.of(
+                    List.of("fork1", 1),
+                    List.of("fork1", 6),
+                    List.of("fork2", 2),
+                    List.of("fork2", 3),
+                    List.of("fork2", 4),
+                    List.of("fork2", 6)
+                )
+            );
+        }
     }
 
     static void createAndPopulateIndices(Consumer<String[]> ensureYellow) {

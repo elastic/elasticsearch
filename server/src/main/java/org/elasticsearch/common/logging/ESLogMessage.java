@@ -8,6 +8,7 @@
  */
 package org.elasticsearch.common.logging;
 
+import org.apache.logging.log4j.message.AsynchronouslyFormattable;
 import org.apache.logging.log4j.message.MapMessage;
 import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.apache.logging.log4j.util.Chars;
@@ -22,6 +23,7 @@ import java.util.Map;
 /**
  * A base class for custom log4j logger messages. Carries additional fields which will populate JSON fields in logs.
  */
+@AsynchronouslyFormattable
 public class ESLogMessage extends MapMessage<ESLogMessage, Object> {
     private final List<Object> arguments = new ArrayList<>();
     private String messagePattern;

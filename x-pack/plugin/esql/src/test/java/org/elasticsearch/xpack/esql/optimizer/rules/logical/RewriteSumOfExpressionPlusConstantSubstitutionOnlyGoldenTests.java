@@ -7,7 +7,9 @@
 
 package org.elasticsearch.xpack.esql.optimizer.rules.logical;
 
-import org.elasticsearch.test.TransportVersionUtils;
+import com.carrotsearch.randomizedtesting.annotations.Name;
+import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
+
 import org.elasticsearch.xpack.esql.expression.function.scalar.multivalue.MvSingleValueOrNull;
 import org.elasticsearch.xpack.esql.optimizer.AbstractLogicalPlanOptimizerTests.TestSubstitutionOnlyOptimizer;
 import org.elasticsearch.xpack.esql.optimizer.GoldenTestCase;
@@ -27,11 +29,18 @@ public class RewriteSumOfExpressionPlusConstantSubstitutionOnlyGoldenTests exten
 
     private static final EnumSet<Stage> STAGES = EnumSet.of(Stage.LOGICAL_OPTIMIZATION);
 
+    @ParametersFactory(argumentFormatting = "%1$s")
+    public static Iterable<Object[]> parameters() {
+        return goldenModes();
+    }
+
+    public RewriteSumOfExpressionPlusConstantSubstitutionOnlyGoldenTests(@Name("mode") String mode) {
+        super(mode);
+    }
+
     @Override
     protected TestBuilder builder(String esqlQuery) {
-        return super.builder(esqlQuery).optimizer(TestSubstitutionOnlyOptimizer::new)
-            .stages(STAGES)
-            .transportVersion(TransportVersionUtils.randomVersionSupporting(MvSingleValueOrNull.MV_SINGLE_VALUE_OR_NULL_TRANSPORT_VERSION));
+        return super.builder(esqlQuery).optimizer(TestSubstitutionOnlyOptimizer::new).stages(STAGES);
     }
 
     @Override
@@ -46,84 +55,84 @@ public class RewriteSumOfExpressionPlusConstantSubstitutionOnlyGoldenTests exten
         builder("""
             FROM employees
             | STATS s1 = SUM(emp_no + 1), s2 = SUM(emp_no + 2)
-            """).run();
+            """).since(MvSingleValueOrNull.MV_SINGLE_VALUE_OR_NULL_TRANSPORT_VERSION).run();
     }
 
     public void testSumOfFieldMinusConstant() {
         builder("""
             FROM employees
             | STATS s1 = SUM(emp_no - 2), s2 = SUM(3 - emp_no)
-            """).run();
+            """).since(MvSingleValueOrNull.MV_SINGLE_VALUE_OR_NULL_TRANSPORT_VERSION).run();
     }
 
     public void testSumOfFieldPlusConstantWithGroupBy() {
         builder("""
             FROM employees
             | STATS s1 = SUM(emp_no + 1), s2 = SUM(emp_no + 2) BY languages
-            """).run();
+            """).since(MvSingleValueOrNull.MV_SINGLE_VALUE_OR_NULL_TRANSPORT_VERSION).run();
     }
 
     public void testBareSumOfSameFieldNotSharedWithRewrite() {
         builder("""
             FROM employees
             | STATS s1 = SUM(emp_no + 1), bare = SUM(emp_no), s2 = SUM(emp_no + 2)
-            """).run();
+            """).since(MvSingleValueOrNull.MV_SINGLE_VALUE_OR_NULL_TRANSPORT_VERSION).run();
     }
 
     public void testCountAlreadyInQueryNotReused() {
         builder("""
             FROM employees
             | STATS c = COUNT(emp_no), s1 = SUM(emp_no + 1), s2 = SUM(emp_no + 2)
-            """).run();
+            """).since(MvSingleValueOrNull.MV_SINGLE_VALUE_OR_NULL_TRANSPORT_VERSION).run();
     }
 
     public void testSumOfFieldPlusFoldableConstantExpression() {
         builder("""
             FROM employees
             | STATS s1 = SUM(emp_no + (5 - 2)), s2 = SUM(emp_no + 1)
-            """).run();
+            """).since(MvSingleValueOrNull.MV_SINGLE_VALUE_OR_NULL_TRANSPORT_VERSION).run();
     }
 
     public void testSumOfFieldPlusFoldableFunctionCallConstant() {
         builder("""
             FROM employees
             | STATS s1 = SUM(emp_no + LENGTH("abc")), s2 = SUM(emp_no + 1)
-            """).run();
+            """).since(MvSingleValueOrNull.MV_SINGLE_VALUE_OR_NULL_TRANSPORT_VERSION).run();
     }
 
     public void testSumOfNestedArithmeticSharesSvPairOnSameBase() {
         builder("""
             FROM employees
             | STATS s1 = SUM(emp_no + 1 + 2), s2 = SUM(emp_no + 1 + 3)
-            """).run();
+            """).since(MvSingleValueOrNull.MV_SINGLE_VALUE_OR_NULL_TRANSPORT_VERSION).run();
     }
 
     public void testThreeSumsShareOneSvPair() {
         builder("""
             FROM employees
             | STATS s1 = SUM(emp_no + 1), s2 = SUM(emp_no + 2), s3 = SUM(emp_no + 3)
-            """).run();
+            """).since(MvSingleValueOrNull.MV_SINGLE_VALUE_OR_NULL_TRANSPORT_VERSION).run();
     }
 
     public void testTwoFieldsGetIndependentSvPairs() {
         builder("""
             FROM employees
             | STATS s1 = SUM(emp_no + 1), s2 = SUM(emp_no + 2), s3 = SUM(salary + 1), s4 = SUM(salary + 2)
-            """).run();
+            """).since(MvSingleValueOrNull.MV_SINGLE_VALUE_OR_NULL_TRANSPORT_VERSION).run();
     }
 
     public void testBothFoldableOperandsNotRewritten() {
         builder("""
             FROM employees
             | STATS s1 = SUM(null + 1), s2 = SUM(null + 2)
-            """).run();
+            """).since(MvSingleValueOrNull.MV_SINGLE_VALUE_OR_NULL_TRANSPORT_VERSION).run();
     }
 
     public void testSumWithGroupingExpressionAlias() {
         builder("""
             FROM employees
             | STATS s1 = SUM(emp_no + 1), s2 = SUM(emp_no + 2) BY l = languages
-            """).run();
+            """).since(MvSingleValueOrNull.MV_SINGLE_VALUE_OR_NULL_TRANSPORT_VERSION).run();
     }
 
     public void testShadowedNonMatchingExprRuleFires() {
@@ -131,13 +140,13 @@ public class RewriteSumOfExpressionPlusConstantSubstitutionOnlyGoldenTests exten
             FROM employees
             | STATS s1 = SUM(emp_no + 1), c = SUM(emp_no), c = COUNT(emp_no), s2 = SUM(emp_no + 2)
             | LIMIT 10
-            """).run();
+            """).since(MvSingleValueOrNull.MV_SINGLE_VALUE_OR_NULL_TRANSPORT_VERSION).run();
     }
 
     public void testInlineStatsWithSumOfFieldPlusConstant() {
         builder("""
             FROM employees
             | INLINE STATS s1 = SUM(emp_no + 1), s2 = SUM(emp_no + 2)
-            """).run();
+            """).since(MvSingleValueOrNull.MV_SINGLE_VALUE_OR_NULL_TRANSPORT_VERSION).run();
     }
 }

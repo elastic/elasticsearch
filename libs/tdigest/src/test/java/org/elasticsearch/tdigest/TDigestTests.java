@@ -561,4 +561,19 @@ public abstract class TDigestTests extends TDigestTestCase {
             }
         }
     }
+
+    public void testCdfIsInverseOfQuantile() {
+        try (TDigest digest = factory(randomDoubleBetween(10, 100, true)).create()) {
+            int sampleCount = randomIntBetween(1_000, 10_000);
+            for (int i = 0; i < sampleCount; i++) {
+                digest.add(randomDouble());
+            }
+            digest.compress();
+
+            for (int i = 0; i < 1_000; i++) {
+                double q = randomDoubleBetween(0.01, 0.99, true);
+                assertEquals("q=" + q, q, digest.cdf(digest.quantile(q)), 1.0 / sampleCount);
+            }
+        }
+    }
 }

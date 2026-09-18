@@ -627,6 +627,7 @@ public class IncrementalBulkIT extends ESIntegTestCase {
 
             final CountDownLatch readyForCancellation = new CountDownLatch(1);
             final AtomicBoolean childTaskBanned = new AtomicBoolean(false);
+            final AtomicBoolean banSentInUserlessContext = new AtomicBoolean(false);
 
             IncrementalBulkService.Handler handler2 = incrementalBulkService.newBulkRequest();
 
@@ -636,11 +637,14 @@ public class IncrementalBulkIT extends ESIntegTestCase {
 
             refCounted.incRef();
             handler2.addItems(List.of(notCancelled), refCounted::decRef, () -> {
-                // Verify child task banned.
+                // Verify child task banned and that the ban is sent without caller-owned headers.
                 primaryTransportService.addRequestHandlingBehavior(
                     TaskCancellationService.BAN_PARENT_ACTION_NAME,
                     (transportRequestHandler, request, channel, task) -> {
                         childTaskBanned.set(true);
+                        banSentInUserlessContext.set(
+                            primaryTransportService.getThreadPool().getThreadContext().getHeader("test.ban.sentinel") == null
+                        );
                         transportRequestHandler.messageReceived(request, channel, task);
                     }
                 );
@@ -673,11 +677,16 @@ public class IncrementalBulkIT extends ESIntegTestCase {
 
                 assertThat(handler2.getBulkSessionTask().getAction(), is("internal:bulk"));
                 assertThat(handler2.getBulkSessionTask().getType(), is("bulk"));
+                primaryTransportService.getThreadPool().getThreadContext().putHeader("test.ban.sentinel", "fake-auth");
                 handler2.cancel("after first additem() before second TransportShardBulkAction submit to write thread pool", () -> {});
             });
 
             BulkResponse bulkResponse = future2.actionGet();
             assertThat(childTaskBanned.get(), is(true));
+            assertTrue(
+                "ban was sent with caller header in context; stashContext() missing from Handler#cancel",
+                banSentInUserlessContext.get()
+            );
             assertThat(bulkResponse.getItems().length, is(3));
             assertThat(bulkResponse.getItems()[0].getFailure(), nullValue());
             assertThat(bulkResponse.getItems()[0].isFailed(), is(false));

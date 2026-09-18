@@ -1,5 +1,0 @@
-area: Inference
-issues: []
-pr: 152012
-summary: Support multimodal (image) rerank for the Elastic Inference Service
-type: enhancement

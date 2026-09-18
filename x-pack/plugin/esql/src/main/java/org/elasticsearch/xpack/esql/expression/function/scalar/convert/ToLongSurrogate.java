@@ -9,6 +9,7 @@ package org.elasticsearch.xpack.esql.expression.function.scalar.convert;
 
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.compute.expression.ExpressionEvaluator;
+import org.elasticsearch.xpack.esql.core.expression.AnyNullIsNull;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.TypeResolutions;
 import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
@@ -49,13 +50,20 @@ import static org.elasticsearch.xpack.esql.core.type.DataType.LONG;
  * </ul>
  */
 
-public class ToLongSurrogate extends EsqlScalarFunction implements OnlySurrogateExpression, OptionalArgument, ConvertFunction {
+public class ToLongSurrogate extends EsqlScalarFunction
+    implements
+        OnlySurrogateExpression,
+        OptionalArgument,
+        ConvertFunction,
+        AnyNullIsNull {
 
     private final Expression field;
     private final Expression base;
 
     public static final FunctionDefinition DEFINITION = FunctionDefinition.def(ToLongSurrogate.class)
         .binary(ToLongSurrogate::new)
+        // Reject doubles at the exactly representable 2^63 boundary instead of saturating to Long.MAX_VALUE.
+        .capabilities("fix_double_to_long_overflow")
         .name("to_long");
 
     @FunctionInfo(

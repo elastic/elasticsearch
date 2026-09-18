@@ -39,6 +39,7 @@ import org.elasticsearch.telemetry.TelemetryProvider;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.LinkedProjectConfigService;
 import org.elasticsearch.transport.RemoteTransportClient;
+import org.elasticsearch.usage.UsageService;
 import org.elasticsearch.watcher.ResourceWatcherService;
 import org.elasticsearch.xcontent.NamedXContentRegistry;
 
@@ -73,5 +74,6 @@ public record PluginServiceInstances(
     CrossProjectModeDecider crossProjectModeDecider,
     PersistentTaskLifecycleManager taskLifecycleManager,
     DataStreamLifecycleErrorStore dlmErrorStore,
-    IpLocationService ipLocationService
+    IpLocationService ipLocationService,
+    UsageService usageService
 ) implements Plugin.PluginServices {}

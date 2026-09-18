@@ -1,5 +1,0 @@
-area: ES|QL
-issues: []
-pr: 147493
-summary: Shared metadata byte cache for Parquet and ORC
-type: enhancement

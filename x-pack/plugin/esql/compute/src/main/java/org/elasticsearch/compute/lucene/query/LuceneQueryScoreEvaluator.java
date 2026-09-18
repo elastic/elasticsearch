@@ -10,24 +10,27 @@ package org.elasticsearch.compute.lucene.query;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.Scorable;
 import org.apache.lucene.search.ScoreMode;
+import org.apache.lucene.util.RamUsageEstimator;
 import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.DoubleBlock;
 import org.elasticsearch.compute.data.DoubleVector;
 import org.elasticsearch.compute.data.Page;
+import org.elasticsearch.compute.expression.ExpressionEvaluator;
 import org.elasticsearch.compute.lucene.IndexedByShardId;
 import org.elasticsearch.compute.operator.DriverContext;
-import org.elasticsearch.compute.operator.ScoreOperator;
 
 import java.io.IOException;
 
 /**
- * {@link ScoreOperator.ExpressionScorer} to run a Lucene {@link Query} during
+ * {@link ExpressionEvaluator} to run a Lucene {@link Query} during
  * the compute engine's normal execution, yielding the corresponding scores into
  * a {@link DoubleVector}.
  * Elements that don't match will have a score of {@link #NO_MATCH_SCORE}.
- * @see LuceneQueryScoreEvaluator
+ * @see LuceneQueryExpressionEvaluator
  */
-public class LuceneQueryScoreEvaluator extends LuceneQueryEvaluator<DoubleBlock.Builder> implements ScoreOperator.ExpressionScorer {
+public class LuceneQueryScoreEvaluator extends LuceneQueryEvaluator<DoubleBlock.Builder> implements ExpressionEvaluator {
+
+    private static final long BASE_RAM_BYTES_USED = RamUsageEstimator.shallowSizeOfInstance(LuceneQueryScoreEvaluator.class);
 
     public static final double NO_MATCH_SCORE = 0.0;
 
@@ -36,8 +39,13 @@ public class LuceneQueryScoreEvaluator extends LuceneQueryEvaluator<DoubleBlock.
     }
 
     @Override
-    public DoubleBlock score(Page page) {
+    public DoubleBlock eval(Page page) {
         return (DoubleBlock) executeQuery(page);
+    }
+
+    @Override
+    public long baseRamBytesUsed() {
+        return BASE_RAM_BYTES_USED;
     }
 
     @Override
@@ -65,9 +73,9 @@ public class LuceneQueryScoreEvaluator extends LuceneQueryEvaluator<DoubleBlock.
         builder.appendDouble(scorer.score());
     }
 
-    public record Factory(IndexedByShardId<ShardConfig> shardConfigs) implements ScoreOperator.ExpressionScorer.Factory {
+    public record Factory(IndexedByShardId<ShardConfig> shardConfigs) implements ExpressionEvaluator.Factory {
         @Override
-        public ScoreOperator.ExpressionScorer get(DriverContext context) {
+        public ExpressionEvaluator get(DriverContext context) {
             return new LuceneQueryScoreEvaluator(context.blockFactory(), shardConfigs);
         }
     }

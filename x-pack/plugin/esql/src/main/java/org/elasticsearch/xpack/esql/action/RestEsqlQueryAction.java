@@ -61,6 +61,10 @@ public class RestEsqlQueryAction extends BaseRestHandler {
         if (partialResults != null) {
             esqlRequest.allowPartialResults(partialResults);
         }
+        final Boolean partialDslFilter = request.paramAsBoolean("allow_partial_dsl_filter", null);
+        if (partialDslFilter != null) {
+            esqlRequest.allowPartialDslFilter(partialDslFilter);
+        }
         LOGGER.debug("Beginning execution of ESQL query.\nQuery string: [{}]", esqlRequest.queryDescription());
 
         return channel -> {

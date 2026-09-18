@@ -8,15 +8,36 @@
 package org.elasticsearch.xpack.esql.optimizer;
 
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.lucene.BytesRefs;
 import org.elasticsearch.xpack.core.enrich.EnrichPolicy;
+import org.elasticsearch.xpack.esql.TestAnalyzer;
 import org.elasticsearch.xpack.esql.VerificationException;
 import org.elasticsearch.xpack.esql.action.EsqlCapabilities;
+import org.elasticsearch.xpack.esql.core.expression.FieldAttribute;
+import org.elasticsearch.xpack.esql.core.expression.Literal;
 import org.elasticsearch.xpack.esql.core.type.DataType;
+import org.elasticsearch.xpack.esql.expression.function.fulltext.SingleFieldFullTextFunction;
+import org.elasticsearch.xpack.esql.expression.function.scalar.string.StartsWith;
+import org.elasticsearch.xpack.esql.expression.function.scalar.string.regex.RLike;
+import org.elasticsearch.xpack.esql.expression.predicate.logical.Not;
+import org.elasticsearch.xpack.esql.expression.predicate.nulls.IsNotNull;
+import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.Equals;
+import org.elasticsearch.xpack.esql.plan.logical.Aggregate;
 import org.elasticsearch.xpack.esql.plan.logical.Enrich;
+import org.elasticsearch.xpack.esql.plan.logical.Eval;
+import org.elasticsearch.xpack.esql.plan.logical.Filter;
+import org.elasticsearch.xpack.esql.plan.logical.Highlight;
+import org.elasticsearch.xpack.esql.plan.logical.InlineStats;
+import org.elasticsearch.xpack.esql.plan.logical.Limit;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
+import org.elasticsearch.xpack.esql.plan.logical.join.InlineJoin;
+import org.elasticsearch.xpack.esql.plan.logical.local.LocalRelation;
+
+import java.util.ArrayList;
+import java.util.List;
 
 import static org.elasticsearch.xpack.core.enrich.EnrichPolicy.MATCH_TYPE;
-import static org.elasticsearch.xpack.esql.EsqlTestUtils.analyzer;
+import static org.elasticsearch.xpack.esql.EsqlTestUtils.as;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.singleValue;
 import static org.elasticsearch.xpack.esql.action.EsqlCapabilities.Cap.INLINE_STATS;
 import static org.elasticsearch.xpack.esql.analysis.AnalyzerExternalTests.S3_PATH;
@@ -24,10 +45,263 @@ import static org.elasticsearch.xpack.esql.analysis.AnalyzerExternalTests.extern
 import static org.elasticsearch.xpack.esql.analysis.AnalyzerTestUtils.EMBEDDING_INFERENCE_ID;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.is;
+import static org.hamcrest.Matchers.not;
 
 public class OptimizerVerificationTests extends AbstractLogicalPlanOptimizerTests {
+
+    public OptimizerVerificationTests(VersionMode versionMode) {
+        super(versionMode);
+    }
+
+    /**
+     * A cast to keyword (`::keyword`) produces a foldable string pattern. {@code 12::keyword} folds to the
+     * literal {@code "12"}, which has no wildcards, so {@code ReplaceRegexMatch} rewrites it to an {@code Equals}.
+     */
+    public void testLikeCastToKeywordFoldsToEquals() {
+        assumeTrue("requires like_rlike_constant_expression", EsqlCapabilities.Cap.LIKE_RLIKE_CONSTANT_EXPRESSION.isEnabled());
+        var plan = optimize(defaultAnalyzer().query("from test | where first_name like 12::keyword"));
+        var filter = as(as(plan, Limit.class).child(), Filter.class);
+        Equals equals = as(filter.condition(), Equals.class);
+        assertEquals("12", BytesRefs.toString(as(equals.right(), Literal.class).value()));
+    }
+
+    /**
+     * A pattern that folds to an invalid regex must raise a clear pattern error, not an internal failure.
+     * {@code concat("(", ".*")} folds to {@code "(.*"} which is not a valid regex.
+     */
+    public void testRLikeInvalidRegexPatternReportsError() {
+        assumeTrue("requires like_rlike_constant_expression", EsqlCapabilities.Cap.LIKE_RLIKE_CONSTANT_EXPRESSION.isEnabled());
+        var plan = defaultAnalyzer().query("from test | where first_name rlike concat(\"(\", \".*\")");
+        var e = expectThrows(org.elasticsearch.xpack.esql.parser.ParsingException.class, () -> optimize(plan));
+        assertThat(e.getMessage(), containsString("Invalid regex pattern for RLIKE [(.*]"));
+    }
+
+    /**
+     * A cast of a field to keyword ({@code last_name::keyword}) is not foldable, so it is rejected at
+     * post-optimization verification the same way a bare field reference is.
+     */
+    public void testLikeNonFoldableCastReportsError() {
+        assumeTrue("requires like_rlike_constant_expression", EsqlCapabilities.Cap.LIKE_RLIKE_CONSTANT_EXPRESSION.isEnabled());
+        var err = error(defaultAnalyzer().query("from test | where first_name like last_name::keyword"));
+        assertThat(err, containsString("[LIKE] pattern must be a constant"));
+    }
+
+    /**
+     * Whether a full-text function is a runtime search is not stable across planning phases. Here {@code name} is a
+     * {@code ReferenceAttribute} when the plan is analyzed, so the positional check lets it past the LIMIT, but
+     * {@code PushDownAndCombineFilters} then pushes the filter past the RENAME and substitutes the underlying
+     * {@code FieldAttribute}, turning it back into an index-backed search that still sits above the LIMIT. The
+     * post-optimization re-run has to catch what the post-analysis pass let through.
+     */
+    public void testRuntimeFullTextRejectedAfterLimitWhenRenamePushesDownToField() {
+        var err = error(defaultAnalyzer().query("from test | limit 5 | rename first_name as name | where match(name, \"Meditation\")"));
+        assertThat(err, containsString("[MATCH] function cannot be used after LIMIT"));
+    }
+
+    /**
+     * A hybrid-search FORK: retrieve lexically in one branch, by a structured filter in the other, and merge. The
+     * top-N in each branch is deliberate - it is a pipeline breaker, which is what stops
+     * {@code PushDownFiltersIntoFork} moving a following filter into the branches and leaves it searching the
+     * merged column.
+     */
+    private static final String HYBRID_FORK = """
+        FROM test
+        | FORK (WHERE match(title, "fox") | SORT id | LIMIT 5)
+               (WHERE category == 1       | SORT id | LIMIT 5)
+        """;
+
+    /**
+     * A FORK output column merges the values of every branch, so it is no longer index-backed and a runtime search
+     * analyzes it with the standard analyzer. Where the column comes from a mapped {@code text} field, that
+     * substitution silently ignores the field's own analyzer, so it is rejected rather than answered wrongly.
+     * <p>
+     * Whether the substitution happens at all is decided by push-down: {@code PushDownFiltersIntoFork} moves the
+     * filter into the branches when at least one of them has no pipeline breaker, which restores an index-backed
+     * search. The top-N in each branch of {@link #HYBRID_FORK} is what keeps the filter above the merge.
+     */
+    public void testRuntimeTextSearchRejectedAfterForkOnMappedTextField() {
+        assertThat(
+            error(fullTextAnalyzer().query(HYBRID_FORK + "| KEEP title | WHERE match(title, \"data\")")),
+            containsString("[MATCH] function cannot search column [title] after FORK")
+        );
+        assertThat(
+            error(fullTextAnalyzer().query(HYBRID_FORK + "| KEEP title | WHERE match_phrase(title, \"data\")")),
+            containsString("[MatchPhrase] function cannot search column [title] after FORK")
+        );
+        assertThat(
+            error(fullTextAnalyzer().query(HYBRID_FORK + "| KEEP title | WHERE title : \"data\"")),
+            containsString("[:] operator cannot search column [title] after FORK")
+        );
+    }
+
+    public void testRuntimeTextSearchAfterForkPointsAtTheAnalyzerDeclaration() {
+        var err = error(fullTextAnalyzer().query(HYBRID_FORK + "| KEEP title | WHERE match(title, \"data\")"));
+        assertThat(err, containsString("merged column is not index-backed"));
+        assertThat(err, containsString("[standard]"));
+        // both ways out are named: searching the branches works whatever the field's type, declaring an analyzer
+        // only makes sense for one that has one
+        assertThat(err, containsString("Search [title] in the FORK branches instead"));
+        assertThat(err, containsString("TO_TEXT(title, {\"analyzer\": ...})"));
+    }
+
+    public void testIndexBackedTextSearchStillAllowedAfterFork() {
+        // the same two strategies without their top-N: no pipeline breaker, so the filter is pushed into the
+        // branches and each one still searches the index
+        optimize(fullTextAnalyzer().query("""
+            FROM test
+            | FORK (WHERE match(title, "fox"))
+                   (WHERE category == 1)
+            | KEEP title
+            | WHERE match(title, "data")
+            """));
+    }
+
+    public void testRuntimeKeywordSearchAllowedAfterFork() {
+        // a keyword column is not analyzed, so there is no mapping analyzer for the merge to lose
+        optimize(fullTextAnalyzer().query(HYBRID_FORK + "| KEEP tags | WHERE match(tags, \"data\")"));
+    }
+
+    public void testRuntimeTextSearchAllowedAfterForkWithDeclaredValuesAnalyzer() {
+        // TO_TEXT declares the values analyzer, so nothing is substituted silently. It is rejected on an
+        // index-mapped field but allowed here, because after FORK the column is no longer index-mapped.
+        optimize(
+            fullTextAnalyzer().query(
+                HYBRID_FORK + "| EVAL t = to_text(title, {\"analyzer\": \"whitespace\"}) " + "| WHERE match(t, \"data\")"
+            )
+        );
+    }
+
+    public void testRuntimeTextSearchAllowedAfterForkWhenNoBranchIsIndexBacked() {
+        // indistinguishable from the rejected shape by type and declared analyzer - TEXT, none - so only the
+        // absence of a mapped field behind either branch can tell them apart
+        optimize(fullTextAnalyzer().query("""
+            FROM test
+            | FORK (WHERE match(title, "fox") | SORT id | LIMIT 5 | EVAL strategy = to_text("lexical"))
+                   (WHERE category == 1     | SORT id | LIMIT 5 | EVAL strategy = to_text("filtered"))
+            | WHERE match(strategy, "lexical")
+            """));
+    }
+
+    public void testRuntimeTextSearchRejectedAfterForkThroughRename() {
+        var err = error(fullTextAnalyzer().query("""
+            FROM test
+            | FORK (WHERE match(body, "fox") | SORT id | LIMIT 5 | RENAME title AS heading)
+                   (WHERE category == 1      | SORT id | LIMIT 5 | RENAME title AS heading)
+            | WHERE match(heading, "data")
+            """));
+        assertThat(err, containsString("[MATCH] function cannot search column [heading] after FORK"));
+        // the merged column is [heading], but inside the branches the field is still called [title]
+        assertThat(err, containsString("Search [title] in the FORK branches instead"));
+        assertThat(err, containsString("TO_TEXT(heading, {\"analyzer\": ...})"));
+    }
+
+    public void testRuntimeTextSearchRejectedAfterForkWhenOnlyOneBranchIsIndexBacked() {
+        // only the lexical branch supplies the mapped field; the other computes the column outright
+        var err = error(fullTextAnalyzer().query("""
+            FROM test
+            | FORK (WHERE match(body, "fox") | SORT id | LIMIT 5)
+                   (WHERE category == 1      | SORT id | LIMIT 5 | EVAL title = to_text("untitled"))
+            | KEEP title
+            | WHERE match(title, "data")
+            """));
+        assertThat(err, containsString("[MATCH] function cannot search column [title] after FORK"));
+    }
+
+    public void testRuntimeTextSearchRejectedAfterForkDespiteSearchAnalyzerOption() {
+        // the MATCH analyzer option covers the query string only; the per-row values still fall back to standard
+        var err = error(
+            fullTextAnalyzer().query(HYBRID_FORK + "| KEEP title | WHERE match(title, \"data\", {\"analyzer\": \"whitespace\"})")
+        );
+        assertThat(err, containsString("[MATCH] function cannot search column [title] after FORK"));
+    }
+
+    public void testRuntimeTextSearchStillAllowedAfterMvExpand() {
+        optimize(fullTextAnalyzer().query("FROM test | MV_EXPAND title | WHERE match(title, \"data\")"));
+    }
+
+    /**
+     * A subquery union merges columns exactly as {@code FORK} does, but it does not share {@code FORK}'s exposure to
+     * the analyzer substitution, because {@code PushDownFilterAndLimitIntoUnionAll} pushes the filter into every
+     * branch unconditionally - there is no pipeline-breaker bail-out like {@code PushDownFiltersIntoFork}'s. Pushed
+     * this far, the filter lands positioned after each branch's own {@code SORT ... | LIMIT ...} (folded into a
+     * {@code TopN}), which is rejected for the same reason a plain, non-union query in that shape would be: an
+     * index-backed search cannot run after a command that has already reduced or reordered the rows. That rejection
+     * is itself the proof that no search here ever reaches a merged column: the filter is relocated into the
+     * branch, not left merged above the union, before either of those two questions - position, then analyzer - is
+     * even asked.
+     */
+    public void testRuntimeTextSearchAfterUnionAllReachesTheBranches() {
+        assumeTrue("requires subquery_in_from_command", EsqlCapabilities.Cap.SUBQUERY_IN_FROM_COMMAND.isEnabled());
+        var err = error(fullTextAnalyzer().query("""
+            FROM (FROM test | WHERE category == 1 | SORT id | LIMIT 5),
+                 (FROM test | WHERE category == 2 | SORT id | LIMIT 5)
+            | WHERE match(title, "data")
+            """));
+        assertThat(err, containsString("[MATCH] function cannot be used after SORT and LIMIT"));
+    }
+
+    /**
+     * Companion to {@link #testRuntimeTextSearchAfterUnionAllReachesTheBranches}: without a pipeline breaker in
+     * either branch, the same push-down lands the filter as an ordinary index-backed search per branch - not a
+     * runtime search on a merged column - so the query succeeds.
+     */
+    public void testRuntimeTextSearchAfterUnionAllWithoutBreakerReachesTheBranches() {
+        assumeTrue("requires subquery_in_from_command", EsqlCapabilities.Cap.SUBQUERY_IN_FROM_COMMAND.isEnabled());
+        var plan = optimize(fullTextAnalyzer().query("""
+            FROM (FROM test | WHERE category == 1),
+                 (FROM test | WHERE category == 2)
+            | WHERE match(title, "data")
+            """));
+
+        List<SingleFieldFullTextFunction> searches = new ArrayList<>();
+        plan.forEachDown(Filter.class, f -> f.condition().forEachDown(SingleFieldFullTextFunction.class, searches::add));
+        assertThat(searches, hasSize(2));
+        for (SingleFieldFullTextFunction search : searches) {
+            assertThat(search.isRuntimeSearch(), is(false));
+            assertThat(search.field(), instanceOf(FieldAttribute.class));
+        }
+    }
+
+    public void testRuntimeTextSearchRejectedAfterForkNestedInSubqueryBranch() {
+        assumeTrue("requires subquery_in_from_command", EsqlCapabilities.Cap.SUBQUERY_IN_FROM_COMMAND.isEnabled());
+        var err = error(fullTextAnalyzer().query("""
+            FROM (FROM test | FORK (WHERE match(title, "fox") | SORT id | LIMIT 5)
+                                   (WHERE category == 1       | SORT id | LIMIT 5)),
+                 (FROM test | WHERE category == 2 | SORT id | LIMIT 5)
+            | WHERE match(title, "data")
+            """));
+        assertThat(err, containsString("[MATCH] function cannot search column [title] after FORK"));
+    }
+
+    public void testRuntimeTextSearchRejectedAfterForkThroughCast() {
+        // a cast does not detach the column from the field behind it, so it is not a way around the restriction
+        var err = error(fullTextAnalyzer().query(HYBRID_FORK + "| KEEP title | WHERE match(title::keyword, \"data\")"));
+        assertThat(err, containsString("[MATCH] function cannot search column [title] after FORK"));
+    }
+
+    public void testRuntimeTextSearchAllowedAfterForkWhenBranchesMvExpand() {
+        // MV_EXPAND already made the column non-indexed inside the branch, so no branch hands the merge a mapped
+        // field and this stays the pre-existing MV_EXPAND behaviour rather than becoming a FORK rejection
+        optimize(fullTextAnalyzer().query("""
+            FROM test
+            | FORK (WHERE match(body, "fox") | MV_EXPAND title | SORT id | LIMIT 5)
+                   (WHERE category == 1      | MV_EXPAND title | SORT id | LIMIT 5)
+            | WHERE match(title, "data")
+            """));
+    }
+
+    public void testHighlightAfterForkIsNotRestricted() {
+        // HIGHLIGHT holds full-text functions too, but it analyzes row by row through a MemoryIndex whether or not
+        // a FORK precedes it, so the restriction must not reach it even in the shape that blocks push-down
+        optimize(fullTextAnalyzer().minimumTransportVersion(Highlight.ESQL_HIGHLIGHT).query(HYBRID_FORK + "| HIGHLIGHT \"data\" ON title"));
+    }
+
+    private TestAnalyzer fullTextAnalyzer() {
+        return analyzerWithEnrichPolicies().addIndex("test", "mapping-full_text_search.json");
+    }
 
     private String error(LogicalPlan plan) {
         Throwable e = expectThrows(
@@ -456,6 +730,47 @@ public class OptimizerVerificationTests extends AbstractLogicalPlanOptimizerTest
             after it, or add a LIMIT after the SORT"""));
     }
 
+    /**
+     * The full-text verifier runs twice: on the analyzed plan, where INLINE STATS is an {@link InlineStats}, and again on the
+     * optimized plan, where {@code SubstituteSurrogatePlans} has turned it into an {@link InlineJoin}. The two node types never
+     * coexist, so the verifier has to recognize the aggregate under either shape or a query would pass one phase and fail the
+     * other. These queries reach {@code optimize} only if the analyzer accepted them, and {@code optimize} itself throws if the
+     * post-optimization verifier rejects them.
+     */
+    public void testFullTextFunctionAfterInlineStatsAgreesAcrossVerificationPhases() {
+        assumeTrue("INLINE STATS must be enabled", INLINE_STATS.isEnabled());
+
+        var plan = optimize(defaultAnalyzer().query("""
+            FROM test
+            | INLINE STATS a = MAX(salary) BY gender
+            | WHERE MATCH(first_name, "Anna")
+            """));
+
+        assertThat(plan.anyMatch(p -> p instanceof InlineStats), is(false));
+        assertThat(plan.anyMatch(p -> p instanceof InlineJoin), is(true));
+    }
+
+    /**
+     * An aggregate expression is rewritten by {@code ReplaceAggregateAggExpressionWithEval} into an Eval over the Aggregate, so
+     * the Aggregate is no longer the root of the InlineJoin's right-hand side. The verifier has to search the whole subtree.
+     */
+    public void testFullTextFunctionAfterInlineStatsWithAggregateExpression() {
+        assumeTrue("INLINE STATS must be enabled", INLINE_STATS.isEnabled());
+
+        var plan = optimize(defaultAnalyzer().query("""
+            FROM test
+            | INLINE STATS a = MAX(salary) + 1 BY gender
+            | WHERE MATCH(first_name, "Anna")
+            """));
+
+        var inlineJoins = plan.collect(p -> p instanceof InlineJoin);
+        assertThat(inlineJoins, hasSize(1));
+        var right = ((InlineJoin) inlineJoins.getFirst()).right();
+        // the Aggregate sits below an Eval/Project rather than at the root of the right-hand side
+        assertThat(right, not(instanceOf(Aggregate.class)));
+        assertThat(right.anyMatch(p -> p instanceof Aggregate), is(true));
+    }
+
     public void testDanglingOrderByInInlineStats() {
         assumeTrue("INLINE STATS must be enabled", INLINE_STATS.isEnabled());
         var testAnalyzer = analyzer().addDefaultIndex().addLanguagesLookup().addTestLookup().addAnalysisTestsEnrichResolution();
@@ -633,5 +948,471 @@ public class OptimizerVerificationTests extends AbstractLogicalPlanOptimizerTest
         var err = error(testAnalyzer.query("FROM test | FORK (SORT emp_no + 1) | STATS y = COUNT(*)"));
 
         assertThat(err, is("1:19: Unbounded SORT not supported yet [SORT emp_no + 1] please add a LIMIT"));
+    }
+
+    // LIKE/RLIKE constant-expression tests: pattern folding happens in the optimizer, not the analyzer.
+
+    /**
+     * LIKE with a foldable CONCAT expression is folded by ConstantFolding in the optimizer, then
+     * routed through {@code ReplaceRegexMatch}. As for an inline {@code LIKE "Anna*"}, the prefix
+     * pattern decomposes into a {@link StartsWith}, keeping both paths consistent.
+     */
+    public void testLikeConstantExpressionFoldsToStartsWith() {
+        assumeTrue("requires like_rlike_constant_expression", EsqlCapabilities.Cap.LIKE_RLIKE_CONSTANT_EXPRESSION.isEnabled());
+        var plan = optimize(defaultAnalyzer().query("from test | where first_name like concat(\"Anna\", \"*\")"));
+        var filter = as(as(plan, Limit.class).child(), Filter.class);
+        StartsWith startsWith = as(filter.condition(), StartsWith.class);
+        assertEquals("Anna", BytesRefs.toString(as(startsWith.prefix(), Literal.class).value()));
+    }
+
+    /**
+     * RLIKE with a foldable CONCAT expression is folded by ConstantFolding in the optimizer into a concrete RLike.
+     */
+    public void testRLikeConstantExpressionFoldsToRLike() {
+        assumeTrue("requires like_rlike_constant_expression", EsqlCapabilities.Cap.LIKE_RLIKE_CONSTANT_EXPRESSION.isEnabled());
+        var plan = optimize(defaultAnalyzer().query("from test | where first_name rlike concat(\"Anna\", \".*\")"));
+        var filter = as(as(plan, Limit.class).child(), Filter.class);
+        RLike rlike = as(filter.condition(), RLike.class);
+        assertEquals("Anna.*", rlike.pattern().asJavaRegex());
+    }
+
+    /**
+     * EVAL propagation: PropagateEvalFoldables folds the literal "Anna*" from the EVAL back into
+     * the LIKE pattern before the regex-resolution rule fires. This is the key case that the
+     * analyzer-only approach could not handle: a pattern arriving via an EVAL alias should work
+     * identically to an inline literal.
+     * <p>
+     * The Eval stays above the Limit in the optimized plan because x is part of the output
+     * (no KEEP to exclude it), and the Filter is pushed below Limit.
+     */
+    public void testLikeEvalPropagatedConstant() {
+        assumeTrue("requires like_rlike_constant_expression", EsqlCapabilities.Cap.LIKE_RLIKE_CONSTANT_EXPRESSION.isEnabled());
+        var plan = optimize(defaultAnalyzer().query("from test | eval x = \"Anna*\" | where first_name like x"));
+        // Eval → Limit → Filter → EsRelation (Eval stays because x is in the output)
+        var filter = as(as(as(plan, Eval.class).child(), Limit.class).child(), Filter.class);
+        StartsWith startsWith = as(filter.condition(), StartsWith.class);
+        assertEquals("Anna", BytesRefs.toString(as(startsWith.prefix(), Literal.class).value()));
+    }
+
+    /**
+     * Same as {@link #testLikeEvalPropagatedConstant} for RLIKE.
+     */
+    public void testRLikeEvalPropagatedConstant() {
+        assumeTrue("requires like_rlike_constant_expression", EsqlCapabilities.Cap.LIKE_RLIKE_CONSTANT_EXPRESSION.isEnabled());
+        var plan = optimize(defaultAnalyzer().query("from test | eval x = \"Anna.*\" | where first_name rlike x"));
+        var filter = as(as(as(plan, Eval.class).child(), Limit.class).child(), Filter.class);
+        RLike rlike = as(filter.condition(), RLike.class);
+        assertEquals("Anna.*", rlike.pattern().asJavaRegex());
+    }
+
+    /**
+     * EVAL with a CONCAT that folds: the optimizer first evaluates CONCAT, then propagates and
+     * converts the DeferredRegexExpression, decomposing the prefix pattern into a {@link StartsWith}.
+     */
+    public void testLikeEvalPropagatedConcat() {
+        assumeTrue("requires like_rlike_constant_expression", EsqlCapabilities.Cap.LIKE_RLIKE_CONSTANT_EXPRESSION.isEnabled());
+        var plan = optimize(defaultAnalyzer().query("from test | eval x = concat(\"Anna\", \"*\") | where first_name like x"));
+        var filter = as(as(as(plan, Eval.class).child(), Limit.class).child(), Filter.class);
+        StartsWith startsWith = as(filter.condition(), StartsWith.class);
+        assertEquals("Anna", BytesRefs.toString(as(startsWith.prefix(), Literal.class).value()));
+    }
+
+    /**
+     * Same as {@link #testLikeEvalPropagatedConcat} for RLIKE.
+     */
+    public void testRLikeEvalPropagatedConcat() {
+        assumeTrue("requires like_rlike_constant_expression", EsqlCapabilities.Cap.LIKE_RLIKE_CONSTANT_EXPRESSION.isEnabled());
+        var plan = optimize(defaultAnalyzer().query("from test | eval x = concat(\"Anna\", \".*\") | where first_name rlike x"));
+        var filter = as(as(as(plan, Eval.class).child(), Limit.class).child(), Filter.class);
+        RLike rlike = as(filter.condition(), RLike.class);
+        assertEquals("Anna.*", rlike.pattern().asJavaRegex());
+    }
+
+    /**
+     * Multi-level EVAL chain: PropagateEvalFoldables must propagate through two EVAL steps.
+     * First {@code suffix = ".*"} is substituted into {@code p = CONCAT("Eber", suffix)}, making
+     * p a foldable CONCAT, which is then substituted into the RLIKE pattern and resolved.
+     * CombineEvals merges both EVAL nodes into one, so the plan root is a single merged Eval.
+     */
+    public void testRLikeMultiLevelEvalChain() {
+        assumeTrue("requires like_rlike_constant_expression", EsqlCapabilities.Cap.LIKE_RLIKE_CONSTANT_EXPRESSION.isEnabled());
+        var plan = optimize(
+            defaultAnalyzer().query("from test | eval suffix = \".*\" | eval p = concat(\"Eber\", suffix) | where first_name rlike p")
+        );
+        // CombineEvals merges both EVAL nodes into one; plan shape mirrors the single-EVAL case
+        var eval = as(plan, Eval.class);
+        var filter = as(as(eval.child(), Limit.class).child(), Filter.class);
+        RLike rlike = as(filter.condition(), RLike.class);
+        assertEquals("Eber.*", rlike.pattern().asJavaRegex());
+    }
+
+    /**
+     * Same as {@link #testRLikeMultiLevelEvalChain} for LIKE.
+     */
+    public void testLikeMultiLevelEvalChain() {
+        assumeTrue("requires like_rlike_constant_expression", EsqlCapabilities.Cap.LIKE_RLIKE_CONSTANT_EXPRESSION.isEnabled());
+        var plan = optimize(
+            defaultAnalyzer().query("from test | eval suffix = \"*\" | eval p = concat(\"Eber\", suffix) | where first_name like p")
+        );
+        var eval = as(plan, Eval.class);
+        var filter = as(as(eval.child(), Limit.class).child(), Filter.class);
+        StartsWith startsWith = as(filter.condition(), StartsWith.class);
+        assertEquals("Eber", BytesRefs.toString(as(startsWith.prefix(), Literal.class).value()));
+    }
+
+    /**
+     * EVAL with a matchesAll pattern ("*") should produce IsNotNull, same as the inline case.
+     * ReplaceDeferredRegex handles this directly after propagation.
+     */
+    public void testLikeEvalPropagatedMatchesAll() {
+        assumeTrue("requires like_rlike_constant_expression", EsqlCapabilities.Cap.LIKE_RLIKE_CONSTANT_EXPRESSION.isEnabled());
+        var plan = optimize(defaultAnalyzer().query("from test | eval p = \"*\" | where first_name like p"));
+        var outerEval = as(plan, Eval.class);
+        var filter = as(as(outerEval.child(), Limit.class).child(), Filter.class);
+        as(filter.condition(), IsNotNull.class);
+    }
+
+    /**
+     * EVAL with an exactMatch pattern (no wildcards) should produce Equals, same as the inline case.
+     */
+    public void testLikeEvalPropagatedExactMatch() {
+        assumeTrue("requires like_rlike_constant_expression", EsqlCapabilities.Cap.LIKE_RLIKE_CONSTANT_EXPRESSION.isEnabled());
+        var plan = optimize(defaultAnalyzer().query("from test | eval p = \"Eber\" | where first_name like p"));
+        var outerEval = as(plan, Eval.class);
+        var filter = as(as(outerEval.child(), Limit.class).child(), Filter.class);
+        as(filter.condition(), Equals.class);
+    }
+
+    /**
+     * Non-foldable pattern (a field reference) must be rejected at post-optimization verification
+     * with an error indicating the argument must be a constant.
+     */
+    public void testLikeNonFoldablePatternReportsError() {
+        assumeTrue("requires like_rlike_constant_expression", EsqlCapabilities.Cap.LIKE_RLIKE_CONSTANT_EXPRESSION.isEnabled());
+        var err = error(defaultAnalyzer().query("from test | where first_name like last_name"));
+        assertThat(err, containsString("[LIKE] pattern must be a constant, received [last_name]"));
+    }
+
+    /**
+     * Non-foldable pattern (a field reference) must be rejected at post-optimization verification for RLIKE.
+     */
+    public void testRLikeNonFoldablePatternReportsError() {
+        assumeTrue("requires like_rlike_constant_expression", EsqlCapabilities.Cap.LIKE_RLIKE_CONSTANT_EXPRESSION.isEnabled());
+        var err = error(defaultAnalyzer().query("from test | where first_name rlike last_name"));
+        assertThat(err, containsString("[RLIKE] pattern must be a constant, received [last_name]"));
+    }
+
+    /**
+     * A pattern that folds to a non-string type (integer) must be rejected at post-optimization
+     * verification with a type error.
+     */
+    public void testLikeIntegerPatternReportsTypeError() {
+        assumeTrue("requires like_rlike_constant_expression", EsqlCapabilities.Cap.LIKE_RLIKE_CONSTANT_EXPRESSION.isEnabled());
+        var err = error(defaultAnalyzer().query("from test | where first_name like 12"));
+        assertThat(err, containsString("[LIKE] pattern must be a string"));
+    }
+
+    /**
+     * A foldable arithmetic expression that yields a non-string constant (1 + 2 = 3) is rejected
+     * the same way as a bare integer literal.
+     */
+    public void testLikeFoldedIntegerPatternReportsTypeError() {
+        assumeTrue("requires like_rlike_constant_expression", EsqlCapabilities.Cap.LIKE_RLIKE_CONSTANT_EXPRESSION.isEnabled());
+        var err = error(defaultAnalyzer().query("from test | where first_name like (1 + 2)"));
+        assertThat(err, containsString("[LIKE] pattern must be a string"));
+    }
+
+    /**
+     * Same as {@link #testLikeIntegerPatternReportsTypeError} for RLIKE.
+     */
+    public void testRLikeIntegerPatternReportsTypeError() {
+        assumeTrue("requires like_rlike_constant_expression", EsqlCapabilities.Cap.LIKE_RLIKE_CONSTANT_EXPRESSION.isEnabled());
+        var err = error(defaultAnalyzer().query("from test | where first_name rlike 12"));
+        assertThat(err, containsString("[RLIKE] pattern must be a string"));
+    }
+
+    /**
+     * A null-valued keyword pattern (e.g. via {@code null::keyword}) must produce a clear user error,
+     * not an internal crash. The pattern passes type and foldability checks but folds to null,
+     * so the null guard in {@code postOptimizationVerification} must catch it.
+     */
+    public void testLikeNullPatternReportsError() {
+        assumeTrue("requires like_rlike_constant_expression", EsqlCapabilities.Cap.LIKE_RLIKE_CONSTANT_EXPRESSION.isEnabled());
+        var err = error(defaultAnalyzer().query("from test | eval p = null::keyword | where first_name like p"));
+        assertThat(err, containsString("[LIKE] pattern must not be null"));
+    }
+
+    /**
+     * Same as {@link #testLikeNullPatternReportsError} for RLIKE.
+     */
+    public void testRLikeNullPatternReportsError() {
+        assumeTrue("requires like_rlike_constant_expression", EsqlCapabilities.Cap.LIKE_RLIKE_CONSTANT_EXPRESSION.isEnabled());
+        var err = error(defaultAnalyzer().query("from test | eval p = null::keyword | where first_name rlike p"));
+        assertThat(err, containsString("[RLIKE] pattern must not be null"));
+    }
+
+    /**
+     * A bare {@code null} literal (DataType.NULL) must be rejected because it is not a string type,
+     * not because it is null. This is the simplest null path: {@code WHERE field LIKE null}.
+     */
+    public void testLikeNullLiteralReportsTypeError() {
+        assumeTrue("requires like_rlike_constant_expression", EsqlCapabilities.Cap.LIKE_RLIKE_CONSTANT_EXPRESSION.isEnabled());
+        var err = error(defaultAnalyzer().query("from test | where first_name like null"));
+        assertThat(err, containsString("[LIKE] pattern must be a string"));
+    }
+
+    /**
+     * Same as {@link #testLikeNullLiteralReportsTypeError} for RLIKE.
+     */
+    public void testRLikeNullLiteralReportsTypeError() {
+        assumeTrue("requires like_rlike_constant_expression", EsqlCapabilities.Cap.LIKE_RLIKE_CONSTANT_EXPRESSION.isEnabled());
+        var err = error(defaultAnalyzer().query("from test | where first_name rlike null"));
+        assertThat(err, containsString("[RLIKE] pattern must be a string"));
+    }
+
+    /**
+     * {@code CONCAT(null, "*")} folds to a null KEYWORD value; the null guard in
+     * {@code postOptimizationVerification} must catch it and report a clear error.
+     */
+    public void testLikeConcatNullPropagatesError() {
+        assumeTrue("requires like_rlike_constant_expression", EsqlCapabilities.Cap.LIKE_RLIKE_CONSTANT_EXPRESSION.isEnabled());
+        var err = error(defaultAnalyzer().query("from test | where first_name like concat(null, \"*\")"));
+        assertThat(err, containsString("[LIKE] pattern must not be null"));
+    }
+
+    /**
+     * Same as {@link #testLikeConcatNullPropagatesError} for RLIKE.
+     */
+    public void testRLikeConcatNullPropagatesError() {
+        assumeTrue("requires like_rlike_constant_expression", EsqlCapabilities.Cap.LIKE_RLIKE_CONSTANT_EXPRESSION.isEnabled());
+        var err = error(defaultAnalyzer().query("from test | where first_name rlike concat(null, \".*\")"));
+        assertThat(err, containsString("[RLIKE] pattern must not be null"));
+    }
+
+    /**
+     * An untyped {@code null} via EVAL (DataType.NULL) must be rejected because it is not a string,
+     * not because it is null. Symmetric to {@link #testLikeNullLiteralReportsTypeError} but via
+     * the EVAL propagation path.
+     */
+    public void testLikeNullEvalReportsTypeError() {
+        assumeTrue("requires like_rlike_constant_expression", EsqlCapabilities.Cap.LIKE_RLIKE_CONSTANT_EXPRESSION.isEnabled());
+        var err = error(defaultAnalyzer().query("from test | eval p = null | where first_name like p"));
+        assertThat(err, containsString("[LIKE] pattern must be a string"));
+    }
+
+    /**
+     * Same as {@link #testLikeNullEvalReportsTypeError} for RLIKE.
+     */
+    public void testRLikeNullEvalReportsTypeError() {
+        assumeTrue("requires like_rlike_constant_expression", EsqlCapabilities.Cap.LIKE_RLIKE_CONSTANT_EXPRESSION.isEnabled());
+        var err = error(defaultAnalyzer().query("from test | eval p = null | where first_name rlike p"));
+        assertThat(err, containsString("[RLIKE] pattern must be a string"));
+    }
+
+    /**
+     * RLIKE pattern ".*" via EVAL matches every non-null string; ReplaceDeferredRegex
+     * detects {@code matchesAll()} and produces {@link IsNotNull} instead of {@link RLike}.
+     * Symmetric to {@link #testLikeEvalPropagatedMatchesAll}.
+     */
+    public void testRLikeEvalPropagatedMatchesAll() {
+        assumeTrue("requires like_rlike_constant_expression", EsqlCapabilities.Cap.LIKE_RLIKE_CONSTANT_EXPRESSION.isEnabled());
+        var plan = optimize(defaultAnalyzer().query("from test | eval p = \".*\" | where first_name rlike p"));
+        var outerEval = as(plan, Eval.class);
+        var filter = as(as(outerEval.child(), Limit.class).child(), Filter.class);
+        as(filter.condition(), IsNotNull.class);
+    }
+
+    /**
+     * RLIKE pattern with no regex metacharacters ("Anna") via EVAL has only one accepted
+     * string; ReplaceDeferredRegex detects {@code exactMatch()} and produces {@link Equals}.
+     * Symmetric to {@link #testLikeEvalPropagatedExactMatch}.
+     */
+    public void testRLikeEvalPropagatedExactMatch() {
+        assumeTrue("requires like_rlike_constant_expression", EsqlCapabilities.Cap.LIKE_RLIKE_CONSTANT_EXPRESSION.isEnabled());
+        var plan = optimize(defaultAnalyzer().query("from test | eval p = \"Anna\" | where first_name rlike p"));
+        var outerEval = as(plan, Eval.class);
+        var filter = as(as(outerEval.child(), Limit.class).child(), Filter.class);
+        as(filter.condition(), Equals.class);
+    }
+
+    /**
+     * A foldable-but-non-string arithmetic expression used as an RLIKE pattern must be
+     * rejected at post-optimization verification. Symmetric to
+     * {@link #testLikeFoldedIntegerPatternReportsTypeError}.
+     */
+    public void testRLikeFoldedIntegerPatternReportsTypeError() {
+        assumeTrue("requires like_rlike_constant_expression", EsqlCapabilities.Cap.LIKE_RLIKE_CONSTANT_EXPRESSION.isEnabled());
+        var err = error(defaultAnalyzer().query("from test | where first_name rlike (1 + 2)"));
+        assertThat(err, containsString("[RLIKE] pattern must be a string"));
+    }
+
+    /**
+     * NOT LIKE with a constant expression: the parser wraps the DeferredRegexExpression in
+     * Not; ReplaceDeferredRegex descends into it and resolves the inner node normally.
+     */
+    public void testLikeNotConstantExpression() {
+        assumeTrue("requires like_rlike_constant_expression", EsqlCapabilities.Cap.LIKE_RLIKE_CONSTANT_EXPRESSION.isEnabled());
+        var plan = optimize(defaultAnalyzer().query("from test | where first_name not like concat(\"Anna\", \"*\")"));
+        var filter = as(as(plan, Limit.class).child(), Filter.class);
+        Not not = as(filter.condition(), Not.class);
+        StartsWith startsWith = as(not.field(), StartsWith.class);
+        assertEquals("Anna", BytesRefs.toString(as(startsWith.prefix(), Literal.class).value()));
+    }
+
+    /**
+     * Same as {@link #testLikeNotConstantExpression} for RLIKE.
+     */
+    public void testRLikeNotConstantExpression() {
+        assumeTrue("requires like_rlike_constant_expression", EsqlCapabilities.Cap.LIKE_RLIKE_CONSTANT_EXPRESSION.isEnabled());
+        var plan = optimize(defaultAnalyzer().query("from test | where first_name not rlike concat(\"Anna\", \".*\")"));
+        var filter = as(as(plan, Limit.class).child(), Filter.class);
+        Not not = as(filter.condition(), Not.class);
+        RLike rlike = as(not.field(), RLike.class);
+        assertEquals("Anna.*", rlike.pattern().asJavaRegex());
+    }
+
+    /**
+     * NOT LIKE with a non-foldable pattern (a field reference) must be rejected at
+     * post-optimization verification. The {@code Not} wrapper must not prevent the
+     * {@code LogicalVerifier} from descending into the inner {@code DeferredRegexExpression}.
+     */
+    public void testNotLikeNonFoldablePatternReportsError() {
+        assumeTrue("requires like_rlike_constant_expression", EsqlCapabilities.Cap.LIKE_RLIKE_CONSTANT_EXPRESSION.isEnabled());
+        var err = error(defaultAnalyzer().query("from test | where first_name not like last_name"));
+        assertThat(err, containsString("[LIKE] pattern must be a constant, received [last_name]"));
+    }
+
+    /**
+     * Same as {@link #testNotLikeNonFoldablePatternReportsError} for RLIKE.
+     */
+    public void testNotRLikeNonFoldablePatternReportsError() {
+        assumeTrue("requires like_rlike_constant_expression", EsqlCapabilities.Cap.LIKE_RLIKE_CONSTANT_EXPRESSION.isEnabled());
+        var err = error(defaultAnalyzer().query("from test | where first_name not rlike last_name"));
+        assertThat(err, containsString("[RLIKE] pattern must be a constant, received [last_name]"));
+    }
+
+    /**
+     * A plain text field (no keyword sub-field, i.e. {@code hasExact()} is false) must be
+     * accepted with a constant-expression pattern. {@code isStringAndExact} would have rejected
+     * it, producing a VerificationException, while the literal-pattern path via
+     * {@code WildcardLike} would accept it via {@code isString}. This test locks in the
+     * correct behaviour after the fix to use {@code isString} in
+     * {@code DeferredRegexExpression.resolveType()}.
+     * {@code gender} in mapping-basic.json is a pure text field with no keyword sub-field.
+     */
+    public void testLikeConstantExpressionOnTextField() {
+        assumeTrue("requires like_rlike_constant_expression", EsqlCapabilities.Cap.LIKE_RLIKE_CONSTANT_EXPRESSION.isEnabled());
+        var plan = optimize(defaultAnalyzer().query("from test | where gender like concat(\"M\", \"*\")"));
+        var filter = as(as(plan, Limit.class).child(), Filter.class);
+        StartsWith startsWith = as(filter.condition(), StartsWith.class);
+        assertEquals("M", BytesRefs.toString(as(startsWith.prefix(), Literal.class).value()));
+    }
+
+    /**
+     * A LIKE pattern that folds to an invalid wildcard escape sequence (e.g. {@code \a}) must raise
+     * a clear {@link org.elasticsearch.xpack.esql.parser.ParsingException} rather than leaking an
+     * {@code InvalidArgumentException} from the
+     * {@link org.elasticsearch.xpack.esql.core.expression.predicate.regex.WildcardPattern} constructor.
+     */
+    public void testLikeInvalidWildcardEscapeReportsError() {
+        assumeTrue("requires like_rlike_constant_expression", EsqlCapabilities.Cap.LIKE_RLIKE_CONSTANT_EXPRESSION.isEnabled());
+        // concat("pre", "\\a") folds to "pre\a"; the \a escape is invalid in wildcard syntax
+        var plan = defaultAnalyzer().query("from test | where first_name like concat(\"pre\", \"\\\\a\")");
+        var e = expectThrows(org.elasticsearch.xpack.esql.parser.ParsingException.class, () -> optimize(plan));
+        assertThat(e.getMessage(), containsString("Invalid pattern for LIKE"));
+    }
+
+    public void testLikeAlwaysTrue_AsLocalRelation() {
+        assumeTrue("requires like_rlike_constant_expression", EsqlCapabilities.Cap.LIKE_RLIKE_CONSTANT_EXPRESSION.isEnabled());
+        var plan = optimize(defaultAnalyzer().query("row abc = \"demo\" | eval filter = concat(\"demo\", \"*\") | where abc like filter"));
+        // The filter folds to true and is pruned; the Row source becomes a LocalRelation
+        assertFalse(plan.anyMatch(p -> p instanceof Filter));
+        assertTrue(plan.anyMatch(p -> p instanceof LocalRelation));
+    }
+
+    /**
+     * Same as {@link #testLikeAlwaysTrue_AsLocalRelation} for RLIKE.
+     */
+    public void testRLikeAlwaysTrue_AsLocalRelation() {
+        assumeTrue("requires like_rlike_constant_expression", EsqlCapabilities.Cap.LIKE_RLIKE_CONSTANT_EXPRESSION.isEnabled());
+        var plan = optimize(
+            defaultAnalyzer().query("row abc = \"demo\" | eval filter = concat(\"demo\", \".*\") | where abc rlike filter")
+        );
+        assertFalse(plan.anyMatch(p -> p instanceof Filter));
+        assertTrue(plan.anyMatch(p -> p instanceof LocalRelation));
+    }
+
+    /**
+     * Regression test for https://github.com/elastic/elasticsearch/issues/155979 where ip
+     * ended up as unresolved in the logical plan optimizations
+     */
+    public void testOrCidrMatchNotPruned() {
+        var testAnalyzer = analyzer().addIndex("hosts", "mapping-hosts.json");
+        optimize(testAnalyzer.query("""
+            FROM hosts
+            | EVAL ip = CASE(CIDR_MATCH(ip0, "10.0.0.0/8") OR ip0 == "127.0.0.1"::ip, TO_STRING(ip0), null)
+            """));
+    }
+
+    /**
+     * Regression test for https://github.com/elastic/elasticsearch/issues/155979 where ip
+     * disappeared from the plan in the logical optimizations
+     */
+    public void testOrCidrMatchNotPruned2() {
+        var testAnalyzer = analyzer().addIndex("hosts", "mapping-hosts.json");
+        optimize(testAnalyzer.query("""
+            FROM hosts
+            | EVAL ip = CASE(CIDR_MATCH(ip0, "10.0.0.0/8") OR ip0 == "127.0.0.1"::ip, TO_STRING(ip0), null),
+                   field = CASE(ip IS NOT NULL, "a", "b")
+            | STATS count = COUNT(*) BY field
+            """));
+    }
+
+    public void testOrCidrMatchWithInNotPruned() {
+        var testAnalyzer = analyzer().addIndex("hosts", "mapping-hosts.json");
+        optimize(testAnalyzer.query("""
+            FROM hosts
+            | EVAL ip = CASE(CIDR_MATCH(ip0, "10.0.0.0/8") OR ip0 IN ("127.0.0.1"::ip, "192.168.1.1"::ip), TO_STRING(ip0), null)
+            """));
+    }
+
+    public void testOrCidrMatchWithInNotPruned2() {
+        var testAnalyzer = analyzer().addIndex("hosts", "mapping-hosts.json");
+        optimize(testAnalyzer.query("""
+            FROM hosts
+            | EVAL ip = CASE(CIDR_MATCH(ip0, "10.0.0.0/8") OR ip0 IN ("127.0.0.1"::ip, "192.168.1.1"::ip), TO_STRING(ip0), null),
+                   field = CASE(ip IS NOT NULL, "a", "b")
+            | STATS count = COUNT(*) BY field
+            """));
+    }
+
+    public void testOrCidrMatchWithMixedTypeInNotPruned() {
+        var testAnalyzer = analyzer().addIndex("hosts", "mapping-hosts.json");
+        optimize(testAnalyzer.query("""
+            FROM hosts
+            | EVAL ip = CASE(CIDR_MATCH(ip0, "10.0.0.0/8") OR ip0 IN ("127.0.0.1"::ip, "192.168.1.1"), TO_STRING(ip0), null)
+            """));
+    }
+
+    public void testIpInWithoutCidrMatchNotPruned() {
+        var testAnalyzer = analyzer().addIndex("hosts", "mapping-hosts.json");
+        optimize(testAnalyzer.query("""
+            FROM hosts
+            | EVAL ip = CASE(ip0 IN ("127.0.0.1"::ip, "192.168.1.1"::ip), TO_STRING(ip0), null),
+                   field = CASE(ip IS NOT NULL, "a", "b")
+            | STATS count = COUNT(*) BY field
+            """));
+    }
+
+    public void testIpEqualityAndInCombinedWithCidrMatchNotPruned() {
+        var testAnalyzer = analyzer().addIndex("hosts", "mapping-hosts.json");
+        optimize(testAnalyzer.query("""
+            FROM hosts
+            | EVAL ip = CASE(
+                CIDR_MATCH(ip0, "10.0.0.0/8") OR ip0 == "127.0.0.1"::ip OR ip0 IN ("192.168.1.1"::ip, "172.16.0.1"::ip),
+                TO_STRING(ip0), null),
+                   field = CASE(ip IS NOT NULL, "a", "b")
+            | STATS count = COUNT(*) BY field
+            """));
     }
 }

@@ -1,5 +1,0 @@
-area: Inference
-issues: []
-pr: 148551
-summary: Support jina-embeddings-v5-omni input format for Jina integration
-type: enhancement

@@ -20,7 +20,7 @@ import org.elasticsearch.env.NodeEnvironment;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.MergePolicyConfig;
 import org.elasticsearch.index.shard.ShardId;
-import org.elasticsearch.index.store.ThreadLocalDirectoryMetricHolder;
+import org.elasticsearch.index.store.PluggableDirectoryMetricsHolder;
 import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.test.InternalSettingsPlugin;
@@ -65,8 +65,6 @@ public class SearchShardCacheTimestampBackfillIT extends AbstractStatelessPlugin
     private static final int DOCS_PER_FLUSH = 40;
     private static final int DOC_FIELD_LENGTH = 64;
 
-    private ByteSizeValue cacheRegionSize = REGION_SIZE;
-
     @Override
     protected boolean addMockFsRepository() {
         return false;
@@ -97,13 +95,12 @@ public class SearchShardCacheTimestampBackfillIT extends AbstractStatelessPlugin
             // Both recovery and new commit notifications backfill referenced BCC metadata-read regions only after parsing referenced CCs
             // via this path.
             .put(SearchCommitPrefetcherDynamicSettings.STATELESS_SEARCH_USE_INTERNAL_FILES_REPLICATED_CONTENT.getKey(), true)
-            // Time-based caching (BACKFILL_IN_PROGRESS stamping + backfill) is only enabled when cache boost preference is on.
-            .put(StatelessSharedBlobCacheService.STATELESS_CACHE_BOOST_PREFERENCE_ENABLED_SETTING.getKey(), true)
+            .put(StatelessSharedBlobCacheService.STATELESS_CACHE_BOOST_PREFERENCE_TIMESTAMP_BACKFILL_ENABLED_SETTING.getKey(), true)
             // Enough room to keep every region cached for the duration of the test (no eviction).
             .put(SHARED_CACHE_SIZE_SETTING.getKey(), ByteSizeValue.ofMb(16))
-            .put(SHARED_CACHE_REGION_SIZE_SETTING.getKey(), cacheRegionSize)
-            .put(SHARED_CACHE_RANGE_SIZE_SETTING.getKey(), cacheRegionSize)
-            .put(SHARED_CACHE_RECOVERY_RANGE_SIZE_SETTING.getKey(), cacheRegionSize);
+            .put(SHARED_CACHE_REGION_SIZE_SETTING.getKey(), REGION_SIZE)
+            .put(SHARED_CACHE_RANGE_SIZE_SETTING.getKey(), REGION_SIZE)
+            .put(SHARED_CACHE_RECOVERY_RANGE_SIZE_SETTING.getKey(), REGION_SIZE);
     }
 
     /// Indexes several flushes (each its own multi-region BCC blob, kept referenced by disabling merges) and verifies that a search
@@ -234,6 +231,11 @@ public class SearchShardCacheTimestampBackfillIT extends AbstractStatelessPlugin
                 captured,
                 hasItem(SharedBlobCacheService.BACKFILL_IN_PROGRESS_TIMESTAMP)
             );
+            assertThat(
+                "time-based recovery must never stamp a region UNKNOWN",
+                captured,
+                not(hasItem(SharedBlobCacheService.UNKNOWN_TIMESTAMP))
+            );
 
             var live = cacheService.liveTimestamps(multiCcBlob.cacheKey());
             assertThat("backfill must leave the blob's regions live", live, not(empty()));
@@ -246,6 +248,11 @@ public class SearchShardCacheTimestampBackfillIT extends AbstractStatelessPlugin
                 "backfill must leave no region at the transient sentinel",
                 live,
                 not(hasItem(SharedBlobCacheService.BACKFILL_IN_PROGRESS_TIMESTAMP))
+            );
+            assertThat(
+                "time-based backfill must leave no live region UNKNOWN",
+                live,
+                not(hasItem(SharedBlobCacheService.UNKNOWN_TIMESTAMP))
             );
         });
     }
@@ -318,10 +325,7 @@ public class SearchShardCacheTimestampBackfillIT extends AbstractStatelessPlugin
     /// the backfill resolves them to `MINIMAL_CACHE_TIMESTAMP` - the floor used when no real data timestamp is available - rather than
     /// leaving them UNKNOWN.
     ///
-    /// The cache region is sized so each blob is a single region (its metadata-read region), isolating the backfilled value from the
-    /// UNKNOWN that individual data-file regions would otherwise carry in a multi-region blob.
     public void testSearchShardRecoveryBackfillsUntimestampedTimeBasedRegionsToMinimal() throws Exception {
-        cacheRegionSize = ByteSizeValue.ofMb(1); // larger than any blob below, so each blob occupies exactly one cache region
         var indexNode = startMasterAndIndexNode();
         var indexName = randomIdentifier();
         assertAcked(
@@ -369,17 +373,22 @@ public class SearchShardCacheTimestampBackfillIT extends AbstractStatelessPlugin
 
             for (var cacheKey : readBlobKeys) {
                 var captured = cacheService.capturedTimestamps(cacheKey);
-                assertThat("time-based metadata reads must have cached the region of blob " + cacheKey, captured, not(empty()));
+                assertThat("time-based metadata reads must have cached regions of blob " + cacheKey, captured, not(empty()));
                 assertThat(
                     "a time-based index stamps metadata reads BACKFILL_IN_PROGRESS even when the CCs have no @timestamp",
                     captured,
                     hasItem(SharedBlobCacheService.BACKFILL_IN_PROGRESS_TIMESTAMP)
                 );
+                assertThat(
+                    "time-based recovery must never stamp a region UNKNOWN",
+                    captured,
+                    not(hasItem(SharedBlobCacheService.UNKNOWN_TIMESTAMP))
+                );
 
                 var live = cacheService.liveTimestamps(cacheKey);
-                assertThat("backfill must leave the region of blob " + cacheKey + " live", live, not(empty()));
+                assertThat("backfill must leave the regions of blob " + cacheKey + " live", live, not(empty()));
                 assertThat(
-                    "with no data timestamp available the region is floored to MINIMAL_CACHE_TIMESTAMP, not left UNKNOWN",
+                    "with no data timestamp available every region is floored to MINIMAL_CACHE_TIMESTAMP, not left UNKNOWN",
                     live,
                     everyItem(equalTo(SharedBlobCacheService.MINIMAL_CACHE_TIMESTAMP))
                 );
@@ -507,6 +516,11 @@ public class SearchShardCacheTimestampBackfillIT extends AbstractStatelessPlugin
                 captured,
                 hasItem(SharedBlobCacheService.BACKFILL_IN_PROGRESS_TIMESTAMP)
             );
+            assertThat(
+                "time-based metadata reads and warming must never stamp a region UNKNOWN",
+                captured,
+                not(hasItem(SharedBlobCacheService.UNKNOWN_TIMESTAMP))
+            );
 
             var live = cacheService.liveTimestamps(cacheKey);
             assertThat("backfill must leave live cache regions for blob " + cacheKey, live, not(empty()));
@@ -520,6 +534,11 @@ public class SearchShardCacheTimestampBackfillIT extends AbstractStatelessPlugin
                 "backfill must leave no live region stamped BACKFILL_IN_PROGRESS_TIMESTAMP",
                 live,
                 not(hasItem(SharedBlobCacheService.BACKFILL_IN_PROGRESS_TIMESTAMP))
+            );
+            assertThat(
+                "time-based backfill must leave no live region UNKNOWN",
+                live,
+                not(hasItem(SharedBlobCacheService.UNKNOWN_TIMESTAMP))
             );
         }
     }
@@ -537,9 +556,17 @@ public class SearchShardCacheTimestampBackfillIT extends AbstractStatelessPlugin
             ThreadPool threadPool,
             BlobCacheMetrics blobCacheMetrics,
             ClusterService clusterService,
-            IndicesService indicesService
+            IndicesService indicesService,
+            PluggableDirectoryMetricsHolder<BlobStoreCacheDirectoryMetrics> metricHolder
         ) {
-            return new CapturingCacheService(nodeEnvironment, settings, clusterService.getClusterSettings(), threadPool, blobCacheMetrics);
+            return new CapturingCacheService(
+                nodeEnvironment,
+                settings,
+                clusterService.getClusterSettings(),
+                threadPool,
+                blobCacheMetrics,
+                metricHolder
+            );
         }
     }
 
@@ -552,9 +579,18 @@ public class SearchShardCacheTimestampBackfillIT extends AbstractStatelessPlugin
             Settings settings,
             ClusterSettings clusterSettings,
             ThreadPool threadPool,
-            BlobCacheMetrics blobCacheMetrics
+            BlobCacheMetrics blobCacheMetrics,
+            PluggableDirectoryMetricsHolder<BlobStoreCacheDirectoryMetrics> metricHolder
         ) {
-            this(environment, settings, clusterSettings, threadPool, blobCacheMetrics, new TimestampCapturingEvictionPolicy());
+            this(
+                environment,
+                settings,
+                clusterSettings,
+                threadPool,
+                blobCacheMetrics,
+                metricHolder,
+                new TimestampCapturingEvictionPolicy()
+            );
         }
 
         private CapturingCacheService(
@@ -563,6 +599,7 @@ public class SearchShardCacheTimestampBackfillIT extends AbstractStatelessPlugin
             ClusterSettings clusterSettings,
             ThreadPool threadPool,
             BlobCacheMetrics blobCacheMetrics,
+            PluggableDirectoryMetricsHolder<BlobStoreCacheDirectoryMetrics> metricHolder,
             TimestampCapturingEvictionPolicy capturingPolicy
         ) {
             super(
@@ -574,7 +611,7 @@ public class SearchShardCacheTimestampBackfillIT extends AbstractStatelessPlugin
                 capturingPolicy,
                 System::nanoTime,
                 threadPool.executor(StatelessPlugin.SHARD_READ_THREAD_POOL),
-                new ThreadLocalDirectoryMetricHolder<>(BlobStoreCacheDirectoryMetrics::new)
+                metricHolder
             );
             this.capturingPolicy = capturingPolicy;
         }

@@ -62,10 +62,11 @@ public final class SignumIntEvaluator implements ExpressionEvaluator {
   public DoubleBlock eval(int positionCount, IntBlock valBlock) {
     try(DoubleBlock.Builder result = driverContext.blockFactory().newDoubleBlockBuilder(positionCount)) {
       position: for (int p = 0; p < positionCount; p++) {
+        if (valBlock.isNull(p)) {
+          result.appendNull();
+          continue position;
+        }
         switch (valBlock.getValueCount(p)) {
-          case 0:
-              result.appendNull();
-              continue position;
           case 1:
               break;
           default:
@@ -102,7 +103,7 @@ public final class SignumIntEvaluator implements ExpressionEvaluator {
 
   private Warnings warnings() {
     if (warnings == null) {
-      this.warnings = Warnings.createWarnings(driverContext.warningsMode(), source);
+      this.warnings = driverContext.createWarnings(source);
     }
     return warnings;
   }

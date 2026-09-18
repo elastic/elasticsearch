@@ -48,6 +48,9 @@ public abstract class BWCCodec extends Codec {
     private final SegmentInfoFormat segmentInfosFormat;
     private final PostingsFormat postingsFormat;
 
+    // Calls the overridable original*Format() methods to build wrapping formats; subclasses must return
+    // constant, construction-independent formats, so this escape is safe.
+    @SuppressWarnings("this-escape")
     protected BWCCodec(String name) {
         super(name);
 

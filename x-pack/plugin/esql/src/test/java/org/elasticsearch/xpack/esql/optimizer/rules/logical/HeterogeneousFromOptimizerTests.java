@@ -36,6 +36,7 @@ import org.elasticsearch.xpack.esql.expression.function.aggregate.ToPartial;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.Values;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.GreaterThan;
 import org.elasticsearch.xpack.esql.index.EsIndex;
+import org.elasticsearch.xpack.esql.index.IndexProperties;
 import org.elasticsearch.xpack.esql.optimizer.AbstractLogicalPlanOptimizerTests;
 import org.elasticsearch.xpack.esql.optimizer.rules.PlanConsistencyChecker;
 import org.elasticsearch.xpack.esql.plan.IndexPattern;
@@ -58,11 +59,9 @@ import java.util.List;
 import java.util.Map;
 
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.TEST_PARSER;
-import static org.elasticsearch.xpack.esql.EsqlTestUtils.analyzer;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.as;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.getFieldAttribute;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.referenceAttribute;
-import static org.elasticsearch.xpack.esql.EsqlTestUtils.unboundLogicalOptimizerContext;
 import static org.elasticsearch.xpack.esql.core.tree.Source.EMPTY;
 import static org.elasticsearch.xpack.esql.core.type.DataType.INTEGER;
 import static org.elasticsearch.xpack.esql.optimizer.LocalLogicalPlanOptimizerTests.relation;
@@ -79,6 +78,10 @@ import static org.hamcrest.Matchers.not;
  * (rather than the subquery-shape where children are {@code Project > Eval? > Subquery}).
  */
 public class HeterogeneousFromOptimizerTests extends AbstractLogicalPlanOptimizerTests {
+
+    public HeterogeneousFromOptimizerTests(VersionMode versionMode) {
+        super(versionMode);
+    }
 
     /**
      * {@link PushDownFilterAndLimitIntoUnionAll} must push a filter predicate into both branches
@@ -114,7 +117,7 @@ public class HeterogeneousFromOptimizerTests extends AbstractLogicalPlanOptimize
         GreaterThan condition = new GreaterThan(EMPTY, unionEmpNo, new Literal(EMPTY, 1, INTEGER), null);
         Filter filter = new Filter(EMPTY, unionAll, condition);
 
-        LogicalPlan result = new PushDownFilterAndLimitIntoUnionAll().apply(filter, unboundLogicalOptimizerContext());
+        LogicalPlan result = new PushDownFilterAndLimitIntoUnionAll().apply(filter, logicalOptimizerCtx);
 
         UnionAll resultUnionAll = as(result, UnionAll.class);
         assertThat(resultUnionAll.children(), hasSize(2));
@@ -142,7 +145,7 @@ public class HeterogeneousFromOptimizerTests extends AbstractLogicalPlanOptimize
         UnionAll unionAll = new UnionAll(EMPTY, List.of(esRelation, extRelation), List.of(unionEmpNo));
         Limit limit = new Limit(EMPTY, new Literal(EMPTY, 10, INTEGER), unionAll);
 
-        LogicalPlan result = new PushDownAndCombineLimits().apply(limit, unboundLogicalOptimizerContext());
+        LogicalPlan result = new PushDownAndCombineLimits().apply(limit, logicalOptimizerCtx);
 
         // Limit must remain on top — it must not be pushed into each branch
         Limit resultLimit = as(result, Limit.class);
@@ -195,7 +198,7 @@ public class HeterogeneousFromOptimizerTests extends AbstractLogicalPlanOptimize
     }
 
     /**
-     * {@link PushDownLimitAndOrderByIntoFork} must push a SORT + LIMIT (TopN) into both branches
+     * {@link PushDownLimitAndOrderByIntoMergePlan} must push a SORT + LIMIT (TopN) into both branches
      * of a direct-leaf UnionAll, enabling partial sorting at each data source.
      *
      * <pre>{@code
@@ -233,7 +236,7 @@ public class HeterogeneousFromOptimizerTests extends AbstractLogicalPlanOptimize
         OrderBy orderBy = new OrderBy(EMPTY, unionAll, List.of(order));
         Limit limit = new Limit(EMPTY, new Literal(EMPTY, 10, INTEGER), orderBy);
 
-        LogicalPlan result = new PushDownLimitAndOrderByIntoFork().apply(limit, unboundLogicalOptimizerContext());
+        LogicalPlan result = new PushDownLimitAndOrderByIntoMergePlan().apply(limit, logicalOptimizerCtx);
 
         // Outer structure: Limit → OrderBy → UnionAll remains intact
         Limit resultLimit = as(result, Limit.class);
@@ -1275,7 +1278,7 @@ public class HeterogeneousFromOptimizerTests extends AbstractLogicalPlanOptimize
 
     /**
      * Full-pipeline: {@code FROM employees, ext_emps | SORT emp_no ASC | LIMIT 5} exercises
-     * TopN pushdown ({@link PushDownLimitAndOrderByIntoFork} /
+     * TopN pushdown ({@link PushDownLimitAndOrderByIntoMergePlan} /
      * {@link PushDownAndCombineLimits}) into the leaf {@link UnionAll}. Verifies the plan is
      * valid and that a {@link TopN} appears inside each branch (pushdown happened —
      * {@code ReplaceLimitAndSortAsTopN} converts the pushed-in {@code Limit→OrderBy} pairs to
@@ -1358,7 +1361,7 @@ public class HeterogeneousFromOptimizerTests extends AbstractLogicalPlanOptimize
             }
         }, FileList.UNRESOLVED, Map.of());
         // Use a minimal employees schema (only emp_no and salary) that matches ext_emps exactly.
-        // This prevents resolveFork from adding Eval nodes for missing columns, keeping each
+        // This prevents resolveMergePlan from adding Eval nodes for missing columns, keeping each
         // UnionAll branch as Project > EsRelation / Project > ExternalRelation (no Eval wrapper).
         var employeesIndex = new EsIndex(
             "employees",
@@ -1368,7 +1371,7 @@ public class HeterogeneousFromOptimizerTests extends AbstractLogicalPlanOptimize
                 "salary",
                 new EsField("salary", INTEGER, Map.of(), false, EsField.TimeSeriesFieldType.NONE)
             ),
-            Map.of("employees", IndexMode.STANDARD),
+            Map.of("employees", new IndexProperties(IndexMode.STANDARD, 0)),
             Map.of(),
             Map.of()
         );

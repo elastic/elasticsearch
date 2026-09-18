@@ -142,6 +142,7 @@ public class QueryString extends FullTextFunction implements OptionalArgument, C
         @Param(
             name = "query",
             type = { "keyword", "text" },
+            hint = @Param.Hint(kind = Param.Hint.Kind.CONSTANT),
             description = "Query string in Lucene query string format."
         ) Expression queryString,
         @MapParam(
@@ -170,7 +171,7 @@ public class QueryString extends FullTextFunction implements OptionalArgument, C
                     name = "analyzer",
                     type = "keyword",
                     valueHint = { "standard" },
-                    description = "Analyzer used to convert the text in the query value into token. "
+                    description = "Analyzer used to convert the text in the query value into tokens. "
                         + "Defaults to the index-time analyzer mapped for the default_field."
                 ),
                 @MapParam.MapParamEntry(
@@ -359,6 +360,12 @@ public class QueryString extends FullTextFunction implements OptionalArgument, C
             QuerySettings.TIME_ZONE.get(configuration.resolvedSettings()).getId()
         );
         return queryStringOptions;
+    }
+
+    /** QSTR resolves the fields to search from the query string against the index, so it has no expression to search. */
+    @Override
+    public boolean supportsRuntimeSearch() {
+        return false;
     }
 
     @Override

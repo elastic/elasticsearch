@@ -9,9 +9,6 @@
 
 package org.elasticsearch.columnar.numeric;
 
-import org.apache.lucene.store.DataInput;
-import org.apache.lucene.store.DataOutput;
-
 import java.io.IOException;
 
 /**
@@ -30,8 +27,8 @@ public interface BlockTransform {
      *
      * @return whether the transform fired
      */
-    boolean tryEncode(long[] block, int valueCount, DataOutput params) throws IOException;
+    boolean tryEncode(long[] block, int valueCount, MetadataWriter params) throws IOException;
 
     /** Reverses {@link #tryEncode} over the first {@code valueCount} entries, reading the params it wrote. */
-    void decode(long[] block, int valueCount, DataInput params) throws IOException;
+    void decode(long[] block, int valueCount, MetadataReader params) throws IOException;
 }

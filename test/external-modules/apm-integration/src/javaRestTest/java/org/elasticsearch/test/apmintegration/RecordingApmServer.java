@@ -31,6 +31,7 @@ import io.opentelemetry.proto.collector.trace.v1.TraceServiceGrpc;
 import com.sun.net.httpserver.HttpExchange;
 import com.sun.net.httpserver.HttpServer;
 
+import org.elasticsearch.core.CheckedRunnable;
 import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
@@ -49,10 +50,12 @@ import java.nio.file.Path;
 import java.util.Comparator;
 import java.util.List;
 import java.util.concurrent.BlockingQueue;
+import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.LinkedBlockingQueue;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Consumer;
+import java.util.function.Predicate;
 
 @SuppressForbidden(reason = "Uses an HTTP server for testing; creates temp files for TLS certificates")
 public class RecordingApmServer extends ExternalResource {
@@ -80,10 +83,16 @@ public class RecordingApmServer extends ExternalResource {
     private final BlockingQueue<ReceivedTelemetry> received = new LinkedBlockingQueue<>();
 
     /**
-     * The "Resource" (telemetry source identity) observed by this server. The test JVM emits
-     * a single Resource, so we record the first one and ignore the rest.
+     * The "Resource" (telemetry source identity) observed on the metrics, traces and APM intake paths.
+     * Those signals share one Resource per test JVM, so we record the first one and ignore the rest.
      */
     private final AtomicReference<ReceivedTelemetry.ReceivedResource> resource = new AtomicReference<>();
+
+    /**
+     * The Resource observed on the OTLP logs path, kept apart from {@link #resource} because log records
+     * carry the deliberately minimal log-delivery Resource rather than the one metrics and spans use.
+     */
+    private final AtomicReference<ReceivedTelemetry.ReceivedResource> logResource = new AtomicReference<>();
 
     private HttpServer server;
     private Server grpcServer;
@@ -145,18 +154,16 @@ public class RecordingApmServer extends ExternalResource {
     private Thread consumerThread() {
         return new Thread(() -> {
             while (running && Thread.currentThread().isInterrupted() == false) {
-                if (consumer != null) {
-                    try {
-                        ReceivedTelemetry msg = received.poll(1L, TimeUnit.SECONDS);
-                        if (msg != null) {
-                            consumer.accept(msg);
-                        }
-                    } catch (InterruptedException e) {
-                        Thread.currentThread().interrupt();
-                        return;
-                    } catch (Exception e) {
-                        logger.warn("failed to process message", e);
+                try {
+                    ReceivedTelemetry msg = received.poll(1L, TimeUnit.SECONDS);
+                    if (msg != null) {
+                        consumer.accept(msg);
                     }
+                } catch (InterruptedException e) {
+                    Thread.currentThread().interrupt();
+                    return;
+                } catch (Exception e) {
+                    logger.warn("failed to process message", e);
                 }
             }
         });
@@ -246,15 +253,24 @@ public class RecordingApmServer extends ExternalResource {
         }
     }
 
-    /**
-     * Route a parsed event: {@link ReceivedTelemetry.ReceivedResource} goes to the
-     * {@link #resource} reference (we just need one since the test JVM emits a single
-     * Resource); everything else is queued for consumers.
-     */
+    /** Route an event parsed from the metrics, traces or APM intake path. */
     private void route(ReceivedTelemetry msg) {
+        route(msg, resource);
+    }
+
+    /** Route an event parsed from the OTLP logs path. */
+    private void routeLog(ReceivedTelemetry msg) {
+        route(msg, logResource);
+    }
+
+    /**
+     * Route a parsed event: {@link ReceivedTelemetry.ReceivedResource} goes to the given reference
+     * (we just need the first one each signal reports); everything else is queued for consumers.
+     */
+    private void route(ReceivedTelemetry msg, AtomicReference<ReceivedTelemetry.ReceivedResource> resourceSlot) {
         logger.debug("telemetry received: {}", msg);
         if (msg instanceof ReceivedTelemetry.ReceivedResource r) {
-            resource.compareAndSet(null, r);
+            resourceSlot.compareAndSet(null, r);
         } else {
             received.add(msg);
         }
@@ -318,7 +334,7 @@ public class RecordingApmServer extends ExternalResource {
         public void export(ExportLogsServiceRequest request, StreamObserver<ExportLogsServiceResponse> responseObserver) {
             if (running) {
                 try {
-                    OtlpLogsParser.parse(request).forEach(RecordingApmServer.this::route);
+                    OtlpLogsParser.parse(request).forEach(RecordingApmServer.this::routeLog);
                 } catch (Throwable t) {
                     logger.warn("failed to handle gRPC ExportLogsServiceRequest", t);
                 }
@@ -371,6 +387,27 @@ public class RecordingApmServer extends ExternalResource {
         this.consumer = messageConsumer;
     }
 
+    public <T extends ReceivedTelemetry> T await(
+        Class<T> type,
+        Predicate<T> predicate,
+        int timeoutSeconds,
+        CheckedRunnable<Exception> action
+    ) throws Exception {
+        CountDownLatch latch = new CountDownLatch(1);
+        AtomicReference<T> matched = new AtomicReference<>();
+        addMessageConsumer(msg -> {
+            if (type.isInstance(msg) && predicate.test(type.cast(msg)) && matched.compareAndSet(null, type.cast(msg))) {
+                logger.debug("matched {}: {}", type.getSimpleName(), msg);
+                latch.countDown();
+            }
+        });
+        action.run();
+        if (latch.await(timeoutSeconds, TimeUnit.SECONDS) == false) {
+            throw new AssertionError("Timed out after " + timeoutSeconds + "s waiting for a matching " + type.getSimpleName());
+        }
+        return matched.get();
+    }
+
     /**
      * Clears any recorded telemetry to leave the server in a clean state.
      * <p>
@@ -389,11 +426,19 @@ public class RecordingApmServer extends ExternalResource {
     }
 
     /**
-     * @return the first {@link ReceivedTelemetry.ReceivedResource} observed in this server's
-     *         lifetime, or {@code null} if no resource event has arrived yet
+     * @return the first {@link ReceivedTelemetry.ReceivedResource} observed on the metrics, traces or
+     *         APM intake paths in this server's lifetime, or {@code null} if none has arrived yet
      */
     public ReceivedTelemetry.ReceivedResource resource() {
         return resource.get();
+    }
+
+    /**
+     * @return the first {@link ReceivedTelemetry.ReceivedResource} observed on the OTLP logs path in
+     *         this server's lifetime, or {@code null} if no log batch has arrived yet
+     */
+    public ReceivedTelemetry.ReceivedResource logResource() {
+        return logResource.get();
     }
 
 }

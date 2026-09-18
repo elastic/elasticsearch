@@ -38,7 +38,25 @@ import java.util.Map;
 import java.util.concurrent.atomic.AtomicLong;
 
 /**
- * Fetches deferred fields from the owning data nodes after the coordinator has narrowed the candidate set.
+ * Coordinator-side operator that fetches deferred field values from owning data nodes after the query has
+ * narrowed the candidate row set.
+ * <p>
+ * Each input page carries a column of serialized {@link RemoteFetchHandle}s plus any coordinator columns that
+ * should be retained. For every input page the operator:
+ * <ol>
+ *     <li>decodes and groups handles by target session ({@code nodeId}, {@code retainedSessionId})</li>
+ *     <li>opens a {@link RemoteFetchService.TargetExchange} per target session when needed</li>
+ *     <li>sends batches of handles to the data node via the exchange</li>
+ *     <li>collects response pages from the exchange and merges fetched columns back onto the input rows</li>
+ *     <li>emits one output page once every group for that input page has completed</li>
+ * </ol>
+ * An optional {@code pushdownPlan} may be supplied so filtering happens on the data node. Mapped responses
+ * include a trailing position-mapping column ({@link org.elasticsearch.xpack.esql.plan.logical.RemoteFetchSource#POSITION_ATTRIBUTE_NAME})
+ * so rows pruned by pushdown can be omitted from the merged output; see {@link RemoteFetchPushdownOperatorBuilder} for the
+ * supported pushdown shape.
+ * <p>
+ * Transport and data-node execution are handled by {@link RemoteFetchService}; this operator owns the coordinator
+ * merge and exchange lifecycle only.
  */
 public final class RemoteFetchOperator implements Operator {
     record GroupPages(List<Page> pages, boolean hasPositionMapping, int handleCount) {}
@@ -438,6 +456,17 @@ public final class RemoteFetchOperator implements Operator {
         }
     }
 
+    /*
+     * Fetch failures currently fail the query even when allow_partial_results is true. Earlier shard failures still follow
+     * the existing partial-results policy; this operator does not make selection over incomplete input globally complete.
+     *
+     * TODO: Support recoverable fetch failures when partial results are allowed: omit affected rows rather than substitute
+     * nulls, preserve the order of complete rows from successful fetches, and mark the response partial with the affected
+     * shard failures without double-counting failures already recorded during selection. Returning fewer than N rows is
+     * acceptable; refilling vacancies requires extra candidates or another selection pass and is separate work. Keep
+     * cancellation, query-wide errors, and the existing all-shards-failed behavior fatal. With partial results disabled,
+     * failures that prevent selecting or fetching the global TopN must continue to fail the query.
+     */
     private void throwIfFailed() {
         if (failure == null) {
             return;

@@ -5,6 +5,9 @@ org.elasticsearch.telemetry.apm:
       - relative_path: "telemetry-buffer"
         relative_to: data
         mode: read
+      # container.id fallback for cgroup v2 (OtelSdkResource#mountInfoContainerId)
+      - path: "/proc/self/mountinfo"
+        mode: read
       - path_setting: telemetry.logs.ssl.certificate_authorities
         basedir_if_relative: config
         mode: read

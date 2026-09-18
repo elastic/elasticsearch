@@ -1,5 +1,0 @@
-area: Infra/Metrics
-issues: []
-pr: 145839
-summary: Flush OTel SDK metrics at shutdown
-type: enhancement

@@ -76,7 +76,7 @@ public class RestValidateQueryActionTests extends AbstractSearchTestCase {
 
         final TransportAction<? extends ActionRequest, ? extends ActionResponse> transportAction = new TransportAction<>(
             ValidateQueryAction.NAME,
-            new ActionFilters(Collections.emptySet()),
+            ActionFilters.EMPTY,
             taskManager,
             EsExecutors.DIRECT_EXECUTOR_SERVICE
         ) {
@@ -160,7 +160,7 @@ public class RestValidateQueryActionTests extends AbstractSearchTestCase {
         );
 
         IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> action.prepareRequest(request, client));
-        assertEquals("[routing] is not allowed together with [_slice]", e.getMessage());
+        assertEquals("[routing] is not allowed together with [slice]", e.getMessage());
     }
 
     public void testParseValidateQueryRequestRejectsSliceWhenFeatureDisabled() {
@@ -168,7 +168,7 @@ public class RestValidateQueryActionTests extends AbstractSearchTestCase {
         final RestRequest request = createRestRequest("{\"query\":{\"match_all\":{}}}", Map.of(SliceIndexing.PARAM_NAME, "s1"));
 
         IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> action.prepareRequest(request, client));
-        assertEquals("request does not support [_slice]", e.getMessage());
+        assertEquals("request does not support [slice]", e.getMessage());
     }
 
     public void testRestValidateQueryAction_emptyQuery() throws Exception {

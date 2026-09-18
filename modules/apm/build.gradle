@@ -13,9 +13,9 @@ esplugin {
   classname ='org.elasticsearch.telemetry.apm.APM'
 }
 
-def otelVersion = '1.62.0'
-def otelInstrumentationVersion = '2.26.1-alpha'
-def otelContribDiskBufferingVersion = '1.57.0-alpha'
+def otelVersion = '1.64.0'
+def otelInstrumentationVersion = '2.30.0-alpha'
+def otelContribDiskBufferingVersion = '1.59.0-alpha'
 
 dependencies {
   implementation project(":libs:ssl-config")
@@ -59,8 +59,6 @@ tasks.named("thirdPartyAudit").configure {
     'io.opentelemetry.exporter.internal.marshal.UnsafeStringEncoder$UnsafeHolder'
   )
   ignoreMissingClasses(
-    'com.fasterxml.jackson.core.JsonFactory',
-    'com.fasterxml.jackson.core.JsonGenerator',
     'com.google.common.io.ByteStreams',
     'io.grpc.Drainable',
     'io.grpc.KnownLength',

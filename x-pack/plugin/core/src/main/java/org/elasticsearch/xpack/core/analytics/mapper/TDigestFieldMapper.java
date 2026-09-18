@@ -23,7 +23,7 @@ import org.elasticsearch.common.Explicit;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.xcontent.XContentParserUtils;
 import org.elasticsearch.common.xcontent.support.XContentMapValues;
-import org.elasticsearch.index.IndexVersion;
+import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.fielddata.FieldDataContext;
 import org.elasticsearch.index.fielddata.FormattedDocValues;
 import org.elasticsearch.index.fielddata.HistogramValue;
@@ -37,8 +37,8 @@ import org.elasticsearch.index.mapper.BlockLoader;
 import org.elasticsearch.index.mapper.CompositeSyntheticFieldLoader;
 import org.elasticsearch.index.mapper.DocumentParserContext;
 import org.elasticsearch.index.mapper.DocumentParsingException;
+import org.elasticsearch.index.mapper.FallbackPostMapper;
 import org.elasticsearch.index.mapper.FieldMapper;
-import org.elasticsearch.index.mapper.IgnoreMalformedStoredValues;
 import org.elasticsearch.index.mapper.IndexType;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.MapperBuilderContext;
@@ -95,11 +95,11 @@ public class TDigestFieldMapper extends FieldMapper {
          * Only the metric type histogram is supported.
          */
         private final Parameter<TimeSeriesParams.MetricType> metric;
-        private final IndexVersion indexCreatedVersion;
+        private final IndexSettings indexSettings;
 
-        public Builder(String name, boolean ignoreMalformedByDefault, IndexVersion indexCreatedVersion) {
+        public Builder(String name, boolean ignoreMalformedByDefault, IndexSettings indexSettings) {
             super(name);
-            this.indexCreatedVersion = indexCreatedVersion;
+            this.indexSettings = indexSettings;
             this.ignoreMalformed = Parameter.explicitBoolParam(
                 "ignore_malformed",
                 true,
@@ -164,7 +164,7 @@ public class TDigestFieldMapper extends FieldMapper {
     }
 
     public static final TypeParser PARSER = new TypeParser(
-        (n, c) -> new Builder(n, IGNORE_MALFORMED_SETTING.get(c.getSettings()), c.getIndexSettings().getIndexVersionCreated()),
+        (n, c) -> new Builder(n, IGNORE_MALFORMED_SETTING.get(c.getSettings()), c.getIndexSettings()),
         notInMultiFields(CONTENT_TYPE)
     );
 
@@ -173,7 +173,7 @@ public class TDigestFieldMapper extends FieldMapper {
     private final TDigestExecutionHint digestType;
     private final double compression;
     private final TimeSeriesParams.MetricType metricType;
-    private final IndexVersion indexCreatedVersion;
+    private final IndexSettings indexSettings;
 
     public TDigestFieldMapper(String simpleName, MappedFieldType mappedFieldType, BuilderParams builderParams, Builder builder) {
         super(simpleName, mappedFieldType, builderParams);
@@ -182,7 +182,7 @@ public class TDigestFieldMapper extends FieldMapper {
         this.digestType = builder.digestType.getValue();
         this.compression = builder.compression.getValue();
         this.metricType = builder.metric.get();
-        this.indexCreatedVersion = builder.indexCreatedVersion;
+        this.indexSettings = builder.indexSettings;
     }
 
     @Override
@@ -205,7 +205,7 @@ public class TDigestFieldMapper extends FieldMapper {
 
     @Override
     public FieldMapper.Builder getMergeBuilder() {
-        return new Builder(leafName(), ignoreMalformedByDefault, indexCreatedVersion).metric(metricType).init(this);
+        return new Builder(leafName(), ignoreMalformedByDefault, indexSettings).metric(metricType).init(this);
     }
 
     @Override
@@ -405,9 +405,10 @@ public class TDigestFieldMapper extends FieldMapper {
     }
 
     @Override
-    public void parse(DocumentParserContext context) throws IOException {
+    public ParseResult parse(DocumentParserContext context) throws IOException {
         context.path().add(leafName());
 
+        boolean wasAlreadyIgnored = context.getIgnoredFields().contains(fullPath());
         boolean shouldStoreMalformedDataForSyntheticSource = context.mappingLookup().isSourceSynthetic() && ignoreMalformed();
         XContentParser.Token token;
         XContentSubParser subParser = null;
@@ -417,7 +418,7 @@ public class TDigestFieldMapper extends FieldMapper {
             token = context.parser().currentToken();
             if (token == XContentParser.Token.VALUE_NULL) {
                 context.path().remove();
-                return;
+                return ParseResult.INDEXED;
             }
             // should be an object
             ensureExpectedToken(XContentParser.Token.START_OBJECT, token, context.parser());
@@ -505,12 +506,13 @@ public class TDigestFieldMapper extends FieldMapper {
             }
 
             if (malformedDataForSyntheticSource != null) {
-                IgnoreMalformedStoredValues.storeMalformedValueForSyntheticSource(context, fullPath(), malformedDataForSyntheticSource);
+                FallbackPostMapper.capture(context, fullPath(), FallbackPostMapper.Reason.MALFORMED, malformedDataForSyntheticSource);
             }
 
             context.addIgnoredField(fieldType().name());
         }
         context.path().remove();
+        return resolveIgnoredResult(context, wasAlreadyIgnored);
     }
 
     private static String valuesCountSubFieldName(String fullPath) {
@@ -569,7 +571,7 @@ public class TDigestFieldMapper extends FieldMapper {
                 leafName(),
                 fullPath(),
                 new TDigestSyntheticFieldLoader(),
-                CompositeSyntheticFieldLoader.malformedValuesLayer(fullPath(), indexCreatedVersion)
+                CompositeSyntheticFieldLoader.malformedFallbackLayer(this, indexSettings)
             )
         );
     }

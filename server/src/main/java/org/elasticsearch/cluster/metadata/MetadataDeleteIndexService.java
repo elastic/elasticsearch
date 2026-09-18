@@ -34,6 +34,7 @@ import org.elasticsearch.core.Tuple;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.injection.guice.Inject;
 import org.elasticsearch.snapshots.RestoreService;
+import org.elasticsearch.snapshots.Snapshot;
 import org.elasticsearch.snapshots.SnapshotInProgressException;
 import org.elasticsearch.snapshots.SnapshotsServiceUtils;
 
@@ -194,12 +195,12 @@ public class MetadataDeleteIndexService {
         }
 
         // Check if index deletion conflicts with any running snapshots
-        Set<Index> snapshottingIndices = SnapshotsServiceUtils.snapshottingIndices(projectState, indicesToDelete);
+        Map<Snapshot, Set<Index>> snapshottingIndices = SnapshotsServiceUtils.snapshottingIndicesBySnapshot(projectState, indicesToDelete);
         if (snapshottingIndices.isEmpty() == false) {
             throw new SnapshotInProgressException(
                 "Cannot delete indices that are being snapshotted: "
-                    + snapshottingIndices
-                    + ". Try again after snapshot finishes or cancel the currently running snapshot."
+                    + SnapshotsServiceUtils.describeSnapshottingIndices(snapshottingIndices)
+                    + ". Try again after these snapshots finish, or cancel them."
             );
         }
 

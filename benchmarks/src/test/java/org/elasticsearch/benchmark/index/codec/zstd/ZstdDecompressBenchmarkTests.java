@@ -14,6 +14,7 @@ import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
 import org.apache.lucene.codecs.compressing.Decompressor;
 import org.apache.lucene.store.IndexInput;
 import org.apache.lucene.util.BytesRef;
+import org.elasticsearch.benchmark.store.DirectoryType;
 import org.elasticsearch.index.codec.zstd.ZstdCompressionMode;
 import org.elasticsearch.test.ESTestCase;
 
@@ -26,10 +27,10 @@ import java.util.List;
  */
 public class ZstdDecompressBenchmarkTests extends ESTestCase {
 
-    private final String directoryType;
+    private final DirectoryType directoryType;
     private final String decompressMode;
 
-    public ZstdDecompressBenchmarkTests(String directoryType, String decompressMode) {
+    public ZstdDecompressBenchmarkTests(DirectoryType directoryType, String decompressMode) {
         this.directoryType = directoryType;
         this.decompressMode = decompressMode;
     }
@@ -63,7 +64,7 @@ public class ZstdDecompressBenchmarkTests extends ESTestCase {
 
     @ParametersFactory
     public static Iterable<Object[]> parametersFactory() {
-        List<String> dirTypes = List.of("NIOFS", "MMAP", "SNAP");
+        List<DirectoryType> dirTypes = List.of(DirectoryType.NIO, DirectoryType.MMAP, DirectoryType.SNAP);
         List<String> modes = List.of("FULL", "SLICE");
         return () -> dirTypes.stream().flatMap(d -> modes.stream().map(m -> new Object[] { d, m })).iterator();
     }

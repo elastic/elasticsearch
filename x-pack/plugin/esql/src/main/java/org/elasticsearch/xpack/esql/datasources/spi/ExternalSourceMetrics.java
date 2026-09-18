@@ -7,13 +7,16 @@
 
 package org.elasticsearch.xpack.esql.datasources.spi;
 
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
 import org.elasticsearch.telemetry.metric.LongCounter;
 import org.elasticsearch.telemetry.metric.LongHistogram;
 import org.elasticsearch.telemetry.metric.MeterRegistry;
+import org.elasticsearch.xpack.esql.datasources.spi.DataSourceTelemetryVocabulary.Type;
 
-import java.util.List;
+import java.util.Arrays;
+import java.util.HashMap;
 import java.util.Locale;
 import java.util.Map;
 import java.util.stream.Collectors;
@@ -106,10 +109,14 @@ public final class ExternalSourceMetrics {
     public static final String PARSE_ROWS_TOTAL = "es.esql.datasources.parse.rows.total";
 
     /**
-     * Cumulative reader-thread time an external-source scan operator spent reading and parsing an object, in
-     * milliseconds — summed across parallel parse workers ({@link FormatReaderStatus#readNanos()}), not wall time.
+     * Cumulative wall-clock time an external-source scan operator spent reading and parsing an object, in milliseconds.
      */
     public static final String PARSE_DURATION = "es.esql.datasources.parse.duration.histogram";
+
+    /**
+     * Cumulative CPU time an external-source scan operator spent reading and parsing an object, in milliseconds.
+     */
+    public static final String PARSE_CPU_DURATION = "es.esql.datasources.parse.cpu_duration.histogram";
 
     /**
      * Number of splits scanned by an external-source scan operator. A scan/parse-phase quantity — the per-operator
@@ -124,10 +131,38 @@ public final class ExternalSourceMetrics {
     public static final String BREAKER_TRIPPED_TOTAL = "es.esql.datasources.breaker.tripped.total";
 
     /**
-     * Storage scheme dimension, normalised to one canonical token per provider via
-     * {@link #canonicalScheme(String)}: {@code s3}, {@code gcs}, {@code azure}, {@code http}, {@code file}.
+     * One data-source or dataset CRUD change (create / update / delete / rejected), dimensioned by
+     * kind, op, type, and (on rejected) reason.
      */
-    public static final String SCHEME_ATTRIBUTE = "es_datasource_scheme";
+    public static final String CONFIG_CHANGES_TOTAL = "es.esql.datasources.config.changes.total";
+
+    /**
+     * Storage and CRUD type dimension, normalised to {@link DataSourceTelemetryVocabulary.Type} via
+     * {@link Type#fromScheme(String)}: {@code s3}, {@code gcs}, {@code azure}, {@code http},
+     * {@code local}, {@code unknown}.
+     */
+    public static final String TYPE_ATTRIBUTE = "es_datasource_type";
+
+    /**
+     * Scan-format dimension on the four scan-operator instruments only, a closed set:
+     * {@code parquet}, {@code csv}, {@code tsv}, {@code ndjson}, {@code orc}, {@code other}, {@code unresolved}.
+     */
+    public static final String FORMAT_ATTRIBUTE = "es_datasource_format";
+
+    /** CRUD object kind: {@code datasource} or {@code dataset}. */
+    public static final String KIND_ATTRIBUTE = "es_datasource_kind";
+
+    /** CRUD operation: {@code created}, {@code updated}, {@code deleted}, {@code rejected}. */
+    public static final String OP_ATTRIBUTE = "es_datasource_op";
+
+    /** Rejection reason, present only when {@link #OP_ATTRIBUTE} is {@code rejected}. */
+    public static final String REASON_ATTRIBUTE = "es_datasource_reason";
+
+    /**
+     * Schema-resolution dimension on the discovery histograms, a closed low-cardinality set:
+     * {@code first_file_wins}, {@code union_by_name}, {@code strict}.
+     */
+    public static final String SCHEMA_RESOLUTION_ATTRIBUTE = "es_datasource_schema_resolution";
 
     /**
      * Query-outcome dimension, a closed low-cardinality set: {@code success}, {@code failure}, {@code cancelled}.
@@ -145,23 +180,38 @@ public final class ExternalSourceMetrics {
 
     /**
      * No-op holder backed by {@link MeterRegistry#NOOP}, used where no node registry is available
-     * (decorators with no attached holder, tests) so call sites never branch on null.
+     * (decorators with no attached holder, tests) so call sites never branch on null. The
+     * {@link DataSourceUsageAccumulator} is null on this singleton so it never accumulates shared
+     * state across tests or unattached decorators.
      */
-    public static final ExternalSourceMetrics NOOP = new ExternalSourceMetrics(MeterRegistry.NOOP);
+    public static final ExternalSourceMetrics NOOP = new ExternalSourceMetrics(MeterRegistry.NOOP, null);
 
     private static final Logger logger = LogManager.getLogger(ExternalSourceMetrics.class);
 
+    @Nullable
+    private final DataSourceUsageAccumulator usageAccumulator;
+
     /**
-     * Pre-built, immutable single-entry {@link #SCHEME_ATTRIBUTE} attribute maps for the closed canonical scheme
-     * set, so the common case (every provider we know) never allocates a fresh map per record call. Mirrors
+     * Pre-built, immutable single-entry {@link #TYPE_ATTRIBUTE} attribute maps for the closed
+     * {@link Type} set, so the common case never allocates a fresh map per record call. Mirrors
      * {@code ShardChangesObserver}'s pre-built per-value attribute maps and {@code RepositoriesMetrics}'s
-     * {@code createAttributesMap}. Looked up via {@link #schemeAttrs(String)}, which falls back to a freshly built
-     * map for the rare unknown scheme (thread-safe: immutable maps + {@code getOrDefault}, no {@code computeIfAbsent}
-     * mutating a shared map).
+     * {@code createAttributesMap}. Looked up via {@link #typeAttrs(String)}. Thread-safe: immutable
+     * maps; every {@link Type} token is present so lookups never allocate.
      */
-    private static final Map<String, Map<String, Object>> SCHEME_ATTRIBUTES = List.of("s3", "gcs", "azure", "http", "file", "unknown")
-        .stream()
-        .collect(Collectors.toUnmodifiableMap(s -> s, s -> Map.of(SCHEME_ATTRIBUTE, s)));
+    private static final Map<String, Map<String, Object>> TYPE_ATTRIBUTES = Arrays.stream(Type.values())
+        .collect(Collectors.toUnmodifiableMap(Type::key, t -> Map.of(TYPE_ATTRIBUTE, t.key())));
+
+    /**
+     * Pre-built {@link #TYPE_ATTRIBUTE}×{@link #FORMAT_ATTRIBUTE} maps for the four scan-operator instruments.
+     * Keyed {@code type + '\0' + format}. Every closed combination is present so lookups never allocate.
+     */
+    private static final Map<String, Map<String, Object>> TYPE_FORMAT_ATTRIBUTES = typeFormatAttributes();
+
+    /**
+     * Pre-built {@link #TYPE_ATTRIBUTE}×{@link #SCHEMA_RESOLUTION_ATTRIBUTE} maps for discovery histograms.
+     * Keyed {@code type + '\0' + schema_resolution}. Every closed combination is present so lookups never allocate.
+     */
+    private static final Map<String, Map<String, Object>> TYPE_SCHEMA_RESOLUTION_ATTRIBUTES = typeSchemaResolutionAttributes();
 
     /** Pre-built, immutable single-entry {@link #OUTCOME_ATTRIBUTE} attribute maps for the closed outcome set. */
     private static final Map<String, Map<String, Object>> OUTCOME_ATTRIBUTES = Map.of(
@@ -191,11 +241,23 @@ public final class ExternalSourceMetrics {
     private final LongCounter discoveryFailuresTotal;
     private final LongCounter parseRowsTotal;
     private final LongHistogram parseDuration;
+    private final LongHistogram parseCpuDuration;
     private final LongHistogram parseSplitsScanned;
     private final LongCounter readerPoolRejectedTotal;
     private final LongCounter breakerTrippedTotal;
+    private final LongCounter configChangesTotal;
 
     public ExternalSourceMetrics(MeterRegistry meterRegistry) {
+        this(meterRegistry, null);
+    }
+
+    /**
+     * Creates a metrics holder that publishes to both the {@link MeterRegistry} (APM/OTLP) and the
+     * provided {@link DataSourceUsageAccumulator} (phone-home). Pass {@code null} for the accumulator
+     * to get APM-only behaviour (equivalent to the single-argument constructor).
+     */
+    public ExternalSourceMetrics(MeterRegistry meterRegistry, @Nullable DataSourceUsageAccumulator usageAccumulator) {
+        this.usageAccumulator = usageAccumulator;
         this.requestsTotal = meterRegistry.registerLongCounter(
             STORAGE_REQUESTS_TOTAL,
             "Object-store read requests on data objects scanned by ES|QL external data sources "
@@ -284,8 +346,12 @@ public final class ExternalSourceMetrics {
         );
         this.parseDuration = meterRegistry.registerLongHistogram(
             PARSE_DURATION,
-            "Cumulative reader-thread time an ES|QL external-data-source scan operator spent reading and parsing an object "
-                + "(summed across parallel parse workers)",
+            "Cumulative wall-clock time an ES|QL external-data-source scan operator spent reading and parsing an object",
+            "ms"
+        );
+        this.parseCpuDuration = meterRegistry.registerLongHistogram(
+            PARSE_CPU_DURATION,
+            "Cumulative CPU time an ES|QL external-data-source scan operator spent reading and parsing an object",
             "ms"
         );
         this.parseSplitsScanned = meterRegistry.registerLongHistogram(
@@ -303,24 +369,33 @@ public final class ExternalSourceMetrics {
             "ES|QL external-data-source reads rejected by a circuit breaker",
             "unit"
         );
+        this.configChangesTotal = meterRegistry.registerLongCounter(
+            CONFIG_CHANGES_TOTAL,
+            "ES|QL data-source or dataset configuration changes (create, update, delete, rejected)",
+            "unit"
+        );
     }
 
     /**
      * Records one completed read request: increments the request count, adds the bytes read, and
-     * observes the request duration. {@code scheme} is the raw storage scheme, canonicalised on lookup by
-     * {@link #schemeAttrs(String)}.
+     * observes the request duration. {@code scheme} is the raw storage scheme, folded to {@link #TYPE_ATTRIBUTE}
+     * via {@link Type#fromScheme(String)}.
      * <p>
      * Best-effort: an instrumentation failure is swallowed (logged at {@code TRACE}) so it can never break the
      * caller's read/query/producer path — every public {@code recordX} method self-guards this way.
      */
     public void recordRequest(long durationMillis, long bytes, String scheme) {
         try {
-            Map<String, Object> attributes = schemeAttrs(scheme);
+            Type type = Type.fromScheme(scheme);
+            Map<String, Object> attributes = typeAttrsForToken(type.key());
             requestsTotal.incrementBy(1, attributes);
             if (bytes > 0) {
                 bytesReadTotal.incrementBy(bytes, attributes);
             }
             requestDuration.record(Math.max(0L, durationMillis), attributes);
+            if (usageAccumulator != null) {
+                usageAccumulator.recordRequest(type, durationMillis, bytes);
+            }
         } catch (Exception e) {
             logger.trace("telemetry: recordRequest failed", e);
         }
@@ -329,7 +404,11 @@ public final class ExternalSourceMetrics {
     /** Records one automatic retry against the given storage {@code scheme}. Best-effort (self-guarded). */
     public void recordRetry(String scheme) {
         try {
-            retriesTotal.incrementBy(1, schemeAttrs(scheme));
+            Type type = Type.fromScheme(scheme);
+            retriesTotal.incrementBy(1, typeAttrsForToken(type.key()));
+            if (usageAccumulator != null) {
+                usageAccumulator.recordRetry();
+            }
         } catch (Exception e) {
             logger.trace("telemetry: recordRetry failed", e);
         }
@@ -341,7 +420,11 @@ public final class ExternalSourceMetrics {
      */
     public void recordError(String scheme) {
         try {
-            errorsTotal.incrementBy(1, schemeAttrs(scheme));
+            Type type = Type.fromScheme(scheme);
+            errorsTotal.incrementBy(1, typeAttrsForToken(type.key()));
+            if (usageAccumulator != null) {
+                usageAccumulator.recordError(type);
+            }
         } catch (Exception e) {
             logger.trace("telemetry: recordError failed", e);
         }
@@ -353,7 +436,11 @@ public final class ExternalSourceMetrics {
      */
     public void recordThrottled(String scheme) {
         try {
-            throttledTotal.incrementBy(1, schemeAttrs(scheme));
+            Type type = Type.fromScheme(scheme);
+            throttledTotal.incrementBy(1, typeAttrsForToken(type.key()));
+            if (usageAccumulator != null) {
+                usageAccumulator.recordThrottled(type);
+            }
         } catch (Exception e) {
             logger.trace("telemetry: recordThrottled failed", e);
         }
@@ -365,7 +452,10 @@ public final class ExternalSourceMetrics {
      */
     public void recordReadStall(long millis, String scheme) {
         try {
-            readStallDuration.record(Math.max(0L, millis), schemeAttrs(scheme));
+            readStallDuration.record(Math.max(0L, millis), typeAttrs(scheme));
+            if (usageAccumulator != null) {
+                usageAccumulator.recordReadStall(millis);
+            }
         } catch (Exception e) {
             logger.trace("telemetry: recordReadStall failed", e);
         }
@@ -393,6 +483,9 @@ public final class ExternalSourceMetrics {
             if (partial) {
                 queriesPartialTotal.incrementBy(1);
             }
+            if (usageAccumulator != null) {
+                usageAccumulator.recordQuery(outcome, durationMillis, partial);
+            }
         } catch (Exception e) {
             logger.trace("telemetry: recordQuery failed", e);
         }
@@ -400,11 +493,15 @@ public final class ExternalSourceMetrics {
 
     /**
      * Records the time from an external-source scan operator's start to its first emitted page, in milliseconds,
-     * on the given storage {@code scheme}. Best-effort (self-guarded).
+     * tagged with the storage {@code scheme} (folded to {@link #TYPE_ATTRIBUTE}) and the scan {@code format}
+     * (folded to {@link #FORMAT_ATTRIBUTE}). Best-effort (self-guarded).
      */
-    public void recordTimeToFirstRow(long millis, String scheme) {
+    public void recordTimeToFirstRow(long millis, String scheme, String format) {
         try {
-            queryTimeToFirstRow.record(Math.max(0L, millis), schemeAttrs(scheme));
+            queryTimeToFirstRow.record(Math.max(0L, millis), typeFormatAttrs(scheme, format));
+            if (usageAccumulator != null) {
+                usageAccumulator.recordTimeToFirstRow(millis);
+            }
         } catch (Exception e) {
             logger.trace("telemetry: recordTimeToFirstRow failed", e);
         }
@@ -412,14 +509,24 @@ public final class ExternalSourceMetrics {
 
     /**
      * Records one external-source discovery pass: its wall time, the file count and the estimated byte total, on
-     * the given storage {@code scheme}. Best-effort (self-guarded).
+     * the given storage {@code scheme}, tagged with the effective {@code schemaResolution}. Best-effort (self-guarded).
+     * Phone-home {@link DataSourceUsageAccumulator#recordDiscovery} is unchanged — no new usage stream.
      */
-    public void recordDiscovery(long durationMillis, long filesScanned, long bytesScanned, String scheme) {
+    public void recordDiscovery(
+        long durationMillis,
+        long filesScanned,
+        long bytesScanned,
+        String scheme,
+        FormatReader.SchemaResolution schemaResolution
+    ) {
         try {
-            Map<String, Object> attributes = schemeAttrs(scheme);
+            Map<String, Object> attributes = typeSchemaResolutionAttrs(scheme, schemaResolution);
             discoveryDuration.record(Math.max(0L, durationMillis), attributes);
             discoveryFilesScanned.record(Math.max(0L, filesScanned), attributes);
             discoveryBytesScanned.record(Math.max(0L, bytesScanned), attributes);
+            if (usageAccumulator != null) {
+                usageAccumulator.recordDiscovery(durationMillis, filesScanned, bytesScanned);
+            }
         } catch (Exception e) {
             logger.trace("telemetry: recordDiscovery failed", e);
         }
@@ -429,34 +536,46 @@ public final class ExternalSourceMetrics {
     public void recordDiscoveryFailure() {
         try {
             discoveryFailuresTotal.incrementBy(1);
+            if (usageAccumulator != null) {
+                usageAccumulator.recordDiscoveryFailure();
+            }
         } catch (Exception e) {
             logger.trace("telemetry: recordDiscoveryFailure failed", e);
         }
     }
 
     /**
-     * Records the rows parsed and the read/parse wall time of one external-source scan operator, in milliseconds,
-     * on the given storage {@code scheme}. Best-effort (self-guarded).
+     * Records the rows parsed, wall-clock and CPU read/parse time of one external-source scan operator, in milliseconds,
+     * tagged with the storage {@code scheme} (folded to {@link #TYPE_ATTRIBUTE}) and the scan {@code format}
+     * (folded to {@link #FORMAT_ATTRIBUTE}). Best-effort (self-guarded).
      */
-    public void recordParse(long rows, long parseDurationMillis, String scheme) {
+    public void recordParse(long rows, long parseDurationMillis, long parseCpuDurationMillis, String scheme, String format) {
         try {
-            Map<String, Object> attributes = schemeAttrs(scheme);
+            Map<String, Object> attributes = typeFormatAttrs(scheme, format);
             if (rows > 0) {
                 parseRowsTotal.incrementBy(rows, attributes);
             }
             parseDuration.record(Math.max(0L, parseDurationMillis), attributes);
+            parseCpuDuration.record(Math.max(0L, parseCpuDurationMillis), attributes);
+            if (usageAccumulator != null) {
+                usageAccumulator.recordParse(rows, parseDurationMillis, canonicalFormat(format));
+            }
         } catch (Exception e) {
             logger.trace("telemetry: recordParse failed", e);
         }
     }
 
     /**
-     * Records the number of splits scanned by one external-source scan operator, on the given storage
-     * {@code scheme}. Best-effort (self-guarded).
+     * Records the number of splits scanned by one external-source scan operator, tagged with the storage
+     * {@code scheme} (folded to {@link #TYPE_ATTRIBUTE}) and the scan {@code format} (folded to
+     * {@link #FORMAT_ATTRIBUTE}). Best-effort (self-guarded).
      */
-    public void recordSplitsScanned(long splits, String scheme) {
+    public void recordSplitsScanned(long splits, String scheme, String format) {
         try {
-            parseSplitsScanned.record(Math.max(0L, splits), schemeAttrs(scheme));
+            parseSplitsScanned.record(Math.max(0L, splits), typeFormatAttrs(scheme, format));
+            if (usageAccumulator != null) {
+                usageAccumulator.recordSplitsScanned(splits);
+            }
         } catch (Exception e) {
             logger.trace("telemetry: recordSplitsScanned failed", e);
         }
@@ -466,8 +585,30 @@ public final class ExternalSourceMetrics {
     public void recordPoolRejected() {
         try {
             readerPoolRejectedTotal.incrementBy(1);
+            if (usageAccumulator != null) {
+                usageAccumulator.recordPoolRejected();
+            }
         } catch (Exception e) {
             logger.trace("telemetry: recordPoolRejected failed", e);
+        }
+    }
+
+    /**
+     * Records one configuration CRUD event. {@code reason} is attached only when {@code op} is
+     * {@code rejected}. Kind, op, type and reason are expected to already be closed-set tokens.
+     * Best-effort (self-guarded).
+     */
+    public void recordConfigChange(String kind, String op, String type, String reason) {
+        try {
+            Map<String, Object> attributes = "rejected".equals(op)
+                ? Map.of(KIND_ATTRIBUTE, kind, OP_ATTRIBUTE, op, TYPE_ATTRIBUTE, type, REASON_ATTRIBUTE, reason)
+                : Map.of(KIND_ATTRIBUTE, kind, OP_ATTRIBUTE, op, TYPE_ATTRIBUTE, type);
+            configChangesTotal.incrementBy(1, attributes);
+            if (usageAccumulator != null) {
+                usageAccumulator.recordConfigChange(kind, op);
+            }
+        } catch (Exception e) {
+            logger.trace("telemetry: recordConfigChange failed", e);
         }
     }
 
@@ -475,20 +616,103 @@ public final class ExternalSourceMetrics {
     public void recordBreakerTripped() {
         try {
             breakerTrippedTotal.incrementBy(1);
+            if (usageAccumulator != null) {
+                usageAccumulator.recordBreakerTripped();
+            }
         } catch (Exception e) {
             logger.trace("telemetry: recordBreakerTripped failed", e);
         }
     }
 
     /**
-     * Single canonicalisation chokepoint: folds the raw {@code scheme} to its canonical token and returns the
-     * pre-built {@link #SCHEME_ATTRIBUTE} attribute map for it. The common case (a known provider) returns a
-     * shared immutable map with no allocation; the rare unknown scheme builds a fresh map. Thread-safe: immutable
-     * maps + {@code getOrDefault}, no {@code computeIfAbsent} on a shared map.
+     * Returns the phone-home accumulator, or {@code null} when this instance was constructed without one
+     * (including {@link #NOOP}). The stats layer uses this to populate the XPack usage payload.
      */
-    private static Map<String, Object> schemeAttrs(String scheme) {
-        String canonical = canonicalScheme(scheme);
-        return SCHEME_ATTRIBUTES.getOrDefault(canonical, Map.of(SCHEME_ATTRIBUTE, canonical));
+    @Nullable
+    public DataSourceUsageAccumulator usageAccumulator() {
+        return usageAccumulator;
+    }
+
+    /**
+     * Canonicalises {@code scheme} and returns the pre-built {@link #TYPE_ATTRIBUTE} attribute map
+     * for that closed {@link Type} token. Thread-safe: immutable maps, no allocation on the record path.
+     */
+    private static Map<String, Object> typeAttrs(String scheme) {
+        return typeAttrsForToken(Type.fromScheme(scheme).key());
+    }
+
+    /**
+     * Returns the pre-built {@link #TYPE_ATTRIBUTE} attribute map for an already-canonicalised
+     * {@code canonical} type token. Callers that have already called {@link Type#fromScheme(String)} use
+     * this overload to avoid re-canonicalising, while keeping the APM attribute lookup in one place.
+     */
+    private static Map<String, Object> typeAttrsForToken(String canonical) {
+        Map<String, Object> attrs = TYPE_ATTRIBUTES.get(canonical);
+        if (attrs == null) {
+            throw new IllegalArgumentException("non-canonical type token [" + canonical + "]");
+        }
+        return attrs;
+    }
+
+    /**
+     * Returns the pre-built {@link #TYPE_ATTRIBUTE}×{@link #FORMAT_ATTRIBUTE} map for a raw scheme and
+     * format. Both tokens are folded first; every closed combination is present so this never allocates.
+     */
+    private static Map<String, Object> typeFormatAttrs(String scheme, String format) {
+        String type = Type.fromScheme(scheme).key();
+        String canonicalFormat = canonicalFormat(format);
+        Map<String, Object> attrs = TYPE_FORMAT_ATTRIBUTES.get(typeFormatKey(type, canonicalFormat));
+        if (attrs == null) {
+            throw new IllegalArgumentException("non-canonical type/format [" + type + "/" + canonicalFormat + "]");
+        }
+        return attrs;
+    }
+
+    private static Map<String, Map<String, Object>> typeFormatAttributes() {
+        Map<String, Map<String, Object>> maps = new HashMap<>();
+        for (Type type : Type.values()) {
+            for (String format : DataSourceUsageAccumulator.FORMAT_NAMES) {
+                maps.put(typeFormatKey(type.key(), format), Map.of(TYPE_ATTRIBUTE, type.key(), FORMAT_ATTRIBUTE, format));
+            }
+        }
+        return Map.copyOf(maps);
+    }
+
+    private static String typeFormatKey(String type, String format) {
+        return type + '\0' + format;
+    }
+
+    private static String typeResolutionKey(String type, String resolution) {
+        return type + '\0' + resolution;
+    }
+
+    /**
+     * Returns the pre-built {@link #TYPE_ATTRIBUTE}×{@link #SCHEMA_RESOLUTION_ATTRIBUTE} map. Null resolution
+     * folds to {@link FormatReader#DEFAULT_SCHEMA_RESOLUTION}. Every closed combination is present so this
+     * never allocates.
+     */
+    private static Map<String, Object> typeSchemaResolutionAttrs(String scheme, FormatReader.SchemaResolution schemaResolution) {
+        String type = Type.fromScheme(scheme).key();
+        String resolution = canonicalSchemaResolution(schemaResolution);
+        Map<String, Object> attrs = TYPE_SCHEMA_RESOLUTION_ATTRIBUTES.get(typeResolutionKey(type, resolution));
+        assert attrs != null : "non-canonical type/schema_resolution [" + type + "/" + resolution + "]";
+        return attrs;
+    }
+
+    private static Map<String, Map<String, Object>> typeSchemaResolutionAttributes() {
+        Map<String, Map<String, Object>> maps = new HashMap<>();
+        for (Type type : Type.values()) {
+            for (FormatReader.SchemaResolution resolution : FormatReader.SchemaResolution.values()) {
+                String key = canonicalSchemaResolution(resolution);
+                maps.put(typeResolutionKey(type.key(), key), Map.of(TYPE_ATTRIBUTE, type.key(), SCHEMA_RESOLUTION_ATTRIBUTE, key));
+            }
+        }
+        return Map.copyOf(maps);
+    }
+
+    static String canonicalSchemaResolution(FormatReader.SchemaResolution schemaResolution) {
+        FormatReader.SchemaResolution resolved = schemaResolution == null ? FormatReader.DEFAULT_SCHEMA_RESOLUTION : schemaResolution;
+        return resolved.configName();
     }
 
     /** Returns the pre-built {@link #OUTCOME_ATTRIBUTE} attribute map for {@code outcome} (a fresh map for any unknown). */
@@ -497,26 +721,24 @@ public final class ExternalSourceMetrics {
     }
 
     /**
-     * Folds a raw {@link StoragePath#scheme() storage-path scheme} into the single canonical token used
-     * for the {@link #SCHEME_ATTRIBUTE} dimension, so provider aliases ({@code s3a}/{@code s3n},
-     * {@code wasb}/{@code wasbs}, {@code https}) and the bucket-prefix form ({@code gs}) do not fragment a
-     * provider across multiple metric series. Unknown schemes pass through lower-cased.
+     * Folds a raw {@link StoragePath#scheme() storage-path scheme} into the closed
+     * {@link Type} token used for {@link #TYPE_ATTRIBUTE}. Provider aliases
+     * ({@code s3a}/{@code s3n}, {@code wasb}/{@code wasbs}, {@code https}, {@code gs}) collapse onto one
+     * series; {@code file} folds to {@code local}; anything else is {@code unknown}.
      */
     public static String canonicalScheme(String scheme) {
-        if (scheme == null) {
-            return "unknown";
+        return Type.fromScheme(scheme).key();
+    }
+
+    /**
+     * Folds a raw format name into the closed {@link DataSourceUsageAccumulator#FORMAT_NAMES} set.
+     * Null or blank becomes {@code unresolved}; a known name is lower-cased; anything else is {@code other}.
+     */
+    public static String canonicalFormat(String format) {
+        if (format == null || format.isBlank()) {
+            return DataSourceUsageAccumulator.FORMAT_UNRESOLVED_NAME;
         }
-        String lower = scheme.toLowerCase(Locale.ROOT);
-        return switch (lower) {
-            case "s3", "s3a", "s3n" -> "s3";
-            case "gs", "gcs" -> "gcs";
-            case "wasb", "wasbs", "azure" -> "azure";
-            case "http", "https" -> "http";
-            case "file" -> "file";
-            // Open default (pass unknown schemes through lower-cased) is acceptable here because scheme is
-            // provider-registered — a closed set in practice, not user-supplied — so the SCHEME_ATTRIBUTE dimension
-            // cardinality stays bounded even though this branch does not enumerate every value.
-            default -> lower;
-        };
+        String lower = format.toLowerCase(Locale.ROOT);
+        return DataSourceUsageAccumulator.FORMAT_NAMES_SET.contains(lower) ? lower : DataSourceUsageAccumulator.FORMAT_OTHER_NAME;
     }
 }

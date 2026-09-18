@@ -135,14 +135,6 @@ public class IntegerFieldMapperTests extends WholeNumberFieldMapperTests {
         assertEquals(value, dvField.numericValue().intValue());
     }
 
-    public void testIndexTermsOnlyAllowedOnInteger() {
-        Exception e = expectThrows(MapperParsingException.class, () -> createMapperService(fieldMapping(b -> {
-            b.field("type", "long");
-            b.field("index_terms", true);
-        })));
-        assertThat(e.getMessage(), containsString("[index_terms] is only supported on [integer] fields"));
-    }
-
     public void testIndexTermsRequiresIndex() {
         Exception e = expectThrows(MapperParsingException.class, () -> createMapperService(fieldMapping(b -> {
             b.field("type", "integer");

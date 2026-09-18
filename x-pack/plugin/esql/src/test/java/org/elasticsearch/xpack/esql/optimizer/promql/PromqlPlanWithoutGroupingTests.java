@@ -15,7 +15,6 @@ import org.elasticsearch.xpack.esql.EsqlTestUtils;
 import org.elasticsearch.xpack.esql.SerializationTestUtils;
 import org.elasticsearch.xpack.esql.VerificationException;
 import org.elasticsearch.xpack.esql.action.EsqlCapabilities;
-import org.elasticsearch.xpack.esql.core.expression.Alias;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.expression.Expressions;
 import org.elasticsearch.xpack.esql.core.expression.FieldAttribute;
@@ -23,7 +22,6 @@ import org.elasticsearch.xpack.esql.core.expression.FoldContext;
 import org.elasticsearch.xpack.esql.core.expression.MetadataAttribute;
 import org.elasticsearch.xpack.esql.core.expression.TimeSeriesMetadataAttribute;
 import org.elasticsearch.xpack.esql.core.type.FunctionEsField;
-import org.elasticsearch.xpack.esql.expression.function.aggregate.DimensionValues;
 import org.elasticsearch.xpack.esql.optimizer.LocalLogicalOptimizerContext;
 import org.elasticsearch.xpack.esql.optimizer.LocalLogicalPlanOptimizer;
 import org.elasticsearch.xpack.esql.optimizer.LocalPhysicalOptimizerContext;
@@ -35,9 +33,9 @@ import org.elasticsearch.xpack.esql.plan.logical.EsRelation;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.esql.plan.logical.TimeSeriesAggregate;
 import org.elasticsearch.xpack.esql.plan.physical.ExchangeSinkExec;
-import org.elasticsearch.xpack.esql.plan.physical.FieldExtractExec;
 import org.elasticsearch.xpack.esql.plan.physical.FragmentExec;
 import org.elasticsearch.xpack.esql.plan.physical.PhysicalPlan;
+import org.elasticsearch.xpack.esql.plan.physical.ReadDimsExec;
 import org.elasticsearch.xpack.esql.planner.PlannerSettings;
 import org.elasticsearch.xpack.esql.planner.PlannerUtils;
 import org.elasticsearch.xpack.esql.planner.mapper.LocalMapper;
@@ -60,6 +58,10 @@ import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.not;
 
 public class PromqlPlanWithoutGroupingTests extends AbstractPromqlPlanOptimizerTests {
+
+    public PromqlPlanWithoutGroupingTests(VersionMode versionMode) {
+        super(versionMode);
+    }
 
     @Before
     public void assumePromqlWithoutGroupingEnabled() {
@@ -169,9 +171,7 @@ public class PromqlPlanWithoutGroupingTests extends AbstractPromqlPlanOptimizerT
         LogicalPlan fragment = as(as(dataNodePlan, ExchangeSinkExec.class).child(), FragmentExec.class).fragment();
         var fragmentPackedTimeSeriesValues = fragment.collect(TimeSeriesAggregate.class)
             .stream()
-            .flatMap(aggregate -> aggregate.aggregates().stream())
-            .flatMap(aggregate -> aggregate.collect(DimensionValues.class).stream())
-            .map(DimensionValues::field)
+            .flatMap(aggregate -> packedDims(aggregate.aggregates()).stream())
             .filter(Attribute.class::isInstance)
             .map(Attribute.class::cast)
             .filter(attr -> MetadataAttribute.TIMESERIES.equals(attr.name()))
@@ -187,9 +187,7 @@ public class PromqlPlanWithoutGroupingTests extends AbstractPromqlPlanOptimizerT
         LogicalPlan deserializedFragment = as(as(deserializedDataNodePlan, ExchangeSinkExec.class).child(), FragmentExec.class).fragment();
         var deserializedPackedTimeSeriesValues = deserializedFragment.collect(TimeSeriesAggregate.class)
             .stream()
-            .flatMap(aggregate -> aggregate.aggregates().stream())
-            .flatMap(aggregate -> aggregate.collect(DimensionValues.class).stream())
-            .map(DimensionValues::field)
+            .flatMap(aggregate -> packedDims(aggregate.aggregates()).stream())
             .filter(Attribute.class::isInstance)
             .map(Attribute.class::cast)
             .filter(attr -> MetadataAttribute.TIMESERIES.equals(attr.name()))
@@ -203,9 +201,7 @@ public class PromqlPlanWithoutGroupingTests extends AbstractPromqlPlanOptimizerT
         LogicalPlan localizedFragment = localLogical.localOptimize(deserializedFragment);
         var localizedPackedTimeSeriesValues = localizedFragment.collect(TimeSeriesAggregate.class)
             .stream()
-            .flatMap(aggregate -> aggregate.aggregates().stream())
-            .flatMap(aggregate -> aggregate.collect(DimensionValues.class).stream())
-            .map(DimensionValues::field)
+            .flatMap(aggregate -> packedDims(aggregate.aggregates()).stream())
             .filter(Attribute.class::isInstance)
             .map(Attribute.class::cast)
             .filter(attr -> MetadataAttribute.TIMESERIES.equals(attr.name()))
@@ -218,9 +214,7 @@ public class PromqlPlanWithoutGroupingTests extends AbstractPromqlPlanOptimizerT
             org.elasticsearch.xpack.esql.plan.physical.TimeSeriesAggregateExec.class
         )
             .stream()
-            .flatMap(aggregate -> aggregate.aggregates().stream())
-            .flatMap(aggregate -> aggregate.collect(DimensionValues.class).stream())
-            .map(DimensionValues::field)
+            .flatMap(aggregate -> packedDims(aggregate.aggregates()).stream())
             .filter(Attribute.class::isInstance)
             .map(Attribute.class::cast)
             .filter(attr -> MetadataAttribute.TIMESERIES.equals(attr.name()))
@@ -239,14 +233,14 @@ public class PromqlPlanWithoutGroupingTests extends AbstractPromqlPlanOptimizerT
         );
         var localizedDataNodePlan = PlannerUtils.localPlan(deserializedDataNodePlan, localLogical, localPhysical, null);
 
-        FieldExtractExec readTimeSeries = localizedDataNodePlan.collect(FieldExtractExec.class)
+        ReadDimsExec readTimeSeries = localizedDataNodePlan.collect(ReadDimsExec.class)
             .stream()
-            .filter(fieldExtract -> Expressions.names(fieldExtract.attributesToExtract()).contains(MetadataAttribute.TIMESERIES))
+            .filter(readDims -> Expressions.names(readDims.dims()).contains(MetadataAttribute.TIMESERIES))
             .findFirst()
             .orElse(null);
         assertNotNull(localizedDataNodePlan.toString(), readTimeSeries);
 
-        FieldAttribute extractedTimeSeries = as(readTimeSeries.attributesToExtract().getFirst(), FieldAttribute.class);
+        FieldAttribute extractedTimeSeries = as(readTimeSeries.dims().getFirst(), FieldAttribute.class);
         assertThat(extractedTimeSeries.fieldName().string(), equalTo(SourceFieldMapper.NAME));
         FunctionEsField extractedField = as(extractedTimeSeries.field(), FunctionEsField.class);
         var functionConfig = as(extractedField.functionConfig(), BlockLoaderFunctionConfig.TimeSeriesMetadata.class);
@@ -280,13 +274,8 @@ public class PromqlPlanWithoutGroupingTests extends AbstractPromqlPlanOptimizerT
         assertEquals(((TimeSeriesMetadataAttribute) tsmaList.getFirst()).excludedFields(), Set.of("pod"));
         TimeSeriesAggregate innerAggregate = analyzed.collect(TimeSeriesAggregate.class).getFirst();
         assertThat(
-            innerAggregate.aggregates()
-                .stream()
-                .filter(
-                    aggregate -> Alias.unwrap(aggregate) instanceof DimensionValues values
-                        && values.field() instanceof FieldAttribute field
-                        && field.name().equals("cluster")
-                )
+            packedDims(innerAggregate.aggregates()).stream()
+                .filter(dim -> dim instanceof FieldAttribute field && field.name().equals("cluster"))
                 .toList(),
             hasSize(1)
         );
@@ -418,13 +407,8 @@ public class PromqlPlanWithoutGroupingTests extends AbstractPromqlPlanOptimizerT
         );
         TimeSeriesAggregate innerAggregate = analyzed.collect(TimeSeriesAggregate.class).getFirst();
         assertThat(
-            innerAggregate.aggregates()
-                .stream()
-                .filter(
-                    aggregate -> Alias.unwrap(aggregate) instanceof DimensionValues values
-                        && values.field() instanceof FieldAttribute field
-                        && field.name().equals("cluster")
-                )
+            packedDims(innerAggregate.aggregates()).stream()
+                .filter(dim -> dim instanceof FieldAttribute field && field.name().equals("cluster"))
                 .toList(),
             hasSize(1)
         );

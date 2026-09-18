@@ -24,8 +24,10 @@ import org.elasticsearch.cluster.service.MasterServiceTaskQueue;
 import org.elasticsearch.common.Priority;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.Setting;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.xpack.esql.inference.InferenceSettings;
 import org.elasticsearch.xpack.esql.parser.EsqlParser;
 import org.elasticsearch.xpack.esql.parser.QueryParams;
 
@@ -61,6 +63,7 @@ public class ViewService {
         Setting.Property.NodeScope,
         Setting.Property.OperatorDynamic
     );
+    public static final int MAX_VIEW_DESCRIPTION_LENGTH = 1_000;
 
     private volatile int maxViewsCount;
     private volatile int maxViewLength;
@@ -175,6 +178,14 @@ public class ViewService {
                 "view query is too large: " + view.query().length() + " characters, the maximum allowed is " + this.maxViewLength
             );
         }
+        if (view.description() != null && view.description().length() > MAX_VIEW_DESCRIPTION_LENGTH) {
+            throw new IllegalArgumentException(
+                "view description is too large: "
+                    + view.description().length()
+                    + " characters, the maximum allowed is "
+                    + MAX_VIEW_DESCRIPTION_LENGTH
+            );
+        }
         final ViewMetadata views = getMetadata(metadata);
         final View existing = views.getView(view.name());
         if (existing == null && views.views().size() >= this.maxViewsCount) {
@@ -194,8 +205,8 @@ public class ViewService {
                     entry.getValue().getType().getDisplayName()
                 );
             });
-        // Parse the query to ensure it's valid, this will throw appropriate exceptions if not
-        parser.parseQuery(view.query(), new QueryParams());
+        // Parse the query to ensure it's syntactically valid; parseView rejects any SET statements
+        parser.parseView(view.query(), new QueryParams(), new InferenceSettings(Settings.EMPTY), view.name());
     }
 
     /**

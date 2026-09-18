@@ -25,6 +25,7 @@ import org.elasticsearch.xcontent.XContentBuilder;
 
 import java.io.IOException;
 import java.util.Arrays;
+import java.util.Objects;
 
 /**
  * A request to validate a specific query.
@@ -42,8 +43,6 @@ public final class ValidateQueryRequest extends BroadcastRequest<ValidateQueryRe
     private boolean allShards;
     @Nullable
     private String routing;
-    @Nullable
-    private String searchSlice;
     private boolean routingFromSlice;
 
     long nowInMillis;
@@ -60,11 +59,23 @@ public final class ValidateQueryRequest extends BroadcastRequest<ValidateQueryRe
         allShards = in.readBoolean();
         if (in.getTransportVersion().supports(SliceIndexing.VALIDATE_QUERY_SLICE_ROUTING_STATE_VERSION)) {
             routing = in.readOptionalString();
-            searchSlice = in.readOptionalString();
-            routingFromSlice = in.readBoolean();
+            if (in.getTransportVersion().supports(SliceIndexing.SLICE_ROUTING_STATE_DERIVED_VERSION)) {
+                routingFromSlice = in.readBoolean();
+            } else {
+                // older peers also send the slice value, which is derived from routing and routingFromSlice here
+                final String searchSlice = in.readOptionalString();
+                routingFromSlice = in.readBoolean();
+                assert Objects.equals(searchSlice, SliceIndexing.toSearchSlice(routing, routingFromSlice))
+                    : "transmitted slice ["
+                        + searchSlice
+                        + "] does not match routing ["
+                        + routing
+                        + "] from slice ["
+                        + routingFromSlice
+                        + "]";
+            }
         } else {
             routing = null;
-            searchSlice = null;
             routingFromSlice = false;
         }
     }
@@ -156,27 +167,31 @@ public final class ValidateQueryRequest extends BroadcastRequest<ValidateQueryRe
         return this;
     }
 
+    /**
+     * Returns the {@code slice} value implied by the routing and its provenance, or {@code null} when routing did not come from
+     * {@code slice}.
+     */
     @Nullable
     public String searchSlice() {
-        return searchSlice;
+        return SliceIndexing.toSearchSlice(routing, routingFromSlice);
     }
 
-    public ValidateQueryRequest searchSlice(@Nullable String searchSlice) {
-        this.searchSlice = searchSlice;
-        if (searchSlice == null) {
-            if (routingFromSlice) {
-                this.routing = null;
-            }
-            this.routingFromSlice = false;
-        } else {
-            this.routingFromSlice = true;
-            this.routing = SliceIndexing.SLICE_ALL.equals(searchSlice) ? null : searchSlice;
-        }
-        return this;
+    /**
+     * Convenience for setting slice-provided routing: equivalent to {@code routing(slice).setRoutingFromSlice(true)}, with
+     * {@link SliceIndexing#SLICE_ALL} mapping to unrestricted routing.
+     */
+    public ValidateQueryRequest searchSlice(String searchSlice) {
+        Objects.requireNonNull(searchSlice, "[slice] must not be null");
+        return routing(SliceIndexing.sliceToRouting(searchSlice)).setRoutingFromSlice(true);
     }
 
     public boolean isRoutingFromSlice() {
         return routingFromSlice;
+    }
+
+    public ValidateQueryRequest setRoutingFromSlice(boolean routingFromSlice) {
+        this.routingFromSlice = routingFromSlice;
+        return this;
     }
 
     @Override
@@ -188,7 +203,9 @@ public final class ValidateQueryRequest extends BroadcastRequest<ValidateQueryRe
         out.writeBoolean(allShards);
         if (out.getTransportVersion().supports(SliceIndexing.VALIDATE_QUERY_SLICE_ROUTING_STATE_VERSION)) {
             out.writeOptionalString(routing);
-            out.writeOptionalString(searchSlice);
+            if (out.getTransportVersion().supports(SliceIndexing.SLICE_ROUTING_STATE_DERIVED_VERSION) == false) {
+                out.writeOptionalString(searchSlice());
+            }
             out.writeBoolean(routingFromSlice);
         }
     }
@@ -207,8 +224,8 @@ public final class ValidateQueryRequest extends BroadcastRequest<ValidateQueryRe
             + allShards
             + ", routing:"
             + routing
-            + ", _slice:"
-            + searchSlice;
+            + ", slice:"
+            + searchSlice();
     }
 
     @Override

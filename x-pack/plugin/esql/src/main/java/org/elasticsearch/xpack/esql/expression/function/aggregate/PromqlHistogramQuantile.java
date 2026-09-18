@@ -26,6 +26,7 @@ import org.elasticsearch.xpack.esql.expression.function.Param;
 import org.elasticsearch.xpack.esql.expression.function.scalar.histogram.ExtractHistogramComponent;
 import org.elasticsearch.xpack.esql.expression.function.scalar.histogram.HistogramPercentile;
 import org.elasticsearch.xpack.esql.expression.promql.function.PromqlFunctionDefinition;
+import org.elasticsearch.xpack.esql.plan.logical.promql.HistogramQuantile;
 import org.elasticsearch.xpack.esql.planner.ToAggregator;
 
 import java.io.IOException;
@@ -73,6 +74,7 @@ public class PromqlHistogramQuantile extends AggregateFunction implements ToAggr
             }
             return new HistogramPercentile(source, target, PromqlFunctionDefinition.quantileToPercentile(source, quantile));
         })
+        .classicHistogramHandler(HistogramQuantile::new)
         .description(
             "Returns the φ-quantile of a classic histogram represented by cumulative `le` buckets or a native (exponential) histogram."
         )

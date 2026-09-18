@@ -18,6 +18,7 @@ import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.index.IndexSettings;
+import org.elasticsearch.index.IndexVersions;
 import org.elasticsearch.index.mapper.DocumentMapper;
 import org.elasticsearch.index.mapper.DocumentParsingException;
 import org.elasticsearch.index.mapper.FieldMapper;
@@ -33,6 +34,7 @@ import org.elasticsearch.index.mapper.SyntheticSourceMalformedValueSorter;
 import org.elasticsearch.index.mapper.TimeSeriesParams;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.test.index.IndexVersionUtils;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentFactory;
 import org.elasticsearch.xcontent.XContentType;
@@ -436,13 +438,14 @@ public class ScaledFloatFieldMapperTests extends NumberFieldMapperTests {
 
             Stream<Double> nonMalformedOutputs = values.stream().filter(v -> v.malformedOutput == null).map(Value::output);
             List<Double> outputFromDocValues = (isColumnar ? nonMalformedOutputs : nonMalformedOutputs.sorted()).toList();
-            List<Object> malformedOutput = values.stream()
-                .filter(v -> v.malformedOutput != null)
-                .map(Value::malformedOutput)
-                .sorted(SyntheticSourceMalformedValueSorter.comparator())
-                .toList();
+            // Columnar indices route malformed values to the UNSORTED ._on_failure column (encounter order);
+            // non-columnar indices use the SORTED ._ignore_malformed column.
+            Stream<Object> malformedStream = values.stream().filter(v -> v.malformedOutput != null).map(Value::malformedOutput);
+            List<Object> malformedOutput = (isColumnar
+                ? malformedStream
+                : malformedStream.sorted(SyntheticSourceMalformedValueSorter.comparator())).toList();
 
-            // Malformed values are always last in the implementation (sorted by encoded BytesRef).
+            // Malformed values are always last in the implementation.
             List<Object> outList = Stream.concat(outputFromDocValues.stream(), malformedOutput.stream()).toList();
             Object out = outList.size() == 1 ? outList.get(0) : outList;
 
@@ -710,5 +713,34 @@ public class ScaledFloatFieldMapperTests extends NumberFieldMapperTests {
 
         String src = syntheticSource(mapper, b -> b.array("field", v2, v1, v3, v2));
         assertThat(src, containsString("\"field\":[" + v2 + "," + v1 + "," + v3 + "," + v2 + "]"));
+    }
+
+    /**
+     * scaled_float only began honoring the index-level {@code doc_values} settings in
+     * {@link IndexVersions#DOC_VALUES_DEFAULTS_FOR_ALL_MAPPERS}. Indices created before that version must keep the legacy
+     * behavior of ignoring the settings (defaulting {@code multi_value=true}), so their persisted mappings stay stable across
+     * upgrade; indices created on/after must honor them.
+     */
+    public void testColumnarDocValuesDefaultsGatedByIndexVersion() throws IOException {
+        Settings settings = Settings.builder()
+            .put(IndexSettings.MODE.getKey(), IndexMode.COLUMNAR.getName())
+            .put(FieldMapper.DOC_VALUES_MULTI_VALUE_SETTING.getKey(), false)
+            .build();
+
+        MapperService onOrAfter = createMapperService(
+            IndexVersions.DOC_VALUES_DEFAULTS_FOR_ALL_MAPPERS,
+            settings,
+            fieldMapping(b -> b.field("type", "scaled_float").field("scaling_factor", 10.0))
+        );
+        ScaledFloatFieldMapper honored = (ScaledFloatFieldMapper) onOrAfter.documentMapper().mappers().getMapper("field");
+        assertThat(honored.docValuesParameters().multiValue(), equalTo(false));
+
+        MapperService before = createMapperService(
+            IndexVersionUtils.getPreviousVersion(IndexVersions.DOC_VALUES_DEFAULTS_FOR_ALL_MAPPERS),
+            settings,
+            fieldMapping(b -> b.field("type", "scaled_float").field("scaling_factor", 10.0))
+        );
+        ScaledFloatFieldMapper ignored = (ScaledFloatFieldMapper) before.documentMapper().mappers().getMapper("field");
+        assertThat(ignored.docValuesParameters().multiValue(), equalTo(true));
     }
 }

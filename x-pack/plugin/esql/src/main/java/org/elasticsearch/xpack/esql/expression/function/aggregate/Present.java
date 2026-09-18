@@ -79,6 +79,7 @@ public class Present extends AggregateFunction implements ToAggregator, Aggregat
                 "date_range",
                 "dense_vector",
                 "double",
+                "double_range",
                 "flattened",
                 "geo_point",
                 "geo_shape",

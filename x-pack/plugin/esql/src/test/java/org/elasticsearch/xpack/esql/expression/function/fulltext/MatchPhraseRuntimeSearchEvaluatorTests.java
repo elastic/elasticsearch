@@ -11,11 +11,20 @@ import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.expression.ConstantEvaluators;
 import org.elasticsearch.xpack.esql.EsqlIllegalArgumentException;
+import org.elasticsearch.xpack.esql.core.expression.FieldAttribute;
 import org.elasticsearch.xpack.esql.core.expression.Literal;
+import org.elasticsearch.xpack.esql.core.expression.MapExpression;
+import org.elasticsearch.xpack.esql.core.expression.Nullability;
 import org.elasticsearch.xpack.esql.core.expression.ReferenceAttribute;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
+import org.elasticsearch.xpack.esql.core.type.EsField;
+import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToString;
+import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToText;
 
+import java.util.Map;
+
+import static org.elasticsearch.xpack.esql.EsqlTestUtils.TEST_CFG;
 import static org.elasticsearch.xpack.esql.core.type.DataType.KEYWORD;
 import static org.elasticsearch.xpack.esql.core.type.DataType.NULL;
 import static org.elasticsearch.xpack.esql.core.type.DataType.TEXT;
@@ -45,6 +54,22 @@ public class MatchPhraseRuntimeSearchEvaluatorTests extends AbstractRuntimeSearc
         MatchPhrase matchPhrase = new MatchPhrase(Source.EMPTY, field, query, null);
         assertTrue("expected a runtime search, not a pushed-down query", matchPhrase.isRuntimeSearch());
         return matchPhrase;
+    }
+
+    private static MatchPhrase runtimeMatchPhraseWithOptions(String queryValue, MapExpression options) {
+        ReferenceAttribute field = new ReferenceAttribute(Source.EMPTY, "field", TEXT);
+        Literal query = new Literal(Source.EMPTY, new BytesRef(queryValue), KEYWORD);
+        MatchPhrase matchPhrase = new MatchPhrase(Source.EMPTY, field, query, options);
+        assertTrue("expected a runtime search, not a pushed-down query", matchPhrase.isRuntimeSearch());
+        return matchPhrase;
+    }
+
+    private Boolean[] evaluatePhraseWithOptions(String query, MapExpression options, String... values) {
+        return evaluate(runtimeMatchPhraseWithOptions(query, options), factory -> bytesRefBlock(factory, builder -> {
+            for (String value : values) {
+                builder.appendBytesRef(new BytesRef(value));
+            }
+        }));
     }
 
     private Boolean[] evaluatePhrase(String query, String... values) {
@@ -140,6 +165,287 @@ public class MatchPhraseRuntimeSearchEvaluatorTests extends AbstractRuntimeSearc
         assertThat(matchPhrase.toEvaluator(toEvaluator()), instanceOf(ConstantEvaluators.CONSTANT_FALSE_FACTORY.getClass()));
     }
 
+    // ---- text with options: Lucene-query evaluator path ----
+
+    public void testTextWithoutOptionsUsesOptimizedEvaluator() {
+        MatchPhrase matchPhrase = runtimeMatchPhrase("brown fox");
+        assertThat(matchPhrase.toEvaluator(toEvaluator()), instanceOf(RuntimeSearchTextEvaluator.Factory.class));
+    }
+
+    public void testTextWithOptionsUsesLuceneQueryEvaluator() {
+        MatchPhrase matchPhrase = runtimeMatchPhraseWithOptions("brown fox", mapOptions("slop", "1"));
+        assertThat(matchPhrase.toEvaluator(toEvaluator()), instanceOf(RuntimeSearchTextWithLuceneQueryEvaluator.Factory.class));
+    }
+
+    public void testTextWithNonStandardValuesAnalyzerUsesLuceneQueryEvaluator() {
+        // The fast matcher cannot express the position gaps a stopword-removing analyzer leaves behind.
+        MatchPhrase matchPhrase = runtimeMatchPhraseOnToText("stop", "brown fox", null);
+        assertThat(matchPhrase.toEvaluator(toEvaluator()), instanceOf(RuntimeSearchTextWithLuceneQueryEvaluator.Factory.class));
+    }
+
+    public void testTextWithExplicitStandardValuesAnalyzerUsesOptimizedEvaluator() {
+        // An explicitly declared "standard" is identical to no declaration, so the fast path is safe.
+        MatchPhrase matchPhrase = runtimeMatchPhraseOnToText("standard", "brown fox", null);
+        assertThat(matchPhrase.toEvaluator(toEvaluator()), instanceOf(RuntimeSearchTextEvaluator.Factory.class));
+    }
+
+    public void testTextWithSlopAllowsInterveningToken() {
+        Boolean[] result = evaluatePhraseWithOptions(
+            "brown fox",
+            mapOptions("slop", "1"),
+            "a brown fox",
+            "a brown quick fox",
+            "a brown very quick fox"
+        );
+        assertArrayEquals(new Boolean[] { true, true, false }, result);
+    }
+
+    public void testTextWithExplicitSlopZeroRequiresAdjacentPositions() {
+        Boolean[] result = evaluatePhraseWithOptions("brown fox", mapOptions("slop", "0"), "a brown fox", "a brown quick fox");
+        assertArrayEquals(new Boolean[] { true, false }, result);
+    }
+
+    public void testTextWithSlopTwoMatchesTransposedTerms() {
+        // Transposed terms have a slop of 2: "fox brown" matches "brown fox" with slop 2 but not slop 1.
+        Boolean[] result = evaluatePhraseWithOptions("fox brown", mapOptions("slop", "2"), "a brown fox");
+        assertArrayEquals(new Boolean[] { true }, result);
+        result = evaluatePhraseWithOptions("fox brown", mapOptions("slop", "1"), "a brown fox");
+        assertArrayEquals(new Boolean[] { false }, result);
+    }
+
+    public void testTextWithOptionsPhraseCannotSpanValues() {
+        Boolean[] result = evaluate(runtimeMatchPhraseWithOptions("brown fox", mapOptions("slop", "0")), factory -> {
+            return bytesRefBlock(factory, builder -> {
+                builder.beginPositionEntry();
+                builder.appendBytesRef(new BytesRef("a brown")); // "brown" ends this value...
+                builder.appendBytesRef(new BytesRef("fox b"));   // ..."fox" starts the next: not a phrase
+                builder.endPositionEntry();
+                builder.beginPositionEntry();
+                builder.appendBytesRef(new BytesRef("a brown fox"));
+                builder.appendBytesRef(new BytesRef("nothing here"));
+                builder.endPositionEntry();
+            });
+        });
+        assertArrayEquals(new Boolean[] { false, true }, result);
+    }
+
+    public void testTextWithZeroTermsQueryNoneAndNoTokensUsesConstantFalse() {
+        MatchPhrase matchPhrase = runtimeMatchPhraseWithOptions("! ! !", mapOptions("zero_terms_query", "none"));
+        assertThat(matchPhrase.toEvaluator(toEvaluator()), instanceOf(ConstantEvaluators.CONSTANT_FALSE_FACTORY.getClass()));
+    }
+
+    public void testTextWithZeroTermsQueryAllAndNoTokensUsesConstantTrue() {
+        MatchPhrase matchPhrase = runtimeMatchPhraseWithOptions("! ! !", mapOptions("zero_terms_query", "all"));
+        assertThat(matchPhrase.toEvaluator(toEvaluator()), instanceOf(ConstantEvaluators.CONSTANT_TRUE_FACTORY.getClass()));
+    }
+
+    public void testTextWithZeroTermsQueryAllMatchesEverything() {
+        Boolean[] result = evaluatePhraseWithOptions("", mapOptions("zero_terms_query", "all"), "a brown fox", "the lazy dog");
+        assertArrayEquals(new Boolean[] { true, true }, result);
+    }
+
+    public void testTextWithWhitespaceAnalyzerIsCaseSensitive() {
+        // The whitespace analyzer does not lowercase, unlike the standard analyzer. Declared for the values through
+        // TO_TEXT and (redundantly) for the query through the option, matching is case-sensitive on both sides.
+        Boolean[] result = evaluate(
+            runtimeMatchPhraseOnToText("whitespace", "Brown Fox", mapOptions("analyzer", "whitespace")),
+            factory -> bytesRefBlock(factory, builder -> {
+                builder.appendBytesRef(new BytesRef("the Brown Fox runs"));
+                builder.appendBytesRef(new BytesRef("the brown fox runs"));
+            })
+        );
+        assertArrayEquals(new Boolean[] { true, false }, result);
+    }
+
+    public void testTextWithKeywordAnalyzerMatchesWholeValueOnly() {
+        // The keyword analyzer emits the whole value as a single token, so the phrase must equal the entire value.
+        Boolean[] result = evaluate(
+            runtimeMatchPhraseOnToText("keyword", "brown fox", mapOptions("analyzer", "keyword")),
+            factory -> bytesRefBlock(factory, builder -> {
+                builder.appendBytesRef(new BytesRef("brown fox"));
+                builder.appendBytesRef(new BytesRef("a brown fox"));
+            })
+        );
+        assertArrayEquals(new Boolean[] { true, false }, result);
+    }
+
+    public void testTextWithAnalyzerAndSlopCombined() {
+        Boolean[] result = evaluate(
+            runtimeMatchPhraseOnToText("whitespace", "Brown Fox", mapOptions("analyzer", "whitespace", "slop", "1")),
+            factory -> bytesRefBlock(factory, builder -> {
+                builder.appendBytesRef(new BytesRef("the Brown quick Fox"));
+                builder.appendBytesRef(new BytesRef("the brown quick fox"));
+            })
+        );
+        assertArrayEquals(new Boolean[] { true, false }, result);
+    }
+
+    public void testTextWithBoostDoesNotChangeMatching() {
+        // Boost only affects scoring, not matching.
+        Boolean[] result = evaluatePhraseWithOptions("brown fox", mapOptions("boost", "2.5"), "a brown fox", "a brown quick fox");
+        assertArrayEquals(new Boolean[] { true, false }, result);
+    }
+
+    // ---- split analyzers: TO_TEXT declares how values are analyzed; match_phrase's analyzer option covers the query
+    // string only, defaulting to the values analyzer — exact parity with an indexed field's analyzer/search_analyzer ----
+
+    private static MatchPhrase runtimeMatchPhraseOnToText(String valuesAnalyzer, String queryValue, MapExpression phraseOptions) {
+        ReferenceAttribute child = new ReferenceAttribute(Source.EMPTY, "field", KEYWORD);
+        ToText field = new ToText(Source.EMPTY, child, valuesAnalyzer == null ? null : mapOptions("analyzer", valuesAnalyzer));
+        Literal query = new Literal(Source.EMPTY, new BytesRef(queryValue), KEYWORD);
+        MatchPhrase matchPhrase = new MatchPhrase(Source.EMPTY, field, query, phraseOptions);
+        assertTrue("expected a runtime search, not a pushed-down query", matchPhrase.isRuntimeSearch());
+        return matchPhrase;
+    }
+
+    /**
+     * {@code match_phrase(to_text(field), ...)} where {@code field} is a genuine, single-typed, always-mapped
+     * {@code keyword} {@link FieldAttribute} — the inline-{@code to_text}-on-an-indexed-field shape from
+     * <a href="https://github.com/elastic/elasticsearch/issues/159265">#159265</a>. See
+     * {@link MatchRuntimeSearchEvaluatorTests#runtimeMatchOnToTextOverIndexedField} for the {@code match} analogue.
+     */
+    private static MatchPhrase runtimeMatchPhraseOnToTextOverIndexedField(String queryValue) {
+        FieldAttribute child = new FieldAttribute(
+            Source.EMPTY,
+            "field",
+            new EsField("field", KEYWORD, Map.of(), true, EsField.TimeSeriesFieldType.NONE)
+        );
+        ToText field = new ToText(Source.EMPTY, child);
+        Literal query = new Literal(Source.EMPTY, new BytesRef(queryValue), KEYWORD);
+        MatchPhrase matchPhrase = new MatchPhrase(Source.EMPTY, field, query, null);
+        assertTrue("expected a runtime search, not a pushed-down query", matchPhrase.isRuntimeSearch());
+        return matchPhrase;
+    }
+
+    /**
+     * {@code match_phrase(to_string(field), ...)} where {@code field} is a genuine, single-typed, always-mapped
+     * {@code text} {@link FieldAttribute} - the mirror-image bug of
+     * {@link #runtimeMatchPhraseOnToTextOverIndexedField}: {@code TO_STRING} declares that the value must be
+     * matched as exact, unanalyzed {@code keyword} text, and that holds regardless of whether the field happens
+     * to be indexed as TEXT.
+     */
+    private static MatchPhrase runtimeMatchPhraseOnToStringOverIndexedField(String queryValue) {
+        FieldAttribute child = new FieldAttribute(
+            Source.EMPTY,
+            "field",
+            new EsField("field", TEXT, Map.of(), true, EsField.TimeSeriesFieldType.NONE)
+        );
+        ToString field = new ToString(Source.EMPTY, child, TEST_CFG);
+        Literal query = new Literal(Source.EMPTY, new BytesRef(queryValue), KEYWORD);
+        MatchPhrase matchPhrase = new MatchPhrase(Source.EMPTY, field, query, null);
+        assertTrue("expected a runtime search, not a pushed-down query", matchPhrase.isRuntimeSearch());
+        return matchPhrase;
+    }
+
+    /**
+     * A runtime {@code match_phrase("Brown Fox")} over a reference carrying the whitespace values analyzer as
+     * attribute metadata, the {@code EVAL t = to_text(...)} form. The semantics matrix is exercised through the
+     * inline {@code to_text} form; the reference form only pins that the second declaration site feeds the same
+     * analyzer resolution, so a single case-sensitivity scenario (checked by the boolean and scoring paths) is all
+     * it needs.
+     */
+    private static MatchPhrase runtimeMatchPhraseOnAnalyzedReference() {
+        ReferenceAttribute field = new ReferenceAttribute(Source.EMPTY, null, "field", TEXT, Nullability.FALSE, null, false, "whitespace");
+        Literal query = new Literal(Source.EMPTY, new BytesRef("Brown Fox"), KEYWORD);
+        MatchPhrase matchPhrase = new MatchPhrase(Source.EMPTY, field, query, null);
+        assertTrue("expected a runtime search, not a pushed-down query", matchPhrase.isRuntimeSearch());
+        return matchPhrase;
+    }
+
+    public void testPhraseValuesAnalyzerFromReferenceAttribute() {
+        Boolean[] result = evaluate(runtimeMatchPhraseOnAnalyzedReference(), factory -> bytesRefBlock(factory, builder -> {
+            builder.appendBytesRef(new BytesRef("the Brown Fox runs"));
+            builder.appendBytesRef(new BytesRef("the brown fox runs"));
+        }));
+        assertArrayEquals(new Boolean[] { true, false }, result);
+    }
+
+    public void testScorePhraseValuesAnalyzerFromReferenceAttribute() {
+        Double[] result = score(runtimeMatchPhraseOnAnalyzedReference(), factory -> bytesRefBlock(factory, builder -> {
+            builder.appendBytesRef(new BytesRef("a Brown Fox"));
+            builder.appendBytesRef(new BytesRef("a brown fox"));
+        }));
+        assertArrayEquals(new Double[] { 1.0, 0.0 }, result);
+    }
+
+    /**
+     * https://github.com/elastic/elasticsearch/issues/159265: {@code match_phrase(to_text(keyword_field), ...)}
+     * written inline, directly over a normal {@code keyword} field, must match with standard
+     * analyzed phrase semantics (case-insensitive) — the same as a non-indexed reference. Before the fix, the
+     * field's presence as a genuine {@link FieldAttribute} made {@link MatchPhrase#isRuntimeSearch()} return
+     * {@code false}, so this was pushed down as a plain (exact, case-sensitive) match on the raw keyword field.
+     */
+    public void testPhraseValuesAnalyzerFromToTextOverIndexedField() {
+        Boolean[] result = evaluate(runtimeMatchPhraseOnToTextOverIndexedField("brown fox"), factory -> bytesRefBlock(factory, builder -> {
+            builder.appendBytesRef(new BytesRef("a Brown Fox runs"));
+            builder.appendBytesRef(new BytesRef("a fox runs, brown"));
+        }));
+        assertArrayEquals(new Boolean[] { true, false }, result);
+    }
+
+    /**
+     * Mirror-image bug of {@link #testPhraseValuesAnalyzerFromToTextOverIndexedField}:
+     * {@code match_phrase(to_string(text_field), "brown fox")} written inline, directly over a real
+     * single-typed mapped {@code text} field, must match exactly and case-sensitively - the value must equal
+     * the query in full, not merely contain it as a substring or consecutive phrase. Before the fix, this was
+     * pushed down as a plain analyzed phrase match on the raw text field, which over-matches.
+     */
+    public void testKeywordExactSemanticsFromToStringOverIndexedField() {
+        Boolean[] result = evaluate(
+            runtimeMatchPhraseOnToStringOverIndexedField("brown fox"),
+            factory -> bytesRefBlock(factory, builder -> {
+                builder.appendBytesRef(new BytesRef("Brown Fox")); // case differs from the query: must not match
+                builder.appendBytesRef(new BytesRef("a brown fox runs")); // query is only a substring: must not match
+                builder.appendBytesRef(new BytesRef("brown fox")); // exact match: must match
+            })
+        );
+        assertArrayEquals(new Boolean[] { false, false, true }, result);
+    }
+
+    public void testPhraseValuesAnalyzerFromToText() {
+        // whitespace declared on TO_TEXT applies to values AND (by default) the query: case-sensitive on both sides
+        Boolean[] result = evaluate(
+            runtimeMatchPhraseOnToText("whitespace", "Brown Fox", null),
+            factory -> bytesRefBlock(factory, builder -> {
+                builder.appendBytesRef(new BytesRef("the Brown Fox runs"));
+                builder.appendBytesRef(new BytesRef("the brown fox runs"));
+            })
+        );
+        assertArrayEquals(new Boolean[] { true, false }, result);
+    }
+
+    public void testPhraseMatchAnalyzerAppliesToQueryStringOnly() {
+        // match_phrase's whitespace analyzer keeps the query's case, while the values stay standard-analyzed
+        // (lowercased): the case-mismatched phrase no longer matches
+        Boolean[] result = evaluate(
+            runtimeMatchPhraseOnToText(null, "Brown Fox", mapOptions("analyzer", "whitespace")),
+            factory -> bytesRefBlock(factory, builder -> builder.appendBytesRef(new BytesRef("the Brown Fox runs")))
+        );
+        assertArrayEquals(new Boolean[] { false }, result);
+    }
+
+    public void testPhraseStopwordAnalyzerKeepsPositionGaps() {
+        // The stop analyzer removes "and" from the query, leaving a position gap: quick@0, fox@2. Like Lucene on an
+        // indexed stop-analyzed field, the phrase must honor that gap — matching a value whose surviving tokens sit
+        // exactly two positions apart and rejecting one where they are adjacent.
+        Boolean[] result = evaluate(
+            runtimeMatchPhraseOnToText("stop", "quick and fox", null),
+            factory -> bytesRefBlock(factory, builder -> {
+                builder.appendBytesRef(new BytesRef("the quick brown fox")); // quick@1, fox@3: gap of 2, matches
+                builder.appendBytesRef(new BytesRef("the quick fox"));       // quick@1, fox@2: adjacent, no match
+            })
+        );
+        assertArrayEquals(new Boolean[] { true, false }, result);
+    }
+
+    public void testScorePhraseValuesAnalyzerFromToText() {
+        Double[] result = score(runtimeMatchPhraseOnToText("whitespace", "Brown Fox", null), factory -> bytesRefBlock(factory, builder -> {
+            builder.appendBytesRef(new BytesRef("a Brown Fox"));
+            builder.appendBytesRef(new BytesRef("a brown fox"));
+        }));
+        assertArrayEquals(new Double[] { 1.0, 0.0 }, result);
+    }
+
     // ---- keyword: exact (unanalyzed) matching, mirroring the term query a pushed-down match_phrase rewrites to ----
 
     public void testKeywordIsExactAndCaseSensitive() {
@@ -177,5 +483,97 @@ public class MatchPhraseRuntimeSearchEvaluatorTests extends AbstractRuntimeSearc
             builder.appendNull();
         }));
         assertArrayEquals(new Boolean[] { true, false, false }, result);
+    }
+
+    // ---- scoring: runtime match_phrase contributes the boost (1.0 by default) to _score on match ----
+
+    private Double[] scorePhrase(DataType fieldType, String query, String... values) {
+        return score(runtimeMatchPhrase(fieldType, query), factory -> bytesRefBlock(factory, builder -> {
+            for (String value : values) {
+                builder.appendBytesRef(new BytesRef(value));
+            }
+        }));
+    }
+
+    private Double[] scorePhraseWithOptions(String query, MapExpression options, String... values) {
+        return score(runtimeMatchPhraseWithOptions(query, options), factory -> bytesRefBlock(factory, builder -> {
+            for (String value : values) {
+                builder.appendBytesRef(new BytesRef(value));
+            }
+        }));
+    }
+
+    public void testScorePhrase() {
+        Double[] result = scorePhrase(TEXT, "brown fox", "a brown fox", "fox brown a");
+        assertArrayEquals(new Double[] { 1.0, 0.0 }, result);
+    }
+
+    public void testScorePhraseWithSlop() {
+        Double[] result = scorePhraseWithOptions("fox brown", mapOptions("slop", "2"), "a brown fox");
+        assertArrayEquals(new Double[] { 1.0 }, result);
+    }
+
+    public void testScorePhraseWithBoost() {
+        Double[] result = scorePhraseWithOptions("brown fox", mapOptions("boost", "2.5"), "a brown fox", "nothing here");
+        assertArrayEquals(new Double[] { 2.5, 0.0 }, result);
+    }
+
+    public void testScorePhraseWithAnalyzer() {
+        Double[] result = score(
+            runtimeMatchPhraseOnToText("whitespace", "Brown Fox", mapOptions("analyzer", "whitespace")),
+            factory -> bytesRefBlock(factory, builder -> {
+                builder.appendBytesRef(new BytesRef("a Brown Fox"));
+                builder.appendBytesRef(new BytesRef("a brown fox"));
+            })
+        );
+        assertArrayEquals(new Double[] { 1.0, 0.0 }, result);
+    }
+
+    public void testScorePhraseWithZeroTermsQuery() {
+        Double[] all = scorePhraseWithOptions("! !", mapOptions("zero_terms_query", "all"), "a brown fox", "nothing here");
+        assertArrayEquals(new Double[] { 1.0, 1.0 }, all);
+        Double[] none = scorePhraseWithOptions("! !", mapOptions("zero_terms_query", "none"), "a brown fox", "nothing here");
+        assertArrayEquals(new Double[] { 0.0, 0.0 }, none);
+    }
+
+    /**
+     * The Lucene-query scorer (options path) builds its position-increment-gap analyzer independently of the
+     * boolean evaluator. This test ensures that scoring does not span multiple values.
+     */
+    public void testScorePhraseWithOptionsCannotSpanValues() {
+        Double[] result = score(runtimeMatchPhraseWithOptions("brown fox", mapOptions("slop", "0")), factory -> {
+            return bytesRefBlock(factory, builder -> {
+                builder.beginPositionEntry();
+                builder.appendBytesRef(new BytesRef("a brown")); // "brown" ends this value...
+                builder.appendBytesRef(new BytesRef("fox b"));   // ..."fox" starts the next: not a phrase
+                builder.endPositionEntry();
+                builder.beginPositionEntry();
+                builder.appendBytesRef(new BytesRef("a brown fox"));
+                builder.appendBytesRef(new BytesRef("nothing here"));
+                builder.endPositionEntry();
+            });
+        });
+        assertArrayEquals(new Double[] { 0.0, 1.0 }, result);
+    }
+
+    public void testScorePhraseMultiValueAndNull() {
+        // A phrase never spans a value boundary; any single value containing it scores the row; nulls score 0.0.
+        Double[] result = score(runtimeMatchPhrase(TEXT, "brown fox"), factory -> bytesRefBlock(factory, builder -> {
+            builder.beginPositionEntry();
+            builder.appendBytesRef(new BytesRef("a brown"));
+            builder.appendBytesRef(new BytesRef("fox b"));
+            builder.endPositionEntry();
+            builder.beginPositionEntry();
+            builder.appendBytesRef(new BytesRef("white cat"));
+            builder.appendBytesRef(new BytesRef("a brown fox"));
+            builder.endPositionEntry();
+            builder.appendNull();
+        }));
+        assertArrayEquals(new Double[] { 0.0, 1.0, 0.0 }, result);
+    }
+
+    public void testScoreKeywordExact() {
+        Double[] result = scorePhrase(KEYWORD, "brown fox", "brown fox", "a brown fox");
+        assertArrayEquals(new Double[] { 1.0, 0.0 }, result);
     }
 }

@@ -24,6 +24,8 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Objects;
 
+import static org.elasticsearch.index.reindex.BulkByPaginatedSearchTaskStatusWireSerializingTests.mutateStatus;
+
 public class BulkByPaginatedSearchResponseWireSerializingTests extends AbstractWireSerializingTestCase<
     BulkByPaginatedSearchResponseWireSerializingTests.BulkByPaginatedSearchResponseWrapper> {
     @Override
@@ -57,7 +59,7 @@ public class BulkByPaginatedSearchResponseWireSerializingTests extends AbstractW
             );
             case 1 -> new BulkByPaginatedSearchResponse(
                 r.getTook(),
-                mutateRandomStatus(r.getStatus()),
+                mutateStatus(r.getStatus()),
                 r.getBulkFailures(),
                 r.getSearchFailures(),
                 r.isTimedOut()
@@ -85,19 +87,6 @@ public class BulkByPaginatedSearchResponseWireSerializingTests extends AbstractW
             );
             default -> throw new AssertionError();
         });
-    }
-
-    private BulkByPaginatedSearchTask.Status mutateRandomStatus(BulkByPaginatedSearchTask.Status currentStatus) {
-        while (true) {
-            BulkByPaginatedSearchTask.Status candidate = BulkByPaginatedSearchTaskStatusTests.randomStatus();
-            try {
-                BulkByPaginatedSearchTaskStatusTests.assertTaskStatusEquals(currentStatus, candidate);
-                // Equal → try again
-            } catch (AssertionError e) {
-                // Not equal → success
-                return candidate;
-            }
-        }
     }
 
     private List<Failure> mutateBulkFailures(List<Failure> currentFailures) {

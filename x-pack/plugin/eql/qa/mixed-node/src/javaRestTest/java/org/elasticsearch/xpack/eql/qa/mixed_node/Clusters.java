@@ -51,10 +51,6 @@ public class Clusters {
             .setting("xpack.watcher.enabled", "false")
             .setting("xpack.ml.enabled", "false")
             .setting("xpack.license.self_generated.type", "trial")
-            // DLM frozen tier serialization is gated on both a feature flag and a transport version, so nodes in a mixed cluster can
-            // disagree on the wire format when their build types differ (snapshot vs release). Disable the flag on every node so
-            // serialization is consistent regardless of build type. See https://github.com/elastic/elasticsearch/issues/153679.
-            .systemProperty("es.dlm_searchable_snapshots_feature_flag_enabled", "false")
             .build();
     }
 }

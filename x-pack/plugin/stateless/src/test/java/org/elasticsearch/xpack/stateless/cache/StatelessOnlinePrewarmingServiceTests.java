@@ -54,6 +54,7 @@ import java.util.concurrent.TimeUnit;
 import java.util.function.LongConsumer;
 import java.util.function.LongFunction;
 
+import static org.elasticsearch.blobcache.shared.SharedBlobCacheServiceTestUtils.randomRegionTimestampMillis;
 import static org.elasticsearch.xpack.stateless.commits.BlobLocationTestUtils.createBlobLocation;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.everyItem;
@@ -173,10 +174,16 @@ public class StatelessOnlinePrewarmingServiceTests extends ESTestCase {
                 cacheFile = fakeNode.sharedCacheService.getCacheFile(
                     cacheKey,
                     regionSize + secondWarmedRegionLength,
-                    SharedBlobCacheService.CacheMissHandler.NOOP
+                    SharedBlobCacheService.CacheMissHandler.NOOP,
+                    randomRegionTimestampMillis()
                 );
             } else {
-                cacheFile = fakeNode.sharedCacheService.getCacheFile(cacheKey, regionSize, SharedBlobCacheService.CacheMissHandler.NOOP);
+                cacheFile = fakeNode.sharedCacheService.getCacheFile(
+                    cacheKey,
+                    regionSize,
+                    SharedBlobCacheService.CacheMissHandler.NOOP,
+                    randomRegionTimestampMillis()
+                );
             }
 
             long length = Math.min(regionSize, blobRange.fileLength() + blobRange.fileOffset());
@@ -329,7 +336,13 @@ public class StatelessOnlinePrewarmingServiceTests extends ESTestCase {
                 CacheBlobReaderService cacheBlobReaderService,
                 MutableObjectStoreUploadTracker objectStoreUploadTracker
             ) {
-                var customCacheBlobReaderService = new CacheBlobReaderService(nodeSettings, sharedCacheService, client, threadPool) {
+                var customCacheBlobReaderService = new CacheBlobReaderService(
+                    nodeSettings,
+                    sharedCacheService,
+                    client,
+                    threadPool,
+                    TestUtils.unmeteredFillCacheMemoryPressure(nodeSettings, threadPool)
+                ) {
                     @Override
                     public CacheBlobReader getCacheBlobReader(
                         ShardId shardId,
@@ -340,7 +353,8 @@ public class StatelessOnlinePrewarmingServiceTests extends ESTestCase {
                         LongConsumer bytesReadFromIndexing,
                         BlobCacheMetrics.CachePopulationReason cachePopulationReason,
                         Executor objectStoreFetchExecutor,
-                        String fileName
+                        String fileName,
+                        boolean speculativeFill
                     ) {
                         var originalCacheBlobReader = cacheBlobReaderService.getCacheBlobReader(
                             shardId,
@@ -352,7 +366,8 @@ public class StatelessOnlinePrewarmingServiceTests extends ESTestCase {
                             bytesReadFromIndexing,
                             cachePopulationReason,
                             objectStoreFetchExecutor,
-                            fileName
+                            fileName,
+                            speculativeFill
                         );
                         return new CacheBlobReader() {
                             @Override

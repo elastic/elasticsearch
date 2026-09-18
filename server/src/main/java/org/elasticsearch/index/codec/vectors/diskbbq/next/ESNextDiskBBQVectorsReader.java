@@ -15,7 +15,6 @@ import org.apache.lucene.index.SegmentReadState;
 import org.apache.lucene.index.VectorEncoding;
 import org.apache.lucene.index.VectorSimilarityFunction;
 import org.apache.lucene.search.AcceptDocs;
-import org.apache.lucene.search.DocIdSetIterator;
 import org.apache.lucene.search.KnnCollector;
 import org.apache.lucene.store.IndexInput;
 import org.apache.lucene.util.Bits;
@@ -39,6 +38,7 @@ import org.elasticsearch.index.codec.vectors.diskbbq.PostingMetadata;
 import org.elasticsearch.index.codec.vectors.diskbbq.Preconditioner;
 import org.elasticsearch.index.codec.vectors.diskbbq.PrefetchingCentroidIterator;
 import org.elasticsearch.index.codec.vectors.diskbbq.QuantEncoding;
+import org.elasticsearch.index.codec.vectors.diskbbq.SlicedBlockRange;
 import org.elasticsearch.index.codec.vectors.diskbbq.VectorPreconditioner;
 import org.elasticsearch.search.vectors.BulkKnnCollector;
 import org.elasticsearch.search.vectors.ESAcceptDocs;
@@ -79,6 +79,15 @@ public class ESNextDiskBBQVectorsReader extends IVFVectorsReader<ESNextDiskBBQVe
         );
     }
 
+    private ESNextDiskBBQVectorsReader(ESNextDiskBBQVectorsReader other, GenericFlatVectorReaders genericReaders) {
+        super(other, genericReaders);
+    }
+
+    @Override
+    protected ESNextDiskBBQVectorsReader mergeInstance(GenericFlatVectorReaders genericReaders) {
+        return new ESNextDiskBBQVectorsReader(this, genericReaders);
+    }
+
     CentroidIterator getPostingListPrefetchIterator(CentroidIterator centroidIterator, IndexInput postingListSlice) throws IOException {
         // TODO we may want to prefetch more than one postings list, however, we will likely want to place a limit
         // so we don't bother prefetching many lists we won't end up scoring
@@ -91,7 +100,8 @@ public class ESNextDiskBBQVectorsReader extends IVFVectorsReader<ESNextDiskBBQVe
         int size = values.size();
         assert esAcceptDocs == null
             || entry.numSlices >= 0 && esAcceptDocs.sliceOrd() >= 0
-            || entry.numSlices == -1 && esAcceptDocs.sliceOrd() == -1;
+            || entry.numSlices == -1 && esAcceptDocs.sliceOrd() == -1
+            : "slice ordinal [" + esAcceptDocs.sliceOrd() + "] does not match segment slice layout [" + entry.numSlices + "]";
         if (entry.numSlices > 0) {
             long fp = centroidSlice.getFilePointer();
             final int bitsRequired = DirectWriter.bitsRequired(entry.maxSliceSize);
@@ -487,13 +497,16 @@ public class ESNextDiskBBQVectorsReader extends IVFVectorsReader<ESNextDiskBBQVe
             // Uses SlicedMemorySegmentPostingsVisitor which handles the flat posting list format.
             int startDoc;
             int endDoc;
-            if (acceptDocs instanceof ESAcceptDocs esAccept && esAccept.sliceAcceptDocs() != null) {
-                ESAcceptDocs.SliceAcceptDocs sliceAcceptDocs = esAccept.sliceAcceptDocs();
-                startDoc = sliceAcceptDocs.startDoc();
-                endDoc = sliceAcceptDocs.endDoc();
-            } else {
+            if (acceptDocs == null) {
+                // Plain Lucene AcceptDocs (e.g. CheckIndex) carry no slice information: search the whole segment.
                 startDoc = 0;
                 endDoc = values.ordToDoc(values.size() - 1) + 1;
+            } else {
+                // Sliced segments are only ever searched by sliced queries, which always carry a slice ordinal.
+                assert acceptDocs.sliceOrd() >= 0 : "sliced segment searched without a slice ordinal";
+                ESAcceptDocs.SliceAcceptDocs sliceAcceptDocs = acceptDocs.sliceAcceptDocs();
+                startDoc = sliceAcceptDocs.startDoc();
+                endDoc = sliceAcceptDocs.endDoc();
             }
             return new SlicedMemorySegmentPostingsVisitor(
                 queryQuantizer,
@@ -612,6 +625,27 @@ public class ESNextDiskBBQVectorsReader extends IVFVectorsReader<ESNextDiskBBQVe
         return super.getOffHeapByteSize(fieldInfo);
     }
 
+    /**
+     * Calls {@link #getPostingVisitor} directly for a named float-vector field, bypassing
+     * {@link #getNumberOfVectors} and its assertion. Used in tests to exercise the
+     * {@code acceptDocs} handling in the {@code numSlices == 0} branch in isolation.
+     */
+    // package-private for testing
+    PostingVisitor getPostingVisitorForTest(String field, float[] query, ESAcceptDocs acceptDocs) throws IOException {
+        FieldInfo fieldInfo = fieldInfos.fieldInfo(field);
+        NextFieldEntry entry = fields.get(fieldInfo.number);
+        KnnVectorValues values = getFloatVectorValues(field);
+        return getPostingVisitor(
+            fieldInfo,
+            values,
+            entry.postingListSlice(ivfClusters.clone()),
+            new QueryTarget.FloatQuery(query),
+            null,
+            entry.centroidSlice(ivfCentroids.clone()),
+            acceptDocs
+        );
+    }
+
     private static class SlicedMemorySegmentPostingsVisitor extends MemorySegmentPostingsVisitor {
         final int startDocId;
         final int endDocId;
@@ -637,35 +671,17 @@ public class ESNextDiskBBQVectorsReader extends IVFVectorsReader<ESNextDiskBBQVe
         @Override
         public int resetPostingsScorer(PostingMetadata metadata) throws IOException {
             int totalVectors = super.resetPostingsScorer(metadata);
-            int totalBlocks = totalVectors / BULK_SIZE;
-            KnnVectorValues.DocIndexIterator iterator = vectorValues.iterator();
-            if (iterator.advance(startDocId) >= endDocId) {
-                this.vectors = 0;
-                return 0;
-            }
-            int minOrd = iterator.index();
-            int docId = iterator.advance(endDocId);
-            int maxOrd;
-            if (docId == DocIdSetIterator.NO_MORE_DOCS) {
-                maxOrd = vectorValues.size();
-            } else {
-                maxOrd = iterator.index();
-            }
-            // When searching the full segment (startDocId == 0), the doc range may span
-            // more ordinals than a single posting list in multi-centroid segments. In that case
-            // we clamp to the posting list bounds rather than asserting.
-            if (maxOrd - minOrd > totalVectors) {
-                maxOrd = Math.min(maxOrd, minOrd + totalVectors);
-            }
-            int startBlock = minOrd / BULK_SIZE;
-            int endBlock = (maxOrd - 1) / BULK_SIZE;
-            if (endBlock == totalBlocks) {
-                this.vectors = totalVectors - startBlock * BULK_SIZE;
-            } else {
-                this.vectors = (1 + endBlock - startBlock) * BULK_SIZE;
-            }
-            docBase = startBlock * BULK_SIZE;
-            slicePos += startBlock * BULK_SIZE * quantizedByteLength;
+            SlicedBlockRange range = SlicedBlockRange.compute(
+                vectorValues,
+                startDocId,
+                endDocId,
+                totalVectors,
+                BULK_SIZE,
+                quantizedByteLength
+            );
+            this.vectors = range.vectors();
+            docBase = range.docBase();
+            slicePos += range.skipBytes();
             return this.vectors;
         }
 

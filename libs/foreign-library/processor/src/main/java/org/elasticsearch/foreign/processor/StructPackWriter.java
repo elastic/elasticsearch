@@ -11,7 +11,8 @@ package org.elasticsearch.foreign.processor;
 
 import org.elasticsearch.foreign.processor.model.LibraryModel;
 import org.elasticsearch.foreign.processor.model.StructFieldModel;
-import org.elasticsearch.foreign.processor.model.StructRecordModel;
+import org.elasticsearch.foreign.processor.model.StructLayoutModel;
+import org.elasticsearch.foreign.processor.model.StructModel;
 
 import java.lang.classfile.ClassBuilder;
 import java.lang.classfile.ClassFile;
@@ -34,14 +35,10 @@ import static org.elasticsearch.foreign.processor.ClassWriterUtil.CD_VarHandle;
 import static org.elasticsearch.foreign.processor.ClassWriterUtil.CD_long;
 import static org.elasticsearch.foreign.processor.ClassWriterUtil.CD_void;
 import static org.elasticsearch.foreign.processor.ClassWriterUtil.MTD_groupElement;
-import static org.elasticsearch.foreign.processor.ClassWriterUtil.MTD_structLayout;
 import static org.elasticsearch.foreign.processor.ClassWriterUtil.MTD_varHandleWithoutOffset;
 import static org.elasticsearch.foreign.processor.ClassWriterUtil.emitValueLayout;
 import static org.elasticsearch.foreign.processor.ClassWriterUtil.fieldClassDesc;
 import static org.elasticsearch.foreign.processor.ClassWriterUtil.valueLayoutClassDesc;
-import static org.elasticsearch.foreign.processor.StructLayoutUtil.LayoutField;
-import static org.elasticsearch.foreign.processor.StructLayoutUtil.computeLayout;
-import static org.elasticsearch.foreign.processor.StructLayoutUtil.emitStructLayoutArray;
 
 /**
  * Generates the {@code $Pack} companion class for a {@code @StructSpecification} record. The
@@ -53,6 +50,10 @@ import static org.elasticsearch.foreign.processor.StructLayoutUtil.emitStructLay
  *       by struct {@code $Impl} readers)</li>
  *   <li>a package-private {@code static void pack(RecordType src, MemorySegment dest, long baseOffset)} method</li>
  * </ul>
+ *
+ * <p>{@code LAYOUT} is selected per running platform when the record's layout differs across
+ * platforms (see {@link PerPlatformClinit}); the per-component offsets and VarHandles derive from
+ * {@code LAYOUT}, so they need no per-platform special-casing.
  */
 final class StructPackWriter {
 
@@ -70,12 +71,12 @@ final class StructPackWriter {
     }
 
     /** Generates and writes the {@code $Pack} class for a record struct. */
-    void generate(LibraryModel model, StructRecordModel struct, TypeElement sourceElement) throws Exception {
+    void generate(LibraryModel model, StructModel struct, TypeElement sourceElement) throws Exception {
         String packQualifiedName = qualified(model, struct.simpleName()) + "$Pack";
         ClassDesc packDesc = ClassDesc.of(packQualifiedName);
         ClassDesc recordDesc = ClassDesc.of(qualified(model, struct.simpleName()));
         List<StructFieldModel> fields = struct.fields();
-        List<LayoutField> layout = computeLayout(fields);
+        List<StructLayoutModel> layouts = struct.layouts();
 
         byte[] classBytes = ClassFile.of().build(packDesc, cb -> {
             cb.withVersion(classFileVersion, 0);
@@ -83,7 +84,7 @@ final class StructPackWriter {
             cb.withSuperclass(CD_Object);
 
             declareFields(cb, fields);
-            emitClinit(cb, packDesc, fields, layout);
+            emitClinit(cb, packDesc, fields, layouts);
             emitPrivateConstructor(cb);
             emitPackMethod(cb, packDesc, recordDesc, fields);
         });
@@ -104,12 +105,10 @@ final class StructPackWriter {
         }
     }
 
-    /** Emits {@code <clinit>}: initialize LAYOUT, all offsets, and all VarHandles. */
-    private static void emitClinit(ClassBuilder cb, ClassDesc packDesc, List<StructFieldModel> fields, List<LayoutField> layout) {
+    /** Emits {@code <clinit>}: initialize LAYOUT (single or per-platform), all offsets, and all VarHandles. */
+    private static void emitClinit(ClassBuilder cb, ClassDesc packDesc, List<StructFieldModel> fields, List<StructLayoutModel> layouts) {
         cb.withMethodBody("<clinit>", MethodTypeDesc.of(CD_void), ClassFile.ACC_STATIC, clinit -> {
-            emitStructLayoutArray(clinit, layout);
-            clinit.invokestatic(CD_MemoryLayout, "structLayout", MTD_structLayout, true);
-            clinit.putstatic(packDesc, "LAYOUT", CD_StructLayout);
+            PerPlatformClinit.emitLayoutInit(clinit, packDesc, layouts, fields);
 
             for (StructFieldModel field : fields) {
                 emitOffsetInit(clinit, packDesc, field);

@@ -39,7 +39,6 @@ import org.elasticsearch.index.codec.vectors.BaseByteKnnVectorsFormatTestCase;
 import org.elasticsearch.index.codec.vectors.diskbbq.QuantEncoding;
 import org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapper;
 import org.elasticsearch.search.vectors.ESAcceptDocs;
-import org.junit.Before;
 
 import java.io.IOException;
 import java.util.HashSet;
@@ -62,56 +61,52 @@ public class ESNextDiskBBQByteVectorsFormatTests extends BaseByteKnnVectorsForma
 
     private KnnVectorsFormat format;
 
-    @Before
-    @Override
-    public void setUp() throws Exception {
-        QuantEncoding encoding = QuantEncoding.values()[random().nextInt(QuantEncoding.values().length)];
-        if (rarely()) {
-            format = new ESNextDiskBBQVectorsFormat(
-                encoding,
-                random().nextInt(2 * MIN_VECTORS_PER_CLUSTER, MAX_VECTORS_PER_CLUSTER),
-                random().nextInt(8, MAX_CENTROIDS_PER_PARENT_CLUSTER),
-                DenseVectorFieldMapper.ElementType.BYTE,
-                false,
-                null,
-                1,
-                false,
-                DEFAULT_PRECONDITIONING_BLOCK_DIMENSION,
-                null
-            );
-        } else if (rarely()) {
-            format = new ESNextDiskBBQVectorsFormat(
-                encoding,
-                random().nextInt(MIN_VECTORS_PER_CLUSTER, MAX_VECTORS_PER_CLUSTER),
-                random().nextInt(MIN_CENTROIDS_PER_PARENT_CLUSTER, MAX_CENTROIDS_PER_PARENT_CLUSTER),
-                DenseVectorFieldMapper.ElementType.BYTE,
-                false,
-                null,
-                1,
-                true,
-                random().nextInt(MIN_PRECONDITIONING_BLOCK_DIMS, MAX_PRECONDITIONING_BLOCK_DIMS),
-                null
-            );
-        } else {
-            // run with low numbers to force many clusters with parents
-            format = new ESNextDiskBBQVectorsFormat(
-                encoding,
-                random().nextInt(MIN_VECTORS_PER_CLUSTER, 2 * MIN_VECTORS_PER_CLUSTER),
-                random().nextInt(MIN_CENTROIDS_PER_PARENT_CLUSTER, 8),
-                DenseVectorFieldMapper.ElementType.BYTE,
-                false,
-                null,
-                1,
-                false,
-                DEFAULT_PRECONDITIONING_BLOCK_DIMENSION,
-                null
-            );
-        }
-        super.setUp();
-    }
-
     @Override
     protected Codec getCodec() {
+        if (format == null) {
+            QuantEncoding encoding = QuantEncoding.values()[random().nextInt(QuantEncoding.values().length)];
+            if (rarely()) {
+                format = new ESNextDiskBBQVectorsFormat(
+                    encoding,
+                    random().nextInt(2 * MIN_VECTORS_PER_CLUSTER, MAX_VECTORS_PER_CLUSTER),
+                    random().nextInt(8, MAX_CENTROIDS_PER_PARENT_CLUSTER),
+                    DenseVectorFieldMapper.ElementType.BYTE,
+                    false,
+                    null,
+                    1,
+                    false,
+                    DEFAULT_PRECONDITIONING_BLOCK_DIMENSION,
+                    null
+                );
+            } else if (rarely()) {
+                format = new ESNextDiskBBQVectorsFormat(
+                    encoding,
+                    random().nextInt(MIN_VECTORS_PER_CLUSTER, MAX_VECTORS_PER_CLUSTER),
+                    random().nextInt(MIN_CENTROIDS_PER_PARENT_CLUSTER, MAX_CENTROIDS_PER_PARENT_CLUSTER),
+                    DenseVectorFieldMapper.ElementType.BYTE,
+                    false,
+                    null,
+                    1,
+                    true,
+                    random().nextInt(MIN_PRECONDITIONING_BLOCK_DIMS, MAX_PRECONDITIONING_BLOCK_DIMS),
+                    null
+                );
+            } else {
+                // run with low numbers to force many clusters with parents
+                format = new ESNextDiskBBQVectorsFormat(
+                    encoding,
+                    random().nextInt(MIN_VECTORS_PER_CLUSTER, 2 * MIN_VECTORS_PER_CLUSTER),
+                    random().nextInt(MIN_CENTROIDS_PER_PARENT_CLUSTER, 8),
+                    DenseVectorFieldMapper.ElementType.BYTE,
+                    false,
+                    null,
+                    1,
+                    false,
+                    DEFAULT_PRECONDITIONING_BLOCK_DIMENSION,
+                    null
+                );
+            }
+        }
         return TestUtil.alwaysKnnVectorsFormat(format);
     }
 
@@ -141,7 +136,9 @@ public class ESNextDiskBBQByteVectorsFormatTests extends BaseByteKnnVectorsForma
         int[] docsPerSlice = new int[slices];
         int[] docSlices = new int[numDocs];
         IndexWriterConfig iwc = newIndexWriterConfig();
-        iwc.setIndexSort(new Sort(new SortField(sliceField, SortField.Type.STRING)));
+        SortField sliceSortField = new SortField(sliceField, SortField.Type.STRING);
+        sliceSortField.setMissingValue(SortField.STRING_LAST);
+        iwc.setIndexSort(new Sort(sliceSortField));
         iwc.setCodec(TestUtil.alwaysKnnVectorsFormat(slicedFormat));
         try (Directory dir = newDirectory(); IndexWriter w = new IndexWriter(dir, iwc)) {
             for (int i = 0; i < numDocs; i++) {

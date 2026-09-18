@@ -1,5 +1,0 @@
-area: TSDB
-issues: []
-pr: 150332
-summary: Honor WITHOUT exclusion for wildcard TSDB dims
-type: bug

@@ -23,6 +23,7 @@ import org.elasticsearch.gateway.GatewayService;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.MockLog;
 import org.elasticsearch.test.junit.annotations.TestLogging;
+import org.junit.Before;
 
 import java.util.HashMap;
 import java.util.List;
@@ -42,8 +43,8 @@ public class EstimatedHeapUsageMonitorTests extends ESTestCase {
     private long totalBytesPerNode;
     private RerouteService rerouteService;
 
-    public void setUp() throws Exception {
-        super.setUp();
+    @Before
+    public void initMonitorResources() throws Exception {
         totalBytesPerNode = ByteSizeUnit.GB.toBytes(between(2, 16));
         rerouteService = mock(RerouteService.class);
     }
@@ -262,6 +263,24 @@ public class EstimatedHeapUsageMonitorTests extends ESTestCase {
         }
     }
 
+    public void testMonitorConfigurationNodeUsagePercentages() {
+        final ClusterInfo clusterInfo = ClusterInfo.builder()
+            .nodeHeapMetrics(
+                Map.of(
+                    "node-a",
+                    new NodeHeapMetrics("node-a", 1_000L, new NodeHeapEstimates(200L, 0L)),
+                    "node-b",
+                    new NodeHeapMetrics("node-b", 2_000L, new NodeHeapEstimates(1_000L, 0L))
+                )
+            )
+            .build();
+
+        assertEquals(
+            Map.of("node-a", 20.0, "node-b", 50.0),
+            EstimatedHeapUsageAllocationDecider.monitorConfiguration().nodeUsagePercentages().apply(clusterInfo, ClusterState.EMPTY_STATE)
+        );
+    }
+
     private EstimatedHeapUsageMonitor createMonitor(boolean enabled, int lowWatermarkPercent, Supplier<ClusterState> clusterStateSupplier) {
         // High watermark defaults to 100% (unreachable) so it never fires unless explicitly configured.
         return createMonitor(enabled, lowWatermarkPercent, true, 100, clusterStateSupplier);
@@ -297,7 +316,12 @@ public class EstimatedHeapUsageMonitorTests extends ESTestCase {
                 EstimatedHeapUsageAllocationDecider.CLUSTER_ROUTING_ALLOCATION_ESTIMATED_HEAP_HIGH_WATERMARK
             )
         );
-        return new EstimatedHeapUsageMonitor(clusterSettings, clusterStateSupplier, rerouteService);
+        return new EstimatedHeapUsageMonitor(
+            clusterSettings,
+            clusterStateSupplier,
+            rerouteService,
+            EstimatedHeapUsageAllocationDecider.monitorConfiguration()
+        );
     }
 
     private ClusterInfo createClusterInfo(int lowWatermarkPercentage, int numNodesAboveLowWatermark) {

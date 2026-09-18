@@ -1,0 +1,5 @@
+area: Authorization
+issues: []
+pr: 157407
+summary: Updating kibana system permissions for entities*
+type: bug

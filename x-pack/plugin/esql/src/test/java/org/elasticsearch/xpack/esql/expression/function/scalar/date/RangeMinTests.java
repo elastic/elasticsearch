@@ -10,6 +10,7 @@ package org.elasticsearch.xpack.esql.expression.function.scalar.date;
 import com.carrotsearch.randomizedtesting.annotations.Name;
 import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
 
+import org.elasticsearch.compute.data.DoubleRangeBlockBuilder;
 import org.elasticsearch.compute.data.LongRangeBlockBuilder;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.tree.Source;
@@ -24,8 +25,7 @@ import java.util.function.Supplier;
 import static org.hamcrest.Matchers.equalTo;
 
 /**
- * Tests for RangeMin(date_range) -> date.
- * Validates that the minimum (start) value of a date_range is correctly extracted.
+ * Tests for extracting the minimum (start) value of a range.
  */
 public class RangeMinTests extends AbstractScalarFunctionTestCase {
     public RangeMinTests(@Name("TestCase") Supplier<TestCaseSupplier.TestCase> testCaseSupplier) {
@@ -80,7 +80,18 @@ public class RangeMinTests extends AbstractScalarFunctionTestCase {
             }));
         }
 
-        return parameterSuppliersFromTypedDataWithDefaultChecks(true, suppliers);
+        suppliers.add(new TestCaseSupplier("double range", List.of(DataType.DOUBLE_RANGE), () -> {
+            double from = -12.5;
+            var range = new DoubleRangeBlockBuilder.DoubleRange(from, 42.25);
+            return new TestCaseSupplier.TestCase(
+                List.of(new TestCaseSupplier.TypedData(range, DataType.DOUBLE_RANGE, "field")),
+                "RangeMinDoubleEvaluator[range=" + read + "]",
+                DataType.DOUBLE,
+                equalTo(from)
+            );
+        }));
+
+        return parameterSuppliersFromTypedDataWithDefaultChecks(false, suppliers);
     }
 
     @Override

@@ -1,5 +1,0 @@
-area: Search
-issues: []
-pr: 155076
-summary: Reserve regexp automaton memory on the circuit breaker before building it
-type: bug

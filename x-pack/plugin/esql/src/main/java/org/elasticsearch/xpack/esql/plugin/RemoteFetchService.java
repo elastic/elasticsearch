@@ -201,6 +201,14 @@ public final class RemoteFetchService {
         return new BatchExchangeFetchClient(parentTask, retainedSessionReleaser);
     }
 
+    /**
+     * Creates a batch exchange client for runtime fetch operators that releases retained remote search contexts once
+     * a fetch session is no longer needed.
+     */
+    public Client newReleasingBatchExchangeClient(CancellableTask parentTask) {
+        return newBatchExchangeClient(parentTask, newRetainedSessionReleaser());
+    }
+
     RetainedSessionReleaser newRetainedSessionReleaser() {
         return new RetainedSessionReleaser(
             (targetNode, retainedSessionId) -> releaseAsync(targetNode, retainedSessionId, ActionListener.wrap(ignored -> {}, e -> {
@@ -535,7 +543,6 @@ public final class RemoteFetchService {
                 closed = true;
                 try {
                     finish();
-                    client.finishCollectingResponseHeaders();
                     client.close();
                 } catch (Exception e) {
                     logger.debug("failed to close remote fetch target exchange", e);

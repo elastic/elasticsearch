@@ -12,6 +12,8 @@ import org.elasticsearch.core.Nullable;
 import org.elasticsearch.index.SliceIndexing;
 import org.elasticsearch.xpack.cluster.routing.allocation.mapper.DataTierFieldMapper;
 import org.elasticsearch.xpack.esql.action.EsqlCapabilities;
+import org.elasticsearch.xpack.esql.core.expression.Attribute;
+import org.elasticsearch.xpack.esql.core.expression.ExternalMetadataAttribute;
 import org.elasticsearch.xpack.esql.core.expression.MetadataAttribute;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.datasources.spi.FileList;
@@ -52,7 +54,7 @@ public final class ExternalMetadataColumns {
     public static final String INDEX_MODE = "_index_mode";
     public static final String TSID = MetadataAttribute.TSID_FIELD;
     public static final String SIZE = MetadataAttribute.SIZE;
-    public static final String SLICE = SliceIndexing.PARAM_NAME;
+    public static final String SLICE = SliceIndexing.FIELD_NAME;
 
     /**
      * Names of standard metadata columns that are materialised by the producer-side
@@ -119,6 +121,21 @@ public final class ExternalMetadataColumns {
     }
 
     private ExternalMetadataColumns() {}
+
+    /**
+     * Names bound to engine-generated metadata in the relation's output. A data column with a
+     * metadata name is not engine-generated, even on files where that data column is missing.
+     * Discovery and readers must use this binding rather than infer ownership from file schemas.
+     */
+    public static Set<String> metadataNames(Iterable<Attribute> attributes) {
+        Set<String> names = new LinkedHashSet<>();
+        for (Attribute attribute : attributes) {
+            if (attribute instanceof ExternalMetadataAttribute) {
+                names.add(attribute.name());
+            }
+        }
+        return Set.copyOf(names);
+    }
 
     /**
      * Build the per-file constant values for the standard metadata names listed in

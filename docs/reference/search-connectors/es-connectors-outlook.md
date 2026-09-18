@@ -175,6 +175,9 @@ You can now use the Client ID, Tenant ID, and Client Secret you’ve noted to co
 `use_text_extraction_service`
 :   Use [self-hosted content extraction service](/reference/search-connectors/es-connectors-content-extraction.md#es-connectors-content-extraction-data-extraction-service). Default value is `False`.
 
+`Index full raw email (including headers)` {applies_to}`stack: ga 9.5.5`
+:   Toggle to index the full raw MIME message. Default value is `False`. When off, only the email body (preferring `text/plain` over `text/html`) and a minimal set of headers (`Subject`, `From`, `Reply-To`, `To`, `Cc`, `Bcc`, `Date`, `Message-ID`) are indexed. Routing/authentication headers and binary attachments are dropped. Enable this toggle to restore the passthrough behavior when body extraction misses content. Available in 9.5.5 and later.
+
 `document_level_security`
 :   Toggle to enable [Document level security (DLS)](/reference/search-connectors/document-level-security.md). When enabled:
 
@@ -285,7 +288,7 @@ The connector syncs the following objects and entities:
 
 
 ::::{note}
-* Content from files bigger than 8 MiB won’t be extracted by default. You can use the [self-managed local extraction service](/reference/search-connectors/es-connectors-content-extraction.md#es-connectors-content-extraction-local) to handle larger binary files.
+* Content from files bigger than 10 MB won’t be extracted by default. You can use the [self-managed local extraction service](/reference/search-connectors/es-connectors-content-extraction.md#es-connectors-content-extraction-local) to handle larger binary files.
 * Permissions are not synced. **All documents** indexed to an Elastic deployment will be visible to **all users with access** to that Elastic Deployment.
 * For Outlook Cloud (Office 365), the connector only discovers mailboxes belonging to **enabled** directory users (`accountEnabled = true`) that have an email address. **Shared mailboxes are not synced by default**, because their backing Entra ID account has sign-in disabled. To sync a shared mailbox, enable sign-in for its account in Entra ID (this may require assigning a license).
 

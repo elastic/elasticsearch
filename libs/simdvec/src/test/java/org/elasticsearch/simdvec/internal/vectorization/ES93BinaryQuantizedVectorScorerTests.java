@@ -201,6 +201,174 @@ public class ES93BinaryQuantizedVectorScorerTests extends BaseVectorizationTests
         }
     }
 
+    /**
+     * Regression test: when quantization loss makes the reconstructed squared
+     * euclidean distance slightly negative, the default Java scorer must still
+     * produce a score in [0, 1] — matching the native scorer. The bug was that
+     * applyCorrections clamped *after* normalisation (1/(1+d)) instead of
+     * before, so a small negative distance d produced 1/(1+d) > 1.
+     *
+     * Uses hand-crafted correction values written directly into the index file
+     * so the test is deterministic and platform-independent.
+     *
+     * With the values below (lowerInterval=0.1, upperInterval=0.1, additionalCorrection=0.5,
+     * componentSum=0, all-zero quantized vectors), the scorer computes:
+     *   base_score = ax*ay*dims = 0.1 * 0.1 * 64 = 0.64
+     *   distance   = 0.5 + 0.5 - 2*0.64 = -0.28
+     * Before the fix: normalizeDistanceToUnitInterval(-0.28) = 1/(1-0.28) ≈ 1.389, which is > 1.
+     * After the fix:  normalizeDistanceToUnitInterval(max(-0.28, 0)) = 1/(1+0) = 1.0.
+     */
+    public void testEuclideanScoreBoundedWhenQuantizationLossProducesNegativeDistance() throws IOException {
+        if (similarityFunction != VectorSimilarityFunction.EUCLIDEAN) {
+            return;
+        }
+        final int dims = 64;
+        final int vectorLengthInBytes = BQVectorUtils.discretize(dims, 64) / 8;
+        final int perVectorBytes = vectorLengthInBytes + BBQ_CORRECTIONS_BYTES;
+
+        // Craft index data: all-zero quantized vector bytes, then corrections
+        // that will produce a negative euclidean distance.
+        final float indexLowerInterval = 0.1f;
+        final float indexUpperInterval = 0.1f;  // lx = upper - lower = 0
+        final float indexAdditionalCorrection = 0.5f;
+        final short indexComponentSum = 0;
+
+        // Craft query data: same shape, all-zero 4-bit quantized bytes.
+        final float queryLowerInterval = 0.1f;
+        final float queryUpperInterval = 0.1f;  // ly = (upper - lower) * FOUR_BIT_SCALE = 0
+        final float queryAdditionalCorrection = 0.5f;
+        final short queryComponentSum = 0;
+
+        byte[] indexVector = new byte[vectorLengthInBytes];  // all zeros
+        int queryVectorLength = (BQVectorUtils.discretize(dims, 64) / 8) * 4;  // B_QUERY = 4
+        byte[] queryVector = new byte[queryVectorLength];  // all zeros
+
+        try (Directory dir = newParametrizedDirectory()) {
+            try (IndexOutput out = dir.createOutput("testScore.bin", IOContext.DEFAULT)) {
+                out.writeBytes(indexVector, indexVector.length);
+                out.writeInt(Float.floatToIntBits(indexLowerInterval));
+                out.writeInt(Float.floatToIntBits(indexUpperInterval));
+                out.writeInt(Float.floatToIntBits(indexAdditionalCorrection));
+                out.writeShort(indexComponentSum);
+                CodecUtil.writeFooter(out);
+            }
+
+            try (IndexInput in = openTestInput(dir, "testScore.bin", perVectorBytes)) {
+                var defaultScorer = defaultProvider().getVectorScorerFactory()
+                    .newES93BinaryQuantizedVectorScorer(in, dims, vectorLengthInBytes);
+                var nativeScorer = nativeProvider().getVectorScorerFactory()
+                    .newES93BinaryQuantizedVectorScorer(in, dims, vectorLengthInBytes);
+
+                float defaultScore = defaultScorer.score(
+                    queryVector,
+                    queryLowerInterval,
+                    queryUpperInterval,
+                    Short.toUnsignedInt(queryComponentSum),
+                    queryAdditionalCorrection,
+                    similarityFunction,
+                    0f,
+                    0
+                );
+                float nativeScore = nativeScorer.score(
+                    queryVector,
+                    queryLowerInterval,
+                    queryUpperInterval,
+                    Short.toUnsignedInt(queryComponentSum),
+                    queryAdditionalCorrection,
+                    similarityFunction,
+                    0f,
+                    0
+                );
+
+                assertTrue("EUCLIDEAN score from default scorer must be <= 1.0, got " + defaultScore, defaultScore <= 1.0f);
+                assertTrue("EUCLIDEAN score from native scorer must be <= 1.0, got " + nativeScore, nativeScore <= 1.0f);
+                assertEquals(defaultScore, nativeScore, 1e-2f);
+            }
+        }
+    }
+
+    /**
+     * Regression test: when quantization loss makes the reconstructed dot product
+     * slightly above 1, the default Java scorer must still produce a score in
+     * [0, 1] — matching the native scorer. The native bulk path clamps to
+     * [-1, 1] before normalisation; the Java path must do the same.
+     *
+     * Uses hand-crafted correction values written directly into the index file
+     * so the test is deterministic and platform-independent.
+     *
+     * With the values below (lowerInterval=0.1, upperInterval=0.1, additionalCorrection=0.3,
+     * componentSum=0, all-zero quantized vectors), the scorer computes:
+     *   base_score = ax*ay*dims = 0.1 * 0.1 * 64 = 0.64
+     *   dot_product = 0.64 + 0.3 + 0.3 - 0 = 1.24
+     * Before the fix: normalizeToUnitInterval(1.24) = (1 + 1.24) / 2 = 1.12, which is > 1.
+     * After the fix:  normalizeToUnitInterval(clamp(1.24, -1, 1)) = (1 + 1) / 2 = 1.0.
+     */
+    public void testDotProductScoreBoundedWhenReconstructedScoreExceedsOne() throws IOException {
+        if (similarityFunction != VectorSimilarityFunction.DOT_PRODUCT && similarityFunction != VectorSimilarityFunction.COSINE) {
+            return;
+        }
+        final int dims = 64;
+        final int vectorLengthInBytes = BQVectorUtils.discretize(dims, 64) / 8;
+        final int perVectorBytes = vectorLengthInBytes + BBQ_CORRECTIONS_BYTES;
+
+        final float indexLowerInterval = 0.1f;
+        final float indexUpperInterval = 0.1f;
+        final float indexAdditionalCorrection = 0.3f;
+        final short indexComponentSum = 0;
+
+        final float queryLowerInterval = 0.1f;
+        final float queryUpperInterval = 0.1f;
+        final float queryAdditionalCorrection = 0.3f;
+        final short queryComponentSum = 0;
+
+        byte[] indexVector = new byte[vectorLengthInBytes];
+        int queryVectorLength = (BQVectorUtils.discretize(dims, 64) / 8) * 4;
+        byte[] queryVector = new byte[queryVectorLength];
+
+        try (Directory dir = newParametrizedDirectory()) {
+            try (IndexOutput out = dir.createOutput("testScore.bin", IOContext.DEFAULT)) {
+                out.writeBytes(indexVector, indexVector.length);
+                out.writeInt(Float.floatToIntBits(indexLowerInterval));
+                out.writeInt(Float.floatToIntBits(indexUpperInterval));
+                out.writeInt(Float.floatToIntBits(indexAdditionalCorrection));
+                out.writeShort(indexComponentSum);
+                CodecUtil.writeFooter(out);
+            }
+
+            try (IndexInput in = openTestInput(dir, "testScore.bin", perVectorBytes)) {
+                var defaultScorer = defaultProvider().getVectorScorerFactory()
+                    .newES93BinaryQuantizedVectorScorer(in, dims, vectorLengthInBytes);
+                var nativeScorer = nativeProvider().getVectorScorerFactory()
+                    .newES93BinaryQuantizedVectorScorer(in, dims, vectorLengthInBytes);
+
+                float defaultScore = defaultScorer.score(
+                    queryVector,
+                    queryLowerInterval,
+                    queryUpperInterval,
+                    Short.toUnsignedInt(queryComponentSum),
+                    queryAdditionalCorrection,
+                    similarityFunction,
+                    0f,
+                    0
+                );
+                float nativeScore = nativeScorer.score(
+                    queryVector,
+                    queryLowerInterval,
+                    queryUpperInterval,
+                    Short.toUnsignedInt(queryComponentSum),
+                    queryAdditionalCorrection,
+                    similarityFunction,
+                    0f,
+                    0
+                );
+
+                assertTrue(similarityFunction + " score from default scorer must be <= 1.0, got " + defaultScore, defaultScore <= 1.0f);
+                assertTrue(similarityFunction + " score from native scorer must be <= 1.0, got " + nativeScore, nativeScore <= 1.0f);
+                assertEquals(defaultScore, nativeScore, 1e-2f);
+            }
+        }
+    }
+
     @ParametersFactory
     public static Iterable<Object[]> parametersFactory() {
         return () -> Arrays.stream(DirectoryType.values())

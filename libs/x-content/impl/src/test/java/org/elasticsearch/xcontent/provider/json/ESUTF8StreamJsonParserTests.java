@@ -31,6 +31,7 @@ import java.io.IOException;
 import java.nio.charset.StandardCharsets;
 import java.util.Locale;
 import java.util.Map;
+import java.util.Set;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 
@@ -400,6 +401,40 @@ public class ESUTF8StreamJsonParserTests extends ESTestCase {
             // Also verify via XContentHelper.convertToMap to exercise the full xcontent round-trip
             Map<String, Object> map = XContentHelper.convertToMap(new BytesArray(json), false, XContentType.JSON).v2();
             assertThat(map.get(fieldName), Matchers.equalTo("value"));
+        }
+    }
+
+    /**
+     * Test that {@link JsonXContentParser#optimizedText()} goes to the zero-copy fast path when a
+     * {@link com.fasterxml.jackson.core.filter.FilteringParserDelegate} is present (by unwrapping it).
+     */
+    public void testOptimizedTextIsZeroCopyWhenSinglyFiltered() throws IOException {
+        String input = "{\"foo\":\"bar\",\"baz\":\"qux\"}";
+        // Filtering "foo" in, or "baz" out, leaves the same single visible field, so both configurations parse identically.
+        XContentParserConfiguration config = randomBoolean()
+            ? XContentParserConfigurationImpl.EMPTY.withFiltering(Set.of("foo"), null, false)
+            : XContentParserConfigurationImpl.EMPTY.withFiltering(null, Set.of("baz"), false);
+
+        byte[] inputBytes = StandardCharsets.UTF_8.encode(input).array();
+        JsonFactory factory = new ESJsonFactoryBuilder().build();
+        JsonParser jsonParser = factory.createParser(inputBytes);
+        assertThat(jsonParser, Matchers.instanceOf(ESUTF8StreamJsonParser.class));
+
+        try (XContentParser parser = new JsonXContentParser(config, jsonParser)) {
+            assertThat(parser.nextToken(), Matchers.equalTo(XContentParser.Token.START_OBJECT));
+            assertThat(parser.nextToken(), Matchers.equalTo(XContentParser.Token.FIELD_NAME));
+            assertThat(parser.currentName(), Matchers.equalTo("foo"));
+            assertThat(parser.nextToken(), Matchers.equalTo(XContentParser.Token.VALUE_STRING));
+
+            XContentString.UTF8Bytes bytes = parser.optimizedText().bytes();
+            assertTextRef(bytes, "bar");
+            assertSame("expected a zero-copy view over the parser input buffer, not a copy", inputBytes, bytes.bytes());
+
+            assertThat(
+                "expected the second field to be gone (filtered)",
+                parser.nextToken(),
+                Matchers.equalTo(XContentParser.Token.END_OBJECT)
+            );
         }
     }
 

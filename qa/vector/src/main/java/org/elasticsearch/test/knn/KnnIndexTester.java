@@ -47,7 +47,9 @@ import org.elasticsearch.index.codec.vectors.diskbbq.ES920DiskBBQVectorsFormat;
 import org.elasticsearch.index.codec.vectors.diskbbq.IvfAutoCalibration;
 import org.elasticsearch.index.codec.vectors.diskbbq.IvfFlushConfigSource;
 import org.elasticsearch.index.codec.vectors.diskbbq.IvfMergeConfigResolver;
+import org.elasticsearch.index.codec.vectors.diskbbq.IvfSegmentConfig;
 import org.elasticsearch.index.codec.vectors.diskbbq.QuantEncoding;
+import org.elasticsearch.index.codec.vectors.diskbbq.next.ESNextDiskASHVectorsFormat;
 import org.elasticsearch.index.codec.vectors.diskbbq.next.ESNextDiskBBQVectorsFormat;
 import org.elasticsearch.index.codec.vectors.es93.ES93BinaryQuantizedVectorsFormat;
 import org.elasticsearch.index.codec.vectors.es93.ES93FlatVectorFormat;
@@ -84,7 +86,7 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
-import java.util.Set;
+import java.util.Objects;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
@@ -117,6 +119,22 @@ public class KnnIndexTester {
         HNSW,
         IVF,
         GPU_HNSW
+    }
+
+    enum QuantizationType {
+        OSQ,
+        ASH;
+
+        static QuantizationType fromString(String name) {
+            if (name == null) {
+                return OSQ;
+            }
+            return switch (name.toLowerCase(Locale.ROOT)) {
+                case "ash" -> ASH;
+                case "osq" -> OSQ;
+                default -> throw new IllegalArgumentException("Unknown quantization_type: '" + name + "'. Known types: ash, osq");
+            };
+        }
     }
 
     public enum VectorEncoding {
@@ -152,15 +170,32 @@ public class KnnIndexTester {
         Directory create(Path indexPath) throws IOException;
     }
 
-    record DirectoryTypeConfig(DirectoryFactory factory, boolean shared, boolean preWarm, BiConsumer<Directory, String> diagnosticLogger) {
+    /**
+     * @param shared             when true a single directory instance serves indexing, merging and searching, instead of one
+     *                           per phase
+     * @param preWarm            when true the directory's cache is filled by reading every file before searching
+     * @param requiresFreshIndex when true the directory cannot reuse an index it did not write itself, so the index is built
+     *                           from scratch on every run and gets an index path of its own
+     */
+    record DirectoryTypeConfig(
+        DirectoryFactory factory,
+        boolean shared,
+        boolean preWarm,
+        BiConsumer<Directory, String> diagnosticLogger,
+        boolean requiresFreshIndex
+    ) {
         private static final BiConsumer<Directory, String> NOOP = (a, b) -> {};
 
         DirectoryTypeConfig(DirectoryFactory factory, boolean shared, boolean preWarm) {
-            this(factory, shared, preWarm, NOOP);
+            this(factory, shared, preWarm, NOOP, false);
+        }
+
+        DirectoryTypeConfig(DirectoryFactory factory, boolean shared, boolean preWarm, BiConsumer<Directory, String> diagnosticLogger) {
+            this(factory, shared, preWarm, diagnosticLogger, false);
         }
     }
 
-    private static final Map<String, DirectoryTypeConfig> directoryTypeRegistry = new ConcurrentHashMap<>(3);
+    private static final Map<String, DirectoryTypeConfig> directoryTypeRegistry = new ConcurrentHashMap<>(4);
 
     static {
         directoryTypeRegistry.put("default", new DirectoryTypeConfig(KnnIndexer::getDirectory, false, false));
@@ -168,6 +203,13 @@ public class KnnIndexTester {
         directoryTypeRegistry.put(
             "stateless",
             new DirectoryTypeConfig(KnnIndexer::openStatelessDirectory, true, true, KnnIndexer::logStatelessCacheStats)
+        );
+        // "stateless-index" uses `shared = true` because the directory only serves reads for files it created itself, and
+        // it wipes the index path when opened: a second instance for the force merge would destroy the index and then find
+        // nothing to merge.
+        directoryTypeRegistry.put(
+            "stateless-index",
+            new DirectoryTypeConfig(KnnIndexer::openStatelessIndexDirectory, true, false, DirectoryTypeConfig.NOOP, true)
         );
     }
 
@@ -179,24 +221,36 @@ public class KnnIndexTester {
         return config;
     }
 
-    private static String formatIndexPath(TestConfiguration args) {
+    private static String formatIndexPath(TestConfiguration args, DirectoryTypeConfig dirConfig) {
         List<String> suffix = new ArrayList<>();
         switch (args.indexType()) {
             case FLAT -> suffix.add("flat");
             case GPU_HNSW -> suffix.add("gpu_hnsw");
             case IVF -> {
-                suffix.add("ivf");
+                boolean isAsh = QuantizationType.fromString(args.quantizationType()) == QuantizationType.ASH;
+                suffix.add(isAsh ? "ash" : "ivf");
                 suffix.add(Integer.toString(args.ivfClusterSize()));
-                suffix.add(
-                    Integer.toString(
-                        args.secondaryClusterSize() == -1
-                            ? ES920DiskBBQVectorsFormat.DEFAULT_CENTROIDS_PER_PARENT_CLUSTER
-                            : args.secondaryClusterSize()
-                    )
-                );
-                suffix.add(Integer.toString(args.quantizeBits()));
-                if (args.queryQuantizeBits() != null && args.queryQuantizeBits() != defaultQueryQuantizeBits(args.quantizeBits())) {
-                    suffix.add("q" + args.queryQuantizeBits());
+                if (isAsh) {
+                    int bits = args.quantizeBits() != null ? args.quantizeBits() : 2;
+                    suffix.add(Integer.toString(bits));
+                    if (args.queryQuantizeBits() != null && args.queryQuantizeBits() != 4) {
+                        suffix.add("q" + args.queryQuantizeBits());
+                    }
+                    if (args.projectedDimsFraction() != 0.5f) {
+                        suffix.add("p" + String.format(Locale.ROOT, "%.2f", args.projectedDimsFraction()));
+                    }
+                } else {
+                    suffix.add(
+                        Integer.toString(
+                            args.secondaryClusterSize() == -1
+                                ? ES920DiskBBQVectorsFormat.DEFAULT_CENTROIDS_PER_PARENT_CLUSTER
+                                : args.secondaryClusterSize()
+                        )
+                    );
+                    suffix.add(Integer.toString(args.quantizeBits()));
+                    if (args.queryQuantizeBits() != null && args.queryQuantizeBits() != defaultQueryQuantizeBits(args.quantizeBits())) {
+                        suffix.add("q" + args.queryQuantizeBits());
+                    }
                 }
             }
             case HNSW -> {
@@ -206,6 +260,11 @@ public class KnnIndexTester {
                     suffix.add(Integer.toString(args.quantizeBits()));
                 }
             }
+        }
+        if (dirConfig.requiresFreshIndex()) {
+            // These types rebuild the index on every run and wipe the index path doing so, so they must not share it with the
+            // types that can reuse an index built by "default".
+            suffix.add(args.directoryType());
         }
 
         return INDEX_DIR + "/" + args.docVectors().getFirst().getFileName() + "-" + String.join("-", suffix) + ".index";
@@ -219,29 +278,56 @@ public class KnnIndexTester {
 
         format = switch (args.indexType()) {
             case IVF -> {
-                var encoding = resolveQuantEncoding(quantizeBits, args.queryQuantizeBits());
-                // Use flatVectorThreshold from config, or default to -1 (dynamic) if not specified
+                boolean isAsh = QuantizationType.fromString(args.quantizationType()) == QuantizationType.ASH;
                 int flatVectorThreshold = args.flatVectorThreshold() >= 0 ? args.flatVectorThreshold() : -1;
-                IvfMergeConfigResolver mergeConfigResolver = args.autoCalibrate()
-                    ? IvfAutoCalibration.mergeConfigResolver(args.ivfClusterSize())
-                    : IvfMergeConfigResolver.useCodecDefault();
-                yield new ESNextDiskBBQVectorsFormat(
-                    encoding,
-                    args.ivfClusterSize(),
-                    args.secondaryClusterSize() == -1
-                        ? ES920DiskBBQVectorsFormat.DEFAULT_CENTROIDS_PER_PARENT_CLUSTER
-                        : args.secondaryClusterSize(),
-                    elementType,
-                    args.onDiskRescore(),
-                    exec,
-                    mergeWorkers,
-                    args.doPrecondition(),
-                    args.preconditioningBlockDims(),
-                    flatVectorThreshold,
-                    args.datasetConfig().isSliced() ? KnnIndexer.PARTITION_ID_FIELD : null,
-                    IvfFlushConfigSource.empty(),
-                    mergeConfigResolver
-                );
+                int centroidsPerParentCluster = args.secondaryClusterSize() == -1
+                    ? (isAsh
+                        ? ESNextDiskASHVectorsFormat.DEFAULT_CENTROIDS_PER_PARENT_CLUSTER
+                        : ES920DiskBBQVectorsFormat.DEFAULT_CENTROIDS_PER_PARENT_CLUSTER)
+                    : args.secondaryClusterSize();
+                String sliceField = args.datasetConfig().isSliced() ? KnnIndexer.PARTITION_ID_FIELD : null;
+
+                if (isAsh) {
+                    int bitsPerDim = Objects.requireNonNullElse(args.quantizeBits(), IvfSegmentConfig.AshConfig.DEFAULT_BITS_PER_DIM);
+                    int queryBits = Objects.requireNonNullElse(
+                        args.queryQuantizeBits(),
+                        IvfSegmentConfig.AshConfig.DEFAULT_QUERY_BITS_PER_DIM
+                    );
+                    var ashConfig = IvfSegmentConfig.AshConfig.of(bitsPerDim, queryBits, args.projectedDimsFraction());
+                    yield new ESNextDiskASHVectorsFormat(
+                        ashConfig,
+                        args.ivfClusterSize(),
+                        centroidsPerParentCluster,
+                        elementType,
+                        false,
+                        exec,
+                        mergeWorkers,
+                        flatVectorThreshold,
+                        sliceField,
+                        IvfFlushConfigSource.empty(),
+                        IvfMergeConfigResolver.useCodecDefault()
+                    );
+                } else {
+                    var encoding = resolveQuantEncoding(quantizeBits, args.queryQuantizeBits());
+                    IvfMergeConfigResolver mergeConfigResolver = args.autoCalibrate()
+                        ? IvfAutoCalibration.mergeConfigResolver(args.ivfClusterSize())
+                        : IvfMergeConfigResolver.useCodecDefault();
+                    yield new ESNextDiskBBQVectorsFormat(
+                        encoding,
+                        args.ivfClusterSize(),
+                        centroidsPerParentCluster,
+                        elementType,
+                        args.onDiskRescore(),
+                        exec,
+                        mergeWorkers,
+                        args.doPrecondition(),
+                        args.preconditioningBlockDims(),
+                        flatVectorThreshold,
+                        sliceField,
+                        IvfFlushConfigSource.empty(),
+                        mergeConfigResolver
+                    );
+                }
             }
             case GPU_HNSW -> {
                 int graphDegree = ES92GpuHnswVectorsFormat.cagraGraphDegree(args.hnswM());
@@ -392,6 +478,7 @@ public class KnnIndexTester {
             throw new IllegalArgumentException("JSON config file does not exist: " + jsonConfigPath);
         }
 
+        reportMemoryAndProcesses();
         logger.info("Using configuration file: " + jsonConfigPath);
         String rawConfigJson = Files.readString(jsonConfigPath);
         // Parse the JSON config file to get command line arguments
@@ -419,7 +506,9 @@ public class KnnIndexTester {
         for (TestConfiguration testConfiguration : testConfigurationList) {
             // check this here so IVF/GPUHNSW can guarantee quantizeBits is set properly
             checkQuantizeBits(testConfiguration);
-            String indexPathName = formatIndexPath(testConfiguration);
+            DirectoryTypeConfig dirConfig = getDirectoryTypeConfig(testConfiguration.directoryType());
+            checkCanReuseIndex(testConfiguration, dirConfig);
+            String indexPathName = formatIndexPath(testConfiguration, dirConfig);
             String indexType = testConfiguration.indexType().name().toLowerCase(Locale.ROOT);
             Results indexResults = new Results(indexPathName, indexType, testConfiguration.numDocs());
             Results[] results = new Results[testConfiguration.numberOfSearchRuns()];
@@ -436,7 +525,6 @@ public class KnnIndexTester {
                 Codec codec = createCodec(testConfiguration, exec);
                 Path indexPath = PathUtils.get(indexPathName);
                 MergePolicy mergePolicy = getMergePolicy(testConfiguration);
-                DirectoryTypeConfig dirConfig = getDirectoryTypeConfig(testConfiguration.directoryType());
 
                 runTestConfiguration(
                     testConfiguration,
@@ -632,6 +720,63 @@ public class KnnIndexTester {
         }
     }
 
+    // Log system memory and other Java processes to help identify page-cache starvation early.
+    private static void reportMemoryAndProcesses() {
+        Path meminfo = Path.of("/proc/meminfo");
+        if (Files.exists(meminfo)) {
+            try {
+                String text = Files.readString(meminfo);
+                long totalMB = parseMeminfoKB(text, "MemTotal") / 1024;
+                long availMB = parseMeminfoKB(text, "MemAvailable") / 1024;
+                long cacheMB = parseMeminfoKB(text, "Cached") / 1024;
+
+                long myPid = ProcessHandle.current().pid();
+                List<String> otherJavaProcs = ProcessHandle.allProcesses()
+                    .filter(p -> p.pid() != myPid)
+                    .filter(p -> p.info().command().orElse("").contains("java"))
+                    .map(p -> {
+                        String cmdLine = p.info().commandLine().orElse("");
+                        return "  PID " + p.pid() + " (" + javaProcessLabel(cmdLine) + ")";
+                    })
+                    .toList();
+
+                logger.info(
+                    "MEMORY: total={}MB, available={}MB, page_cache={}MB, other_java_procs={}",
+                    totalMB,
+                    availMB,
+                    cacheMB,
+                    otherJavaProcs.size()
+                );
+                for (String proc : otherJavaProcs) {
+                    logger.info(proc);
+                }
+                if (availMB > 0 && availMB < 4096) {
+                    logger.warn("Only {}MB available — benchmark may be dominated by page faults!", availMB);
+                }
+            } catch (IOException e) {
+                logger.warn("Failed to read /proc/meminfo: {}", e.getMessage());
+            }
+        }
+    }
+
+    private static long parseMeminfoKB(String text, String key) {
+        int idx = text.indexOf(key + ":");
+        if (idx < 0) return -1;
+        int start = idx + key.length() + 1;
+        int end = text.indexOf('\n', start);
+        String line = text.substring(start, end).trim();
+        return Long.parseLong(line.split("\\s+")[0]);
+    }
+
+    private static String javaProcessLabel(String cmdLine) {
+        if (cmdLine.contains("GradleWorkerMain")) return "GradleWorker";
+        if (cmdLine.contains("GradleDaemon")) return "GradleDaemon";
+        if (cmdLine.contains("gradle-wrapper")) return "GradleWrapper";
+        if (cmdLine.contains("KnnIndexTester")) return "KnnIndexTester";
+        if (cmdLine.contains("org.elasticsearch")) return "Elasticsearch";
+        return "java[" + cmdLine.substring(0, Math.min(cmdLine.length(), 80)) + "]";
+    }
+
     static void numSegments(Path indexPath, Results indexResults, Directory sharedDir) throws IOException {
         if (sharedDir != null) {
             numSegments(sharedDir, indexResults);
@@ -684,39 +829,39 @@ public class KnnIndexTester {
         return QuantEncoding.fromDocAndQueryBits((byte) docQuantizeBits, queryQuantizeBits.byteValue());
     }
 
+    /**
+     * Fails fast rather than silently reporting nothing. A directory type that only tracks the files it wrote itself cannot see
+     * an index left on disk by a previous run: it would open the empty bootstrap commit, the force merge would find no segments
+     * and report close to zero milliseconds, and the searches would run against no documents.
+     */
+    private static void checkCanReuseIndex(TestConfiguration args, DirectoryTypeConfig dirConfig) {
+        if (dirConfig.requiresFreshIndex() && args.reindex() == false) {
+            throw new IllegalArgumentException(
+                "directory_type '"
+                    + args.directoryType()
+                    + "' cannot reuse an existing index: it only reads files it wrote itself, so an index on disk is invisible to "
+                    + "it and the force merge would silently be a no-op. Set \"reindex\": true. Note this rebuilds, and therefore "
+                    + "wipes, the index path on every run."
+            );
+        }
+    }
+
     private static void checkQuantizeBits(TestConfiguration args) {
         switch (args.indexType()) {
             case IVF:
-                if (args.quantizeBits() == null || !Set.of(1, 2, 4, 7).contains(args.quantizeBits())) {
-                    throw new IllegalArgumentException(
-                        "IVF index type only supports 1, 2, 4 or 7 bits quantization, but got: " + args.quantizeBits()
+                if (QuantizationType.fromString(args.quantizationType()) == QuantizationType.ASH) {
+                    // AshConfig.of validates bitsPerDim, queryBitsPerDim, and projectedDimsFraction
+                    IvfSegmentConfig.AshConfig.of(
+                        Objects.requireNonNullElse(args.quantizeBits(), IvfSegmentConfig.AshConfig.DEFAULT_BITS_PER_DIM),
+                        Objects.requireNonNullElse(args.queryQuantizeBits(), IvfSegmentConfig.AshConfig.DEFAULT_QUERY_BITS_PER_DIM),
+                        args.projectedDimsFraction()
                     );
-                }
-                if (args.queryQuantizeBits() != null) {
-                    int docBits = args.quantizeBits();
-                    int queryBits = args.queryQuantizeBits();
-                    if (docBits == 1 && !Set.of(1, 4).contains(queryBits)) {
-                        throw new IllegalArgumentException(
-                            "IVF with 1-bit document quantization supports query_quantize_bits 1 or 4, but got: " + queryBits
-                        );
+                } else {
+                    if (args.quantizeBits() == null) {
+                        throw new IllegalArgumentException("IVF index type requires quantize_bits to be set");
                     }
-                    if (docBits == 2 && queryBits != 4) {
-                        throw new IllegalArgumentException(
-                            "IVF with 2-bit document quantization requires query_quantize_bits 4, but got: " + queryBits
-                        );
-                    }
-                    if ((docBits == 4 || docBits == 7) && queryBits != docBits) {
-                        throw new IllegalArgumentException(
-                            "IVF with "
-                                + docBits
-                                + "-bit document quantization requires query_quantize_bits "
-                                + docBits
-                                + ", but got: "
-                                + queryBits
-                        );
-                    }
-                    // validate the combination is supported by the codec
-                    resolveQuantEncoding(docBits, queryBits);
+                    // QuantEncoding.fromBits / fromDocAndQueryBits validates the combination
+                    resolveQuantEncoding(args.quantizeBits(), args.queryQuantizeBits());
                 }
                 break;
             case GPU_HNSW: {

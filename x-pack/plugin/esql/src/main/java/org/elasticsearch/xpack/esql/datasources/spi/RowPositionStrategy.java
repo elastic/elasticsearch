@@ -22,7 +22,7 @@ import org.elasticsearch.compute.operator.CloseableIterator;
  * <p>Two concrete shapes today: {@link PassThroughRowPositionStrategy} for readers that fill the
  * slot themselves in their native iterator (parquet-mr, ORC, CSV, NDJSON), and
  * {@link NullSpliceRowPositionStrategy} for readers that have no row-position channel and must
- * surface NULL (parquet-rs). A future {@code ByteOffsetRowPositionStrategy} can lift the per-batch
+ * surface NULL. A future {@code ByteOffsetRowPositionStrategy} can lift the per-batch
  * byte-offset injection out of the CSV / NDJSON hot path without touching the dispatcher.
  *
  * <p>Adding a new strategy is the only change required to support a new reader family — every

@@ -37,6 +37,7 @@ import org.elasticsearch.compute.expression.ExpressionEvaluator;
 import org.elasticsearch.compute.operator.DriverContext;
 import org.elasticsearch.compute.operator.EvalOperator;
 import org.elasticsearch.compute.operator.IsBlockedResult;
+import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.tasks.TaskCancellationService;
 import org.elasticsearch.tasks.TaskCancelledException;
@@ -389,12 +390,132 @@ public class BidirectionalBatchExchangeTests extends ESTestCase {
      * for: ERROR by default, or WARN for the warn-level sites.
      */
     public void testGenuineFailuresAreLoggedAtRequestedLevel() {
+        Exception failure = new IllegalStateException("boom");
+        assertExchangeFailureLoggedAt(Level.ERROR, failure);
+        assertExchangeFailureLoggedAt(Level.WARN, failure);
+    }
+
+    /**
+     * Circuit breaker trips are backpressure, not bugs. They are logged at WARN when the caller opts in so
+     * quality gates and on-call alerts are not tripped by expected heap pressure.
+     */
+    public void testCircuitBreakingFailuresAreLoggedAtWarn() {
         for (Exception failure : List.of(
-            new IllegalStateException("boom"),
-            new CircuitBreakingException("over", CircuitBreaker.Durability.PERMANENT)
+            new CircuitBreakingException("over", CircuitBreaker.Durability.PERMANENT),
+            new CircuitBreakingException("transient", CircuitBreaker.Durability.TRANSIENT)
         )) {
-            assertExchangeFailureLoggedAt(Level.ERROR, failure);
-            assertExchangeFailureLoggedAt(Level.WARN, failure);
+            assertCircuitBreakingFailureLoggedAtWarn(failure);
+        }
+    }
+
+    /**
+     * Client and server exchange layers suppress duplicate circuit breaker WARN logs; the operator opts in.
+     */
+    public void testCircuitBreakingFailuresAreLoggedAtDebugWhenNotReported() {
+        for (Exception failure : List.of(
+            new CircuitBreakingException("over", CircuitBreaker.Durability.PERMANENT),
+            new CircuitBreakingException("transient", CircuitBreaker.Durability.TRANSIENT)
+        )) {
+            assertCircuitBreakingFailureLoggedAtDebug(failure);
+        }
+    }
+
+    /**
+     * Regression test for the spurious "Closing with incomplete batches" WARN that fired on every
+     * cancellation or error. Root cause: {@code StreamingLookupFromIndexOperator.cleanupBatchResources}
+     * discards in-flight batches without calling {@link BidirectionalBatchExchangeClient#markBatchCompleted},
+     * so the counters always read {@code started=N, completed=N-1} on the failure path.
+     *
+     * <p>The fix guards the WARN with {@code primaryFailure.get() == null}: when a failure is recorded,
+     * the counter discrepancy is expected and the real error has already propagated via
+     * {@link ActionListener#onFailure} — there is nothing actionable about the WARN.
+     *
+     * <p>This test reproduces the counter state seen in production by using a setup callback that
+     * fails synchronously: {@link BidirectionalBatchExchangeClient#sendPage} first passes
+     * {@code checkFailure()} (primaryFailure is null), then creates a worker whose setup fails
+     * immediately (setting primaryFailure), then {@code startedBatchCount++} executes. On close:
+     * {@code started=1, completed=0, primaryFailure != null}.
+     */
+    public void testNoSpuriousIncompletesBatchWarnOnFailure() throws Exception {
+        ThreadPool threadPool = threadPool();
+        BlockFactory blockFactory = blockFactory();
+        TestInfrastructure infra = setupTestInfrastructure(threadPool, blockFactory);
+        try {
+            String sessionId = "test-session-no-warn-" + UUID.randomUUID().toString().substring(0, 8);
+            PlainActionFuture<Void> batchExchangeStatusFuture = new PlainActionFuture<>();
+
+            // Fails synchronously — reproduces the production failure path where a task is
+            // cancelled while a batch is in-flight.
+            BidirectionalBatchExchangeClient.ServerSetupCallback failingCallback = (
+                node,
+                clientToServerId,
+                serverToClientId,
+                listener) -> listener.onFailure(new TaskCancelledException("task cancelled"));
+
+            BidirectionalBatchExchangeClient client = new BidirectionalBatchExchangeClient(
+                sessionId,
+                infra.clientExchangeService(),
+                threadPool.executor(ThreadPool.Names.SEARCH),
+                10,
+                infra.clientTransportService(),
+                mock(Task.class),
+                batchExchangeStatusFuture,
+                CLIENT_SETTINGS,
+                failingCallback,
+                null,
+                1,
+                () -> infra.serverTransportServices().get(0).getLocalNode()
+            );
+
+            IntBlock.Builder builder = blockFactory.newIntBlockBuilder(1);
+            builder.appendInt(42);
+            IntBlock block = builder.build();
+            Page page = new Page(block);
+            client.sendPage(page.withBatchMetadata(new BatchMetadata(0, 0, true)));
+            page.releaseBlocks();
+
+            assertTrue("client should have recorded the setup failure", client.hasFailed());
+
+            // Before the fix, close() emitted WARN because started(1) > completed(0) regardless
+            // of primaryFailure. After the fix the guard suppresses it.
+            String loggerName = BidirectionalBatchExchangeClient.class.getCanonicalName();
+            MockLog.assertThatLogger(
+                client::close,
+                BidirectionalBatchExchangeClient.class,
+                new MockLog.UnseenEventExpectation(
+                    "no spurious WARN for incomplete batches on failure path",
+                    loggerName,
+                    Level.WARN,
+                    "*incomplete batches*"
+                )
+            );
+        } finally {
+            cleanupServices(infra, threadPool);
+        }
+    }
+
+    /**
+     * A lookup-join whose target index is transiently unavailable on the routed node (for example during a
+     * rolling restart, or before the index has recovered/propagated) fails with {@link IndexNotFoundException},
+     * including when wrapped by transport ({@link RemoteTransportException}), which is the shape that reaches
+     * the setup/status callbacks. The failure is still propagated to the coordinator, so these are downgraded to
+     * DEBUG (not ERROR or WARN) regardless of the non-cancellation level the caller asked for, to avoid spurious
+     * noise and Serverless promotion quality-gate log-error-rate trips.
+     */
+    public void testIndexNotFoundIsLoggedAtDebugNotError() {
+        for (Exception failure : List.of(
+            new IndexNotFoundException(".entities.v2.latest.security_default-00001"),
+            new RemoteTransportException("node", new IndexNotFoundException(".entities.v2.latest.security_default-00001"))
+        )) {
+            Logger clientLogger = LogManager.getLogger(BidirectionalBatchExchangeClient.class);
+            String loggerName = BidirectionalBatchExchangeClient.class.getCanonicalName();
+            MockLog.assertThatLogger(
+                () -> BidirectionalBatchExchangeBase.logExchangeFailure(clientLogger, Level.ERROR, failure, "failure: {}", "msg"),
+                BidirectionalBatchExchangeClient.class,
+                new MockLog.SeenEventExpectation("logged at DEBUG", loggerName, Level.DEBUG, "failure: msg"),
+                new MockLog.UnseenEventExpectation("not logged at ERROR", loggerName, Level.ERROR, "*"),
+                new MockLog.UnseenEventExpectation("not logged at WARN", loggerName, Level.WARN, "*")
+            );
         }
     }
 
@@ -414,6 +535,29 @@ public class BidirectionalBatchExchangeTests extends ESTestCase {
             BidirectionalBatchExchangeClient.class,
             new MockLog.SeenEventExpectation("logged at " + expectedLevel, loggerName, expectedLevel, "failure: msg"),
             new MockLog.UnseenEventExpectation("not logged at " + unexpectedLevel, loggerName, unexpectedLevel, "*")
+        );
+    }
+
+    private static void assertCircuitBreakingFailureLoggedAtWarn(Exception failure) {
+        Logger clientLogger = LogManager.getLogger(BidirectionalBatchExchangeClient.class);
+        String loggerName = BidirectionalBatchExchangeClient.class.getCanonicalName();
+        MockLog.assertThatLogger(
+            () -> BidirectionalBatchExchangeBase.logExchangeFailure(clientLogger, Level.ERROR, true, failure, "failure: {}", "msg"),
+            BidirectionalBatchExchangeClient.class,
+            new MockLog.SeenEventExpectation("logged at WARN", loggerName, Level.WARN, "failure: msg"),
+            new MockLog.UnseenEventExpectation("not logged at ERROR", loggerName, Level.ERROR, "*")
+        );
+    }
+
+    private static void assertCircuitBreakingFailureLoggedAtDebug(Exception failure) {
+        Logger clientLogger = LogManager.getLogger(BidirectionalBatchExchangeClient.class);
+        String loggerName = BidirectionalBatchExchangeClient.class.getCanonicalName();
+        MockLog.assertThatLogger(
+            () -> BidirectionalBatchExchangeBase.logExchangeFailure(clientLogger, Level.ERROR, false, failure, "failure: {}", "msg"),
+            BidirectionalBatchExchangeClient.class,
+            new MockLog.SeenEventExpectation("logged at DEBUG", loggerName, Level.DEBUG, "failure: msg"),
+            new MockLog.UnseenEventExpectation("not logged at WARN", loggerName, Level.WARN, "*"),
+            new MockLog.UnseenEventExpectation("not logged at ERROR", loggerName, Level.ERROR, "*")
         );
     }
 

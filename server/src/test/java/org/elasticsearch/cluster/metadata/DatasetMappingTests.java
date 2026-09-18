@@ -59,11 +59,13 @@ public class DatasetMappingTests extends AbstractWireSerializingTestCase<Dataset
             "DatasetMapping.Dynamic " + ourValues + " must be a subset of ObjectMapper.Dynamic " + esValues,
             esValues.containsAll(ourValues)
         );
-        // The index-mapper values we deliberately exclude are exactly STRICT and RUNTIME. If this set changes, the
+        // The index-mapper values we deliberately exclude are STRICT, RUNTIME, and FLATTENED. If this set changes, the
         // index mapper grew/renamed a dynamic value and we must consciously decide how external datasets treat it.
+        // FLATTENED is an internal unmapped-fields sink policy (see ObjectMapper.Dynamic.getRootDynamic), not a
+        // user-declarable dataset policy, so external datasets treat it the same as STRICT/RUNTIME: unsupported.
         Set<String> excluded = new HashSet<>(esValues);
         excluded.removeAll(ourValues);
-        assertEquals(Set.of("STRICT", "RUNTIME"), excluded);
+        assertEquals(Set.of("STRICT", "RUNTIME", "FLATTENED"), excluded);
 
         // Parse vocabulary stays aligned: we accept our values case-insensitively and reject the excluded ones.
         assertEquals(DatasetMapping.Dynamic.TRUE, DatasetMapping.Dynamic.fromString("true"));

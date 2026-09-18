@@ -19,6 +19,9 @@ base {
   archivesName = 'x-pack-ccr'
 }
 
+// CCR REST tests use ordered target-cluster parameters where earlier phases establish state for later phases.
+smartRetry.pruneIndividualTests.set(false)
+
 dependencies {
   compileOnly project(":server")
 

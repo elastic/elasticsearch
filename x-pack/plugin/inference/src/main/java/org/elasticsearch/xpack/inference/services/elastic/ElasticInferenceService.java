@@ -25,13 +25,13 @@ import org.elasticsearch.inference.RerankingInferenceService;
 import org.elasticsearch.inference.SettingsConfiguration;
 import org.elasticsearch.inference.SimilarityMeasure;
 import org.elasticsearch.inference.TaskType;
-import org.elasticsearch.inference.UnifiedCompletionRequest;
+import org.elasticsearch.inference.UnifiedCompletionRequestBody;
 import org.elasticsearch.inference.configuration.SettingsConfigurationFieldType;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.xpack.core.inference.action.InferenceAction;
 import org.elasticsearch.xpack.core.inference.chunking.EmbeddingRequestChunker;
 import org.elasticsearch.xpack.inference.common.InferencePreferencesCache;
-import org.elasticsearch.xpack.inference.external.http.sender.ChatCompletionInput;
+import org.elasticsearch.xpack.inference.external.http.sender.CompletionInput;
 import org.elasticsearch.xpack.inference.external.http.sender.EmbeddingsInput;
 import org.elasticsearch.xpack.inference.external.http.sender.HttpRequestSender;
 import org.elasticsearch.xpack.inference.external.http.sender.InferenceInputs;
@@ -201,7 +201,12 @@ public class ElasticInferenceService extends SenderService<ElasticInferenceServi
 
     @Override
     public Set<TaskType> supportedStreamingTasks() {
-        return EnumSet.of(CHAT_COMPLETION);
+        return EnumSet.of(COMPLETION, CHAT_COMPLETION);
+    }
+
+    @Override
+    public boolean supportsNonStreamingChatCompletion() {
+        return true;
     }
 
     @Override
@@ -251,7 +256,7 @@ public class ElasticInferenceService extends SenderService<ElasticInferenceServi
 
         if (mergedReasoning != null && Objects.equals(mergedReasoning, inputs.getRequest().reasoning()) == false) {
             return new UnifiedChatInput(
-                new UnifiedCompletionRequest(
+                new UnifiedCompletionRequestBody(
                     inputs.getRequest().messages(),
                     inputs.getRequest().model(),
                     inputs.getRequest().maxCompletionTokens(),
@@ -314,7 +319,7 @@ public class ElasticInferenceService extends SenderService<ElasticInferenceServi
         // For ElasticInferenceServiceCompletionModel, convert ChatCompletionInput to UnifiedChatInput
         // since the request manager expects UnifiedChatInput
         final InferenceInputs finalInputs = (elasticInferenceServiceModel instanceof ElasticInferenceServiceCompletionModel
-            && inputs instanceof ChatCompletionInput) ? new UnifiedChatInput((ChatCompletionInput) inputs, USER_ROLE) : inputs;
+            && inputs instanceof CompletionInput) ? new UnifiedChatInput((CompletionInput) inputs, USER_ROLE) : inputs;
 
         actionCreator.create(
             elasticInferenceServiceModel,
@@ -338,7 +343,7 @@ public class ElasticInferenceService extends SenderService<ElasticInferenceServi
                 (ElasticInferenceServiceDenseEmbeddingsModel) model,
                 getCurrentTraceInfo(),
                 listener.delegateFailureAndWrap(
-                    (delegate, action) -> action.execute(new EmbeddingsInput(request::inputs, request.inputType()), timeout, delegate)
+                    (delegate, action) -> action.execute(new EmbeddingsInput(request.inputs(), request.inputType()), timeout, delegate)
                 )
             );
         } else {
@@ -403,7 +408,11 @@ public class ElasticInferenceService extends SenderService<ElasticInferenceServi
                 getCurrentTraceInfo(),
                 request.listener()
                     .delegateFailureAndWrap(
-                        (delegate, action) -> action.execute(new EmbeddingsInput(request.batch().inputs(), inputType), timeout, delegate)
+                        (delegate, action) -> action.execute(
+                            new EmbeddingsInput(request.batch().inputs(), request.batch().ramBytesUsed(), inputType),
+                            timeout,
+                            delegate
+                        )
                     )
             );
         }
@@ -414,11 +423,13 @@ public class ElasticInferenceService extends SenderService<ElasticInferenceServi
             case ElasticInferenceServiceDenseEmbeddingsModel denseModel -> new EmbeddingRequestChunker<>(
                 inputs,
                 DEFAULT_DENSE_TEXT_EMBEDDINGS_MAX_BATCH_SIZE,
+                getRegexReadLimitFactor(),
                 denseModel.getConfigurations().getChunkingSettings()
             );
             case ElasticInferenceServiceSparseEmbeddingsModel sparseModel -> new EmbeddingRequestChunker<>(
                 inputs,
                 Optional.ofNullable(sparseModel.getServiceSettings().maxBatchSize()).orElse(DEFAULT_SPARSE_TEXT_EMBEDDING_MAX_BATCH_SIZE),
+                getRegexReadLimitFactor(),
                 sparseModel.getConfigurations().getChunkingSettings()
             );
             default -> null;

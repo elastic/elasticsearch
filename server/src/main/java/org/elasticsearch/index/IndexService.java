@@ -91,7 +91,6 @@ import org.elasticsearch.indices.breaker.CircuitBreakerService;
 import org.elasticsearch.indices.cluster.IndexRemovalReason;
 import org.elasticsearch.indices.cluster.IndicesClusterStateService;
 import org.elasticsearch.indices.fielddata.cache.IndicesFieldDataCache;
-import org.elasticsearch.indices.recovery.RecoveryState;
 import org.elasticsearch.plugins.IndexStorePlugin;
 import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.search.aggregations.support.ValuesSourceRegistry;
@@ -481,6 +480,8 @@ public class IndexService extends AbstractIndexComponent implements IndicesClust
 
     public synchronized IndexShard createShard(
         final ShardRouting routing,
+        final DiscoveryNode localNode,
+        @Nullable final DiscoveryNode sourceNode,
         final GlobalCheckpointSyncer globalCheckpointSyncer,
         final RetentionLeaseSyncer retentionLeaseSyncer
     ) throws IOException {
@@ -581,6 +582,9 @@ public class IndexService extends AbstractIndexComponent implements IndicesClust
             eventListener.onStoreCreated(shardId);
             indexShard = new IndexShard(
                 routing,
+                recoveryStateFactory,
+                localNode,
+                sourceNode,
                 this.indexSettings,
                 path,
                 store,
@@ -749,8 +753,9 @@ public class IndexService extends AbstractIndexComponent implements IndicesClust
         }
     }
 
-    public RecoveryState createRecoveryState(ShardRouting shardRouting, DiscoveryNode targetNode, DiscoveryNode sourceNode) {
-        return recoveryStateFactory.newRecoveryState(shardRouting, targetNode, sourceNode);
+    // visible for testing
+    IndexStorePlugin.RecoveryStateFactory getRecoveryStateFactory() {
+        return recoveryStateFactory;
     }
 
     @Override
@@ -774,6 +779,17 @@ public class IndexService extends AbstractIndexComponent implements IndicesClust
         Integer requestSize,
         ShardSearchStats shardSearchStats
     ) {
+        if (this.mapperService == null || this.indexCache == null) {
+            throw new IllegalStateException(
+                format(
+                    "cannot create a search execution context for index %s: this IndexService was created for a "
+                        + "closed index and therefore has no mapper service or caches (current index state [%s])",
+                    index(),
+                    indexSettings.getIndexMetadata().getState()
+                )
+            );
+        }
+
         final SearchIndexNameMatcher indexNameMatcher = new SearchIndexNameMatcher(
             index().getName(),
             clusterAlias,
@@ -1368,6 +1384,11 @@ public class IndexService extends AbstractIndexComponent implements IndicesClust
             return "retention_lease_sync";
         }
 
+    }
+
+    // public for tests
+    public AbstractAsyncTask getGlobalCheckpointTask() {
+        return globalCheckpointTask;
     }
 
     AsyncRefreshTask getRefreshTask() { // for tests

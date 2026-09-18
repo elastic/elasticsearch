@@ -20,6 +20,7 @@ import org.elasticsearch.cluster.routing.RoutingTable;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.ShardRoutingRoleStrategy;
 import org.elasticsearch.cluster.routing.allocation.AllocationService;
+import org.elasticsearch.common.settings.IndexScopedSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.IndexVersion;
 
@@ -78,6 +79,7 @@ public class ReshardUpdateNumberOfShardsTests extends ESAllocationTestCase {
         ProjectMetadata projectMetadata = ReshardIndexService.metadataUpdateNumberOfShards(
             clusterState.projectState(),
             reshardingMetadata,
+            IndexScopedSettings.DEFAULT_SCOPED_SETTINGS,
             metadata.getProject().index(index).getIndex()
         ).build();
         clusterState = ClusterState.builder(clusterState)

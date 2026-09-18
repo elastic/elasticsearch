@@ -27,6 +27,8 @@ import org.elasticsearch.core.PathUtils;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.node.Node;
 import org.elasticsearch.test.ESTestCase;
+import org.junit.After;
+import org.junit.Before;
 
 import java.io.IOException;
 import java.io.PrintWriter;
@@ -54,17 +56,15 @@ import static org.hamcrest.Matchers.matchesRegex;
 
 public class EvilLoggerTests extends ESTestCase {
 
-    @Override
-    public void setUp() throws Exception {
-        super.setUp();
+    @Before
+    public void registerErrorListener() throws Exception {
         LogConfigurator.registerErrorListener();
     }
 
-    @Override
-    public void tearDown() throws Exception {
+    @After
+    public void shutdownLogging() throws Exception {
         LoggerContext context = (LoggerContext) LogManager.getContext(false);
         Configurator.shutdown(context);
-        super.tearDown();
     }
 
     public void testLocationInfoTest() throws IOException {

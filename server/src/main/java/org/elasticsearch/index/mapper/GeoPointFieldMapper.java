@@ -663,7 +663,7 @@ public class GeoPointFieldMapper extends AbstractPointGeometryFieldMapper<GeoPoi
         throws IOException {
         super.onMalformedValue(context, malformedDataForSyntheticSource, cause);
         if (malformedDataForSyntheticSource != null) {
-            IgnoreMalformedStoredValues.storeMalformedValueForSyntheticSource(context, fullPath(), malformedDataForSyntheticSource);
+            FallbackPostMapper.capture(context, fullPath(), FallbackPostMapper.Reason.MALFORMED, malformedDataForSyntheticSource);
         }
     }
 
@@ -678,7 +678,7 @@ public class GeoPointFieldMapper extends AbstractPointGeometryFieldMapper<GeoPoi
                     point.toXContent(b, ToXContent.EMPTY_PARAMS);
                 }));
                 if (ignoreMalformed()) {
-                    layers.add(CompositeSyntheticFieldLoader.malformedValuesLayer(fullPath(), indexSettings.getIndexVersionCreated()));
+                    layers.add(CompositeSyntheticFieldLoader.malformedFallbackLayer(this, indexSettings));
                 }
                 return new CompositeSyntheticFieldLoader(leafName(), fullPath(), layers);
             });

@@ -23,6 +23,7 @@ import org.junit.ClassRule;
 
 import java.util.ArrayList;
 import java.util.List;
+import java.util.stream.StreamSupport;
 
 public class TransformYamlRestIT extends ESClientYamlSuiteTestCase {
 
@@ -55,7 +56,11 @@ public class TransformYamlRestIT extends ESClientYamlSuiteTestCase {
 
     @ParametersFactory
     public static Iterable<Object[]> parameters() throws Exception {
-        return wrapStartTransformWithWait(createParameters());
+        // Exclude multi-cluster and remote-cluster suites; those run via MultiClusterWithSecurityYamlTestSuiteIT
+        return wrapStartTransformWithWait(StreamSupport.stream(createParameters().spliterator(), false).filter(p -> {
+            String api = ((ClientYamlTestCandidate) p[0]).getApi();
+            return api.equals("multi_cluster") == false && api.equals("remote_cluster") == false;
+        }).toList());
     }
 
     private static Iterable<Object[]> wrapStartTransformWithWait(Iterable<Object[]> parameters) {

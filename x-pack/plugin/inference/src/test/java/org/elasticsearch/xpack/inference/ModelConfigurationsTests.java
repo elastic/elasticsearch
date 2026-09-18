@@ -220,6 +220,7 @@ public class ModelConfigurationsTests extends AbstractBWCWireSerializationTestCa
             EmptyTaskSettings.INSTANCE,
             null,
             new EndpointMetadata(
+                EndpointMetadata.ModelIdentity.EMPTY_INSTANCE,
                 new EndpointMetadata.Heuristics(List.of("heuristic1", "heuristic2"), StatusHeuristic.BETA, "2025-01-01", "2025-12-31"),
                 new EndpointMetadata.Internal("fingerprint", 1L),
                 new EndpointMetadata.Display("name", "creator"),

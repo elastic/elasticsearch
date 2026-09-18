@@ -10,13 +10,13 @@ package org.elasticsearch.xpack.inference.services.deepseek.request;
 import org.apache.http.HttpHeaders;
 import org.apache.http.client.methods.HttpPost;
 import org.apache.http.entity.ByteArrayEntity;
-import org.apache.logging.log4j.LogManager;
-import org.apache.logging.log4j.Logger;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.inference.TaskType;
-import org.elasticsearch.inference.UnifiedCompletionRequest;
+import org.elasticsearch.inference.UnifiedCompletionRequestBody;
+import org.elasticsearch.logging.LogManager;
+import org.elasticsearch.logging.Logger;
 import org.elasticsearch.xcontent.ToXContent;
 import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xcontent.json.JsonXContent;
@@ -69,7 +69,7 @@ public class DeepSeekChatCompletionRequest implements OutboundUnifiedCompletionR
             builder.startObject();
             new UnifiedChatCompletionRequestEntity(unifiedChatInput).toXContent(
                 builder,
-                UnifiedCompletionRequest.withMaxTokens(modelId, ToXContent.EMPTY_PARAMS)
+                UnifiedCompletionRequestBody.withMaxTokens(modelId, ToXContent.EMPTY_PARAMS)
             );
             builder.endObject();
             return new ByteArrayEntity(Strings.toString(builder).getBytes(StandardCharsets.UTF_8));

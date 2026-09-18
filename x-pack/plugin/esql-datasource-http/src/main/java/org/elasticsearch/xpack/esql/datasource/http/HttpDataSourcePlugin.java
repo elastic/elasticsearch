@@ -13,6 +13,7 @@ import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.xpack.esql.datasource.http.local.LocalStorageProvider;
 import org.elasticsearch.xpack.esql.datasources.spi.DataSourcePlugin;
 import org.elasticsearch.xpack.esql.datasources.spi.DataSourceValidator;
+import org.elasticsearch.xpack.esql.datasources.spi.FileDataSourceConfiguration;
 import org.elasticsearch.xpack.esql.datasources.spi.FileDataSourceValidator;
 import org.elasticsearch.xpack.esql.datasources.spi.StorageProviderFactory;
 
@@ -41,7 +42,7 @@ import java.util.concurrent.ExecutorService;
  *
  * <p>Registration of both providers is gated per scheme. HTTP/HTTPS requires
  * {@link #ESQL_EXTERNAL_DATASOURCES_HTTP_FEATURE_FLAG} (snapshot-on, release-off). Local file access
- * is on by default — the security gate is the {@code esql.datasource.local_allowed_paths} node setting,
+ * is on by default — the security gate is the {@code esql.external.local_allowed_paths} node setting,
  * not a feature flag. When a gate is off the relevant schemes are not registered, so any query targeting
  * them resolves to the generic "unsupported storage scheme" rejection.
  */
@@ -56,7 +57,7 @@ public class HttpDataSourcePlugin extends Plugin implements DataSourcePlugin {
     /**
      * Gates local-file ({@code file://}) data sources/datasets. Snapshot-on, release-off; override in release
      * with {@code -Des.esql_external_datasources_local_feature_flag_enabled=true}.
-     * Access is further controlled at runtime by the {@code esql.datasource.local_allowed_paths} node setting.
+     * Access is further controlled at runtime by the {@code esql.external.local_allowed_paths} node setting.
      */
     public static final FeatureFlag ESQL_EXTERNAL_DATASOURCES_LOCAL_FEATURE_FLAG = new FeatureFlag("esql_external_datasources_local");
 
@@ -117,11 +118,13 @@ public class HttpDataSourcePlugin extends Plugin implements DataSourcePlugin {
     public Map<String, DataSourceValidator> datasourceValidators(Settings settings) {
         Map<String, DataSourceValidator> validators = new HashMap<>();
         if (httpEnabled()) {
-            DataSourceValidator http = new FileDataSourceValidator("http", NoAuthDataSourceConfiguration::fromMap, Set.of("http", "https"));
+            DataSourceValidator http = new FileDataSourceValidator("http", NoAuthDataSourceConfiguration::fromMap, Set.of("http", "https"))
+                .withFixedAuthMode(FileDataSourceConfiguration.AuthMode.ANONYMOUS);
             validators.put(http.type(), http);
         }
         if (localEnabled()) {
-            DataSourceValidator local = new FileDataSourceValidator("local", NoAuthDataSourceConfiguration::fromMap, Set.of("file"));
+            DataSourceValidator local = new FileDataSourceValidator("local", NoAuthDataSourceConfiguration::fromMap, Set.of("file"))
+                .withFixedAuthMode(FileDataSourceConfiguration.AuthMode.ANONYMOUS);
             validators.put(local.type(), local);
         }
         return validators;

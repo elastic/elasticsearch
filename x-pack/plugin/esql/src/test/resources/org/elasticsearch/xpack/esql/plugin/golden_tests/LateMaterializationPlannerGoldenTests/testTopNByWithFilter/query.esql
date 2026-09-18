@@ -1,0 +1,5 @@
+FROM employees
+| keep hire_date, salary, languages, emp_no
+| WHERE salary > 10000
+| SORT hire_date
+| LIMIT 5 BY languages

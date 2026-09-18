@@ -16,7 +16,6 @@ import org.elasticsearch.test.rest.ESRestTestCase;
 import org.junit.ClassRule;
 
 import java.io.BufferedReader;
-import java.io.IOException;
 import java.io.InputStream;
 import java.io.InputStreamReader;
 import java.nio.charset.StandardCharsets;
@@ -44,25 +43,29 @@ public class EntitlementAgentAttachLoggingIT extends ESRestTestCase {
         return cluster.getHttpAddresses();
     }
 
-    public void testEntitlementAgentAttachLineIsLogged() throws IOException {
+    public void testEntitlementAgentAttachLineIsLogged() throws Exception {
         client().performRequest(new Request("GET", "/_cluster/health"));
 
-        try (
-            InputStream log = cluster.getNodeLog(0, LogType.SERVER);
-            BufferedReader reader = new BufferedReader(new InputStreamReader(log, StandardCharsets.UTF_8))
-        ) {
-            String line;
-            while ((line = reader.readLine()) != null) {
-                Matcher m = ATTACH_LINE.matcher(line);
-                if (m.find()) {
-                    long total = Long.parseLong(m.group(1));
-                    long attach = Long.parseLong(m.group(2));
-                    long loadDetach = Long.parseLong(m.group(3));
-                    assertThat(total, greaterThanOrEqualTo(attach + loadDetach));
-                    return;
+        // The line is logged very early during bootstrap, but the appender may not have flushed it to disk
+        // by the time the node starts answering REST requests, so re-read the log until it shows up.
+        assertBusy(() -> {
+            try (
+                InputStream log = cluster.getNodeLog(0, LogType.SERVER);
+                BufferedReader reader = new BufferedReader(new InputStreamReader(log, StandardCharsets.UTF_8))
+            ) {
+                String line;
+                while ((line = reader.readLine()) != null) {
+                    Matcher m = ATTACH_LINE.matcher(line);
+                    if (m.find()) {
+                        long total = Long.parseLong(m.group(1));
+                        long attach = Long.parseLong(m.group(2));
+                        long loadDetach = Long.parseLong(m.group(3));
+                        assertThat(total, greaterThanOrEqualTo(attach + loadDetach));
+                        return;
+                    }
                 }
             }
-        }
-        fail("entitlement agent attach timing log line was not found in node 0's log");
+            fail("entitlement agent attach timing log line was not found in node 0's log");
+        });
     }
 }

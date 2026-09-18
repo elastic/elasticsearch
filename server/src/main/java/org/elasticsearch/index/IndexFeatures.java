@@ -51,6 +51,13 @@ public class IndexFeatures implements FeatureSpecification {
         "constant_field_type.normalized_wildcard_query_support"
     );
 
+    /**
+     * Inverted {@code max_thread_count}/{@code max_merge_count} pairs are clamped instead of rejected.
+     */
+    private static final NodeFeature MERGE_SCHEDULER_CLAMPS_MAX_THREAD_COUNT = new NodeFeature(
+        "index.merge_scheduler_clamps_max_thread_count"
+    );
+
     @Override
     public Set<NodeFeature> getTestFeatures() {
         Set<NodeFeature> features = new HashSet<>(
@@ -66,7 +73,8 @@ public class IndexFeatures implements FeatureSpecification {
                 SHADOWING_DIMENSIONS_AND_METRICS_IS_VALID_IN_NON_TSDB,
                 InferenceMetadataFieldsMapper.INFERENCE_FIELDS_GET_VIA_SOURCE_INCLUDES,
                 CONSTANT_FIELD_TYPE_NORMALIZED_WILDCARD_QUERY_SUPPORT,
-                InferenceMetadataFieldsMapper.INFERENCE_FIELDS_GET_VIA_SOURCE_EXCLUDE_VECTORS
+                InferenceMetadataFieldsMapper.INFERENCE_FIELDS_GET_VIA_SOURCE_EXCLUDE_VECTORS,
+                MERGE_SCHEDULER_CLAMPS_MAX_THREAD_COUNT
             )
         );
         if (SliceIndexing.SLICE_FEATURE_FLAG.isEnabled()) {

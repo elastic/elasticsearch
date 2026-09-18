@@ -18,7 +18,7 @@ import org.apache.lucene.store.Directory;
 import org.apache.lucene.store.FSDirectory;
 import org.apache.lucene.store.IOContext;
 import org.apache.lucene.store.IndexInput;
-import org.elasticsearch.benchmark.Utils;
+import org.elasticsearch.benchmark.internal.BenchmarkLogging;
 import org.elasticsearch.blobcache.shared.SharedBlobCacheService;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.IOUtils;
@@ -73,7 +73,7 @@ import java.util.stream.Stream;
 public abstract class AbstractStatelessQueryBenchmark {
 
     static {
-        Utils.configureBenchmarkLogging();
+        BenchmarkLogging.configure();
     }
 
     public enum CacheState {
@@ -125,7 +125,7 @@ public abstract class AbstractStatelessQueryBenchmark {
         System.setProperty(StatelessDirectoryFactory.FIRST_BYTE_LATENCY_MS_PROP, Long.toString(firstByteLatencyMs));
         deleteRecursively(workPath);
         Files.createDirectories(workPath);
-        directory = StatelessDirectoryFactory.create(dataPath, workPath, extraNodeSettings());
+        directory = StatelessDirectoryFactory.newSearchDirectory(dataPath, workPath, extraNodeSettings());
         if (cacheState == CacheState.HOT) {
             preWarm(directory);
         }

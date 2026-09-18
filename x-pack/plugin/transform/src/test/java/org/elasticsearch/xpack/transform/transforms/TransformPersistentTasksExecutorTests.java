@@ -18,6 +18,7 @@ import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.metadata.ProjectId;
 import org.elasticsearch.cluster.metadata.ProjectMetadata;
+import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodeRole;
 import org.elasticsearch.cluster.node.DiscoveryNodeUtils;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
@@ -31,7 +32,6 @@ import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.UnassignedInfo;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.settings.ClusterSettings;
-import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.core.TimeValue;
@@ -44,9 +44,11 @@ import org.elasticsearch.persistent.PersistentTasksCustomMetadata;
 import org.elasticsearch.persistent.PersistentTasksCustomMetadata.Assignment;
 import org.elasticsearch.search.crossproject.CrossProjectModeDecider;
 import org.elasticsearch.tasks.TaskId;
+import org.elasticsearch.telemetry.metric.LongCounter;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.threadpool.TestThreadPool;
 import org.elasticsearch.threadpool.ThreadPool;
+import org.elasticsearch.xpack.core.XPackSettings;
 import org.elasticsearch.xpack.core.indexing.IndexerState;
 import org.elasticsearch.xpack.core.security.cloud.PersistedCloudCredential;
 import org.elasticsearch.xpack.core.transform.TransformConfigVersion;
@@ -72,6 +74,7 @@ import org.elasticsearch.xpack.transform.persistence.InMemoryTransformConfigMana
 import org.elasticsearch.xpack.transform.persistence.SeqNoPrimaryTermAndIndex;
 import org.elasticsearch.xpack.transform.persistence.TransformConfigManager;
 import org.elasticsearch.xpack.transform.persistence.TransformInternalIndexTests;
+import org.elasticsearch.xpack.transform.telemetry.TransformMeterRegistry;
 import org.elasticsearch.xpack.transform.transforms.scheduling.TransformScheduler;
 import org.junit.AfterClass;
 import org.junit.Before;
@@ -90,6 +93,7 @@ import java.util.function.Consumer;
 
 import static org.elasticsearch.xpack.core.common.notifications.Level.INFO;
 import static org.elasticsearch.xpack.core.common.notifications.Level.WARNING;
+import static org.elasticsearch.xpack.core.security.cloud.CloudCredentialTestUtils.randomPersistedCloudCredential;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.startsWith;
 import static org.mockito.ArgumentMatchers.any;
@@ -132,8 +136,7 @@ public class TransformPersistentTasksExecutorTests extends ESTestCase {
     }
 
     @Before
-    public void setUp() throws Exception {
-        super.setUp();
+    public void initAutoMigrationMock() throws Exception {
         autoMigration = mock();
         doAnswer(ans -> {
             ActionListener<?> listener = ans.getArgument(1);
@@ -371,7 +374,8 @@ public class TransformPersistentTasksExecutorTests extends ESTestCase {
                 true,
                 RecoverySource.EmptyStoreRecoverySource.INSTANCE,
                 new UnassignedInfo(UnassignedInfo.Reason.INDEX_CREATED, ""),
-                ShardRouting.Role.DEFAULT
+                ShardRouting.Role.DEFAULT,
+                ShardRouting.RecoveryPriority.UNASSIGNED_NEW_PRIMARY
             );
             shardRouting = shardRouting.initialize("node_id", null, 0L);
             routingTable.add(
@@ -730,7 +734,7 @@ public class TransformPersistentTasksExecutorTests extends ESTestCase {
         assumeTrue("Only relevant if feature flag is enabled", TransformConfig.TRANSFORM_CROSS_PROJECT.isEnabled());
 
         var transformId = "testCloudCredentialLoad";
-        var persisted = new PersistedCloudCredential("an-id", new SecureString("v".toCharArray()));
+        var persisted = randomPersistedCloudCredential("an-id");
         var transformsConfigManager = new InMemoryTransformConfigManager();
         transformsConfigManager.putTransformCloudCredential(transformId, persisted, ActionListener.<Boolean>noop());
 
@@ -751,7 +755,7 @@ public class TransformPersistentTasksExecutorTests extends ESTestCase {
         assumeTrue("Only relevant if feature flag is enabled", TransformConfig.TRANSFORM_CROSS_PROJECT.isEnabled());
 
         var transformId = "testCloudCredentialRetry";
-        var persisted = new PersistedCloudCredential("an-id", new SecureString("v".toCharArray()));
+        var persisted = randomPersistedCloudCredential("an-id");
         // Fail twice so we see both (a) the direct first-attempt failure that triggers the scheduler
         // retry path and (b) the scheduler-driven retry's first attempt failing — which flips the
         // task into "Retrying transform start." state.
@@ -807,21 +811,9 @@ public class TransformPersistentTasksExecutorTests extends ESTestCase {
 
         var configManager = new InMemoryTransformConfigManager();
         // prime with three credentials: one active, two dangling
-        configManager.putTransformCloudCredential(
-            transformId,
-            new PersistedCloudCredential(activeId, new SecureString("k".toCharArray())),
-            ActionListener.noop()
-        );
-        configManager.putTransformCloudCredential(
-            transformId,
-            new PersistedCloudCredential(danglingId1, new SecureString("k".toCharArray())),
-            ActionListener.noop()
-        );
-        configManager.putTransformCloudCredential(
-            transformId,
-            new PersistedCloudCredential(danglingId2, new SecureString("k".toCharArray())),
-            ActionListener.noop()
-        );
+        configManager.putTransformCloudCredential(transformId, randomPersistedCloudCredential(activeId), ActionListener.noop());
+        configManager.putTransformCloudCredential(transformId, randomPersistedCloudCredential(danglingId1), ActionListener.noop());
+        configManager.putTransformCloudCredential(transformId, randomPersistedCloudCredential(danglingId2), ActionListener.noop());
         putTransformConfiguration(configManager, transformId, activeId);
 
         // mock apiKeyService so revoke calls succeed
@@ -879,7 +871,7 @@ public class TransformPersistentTasksExecutorTests extends ESTestCase {
                 listener.onFailure(new IllegalStateException("index unavailable"));
             }
         };
-        var persisted = new PersistedCloudCredential(activeId, new SecureString("k".toCharArray()));
+        var persisted = randomPersistedCloudCredential(activeId);
         configManager.putTransformCloudCredential(transformId, persisted, ActionListener.noop());
         putTransformConfiguration(configManager, transformId, activeId);
 
@@ -912,13 +904,7 @@ public class TransformPersistentTasksExecutorTests extends ESTestCase {
     ) {
         var mockAuditor = mock(TransformAuditor.class);
         when(credentialManager.wrapWithPersistedIfPresent(any(), any())).thenAnswer(invocation -> invocation.getArgument(0));
-        var transformCheckpointService = new TransformCheckpointService(
-            Clock.systemUTC(),
-            configManager,
-            mockAuditor,
-            mock(CrossProjectModeDecider.class),
-            credentialManager
-        );
+        var transformCheckpointService = new TransformCheckpointService(Clock.systemUTC(), configManager, mockAuditor, credentialManager);
         return new TransformServices(
             configManager,
             transformCheckpointService,
@@ -970,7 +956,8 @@ public class TransformPersistentTasksExecutorTests extends ESTestCase {
                 true,
                 RecoverySource.EmptyStoreRecoverySource.INSTANCE,
                 new UnassignedInfo(UnassignedInfo.Reason.INDEX_CREATED, ""),
-                ShardRouting.Role.DEFAULT
+                ShardRouting.Role.DEFAULT,
+                ShardRouting.RecoveryPriority.UNASSIGNED_NEW_PRIMARY
             );
             shardRouting = shardRouting.initialize("node_id", null, 0L);
             shardRouting = shardRouting.moveToStarted(ShardRouting.UNAVAILABLE_EXPECTED_SHARD_SIZE);
@@ -1114,6 +1101,93 @@ public class TransformPersistentTasksExecutorTests extends ESTestCase {
         return Metadata.builder().put(ProjectMetadata.builder(projectId));
     }
 
+    private static final String MISSING_CREDS_ID = "missing-creds-transform";
+
+    private TransformConfig configWithCredentials(Map<String, String> headers, String credentialId) {
+        var base = TransformConfigTests.randomTransformConfig(
+            MISSING_CREDS_ID,
+            TimeValue.timeValueMillis(1),
+            TransformConfigVersion.CURRENT
+        );
+        return new TransformConfig.Builder(base).setHeaders(headers).setCredentialId(credentialId).build();
+    }
+
+    private TransformPersistentTasksExecutor missingCredentialsExecutor(
+        boolean securityEnabled,
+        boolean serverless,
+        TransformAuditor auditor,
+        TransformMeterRegistry meter
+    ) {
+        var services = transformServices(
+            new InMemoryTransformConfigManager(),
+            new TransformScheduler(Clock.systemUTC(), threadPool, Settings.EMPTY, TimeValue.ZERO),
+            auditor
+        );
+        var settings = Settings.builder()
+            .put(XPackSettings.SECURITY_ENABLED.getKey(), securityEnabled)
+            .put(DiscoveryNode.STATELESS_ENABLED_SETTING_NAME, serverless)
+            .build();
+        return buildTaskExecutor(services, settings, meter);
+    }
+
+    public void testMissingCredentialsServerlessRecordsMetric() {
+        var auditor = mock(TransformAuditor.class);
+        var counter = mock(LongCounter.class);
+        var meter = new TransformMeterRegistry(mock(LongCounter.class), counter);
+        var executor = missingCredentialsExecutor(true, true, auditor, meter);
+
+        executor.maybeReportMissingCredentials(configWithCredentials(null, null));
+
+        verify(counter, times(1)).increment();
+        // audit is deferred pending approval; only the metric is recorded
+        verify(auditor, never()).warning(any(), any());
+    }
+
+    public void testMissingCredentialsNonServerlessRecordsNothing() {
+        var auditor = mock(TransformAuditor.class);
+        var counter = mock(LongCounter.class);
+        var meter = new TransformMeterRegistry(mock(LongCounter.class), counter);
+        var executor = missingCredentialsExecutor(true, false, auditor, meter);
+
+        executor.maybeReportMissingCredentials(configWithCredentials(null, null));
+
+        verify(counter, never()).increment();
+        verify(auditor, never()).warning(any(), any());
+    }
+
+    public void testNonSecurityHeadersOnlyStillCountAsMissing() {
+        var auditor = mock(TransformAuditor.class);
+        var counter = mock(LongCounter.class);
+        var meter = new TransformMeterRegistry(mock(LongCounter.class), counter);
+        var executor = missingCredentialsExecutor(true, true, auditor, meter);
+
+        executor.maybeReportMissingCredentials(configWithCredentials(Map.of("x-trace-id", "abc"), null));
+
+        verify(counter, times(1)).increment();
+    }
+
+    public void testSecurityDisabledReportsNothing() {
+        var auditor = mock(TransformAuditor.class);
+        var counter = mock(LongCounter.class);
+        var meter = new TransformMeterRegistry(mock(LongCounter.class), counter);
+        var executor = missingCredentialsExecutor(false, true, auditor, meter);
+
+        executor.maybeReportMissingCredentials(configWithCredentials(null, null));
+
+        verify(counter, never()).increment();
+    }
+
+    public void testCredentialIdPresentReportsNothing() {
+        var auditor = mock(TransformAuditor.class);
+        var counter = mock(LongCounter.class);
+        var meter = new TransformMeterRegistry(mock(LongCounter.class), counter);
+        var executor = missingCredentialsExecutor(true, true, auditor, meter);
+
+        executor.maybeReportMissingCredentials(configWithCredentials(null, "cred-1"));
+
+        verify(counter, never()).increment();
+    }
+
     private TransformPersistentTasksExecutor buildTaskExecutor() {
         var transformServices = transformServices(
             new InMemoryTransformConfigManager(),
@@ -1123,14 +1197,20 @@ public class TransformPersistentTasksExecutorTests extends ESTestCase {
     }
 
     private TransformServices transformServices(TransformConfigManager configManager, TransformScheduler scheduler) {
-        var mockAuditor = mock(TransformAuditor.class);
+        return transformServices(configManager, scheduler, mock(TransformAuditor.class));
+    }
+
+    private TransformServices transformServices(
+        TransformConfigManager configManager,
+        TransformScheduler scheduler,
+        TransformAuditor mockAuditor
+    ) {
         var cloudCredentialManager = mock(TransformCloudCredentialManager.class);
         when(cloudCredentialManager.wrapWithPersistedIfPresent(any(), any())).thenAnswer(invocation -> invocation.getArgument(0));
         var transformCheckpointService = new TransformCheckpointService(
             Clock.systemUTC(),
             configManager,
             mockAuditor,
-            mock(CrossProjectModeDecider.class),
             cloudCredentialManager
         );
         return new TransformServices(
@@ -1147,15 +1227,24 @@ public class TransformPersistentTasksExecutorTests extends ESTestCase {
     }
 
     private TransformPersistentTasksExecutor buildTaskExecutor(TransformServices transformServices) {
+        return buildTaskExecutor(transformServices, Settings.EMPTY, TransformMeterRegistry.noOp());
+    }
+
+    private TransformPersistentTasksExecutor buildTaskExecutor(
+        TransformServices transformServices,
+        Settings settings,
+        TransformMeterRegistry transformMeterRegistry
+    ) {
         return new TransformPersistentTasksExecutor(
             mock(Client.class),
             transformServices,
             threadPool,
             clusterService(),
-            Settings.EMPTY,
+            settings,
             new DefaultTransformExtension(),
             indexNameExpressionResolver(),
-            autoMigration
+            autoMigration,
+            transformMeterRegistry
         );
     }
 

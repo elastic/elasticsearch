@@ -19,6 +19,8 @@ import java.util.function.Consumer;
 final class StackTrace implements ToXContentObject {
     private static final String[] PATH_FRAME_IDS = new String[] { "Stacktrace", "frame", "ids" };
     private static final String[] PATH_FRAME_TYPES = new String[] { "Stacktrace", "frame", "types" };
+    private static final String[] PATH_FRAME_IDS_OTEL = new String[] { "frame", "ids" };
+    private static final String[] PATH_FRAME_TYPES_OTEL = new String[] { "frame", "types" };
 
     static final int NATIVE_FRAME_TYPE = 3;
     static final int KERNEL_FRAME_TYPE = 4;
@@ -174,16 +176,33 @@ final class StackTrace implements ToXContentObject {
         return frameID.substring(0, 21) + SAFE_BASE64_ENCODER.charAt(frameID.charAt(21) & 0x30);
     }
 
+    public static StackTrace fromOtelSource(Map<String, Object> source) {
+        return fromRawSource(source, PATH_FRAME_IDS_OTEL, PATH_FRAME_TYPES_OTEL, null, null);
+    }
+
     public static StackTrace fromSource(Map<String, Object> source) {
-        String inputFrameIDs = ObjectPath.eval(PATH_FRAME_IDS, source);
-        if (inputFrameIDs == null) {
+        return fromRawSource(source, PATH_FRAME_IDS, PATH_FRAME_TYPES, "Stacktrace.frame.ids", "Stacktrace.frame.types");
+    }
+
+    private static StackTrace fromRawSource(
+        Map<String, Object> source,
+        String[] frameIdsPath,
+        String[] frameTypesPath,
+        String frameIdsFallback,
+        String frameTypesFallback
+    ) {
+        String inputFrameIDs = ObjectPath.eval(frameIdsPath, source);
+        if (inputFrameIDs == null && frameIdsFallback != null) {
             // If synthetic source is disabled, fallback to dotted field names.
-            inputFrameIDs = (String) source.get("Stacktrace.frame.ids");
+            inputFrameIDs = (String) source.get(frameIdsFallback);
         }
-        String inputFrameTypes = ObjectPath.eval(PATH_FRAME_TYPES, source);
-        if (inputFrameTypes == null) {
+        String inputFrameTypes = ObjectPath.eval(frameTypesPath, source);
+        if (inputFrameTypes == null && frameTypesFallback != null) {
             // If synthetic source is disabled, fallback to dotted field names.
-            inputFrameTypes = (String) source.get("Stacktrace.frame.types");
+            inputFrameTypes = (String) source.get(frameTypesFallback);
+        }
+        if (inputFrameIDs == null || inputFrameTypes == null) {
+            return new StackTrace(new int[0], new String[0], new String[0], new int[0]);
         }
         int countsFrameIDs = inputFrameIDs.length() / BASE64_FRAME_ID_LENGTH;
 

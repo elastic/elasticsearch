@@ -9,6 +9,7 @@ package org.elasticsearch.xpack.esql.datasources;
 import org.elasticsearch.action.support.SubscribableListener;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.BlockFactory;
+import org.elasticsearch.compute.data.ElementType;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.operator.CloseableIterator;
 import org.elasticsearch.core.Nullable;
@@ -17,9 +18,12 @@ import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.datasources.spi.ColumnExtractor;
 import org.elasticsearch.xpack.esql.datasources.spi.ColumnExtractorProducer;
+import org.elasticsearch.xpack.esql.datasources.spi.ColumnarRowDropHelper;
+import org.elasticsearch.xpack.esql.datasources.spi.DeclaredTypeCoercions;
 import org.elasticsearch.xpack.esql.datasources.spi.SkipWarnings;
 
 import java.io.IOException;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.NoSuchElementException;
 import java.util.function.Consumer;
@@ -75,8 +79,18 @@ final class SchemaAdaptingIterator implements CloseableIterator<Page>, ColumnExt
      */
     @Nullable
     private final DataType[] perFileColumnTypes;
+    /** Where reconciliation-cast and absent-column warnings are delivered. */
+    @Nullable
+    private final Consumer<String> informationalWarningSink;
     /** Output column name per mapping slot; names the column in per-value cast warnings. */
     private final String[] outputColumnNames;
+    /**
+     * Expected element type per output slot, derived from the output schema at construction.
+     * Used to detect block-type mismatches (e.g. {@code IntBlock} where the plan expects
+     * {@code LongBlock}) before they reach a consumer that casts and throws a bare
+     * {@link ClassCastException} naming no column.
+     */
+    private final ElementType[] expectedElementTypes;
     /**
      * Lazily-created sink for per-value reconciliation-cast failures, shared by every page of
      * this iterator so the warning cap is per file read. Mirrors the readers' declared-coercion
@@ -85,11 +99,45 @@ final class SchemaAdaptingIterator implements CloseableIterator<Page>, ColumnExt
      * to a declared type.
      */
     private SkipWarnings castWarnings;
+    /**
+     * Non-null when the error policy is {@link org.elasticsearch.xpack.esql.datasources.spi.ErrorPolicy.Mode#SKIP_ROW}.
+     * Accumulates per-page failure positions reported by {@link ColumnMapping#mapPage} so that failed rows are
+     * filtered from the output rather than null-filled.
+     * <p>
+     * Receives {@link ColumnarRowDropHelper#forSharedBudget(SharedErrorBudget)} when a
+     * {@link org.elasticsearch.xpack.esql.datasources.spi.SharedErrorBudget} was created for this
+     * read in {@code AsyncExternalSourceOperatorFactory}, so adapter drops and reader drops count
+     * against the same {@code max_errors} / {@code max_error_ratio} budget.
+     * <p>
+     * Known gap: under {@code FAIL_FAST}, this field is always {@code null} (
+     * {@link org.elasticsearch.xpack.esql.datasources.spi.SharedErrorBudget#forPolicy} returns {@code null} for
+     * non-{@code SKIP_ROW} modes), so a reconciliation-cast failure still null-fills the cell rather than aborting.
+     * Fixing fail-fast at the adapter layer is a follow-up.
+     */
+    @Nullable
+    private final ColumnarRowDropHelper dropHelper;
+    /**
+     * Deferred sink for absent-declared-column informational warnings. Non-null when the mapping
+     * has at least one {@code -1} slot that has not yet been warned about. Emitted lazily on the
+     * first call to {@link #adaptPage} so that splits whose row groups are pruned to zero rows by
+     * predicate statistics (no data returned) do not trigger warnings for a column that never
+     * affected the result. Set to {@code null} once warnings have been emitted.
+     */
+    @Nullable
+    private Consumer<String> pendingAbsentColumnWarningSink;
+    /**
+     * Output column names for slots with a {@code -1} mapping (absent from the file) that warrant
+     * a user-visible informational warning. Computed at construction alongside
+     * {@link #pendingAbsentColumnWarningSink}; emptied after warnings are emitted.
+     */
+    @Nullable
+    private String[] pendingAbsentColumnNames;
 
     private SkipWarnings castWarnings() {
         if (castWarnings == null) {
             castWarnings = new SkipWarnings(
-                "Cross-file schema unification could not convert some values to the unified column type; they are returned as null"
+                "Cross-file schema unification could not convert some values to the unified column type; they are returned as null",
+                informationalWarningSink
             );
         }
         return castWarnings;
@@ -122,6 +170,31 @@ final class SchemaAdaptingIterator implements CloseableIterator<Page>, ColumnExt
         int rowPositionInputIndex,
         @Nullable DataType[] perFileColumnTypes
     ) {
+        this(delegate, outputSchema, mapping, blockFactory, rowPositionInputIndex, perFileColumnTypes, null);
+    }
+
+    SchemaAdaptingIterator(
+        CloseableIterator<Page> delegate,
+        List<Attribute> outputSchema,
+        ColumnMapping mapping,
+        BlockFactory blockFactory,
+        int rowPositionInputIndex,
+        @Nullable DataType[] perFileColumnTypes,
+        @Nullable Consumer<String> informationalWarningSink
+    ) {
+        this(delegate, outputSchema, mapping, blockFactory, rowPositionInputIndex, perFileColumnTypes, informationalWarningSink, null);
+    }
+
+    SchemaAdaptingIterator(
+        CloseableIterator<Page> delegate,
+        List<Attribute> outputSchema,
+        ColumnMapping mapping,
+        BlockFactory blockFactory,
+        int rowPositionInputIndex,
+        @Nullable DataType[] perFileColumnTypes,
+        @Nullable Consumer<String> informationalWarningSink,
+        @Nullable ColumnarRowDropHelper dropHelper
+    ) {
         if (outputSchema.size() != mapping.width()) {
             throw new IllegalArgumentException(
                 "output schema size ["
@@ -137,7 +210,33 @@ final class SchemaAdaptingIterator implements CloseableIterator<Page>, ColumnExt
         this.blockFactory = blockFactory;
         this.rowPositionInputIndex = rowPositionInputIndex;
         this.perFileColumnTypes = perFileColumnTypes;
+        this.informationalWarningSink = informationalWarningSink;
+        this.dropHelper = dropHelper;
         this.outputColumnNames = outputSchema.stream().map(Attribute::name).toArray(String[]::new);
+        this.expectedElementTypes = outputSchema.stream()
+            .map(a -> DeclaredTypeCoercions.elementTypeFor(a.dataType()))
+            .toArray(ElementType[]::new);
+        // Defer absent-column warnings to first adaptPage: splits whose row groups are entirely
+        // pruned by predicate statistics return zero rows, so warning at construction time would
+        // mislead the user about a column that never affected the result.
+        if (informationalWarningSink != null) {
+            List<String> toWarn = null;
+            for (int i = 0; i < mapping.width(); i++) {
+                if (mapping.localIndex(i) == -1) {
+                    DataType dt = outputSchema.get(i).dataType();
+                    if (dt != DataType.NULL && dt != DataType.UNSUPPORTED) {
+                        if (toWarn == null) {
+                            toWarn = new ArrayList<>();
+                        }
+                        toWarn.add(outputColumnNames[i]);
+                    }
+                }
+            }
+            if (toWarn != null) {
+                this.pendingAbsentColumnNames = toWarn.toArray(String[]::new);
+                this.pendingAbsentColumnWarningSink = informationalWarningSink;
+            }
+        }
     }
 
     @Override
@@ -171,13 +270,87 @@ final class SchemaAdaptingIterator implements CloseableIterator<Page>, ColumnExt
     }
 
     private Page adaptPage(Page filePage) {
+        // Fast path: identity mapping with no row-position channel to append — the file page is
+        // already in the correct shape. Validate types in-place and return without mapPage's
+        // per-block incRef/alloc overhead (O(columns) atomics saved per page on wide schemas).
+        // emitAbsentColumnWarningsOnce is inside the guard so filePage is released if it throws.
+        if (mapping.isIdentity() && rowPositionInputIndex < 0) {
+            try {
+                validateOutputTypes(filePage);
+                // Emit only after validation: if the page has wrong types the query fails hard;
+                // emitting an absent-column warning alongside a fatal error implies partial success.
+                emitAbsentColumnWarningsOnce();
+            } catch (Exception e) {
+                filePage.releaseBlocks();
+                throw e;
+            }
+            return filePage;
+        }
+        // Non-identity path: filePage is always released in the outer finally. schemaAdapted is
+        // tracked separately in the drop-filter path (schemaReleased) and the rowPos path
+        // (schemaAdaptedReleased) to avoid a double-release when it is decomposed before new Page() throws.
         try {
-            Page schemaAdapted = mapping.mapPage(filePage, blockFactory, perFileColumnTypes, outputColumnNames, castWarnings());
+            // Emit before mapPage: both share the per-source informational budget, and a page of distinct cast
+            // failures could otherwise spend it all and leave only the overflow marker where the absent-column
+            // notice should be. The cost is one extra notice on a query that then fails validation.
+            emitAbsentColumnWarningsOnce();
+            int originalPositions = filePage.getPositionCount();
+            if (dropHelper != null) {
+                dropHelper.beginBatch(originalPositions);
+            }
+            Page schemaAdapted = mapping.mapPage(filePage, blockFactory, perFileColumnTypes, outputColumnNames, castWarnings(), dropHelper);
+            try {
+                validateOutputTypes(schemaAdapted);
+            } catch (Exception e) {
+                schemaAdapted.releaseBlocks();
+                throw e;
+            }
+            if (dropHelper != null) {
+                int dropped = dropHelper.failedCount();
+                if (dropped > 0) {
+                    // Drop-filter path: build a combined block array (schema + optional row-position),
+                    // filter out failed rows, and return the filtered page. The row-position block is
+                    // included here so its count stays consistent with the filtered schema blocks.
+                    int schemaWidth = schemaAdapted.getBlockCount();
+                    boolean hasRowPos = rowPositionInputIndex >= 0;
+                    int totalWidth = hasRowPos ? schemaWidth + 1 : schemaWidth;
+                    Block[] filtered = new Block[totalWidth];
+                    boolean schemaReleased = false;
+                    try {
+                        for (int i = 0; i < schemaWidth; i++) {
+                            filtered[i] = schemaAdapted.getBlock(i);
+                            filtered[i].incRef();
+                        }
+                        if (hasRowPos) {
+                            filtered[schemaWidth] = filePage.getBlock(rowPositionInputIndex);
+                            filtered[schemaWidth].incRef();
+                        }
+                        schemaAdapted.releaseBlocks();
+                        schemaReleased = true;
+                        filtered = dropHelper.filterBlocks(filtered, blockFactory);
+                        dropHelper.addToTotals(originalPositions, dropped);
+                        dropHelper.checkBudget(castWarnings);
+                        return new Page(originalPositions - dropped, filtered);
+                    } catch (Throwable e) {
+                        Releasables.closeExpectNoException(filtered);
+                        if (schemaReleased == false) {
+                            schemaAdapted.releaseBlocks();
+                        }
+                        if (e instanceof RuntimeException r) throw r;
+                        if (e instanceof Error err) throw err;
+                        throw new RuntimeException("Failed to filter dropped rows", e);
+                    }
+                }
+                // No failures this page: update row totals only. addToTotals with zero errors
+                // cannot trip the budget (error count is unchanged), so checkBudget is elided.
+                dropHelper.addToTotals(originalPositions, 0);
+            }
             if (rowPositionInputIndex < 0) {
                 return schemaAdapted;
             }
             int width = schemaAdapted.getBlockCount();
             Block[] withRowPos = new Block[width + 1];
+            boolean schemaAdaptedReleased = false;
             try {
                 for (int i = 0; i < width; i++) {
                     Block b = schemaAdapted.getBlock(i);
@@ -189,14 +362,69 @@ final class SchemaAdaptingIterator implements CloseableIterator<Page>, ColumnExt
                 withRowPos[width] = rowPos;
                 int positions = schemaAdapted.getPositionCount();
                 schemaAdapted.releaseBlocks();
+                schemaAdaptedReleased = true;
                 return new Page(positions, withRowPos);
-            } catch (Exception e) {
+            } catch (Throwable e) {
                 Releasables.closeExpectNoException(withRowPos);
-                schemaAdapted.releaseBlocks();
+                if (schemaAdaptedReleased == false) {
+                    schemaAdapted.releaseBlocks();
+                }
+                if (e instanceof RuntimeException r) {
+                    throw r;
+                }
+                if (e instanceof Error err) {
+                    throw err;
+                }
                 throw new RuntimeException("Failed to adapt page", e);
             }
         } finally {
             filePage.releaseBlocks();
+        }
+    }
+
+    private void emitAbsentColumnWarningsOnce() {
+        Consumer<String> sink = pendingAbsentColumnWarningSink;
+        if (sink == null) {
+            return;
+        }
+        pendingAbsentColumnWarningSink = null;
+        String[] names = pendingAbsentColumnNames;
+        pendingAbsentColumnNames = null;
+        for (String name : names) {
+            sink.accept(SkipWarnings.absentDeclaredColumnMessage(name));
+        }
+    }
+
+    /**
+     * Validates that every output block's element type matches the plan's declared type.
+     * {@link ElementType#NULL} (constant-null block) is exempt — it is valid for any declared type
+     * and is the normal representation of a missing column or an all-null column.
+     * The row-position channel is not part of {@code schemaAdapted} (it is appended after), so no
+     * special exemption is needed for it here.
+     */
+    private void validateOutputTypes(Page schemaAdapted) {
+        if (schemaAdapted.getBlockCount() != expectedElementTypes.length) {
+            throw new IllegalStateException(
+                "mapping produced ["
+                    + schemaAdapted.getBlockCount()
+                    + "] blocks but plan expects ["
+                    + expectedElementTypes.length
+                    + "] columns"
+            );
+        }
+        for (int i = 0; i < expectedElementTypes.length; i++) {
+            ElementType actual = schemaAdapted.getBlock(i).elementType();
+            if (actual != ElementType.NULL && actual != expectedElementTypes[i]) {
+                throw new IllegalStateException(
+                    "column ["
+                        + outputColumnNames[i]
+                        + "]: reader emitted block of element type ["
+                        + actual
+                        + "] but plan expects ["
+                        + expectedElementTypes[i]
+                        + "]"
+                );
+            }
         }
     }
 

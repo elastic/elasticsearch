@@ -202,6 +202,10 @@ public abstract class Soar<V> {
         float[] distances,
         CentroidOps<V> ops
     ) {
+        if (centroidCount <= 0) {
+            // no other centroid available to spill to (e.g. an empty neighborhood after empty-cluster removal)
+            return NO_SOAR_ASSIGNMENT;
+        }
         V currentCentroid = centroids[currAssignment];
         float vectorCentroidDist = ops.squareDistance(vector, currentCentroid);
         if (vectorCentroidDist <= SOAR_MIN_DISTANCE) {

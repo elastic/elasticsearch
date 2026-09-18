@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.ml.aggs.changepoint;
 
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.common.io.stream.NamedWriteable;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -21,28 +22,63 @@ import java.util.Objects;
  */
 public interface ChangeType extends NamedWriteable, NamedXContentObject {
 
+    // After this version we store log probabilities and record the change percent.
+    TransportVersion MULTI_CHANGE_POINT = TransportVersion.fromName("multi_change_point");
+
     int NO_CHANGE_POINT = -1;
 
     default int changePoint() {
         return NO_CHANGE_POINT;
     }
 
+    default boolean isChange() {
+        return changePoint() != NO_CHANGE_POINT;
+    }
+
+    default boolean isPointAnomaly() {
+        return false;
+    }
+
     default double pValue() {
         return 1.0;
     }
 
-    abstract class AbstractChangePoint implements ChangeType {
-        private final double pValue;
-        private final int changePoint;
+    default double logPValue() {
+        return Math.log(pValue());
+    }
 
-        protected AbstractChangePoint(double pValue, int changePoint) {
-            this.pValue = pValue;
+    default ChangeType withChangePoint(int changePoint) {
+        return this;
+    }
+
+    abstract class AbstractChangePoint implements ChangeType {
+        private final double logPValue;
+        private final int changePoint;
+        private final String description;
+
+        protected AbstractChangePoint(double logPValue, int changePoint, String description) {
+            this.logPValue = logPValue;
             this.changePoint = changePoint;
+            this.description = description;
         }
 
         @Override
         public double pValue() {
-            return pValue;
+            return Math.exp(logPValue);
+        }
+
+        @Override
+        public double logPValue() {
+            return Math.min(logPValue, 0.0);
+        }
+
+        /** The stored, unclamped log p-value as written to the wire (see {@link #writeTo}). */
+        protected double rawLogPValue() {
+            return logPValue;
+        }
+
+        public String description() {
+            return description;
         }
 
         @Override
@@ -51,13 +87,20 @@ public interface ChangeType extends NamedWriteable, NamedXContentObject {
         }
 
         public AbstractChangePoint(StreamInput in) throws IOException {
-            pValue = in.readDouble();
-            changePoint = in.readVInt();
+            if (in.getTransportVersion().supports(MULTI_CHANGE_POINT)) {
+                logPValue = in.readDouble();
+                changePoint = in.readVInt();
+                description = in.readString();
+            } else {
+                logPValue = Math.log(in.readDouble());
+                changePoint = in.readVInt();
+                description = "";
+            }
         }
 
         @Override
         public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
-            return builder.startObject().field("p_value", pValue).field("change_point", changePoint).endObject();
+            return builder.startObject().field("p_value", pValue()).field("change_point", changePoint).endObject();
         }
 
         @Override
@@ -67,8 +110,14 @@ public interface ChangeType extends NamedWriteable, NamedXContentObject {
 
         @Override
         public void writeTo(StreamOutput out) throws IOException {
-            out.writeDouble(pValue);
-            out.writeVInt(changePoint);
+            if (out.getTransportVersion().supports(MULTI_CHANGE_POINT)) {
+                out.writeDouble(logPValue);
+                out.writeVInt(changePoint);
+                out.writeString(description);
+            } else {
+                out.writeDouble(pValue());
+                out.writeVInt(changePoint);
+            }
         }
 
         @Override
@@ -76,12 +125,14 @@ public interface ChangeType extends NamedWriteable, NamedXContentObject {
             if (this == o) return true;
             if (o == null || getClass() != o.getClass()) return false;
             AbstractChangePoint that = (AbstractChangePoint) o;
-            return Double.compare(that.pValue, pValue) == 0 && changePoint == that.changePoint;
+            return Double.compare(that.logPValue, logPValue) == 0
+                && changePoint == that.changePoint
+                && Objects.equals(that.description, description);
         }
 
         @Override
         public int hashCode() {
-            return Objects.hash(pValue, changePoint);
+            return Objects.hash(logPValue, changePoint, description);
         }
     }
 
@@ -185,12 +236,17 @@ public interface ChangeType extends NamedWriteable, NamedXContentObject {
     class StepChange extends AbstractChangePoint {
         public static final String NAME = "step_change";
 
-        public StepChange(double pValue, int changePoint) {
-            super(pValue, changePoint);
+        public StepChange(double logPValue, int changePoint, String description) {
+            super(logPValue, changePoint, description);
         }
 
         public StepChange(StreamInput in) throws IOException {
             super(in);
+        }
+
+        @Override
+        public ChangeType withChangePoint(int changePoint) {
+            return new StepChange(logPValue(), changePoint, description());
         }
 
         @Override
@@ -205,8 +261,12 @@ public interface ChangeType extends NamedWriteable, NamedXContentObject {
     class DistributionChange extends AbstractChangePoint {
         public static final String NAME = "distribution_change";
 
-        public DistributionChange(double pValue, int changePoint) {
-            super(pValue, changePoint);
+        public DistributionChange(double logPValue, int changePoint) {
+            super(logPValue, changePoint, "");
+        }
+
+        public DistributionChange(double logPValue, int changePoint, String description) {
+            super(logPValue, changePoint, description);
         }
 
         public DistributionChange(StreamInput in) throws IOException {
@@ -214,31 +274,41 @@ public interface ChangeType extends NamedWriteable, NamedXContentObject {
         }
 
         @Override
+        public ChangeType withChangePoint(int changePoint) {
+            return new DistributionChange(logPValue(), changePoint, description());
+        }
+
+        @Override
         public String getName() {
             return NAME;
         }
-
     }
 
     /**
-     * Indicates a trend change occurred
+     * Indicates the data has a trend
      */
     class NonStationary implements ChangeType {
         public static final String NAME = "non_stationary";
-        private final double pValue;
+        private final double logPValue;
         private final double rValue;
         private final String trend;
 
-        public NonStationary(double pValue, double rValue, String trend) {
-            this.pValue = pValue;
+        public NonStationary(double logPValue, double rValue, String trend) {
+            this.logPValue = logPValue;
             this.rValue = rValue;
             this.trend = trend;
         }
 
         public NonStationary(StreamInput in) throws IOException {
-            pValue = in.readDouble();
-            rValue = in.readDouble();
-            trend = in.readString();
+            if (in.getTransportVersion().supports(MULTI_CHANGE_POINT)) {
+                logPValue = in.readDouble();
+                rValue = in.readDouble();
+                trend = in.readString();
+            } else {
+                logPValue = Math.log(in.readDouble());
+                rValue = in.readDouble();
+                trend = in.readString();
+            }
         }
 
         public String getTrend() {
@@ -247,12 +317,17 @@ public interface ChangeType extends NamedWriteable, NamedXContentObject {
 
         @Override
         public double pValue() {
-            return pValue;
+            return Math.exp(logPValue);
+        }
+
+        @Override
+        public double logPValue() {
+            return Math.min(logPValue, 0.0);
         }
 
         @Override
         public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
-            return builder.startObject().field("p_value", pValue).field("r_value", rValue).field("trend", trend).endObject();
+            return builder.startObject().field("p_value", pValue()).field("r_value", rValue).field("trend", trend).endObject();
         }
 
         @Override
@@ -262,9 +337,15 @@ public interface ChangeType extends NamedWriteable, NamedXContentObject {
 
         @Override
         public void writeTo(StreamOutput out) throws IOException {
-            out.writeDouble(pValue);
-            out.writeDouble(rValue);
-            out.writeString(trend);
+            if (out.getTransportVersion().supports(MULTI_CHANGE_POINT)) {
+                out.writeDouble(logPValue);
+                out.writeDouble(rValue);
+                out.writeString(trend);
+            } else {
+                out.writeDouble(Math.exp(logPValue));
+                out.writeDouble(rValue);
+                out.writeString(trend);
+            }
         }
 
         @Override
@@ -277,63 +358,74 @@ public interface ChangeType extends NamedWriteable, NamedXContentObject {
             if (this == o) return true;
             if (o == null || getClass() != o.getClass()) return false;
             NonStationary that = (NonStationary) o;
-            return Double.compare(that.pValue, pValue) == 0
+            return Double.compare(that.logPValue, logPValue) == 0
                 && Double.compare(that.rValue, rValue) == 0
                 && Objects.equals(trend, that.trend);
         }
 
         @Override
         public int hashCode() {
-            return Objects.hash(pValue, rValue, trend);
+            return Objects.hash(logPValue, rValue, trend);
         }
     }
 
     /**
-     * Indicates a trend change occurred
+     * Indicates a trend change occurred. This is an {@link AbstractChangePoint} carrying an extra
+     * {@code rValue}; only the members that differ from the base (the wire/xcontent layout, and
+     * equality) are overridden.
      */
-    class TrendChange implements ChangeType {
+    class TrendChange extends AbstractChangePoint {
         public static final String NAME = "trend_change";
-        private final double pValue;
         private final double rValue;
-        private final int changePoint;
 
-        public TrendChange(double pValue, double rValue, int changePoint) {
-            this.pValue = pValue;
+        public TrendChange(double logPValue, double rValue, int changePoint) {
+            this(logPValue, rValue, changePoint, "");
+        }
+
+        public TrendChange(double logPValue, double rValue, int changePoint, String description) {
+            super(logPValue, changePoint, description);
             this.rValue = rValue;
-            this.changePoint = changePoint;
         }
 
+        // rValue is interleaved between logPValue and changePoint on the wire, so the base
+        // AbstractChangePoint(StreamInput) reader cannot be reused (its fields would misalign). Read the
+        // fields in wire order as delegating-constructor arguments - which Java evaluates left to right -
+        // and forward them to the value constructor.
         public TrendChange(StreamInput in) throws IOException {
-            pValue = in.readDouble();
-            rValue = in.readDouble();
-            changePoint = in.readVInt();
+            this(
+                in.getTransportVersion().supports(MULTI_CHANGE_POINT) ? in.readDouble() : Math.log(in.readDouble()),
+                in.readDouble(),
+                in.readVInt(),
+                in.getTransportVersion().supports(MULTI_CHANGE_POINT) ? in.readString() : ""
+            );
         }
 
         @Override
-        public double pValue() {
-            return pValue;
-        }
-
-        @Override
-        public int changePoint() {
-            return changePoint;
+        public ChangeType withChangePoint(int changePoint) {
+            return new TrendChange(rawLogPValue(), rValue, changePoint, description());
         }
 
         @Override
         public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
-            return builder.startObject().field("p_value", pValue).field("r_value", pValue).field("change_point", changePoint).endObject();
-        }
-
-        @Override
-        public String getWriteableName() {
-            return getName();
+            return builder.startObject()
+                .field("p_value", pValue())
+                .field("r_value", rValue)
+                .field("change_point", changePoint())
+                .endObject();
         }
 
         @Override
         public void writeTo(StreamOutput out) throws IOException {
-            out.writeDouble(pValue);
-            out.writeDouble(rValue);
-            out.writeVInt(changePoint);
+            if (out.getTransportVersion().supports(MULTI_CHANGE_POINT)) {
+                out.writeDouble(rawLogPValue());
+                out.writeDouble(rValue);
+                out.writeVInt(changePoint());
+                out.writeString(description());
+            } else {
+                out.writeDouble(pValue());
+                out.writeDouble(rValue);
+                out.writeVInt(changePoint());
+            }
         }
 
         @Override
@@ -343,15 +435,12 @@ public interface ChangeType extends NamedWriteable, NamedXContentObject {
 
         @Override
         public boolean equals(Object o) {
-            if (this == o) return true;
-            if (o == null || getClass() != o.getClass()) return false;
-            TrendChange that = (TrendChange) o;
-            return Double.compare(that.pValue, pValue) == 0 && Double.compare(that.rValue, rValue) == 0 && changePoint == that.changePoint;
+            return super.equals(o) && Double.compare(rValue, ((TrendChange) o).rValue) == 0;
         }
 
         @Override
         public int hashCode() {
-            return Objects.hash(pValue, rValue, changePoint);
+            return Objects.hash(super.hashCode(), rValue);
         }
     }
 
@@ -361,12 +450,26 @@ public interface ChangeType extends NamedWriteable, NamedXContentObject {
     class Spike extends AbstractChangePoint {
         public static final String NAME = "spike";
 
-        public Spike(double pValue, int changePoint) {
-            super(pValue, changePoint);
+        public Spike(double logPValue, int changePoint) {
+            super(logPValue, changePoint, "");
+        }
+
+        public Spike(double logPValue, int changePoint, String description) {
+            super(logPValue, changePoint, description);
         }
 
         public Spike(StreamInput in) throws IOException {
             super(in);
+        }
+
+        @Override
+        public boolean isPointAnomaly() {
+            return true;
+        }
+
+        @Override
+        public ChangeType withChangePoint(int changePoint) {
+            return new Spike(logPValue(), changePoint, description());
         }
 
         @Override
@@ -381,8 +484,12 @@ public interface ChangeType extends NamedWriteable, NamedXContentObject {
     class Dip extends AbstractChangePoint {
         public static final String NAME = "dip";
 
-        public Dip(double pValue, int changePoint) {
-            super(pValue, changePoint);
+        public Dip(double logPValue, int changePoint) {
+            super(logPValue, changePoint, "");
+        }
+
+        public Dip(double logPValue, int changePoint, String description) {
+            super(logPValue, changePoint, description);
         }
 
         public Dip(StreamInput in) throws IOException {
@@ -390,9 +497,18 @@ public interface ChangeType extends NamedWriteable, NamedXContentObject {
         }
 
         @Override
+        public boolean isPointAnomaly() {
+            return true;
+        }
+
+        @Override
+        public ChangeType withChangePoint(int changePoint) {
+            return new Dip(logPValue(), changePoint, description());
+        }
+
+        @Override
         public String getName() {
             return NAME;
         }
     }
-
 }

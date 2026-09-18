@@ -15,6 +15,7 @@ import org.elasticsearch.common.compress.CompressedXContent;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapper.VectorSimilarity;
 import org.elasticsearch.index.query.QueryRewriteContext;
+import org.elasticsearch.index.query.QueryShardException;
 import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.test.AbstractQueryTestCase;
 import org.elasticsearch.xcontent.XContentBuilder;
@@ -22,6 +23,7 @@ import org.elasticsearch.xcontent.XContentFactory;
 
 import java.io.IOException;
 
+import static org.elasticsearch.common.lucene.search.Queries.NO_DOCS_INSTANCE;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.instanceOf;
 
@@ -143,6 +145,63 @@ public class DenseVectorQueryBuilderTests extends AbstractQueryTestCase<DenseVec
         QueryRewriteContext rewriteContext = createSearchExecutionContext();
         var rewritten = builder.rewrite(rewriteContext);
         assertThat(rewritten, instanceOf(DenseVectorQueryBuilder.class));
+    }
+
+    /**
+     * A search may target an index pattern where only some indices map the vector field. The shards that
+     * don't map it must match no documents so the mapped indices still return results, matching the
+     * behaviour of the [knn] and internal [exact_knn] queries.
+     */
+    public void testMissingFieldReturnsNoDocs() throws IOException {
+        DenseVectorQueryBuilder builder = new DenseVectorQueryBuilder("missing", new float[] { 0.1f, 0.2f, 0.3f }, null, false);
+        assertEquals(NO_DOCS_INSTANCE, builder.toQuery(createSearchExecutionContext()));
+    }
+
+    /**
+     * The [quantized] shortcut only rewrites to [exact_knn] when the field resolves, so on a shard that
+     * doesn't map the field the query stays a [dense_vector] query. It must match no documents there too.
+     */
+    public void testMissingFieldReturnsNoDocsWhenQuantized() throws IOException {
+        SearchExecutionContext context = createSearchExecutionContext();
+        DenseVectorQueryBuilder builder = new DenseVectorQueryBuilder("missing", new float[] { 0.1f, 0.2f, 0.3f }, null, true);
+        var rewritten = builder.rewrite(context);
+        assertThat(rewritten, instanceOf(DenseVectorQueryBuilder.class));
+        assertEquals(NO_DOCS_INSTANCE, rewritten.toQuery(context));
+    }
+
+    /**
+     * An index that sets [index.query.parse.allow_unmapped_fields: false] rejects the missing field in
+     * {@link org.elasticsearch.index.query.QueryRewriteContext#getFieldType}, before the query builder can
+     * turn it into a no-docs query. [dense_vector] must fail there exactly like [knn] does, on both the raw
+     * and the quantized path — the latter resolves the field type during rewrite rather than in doToQuery.
+     */
+    public void testMissingFieldWithUnmappedFieldsDisallowed() {
+        SearchExecutionContext context = createSearchExecutionContext();
+        context.setAllowUnmappedFields(false);
+        float[] queryVector = new float[] { 0.1f, 0.2f, 0.3f };
+
+        QueryShardException knnException = expectThrows(
+            QueryShardException.class,
+            () -> new KnnVectorQueryBuilder("missing", queryVector, 5, 10, 10f, null, null).toQuery(context)
+        );
+        assertThat(knnException.getMessage(), containsString("No field mapping can be found for the field with name [missing]"));
+
+        for (Boolean quantized : new Boolean[] { false, true }) {
+            DenseVectorQueryBuilder builder = new DenseVectorQueryBuilder("missing", queryVector, null, quantized);
+            QueryShardException e = expectThrows(QueryShardException.class, () -> builder.rewrite(context).toQuery(context));
+            assertEquals(knnException.getMessage(), e.getMessage());
+        }
+    }
+
+    /**
+     * A field that exists but is mapped as another type is a mapping conflict rather than a missing field,
+     * so it stays an error — again matching [knn].
+     */
+    public void testWrongFieldType() {
+        SearchExecutionContext context = createSearchExecutionContext();
+        DenseVectorQueryBuilder builder = new DenseVectorQueryBuilder(KEYWORD_FIELD_NAME, new float[] { 0.1f, 0.2f, 0.3f }, null, false);
+        IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> builder.toQuery(context));
+        assertThat(e.getMessage(), containsString("[dense_vector] queries are only supported on [dense_vector] fields"));
     }
 
     public void testSimilarityFunctionAndQuantizedTrueIsRejected() {

@@ -9,7 +9,6 @@
 
 package org.elasticsearch.columnar.numeric;
 
-import org.apache.lucene.store.ByteBuffersDataOutput;
 import org.apache.lucene.store.DataInput;
 import org.apache.lucene.store.DataOutput;
 
@@ -31,7 +30,9 @@ public final class NumericBlockEncoder {
     private final int numericBlockSize;
 
     // Per-transform scratch for params captured during encoding; reset per block. Single threaded use.
-    private final ByteBuffersDataOutput[] paramBuffers;
+    private final MetadataBuffer[] paramBuffers;
+    // Reused across block decodes; bound to the active DataInput via reset() before each call.
+    private final DataInputMetadataReader decoderParams = new DataInputMetadataReader();
     // Separate FOR helper for the ordinal path, which is independent of the pipeline.
     private final DocValuesForUtil ordinalForUtil;
 
@@ -40,9 +41,9 @@ public final class NumericBlockEncoder {
         this.transforms = pipeline.transforms();
         this.terminal = pipeline.terminal();
         this.numericBlockSize = numericBlockSize;
-        this.paramBuffers = new ByteBuffersDataOutput[transforms.length];
+        this.paramBuffers = new MetadataBuffer[transforms.length];
         for (int i = 0; i < transforms.length; i++) {
-            paramBuffers[i] = new ByteBuffersDataOutput();
+            paramBuffers[i] = new MetadataBuffer();
         }
         this.ordinalForUtil = new DocValuesForUtil(numericBlockSize);
     }
@@ -63,8 +64,8 @@ public final class NumericBlockEncoder {
 
         int fireBitmask = 0;
         for (int i = 0; i < transforms.length; i++) {
-            ByteBuffersDataOutput params = paramBuffers[i];
-            params.reset();
+            MetadataBuffer params = paramBuffers[i];
+            params.clear();
             if (transforms[i].tryEncode(in, valueCount, params)) {
                 fireBitmask |= 1 << i;
             }
@@ -74,7 +75,7 @@ public final class NumericBlockEncoder {
         terminal.encode(in, valueCount, out);
         for (int i = transforms.length - 1; i >= 0; i--) {
             if ((fireBitmask & (1 << i)) != 0) {
-                paramBuffers[i].copyTo(out);
+                paramBuffers[i].writeTo(out);
             }
         }
     }
@@ -86,9 +87,10 @@ public final class NumericBlockEncoder {
 
         int fireBitmask = in.readVInt();
         terminal.decode(in, valueCount, out);
+        decoderParams.reset(in);
         for (int i = transforms.length - 1; i >= 0; i--) {
             if ((fireBitmask & (1 << i)) != 0) {
-                transforms[i].decode(out, valueCount, in);
+                transforms[i].decode(out, valueCount, decoderParams);
             }
         }
     }

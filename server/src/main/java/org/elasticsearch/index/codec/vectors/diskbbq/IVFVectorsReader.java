@@ -91,6 +91,15 @@ public abstract class IVFVectorsReader<E extends IVFVectorsReader.FieldEntry> ex
     private static final double CAP_EXPONENT = 0.35;
     static final float DEFAULT_TARGET_RECALL = 0.9f;
 
+    // Small-segment boost constants.
+    // Amplifies the dynamic visit ratio for segments below BOOST_REF_SIZE where IVF clusters are less
+    // well-formed and the base formula under-provisions. Calibrated on cross-validation across
+    // Wiki-Cohere, GIST-1M, and Quora-E5 datasets; validated on held-out GloVe-200.
+    private static final int BOOST_REF_SIZE = 500_000;
+    private static final double BOOST_EXPONENT = 0.30;
+    private static final int BOOST_K_REF = 10;
+    private static final double BOOST_K_EXPONENT = 0.10;
+
     protected final IndexInput ivfCentroids, ivfClusters;
     private final SegmentReadState state;
     protected final FieldInfos fieldInfos;
@@ -150,6 +159,24 @@ public abstract class IVFVectorsReader<E extends IVFVectorsReader.FieldEntry> ex
             IOUtils.closeWhileHandlingException(this);
             throw t;
         }
+    }
+
+    /**
+     * Copy constructor used to build a merge instance: shares everything with {@code other} but uses
+     * the provided flat vector readers.
+     */
+    protected IVFVectorsReader(IVFVectorsReader<E> other, GenericFlatVectorReaders genericReaders) {
+        this.state = other.state;
+        this.fieldInfos = other.fieldInfos;
+        this.fields = other.fields;
+        this.genericReaders = genericReaders;
+        this.centroidExtension = other.centroidExtension;
+        this.clusterExtension = other.clusterExtension;
+        this.versionDirectIo = other.versionDirectIo;
+        this.dynamicVisitRatio = other.dynamicVisitRatio;
+        this.versionMeta = other.versionMeta;
+        this.ivfCentroids = other.ivfCentroids;
+        this.ivfClusters = other.ivfClusters;
     }
 
     public abstract CentroidIterator getCentroidIterator(
@@ -308,6 +335,21 @@ public abstract class IVFVectorsReader<E extends IVFVectorsReader.FieldEntry> ex
         CodecUtil.checksumEntireFile(ivfClusters);
     }
 
+    @Override
+    public final KnnVectorsReader getMergeInstance() throws IOException {
+        return mergeInstance(genericReaders.getMergeInstance());
+    }
+
+    /** Builds a merge instance of this reader backed by the given flat vector merge readers. */
+    protected abstract IVFVectorsReader<E> mergeInstance(GenericFlatVectorReaders genericReaders);
+
+    @Override
+    public final void finishMerge() throws IOException {
+        for (var reader : genericReaders.allReaders()) {
+            reader.finishMerge();
+        }
+    }
+
     protected FlatVectorsReader getReaderForField(String field) {
         FieldInfo info = fieldInfos.fieldInfo(field);
         if (info == null) throw new IllegalArgumentException("Could not find field [" + field + "]");
@@ -421,7 +463,10 @@ public abstract class IVFVectorsReader<E extends IVFVectorsReader.FieldEntry> ex
         }
 
         if (visitRatio == dynamicVisitRatio) {
-            visitRatio = Math.min(computeDynamicVisitRatio(numCands, k), computeSegmentSizeCap(numVectors));
+            visitRatio = Math.min(
+                computeDynamicVisitRatio(numCands, k) * computeSmallSegmentBoost(k, numVectors),
+                computeSegmentSizeCap(numVectors)
+            );
         }
         long maxVectorVisited = maxVectorsToVisit(entry, visitRatio, numVectors);
         IndexInput postListSlice = entry.postingListSlice(ivfClusters);
@@ -505,6 +550,31 @@ public abstract class IVFVectorsReader<E extends IVFVectorsReader.FieldEntry> ex
 
     private static double logScale(double value, double log1pMax) {
         return Math.clamp(Math.log1p(value) / log1pMax, 0.0, 1.0);
+    }
+
+    /**
+     * Computes a small-segment boost multiplier for the dynamic visit ratio.
+     * Segments below {@link #BOOST_REF_SIZE} vectors have less well-formed IVF clusters, so the base
+     * dynamic formula under-provisions. This multiplier compensates with a power-law that decays to 1.0
+     * at the reference size. A mild k-scaling factor accounts for higher k needing slightly more budget.
+     * <p>
+     * Formula: boost = max(1.0, (BOOST_REF_SIZE / N)^0.3 * (k / 10)^0.1 * recallFactor)
+     *
+     * @param k the number of nearest neighbors requested
+     * @param numVectors number of vectors in the segment
+     * @return the boost multiplier (>= 1.0)
+     */
+    static float computeSmallSegmentBoost(int k, int numVectors) {
+        // numVectors <= 0 is already guarded at the call site (search returns early on an empty
+        // segment); handle it defensively here too, mirroring computeSegmentSizeCap, so the
+        // division below can never see a zero divisor. Returning 1.0f means "no boost".
+        if (numVectors <= 0 || numVectors >= BOOST_REF_SIZE) {
+            return 1.0f;
+        }
+        double sizeScale = Math.pow((double) BOOST_REF_SIZE / numVectors, BOOST_EXPONENT);
+        double kScale = Math.pow((double) Math.max(k, 1) / BOOST_K_REF, BOOST_K_EXPONENT);
+        double recallScale = 0.1 / (1.0 - DEFAULT_TARGET_RECALL);
+        return (float) Math.max(1.0, sizeScale * kScale * recallScale);
     }
 
     /**

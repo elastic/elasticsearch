@@ -1,5 +1,0 @@
-area: ES|QL
-issues: []
-pr: 152859
-summary: Reconcile temporal stat units in cross-file merge
-type: enhancement

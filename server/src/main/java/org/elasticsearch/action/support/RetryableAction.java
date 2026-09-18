@@ -9,12 +9,13 @@
 
 package org.elasticsearch.action.support;
 
-import org.apache.logging.log4j.Logger;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionRunnable;
 import org.elasticsearch.common.Randomness;
 import org.elasticsearch.common.util.concurrent.EsRejectedExecutionException;
 import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.logging.LogManager;
+import org.elasticsearch.logging.Logger;
 import org.elasticsearch.threadpool.Scheduler;
 import org.elasticsearch.threadpool.ThreadPool;
 
@@ -54,6 +55,37 @@ public abstract class RetryableAction<Response> {
         Executor executor
     ) {
         this(logger, threadPool, initialDelay, TimeValue.MAX_VALUE, timeoutValue, listener, executor);
+    }
+
+    /**
+     * @deprecated Pass an {@link org.elasticsearch.logging.Logger} instead.
+     */
+    @Deprecated
+    public RetryableAction(
+        org.apache.logging.log4j.Logger log4jLogger,
+        ThreadPool threadPool,
+        TimeValue initialDelay,
+        TimeValue timeoutValue,
+        ActionListener<Response> listener,
+        Executor executor
+    ) {
+        this(LogManager.getLogger(log4jLogger.getName()), threadPool, initialDelay, TimeValue.MAX_VALUE, timeoutValue, listener, executor);
+    }
+
+    /**
+     * @deprecated Pass an {@link org.elasticsearch.logging.Logger} instead.
+     */
+    @Deprecated
+    public RetryableAction(
+        org.apache.logging.log4j.Logger log4jLogger,
+        ThreadPool threadPool,
+        TimeValue initialDelay,
+        TimeValue maxDelayBound,
+        TimeValue timeoutValue,
+        ActionListener<Response> listener,
+        Executor executor
+    ) {
+        this(LogManager.getLogger(log4jLogger.getName()), threadPool, initialDelay, maxDelayBound, timeoutValue, listener, executor);
     }
 
     public RetryableAction(

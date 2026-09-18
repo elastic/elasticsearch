@@ -72,10 +72,11 @@ public final class HistogramPercentileTDigestEvaluator implements ExpressionEval
     try(DoubleBlock.Builder result = driverContext.blockFactory().newDoubleBlockBuilder(positionCount)) {
       TDigestHolder valueScratch = new TDigestHolder();
       position: for (int p = 0; p < positionCount; p++) {
+        if (valueBlock.isNull(p)) {
+          result.appendNull();
+          continue position;
+        }
         switch (valueBlock.getValueCount(p)) {
-          case 0:
-              result.appendNull();
-              continue position;
           case 1:
               break;
           default:
@@ -83,10 +84,11 @@ public final class HistogramPercentileTDigestEvaluator implements ExpressionEval
               result.appendNull();
               continue position;
         }
+        if (percentileBlock.isNull(p)) {
+          result.appendNull();
+          continue position;
+        }
         switch (percentileBlock.getValueCount(p)) {
-          case 0:
-              result.appendNull();
-              continue position;
           case 1:
               break;
           default:
@@ -119,7 +121,7 @@ public final class HistogramPercentileTDigestEvaluator implements ExpressionEval
 
   private Warnings warnings() {
     if (warnings == null) {
-      this.warnings = Warnings.createWarnings(driverContext.warningsMode(), source);
+      this.warnings = driverContext.createWarnings(source);
     }
     return warnings;
   }

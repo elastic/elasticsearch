@@ -26,6 +26,8 @@ import org.elasticsearch.common.lucene.search.Queries;
 import org.elasticsearch.compute.lucene.ShardContext;
 import org.elasticsearch.core.IOUtils;
 import org.elasticsearch.test.ESTestCase;
+import org.junit.After;
+import org.junit.Before;
 
 import java.io.IOException;
 
@@ -42,8 +44,10 @@ import static org.hamcrest.Matchers.equalTo;
  * lookup, an empty result, or the low-cost side of the threshold → {@link LuceneSliceQueue.PartitioningStrategy#SEGMENT};
  * a costly point/multi-term clause → SEGMENT; {@code MatchAll} → DOC.
  *
- * <p>A <b>limited</b> scan (implicit {@code LIMIT}) early-terminates after matching N docs, so it is deferred and keeps
- * the low-overhead {@link LuceneSliceQueue.PartitioningStrategy#SHARD} regardless of the query.
+ * <p>A <b>limited</b> scan (implicit {@code LIMIT}) keeps {@link LuceneSliceQueue.PartitioningStrategy#SHARD} for
+ * costly-to-build clauses (BKD point ranges, multi-term) and for cheap / {@code MatchAll} queries that trivially
+ * early-terminate. Only a scan-heavy non-costly filter (doc-values-only, cost ≥ threshold) is promoted to
+ * {@link LuceneSliceQueue.PartitioningStrategy#DOC} because it visits ~maxDoc regardless of match density.
  */
 public class LuceneSourceOperatorCostAwareStrategyTests extends ESTestCase {
 
@@ -53,9 +57,8 @@ public class LuceneSourceOperatorCostAwareStrategyTests extends ESTestCase {
     private Directory directory;
     private IndexReader reader;
 
-    @Override
-    public void setUp() throws Exception {
-        super.setUp();
+    @Before
+    public void initIndex() throws Exception {
         directory = newDirectory();
         try (IndexWriter writer = new IndexWriter(directory, new IndexWriterConfig())) {
             for (int i = 0; i < NUM_DOCS; i++) {
@@ -70,10 +73,9 @@ public class LuceneSourceOperatorCostAwareStrategyTests extends ESTestCase {
         reader = DirectoryReader.open(directory);
     }
 
-    @Override
-    public void tearDown() throws Exception {
+    @After
+    public void closeIndex() throws Exception {
         IOUtils.close(reader, directory);
-        super.tearDown();
     }
 
     // --- no-limit (STATS): the cost threshold applies, same as TopN/count ---
@@ -99,11 +101,28 @@ public class LuceneSourceOperatorCostAwareStrategyTests extends ESTestCase {
         assertThat(pick(LongPoint.newRangeQuery("pt", 0, NUM_DOCS / 2), NO_LIMIT), equalTo(SEGMENT));
     }
 
-    // --- implicit limit: deferred, always SHARD ---
+    // --- implicit limit: cost-aware, not always SHARD ---
 
-    public void testLimitedScanPicksShard() throws IOException {
-        assertThat(pick(SortedNumericDocValuesField.newSlowRangeQuery("dv", 0, NUM_DOCS / 2), between(1, 1000)), equalTo(SHARD));
+    public void testLimitedDocValuesScanPicksDoc() throws IOException {
+        // Doc-values-only filter (no BKD): cost ≈ maxDoc, so SHARD would scan ~maxDoc single-threaded.
+        // The limit is unlikely to fire (very few matches), so parallelise with DOC instead.
+        assertThat(pick(SortedNumericDocValuesField.newSlowRangeQuery("dv", 0, NUM_DOCS / 2), between(1, 1000)), equalTo(DOC));
+    }
+
+    public void testLimitedMatchAllPicksShard() throws IOException {
+        // FROM foo | LIMIT N: MatchAll early-terminates immediately, keep low-overhead SHARD.
         assertThat(pick(Queries.ALL_DOCS_INSTANCE, between(1, 1000)), equalTo(SHARD));
+    }
+
+    public void testLimitedCheapTermPicksShard() throws IOException {
+        // Term query: not costly to build, cost = 1 (below threshold) → SHARD.
+        assertThat(pick(new TermQuery(new Term("kw", "v7")), between(1, 1000)), equalTo(SHARD));
+    }
+
+    public void testLimitedPointRangePicksShard() throws IOException {
+        // BKD point range: costly to build, so keep SHARD — single shard-level BKD walk beats
+        // one scorer-rebuild per segment when the limit fires early.
+        assertThat(pick(LongPoint.newRangeQuery("pt", 0, NUM_DOCS / 2), between(1, 1000)), equalTo(SHARD));
     }
 
     private static final int NO_LIMIT = LuceneOperator.NO_LIMIT;

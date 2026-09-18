@@ -35,12 +35,14 @@ import org.elasticsearch.xpack.esql.plan.logical.Eval;
 import org.elasticsearch.xpack.esql.plan.logical.Filter;
 import org.elasticsearch.xpack.esql.plan.logical.Fork;
 import org.elasticsearch.xpack.esql.plan.logical.Grok;
+import org.elasticsearch.xpack.esql.plan.logical.InsertEmptyBuckets;
 import org.elasticsearch.xpack.esql.plan.logical.IpLocation;
 import org.elasticsearch.xpack.esql.plan.logical.LeafPlan;
 import org.elasticsearch.xpack.esql.plan.logical.Limit;
 import org.elasticsearch.xpack.esql.plan.logical.LimitBy;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.esql.plan.logical.MMR;
+import org.elasticsearch.xpack.esql.plan.logical.MergePlan;
 import org.elasticsearch.xpack.esql.plan.logical.MvExpand;
 import org.elasticsearch.xpack.esql.plan.logical.NamedSubquery;
 import org.elasticsearch.xpack.esql.plan.logical.OrderBy;
@@ -58,6 +60,7 @@ import org.elasticsearch.xpack.esql.plan.logical.UriParts;
 import org.elasticsearch.xpack.esql.plan.logical.UserAgent;
 import org.elasticsearch.xpack.esql.plan.logical.ViewUnionAll;
 import org.elasticsearch.xpack.esql.plan.logical.inference.Completion;
+import org.elasticsearch.xpack.esql.plan.logical.inference.DenseVector;
 import org.elasticsearch.xpack.esql.plan.logical.inference.Rerank;
 import org.elasticsearch.xpack.esql.plan.logical.join.InlineJoin;
 import org.elasticsearch.xpack.esql.plan.logical.join.Join;
@@ -108,6 +111,7 @@ public class ApproximationVerifier {
         new SimpleImmutableEntry<>(Aggregate.class, SupportedVersion.SUPPORTED_ON_ALL_NODES),
         new SimpleImmutableEntry<>(ChangePoint.class, SupportedVersion.SUPPORTED_ON_ALL_NODES),
         new SimpleImmutableEntry<>(Completion.class, SupportedVersion.SUPPORTED_ON_ALL_NODES),
+        new SimpleImmutableEntry<>(DenseVector.class, SupportedVersion.SUPPORTED_ON_ALL_NODES),
         new SimpleImmutableEntry<>(Dissect.class, SupportedVersion.SUPPORTED_ON_ALL_NODES),
         new SimpleImmutableEntry<>(Enrich.class, SupportedVersion.SUPPORTED_ON_ALL_NODES),
         new SimpleImmutableEntry<>(EsRelation.class, SupportedVersion.SUPPORTED_ON_ALL_NODES),
@@ -116,6 +120,7 @@ public class ApproximationVerifier {
         new SimpleImmutableEntry<>(Fork.class, SupportedVersion.SUPPORTED_ON_ALL_NODES),
         new SimpleImmutableEntry<>(Grok.class, SupportedVersion.SUPPORTED_ON_ALL_NODES),
         new SimpleImmutableEntry<>(InlineJoin.class, SupportedVersion.SUPPORTED_ON_ALL_NODES),
+        new SimpleImmutableEntry<>(InsertEmptyBuckets.class, SupportedVersion.SUPPORTED_ON_ALL_NODES),
         new SimpleImmutableEntry<>(IpLocation.class, SupportedVersion.SUPPORTED_ON_ALL_NODES),
         new SimpleImmutableEntry<>(Join.class, SupportedVersion.supportedSince(TV_LOOKUP_JOIN, TV_LOOKUP_JOIN)),
         new SimpleImmutableEntry<>(Limit.class, SupportedVersion.SUPPORTED_ON_ALL_NODES),
@@ -172,6 +177,7 @@ public class ApproximationVerifier {
      */
     private static final Set<Class<? extends LogicalPlan>> ROW_PRESERVING_COMMANDS = Set.of(
         Completion.class,
+        DenseVector.class,
         Dissect.class,
         Enrich.class,
         Eval.class,
@@ -280,32 +286,32 @@ public class ApproximationVerifier {
             }
         });
 
-        // Check whether there's a FORK.
-        List<Fork> forks = logicalPlan.collect(Fork.class);
-        if (forks.isEmpty()) {
-            // When there's no FORK, verify this logical plan.
+        // Check whether there's a MergePlan (FORK, UnionAll, ViewUnionAll).
+        List<MergePlan> mergePlans = logicalPlan.collect(MergePlan.class);
+        if (mergePlans.isEmpty()) {
+            // When there's no merge, verify this logical plan.
             return verifyBranchOrThrow(logicalPlan);
         } else {
-            // When there's a FORK, find the structure.
-            if (forks.size() > 1) {
+            // When there's a merge, find the structure.
+            if (mergePlans.size() > 1) {
                 // Often these queries will fail anyway, because multiple or nested forks or subqueries
                 // are not supported. However, that check is postponed until after logical optimization,
                 // because sometimes they can be flattened. See also: UnionAll::checkNestedUnionAlls.
                 throw new VerificationException(
                     "line {}:{}: approximation not supported: query with multiple or nested forks or subqueries cannot be approximated",
-                    forks.get(1).source().source().getLineNumber(),
-                    forks.get(1).source().source().getColumnNumber()
+                    mergePlans.get(1).source().source().getLineNumber(),
+                    mergePlans.get(1).source().source().getColumnNumber()
                 );
             }
 
-            Fork fork = forks.getFirst();
+            MergePlan mergePlan = mergePlans.getFirst();
 
-            boolean statsInBranches = fork.anyMatch(plan -> plan instanceof Aggregate);
+            boolean statsInBranches = mergePlan.anyMatch(plan -> plan instanceof Aggregate);
 
             if (statsInBranches == false) {
-                // When the FORK is after the STATS, like
+                // When the merge is after the STATS, like
                 // - FROM index | FORK (...) (...) | STATS ...
-                // verify there's just one STATS, and verify as if there were no FORK.
+                // verify there's just one STATS, and verify as if there were no merge.
                 List<Aggregate> aggregates = logicalPlan.collect(Aggregate.class);
                 if (aggregates.size() > 1) {
                     throw new ChainedStatsVerificationException(logicalPlan);
@@ -319,9 +325,9 @@ public class ApproximationVerifier {
                 List<QueryProperties> branchProperties = new ArrayList<>();
 
                 VerificationException firstVerificationException = null;
-                for (int branchIndex = 0; branchIndex < fork.children().size(); branchIndex++) {
+                for (int branchIndex = 0; branchIndex < mergePlan.children().size(); branchIndex++) {
                     int branchIndexFinal = branchIndex;
-                    LogicalPlan branch = logicalPlan.transformDown(Fork.class, f -> f.children().get(branchIndexFinal));
+                    LogicalPlan branch = logicalPlan.transformDown(MergePlan.class, f -> f.children().get(branchIndexFinal));
                     try {
                         branchProperties.add(verifyBranchOrThrow(branch));
                     } catch (VerificationException e) {

@@ -1,5 +1,0 @@
-area: ES|QL
-issues: []
-pr: 152854
-summary: Preserve secrets on data source PUT
-type: enhancement

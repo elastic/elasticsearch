@@ -19,6 +19,7 @@ import org.elasticsearch.search.lookup.SearchLookup;
 import org.elasticsearch.search.lookup.Source;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xcontent.XContentType;
+import org.junit.Before;
 
 import java.io.IOException;
 import java.text.ParseException;
@@ -34,9 +35,8 @@ public class ExpressionFieldScriptTests extends ESTestCase {
     private ExpressionScriptEngine service;
     private SearchLookup lookup;
 
-    @Override
-    public void setUp() throws Exception {
-        super.setUp();
+    @Before
+    public void initService() throws Exception {
 
         NumberFieldMapper.NumberFieldType fieldType = new NumberFieldMapper.NumberFieldType("field", NumberFieldMapper.NumberType.DOUBLE);
 

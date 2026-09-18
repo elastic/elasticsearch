@@ -1,5 +1,0 @@
-area: Vector Search
-issues: []
-pr: 155205
-summary: Fix IVF query cache correctness by including resolver in equals/hashCode
-type: bug

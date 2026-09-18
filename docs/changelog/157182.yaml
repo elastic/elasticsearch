@@ -1,0 +1,5 @@
+area: Inference
+issues: []
+pr: 157182
+summary: "[Inference API] Surface EIS 422 errors as validation errors"
+type: enhancement

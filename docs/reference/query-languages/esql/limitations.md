@@ -31,7 +31,9 @@ By default, an {{esql}} query returns up to 1,000 rows. You can increase the num
     * The following functions don’t yet support date nanos: `bucket`, `date_format`, `date_parse`, `date_diff`, `date_extract`
     * You can use `to_datetime` to cast to millisecond dates to use unsupported functions
 
+* `date_range` [range family](/reference/elasticsearch/mapping-reference/range.md) {applies_to}`stack: preview 9.5.0` {applies_to}`serverless: preview`
 * `double` (`float`, `half_float`, `scaled_float` are represented as `double`)
+* `double_range` [range family](/reference/elasticsearch/mapping-reference/range.md) {applies_to}`stack: preview 9.6.0` {applies_to}`serverless: preview`
 * `dense_vector` {applies_to}`stack: preview 9.2+` {applies_to}`serverless: preview`
 * `flattened` {applies_to}`stack: preview 9.5.0`
 * `ip`
@@ -52,8 +54,8 @@ By default, an {{esql}} query returns up to 1,000 rows. You can increase the num
    * `counter`
    * `gauge`
    * `aggregate_metric_double`: Aggregation functions that do not natively support `aggregate_metric_double` will use the average value and treat it as a `double`. {applies_to}`stack: preview 9.4` {applies_to}`serverless: preview`
-   * `exponential_histogram` {applies_to}`stack: preview 9.3+, ga 9.4.0`
-   * `tdigest` {applies_to}`stack: preview 9.3+, ga 9.4.0`
+   * [`exponential_histogram`](/reference/query-languages/esql/esql-histogram-fields.md) {applies_to}`stack: preview 9.3+, ga 9.4.0`
+   * [`tdigest`](/reference/query-languages/esql/esql-histogram-fields.md) {applies_to}`stack: preview 9.3+, ga 9.4.0`
 
 
 ### Unsupported types [_unsupported_types]
@@ -70,15 +72,15 @@ By default, an {{esql}} query returns up to 1,000 rows. You can increase the num
 
     * `binary`
     * `completion`
-    * `double_range`
     * `float_range`
-    * `histogram`
+    * `histogram` (can be queried via [casting to `tdigest` or `exponential_histogram`](/reference/query-languages/esql/esql-histogram-fields.md#cast-between-histogram-types))
     * `integer_range`
     * `ip_range`
     * `long_range`
     * `nested`
     * `rank_feature`
     * `rank_features`
+    * `rank_vectors`
     * `search_as_you_type`
 
 
@@ -154,27 +156,13 @@ Runtime fields are different from unmapped fields. An unmapped field is a field 
 
 ## Full-text search [esql-limitations-full-text-search]
 
+### Position restriction on indexed fields [esql-limitations-full-text-search-position]
+
 One limitation of [full-text search](/reference/query-languages/esql/functions-operators/search-functions.md) is that it is necessary to use the search function,
 like [`MATCH`](/reference/query-languages/esql/functions-operators/search-functions/match.md),
 in a [`WHERE`](/reference/query-languages/esql/commands/where.md) command directly after the
 [`FROM`](/reference/query-languages/esql/commands/from.md) source command, or close enough to it.
 Otherwise, the query will fail with a validation error.
-
-{applies_to}`stack: preview 9.5` {applies_to}`serverless: preview`
-This restriction does not apply when `MATCH` targets an expression rather
-than an indexed field (for example, a column produced by `EVAL` or `STATS`).
-In that case, `MATCH` evaluates by scanning values row by row instead of
-using the index, and can appear anywhere in the query.
-When searching expressions:
-
-* [Function named parameters](/reference/query-languages/esql/esql-syntax.md#esql-function-named-params)
-  (match query options) are not supported.
-* `MATCH` on an expression does not contribute to the relevance score when
-  using `METADATA _score`.
-
-{applies_to}`stack: preview 9.6` {applies_to}`serverless: preview`
-[`MATCH_PHRASE`](/reference/query-languages/esql/functions-operators/search-functions/match_phrase.md)
-supports targeting `text` and `keyword` expressions in the same way, with the same limitations.
 
 For example, this query is valid:
 
@@ -191,8 +179,141 @@ FROM books
 | WHERE MATCH(author, "Faulkner")
 ```
 
-Note that any queries on `text` fields that do not explicitly use the full-text functions,
+{applies_to}`stack: ga 9.6` {applies_to}`serverless: ga`
+[`INLINE STATS`](/reference/query-languages/esql/commands/inlinestats-by.md) is an exception:
+it can appear between `FROM` and the `WHERE` command without causing the query to fail.
+Unlike `STATS`, it appends the aggregated values as new columns and keeps every input row,
+so the search function can still use the index:
+
+```esql
+FROM books
+| INLINE STATS max_year = MAX(year) BY publisher
+| WHERE MATCH(author, "Faulkner") AND year == max_year
+```
+
+This applies to `MATCH`,
+[`MATCH_PHRASE`](/reference/query-languages/esql/functions-operators/search-functions/match_phrase.md),
+and the `:` operator. Other search functions, such as
+[`KQL`](/reference/query-languages/esql/functions-operators/search-functions/kql.md) and
+[`QSTR`](/reference/query-languages/esql/functions-operators/search-functions/qstr.md), are
+still not supported after `INLINE STATS`. A `STATS` command before the search function still
+causes the query to fail, even if an `INLINE STATS` comes after it.
+
+### Runtime search on expressions [esql-limitations-full-text-search-expressions]
+
+{applies_to}`stack: preview 9.5` {applies_to}`serverless: preview`
+`MATCH` can also target an expression rather than an indexed field, for example a column
+produced by `EVAL` or `STATS`. It then evaluates by scanning the column's values row by row
+instead of using the index.
+
+{applies_to}`stack: preview 9.6` {applies_to}`serverless: preview`
+Because such a search does not use the index, the restriction above does not apply to it: it can
+appear anywhere in the query, including after `STATS`, `LIMIT` and `FORK`. (In earlier versions it
+was restricted to the same positions as a search on an indexed field. Searching a mapped `text` field
+that `FORK` merged is the one exception, described below.) For example, this query is accepted:
+
+```esql
+FROM books
+| SORT book_no
+| LIMIT 10
+| EVAL content = TO_TEXT(CONCAT(title, " ", description))
+| WHERE MATCH(content, "Tolkien")
+```
+
+The restriction is lifted per search function, not per `WHERE` command, so a search on an indexed
+field sharing the command still fails. (e.g. if `content` was an indexed field instead, the query would be rejected.)
+
+{applies_to}`stack: preview 9.6` {applies_to}`serverless: preview`
+[`MATCH_PHRASE`](/reference/query-languages/esql/functions-operators/search-functions/match_phrase.md)
+supports targeting `text` and `keyword` expressions in the same way, with the same limitations.
+
+{applies_to}`stack: preview 9.6` {applies_to}`serverless: preview`
+When searching expressions, [function named parameters](/reference/query-languages/esql/esql-syntax.md#esql-function-named-params)
+(match query options) are supported on `text` expressions. As on an indexed field, the `analyzer`
+option applies to the query string only: how the expression's values are analyzed is declared where
+the column is created, through
+[`TO_TEXT`](/reference/query-languages/esql/functions-operators/type-conversion-functions/to_text.md)'s
+`analyzer` option, and the query analyzer defaults to that values analyzer (`standard` when none is
+declared). Analyzer names must name a registered analyzer (prebuilt or plugin-contributed), not a
+per-index custom analyzer. On other expression types options are not supported.
+
+### Analyzer used for a runtime search [esql-limitations-full-text-search-analyzer]
+
+{applies_to}`stack: preview 9.6` {applies_to}`serverless: preview`
+An indexed `text` field is sometimes searched as an expression rather than through the index, and its values are
+then analyzed with the values analyzer of the column rather than the one its mapping declares: `standard`, unless it uses
+`TO_TEXT` with its optional `analyzer` argument. This applies whenever the field cannot be searched through the
+index, which includes the column [`MV_EXPAND`](/reference/query-languages/esql/commands/mv_expand.md) expanded and
+a field that is not mapped the same way across every index the query reads. Searching the field where it can still
+use the index uses the mapping's analyzer.
+
+{applies_to}`stack: preview 9.6` {applies_to}`serverless: preview`
+What [`FORK`](/reference/query-languages/esql/commands/fork.md) outputs is not index-backed either, but there the
+mapped-`text` case is rejected rather than answered with the substituted analyzer. Declare the analyzer on the
+merged column to search it, which is allowed because the merged column is no longer an indexed field, or search the
+field inside the `FORK` branches instead:
+
+```esql
+FROM books
+| FORK (SORT book_no | LIMIT 5)
+       (SORT book_no DESC | LIMIT 5)
+| EVAL t = TO_TEXT(title, {"analyzer": "whitespace"})
+| WHERE MATCH(t, "Tolkien")
+```
+
+This only applies to a column the merge actually makes non-indexed. Where no branch contains a pipeline breaker
+such as `LIMIT` or `STATS`, the search is pushed into the branches and still uses the index, so it is unaffected.
+`FORK` branches that declare different values analyzers for the same column are rejected too, since the merged
+column can only carry one of them.
+
+:::{warning}
+`MV_EXPAND`, and a field that is not mapped the same way across every index the query reads, substitute the
+analyzer without reporting it. A field whose mapping declares an analyzer other than `standard` is then searched
+differently depending on where in the query it is searched, and the query succeeds while quietly matching a
+different set of documents. Either search the field before the command that turns it into an expression, or declare
+the analyzer again on `TO_TEXT` afterwards, which is allowed once the column is no longer an indexed field:
+
+```esql
+FROM books
+| MV_EXPAND author
+| EVAL a = TO_TEXT(author, {"analyzer": "whitespace"})
+| WHERE MATCH(a, "Tolkien")
+```
+:::
+
+Which column `MV_EXPAND` expanded therefore decides how the field is searched. Both of these expand
+`author`, which a book can have several of, but only the first searches the expanded column and so
+becomes a runtime search:
+
+```esql
+FROM books
+| MV_EXPAND author
+| WHERE MATCH(author, "Tolkien")
+```
+
+The second searches an indexed field instead, which is still subject to the restriction above and
+fails after `MV_EXPAND`:
+
+```esql
+FROM books
+| MV_EXPAND author
+| WHERE MATCH(title, "Tolkien")
+```
+
+### Scoring for a runtime search [esql-limitations-full-text-search-scoring]
+
+{applies_to}`stack: preview 9.6` {applies_to}`serverless: preview`
+When using `METADATA _score`, `MATCH` on an expression contributes to the relevance score:
+a row scores the `boost` option (1.0 by default) for each query term occurrence it matches
+(duplicate query terms each contribute separately), rather than BM25, as there are no index
+statistics for an expression. In earlier versions, `MATCH` on an expression does not contribute
+to the score.
+
+### Text fields without a search function [esql-limitations-full-text-search-keyword-fallback]
+
+Lastly, note that any queries on `text` fields that do not explicitly use the full-text functions,
 [`MATCH`](/reference/query-languages/esql/functions-operators/search-functions/match.md),
+[`MATCH_PHRASE`](/reference/query-languages/esql/functions-operators/search-functions/match_phrase.md),
 [`QSTR`](/reference/query-languages/esql/functions-operators/search-functions/qstr.md) or
 [`KQL`](/reference/query-languages/esql/functions-operators/search-functions/kql.md),
 will behave as if the fields are actually `keyword` fields: they are case-sensitive and need to match the full string.

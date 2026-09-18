@@ -31,6 +31,7 @@ import io.netty.handler.codec.http.HttpVersion;
 import io.netty.handler.codec.http.LastHttpContent;
 
 import org.elasticsearch.test.ESTestCase;
+import org.junit.Before;
 
 import java.util.Arrays;
 import java.util.List;
@@ -66,9 +67,8 @@ public class Netty4HttpContentSizeHandlerTests extends ESTestCase {
         return out;
     }
 
-    @Override
-    public void setUp() throws Exception {
-        super.setUp();
+    @Before
+    public void initChannel() throws Exception {
         var decoder = new HttpRequestDecoder();
         encoder = new EmbeddedChannel(new HttpRequestEncoder());
         readSniffer = new ReadSniffer();

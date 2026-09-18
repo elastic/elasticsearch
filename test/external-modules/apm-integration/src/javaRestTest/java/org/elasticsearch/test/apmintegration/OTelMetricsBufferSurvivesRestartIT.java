@@ -19,8 +19,8 @@ import java.util.concurrent.atomic.AtomicBoolean;
 
 public class OTelMetricsBufferSurvivesRestartIT extends AbstractTelemetryIT {
 
-    // Poll past the fixed production read-min-age window (33s) before the pre-existing file becomes drainable.
-    private static final int BUFFER_DRAIN_TIMEOUT = 60;
+    // A pre-existing buffer file is sealed on shutdown (or recovered on startup), so it is drainable right after restart.
+    private static final int BUFFER_DRAIN_TIMEOUT = 3;
 
     public static RecordingApmServer recordingApmServer = new RecordingApmServer();
 
@@ -29,6 +29,8 @@ public class OTelMetricsBufferSurvivesRestartIT extends AbstractTelemetryIT {
         .setting("telemetry.export.endpoint", () -> recordingApmServer.getGrpcEndpoint())
         .setting("telemetry.metrics.buffer.disk_size", "10mb")
         .setting("telemetry.metrics.buffer.ttl", "5m")
+        // Seal buffer files quickly (production default is 30s) so the pre-existing file is drainable right after restart.
+        .systemProperty("telemetry.metrics.buffer.write_window", "200ms")
         // interval > send_timeout > initial_backoff so a failing export fully fails within an interval and the
         // PeriodicMetricReader does not skip a cycle.
         .setting("telemetry.export.interval", "1000ms")

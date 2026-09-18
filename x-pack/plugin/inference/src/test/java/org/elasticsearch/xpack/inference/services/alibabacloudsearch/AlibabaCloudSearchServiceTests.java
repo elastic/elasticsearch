@@ -829,7 +829,9 @@ public class AlibabaCloudSearchServiceTests extends InferenceServiceTestCase {
             HOST_VALUE,
             WORKSPACE_NAME_VALUE
         );
-        serviceSettingsMap.put(SIMILARITY, similarity == null ? null : similarity.toString());
+        if (similarity != null) {
+            serviceSettingsMap.put(SIMILARITY, similarity.toString());
+        }
         return new AlibabaCloudSearchEmbeddingsModel(
             "modelId",
             TaskType.TEXT_EMBEDDING,

@@ -78,6 +78,7 @@ import org.elasticsearch.xpack.esql.optimizer.rules.logical.ReplaceSparklineAggr
 import org.elasticsearch.xpack.esql.optimizer.rules.logical.ReplaceStatsFilteredOrNullAggWithEval;
 import org.elasticsearch.xpack.esql.optimizer.rules.logical.ReplaceStringCasingWithInsensitiveEquals;
 import org.elasticsearch.xpack.esql.optimizer.rules.logical.ReplaceTrivialTypeConversions;
+import org.elasticsearch.xpack.esql.optimizer.rules.logical.RewriteDateFunctionComparisons;
 import org.elasticsearch.xpack.esql.optimizer.rules.logical.RewriteSumOfExpressionPlusConstant;
 import org.elasticsearch.xpack.esql.optimizer.rules.logical.SetAsOptimized;
 import org.elasticsearch.xpack.esql.optimizer.rules.logical.SimplifyComparisonsArithmetics;
@@ -126,8 +127,8 @@ public class LogicalPlanOptimizer extends ParameterizedRuleExecutor<LogicalPlan,
         substitutions(),
         operators(),
         // After operators() has converged, so the UnionAll pushdowns gated on PushDownUtils.isLeafUnionAll
-        // see the plain relation shape. This rule replaces a relation with Project > Eval > relation, which
-        // is the FORK branch shape, and would switch those pushdowns off for the rest of that batch.
+        // see the plain relation shape. This rule replaces a relation with Project > Eval > relation, and
+        // that Eval stops the gate matching, which would switch those pushdowns off for the rest of a batch.
         new Batch<>(
             "Materialize Relation Columns",
             Limiter.ONCE,
@@ -234,6 +235,8 @@ public class LogicalPlanOptimizer extends ParameterizedRuleExecutor<LogicalPlan,
             // boolean
             new BooleanSimplification(),
             new LiteralsOnTheRight(),
+            // invert DATE_TRUNC / monotonic DATE_EXTRACT so later rules see field-vs-literal inequalities
+            new RewriteDateFunctionComparisons(),
             // needs to occur before BinaryComparison combinations (see class)
             new PropagateEquals(),
             new PropagateNullable(),

@@ -19,6 +19,7 @@ You can query data stored in compatible external data sources, using the same sy
 
 - This is an experimental feature and is not enabled by default. Refer to [Enable the feature](#enable-the-feature).
 - For {{ech}}, {{ece}}, and {{eck}} deployments or self-managed clusters, ES|QL Data Federation requires an [Enterprise subscription](https://www.elastic.co/subscriptions).
+- Currently, this feature is not supported on Windows.
 
 ## Enable the feature
 
@@ -115,6 +116,8 @@ For details on type-specific settings and format options, refer to [](esql-data-
 Datasets behave like indices. In most places where {{esql}} accepts an index name, it accepts a dataset name too: `FROM`, `WHERE`, `STATS`, `SORT`, `EVAL`, `KEEP`, and the rest of the processing commands work the same way, on the same execution engine used for native indices. You can query a dataset on its own, or alongside indices, aliases, and views, in the same `FROM`.
 
 The exceptions are operations that need structures only an {{es}} index has, such as the inverted index, doc values, or time series metadata. Relevance scoring does not use BM25: a dataset row scores zero unless a search function contributes to it. `KNN`, `LOOKUP JOIN` with a dataset as the lookup target, and `TS` each fail with a clear error rather than returning wrong results. For the full list, refer to [query limitations](esql-data-federation-querying.md#limitations).
+
+{{esql}} Data Federation is not currently supported on Windows.
 
 ## Get started
 

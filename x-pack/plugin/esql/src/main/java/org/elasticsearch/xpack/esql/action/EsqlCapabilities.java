@@ -3564,6 +3564,13 @@ public class EsqlCapabilities {
          */
         OPTIONAL_FIELDS_FIX_UNMAPPED_OBJECT_VALUE,
 
+        /**
+         * The {@code partition_detection} and {@code partition_path} dataset settings reach the read path:
+         * {@code none} suppresses detection and the Hive column-shadow substitution with it, and
+         * {@code template} binds and prunes on the templated column.
+         */
+        PARTITION_DETECTION_ON_READ_PATH,
+
         // Last capability should still have a comma for fewer merge conflicts when adding new ones :)
         // This comment prevents the semicolon from being on the previous capability when Spotless formats the file.
         ;

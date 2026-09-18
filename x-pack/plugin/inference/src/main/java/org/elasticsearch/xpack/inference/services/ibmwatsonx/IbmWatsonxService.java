@@ -135,7 +135,9 @@ public class IbmWatsonxService extends SenderService<IbmWatsonxModel> implements
             ChunkingSettings chunkingSettings = null;
             if (TaskType.TEXT_EMBEDDING.equals(taskType)) {
                 chunkingSettings = ChunkingSettingsBuilder.fromMap(
-                    removeFromMapOrDefaultEmpty(config, ModelConfigurations.CHUNKING_SETTINGS)
+                    removeFromMapOrDefaultEmpty(config, ModelConfigurations.CHUNKING_SETTINGS),
+                    true,
+                    true
                 );
             }
 
@@ -301,6 +303,7 @@ public class IbmWatsonxService extends SenderService<IbmWatsonxModel> implements
         var batchedRequests = new EmbeddingRequestChunker<>(
             input,
             EMBEDDING_MAX_BATCH_SIZE,
+            getRegexReadLimitFactor(),
             ibmWatsonxModel.getConfigurations().getChunkingSettings()
         ).batchRequestsWithListeners(listener);
 

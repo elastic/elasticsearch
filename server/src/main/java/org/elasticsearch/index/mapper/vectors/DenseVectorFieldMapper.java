@@ -1982,11 +1982,11 @@ public class DenseVectorFieldMapper extends FieldMapper {
         @Override
         public void toXContentFragment(XContentBuilder builder, Params params) throws IOException {
             builder.field("type", type);
-            if (rescoreVector != null) {
-                rescoreVector.toXContent(builder, params);
-            }
             if (confidenceInterval != null) {
                 builder.field("confidence_interval", confidenceInterval);
+            }
+            if (rescoreVector != null) {
+                rescoreVector.toXContent(builder, params);
             }
         }
 
@@ -2194,11 +2194,11 @@ public class DenseVectorFieldMapper extends FieldMapper {
         @Override
         public void toXContentFragment(XContentBuilder builder, Params params) throws IOException {
             builder.field("type", type);
-            if (rescoreVector != null) {
-                rescoreVector.toXContent(builder, params);
-            }
             if (confidenceInterval != null) {
                 builder.field("confidence_interval", confidenceInterval);
+            }
+            if (rescoreVector != null) {
+                rescoreVector.toXContent(builder, params);
             }
         }
 

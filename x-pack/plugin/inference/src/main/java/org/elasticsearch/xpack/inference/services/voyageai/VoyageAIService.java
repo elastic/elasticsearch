@@ -146,7 +146,9 @@ public class VoyageAIService extends SenderService<VoyageAIModel> implements Rer
             ChunkingSettings chunkingSettings = null;
             if (TaskType.TEXT_EMBEDDING.equals(taskType)) {
                 chunkingSettings = ChunkingSettingsBuilder.fromMap(
-                    removeFromMapOrDefaultEmpty(config, ModelConfigurations.CHUNKING_SETTINGS)
+                    removeFromMapOrDefaultEmpty(config, ModelConfigurations.CHUNKING_SETTINGS),
+                    true,
+                    true
                 );
             }
             VoyageAIModel model = createModel(
@@ -266,6 +268,7 @@ public class VoyageAIService extends SenderService<VoyageAIModel> implements Rer
         List<EmbeddingRequestChunker.BatchRequestAndListener> batchedRequests = new EmbeddingRequestChunker<>(
             inputs,
             getBatchSize(voyageaiModel),
+            getRegexReadLimitFactor(),
             voyageaiModel.getConfigurations().getChunkingSettings()
         ).batchRequestsWithListeners(listener);
 

@@ -138,7 +138,9 @@ public class GoogleVertexAiService extends SenderService<GoogleVertexAiModel> im
             ChunkingSettings chunkingSettings = null;
             if (TaskType.TEXT_EMBEDDING.equals(taskType)) {
                 chunkingSettings = ChunkingSettingsBuilder.fromMap(
-                    removeFromMapOrDefaultEmpty(config, ModelConfigurations.CHUNKING_SETTINGS)
+                    removeFromMapOrDefaultEmpty(config, ModelConfigurations.CHUNKING_SETTINGS),
+                    true,
+                    true
                 );
             }
 
@@ -271,6 +273,7 @@ public class GoogleVertexAiService extends SenderService<GoogleVertexAiModel> im
         List<EmbeddingRequestChunker.BatchRequestAndListener> batchedRequests = new EmbeddingRequestChunker<>(
             inputs,
             serviceSettings.maxBatchSize() == null ? EMBEDDING_MAX_BATCH_SIZE : serviceSettings.maxBatchSize(),
+            getRegexReadLimitFactor(),
             googleVertexAiModel.getConfigurations().getChunkingSettings()
         ).batchRequestsWithListeners(listener);
 

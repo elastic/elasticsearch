@@ -820,7 +820,10 @@ public class S3StorageProvider implements StorageProvider {
             if (unavailable != null) {
                 throw unavailable;
             }
-            throw new IOException("Failed to check existence of external object: " + S3FailureDetail.of(e) + credentialHint() + regionHint(), e);
+            throw new IOException(
+                "Failed to check existence of external object: " + S3FailureDetail.of(e) + credentialHint() + regionHint(),
+                e
+            );
         }
     }
 

@@ -214,13 +214,12 @@ public class IvfAutoCalibration {
      * Returns an {@link IvfMergeConfigResolver} that runs merge-time auto-calibration for the given cluster size.
      */
     public static IvfMergeConfigResolver mergeConfigResolver(int vectorsPerCluster) {
-        return (fieldInfo, mergeState, codecDefault) -> new IvfAutoCalibration(
+        return mergeConfigResolver(
             vectorsPerCluster,
             ES950DiskBBQVectorsFormat.DEFAULT_PRECONDITIONING_BLOCK_DIMENSION,
             DEFAULT_TARGET_RECALL,
-            DEFAULT_K,
-            maxDocBitsFrom(codecDefault)
-        ).resolve(fieldInfo, mergeState, codecDefault);
+            DEFAULT_K
+        );
     }
 
     /**
@@ -267,6 +266,16 @@ public class IvfAutoCalibration {
             logger.warn("calibration failed on merge, falling back to codec default encoding", e);
             return codecDefault;
         }
+    }
+
+    static IvfMergeConfigResolver mergeConfigResolver(int vectorsPerCluster, int blockDimension, double targetRecall, int k) {
+        return (fieldInfo, mergeState, codecDefault) -> new IvfAutoCalibration(
+            vectorsPerCluster,
+            blockDimension,
+            targetRecall,
+            k,
+            maxDocBitsFrom(codecDefault)
+        ).resolve(fieldInfo, mergeState, codecDefault);
     }
 
     /**

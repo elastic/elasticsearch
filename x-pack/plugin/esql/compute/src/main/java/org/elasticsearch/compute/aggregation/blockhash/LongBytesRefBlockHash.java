@@ -278,40 +278,45 @@ public final class LongBytesRefBlockHash extends BlockHash {
     }
 
     BytesRefBlock readBytesOrdinals(IntVector oldOrds) {
-        final int[] mappedOrds = new int[Math.toIntExact(bytesHash.size())];
-        Arrays.fill(mappedOrds, -1);
-        final IntVector newOrds;
-        int nextOrd = 0;
-        try (var ordsBuilder = blockFactory.newIntVectorFixedBuilder(oldOrds.getPositionCount())) {
-            for (int i = 0; i < oldOrds.getPositionCount(); i++) {
-                int ord = oldOrds.getInt(i);
-                int newOrd = mappedOrds[ord];
-                if (newOrd == -1) {
-                    newOrd = nextOrd++;
-                    mappedOrds[ord] = newOrd;
+        final long dictSize = bytesHash.size();
+        blockFactory.adjustBreaker(dictSize * Integer.BYTES);
+        IntVector newOrds = null;
+        BytesRefVector dict = null;
+        try {
+            int nextOrd = 0;
+            final int[] mappedOrds = new int[Math.toIntExact(dictSize)];
+            Arrays.fill(mappedOrds, -1);
+            try (var builder = blockFactory.newIntVectorFixedBuilder(oldOrds.getPositionCount())) {
+                for (int i = 0; i < oldOrds.getPositionCount(); i++) {
+                    int ord = oldOrds.getInt(i);
+                    int newOrd = mappedOrds[ord];
+                    if (newOrd == -1) {
+                        newOrd = nextOrd++;
+                        mappedOrds[ord] = newOrd;
+                    }
+                    builder.appendInt(i, newOrd);
                 }
-                ordsBuilder.appendInt(i, newOrd);
+                newOrds = builder.build();
             }
-            newOrds = ordsBuilder.build();
-        }
-        boolean success = false;
-        try (var builder = blockFactory.newBytesRefVectorBuilder(nextOrd)) {
-            BytesRef scratch = new BytesRef();
-            nextOrd = 0;
-            for (int p = 0; p < oldOrds.getPositionCount(); p++) {
-                int ord = oldOrds.getInt(p);
-                if (mappedOrds[ord] == nextOrd) {
-                    builder.appendBytesRef(bytesHash.get(ord, scratch));
-                    nextOrd++;
+            try (var builder = blockFactory.newBytesRefVectorBuilder(nextOrd)) {
+                BytesRef scratch = new BytesRef();
+                nextOrd = 0;
+                for (int p = 0; p < oldOrds.getPositionCount(); p++) {
+                    int ord = oldOrds.getInt(p);
+                    if (mappedOrds[ord] == nextOrd) {
+                        builder.appendBytesRef(bytesHash.get(ord, scratch));
+                        nextOrd++;
+                    }
                 }
+                dict = builder.build();
             }
-            var dict = builder.build();
-            success = true;
-            return new OrdinalBytesRefVector(newOrds, dict).asBlock();
+            var result = new OrdinalBytesRefVector(newOrds, dict).asBlock();
+            dict = null;
+            newOrds = null;
+            return result;
         } finally {
-            if (success == false) {
-                newOrds.close();
-            }
+            blockFactory.adjustBreaker(-dictSize * Integer.BYTES);
+            Releasables.close(newOrds, dict);
         }
     }
 

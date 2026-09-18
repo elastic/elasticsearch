@@ -46,29 +46,37 @@ public abstract class UpdateTransportVersionsCSVTask extends DefaultTask {
             throw new RuntimeException("Missing upper bound " + upperBoundName + " for stack version " + stackVersion);
         }
 
-        int expectedTransportVersionId = upperBound.definitionId().complete();
+        int upperBoundId = upperBound.definitionId().complete();
 
-        // Check if this version is already in the CSV file (idempotency check)
+        // Once a stack version has been recorded it is immutable: it captures the highest transport version id that
+        // shipped in that release. The upper bound read above only ever moves forward, and finalizing a release moves
+        // it forward itself, by generating the initial transport version for the next stack version. So when a
+        // finalization is retried after partially completing, the recorded id is expected to trail the current upper
+        // bound, and the already recorded id is the one to keep. An id ahead of the upper bound could never have
+        // shipped, so that is still an error.
         Integer existingTransportVersionId = getExistingTransportVersionId(stackVersion);
         if (existingTransportVersionId != null) {
-            if (existingTransportVersionId != expectedTransportVersionId) {
+            if (existingTransportVersionId > upperBoundId) {
                 throw new RuntimeException(
                     "Version "
                         + stackVersion
                         + " already exists in TransportVersions.csv with transport version ID "
                         + existingTransportVersionId
-                        + ", but expected "
-                        + expectedTransportVersionId
+                        + ", which is ahead of the "
+                        + upperBoundName
+                        + " upper bound "
+                        + upperBoundId
                 );
             }
             getLogger().lifecycle(
-                "Version {} already exists in TransportVersions.csv with correct transport version ID, skipping",
-                stackVersion
+                "Version {} already exists in TransportVersions.csv with transport version ID {}, skipping",
+                stackVersion,
+                existingTransportVersionId
             );
             return;
         }
 
-        addTransportVersionRecord(stackVersion, expectedTransportVersionId);
+        addTransportVersionRecord(stackVersion, upperBoundId);
     }
 
     private Integer getExistingTransportVersionId(Version stackVersion) throws IOException {

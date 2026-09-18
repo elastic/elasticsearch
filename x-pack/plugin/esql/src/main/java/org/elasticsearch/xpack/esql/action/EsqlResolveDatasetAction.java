@@ -118,6 +118,13 @@ public class EsqlResolveDatasetAction extends TransportLocalProjectMetadataActio
         private final boolean wildcardsMatchDatasets;
 
         /**
+         * With the setting off {@code indices()} carries only the exactly-named parts, which is never empty on the
+         * production path: {@code DatasetResolver} builds a request only for a relation whose pre-check passed, and
+         * that pre-check requires some member of {@code exactNames(patterns)} to be a registered dataset. Both skip on
+         * the same predicate, so a non-empty exact-name set implies a non-empty array here. The coupling matters
+         * because an empty {@code indices()} means {@code _all} to the security resolver, which would expand the
+         * request to the caller's whole authorized set.
+         *
          * @param rawPatterns one relation's raw FROM patterns (split on comma, not pre-expanded)
          * @param wildcardsMatchDatasets the coordinator's resolved {@code wildcards_match_datasets} query setting
          */

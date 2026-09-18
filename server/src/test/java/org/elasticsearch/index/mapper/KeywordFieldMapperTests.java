@@ -941,32 +941,32 @@ public class KeywordFieldMapperTests extends MapperTestCase {
     }
 
     /**
-     * In strictly columnar mode, keyword fields default to binary doc values, which have no
-     * {@link IndexWriter#MAX_TERM_LENGTH} limit. A value longer than 32766 bytes must be accepted.
+     * In strictly columnar mode, keyword fields use binary doc values, but the 32766-byte ceiling is
+     * deliberately retained to keep values from becoming so large they degrade storage and scanning.
+     * A value longer than {@link IndexWriter#MAX_TERM_LENGTH} must still be rejected.
      */
-    public void testKeywordFieldLongerThan32766InColumnarMode() throws Exception {
+    public void testKeywordFieldLongerThan32766InColumnarModeIsRejected() throws Exception {
         DocumentMapper mapper = createColumnarModeDocumentMapper(fieldMapping(b -> b.field("type", "keyword")));
         String longValue = "x".repeat(IndexWriter.MAX_TERM_LENGTH + 100);
-        ParsedDocument doc = mapper.parse(source(b -> b.field("field", longValue)));
-        boolean foundInBinaryDv = doc.rootDoc()
-            .getFields("field")
-            .stream()
-            .anyMatch(f -> f.binaryValue() != null && new BytesRef(longValue).equals(f.binaryValue()));
-        assertTrue("value longer than MAX_TERM_LENGTH must survive in binary doc values", foundInBinaryDv);
-        assertThat(doc.rootDoc().getFields("_ignored").stream().noneMatch(f -> "field".equals(f.stringValue())), equalTo(true));
+        DocumentParsingException e = expectThrows(
+            DocumentParsingException.class,
+            () -> mapper.parse(source(b -> b.field("field", longValue)))
+        );
+        assertThat(e.getCause().getMessage(), containsString("UTF8 encoding is longer than the max length"));
     }
 
     /**
-     * In strictly columnar mode, an array containing a value exceeding {@link IndexWriter#MAX_TERM_LENGTH}
-     * must round-trip with positions preserved.
+     * In strictly columnar mode, an array with values within {@link IndexWriter#MAX_TERM_LENGTH}
+     * must round-trip with array positions (including nulls) preserved.
      */
-    public void testColumnarArrayOrderWithValueExceedMaxTermLength_keyword() throws IOException {
+    public void testColumnarArrayOrderWithPositionsPreserved_keyword() throws IOException {
         Settings settings = Settings.builder().put(IndexSettings.MODE.getKey(), IndexMode.COLUMNAR.getName()).build();
         DocumentMapper mapper = createMapperService(settings, mapping(b -> b.startObject("field").field("type", "keyword").endObject()))
             .documentMapper();
 
         String shortValue = randomAlphanumericOfLength(4);
-        String longValue = randomAlphanumericOfLength(40000);
+        // Use a value well within the limit to verify array-order preservation without hitting the ceiling.
+        String longValue = randomAlphanumericOfLength(500);
         assertThat(
             syntheticSource(mapper, b -> b.array("field", longValue, null, shortValue)),
             containsString("\"field\":[\"" + longValue + "\",null,\"" + shortValue + "\"]")

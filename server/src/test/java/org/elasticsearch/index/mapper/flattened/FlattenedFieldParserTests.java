@@ -49,7 +49,6 @@ public class FlattenedFieldParserTests extends ESTestCase {
             FlattenedFieldMapper.PreserveLeafArrays.LOSSY,
             IndexVersion.current(),
             false,
-            false,
             false
         );
     }
@@ -321,7 +320,6 @@ public class FlattenedFieldParserTests extends ESTestCase {
             FlattenedFieldMapper.PreserveLeafArrays.LOSSY,
             IndexVersion.current(),
             false,
-            false,
             false
         );
 
@@ -354,7 +352,6 @@ public class FlattenedFieldParserTests extends ESTestCase {
             FlattenedFieldMapper.PreserveLeafArrays.LOSSY,
             IndexVersion.current(),
             false,
-            false,
             false
         );
 
@@ -382,7 +379,6 @@ public class FlattenedFieldParserTests extends ESTestCase {
             FlattenedFieldMapper.PreserveLeafArrays.LOSSY,
             IndexVersion.current(),
             false,
-            false,
             false
         );
 
@@ -409,7 +405,6 @@ public class FlattenedFieldParserTests extends ESTestCase {
             false,
             FlattenedFieldMapper.PreserveLeafArrays.LOSSY,
             IndexVersion.current(),
-            false,
             false,
             false
         );
@@ -443,7 +438,6 @@ public class FlattenedFieldParserTests extends ESTestCase {
             true,
             FlattenedFieldMapper.PreserveLeafArrays.LOSSY,
             IndexVersion.current(),
-            false,
             false,
             false
         );

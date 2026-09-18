@@ -56,7 +56,6 @@ class FlattenedFieldParser {
     private final FlattenedFieldMapper.PreserveLeafArrays preserveLeafArrays;
 
     private final boolean writeDimensionRouting;
-    private final boolean checkTermLength;
 
     FlattenedFieldParser(
         String rootFieldFullPath,
@@ -73,8 +72,7 @@ class FlattenedFieldParser {
         FlattenedFieldMapper.PreserveLeafArrays preserveLeafArrays,
         IndexVersion indexVersion,
         boolean writeDimensionRouting,
-        boolean usesArrayOrderBinaryDocValues,
-        boolean strictColumnar
+        boolean usesArrayOrderBinaryDocValues
     ) {
         this.rootFieldFullPath = rootFieldFullPath;
         this.keyedFieldFullPath = keyedFieldFullPath;
@@ -91,8 +89,6 @@ class FlattenedFieldParser {
         this.preserveLeafArrays = preserveLeafArrays;
         this.indexVersion = indexVersion;
         this.writeDimensionRouting = writeDimensionRouting;
-        this.checkTermLength = strictColumnar == false
-            && (fieldType.indexType().hasTerms() || (fieldType.hasDocValues() && usesBinaryDocValues == false));
     }
 
     public void parse(final DocumentParserContext documentParserContext, FlattenedFieldArrayContext arrayContext) throws IOException {
@@ -202,7 +198,9 @@ class FlattenedFieldParser {
             return;
         }
 
-        if (checkTermLength && bytesKeyedValue.length > IndexWriter.MAX_TERM_LENGTH) {
+        // check the keyed value doesn't exceed the IndexWriter.MAX_TERM_LENGTH limit enforced by Lucene at index time
+        // in that case we can already throw a more user friendly exception here which includes the offending fields key and value lengths
+        if (bytesKeyedValue.length > IndexWriter.MAX_TERM_LENGTH) {
             String msg = "Flattened field ["
                 + rootFieldFullPath
                 + "] contains one immense field"

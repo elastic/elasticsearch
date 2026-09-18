@@ -9,6 +9,7 @@
 
 package org.elasticsearch.index.mapper.flattened;
 
+import org.apache.lucene.index.IndexWriter;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.index.IndexSettings;
@@ -403,5 +404,19 @@ public class FlattenedFieldMapperColumnarCompatibilityTests extends AbstractColu
                 doc("d2", 2L, "{\"flat\":{\"a.b\":\"only\"}}")
             )
         );
+    }
+
+    public void testImmenseKeyedValueIsRejectedOnBatchPath() {
+        String immenseValue = "v".repeat(IndexWriter.MAX_TERM_LENGTH);
+        IllegalArgumentException e = expectThrows(
+            IllegalArgumentException.class,
+            () -> assertColumnarMatchesXContent(
+                mapping(b -> b.startObject(FIELD).field("type", "flattened").endObject()),
+                columnarSettings(),
+                batch("immense keyed value", 1L, doc("d1", 1L, "{\"flat\":{\"k\":\"" + immenseValue + "\"}}"))
+            )
+        );
+        assertThat(e.getMessage(), containsString("immense field"));
+        assertThat(e.getMessage(), containsString(String.valueOf(IndexWriter.MAX_TERM_LENGTH)));
     }
 }

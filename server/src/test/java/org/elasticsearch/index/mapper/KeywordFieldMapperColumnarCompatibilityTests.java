@@ -972,9 +972,6 @@ public class KeywordFieldMapperColumnarCompatibilityTests extends AbstractColumn
 
     public void testTsdbSortedSetDocValuesWithLargeTermThrows() throws IOException {
         // A non-dimension keyword field with index: false in a TSDB index uses SORTED_SET doc values.
-        // SORTED_SET carries the 32766-byte ceiling via writesIndexableField (docValuesType != NONE)
-        // even when emitTerms is false (no Lucene terms written). Without this fix, the over-long value
-        // would be silently accepted on the batch path but rejected on the row path — a row/batch split.
         final MapperService mapperService = createMapperService(tsdbDimensionSettings(), mapping(b -> {
             b.startObject("@timestamp").field("type", "date").endObject();
             b.startObject(FIELD).field("type", "keyword").field("time_series_dimension", true).endObject();

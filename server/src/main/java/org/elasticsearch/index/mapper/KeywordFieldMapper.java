@@ -1541,7 +1541,6 @@ public final class KeywordFieldMapper extends FieldMapper {
     private final String offsetsFieldName;
 
     private final IndexVersion indexCreatedVersion;
-    private final boolean writesIndexableField;
 
     private KeywordFieldMapper(
         String simpleName,
@@ -1577,9 +1576,6 @@ public final class KeywordFieldMapper extends FieldMapper {
         this.offsetsFieldName = offsetsFieldName;
         this.indexCreatedVersion = builder.indexCreatedVersion;
         sourceKeepMode = builder.sourceKeepMode.orElse(indexSettings.sourceKeepMode());
-        this.writesIndexableField = fieldType.indexOptions() != IndexOptions.NONE
-            || fieldType.docValuesType() != DocValuesType.NONE
-            || fieldType.stored();
     }
 
     @Override
@@ -1887,9 +1883,7 @@ public final class KeywordFieldMapper extends FieldMapper {
                     continue;
                 }
 
-                // Mirrors parseCreateField: SORTED_SET doc values carry the 32766-byte ceiling
-                // even when no Lucene term is written (emitTerms == false).
-                if (writesIndexableField && binaryValue.length > MAX_TERM_LENGTH) {
+                if (binaryValue.length > MAX_TERM_LENGTH) {
                     throw largeTermException(binaryValue);
                 }
 
@@ -2035,9 +2029,7 @@ public final class KeywordFieldMapper extends FieldMapper {
                     }
                     continue;
                 }
-                // Mirrors parseCreateField: SORTED_SET doc values carry the 32766-byte ceiling
-                // even when no Lucene term is written (emitTerms == false).
-                if (writesIndexableField && binaryValue.length > MAX_TERM_LENGTH) {
+                if (binaryValue.length > MAX_TERM_LENGTH) {
                     throw largeTermException(binaryValue);
                 }
 
@@ -2221,7 +2213,7 @@ public final class KeywordFieldMapper extends FieldMapper {
         // roll back the changes, will mark the (possibly partially indexed) document as deleted. This results in deletes, even in an
         // append-only workload, which in turn leads to slower merges, as these will potentially have to fall back to MergeStrategy.DOC
         // instead of MergeStrategy.BULK. To avoid this, we do a preflight check here before indexing the document into Lucene.
-        if (writesIndexableField && binaryValue.length > MAX_TERM_LENGTH) {
+        if (binaryValue.length > MAX_TERM_LENGTH) {
             throw largeTermException(binaryValue);
         }
 
@@ -2269,7 +2261,7 @@ public final class KeywordFieldMapper extends FieldMapper {
         // If we're using binary doc values, then the values are stored in a separate MultiValuedBinaryDocValuesField (see above)
         // and this fieldType has docValuesType=NONE. Then, when there is no index defined and the field is not stored, this field
         // is a no-op and we can skip adding it to the document.
-        if (writesIndexableField) {
+        if (fieldType.indexOptions() != IndexOptions.NONE || fieldType.docValuesType() != DocValuesType.NONE || fieldType.stored()) {
             Field field = buildKeywordField(binaryValue);
             context.doc().add(field);
         }

@@ -38,7 +38,6 @@ import org.elasticsearch.logging.Logger;
 import org.elasticsearch.plugins.IndexStorePlugin;
 
 import java.io.IOException;
-import java.nio.file.FileAlreadyExistsException;
 import java.nio.file.FileSystemException;
 import java.nio.file.Files;
 import java.nio.file.Path;
@@ -46,6 +45,7 @@ import java.util.HashSet;
 import java.util.Optional;
 import java.util.OptionalLong;
 import java.util.Set;
+import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.BiFunction;
 import java.util.function.BiPredicate;
 
@@ -180,6 +180,9 @@ public class FsDirectoryFactory implements IndexStorePlugin.DirectoryFactory {
         private final MMapDirectory delegate;
         private final DirectIODirectory directIODelegate;
         private final DirectIODirectory mergeDirectIODelegate;
+        /** set once a direct I/O create has succeeded in this directory, see {@link #mergeDirectIOCreates(String)} */
+        private volatile boolean mergeDirectIOCreatesWork;
+        private static final AtomicInteger DIRECT_IO_PROBE_ID = new AtomicInteger();
 
         public HybridDirectory(LockFactory lockFactory, MMapDirectory delegate, int asyncPrefetchLimit) throws IOException {
             super(delegate.getDirectory(), lockFactory);
@@ -265,7 +268,6 @@ public class FsDirectoryFactory implements IndexStorePlugin.DirectoryFactory {
 
         @Override
         public IndexOutput createOutput(String name, IOContext context) throws IOException {
-            Throwable directIOException = null;
             // we need to do these checks on the outer directory since the inner doesn't know about pending deletes
             ensureOpen();
             // a direct I/O output opens the file itself, skipping FSDirectory's pending-delete bookkeeping:
@@ -278,40 +280,46 @@ public class FsDirectoryFactory implements IndexStorePlugin.DirectoryFactory {
                 && context.hints().contains(DirectIOHint.INSTANCE)
                 && isRawVectorFile(name)
                 && getPendingDeletions().contains(name) == false) {
-                Path file = getDirectory().resolve(name);
-                boolean existed = Files.exists(file);
-                try {
+                if (mergeDirectIOCreates(name)) {
                     Log.debug("Creating {} with direct IO", name);
                     return mergeDirectIODelegate.createOutput(name, context);
-                } catch (FileAlreadyExistsException e) {
-                    throw e; // CREATE_NEW hit an existing file: not ours to delete
-                } catch (FileSystemException | UnsupportedOperationException e) {
-                    Log.debug(() -> Strings.format("Could not create %s with direct IO", name), e);
-                    directIOException = e;
-                    // the failed open may still have created the file; remove any partial file so the
-                    // buffered CREATE_NEW open below can succeed, and fall through to normal creation.
-                    // A file that existed before the attempt is not ours: the buffered path fails on
-                    // it exactly as it would have without direct I/O. On Linux an existing file is
-                    // rejected by the open itself (CREATE_NEW) and rethrown above; the check matters
-                    // where the JDK declines the direct open before it reaches the file system
-                    if (existed == false) {
-                        IOUtils.deleteFilesIgnoringExceptions(file);
-                    }
                 }
             }
-            try {
-                return super.createOutput(name, context);
-            } catch (Throwable t) {
-                if (directIOException != null) {
-                    t.addSuppressed(directIOException);
-                }
-                throw t;
-            }
+            return super.createOutput(name, context);
         }
 
-        /** Visible for tests: whether opens in the given context can be served with direct I/O. */
-        boolean hasDirectIODelegate(IOContext.Context context) {
-            return (context == IOContext.Context.MERGE ? mergeDirectIODelegate : directIODelegate) != null;
+        /**
+         * Whether a direct I/O create works in this directory, answered with a probe file of the directory's own: a failed
+         * direct open can leave the file behind, since the JDK creates it before setting up direct I/O on the descriptor,
+         * and no exception says whether it did, so the merge file itself cannot be the attempt. The probe is written and
+         * removed here, named as a temp file so that Lucene skips it when inflating segment generations and sweeps it if it
+         * were ever left behind. One success settles the answer for the directory, support being a property of its file
+         * system; a failure is not remembered, this file goes down the buffered path and the next one probes again. A probe
+         * that fails for any reason must not pass for support, so this catches every I/O failure, not only the shapes
+         * {@code openInput} falls back from.
+         */
+        private boolean mergeDirectIOCreates(String name) {
+            if (mergeDirectIOCreatesWork) {
+                return true;
+            }
+            String probe = "_directio_probe_" + DIRECT_IO_PROBE_ID.incrementAndGet() + ".tmp";
+            Path probePath = getDirectory().resolve(probe);
+            try (IndexOutput out = mergeDirectIODelegate.createOutput(probe, IOContext.DEFAULT)) {
+                out.writeInt(0); // the write and the close are where a direct output touches the device
+            } catch (IOException | UnsupportedOperationException e) {
+                // this and the "Creating" message are matched whole by the DirectIOIT expectations: keep the wording
+                Log.debug(() -> Strings.format("Could not create %s with direct IO", name), e);
+                return false;
+            } finally {
+                IOUtils.deleteFilesIgnoringExceptions(probePath);
+            }
+            mergeDirectIOCreatesWork = true;
+            return true;
+        }
+
+        // visible for testing
+        boolean hasMergeDirectIODelegate() {
+            return mergeDirectIODelegate != null;
         }
 
         @Override
@@ -330,7 +338,8 @@ public class FsDirectoryFactory implements IndexStorePlugin.DirectoryFactory {
         }
 
         /**
-         * Only raw vector data files ({@code .vec}) go to the merge delegate. The raw vector writers create
+         * Only raw vector data files ({@code .vec}) go to the merge delegate, apart from the directory's own probe
+         * file (see {@code mergeDirectIOCreates}). The raw vector writers create
          * their metadata file from the same merge context as the data file, and a few hundred bytes of
          * metadata must not get a 256 KiB aligned direct I/O buffer. Opens are filtered the same way; the
          * readers open metadata through {@code openChecksumInput}, which never carries the hint, so that

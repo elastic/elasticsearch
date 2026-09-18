@@ -38,16 +38,24 @@ import org.elasticsearch.test.IndexSettingsModule;
 import org.hamcrest.Matchers;
 
 import java.io.IOException;
+import java.nio.channels.FileChannel;
 import java.nio.file.AccessDeniedException;
 import java.nio.file.FileAlreadyExistsException;
+import java.nio.file.FileSystemException;
 import java.nio.file.Files;
+import java.nio.file.OpenOption;
 import java.nio.file.Path;
+import java.nio.file.attribute.FileAttribute;
 import java.util.Arrays;
 import java.util.HashMap;
+import java.util.HashSet;
+import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
+import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.BiPredicate;
 import java.util.zip.CRC32;
 
@@ -91,24 +99,6 @@ public class FsDirectoryFactoryTests extends ESTestCase {
             assertTrue(func.test("foo.dvd", newIOContext(random())));
             assertTrue(func.test("foo.tmp", newIOContext(random())));
             fsDirectoryFactory.preLoadFuncMap.clear();
-        }
-    }
-
-    /**
-     * A hybrid fs directory carries a merge-sized direct I/O delegate next to the rescore one whenever direct I/O
-     * can be initialized; whether a merge uses it is the field's {@code on_disk_merge} option, decided in the codec.
-     * Asserted structurally so the test runs on filesystems without direct I/O support too.
-     */
-    public void testMergeDelegatePresentOnHybridFs() throws IOException {
-        Settings settings = Settings.builder()
-            .put(IndexModule.INDEX_STORE_TYPE_SETTING.getKey(), IndexModule.Type.HYBRIDFS.name().toLowerCase(Locale.ROOT))
-            .build();
-        try (Directory directory = newDirectory(settings)) {
-            Directory unwrapped = FilterDirectory.unwrap(directory);
-            assumeTrue("test requires hybridfs", unwrapped instanceof FsDirectoryFactory.HybridDirectory);
-            FsDirectoryFactory.HybridDirectory hybrid = (FsDirectoryFactory.HybridDirectory) unwrapped;
-            assumeTrue("test requires direct I/O support", hybrid.hasDirectIODelegate(IOContext.Context.DEFAULT));
-            assertTrue("the merge delegate exists alongside the rescore delegate", hybrid.hasDirectIODelegate(IOContext.Context.MERGE));
         }
     }
 
@@ -239,7 +229,8 @@ public class FsDirectoryFactoryTests extends ESTestCase {
             direct = probe.toString().contains("DirectIOIndexOutput");
         }
         dir.deleteFile("_probe.vec");
-        if (dir.hasDirectIODelegate(IOContext.Context.MERGE) == false) {
+        assertTrue("the directory removes its probe file", Arrays.stream(dir.listAll()).noneMatch(f -> f.startsWith("_directio_probe_")));
+        if (dir.hasMergeDirectIODelegate() == false) {
             assertFalse("without a merge delegate no create can be direct", direct);
         }
         return direct;
@@ -357,10 +348,7 @@ public class FsDirectoryFactoryTests extends ESTestCase {
                 out.writeBytes(existing, existing.length);
             }
 
-            // a merge-hinted create over an existing file must fail exactly like the buffered path
-            // does, and must leave the existing file untouched, whether the direct open itself
-            // rejects it or the filesystem declines direct I/O and the buffered path rejects it:
-            // falling back to a buffered create after deleting it would silently clobber the file
+            // the rejection may come from the direct create or, when the probe fails, from the buffered path
             expectThrows(FileAlreadyExistsException.class, () -> dir.createOutput("_0.vec", directIOMergeContext()));
 
             try (IndexInput in = dir.openInput("_0.vec", IOContext.DEFAULT)) {
@@ -369,6 +357,101 @@ public class FsDirectoryFactoryTests extends ESTestCase {
                 in.readBytes(read, 0, read.length);
                 assertArrayEquals(existing, read);
             }
+        }
+    }
+
+    /**
+     * A failed direct open can leave the file behind: the JDK creates it and only then sets up direct I/O on the
+     * descriptor, so the directory probes with a file of its own before it creates a merge file.
+     */
+    public void testHybridDirectoryDirectIOWriteFallsBackWhenTheProbeFails() throws IOException {
+        assumeTrue("needs the direct open option to intercept", AsyncDirectIOIndexInput.ExtendedOpenOption_DIRECT != null);
+        Path path = createTempDir("directIOWriteFallback");
+        List<String> directAttempts = new CopyOnWriteArrayList<>();
+        // the JDK reports a failed descriptor setup as UnsupportedOperationException; a file system that rejects
+        // O_DIRECT fails the open with a FileSystemException: both leave the created file behind
+        boolean rejectedByTheFileSystem = randomBoolean();
+        FilterFileSystemProvider failing = new FilterFileSystemProvider("faildirect://", path.getFileSystem()) {
+            @Override
+            public FileChannel newFileChannel(Path p, Set<? extends OpenOption> options, FileAttribute<?>... attrs) throws IOException {
+                if (options.contains(AsyncDirectIOIndexInput.ExtendedOpenOption_DIRECT)) {
+                    directAttempts.add(p.getFileName().toString());
+                    // what FileChannelImpl does: the open, and with it the create, succeed; the direct setup fails after
+                    Set<OpenOption> plain = new HashSet<>(options);
+                    plain.remove(AsyncDirectIOIndexInput.ExtendedOpenOption_DIRECT);
+                    super.newFileChannel(p, plain, attrs).close();
+                    if (rejectedByTheFileSystem) {
+                        throw new FileSystemException(p.toString(), null, "Invalid argument");
+                    }
+                    throw new UnsupportedOperationException("Error setting up DirectIO");
+                }
+                return super.newFileChannel(p, options, attrs);
+            }
+        };
+        Path root = failing.wrapPath(path);
+        try (
+            FsDirectoryFactory.HybridDirectory dir = new FsDirectoryFactory.HybridDirectory(
+                NativeFSLockFactory.INSTANCE,
+                new MMapDirectory(root),
+                0
+            )
+        ) {
+            try (IndexOutput out = dir.createOutput("_0.vec", directIOMergeContext())) {
+                assertFalse("the probe failed, so this must be the buffered path", out.toString().contains("DirectIOIndexOutput"));
+                out.writeInt(3);
+            }
+            assertEquals("the probe is the one direct attempt", 1, directAttempts.size());
+            assertTrue("the probe file is removed", Arrays.stream(dir.listAll()).noneMatch(f -> f.startsWith("_directio_probe_")));
+            assertEquals(4, dir.fileLength("_0.vec"));
+            try (IndexInput in = dir.openInput("_0.vec", IOContext.DEFAULT)) {
+                assertEquals(3, in.readInt());
+            }
+
+            // a create over the existing name still fails, and the probe is repeated
+            expectThrows(FileAlreadyExistsException.class, () -> dir.createOutput("_0.vec", directIOMergeContext()));
+            assertEquals("the probe is repeated", 2, directAttempts.size());
+            assertTrue(
+                "the merge file is never opened directly: " + directAttempts,
+                directAttempts.stream().allMatch(f -> f.startsWith("_directio_probe_"))
+            );
+        }
+    }
+
+    /** One successful probe settles direct I/O support for the directory. */
+    public void testHybridDirectoryDirectIOWriteProbesOnce() throws IOException {
+        assumeTrue("needs the direct open option to intercept", AsyncDirectIOIndexInput.ExtendedOpenOption_DIRECT != null);
+        Path path = createTempDir("directIOWriteProbe");
+        AtomicInteger directOpens = new AtomicInteger();
+        // counts the direct opens and strips the option, so that a direct create "works" on any file system
+        FilterFileSystemProvider counting = new FilterFileSystemProvider("countdirect://", path.getFileSystem()) {
+            @Override
+            public FileChannel newFileChannel(Path p, Set<? extends OpenOption> options, FileAttribute<?>... attrs) throws IOException {
+                if (options.contains(AsyncDirectIOIndexInput.ExtendedOpenOption_DIRECT)) {
+                    directOpens.incrementAndGet();
+                    Set<OpenOption> plain = new HashSet<>(options);
+                    plain.remove(AsyncDirectIOIndexInput.ExtendedOpenOption_DIRECT);
+                    return super.newFileChannel(p, plain, attrs);
+                }
+                return super.newFileChannel(p, options, attrs);
+            }
+        };
+        Path root = counting.wrapPath(path);
+        try (
+            FsDirectoryFactory.HybridDirectory dir = new FsDirectoryFactory.HybridDirectory(
+                NativeFSLockFactory.INSTANCE,
+                new MMapDirectory(root),
+                0
+            )
+        ) {
+            try (IndexOutput out = dir.createOutput("_0.vec", directIOMergeContext())) {
+                out.writeInt(1);
+            }
+            assertEquals("the probe and then the file", 2, directOpens.get());
+            assertTrue("the probe file is removed", Arrays.stream(dir.listAll()).noneMatch(f -> f.startsWith("_directio_probe_")));
+            try (IndexOutput out = dir.createOutput("_1.vec", directIOMergeContext())) {
+                out.writeInt(2);
+            }
+            assertEquals("the answer is settled: only the file", 3, directOpens.get());
         }
     }
 

@@ -59,6 +59,16 @@ public final class RegistrationContract {
         "blocked_by"
     );
 
+    /**
+     * Expected columns are declared one per key rather than as a list.
+     *
+     * <p>A column name can contain whatever the bytes contain -- reading {@code a,b} with a non-comma
+     * delimiter yields a single column called {@code a,b} -- so any separator this file chose could
+     * also be inside a value. The same reason the dimension declaration names delimiter characters
+     * rather than spelling them.
+     */
+    private static final String COLUMNS_PREFIX = "columns.";
+
     /** What counts as citing a defect: a filed issue a reader can open, not a bare number. */
     static final Pattern ISSUE_REFERENCE = Pattern.compile("elastic/[a-z0-9-]+#\\d+");
 
@@ -80,7 +90,16 @@ public final class RegistrationContract {
          * refusing it means registration acquired I/O, and the message after it is the contract for
          * what the reader says when it finally looks.
          */
-        QUERY_FAILS
+        QUERY_FAILS,
+        /**
+         * The PUT is accepted, the query SUCCEEDS, and the result shows the setting took effect.
+         *
+         * <p>The outcome no status can detect. A setting that is accepted, plumbed to the reader and
+         * then ignored returns rows exactly as one that worked does, so a case checking that rows came
+         * back passes either way. What distinguishes them is the SHAPE of the result: bytes that parse
+         * one way under the declared value and another way under the default.
+         */
+        QUERY_SUCCEEDS
     }
 
     /**
@@ -98,6 +117,7 @@ public final class RegistrationContract {
      * @param rawPath   whether to register the resource as a bare filesystem path rather than a URI
      * @param absent    a substring the failure must NOT contain, or null
      * @param blockedBy the filed issue that stops this case passing today, or null when it passes
+     * @param columns   for a {@code QUERY_SUCCEEDS} case, the column names the result must have
      */
     public record Case(
         String name,
@@ -110,10 +130,12 @@ public final class RegistrationContract {
         String resource,
         boolean rawPath,
         String absent,
-        String blockedBy
+        String blockedBy,
+        List<String> columns
     ) {
         public Case {
             settings = Map.copyOf(settings);
+            columns = List.copyOf(columns);
         }
 
         /** Whether this case asserts behaviour the product does not have yet. */
@@ -168,9 +190,16 @@ public final class RegistrationContract {
             // settings.<key> is the one attribute that takes a qualifier, because a case may pin more
             // than one setting: the interesting refusals at registration are combinations that are each
             // valid alone, and a contract of one setting per case cannot express one.
-            if (attribute.startsWith(SETTINGS_PREFIX) == false && ATTRIBUTES.contains(attribute) == false) {
+            if (attribute.startsWith(SETTINGS_PREFIX) == false
+                && attribute.startsWith(COLUMNS_PREFIX) == false
+                && ATTRIBUTES.contains(attribute) == false) {
                 throw new IllegalStateException(
-                    "case [" + name + "] declares unknown attribute [" + attribute + "]; expected settings.<key> or one of " + ATTRIBUTES
+                    "case ["
+                        + name
+                        + "] declares unknown attribute ["
+                        + attribute
+                        + "]; expected settings.<key>, columns.<n> or one of "
+                        + ATTRIBUTES
                 );
             }
             names.add(name);
@@ -188,11 +217,6 @@ public final class RegistrationContract {
             if (settings.isEmpty()) {
                 throw new IllegalStateException("case [" + name + "] declares no settings; there is nothing for it to register");
             }
-            String message = required(props, name, "message");
-            // The emitter is required rather than helpful. A message with no symbol beside it cannot be
-            // re-checked against the code without searching for the string, and a message that has
-            // drifted is exactly the one the search will not find.
-            String emitter = required(props, name, "emitter");
             String format = props.getProperty("case." + name + ".format", DEFAULT_FORMAT).trim();
             String outcomeText = props.getProperty("case." + name + ".outcome", Outcome.REFUSED.name()).trim();
             Outcome outcome;
@@ -207,6 +231,26 @@ public final class RegistrationContract {
                         + "]; expected one of "
                         + Arrays.toString(Outcome.values())
                 );
+            }
+            // A failing case asserts a message; a succeeding one asserts a result shape. Requiring both
+            // of every case would make one a formality somebody fills in, which is how a field stops
+            // being read.
+            boolean fails = outcome != Outcome.QUERY_SUCCEEDS;
+            String message = fails ? required(props, name, "message") : "";
+            // The emitter is required rather than helpful. A message with no symbol beside it cannot be
+            // re-checked against the code without searching for the string, and a message that has
+            // drifted is exactly the one the search will not find.
+            String emitter = fails ? required(props, name, "emitter") : "";
+            List<String> columns = List.of();
+            if (outcome == Outcome.QUERY_SUCCEEDS) {
+                // The whole assertion. Without it the case checks that rows came back, which is exactly
+                // what a silently ignored setting also produces.
+                columns = declaredColumns(props, name);
+                if (columns.isEmpty()) {
+                    throw new IllegalStateException("case [" + name + "] expects the query to succeed but names no columns");
+                }
+            } else if (declaredColumns(props, name).isEmpty() == false) {
+                throw new IllegalStateException("case [" + name + "] does not expect a result, so its [columns] would never be compared");
             }
             String query = props.getProperty("case." + name + ".query", DEFAULT_QUERY).trim();
             // A refusal never runs a query, so declaring one says the case was written as the other kind
@@ -242,7 +286,20 @@ public final class RegistrationContract {
                 }
             }
             parsed.add(
-                new Case(name, settings, message, emitter, format, outcome, query, resource, resourceForm.equals("path"), absent, blockedBy)
+                new Case(
+                    name,
+                    settings,
+                    message,
+                    emitter,
+                    format,
+                    outcome,
+                    query,
+                    resource,
+                    resourceForm.equals("path"),
+                    absent,
+                    blockedBy,
+                    columns
+                )
             );
         }
         if (parsed.isEmpty()) {
@@ -257,8 +314,8 @@ public final class RegistrationContract {
      * <p>Names are dotted paths so the corpus can be read by subject rather than as one flat list:
      * {@code dataset.setting.skip_rows.negative} sits beside its siblings and apart from
      * {@code dataset.combination.probe_budget_exceeded}. The attribute is therefore the LAST segment,
-     * except for {@code settings.<key>}, where the key being registered is itself the last segment and
-     * the attribute is the two together.
+     * except for {@code settings.<key>} and {@code columns.<n>}, where the qualifier is itself the last
+     * segment and the attribute is the two together.
      */
     private static String nameOf(String key) {
         String rest = key.substring("case.".length());
@@ -268,10 +325,34 @@ public final class RegistrationContract {
         }
         String head = rest.substring(0, last);
         int previous = head.lastIndexOf('.');
-        if (previous >= 0 && head.substring(previous + 1).equals("settings")) {
-            return head.substring(0, previous);
+        if (previous >= 0) {
+            // The two attributes that take a qualifier: the key being registered and the column index
+            // are themselves the last segment, so the attribute is the two segments together.
+            String qualified = head.substring(previous + 1);
+            if (qualified.equals("settings") || qualified.equals("columns")) {
+                return head.substring(0, previous);
+            }
         }
         return head;
+    }
+
+    /** The expected columns of a case, in the order their indices give. */
+    private static List<String> declaredColumns(Properties props, String name) {
+        String prefix = "case." + name + "." + COLUMNS_PREFIX;
+        List<Integer> indices = new ArrayList<>();
+        for (String key : props.stringPropertyNames()) {
+            if (key.startsWith(prefix)) {
+                String tail = key.substring(prefix.length());
+                try {
+                    indices.add(Integer.parseInt(tail));
+                } catch (NumberFormatException e) {
+                    throw new IllegalStateException("case [" + name + "] declares [columns." + tail + "]; expected columns.<n>", e);
+                }
+            }
+        }
+        // Sorted by index, not by the string form, so columns.10 follows columns.9 rather than columns.1.
+        indices.sort(Integer::compareTo);
+        return indices.stream().map(i -> props.getProperty(prefix + i).trim()).toList();
     }
 
     private static String required(Properties props, String name, String attribute) {

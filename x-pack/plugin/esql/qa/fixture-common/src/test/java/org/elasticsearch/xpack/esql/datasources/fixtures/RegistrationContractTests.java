@@ -14,6 +14,7 @@ import java.util.Locale;
 import java.util.Map;
 import java.util.Properties;
 import java.util.Set;
+import java.util.stream.Collectors;
 
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
@@ -33,9 +34,16 @@ public class RegistrationContractTests extends ESTestCase {
         for (RegistrationContract.Case declared : cases) {
             assertTrue("case names are unique", names.add(declared.name()));
             assertThat("a case with no settings registers nothing", declared.settings().isEmpty(), equalTo(false));
-            assertThat(declared.message().isBlank(), equalTo(false));
-            assertThat(declared.emitter().isBlank(), equalTo(false));
             assertThat(declared.format().isBlank(), equalTo(false));
+            // What a case must carry depends on what it asserts. A failing one is complete when it has
+            // the message and the symbol that emits it; a succeeding one when it has the result shape,
+            // because a message is not what distinguishes it from a setting that was ignored.
+            if (declared.outcome() == RegistrationContract.Outcome.QUERY_SUCCEEDS) {
+                assertThat("a succeeding case names no columns", declared.columns().isEmpty(), equalTo(false));
+            } else {
+                assertThat(declared.message().isBlank(), equalTo(false));
+                assertThat(declared.emitter().isBlank(), equalTo(false));
+            }
         }
     }
 
@@ -54,6 +62,10 @@ public class RegistrationContractTests extends ESTestCase {
             String asserted = declared.message() + (declared.absent() == null ? "" : " " + declared.absent());
             boolean named = switch (declared.outcome()) {
                 case REFUSED -> declared.settings().keySet().stream().anyMatch(asserted::contains);
+                // A succeeding case pins a result SHAPE rather than a message: the columns are what
+                // distinguish a setting that took effect from one that was accepted and ignored, since
+                // both return rows.
+                case QUERY_SUCCEEDS -> declared.columns().isEmpty() == false;
                 case QUERY_FAILS -> {
                     String message = asserted.toLowerCase(Locale.ROOT);
                     yield declared.settings().values().stream().anyMatch(v -> message.contains(v.toLowerCase(Locale.ROOT)));
@@ -87,10 +99,13 @@ public class RegistrationContractTests extends ESTestCase {
         assertThat(e.getMessage(), containsString("unknown outcome [maybe]"));
     }
 
-    /** Both halves of the no-I/O promise need a case, or the second contract has no test at all. */
-    public void testTheContractCarriesBothOutcomes() {
-        var outcomes = RegistrationContract.get().cases().stream().map(RegistrationContract.Case::outcome).distinct().toList();
-        assertThat("both outcomes are declared", outcomes.size(), equalTo(2));
+    /**
+     * Every outcome has at least one case. An outcome nobody declares is a contract with no test at
+     * all, and it is the kind of gap that reads as covered because the other outcomes are green.
+     */
+    public void testEveryOutcomeHasACase() {
+        var declared = RegistrationContract.get().cases().stream().map(RegistrationContract.Case::outcome).collect(Collectors.toSet());
+        assertThat(declared, equalTo(Set.of(RegistrationContract.Outcome.values())));
     }
 
     public void testAWellFormedCaseParses() {

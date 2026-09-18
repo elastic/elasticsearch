@@ -34,6 +34,7 @@ import java.util.Map;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.not;
+import static org.hamcrest.Matchers.notNullValue;
 
 /**
  * What {@code PUT /_query/dataset} refuses, and what it says when it does.
@@ -198,6 +199,43 @@ public class DatasetRegistrationContractIT extends ESRestTestCase {
                 + "]; if it moved, update dataset-registration-cases.properties from the code rather than the other way round.",
             failed.getMessage(),
             containsString(contractCase.message())
+        );
+    }
+
+    /**
+     * The outcome a status can never detect: the setting was accepted, reached the reader, and actually
+     * changed how the bytes were read.
+     *
+     * <p>A setting that is accepted and then ignored returns rows exactly as one that worked does, so a
+     * case asserting that rows came back passes either way -- which is how a plumbed-but-inert setting
+     * survives a suite that looks green. What separates them is the SHAPE of the result, on bytes that
+     * parse differently under the declared value than under the default.
+     */
+    public void testTheSettingTakesEffectOnTheResult() throws IOException {
+        assumeTrue("this case does not expect the query to succeed", contractCase.outcome() == RegistrationContract.Outcome.QUERY_SUCCEEDS);
+        assumeFalse(
+            "blocked on " + contractCase.blockedBy() + " -- this case asserts behaviour the product does not have yet",
+            contractCase.blocked()
+        );
+        String dataset = datasetNameFor(contractCase);
+        DatasetRegistry.putDataset(client(), dataset, SHARED_DS_NAME, resourceFor(contractCase), Map.copyOf(contractCase.settings()));
+
+        Request query = new Request("POST", "/_query");
+        query.setJsonEntity("{\"query\": \"" + String.format(Locale.ROOT, contractCase.query(), dataset) + "\"}");
+        Map<String, Object> response = entityAsMap(client().performRequest(query));
+
+        @SuppressWarnings("unchecked")
+        List<Map<String, Object>> columns = (List<Map<String, Object>>) response.get("columns");
+        assertThat("the query returned no columns at all", columns, notNullValue());
+        List<String> names = columns.stream().map(c -> String.valueOf(c.get("name"))).toList();
+
+        assertThat(
+            contractCase.settings()
+                + " was accepted and had no effect on the result. The columns below are what this file "
+                + "parses to when the setting is IGNORED, which is indistinguishable from it working "
+                + "unless the shape is checked.",
+            names,
+            equalTo(contractCase.columns())
         );
     }
 

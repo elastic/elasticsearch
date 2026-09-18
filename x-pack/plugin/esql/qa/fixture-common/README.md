@@ -20,7 +20,7 @@ can happen, and a suite has to be able to tell them apart:
 2. **The registration is accepted and the query fails.** Registration performs no I/O, so a setting
    that disagrees with the bytes cannot be detected until something opens the object.
 3. **The registration is accepted and the query succeeds.** The setting took effect — or was
-   silently ignored, which looks identical unless the test checks the rows.
+   silently ignored, which looks identical unless the test checks the shape of the result.
 
 A suite that only checks the HTTP status cannot distinguish any of these from a refusal of something
 it never varied. That is not a theoretical concern: the first run of the suite in this repo had every
@@ -113,6 +113,29 @@ registration has acquired I/O and the no-I/O guarantee is gone — and it would 
 the query would never run. The message after it is the contract for what the reader says when it
 finally looks.
 
+### Accepted, and taking effect
+
+The outcome no status can detect. A setting that is accepted, plumbed to the reader and then ignored
+returns rows exactly as one that worked does.
+
+```properties
+case.dataset.setting.delimiter.takes_effect.settings.delimiter = |
+case.dataset.setting.delimiter.takes_effect.outcome = query_succeeds
+case.dataset.setting.delimiter.takes_effect.columns.0 = a,b
+```
+
+`simple.csv` is `a,b` over two comma-separated rows. Read with the declared delimiter it is **one**
+column named `a,b`; read with the default comma — which is what an ignored setting gives — it is two
+columns. So the column list is the whole assertion, and it fails in the direction that matters.
+
+Choosing the fixture is the work here. A case of this kind is only worth having if the bytes parse
+*differently* under the declared value than under the default; on data that reads the same either way
+it passes without testing anything, which is the failure it exists to catch.
+
+Columns are declared one per key, `columns.0`, `columns.1`, and compared in index order. They are not
+a comma-separated list because a column name can contain anything the bytes contain — this very case
+expects one called `a,b`.
+
 ### Blocked on a filed defect
 
 A case may assert behaviour the product does not have yet:
@@ -145,10 +168,11 @@ that will sit green forever once someone deletes the block.
 | attribute | required | default | meaning |
 |---|---|---|---|
 | `settings.<key>` | yes, one or more | — | a dataset setting to register; repeat the attribute for a combination |
-| `message` | yes | — | a substring the failure must contain |
-| `emitter` | yes | — | the symbol the message was read from |
+| `message` | for a failing case | — | a substring the failure must contain |
+| `emitter` | for a failing case | — | the symbol the message was read from |
+| `columns.<n>` | for `query_succeeds` | — | expected column names, compared in index order |
 | `absent` | no | — | a substring the failure must **not** contain |
-| `outcome` | no | `refused` | `refused`, or `query_fails` for accepted-then-failing |
+| `outcome` | no | `refused` | `refused`, `query_fails`, or `query_succeeds` |
 | `query` | no | `FROM %s \| LIMIT 1` | the query for a `query_fails` case; `%s` is the dataset |
 | `format` | no | `csv` | the format the dataset is registered as |
 | `resource` | no | `simple.<format>` | the fixture file, relative to the suite's fixture directory |
@@ -162,7 +186,10 @@ Each of these is a way a case can look present and assert nothing:
 - **An unknown attribute.** A typo silently drops the assertion the line was meant to make.
 - **A key outside `case.<name>.<attribute>`.** Same reason.
 - **No settings.** The case registers nothing.
-- **No `message` or `emitter`.** A case with no message asserts only the status.
+- **No `message` or `emitter` on a failing case.** Such a case asserts only the status.
+- **No `columns` on a `query_succeeds` case.** It would assert that rows came back, which is exactly
+  what a silently ignored setting also produces.
+- **`columns` on a case that expects no result.** They would never be compared.
 - **A blank value** anywhere required. Blank reads as deliberate and is the same missing declaration.
 - **An empty declaration.** A contract with no cases reports green having checked nothing.
 - **An unknown `outcome`.** A typo would otherwise fall back to `refused` and never run the query.

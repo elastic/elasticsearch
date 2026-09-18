@@ -10,17 +10,13 @@ package org.elasticsearch.xpack.esql.analysis.rules;
 import org.elasticsearch.xpack.esql.analysis.AnalyzerRules.AnalyzerRule;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
-import org.elasticsearch.xpack.esql.core.expression.Literal;
-import org.elasticsearch.xpack.esql.core.expression.MapExpression;
 import org.elasticsearch.xpack.esql.core.expression.NamedExpression;
 import org.elasticsearch.xpack.esql.core.expression.UnresolvedAttribute;
 import org.elasticsearch.xpack.esql.core.expression.UnresolvedStar;
-import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.plan.logical.Highlight;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.esql.plan.logical.highlight.HighlightSupport;
 
-import java.util.ArrayList;
 import java.util.List;
 
 /**
@@ -79,31 +75,9 @@ public class ResolveHighlight extends AnalyzerRule<Highlight> {
             }
         }
 
-        MapExpression options = withUniformAnalyzer(highlight.options(), query, highlight.source());
-        if (query == highlight.query() && fields == highlight.fields() && options == highlight.options()) {
+        if (query == highlight.query() && fields == highlight.fields()) {
             return highlight;
         }
-        Highlight updated = highlight.withResolved(query, implicit, fields, generated);
-        return options == highlight.options() ? updated : updated.withOptions(options);
-    }
-
-    /**
-     * Copies a uniform leaf analyzer into WITH when unset. Disagreement is left for verification.
-     */
-    private static MapExpression withUniformAnalyzer(MapExpression options, Expression query, Source source) {
-        if (query == null || query.resolved() == false || (options != null && options.get(Highlight.ANALYZER) != null)) {
-            return options;
-        }
-        String uniform = HighlightSupport.uniformAnalyzerOf(query);
-        if (uniform == null) {
-            return options;
-        }
-        List<Expression> entries = new ArrayList<>();
-        if (options != null) {
-            entries.addAll(options.children());
-        }
-        entries.add(Literal.keyword(source, Highlight.ANALYZER));
-        entries.add(Literal.keyword(source, uniform));
-        return new MapExpression(options != null ? options.source() : source, entries);
+        return highlight.withResolved(query, implicit, fields, generated);
     }
 }

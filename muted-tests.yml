@@ -574,9 +574,6 @@ tests:
 - class: org.elasticsearch.xpack.stateless.cache.SearchCommitPrefetcherIT
   method: testUploadedCommitPrefetchNeverHitsIndexingNode
   issue: https://github.com/elastic/elasticsearch/issues/157813
-- class: org.elasticsearch.xpack.esql.optimizer.promql.PromqlGoldenTests
-  method: testBinaryWithDifferentSelectors {historical}
-  issue: https://github.com/elastic/elasticsearch/issues/157827
 - class: org.elasticsearch.xpack.esql.expression.function.scalar.spatial.StGeohexTests
   method: testEvaluateInManyThreads {TestCase=geo_shape with literal precision and bounds}
   issue: https://github.com/elastic/elasticsearch/issues/157840
@@ -586,9 +583,6 @@ tests:
 - class: org.elasticsearch.xpack.esql.qa.mixed.MixedClusterEsqlOldCoordinatorSpecDenseVectorIT
   method: test {csv-spec:dense_vector.limitByDenseVectorN2}
   issue: https://github.com/elastic/elasticsearch/issues/157875
-- class: org.elasticsearch.xpack.esql.optimizer.promql.PromqlGoldenTests
-  method: testBinaryWithDifferentSelectors {current}
-  issue: https://github.com/elastic/elasticsearch/issues/157912
 - class: org.elasticsearch.cluster.metadata.MetadataCreateIndexServiceTests
   method: testRegistryInstalledTemplateIsFalseForNonManagedTemplate
   issue: https://github.com/elastic/elasticsearch/issues/157930
@@ -664,8 +658,6 @@ tests:
 - class: org.elasticsearch.xpack.stateless.reshard.StatelessReshardMixedOperationsIT
   method: testMixedOperationsDuringSplitWithDisruption
   issue: https://github.com/elastic/elasticsearch/issues/159143
-- class: org.elasticsearch.xpack.logsdb.qa.LogsDbVersusLogsDbReindexedIntoStandardModeChallengeRestIT
-  issue: https://github.com/elastic/elasticsearch/issues/159149
 - class: org.elasticsearch.multiproject.test.XpackWithMultipleProjectsClientYamlTestSuiteIT
   method: test {yaml=esql/40_tsdb/PromQL missing field outside the command fails under nullify}
   issue: https://github.com/elastic/elasticsearch/issues/159152
@@ -686,12 +678,6 @@ tests:
   issue: https://github.com/elastic/elasticsearch/issues/156004
 - class: org.elasticsearch.xpack.esql.qa.mixed.RemoteFetchTopNIT
   issue: https://github.com/elastic/elasticsearch/issues/159173
-- class: org.elasticsearch.xpack.logsdb.qa.BulkStoredSourceChallengeRestIT
-  method: testDateHistogramAggregation
-  issue: https://github.com/elastic/elasticsearch/issues/159182
-- class: org.elasticsearch.xpack.logsdb.qa.BulkChallengeRestIT
-  method: testDateHistogramAggregation
-  issue: https://github.com/elastic/elasticsearch/issues/159183
 - class: org.elasticsearch.xpack.stateless.StatelessResizeIT
   method: testCloneIndex
   issue: https://github.com/elastic/elasticsearch/issues/159214
@@ -734,8 +720,6 @@ tests:
 - class: org.elasticsearch.xpack.application.EndpointMetadataClusterStateUpgradeIT
   method: testClusterStateContainsOnlyMetadataSubsetAfterUpgrade {upgradedNodes=3}
   issue: https://github.com/elastic/elasticsearch/issues/159402
-- class: org.elasticsearch.xpack.esql.qa.parquet.ParquetFormatSpecIT
-  issue: https://github.com/elastic/elasticsearch/issues/159407
 - class: org.elasticsearch.xpack.esql.datasource.s3.S3StorageObjectAsyncTests
   issue: https://github.com/elastic/elasticsearch/issues/159417
 - class: org.elasticsearch.index.store.FieldInfoCachingDirectoryTests
@@ -767,3 +751,6 @@ tests:
 - class: org.elasticsearch.xpack.stateless.engine.translog.StatelessTranslogIT
   method: testTranslogIsolatedNodeOnlyStressRecoveryTest
   issue: https://github.com/elastic/elasticsearch/issues/159687
+- class: org.elasticsearch.xpack.esql.CsvIT
+  method: test {csv-spec:prometheus-k8s-delta.delta_all_value_types_promql}
+  issue: https://github.com/elastic/elasticsearch/issues/159710

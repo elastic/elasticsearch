@@ -3,7 +3,7 @@ import { mkdtemp, mkdir, writeFile } from "fs/promises";
 import { tmpdir } from "os";
 import { join, dirname } from "path";
 
-import { analyzeReports, classifyFailure, stripSeedSuffix, StripSystemStreams } from "./analyze.ts";
+import { analyzeReports, classifyFailure, stripSeedSuffix, StripSystemStreams } from "./junit-reports-analyzer.ts";
 
 describe("stripSeedSuffix", () => {
   test("strips a trailing randomized-runner seed suffix", () => {
@@ -177,7 +177,7 @@ describe("analyzeReports", () => {
     const huge = report.perTest.find((t) => t.method === "testHuge")!;
     expect(huge.failureKinds).toEqual(["assertion"]);
     // The cached example message must be truncated, not the original 4 MiB.
-    // The cap inside analyze.ts is 16 KiB per failure body.
+    // The cap inside junit-reports-analyzer.ts is 16 KiB per failure body.
     expect(huge.exampleFailures[0].message.length).toBeLessThanOrEqual(16 * 1024);
   });
 

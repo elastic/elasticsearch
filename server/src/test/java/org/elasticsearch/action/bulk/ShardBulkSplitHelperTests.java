@@ -9,6 +9,7 @@
 
 package org.elasticsearch.action.bulk;
 
+import org.elasticsearch.common.DocumentIdGenerator;
 import org.elasticsearch.action.DocWriteRequest;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.index.IndexResponse;
@@ -125,7 +126,7 @@ public class ShardBulkSplitHelperTests extends ESTestCase {
         TestWriteDocRequest(Index index, int shardId) {
             super(index.getName());
             this.shardId = new ShardId(index, shardId);
-            autoGenerateId();
+            autoGenerateId(DocumentIdGenerator.DEFAULT);
         }
 
         @Override

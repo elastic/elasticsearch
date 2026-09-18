@@ -45,6 +45,7 @@ import org.elasticsearch.cluster.metadata.MetadataIndexTemplateService;
 import org.elasticsearch.cluster.metadata.ProjectMetadata;
 import org.elasticsearch.cluster.project.ProjectResolver;
 import org.elasticsearch.cluster.service.ClusterService;
+import org.elasticsearch.common.DocumentIdGenerator;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.util.concurrent.AtomicArray;
@@ -111,6 +112,7 @@ public class TransportBulkAction extends TransportAbstractBulkAction {
     private final DataStreamGlobalRetentionSettings dataStreamGlobalRetentionSettings;
     private volatile boolean pastTsdbIndexCreationEnabled;
     private final BatchIndexingEnabled batchIndexingEnabled;
+    private final DocumentIdGenerator documentIdGenerator;
 
     @Inject
     public TransportBulkAction(
@@ -128,7 +130,8 @@ public class TransportBulkAction extends TransportAbstractBulkAction {
         DataStreamFailureStoreSettings dataStreamFailureStoreSettings,
         FeatureService featureService,
         TimeSeriesEligibleWriteWindowLocator timeSeriesEligibleWriteWindowLocator,
-        DataStreamGlobalRetentionSettings dataStreamGlobalRetentionSettings
+        DataStreamGlobalRetentionSettings dataStreamGlobalRetentionSettings,
+        DocumentIdGenerator documentIdGenerator
     ) {
         this(
             threadPool,
@@ -146,7 +149,8 @@ public class TransportBulkAction extends TransportAbstractBulkAction {
             dataStreamFailureStoreSettings,
             featureService,
             timeSeriesEligibleWriteWindowLocator,
-            dataStreamGlobalRetentionSettings
+            dataStreamGlobalRetentionSettings,
+            documentIdGenerator
         );
     }
 
@@ -166,7 +170,8 @@ public class TransportBulkAction extends TransportAbstractBulkAction {
         DataStreamFailureStoreSettings dataStreamFailureStoreSettings,
         FeatureService featureService,
         TimeSeriesEligibleWriteWindowLocator timeSeriesEligibleWriteWindowLocator,
-        DataStreamGlobalRetentionSettings dataStreamGlobalRetentionSettings
+        DataStreamGlobalRetentionSettings dataStreamGlobalRetentionSettings,
+        DocumentIdGenerator documentIdGenerator
     ) {
         super(
             TYPE,
@@ -194,6 +199,7 @@ public class TransportBulkAction extends TransportAbstractBulkAction {
         final ClusterSettings clusterSettings = clusterService.getClusterSettings();
         clusterSettings.addSettingsUpdateConsumer(PAST_TSDB_INDEX_CREATION_ENABLED_SETTING, this::setPastTsdbIndexCreationEnabled);
         this.batchIndexingEnabled = new BatchIndexingEnabled(clusterSettings);
+        this.documentIdGenerator = documentIdGenerator;
     }
 
     private void setPastTsdbIndexCreationEnabled(boolean pastTsdbIndexCreationEnabled) {
@@ -876,7 +882,8 @@ public class TransportBulkAction extends TransportAbstractBulkAction {
             failureStoreMetrics,
             dataStreamFailureStoreSettings,
             clusterSupportsFailureStore,
-            batchIndexingEnabled
+            batchIndexingEnabled,
+            documentIdGenerator
         ).run();
     }
 

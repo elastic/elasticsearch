@@ -47,6 +47,7 @@ import org.elasticsearch.cluster.metadata.Template;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.project.TestProjectResolvers;
 import org.elasticsearch.cluster.service.ClusterService;
+import org.elasticsearch.common.DocumentIdGenerator;
 import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.breaker.CircuitBreakingException;
 import org.elasticsearch.common.settings.ClusterSettings;
@@ -1547,7 +1548,8 @@ public class BulkOperationTests extends ESTestCase {
             FailureStoreMetrics.NOOP,
             dataStreamFailureStoreSettings,
             failureStoreNodeFeatureEnabled,
-            batchIndexingEnabled
+            batchIndexingEnabled,
+            DocumentIdGenerator.DEFAULT
         );
     }
 

@@ -25,7 +25,7 @@ import org.elasticsearch.cluster.metadata.IndexAbstraction;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.ProjectMetadata;
 import org.elasticsearch.cluster.routing.IndexRouting;
-import org.elasticsearch.common.UUIDs;
+import org.elasticsearch.common.DocumentIdGenerator;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -50,7 +50,6 @@ import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
 import java.util.OptionalInt;
-import java.util.function.Supplier;
 
 import static org.elasticsearch.action.ValidateActions.addValidationError;
 import static org.elasticsearch.index.seqno.SequenceNumbers.UNASSIGNED_PRIMARY_TERM;
@@ -80,8 +79,6 @@ public class IndexRequest extends ReplicatedWriteRequest<IndexRequest> implement
     static final TransportVersion INGEST_REQUEST_DYNAMIC_TEMPLATE_PARAMS = TransportVersion.fromName(
         "ingest_request_dynamic_template_params"
     );
-
-    private static final Supplier<String> ID_GENERATOR = UUIDs::base64UUID;
 
     /**
      * Max length of the source document to include into string()
@@ -702,14 +699,10 @@ public class IndexRequest extends ReplicatedWriteRequest<IndexRequest> implement
      * Set the {@code #id()} to an automatically generated one and make this
      * request compatible with the append-only optimization.
      */
-    public void autoGenerateId() {
+    public void autoGenerateId(DocumentIdGenerator generator) {
         assertBeforeGeneratingId();
         autoGenerateTimestamp();
-        id(ID_GENERATOR.get());
-    }
-
-    public void autoGenerateTimeBasedId() {
-        autoGenerateTimeBasedId(OptionalInt.empty());
+        id(generator.generateId());
     }
 
     /**
@@ -717,10 +710,10 @@ public class IndexRequest extends ReplicatedWriteRequest<IndexRequest> implement
      *  If a routing hash is passed, it is included in the generated id starting at 9 bytes before the end.
      * @param hash optional routing hash value, used to route requests by id to the right shard.
      */
-    public void autoGenerateTimeBasedId(OptionalInt hash) {
+    public void autoGenerateKOrderedId(DocumentIdGenerator generator, OptionalInt hash) {
         assertBeforeGeneratingId();
         autoGenerateTimestamp();
-        id(UUIDs.base64TimeBasedKOrderedUUIDWithHash(hash));
+        id(generator.generateKOrderedId(hash));
     }
 
     private void autoGenerateTimestamp() {

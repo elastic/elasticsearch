@@ -81,6 +81,7 @@ import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.cluster.service.FakeThreadPoolMasterService;
 import org.elasticsearch.cluster.service.MasterService;
 import org.elasticsearch.cluster.version.CompatibilityVersionsUtils;
+import org.elasticsearch.common.DocumentIdGenerator;
 import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.RecyclerBytesStreamOutput;
@@ -929,7 +930,8 @@ public class SnapshotResiliencyTestHelper {
                             }
                         },
                         new TimeSeriesEligibleWriteWindowLocator(),
-                        DataStreamGlobalRetentionSettings.create(ClusterSettings.createBuiltInClusterSettings())
+                        DataStreamGlobalRetentionSettings.create(ClusterSettings.createBuiltInClusterSettings()),
+                        DocumentIdGenerator.DEFAULT
                     )
                 );
                 final TransportShardBulkAction transportShardBulkAction = new TransportShardBulkAction(

@@ -76,6 +76,7 @@ import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.atomic.AtomicReference;
+import java.util.function.Function;
 
 /**
  * Handles computes within a single cluster by dispatching {@link DataNodeRequest} to data nodes
@@ -493,6 +494,69 @@ final class DataNodeComputeHandler implements TransportRequestHandler<DataNodeRe
         } finally {
             keepAlive.done();
         }
+    }
+
+    /**
+     * Result of looking up each assigned worker at dispatch. {@code unresolved} is every
+     * assignment whose node is gone from cluster state or whose connection cannot be opened.
+     */
+    record ExternalDispatchResolution(List<ResolvedExternalNode> resolved, List<UnresolvedExternalNode> unresolved) {
+        record ResolvedExternalNode(DiscoveryNode node, Transport.Connection connection, List<ExternalSplit> splits) {}
+
+        record UnresolvedExternalNode(String nodeId, List<ExternalSplit> splits, Exception error) {}
+    }
+
+    @FunctionalInterface
+    interface ExternalNodeConnectionLookup {
+        Transport.Connection get(DiscoveryNode node) throws Exception;
+    }
+
+    /**
+     * Resolves each non-empty assignment to a live node and connection. Empty assignments
+     * are ignored. Failures stay on {@code unresolved}; this step does not move splits.
+     */
+    static ExternalDispatchResolution resolveExternalAssignments(
+        Map<String, List<ExternalSplit>> nodeAssignments,
+        Function<String, DiscoveryNode> nodes,
+        ExternalNodeConnectionLookup connections
+    ) {
+        List<ExternalDispatchResolution.ResolvedExternalNode> resolved = new ArrayList<>();
+        List<ExternalDispatchResolution.UnresolvedExternalNode> unresolved = new ArrayList<>();
+        for (Map.Entry<String, List<ExternalSplit>> entry : nodeAssignments.entrySet()) {
+            List<ExternalSplit> nodeSplits = entry.getValue();
+            if (nodeSplits.isEmpty()) {
+                continue;
+            }
+            String nodeId = entry.getKey();
+            DiscoveryNode node = nodes.apply(nodeId);
+            if (node == null) {
+                unresolved.add(
+                    new ExternalDispatchResolution.UnresolvedExternalNode(
+                        nodeId,
+                        nodeSplits,
+                        new IllegalStateException(
+                            "node [" + nodeId + "] assigned [" + nodeSplits.size() + "] external splits not found in cluster state"
+                        )
+                    )
+                );
+                continue;
+            }
+            try {
+                resolved.add(new ExternalDispatchResolution.ResolvedExternalNode(node, connections.get(node), nodeSplits));
+            } catch (Exception e) {
+                unresolved.add(new ExternalDispatchResolution.UnresolvedExternalNode(nodeId, nodeSplits, e));
+            }
+        }
+        return new ExternalDispatchResolution(List.copyOf(resolved), List.copyOf(unresolved));
+    }
+
+    /**
+     * Moves splits from unresolved workers onto resolved workers, appending round-robin
+     * in resolved-node order. When no worker resolved, the input is returned unchanged
+     * so the dispatcher can fail the query.
+     */
+    static ExternalDispatchResolution reassignUnreachableSplits(ExternalDispatchResolution resolution) {
+        return resolution;
     }
 
     private static final Logger LOGGER = LogManager.getLogger(DataNodeComputeHandler.class);

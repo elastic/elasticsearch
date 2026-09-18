@@ -28,6 +28,8 @@ lib-cov
 # Coverage directory used by tools like istanbul
 
 coverage
+# ...but scripts/coverage/ is committed tooling, not generated output.
+!scripts/coverage/
 \*.lcov
 
 # nyc test coverage

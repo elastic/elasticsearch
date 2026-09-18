@@ -298,72 +298,63 @@ final class DataNodeComputeHandler implements TransportRequestHandler<DataNodeRe
     ) {
         var queryPragmas = configuration.pragmas();
         boolean allowPartial = configuration.allowPartialResults();
-        boolean sentAny = false;
-        int nodesWithSplits = 0;
-        AtomicInteger failedNodes = new AtomicInteger(0);
 
         final var keepAlive = new ExchangeSourceLinkKeepAlive(exchangeSource);
         try {
-            for (Map.Entry<String, List<ExternalSplit>> entry : distributionPlan.nodeAssignments().entrySet()) {
-                String nodeId = entry.getKey();
-                List<ExternalSplit> nodeSplits = entry.getValue();
-                if (nodeSplits.isEmpty()) {
-                    continue;
-                }
-                nodesWithSplits++;
-
-                DiscoveryNode node = clusterService.state().nodes().get(nodeId);
-                if (node == null) {
-                    var nodeError = new IllegalStateException(
-                        "node [" + nodeId + "] assigned [" + nodeSplits.size() + "] external splits not found in cluster state"
-                    );
-                    if (allowPartial) {
-                        LOGGER.warn(
-                            "node [{}] assigned {} external splits is no longer in the cluster state; skipping (partial results enabled)",
-                            nodeId,
-                            nodeSplits.size()
+            ExternalDispatchResolution beforeReassign = resolveExternalAssignments(
+                distributionPlan.nodeAssignments(),
+                nodeId -> clusterService.state().nodes().get(nodeId),
+                transportService::getConnection
+            );
+            if (beforeReassign.unresolved().isEmpty() == false && beforeReassign.resolved().isEmpty() == false) {
+                LOGGER.debug(
+                    "reassigning external splits from [{}] unreachable nodes onto [{}] reachable nodes",
+                    beforeReassign.unresolved().size(),
+                    beforeReassign.resolved().size()
+                );
+            }
+            ExternalDispatchResolution resolution = reassignUnreachableSplits(beforeReassign);
+            if (resolution.resolved().isEmpty()) {
+                if (resolution.unresolved().isEmpty() == false) {
+                    parentComputeListener.acquireCompute()
+                        .onFailure(
+                            new IllegalStateException(
+                                "all ["
+                                    + resolution.unresolved().size()
+                                    + "] nodes assigned external splits failed; cannot serve partial results"
+                            )
                         );
-                        failedNodes.incrementAndGet();
-                        parentComputeListener.acquireCompute().onResponse(DriverCompletionInfo.EMPTY);
-                        continue;
-                    }
+                } else {
+                    parentComputeListener.acquireCompute().onResponse(DriverCompletionInfo.EMPTY);
+                }
+                return;
+            }
+            if (resolution.unresolved().isEmpty() == false) {
+                if (allowPartial == false) {
+                    ExternalDispatchResolution.UnresolvedExternalNode first = resolution.unresolved().getFirst();
                     LOGGER.warn(
-                        "node [{}] assigned {} external splits is no longer in the cluster state; failing external distribution",
-                        nodeId,
-                        nodeSplits.size()
+                        "node [{}] assigned {} external splits is unreachable; failing external distribution",
+                        first.nodeId(),
+                        first.splits().size()
                     );
-                    parentComputeListener.acquireCompute().onFailure(nodeError);
+                    parentComputeListener.acquireCompute().onFailure(first.error());
                     return;
                 }
-
-                final Transport.Connection connection;
-                try {
-                    connection = transportService.getConnection(node);
-                } catch (Exception e) {
-                    if (allowPartial) {
-                        LOGGER.warn(
-                            "failed to connect to node [{}] ({}) for external source execution with {} splits; skipping (partial results)",
-                            nodeId,
-                            node.getName(),
-                            nodeSplits.size(),
-                            e
-                        );
-                        failedNodes.incrementAndGet();
-                        parentComputeListener.acquireCompute().onResponse(DriverCompletionInfo.EMPTY);
-                        continue;
-                    }
+                for (ExternalDispatchResolution.UnresolvedExternalNode skipped : resolution.unresolved()) {
                     LOGGER.warn(
-                        "failed to connect to node [{}] ({}) for external source execution with {} splits",
-                        nodeId,
-                        node.getName(),
-                        nodeSplits.size(),
-                        e
+                        "node [{}] assigned {} external splits is unreachable; skipping (partial results enabled)",
+                        skipped.nodeId(),
+                        skipped.splits().size()
                     );
-                    parentComputeListener.acquireCompute().onFailure(e);
-                    return;
+                    parentComputeListener.acquireCompute().onResponse(skippedUnreachableNode(skipped.nodeId(), skipped.splits().size()));
                 }
+            }
 
-                sentAny = true;
+            for (ExternalDispatchResolution.ResolvedExternalNode target : resolution.resolved()) {
+                DiscoveryNode node = target.node();
+                Transport.Connection connection = target.connection();
+                List<ExternalSplit> nodeSplits = target.splits();
+
                 var childSessionId = computeService.newChildSession(sessionId);
                 keepAlive.track();
                 final AtomicBoolean nodeDone = new AtomicBoolean(false);
@@ -479,18 +470,6 @@ final class DataNodeComputeHandler implements TransportRequestHandler<DataNodeRe
                     return;
                 }
             }
-            if (sentAny == false) {
-                if (failedNodes.get() > 0 && failedNodes.get() >= nodesWithSplits) {
-                    parentComputeListener.acquireCompute()
-                        .onFailure(
-                            new IllegalStateException(
-                                "all [" + failedNodes.get() + "] nodes assigned external splits failed; cannot serve partial results"
-                            )
-                        );
-                } else {
-                    parentComputeListener.acquireCompute().onResponse(DriverCompletionInfo.EMPTY);
-                }
-            }
         } finally {
             keepAlive.done();
         }
@@ -556,7 +535,50 @@ final class DataNodeComputeHandler implements TransportRequestHandler<DataNodeRe
      * so the dispatcher can fail the query.
      */
     static ExternalDispatchResolution reassignUnreachableSplits(ExternalDispatchResolution resolution) {
-        return resolution;
+        if (resolution.resolved().isEmpty() || resolution.unresolved().isEmpty()) {
+            return resolution;
+        }
+        List<List<ExternalSplit>> expanded = new ArrayList<>(resolution.resolved().size());
+        for (ExternalDispatchResolution.ResolvedExternalNode resolved : resolution.resolved()) {
+            expanded.add(new ArrayList<>(resolved.splits()));
+        }
+        int next = 0;
+        for (ExternalDispatchResolution.UnresolvedExternalNode unresolved : resolution.unresolved()) {
+            for (ExternalSplit split : unresolved.splits()) {
+                expanded.get(next % expanded.size()).add(split);
+                next++;
+            }
+        }
+        List<ExternalDispatchResolution.ResolvedExternalNode> reassigned = new ArrayList<>(resolution.resolved().size());
+        for (int i = 0; i < resolution.resolved().size(); i++) {
+            ExternalDispatchResolution.ResolvedExternalNode original = resolution.resolved().get(i);
+            reassigned.add(
+                new ExternalDispatchResolution.ResolvedExternalNode(original.node(), original.connection(), List.copyOf(expanded.get(i)))
+            );
+        }
+        return new ExternalDispatchResolution(List.copyOf(reassigned), List.of());
+    }
+
+    /**
+     * Completion for an assigned worker that was skipped after reassignment could not place
+     * its splits. Marks the query partial and names the node and split count in a warning.
+     */
+    static DriverCompletionInfo skippedUnreachableNode(String nodeId, int splitCount) {
+        return new DriverCompletionInfo(
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            List.of(),
+            List.of(),
+            Map.of(),
+            true,
+            false,
+            Set.of("node [" + nodeId + "] assigned [" + splitCount + "] external splits was unreachable at dispatch")
+        );
     }
 
     private static final Logger LOGGER = LogManager.getLogger(DataNodeComputeHandler.class);

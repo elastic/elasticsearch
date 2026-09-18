@@ -9,6 +9,7 @@ package org.elasticsearch.xpack.esql.plugin;
 
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodeUtils;
+import org.elasticsearch.compute.operator.DriverCompletionInfo;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.transport.NodeNotConnectedException;
 import org.elasticsearch.transport.Transport;
@@ -31,8 +32,10 @@ import java.util.stream.Collectors;
 import static org.elasticsearch.cluster.node.DiscoveryNodeRole.DATA_HOT_NODE_ROLE;
 import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.containsInAnyOrder;
+import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.hasItem;
 import static org.hamcrest.Matchers.hasSize;
 import static org.mockito.Mockito.mock;
 
@@ -158,6 +161,13 @@ public class DataNodeComputeHandlerExternalDispatchTests extends ESTestCase {
         assertThat(byNode.get("node-1"), contains(all.get(1), all.get(2)));
     }
 
+    public void testSkippedUnreachableNodeCompletionIsPartial() {
+        DriverCompletionInfo info = DataNodeComputeHandler.skippedUnreachableNode("node-1", 3);
+        assertTrue(info.partial());
+        assertThat(info.warnings(), hasItem(containsString("node-1")));
+        assertThat(info.warnings(), hasItem(containsString("3")));
+    }
+
     public void testEmptyAssignmentsAreIgnored() {
         List<ExternalSplit> all = splits(1);
         Map<String, List<ExternalSplit>> assignments = new LinkedHashMap<>();
@@ -199,7 +209,9 @@ public class DataNodeComputeHandlerExternalDispatchTests extends ESTestCase {
     private static List<ExternalSplit> splits(int count) {
         List<ExternalSplit> splits = new ArrayList<>(count);
         for (int i = 0; i < count; i++) {
-            splits.add(new FileSplit("parquet", StoragePath.of("s3://bucket/file" + i + ".parquet"), 0, 1024, "parquet", Map.of(), Map.of()));
+            splits.add(
+                new FileSplit("parquet", StoragePath.of("s3://bucket/file" + i + ".parquet"), 0, 1024, "parquet", Map.of(), Map.of())
+            );
         }
         return splits;
     }

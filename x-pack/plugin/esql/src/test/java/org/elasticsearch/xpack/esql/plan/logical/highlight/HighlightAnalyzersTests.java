@@ -26,6 +26,7 @@ import static org.elasticsearch.xpack.esql.core.tree.Source.EMPTY;
 import static org.elasticsearch.xpack.esql.core.type.DataType.KEYWORD;
 import static org.elasticsearch.xpack.esql.core.type.DataType.TEXT;
 import static org.hamcrest.Matchers.contains;
+import static org.hamcrest.Matchers.equalTo;
 
 public class HighlightAnalyzersTests extends ESTestCase {
 
@@ -36,7 +37,7 @@ public class HighlightAnalyzersTests extends ESTestCase {
     public void testEachFieldPicksItsOwnAnalyzerInOnOrder() {
         Map<String, NamedAnalyzer> resolved = HighlightAnalyzers.resolve(
             List.of(
-                textField("title", "whitespace"),
+                textField("title", "whitespace", 0),
                 textField("body", null),
                 declaredField("note", "simple"),
                 declaredField("other", null),
@@ -50,6 +51,7 @@ public class HighlightAnalyzersTests extends ESTestCase {
             resolved.values().stream().map(NamedAnalyzer::name).toList(),
             contains("whitespace", "standard", "simple", "standard", "standard")
         );
+        assertThat(resolved.get("title").getPositionIncrementGap("title"), equalTo(0));
     }
 
     public void testWithAnalyzerOverridesMappingAndDeclared() {
@@ -83,10 +85,14 @@ public class HighlightAnalyzersTests extends ESTestCase {
     }
 
     private static FieldAttribute textField(String name, String analyzerName) {
+        return textField(name, analyzerName, TextEsField.DEFAULT_POSITION_INCREMENT_GAP);
+    }
+
+    private static FieldAttribute textField(String name, String analyzerName, int positionIncrementGap) {
         return new FieldAttribute(
             EMPTY,
             name,
-            new TextEsField(name, Map.of(), false, false, EsField.TimeSeriesFieldType.NONE, analyzerName)
+            new TextEsField(name, Map.of(), false, false, EsField.TimeSeriesFieldType.NONE, analyzerName, positionIncrementGap)
         );
     }
 

@@ -14,6 +14,7 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.util.StringLiteralDeduplicator;
 import org.elasticsearch.core.Nullable;
+import org.elasticsearch.index.mapper.TextFieldMapper;
 import org.elasticsearch.index.mapper.TimeSeriesParams;
 
 import java.io.IOException;
@@ -31,6 +32,8 @@ import java.util.Map;
  * @param indexAnalyzer  The name of the analyzer the field is indexed with, for text-family fields.
  *                       {@code null} for other field types and for responses from nodes that predate this field.
  *                       ES|QL HIGHLIGHT re-analyzes values on the coordinator, so it reads this name from field-caps.
+ * @param indexAnalyzerPositionIncrementGap Mapping {@code position_increment_gap} when {@code indexAnalyzer} is set;
+ *                       default otherwise so it does not affect equality.
  */
 
 public record IndexFieldCapabilities(
@@ -43,8 +46,15 @@ public record IndexFieldCapabilities(
     boolean isDimension,
     TimeSeriesParams.MetricType metricType,
     Map<String, String> meta,
-    @Nullable String indexAnalyzer
+    @Nullable String indexAnalyzer,
+    int indexAnalyzerPositionIncrementGap
 ) implements Writeable {
+
+    public IndexFieldCapabilities {
+        if (indexAnalyzer == null) {
+            indexAnalyzerPositionIncrementGap = TextFieldMapper.Defaults.POSITION_INCREMENT_GAP;
+        }
+    }
 
     private static final StringLiteralDeduplicator typeStringDeduplicator = new StringLiteralDeduplicator();
 
@@ -61,6 +71,7 @@ public record IndexFieldCapabilities(
         String indexAnalyzer = in.getTransportVersion().supports(FieldCapabilities.FIELD_CAPS_INDEX_ANALYZER)
             ? in.readOptionalString()
             : null;
+        int indexAnalyzerPositionIncrementGap = indexAnalyzer != null ? in.readVInt() : TextFieldMapper.Defaults.POSITION_INCREMENT_GAP;
         return new IndexFieldCapabilities(
             name,
             type,
@@ -71,7 +82,8 @@ public record IndexFieldCapabilities(
             isDimension,
             metricType,
             meta,
-            indexAnalyzer
+            indexAnalyzer,
+            indexAnalyzerPositionIncrementGap
         );
     }
 
@@ -90,6 +102,9 @@ public record IndexFieldCapabilities(
         }
         if (out.getTransportVersion().supports(FieldCapabilities.FIELD_CAPS_INDEX_ANALYZER)) {
             out.writeOptionalString(indexAnalyzer);
+            if (indexAnalyzer != null) {
+                out.writeVInt(indexAnalyzerPositionIncrementGap);
+            }
         }
     }
 

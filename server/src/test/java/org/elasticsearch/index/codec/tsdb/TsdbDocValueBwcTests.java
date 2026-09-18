@@ -12,6 +12,7 @@ package org.elasticsearch.index.codec.tsdb;
 import org.apache.lucene.codecs.Codec;
 import org.apache.lucene.codecs.DocValuesFormat;
 import org.apache.lucene.codecs.DocValuesProducer;
+import org.apache.lucene.codecs.FilterCodec;
 import org.apache.lucene.document.BinaryDocValuesField;
 import org.apache.lucene.document.Document;
 import org.apache.lucene.document.LongPoint;
@@ -44,6 +45,7 @@ import org.elasticsearch.index.codec.perfield.XPerFieldDocValuesFormat;
 import org.elasticsearch.index.codec.tsdb.ES87TSDBDocValuesFormatTests.TestES87TSDBDocValuesFormat;
 import org.elasticsearch.index.codec.tsdb.es819.ES819TSDBDocValuesFormat;
 import org.elasticsearch.index.codec.tsdb.es819.ES819Version3TSDBDocValuesFormat;
+import org.elasticsearch.index.codec.tsdb.es95.ES95TSDBDocValuesFormat;
 import org.elasticsearch.test.ESTestCase;
 import org.hamcrest.Matchers;
 
@@ -61,37 +63,43 @@ import static org.hamcrest.Matchers.equalTo;
 public class TsdbDocValueBwcTests extends ESTestCase {
 
     public void testMixedIndex() throws Exception {
-        var oldCodec = TestUtil.alwaysDocValuesFormat(new TestES87TSDBDocValuesFormat());
+        var oldCodec = alwaysDocValuesFormat(new TestES87TSDBDocValuesFormat());
         var compressionMode = TSDBDocValuesTestUtil.randomBinaryCompressionMode();
-        var newCodec = TestUtil.alwaysDocValuesFormat(new ES819TSDBDocValuesFormat(compressionMode));
+        var newCodec = alwaysDocValuesFormat(new ES819TSDBDocValuesFormat(compressionMode));
         testMixedIndex(oldCodec, newCodec);
     }
 
     public void testMixedIndexDocValueVersion0ToVersion1() throws Exception {
-        var oldCodec = TestUtil.alwaysDocValuesFormat(new TestES819TSDBDocValuesFormatVersion0());
+        var oldCodec = alwaysDocValuesFormat(new TestES819TSDBDocValuesFormatVersion0());
         var compressionMode = TSDBDocValuesTestUtil.randomBinaryCompressionMode();
-        var newCodec = TestUtil.alwaysDocValuesFormat(new ES819TSDBDocValuesFormat(compressionMode));
+        var newCodec = alwaysDocValuesFormat(new ES819TSDBDocValuesFormat(compressionMode));
         testMixedIndex(oldCodec, newCodec, this::assertVersion819, this::assertVersion819);
     }
 
-    public void testMixedIndexDocValueVersion2ToCurrent() throws Exception {
-        var oldCodec = TestUtil.alwaysDocValuesFormat(new ES819TSDBDocValuesFormat());
-        var newCodec = TestUtil.alwaysDocValuesFormat(new ES819Version3TSDBDocValuesFormat());
+    public void testMixedIndexDocValueVersion2ToVersion3() throws Exception {
+        var oldCodec = alwaysDocValuesFormat(new ES819TSDBDocValuesFormat());
+        var newCodec = alwaysDocValuesFormat(new ES819Version3TSDBDocValuesFormat());
         testMixedIndex(oldCodec, newCodec, this::assertVersion819, this::assertVersion819Version3);
+    }
+
+    public void testMixedIndexDocValueVersion3ToCurrent() throws Exception {
+        var oldCodec = alwaysDocValuesFormat(new ES819Version3TSDBDocValuesFormat());
+        var newCodec = alwaysDocValuesFormat(new ES95TSDBDocValuesFormat());
+        testMixedIndex(oldCodec, newCodec, this::assertVersion819Version3, this::assertVersion95);
     }
 
     public void testMixedIndexDocValueBinaryCompressionFeatureDisabledOldCodec() throws Exception {
         // Mimic the behavior of BINARY_DV_COMPRESSION_FEATURE_FLAG being disabled in the oldCodec, but enabled in the newCodec.
-        var oldCodec = TestUtil.alwaysDocValuesFormat(new ES819TSDBDocValuesFormat(BinaryDVCompressionMode.NO_COMPRESS));
-        var newCodec = TestUtil.alwaysDocValuesFormat(new ES819TSDBDocValuesFormat(BinaryDVCompressionMode.COMPRESSED_ZSTD_LEVEL_1));
+        var oldCodec = alwaysDocValuesFormat(new ES819TSDBDocValuesFormat(BinaryDVCompressionMode.NO_COMPRESS));
+        var newCodec = alwaysDocValuesFormat(new ES819TSDBDocValuesFormat(BinaryDVCompressionMode.COMPRESSED_ZSTD_LEVEL_1));
         testMixedIndex(oldCodec, newCodec, this::assertVersion819, this::assertVersion819);
     }
 
     public void testMixedIndexDocValueBinaryPerBlockCompression() throws Exception {
-        var oldCodec = TestUtil.alwaysDocValuesFormat(
+        var oldCodec = alwaysDocValuesFormat(
             new ES819TSDBDocValuesFormat(BinaryDVCompressionMode.COMPRESSED_ZSTD_LEVEL_1, randomBoolean())
         );
-        var newCodec = TestUtil.alwaysDocValuesFormat(
+        var newCodec = alwaysDocValuesFormat(
             new ES819TSDBDocValuesFormat(BinaryDVCompressionMode.COMPRESSED_ZSTD_LEVEL_1, randomBoolean())
         );
         testMixedIndex(oldCodec, newCodec, this::assertVersion819, this::assertVersion819);
@@ -146,6 +154,11 @@ public class TsdbDocValueBwcTests extends ESTestCase {
         IllegalAccessException {
         assert819DocValuesFormatVersion(reader, "ES8193TSDB_0");
         assertFieldInfoDocValuesFormat(reader, "0", "ES8193TSDB");
+    }
+
+    void assertVersion95(DirectoryReader reader) throws IOException, NoSuchFieldException, ClassNotFoundException, IllegalAccessException {
+        assert95DocValuesFormatVersion(reader, "ES95TSDB_0");
+        assertFieldInfoDocValuesFormat(reader, "0", "ES95TSDB");
     }
 
     void testMixedIndex(Codec oldCodec, Codec newCodec) throws IOException, NoSuchFieldException, IllegalAccessException,
@@ -510,8 +523,7 @@ public class TsdbDocValueBwcTests extends ESTestCase {
         }
     }
 
-    private void assert819DocValuesFormatVersion(DirectoryReader reader, String formatName) throws NoSuchFieldException,
-        IllegalAccessException, IOException, ClassNotFoundException {
+    private void assert819DocValuesFormatVersion(DirectoryReader reader, String formatName) throws IOException, ClassNotFoundException {
 
         for (var leafReaderContext : reader.leaves()) {
             var leaf = (SegmentReader) leafReaderContext.reader();
@@ -528,15 +540,28 @@ public class TsdbDocValueBwcTests extends ESTestCase {
                     Matchers.instanceOf(Class.forName("org.elasticsearch.index.codec.tsdb.es819.ES819TSDBDocValuesProducer"))
                 );
             } else {
-                var field = getFormatsFieldFromPerFieldFieldsReader(dvReader.getClass());
-                Map<?, ?> formats = (Map<?, ?>) field.get(dvReader);
+                fail("Expected XPerFieldDocValuesFormat.FieldsReader but got " + dvReader.getClass());
+            }
+        }
+    }
+
+    private void assert95DocValuesFormatVersion(DirectoryReader reader, String formatName) throws IOException, ClassNotFoundException {
+        for (var leafReaderContext : reader.leaves()) {
+            var leaf = (SegmentReader) leafReaderContext.reader();
+            var dvReader = leaf.getDocValuesReader();
+            dvReader.checkIntegrity();
+
+            if (dvReader instanceof XPerFieldDocValuesFormat.FieldsReader perFieldDvReader) {
+                var formats = perFieldDvReader.getFormats();
                 assertThat(formats, Matchers.aMapWithSize(1));
-                var tsdbDvReader = (DocValuesProducer) formats.get(formatName);
+                var tsdbDvReader = formats.get(formatName);
                 tsdbDvReader.checkIntegrity();
                 assertThat(
                     tsdbDvReader,
-                    Matchers.instanceOf(Class.forName("org.elasticsearch.index.codec.tsdb.es819.ES819TSDBDocValuesProducer"))
+                    Matchers.instanceOf(Class.forName("org.elasticsearch.index.codec.tsdb.es95.ES95TSDBDocValuesProducer"))
                 );
+            } else {
+                fail("Expected XPerFieldDocValuesFormat.FieldsReader but got " + dvReader.getClass());
             }
         }
     }
@@ -551,4 +576,39 @@ public class TsdbDocValueBwcTests extends ESTestCase {
     interface VersionAssert {
         void run(DirectoryReader reader) throws IOException, NoSuchFieldException, IllegalAccessException, ClassNotFoundException;
     }
+
+    static Codec alwaysDocValuesFormat(final DocValuesFormat format) {
+        return new AlwaysCodec() {
+            @Override
+            public DocValuesFormat getDocValuesFormatForField(String field) {
+                return format;
+            }
+        };
+    }
+
+    public static class AlwaysCodec extends FilterCodec {
+
+        // Reasons with this test codec is that XPerFieldDocValuesFormat gets used:
+        // (Lucene's asserting codec uses PerFieldDocValuesFormat)
+        private final DocValuesFormat docValues = new XPerFieldDocValuesFormat() {
+            @Override
+            public DocValuesFormat getDocValuesFormatForField(String field) {
+                return AlwaysCodec.this.getDocValuesFormatForField(field);
+            }
+        };
+
+        public AlwaysCodec() {
+            super("always", TestUtil.getDefaultCodec());
+        }
+
+        @Override
+        public DocValuesFormat docValuesFormat() {
+            return docValues;
+        }
+
+        public DocValuesFormat getDocValuesFormatForField(String field) {
+            throw new UnsupportedOperationException("AlwaysCodec must be subclassed");
+        }
+    }
+
 }

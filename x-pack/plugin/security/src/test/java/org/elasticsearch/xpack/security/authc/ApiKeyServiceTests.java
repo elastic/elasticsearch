@@ -181,6 +181,7 @@ import static org.elasticsearch.test.ActionListenerUtils.anyActionListener;
 import static org.elasticsearch.test.LambdaMatchers.transformedMatch;
 import static org.elasticsearch.test.SecurityIntegTestCase.getFastStoredHashAlgoForTests;
 import static org.elasticsearch.test.TestMatchers.throwableWithMessage;
+import static org.elasticsearch.xpack.core.security.authc.AuthenticationField.API_KEY_ID_KEY;
 import static org.elasticsearch.xpack.core.security.authc.AuthenticationField.API_KEY_METADATA_KEY;
 import static org.elasticsearch.xpack.core.security.authc.AuthenticationField.API_KEY_TYPE_KEY;
 import static org.elasticsearch.xpack.core.security.authz.privilege.ConfigurableClusterPrivileges.DatasourcePrivileges.ESQL_DATASOURCE_PRIVILEGE;
@@ -3315,26 +3316,25 @@ public class ApiKeyServiceTests extends ESTestCase {
     }
 
     public void testGetApiKeyMetadata() throws IOException {
+        final Map<String, Object> metadata;
         final Map<String, Object> apiKeyMetadata = ApiKeyTests.randomMetadata();
-        final Map<String, Object> authMetadata;
         if (apiKeyMetadata == null) {
-            authMetadata = Map.of(AuthenticationField.API_KEY_ID_KEY, randomAlphaOfLength(20));
+            metadata = Map.of(API_KEY_ID_KEY, randomAlphaOfLength(20));
         } else {
             final BytesReference metadataBytes = XContentTestUtils.convertToXContent(apiKeyMetadata, XContentType.JSON);
-            authMetadata = Map.of(AuthenticationField.API_KEY_ID_KEY, randomAlphaOfLength(20), API_KEY_METADATA_KEY, metadataBytes);
+            metadata = Map.of(API_KEY_ID_KEY, randomAlphaOfLength(20), API_KEY_METADATA_KEY, metadataBytes);
         }
 
         final Authentication apiKeyAuthentication = Authentication.newApiKeyAuthentication(
-            AuthenticationResult.success(new User(ESTestCase.randomAlphaOfLengthBetween(3, 8)), authMetadata),
+            AuthenticationResult.success(new User(ESTestCase.randomAlphaOfLengthBetween(3, 8)), metadata),
             randomAlphaOfLengthBetween(3, 8)
         );
 
-        final BytesReference restoredBytes = ApiKeyService.getApiKeyMetadata(apiKeyAuthentication);
+        final Map<String, Object> restoredApiKeyMetadata = ApiKeyService.getApiKeyMetadata(apiKeyAuthentication);
         if (apiKeyMetadata == null) {
-            assertNull(restoredBytes);
+            assertThat(restoredApiKeyMetadata, anEmptyMap());
         } else {
-            assertNotNull(restoredBytes);
-            assertThat(XContentHelper.convertToMap(restoredBytes, false, XContentType.JSON).v2(), equalTo(apiKeyMetadata));
+            assertThat(restoredApiKeyMetadata, equalTo(apiKeyMetadata));
         }
 
         final Authentication authentication = AuthenticationTests.randomAuthentication(

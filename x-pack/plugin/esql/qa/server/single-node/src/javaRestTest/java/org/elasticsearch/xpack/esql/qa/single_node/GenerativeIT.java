@@ -41,13 +41,12 @@ public class GenerativeIT extends PerFeatureGenerativeRestTest {
     @ClassRule
     public static DataSourcesS3HttpFixture s3Fixture = new DataSourcesS3HttpFixture();
 
+    // Left at the shipping default on purpose. The multi-node GenerativeIT opts in, so wildcard-reached datasets
+    // still get generative coverage; keeping this suite at the default means exactPatterns, the off-branch of
+    // anyPatternCouldMatchDataset and resolve's retainAll -- the paths every production query takes -- see generated
+    // queries too. Opting both suites in would fuzz only the non-default mode.
     @ClassRule
-    public static ElasticsearchCluster cluster = Clusters.testCluster(
-        // This suite boosts the registered parquet datasets into the generator's source pool and lets
-        // EsqlQueryGenerator#indexPattern wildcard their names, so it needs wildcards to reach datasets.
-        // That is off by default, so opt in here rather than lose the coverage.
-        spec -> spec.setting("esql.query.settings.wildcards_match_datasets", "true")
-    );
+    public static ElasticsearchCluster cluster = Clusters.testCluster();
 
     @BeforeClass
     public static void loadS3Fixtures() {

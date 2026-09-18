@@ -3021,6 +3021,47 @@ public class EsqlSecurityIT extends ESRestTestCase {
         }
     }
 
+    /**
+     * The exclusion arm of the narrowing, which julian-elastic's report did not construct. With the setting off
+     * {@code indices()} withholds every part that names nothing exactly — wildcards <em>and</em> exclusions — so
+     * {@code FROM dls_ds,-dls_ds} sends only the positive part to the security filter, where the same query with the
+     * setting on sends both. That asymmetry does not reach the caller: an exactly-named DLS dataset is rejected in
+     * either mode, because the positive part reaches the filter either way and the interceptor fires on it before
+     * any netting. Both arms are asserted so the two modes cannot silently diverge here.
+     */
+    public void testExactDatasetCancelledByItsOwnExclusionIsRejectedInBothModes() throws IOException {
+        assumeTrue("data_sources REST API not supported by cluster", dataSourcesApiSupported());
+        ensureSecurityItDatasourcesForTests();
+        final String suffix = randomAlphaOfLength(6).toLowerCase(Locale.ROOT);
+        final String dls = createSecurityItDatasetAsAdmin(
+            "security_it_ds_dls_" + suffix,
+            "s3://security-it-denied-bucket/dls-" + suffix + "/*.parquet"
+        );
+        try {
+            ResponseException off = expectThrows(
+                ResponseException.class,
+                () -> runESQLCommand("ds_dataset_query_ok_plus_dls", "FROM " + dls + ",-" + dls + " | STATS COUNT(*)")
+            );
+            assertThat(off.getResponse().getStatusLine().getStatusCode(), equalTo(HttpStatus.SC_FORBIDDEN));
+            assertThat(off.getMessage(), containsString("document or field level security"));
+
+            ResponseException on = expectThrows(
+                ResponseException.class,
+                () -> runESQLCommand(
+                    "ds_dataset_query_ok_plus_dls",
+                    "SET wildcards_match_datasets = true; FROM " + dls + ",-" + dls + " | STATS COUNT(*)"
+                )
+            );
+            assertThat(
+                "the narrowing must not make the default diverge from the opted-in mode here",
+                on.getResponse().getStatusLine().getStatusCode(),
+                equalTo(off.getResponse().getStatusLine().getStatusCode())
+            );
+        } finally {
+            deleteDatasetAsAdmin(dls);
+        }
+    }
+
     /** Registers a randomly-named dataset under {@link #SECURITY_IT_SHARED_DATASOURCE} as test-admin; returns its name. */
     private String createSecurityItDatasetAsAdmin() throws IOException {
         return createSecurityItDatasetAsAdmin("security_it_ds_authz_" + randomAlphaOfLength(8).toLowerCase(Locale.ROOT));

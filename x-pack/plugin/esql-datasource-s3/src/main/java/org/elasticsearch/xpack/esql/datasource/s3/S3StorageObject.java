@@ -40,6 +40,7 @@ import org.elasticsearch.tasks.TaskCancelledException;
 import org.elasticsearch.xpack.esql.datasources.spi.AbstractMeteredStorageObject;
 import org.elasticsearch.xpack.esql.datasources.spi.DirectBufferFactory;
 import org.elasticsearch.xpack.esql.datasources.spi.DirectReadBuffer;
+import org.elasticsearch.xpack.esql.datasources.spi.ExternalCredentialsExpiredException;
 import org.elasticsearch.xpack.esql.datasources.spi.ExternalObjectChangedException;
 import org.elasticsearch.xpack.esql.datasources.spi.ExternalUnavailableException;
 import org.elasticsearch.xpack.esql.datasources.spi.StoragePath;
@@ -208,8 +209,10 @@ public final class S3StorageObject extends AbstractMeteredStorageObject {
      * chain: the destination buffer for a native-async read is allocated inside the SDK's response
      * pipeline, so the SDK's retry stage wraps the trip in a status-neutral {@code SdkClientException} —
      * unwrapping it preserves the breaker's 429 so load shedding is not reported as a permanent
-     * query error. A missing object, a credential failure, or any other failure becomes an
-     * {@link IOException}, which the external source operator classifies as a client-class 400.
+     * query error. Expired session tokens become {@link ExternalCredentialsExpiredException} (400)
+     * so sibling GETs and prefetch fallback can fail fast. A missing object, a 403, or any other
+     * failure becomes an {@link IOException}, which the external source operator classifies as a
+     * client-class 400.
      * Returns the exception (never throws) so both the synchronous and async read paths can route it.
      */
     private Exception mapReadFailure(String context, Throwable cause) {
@@ -256,6 +259,10 @@ public final class S3StorageObject extends AbstractMeteredStorageObject {
                     + "]: the server clock differs too much from S3. Check that the host clock is NTP-synchronized.",
                 cause
             );
+        }
+        ExternalCredentialsExpiredException expired = S3FailureDetail.expired(cause, "reading [" + path + "]");
+        if (expired != null) {
+            return expired;
         }
         if (cause instanceof S3Exception denied && denied.statusCode() == 403) {
             // Follows the listing-403 wording in S3StorageProvider: name what was refused, then what to change.
@@ -586,6 +593,9 @@ public final class S3StorageObject extends AbstractMeteredStorageObject {
         } catch (NoSuchKeyException e) {
             setNotFound();
         } catch (S3Exception e) {
+            if (mapReadFailure("Failed to read object metadata for", e) instanceof ExternalCredentialsExpiredException expired) {
+                throw expired;
+            }
             if (e.statusCode() == 416) {
                 // 416 Range Not Satisfiable: object exists but is empty (0 bytes)
                 cachedExists = true;
@@ -620,6 +630,9 @@ public final class S3StorageObject extends AbstractMeteredStorageObject {
         } catch (NoSuchKeyException e) {
             setNotFound();
         } catch (Exception e) {
+            if (mapReadFailure("HeadObject request failed for", e) instanceof ExternalCredentialsExpiredException expired) {
+                throw expired;
+            }
             if (e instanceof S3Exception s3e && s3e.statusCode() == 403) {
                 fetchMetadataViaRangeGet();
             } else {
@@ -956,6 +969,15 @@ public final class S3StorageObject extends AbstractMeteredStorageObject {
             if (handle.tryCompleteListener()) {
                 counters.addRequest(System.nanoTime() - startNanos, 0L);
                 listener.onFailure(mapReadFailure("Failed to read object from", clockSkew));
+            }
+            return;
+        }
+        // Expired/invalid session tokens cannot be retried with the same signature. Map immediately
+        // and skip the AWS Standard token refresh — same shape as RequestTimeTooSkewed above.
+        if (S3FailureDetail.findCredentialsExpired(unwrapped) != null) {
+            if (handle.tryCompleteListener()) {
+                counters.addRequest(System.nanoTime() - startNanos, 0L);
+                listener.onFailure(mapReadFailure("Failed to read object from", unwrapped));
             }
             return;
         }

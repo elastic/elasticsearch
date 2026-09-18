@@ -20,18 +20,22 @@ import software.amazon.awssdk.services.s3.model.ListObjectsV2Request;
 import software.amazon.awssdk.services.s3.model.ListObjectsV2Response;
 import software.amazon.awssdk.services.s3.model.S3Exception;
 
+import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.esql.datasources.StorageIterator;
 import org.elasticsearch.xpack.esql.datasources.StorageProviderRegistry;
+import org.elasticsearch.xpack.esql.datasources.spi.ExternalCredentialsExpiredException;
 import org.elasticsearch.xpack.esql.datasources.spi.ExternalUnavailableException;
 import org.elasticsearch.xpack.esql.datasources.spi.StoragePath;
 import org.elasticsearch.xpack.esql.datasources.spi.StorageProvider;
 import org.elasticsearch.xpack.esql.datasources.spi.StorageProviderFactory;
 
 import java.io.IOException;
+import java.io.UncheckedIOException;
 
+import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.mock;
@@ -181,6 +185,62 @@ public class S3StorageProviderFailureTests extends ESTestCase {
 
             verify(wrongRegionClient).headBucket(any(HeadBucketRequest.class));
             verify(correctRegionClient).headObject(any(HeadObjectRequest.class));
+        }
+    }
+
+    public void testListingExpiredTokenThrowsTypedException() throws IOException {
+        S3Client client = mock(S3Client.class);
+        S3Exception expired = s3FailureWithErrorCode(400, "ExpiredToken", null);
+        when(client.listObjectsV2(any(ListObjectsV2Request.class))).thenThrow(expired);
+
+        S3StorageProvider provider = S3StorageProvider.forTesting(client, null);
+        try (StorageIterator iterator = provider.listObjects(PREFIX, true)) {
+            ExternalCredentialsExpiredException thrown = expectThrows(ExternalCredentialsExpiredException.class, iterator::hasNext);
+            assertSame(expired, thrown.getCause());
+            assertThat(thrown.getMessage(), containsString("Refresh the data source credentials"));
+            assertThat(thrown.getMessage(), containsString("listing objects"));
+            assertEquals(RestStatus.BAD_REQUEST, thrown.status());
+        }
+        verify(client, never()).headBucket(any(HeadBucketRequest.class));
+    }
+
+    public void testExistsExpiredTokenThrowsTypedException() {
+        S3Client client = mock(S3Client.class);
+        S3Exception expired = s3FailureWithErrorCode(400, "ExpiredToken", null);
+        when(client.headObject(any(HeadObjectRequest.class))).thenThrow(expired);
+
+        S3StorageProvider provider = S3StorageProvider.forTesting(client, null);
+        ExternalCredentialsExpiredException thrown = expectThrows(ExternalCredentialsExpiredException.class, () -> provider.exists(PATH));
+        assertSame(expired, thrown.getCause());
+        assertThat(thrown.getMessage(), containsString("checking existence"));
+        verify(client, never()).headBucket(any(HeadBucketRequest.class));
+    }
+
+    public void testExpiredTokenDoesNotTriggerHeadBucketWhenRetryEnabled() throws IOException {
+        S3Client client = mock(S3Client.class);
+        when(client.headObject(any(HeadObjectRequest.class))).thenThrow(s3FailureWithErrorCode(400, "ExpiredToken", null));
+        when(client.listObjectsV2(any(ListObjectsV2Request.class))).thenThrow(s3FailureWithErrorCode(400, "ExpiredToken", null));
+
+        try (S3StorageProvider provider = retryCapableProvider(client, null)) {
+            expectThrows(ExternalCredentialsExpiredException.class, () -> provider.exists(PATH));
+            try (StorageIterator iterator = provider.listObjects(PREFIX, true)) {
+                expectThrows(ExternalCredentialsExpiredException.class, iterator::hasNext);
+            }
+            verify(client, never()).headBucket(any(HeadBucketRequest.class));
+        }
+    }
+
+    public void testListingAuthorizationHeaderMalformedIsNotExpiry() throws IOException {
+        S3Client client = mock(S3Client.class);
+        S3Exception authMalformed = s3FailureWithErrorCode(400, "AuthorizationHeaderMalformed", "eu-west-1");
+        when(client.listObjectsV2(any(ListObjectsV2Request.class))).thenThrow(authMalformed);
+
+        S3StorageProvider provider = S3StorageProvider.forTesting(client, null);
+        try (StorageIterator iterator = provider.listObjects(PREFIX, true)) {
+            UncheckedIOException thrown = expectThrows(UncheckedIOException.class, iterator::hasNext);
+            assertNull(ExceptionsHelper.unwrap(thrown, ExternalCredentialsExpiredException.class));
+            assertThat(thrown.getCause(), instanceOf(IOException.class));
+            assertSame(authMalformed, thrown.getCause().getCause());
         }
     }
 

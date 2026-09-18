@@ -9,6 +9,11 @@ package org.elasticsearch.xpack.esql.datasource.s3;
 
 import software.amazon.awssdk.services.s3.model.S3Exception;
 
+import org.elasticsearch.core.Nullable;
+import org.elasticsearch.xpack.esql.datasources.spi.ExternalCredentialsExpiredException;
+
+import java.util.Set;
+
 /**
  * Renders why an S3 call failed, for appending to the message of the {@link java.io.IOException} that carries it up
  * to ES|QL.
@@ -26,7 +31,55 @@ import software.amazon.awssdk.services.s3.model.S3Exception;
  */
 final class S3FailureDetail {
 
+    // Real SDK chains here are 2-4 deep; this only stops a pathological one.
+    private static final int MAX_CAUSE_DEPTH = 12;
+
+    /**
+     * AWS session-token failures. Matched by error code only — a bare HTTP 400/403 is not expiry
+     * (Hadoop's HEAD trap, malformed ranges, {@code AuthorizationHeaderMalformed}).
+     */
+    private static final Set<String> CREDENTIALS_EXPIRED_CODES = Set.of("ExpiredToken", "InvalidToken", "TokenRefreshRequired");
+
     private S3FailureDetail() {}
+
+    @Nullable
+    static S3Exception findCredentialsExpired(Throwable cause) {
+        Throwable current = cause;
+        for (int depth = 0; depth < MAX_CAUSE_DEPTH && current != null; depth++) {
+            if (current instanceof S3Exception s3 && isCredentialsExpiredCode(s3)) {
+                return s3;
+            }
+            Throwable next = current.getCause();
+            if (next == null || next == current) {
+                break;
+            }
+            current = next;
+        }
+        return null;
+    }
+
+    static boolean isCredentialsExpiredCode(S3Exception s3) {
+        if (s3.awsErrorDetails() == null) {
+            return false;
+        }
+        String code = s3.awsErrorDetails().errorCode();
+        return code != null && CREDENTIALS_EXPIRED_CODES.contains(code);
+    }
+
+    // action is the gerund after "Session credentials expired" ("reading [s3://…]", "listing objects…").
+    @Nullable
+    static ExternalCredentialsExpiredException expired(Throwable cause, String action) {
+        S3Exception s3 = findCredentialsExpired(cause);
+        if (s3 == null) {
+            return null;
+        }
+        return new ExternalCredentialsExpiredException(
+            cause,
+            "Session credentials expired {}. Refresh the data source credentials and re-run the query. ({})",
+            action,
+            of(s3)
+        );
+    }
 
     static String of(Throwable cause) {
         if (cause instanceof S3Exception s3) {

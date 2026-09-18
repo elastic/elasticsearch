@@ -52,6 +52,7 @@ import org.elasticsearch.xpack.esql.datasources.spi.Configured;
 import org.elasticsearch.xpack.esql.datasources.spi.DataSourcePlugin;
 import org.elasticsearch.xpack.esql.datasources.spi.DeclaredTypeCoercions;
 import org.elasticsearch.xpack.esql.datasources.spi.DecompressionCodec;
+import org.elasticsearch.xpack.esql.datasources.spi.ExternalCredentialsExpiredException;
 import org.elasticsearch.xpack.esql.datasources.spi.ExternalUnavailableException;
 import org.elasticsearch.xpack.esql.datasources.spi.FileList;
 import org.elasticsearch.xpack.esql.datasources.spi.FormatReadContext;
@@ -3752,6 +3753,43 @@ public class ExternalSourceResolverTests extends ESTestCase {
 
         assertEquals(RestStatus.BAD_REQUEST, ExceptionsHelper.status(mapped));
         assertSame("the original client error must be surfaced, not a re-wrap", original, mapped);
+    }
+
+    /**
+     * A cache {@code ExecutionException} wrapping expired session credentials must stay 400, not fall
+     * through to the terminal 500 arm. The store message already names the object, so the wrapper
+     * must not name it again.
+     */
+    public void testCredentialsExpiredKeepsIts400ThroughAWrapper() {
+        ExternalSourceResolver resolver = createResolver(Map.of(), Map.of());
+        String path = "s3://b/x.parquet";
+        ExternalCredentialsExpiredException expired = new ExternalCredentialsExpiredException(
+            "Session credentials expired reading [" + path + "]. Refresh the data source credentials and re-run the query."
+        );
+
+        RuntimeException mapped = resolver.mapResolveFailure(path, new ExecutionException(expired));
+
+        assertThat(mapped, instanceOf(ExternalCredentialsExpiredException.class));
+        assertEquals(RestStatus.BAD_REQUEST, ExceptionsHelper.status(mapped));
+        assertThat(mapped.getMessage(), containsString("Refresh the data source credentials"));
+        assertEquals(
+            "the object is named once, not once by the store and again by the wrapper",
+            mapped.getMessage().indexOf(path),
+            mapped.getMessage().lastIndexOf(path)
+        );
+    }
+
+    public void testCredentialsExpiredRawStays400() {
+        ExternalSourceResolver resolver = createResolver(Map.of(), Map.of());
+        ExternalCredentialsExpiredException expired = new ExternalCredentialsExpiredException(
+            "Session credentials expired reading [s3://b/k]. Refresh the data source credentials and re-run the query."
+        );
+
+        RuntimeException mapped = resolver.mapResolveFailure("s3://b/k", expired);
+
+        assertThat(mapped, instanceOf(ExternalCredentialsExpiredException.class));
+        assertEquals(RestStatus.BAD_REQUEST, ExceptionsHelper.status(mapped));
+        assertThat(mapped.getMessage(), containsString("Refresh the data source credentials"));
     }
 
     /**

@@ -46,13 +46,31 @@ import java.util.Comparator;
 public class ColumnarBinaryDocValuesField extends MultiValuedBinaryDocValuesField {
 
     /**
-     * Encodes this document's payload. Held on the field rather than made per call, so a document is encoded through the buffer this
-     * accumulator already owns instead of allocating one and copying out of it.
+     * This document's payload, built up as its slots are recorded. Started by the first slot to arrive, so the buffer is sized against
+     * a real slot rather than grown from nothing and a field that turns out to hold no slots at all allocates neither.
+     *
+     * <p>An unsorted field appends into this as it goes and keeps nothing else. A sorted one cannot — it has to see every value before
+     * it can place any of them — so it collects into {@link #values} and encodes through this builder at the end instead.
      */
-    private final StringBinaryPayload.Builder payload = new StringBinaryPayload.Builder();
+    private StringBinaryPayload.Builder payload;
 
+    /**
+     * @param ordering how this document's slots are collected: {@link ValueOrdering#UNSORTED} keeps them in the order they arrive and
+     *                 appends them straight into the payload, while the sorted orderings have to collect them first
+     */
     public ColumnarBinaryDocValuesField(String name, ValueOrdering ordering) {
-        super(name, ordering);
+        // Only a sorted ordering has a use for the backing collection, so only a sorted ordering allocates one.
+        super(name, ordering, ordering != ValueOrdering.UNSORTED);
+    }
+
+    @Override
+    public void add(BytesRef value) {
+        if (values != null) {
+            // The collection settles the order; the base class keeps its byte count in step with what it admits.
+            super.add(value);
+            return;
+        }
+        appendSlot(value);
     }
 
     /**
@@ -60,20 +78,49 @@ public class ColumnarBinaryDocValuesField extends MultiValuedBinaryDocValuesFiel
      * count towards {@link #count()} but carry no bytes.
      */
     public void addNull() {
-        values.add(null);
+        if (values != null) {
+            values.add(null);
+            return;
+        }
+        appendSlot(null);
+    }
+
+    /**
+     * Puts one slot into the payload, starting it if this is the document's first. The unsorted arm only: a sorted field's
+     * {@link #binaryValue()} encodes from {@link #values} through a {@link StringBinaryPayload.Builder#reset}, which would discard
+     * anything appended here — leaving the payload correct and the work done twice, where nothing would report it.
+     */
+    private void appendSlot(BytesRef value) {
+        assert values == null : "sorted ordering [" + ordering + "] collects its slots; appending them would be discarded";
+        if (payload == null) {
+            payload = new StringBinaryPayload.Builder();
+        }
+        payload.appendSlot(value);
+    }
+
+    @Override
+    public int count() {
+        if (values != null) {
+            return values.size();
+        }
+        return payload == null ? 0 : payload.slotCount();
     }
 
     /**
      * This document's slots as a payload. The bytes are the builder's own, so they are valid until the next call on this field — which
      * is all Lucene needs, since it copies the value into the doc-values writer as soon as it is handed over.
      */
-    // TODO: the backing collection is still allocated for every document, where ArrayOrderInlineNull holds a lone slot in a field and
-    // only promotes to a list on the second one. A single-valued document is the common shape for these fields, so it is worth the
-    // same treatment.
     @Override
     public BytesRef binaryValue() {
+        if (values == null) {
+            // Already appended in arrival order, so all that is left is to write the count in front of them.
+            return payload == null ? StringBinaryPayload.EMPTY : payload.build();
+        }
         if (ordering == ValueOrdering.SORTED && values instanceof ArrayList<BytesRef> list) {
             list.sort(Comparator.naturalOrder());
+        }
+        if (payload == null) {
+            payload = new StringBinaryPayload.Builder();
         }
         return payload.encode(values);
     }

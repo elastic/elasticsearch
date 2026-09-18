@@ -262,6 +262,9 @@ public final class Authentication implements ToXContentObject {
      * and only visibility, not atomicity, is required.
      */
     public Map<String, Object> getApiKeyMetadata() {
+        if (false == this.isAuthenticatedAsApiKey()) {
+            return Map.of();
+        }
         Map<String, Object> result = parsedApiKeyMetadata;
         if (result != null) {
             return result;

@@ -409,12 +409,14 @@ public class StringDictionaryTests extends ColumnarStringTestCase {
     }
 
     /** A column with nothing worth naming records no summary. */
-    public void testAllDistinctValuesKeepNoSummary() throws IOException {
+    // NOTE: a column whose values are all distinct names none of them, and still summarises them: whether they
+    // repeat is a question about the other segments, which only the merge can answer.
+    public void testAllDistinctValuesKeepASummary() throws IOException {
         final BytesRef[] docValues = new BytesRef[between(200, 800)];
         for (int d = 0; d < docValues.length; d++) {
             docValues[d] = new BytesRef("id-" + d);
         }
-        withDictionary(docValues, (metadata, reader) -> assertFalse("nothing repeats", reader.hasSummary()));
+        withDictionary(docValues, (metadata, reader) -> assertTrue("summarised for the merge", reader.hasSummary()));
     }
 
     /** What a column recorded of its survey survives the round trip through its metadata. */
@@ -718,6 +720,7 @@ public class StringDictionaryTests extends ColumnarStringTestCase {
     private static StringColumnOptions optionsWithEscapeRankBlock(int escapeRankBlockSize) {
         return new StringColumnOptions(
             ROOMY,
+            StringColumnOptions.DEFAULT_SUMMARY,
             randomChunkCodec(),
             new StringColumnOptions.Sizes(
                 randomValidBlockSize(),
@@ -766,6 +769,7 @@ public class StringDictionaryTests extends ColumnarStringTestCase {
                     () -> cursor(docSlots),
                     new StringColumnOptions(
                         DictionaryPolicy.NONE,
+                        StringColumnOptions.DEFAULT_SUMMARY,
                         randomChunkCodec(),
                         new StringColumnOptions.Sizes(
                             randomValidBlockSize(),

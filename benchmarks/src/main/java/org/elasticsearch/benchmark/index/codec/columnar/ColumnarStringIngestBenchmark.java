@@ -58,7 +58,7 @@ public class ColumnarStringIngestBenchmark {
         BenchmarkLogging.configure();
     }
 
-    @Param({ "HIT_COLOR", "MOSTLY_EMPTY", "HOSTNAME", "POD_NAME", "URL", "TRACE_ID", "SORTED_HOSTNAME" })
+    @Param({ "HIT_COLOR", "MOSTLY_EMPTY", "HOSTNAME", "POD_NAME", "SESSION_ID", "URL", "TRACE_ID", "SORTED_HOSTNAME" })
     private StringData data;
 
     @Param({ "COLUMNAR", "LUCENE_SORTED", "ES819_SORTED", "ES95_SORTED", "ES819_BINARY" })

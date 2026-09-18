@@ -18,13 +18,12 @@ import org.apache.lucene.util.BytesRefBuilder;
 import org.apache.lucene.util.BytesRefHash;
 import org.apache.lucene.util.Counter;
 import org.apache.lucene.util.IntroSelector;
-import org.apache.lucene.util.IntroSorter;
 
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
-import java.util.function.IntBinaryOperator;
+import java.util.Map;
 
 /**
  * The terms a column repeats often enough to be worth naming, found in one pass over its values with the
@@ -48,22 +47,26 @@ public final class Vocabulary {
     /**
      * The terms a dictionary holds, in term order, and what share of the column they account for.
      *
-     * @param terms          the surveyed terms, addressed by id
-     * @param sortedIds      the kept ids in term order, so an ordinal comparison is a term comparison
-     * @param ordinalOfId    an ordinal per surveyed id, or {@link #DROPPED} for one that was not kept
-     * @param coverage       the share of the column's raw bytes these terms account for, as a lower bound
+     * @param terms           the surveyed terms, addressed by id
+     * @param dictionaryIds   the kept ids in term order, so an ordinal comparison is a term comparison
+     * @param summaryIds      the ids left behind for a later merge, in term order: a superset of the kept
+     *                        ids, since what a merge needs to know is not what this column's dictionary
+     *                        holds
+     * @param ordinalOfId     an ordinal per surveyed id, or {@link #DROPPED} for one that was not kept
+     * @param coverage        the share of the column's raw bytes these terms account for, as a lower bound
      * @param dictionaryBytes the term bytes the kept terms occupy
-     * @param columnBytes    the value bytes the whole column occupies
-     * @param counts         how often each id was seen, as a lower bound, or null when unknown
+     * @param columnBytes     the value bytes the whole column occupies
+     * @param counts          how often each id was seen, as a lower bound, or null when unknown
      */
     public record Terms(
         BytesRefHash terms,
-        int[] sortedIds,
+        int[] dictionaryIds,
+        int[] summaryIds,
         int[] ordinalOfId,
         double coverage,
         long dictionaryBytes,
         long columnBytes,
-        int[] counts
+        long[] counts
     ) {
         /** Whether this vocabulary knows how often it saw each of its terms. */
         public boolean counted() {
@@ -71,12 +74,26 @@ public final class Vocabulary {
         }
 
         /** How often the term at {@code ordinal} was seen, as a lower bound. */
-        public int countOf(int ordinal) {
-            return counts[sortedIds[ordinal]];
+        public long countOf(int ordinal) {
+            return counts[dictionaryIds[ordinal]];
         }
 
         public int size() {
-            return sortedIds.length;
+            return dictionaryIds.length;
+        }
+
+        /** How often the summarised term at {@code ordinal} was seen, as a lower bound. */
+        public long summaryCountOf(int ordinal) {
+            return counts[summaryIds[ordinal]];
+        }
+
+        public int summarySize() {
+            return summaryIds.length;
+        }
+
+        /** Whether the summary holds no more than the dictionary, so the dictionary can stand for it. */
+        public boolean summaryIsDictionary() {
+            return summaryIds.length == dictionaryIds.length;
         }
     }
 
@@ -91,30 +108,90 @@ public final class Vocabulary {
      */
     public static Terms known(List<BytesRef> sortedTerms, long columnBytes, double coverage, long[] countsPerTerm) {
         final BytesRefHash terms = new BytesRefHash(new ByteBlockPool(new ByteBlockPool.DirectTrackingAllocator(Counter.newCounter())));
-        final int[] sortedIds = new int[sortedTerms.size()];
+        final int[] dictionaryIds = new int[sortedTerms.size()];
         final int[] ordinalOfId = new int[sortedTerms.size()];
-        final int[] counts = countsPerTerm == null ? null : new int[sortedTerms.size()];
+        final long[] counts = countsPerTerm == null ? null : new long[sortedTerms.size()];
         long dictionaryBytes = 0;
         for (int ordinal = 0; ordinal < sortedTerms.size(); ordinal++) {
             int id = terms.add(sortedTerms.get(ordinal));
             if (id < 0) {
                 id = -1 - id;
             }
-            sortedIds[ordinal] = id;
+            dictionaryIds[ordinal] = id;
             ordinalOfId[id] = ordinal;
             dictionaryBytes += sortedTerms.get(ordinal).length;
             if (counts != null) {
-                counts[id] = (int) Math.min(Integer.MAX_VALUE, countsPerTerm[ordinal]);
+                counts[id] = countsPerTerm[ordinal];
             }
         }
-        return new Terms(terms, sortedIds, ordinalOfId, coverage, dictionaryBytes, columnBytes, counts);
+        return new Terms(terms, dictionaryIds, dictionaryIds, ordinalOfId, coverage, dictionaryBytes, columnBytes, counts);
+    }
+
+    /**
+     * A vocabulary worked out from what the merged segments summarised rather than from their values.
+     * {@code counted} is the summed summaries, whose counts are lower bounds because a term a segment held
+     * once is in that segment's summary only if it fitted; the coverage this returns is therefore a lower
+     * bound too.
+     *
+     * <p>Both quotas are applied here rather than by the caller, so a merged column selects its dictionary
+     * and its summary the same way a flush does. A merge that reused its dictionary selection for its
+     * summary would drop the terms held once per input, which is the case this whole change is about, and
+     * the loss would compound over generations of merges.
+     *
+     * @param numValues the values the merged column holds, which {@code counted} is a share of
+     */
+    public static Terms combined(
+        Map<BytesRef, Long> counted,
+        long columnBytes,
+        long numValues,
+        DictionaryPolicy dictionaryPolicy,
+        SummaryPolicy summaryPolicy
+    ) {
+        final BytesRefHash terms = new BytesRefHash(new ByteBlockPool(new ByteBlockPool.DirectTrackingAllocator(Counter.newCounter())));
+        final long[] occurrences = new long[counted.size()];
+        for (Map.Entry<BytesRef, Long> entry : counted.entrySet()) {
+            int id = terms.add(entry.getKey());
+            if (id < 0) {
+                id = -1 - id;
+            }
+            occurrences[id] = entry.getValue();
+        }
+        final TermSelection selection = new TermSelection(terms, occurrences);
+        final int[] dictionaryIds = selection.thatFit(TermQuota.forDictionary(dictionaryPolicy, columnBytes));
+        final int[] summaryIds = selection.thatFit(TermQuota.forMergedSummary(summaryPolicy));
+        if (dictionaryIds.length == 0 && summaryIds.length == 0) {
+            return null;
+        }
+        final int[] ordinalOfId = new int[terms.size()];
+        Arrays.fill(ordinalOfId, DROPPED);
+        long coveredValues = 0;
+        long dictionaryBytes = 0;
+        final BytesRef scratch = new BytesRef();
+        for (int ordinal = 0; ordinal < dictionaryIds.length; ordinal++) {
+            final int id = dictionaryIds[ordinal];
+            ordinalOfId[id] = ordinal;
+            terms.get(id, scratch);
+            coveredValues += occurrences[id];
+            dictionaryBytes += scratch.length;
+        }
+        return new Terms(
+            terms,
+            dictionaryIds,
+            summaryIds,
+            ordinalOfId,
+            numValues == 0 ? 0.0 : (double) coveredValues / numValues,
+            dictionaryBytes,
+            columnBytes,
+            occurrences
+        );
     }
 
     /**
      * Surveys {@code values}, returning the terms worth a dictionary entry, or null when the column holds
      * nothing worth naming.
      */
-    public static Terms survey(StringColumnValues values, DictionaryPolicy policy) throws IOException {
+    public static Terms survey(StringColumnValues values, DictionaryPolicy dictionaryPolicy, SummaryPolicy summaryPolicy)
+        throws IOException {
         final BytesRefHash terms = new BytesRefHash(new ByteBlockPool(new ByteBlockPool.DirectTrackingAllocator(Counter.newCounter())));
         int[] counts = new int[64];
         long tableBytes = 0;
@@ -147,13 +224,13 @@ public final class Vocabulary {
                 }
                 int id = terms.find(value);
                 if (id < 0) {
-                    if (tableBytes + value.length > policy.maxBytes()) {
+                    if (tableBytes + value.length > dictionaryPolicy.maxBytes()) {
                         if (terms.size() > 0) {
                             final long[] freed = { 0 };
                             counts = evictLeastFrequent(terms, counts, freed);
                             tableBytes -= freed[0];
                         }
-                        if (tableBytes + value.length > policy.maxBytes()) {
+                        if (tableBytes + value.length > dictionaryPolicy.maxBytes()) {
                             // Nothing could be displaced: either every term held occurs at least as often as
                             // this one, or the table is empty and the value alone is larger than the bound.
                             // Remembered as absent, so the rest of its run is turned away as cheaply.
@@ -180,11 +257,13 @@ public final class Vocabulary {
         if (terms.size() == 0) {
             return null;
         }
-        // The pass admits every term that fits, which on a column with a long tail spends the budget on
-        // terms seen once. Keeping only the most frequent leaves a dictionary that costs a fraction of what
-        // it describes; the terms dropped here escape.
-        final int[] sortedIds = keepMostFrequent(terms, counts, policy.budgetFor(columnBytes));
-        if (sortedIds.length == 0) {
+        final TermSelection selection = new TermSelection(terms, counts);
+        final int[] dictionaryIds = selection.thatFit(TermQuota.forDictionary(dictionaryPolicy, columnBytes));
+        final int[] summaryIds = selection.thatFit(TermQuota.forSummary(summaryPolicy));
+        // NOTE: a column where nothing repeats earns no dictionary entry but still has terms worth leaving
+        // for a merge, which may hold them often enough across segments. Returning null here would put the
+        // merge back to reading values, which is what the summary exists to avoid.
+        if (dictionaryIds.length == 0 && summaryIds.length == 0) {
             return null;
         }
         // Indexed by id, so a term the survey saw but did not keep is told apart from ordinal zero.
@@ -193,48 +272,23 @@ public final class Vocabulary {
         long coveredBytes = 0;
         long keptBytes = 0;
         final BytesRef scratch = new BytesRef();
-        for (int ordinal = 0; ordinal < sortedIds.length; ordinal++) {
-            final int id = sortedIds[ordinal];
+        for (int ordinal = 0; ordinal < dictionaryIds.length; ordinal++) {
+            final int id = dictionaryIds[ordinal];
             ordinalOfId[id] = ordinal;
             terms.get(id, scratch);
             coveredBytes += (long) counts[id] * Math.max(1, scratch.length);
             keptBytes += scratch.length;
         }
-        return new Terms(terms, sortedIds, ordinalOfId, (double) coveredBytes / columnBytes, keptBytes, columnBytes, counts);
-    }
-
-    /**
-     * The ids worth a dictionary entry, in term order: the most frequent terms whose bytes fit
-     * {@code budget}. Terms seen equally often are ordered by term, so the same column always yields the
-     * same dictionary.
-     */
-    private static int[] keepMostFrequent(BytesRefHash terms, int[] counts, long budget) {
-        final int size = terms.size();
-        final int[] ids = new int[size];
-        for (int id = 0; id < size; id++) {
-            ids[id] = id;
-        }
-        sort(ids, 0, size, terms, (a, b) -> Integer.compare(counts[b], counts[a]));
-        int keptCount = 0;
-        long bytes = 0;
-        final BytesRef scratch = new BytesRef();
-        for (int i = 0; i < size; i++) {
-            // A term seen once covers one value and costs its own bytes plus, once there are enough of
-            // them, a wider ordinal on every value. Cheaper to let it escape.
-            if (counts[ids[i]] <= 1) {
-                break;
-            }
-            terms.get(ids[i], scratch);
-            if (bytes + scratch.length > budget) {
-                break;
-            }
-            bytes += scratch.length;
-            keptCount++;
-        }
-        final int[] kept = ArrayUtil.copyOfSubArray(ids, 0, keptCount);
-        // Back into term order, which is the order the dictionary is written and searched in.
-        sort(kept, 0, keptCount, terms, null);
-        return kept;
+        return new Terms(
+            terms,
+            dictionaryIds,
+            summaryIds,
+            ordinalOfId,
+            (double) coveredBytes / columnBytes,
+            keptBytes,
+            columnBytes,
+            selection.occurrences()
+        );
     }
 
     /**
@@ -317,45 +371,4 @@ public final class Vocabulary {
      * Orders {@code ids} by {@code first}, and by their terms where it does not separate them. Comparing by
      * term last leaves the order total, so the same column always yields the same dictionary.
      */
-    private static void sort(int[] ids, int from, int to, BytesRefHash terms, IntBinaryOperator first) {
-        new IntroSorter() {
-            private final BytesRef left = new BytesRef();
-            private final BytesRef right = new BytesRef();
-            private int pivotId;
-
-            @Override
-            protected void swap(int i, int j) {
-                final int tmp = ids[i];
-                ids[i] = ids[j];
-                ids[j] = tmp;
-            }
-
-            @Override
-            protected int compare(int i, int j) {
-                return compareIds(ids[i], ids[j]);
-            }
-
-            @Override
-            protected void setPivot(int i) {
-                pivotId = ids[i];
-            }
-
-            @Override
-            protected int comparePivot(int j) {
-                return compareIds(pivotId, ids[j]);
-            }
-
-            private int compareIds(int a, int b) {
-                if (first != null) {
-                    final int cmp = first.applyAsInt(a, b);
-                    if (cmp != 0) {
-                        return cmp;
-                    }
-                }
-                terms.get(a, left);
-                terms.get(b, right);
-                return left.compareTo(right);
-            }
-        }.sort(from, to);
-    }
 }

@@ -43,6 +43,7 @@ import org.apache.lucene.util.automaton.Operations;
 import org.elasticsearch.columnar.string.DictionaryPolicy;
 import org.elasticsearch.columnar.string.StringBinaryPayload;
 import org.elasticsearch.columnar.string.StringColumnOptions;
+import org.elasticsearch.columnar.string.SummaryPolicy;
 import org.elasticsearch.common.CheckedIntFunction;
 import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.lucene.Lucene;
@@ -1187,8 +1188,10 @@ public class MatchOnlyTextFieldMapper extends FieldMapper {
     @Override
     public StringColumnOptions columnarStringOptions() {
         // Text values are long and mostly all different, so surveying for a dictionary reads the column only to
-        // conclude that nothing repeats often enough to name.
-        return fieldType().usesColumnarPayload() ? StringColumnOptions.DEFAULT.withDictionary(DictionaryPolicy.NONE) : null;
+        // conclude that nothing repeats often enough to name, and there is nothing worth leaving behind either.
+        return fieldType().usesColumnarPayload()
+            ? StringColumnOptions.DEFAULT.withPolicies(DictionaryPolicy.NONE, SummaryPolicy.NONE)
+            : null;
     }
 
     @Override

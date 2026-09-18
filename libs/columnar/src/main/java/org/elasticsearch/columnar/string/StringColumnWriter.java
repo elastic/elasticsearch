@@ -102,7 +102,8 @@ public final class StringColumnWriter {
         IOContext context,
         IndexOutput data
     ) throws IOException {
-        final DictionaryPolicy policy = options.dictionary();
+        final DictionaryPolicy dictionaryPolicy = options.dictionary();
+        final SummaryPolicy summaryPolicy = options.summary();
         final ChunkCodec chunkCodec = options.chunkCodec();
         final StringColumnOptions.Sizes sizes = options.sizes();
         final int valuesPerBlock = sizes.valuesPerBlock();
@@ -112,11 +113,15 @@ public final class StringColumnWriter {
         }
 
         Vocabulary.Terms surveyed = null;
-        if (policy.enabled()) {
+        if (dictionaryPolicy.enabled()) {
             // A merge that worked out the vocabulary from what its inputs recorded does not survey again.
-            surveyed = known != null ? known : Vocabulary.survey(cursors.get(), policy);
+            surveyed = known != null ? known : Vocabulary.survey(cursors.get(), dictionaryPolicy, summaryPolicy);
             // Coverage is a lower bound, so a column admitted here covers at least as much as it claims.
-            if (surveyed != null && policy.worthKeeping(surveyed.coverage(), surveyed.dictionaryBytes(), surveyed.columnBytes())) {
+            // NOTE: a vocabulary can hold terms for a merge and none worth an ordinal here, so the size
+            // check is what keeps a bar of zero from admitting an empty dictionary.
+            if (surveyed != null
+                && surveyed.size() > 0
+                && dictionaryPolicy.worthKeeping(surveyed.coverage(), surveyed.dictionaryBytes(), surveyed.columnBytes())) {
                 return withSummary(
                     writeDictionary(
                         iterator,
@@ -212,7 +217,7 @@ public final class StringColumnWriter {
                 }
             }
             written = stream.finish();
-            valuesWorthNaming = policy.enabled() == false || stream.runs() * StringColumnReader.MIN_PAGE_REPEAT <= numValues;
+            valuesWorthNaming = dictionaryPolicy.enabled() == false || stream.runs() * StringColumnReader.MIN_PAGE_REPEAT <= numValues;
             addressing = slots.finish(valueAddress, data);
             nullSlotTable = nullSlots.finish(data);
         }
@@ -239,11 +244,14 @@ public final class StringColumnWriter {
     }
 
     /**
-     * Records the terms the survey found and how often it saw them, so a merge can work out a vocabulary
-     * without reading this segment's values again. A column that stayed plain keeps one too: the survey
-     * already ran, and the segment it merges into may be worth a dictionary where this one was not.
+     * Writes the terms the survey summarised and how often it saw them, so a merge can work out a
+     * vocabulary without reading this segment's values again. A column that stayed plain leaves one too:
+     * the survey already ran, and the segment it merges into may be worth a dictionary where this one was
+     * not.
      *
-     * <p>A dictionary column's terms are already on disk as its dictionary, so only the counts are added.
+     * <p>What it writes is not this column's dictionary but every term within the vocabulary policy's
+     * bound, because a term held once here may be one the merged column holds many times. Where the two
+     * coincide, a dictionary column's terms are already on disk and only the counts are added.
      */
     private static StringColumnMetadata withSummary(
         StringColumnMetadata metadata,
@@ -255,12 +263,12 @@ public final class StringColumnWriter {
         IOContext context,
         IndexOutput data
     ) throws IOException {
-        if (vocabulary == null || vocabulary.counted() == false || vocabulary.size() == 0) {
+        if (vocabulary == null || vocabulary.counted() == false || vocabulary.summarySize() == 0) {
             return metadata;
         }
-        final int size = vocabulary.size();
+        final int size = vocabulary.summarySize();
         ValueStream.Metadata terms = null;
-        if (metadata instanceof StringColumnMetadata.Dictionary column) {
+        if (metadata instanceof StringColumnMetadata.Dictionary column && vocabulary.summaryIsDictionary()) {
             assert column.dictionarySize() == size : column.dictionarySize() + " != " + size;
         } else {
             final BytesRef term = new BytesRef();
@@ -277,7 +285,7 @@ public final class StringColumnWriter {
                 )
             ) {
                 for (int ordinal = 0; ordinal < size; ordinal++) {
-                    vocabulary.terms().get(vocabulary.sortedIds()[ordinal], term);
+                    vocabulary.terms().get(vocabulary.summaryIds()[ordinal], term);
                     writer.add(term);
                 }
                 terms = writer.finish();
@@ -285,7 +293,7 @@ public final class StringColumnWriter {
         }
         final long countsOffset = data.getFilePointer();
         for (int ordinal = 0; ordinal < size; ordinal++) {
-            data.writeVLong(vocabulary.countOf(ordinal));
+            data.writeVLong(vocabulary.summaryCountOf(ordinal));
         }
         return metadata.withSummary(new StringColumnMetadata.Summary(terms, countsOffset, data.getFilePointer() - countsOffset, numValues));
     }
@@ -340,7 +348,7 @@ public final class StringColumnWriter {
             )
         ) {
             for (int ordinal = 0; ordinal < dictionarySize; ordinal++) {
-                vocabulary.terms().get(vocabulary.sortedIds()[ordinal], scratch);
+                vocabulary.terms().get(vocabulary.dictionaryIds()[ordinal], scratch);
                 writer.add(scratch);
             }
             dictionary = writer.finish();

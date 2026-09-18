@@ -223,7 +223,8 @@ public class ColumnarStringTermQueryTests extends ESTestCase {
                             (fieldName, type) -> NumericPipeline::defaultPipeline,
                             field -> ColumnarFieldType.STRING,
                             ColumNARDocValuesFormat.DEFAULT_BLOCK_SIZE,
-                            shape.policy()
+                            shape.policy(),
+                            ColumNARDocValuesFormat.DEFAULT_SUMMARY_POLICY
                         )
                     )
                 ).setMergePolicy(new LogDocMergePolicy());

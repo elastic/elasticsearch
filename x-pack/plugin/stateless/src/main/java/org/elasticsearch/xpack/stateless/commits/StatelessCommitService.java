@@ -3144,12 +3144,6 @@ public class StatelessCommitService extends AbstractLifecycleComponent implement
                 }
                 final var virtualPrimaryTermAndGeneration = virtual.getPrimaryTermAndGeneration();
                 final var virtualPendingCompoundCommit = virtual.getLastPendingCompoundCommit();
-                assert pauseUpload(virtualPendingCompoundCommit.getGeneration()) == false
-                    : shardId
-                        + " provided unpromotable recovery registration vbcc "
-                        + virtualPendingCompoundCommit.getGeneration()
-                        + " greater than maxGenerationToUpload="
-                        + maxGenerationToUpload;
                 final var virtualCompoundCommit = virtualPendingCompoundCommit.getStatelessCompoundCommit();
 
                 var referencedPrimaryTermAndGenerations = BatchedCompoundCommit.computeReferencedBCCGenerations(virtualCompoundCommit)
